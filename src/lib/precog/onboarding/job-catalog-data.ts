@@ -46,7 +46,10 @@ export interface JobCatalogEntry {
   family: JobFamily;
   /** Other names the same job goes by on rosters and HR exports (lower case). */
   aliases: readonly string[];
-  /** SOC 2018 code where the title corresponds to one occupation. */
+  /**
+   * SOC 2018 code where the title corresponds to one occupation; for a title
+   * that names several, the code of the one named first.
+   */
   soc?: string;
   /** Duties this title typically holds in a small business. */
   entitlements: readonly EntitlementId[];
@@ -54,8 +57,8 @@ export interface JobCatalogEntry {
   note: string;
   /**
    * What the job does, in one plain sentence: the standard description an HR
-   * system's job profile would carry. Where a SOC code is recorded this
-   * paraphrases the Bureau of Labor Statistics definition.
+   * system's job profile would carry, shown with the note. It may paraphrase
+   * the Bureau of Labor Statistics definition of the job's SOC occupation.
    */
   description: string;
 }
@@ -81,31 +84,41 @@ export const JOB_FAMILY_LABEL: Record<JobFamily, string> = {
   education: "Education and childcare",
 };
 
-const entry = (
-  id: string,
-  title: string,
-  family: JobFamily,
-  aliases: readonly string[],
-  entitlements: readonly EntitlementId[],
-  note: string,
-  soc?: string,
-): Omit<JobCatalogEntry, "description"> => ({
-  id,
-  title,
-  family,
-  aliases,
-  entitlements,
-  note,
-  ...(soc ? { soc } : {}),
-});
+/** The catalog entry with this id. */
+export function jobCatalogEntry(id: string): JobCatalogEntry | undefined {
+  return BY_ID.get(id);
+}
 
-const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
+/** Every entitlement id the catalog cites exists in the rulebook; checked by the tests. */
+export function jobCatalogUnknownEntitlements(): string[] {
+  const known = new Set<string>(ENTITLEMENTS.map((e) => e.id));
+  return JOB_CATALOG.flatMap((e) => e.entitlements.filter((id) => !known.has(id)));
+}
+
+/**
+ * The catalog, one section per job family in the order the dropdowns show
+ * them. The description says what the job does; the note says why the duties
+ * are ticked and when to tick more, so the owner can disagree with a reason
+ * in front of them.
+ */
+export const JOB_CATALOG: readonly JobCatalogEntry[] = [
   // Owners and managers
-  entry(
-    "owner",
-    "Owner / Principal",
-    "leadership",
-    [
+  {
+    id: "owner",
+    title: "Owner / Principal",
+    family: "leadership",
+    entitlements: [
+      "approve_vendor",
+      "approve_payroll",
+      "approve_writeoffs",
+      "approve_expenses",
+      "sign_checks",
+      "view_reports_only",
+    ],
+    description:
+      "Owns the business, sets its policies, and holds final authority over spending, hiring, and pay.",
+    note: "The owner approves last, usually signs, and approves the team's expense claims and card spending. Tick Spend on a company card or charge account if you hold a card, Reconcile the bank account if you check the statement against the books yourself, and Create users / assign system access if you give people their logins.",
+    aliases: [
       "owner",
       "proprietor",
       "principal",
@@ -136,25 +149,29 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "name partner",
       "founding partner",
     ],
-    [
+  },
+  {
+    id: "general-manager",
+    title: "General / Operations Manager",
+    family: "leadership",
+    soc: "11-1021",
+    entitlements: [
       "approve_vendor",
-      "approve_payroll",
       "approve_writeoffs",
+      "approve_payroll",
+      "order_supplies",
+      "hold_company_card",
       "approve_expenses",
-      "sign_checks",
+      "manage_user_access",
       "view_reports_only",
     ],
-    "The owner approves last, usually signs, and approves the team's expense claims and card spending. Tick Spend on a company card or charge account if you hold a card, Reconcile the bank account if you check the statement against the books yourself, and Create users / assign system access if you give people their logins.",
-  ),
-  entry(
-    "general-manager",
-    "General / Operations Manager",
-    "leadership",
-    [
+    description:
+      "Plans, directs, and coordinates the operations of the business, including budgeting, purchasing, and staffing, without a single functional specialty.",
+    note: "A general manager approves spending, write-offs, and payroll and often controls who has system access. They usually hold a company card and approve the team's expense claims, so unless the owner reads their statement, their own spending answers to nobody.",
+    aliases: [
       "general manager",
       "gm",
       "operations manager",
-      "ops manager",
       "director of operations",
       "operations director",
       "coo",
@@ -167,30 +184,31 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "plant manager",
       "multi unit manager",
       "vp operations",
-      "vp of operations",
       "vice president of operations",
       "vice president",
       "vp",
     ],
-    [
-      "approve_vendor",
-      "approve_writeoffs",
-      "approve_payroll",
-      "order_supplies",
+  },
+  {
+    id: "office-manager",
+    title: "Office Manager",
+    family: "leadership",
+    soc: "43-1011",
+    entitlements: [
+      "post_payments",
+      "prepare_deposit",
+      "create_vendor",
+      "enter_invoices",
+      "release_payment",
+      "enter_payroll",
       "hold_company_card",
-      "approve_expenses",
-      "manage_user_access",
+      "review_card_statement",
       "view_reports_only",
     ],
-    "A general manager approves spending, write-offs, and payroll and often controls who has system access. They usually hold a company card and approve the team's expense claims, so unless the owner reads their statement, their own spending answers to nobody.",
-    "11-1021",
-  ),
-  entry(
-    "office-manager",
-    "Office Manager",
-    "leadership",
-    [
-      "office manager",
+    description:
+      "Supervises the office and administrative staff and, in a small business, runs the daily money work: payments, deposits, bills, and payroll.",
+    note: "In a small office the office manager records payments, makes the deposit, pays the bills, runs payroll, and codes the statement of the company card they buy supplies on. In a dental, medical or veterinary office they usually reconcile the bank too, and a practice administrator or business manager is read as this seat. Tick Enter write-offs or Administer the system and its user roles if they do it; untick what someone else does.",
+    aliases: [
       "practice manager",
       "administrative manager",
       "front office manager",
@@ -202,144 +220,27 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "veterinary practice manager",
       "veterinary hospital manager",
     ],
-    [
-      "post_payments",
-      "prepare_deposit",
-      "create_vendor",
-      "enter_invoices",
-      "release_payment",
-      "enter_payroll",
-      "hold_company_card",
-      "review_card_statement",
-      "view_reports_only",
-    ],
-    "In a small office the office manager records payments, makes the deposit, pays the bills, runs payroll, and codes the statement of the company card they buy supplies on. In a dental, medical or veterinary office they usually reconcile the bank too, and a practice administrator or business manager is read as this seat. Tick Enter write-offs or Administer the system and its user roles if they do it; untick what someone else does.",
-    "43-1011",
-  ),
-  entry(
-    "office-administrator",
-    "Office Administrator",
-    "office",
-    ["office administrator", "office admin"],
-    ["enter_invoices", "release_payment", "view_reports_only"],
-    "An office administrator enters and pays the bills; payroll, deposits and system set-up belong to a manager unless you tick them.",
-  ),
-  entry(
-    "firm-administrator",
-    "Firm / Legal Administrator",
-    "legal",
-    ["firm administrator", "law firm administrator", "legal administrator"],
-    [
-      "prepare_deposit",
-      "bank_reconcile",
-      "enter_invoices",
-      "create_vendor",
-      "release_payment",
-      "enter_payroll",
-      "hold_company_card",
-      "review_card_statement",
-      "pms_admin_roles",
-      "view_reports_only",
-    ],
-    "A firm administrator runs the firm's money and systems: makes the deposit, pays the bills, runs payroll, holds the firm card and codes its statement, reconciles the operating and trust accounts and administers the practice software, while billing posts client payments. Untick what someone else does.",
-  ),
-  entry(
-    "store-manager",
-    "Store / Branch Manager",
-    "retail",
-    [
-      "store manager",
-      "retail manager",
-      "shop manager",
-      "branch manager",
-      "department manager",
-      "location manager",
-    ],
-    [
-      "collect_cash",
-      "prepare_deposit",
-      "issue_refunds",
-      "approve_writeoffs",
-      "receive_goods",
-      "hold_company_card",
-      "view_reports_only",
-    ],
-    "A store manager takes and banks cash, approves returns and markdowns, signs for deliveries, and holds a store card for supplies. Add ordering, payroll entry and user set-up if they do them rather than the owner or the office.",
-  ),
-  entry(
-    "restaurant-manager",
-    "Restaurant Manager",
-    "food",
-    [
-      "restaurant manager",
-      "assistant general manager",
-      "agm",
-      "dining room manager",
-      "floor manager",
-      "front of house manager",
-      "foh manager",
-      "front-of-house manager",
-      "foh mgr",
-    ],
-    [
-      "collect_cash",
-      "prepare_deposit",
-      "issue_refunds",
-      "approve_writeoffs",
-      "order_supplies",
-      "receive_goods",
-      "hold_company_card",
-      "view_reports_only",
-    ],
-    "A restaurant manager closes the drawer, makes the deposit, approves voids and comps, submits timecards, orders and receives goods, and holds the house card for the runs the suppliers do not cover. Tick Enter payroll if they also enter the run.",
-  ),
-  entry(
-    "assistant-manager",
-    "Assistant Manager (store or restaurant)",
-    "retail",
-    [
-      "assistant manager",
-      "assistant store manager",
-      "asst manager",
-      "asst mgr",
-      "assistant mgr",
-      "assistant shop manager",
-      "assistant retail manager",
-    ],
-    ["collect_cash", "prepare_deposit", "issue_refunds", "view_reports_only"],
-    "An assistant manager closes registers, bags the deposit and processes refunds; tick write-off and void approval if they hold the manager's override, and ordering or payroll if they do those.",
-  ),
-  entry(
-    "shift-lead",
-    "Shift Lead / Key Holder",
-    "retail",
-    [
-      "shift lead",
-      "shift leader",
-      "shift supervisor",
-      "shift manager",
-      "key holder",
-      "keyholder",
-      "lead cashier",
-      "head cashier",
-      "floor supervisor",
-      "night manager",
-      "closing manager",
-      "opening manager",
-      "opening supervisor",
-      "closing supervisor",
-      "store lead",
-    ],
-    ["collect_cash", "prepare_deposit", "view_reports_only"],
-    "A shift lead or key holder takes cash and counts and bags the drawer; refunds need a manager unless you tick them.",
-  ),
-
+  },
   // Finance and accounting
-  entry(
-    "controller",
-    "Controller / Finance Manager",
-    "finance",
-    [
+  {
+    id: "controller",
+    title: "Controller / Finance Manager",
+    family: "finance",
+    soc: "11-3031",
+    entitlements: [
+      "release_payment",
+      "bank_reconcile",
+      "post_journal_entries",
+      "sign_checks",
+      "review_audit_logs",
+      "review_card_statement",
+      "approve_expenses",
+      "view_reports_only",
+    ],
+    description:
+      "Plans, directs, and coordinates the accounting, reporting, and banking of the business and prepares its financial statements.",
+    note: "A controller releases payments, signs, posts journal entries, reconciles the bank, codes the card statements, and approves expense claims: a wide seat that the case library shows needs an owner reading the statement. Approving payroll and new suppliers stays with the owner in a small business; add them if your controller does it.",
+    aliases: [
       "controller",
       "comptroller",
       "finance manager",
@@ -351,34 +252,35 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "assistant controller",
       "accounting supervisor",
     ],
-    [
-      "release_payment",
-      "bank_reconcile",
+  },
+  {
+    id: "cfo",
+    title: "Chief Financial Officer",
+    family: "finance",
+    soc: "11-3031",
+    entitlements: ["approve_vendor", "approve_expenses", "sign_checks", "view_reports_only"],
+    description:
+      "Directs the finances of the business, approves spending and suppliers, and signs or approves payments.",
+    note: "A CFO approves new suppliers and expense claims and signs or gives the second approval on payments; the controller or bookkeeper records, releases and reconciles. Tick payroll approval if the CFO approves each run.",
+    aliases: ["cfo", "vp finance", "vice president of finance"],
+  },
+  {
+    id: "accountant",
+    title: "Accountant",
+    family: "finance",
+    soc: "13-2011",
+    entitlements: [
       "post_journal_entries",
-      "sign_checks",
-      "review_audit_logs",
+      "bank_reconcile",
+      "post_adjustments",
+      "enter_invoices",
       "review_card_statement",
-      "approve_expenses",
       "view_reports_only",
     ],
-    "A controller releases payments, signs, posts journal entries, reconciles the bank, codes the card statements, and approves expense claims: a wide seat that the case library shows needs an owner reading the statement. Approving payroll and new suppliers stays with the owner in a small business; add them if your controller does it.",
-    "11-3031",
-  ),
-  entry(
-    "cfo",
-    "Chief Financial Officer",
-    "finance",
-    ["cfo", "chief financial officer", "vp finance", "vp of finance", "vice president of finance"],
-    ["approve_vendor", "approve_expenses", "sign_checks", "view_reports_only"],
-    "A CFO approves new suppliers and expense claims and signs or gives the second approval on payments; the controller or bookkeeper records, releases and reconciles. Tick payroll approval if the CFO approves each run.",
-    "11-3031",
-  ),
-  entry(
-    "accountant",
-    "Accountant",
-    "finance",
-    [
-      "accountant",
+    description:
+      "Examines, analyzes, and interprets accounting records, prepares financial statements, and posts the entries that keep the ledger true.",
+    note: "An accountant posts entries and write-offs, codes the card statements, reconciles, and enters supplier bills where no payables clerk does; whether the same person also pays is the question the map answers.",
+    aliases: [
       "staff accountant",
       "senior accountant",
       "general ledger accountant",
@@ -389,7 +291,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "tax accountant",
       "accounting analyst",
       "financial analyst",
-      "acct",
       "reconciliation specialist",
       "reconciliation clerk",
       "bank reconciliation specialist",
@@ -398,25 +299,28 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "grants accountant",
       "trust accountant",
     ],
-    [
-      "post_journal_entries",
-      "bank_reconcile",
-      "post_adjustments",
+  },
+  {
+    id: "bookkeeper",
+    title: "Bookkeeper",
+    family: "finance",
+    soc: "43-3031",
+    entitlements: [
+      "post_payments",
       "enter_invoices",
+      "create_vendor",
+      "release_payment",
+      "bank_reconcile",
+      "enter_payroll",
+      "post_journal_entries",
       "review_card_statement",
       "view_reports_only",
     ],
-    "An accountant posts entries and write-offs, codes the card statements, reconciles, and enters supplier bills where no payables clerk does; whether the same person also pays is the question the map answers.",
-    "13-2011",
-  ),
-  entry(
-    "bookkeeper",
-    "Bookkeeper",
-    "finance",
-    [
-      "bookkeeper",
+    description:
+      "Computes, classifies, and records financial transactions, keeps the ledger, and in a small business also pays bills and runs payroll.",
+    note: "A full-charge bookkeeper in a small business records receipts, adds the suppliers whose bills they enter, pays the bills, runs payroll, codes the card statement, and reconciles the bank, which is every side of the ledger in one seat. In a store the till records sales, so Record payments is left for you to tick.",
+    aliases: [
       "full charge bookkeeper",
-      "full-charge bookkeeper",
       "accounting clerk",
       "accounting assistant",
       "accounting specialist",
@@ -431,27 +335,18 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "director of finance and operations",
       "finance and administration manager",
     ],
-    [
-      "post_payments",
-      "enter_invoices",
-      "create_vendor",
-      "release_payment",
-      "bank_reconcile",
-      "enter_payroll",
-      "post_journal_entries",
-      "review_card_statement",
-      "view_reports_only",
-    ],
-    "A full-charge bookkeeper in a small business records receipts, adds the suppliers whose bills they enter, pays the bills, runs payroll, codes the card statement, and reconciles the bank, which is every side of the ledger in one seat. In a store the till records sales, so Record payments is left for you to tick.",
-    "43-3031",
-  ),
-  entry(
-    "accounts-payable",
-    "Accounts Payable Specialist",
-    "finance",
-    [
+  },
+  {
+    id: "accounts-payable",
+    title: "Accounts Payable Specialist",
+    family: "finance",
+    soc: "43-3031",
+    entitlements: ["enter_invoices", "create_vendor", "view_reports_only"],
+    description:
+      "Enters supplier invoices, sets up suppliers, matches invoices to orders and receipts, and prepares payments for release.",
+    note: "Accounts payable enters invoices, sets up suppliers and prepares the payment run; tick Release payments if they also send the payments. The shell-vendor cases run through this seat.",
+    aliases: [
       "accounts payable",
-      "accounts payable specialist",
       "accounts payable clerk",
       "accounts payable coordinator",
       "accounts payable analyst",
@@ -469,15 +364,17 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "ap lead",
       "payables manager",
     ],
-    ["enter_invoices", "create_vendor", "view_reports_only"],
-    "Accounts payable enters invoices, sets up suppliers and prepares the payment run; tick Release payments if they also send the payments. The shell-vendor cases run through this seat.",
-    "43-3031",
-  ),
-  entry(
-    "accounts-receivable",
-    "Accounts Receivable / Collections",
-    "finance",
-    [
+  },
+  {
+    id: "accounts-receivable",
+    title: "Accounts Receivable / Collections",
+    family: "finance",
+    soc: "43-3031",
+    entitlements: ["post_payments", "post_adjustments", "view_reports_only"],
+    description:
+      "Records customer payments, follows up on unpaid balances, and posts the adjustments and credits that settle accounts.",
+    note: "Receivables posts what customers pay and adjusts what they owe, which is where lapping and write-off cover happen; refunds of credit balances are approved above this seat unless you tick them.",
+    aliases: [
       "accounts receivable",
       "accounts receivable specialist",
       "accounts receivable clerk",
@@ -502,16 +399,17 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "cash poster",
       "cash posting clerk",
     ],
-    ["post_payments", "post_adjustments", "view_reports_only"],
-    "Receivables posts what customers pay and adjusts what they owe, which is where lapping and write-off cover happen; refunds of credit balances are approved above this seat unless you tick them.",
-    "43-3031",
-  ),
-  entry(
-    "billing",
-    "Billing Specialist",
-    "finance",
-    [
-      "billing specialist",
+  },
+  {
+    id: "billing",
+    title: "Billing Specialist",
+    family: "finance",
+    soc: "43-3021",
+    entitlements: ["submit_claims", "post_payments", "post_adjustments", "view_reports_only"],
+    description:
+      "Compiles and posts charges, prepares invoices or claims, and posts what comes back from customers and payers.",
+    note: "Billing submits claims or invoices, posts what comes back, and writes off the difference.",
+    aliases: [
       "billing coordinator",
       "billing clerk",
       "billing",
@@ -526,16 +424,17 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "external billing service",
       "billing service",
     ],
-    ["submit_claims", "post_payments", "post_adjustments", "view_reports_only"],
-    "Billing submits claims or invoices, posts what comes back, and writes off the difference.",
-    "43-3021",
-  ),
-  entry(
-    "payroll",
-    "Payroll Administrator",
-    "finance",
-    [
-      "payroll administrator",
+  },
+  {
+    id: "payroll",
+    title: "Payroll Administrator",
+    family: "finance",
+    soc: "43-3051",
+    entitlements: ["enter_payroll", "edit_payroll_master", "view_reports_only"],
+    description:
+      "Compiles employee time and pay data, enters and processes payroll, and maintains the employee records payroll reads from.",
+    note: "Payroll enters hours and usually also maintains the employee records the run reads from; the ghost-employee cases need both.",
+    aliases: [
       "payroll specialist",
       "payroll clerk",
       "payroll coordinator",
@@ -546,23 +445,34 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "timekeeping clerk",
       "timekeeper",
     ],
-    ["enter_payroll", "edit_payroll_master", "view_reports_only"],
-    "Payroll enters hours and usually also maintains the employee records the run reads from; the ghost-employee cases need both.",
-    "43-3051",
-  ),
-  entry(
-    "treasurer",
-    "Treasurer / Cash Manager",
-    "finance",
-    ["treasurer", "cash manager", "treasury analyst", "treasury"],
-    ["sign_checks", "initiate_ach", "bank_reconcile", "view_reports_only"],
-    "A treasurer moves the money out and, in a small organisation, often reconciles the account it leaves from.",
-  ),
-  entry(
-    "purchasing",
-    "Purchasing / Procurement",
-    "finance",
-    [
+  },
+  {
+    id: "treasurer",
+    title: "Treasurer / Cash Manager",
+    family: "finance",
+    soc: "11-3031",
+    entitlements: ["sign_checks", "initiate_ach", "bank_reconcile", "view_reports_only"],
+    description:
+      "Manages the cash of the business: signs or releases payments, moves funds between accounts, and reconciles the bank.",
+    note: "A treasurer moves the money out and, in a small organisation, often reconciles the account it leaves from.",
+    aliases: ["treasurer", "cash manager", "treasury analyst", "treasury"],
+  },
+  {
+    id: "purchasing",
+    title: "Purchasing / Procurement",
+    family: "finance",
+    soc: "13-1023",
+    entitlements: [
+      "order_supplies",
+      "create_vendor",
+      "approve_vendor",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    description:
+      "Buys goods and services for the business, selects and sets up suppliers, and places and follows orders.",
+    note: "Purchasing chooses and sets up suppliers and places the orders, on account or on a purchasing card; kickback and shell-vendor cases start here.",
+    aliases: [
       "purchasing agent",
       "purchasing",
       "buyer",
@@ -577,53 +487,97 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "sourcing specialist",
       "procurement coordinator",
     ],
-    ["order_supplies", "create_vendor", "approve_vendor", "hold_company_card", "view_reports_only"],
-    "Purchasing chooses and sets up suppliers and places the orders, on account or on a purchasing card; kickback and shell-vendor cases start here.",
-  ),
-  entry(
-    "receiving",
-    "Receiving / Inventory / Warehouse",
-    "trades",
-    [
-      "receiving clerk",
-      "receiving",
-      "shipping and receiving",
-      "shipping/receiving",
-      "shipping clerk",
-      "inventory clerk",
-      "inventory specialist",
-      "inventory manager",
-      "inventory control",
-      "warehouse associate",
-      "warehouse worker",
-      "warehouse supervisor",
-      "warehouse manager",
-      "warehouse lead",
-      "stock clerk",
-      "stocker",
-      "materials handler",
-      "logistics coordinator",
-      "inventory lead",
-      "yard manager",
-      "yard foreman",
-      "yard worker",
-      "stock associate",
-      "warehouse",
-      "stockroom associate",
-      "parts runner",
-      "inventory coordinator",
-      "inventory associate",
+  },
+  {
+    id: "tax-preparer",
+    title: "Tax Preparer",
+    family: "finance",
+    soc: "13-2082",
+    entitlements: ["collect_cash", "view_reports_only"],
+    description: "Prepares tax returns for individuals or small businesses and collects the fee.",
+    note: "A preparer takes the client's fee; the refund itself should never pass through the firm.",
+    aliases: ["tax professional", "tax associate", "tax senior", "enrolled agent", "tax advisor"],
+  },
+  {
+    id: "auditor",
+    title: "Auditor",
+    family: "finance",
+    soc: "13-2011",
+    entitlements: ["review_audit_logs", "view_reports_only"],
+    description:
+      "Examines records and controls, tests transactions, and reports findings; holds no transaction duty.",
+    note: "An auditor reads the logs and the records and should hold no transaction duty.",
+    aliases: [
+      "staff auditor",
+      "audit senior",
+      "audit associate",
+      "internal auditor",
+      "audit manager",
     ],
-    ["receive_goods", "view_reports_only"],
-    "Receiving confirms what arrived, which is the check on purchasing; a supervisor here also often approves hours.",
-  ),
-
+  },
+  {
+    id: "loan-officer",
+    title: "Loan Officer / Processor",
+    family: "finance",
+    soc: "13-2072",
+    entitlements: ["edit_patient_master", "view_reports_only"],
+    description:
+      "Evaluates, authorizes, or recommends approval of loan applications and maintains borrower records.",
+    note: "Lending staff maintain the borrower record; funding and disbursement belong to someone else.",
+    aliases: [
+      "loan officer",
+      "mortgage loan officer",
+      "loan processor",
+      "underwriter",
+      "credit officer",
+      "lending officer",
+      "mortgage broker",
+    ],
+  },
+  {
+    id: "project-accountant",
+    title: "Project / Job Cost Accountant",
+    family: "finance",
+    entitlements: [
+      "post_journal_entries",
+      "enter_invoices",
+      "post_adjustments",
+      "submit_claims",
+      "view_reports_only",
+    ],
+    description:
+      "Tracks cost and billing by job or project, bills progress, and posts the entries that allocate cost.",
+    note: "A project accountant bills progress, enters subcontractor invoices, and posts the entries that move cost between jobs.",
+    aliases: [
+      "project accountant",
+      "job cost accountant",
+      "construction accountant",
+      "job cost",
+      "project controller",
+      "billing accountant",
+    ],
+  },
   // Front office and administration
-  entry(
-    "receptionist",
-    "Receptionist / Front Desk",
-    "office",
-    [
+  {
+    id: "office-administrator",
+    title: "Office Administrator",
+    family: "office",
+    entitlements: ["enter_invoices", "release_payment", "view_reports_only"],
+    description:
+      "Runs the office's paperwork, correspondence, and supplier bills, and pays them as directed.",
+    note: "An office administrator enters and pays the bills; payroll, deposits and system set-up belong to a manager unless you tick them.",
+    aliases: ["office admin"],
+  },
+  {
+    id: "receptionist",
+    title: "Receptionist / Front Desk",
+    family: "office",
+    soc: "43-4171",
+    entitlements: ["collect_cash", "post_payments", "edit_patient_master", "view_reports_only"],
+    description:
+      "Greets and directs callers and visitors, schedules, takes payments at the desk, and keeps customer or patient records.",
+    note: "The front desk takes payments, posts them, and edits customer or patient records: the skimming cases begin at this desk.",
+    aliases: [
       "receptionist",
       "front desk",
       "front desk coordinator",
@@ -645,16 +599,17 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "client care representative",
       "client service lead",
     ],
-    ["collect_cash", "post_payments", "edit_patient_master", "view_reports_only"],
-    "The front desk takes payments, posts them, and edits customer or patient records: the skimming cases begin at this desk.",
-    "43-4171",
-  ),
-  entry(
-    "administrative-assistant",
-    "Administrative Assistant",
-    "office",
-    [
-      "administrative assistant",
+  },
+  {
+    id: "administrative-assistant",
+    title: "Administrative Assistant",
+    family: "office",
+    soc: "43-6014",
+    entitlements: ["order_supplies", "view_reports_only"],
+    description:
+      "Performs routine administrative work such as correspondence, scheduling, filing, ordering supplies, and answering calls.",
+    note: "An administrative assistant orders supplies and handles paperwork; tick more if they also take payments or pay bills.",
+    aliases: [
       "admin assistant",
       "admin",
       "office assistant",
@@ -672,15 +627,17 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "scheduler",
       "chief of staff",
     ],
-    ["order_supplies", "view_reports_only"],
-    "An administrative assistant orders supplies and handles paperwork; tick more if they also take payments or pay bills.",
-  ),
-  entry(
-    "executive-assistant",
-    "Executive Assistant",
-    "office",
-    [
-      "executive assistant",
+  },
+  {
+    id: "executive-assistant",
+    title: "Executive Assistant",
+    family: "office",
+    soc: "43-6011",
+    entitlements: ["enter_invoices", "release_payment", "hold_company_card", "view_reports_only"],
+    description:
+      "Provides high-level administrative support to the owner or executive, including correspondence, scheduling, travel, and often the executive's expenses.",
+    note: "An executive assistant often holds the owner's card and pays the owner's bills, with the owner's trust standing in for review.",
+    aliases: [
       "assistant to the ceo",
       "assistant to the owner",
       "owner assistant",
@@ -688,14 +645,16 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "personal assistant",
       "executive administrative assistant",
     ],
-    ["enter_invoices", "release_payment", "hold_company_card", "view_reports_only"],
-    "An executive assistant often holds the owner's card and pays the owner's bills, with the owner's trust standing in for review.",
-  ),
-  entry(
-    "insurance-coordinator",
-    "Insurance / Benefits Coordinator",
-    "office",
-    [
+  },
+  {
+    id: "insurance-coordinator",
+    title: "Insurance / Benefits Coordinator",
+    family: "office",
+    entitlements: ["submit_claims", "post_adjustments", "view_reports_only"],
+    description:
+      "Verifies coverage and eligibility, submits and follows claims, and adjusts balances to what the payer allowed.",
+    note: "An insurance coordinator submits claims and adjusts balances when the payer pays less than billed.",
+    aliases: [
       "insurance coordinator",
       "insurance verification",
       "insurance verification specialist",
@@ -706,14 +665,16 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "prior authorization specialist",
       "authorization coordinator",
     ],
-    ["submit_claims", "post_adjustments", "view_reports_only"],
-    "An insurance coordinator submits claims and adjusts balances when the payer pays less than billed.",
-  ),
-  entry(
-    "treatment-coordinator",
-    "Treatment / Financial Coordinator",
-    "office",
-    [
+  },
+  {
+    id: "treatment-coordinator",
+    title: "Treatment / Financial Coordinator",
+    family: "office",
+    entitlements: ["edit_patient_master", "post_adjustments", "collect_cash", "view_reports_only"],
+    description:
+      "Presents treatment plans and fees, arranges financing, takes payment, and keeps the patient's plan current.",
+    note: "A treatment coordinator presents fees, takes the payment, and adjusts the plan, which touches the record and the money together.",
+    aliases: [
       "treatment coordinator",
       "treatment plan coordinator",
       "patient care coordinator",
@@ -721,18 +682,18 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "patient financial coordinator",
       "new patient coordinator",
     ],
-    ["edit_patient_master", "post_adjustments", "collect_cash", "view_reports_only"],
-    "A treatment coordinator presents fees, takes the payment, and adjusts the plan, which touches the record and the money together.",
-  ),
-
+  },
   // Sales and customer service
-  entry(
-    "customer-service",
-    "Customer Service Representative",
-    "sales",
-    [
-      "customer service representative",
-      "customer service rep",
+  {
+    id: "customer-service",
+    title: "Customer Service Representative",
+    family: "sales",
+    soc: "43-4051",
+    entitlements: ["issue_refunds", "post_adjustments", "edit_patient_master", "view_reports_only"],
+    description:
+      "Handles customer inquiries, complaints, orders, returns, and account changes, and issues refunds and credits within limits.",
+    note: "Customer service issues refunds and credits and edits customer records; refund fraud runs through this seat.",
+    aliases: [
       "customer service",
       "csr",
       "customer support",
@@ -751,15 +712,15 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "call center representative",
       "account coordinator",
     ],
-    ["issue_refunds", "post_adjustments", "edit_patient_master", "view_reports_only"],
-    "Customer service issues refunds and credits and edits customer records; refund fraud runs through this seat.",
-    "43-4051",
-  ),
-  entry(
-    "sales",
-    "Sales / Account Manager",
-    "sales",
-    [
+  },
+  {
+    id: "sales",
+    title: "Sales / Account Manager",
+    family: "sales",
+    entitlements: ["collect_cash", "edit_patient_master", "view_reports_only"],
+    description: "Sells the business's products or services and manages customer accounts.",
+    note: "Sales maintains customer accounts and often takes payment from the accounts it serves; granting credits or writing off balances belongs to a manager or the owner unless you tick it.",
+    aliases: [
       "sales manager",
       "sales director",
       "director of sales",
@@ -767,7 +728,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "account manager",
       "account representative",
       "sales representative",
-      "sales rep",
       "sales",
       "salesperson",
       "business development",
@@ -782,45 +742,35 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "sales lead",
       "comfort advisor",
     ],
-    ["collect_cash", "edit_patient_master", "view_reports_only"],
-    "Sales maintains customer accounts and often takes payment from the accounts it serves; granting credits or writing off balances belongs to a manager or the owner unless you tick it.",
-  ),
-  entry(
-    "cashier",
-    "Cashier / Sales Associate",
-    "retail",
-    [
-      "cashier",
-      "checkout",
-      "checker",
-      "teller",
-      "sales associate",
-      "retail associate",
-      "store associate",
-      "sales clerk",
-      "retail sales",
-      "counter staff",
-      "counter associate",
-      "customer service associate",
-      "front end associate",
-      "register",
-      "counter sales",
-      "sales floor associate",
-      "grocery associate",
-      "deli associate",
-      "floor associate",
+  },
+  {
+    id: "insurance-agent",
+    title: "Insurance Agent / Producer",
+    family: "sales",
+    soc: "41-3021",
+    entitlements: ["collect_cash", "edit_patient_master", "view_reports_only"],
+    description: "Sells insurance policies, services policyholders, and collects premiums.",
+    note: "An agent takes premiums and maintains the policyholder record; premium diversion is the case pattern.",
+    aliases: [
+      "insurance agent",
+      "insurance producer",
+      "producer",
+      "insurance broker",
+      "agency owner",
+      "insurance account manager",
+      "insurance csr",
     ],
-    ["collect_cash", "view_reports_only"],
-    "A cashier takes payment; the controls are the count, the deposit, and who can void or refund.",
-    "41-2011",
-  ),
-
+  },
   // Clinical and patient care
-  entry(
-    "provider",
-    "Provider (dentist, physician, practitioner)",
-    "clinical",
-    [
+  {
+    id: "provider",
+    title: "Provider (dentist, physician, practitioner)",
+    family: "clinical",
+    entitlements: ["view_reports_only"],
+    description:
+      "Delivers the clinical or professional service the business sells; billing, adjustments, and payments belong to the office.",
+    note: "An employed provider treats patients and stays out of the money: billing, adjustments, and write-off approval belong to the office and the owner. Tick write-off approval if this provider owns the practice or grants courtesy discounts.",
+    aliases: [
       "dentist",
       "associate dentist",
       "doctor",
@@ -848,24 +798,28 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "occupational therapist",
       "speech therapist",
     ],
-    ["view_reports_only"],
-    "An employed provider treats patients and stays out of the money: billing, adjustments, and write-off approval belong to the office and the owner. Tick write-off approval if this provider owns the practice or grants courtesy discounts.",
-  ),
-  entry(
-    "dental-hygienist",
-    "Dental Hygienist",
-    "clinical",
-    ["dental hygienist", "hygienist", "rdh", "registered dental hygienist"],
-    ["view_reports_only"],
-    "A hygienist holds no money duty; they appear on the map for continuity, not conflicts.",
-    "29-1292",
-  ),
-  entry(
-    "dental-assistant",
-    "Dental Assistant",
-    "clinical",
-    [
-      "dental assistant",
+  },
+  {
+    id: "dental-hygienist",
+    title: "Dental Hygienist",
+    family: "clinical",
+    soc: "29-1292",
+    entitlements: ["view_reports_only"],
+    description:
+      "Provides preventive dental care, cleans teeth, examines patients for oral disease, and educates patients on oral hygiene.",
+    note: "A hygienist holds no money duty; they appear on the map for continuity, not conflicts.",
+    aliases: ["hygienist", "rdh", "registered dental hygienist"],
+  },
+  {
+    id: "dental-assistant",
+    title: "Dental Assistant",
+    family: "clinical",
+    soc: "31-9091",
+    entitlements: ["view_reports_only"],
+    description:
+      "Performs limited clinical duties under the direction of a dentist, prepares patients and instruments, and assists chairside.",
+    note: "A dental assistant holds no money duty; they appear on the map for continuity, not conflicts.",
+    aliases: [
       "da",
       "rda",
       "eda",
@@ -873,20 +827,20 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "registered dental assistant",
       "expanded functions dental assistant",
       "sterilization technician",
-      "sterilization tech",
       "cda",
       "certified dental assistant",
       "assistant dental",
     ],
-    ["view_reports_only"],
-    "A dental assistant holds no money duty; they appear on the map for continuity, not conflicts.",
-    "31-9091",
-  ),
-  entry(
-    "medical-assistant",
-    "Medical Assistant / Nurse / Technician",
-    "clinical",
-    [
+  },
+  {
+    id: "medical-assistant",
+    title: "Medical Assistant / Nurse / Technician",
+    family: "clinical",
+    entitlements: ["view_reports_only"],
+    description:
+      "Performs clinical and administrative tasks under a provider's direction, including intake, vitals, charting, and specimen handling.",
+    note: "Clinical staff update the clinical chart, not the billing record, and should not touch payments or claims; tick Edit customer master records if they register patients.",
+    aliases: [
       "medical assistant",
       "ma",
       "cma",
@@ -899,7 +853,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "registered nurse",
       "licensed practical nurse",
       "lab technician",
-      "lab tech",
       "vet tech",
       "veterinary technician",
       "veterinary assistant",
@@ -917,17 +870,25 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "head nurse",
       "assistant medical",
     ],
-    ["view_reports_only"],
-    "Clinical staff update the clinical chart, not the billing record, and should not touch payments or claims; tick Edit customer master records if they register patients.",
-  ),
-  entry(
-    "medical-secretary",
-    "Medical Office Specialist",
-    "clinical",
-    [
+  },
+  {
+    id: "medical-secretary",
+    title: "Medical Office Specialist",
+    family: "clinical",
+    soc: "43-6013",
+    entitlements: [
+      "collect_cash",
+      "post_payments",
+      "edit_patient_master",
+      "submit_claims",
+      "view_reports_only",
+    ],
+    description:
+      "Performs secretarial duties using knowledge of medical terminology: schedules, registers patients, takes copays, and files claims.",
+    note: "A medical office specialist takes copays, posts them, edits the patient record, and often files the claim.",
+    aliases: [
       "medical secretary",
       "medical office assistant",
-      "medical office specialist",
       "medical receptionist",
       "patient services representative",
       "patient service representative",
@@ -940,15 +901,22 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "medical records specialist",
       "health information technician",
     ],
-    ["collect_cash", "post_payments", "edit_patient_master", "submit_claims", "view_reports_only"],
-    "A medical office specialist takes copays, posts them, edits the patient record, and often files the claim.",
-    "43-6013",
-  ),
-  entry(
-    "clinic-director",
-    "Clinic / Practice Director",
-    "clinical",
-    [
+  },
+  {
+    id: "clinic-director",
+    title: "Clinic / Practice Director",
+    family: "clinical",
+    entitlements: [
+      "approve_vendor",
+      "approve_writeoffs",
+      "approve_expenses",
+      "manage_user_access",
+      "view_reports_only",
+    ],
+    description:
+      "Plans, directs, and coordinates the medical or clinical services of a practice or clinic and its staff.",
+    note: "A clinical director approves suppliers, write-offs and staff expense claims and decides who has system access.",
+    aliases: [
       "clinical director",
       "director of nursing",
       "practice director",
@@ -957,30 +925,125 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "nurse manager",
       "clinical manager",
     ],
-    [
-      "approve_vendor",
+  },
+  {
+    id: "clinic-site-director",
+    title: "Clinic Director (one site)",
+    family: "clinical",
+    entitlements: ["prepare_deposit", "approve_writeoffs", "view_reports_only"],
+    description:
+      "Runs one clinic site: schedules and supervises its staff, signs off their hours, and oversees its billing and deposits.",
+    note: "A clinic director runs one site: approves write-offs and discounts, signs off the staff's hours, and makes up the site's deposit. Tick Enter payroll if they also enter the run.",
+    aliases: ["clinic director", "clinic site director", "site clinic director"],
+  },
+  {
+    id: "pharmacist",
+    title: "Pharmacist",
+    family: "clinical",
+    soc: "29-1051",
+    entitlements: ["order_supplies", "receive_goods", "approve_writeoffs", "view_reports_only"],
+    description:
+      "Dispenses medications, counsels patients, manages inventory including controlled substances, and supervises technicians.",
+    note: "The pharmacist orders stock, receives it, and approves adjustments; controlled-substance counts are the added control.",
+    aliases: ["pharmacy manager", "pharmacist in charge", "pic", "clinical pharmacist"],
+  },
+  {
+    id: "pharmacy-technician",
+    title: "Pharmacy Technician",
+    family: "clinical",
+    soc: "29-2052",
+    entitlements: ["collect_cash", "submit_claims", "receive_goods", "view_reports_only"],
+    description:
+      "Prepares medications under a pharmacist's supervision, rings sales, and processes insurance claims.",
+    note: "A technician rings the sale, adjudicates the claim, and often checks in the order.",
+    aliases: ["cpht", "pharmacy clerk", "pharmacy assistant", "pharmacy cashier"],
+  },
+  {
+    id: "medical-coder",
+    title: "Medical Coder",
+    family: "clinical",
+    soc: "29-2072",
+    entitlements: ["submit_claims", "post_adjustments", "view_reports_only"],
+    description:
+      "Assigns diagnosis and procedure codes for billing and resolves denied or adjusted claims.",
+    note: "A coder decides what is billed and adjusts what was denied.",
+    aliases: [
+      "coder",
+      "coding specialist",
+      "cpc",
+      "certified professional coder",
+      "medical records coder",
+    ],
+  },
+  {
+    id: "billing-manager",
+    title: "Billing / Revenue Cycle Manager",
+    family: "clinical",
+    entitlements: [
+      "submit_claims",
+      "post_payments",
+      "post_adjustments",
       "approve_writeoffs",
-      "approve_expenses",
-      "manage_user_access",
+      "issue_refunds",
       "view_reports_only",
     ],
-    "A clinical director approves suppliers, write-offs and staff expense claims and decides who has system access.",
-  ),
-  entry(
-    "clinic-site-director",
-    "Clinic Director (one site)",
-    "clinical",
-    ["clinic director", "clinic site director", "site clinic director"],
-    ["prepare_deposit", "approve_writeoffs", "view_reports_only"],
-    "A clinic director runs one site: approves write-offs and discounts, signs off the staff's hours, and makes up the site's deposit. Tick Enter payroll if they also enter the run.",
-  ),
-
+    description:
+      "Manages the revenue cycle: claims, posting, adjustments, write-offs, refunds, and the billing staff.",
+    note: "A billing manager bills, posts, adjusts, writes off, and refunds: the whole receivable in one seat.",
+    aliases: ["billing manager", "revenue cycle manager", "patient accounts manager"],
+  },
+  {
+    id: "credentialing",
+    title: "Credentialing / Provider Enrollment",
+    family: "clinical",
+    entitlements: ["view_reports_only"],
+    description: "Enrolls and re-credentials providers with payers and licensing bodies.",
+    note: "Credentialing keeps providers enrolled with payers and holds no money duty.",
+    aliases: [
+      "credentialing specialist",
+      "credentialing coordinator",
+      "provider enrollment specialist",
+      "provider enrollment",
+      "credentialing",
+    ],
+  },
   // Restaurant and food service
-  entry(
-    "chef",
-    "Chef / Kitchen Manager",
-    "food",
-    [
+  {
+    id: "restaurant-manager",
+    title: "Restaurant Manager",
+    family: "food",
+    entitlements: [
+      "collect_cash",
+      "prepare_deposit",
+      "issue_refunds",
+      "approve_writeoffs",
+      "order_supplies",
+      "receive_goods",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    description:
+      "Runs the restaurant or its dining room: closes the register, approves voids and comps, schedules staff, and orders stock.",
+    note: "A restaurant manager closes the drawer, makes the deposit, approves voids and comps, submits timecards, orders and receives goods, and holds the house card for the runs the suppliers do not cover. Tick Enter payroll if they also enter the run.",
+    aliases: [
+      "assistant general manager",
+      "agm",
+      "dining room manager",
+      "floor manager",
+      "front of house manager",
+      "foh manager",
+    ],
+  },
+  {
+    id: "chef",
+    title: "Chef / Kitchen Manager",
+    family: "food",
+    soc: "35-1011",
+    entitlements: ["order_supplies", "receive_goods", "hold_company_card", "view_reports_only"],
+    description:
+      "Directs food preparation and the kitchen staff, plans menus, and orders and receives food and supplies.",
+    note: "The kitchen orders food and receives the delivery, so the check on the supplier is the same person who chose it, and the kitchen card pays for whatever the suppliers do not deliver.",
+    aliases: [
       "executive chef",
       "head chef",
       "chef",
@@ -997,15 +1060,17 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "station chef",
       "boh lead",
     ],
-    ["order_supplies", "receive_goods", "hold_company_card", "view_reports_only"],
-    "The kitchen orders food and receives the delivery, so the check on the supplier is the same person who chose it, and the kitchen card pays for whatever the suppliers do not deliver.",
-  ),
-  entry(
-    "server",
-    "Server",
-    "food",
-    [
-      "server",
+  },
+  {
+    id: "server",
+    title: "Server",
+    family: "food",
+    soc: "35-3031",
+    entitlements: ["collect_cash", "view_reports_only"],
+    description:
+      "Takes orders and serves food and drink to guests, presents the check, and collects payment.",
+    note: "A server takes payment at the table; the controls are the closed check, the tip-out, and who can void.",
+    aliases: [
       "waiter",
       "waitress",
       "wait staff",
@@ -1016,24 +1081,28 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "catering server",
       "banquet server",
     ],
-    ["collect_cash", "view_reports_only"],
-    "A server takes payment at the table; the controls are the closed check, the tip-out, and who can void.",
-    "35-3031",
-  ),
-  entry(
-    "bartender",
-    "Bartender",
-    "food",
-    ["bartender", "mixologist", "bar staff", "bar lead", "beertender"],
-    ["collect_cash", "view_reports_only"],
-    "A bartender takes cash all night; the control is the pour count and the drawer count.",
-    "35-3011",
-  ),
-  entry(
-    "host",
-    "Host / Busser / Barback",
-    "food",
-    [
+  },
+  {
+    id: "bartender",
+    title: "Bartender",
+    family: "food",
+    soc: "35-3011",
+    entitlements: ["collect_cash", "view_reports_only"],
+    description:
+      "Mixes and serves drinks, takes payment at the bar, and keeps the bar's stock and drawer.",
+    note: "A bartender takes cash all night; the control is the pour count and the drawer count.",
+    aliases: ["mixologist", "bar staff", "bar lead", "beertender"],
+  },
+  {
+    id: "host",
+    title: "Host / Busser / Barback",
+    family: "food",
+    soc: "35-9031",
+    entitlements: ["view_reports_only"],
+    description:
+      "Seats guests, clears and resets tables, runs food, or stocks the bar, without handling payment.",
+    note: "Hosts, bussers, runners and barbacks seat guests and support the floor and bar without a drawer; tick Take payments if they ring out orders.",
+    aliases: [
       "host",
       "hostess",
       "greeter",
@@ -1044,15 +1113,22 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "bar back",
       "restaurant host",
     ],
-    ["view_reports_only"],
-    "Hosts, bussers, runners and barbacks seat guests and support the floor and bar without a drawer; tick Take payments if they ring out orders.",
-    "35-9031",
-  ),
-  entry(
-    "bar-manager",
-    "Bar / Beverage Manager",
-    "food",
-    [
+  },
+  {
+    id: "bar-manager",
+    title: "Bar / Beverage Manager",
+    family: "food",
+    entitlements: [
+      "collect_cash",
+      "prepare_deposit",
+      "order_supplies",
+      "receive_goods",
+      "view_reports_only",
+    ],
+    description:
+      "Runs the bar: orders and receives liquor, sets the pour, schedules bar staff, and closes the bar's drawer.",
+    note: "A bar manager orders and receives liquor and closes the bar drawer; inventory theft and skimming share the seat.",
+    aliases: [
       "bar manager",
       "beverage manager",
       "beverage director",
@@ -1061,22 +1137,25 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "taproom manager",
       "tasting room manager",
     ],
-    ["collect_cash", "prepare_deposit", "order_supplies", "receive_goods", "view_reports_only"],
-    "A bar manager orders and receives liquor and closes the bar drawer; inventory theft and skimming share the seat.",
-  ),
-  entry(
-    "head-brewer",
-    "Head Brewer / Brewmaster",
-    "food",
-    ["head brewer", "brewmaster", "brew master", "brewing manager"],
-    ["order_supplies", "receive_goods", "view_reports_only"],
-    "The head brewer orders malt, hops and packaging and signs for them, so the check on the supplier is the same person who chose it.",
-  ),
-  entry(
-    "brewer",
-    "Brewer / Cellar / Packaging",
-    "food",
-    [
+  },
+  {
+    id: "head-brewer",
+    title: "Head Brewer / Brewmaster",
+    family: "food",
+    entitlements: ["order_supplies", "receive_goods", "view_reports_only"],
+    description:
+      "Plans production, orders brewing ingredients and packaging, and supervises the brewing and cellar staff.",
+    note: "The head brewer orders malt, hops and packaging and signs for them, so the check on the supplier is the same person who chose it.",
+    aliases: ["head brewer", "brewmaster", "brew master", "brewing manager"],
+  },
+  {
+    id: "brewer",
+    title: "Brewer / Cellar / Packaging",
+    family: "food",
+    entitlements: ["view_reports_only"],
+    description: "Brews, ferments, conditions, and packages the product; holds no financial duty.",
+    note: "Brewing, cellar and packaging staff make the product and hold no money duty; they appear on the map for continuity.",
+    aliases: [
       "brewer",
       "assistant brewer",
       "cellarperson",
@@ -1086,24 +1165,290 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "packaging lead",
       "packaging operator",
     ],
-    ["view_reports_only"],
-    "Brewing, cellar and packaging staff make the product and hold no money duty; they appear on the map for continuity.",
-  ),
-
+  },
+  {
+    id: "catering-manager",
+    title: "Catering / Events Manager",
+    family: "food",
+    entitlements: ["collect_cash", "post_adjustments", "approve_writeoffs", "view_reports_only"],
+    description: "Sells and runs catered events, takes deposits, and settles event bills.",
+    note: "Events takes deposits, adjusts the bill, and comps: money and its record in one seat, usually off the main register.",
+    aliases: [
+      "catering manager",
+      "events manager",
+      "event manager",
+      "event coordinator",
+      "banquet manager",
+      "sales and catering",
+      "catering sales",
+      "private events",
+    ],
+  },
+  {
+    id: "kitchen-staff",
+    title: "Kitchen Staff",
+    family: "food",
+    entitlements: ["view_reports_only"],
+    description: "Prepares ingredients, washes, and supports the kitchen; holds no financial duty.",
+    note: "Kitchen staff hold no money duty; they appear on the map for continuity.",
+    aliases: [
+      "dishwasher",
+      "kitchen assistant",
+      "kitchen porter",
+      "steward",
+      "kitchen helper",
+      "food prep",
+      "prep",
+      "expo",
+      "expeditor",
+      "food expeditor",
+      "cook",
+      "line cook",
+      "prep cook",
+      "cook line",
+      "grill cook",
+      "fry cook",
+    ],
+  },
+  // Retail
+  {
+    id: "store-manager",
+    title: "Store / Branch Manager",
+    family: "retail",
+    entitlements: [
+      "collect_cash",
+      "prepare_deposit",
+      "issue_refunds",
+      "approve_writeoffs",
+      "receive_goods",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    description:
+      "Supervises and coordinates the retail staff of a store or department, including cash handling, returns, deliveries, and schedules.",
+    note: "A store manager takes and banks cash, approves returns and markdowns, signs for deliveries, and holds a store card for supplies. Add ordering, payroll entry and user set-up if they do them rather than the owner or the office.",
+    aliases: [
+      "store manager",
+      "retail manager",
+      "shop manager",
+      "branch manager",
+      "department manager",
+      "location manager",
+    ],
+  },
+  {
+    id: "assistant-manager",
+    title: "Assistant Manager (store or restaurant)",
+    family: "retail",
+    entitlements: ["collect_cash", "prepare_deposit", "issue_refunds", "view_reports_only"],
+    description:
+      "Supports the store or restaurant manager and runs shifts: opens and closes the registers, bags the deposit, and handles returns.",
+    note: "An assistant manager closes registers, bags the deposit and processes refunds; tick write-off and void approval if they hold the manager's override, and ordering or payroll if they do those.",
+    aliases: [
+      "assistant manager",
+      "assistant store manager",
+      "assistant shop manager",
+      "assistant retail manager",
+    ],
+  },
+  {
+    id: "shift-lead",
+    title: "Shift Lead / Key Holder",
+    family: "retail",
+    entitlements: ["collect_cash", "prepare_deposit", "view_reports_only"],
+    description:
+      "Leads a shift or a station, opens and closes the register, and stands in for the manager when none is present.",
+    note: "A shift lead or key holder takes cash and counts and bags the drawer; refunds need a manager unless you tick them.",
+    aliases: [
+      "shift lead",
+      "shift leader",
+      "shift supervisor",
+      "shift manager",
+      "key holder",
+      "keyholder",
+      "lead cashier",
+      "head cashier",
+      "floor supervisor",
+      "night manager",
+      "closing manager",
+      "opening manager",
+      "opening supervisor",
+      "closing supervisor",
+      "store lead",
+    ],
+  },
+  {
+    id: "cashier",
+    title: "Cashier / Sales Associate",
+    family: "retail",
+    soc: "41-2011",
+    entitlements: ["collect_cash", "view_reports_only"],
+    description: "Receives and disburses money at a register, records the sale, and makes change.",
+    note: "A cashier takes payment; the controls are the count, the deposit, and who can void or refund.",
+    aliases: [
+      "cashier",
+      "checkout",
+      "checker",
+      "teller",
+      "sales associate",
+      "retail associate",
+      "store associate",
+      "sales clerk",
+      "retail sales",
+      "counter staff",
+      "counter associate",
+      "customer service associate",
+      "front end associate",
+      "register",
+      "counter sales",
+      "sales floor associate",
+      "grocery associate",
+      "deli associate",
+      "floor associate",
+    ],
+  },
+  {
+    id: "security",
+    title: "Security / Loss Prevention",
+    family: "retail",
+    soc: "33-9032",
+    entitlements: ["view_reports_only"],
+    description:
+      "Guards, patrols, or monitors premises to prevent theft, violence, or infractions of rules.",
+    note: "Security watches the premises and the registers and holds no money duty of its own.",
+    aliases: [
+      "security guard",
+      "security officer",
+      "loss prevention",
+      "loss prevention officer",
+      "asset protection",
+      "asset protection associate",
+      "security",
+    ],
+  },
+  {
+    id: "ecommerce",
+    title: "E-commerce / Fulfillment",
+    family: "retail",
+    entitlements: ["issue_refunds", "view_reports_only"],
+    description: "Runs online sales channels and fulfils orders, including returns and refunds.",
+    note: "Online sales issues refunds against orders nobody else sees; tick Enter write-offs if they also grant store credit or adjust orders.",
+    aliases: [
+      "e-commerce specialist",
+      "ecommerce specialist",
+      "ecommerce manager",
+      "e-commerce manager",
+      "online sales",
+      "marketplace manager",
+      "fulfillment associate",
+      "fulfillment specialist",
+      "order fulfillment",
+      "fulfillment",
+      "e-commerce coordinator",
+      "ecommerce coordinator",
+      "online store coordinator",
+      "online store manager",
+    ],
+  },
+  {
+    id: "merchandiser",
+    title: "Merchandiser / Category Manager",
+    family: "retail",
+    entitlements: ["order_supplies", "view_reports_only"],
+    description: "Plans and selects the products the business carries and how they are presented.",
+    note: "A merchandiser decides what is bought; receiving and paying belong to others.",
+    aliases: [
+      "visual merchandiser",
+      "merchandiser",
+      "merchandising manager",
+      "category manager",
+      "merchandise planner",
+      "retail planner",
+      "inventory planner",
+      "merchandise allocator",
+    ],
+  },
+  {
+    id: "cash-office",
+    title: "Cash Office / Deposit Clerk",
+    family: "retail",
+    entitlements: ["collect_cash", "prepare_deposit", "view_reports_only"],
+    description:
+      "Counts register drawers, prepares the bank deposit, and keeps the cash-office records for a store or branch.",
+    note: "A cash-office clerk counts the drawers and makes up the deposit; whoever reconciles the bank account must be someone else.",
+    aliases: [
+      "cash office",
+      "cash office associate",
+      "cash office clerk",
+      "cash office lead",
+      "cash room clerk",
+      "cash room",
+      "deposit clerk",
+      "vault teller",
+      "cash control clerk",
+      "cash handler",
+    ],
+  },
   // Trades, field, and construction
-  entry(
-    "estimator",
-    "Estimator",
-    "trades",
-    ["estimator", "cost estimator", "project estimator", "sales estimator", "estimating"],
-    ["change_fee_schedule", "view_reports_only"],
-    "An estimator sets the price and the discount on each bid; writing off what a customer owes belongs to someone else.",
-  ),
-  entry(
-    "dispatcher",
-    "Dispatcher / Service Coordinator",
-    "trades",
-    [
+  {
+    id: "receiving",
+    title: "Receiving / Inventory / Warehouse",
+    family: "trades",
+    soc: "43-5071",
+    entitlements: ["receive_goods", "view_reports_only"],
+    description:
+      "Verifies and records incoming and outgoing shipments and keeps the inventory count.",
+    note: "Receiving confirms what arrived, which is the check on purchasing; a supervisor here also often approves hours.",
+    aliases: [
+      "receiving clerk",
+      "receiving",
+      "shipping and receiving",
+      "shipping clerk",
+      "inventory clerk",
+      "inventory specialist",
+      "inventory manager",
+      "inventory control",
+      "warehouse associate",
+      "warehouse worker",
+      "warehouse supervisor",
+      "warehouse manager",
+      "warehouse lead",
+      "stock clerk",
+      "stocker",
+      "materials handler",
+      "logistics coordinator",
+      "inventory lead",
+      "yard manager",
+      "yard foreman",
+      "yard worker",
+      "stock associate",
+      "warehouse",
+      "stockroom associate",
+      "parts runner",
+      "inventory coordinator",
+      "inventory associate",
+    ],
+  },
+  {
+    id: "estimator",
+    title: "Estimator",
+    family: "trades",
+    soc: "13-1051",
+    entitlements: ["change_fee_schedule", "view_reports_only"],
+    description: "Prepares cost estimates and prices for jobs, bids, and change orders.",
+    note: "An estimator sets the price and the discount on each bid; writing off what a customer owes belongs to someone else.",
+    aliases: ["cost estimator", "project estimator", "sales estimator", "estimating"],
+  },
+  {
+    id: "dispatcher",
+    title: "Dispatcher / Service Coordinator",
+    family: "trades",
+    soc: "43-5032",
+    entitlements: ["edit_patient_master", "collect_cash", "view_reports_only"],
+    description:
+      "Schedules and dispatches technicians and drivers, keeps customer and job records, and takes payments by phone.",
+    note: "A dispatcher, or the CSR who books and dispatches the calls, maintains customer records and takes phone payments; refunds and credits go to the office. The field cases where a tech and dispatcher split a cash job start here.",
+    aliases: [
       "dispatcher",
       "dispatch",
       "service coordinator",
@@ -1113,17 +1458,18 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "dispatcher csr",
       "csr dispatcher",
     ],
-    ["edit_patient_master", "collect_cash", "view_reports_only"],
-    "A dispatcher, or the CSR who books and dispatches the calls, maintains customer records and takes phone payments; refunds and credits go to the office. The field cases where a tech and dispatcher split a cash job start here.",
-  ),
-  entry(
-    "field-technician",
-    "Field Technician / Crew",
-    "trades",
-    [
+  },
+  {
+    id: "field-technician",
+    title: "Field Technician / Crew",
+    family: "trades",
+    entitlements: ["collect_cash", "view_reports_only"],
+    description:
+      "Performs the trade or service work in the field or on site and may collect payment from the customer on completion.",
+    note: "A technician who collects at the job holds cash the office never sees until it is deposited.",
+    aliases: [
       "field technician",
       "service technician",
-      "service tech",
       "installer",
       "crew member",
       "laborer",
@@ -1132,7 +1478,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "plumber",
       "electrician",
       "hvac technician",
-      "hvac tech",
       "operator",
       "equipment operator",
       "carpenter",
@@ -1145,14 +1490,16 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "helper",
       "trade helper",
     ],
-    ["collect_cash", "view_reports_only"],
-    "A technician who collects at the job holds cash the office never sees until it is deposited.",
-  ),
-  entry(
-    "foreman",
-    "Foreman / Superintendent",
-    "trades",
-    [
+  },
+  {
+    id: "foreman",
+    title: "Foreman / Superintendent",
+    family: "trades",
+    entitlements: ["receive_goods", "order_supplies", "hold_company_card", "view_reports_only"],
+    description:
+      "Supervises and coordinates the crew on site, orders and receives materials, and approves the crew's hours.",
+    note: "A foreman orders and receives material, buys the rest on the company card or the supply-house account, and signs off the crew's timesheets, which the office then enters into payroll: the ghost-timesheet cases run through this seat.",
+    aliases: [
       "foreman",
       "superintendent",
       "site supervisor",
@@ -1160,7 +1507,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "construction manager",
       "project superintendent",
       "lead technician",
-      "lead tech",
       "field supervisor",
       "operations supervisor",
       "production supervisor",
@@ -1170,17 +1516,120 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "install manager",
       "installation manager",
     ],
-    ["receive_goods", "order_supplies", "hold_company_card", "view_reports_only"],
-    "A foreman orders and receives material, buys the rest on the company card or the supply-house account, and signs off the crew's timesheets, which the office then enters into payroll: the ghost-timesheet cases run through this seat.",
-  ),
-
+  },
+  {
+    id: "driver",
+    title: "Driver / Delivery",
+    family: "trades",
+    soc: "53-3033",
+    entitlements: ["collect_cash", "view_reports_only"],
+    description: "Drives delivery or service routes and may collect payment on delivery.",
+    note: "A driver who collects on delivery holds cash and checks until the route settles.",
+    aliases: [
+      "driver",
+      "delivery driver",
+      "truck driver",
+      "cdl driver",
+      "courier",
+      "route driver",
+      "route sales",
+      "route salesperson",
+      "delivery",
+      "route sales rep",
+    ],
+  },
+  {
+    id: "fleet-manager",
+    title: "Fleet / Logistics Manager",
+    family: "trades",
+    entitlements: [
+      "approve_vendor",
+      "order_supplies",
+      "receive_goods",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    description: "Manages vehicles, drivers, routing, fuel, and repair suppliers.",
+    note: "A fleet manager approves fuel, repair, and equipment suppliers, holds the fuel and repair cards, and submits drivers' hours for the office to enter. Tick Enter payroll if they also enter the run.",
+    aliases: [
+      "fleet manager",
+      "transportation manager",
+      "logistics manager",
+      "dispatch manager",
+      "distribution manager",
+      "routing manager",
+      "equipment manager",
+      "equipment coordinator",
+    ],
+  },
+  {
+    id: "facilities",
+    title: "Facilities / Maintenance Manager",
+    family: "trades",
+    entitlements: [
+      "order_supplies",
+      "receive_goods",
+      "approve_vendor",
+      "enter_invoices",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    description:
+      "Maintains buildings and equipment, hires and directs contractors, and orders parts and supplies.",
+    note: "Facilities chooses the contractors, orders the parts on account or on the company card, confirms the work, and enters the invoice.",
+    aliases: [
+      "facilities manager",
+      "facility manager",
+      "building manager",
+      "maintenance manager",
+      "maintenance supervisor",
+      "plant engineer",
+      "building engineer",
+      "facilities coordinator",
+      "maintenance coordinator",
+      "maintenance scheduler",
+    ],
+  },
+  {
+    id: "custodial",
+    title: "Cleaner / Custodian / Groundskeeper",
+    family: "trades",
+    soc: "37-2011",
+    entitlements: ["view_reports_only"],
+    description: "Cleans, maintains and repairs the premises and grounds; holds no financial duty.",
+    note: "Cleaning, grounds and maintenance staff hold no money duty by default; tick anything they actually do.",
+    aliases: [
+      "cleaner",
+      "custodian",
+      "janitor",
+      "janitorial",
+      "groundskeeper",
+      "landscaper",
+      "maintenance",
+      "maintenance worker",
+      "maintenance technician",
+      "porter",
+      "building attendant",
+    ],
+  },
   // IT and systems
-  entry(
-    "it-administrator",
-    "IT Administrator",
-    "it",
-    [
-      "it administrator",
+  {
+    id: "it-administrator",
+    title: "IT Administrator",
+    family: "it",
+    soc: "15-1244",
+    entitlements: [
+      "pms_admin_roles",
+      "manage_user_access",
+      "manage_backups",
+      "export_bulk_data",
+      "hold_company_card",
+      "view_reports_only",
+    ],
+    description:
+      "Installs, configures, and maintains the business's systems, networks, user accounts, and backups.",
+    note: "IT administers the system, grants access, holds the backups, can export everything, and puts the software subscriptions on a company card; the data-theft and data-destruction cases sit here. Reviewing the access logs should sit with someone else: tick it here only if IT does it.",
+    aliases: [
       "systems administrator",
       "system administrator",
       "sysadmin",
@@ -1201,35 +1650,25 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "information technology",
       "database administrator",
       "dba",
-      "i t",
-      "i t manager",
-      "i t director",
-      "i t support",
       "desktop support",
       "it support technician",
       "systems engineer",
     ],
-    [
-      "pms_admin_roles",
-      "manage_user_access",
-      "manage_backups",
-      "export_bulk_data",
-      "hold_company_card",
-      "view_reports_only",
-    ],
-    "IT administers the system, grants access, holds the backups, can export everything, and puts the software subscriptions on a company card; the data-theft and data-destruction cases sit here. Reviewing the access logs should sit with someone else: tick it here only if IT does it.",
-  ),
-
+  },
   // Human resources
-  entry(
-    "hr",
-    "Human Resources",
-    "people",
-    [
+  {
+    id: "hr",
+    title: "Human Resources",
+    family: "people",
+    soc: "13-1071",
+    entitlements: ["edit_payroll_master", "view_reports_only"],
+    description:
+      "Recruits, hires, and onboards staff, maintains employee records, and administers pay changes and benefits.",
+    note: "HR adds employees and changes pay rates and bank details; the check is that someone else runs the payroll that reads them.",
+    aliases: [
       "hr generalist",
       "hr manager",
       "hr director",
-      "human resources",
       "human resources manager",
       "human resources generalist",
       "hr specialist",
@@ -1238,7 +1677,6 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "hr assistant",
       "hr",
       "people operations",
-      "people ops",
       "people manager",
       "hr business partner",
       "hrbp",
@@ -1250,16 +1688,39 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "people and culture",
       "talent manager",
     ],
-    ["edit_payroll_master", "view_reports_only"],
-    "HR adds employees and changes pay rates and bank details; the check is that someone else runs the payroll that reads them.",
-  ),
-
+  },
   // Legal
-  entry(
-    "paralegal",
-    "Paralegal / Legal Assistant",
-    "legal",
-    [
+  {
+    id: "firm-administrator",
+    title: "Firm / Legal Administrator",
+    family: "legal",
+    entitlements: [
+      "prepare_deposit",
+      "bank_reconcile",
+      "enter_invoices",
+      "create_vendor",
+      "release_payment",
+      "enter_payroll",
+      "hold_company_card",
+      "review_card_statement",
+      "pms_admin_roles",
+      "view_reports_only",
+    ],
+    description:
+      "Manages a law firm's finances, trust and operating accounts, staff, payroll, facilities, and practice systems.",
+    note: "A firm administrator runs the firm's money and systems: makes the deposit, pays the bills, runs payroll, holds the firm card and codes its statement, reconciles the operating and trust accounts and administers the practice software, while billing posts client payments. Untick what someone else does.",
+    aliases: ["firm administrator", "law firm administrator", "legal administrator"],
+  },
+  {
+    id: "paralegal",
+    title: "Paralegal / Legal Assistant",
+    family: "legal",
+    soc: "23-2011",
+    entitlements: ["view_reports_only"],
+    description:
+      "Assists attorneys by preparing documents, organizing files, and managing deadlines and client contact.",
+    note: "A paralegal or legal assistant works the matters and holds no money duty by default; tick billing or payment posting if they do the firm's billing.",
+    aliases: [
       "paralegal",
       "legal assistant",
       "legal secretary",
@@ -1272,34 +1733,35 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "legal assistant secretary",
       "legal secretary assistant",
     ],
-    ["view_reports_only"],
-    "A paralegal or legal assistant works the matters and holds no money duty by default; tick billing or payment posting if they do the firm's billing.",
-  ),
-  entry(
-    "attorney",
-    "Attorney",
-    "legal",
-    [
-      "attorney",
+  },
+  {
+    id: "attorney",
+    title: "Attorney",
+    family: "legal",
+    soc: "23-1011",
+    entitlements: ["view_reports_only"],
+    description:
+      "Represents clients, gives legal advice, and records the time billed on their matters.",
+    note: "An associate or employed attorney bills time; write-downs are approved by a partner and billing and trust deposits belong to someone else, so tick write-off approval only for an attorney who grants it.",
+    aliases: [
       "lawyer",
       "associate attorney",
       "counsel",
-      "of counsel",
       "senior associate",
       "general counsel",
       "solicitor",
     ],
-    ["view_reports_only"],
-    "An associate or employed attorney bills time; write-downs are approved by a partner and billing and trust deposits belong to someone else, so tick write-off approval only for an attorney who grants it.",
-  ),
-
+  },
   // Professional and project staff
-  entry(
-    "project-manager",
-    "Project Manager",
-    "professional",
-    [
-      "project manager",
+  {
+    id: "project-manager",
+    title: "Project Manager",
+    family: "professional",
+    entitlements: ["view_reports_only"],
+    description:
+      "Plans and delivers projects, manages the budget and the subcontractors, and approves work and invoices against it.",
+    note: "A project manager approves subcontractor bills and change orders against the job budget: tick Approve bills for payment if they do. Entering the bills, paying them, and approving new suppliers belong to the office and the owner. Tick Order supplies / services if they place the orders.",
+    aliases: [
       "pm",
       "project coordinator",
       "program manager",
@@ -1308,14 +1770,16 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "delivery manager",
       "engagement manager",
     ],
-    ["view_reports_only"],
-    "A project manager approves subcontractor bills and change orders against the job budget: tick Approve bills for payment if they do. Entering the bills, paying them, and approving new suppliers belong to the office and the owner. Tick Order supplies / services if they place the orders.",
-  ),
-  entry(
-    "consultant",
-    "Consultant / Engineer / Analyst",
-    "professional",
-    [
+  },
+  {
+    id: "consultant",
+    title: "Consultant / Engineer / Analyst",
+    family: "professional",
+    entitlements: ["view_reports_only"],
+    description:
+      "Delivers professional, technical, or personal services to clients and bills time or fees for the work.",
+    note: "Fee-earning staff usually hold no money duty; tick collect payment if they take it at the chair or the desk.",
+    aliases: [
       "consultant",
       "senior consultant",
       "engineer",
@@ -1350,15 +1814,73 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "qa lead",
       "nail technician",
     ],
-    ["view_reports_only"],
-    "Fee-earning staff usually hold no money duty; tick collect payment if they take it at the chair or the desk.",
-  ),
+  },
+  {
+    id: "contracts-administrator",
+    title: "Contracts Administrator",
+    family: "professional",
+    entitlements: ["create_vendor", "approve_vendor", "enter_invoices", "view_reports_only"],
+    description:
+      "Prepares, sets up, and administers contracts and subcontracts and their invoices.",
+    note: "A contracts administrator sets up and approves subcontractors and enters their invoices against the contract.",
+    aliases: [
+      "contract administrator",
+      "contracts manager",
+      "contract manager",
+      "subcontract administrator",
+      "procurement administrator",
+    ],
+  },
+  {
+    id: "compliance",
+    title: "Compliance / Quality / Safety",
+    family: "professional",
+    entitlements: ["review_audit_logs", "view_reports_only"],
+    description:
+      "Monitors compliance with laws, standards, and internal policy; tests controls and reads the logs.",
+    note: "Compliance reads the logs and tests the controls and should hold no transaction duty.",
+    aliases: [
+      "compliance officer",
+      "compliance manager",
+      "compliance specialist",
+      "risk manager",
+      "quality manager",
+      "quality assurance manager",
+      "qa manager",
+      "safety manager",
+      "safety coordinator",
+      "ehs manager",
+      "privacy officer",
+      "information security officer",
+    ],
+  },
+  {
+    id: "intern",
+    title: "Intern / Volunteer",
+    family: "professional",
+    entitlements: ["view_reports_only"],
+    description:
+      "Works in a temporary or learning role and holds no financial duty unless assigned one.",
+    note: "An intern holds no money duty by default; tick anything they actually do.",
+    aliases: ["intern", "volunteer", "student worker", "work study", "co-op student", "apprentice"],
+  },
   // Hotels and hospitality
-  entry(
-    "hotel-front-desk",
-    "Hotel Front Desk Agent",
-    "hospitality",
-    [
+  {
+    id: "hotel-front-desk",
+    title: "Hotel Front Desk Agent",
+    family: "hospitality",
+    soc: "43-4081",
+    entitlements: [
+      "collect_cash",
+      "post_payments",
+      "issue_refunds",
+      "edit_patient_master",
+      "view_reports_only",
+    ],
+    description:
+      "Registers guests, assigns rooms, keeps guest accounts, makes and confirms reservations, and collects payment at checkout.",
+    note: "A desk agent takes payment, posts it to the folio, and can refund; the folio is the record and the money together. Tick Enter write-offs if they also adjust folio charges.",
+    aliases: [
       "hotel front desk",
       "front desk agent",
       "desk clerk",
@@ -1370,49 +1892,39 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "reservationist",
       "reservations",
     ],
-    ["collect_cash", "post_payments", "issue_refunds", "edit_patient_master", "view_reports_only"],
-    "A desk agent takes payment, posts it to the folio, and can refund; the folio is the record and the money together. Tick Enter write-offs if they also adjust folio charges.",
-    "43-4081",
-  ),
-  entry(
-    "night-auditor",
-    "Night Auditor",
-    "hospitality",
-    ["night auditor", "night audit", "night audit clerk", "overnight front desk"],
-    ["post_payments", "post_adjustments", "view_reports_only"],
-    "The night auditor posts the day's charges and payments and balances the property system's day, alone and overnight. Tick Reconcile the bank account only if they also reconcile the bank statement.",
-  ),
-  entry(
-    "housekeeping-supervisor",
-    "Housekeeping Supervisor",
-    "hospitality",
-    [
-      "housekeeping supervisor",
+  },
+  {
+    id: "night-auditor",
+    title: "Night Auditor",
+    family: "hospitality",
+    entitlements: ["post_payments", "post_adjustments", "view_reports_only"],
+    description:
+      "Works the overnight desk, posts the day's charges and payments, and balances the day's accounts before the morning shift.",
+    note: "The night auditor posts the day's charges and payments and balances the property system's day, alone and overnight. Tick Reconcile the bank account only if they also reconcile the bank statement.",
+    aliases: ["night audit", "night audit clerk", "overnight front desk"],
+  },
+  {
+    id: "housekeeping-supervisor",
+    title: "Housekeeping Supervisor",
+    family: "hospitality",
+    soc: "37-1011",
+    entitlements: ["order_supplies", "view_reports_only"],
+    description:
+      "Supervises and coordinates the cleaning staff, inspects rooms and areas, and orders cleaning supplies.",
+    note: "Housekeeping orders supplies and submits the crew's hours for the office to enter. Tick Enter payroll if they also enter the run.",
+    aliases: [
       "executive housekeeper",
       "housekeeping manager",
       "head housekeeper",
       "janitorial supervisor",
       "custodial supervisor",
     ],
-    ["order_supplies", "view_reports_only"],
-    "Housekeeping orders supplies and submits the crew's hours for the office to enter. Tick Enter payroll if they also enter the run.",
-    "37-1011",
-  ),
-  entry(
-    "hotel-manager",
-    "Hotel / Lodging Manager",
-    "hospitality",
-    [
-      "hotel manager",
-      "lodging manager",
-      "resort manager",
-      "innkeeper",
-      "hospitality manager",
-      "rooms division manager",
-      "guest services manager",
-      "guest service manager",
-    ],
-    [
+  },
+  {
+    id: "hotel-manager",
+    title: "Hotel / Lodging Manager",
+    family: "hospitality",
+    entitlements: [
       "approve_writeoffs",
       "issue_refunds",
       "prepare_deposit",
@@ -1422,29 +1934,64 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "manage_user_access",
       "view_reports_only",
     ],
-    "A lodging manager approves rate adjustments and refunds, banks the deposit, approves suppliers, holds the property card, and holds the property system's admin.",
-  ),
-
+    description:
+      "Plans, directs, and coordinates the operations of a hotel or lodging property and its staff.",
+    note: "A lodging manager approves rate adjustments and refunds, banks the deposit, approves suppliers, holds the property card, and holds the property system's admin.",
+    aliases: [
+      "hotel manager",
+      "lodging manager",
+      "resort manager",
+      "innkeeper",
+      "hospitality manager",
+      "rooms division manager",
+      "guest services manager",
+      "guest service manager",
+    ],
+  },
+  {
+    id: "housekeeping-staff",
+    title: "Housekeeping / Room Attendant",
+    family: "hospitality",
+    entitlements: ["view_reports_only"],
+    description:
+      "Cleans and services guest rooms and public areas of a hotel or property; holds no financial duty.",
+    note: "Housekeeping staff hold no money duty by default; tick anything they actually do.",
+    aliases: [
+      "housekeeper",
+      "room attendant",
+      "housekeeping attendant",
+      "housekeeping aide",
+      "laundry attendant",
+      "houseman",
+      "houseperson",
+      "housekeeping",
+    ],
+  },
   // Auto dealership and service
-  entry(
-    "service-advisor",
-    "Service Advisor / Writer",
-    "automotive",
-    ["service advisor", "service writer", "service consultant", "shop advisor"],
-    [
+  {
+    id: "service-advisor",
+    title: "Service Advisor / Writer",
+    family: "automotive",
+    entitlements: [
       "collect_cash",
       "post_payments",
       "post_adjustments",
       "edit_patient_master",
       "view_reports_only",
     ],
-    "A service advisor writes and adjusts the repair order and takes and records the customer's payment at the counter; goodwill write-offs are approved by the service manager unless you tick them.",
-  ),
-  entry(
-    "parts",
-    "Parts Manager / Counter",
-    "automotive",
-    [
+    description:
+      "Greets service customers, writes the repair order, quotes and adjusts the work, and takes payment.",
+    note: "A service advisor writes and adjusts the repair order and takes and records the customer's payment at the counter; goodwill write-offs are approved by the service manager unless you tick them.",
+    aliases: ["service advisor", "service writer", "service consultant", "shop advisor"],
+  },
+  {
+    id: "parts",
+    title: "Parts Manager / Counter",
+    family: "automotive",
+    entitlements: ["order_supplies", "receive_goods", "collect_cash", "view_reports_only"],
+    description: "Orders, receives, stocks, and sells parts over the counter and to the shop.",
+    note: "Parts orders stock, receives it, and sells it over the counter, which is ordering, receiving, and cash in one seat.",
+    aliases: [
       "parts manager",
       "parts counter",
       "parts specialist",
@@ -1456,59 +2003,113 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "parts counter person",
       "parts sales",
     ],
-    ["order_supplies", "receive_goods", "collect_cash", "view_reports_only"],
-    "Parts orders stock, receives it, and sells it over the counter, which is ordering, receiving, and cash in one seat.",
-  ),
-  entry(
-    "fi-manager",
-    "Finance and Insurance Manager",
-    "automotive",
-    [
-      "f&i manager",
-      "f and i manager",
-      "finance and insurance manager",
-      "finance & insurance manager",
-      "f&i",
-      "dealership finance manager",
-    ],
-    ["collect_cash", "approve_writeoffs", "edit_patient_master", "view_reports_only"],
-    "The F&I office takes down payments, structures the deal, and adjusts what the customer pays; the deal jacket is the control.",
-  ),
-  entry(
-    "title-clerk",
-    "Title / Deal Clerk",
-    "automotive",
-    [
+  },
+  {
+    id: "fi-manager",
+    title: "Finance and Insurance Manager",
+    family: "automotive",
+    entitlements: ["collect_cash", "approve_writeoffs", "edit_patient_master", "view_reports_only"],
+    description:
+      "Arranges financing and sells protection products on vehicle sales, structures the deal, and collects down payments.",
+    note: "The F&I office takes down payments, structures the deal, and adjusts what the customer pays; the deal jacket is the control.",
+    aliases: ["f&i manager", "f&i", "dealership finance manager"],
+  },
+  {
+    id: "title-clerk",
+    title: "Title / Deal Clerk",
+    family: "automotive",
+    entitlements: ["post_payments", "post_adjustments", "view_reports_only"],
+    description:
+      "Processes the paperwork on vehicle sales: titles, registrations, and the posting of the deal to the books.",
+    note: "A title clerk posts the deal and its adjustments after the sale; the money has usually moved before the record is written.",
+    aliases: [
       "title clerk",
       "deal clerk",
       "dmv clerk",
       "tag and title clerk",
       "deal processor",
       "title and registration clerk",
-      "title registration clerk",
       "registration clerk",
       "tag and title",
     ],
-    ["post_payments", "post_adjustments", "view_reports_only"],
-    "A title clerk posts the deal and its adjustments after the sale; the money has usually moved before the record is written.",
-  ),
-
-  // Property and real estate
-  entry(
-    "property-manager",
-    "Property Manager",
-    "property",
-    [
-      "property manager",
-      "community association manager",
-      "association manager",
-      "hoa manager",
-      "apartment manager",
-      "leasing manager",
-      "portfolio manager",
-      "asset manager",
+  },
+  {
+    id: "service-manager",
+    title: "Service Manager (repair, dealership)",
+    family: "automotive",
+    entitlements: [
+      "approve_writeoffs",
+      "order_supplies",
+      "receive_goods",
+      "hold_company_card",
+      "view_reports_only",
     ],
-    [
+    description:
+      "Runs a repair or dealership service department: schedules the shop, approves goodwill and warranty write-offs, submits technicians' hours, and orders parts.",
+    note: "A service manager approves goodwill and warranty write-offs, submits the technicians' hours, orders and receives parts, and holds the shop card for sublet and outside purchases. Tick Enter payroll if they also enter the run.",
+    aliases: [
+      "service manager",
+      "service department manager",
+      "fixed operations manager",
+      "service director",
+    ],
+  },
+  {
+    id: "automotive-support",
+    title: "Lot / Detail / BDC Staff",
+    family: "automotive",
+    entitlements: ["view_reports_only"],
+    description:
+      "Prepares, moves and cleans vehicles or sets sales and service appointments at a dealership; holds no financial duty.",
+    note: "Lot, detail and business-development-center staff hold no money duty by default; tick anything they actually do.",
+    aliases: [
+      "detailer",
+      "lot attendant",
+      "lot porter",
+      "bdc",
+      "bdc representative",
+      "bdc agent",
+      "business development center",
+      "car washer",
+    ],
+  },
+  {
+    id: "shop-technician",
+    title: "Shop / Automotive Technician",
+    family: "automotive",
+    entitlements: ["view_reports_only"],
+    description:
+      "Diagnoses and repairs vehicles or equipment in a shop against a repair order; holds no financial duty.",
+    note: "A shop technician works the repair order; the advisor or cashier takes the money, so the technician holds no money duty by default.",
+    aliases: [
+      "shop technician",
+      "automotive technician",
+      "auto technician",
+      "mechanic",
+      "diesel technician",
+      "lube technician",
+      "tire technician",
+      "master technician",
+      "ase technician",
+      "technician a",
+      "technician b",
+      "technician c",
+      "line technician",
+      "flat rate technician",
+      "body technician",
+      "collision technician",
+      "apprentice technician",
+      "general service technician",
+      "gs technician",
+    ],
+  },
+  // Property and real estate
+  {
+    id: "property-manager",
+    title: "Property Manager",
+    family: "property",
+    soc: "11-9141",
+    entitlements: [
       "collect_cash",
       "post_payments",
       "approve_vendor",
@@ -1517,35 +2118,48 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "hold_company_card",
       "view_reports_only",
     ],
-    "A property manager collects rent, posts it, chooses and pays the contractors, buys repairs on the company card, and writes off balances: custody, recording, and approval in one seat.",
-  ),
-  entry(
-    "assistant-property-manager",
-    "Assistant Property Manager",
-    "property",
-    ["assistant property manager", "assistant community manager"],
-    ["collect_cash", "post_payments", "view_reports_only"],
-    "An assistant property manager collects and posts rent; choosing and paying contractors stays with the property manager unless you tick it.",
-  ),
-  entry(
-    "leasing-agent",
-    "Leasing Agent",
-    "property",
-    [
-      "leasing agent",
-      "leasing consultant",
-      "leasing specialist",
-      "rental agent",
-      "leasing associate",
+    description:
+      "Manages residential or commercial property for owners: collects rent, hires and pays contractors, and keeps the accounts.",
+    note: "A property manager collects rent, posts it, chooses and pays the contractors, buys repairs on the company card, and writes off balances: custody, recording, and approval in one seat.",
+    aliases: [
+      "community association manager",
+      "association manager",
+      "hoa manager",
+      "apartment manager",
+      "leasing manager",
+      "portfolio manager",
+      "asset manager",
     ],
-    ["collect_cash", "edit_patient_master", "view_reports_only"],
-    "A leasing agent takes deposits and application fees and sets up the tenant record.",
-  ),
-  entry(
-    "real-estate-agent",
-    "Real Estate Agent / Broker",
-    "property",
-    [
+  },
+  {
+    id: "assistant-property-manager",
+    title: "Assistant Property Manager",
+    family: "property",
+    entitlements: ["collect_cash", "post_payments", "view_reports_only"],
+    description:
+      "Supports the property manager: collects and posts rent, handles tenant accounts, and coordinates service requests.",
+    note: "An assistant property manager collects and posts rent; choosing and paying contractors stays with the property manager unless you tick it.",
+    aliases: ["assistant community manager"],
+  },
+  {
+    id: "leasing-agent",
+    title: "Leasing Agent",
+    family: "property",
+    entitlements: ["collect_cash", "edit_patient_master", "view_reports_only"],
+    description: "Shows units, takes applications, deposits, and fees, and sets up tenant records.",
+    note: "A leasing agent takes deposits and application fees and sets up the tenant record.",
+    aliases: ["leasing consultant", "leasing specialist", "rental agent", "leasing associate"],
+  },
+  {
+    id: "real-estate-agent",
+    title: "Real Estate Agent / Broker",
+    family: "property",
+    soc: "41-9022",
+    entitlements: ["collect_cash", "view_reports_only"],
+    description:
+      "Rents, buys, or sells property for clients, shows listings, negotiates terms, and handles earnest money to escrow.",
+    note: "An agent handles earnest money and fees on the way to escrow; the control is that deposits go to the trust account the same day.",
+    aliases: [
       "real estate agent",
       "realtor",
       "real estate broker",
@@ -1553,15 +2167,16 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "listing agent",
       "buyer's agent",
     ],
-    ["collect_cash", "view_reports_only"],
-    "An agent handles earnest money and fees on the way to escrow; the control is that deposits go to the trust account the same day.",
-    "41-9022",
-  ),
-  entry(
-    "transaction-coordinator",
-    "Transaction / Closing Coordinator",
-    "property",
-    [
+  },
+  {
+    id: "transaction-coordinator",
+    title: "Transaction / Closing Coordinator",
+    family: "property",
+    entitlements: ["post_payments", "edit_patient_master", "view_reports_only"],
+    description:
+      "Manages the documents, deadlines, and funds of a real estate transaction from contract to closing.",
+    note: "A closing coordinator records the funds that move through a transaction and maintains the parties' records.",
+    aliases: [
       "transaction coordinator",
       "closing coordinator",
       "escrow assistant",
@@ -1570,17 +2185,13 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "settlement agent",
       "escrow manager",
     ],
-    ["post_payments", "edit_patient_master", "view_reports_only"],
-    "A closing coordinator records the funds that move through a transaction and maintains the parties' records.",
-  ),
-
+  },
   // Nonprofit and association
-  entry(
-    "executive-director",
-    "Executive Director",
-    "nonprofit",
-    ["executive director", "ed", "nonprofit director", "association executive"],
-    [
+  {
+    id: "executive-director",
+    title: "Executive Director",
+    family: "nonprofit",
+    entitlements: [
       "approve_vendor",
       "approve_payroll",
       "approve_writeoffs",
@@ -1590,13 +2201,20 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "manage_user_access",
       "view_reports_only",
     ],
-    "An executive director approves suppliers, payroll, write-offs and staff expenses, signs, and holds the organization's card; a board treasurer who reads the bank and card statements is the check.",
-  ),
-  entry(
-    "development-director",
-    "Development / Fundraising",
-    "nonprofit",
-    [
+    description:
+      "Leads a nonprofit or association, directs its programs and staff, and holds final authority over its spending.",
+    note: "An executive director approves suppliers, payroll, write-offs and staff expenses, signs, and holds the organization's card; a board treasurer who reads the bank and card statements is the check.",
+    aliases: ["ed", "nonprofit director", "association executive"],
+  },
+  {
+    id: "development-director",
+    title: "Development / Fundraising",
+    family: "nonprofit",
+    entitlements: ["collect_cash", "edit_patient_master", "view_reports_only"],
+    description:
+      "Raises funds from donors, members, and events and maintains the donor and member records.",
+    note: "Development receives gifts and maintains donor records; a gift that reaches the donor database but not the bank is the case pattern.",
+    aliases: [
       "development director",
       "director of development",
       "fundraising manager",
@@ -1609,45 +2227,50 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "membership coordinator",
       "membership manager",
     ],
-    ["collect_cash", "edit_patient_master", "view_reports_only"],
-    "Development receives gifts and maintains donor records; a gift that reaches the donor database but not the bank is the case pattern.",
-  ),
-  entry(
-    "grants-manager",
-    "Grants Manager",
-    "nonprofit",
-    [
-      "grants manager",
+  },
+  {
+    id: "grants-manager",
+    title: "Grants Manager",
+    family: "nonprofit",
+    entitlements: ["submit_claims", "view_reports_only"],
+    description: "Finds, writes, and administers grants and bills funders for reimbursable costs.",
+    note: "A grants manager bills funders for reimbursement, which is a claim against a payer.",
+    aliases: [
       "grant writer",
       "grants coordinator",
       "grant administrator",
       "grants administrator",
       "grant manager",
     ],
-    ["submit_claims", "view_reports_only"],
-    "A grants manager bills funders for reimbursement, which is a claim against a payer.",
-  ),
-  entry(
-    "board-treasurer",
-    "Board Treasurer",
-    "nonprofit",
-    ["board treasurer", "volunteer treasurer", "finance committee chair"],
-    ["sign_checks", "approve_payroll", "review_card_statement", "view_reports_only"],
-    "A volunteer treasurer co-signs, reads the executive director's card statement, and reviews the reconciliation someone else prepares; tick Reconcile bank only if the treasurer does the reconciliation, and when the treasurer also keeps the books there is no second reader.",
-  ),
-  entry(
-    "program-director",
-    "Program Director",
-    "nonprofit",
-    ["program director", "director of programs", "programs director", "program services director"],
-    ["order_supplies", "approve_invoices", "view_reports_only"],
-    "A program director buys program supplies and approves program bills against the budget or grant; tick Confirm receipt if they also sign for the deliveries.",
-  ),
-  entry(
-    "volunteer-coordinator",
-    "Volunteer / Program Coordinator",
-    "nonprofit",
-    [
+  },
+  {
+    id: "board-treasurer",
+    title: "Board Treasurer",
+    family: "nonprofit",
+    entitlements: ["sign_checks", "approve_payroll", "review_card_statement", "view_reports_only"],
+    description:
+      "Serves on the board, oversees the finances, signs or approves payments, and reviews the reconciliations.",
+    note: "A volunteer treasurer co-signs, reads the executive director's card statement, and reviews the reconciliation someone else prepares; tick Reconcile bank only if the treasurer does the reconciliation, and when the treasurer also keeps the books there is no second reader.",
+    aliases: ["volunteer treasurer", "finance committee chair"],
+  },
+  {
+    id: "program-director",
+    title: "Program Director",
+    family: "nonprofit",
+    entitlements: ["order_supplies", "approve_invoices", "view_reports_only"],
+    description:
+      "Plans and runs the organization's programs, supervises program staff, and manages the program budget and grant-funded costs.",
+    note: "A program director buys program supplies and approves program bills against the budget or grant; tick Confirm receipt if they also sign for the deliveries.",
+    aliases: ["director of programs", "programs director", "program services director"],
+  },
+  {
+    id: "volunteer-coordinator",
+    title: "Volunteer / Program Coordinator",
+    family: "nonprofit",
+    entitlements: ["view_reports_only"],
+    description: "Recruits and schedules volunteers and delivers the organization's programs.",
+    note: "Program staff hold no money duty; they appear on the map for continuity.",
+    aliases: [
       "volunteer coordinator",
       "volunteer manager",
       "outreach coordinator",
@@ -1659,16 +2282,36 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "care coordinator",
       "social worker",
     ],
-    ["view_reports_only"],
-    "Program staff hold no money duty; they appear on the map for continuity.",
-  ),
-
+  },
+  {
+    id: "board-member",
+    title: "Board Member / Trustee",
+    family: "nonprofit",
+    entitlements: ["view_reports_only"],
+    description:
+      "Serves on the governing board of a nonprofit or association, approving budgets and policies and reading financial reports.",
+    note: "A board member approves budgets and reads reports; signing, reconciling and approving payroll belong to the treasurer if a board member holds them.",
+    aliases: [
+      "board member",
+      "trustee",
+      "board director",
+      "board chair",
+      "board president",
+      "board secretary",
+      "board vice chair",
+    ],
+  },
   // Marketing and communications
-  entry(
-    "marketing",
-    "Marketing Manager / Director",
-    "marketing",
-    [
+  {
+    id: "marketing",
+    title: "Marketing Manager / Director",
+    family: "marketing",
+    soc: "11-2021",
+    entitlements: ["order_supplies", "hold_company_card", "view_reports_only"],
+    description:
+      "Plans and runs marketing and communications, manages agencies and ad spend, and maintains the brand.",
+    note: "Marketing buys agency, print, and ad-platform services, usually on a company card the owner never itemises; entering and paying the bills belong to the office.",
+    aliases: [
       "marketing manager",
       "marketing director",
       "director of marketing",
@@ -1688,15 +2331,17 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "online community manager",
       "community engagement manager",
     ],
-    ["order_supplies", "hold_company_card", "view_reports_only"],
-    "Marketing buys agency, print, and ad-platform services, usually on a company card the owner never itemises; entering and paying the bills belong to the office.",
-    "11-2021",
-  ),
-  entry(
-    "marketing-coordinator",
-    "Marketing Coordinator / Specialist",
-    "marketing",
-    [
+  },
+  {
+    id: "marketing-coordinator",
+    title: "Marketing Coordinator / Specialist",
+    family: "marketing",
+    soc: "13-1161",
+    entitlements: ["view_reports_only"],
+    description:
+      "Coordinates campaigns, content, social media, and events under a marketing manager or the owner.",
+    note: "A marketing coordinator runs campaigns and content; buying the ads and paying for them sit with a manager or the office unless you tick them.",
+    aliases: [
       "marketing coordinator",
       "marketing specialist",
       "marketing associate",
@@ -1704,152 +2349,24 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "social media coordinator",
       "communications coordinator",
     ],
-    ["view_reports_only"],
-    "A marketing coordinator runs campaigns and content; buying the ads and paying for them sit with a manager or the office unless you tick them.",
-    "13-1161",
-  ),
-
-  // Insurance, tax, lending
-  entry(
-    "insurance-agent",
-    "Insurance Agent / Producer",
-    "sales",
-    [
-      "insurance agent",
-      "insurance producer",
-      "producer",
-      "insurance broker",
-      "agency owner",
-      "insurance account manager",
-      "insurance csr",
-    ],
-    ["collect_cash", "edit_patient_master", "view_reports_only"],
-    "An agent takes premiums and maintains the policyholder record; premium diversion is the case pattern.",
-    "41-3021",
-  ),
-  entry(
-    "tax-preparer",
-    "Tax Preparer",
-    "finance",
-    [
-      "tax preparer",
-      "tax professional",
-      "tax associate",
-      "tax senior",
-      "enrolled agent",
-      "tax advisor",
-    ],
-    ["collect_cash", "view_reports_only"],
-    "A preparer takes the client's fee; the refund itself should never pass through the firm.",
-    "13-2082",
-  ),
-  entry(
-    "auditor",
-    "Auditor",
-    "finance",
-    [
-      "auditor",
-      "staff auditor",
-      "audit senior",
-      "audit associate",
-      "internal auditor",
-      "audit manager",
-    ],
-    ["review_audit_logs", "view_reports_only"],
-    "An auditor reads the logs and the records and should hold no transaction duty.",
-  ),
-  entry(
-    "loan-officer",
-    "Loan Officer / Processor",
-    "finance",
-    [
-      "loan officer",
-      "mortgage loan officer",
-      "loan processor",
-      "underwriter",
-      "credit officer",
-      "lending officer",
-      "mortgage broker",
-    ],
-    ["edit_patient_master", "view_reports_only"],
-    "Lending staff maintain the borrower record; funding and disbursement belong to someone else.",
-  ),
-
-  // Pharmacy and health administration
-  entry(
-    "pharmacist",
-    "Pharmacist",
-    "clinical",
-    ["pharmacist", "pharmacy manager", "pharmacist in charge", "pic", "clinical pharmacist"],
-    ["order_supplies", "receive_goods", "approve_writeoffs", "view_reports_only"],
-    "The pharmacist orders stock, receives it, and approves adjustments; controlled-substance counts are the added control.",
-  ),
-  entry(
-    "pharmacy-technician",
-    "Pharmacy Technician",
-    "clinical",
-    [
-      "pharmacy technician",
-      "pharmacy tech",
-      "cpht",
-      "pharmacy clerk",
-      "pharmacy assistant",
-      "pharmacy cashier",
-    ],
-    ["collect_cash", "submit_claims", "receive_goods", "view_reports_only"],
-    "A technician rings the sale, adjudicates the claim, and often checks in the order.",
-  ),
-  entry(
-    "medical-coder",
-    "Medical Coder",
-    "clinical",
-    [
-      "medical coder",
-      "coder",
-      "coding specialist",
-      "cpc",
-      "certified professional coder",
-      "medical records coder",
-    ],
-    ["submit_claims", "post_adjustments", "view_reports_only"],
-    "A coder decides what is billed and adjusts what was denied.",
-  ),
-  entry(
-    "billing-manager",
-    "Billing / Revenue Cycle Manager",
-    "clinical",
-    ["billing manager", "revenue cycle manager", "patient accounts manager"],
-    [
-      "submit_claims",
-      "post_payments",
-      "post_adjustments",
-      "approve_writeoffs",
-      "issue_refunds",
+  },
+  // Education and childcare
+  {
+    id: "center-director",
+    title: "Center / School Director",
+    family: "education",
+    entitlements: [
+      "collect_cash",
+      "prepare_deposit",
+      "approve_vendor",
+      "hold_company_card",
+      "manage_user_access",
       "view_reports_only",
     ],
-    "A billing manager bills, posts, adjusts, writes off, and refunds: the whole receivable in one seat.",
-  ),
-  entry(
-    "credentialing",
-    "Credentialing / Provider Enrollment",
-    "clinical",
-    [
-      "credentialing specialist",
-      "credentialing coordinator",
-      "provider enrollment specialist",
-      "provider enrollment",
-      "credentialing",
-    ],
-    ["view_reports_only"],
-    "Credentialing keeps providers enrolled with payers and holds no money duty.",
-  ),
-
-  // Education and childcare
-  entry(
-    "center-director",
-    "Center / School Director",
-    "education",
-    [
+    description:
+      "Directs a childcare center or school: enrollment, tuition, staffing, suppliers, and compliance.",
+    note: "A director takes tuition, makes the deposit, approves suppliers, buys supplies on the center's card, and submits hours, usually with no one above them on site. Tick Enter payroll if they also enter the run.",
+    aliases: [
       "center director",
       "childcare director",
       "daycare director",
@@ -1861,35 +2378,30 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "school principal",
       "assistant principal",
     ],
-    [
-      "collect_cash",
-      "prepare_deposit",
-      "approve_vendor",
-      "hold_company_card",
-      "manage_user_access",
-      "view_reports_only",
-    ],
-    "A director takes tuition, makes the deposit, approves suppliers, buys supplies on the center's card, and submits hours, usually with no one above them on site. Tick Enter payroll if they also enter the run.",
-  ),
-  entry(
-    "assistant-director",
-    "Assistant Center Director",
-    "education",
-    [
+  },
+  {
+    id: "assistant-director",
+    title: "Assistant Center Director",
+    family: "education",
+    entitlements: ["collect_cash", "post_payments", "view_reports_only"],
+    description:
+      "Assists the center director with enrollment, family accounts, and tuition payments, and runs the front office.",
+    note: "An assistant director takes tuition payments at the front desk and records them on families' accounts; the deposit and supplier approvals stay with the director unless you tick them.",
+    aliases: [
       "assistant director",
-      "assistant center director",
       "assistant childcare director",
       "assistant daycare director",
       "assistant preschool director",
     ],
-    ["collect_cash", "post_payments", "view_reports_only"],
-    "An assistant director takes tuition payments at the front desk and records them on families' accounts; the deposit and supplier approvals stay with the director unless you tick them.",
-  ),
-  entry(
-    "teacher",
-    "Teacher / Caregiver",
-    "education",
-    [
+  },
+  {
+    id: "teacher",
+    title: "Teacher / Caregiver",
+    family: "education",
+    entitlements: ["view_reports_only"],
+    description: "Teaches or cares for children or students and holds no financial duty.",
+    note: "Teaching staff hold no money duty; they appear on the map for continuity.",
+    aliases: [
       "teacher",
       "special education teacher",
       "special ed teacher",
@@ -1912,609 +2424,122 @@ const RAW_CATALOG: readonly Omit<JobCatalogEntry, "description">[] = [
       "school age lead",
       "school age teacher",
     ],
-    ["view_reports_only"],
-    "Teaching staff hold no money duty; they appear on the map for continuity.",
-  ),
-
-  // Field, fleet, projects, facilities
-  entry(
-    "driver",
-    "Driver / Delivery",
-    "trades",
-    [
-      "driver",
-      "delivery driver",
-      "truck driver",
-      "cdl driver",
-      "courier",
-      "route driver",
-      "route sales",
-      "route salesperson",
-      "delivery",
-      "route sales rep",
-      "route sales representative",
+  },
+  {
+    id: "transport-driver",
+    title: "Bus / Van Driver",
+    family: "education",
+    soc: "53-3051",
+    entitlements: ["view_reports_only"],
+    description:
+      "Drives a bus or van carrying children, clients, or staff; holds no financial duty.",
+    note: "A bus or van driver carries children, clients or staff and collects nothing; tick Take payments if they collect fares.",
+    aliases: [
+      "bus driver",
+      "school bus driver",
+      "van driver",
+      "shuttle driver",
+      "transportation driver",
     ],
-    ["collect_cash", "view_reports_only"],
-    "A driver who collects on delivery holds cash and checks until the route settles.",
-  ),
-  entry(
-    "transport-driver",
-    "Bus / Van Driver",
-    "education",
-    ["bus driver", "school bus driver", "van driver", "shuttle driver", "transportation driver"],
-    ["view_reports_only"],
-    "A bus or van driver carries children, clients or staff and collects nothing; tick Take payments if they collect fares.",
-    "53-3051",
-  ),
-  entry(
-    "fleet-manager",
-    "Fleet / Logistics Manager",
-    "trades",
-    [
-      "fleet manager",
-      "transportation manager",
-      "logistics manager",
-      "dispatch manager",
-      "distribution manager",
-      "routing manager",
-      "equipment manager",
-      "equipment coordinator",
-    ],
-    ["approve_vendor", "order_supplies", "receive_goods", "hold_company_card", "view_reports_only"],
-    "A fleet manager approves fuel, repair, and equipment suppliers, holds the fuel and repair cards, and submits drivers' hours for the office to enter. Tick Enter payroll if they also enter the run.",
-  ),
-  entry(
-    "project-accountant",
-    "Project / Job Cost Accountant",
-    "finance",
-    [
-      "project accountant",
-      "job cost accountant",
-      "construction accountant",
-      "job cost",
-      "project controller",
-      "billing accountant",
-    ],
-    [
-      "post_journal_entries",
-      "enter_invoices",
-      "post_adjustments",
-      "submit_claims",
-      "view_reports_only",
-    ],
-    "A project accountant bills progress, enters subcontractor invoices, and posts the entries that move cost between jobs.",
-  ),
-  entry(
-    "contracts-administrator",
-    "Contracts Administrator",
-    "professional",
-    [
-      "contracts administrator",
-      "contract administrator",
-      "contracts manager",
-      "contract manager",
-      "subcontract administrator",
-      "procurement administrator",
-    ],
-    ["create_vendor", "approve_vendor", "enter_invoices", "view_reports_only"],
-    "A contracts administrator sets up and approves subcontractors and enters their invoices against the contract.",
-  ),
-  entry(
-    "compliance",
-    "Compliance / Quality / Safety",
-    "professional",
-    [
-      "compliance officer",
-      "compliance manager",
-      "compliance specialist",
-      "risk manager",
-      "quality manager",
-      "quality assurance manager",
-      "qa manager",
-      "safety manager",
-      "safety coordinator",
-      "ehs manager",
-      "privacy officer",
-      "information security officer",
-    ],
-    ["review_audit_logs", "view_reports_only"],
-    "Compliance reads the logs and tests the controls and should hold no transaction duty.",
-  ),
-  entry(
-    "facilities",
-    "Facilities / Maintenance Manager",
-    "trades",
-    [
-      "facilities manager",
-      "facility manager",
-      "building manager",
-      "maintenance manager",
-      "maintenance supervisor",
-      "plant engineer",
-      "building engineer",
-      "facilities coordinator",
-      "maintenance coordinator",
-      "maintenance scheduler",
-    ],
-    [
-      "order_supplies",
-      "receive_goods",
-      "approve_vendor",
-      "enter_invoices",
-      "hold_company_card",
-      "view_reports_only",
-    ],
-    "Facilities chooses the contractors, orders the parts on account or on the company card, confirms the work, and enters the invoice.",
-  ),
-  entry(
-    "security",
-    "Security / Loss Prevention",
-    "retail",
-    [
-      "security guard",
-      "security officer",
-      "loss prevention",
-      "loss prevention officer",
-      "asset protection",
-      "asset protection associate",
-      "security",
-    ],
-    ["view_reports_only"],
-    "Security watches the premises and the registers and holds no money duty of its own.",
-    "33-9032",
-  ),
-
-  // Retail and restaurant additions
-  entry(
-    "ecommerce",
-    "E-commerce / Fulfillment",
-    "retail",
-    [
-      "e-commerce specialist",
-      "ecommerce specialist",
-      "ecommerce manager",
-      "e-commerce manager",
-      "online sales",
-      "marketplace manager",
-      "fulfillment associate",
-      "fulfillment specialist",
-      "order fulfillment",
-      "fulfillment",
-      "e-commerce coordinator",
-      "ecommerce coordinator",
-      "online store coordinator",
-      "online store manager",
-    ],
-    ["issue_refunds", "view_reports_only"],
-    "Online sales issues refunds against orders nobody else sees; tick Enter write-offs if they also grant store credit or adjust orders.",
-  ),
-  entry(
-    "merchandiser",
-    "Merchandiser / Category Manager",
-    "retail",
-    [
-      "visual merchandiser",
-      "merchandiser",
-      "merchandising manager",
-      "category manager",
-      "merchandise planner",
-      "retail planner",
-      "inventory planner",
-      "merchandise allocator",
-    ],
-    ["order_supplies", "view_reports_only"],
-    "A merchandiser decides what is bought; receiving and paying belong to others.",
-  ),
-  entry(
-    "catering-manager",
-    "Catering / Events Manager",
-    "food",
-    [
-      "catering manager",
-      "events manager",
-      "event manager",
-      "event coordinator",
-      "banquet manager",
-      "sales and catering",
-      "catering sales",
-      "private events",
-    ],
-    ["collect_cash", "post_adjustments", "approve_writeoffs", "view_reports_only"],
-    "Events takes deposits, adjusts the bill, and comps: money and its record in one seat, usually off the main register.",
-  ),
-  entry(
-    "kitchen-staff",
-    "Kitchen Staff",
-    "food",
-    [
-      "dishwasher",
-      "kitchen staff",
-      "kitchen assistant",
-      "kitchen porter",
-      "steward",
-      "kitchen helper",
-      "food prep",
-      "prep",
-      "expo",
-      "expeditor",
-      "food expeditor",
-      "cook",
-      "line cook",
-      "prep cook",
-      "cook line",
-      "grill cook",
-      "fry cook",
-    ],
-    ["view_reports_only"],
-    "Kitchen staff hold no money duty; they appear on the map for continuity.",
-  ),
-
-  // General
-  entry(
-    "intern",
-    "Intern / Volunteer",
-    "professional",
-    ["intern", "volunteer", "student worker", "work study", "co-op student", "apprentice"],
-    ["view_reports_only"],
-    "An intern holds no money duty by default; tick anything they actually do.",
-  ),
-  entry(
-    "cash-office",
-    "Cash Office / Deposit Clerk",
-    "retail",
-    [
-      "cash office",
-      "cash office associate",
-      "cash office clerk",
-      "cash office lead",
-      "cash room clerk",
-      "cash room",
-      "deposit clerk",
-      "vault teller",
-      "cash control clerk",
-      "cash handler",
-    ],
-    ["collect_cash", "prepare_deposit", "view_reports_only"],
-    "A cash-office clerk counts the drawers and makes up the deposit; whoever reconciles the bank account must be someone else.",
-  ),
-  entry(
-    "custodial",
-    "Cleaner / Custodian / Groundskeeper",
-    "trades",
-    [
-      "cleaner",
-      "custodian",
-      "janitor",
-      "janitorial",
-      "groundskeeper",
-      "landscaper",
-      "maintenance",
-      "maintenance worker",
-      "maintenance technician",
-      "maintenance tech",
-      "porter",
-      "building attendant",
-    ],
-    ["view_reports_only"],
-    "Cleaning, grounds and maintenance staff hold no money duty by default; tick anything they actually do.",
-  ),
-  entry(
-    "board-member",
-    "Board Member / Trustee",
-    "nonprofit",
-    [
-      "board member",
-      "trustee",
-      "board director",
-      "board chair",
-      "board president",
-      "board secretary",
-      "board vice chair",
-    ],
-    ["view_reports_only"],
-    "A board member approves budgets and reads reports; signing, reconciling and approving payroll belong to the treasurer if a board member holds them.",
-  ),
-  entry(
-    "service-manager",
-    "Service Manager (repair, dealership)",
-    "automotive",
-    [
-      "service manager",
-      "service department manager",
-      "fixed operations manager",
-      "fixed ops manager",
-      "service director",
-    ],
-    [
-      "approve_writeoffs",
-      "order_supplies",
-      "receive_goods",
-      "hold_company_card",
-      "view_reports_only",
-    ],
-    "A service manager approves goodwill and warranty write-offs, submits the technicians' hours, orders and receives parts, and holds the shop card for sublet and outside purchases. Tick Enter payroll if they also enter the run.",
-  ),
-  entry(
-    "automotive-support",
-    "Lot / Detail / BDC Staff",
-    "automotive",
-    [
-      "detailer",
-      "lot attendant",
-      "lot porter",
-      "bdc",
-      "bdc representative",
-      "bdc rep",
-      "bdc agent",
-      "business development center",
-      "car washer",
-    ],
-    ["view_reports_only"],
-    "Lot, detail and business-development-center staff hold no money duty by default; tick anything they actually do.",
-  ),
-  entry(
-    "housekeeping-staff",
-    "Housekeeping / Room Attendant",
-    "hospitality",
-    [
-      "housekeeper",
-      "room attendant",
-      "housekeeping attendant",
-      "housekeeping aide",
-      "laundry attendant",
-      "houseman",
-      "houseperson",
-      "housekeeping",
-    ],
-    ["view_reports_only"],
-    "Housekeeping staff hold no money duty by default; tick anything they actually do.",
-  ),
-  entry(
-    "shop-technician",
-    "Shop / Automotive Technician",
-    "automotive",
-    [
-      "shop technician",
-      "automotive technician",
-      "auto technician",
-      "auto tech",
-      "mechanic",
-      "diesel technician",
-      "lube technician",
-      "tire technician",
-      "master technician",
-      "ase technician",
-      "technician a",
-      "technician b",
-      "technician c",
-      "line technician",
-      "flat rate technician",
-      "body technician",
-      "collision technician",
-      "apprentice technician",
-      "apprentice tech",
-      "general service technician",
-      "general service tech",
-      "gs technician",
-    ],
-    ["view_reports_only"],
-    "A shop technician works the repair order; the advisor or cashier takes the money, so the technician holds no money duty by default.",
-  ),
+  },
 ];
 
 /**
- * The standard description of each job, in one plain sentence. Kept apart
- * from the entries so the whole set can be read and corrected in one place.
- * Where the entry carries a SOC code the sentence paraphrases the Bureau of
- * Labor Statistics definition; elsewhere it is this app's wording.
+ * A bare title that means one seat in one line of business: "Associate" is
+ * an attorney in a law firm and a sales associate in a store; "Assistant" is
+ * a dental assistant in a dental office; a "Crew Lead" runs a field crew in a
+ * general or trades business and a shift in a store or restaurant; a
+ * "Business Assistant" is the front desk of a dental office. Anywhere else
+ * the catalog's own reading stands (or, for a level word, nothing).
  */
-const DESCRIPTIONS: Record<string, string> = {
-  owner:
-    "Owns the business, sets its policies, and holds final authority over spending, hiring, and pay.",
-  "general-manager":
-    "Plans, directs, and coordinates the operations of the business, including budgeting, purchasing, and staffing, without a single functional specialty.",
-  "office-manager":
-    "Supervises the office and administrative staff and, in a small business, runs the daily money work: payments, deposits, bills, and payroll.",
-  "office-administrator":
-    "Runs the office's paperwork, correspondence, and supplier bills, and pays them as directed.",
-  "firm-administrator":
-    "Manages a law firm's finances, trust and operating accounts, staff, payroll, facilities, and practice systems.",
-  "store-manager":
-    "Supervises and coordinates the retail staff of a store or department, including cash handling, returns, deliveries, and schedules.",
-  "assistant-manager":
-    "Supports the store or restaurant manager and runs shifts: opens and closes the registers, bags the deposit, and handles returns.",
-  "restaurant-manager":
-    "Runs the restaurant or its dining room: closes the register, approves voids and comps, schedules staff, and orders stock.",
-  "shift-lead":
-    "Leads a shift or a station, opens and closes the register, and stands in for the manager when none is present.",
-  controller:
-    "Plans, directs, and coordinates the accounting, reporting, and banking of the business and prepares its financial statements.",
-  cfo: "Directs the finances of the business, approves spending and suppliers, and signs or approves payments.",
-  accountant:
-    "Examines, analyzes, and interprets accounting records, prepares financial statements, and posts the entries that keep the ledger true.",
-  bookkeeper:
-    "Computes, classifies, and records financial transactions, keeps the ledger, and in a small business also pays bills and runs payroll.",
-  "accounts-payable":
-    "Enters supplier invoices, sets up suppliers, matches invoices to orders and receipts, and prepares payments for release.",
-  "accounts-receivable":
-    "Records customer payments, follows up on unpaid balances, and posts the adjustments and credits that settle accounts.",
-  billing:
-    "Compiles and posts charges, prepares invoices or claims, and posts what comes back from customers and payers.",
-  payroll:
-    "Compiles employee time and pay data, enters and processes payroll, and maintains the employee records payroll reads from.",
-  treasurer:
-    "Manages the cash of the business: signs or releases payments, moves funds between accounts, and reconciles the bank.",
-  purchasing:
-    "Buys goods and services for the business, selects and sets up suppliers, and places and follows orders.",
-  receiving: "Verifies and records incoming and outgoing shipments and keeps the inventory count.",
-  receptionist:
-    "Greets and directs callers and visitors, schedules, takes payments at the desk, and keeps customer or patient records.",
-  "administrative-assistant":
-    "Performs routine administrative work such as correspondence, scheduling, filing, ordering supplies, and answering calls.",
-  "executive-assistant":
-    "Provides high-level administrative support to the owner or executive, including correspondence, scheduling, travel, and often the executive's expenses.",
-  "insurance-coordinator":
-    "Verifies coverage and eligibility, submits and follows claims, and adjusts balances to what the payer allowed.",
-  "treatment-coordinator":
-    "Presents treatment plans and fees, arranges financing, takes payment, and keeps the patient's plan current.",
-  "customer-service":
-    "Handles customer inquiries, complaints, orders, returns, and account changes, and issues refunds and credits within limits.",
-  sales: "Sells the business's products or services and manages customer accounts.",
-  cashier: "Receives and disburses money at a register, records the sale, and makes change.",
-  provider:
-    "Delivers the clinical or professional service the business sells; billing, adjustments, and payments belong to the office.",
-  "dental-hygienist":
-    "Provides preventive dental care, cleans teeth, examines patients for oral disease, and educates patients on oral hygiene.",
-  "dental-assistant":
-    "Performs limited clinical duties under the direction of a dentist, prepares patients and instruments, and assists chairside.",
-  "medical-assistant":
-    "Performs clinical and administrative tasks under a provider's direction, including intake, vitals, charting, and specimen handling.",
-  "medical-secretary":
-    "Performs secretarial duties using knowledge of medical terminology: schedules, registers patients, takes copays, and files claims.",
-  "clinic-director":
-    "Plans, directs, and coordinates the medical or clinical services of a practice or clinic and its staff.",
-  chef: "Directs food preparation and the kitchen staff, plans menus, and orders and receives food and supplies.",
-  server:
-    "Takes orders and serves food and drink to guests, presents the check, and collects payment.",
-  host: "Seats guests, clears and resets tables, runs food, or stocks the bar, without handling payment.",
-  bartender:
-    "Mixes and serves drinks, takes payment at the bar, and keeps the bar's stock and drawer.",
-  "bar-manager":
-    "Runs the bar: orders and receives liquor, sets the pour, schedules bar staff, and closes the bar's drawer.",
-  estimator: "Prepares cost estimates and prices for jobs, bids, and change orders.",
-  dispatcher:
-    "Schedules and dispatches technicians and drivers, keeps customer and job records, and takes payments by phone.",
-  "field-technician":
-    "Performs the trade or service work in the field or on site and may collect payment from the customer on completion.",
-  foreman:
-    "Supervises and coordinates the crew on site, orders and receives materials, and approves the crew's hours.",
-  "it-administrator":
-    "Installs, configures, and maintains the business's systems, networks, user accounts, and backups.",
-  hr: "Recruits, hires, and onboards staff, maintains employee records, and administers pay changes and benefits.",
-  paralegal:
-    "Assists attorneys by preparing documents, organizing files, and managing deadlines and client contact.",
-  attorney: "Represents clients, gives legal advice, and records the time billed on their matters.",
-  "project-manager":
-    "Plans and delivers projects, manages the budget and the subcontractors, and approves work and invoices against it.",
-  consultant:
-    "Delivers professional, technical, or personal services to clients and bills time or fees for the work.",
-  "hotel-front-desk":
-    "Registers guests, assigns rooms, keeps guest accounts, makes and confirms reservations, and collects payment at checkout.",
-  "night-auditor":
-    "Works the overnight desk, posts the day's charges and payments, and balances the day's accounts before the morning shift.",
-  "housekeeping-supervisor":
-    "Supervises and coordinates the cleaning staff, inspects rooms and areas, and orders cleaning supplies.",
-  "hotel-manager":
-    "Plans, directs, and coordinates the operations of a hotel or lodging property and its staff.",
-  "service-advisor":
-    "Greets service customers, writes the repair order, quotes and adjusts the work, and takes payment.",
-  parts: "Orders, receives, stocks, and sells parts over the counter and to the shop.",
-  "fi-manager":
-    "Arranges financing and sells protection products on vehicle sales, structures the deal, and collects down payments.",
-  "title-clerk":
-    "Processes the paperwork on vehicle sales: titles, registrations, and the posting of the deal to the books.",
-  "property-manager":
-    "Manages residential or commercial property for owners: collects rent, hires and pays contractors, and keeps the accounts.",
-  "leasing-agent":
-    "Shows units, takes applications, deposits, and fees, and sets up tenant records.",
-  "real-estate-agent":
-    "Rents, buys, or sells property for clients, shows listings, negotiates terms, and handles earnest money to escrow.",
-  "transaction-coordinator":
-    "Manages the documents, deadlines, and funds of a real estate transaction from contract to closing.",
-  "executive-director":
-    "Leads a nonprofit or association, directs its programs and staff, and holds final authority over its spending.",
-  "development-director":
-    "Raises funds from donors, members, and events and maintains the donor and member records.",
-  "grants-manager":
-    "Finds, writes, and administers grants and bills funders for reimbursable costs.",
-  "board-treasurer":
-    "Serves on the board, oversees the finances, signs or approves payments, and reviews the reconciliations.",
-  "program-director":
-    "Plans and runs the organization's programs, supervises program staff, and manages the program budget and grant-funded costs.",
-  "volunteer-coordinator":
-    "Recruits and schedules volunteers and delivers the organization's programs.",
-  marketing:
-    "Plans and runs marketing and communications, manages agencies and ad spend, and maintains the brand.",
-  "marketing-coordinator":
-    "Coordinates campaigns, content, social media, and events under a marketing manager or the owner.",
-  "insurance-agent": "Sells insurance policies, services policyholders, and collects premiums.",
-  "tax-preparer": "Prepares tax returns for individuals or small businesses and collects the fee.",
-  auditor:
-    "Examines records and controls, tests transactions, and reports findings; holds no transaction duty.",
-  "loan-officer":
-    "Evaluates, authorizes, or recommends approval of loan applications and maintains borrower records.",
-  pharmacist:
-    "Dispenses medications, counsels patients, manages inventory including controlled substances, and supervises technicians.",
-  "pharmacy-technician":
-    "Prepares medications under a pharmacist's supervision, rings sales, and processes insurance claims.",
-  "medical-coder":
-    "Assigns diagnosis and procedure codes for billing and resolves denied or adjusted claims.",
-  "billing-manager":
-    "Manages the revenue cycle: claims, posting, adjustments, write-offs, refunds, and the billing staff.",
-  credentialing: "Enrolls and re-credentials providers with payers and licensing bodies.",
-  "center-director":
-    "Directs a childcare center or school: enrollment, tuition, staffing, suppliers, and compliance.",
-  teacher: "Teaches or cares for children or students and holds no financial duty.",
-  "assistant-director":
-    "Assists the center director with enrollment, family accounts, and tuition payments, and runs the front office.",
-  "transport-driver":
-    "Drives a bus or van carrying children, clients, or staff; holds no financial duty.",
-  driver: "Drives delivery or service routes and may collect payment on delivery.",
-  "fleet-manager": "Manages vehicles, drivers, routing, fuel, and repair suppliers.",
-  "project-accountant":
-    "Tracks cost and billing by job or project, bills progress, and posts the entries that allocate cost.",
-  "contracts-administrator":
-    "Prepares, sets up, and administers contracts and subcontracts and their invoices.",
-  compliance:
-    "Monitors compliance with laws, standards, and internal policy; tests controls and reads the logs.",
-  facilities:
-    "Maintains buildings and equipment, hires and directs contractors, and orders parts and supplies.",
-  security:
-    "Guards, patrols, or monitors premises to prevent theft, violence, or infractions of rules.",
-  ecommerce: "Runs online sales channels and fulfils orders, including returns and refunds.",
-  merchandiser: "Plans and selects the products the business carries and how they are presented.",
-  "catering-manager": "Sells and runs catered events, takes deposits, and settles event bills.",
-  "kitchen-staff":
-    "Prepares ingredients, washes, and supports the kitchen; holds no financial duty.",
-  intern: "Works in a temporary or learning role and holds no financial duty unless assigned one.",
-  "cash-office":
-    "Counts register drawers, prepares the bank deposit, and keeps the cash-office records for a store or branch.",
-  custodial: "Cleans, maintains and repairs the premises and grounds; holds no financial duty.",
-  "board-member":
-    "Serves on the governing board of a nonprofit or association, approving budgets and policies and reading financial reports.",
-  "service-manager":
-    "Runs a repair or dealership service department: schedules the shop, approves goodwill and warranty write-offs, submits technicians' hours, and orders parts.",
-  "automotive-support":
-    "Prepares, moves and cleans vehicles or sets sales and service appointments at a dealership; holds no financial duty.",
-  "housekeeping-staff":
-    "Cleans and services guest rooms and public areas of a hotel or property; holds no financial duty.",
-  "shop-technician":
-    "Diagnoses and repairs vehicles or equipment in a shop against a repair order; holds no financial duty.",
-  "clinic-site-director":
-    "Runs one clinic site: schedules and supervises its staff, signs off their hours, and oversees its billing and deposits.",
-  "assistant-property-manager":
-    "Supports the property manager: collects and posts rent, handles tenant accounts, and coordinates service requests.",
-  "head-brewer":
-    "Plans production, orders brewing ingredients and packaging, and supervises the brewing and cellar staff.",
-  brewer: "Brews, ferments, conditions, and packages the product; holds no financial duty.",
+export const INDUSTRY_HINTS: Record<string, Record<string, string>> = {
+  associate: { professional_services: "attorney", retail: "cashier", restaurant: "server" },
+  assistant: { dental: "dental-assistant" },
+  technician: { dental: "dental-assistant" },
+  partner: { professional_services: "owner" },
+  "crew lead": {
+    general: "foreman",
+    construction: "foreman",
+    retail: "shift-lead",
+    restaurant: "shift-lead",
+  },
+  "crew leader": {
+    general: "foreman",
+    construction: "foreman",
+    retail: "shift-lead",
+    restaurant: "shift-lead",
+  },
+  // A team lead takes the drawer only in a store or a restaurant.
+  "team lead": { retail: "shift-lead", restaurant: "shift-lead" },
+  "team leader": { retail: "shift-lead", restaurant: "shift-lead" },
+  // On a job site a "super" is the superintendent.
+  super: { construction: "foreman" },
+  // A nonprofit's treasurer is a board officer, its CEO or president is its
+  // executive director, and its principal runs a school.
+  treasurer: { nonprofit: "board-treasurer" },
+  ceo: { nonprofit: "executive-director" },
+  "chief executive officer": { nonprofit: "executive-director" },
+  "chief executive": { nonprofit: "executive-director" },
+  president: { nonprofit: "executive-director" },
+  principal: { nonprofit: "center-director" },
+  // A nonprofit's program manager runs a program, not a client project.
+  "program manager": { nonprofit: "program-director" },
+  "business assistant": { dental: "receptionist" },
+  // A CSR in a dental, medical or veterinary office is the front desk.
+  csr: { dental: "receptionist" },
+  "customer service representative": { dental: "receptionist" },
+  // In a dental, medical or veterinary office the practice administrator or
+  // business manager keeps the books like the office manager, the business
+  // office runs the billing, the care coordinator takes payment for the plan,
+  // and the registrar registers patients at the desk. A law firm's practice
+  // administrator is its firm administrator.
+  "practice administrator": {
+    dental: "office-manager",
+    professional_services: "firm-administrator",
+  },
+  "business manager": { dental: "office-manager" },
+  "business office manager": { dental: "billing-manager" },
+  "care coordinator": { dental: "treatment-coordinator" },
+  "case coordinator": { dental: "treatment-coordinator" },
+  registrar: { dental: "medical-secretary" },
+  // A restaurant's general manager runs the floor and the drawer as well as the books.
+  "general manager": { restaurant: "restaurant-manager" },
+  gm: { restaurant: "restaurant-manager" },
+  // A community manager keeps a property in a general business and a
+  // following everywhere else.
+  "community manager": {
+    general: "property-manager",
+    nonprofit: "marketing",
+    professional_services: "marketing",
+    retail: "marketing",
+    restaurant: "marketing",
+  },
+  // A restaurant's event planner sells and runs its catered events.
+  "event planner": { restaurant: "catering-manager" },
 };
 
-export const JOB_CATALOG: readonly JobCatalogEntry[] = RAW_CATALOG.map((e) => ({
-  ...e,
-  description: DESCRIPTIONS[e.id] ?? "",
-}));
+/**
+ * How a seat differs in one line of business from its usual duties. In a
+ * dental, medical or veterinary office the office manager usually keeps the
+ * practice's books, bank reconciliation included. In a store the till records
+ * the sales, so the bookkeeper posts the takings as a journal entry rather
+ * than recording customer payments. In a law or accounting firm the front
+ * desk takes payments and billing records them. A contractor's project
+ * manager approves subcontractor bills; a nonprofit's development office
+ * records the gifts it receives.
+ */
+export const INDUSTRY_SEATS: Record<
+  string,
+  Record<string, { add?: readonly EntitlementId[]; remove?: readonly EntitlementId[] }>
+> = {
+  dental: { "office-manager": { add: ["bank_reconcile"] } },
+  retail: { bookkeeper: { remove: ["post_payments"] } },
+  professional_services: { receptionist: { remove: ["post_payments"] } },
+  // A contractor's project manager approves subcontractor pay applications
+  // and orders materials for the job.
+  construction: { "project-manager": { add: ["approve_invoices", "order_supplies"] } },
+  // Development enters the gifts it receives in the donor database.
+  nonprofit: { "development-director": { add: ["post_payments"] } },
+};
 
-/** Ids in the catalog with no description, for the tests. */
-export function jobCatalogMissingDescriptions(): string[] {
-  return JOB_CATALOG.filter((e) => !e.description).map((e) => e.id);
-}
-
-export function jobCatalogEntry(id: string): JobCatalogEntry | undefined {
-  return JOB_CATALOG.find((e) => e.id === id);
-}
-
-/** Every entitlement id the catalog cites exists in the rulebook; checked by the tests. */
-export function jobCatalogUnknownEntitlements(): string[] {
-  const known = new Set<string>(ENTITLEMENTS.map((e) => e.id));
-  return JOB_CATALOG.flatMap((e) => e.entitlements.filter((id) => !known.has(id)));
-}
+const BY_ID = new Map(JOB_CATALOG.map((e) => [e.id, e]));

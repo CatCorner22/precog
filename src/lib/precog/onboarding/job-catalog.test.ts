@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { INDUSTRIES } from "../industry";
 import {
+  INDUSTRY_HINTS,
+  INDUSTRY_SEATS,
   JOB_CATALOG,
+  JOB_FAMILY_LABEL,
+  aliasKey,
   entitlementsForTitle,
-  jobCatalogMissingDescriptions,
+  jobCatalogEntry,
   jobCatalogUnknownEntitlements,
   matchJobTitle,
 } from "./job-catalog";
@@ -14,7 +19,6 @@ describe("job catalog", () => {
   });
 
   it("describes every job in one bounded sentence and records only well-formed SOC codes", () => {
-    expect(jobCatalogMissingDescriptions()).toEqual([]);
     for (const e of JOB_CATALOG) {
       expect(e.description.length, e.id).toBeLessThanOrEqual(220);
       expect(e.description.endsWith("."), e.id).toBe(true);
@@ -35,18 +39,50 @@ describe("job catalog", () => {
     expect(matchJobTitle("Revenue Cycle Manager")?.entry.id).toBe("billing-manager");
   });
 
-  it("keeps ids and aliases unique across entries", () => {
+  it("keeps ids unique and every name one entry's, as the matcher compares names", () => {
     const ids = JOB_CATALOG.map((e) => e.id);
     expect(new Set(ids).size).toBe(ids.length);
     const seen = new Map<string, string>();
     for (const e of JOB_CATALOG) {
-      for (const alias of new Set([e.title.toLowerCase(), ...e.aliases])) {
-        expect(
-          seen.get(alias),
-          `alias "${alias}" in ${e.id} and ${seen.get(alias)}`,
-        ).toBeUndefined();
-        seen.set(alias, e.id);
+      const own = new Set<string>();
+      for (const name of [e.title, ...e.aliases]) {
+        const key = aliasKey(name);
+        // An alias the matcher reads as the title or another alias adds nothing.
+        expect(own.has(key), `"${name}" repeats another name of ${e.id}`).toBe(false);
+        own.add(key);
+        expect(seen.get(key), `"${name}" in ${e.id} and ${seen.get(key)}`).toBeUndefined();
       }
+      for (const key of own) seen.set(key, e.id);
+    }
+    expect(aliasKey("A/P Mgr.")).toBe(aliasKey("ap manager"));
+  });
+
+  it("files at least one job under every family and keeps each family together", () => {
+    const families = JOB_CATALOG.map((e) => e.family);
+    for (const family of Object.keys(JOB_FAMILY_LABEL)) {
+      expect(families, family).toContain(family);
+    }
+    const runs = families.filter((f, i) => f !== families[i - 1]);
+    expect(runs).toEqual(Object.keys(JOB_FAMILY_LABEL));
+  });
+
+  it("points every line-of-business reading at a catalog seat and a known line of business", () => {
+    const industries = new Set<string>(INDUSTRIES.map((i) => i.id));
+    for (const [title, byIndustry] of Object.entries(INDUSTRY_HINTS)) {
+      for (const [industry, id] of Object.entries(byIndustry)) {
+        expect(industries.has(industry), `${title}: ${industry}`).toBe(true);
+        expect(jobCatalogEntry(id), `${title}: ${id}`).toBeDefined();
+      }
+    }
+    for (const [industry, seats] of Object.entries(INDUSTRY_SEATS)) {
+      expect(industries.has(industry), industry).toBe(true);
+      for (const id of Object.keys(seats)) expect(jobCatalogEntry(id), id).toBeDefined();
+    }
+  });
+
+  it("records the SOC code of every single-occupation job whose description paraphrases BLS", () => {
+    for (const id of ["loan-officer", "receiving", "paralegal", "attorney", "pharmacist"]) {
+      expect(jobCatalogEntry(id)?.soc, id).toMatch(/^\d{2}-\d{4}$/);
     }
   });
 

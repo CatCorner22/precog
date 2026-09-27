@@ -8,13 +8,11 @@ import {
   firstRowForIndustry,
   leaderRow,
   ownerRow,
-  pasteSummary,
-  rowFromImportedPerson,
   rowOwnsBusiness,
-  rowsForJobTitle,
   rowsKeptForAdding,
   type OwnTeamRow,
 } from "../onboarding/own-team";
+import { pasteSummary, rowFromImportedPerson, rowsForJobTitle } from "../onboarding/add-people";
 import { initialSetup } from "../onboarding/setup-draft";
 import { detectSodConflicts } from "../sod/detect";
 import { soleOwnerId } from "../sod/owner-role";

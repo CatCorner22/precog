@@ -31,7 +31,7 @@ import {
   peopleToCsv,
   type PeopleImportIssue,
 } from "@/lib/precog/import/people-csv";
-import { placeholderNames } from "@/lib/precog/onboarding/own-team";
+import { placeholderNames } from "@/lib/precog/onboarding/add-people";
 import { inputCls, labelCls } from "@/components/precog/builder/form-shared";
 import { personLocations } from "@/lib/precog/person-location";
 import { downloadCsv } from "@/lib/download";

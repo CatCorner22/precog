@@ -14,29 +14,29 @@ import {
   firstRowForIndustry,
   firstUnnamedWithDuties,
   isLeaderTitle,
-  mergeTeamRows,
   onLeavePersonIds,
   ownerRow,
   suggestedDuties,
-  placeholderNames,
-  rowFromImportedPerson,
   ownBusinessProfile,
   OWN_BUSINESS_FALLBACK_NAME,
-  rowsForJobTitle,
+  rowNeedsReview,
   rowsKeptForAdding,
-  addPastedRows,
-  addRowsByTitle,
-  confirmTitleDuties,
-  pasteSummary,
-  pastedRows,
-  peopleWithTitleDuties,
   rowOwnsBusiness,
   rowSeat,
   sharedTitles,
-  titleDutiesSentence,
   untickDutyForTitle,
   type OwnTeamRow,
 } from "./own-team";
+import {
+  addPastedRows,
+  addRowsByTitle,
+  mergeTeamRows,
+  pasteSummary,
+  pastedRows,
+  placeholderNames,
+  rowFromImportedPerson,
+  rowsForJobTitle,
+} from "./add-people";
 import type { EntitlementId } from "../sod/conflict-rules";
 
 describe("buildOwnTeam", () => {
@@ -363,7 +363,6 @@ describe("own team from a pasted roster, round three", () => {
       ["Dee Park", "Server"],
     ]);
     expect(merged.added.map((r) => r.name)).toEqual(["Dee Park"]);
-    expect(merged.updated.map((r) => r.name)).toEqual(["Cal Diaz"]);
     // Ben's title is unchanged, so the duties ticked by hand stay.
     expect(merged.rows[2].duties).toEqual(["post_payments"]);
   });
@@ -439,9 +438,7 @@ describe("setup grid: pasting, adding and reading titles", () => {
       ownerRow: "none",
       onLeaveNames: [],
     });
-    expect(note).toMatch(
-      /^Added 1 person; 3 people already in the table were updated, not added again\./,
-    );
+    expect(note).toMatch(/^Added 1 person and updated 3 people already in the table\./);
   });
 
   it("an owner who typed 'Dale Hutchins' and pastes a QuickBooks list with 'Hutchins, Dale' appears once", () => {
@@ -533,7 +530,7 @@ describe("setup grid: pasting, adding and reading titles", () => {
       ownerRow: "kept",
       onLeaveNames: ["Ana Morales"],
     });
-    expect(note).toContain("1 person marked inactive was left out: Bo Chen.");
+    expect(note).toContain("Left out 1 person the roster marks inactive: Bo Chen.");
     expect(note).toContain("Ana Morales is on leave");
   });
 
@@ -577,61 +574,6 @@ describe("setup grid: pasting, adding and reading titles", () => {
     );
     expect(rowSeat({ role: "Owner / Office Manager" }, "general")?.partial).toBe(true);
     expect(rowSeat({ role: "  " }, "general")).toBeUndefined();
-  });
-});
-
-describe("findings that rest on duties guessed from job titles", () => {
-  it("marks people whose ticks are still the usual ones for their title, and nobody the owner changed", () => {
-    const bookkeeper = rowsForJobTitle(jobCatalogEntry("bookkeeper")!, 1, [], "dental")[0];
-    const cashier = rowsForJobTitle(jobCatalogEntry("cashier")!, 1, [], "dental")[0];
-    const people = buildOwnTeam(
-      [
-        { ...ownerRow(), name: "Olga Owner" },
-        { ...bookkeeper, name: "Ben Ochoa" },
-        // The owner unticked one of the cashier's duties.
-        { ...cashier, name: "Cal Diaz", duties: cashier.duties.slice(1) },
-        // Typed by hand, with no title to guess from.
-        { name: "Dee Park", role: "Chief Vibes Officer", duties: ["collect_cash"] },
-        // A title the catalog cannot read ticks nothing, so nothing is guessed.
-        {
-          name: "Eve Ng",
-          role: "Chief Vibes Officer",
-          duties: [],
-          suggestedFor: "Chief Vibes Officer",
-        },
-      ],
-      "dental",
-    );
-    expect(people.map((p) => [p.name, p.dutiesFromTitle ?? false])).toEqual([
-      ["Olga Owner", true],
-      ["Ben Ochoa", true],
-      ["Cal Diaz", false],
-      ["Dee Park", false],
-      ["Eve Ng", false],
-    ]);
-    expect(peopleWithTitleDuties(people).map((p) => p.name)).toEqual(["Olga Owner", "Ben Ochoa"]);
-    expect(titleDutiesSentence(people)).toBe(
-      "Duties for 2 of your 5 people are the usual ones for their job titles, not ones you confirmed.",
-    );
-  });
-
-  it("a row whose title was changed after its duties were ticked is not marked", () => {
-    const bookkeeper = rowsForJobTitle(jobCatalogEntry("bookkeeper")!, 1, [], "general")[0];
-    const [person] = buildOwnTeam(
-      [{ ...bookkeeper, name: "Ben Ochoa", role: "Controller" }],
-      "general",
-    );
-    expect(person.dutiesFromTitle).toBeUndefined();
-  });
-
-  it("clears every mark once the owner says the duties are right", () => {
-    const people = buildOwnTeam([{ ...ownerRow(), name: "Olga Owner" }], "general");
-    expect(titleDutiesSentence(people)).toBe(
-      "Duties for your one person are the usual ones for their job title, not ones you confirmed.",
-    );
-    const confirmed = confirmTitleDuties(people);
-    expect(confirmed[0]).not.toHaveProperty("dutiesFromTitle");
-    expect(titleDutiesSentence(confirmed)).toBe("");
   });
 });
 
@@ -709,5 +651,30 @@ describe("two pasted people who share a name", () => {
       ["Bookkeeper", "Bookkeeper"],
       ["Cashier", jobCatalogEntry("cashier")!.title],
     ]);
+  });
+});
+
+describe("rows to review before finishing", () => {
+  const matched = { title: "Bookkeeper", partial: false };
+  it("leaves a named row whose title the catalog knows out of the review", () => {
+    expect(
+      rowNeedsReview({ name: "Ana", role: "Bookkeeper", duties: ["bank_reconcile"] }, matched),
+    ).toBe(false);
+  });
+  it("shows unknown and partly matched titles", () => {
+    const row = { name: "Ana", role: "Custom job", duties: [] };
+    expect(rowNeedsReview(row, undefined)).toBe(true);
+    expect(rowNeedsReview(row, { ...matched, partial: true })).toBe(true);
+    expect(rowNeedsReview(row, { title: undefined, partial: false })).toBe(true);
+  });
+  it("shows an unnamed row with a title or duties, and a named person with no title", () => {
+    expect(rowNeedsReview({ name: " ", role: "Bookkeeper", duties: [] }, matched)).toBe(true);
+    expect(rowNeedsReview({ name: "", role: "", duties: ["bank_reconcile"] }, undefined)).toBe(
+      true,
+    );
+    expect(rowNeedsReview({ name: "Ana", role: "", duties: [] }, undefined)).toBe(true);
+  });
+  it("does not count unused blank rows", () => {
+    expect(rowNeedsReview({ name: " ", role: " ", duties: [] }, undefined)).toBe(false);
   });
 });

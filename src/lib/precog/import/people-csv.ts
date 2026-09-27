@@ -98,7 +98,8 @@ const FOOTER_VALUE =
 const RUN_STAMP =
   /^((accrual|cash) basis\s+)?((mon|tues|wednes|thurs|fri|satur|sun)day,?\s+)?((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}|\d{4}-\d{2}-\d{2})(,?\s+\d{1,2}:\d{2}(:\d{2})?\s*([ap]\.?m\.?)?)?(\s*(gmt|utc)\s*([+-]\d{1,2}(:?\d{2})?)?)?$/i;
 
-function emptyResult(issues: PeopleImportIssue[], removed: Person[]): PeopleImportResult {
+/** A result with no people: every current team member is `removed`. */
+export function emptyResult(issues: PeopleImportIssue[], removed: Person[]): PeopleImportResult {
   return {
     people: [],
     issues,
