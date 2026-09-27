@@ -42,6 +42,7 @@ import {
   relationEntries,
   savedBlockEntries,
 } from "./profile-entries";
+import { DEFAULT_BUSINESS_ID } from "./business-id";
 
 /**
  * One business: what it is, the owner's own team, map and register (or null
@@ -566,8 +567,6 @@ export const PORTFOLIO_KEY = "precog.portfolio.v1";
 /** The business open in this browser: what a reload comes back to. */
 export const ACTIVE_PROFILE_KEY = "precog.practiceProfile.v2";
 const LEGACY_PROFILE_KEY = "precog.practiceProfile.v1";
-/** The id a profile saved before businesses had ids is filed under. */
-export const DEFAULT_BUSINESS_ID = "biz_default";
 
 /**
  * True when this profile holds something the user made, as opposed to an

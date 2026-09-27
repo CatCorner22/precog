@@ -8,6 +8,7 @@ import {
   type PracticeProfile,
 } from "./practice-profile";
 import { uid } from "./text";
+import { DEFAULT_BUSINESS_ID } from "./business-id";
 
 /**
  * Each copy of the open business a tab writes carries its own revision and
@@ -25,7 +26,7 @@ function makeLocalRevision(): string {
   return uid("r");
 }
 
-const businessKey = (p: Pick<PracticeProfile, "businessId">) => p.businessId ?? "biz_default";
+const businessKey = (p: Pick<PracticeProfile, "businessId">) => p.businessId ?? DEFAULT_BUSINESS_ID;
 
 export type LocalWriteResult =
   | { kind: "saved" }
@@ -227,7 +228,7 @@ export function signInMeetsNewerWork(
   acknowledgedStamp: string | undefined,
 ): boolean {
   return (
-    (local.businessId ?? "biz_default") === (account.businessId ?? "biz_default") &&
+    (local.businessId ?? DEFAULT_BUSINESS_ID) === (account.businessId ?? DEFAULT_BUSINESS_ID) &&
     hasUserWork(local) &&
     local.updatedAt !== account.updatedAt &&
     acknowledgedStamp !== local.updatedAt

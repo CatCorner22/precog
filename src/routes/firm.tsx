@@ -32,6 +32,7 @@ import type {
 } from "@/lib/precog/firm/store";
 import type { DeletedBusinessRow } from "@/lib/precog/business-store";
 import { formatPct } from "@/lib/utils";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 
 export const Route = createFileRoute("/firm")({
   component: FirmPage,
@@ -186,7 +187,7 @@ function FirmPage() {
     }
   }
 
-  const activeId = profile.businessId ?? "biz_default";
+  const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const isOwner = firm?.role === "owner";
 
   return (

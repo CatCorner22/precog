@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* Skins for one view each, kept out of this file's tokens and base rules. */
+@import "./components/precog/process-map/tactical.css";
+@import "./components/precog/threat-assessment.css";
 
 @theme {
   --color-bg: #0a0b0d;
@@ -150,137 +153,7 @@
   fill: var(--color-fg);
 }
 
-/* ── Risk Predator thermal vision ── */
-.vision-predator {
-  --predator-void: #05060a;
-  background:
-    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(30, 60, 120, 0.25), transparent 70%),
-    var(--predator-void) !important;
-}
-.vision-predator .react-flow__background {
-  opacity: 0.35;
-}
-.vision-predator .predator-node-hot {
-  animation: predator-pulse 1.6s ease-in-out infinite;
-}
-@keyframes predator-pulse {
-  0%,
-  100% {
-    filter: brightness(1);
-  }
-  50% {
-    filter: brightness(1.25);
-  }
-}
-.predator-hud {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  letter-spacing: 0.04em;
-  text-shadow: 0 0 8px rgba(255, 200, 120, 0.5);
-}
-.predator-thermal-bar {
-  background: linear-gradient(
-    90deg,
-    rgb(20, 40, 120) 0%,
-    rgb(30, 100, 180) 18%,
-    rgb(20, 160, 140) 35%,
-    rgb(180, 190, 40) 52%,
-    rgb(230, 140, 20) 68%,
-    rgb(230, 50, 30) 84%,
-    rgb(255, 255, 255) 100%
-  );
-}
-
-/* ── Risk Terminator vision ── */
-.vision-terminator {
-  background:
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(255, 0, 0, 0.035) 2px,
-      rgba(255, 0, 0, 0.035) 4px
-    ),
-    radial-gradient(ellipse 70% 50% at 50% 45%, rgba(80, 10, 10, 0.45), #0a0404 75%) !important;
-}
-.vision-terminator .react-flow__background {
-  opacity: 0.2;
-}
-.terminator-hud {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  color: #ff6b5a;
-  text-shadow: 0 0 6px rgba(255, 40, 40, 0.55);
-  letter-spacing: 0.06em;
-}
-.terminator-target {
-  animation: term-lock 1.2s steps(2, end) infinite;
-  box-shadow:
-    0 0 0 1px rgba(255, 50, 40, 0.9),
-    0 0 16px rgba(255, 30, 20, 0.45);
-}
-@keyframes term-lock {
-  0%,
-  100% {
-    outline-offset: 0;
-  }
-  50% {
-    outline-offset: 2px;
-  }
-}
-.terminator-scan-sweep {
-  background: linear-gradient(
-    180deg,
-    transparent 0%,
-    rgba(255, 40, 30, 0.12) 48%,
-    rgba(255, 80, 60, 0.35) 50%,
-    rgba(255, 40, 30, 0.12) 52%,
-    transparent 100%
-  );
-  animation: term-sweep 3.2s linear infinite;
-  pointer-events: none;
-}
-@keyframes term-sweep {
-  0% {
-    transform: translateY(-100%);
-  }
-  100% {
-    transform: translateY(100%);
-  }
-}
-
-/* Friendly T-1000 mascot — liquid chrome, not scary */
-.t1000-buddy {
-  background: linear-gradient(
-    145deg,
-    #c8d0dc 0%,
-    #8a93a3 35%,
-    #e8ecf2 50%,
-    #6b7382 70%,
-    #b0b8c6 100%
-  );
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.55),
-    0 8px 24px rgba(0, 0, 0, 0.35);
-  animation: t1000-morph 4s ease-in-out infinite;
-}
-@keyframes t1000-morph {
-  0%,
-  100% {
-    border-radius: 40% 60% 55% 45% / 50% 45% 55% 50%;
-  }
-  50% {
-    border-radius: 55% 45% 40% 60% / 45% 55% 45% 55%;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .predator-node-hot,
-  .terminator-target,
-  .terminator-scan-sweep,
-  .t1000-buddy,
-  .react-flow__edge-path,
-  .react-flow__edge.animated path {
-    animation: none !important;
-  }
   /* Nothing loops, slides or glides when the owner asks for less motion. */
   *,
   *::before,
@@ -290,48 +163,4 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* ── Threat Assessment SOF / tactical HUD ── */
-.threat-ops {
-  --sof-green: #4ade80;
-  --sof-green-dim: #1f3d28;
-  --sof-amber: #fbbf24;
-  --sof-red: #f87171;
-  --sof-panel: #0a120e;
-  --sof-border: #1f3d28;
-  font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace);
-}
-
-.threat-panel {
-  position: relative;
-  border: 1px solid var(--sof-border);
-  background: linear-gradient(135deg, rgba(13, 26, 16, 0.95), rgba(8, 14, 10, 0.98));
-  border-radius: 4px;
-  padding: 1rem 1.1rem;
-  box-shadow:
-    0 0 0 1px rgba(74, 222, 128, 0.04),
-    inset 0 1px 0 rgba(74, 222, 128, 0.05);
-}
-
-/* Corner brackets */
-.threat-panel::before,
-.threat-panel::after {
-  content: "";
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border-color: rgba(74, 222, 128, 0.55);
-  border-style: solid;
-  pointer-events: none;
-}
-.threat-panel::before {
-  top: -1px;
-  left: -1px;
-  border-width: 2px 0 0 2px;
-}
-.threat-panel::after {
-  bottom: -1px;
-  right: -1px;
-  border-width: 0 2px 2px 0;
 }

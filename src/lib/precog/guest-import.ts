@@ -9,6 +9,7 @@ import {
   savePortfolioEntry,
   type PracticeProfile,
 } from "./practice-profile";
+import { DEFAULT_BUSINESS_ID } from "./business-id";
 
 /**
  * Copying guest work into a signed-in account. The guest originals stay where
@@ -25,7 +26,7 @@ export function importableGuestBusinesses(
   const raw = readStoredActiveProfile(guest);
   if (raw) {
     const profile = parseStoredProfile(raw);
-    all[profile.businessId ?? "biz_default"] = profile;
+    all[profile.businessId ?? DEFAULT_BUSINESS_ID] = profile;
   }
   return Object.values(all).filter(
     (p) =>

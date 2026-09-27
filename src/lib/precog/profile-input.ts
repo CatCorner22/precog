@@ -2,6 +2,7 @@ import { isIndustryId } from "./industry";
 import type { PracticeProfile } from "./practice-profile";
 import { malformedList } from "./profile-entries";
 import { RequestError } from "@/lib/request-errors";
+import { DEFAULT_BUSINESS_ID } from "./business-id";
 
 /** Largest profile document a single save may carry (bytes of JSON). */
 export const MAX_PROFILE_BYTES = 2 * 1024 * 1024;
@@ -41,7 +42,7 @@ export function validateProfileInput(input: unknown): {
   if (malformed) {
     throw new RequestError(400, `Profile has a malformed entry in ${malformed}`);
   }
-  const businessId = profile.businessId ?? "biz_default";
+  const businessId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const json = JSON.stringify({ ...profile, businessId });
   if (new TextEncoder().encode(json).length > MAX_PROFILE_BYTES) {
     throw new RequestError(413, "Profile is too large to save (over 2 MB)");

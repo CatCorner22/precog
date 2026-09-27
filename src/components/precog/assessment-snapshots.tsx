@@ -32,11 +32,12 @@ import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store"
 import { restoredProfile, snapshotSlice } from "@/lib/precog/snapshot-profile";
 import { downloadText } from "@/lib/download";
 import { localDateKey, formatDay, formatDayTime } from "@/lib/precog/dates";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 
 export function AssessmentSnapshots() {
   const workspace = useWorkspace();
   const { profile, replaceProfile } = usePractice();
-  const businessId = profile.businessId ?? "biz_default";
+  const businessId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const tpl = useTemplate();
   const { user, isPending } = useCurrentUserState();
   const [title, setTitle] = useState("");

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Building2, Check, ChevronDown, Loader2, Plus, Trash2, Users, X } from "lucide-react";
 import { inputCls } from "@/components/precog/builder/form-shared";
 import type { BusinessSummary } from "@/lib/precog/practice-profile";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 
 /** Header control: switch between businesses in the portfolio, or add a new one. */
 export function BusinessSwitcher() {
@@ -36,7 +37,7 @@ export function BusinessSwitcher() {
   const ref = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const activeId = profile.businessId ?? "biz_default";
+  const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const own = businesses.filter((b) => !b.shared);
   const firmClients = businesses.filter((b) => b.shared);
 

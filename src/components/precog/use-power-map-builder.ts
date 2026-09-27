@@ -33,6 +33,7 @@ import { calculatePowerIndex } from "@/lib/precog/sod/power-index";
 import { locationsById } from "@/lib/precog/person-location";
 import { downloadText, downloadCsv } from "@/lib/download";
 import { localDateKey } from "@/lib/precog/dates";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 
 export function usePowerMapBuilder() {
   const workspace = useWorkspace();
@@ -60,7 +61,7 @@ export function usePowerMapBuilder() {
   // The accepted baseline is kept per business in this browser, so leaving
   // the tab with changes pending does not quietly approve them: reopening
   // the map still shows them against the last baseline the owner accepted.
-  const baselineKey = `precog.power-map-baseline.v1:${profile.businessId ?? "biz_default"}`;
+  const baselineKey = `precog.power-map-baseline.v1:${profile.businessId ?? DEFAULT_BUSINESS_ID}`;
   const [baseline, setBaseline] = useState<RoleAssignment[]>(() => {
     try {
       const stored = workspace.local?.getItem(baselineKey);

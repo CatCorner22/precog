@@ -70,6 +70,7 @@ import type {
 } from "@/lib/precog/types";
 import { UNHELD_VIEW } from "@/lib/precog/continuity/planner-copy";
 import { firstName, count, verb } from "@/lib/precog/text";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 
 export function useContinuityPlanner(initialKnowledgeId?: string | null) {
   const {
@@ -189,7 +190,7 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
    * shown. Keyed to the business and industry it was taken from: template item ids
    * repeat across industries, so a baseline from another register must not be compared.
    */
-  const registerKey = `${profile.businessId ?? "biz_default"}:${profile.industry}`;
+  const registerKey = `${profile.businessId ?? DEFAULT_BUSINESS_ID}:${profile.industry}`;
   const [checkInBaseline, setCheckInBaseline] = useState<{
     key: string;
     report: CoverageReport;

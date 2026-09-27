@@ -53,6 +53,7 @@ import { profileReducer } from "./profile-reducer";
 import { useMapHistory } from "./use-map-history";
 import { useCloudSync, type SaveConflictReason, type SyncStatus } from "./use-cloud-sync";
 import { usePortfolio, type SwitchResult } from "./use-portfolio";
+import { DEFAULT_BUSINESS_ID } from "./business-id";
 import {
   currentPeople,
   isMapCustomized,
@@ -323,7 +324,7 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
   const activateProfile = useCallback(
     (next: PracticeProfile) => {
       clearHistory();
-      lineage.start(next.businessId ?? "biz_default", next.updatedAt);
+      lineage.start(next.businessId ?? DEFAULT_BUSINESS_ID, next.updatedAt);
       setProfile({ load: next });
     },
     [lineage, clearHistory],
