@@ -32,7 +32,8 @@ if (passed)
 async function insuranceAndMapHistory(page, errors) {
   step("demo: open insurance settings");
   await page.goto(base, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /Load Dental/ }).click();
+  await page.getByRole("radio", { name: /^Dental/ }).click();
+  await page.getByRole("button", { name: "Explore the sample instead" }).click();
   await page.goto(`${base}/?tab=precog`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Settings and insurance", exact: true }).click();
   const status = page.getByRole("combobox", { name: "Insurance information status", exact: true });
@@ -155,7 +156,7 @@ async function exceptionFirstSetup(page, errors) {
   const names = page.getByRole("textbox", { name: /^Person \d+ name$/ });
   await waitForCount(names, 4, "roster rows after filling the table");
   const filter = page.getByRole("checkbox", {
-    name: "Show only incomplete or uncertain rows",
+    name: "Show only rows to review",
     exact: true,
   });
   await filter.check();
@@ -164,8 +165,8 @@ async function exceptionFirstSetup(page, errors) {
   await owner.pressSequentially("Jordan Owner");
   assert.equal(await owner.inputValue(), "Jordan Owner");
   assert.equal(await owner.evaluate((element) => document.activeElement === element), true);
-  await page.getByRole("combobox", { name: "River Vale role", exact: true }).fill("Cashier");
-  await page.getByRole("combobox", { name: "River Vale role", exact: true }).blur();
+  await page.getByRole("combobox", { name: "River Vale job title", exact: true }).fill("Cashier");
+  await page.getByRole("combobox", { name: "River Vale job title", exact: true }).blur();
   await filter.uncheck();
   await waitForCount(names, 4, "roster rows with the filter off");
 
@@ -179,7 +180,7 @@ async function exceptionFirstSetup(page, errors) {
     "the business name was not restored after reload",
   );
   await waitForCount(names, 4, "roster rows restored after reload");
-  await page.getByRole("button", { name: "Show me my findings", exact: true }).click();
+  await page.getByRole("button", { name: "Show me my gaps", exact: true }).click();
   const profile = await waitProfile(
     page,
     (p) => p.onboardingComplete && p.customPeople?.length === 4,
@@ -210,7 +211,7 @@ async function refusedDraftStorage(page, errors) {
   await page.goto(base, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Set up my own business", exact: true }).click();
   await page.getByLabel("Business name", { exact: true }).fill("Unsaved draft example");
-  await page.getByText(/This tab cannot save your setup draft/).waitFor();
+  await page.getByText(/This browser will not keep your progress/).waitFor();
   noErrors(errors);
 }
 

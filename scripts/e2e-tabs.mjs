@@ -52,12 +52,12 @@ await withPage(options, async (page, errors) => {
     await page.evaluate(() => localStorage.clear());
     await page.reload({ waitUntil: "networkidle" });
     await page
-      .getByRole("button", { name: new RegExp(`^${industry}`) })
+      .getByRole("radio", { name: new RegExp(`^${industry}`) })
       .first()
       .click();
-    await page.getByRole("button", { name: /^Load .* demo$/ }).click();
+    await page.getByRole("button", { name: "Explore the sample instead" }).click();
     await page.locator("nav button").first().waitFor();
-    await drain(`${industry}: load demo`);
+    await drain(`${industry}: load the sample`);
 
     // Lazy tabs show a loading state first; wait for it to clear.
     const settle = () =>

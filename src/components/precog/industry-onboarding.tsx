@@ -174,7 +174,16 @@ export function IndustryOnboarding() {
     const timer = window.setTimeout(write, DRAFT_WRITE_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [restored, step, selected, businessName, rows, paste, businessId, leftOut, workspace.session]);
-  useEffect(() => () => pendingDraft.current?.(), []);
+  useEffect(() => {
+    // A reload or closed tab does not unmount the dialog, so write a waiting
+    // draft when the page is hidden; otherwise the last edits are lost.
+    const flush = () => pendingDraft.current?.();
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, []);
   /** Clears the draft now, and any write still waiting, when setup ends. */
   function clearDraft() {
     pendingDraft.current = null;

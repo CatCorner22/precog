@@ -30,8 +30,9 @@ await withPage(options, async (p, errors) => {
   step("load app");
   await page.goto(`${baseUrl}/`, { waitUntil: "networkidle", timeout });
 
-  step("load dental demo");
-  await page.getByRole("button", { name: /Load Dental/ }).click();
+  step("load the dental sample");
+  await page.getByRole("radio", { name: /^Dental/ }).click();
+  await page.getByRole("button", { name: "Explore the sample instead" }).click();
   await page
     .getByText(/How work flows/i)
     .first()
