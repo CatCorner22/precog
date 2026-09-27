@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { Download, Plus, Trash2, Upload, UserMinus } from "lucide-react";
 import type { Person } from "@/lib/precog/types";
 
-import { ENTITLEMENTS, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
+import { OPERATING_DUTIES, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import { ROLE_TEMPLATES } from "@/lib/precog/sod/role-templates";
 import {
   JOB_CATALOG,
@@ -48,7 +48,7 @@ function EntitlementPicker({
 
   return (
     <div className="mt-1 flex flex-wrap gap-1">
-      {ENTITLEMENTS.filter((e) => e.id !== "view_reports_only").map((e) => {
+      {OPERATING_DUTIES.map((e) => {
         const on = selected.includes(e.id);
         return (
           <button

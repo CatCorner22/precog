@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ENTITLEMENTS, entitlementLabel } from "@/lib/precog/sod/conflict-rules";
+import { OPERATING_DUTIES, entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import type { SodDetectionReport } from "@/lib/precog/sod/detect";
 import { cn } from "@/lib/utils";
 import { SEVERITY_FILTERS } from "./sod-conflict-view";
 
 /** Every duty but "view reports only", which conflicts with nothing. */
-const MATRIX_DUTIES = ENTITLEMENTS.filter((e) => e.id !== "view_reports_only").map((e) => e.id);
+const MATRIX_DUTIES = OPERATING_DUTIES.map((e) => e.id);
 
 export function SodMatrixSection({ report }: { report: SodDetectionReport }) {
   const cellMap = useMemo(

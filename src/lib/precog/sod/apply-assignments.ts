@@ -1,17 +1,6 @@
 import type { Person } from "../types";
-import type { RoleAssignment } from "./detect";
-
-/** The same duties, in any order; "view reports only" is not a duty that changes anything. */
-function sameDuties(a: readonly string[] | undefined, b: readonly string[]): boolean {
-  const held = (list: readonly string[]) =>
-    new Set(list.filter((duty) => duty !== "view_reports_only"));
-  const left = held(a ?? []);
-  const right = held(b);
-  return left.size === right.size && [...left].every((duty) => right.has(duty));
-}
-
-/** Simulated hires the power map adds carry this id prefix; they are the only people it may remove. */
-const SIMULATED_PERSON_PREFIX = "sim-";
+import type { RoleAssignment } from "./assignments";
+import { isOperatingDuty } from "./conflict-rules";
 
 /**
  * Writes a power-map assignment list back onto the people register, so the
@@ -47,7 +36,7 @@ export function applyAssignmentsToPeople(
         delete updated.dutiesFromTitle;
       }
       next.push(updated);
-    } else if (person.active && person.id.startsWith(SIMULATED_PERSON_PREFIX)) {
+    } else if (person.active && isSimulatedPersonId(person.id)) {
       continue;
     } else {
       next.push(person);
@@ -66,3 +55,23 @@ export function applyAssignmentsToPeople(
   }
   return next;
 }
+
+/** Whether an id is a simulated hire the power map added; those are the only people it may remove. */
+export function isSimulatedPersonId(id: string): boolean {
+  return id.startsWith(SIMULATED_PERSON_PREFIX);
+}
+
+/** A new id for a simulated hire. */
+export function newSimulatedPersonId(now = Date.now()): string {
+  return `${SIMULATED_PERSON_PREFIX}${now.toString(36)}`;
+}
+
+/** The same duties, in any order; "view reports only" is not a duty that changes anything. */
+function sameDuties(a: readonly string[] | undefined, b: readonly string[]): boolean {
+  const held = (list: readonly string[]) => new Set(list.filter(isOperatingDuty));
+  const left = held(a ?? []);
+  const right = held(b);
+  return left.size === right.size && [...left].every((duty) => right.has(duty));
+}
+
+const SIMULATED_PERSON_PREFIX = "sim-";

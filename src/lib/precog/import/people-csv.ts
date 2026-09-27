@@ -13,7 +13,8 @@ import {
 import { datesAreDayFirst } from "./hire-date";
 import { parseRoster } from "./roster";
 import { looksLikeRosterHeader, mapColumns, startsWithColumnHeading } from "./roster-columns";
-import { readPerson, roleDuties, type ImportContext, type TitleMapping } from "./roster-row-read";
+import { readPerson, type ImportContext, type TitleMapping } from "./roster-row-read";
+import { personDuties } from "../sod/assignments";
 
 export interface PeopleImportResult {
   people: Person[];
@@ -218,17 +219,12 @@ export function mergeImportedPeople(
   return { people: [...people, ...added], added, updated };
 }
 
-/**
- * The duties the conflict engine reads for a person: their own list, else
- * their role's duties in this line of business, else the shared role list.
- * Mirrors `buildAssignments` in the duty-conflict engine.
- */
+/** The duties the conflict engine reads for a person (see `personDuties`). */
 export function effectiveDuties(
   person: Pick<Person, "role" | "entitlements">,
   roleTemplates: Readonly<Record<string, readonly string[]>>,
 ): string[] {
-  if (person.entitlements?.length) return [...person.entitlements];
-  return [...roleDuties(person.role, roleTemplates)];
+  return personDuties(person, roleTemplates);
 }
 
 /** What an import would take with it: register assignments and process owner slots held by `removed`. */

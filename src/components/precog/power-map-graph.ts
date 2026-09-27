@@ -1,5 +1,10 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
-import { ENTITLEMENTS, type DutyFamily, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
+import {
+  OPERATING_DUTIES,
+  isOperatingDuty,
+  type DutyFamily,
+  type EntitlementId,
+} from "@/lib/precog/sod/conflict-rules";
 import { FAMILY_META } from "@/lib/precog/sod/duty-families";
 import type { DetectedConflict, RoleAssignment } from "@/lib/precog/sod/detect";
 import { joinWithAnd } from "@/lib/precog/text";
@@ -7,7 +12,7 @@ import { joinWithAnd } from "@/lib/precog/text";
 /** The part of the map a view shows: its people and duties, and which of them sit in a conflict. */
 export interface MapSlice {
   shownPeople: RoleAssignment[];
-  shownDuties: typeof ENTITLEMENTS;
+  shownDuties: typeof OPERATING_DUTIES;
   /** "personId:duty" for every duty a person holds inside a conflict. */
   conflictKeys: Set<string>;
   conflictedPeople: Set<string>;
@@ -38,9 +43,8 @@ export function mapSlice(
     shownPeople: conflictsOnly
       ? assignments.filter((person) => conflictedPeople.has(person.personId))
       : assignments,
-    shownDuties: ENTITLEMENTS.filter(
+    shownDuties: OPERATING_DUTIES.filter(
       (item) =>
-        item.id !== "view_reports_only" &&
         (!conflictsOnly || conflictedDuties.has(item.id)) &&
         (processId === "all" || item.processIds.includes(processId)),
     ),
@@ -109,7 +113,7 @@ export function buildGraph(
   const visibleNodeIds = new Set(nodes.map((node) => node.id));
   const edges: Edge[] = shownPeople.flatMap((person) =>
     person.entitlements
-      .filter((id) => id !== "view_reports_only")
+      .filter(isOperatingDuty)
       .map((id) => {
         const conflict = conflictKeys.has(`${person.personId}:${id}`);
         return {

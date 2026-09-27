@@ -2,7 +2,8 @@ import { memo, useState } from "react";
 import { FAMILY_META } from "@/lib/precog/sod/duty-families";
 import { WEIGHT_TITLE } from "./power-map-words";
 import { ENTITLEMENTS } from "@/lib/precog/sod/conflict-rules";
-import { DUTY_CONTROL_MEASURES } from "@/lib/precog/sod/control-measures";
+import type { IndustryId } from "@/lib/precog/industry";
+import { controlMeasures } from "@/lib/precog/sod/control-measures";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -14,8 +15,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
  */
 export const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
   duties,
+  industry,
 }: {
-  duties: typeof ENTITLEMENTS;
+  duties: readonly (typeof ENTITLEMENTS)[number][];
+  /** The line of business, so the catalog uses its own words. */
+  industry: IndustryId;
 }) {
   const [open, setOpen] = useState(false);
   const categories = ["directive", "preventive", "detective", "corrective"] as const;
@@ -68,7 +72,7 @@ export const ControlMeasuresMatrix = memo(function ControlMeasuresMatrix({
               </thead>
               <tbody>
                 {duties.map((duty) => {
-                  const controls = DUTY_CONTROL_MEASURES[duty.id];
+                  const controls = controlMeasures(industry)[duty.id];
                   return (
                     <tr key={duty.id} className="align-top">
                       <th

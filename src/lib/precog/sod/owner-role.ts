@@ -1,3 +1,5 @@
+import { industryHasOwner } from "../industry";
+
 /**
  * Who owns the business, read from a job title.
  *
@@ -70,9 +72,12 @@ export function ownsBusiness(person: OwnerCandidate, marked: boolean): boolean {
  * owns it (by the owner's marks, or by title on a team without marks). With
  * two or more (partners, co-owners, a family business), each can take from
  * the others, so none of them is treated as the person who cannot steal from
- * themselves.
+ * themselves. A line of business with no owner (a nonprofit belongs to no
+ * one) has none, whatever the marks or titles say: this is where that rule is
+ * read, so a team that reaches the engine without passing setup still gets it.
  */
-export function soleOwnerId(people: readonly OwnerCandidate[]): string | null {
+export function soleOwnerId(people: readonly OwnerCandidate[], industry?: string): string | null {
+  if (!industryHasOwner(industry)) return null;
   const marked = ownersMarked(people);
   const owners = people.filter((p) => ownsBusiness(p, marked));
   return owners.length === 1 ? owners[0].id : null;
@@ -81,6 +86,10 @@ export function soleOwnerId(people: readonly OwnerCandidate[]): string | null {
 /** `soleOwnerId` over a team of role assignments. */
 export function teamOwnerId(
   team: readonly { personId: string; role: string; owner?: boolean }[],
+  industry?: string,
 ): string | null {
-  return soleOwnerId(team.map((a) => ({ id: a.personId, role: a.role, owner: a.owner })));
+  return soleOwnerId(
+    team.map((a) => ({ id: a.personId, role: a.role, owner: a.owner })),
+    industry,
+  );
 }

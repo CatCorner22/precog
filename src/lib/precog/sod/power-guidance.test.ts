@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { IndustryId } from "../industry";
 import { ENTITLEMENTS } from "./conflict-rules";
-import { POWER_GUIDANCE, powerGuidance } from "./power-guidance";
+import { powerGuidance } from "./power-guidance";
 
 const OTHERS: IndustryId[] = [
   "retail",
@@ -35,8 +35,10 @@ describe("powerGuidance", () => {
   });
 
   for (const industry of OTHERS) {
-    it(`speaks of no patients, PMS, guarantors or clinics on a ${industry} Power map`, () => {
+    it(`speaks of no patients, PMS, guarantors, clinics or claim batches on a ${industry} Power map`, () => {
       expect(allText(industry)).not.toMatch(/patient|\bPMS\b|guarantor|clinical|practice\b/i);
+      expect(powerGuidance(industry).submit_claims.purpose).not.toMatch(/\bclaims?\b/i);
+      expect(powerGuidance(industry).submit_claims.evidence).not.toMatch(/\bclaim batch/i);
     });
   }
 
@@ -50,10 +52,22 @@ describe("powerGuidance", () => {
     );
   });
 
-  it("covers every duty for every line of business, and the default fits any business", () => {
+  it("covers every duty for every line of business", () => {
     for (const industry of ["dental", ...OTHERS] as IndustryId[]) {
       for (const e of ENTITLEMENTS) expect(powerGuidance(industry)[e.id]?.purpose).toBeTruthy();
     }
-    expect(POWER_GUIDANCE).toBe(powerGuidance("general"));
+  });
+
+  it("states each boundary as what the role does and does not do, never 'should'", () => {
+    for (const industry of ["dental", ...OTHERS] as IndustryId[]) {
+      for (const g of Object.values(powerGuidance(industry))) {
+        expect(g.boundary).not.toMatch(/\bshould\b/i);
+      }
+    }
+  });
+
+  it("names the board treasurer, not an owner, as a nonprofit's reader", () => {
+    expect(powerGuidance("nonprofit").receive_goods.boundary).toMatch(/board treasurer/);
+    expect(allText("nonprofit")).not.toMatch(/\bowner\b/i);
   });
 });

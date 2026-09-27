@@ -1,9 +1,13 @@
 /**
- * SoD conflict rulebook for small dental practices.
- * Classic custody / authorization / recording / reconciliation pairs
- * plus dental-specific entitlement combinations.
+ * The duty-conflict rulebook every line of business shares: the duties a
+ * person can hold, the pairs of duties one person must not hold together, and
+ * how the duty families conflict when no named rule covers a pair.
  *
- * Educational control design — not a legal compliance product.
+ * Duty ids are stored in saved profiles, so a few keep the dental names they
+ * started with (pms_admin_roles, edit_patient_master, submit_claims); their
+ * labels are the words every business reads.
+ *
+ * Educational control design, not a legal compliance product.
  */
 
 export type DutyFamily =
@@ -323,6 +327,16 @@ export function entitlementLabel(id: string): string {
   return ENTITLEMENT_BY_ID.get(id as EntitlementId)?.label ?? id;
 }
 
+/** Every duty except read-only reporting, which changes nothing and conflicts with nothing. */
+export const OPERATING_DUTIES: readonly Entitlement[] = ENTITLEMENTS.filter(
+  (e) => e.id !== "view_reports_only",
+);
+
+/** False for read-only reporting, the one duty that is not an operating duty. */
+export function isOperatingDuty(id: string): boolean {
+  return id !== "view_reports_only";
+}
+
 /**
  * Incompatible pairs — the core of automated conflict detection.
  * Symmetric: engine treats (a,b) same as (b,a).
@@ -384,9 +398,12 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "release_payment",
     severity: "critical",
     title: "ACH initiation + payment release",
-    why: "End-to-end electronic payment power permits unauthorized transfers.",
-    fraudPath: "Create and self-release electronic payment",
-    compensatingDefaults: ["Bank-enforced dual approval", "Owner out-of-band release"],
+    why: "The person who sets up an electronic payment in the bank also approves its release, so the bank's second approval comes from the same hands and a transfer to their own account goes out with nobody else seeing it.",
+    fraudPath: "Set up an electronic payment to yourself, then approve its release",
+    compensatingDefaults: [
+      "The bank requires a second person's approval to release each electronic payment",
+      "Owner approves each release from their own bank login",
+    ],
     linkedControlId: "c-sod-ap",
   },
   {
@@ -471,7 +488,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "post_journal_entries",
     severity: "critical",
     title: "Payment release + manual journal entries",
-    why: "The person who sends money out can also post the journal entry that explains it, so a transfer to their own account is booked as an expense or buried in a balance-sheet account and the books still balance. A dealership office manager who wired himself $1.4 million over 14 years, and a practice office manager who moved payments to her own card, each covered it with false journal entries; both are in the library below.",
+    why: "The person who sends money out can also post the journal entry that explains it, so a transfer to their own account is booked as an expense or buried in a balance-sheet account and the books still balance. A dealership office manager who wired himself $1.4 million over 14 years, and a practice office manager who moved payments to her own card, each covered it with false journal entries.",
     fraudPath:
       "Send a payment to yourself, then post a journal entry that makes the books balance around it",
     compensatingDefaults: [
@@ -545,7 +562,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "bank_reconcile",
     severity: "critical",
     title: "Manual journal entries + bank reconciliation",
-    why: "A journal entry can make the books agree with any bank balance. When the person who reconciles the account can also post entries, a missing deposit or an unexplained wire is written away rather than found. A Granger, Iowa dealership office manager wired $1.4 million to himself over 14 years and balanced the books with journal entries; an Indiana business's accountant who reconciled the bank himself recorded his transfers to himself as invoice payments. Both cases are in the library below.",
+    why: "A journal entry can make the books agree with any bank balance. When the person who reconciles the account can also post entries, a missing deposit or an unexplained wire is written away rather than found. A Granger, Iowa dealership office manager wired $1.4 million to himself over 14 years and balanced the books with journal entries; an Indiana business's accountant who reconciled the bank himself recorded his transfers to himself as invoice payments.",
     fraudPath: "Take the money, then post an entry that makes the reconciliation tie",
     compensatingDefaults: [
       "Owner or outside accountant reviews every manual journal entry each month with its support",
@@ -559,7 +576,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "enter_payroll",
     severity: "high",
     title: "Change employee records + run payroll",
-    why: "Whoever can add a name, change a pay rate, or change a bank account and also run the payroll can pay anyone they invent. An Idaho district manager reactivated departed employees' records and entered their hours for three years; a St. Louis warehouse supervisor kept a person who never worked there on payroll for six and a half years. Both cases are in the library below.",
+    why: "Whoever can add a name, change a pay rate, or change a bank account and also run the payroll can pay anyone they invent. An Idaho district manager reactivated departed employees' records and entered their hours for three years; a St. Louis warehouse supervisor kept a person who never worked there on payroll for six and a half years.",
     fraudPath:
       "Reactivate a former employee, point the deposit at your own account, enter the hours",
     compensatingDefaults: [
@@ -603,7 +620,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "post_adjustments",
     severity: "high",
     title: "Collect cash + enter write-offs",
-    why: "The person who takes the customer's money can also void the sale, edit the payment record, or write the balance off, so a payment kept at the counter leaves behind a record that says nothing was owed. A counter clerk who entered voids and no-sales, a dental employee who edited payment records in the billing software, and a dealership office manager who falsified transaction entries are all in the library below.",
+    why: "The person who takes the customer's money can also void the sale, edit the payment record, or write the balance off, so a payment kept at the counter leaves behind a record that says nothing was owed. A counter clerk who entered voids and no-sales, a dental employee who edited payment records in the billing software, and a dealership office manager who falsified transaction entries each hid a kept payment this way.",
     fraudPath:
       "Take the payment, then post a void, credit, or write-off so the account closes without it",
     compensatingDefaults: [
@@ -618,7 +635,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "approve_writeoffs",
     severity: "high",
     title: "Take payments + approve voids or write-offs",
-    why: "The person who takes the money can also approve the void, comp or write-off that cancels the record of taking it, so a payment kept from the till or the deposit leaves no balance behind and needs nobody else's sign-off. A counter clerk who turned sales into voids and no-sales is in the library below.",
+    why: "The person who takes the money can also approve the void, comp or write-off that cancels the record of taking it, so a payment kept from the till or the deposit leaves no balance behind and needs nobody else's sign-off. A counter clerk who turned sales into voids and no-sales did exactly this.",
     fraudPath:
       "Take the payment, then approve a void or write-off so the sale or the balance disappears",
     compensatingDefaults: [
@@ -633,7 +650,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "pms_admin_roles",
     severity: "high",
     title: "Take payments + administer the system",
-    why: "The person who takes payments can also change the system that records them: delete a payment, edit a receipt, or change who may do either, so money kept at the counter leaves no record behind. A director who collects tuition, banks it and runs the tuition system holds exactly this pair.",
+    why: "The person who takes payments can also change the system that records them: delete a payment, edit a receipt, or change who may do either, so money kept at the counter leaves no record behind.",
     fraudPath: "Keep a payment, then delete or rewrite its record with administrator rights",
     compensatingDefaults: [
       "Administrator rights sit with the owner or an outside IT provider, not with anyone who takes payments",
@@ -662,7 +679,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "issue_refunds",
     severity: "high",
     title: "Take payments + issue refunds",
-    why: "The person at the till can refund a sale that never happened, or refund a real one to their own card, and the refund reads as ordinary customer service. Refunds with no sale behind them, sent to the refunder's own cards, are in the library below.",
+    why: "The person at the till can refund a sale that never happened, or refund a real one to their own card, and the refund reads as ordinary customer service.",
     fraudPath: "Issue a refund with no sale behind it, to cash or to your own card",
     compensatingDefaults: [
       "Refunds only to the card or account that paid, with the original sale attached",
@@ -768,7 +785,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "approve_payroll",
     severity: "high",
     title: "Enter + approve payroll",
-    why: "Whoever runs payroll can change what payroll says, including their own pay. A Florida construction office manager raised her own weekly pay by $1,000, then $2,000; an Idaho district manager paid $685,376 to former employees whose records he reactivated. Both cases are in the library below.",
+    why: "Whoever runs payroll can change what payroll says, including their own pay. A Florida construction office manager raised her own weekly pay by $1,000, then $2,000; an Idaho district manager paid $685,376 to former employees whose records he reactivated.",
     fraudPath: "Add hours, a raise, or a reimbursement to your own pay",
     compensatingDefaults: ["Owner always approves final file", "Exception report"],
     linkedControlId: "c-payroll",
@@ -800,13 +817,14 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "review_card_statement",
     severity: "high",
     title: "Company card + its statement review",
-    why: "The person who spends on the company card is the person who reads its statement and codes each line into the books, so a personal charge, a cash advance, or a gift card is booked as supplies and nobody else ever sees the line. A Bellevue dental office worker ran $174,336 of cash advances and personal spending through a practice card whose statement came to her; a Hutchinson construction controller who held the company cards and reconciled everything took $2.06 million. Both cases are in the library below.",
+    why: "The person who spends on the company card is the person who reads its statement and codes each line into the books, so a personal charge, a cash advance, or a gift card is booked as supplies and nobody else ever sees the line. A Bellevue dental office worker ran $174,336 of cash advances and personal spending through a practice card whose statement came to her; a Hutchinson construction controller who held the company cards and reconciled everything took $2.06 million.",
     fraudPath:
       "Spend on the card, then code the charge as a business expense on a statement nobody else reads",
     compensatingDefaults: [
       "Owner reads the company card statement line by line every month, before it is coded",
       "Cash advances turned off on every company card, with a low limit per card",
     ],
+    linkedControlId: "c-cards",
   },
   {
     id: "rule-card-approve",
@@ -814,15 +832,55 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "approve_expenses",
     severity: "high",
     title: "Company card + expense approval",
-    why: "The person who spends on the company card also approves expense claims and card spending, so their own charges and reimbursements carry an approval that came from the same hands, and nobody without a stake in the spending ever asks what a charge was for. A Franklin, Massachusetts office manager put $105,000 of personal spending on the company card and paid herself $268,046 in reimbursements for expenses she never incurred, with nobody else's approval on any of it; that case is in the library below.",
+    why: "The person who spends on the company card also approves expense claims and card spending, so their own charges and reimbursements carry an approval that came from the same hands, and nobody without a stake in the spending ever asks what a charge was for. A Franklin, Massachusetts office manager put $105,000 of personal spending on the company card and paid herself $268,046 in reimbursements for expenses she never incurred.",
     fraudPath:
       "Charge personal spending to the card or claim a reimbursement, then approve it yourself",
     compensatingDefaults: [
       "Nobody approves their own card statement or expense claim, at any amount",
       "Every reimbursement above a small threshold needs a receipt and a second person's approval",
     ],
+    linkedControlId: "c-cards",
   },
 ];
+
+/**
+ * Duties that are another channel of a duty the rules name. Initiating an ACH
+ * and signing a check each send money out, so creating a vendor and
+ * initiating the ACH is the shell-vendor path exactly as creating a vendor and
+ * releasing the payment is. Preparing the deposit is holding the cash on its
+ * way to the bank, so preparing it and reconciling the account it lands in is
+ * the cash-custody gap exactly as taking the payment and reconciling is.
+ */
+export const CHANNEL_OF: Readonly<Partial<Record<EntitlementId, EntitlementId>>> = {
+  initiate_ach: "release_payment",
+  sign_checks: "release_payment",
+  prepare_deposit: "collect_cash",
+};
+
+/**
+ * The ways money leaves the account. Paired with any other duty, each one
+ * stands for sending money out (see CHANNEL_OF). Paired with each other they
+ * are one power, not a gap: signing a check and releasing a payment is one
+ * act, and a check signer who also initiates ACH has not approved their own
+ * transfer. The one exception is a named rule: initiating an electronic
+ * payment and releasing it are the bank's maker and checker, and one person in
+ * both seats approves their own transfer (rule-ach-release).
+ */
+export const PAYMENT_CHANNELS: ReadonlySet<EntitlementId> = new Set<EntitlementId>([
+  "release_payment",
+  "initiate_ach",
+  "sign_checks",
+]);
+
+/**
+ * A finding that says the same thing as another one for the same person.
+ * Signing checks is releasing payments on paper, so a person who both releases
+ * payments and signs checks, and reconciles, has one gap ("sends money out and
+ * reconciles"), not two. Keys are the rule dropped, values the rule kept.
+ */
+export const SUBSUMED_BY: Readonly<Record<string, string>> = {
+  "rule-sign-rec": "rule-release-rec",
+};
 
 /** Family-level matrix: true = inherently conflicting when combined. */
 export const FAMILY_CONFLICT_MATRIX: Record<DutyFamily, Partial<Record<DutyFamily, boolean>>> = {

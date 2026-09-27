@@ -17,6 +17,7 @@ import {
   Undo2,
   Upload,
 } from "lucide-react";
+import { isSimulatedPersonId } from "@/lib/precog/sod/apply-assignments";
 import { type DutyFamily } from "@/lib/precog/sod/conflict-rules";
 import { JOB_CATALOG } from "@/lib/precog/onboarding/job-catalog";
 import { Button } from "@/components/ui/button";
@@ -125,15 +126,15 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
             </Button>
             <Button size="sm" variant="ghost" onClick={exportModel}>
               <Download className="size-3.5" />
-              Export
+              Download map (JSON)
             </Button>
             <Button size="sm" variant="ghost" onClick={exportMatrixCsv}>
               <Table2 className="size-3.5" />
-              CSV
+              Download duty table (CSV)
             </Button>
             <Button size="sm" variant="ghost" onClick={exportGovernanceReport}>
               <FileText className="size-3.5" />
-              Report
+              Download report
             </Button>
             <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-muted hover:bg-elevated hover:text-fg">
               <Upload className="size-3.5" />
@@ -150,7 +151,7 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
             </label>
             <Button size="sm" variant="ghost" onClick={reset}>
               <RotateCcw className="size-3.5" />
-              Reset model
+              Reset duties
             </Button>
             <span aria-live="polite" className="ml-auto text-xs text-subtle">
               {importMessage || "Saved with your business"}
@@ -303,7 +304,7 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
                 <p className="text-lg font-semibold">{selectedConflicts.length}</p>
               </div>
             </div>
-            {selected?.personId.startsWith("sim-") && (
+            {selected && isSimulatedPersonId(selected.personId) && (
               <Button
                 size="sm"
                 variant="ghost"
