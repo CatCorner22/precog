@@ -53,10 +53,10 @@ const MAX_HISTORY_PER_BUSINESS = 200;
 /** Days a deleted business stays restorable before the purge job removes it. */
 const DELETED_RETENTION_DAYS = 30;
 
-export class BusinessLimitError extends Error {
-  readonly status = 409;
+export class BusinessLimitError extends RequestError {
   constructor(limit: number) {
     super(
+      409,
       `Your account already holds ${limit} businesses, the most it can keep. Delete one you no longer need, then save again.`,
     );
     this.name = "BusinessLimitError";

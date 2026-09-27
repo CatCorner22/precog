@@ -27,8 +27,8 @@ export const Route = createFileRoute("/api/cron/digest")({
           import("@/lib/precog/integrations/qbo/sync.server"),
         ]);
         const sql = await getSql();
-        const url = new URL(request.url);
-        const appUrl = process.env.PUBLIC_APP_URL?.trim() || `${url.protocol}//${url.host}`;
+        const { originFrom } = await import("@/lib/request-origin.server");
+        const appUrl = originFrom(request.url, request.headers);
         const today = serverUtcDay();
 
         const configured = mailer.mailConfigured();

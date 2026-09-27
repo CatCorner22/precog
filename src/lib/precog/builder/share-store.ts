@@ -1,5 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
+import { RequestError } from "@/lib/request-errors";
 
 /**
  * Share-link rows, kept free of `createServerFn` so they run against PGLite in
@@ -11,10 +12,10 @@ export const MAX_LIVE_SHARES = 50;
 /** Revoked or expired links still listed for reference, newest first. */
 export const INACTIVE_SHARES_LISTED = 20;
 
-export class ShareLimitError extends Error {
-  readonly status = 409;
+export class ShareLimitError extends RequestError {
   constructor() {
     super(
+      409,
       `You already have ${MAX_LIVE_SHARES} live share links. Revoke one you no longer need, then try again.`,
     );
     this.name = "ShareLimitError";
@@ -134,4 +135,14 @@ export async function listMapShareSummaries(sql: Sql, userId: string): Promise<S
       lastViewedAt: toIsoTimestampOrNull(r.last_viewed_at),
     }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** Share view logs older than this are purged whenever an owner lists shares. */
+export const SHARE_VIEW_RETENTION_DAYS = 90;
+
+export async function purgeOldShareViews(sql: Sql): Promise<void> {
+  await sql`
+    delete from map_share_views
+    where viewed_at < now() - make_interval(days => ${SHARE_VIEW_RETENTION_DAYS})
+  `;
 }

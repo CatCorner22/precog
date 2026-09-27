@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalFooter } from "@/components/precog/legal-footer";
-import { SHARE_VIEW_RETENTION_DAYS } from "@/lib/precog/account-store";
+import { SHARE_VIEW_RETENTION_DAYS } from "@/lib/precog/builder/share-store";
 
 export const Route = createFileRoute("/privacy")({
   component: PrivacyPage,

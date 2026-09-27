@@ -5,31 +5,15 @@ import {
   removeAcknowledgedCopies,
   workspacePrefix,
 } from "./workspace-storage";
+import { memoryStorage } from "@/test/memory-storage";
+import { ACTIVE_PROFILE_KEY, PORTFOLIO_KEY } from "./practice-profile";
 
-class MemoryStorage {
-  data = new Map<string, string>();
-  get length() {
-    return this.data.size;
-  }
-  key(index: number) {
-    return [...this.data.keys()][index] ?? null;
-  }
-  getItem(key: string) {
-    return this.data.get(key) ?? null;
-  }
-  setItem(key: string, value: string) {
-    this.data.set(key, value);
-  }
-  removeItem(key: string) {
-    this.data.delete(key);
-  }
-}
-const active = "precog.practiceProfile.v2";
-const portfolio = "precog.portfolio.v1";
+const active = ACTIVE_PROFILE_KEY;
+const portfolio = PORTFOLIO_KEY;
 
 describe("account workspace isolation", () => {
   it("isolates identical business ids for A, B and the guest", () => {
-    const raw = new MemoryStorage();
+    const raw = memoryStorage();
     const a = new ScopedStorage(raw, "A"),
       b = new ScopedStorage(raw, "B"),
       guest = new ScopedStorage(raw, null);
@@ -45,7 +29,7 @@ describe("account workspace isolation", () => {
     expect(guest.getItem(active)).toBe("guest draft");
   });
   it("does not adopt or erase legacy unassigned records", () => {
-    const raw = new MemoryStorage();
+    const raw = memoryStorage();
     raw.setItem(active, "legacy owner unknown");
     const a = new ScopedStorage(raw, "A");
     expect(a.getItem(active)).toBeNull();
@@ -58,7 +42,7 @@ describe("account workspace isolation", () => {
     expect(new Set(ids.map(workspacePrefix)).size).toBe(ids.length);
   });
   it("an old storage object cannot change destination when a new account opens", () => {
-    const raw = new MemoryStorage();
+    const raw = memoryStorage();
     const old = new ScopedStorage(raw, "A");
     const next = new ScopedStorage(raw, "B");
     old.setItem(active, "late callback");
@@ -66,14 +50,14 @@ describe("account workspace isolation", () => {
     expect(old.entries()).toEqual({ [active]: "late callback" });
   });
   it("propagates refused writes so callers cannot claim success", () => {
-    const raw = new MemoryStorage();
+    const raw = memoryStorage();
     raw.setItem = () => {
       throw new Error("quota");
     };
     expect(() => new ScopedStorage(raw, "A").setItem(active, "x")).toThrow("quota");
   });
   it("exports and clears only keys within the exact namespace", () => {
-    const raw = new MemoryStorage();
+    const raw = memoryStorage();
     const a = new ScopedStorage(raw, "A");
     raw.setItem("unrelated", "keep");
     new ScopedStorage(raw, "A:B").setItem("x", "other");
@@ -85,7 +69,7 @@ describe("account workspace isolation", () => {
     expect(raw.length).toBe(2);
   });
   it("on sign-out removes exact acknowledged copies but not unsynced work", () => {
-    const raw = new MemoryStorage();
+    const raw = memoryStorage();
     const a = new ScopedStorage(raw, "A");
     const saved = { businessId: "one", updatedAt: "same", name: "saved" };
     const unsynced = { businessId: "two", updatedAt: "same", name: "local only" };
@@ -98,7 +82,7 @@ describe("account workspace isolation", () => {
     expect(a.getItem("precog.value-proof")).not.toBeNull();
   });
   it("does not use an equal timestamp as proof of equal contents", () => {
-    const a = new ScopedStorage(new MemoryStorage(), "A");
+    const a = new ScopedStorage(memoryStorage(), "A");
     const saved = { businessId: "one", updatedAt: "same", name: "saved" };
     const edited = { ...saved, name: "unsynced" };
     a.setItem(active, JSON.stringify(edited));
@@ -106,7 +90,7 @@ describe("account workspace isolation", () => {
     expect(a.getItem(active)).toBe(JSON.stringify(edited));
   });
   it("keeps corrupt or unrecognized records during cleanup", () => {
-    const a = new ScopedStorage(new MemoryStorage(), "A");
+    const a = new ScopedStorage(memoryStorage(), "A");
     a.setItem(active, "{bad");
     a.setItem(portfolio, "[]");
     removeAcknowledgedCopies(a, new Map());

@@ -7,6 +7,7 @@ import { signOut } from "@/lib/auth/client";
 import { clearLocalCopies } from "@/lib/precog/local-data";
 import { downloadText } from "@/lib/download";
 import { localDateKey } from "@/lib/precog/dates";
+import { clientErrorStatus } from "@/lib/request-errors";
 
 /** Export and delete controls for the signed-in account. */
 export function AccountDataControls() {
@@ -38,9 +39,11 @@ export function AccountDataControls() {
       workspace.session?.clear();
       toast.success("Your account and its data are deleted.");
       await signOut("/", { skipRecovery: true });
-    } catch {
+    } catch (error) {
       toast.error(
-        "The deletion or the sign-out did not finish. Reload to check the account; a finished deletion cannot be undone.",
+        clientErrorStatus(error) === 409 && error instanceof Error
+          ? error.message
+          : "The deletion or the sign-out did not finish. Reload to check the account; a finished deletion cannot be undone.",
       );
       setBusy(null);
     }

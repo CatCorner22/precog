@@ -2,6 +2,7 @@ import type { Sql } from "@/lib/db";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import type { FirmPlan } from "./pricing";
 import type { ReviewItemKey, ReviewResult } from "./reviews";
+import { RequestError } from "@/lib/request-errors";
 
 /**
  * A firm is keyed by its owner's account: `firms.user_id` is both the owner
@@ -102,10 +103,9 @@ export async function loadFirmFor(sql: Sql, userId: string): Promise<FirmContext
   };
 }
 
-export class FirmMembershipError extends Error {
-  readonly status = 409;
+export class FirmMembershipError extends RequestError {
   constructor(message: string) {
-    super(message);
+    super(409, message);
     this.name = "FirmMembershipError";
   }
 }

@@ -1,4 +1,4 @@
-import { toSql, postgresTransaction } from "./sql-transaction";
+import { DB_TYPE_PARSERS, toSql, postgresTransaction } from "./sql-transaction";
 import { pgliteSql } from "./pglite-sql";
 import { validateMigrationManifest } from "../../scripts/migration-manifest.mjs";
 
@@ -141,23 +141,6 @@ async function createSql(): Promise<Sql> {
 
 // ── The two backends ─────────────────────────────────────────────────────────
 
-/**
- * Result-type parity: Postgres sends every value as text plus a type OID, and
- * the JS value is the driver's parsing choice. pg returns int8 as a string and
- * date as a local-midnight Date; PGlite 0.5 returns int8 as a number and date
- * as a UTC Date. Both backends are pinned here so preview and production
- * return identical shapes whatever the driver defaults:
- *   int8/bigint (incl. count(*)) -> number (past 2^53 loses precision — cast
- *                                   `::text` if you ever need huge integers)
- *   date                         -> 'YYYY-MM-DD' string
- *   interval                     -> Postgres interval text
- * numeric already comes back as a string on both (arbitrary precision).
- */
-const OID_INT8 = 20;
-const OID_DATE = 1082;
-const OID_INTERVAL = 1186;
-const identity = (v: string) => v;
-
 /** Fail fast instead of holding a request until the platform kills it. */
 const CONNECT_TIMEOUT_MS = 10_000;
 const STATEMENT_TIMEOUT_MS = 30_000;
@@ -165,9 +148,10 @@ const STATEMENT_TIMEOUT_MS = 30_000;
 async function createPool(): Promise<import("pg").Pool> {
   // Imported on demand so `pg` never loads on the PGLite path.
   const { Pool, types } = await import("pg");
-  types.setTypeParser(OID_INT8, Number);
-  types.setTypeParser(OID_DATE, identity);
-  types.setTypeParser(OID_INTERVAL, identity);
+  // Result types match PGlite's (see DB_TYPE_PARSERS in ./sql-transaction).
+  for (const [oid, parse] of Object.entries(DB_TYPE_PARSERS)) {
+    types.setTypeParser(Number(oid), parse);
+  }
   const pool = new Pool({
     connectionString: databaseUrl,
     max: 4,
@@ -228,13 +212,7 @@ async function createPgliteSql(): Promise<Sql> {
 async function openPglite(): Promise<import("@electric-sql/pglite").PGlite> {
   // Imported on demand so PGlite never loads on the Postgres path.
   const { PGlite } = await import("@electric-sql/pglite");
-  const pg = new PGlite({
-    parsers: {
-      [OID_INT8]: Number,
-      [OID_DATE]: identity,
-      [OID_INTERVAL]: identity,
-    },
-  });
+  const pg = new PGlite({ parsers: DB_TYPE_PARSERS });
   await pg.waitReady;
   await pg.exec(
     "create table if not exists _migrations (name text primary key, applied_at timestamptz not null default now())",

@@ -23,7 +23,7 @@ export async function runMigrations({
     throw new Error("Migration lock timeout must be an integer from 1 to 300000 milliseconds");
 
   // Validate and read the complete manifest BEFORE making any database change.
-  const files = (await readdir(migrationsDir)).filter((f) => f.endsWith(".sql")).sort();
+  const files = await listMigrationFiles(migrationsDir);
   let renamed = {};
   try {
     renamed = JSON.parse(await readFile(join(migrationsDir, "renamed.json"), "utf8"));
@@ -105,4 +105,16 @@ export async function runMigrations({
       : "[migrate] up to date.",
   );
   return { applied: appliedNow, moved };
+}
+
+/**
+ * The migration files in apply order, refusing a misnamed file or a shared
+ * four-digit prefix (the file-name rules of ./migration-manifest.mjs). Every
+ * runner (deploy, preview tests, lifecycle tests) reads the directory through
+ * this, so none applies a file another rejects.
+ */
+export async function listMigrationFiles(migrationsDir) {
+  const files = (await readdir(migrationsDir)).filter((f) => f.endsWith(".sql")).sort();
+  validateMigrationManifest(files);
+  return files;
 }

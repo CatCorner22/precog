@@ -92,4 +92,20 @@ describe("reserved connection transactions", () => {
       ),
     ).rejects.toThrow("aborted");
   });
+  it("keeps the first caught failure as the cause of the abort", async () => {
+    const nested = new Error("duplicate key value violates unique constraint");
+    const outcome = transactionScope(
+      async () => [],
+      async (tx) => {
+        await inTransaction(tx, async () => {
+          throw nested;
+        }).catch(() => {});
+        await inTransaction(tx, async () => {
+          throw new Error("second");
+        }).catch(() => {});
+        return 1;
+      },
+    );
+    await expect(outcome).rejects.toMatchObject({ message: /aborted/, cause: nested });
+  });
 });
