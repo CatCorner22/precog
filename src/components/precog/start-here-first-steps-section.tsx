@@ -1,10 +1,9 @@
 import { ArrowRight, ExternalLink } from "lucide-react";
 import { SectionHeading } from "./start-here-parts";
-import { effortPhrase } from "./start-here-copy";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { StartHereModel } from "./use-start-here";
-import { lossPhrase } from "@/lib/precog/evidence";
+import { effortPhrase, lossPhrase } from "@/lib/precog/evidence";
 
 export function StartHereFirstStepsSection({ model }: { model: StartHereModel }) {
   const { steps, caseById, tips, soleKnowledge } = model;
@@ -35,7 +34,7 @@ export function StartHereFirstStepsSection({ model }: { model: StartHereModel })
                     <p className="text-sm leading-relaxed">{s.control.label}</p>
                     <p className="mt-0.5 text-sm leading-relaxed text-muted">{s.control.why}</p>
                     <p className="mt-1 text-xs text-subtle">
-                      {effortPhrase(s.control.effort)} ·{" "}
+                      {effortPhrase(s.control)} ·{" "}
                       {s.answers > 0
                         ? `answers ${s.answers} of your open ${s.answers === 1 ? "finding" : "findings"} · `
                         : ""}

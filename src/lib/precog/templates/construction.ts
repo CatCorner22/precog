@@ -23,7 +23,7 @@ const constructionControls: ControlItem[] = [
     id: "c-change-orders",
     name: "Change-order approval",
     description:
-      "Every change order is priced against the contract and approved in writing, before the work or the payment, by someone other than the project manager who negotiated it.",
+      "Someone other than the project manager who negotiated it prices each change order against the contract and approves it in writing before the work or the payment.",
     duties: ["authorization", "review"],
     segregated: false,
     compensatingControls: ["Owner reads the change-order log against each job budget monthly"],
@@ -43,7 +43,7 @@ const constructionControls: ControlItem[] = [
     id: "c-lien-waivers",
     name: "Lien waivers with every payment",
     description:
-      "No subcontractor or supplier payment is released without a conditional waiver for this payment and an unconditional waiver for the last one.",
+      "The office releases a subcontractor or supplier payment only with a conditional waiver for this payment and an unconditional waiver for the last one.",
     duties: ["review"],
     segregated: true,
     compensatingControls: [],
@@ -53,7 +53,7 @@ const constructionControls: ControlItem[] = [
     id: "c-field-time",
     name: "Field time approval",
     description:
-      "Crew hours are paid only when the superintendent has approved them against the daily reports and the crew roster for that job.",
+      "Payroll pays crew hours only after the superintendent approves them against the daily reports and the crew roster for that job.",
     duties: ["authorization", "review"],
     segregated: false,
     compensatingControls: ["Owner compares the people paid with the people on the job sites"],
@@ -63,10 +63,10 @@ const constructionControls: ControlItem[] = [
     id: "c-materials",
     name: "Materials receiving and job cost review",
     description:
-      "Deliveries are signed for at the job by someone other than the person who ordered them, and the project manager compares material cost by job with the estimate.",
+      "Someone other than the person who ordered materials signs for the delivery at the job, and the project manager compares material cost by job with the estimate.",
     duties: ["custody", "review"],
     segregated: false,
-    compensatingControls: ["Monthly job cost report read by the owner"],
+    compensatingControls: ["The owner reads the monthly job cost report"],
     residualRiskAccepted: false,
   },
 ];
@@ -532,11 +532,11 @@ export const constructionTemplate: IndustryTemplate = {
       risks: [
         {
           id: "r-ar-1",
-          title: "Client balances written off without owner approval",
+          title: "A kept client payment hidden as a disputed write-off",
           kind: "fraud",
           severity: 4,
           likelihood: 2,
-          note: "A payment kept by an insider can be hidden by writing off the balance as disputed.",
+          note: "Only the owner approves write-offs here, so a kept payment would have to reach him described as a disputed balance; the owner asks for the dispute behind each one.",
           linkedScenarioId: "sc-writeoff-abuse",
         },
         {
@@ -779,7 +779,7 @@ export const constructionTemplate: IndustryTemplate = {
       keyPersonDesc:
         "The project accountant (sole expert on pay applications and retainage) resigns in the middle of several jobs. Billing slips a month and retainage goes unbilled.",
       knowledgeId: "k3",
-      billingLabel: "Client balances written off without owner approval",
+      billingLabel: "A kept client payment hidden as a disputed write-off",
     }),
     ...constructionScenarios,
   ],
