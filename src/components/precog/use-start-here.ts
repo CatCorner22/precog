@@ -21,7 +21,7 @@ import {
 import { ownerHeldPairs, rankFirstSteps } from "@/lib/precog/coach/first-steps";
 import { concentrationHeadline, separatedPairs } from "@/lib/precog/sod/verdict";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
-import { titleDutiesSentence } from "@/lib/precog/onboarding/own-team";
+import { titleDutiesSentence } from "@/lib/precog/sod/title-duties";
 import { locationsById } from "@/lib/precog/person-location";
 import { localDateKey } from "@/lib/precog/dates";
 import { formatUsd } from "@/lib/utils";

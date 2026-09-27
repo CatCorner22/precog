@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { INDUSTRIES } from "../industry";
 import {
+  INDUSTRY_HINTS,
+  INDUSTRY_SEATS,
   JOB_CATALOG,
+  JOB_FAMILY_LABEL,
+  aliasKey,
   entitlementsForTitle,
-  jobCatalogMissingDescriptions,
+  jobCatalogEntry,
   jobCatalogUnknownEntitlements,
   matchJobTitle,
 } from "./job-catalog";
@@ -14,7 +19,6 @@ describe("job catalog", () => {
   });
 
   it("describes every job in one bounded sentence and records only well-formed SOC codes", () => {
-    expect(jobCatalogMissingDescriptions()).toEqual([]);
     for (const e of JOB_CATALOG) {
       expect(e.description.length, e.id).toBeLessThanOrEqual(220);
       expect(e.description.endsWith("."), e.id).toBe(true);
@@ -35,18 +39,50 @@ describe("job catalog", () => {
     expect(matchJobTitle("Revenue Cycle Manager")?.entry.id).toBe("billing-manager");
   });
 
-  it("keeps ids and aliases unique across entries", () => {
+  it("keeps ids unique and every name one entry's, as the matcher compares names", () => {
     const ids = JOB_CATALOG.map((e) => e.id);
     expect(new Set(ids).size).toBe(ids.length);
     const seen = new Map<string, string>();
     for (const e of JOB_CATALOG) {
-      for (const alias of new Set([e.title.toLowerCase(), ...e.aliases])) {
-        expect(
-          seen.get(alias),
-          `alias "${alias}" in ${e.id} and ${seen.get(alias)}`,
-        ).toBeUndefined();
-        seen.set(alias, e.id);
+      const own = new Set<string>();
+      for (const name of [e.title, ...e.aliases]) {
+        const key = aliasKey(name);
+        // An alias the matcher reads as the title or another alias adds nothing.
+        expect(own.has(key), `"${name}" repeats another name of ${e.id}`).toBe(false);
+        own.add(key);
+        expect(seen.get(key), `"${name}" in ${e.id} and ${seen.get(key)}`).toBeUndefined();
       }
+      for (const key of own) seen.set(key, e.id);
+    }
+    expect(aliasKey("A/P Mgr.")).toBe(aliasKey("ap manager"));
+  });
+
+  it("files at least one job under every family and keeps each family together", () => {
+    const families = JOB_CATALOG.map((e) => e.family);
+    for (const family of Object.keys(JOB_FAMILY_LABEL)) {
+      expect(families, family).toContain(family);
+    }
+    const runs = families.filter((f, i) => f !== families[i - 1]);
+    expect(runs).toEqual(Object.keys(JOB_FAMILY_LABEL));
+  });
+
+  it("points every line-of-business reading at a catalog seat and a known line of business", () => {
+    const industries = new Set<string>(INDUSTRIES.map((i) => i.id));
+    for (const [title, byIndustry] of Object.entries(INDUSTRY_HINTS)) {
+      for (const [industry, id] of Object.entries(byIndustry)) {
+        expect(industries.has(industry), `${title}: ${industry}`).toBe(true);
+        expect(jobCatalogEntry(id), `${title}: ${id}`).toBeDefined();
+      }
+    }
+    for (const [industry, seats] of Object.entries(INDUSTRY_SEATS)) {
+      expect(industries.has(industry), industry).toBe(true);
+      for (const id of Object.keys(seats)) expect(jobCatalogEntry(id), id).toBeDefined();
+    }
+  });
+
+  it("records the SOC code of every single-occupation job whose description paraphrases BLS", () => {
+    for (const id of ["loan-officer", "receiving", "paralegal", "attorney", "pharmacist"]) {
+      expect(jobCatalogEntry(id)?.soc, id).toMatch(/^\d{2}-\d{4}$/);
     }
   });
 
@@ -159,6 +195,9 @@ describe("job catalog", () => {
     expect(matchJobTitle("Deposit Clerk")?.entry.id).toBe("cash-office");
     expect(matchJobTitle("AP Manager")?.entry.id).toBe("accounts-payable");
     expect(matchJobTitle("Collections Manager")?.entry.id).toBe("accounts-receivable");
+    // A hotel's guest service manager is the lodging manager, singular or plural.
+    expect(matchJobTitle("Guest Service Manager")?.entry.id).toBe("hotel-manager");
+    expect(matchJobTitle("Guest Services Manager")?.entry.id).toBe("hotel-manager");
     expect(matchJobTitle("Service Manager")?.entry.id).toBe("service-manager");
     expect(matchJobTitle("Night Manager")?.entry.id).toBe("shift-lead");
     expect(matchJobTitle("Reconciliation Specialist")?.entry.id).toBe("accountant");
@@ -485,8 +524,10 @@ describe("job catalog", () => {
       const match = matchJobTitle(title, "general");
       expect(match?.entry.id, title).toBe("clinic-site-director");
       expect(match?.entitlements, title).toEqual(
-        expect.arrayContaining(["approve_writeoffs", "enter_payroll", "prepare_deposit"]),
+        expect.arrayContaining(["approve_writeoffs", "prepare_deposit"]),
       );
+      // Signing off the staff's hours is not entering the payroll run.
+      expect(match?.entitlements, title).not.toContain("enter_payroll");
     }
   });
 
@@ -520,5 +561,131 @@ describe("job catalog", () => {
     expect(duties).toEqual(
       expect.arrayContaining(["post_payments", "release_payment", "enter_payroll"]),
     );
+  });
+});
+
+describe("aliases that must not capture an unrelated title", () => {
+  it("reads a special ed teacher or an ed tech as teaching staff, not the executive director", () => {
+    for (const title of ["Special Ed Teacher", "Physical Ed Teacher", "Ed Tech", "Ed Assistant"]) {
+      expect(matchJobTitle(title, "nonprofit")?.entry.id, title).toBe("teacher");
+      expect(entitlementsForTitle(title, "general"), title).not.toContain("sign_checks");
+    }
+    expect(matchJobTitle("ED")?.entry.id).toBe("executive-director");
+    expect(matchJobTitle("ED / Founder")?.entitlements).toContain("sign_checks");
+  });
+
+  it("reads client, guest and member service managers as customer service, singular or plural", () => {
+    for (const industry of ["dental", "general"]) {
+      for (const title of [
+        "Client Service Manager",
+        "Client Services Manager",
+        "Customer Service Manager",
+        "Member Service Manager",
+      ]) {
+        expect(matchJobTitle(title, industry)?.entry.id, `${title} ${industry}`).toBe(
+          "customer-service",
+        );
+        expect(entitlementsForTitle(title, industry)).not.toContain("approve_writeoffs");
+      }
+    }
+    // A hotel's guest service manager is the lodging manager, singular or plural.
+    expect(matchJobTitle("Guest Service Manager")?.entry.id).toBe("hotel-manager");
+    expect(matchJobTitle("Guest Services Manager")?.entry.id).toBe("hotel-manager");
+    expect(matchJobTitle("Service Manager")?.entry.id).toBe("service-manager");
+  });
+
+  it("reads 'HR and Payroll Administrator' as both seats however the title joins them", () => {
+    for (const title of [
+      "HR and Payroll Administrator",
+      "HR & Payroll Administrator",
+      "Payroll & HR Administrator",
+      "HR/Payroll Admin",
+    ]) {
+      expect(entitlementsForTitle(title), title).toEqual(
+        expect.arrayContaining(["enter_payroll", "edit_payroll_master"]),
+      );
+    }
+  });
+
+  it("gives a team lead cash only in a store or a restaurant", () => {
+    for (const [title, industry] of [
+      ["Software Team Lead", "professional_services"],
+      ["Engineering Team Lead", "general"],
+      ["Team Leader", "nonprofit"],
+      ["Team Lead", "dental"],
+    ]) {
+      expect(entitlementsForTitle(title, industry), `${title} ${industry}`).not.toContain(
+        "collect_cash",
+      );
+    }
+    expect(matchJobTitle("Team Lead", "retail")?.entry.id).toBe("shift-lead");
+    expect(matchJobTitle("Crew Lead", "restaurant")?.entry.id).toBe("shift-lead");
+    expect(matchJobTitle("Crew Lead", "construction")?.entry.id).toBe("foreman");
+  });
+
+  it("reads a community manager as marketing outside a property business", () => {
+    for (const industry of ["nonprofit", "professional_services", "retail", "restaurant"]) {
+      expect(matchJobTitle("Community Manager", industry)?.entry.id, industry).toBe("marketing");
+    }
+    expect(matchJobTitle("Community Manager", "general")?.entry.id).toBe("property-manager");
+    expect(matchJobTitle("Community Association Manager")?.entry.id).toBe("property-manager");
+  });
+
+  it("keeps financial, event and wedding planners from ordering stock", () => {
+    for (const title of ["Financial Planner", "Event Planner", "Wedding Planner"]) {
+      expect(entitlementsForTitle(title, "professional_services"), title).not.toContain(
+        "order_supplies",
+      );
+    }
+    expect(matchJobTitle("Merchandise Planner")?.entry.id).toBe("merchandiser");
+    expect(matchJobTitle("Event Planner", "restaurant")?.entry.id).toBe("catering-manager");
+  });
+
+  it("gives a dental practice administrator the practice manager's duties", () => {
+    expect(entitlementsForTitle("Practice Administrator", "dental")).toEqual(
+      entitlementsForTitle("Practice Manager", "dental"),
+    );
+    expect(entitlementsForTitle("Business Manager", "dental")).toContain("bank_reconcile");
+    expect(matchJobTitle("Practice Administrator", "professional_services")?.entry.id).toBe(
+      "firm-administrator",
+    );
+  });
+
+  it("puts no cash in the hands of greeters, schedulers and nonprofit case coordinators", () => {
+    expect(entitlementsForTitle("Case Coordinator", "nonprofit")).toEqual(
+      entitlementsForTitle("Case Worker", "nonprofit"),
+    );
+    for (const [title, industry] of [
+      ["Greeter", "retail"],
+      ["Scheduler", "construction"],
+      ["Registrar", "nonprofit"],
+      ["Care Coordinator", "general"],
+    ]) {
+      expect(entitlementsForTitle(title, industry), title).not.toContain("collect_cash");
+    }
+    expect(entitlementsForTitle("Chief of Staff", "nonprofit")).not.toContain("release_payment");
+    expect(matchJobTitle("Case Coordinator", "dental")?.entry.id).toBe("treatment-coordinator");
+  });
+
+  it("reads a nonprofit's principal and president as its school director and executive director", () => {
+    expect(matchJobTitle("Principal", "nonprofit")?.entry.id).toBe("center-director");
+    expect(matchJobTitle("President", "nonprofit")?.entry.id).toBe("executive-director");
+    expect(matchJobTitle("Chief Executive", "nonprofit")?.entry.id).toBe("executive-director");
+    expect(matchJobTitle("President", "general")?.entry.id).toBe("owner");
+  });
+
+  it("gives the night auditor no bank reconciliation and supervisors who submit hours no payroll entry", () => {
+    expect(entitlementsForTitle("Night Auditor")).not.toContain("bank_reconcile");
+    for (const title of [
+      "Foreman",
+      "Housekeeping Supervisor",
+      "Fleet Manager",
+      "Service Manager",
+      "Center Director",
+      "Clinic Site Director",
+      "Restaurant Manager",
+    ]) {
+      expect(entitlementsForTitle(title), title).not.toContain("enter_payroll");
+    }
   });
 });

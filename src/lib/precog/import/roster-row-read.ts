@@ -318,9 +318,13 @@ function existingPerson(
     );
 }
 
-/** The row's role: its title as the line of business spells it, else the matched person's role when the file has no title column. */
+/**
+ * The row's role: its title as the line of business spells it, else the
+ * matched person's role when the row has no title (a bare name in a pasted
+ * list keeps the person's role and duties).
+ */
 function readRole(context: ImportContext, fields: RowFields, existing: Person | undefined): string {
-  if (context.columns.titles.length === 0 && existing) return existing.role;
+  if (!fields.roleValue && existing) return existing.role;
   const value = (fields.roleValue || "Team member").trim();
   const match = Object.keys(context.tpl.roleTemplates).find(
     (role) => role.toLowerCase() === value.toLowerCase(),

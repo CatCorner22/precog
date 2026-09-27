@@ -206,3 +206,52 @@ describe("honest draft save status", () => {
     ).toBe(false);
   });
 });
+
+describe("what a reload keeps from a pasted roster", () => {
+  const draft: SetupDraft = {
+    step: "team",
+    selected: "dental",
+    businessName: "Smile Dental",
+    rows: [{ name: "Ana Ruiz", role: "Office Manager", duties: ["post_payments"] }],
+    paste: "",
+    businessId: "biz_x",
+    leftOut: [{ name: "Bo Chen", role: "Cashier" }],
+  };
+
+  it("keeps the people the roster left out as terminated, for the leaver access checks", () => {
+    expect(reload(draft).draft.leftOut).toEqual([{ name: "Bo Chen", role: "Cashier" }]);
+  });
+
+  it("drops a left-out entry with no name", () => {
+    const storage = tabStorage();
+    storage.setItem(
+      SETUP_DRAFT_KEY,
+      JSON.stringify({ ...draft, leftOut: [{ role: "Cashier" }, { name: "Bo Chen" }] }),
+    );
+    expect(readSetupDraft(storage)?.leftOut).toEqual([{ name: "Bo Chen" }]);
+  });
+});
+
+describe("a draft this version cannot read", () => {
+  function stored(value: unknown) {
+    const storage = tabStorage();
+    storage.setItem(SETUP_DRAFT_KEY, JSON.stringify(value));
+    return readSetupDraft(storage);
+  }
+  const draft = { step: "team", selected: "dental", businessName: "", rows: [], paste: "" };
+
+  it("starts fresh for an unknown line of business instead of switching it to dental", () => {
+    expect(stored({ ...draft, selected: "brewery" })).toBeNull();
+    expect(stored({ ...draft, selected: undefined })).toBeNull();
+  });
+
+  it("drops rows whose owner mark, duties or years are not the types the grid writes", () => {
+    const rows = [
+      { name: "Ana", role: "Owner", duties: [], owner: "yes" },
+      { name: "Ben", role: "Cook", duties: [3] },
+      { name: "Cal", role: "Cook", duties: [], tenureYears: "4" },
+      { name: "Dee", role: "Cook", duties: ["collect_cash"], owner: false, tenureYears: 2 },
+    ];
+    expect(stored({ ...draft, rows })?.rows.map((r) => r.name)).toEqual(["Dee"]);
+  });
+});

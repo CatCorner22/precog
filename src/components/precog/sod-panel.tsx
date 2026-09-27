@@ -16,7 +16,7 @@ import {
   confirmTitleDuties,
   peopleWithTitleDuties,
   titleDutiesSentence,
-} from "@/lib/precog/onboarding/own-team";
+} from "@/lib/precog/sod/title-duties";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

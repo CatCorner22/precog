@@ -1,5 +1,4 @@
 import { useWorkspace } from "@/lib/precog/workspace-context";
-import { setupRowNeedsAttention } from "@/lib/precog/onboarding/review-rows";
 import {
   useCallback,
   useEffect,
@@ -25,16 +24,12 @@ import {
 } from "@/lib/precog/onboarding/setup-draft";
 import {
   CORE_DUTIES,
-  MORE_PEOPLE_PLACE,
   OWN_TEAM_MAX,
-  addPastedRows,
-  addRowsByTitle,
   buildOwnTeam,
   coreDutyLabel,
   extraDuties,
   firstUnnamedWithDuties,
-  pasteSummary,
-  pastedRows,
+  rowNeedsReview,
   rowOwnsBusiness,
   sameDuties,
   suggestedDuties,
@@ -42,12 +37,17 @@ import {
   MAX_ROLE_LENGTH,
   onLeavePersonIds,
   firstRowForIndustry,
-  isLeaderTitle,
   rowsKeptForAdding,
   type OwnTeamRow,
 } from "@/lib/precog/onboarding/own-team";
+import { MORE_PEOPLE_PLACE, addRowsByTitle, applyPaste } from "@/lib/precog/onboarding/add-people";
 import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
-import { JOB_CATALOG, JOB_FAMILY_LABEL, type JobFamily } from "@/lib/precog/onboarding/job-catalog";
+import {
+  JOB_CATALOG,
+  JOB_FAMILY_LABEL,
+  jobCatalogEntry,
+  type JobFamily,
+} from "@/lib/precog/onboarding/job-catalog";
 import { JobCatalogSheet } from "@/components/precog/job-catalog-sheet";
 import { SetupPreviewCard } from "@/components/precog/setup-preview-card";
 import { parseRoster } from "@/lib/precog/import/roster";
@@ -146,6 +146,7 @@ export function IndustryOnboarding() {
     setRows(start.draft.rows);
     setStep(start.draft.step);
     setPaste(start.draft.paste);
+    setLeftOut(start.draft.leftOut ?? []);
     setPasteOpen(start.draft.paste.trim().length > 0);
     setRestoredEarlier(start.restoredEarlier);
     setKeepsNothing(!canKeepLocalData());
@@ -162,7 +163,7 @@ export function IndustryOnboarding() {
       pendingDraft.current = null;
       setDraftSaved(
         writeSetupDraft(
-          { step, selected, businessName, rows, paste, businessId },
+          { step, selected, businessName, rows, paste, businessId, leftOut },
           workspace.session,
         ),
       );
@@ -170,7 +171,7 @@ export function IndustryOnboarding() {
     pendingDraft.current = write;
     const timer = window.setTimeout(write, DRAFT_WRITE_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [restored, step, selected, businessName, rows, paste, businessId, workspace.session]);
+  }, [restored, step, selected, businessName, rows, paste, businessId, leftOut, workspace.session]);
   useEffect(() => () => pendingDraft.current?.(), []);
   /** Clears the draft now, and any write still waiting, when setup ends. */
   function clearDraft() {
@@ -282,7 +283,7 @@ export function IndustryOnboarding() {
   // "How many" stays as typed until it is used, so it can be cleared and retyped.
   const [quickCountText, setQuickCountText] = useState("1");
   const quickCount = clamp(Math.floor(Number(quickCountText)) || 1, 1, 20);
-  const quickEntry = JOB_CATALOG.find((j) => j.id === quickTitle);
+  const quickEntry = jobCatalogEntry(quickTitle);
 
   // Rows that count toward the limit: named, or with duties ticked. Blank
   // rows give way when people are added.
@@ -343,7 +344,7 @@ export function IndustryOnboarding() {
         if (i !== index) return row;
         const role = row.role.trim();
         if (!role || role === row.suggestedFor) return row;
-        const owns = rowOwnsBusiness(row);
+        const owns = rowOwnsBusiness(row, selected);
         const previous = row.suggestedFor ? suggestedDuties(row.suggestedFor, owns, selected) : [];
         const untouched = row.duties.length === 0 || sameDuties(row.duties, previous);
         return untouched
@@ -359,61 +360,18 @@ export function IndustryOnboarding() {
    * updated, not added twice; only new people count toward the limit.
    */
   function fillFromPaste() {
-    const tpl = getIndustryTemplate(selected);
-    const result = parseRoster(paste, tpl);
-    // The importer reads each title through the catalog of common jobs. A
-    // title it could not read leaves the duties for the owner to tick.
-    const { rows: incoming, inactiveNames } = pastedRows(result, selected);
+    const result = parseRoster(paste, getIndustryTemplate(selected));
+    const applied = applyPaste(rows, result, selected, leftOut);
     setPasteIssues(result.issues);
-    const inactive = result.people.filter((person) => !person.active);
-    if (inactive.length > 0) {
-      setLeftOut((current) => [
-        ...current,
-        ...inactive
-          .filter((person) => !current.some((who) => who.name === person.name))
-          .map((person) => ({ name: person.name, role: person.role })),
-      ]);
+    setLeftOut(applied.leftOut);
+    if (applied.rows) {
+      setRows(applied.rows);
+      setFinishNote("");
     }
-    const announce = () => focusSoon(() => noteRef.current);
-    if (incoming.length === 0) {
-      setPasteNote(
-        result.people.length > 0
-          ? `All ${result.people.length} people in the paste are marked inactive, so none was added: ${inactiveNames.slice(0, 5).join(", ")}${inactiveNames.length > 5 ? ` and ${inactiveNames.length - 5} more` : ""}.`
-          : (result.issues[0]?.message ?? "No names found. One person per line: Name, Title."),
-      );
-      announce();
-      return;
-    }
-    // The unnamed Owner row stays at the top unless the paste has its own owner.
-    const { kept, ownerRow: owner } = rowsKeptForAdding(
-      rows,
-      incoming.some((r) => rowOwnsBusiness(r)),
-      incoming.some((r) => isLeaderTitle(r.role)),
-    );
-    const outcome = addPastedRows(kept, incoming);
-    setRows(outcome.rows);
-    setFinishNote("");
-    const inGrid = new Set(outcome.rows.map((r) => r.name));
-    const titlesRead = result.titles.filter(
-      (t) => inGrid.has(t.name) && incoming.some((r) => r.name === t.name),
-    );
-    const recognised = titlesRead.filter((t) => t.catalogTitle).length;
-    const summary = pasteSummary({
-      added: outcome.added.length,
-      matched: outcome.matched,
-      notAdded: outcome.notAdded,
-      dropped: result.dropped,
-      recognised,
-      partial: titlesRead.filter((t) => t.catalogTitle && t.confidence === "partial").length,
-      unmatched: titlesRead.length - recognised,
-      inactiveNames,
-      ownerRow: owner,
-      onLeaveNames: incoming.filter((r) => r.onLeave && inGrid.has(r.name)).map((r) => r.name),
-    });
-    setPasteNote(summary.note);
+    setPasteNote(applied.note);
     // Anyone left out keeps the paste in the box, to add later.
-    if (!summary.keepPaste) setPaste("");
-    announce();
+    if (!applied.keepPaste) setPaste("");
+    focusSoon(() => noteRef.current);
   }
 
   function updateRow(index: number, patch: Partial<OwnTeamRow>) {
@@ -548,7 +506,7 @@ export function IndustryOnboarding() {
     () =>
       new Set(
         rows.flatMap((row, index) =>
-          setupRowNeedsAttention(row, typedSeat(row, selected)) ? [index] : [],
+          rowNeedsReview(row, typedSeat(row, selected)) ? [index] : [],
         ),
       ),
     [rows, selected],
@@ -872,7 +830,7 @@ export function IndustryOnboarding() {
                                   type="checkbox"
                                   className="size-4"
                                   aria-label={`${who} owns the business`}
-                                  checked={rowOwnsBusiness(row)}
+                                  checked={rowOwnsBusiness(row, selected)}
                                   onChange={(e) => updateRow(index, { owner: e.target.checked })}
                                 />
                                 Owns the business

@@ -15,7 +15,12 @@ import { buildOwnTeam, type OwnTeamRow } from "./own-team";
 export interface SetupPreview {
   /** People with at least one duty ticked. */
   peopleWithDuties: number;
-  /** All conflicts the typed team would produce, worst first. */
+  /**
+   * The conflicts of the same kind as the first finding: those an employee
+   * holds, or, when only the owner holds any, the owner's. The owner's own
+   * pairs are a lesser finding after setup, so they do not swell the count
+   * of employee findings.
+   */
   conflictCount: number;
   first: {
     conflict: DetectedConflict;
@@ -45,7 +50,7 @@ export function previewSetup(rows: readonly OwnTeamRow[], industry: IndustryId):
   const matched = caseForRule(conflict.ruleId, industry);
   return {
     peopleWithDuties,
-    conflictCount: report.conflicts.length,
+    conflictCount: ranked.filter((c) => c.ownerHeld === conflict.ownerHeld).length,
     first: {
       conflict,
       study: matched?.study ?? null,

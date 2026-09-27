@@ -281,7 +281,7 @@ export function peopleToCsv(
 }
 
 /** A result with no people: a file-level problem, or nothing to read. */
-function emptyResult(issues: ImportIssue[], removed: Person[]): PeopleImportResult {
+export function emptyResult(issues: ImportIssue[], removed: Person[]): PeopleImportResult {
   return {
     people: [],
     issues,

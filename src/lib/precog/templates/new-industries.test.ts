@@ -8,12 +8,11 @@ import {
   firstRowForIndustry,
   leaderRow,
   ownerRow,
-  pasteSummary,
-  rowFromImportedPerson,
-  rowsForJobTitle,
+  rowOwnsBusiness,
   rowsKeptForAdding,
   type OwnTeamRow,
 } from "../onboarding/own-team";
+import { pasteSummary, rowFromImportedPerson, rowsForJobTitle } from "../onboarding/add-people";
 import { initialSetup } from "../onboarding/setup-draft";
 import { detectSodConflicts } from "../sod/detect";
 import { soleOwnerId } from "../sod/owner-role";
@@ -146,7 +145,8 @@ describe("the setup grid's first row in a nonprofit", () => {
 
   it("starts with the executive director, who owns nothing", () => {
     const rows = firstRowForIndustry(fresh(), "nonprofit");
-    expect(rows[0]).toMatchObject({ role: "Executive Director", owner: false, rowId: "r1" });
+    expect(rows[0]).toMatchObject({ role: "Executive Director", rowId: "r1" });
+    expect(rowOwnsBusiness(rows[0], "nonprofit")).toBe(false);
     expect(rows[0].duties).toEqual(expect.arrayContaining(["approve_payroll", "sign_checks"]));
     // Switching back to a business with an owner restores the Owner row.
     expect(firstRowForIndustry(rows, "retail")[0]).toMatchObject({ role: "Owner", owner: true });
@@ -195,10 +195,10 @@ describe("the setup grid's first row in a nonprofit", () => {
 
   it("marks nobody as owner, whatever the title says", () => {
     const person = { id: "x", name: "Ana", role: "President & CEO", active: true };
-    expect(rowFromImportedPerson(person, "nonprofit").owner).toBe(false);
-    expect(rowFromImportedPerson(person, "general")).not.toHaveProperty("owner");
-    const board = rowsForJobTitle(jobCatalogEntry("executive-director")!, 1, 0, "nonprofit");
-    expect(board[0].owner).toBe(false);
+    expect(rowOwnsBusiness(rowFromImportedPerson(person, "nonprofit"), "nonprofit")).toBe(false);
+    expect(rowOwnsBusiness(rowFromImportedPerson(person, "general"), "general")).toBe(true);
+    const owner = rowsForJobTitle(jobCatalogEntry("owner")!, 1, 0, "nonprofit");
+    expect(rowOwnsBusiness(owner[0], "nonprofit")).toBe(false);
     const team = buildOwnTeam(
       [{ name: "Ana", role: "CEO", duties: ["approve_payroll"], owner: true }],
       "nonprofit",
