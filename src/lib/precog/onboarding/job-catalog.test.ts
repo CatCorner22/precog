@@ -526,8 +526,9 @@ describe("job catalog", () => {
       expect(match?.entitlements, title).toEqual(
         expect.arrayContaining(["approve_writeoffs", "prepare_deposit"]),
       );
-      // Signing off the staff's hours is not entering the payroll run.
-      expect(match?.entitlements, title).not.toContain("enter_payroll");
+      // A site director keys in the hours they sign off; accountants reviewing
+      // real clinic rosters marked it held.
+      expect(match?.entitlements, title).toContain("enter_payroll");
     }
   });
 
@@ -674,10 +675,14 @@ describe("aliases that must not capture an unrelated title", () => {
     expect(matchJobTitle("President", "general")?.entry.id).toBe("owner");
   });
 
-  it("gives the night auditor no bank reconciliation and supervisors who submit hours no payroll entry", () => {
+  it("gives the night auditor no bank reconciliation and site managers the payroll entry", () => {
     expect(entitlementsForTitle("Night Auditor")).not.toContain("bank_reconcile");
+    // A foreman signs off the crew's hours and the office enters them.
+    expect(entitlementsForTitle("Foreman")).not.toContain("enter_payroll");
+    // A site manager in a business this size keys in the hours they sign off;
+    // accountants reviewing real restaurant, dealership, clinic and childcare
+    // rosters marked it held.
     for (const title of [
-      "Foreman",
       "Housekeeping Supervisor",
       "Fleet Manager",
       "Service Manager",
@@ -685,7 +690,7 @@ describe("aliases that must not capture an unrelated title", () => {
       "Clinic Site Director",
       "Restaurant Manager",
     ]) {
-      expect(entitlementsForTitle(title), title).not.toContain("enter_payroll");
+      expect(entitlementsForTitle(title), title).toContain("enter_payroll");
     }
   });
 });

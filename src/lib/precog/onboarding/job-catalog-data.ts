@@ -932,10 +932,10 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     id: "clinic-site-director",
     title: "Clinic Site Director",
     family: "clinical",
-    entitlements: ["prepare_deposit", "approve_writeoffs", "view_reports_only"],
+    entitlements: ["prepare_deposit", "enter_payroll", "approve_writeoffs", "view_reports_only"],
     description:
       "Runs one clinic site: schedules and supervises its staff, signs off their hours, and oversees its billing and deposits.",
-    note: "A clinic director runs one site: approves write-offs and discounts, signs off the staff's hours, and makes up the site's deposit. Tick Enter payroll if they also enter the run.",
+    note: "A clinic director runs one site: approves write-offs and discounts, signs off the staff's hours, and makes up the site's deposit. Enter payroll starts ticked: in a business this size the manager who signs off the hours usually keys them in. Untick it if the office or a payroll service enters the run.",
     aliases: ["clinic director", "clinic director one site", "site clinic director"],
   },
   {
@@ -1021,12 +1021,13 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
       "approve_writeoffs",
       "order_supplies",
       "receive_goods",
+      "enter_payroll",
       "hold_company_card",
       "view_reports_only",
     ],
     description:
       "Runs the restaurant or its dining room: closes the register, approves voids and comps, schedules staff, and orders stock.",
-    note: "A restaurant manager closes the drawer, makes the deposit, approves voids and comps, submits timecards, orders and receives goods, and holds the house card for the runs the suppliers do not cover. Tick Enter payroll if they also enter the run.",
+    note: "A restaurant manager closes the drawer, makes the deposit, approves voids and comps, signs off timecards, orders and receives goods, and holds the house card for the runs the suppliers do not cover. Enter payroll starts ticked: in a business this size the manager who signs off the hours usually keys them in. Untick it if the office or a payroll service enters the run.",
     aliases: [
       "assistant general manager",
       "agm",
@@ -1554,11 +1555,12 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
       "approve_vendor",
       "order_supplies",
       "receive_goods",
+      "enter_payroll",
       "hold_company_card",
       "view_reports_only",
     ],
     description: "Manages vehicles, drivers, routing, fuel, and repair suppliers.",
-    note: "A fleet manager approves fuel, repair, and equipment suppliers, holds the fuel and repair cards, and submits drivers' hours for the office to enter. Tick Enter payroll if they also enter the run.",
+    note: "A fleet manager approves fuel, repair, and equipment suppliers, holds the fuel and repair cards, and signs off drivers' hours. Enter payroll starts ticked: in a business this size the manager who signs off the hours usually keys them in. Untick it if the office or a payroll service enters the run.",
     aliases: [
       "fleet manager",
       "transportation manager",
@@ -1923,10 +1925,10 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     title: "Housekeeping Supervisor",
     family: "hospitality",
     soc: "37-1011",
-    entitlements: ["order_supplies", "view_reports_only"],
+    entitlements: ["order_supplies", "enter_payroll", "view_reports_only"],
     description:
       "Supervises and coordinates the cleaning staff, inspects rooms and areas, and orders cleaning supplies.",
-    note: "Housekeeping orders supplies and submits the crew's hours for the office to enter. Tick Enter payroll if they also enter the run.",
+    note: "Housekeeping orders supplies and signs off the crew's hours. Enter payroll starts ticked: in a business this size the manager who signs off the hours usually keys them in. Untick it if the office or a payroll service enters the run.",
     aliases: [
       "executive housekeeper",
       "housekeeping manager",
@@ -2056,12 +2058,13 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
       "approve_writeoffs",
       "order_supplies",
       "receive_goods",
+      "enter_payroll",
       "hold_company_card",
       "view_reports_only",
     ],
     description:
       "Runs a repair or dealership service department: schedules the shop, approves goodwill and warranty write-offs, submits technicians' hours, and orders parts.",
-    note: "A service manager approves goodwill and warranty write-offs, submits the technicians' hours, orders and receives parts, and holds the shop card for sublet and outside purchases. Tick Enter payroll if they also enter the run.",
+    note: "A service manager approves goodwill and warranty write-offs, signs off the technicians' hours, orders and receives parts, and holds the shop card for sublet and outside purchases. Enter payroll starts ticked: in a business this size the manager who signs off the hours usually keys them in. Untick it if the office or a payroll service enters the run.",
     aliases: [
       "service manager",
       "service department manager",
@@ -2419,13 +2422,14 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
       "collect_cash",
       "prepare_deposit",
       "approve_vendor",
+      "enter_payroll",
       "hold_company_card",
       "manage_user_access",
       "view_reports_only",
     ],
     description:
       "Directs a childcare center or school: enrollment, tuition, staffing, suppliers, and compliance.",
-    note: "A director takes tuition, makes the deposit, approves suppliers, buys supplies on the center's card, and submits hours, usually with no one above them on site. Tick Enter payroll if they also enter the run.",
+    note: "A director takes tuition, makes the deposit, approves suppliers, buys supplies on the center's card, and signs off hours, usually with no one above them on site. Enter payroll starts ticked: in a business this size the manager who signs off the hours usually keys them in. Untick it if the office or a payroll service enters the run.",
     aliases: [
       "center director",
       "childcare director",
