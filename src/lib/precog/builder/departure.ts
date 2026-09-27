@@ -21,7 +21,13 @@ export interface DepartureImpact {
   orphanedKnowledge: { id: string; name: string; criticality: string }[];
   /** Knowledge items they hold strongly that others also hold. */
   sharedKnowledge: { id: string; name: string }[];
-  /** 0–100 — how much this departure would hurt. */
+  /**
+   * 0–100 departure index computed by simulateDeparture from this app's own
+   * weights: 2.2 per health point lost, 12 per orphaned process, 15 per
+   * orphaned critical knowledge item, 7 per other orphaned item, and up to 10
+   * for tenure. It orders the team for attention; no study sets it, and it is
+   * not a measured loss.
+   */
   impact: number;
   recommendations: string[];
 }
@@ -116,7 +122,7 @@ function simulateDeparture(
   };
 }
 
-/** Rank the whole team by departure impact — a bus-factor view. */
+/** Rank the whole team by departure impact, highest first. */
 export function rankDepartureRisk(
   tpl: IndustryTemplate,
   processes: ProcessNode[],
@@ -129,8 +135,12 @@ export function rankDepartureRisk(
     .sort((a, b) => b.impact - a.impact);
 }
 
-/** Number of people whose loss would orphan at least one process or critical knowledge item. */
-export function busFactor(impacts: DepartureImpact[]): number {
+/**
+ * How many people the business cannot lose: those whose departure would
+ * orphan at least one process or critical knowledge item. (Not a "bus
+ * factor", which counts the fewest people whose loss stops the work.)
+ */
+export function singlePointsOfFailure(impacts: DepartureImpact[]): number {
   return impacts.filter(
     (i) =>
       i.orphanedProcesses.length > 0 ||

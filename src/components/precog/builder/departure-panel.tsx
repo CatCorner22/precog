@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 import { ChevronRight } from "lucide-react";
 
-import { busFactor, type DepartureImpact } from "@/lib/precog/builder/departure";
+import { singlePointsOfFailure, type DepartureImpact } from "@/lib/precog/builder/departure";
 
 import { labelCls } from "@/components/precog/builder/form-shared";
 export function DeparturePanel({
@@ -18,7 +18,7 @@ export function DeparturePanel({
   onAddBackup: (processId: string, excludePersonId: string) => void;
 }) {
   const [open, setOpen] = useState<string | null>(impacts[0]?.person.id ?? null);
-  const bus = busFactor(impacts);
+  const bus = singlePointsOfFailure(impacts);
   const impactColor = (v: number) =>
     v >= RISK_SCALE.actNow
       ? "var(--color-danger)"
