@@ -139,6 +139,65 @@ describe("evaluateRelease", () => {
   });
 });
 
+describe("evaluateRelease edge cases", () => {
+  it("tells a channel that is off apart from a policy that is off", () => {
+    const policy = policyOn();
+    policy.rules = policy.rules.map((r) =>
+      r.channel === "payroll" ? { ...r, enabled: false } : r,
+    );
+    const payrollRule = policy.rules.find((r) => r.channel === "payroll")!;
+    const r = evaluateRelease(dental, policy, {
+      channel: "payroll",
+      amountUsd: 10,
+      initiatorPersonId: officeManager,
+    });
+    expect(r.status).toBe("blocked_channel_off");
+    expect(r.reasons[0]).toContain(payrollRule.label);
+    expect(r.reasons[0]).not.toContain('"payroll"');
+    expect(r.controlCredit.dualControlPayments).toBe(false);
+  });
+
+  it("resolves two equally specific exceptions to the stricter one, whatever their order", () => {
+    const exception = (id: string, action: "waive_dual" | "force_dual") => ({
+      id,
+      label: id,
+      channels: [],
+      action,
+      enabled: true,
+      reason: "test",
+      createdAt: "2026-01-01",
+    });
+    const waive = exception("Waive for payroll week", "waive_dual");
+    const force = exception("Always two signers", "force_dual");
+    const req = {
+      channel: "ach" as const,
+      amountUsd: 10,
+      initiatorPersonId: officeManager,
+      asOfDate: "2026-06-01",
+    };
+    for (const exceptions of [
+      [waive, force],
+      [force, waive],
+    ]) {
+      const r = evaluateRelease(dental, { ...policyOn(), exceptions }, req);
+      expect(r.status).toBe("blocked_missing_second");
+      expect(r.appliedException?.id).toBe(force.id);
+      expect(r.reasons.join(" ")).toContain(`"${waive.label}"`);
+    }
+  });
+
+  it("uses one display threshold in every outcome", () => {
+    const policy = policyOn();
+    const ach = policy.rules.find((r) => r.channel === "ach")!;
+    const base = { channel: "ach" as const, initiatorPersonId: officeManager };
+    const below = evaluateRelease(dental, policy, { ...base, amountUsd: 1 });
+    const above = evaluateRelease(dental, policy, { ...base, amountUsd: ach.thresholdUsd + 1 });
+    expect(below.thresholdUsd).toBe(ach.thresholdUsd);
+    expect(above.thresholdUsd).toBe(ach.thresholdUsd);
+    expect(above.eligibleSeconds.some((p) => p.id === officeManager)).toBe(false);
+  });
+});
+
 describe("policy helpers", () => {
   it("lists approvers by role and lets the owner second any channel", () => {
     const approvers = listEligibleApprovers(dental, policyOn(), "payroll");
@@ -361,6 +420,45 @@ describe("exceptions on the owner's calendar day", () => {
       expect(activeExceptionSummary(policy, "2026-10-01").total).toBe(0);
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+describe("evaluateRelease without an as-of date", () => {
+  it("uses the owner's local day, not the UTC day", () => {
+    const tz = process.env.TZ;
+    process.env.TZ = "America/Denver";
+    vi.useFakeTimers();
+    // 6:30 pm in Denver on 30 September is already 1 October in UTC.
+    vi.setSystemTime(new Date("2026-10-01T00:30:00Z"));
+    try {
+      const policy: DualReleasePolicy = {
+        ...policyOn(),
+        exceptions: [
+          {
+            id: "ex-raise-sept",
+            label: "Raised threshold through September",
+            channels: ["ach"],
+            action: "raise_threshold",
+            thresholdUsd: 25_000,
+            enabled: true,
+            effectiveTo: "2026-09-30",
+            reason: "Quarter-end vendor run",
+            createdAt: "2026-09-01",
+          },
+        ],
+      };
+      const r = evaluateRelease(dental, policy, {
+        channel: "ach",
+        amountUsd: 20_000,
+        initiatorPersonId: officeManager,
+      });
+      expect(r.status).toBe("approved_exception");
+      expect(r.appliedException?.id).toBe("ex-raise-sept");
+    } finally {
+      vi.useRealTimers();
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
     }
   });
 });

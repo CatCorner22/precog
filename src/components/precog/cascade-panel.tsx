@@ -7,12 +7,13 @@ import {
   simulateAllCascades,
   simulateCascadeLever,
   type CascadeLeverId,
+  type MetricSnapshot,
 } from "@/lib/precog/scoring/variable-cascade";
 import { insuranceFigureNote } from "@/lib/precog/scoring/dynamic-variables";
 import { isOwnBusiness } from "@/lib/precog/scoring/scope";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatUsd, cn } from "@/lib/utils";
+import { formatUsd, formatUsdDelta, cn } from "@/lib/utils";
 import { GitBranch } from "lucide-react";
 
 export function CascadePanel() {
@@ -39,15 +40,15 @@ export function CascadePanel() {
   return (
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-        <Badge variant="accent">Cross-variable cascades</Badge>
+        <Badge variant="accent">What else moves</Badge>
         <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <GitBranch className="size-5 text-primary" />
           Change one thing — see what else moves
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Dual control is not only a SoD fix. It also cuts likelihood, shrinks scheme size and
-          changes the annual cost of risk, and on a policy you entered it can earn the credit your
-          carrier quotes. The coach uses this same engine.
+          Dual release does more than separate duties: it also cuts likelihood, shrinks scheme size
+          and changes the annual cost of risk, and on a policy you entered it can earn the credit
+          your carrier quotes. The coach uses this same engine.
         </p>
         {policyNote && (
           <p className="mt-2 max-w-2xl text-xs text-subtle">
@@ -67,7 +68,7 @@ export function CascadePanel() {
           {waiting.length > 0 && (
             <p className="rounded-lg border border-dashed border-border bg-panel/60 px-3 py-2 text-xs text-muted">
               {waiting.map((l) => l.label).join(", ")}: not modelled until you enter your policy on
-              Dynamic variables, so they are not ranked.
+              Settings and insurance, so they are not ranked.
             </p>
           )}
           {all.rankedByCor.slice(0, 8).map((s) => {
@@ -77,6 +78,7 @@ export function CascadePanel() {
               <button
                 key={s.lever.id}
                 type="button"
+                aria-pressed={active}
                 onClick={() => setLeverId(s.lever.id)}
                 className={cn(
                   "flex w-full flex-col gap-1 rounded-xl border px-3 py-2.5 text-left sm:flex-row sm:items-center sm:justify-between",
@@ -97,8 +99,7 @@ export function CascadePanel() {
                     dCor < 0 ? "text-ok" : dCor > 0 ? "text-danger" : "text-muted",
                   )}
                 >
-                  Cost of risk {dCor > 0 ? "+" : dCor < 0 ? "−" : ""}
-                  {formatUsd(Math.abs(dCor))}
+                  Cost of risk {formatUsdDelta(dCor)}
                 </span>
               </button>
             );
@@ -146,14 +147,7 @@ export function CascadePanel() {
                     }
                     className="mt-1"
                   >
-                    {d.direction}{" "}
-                    {d.key === "timelineP50"
-                      ? `${Math.abs(Math.round(d.delta))} ${d.delta < 0 ? "fewer" : "more"} days`
-                      : d.key.includes("Multiplier") || d.key === "residualAverage"
-                        ? d.delta.toFixed(2)
-                        : d.key.includes("discount")
-                          ? d.delta.toFixed(0)
-                          : formatUsd(Math.abs(d.delta))}
+                    {d.direction} {formatMetricChange(d.key, d.delta)}
                   </Badge>
                 </div>
               ))}
@@ -161,7 +155,7 @@ export function CascadePanel() {
 
           <div>
             <p className="mb-2 text-xs font-medium tracking-wide text-subtle uppercase">
-              Second-order notes
+              Knock-on effects
             </p>
             <ul className="space-y-1.5 text-sm text-muted">
               {selected.secondOrderNotes.map((n) => (
@@ -172,7 +166,7 @@ export function CascadePanel() {
 
           <div>
             <p className="mb-2 text-xs font-medium tracking-wide text-subtle uppercase">
-              Dependency spine
+              What depends on what
             </p>
             <div className="flex flex-wrap gap-2">
               {all.dependencyMap.slice(0, 10).map((d) => (
@@ -187,7 +181,7 @@ export function CascadePanel() {
           </div>
 
           <details className="text-xs text-subtle">
-            <summary className="cursor-pointer text-muted">All levers in catalog</summary>
+            <summary className="cursor-pointer text-muted">Every lever</summary>
             <ul className="mt-2 list-disc space-y-1 pl-4">
               {CASCADE_LEVERS.map((l) => (
                 <li key={l.id}>
@@ -211,20 +205,50 @@ export function CascadePanel() {
   );
 }
 
-function formatMetric(key: string, n: number): string {
-  if (
-    key.includes("Expected") ||
-    key.includes("premium") ||
-    key.includes("Cost") ||
-    key.includes("Premium")
-  ) {
-    return formatUsd(n);
+type MetricUnit = "usd" | "factor" | "index" | "pct" | "days" | "count";
+
+/** How each snapshot figure reads; a new MetricSnapshot key must name its unit here. */
+const METRIC_UNIT: Record<keyof MetricSnapshot, MetricUnit> = {
+  likelihoodMultiplier: "factor",
+  grossSeverityMultiplier: "factor",
+  detectionLagMultiplier: "factor",
+  grossExpected: "usd",
+  retainedExpected: "usd",
+  transferredExpected: "usd",
+  premiumAnnualNet: "usd",
+  discountPctApplied: "pct",
+  expectedAnnualCostOfRisk: "usd",
+  eventPlusPremiumExpected: "usd",
+  timelineP50: "days",
+  residualAverage: "index",
+  residualCriticalPath: "count",
+};
+
+function formatMetric(key: keyof MetricSnapshot, n: number): string {
+  switch (METRIC_UNIT[key]) {
+    case "usd":
+      return formatUsd(n);
+    case "factor":
+    case "index":
+      return n.toFixed(2);
+    default:
+      return String(Math.round(n * 10) / 10);
   }
-  if (key.includes("Multiplier") || key === "residualAverage") {
-    return n.toFixed(2);
+}
+
+/** The size of a change, after the badge's "improves" / "worsens". */
+function formatMetricChange(key: keyof MetricSnapshot, delta: number): string {
+  switch (METRIC_UNIT[key]) {
+    case "usd":
+      return formatUsd(Math.abs(delta));
+    case "factor":
+    case "index":
+      return delta.toFixed(2);
+    case "pct":
+      return delta.toFixed(0);
+    case "days":
+      return `${Math.abs(Math.round(delta))} ${delta < 0 ? "fewer" : "more"} days`;
+    case "count":
+      return String(Math.abs(Math.round(delta)));
   }
-  if (key.includes("timeline") || key.includes("discount") || key.includes("Critical")) {
-    return String(Math.round(n * 10) / 10);
-  }
-  return String(n);
 }

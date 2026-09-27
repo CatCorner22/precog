@@ -34,7 +34,7 @@ async function insuranceAndMapHistory(page, errors) {
   await page.goto(base, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Load Dental/ }).click();
   await page.goto(`${base}/?tab=precog`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Dynamic variables", exact: true }).click();
+  await page.getByRole("button", { name: "Settings and insurance", exact: true }).click();
   const status = page.getByRole("combobox", { name: "Insurance information status", exact: true });
   await status.selectOption("reported");
   const assumption = page.getByRole("checkbox", {
@@ -74,12 +74,12 @@ async function insuranceAndMapHistory(page, errors) {
   assert.equal(await assumption.isDisabled(), true);
   await premium.fill("");
   await premium.blur();
-  await page.getByText("Enter an amount from 0 to 50000.", { exact: true }).waitFor();
+  await page.getByText("Enter an amount from 0 to 1,000,000.", { exact: true }).waitFor();
   assert.equal((await readProfile(page)).riskVariables.basePremiumAnnual, 1234.56);
 
   step("insurance: reload retains explicit status and the exact premium");
   await page.reload({ waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Dynamic variables", exact: true }).click();
+  await page.getByRole("button", { name: "Settings and insurance", exact: true }).click();
   assert.equal(await status.inputValue(), "reported");
   assert.equal(await premium.inputValue(), "1234.56");
   await status.selectOption("unknown");

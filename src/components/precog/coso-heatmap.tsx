@@ -63,8 +63,11 @@ export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarge
       profile.dualRelease,
     ],
   );
+  // Opens on the weakest component, picked once.
   const [activeId, setActiveId] = useState<CosoComponentId>(
-    assessment.components.slice().sort((a, b) => a.score - b.score)[0]?.id ?? "control_activities",
+    () =>
+      assessment.components.slice().sort((a, b) => a.score - b.score)[0]?.id ??
+      "control_activities",
   );
 
   const active = assessment.components.find((c) => c.id === activeId) ?? assessment.components[0];
@@ -98,7 +101,11 @@ export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarge
           </CardHeader>
           <CardContent>
             {/* Heat strip */}
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <div
+              className="grid grid-cols-2 gap-2 sm:grid-cols-5"
+              role="group"
+              aria-label="COSO components"
+            >
               {assessment.components.map((c) => {
                 const meta = STATUS_META[c.status];
                 const selected = c.id === activeId;
@@ -106,6 +113,7 @@ export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarge
                   <button
                     key={c.id}
                     type="button"
+                    aria-pressed={selected}
                     onClick={() => setActiveId(c.id)}
                     className={cn(
                       "rounded-xl border p-3 text-left transition-colors",
@@ -113,17 +121,19 @@ export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarge
                       selected && "ring-2 ring-primary/50",
                     )}
                   >
-                    <p className="text-xs font-medium tracking-wide text-subtle uppercase">
+                    <span className="block text-xs font-medium tracking-wide text-subtle uppercase">
                       {c.shortName}
-                    </p>
-                    <p className="mt-2 text-2xl font-semibold tabular">{c.score}</p>
-                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-bg/50">
-                      <div
-                        className={cn("h-full rounded-full", meta.bar)}
+                    </span>
+                    <span className="mt-2 block text-2xl font-semibold tabular">{c.score}</span>
+                    <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-bg/50">
+                      <span
+                        className={cn("block h-full rounded-full", meta.bar)}
                         style={{ width: `${c.score}%` }}
                       />
-                    </div>
-                    <p className="mt-2 text-xs font-medium">{meta.label}</p>
+                    </span>
+                    <span className="mt-2 block text-xs font-medium">
+                      {selected ? `${meta.label} · shown` : meta.label}
+                    </span>
                   </button>
                 );
               })}
@@ -142,8 +152,8 @@ export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarge
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Priority findings</CardTitle>
-            <CardDescription>Deep-link into the working surface</CardDescription>
+            <CardTitle className="text-sm">Priority gaps</CardTitle>
+            <CardDescription>Open each one where you can fix it</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {assessment.priorityFindings.map((f) => (
@@ -215,7 +225,7 @@ function ComponentDetail({
         </div>
 
         <div>
-          <p className="mb-2 text-xs font-medium tracking-wide text-subtle uppercase">Findings</p>
+          <p className="mb-2 text-xs font-medium tracking-wide text-subtle uppercase">Gaps</p>
           <ul className="space-y-2">
             {component.findings.map((f) => (
               <li key={f.id}>
