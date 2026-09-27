@@ -32,6 +32,7 @@ import { MetricCard } from "@/components/precog/home-shell-parts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { buttonClass } from "@/components/ui/button-variants";
 
 /**
  * Opens a tab, optionally on one item, and How work flows in view or build
@@ -133,14 +134,20 @@ export function Dashboard({
           </Button>
           <Link
             to="/threat"
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-transparent px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-elevated hover:text-fg"
+            className={buttonClass({
+              variant: "outline",
+              className: "h-9 text-muted hover:text-fg",
+            })}
           >
             <Crosshair className="size-4" />
             Threat view
           </Link>
           <Link
             to="/report"
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-transparent px-4 py-2 text-sm font-medium text-muted transition-colors hover:bg-elevated hover:text-fg"
+            className={buttonClass({
+              variant: "outline",
+              className: "h-9 text-muted hover:text-fg",
+            })}
           >
             <FileText className="size-4" />
             PDF report

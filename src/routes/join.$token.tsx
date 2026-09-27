@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { acceptFirmInvite, peekFirmInvite } from "@/lib/precog/firm/server";
+import { buttonClass } from "@/components/ui/button-variants";
 
 export const Route = createFileRoute("/join/$token")({
   component: JoinPage,
@@ -88,10 +89,7 @@ function JoinPage() {
                   Sign in first, then come back to this link to join. The invitation was sent to{" "}
                   <span className="text-fg">{invite.email}</span>; any account can use it.
                 </p>
-                <Link
-                  to="/login"
-                  className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-fg"
-                >
+                <Link to="/login" className={buttonClass({ className: "mt-4 h-9 w-full" })}>
                   Sign in
                 </Link>
               </>

@@ -6,6 +6,8 @@ export function getRouter() {
   return createRouter({
     routeTree,
     defaultErrorComponent: AppErrorComponent,
+    // Back and forward return to where the owner was on the page.
+    scrollRestoration: true,
   });
 }
 

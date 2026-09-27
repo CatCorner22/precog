@@ -48,6 +48,7 @@ import { StartHere } from "@/components/precog/start-here";
 import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
 import { TabErrorBoundary } from "@/components/precog/tab-error-boundary";
 import { cn } from "@/lib/utils";
+import { buttonClass } from "@/components/ui/button-variants";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -198,7 +199,7 @@ function Home() {
                 <Link
                   to="/firm"
                   title="For accountants and advisors who look after several businesses"
-                  className="inline-flex h-8 items-center rounded-md border border-border bg-elevated px-3 text-xs font-medium hover:border-border-strong"
+                  className={buttonClass({ variant: "secondary", size: "sm" })}
                 >
                   Firm workspace
                 </Link>
@@ -206,10 +207,7 @@ function Home() {
             </div>
             <div className="order-2 flex items-center gap-2 sm:order-3">
               <SignedOut>
-                <Link
-                  to="/login"
-                  className="inline-flex h-8 items-center rounded-md border border-border bg-elevated px-3 text-xs font-medium hover:border-border-strong"
-                >
+                <Link to="/login" className={buttonClass({ variant: "secondary", size: "sm" })}>
                   Sign in
                 </Link>
               </SignedOut>
