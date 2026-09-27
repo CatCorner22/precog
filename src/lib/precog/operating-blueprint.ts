@@ -94,6 +94,16 @@ const VOCAB: Record<IndustryId, Vocabulary> = {
     books: "Office manager",
     approver: "Owner",
   },
+  automotive: {
+    customer: "customer",
+    customers: "customers",
+    system: "dealer management system",
+    bill: "repair order",
+    bills: "repair orders",
+    frontLead: "Service manager",
+    books: "Office manager",
+    approver: "Dealer principal",
+  },
   nonprofit: {
     customer: "donor",
     customers: "donors and funders",
@@ -584,6 +594,83 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
       fallback: ["Quarterly equipment inventory"],
       evidence: ["Delivery tickets", "Equipment log", "Fuel reconciliation"],
       cadence: "Per delivery; quarterly inventory",
+    },
+  ],
+  automotive: [
+    {
+      id: "repair-orders",
+      name: "Repair orders, service cash & warranty claims",
+      domain: "operations",
+      objective:
+        "Every repair order is priced, closed and paid on the record, and every warranty dollar earned is claimed.",
+      primaryOwner: "Service manager",
+      independentReviewer: "Dealer principal",
+      standard: [
+        "Repair orders closed the day the vehicle leaves",
+        "Cash and check payments matched to the deposit daily by someone who takes none",
+        "Warranty claims filed inside the manufacturer's window",
+      ],
+      leading: [
+        "Edited, voided and discounted repair orders reviewed by user monthly",
+        "Goodwill above a set amount approved by the dealer principal",
+      ],
+      optimal: [
+        "DMS cash report reconciled to the bank automatically",
+        "Claim denials and chargebacks trended by cause",
+      ],
+      fallback: ["Owner reads the repair-order cash report against the deposits each month"],
+      evidence: ["Closed repair orders", "Cash-to-deposit match", "Claim submission log"],
+      cadence: "Daily close; monthly review",
+    },
+    {
+      id: "parts-inventory",
+      name: "Parts ordering, receiving & counter sales",
+      domain: "purchasing",
+      objective:
+        "Parts bought reach a repair order or a shelf, and the shelf agrees with the books.",
+      primaryOwner: "Parts manager",
+      independentReviewer: "Service manager",
+      standard: [
+        "Deliveries signed for by someone other than the person who ordered",
+        "Counter sales rung through the DMS with a receipt",
+        "Cores and returns credited inside the supplier's window",
+      ],
+      leading: [
+        "Purchases compared with parts sold or installed, by category",
+        "Obsolescence reviewed quarterly",
+      ],
+      optimal: [
+        "Perpetual inventory with cycle counts",
+        "Supplier electronic invoicing matched automatically",
+      ],
+      fallback: ["Quarterly count by someone outside the parts desk"],
+      evidence: ["Receiving log", "Count sheets", "Purchases-to-sales comparison"],
+      cadence: "Per delivery; quarterly count",
+    },
+    {
+      id: "vehicle-deals-title",
+      name: "Vehicle deals, F&I & title work",
+      domain: "revenue",
+      objective:
+        "Every deal funds as written, every fee collected reaches the state, and every rebate reaches the dealership.",
+      primaryOwner: "Sales and F&I manager",
+      independentReviewer: "Office manager",
+      standard: [
+        "Down payments receipted by the cashier, not the F&I office",
+        "Deal jackets audited against the DMS before posting",
+        "Title and registration fees remitted and logged by deal",
+      ],
+      leading: [
+        "Contracts in transit aged weekly",
+        "Rebate and incentive claims reconciled to receipts",
+      ],
+      optimal: [
+        "Electronic titling with the state",
+        "Deal audit exceptions trended by salesperson",
+      ],
+      fallback: ["Dealer principal reviews fees, payoffs and rebates by deal each month"],
+      evidence: ["Deal jacket checklist", "Remittance log", "Contracts-in-transit schedule"],
+      cadence: "Per deal; weekly schedule review",
     },
   ],
   nonprofit: [

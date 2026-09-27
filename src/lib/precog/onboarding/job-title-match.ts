@@ -341,6 +341,14 @@ const INDUSTRY_HINTS: Record<string, Record<string, string>> = {
   // A restaurant's general manager runs the floor and the drawer as well as the books.
   "general manager": { restaurant: "restaurant-manager" },
   gm: { restaurant: "restaurant-manager" },
+  // In a dealership the "business manager" is the F&I office, the "advisor"
+  // writes repair orders, and the "controller" is the office manager who runs
+  // the DMS accounting rather than a finance department.
+  "business manager": { automotive: "fi-manager" },
+  advisor: { automotive: "service-advisor" },
+  "service director": { automotive: "service-manager" },
+  "fixed operations director": { automotive: "service-manager" },
+  "fixed ops director": { automotive: "service-manager" },
 };
 
 /**
@@ -365,6 +373,12 @@ const INDUSTRY_SEATS: Record<
   construction: { "project-manager": { add: ["approve_invoices", "order_supplies"] } },
   // Development enters the gifts it receives in the donor database.
   nonprofit: { "development-director": { add: ["post_payments"] } },
+  // A dealership's office manager runs the DMS accounting: the schedules,
+  // the journal entries and the bank reconciliation, as in the Granger and
+  // Burlington cases.
+  automotive: {
+    "office-manager": { add: ["bank_reconcile", "post_journal_entries", "pms_admin_roles"] },
+  },
 };
 
 /** A seat's usual duties in this line of business. */

@@ -8,6 +8,7 @@ const INDUSTRIES: IndustryId[] = [
   "restaurant",
   "professional_services",
   "construction",
+  "automotive",
   "nonprofit",
   "general",
 ];

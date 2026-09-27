@@ -204,6 +204,44 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       "Give me a plain-English brief on top residual risks.",
     ],
   },
+  automotive: {
+    sodExamples: [
+      "Dealer principal approves goodwill write-offs, new suppliers, payroll",
+      "Repair-order cash, deal deposits, parts counter sales, bank deposits",
+      "Repair-order posting in the DMS, deal posting, warranty claims, journal entries",
+      "Bank rec, repair-order cash vs deposits, parts count, edited-transaction review",
+    ],
+    layerCopy: {
+      surface: [
+        "Repair orders per day and hours billed per technician",
+        "Units sold, gross per unit and F&I penetration",
+        "Parts counter cash vs card mix, cores and returns",
+      ],
+      source: [
+        "Dealer management system (DMS) roles and accounting schedules",
+        "Manufacturer warranty and incentive portals",
+        "Bank portal, floor-plan lender and ACH approvals",
+        "Parts supplier and sublet vendor accounts",
+      ],
+      continuity: [
+        "If the office manager exits → month-end close, payroll and lender payoffs stall",
+        "If the service manager is out → warranty claims lapse past their filing windows",
+        "Without dual release → parts and sublet payments stay single-person",
+      ],
+    },
+    dualReleaseSeed: {
+      defaultPayee: "Northland Parts Distributors",
+      exceptionPayeeContains: "northland parts",
+      exceptionLabel: "Trusted parts supplier ACH raise",
+    },
+    pioneerPrompts: [
+      "What should I fix this week to protect repair-order cash and the parts room?",
+      "Where could someone edit a repair order, wire money out, or sell parts on the side?",
+      "If my service manager leaves, what warranty money is at risk?",
+      "Walk me through a title-fee or rebate diversion scenario and its controls.",
+      "Give me a plain-English brief on top residual risks for the dealership.",
+    ],
+  },
   nonprofit: {
     sodExamples: [
       "Executive director and board treasurer approve budgets, payroll, new vendors",

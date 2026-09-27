@@ -103,6 +103,64 @@ describe("construction sample", () => {
   });
 });
 
+describe("automotive sample", () => {
+  it("has the office concentration, service-counter and parts gaps dealerships really have", () => {
+    const hits = findings("automotive");
+    expect(hits).toEqual(
+      expect.arrayContaining([
+        "Office Manager: rule-vendor-create-pay",
+        "Office Manager: rule-release-rec",
+        "Office Manager: rule-je-rec",
+        "Office Manager: rule-release-je",
+        "Office Manager: rule-card-review",
+        "Service Advisor: rule-collect-post",
+        "Service Advisor: rule-collect-adjust",
+        "Parts Manager: rule-order-receive",
+        "Sales & F&I Manager: rule-cash-void",
+      ]),
+    );
+    // The dealer principal signs and approves: oversight, not a finding.
+    expect(hits.some((h) => h.startsWith("Owner / Dealer Principal:"))).toBe(false);
+  });
+
+  it("carries the repair-order cash, journal-entry cover, parts resale and title-fee scenarios", () => {
+    const ids = getBaseTemplate("automotive").scenarios.map((s) => s.id);
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        "sc-ro-cash-skim",
+        "sc-wire-je-cover",
+        "sc-parts-resale",
+        "sc-deal-fee-skim",
+      ]),
+    );
+  });
+
+  it("reads dealership titles as their seats", () => {
+    expect(matchJobTitle("Business Manager", "automotive")?.entry.id).toBe("fi-manager");
+    expect(matchJobTitle("Business Manager", "general")?.entry.id).toBe("general-manager");
+    expect(matchJobTitle("Advisor", "automotive")?.entry.id).toBe("service-advisor");
+    expect(matchJobTitle("Fixed Operations Director", "automotive")?.entry.id).toBe(
+      "service-manager",
+    );
+    expect(matchJobTitle("Service Writer", "automotive")?.entry.id).toBe("service-advisor");
+    expect(matchJobTitle("Office Manager", "automotive")?.entitlements).toEqual(
+      expect.arrayContaining(["bank_reconcile", "post_journal_entries", "pms_admin_roles"]),
+    );
+    expect(matchJobTitle("Office Manager", "retail")?.entitlements).not.toContain(
+      "post_journal_entries",
+    );
+  });
+
+  it("counts the dealership cases as its own line of business, and no longer as retail's", () => {
+    expect(sectorsForIndustry("automotive")).toEqual(["automotive"]);
+    const own = CASE_LIBRARY.filter((c) => c.sector === "automotive").map((c) => c.id);
+    expect(own.sort()).toEqual([
+      "case-burlington-dealership-cash",
+      "case-granger-auto-dealership-office-manager-wires",
+    ]);
+  });
+});
+
 describe("nonprofit sample", () => {
   it("has no owner, so the executive director's conflicts count", () => {
     const tpl = getBaseTemplate("nonprofit");

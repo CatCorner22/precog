@@ -5,6 +5,7 @@ import { retailTemplate } from "./retail";
 import { professionalServicesTemplate } from "./professional-services";
 import { restaurantTemplate } from "./restaurant";
 import { constructionTemplate } from "./construction";
+import { automotiveTemplate } from "./automotive";
 import { nonprofitTemplate } from "./nonprofit";
 import { generalTemplate } from "./general";
 
@@ -14,6 +15,7 @@ const REGISTRY: Record<IndustryId, IndustryTemplate> = {
   professional_services: professionalServicesTemplate,
   restaurant: restaurantTemplate,
   construction: constructionTemplate,
+  automotive: automotiveTemplate,
   nonprofit: nonprofitTemplate,
   general: generalTemplate,
 };

@@ -400,6 +400,32 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     basis: practice("Owner-review practice for small businesses."),
     caseIds: ["case-amk-hvac", "case-bellingham-assistant-manager"],
   },
+  // ---- Auto dealership and repair shop ----
+  {
+    id: "auto-repair-order-cash",
+    title: "Repair-order cash, DMS edits and the office manager's seat",
+    domain: "fraud",
+    industry: "automotive",
+    tags: [
+      "auto dealership",
+      "repair shop",
+      "repair order",
+      "DMS",
+      "service counter",
+      "cash",
+      "journal entries",
+      "parts inventory",
+    ],
+    text: "In a dealership or repair shop the money arrives at three counters (service, parts, sales) and one office runs the dealer management system that records all of it. The two arrangements the prosecuted cases show: the person who takes cash on repair orders can also edit or void the ticket in the DMS, so a kept payment is closed with a discount or a card payment that never happened; and the office manager who releases payments also posts manual journal entries and reconciles the bank, so a wire to their own account is booked to a schedule and the month still closes. Controls: someone who takes no payments matches each day's repair-order and counter cash to the deposit; the DMS list of edited, voided and deleted transactions is read monthly by user by someone who cannot edit them; the owner opens the bank statement first and questions every payee they do not know; an outside accountant reads the manual journal entries with their support; and someone outside the parts desk counts the stock each quarter against what was bought and what left on repair orders.",
+    basis: practice(
+      "Dealership and repair-shop control practice, in the terms of the prosecuted dealership cases in the evidence library.",
+    ),
+    caseIds: [
+      "case-burlington-dealership-cash",
+      "case-granger-auto-dealership-office-manager-wires",
+      "case-evansville-parts-manager",
+    ],
+  },
   {
     id: "smb-company-card",
     title: "Company cards: who holds one and who reads the statement",

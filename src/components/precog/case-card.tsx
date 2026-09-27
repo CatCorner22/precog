@@ -9,6 +9,7 @@ const SECTOR_LABEL: Record<string, string> = {
   medical: "Medical practice",
   restaurant: "Restaurant",
   construction: "Construction",
+  automotive: "Auto dealership",
   "professional-services": "Professional services",
   retail: "Retail",
   nonprofit: "Nonprofit",

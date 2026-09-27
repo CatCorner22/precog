@@ -5,6 +5,7 @@ export type IndustryId =
   | "professional_services"
   | "restaurant"
   | "construction"
+  | "automotive"
   | "nonprofit"
   | "general";
 
@@ -58,6 +59,14 @@ export const INDUSTRIES: IndustryMeta[] = [
     demoName: "Summit Ridge Builders",
     teamLabel: "company",
     customerLabel: "clients",
+  },
+  {
+    id: "automotive",
+    label: "Auto dealership / repair shop",
+    tagline: "Repair-order cash, parts inventory, deal and title fees",
+    demoName: "Millbrook Auto & Service",
+    teamLabel: "shop",
+    customerLabel: "customers",
   },
   {
     id: "nonprofit",

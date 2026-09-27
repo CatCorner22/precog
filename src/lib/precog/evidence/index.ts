@@ -325,6 +325,11 @@ export function sectorsForIndustry(industryId: string): IndustrySector[] {
     // and subcontractor and supplier payments.
     case "construction":
       return ["construction", "trades"];
+    // A dealership's office, service counter and parts room are one line of
+    // business with an independent repair shop's: same repair orders, same
+    // parts desk, same DMS.
+    case "automotive":
+      return ["automotive"];
     case "nonprofit":
       return ["nonprofit"];
     default:
