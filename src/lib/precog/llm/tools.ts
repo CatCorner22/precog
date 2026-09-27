@@ -164,7 +164,7 @@ export function executeTool(
   const riskVars: RiskVariableState = profile.riskVariables ?? DEFAULT_RISK_VARIABLES;
   // Starter scenarios count, and run, only once the owner confirms them.
   const confirmed = confirmedScenarioIds(profile.decisions, profile.industry);
-  const scope = { confirmedScenarioIds: confirmed };
+  const scope = { confirmedScenarioIds: confirmed, riskVariables: riskVars };
   const ownBusiness = isOwnBusiness(tpl);
   /** The scenario a tool runs: the one asked for if it is in scope, else the most dangerous in scope. */
   const scenarioInScope = (asked: unknown): string | null => {
@@ -381,6 +381,7 @@ export function executeTool(
               state: g.state,
               cadence: g.process.cadence ? CADENCE_LABEL[g.process.cadence] : null,
               stopsWithinDays: g.stopsWithinDays,
+              cadenceAssumed: g.cadenceAssumed,
               systems: g.process.systems ?? [],
               owners: (g.process.ownerPersonIds ?? []).map(personName),
               unowned: g.unowned,

@@ -1,5 +1,9 @@
+import { getIndustryTemplate } from "./templates";
 import { describe, expect, it } from "vitest";
-import { computeMapHealth, integrityHint, validateProcessMap } from "./process-graph";
+import { buildProcessMapGraph } from "./process-graph";
+import { computeMapHealth, integrityHint } from "./process-health";
+import { portfolioSummary } from "./scoring/residual-engine";
+import { validateProcessMap } from "./process-validation";
 import type { Person, ProcessNode } from "./types";
 
 const people: Person[] = [
@@ -63,5 +67,48 @@ describe("map health Integrity hint", () => {
     expect(
       integrityHint([{ id: "record-x", severity: "info", message: "procedure not written" }]),
     ).toBe("No broken dependencies or cycles");
+  });
+});
+
+describe("a process's residual", () => {
+  it("comes from rows linked by id, never from a row that shares a word with its name", () => {
+    const tpl = getIndustryTemplate("professional_services");
+    const { snapshots } = buildProcessMapGraph(tpl, tpl.staffComposition);
+    for (const snap of snapshots) {
+      const linkedKnowledge = tpl.knowledge.some((k) =>
+        k.linkedProcessIds.includes(snap.process.id),
+      );
+      if (snap.process.controlIds.length === 0 && !linkedKnowledge) {
+        expect(snap.residualScore, snap.process.name).toBeNull();
+      }
+    }
+  });
+
+  it("is the worst row among its own controls", () => {
+    const tpl = getIndustryTemplate("dental");
+    const rows = new Map(
+      portfolioSummary(tpl, tpl.staffComposition).all.map((r) => [r.id, r.residual]),
+    );
+    const { snapshots } = buildProcessMapGraph(tpl, tpl.staffComposition);
+    const ap = snapshots.find((s) => s.process.controlIds.includes("c-sod-ap"))!;
+    expect(ap.residualScore).toBeGreaterThanOrEqual(rows.get("ctrl-c-sod-ap")!);
+  });
+});
+
+describe("map health with no processes", () => {
+  it("reports nothing to score instead of a phantom unowned process", () => {
+    const h = computeMapHealth([], []);
+    expect(h.processCount).toBe(0);
+    expect(h.unownedProcesses).toBe(0);
+    expect(h.bandLabel).toBe("Nothing to score");
+    expect(h.dimensions.map((d) => d.hint).join(" ")).not.toMatch(/unowned|without controls/);
+  });
+
+  it("names the dimension that scored lowest in the summary", () => {
+    const tpl = getIndustryTemplate("dental");
+    const { snapshots } = buildProcessMapGraph(tpl, tpl.staffComposition);
+    const h = computeMapHealth(snapshots, []);
+    const lowest = [...h.dimensions].sort((a, b) => a.score - b.score)[0];
+    expect(h.summary).toContain(`Lowest: ${lowest.label.toLowerCase()}`);
   });
 });

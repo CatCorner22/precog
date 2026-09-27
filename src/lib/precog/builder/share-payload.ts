@@ -1,6 +1,8 @@
 import { resolveTemplate } from "../active-template";
 import { industryMeta } from "../industry";
-import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
+import { buildProcessMapGraph } from "../process-graph";
+import { computeMapHealth } from "../process-health";
+import { validateProcessMap } from "../process-validation";
 import type { PracticeProfile } from "../practice-profile";
 import { evidenceStatus } from "./evidence";
 import type { SharedMapPayload } from "./share-schema";

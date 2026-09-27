@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
 import { getIndustryTemplate } from "./templates";
-import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "./process-graph";
+import { describe, expect, it } from "vitest";
+import { buildProcessMapGraph } from "./process-graph";
+import { computeMapHealth } from "./process-health";
+import { validateProcessMap } from "./process-validation";
 import {
   normalizeSystems,
   parseCadence,
@@ -93,6 +95,13 @@ describe("processRecordReport", () => {
     expect(r.gaps[3].nextStep).toMatch(/Record where the written procedure/);
   });
 
+  it("marks the stop date of a process with no cadence as assumed", () => {
+    const r = processRecordReport([proc("x"), proc("y", { cadence: "daily" })]);
+    const byId = new Map(r.gaps.map((g) => [g.process.id, g]));
+    expect(byId.get("x")!.cadenceAssumed).toBe(true);
+    expect(byId.get("y")!.cadenceAssumed).toBe(false);
+  });
+
   it("names the systems in the next step so the writer knows where to look", () => {
     const r = processRecordReport([proc("x", { systems: ["Dentrix", "Bank portal"] })]);
     expect(r.gaps[0].nextStep).toContain("in Dentrix, Bank portal");
@@ -159,7 +168,7 @@ describe("computeMapHealth documentation dimension", () => {
     expect(doc.hint).toMatch(/nothing written down/);
   });
 
-  it("gives half credit for written-but-unlocated and full credit for located", () => {
+  it("credits a findable procedure only, the same rule as the process record", () => {
     const withDocs = {
       ...tpl,
       processes: tpl.processes.map((p, i) => ({
@@ -174,7 +183,8 @@ describe("computeMapHealth documentation dimension", () => {
     )!;
     const n = tpl.processes.length;
     const located = Math.ceil(n / 2);
-    expect(doc.score).toBe(Math.round(((located + (n - located) * 0.5) / n) * 100));
+    expect(doc.score).toBe(Math.round((located / n) * 100));
+    expect(doc.score).toBe(processRecordReport(withDocs.processes).documentedIndex);
     const all = buildProcessMapGraph(
       {
         ...tpl,

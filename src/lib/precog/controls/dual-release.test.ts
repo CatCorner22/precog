@@ -8,7 +8,9 @@ import {
   listEligibleApprovers,
   mergeDualReleasePolicy,
   mitigatedSodRuleIds,
+  staffFlagsFromDualRelease,
   type DualReleasePolicy,
+  type ThresholdException,
 } from "./dual-release";
 
 const dental = getIndustryTemplate("dental");
@@ -460,5 +462,286 @@ describe("evaluateRelease without an as-of date", () => {
       if (tz === undefined) delete process.env.TZ;
       else process.env.TZ = tz;
     }
+  });
+});
+
+function exception(fields: Partial<ThresholdException>): ThresholdException {
+  return {
+    id: "ex-test",
+    label: "Test exception",
+    channels: [],
+    action: "waive_dual",
+    enabled: true,
+    reason: "Test",
+    createdAt: "2026-01-01",
+    ...fields,
+  };
+}
+
+describe("a blanket waive_dual exception", () => {
+  const today = "2026-01-15";
+  const waived = (fields: Partial<ThresholdException> = {}): DualReleasePolicy => ({
+    ...policyOn(),
+    exceptions: [exception(fields)],
+  });
+
+  it("lets one person release any amount, and the evaluator says the control is not evidence-ready", () => {
+    const r = evaluateRelease(dental, waived(), {
+      channel: "ach",
+      amountUsd: 50_000,
+      initiatorPersonId: officeManager,
+      asOfDate: today,
+    });
+    expect(r.status).toBe("approved_exception");
+    expect(r.controlCredit.evidenceReady).toBe(false);
+  });
+
+  it("narrows no conflict and earns no dual-control credit on the channels it covers", () => {
+    expect(mitigatedSodRuleIds(waived(), dental, today).size).toBe(0);
+    expect(staffFlagsFromDualRelease(waived(), dental, today).dualControlPayments).toBe(false);
+    expect(dualReleaseCoverage(waived(), today).every((c) => !c.covered)).toBe(true);
+  });
+
+  it("empties only its own channels", () => {
+    const ids = mitigatedSodRuleIds(waived({ channels: ["deposit"] }), dental, today);
+    expect(ids.has("rule-deposit-post")).toBe(false);
+    expect(ids.has("rule-vendor-create-pay")).toBe(true);
+    const coverage = dualReleaseCoverage(waived({ channels: ["deposit"] }), today);
+    expect(coverage.find((c) => c.channel === "deposit")!.covered).toBe(false);
+    expect(coverage.find((c) => c.channel === "ach")!.covered).toBe(true);
+  });
+
+  it("leaves the credit in place when the waiver is scoped, disabled or out of date", () => {
+    for (const policy of [
+      waived({ payeeContains: "Patterson" }),
+      waived({ amountMaxUsd: 200 }),
+      waived({ enabled: false }),
+      waived({ effectiveTo: "2025-12-31" }),
+      waived({ effectiveFrom: "2026-02-01" }),
+    ]) {
+      expect(mitigatedSodRuleIds(policy, dental, today)).toEqual(
+        mitigatedSodRuleIds(policyOn(), dental, today),
+      );
+      expect(staffFlagsFromDualRelease(policy, dental, today).dualControlPayments).toBe(true);
+    }
+  });
+});
+
+describe("sample teams on the default rules", () => {
+  it("seat only the people who run the money", () => {
+    for (const id of [
+      "dental",
+      "retail",
+      "professional_services",
+      "restaurant",
+      "construction",
+      "nonprofit",
+      "general",
+    ] as const) {
+      for (const rule of defaultDualReleasePolicy(getIndustryTemplate(id)).rules) {
+        for (const role of [...rule.firstApproverRoles, ...rule.secondApproverRoles]) {
+          expect(role, `${id}/${rule.channel}`).not.toMatch(
+            /project manager|grants|program|development|bar manager|superintendent|estimator|foreman/i,
+          );
+        }
+      }
+    }
+  });
+
+  it("seats the nonprofit's executive director as a second signer on payments", () => {
+    const ach = defaultDualReleasePolicy(getIndustryTemplate("nonprofit")).rules.find(
+      (r) => r.channel === "ach",
+    )!;
+    expect(ach.secondApproverRoles).toContain("Executive Director");
+    expect(ach.secondApproverRoles).not.toContain("Grants Manager");
+  });
+});
+
+describe("seed exceptions", () => {
+  it("are dated from the given day and name the sample's own people", () => {
+    const now = new Date(2026, 2, 10);
+    const policy = defaultDualReleasePolicy(dental, undefined, now);
+    expect(policy.exceptions.every((e) => e.createdAt === "2026-03-10")).toBe(true);
+    const cover = policy.exceptions.find((e) => e.id === "ex-temp-om-writeoff")!;
+    expect(cover.personId).toBe(officeManager);
+    expect(cover.approvedByPersonId).toBe(owner);
+    expect(defaultDualReleasePolicy(dental, undefined, now)).toEqual(policy);
+  });
+
+  it("are never seeded into an owner's own business, even from a saved policy without exceptions", () => {
+    const own = { ...dental, people: dental.people.map((p) => ({ ...p })) };
+    expect(defaultDualReleasePolicy(own).exceptions).toEqual([]);
+    expect(mergeDualReleasePolicy(own, { enabled: true }).exceptions).toEqual([]);
+  });
+});
+
+describe("dual-control credit for payments", () => {
+  const today = "2026-01-15";
+
+  it("needs someone who can second a different person's release", () => {
+    const solo = {
+      ...dental,
+      people: [
+        {
+          id: "solo",
+          name: "Solo Owner",
+          role: "Owner",
+          active: true,
+          entitlements: [
+            "release_payment" as const,
+            "bank_reconcile" as const,
+            "create_vendor" as const,
+          ],
+        },
+      ],
+    };
+    const policy = { ...defaultDualReleasePolicy(solo), enabled: true };
+    expect(mitigatedSodRuleIds(policy, solo, today).size).toBe(0);
+    expect(staffFlagsFromDualRelease(policy, solo, today).dualControlPayments).toBe(false);
+  });
+
+  it("comes from the payment channels, not a two-person deposit count", () => {
+    const depositOnly: DualReleasePolicy = {
+      ...policyOn(),
+      rules: policyOn().rules.map((r) => ({ ...r, enabled: r.channel === "deposit" })),
+    };
+    expect(staffFlagsFromDualRelease(depositOnly, dental, today).dualControlPayments).toBe(false);
+    expect([...mitigatedSodRuleIds(depositOnly, dental, today)]).toEqual(["rule-deposit-post"]);
+    expect(staffFlagsFromDualRelease(policyOn(), dental, today).dualControlPayments).toBe(true);
+  });
+});
+
+describe("channel cards and the exception summary", () => {
+  it("agree that an expired exception is not active", () => {
+    const policy: DualReleasePolicy = {
+      ...policyOn(),
+      exceptions: [
+        exception({
+          action: "raise_threshold",
+          thresholdUsd: 900,
+          channels: ["ach"],
+          effectiveTo: "2020-12-31",
+        }),
+      ],
+    };
+    const today = "2026-01-15";
+    expect(
+      dualReleaseCoverage(policy, today).find((c) => c.channel === "ach")!.activeExceptions,
+    ).toBe(0);
+    expect(activeExceptionSummary(policy, today).total).toBe(0);
+  });
+});
+
+describe("force_dual and lower_threshold exceptions", () => {
+  const today = "2026-01-15";
+
+  it("force_dual blocks a $1 release that has no second signer and reports a $0 threshold", () => {
+    const policy: DualReleasePolicy = {
+      ...policyOn(),
+      exceptions: [exception({ action: "force_dual", channels: ["ach"] })],
+    };
+    const r = evaluateRelease(dental, policy, {
+      channel: "ach",
+      amountUsd: 1,
+      initiatorPersonId: officeManager,
+      asOfDate: today,
+    });
+    expect(r.status).toBe("blocked_missing_second");
+    expect(r.dualForced).toBe(true);
+    expect(r.dualWaived).toBe(false);
+    expect(r.thresholdUsd).toBe(0);
+  });
+
+  it("force_dual still approves once a distinct second signs", () => {
+    const policy: DualReleasePolicy = {
+      ...policyOn(),
+      exceptions: [exception({ action: "force_dual", channels: ["ach"] })],
+    };
+    const r = evaluateRelease(dental, policy, {
+      channel: "ach",
+      amountUsd: 1,
+      initiatorPersonId: officeManager,
+      secondPersonId: owner,
+      asOfDate: today,
+    });
+    expect(r.status).toBe("approved_dual");
+  });
+
+  it("lower_threshold requires a second above the lowered figure and reports it", () => {
+    const policy: DualReleasePolicy = {
+      ...policyOn(),
+      exceptions: [exception({ action: "lower_threshold", thresholdUsd: 100, channels: ["ach"] })],
+    };
+    const r = evaluateRelease(dental, policy, {
+      channel: "ach",
+      amountUsd: 250,
+      initiatorPersonId: officeManager,
+      asOfDate: today,
+    });
+    expect(r.dualRequired).toBe(true);
+    expect(r.thresholdUsd).toBe(100);
+    expect(r.baseThresholdUsd).toBe(500);
+  });
+
+  it("lower_threshold never raises the base threshold", () => {
+    const policy: DualReleasePolicy = {
+      ...policyOn(),
+      exceptions: [exception({ action: "lower_threshold", thresholdUsd: 9000, channels: ["ach"] })],
+    };
+    const r = evaluateRelease(dental, policy, {
+      channel: "ach",
+      amountUsd: 600,
+      initiatorPersonId: officeManager,
+      asOfDate: today,
+    });
+    expect(r.dualRequired).toBe(true);
+    expect(r.thresholdUsd).toBe(500);
+  });
+
+  it("a scoped exception outranks a broader one", () => {
+    const policy: DualReleasePolicy = {
+      ...policyOn(),
+      exceptions: [
+        exception({ id: "broad", action: "raise_threshold", thresholdUsd: 5000 }),
+        exception({
+          id: "scoped",
+          action: "force_dual",
+          channels: ["ach"],
+          personId: officeManager,
+        }),
+      ],
+    };
+    const r = evaluateRelease(dental, policy, {
+      channel: "ach",
+      amountUsd: 50,
+      initiatorPersonId: officeManager,
+      asOfDate: today,
+    });
+    expect(r.appliedException?.id).toBe("scoped");
+    expect(r.dualForced).toBe(true);
+  });
+
+  it("the summary counts each action among the exceptions in force", () => {
+    const policy: DualReleasePolicy = {
+      ...policyOn(),
+      exceptions: [
+        exception({ id: "a", action: "force_dual" }),
+        exception({ id: "b", action: "waive_dual", payeeContains: "Rent" }),
+        exception({
+          id: "c",
+          action: "raise_threshold",
+          thresholdUsd: 900,
+          effectiveTo: "2026-02-01",
+        }),
+        exception({ id: "d", action: "raise_threshold", thresholdUsd: 900, enabled: false }),
+      ],
+    };
+    expect(activeExceptionSummary(policy, today)).toEqual({
+      total: 3,
+      raises: 1,
+      forceDual: 1,
+      waives: 1,
+      expiringSoon: 1,
+    });
   });
 });

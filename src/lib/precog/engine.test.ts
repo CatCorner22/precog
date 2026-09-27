@@ -151,6 +151,74 @@ describe("runPrecogScenario", () => {
   });
 });
 
+describe("what the scenario page says", () => {
+  it("describes the cascade and accepting the risk in plain words", () => {
+    for (const { id } of INDUSTRIES) {
+      const tpl = getIndustryTemplate(id);
+      for (const scenario of tpl.scenarios) {
+        const r = runPrecogScenario(tpl, scenario.id)!;
+        const text = [...r.cascade.map((c) => c.effect), r.residualIfNothing].join(" ");
+        expect(text, `${id}/${scenario.id}`).not.toMatch(
+          /fails open|default state|single-threaded|fragility|Continuity layer|Re-run Precog/,
+        );
+      }
+    }
+  });
+});
+
+describe("staffing uplift sentences", () => {
+  const base: StaffComposition = {
+    teamSize: 12,
+    soleOwnerKnowledgeCount: 0,
+    avgTenureYears: 8,
+    segregationScore: 90,
+    dualControlPayments: true,
+    independentBankRec: true,
+  };
+  const run = (staff: StaffComposition) => runPrecogScenario(dental, "sc-vendor-fraud", { staff })!;
+  const uplifts = (staff: StaffComposition) =>
+    run(staff).staffModifiers.filter((m) => m.startsWith("Assumed uplift"));
+
+  it("names an uplift exactly when it changes the figures", () => {
+    const changes: Partial<StaffComposition>[] = [
+      { teamSize: 4 },
+      { soleOwnerKnowledgeCount: 1 },
+      { soleOwnerKnowledgeCount: 2 },
+      { segregationScore: 30 },
+      { dualControlPayments: false },
+      { independentBankRec: false },
+      { avgTenureYears: 1 },
+    ];
+    const baseLoss = run(base).financialImpact.expected;
+    expect(uplifts(base)).toEqual([]);
+    for (const change of changes) {
+      const staff = { ...base, ...change };
+      const moved = run(staff).financialImpact.expected !== baseLoss;
+      const named = uplifts(staff).length > 0;
+      expect(named, JSON.stringify(change)).toBe(moved);
+    }
+  });
+});
+
+describe("fraud scenarios outside the shared ids", () => {
+  it("prices skimmed donations as fraud and shows the fraud reference figures", () => {
+    const nonprofit = getIndustryTemplate("nonprofit");
+    const staff = { ...nonprofit.staffComposition, dualControlPayments: true };
+    const skim = runPrecogScenario(nonprofit, "sc-skimmed-donations", { staff })!;
+    const cash = runPrecogScenario(nonprofit, "sc-cash-sod-failure", { staff })!;
+    expect(skim.crimeModifiers[0]).toMatch(/^For reference only/);
+    expect(skim.crimeModifiers.join(" ")).not.toContain("Not a fraud scenario");
+    expect(skim.dynamic!.likelihoodMultiplier).toBe(cash.dynamic!.likelihoodMultiplier);
+  });
+
+  it("keeps a departure out of the fraud figures", () => {
+    const r = runPrecogScenario(dental, "sc-front-desk-leaves")!;
+    expect(r.crimeModifiers[0]).toBe(
+      "Not a fraud scenario, so the fraud figures are not applied to it.",
+    );
+  });
+});
+
 describe("rankDangerousScenarios", () => {
   it("ranks every scenario once, highest score first", () => {
     const ranked = rankDangerousScenarios(dental);

@@ -33,7 +33,8 @@ import {
 } from "@/lib/precog/continuity/leavers";
 import type { DecisionEntry, PlannedAbsence } from "@/lib/precog/practice-profile";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
-import { HEAT_BANDS, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
+import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
+import { type ProcessMapSnapshot } from "@/lib/precog/process-graph";
 import {
   casesForControl,
   casesForSodRules,
@@ -572,7 +573,10 @@ export function buildWeeklyActions(input: {
     });
   }
 
-  const bestLever = tornado.levers[0];
+  // The cross-training lever repeats the per-item cross-training actions above
+  // in one line; when those are listed, the plan offers the next lever instead.
+  const crossTrainingListed = actions.some((a) => a.id.startsWith("spof-"));
+  const bestLever = tornado.levers.find((l) => !(l.id === "spof" && crossTrainingListed));
   if (bestLever && bestLever.delta >= 3) {
     actions.push({
       id: `tornado-${bestLever.id}`,

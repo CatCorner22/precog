@@ -2,7 +2,7 @@
  * Whole-map review: plain-English critique of the value stream.
  * Shared input shape + deterministic fallback used when Grok isn't available.
  */
-import { HEAT_BANDS } from "../process-graph";
+import { HEAT_BANDS } from "../scoring/bands";
 import { HEALTH_SCALE } from "../scoring/bands";
 import { personLabel } from "../person-label";
 import type { GrokAccess } from "../llm/types";

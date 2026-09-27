@@ -8,14 +8,13 @@ import { registerAssessed } from "@/lib/precog/continuity/register-state";
 import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-team";
 import { pluralTeamLabel } from "@/lib/precog/templates/industry-copy";
 import { assessCoso } from "@/lib/precog/coso";
+import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
 import type { detectSodConflicts } from "@/lib/precog/sod/detect";
-import {
-  computeMapHealth,
-  buildProcessMapGraph,
-  validateProcessMap,
-} from "@/lib/precog/process-graph";
+import { computeMapHealth } from "@/lib/precog/process-health";
+import { buildProcessMapGraph } from "@/lib/precog/process-graph";
+import { validateProcessMap } from "@/lib/precog/process-validation";
 import { industryMeta } from "@/lib/precog/industry";
 import { mapAssessed } from "@/lib/precog/builder/map-state";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
@@ -65,7 +64,23 @@ export function Dashboard({
       }),
     [tpl, profile.staff, profile.riskVariables],
   );
-  const coso = useMemo(() => assessCoso(tpl), [tpl]);
+  // The same inputs as the COSO tab, so the tile and the tab show one score.
+  const coso = useMemo(
+    () =>
+      assessCoso(tpl, profile.staff, {
+        riskVariables: profile.riskVariables,
+        confirmedScenarioIds: confirmedScenarioIds(profile.decisions, profile.industry),
+        dualRelease: profile.dualRelease,
+      }),
+    [
+      tpl,
+      profile.staff,
+      profile.riskVariables,
+      profile.decisions,
+      profile.industry,
+      profile.dualRelease,
+    ],
+  );
   const portfolio = useMemo(() => portfolioSummary(tpl, profile.staff), [tpl, profile.staff]);
   const leading = useMemo(
     () => scoreLeadingIndicators(tpl, profile.staff, profile.riskVariables),

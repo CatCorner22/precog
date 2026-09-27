@@ -31,7 +31,10 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
     () => confirmedScenarioIds(profile.decisions, profile.industry),
     [profile.decisions, profile.industry],
   );
-  const scope = useMemo(() => ({ confirmedScenarioIds: confirmed }), [confirmed]);
+  const scope = useMemo(
+    () => ({ confirmedScenarioIds: confirmed, riskVariables: profile.riskVariables }),
+    [confirmed, profile.riskVariables],
+  );
   const summary = useMemo(
     () => portfolioSummary(template, profile.staff, DEFAULT_WEIGHTS, scope),
     [template, profile.staff, scope],

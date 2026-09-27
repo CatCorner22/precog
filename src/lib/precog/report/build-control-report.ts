@@ -24,7 +24,9 @@ import {
   recommendedStepsForRules,
 } from "../evidence";
 import { buildWeeklyActions } from "../weekly-actions/build";
-import { buildProcessMapGraph, computeMapHealth, validateProcessMap } from "../process-graph";
+import { buildProcessMapGraph } from "../process-graph";
+import { computeMapHealth } from "../process-health";
+import { validateProcessMap } from "../process-validation";
 
 /**
  * Everything the printed report shows, computed once from the template and
@@ -67,6 +69,7 @@ export function buildControlReportModel({
   });
   const portfolio = portfolioSummary(tpl, profile.staff, DEFAULT_WEIGHTS, {
     confirmedScenarioIds: confirmed,
+    riskVariables: profile.riskVariables,
   });
   const sod = detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease));
   const continuity = coverageReport(tpl);

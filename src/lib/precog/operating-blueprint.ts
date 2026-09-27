@@ -220,8 +220,8 @@ function sharedBlueprints(v: Vocabulary): PracticeProcessBlueprint[] {
       independentReviewer: v.approver,
       standard: [
         "Pay rate and bank detail changes approved",
-        "Headcount on the register agrees to payroll",
-        "Leavers removed before the next run",
+        "Headcount on the roster agrees to payroll",
+        "People who left removed before the next run",
       ],
       leading: ["External payroll provider plus owner release", "Change report reviewed each run"],
       optimal: ["Automated register-to-payroll comparison", "Ghost employee tests"],
@@ -340,7 +340,7 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
         "Zero-balance accounts sampled",
       ],
       optimal: ["Automated remit posting", "Outlier adjustments flagged"],
-      fallback: ["Monthly adjustment listing initialled by the owner"],
+      fallback: ["Monthly adjustment listing initialed by the owner"],
       evidence: ["Adjustment register", "Remit match", "Sample sign-off"],
       cadence: "Per remit; monthly review",
     },
@@ -474,7 +474,7 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
       id: "comps-voids",
       name: "Comps, voids & discounts",
       domain: "operations",
-      objective: "Food and drink given away is authorised and counted.",
+      objective: "Food and drink given away is authorized and counted.",
       primaryOwner: "General manager",
       independentReviewer: "Owner",
       standard: [
@@ -504,7 +504,10 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
         "Tips reported through payroll",
       ],
       leading: ["Tip report reconciled to card tips each shift", "Employee sign-off on the pool"],
-      optimal: ["Automated tip allocation", "Quarterly review against 8% guidance"],
+      optimal: [
+        "Automated tip allocation",
+        "Quarterly review against the IRS 8% tip-allocation rule (Form 8027, establishments with more than 10 employees)",
+      ],
       fallback: ["Monthly reconciliation of card tips to payroll"],
       evidence: ["Tip pool sheet", "POS tip report", "Payroll register"],
       cadence: "Per shift; monthly reconciliation",
@@ -561,7 +564,7 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
         "Retainage tracked by job",
         "Lien waivers before subcontractor payment",
       ],
-      leading: ["Over- and under-billing analysed monthly", "Waiver register reconciled"],
+      leading: ["Over- and under-billing analyzed monthly", "Waiver register reconciled"],
       optimal: ["Automated schedule-of-values billing", "Retainage release approval workflow"],
       fallback: ["Owner reviews each pay application before it goes out"],
       evidence: ["Pay applications", "Retainage schedule", "Waiver register"],
@@ -698,9 +701,5 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
 
 /** The blueprint for one line of business: its own processes first, then the shared ones in its words. */
 export function blueprintsForIndustry(industry: IndustryId): PracticeProcessBlueprint[] {
-  const vocab = VOCAB[industry] ?? VOCAB.general;
-  return [
-    ...(INDUSTRY_BLUEPRINTS[industry] ?? INDUSTRY_BLUEPRINTS.general),
-    ...sharedBlueprints(vocab),
-  ];
+  return [...INDUSTRY_BLUEPRINTS[industry], ...sharedBlueprints(VOCAB[industry])];
 }

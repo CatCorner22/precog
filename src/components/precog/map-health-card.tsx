@@ -3,12 +3,9 @@ import { IndexBasis } from "@/components/precog/index-basis";
 import { useEffect, useMemo } from "react";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { mapNotAssessedNote, mapSource, starterMapFacts } from "@/lib/precog/builder/map-state";
-import {
-  buildProcessMapGraph,
-  computeMapHealth,
-  validateProcessMap,
-  type MapHealthBand,
-} from "@/lib/precog/process-graph";
+import { buildProcessMapGraph } from "@/lib/precog/process-graph";
+import { computeMapHealth, type MapHealthBand } from "@/lib/precog/process-health";
+import { validateProcessMap } from "@/lib/precog/process-validation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
