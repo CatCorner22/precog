@@ -41,9 +41,9 @@ export const MAX_VALUE_EVIDENCE_ITEMS = 500;
 
 /** Plain names for each kind of evidence, for the memo and the register. */
 export const VALUE_EVIDENCE_KIND_LABEL: Record<ValueEvidenceKind, string> = {
-  time: "Time saved",
-  recovery: "Recovery",
-  control: "Control",
+  time: "Hours returned per year",
+  recovery: "Money recovered",
+  control: "Control change",
   exception: "Exception",
 };
 
