@@ -32,6 +32,8 @@ import type { Place, PlaceKind, Procedure, ProcedureStatus } from "@/lib/precog/
 import { uid } from "@/lib/precog/text";
 import { useToday } from "@/lib/use-today";
 import { ProcedureEditor } from "./procedure-editor";
+import { BestPracticeCheck } from "./best-practice-check";
+import { procedureRecommendations } from "@/lib/precog/procedures/quality";
 import { StoredPicture, type PictureAccess } from "./step-pictures";
 import { ProofSection } from "./procedure-proof";
 import { backupProofs, proofIsStale } from "@/lib/precog/procedures/proof";
@@ -417,6 +419,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
             key={selected.id}
             procedure={selected}
             businessId={businessId}
+            canAddPictures={pictureAccess.ok}
             place={places.find((pl) => pl.id === selected.placeId) ?? null}
             today={today}
             nameOf={nameOf}
@@ -467,6 +470,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
 function ProcedureView({
   procedure: p,
   businessId,
+  canAddPictures,
   place,
   today,
   nameOf,
@@ -479,6 +483,8 @@ function ProcedureView({
 }: {
   procedure: Procedure;
   businessId: string;
+  /** Whether this person can add pictures, so the check only suggests what they can do. */
+  canAddPictures: boolean;
   place: Place | null;
   today: string;
   nameOf: (id?: string) => string | null;
@@ -612,6 +618,9 @@ function ProcedureView({
               : ""}
           </dd>
         </dl>
+        <BestPracticeCheck
+          recommendations={procedureRecommendations(p, { place, today, canAddPictures })}
+        />
         <ProofSection
           key={`${p.id}-${proof.key}`}
           procedure={p}
