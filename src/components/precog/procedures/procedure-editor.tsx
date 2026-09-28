@@ -19,6 +19,10 @@ import type { KnowledgeItem, Person } from "@/lib/precog/types";
 import { StepPictures, type PictureAccess } from "./step-pictures";
 import { DutyConflictNote } from "./procedure-proof";
 import { DraftFromNotes } from "./draft-from-notes";
+import { BestPracticeCheck } from "./best-practice-check";
+import { procedureRecommendations } from "@/lib/precog/procedures/quality";
+import { localDateKey } from "@/lib/precog/dates";
+import { useToday } from "@/lib/use-today";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { procedureDutyConflicts } from "@/lib/precog/procedures/duty-conflicts";
 import { personDuties } from "@/lib/precog/sod/assignments";
@@ -109,6 +113,17 @@ export function ProcedureEditor({
     if (added[0]) setFocusId(`step-${added[0].id}`);
   };
   const place = places.find((p) => p.id === draft.placeId);
+  const today = localDateKey(useToday());
+  // Checked as the owner types, so the advice follows the edits.
+  const recommendations = useMemo(
+    () =>
+      procedureRecommendations(draft, {
+        place: place ?? null,
+        today,
+        canAddPictures: pictureAccess.ok,
+      }),
+    [draft, place, today, pictureAccess.ok],
+  );
   const filledSteps = draft.steps.filter(stepHasContent).length;
   const moveStep = (index: number, delta: -1 | 1) => {
     const steps = [...draft.steps];
@@ -517,6 +532,8 @@ export function ProcedureEditor({
             ))}
           </div>
         </fieldset>
+
+        <BestPracticeCheck recommendations={recommendations} />
 
         {error && (
           <p role="alert" className="text-xs text-danger">

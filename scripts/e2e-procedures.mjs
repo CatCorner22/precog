@@ -62,6 +62,18 @@ async function writeVerifyAndLink(page, errors) {
     "the password warning did not clear",
   );
 
+  step("the best-practice check says what a stand-in would still need");
+  const check = page.getByRole("region", { name: "Best-practice check" });
+  await check.getByText("Say when to do it.").waitFor();
+  await check
+    .getByText("Name at least one person who can follow it when the usual person is out.")
+    .waitFor();
+  await page.getByLabel("When to do it").fill("Every evening at close");
+  await eventually(
+    async () => (await check.getByText("Say when to do it.").count()) === 0,
+    "the check did not follow the edit",
+  );
+
   step("draft two more steps from notes; signed out, they come from the notes themselves");
   await page.getByRole("button", { name: "Draft steps from notes" }).click();
   await page
