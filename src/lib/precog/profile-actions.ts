@@ -51,7 +51,7 @@ import type { AccessReconciliation } from "./firm/reconcile";
 import { localDateKey, formatDay } from "./dates";
 import { nameKey, uid } from "./text";
 import { stripProcedureLinks } from "./procedures/coverage-link";
-import { verifyProcedure, withProcedureEdit } from "./procedures/lifecycle";
+import { verifyProcedure, withProcedureEdit, type VerifyingAccount } from "./procedures/lifecycle";
 import { PROCEDURE_LIMITS, proceduresBytes } from "./procedures/normalize";
 import { withProof } from "./procedures/proof";
 import type { Place, Procedure, ProcedureProof } from "./procedures/types";
@@ -383,17 +383,21 @@ export function procedureFits(p: PracticeProfile, next: Procedure): boolean {
   return proceduresBytes([next, ...others]) <= PROCEDURE_LIMITS.bytes;
 }
 
-/** The business with procedure `id` verified by `verifiedBy` (a person id, or "owner") on `today`. */
+/**
+ * The business with procedure `id` verified by `verifiedBy` (a person id, or
+ * "owner") on `today`, recorded under the signed-in `account` when there is one.
+ */
 export function withProcedureVerified(
   p: PracticeProfile,
   id: string,
   verifiedBy: string,
   today: string,
+  account?: VerifyingAccount | null,
 ): PracticeProfile {
   return {
     ...p,
     procedures: (p.procedures ?? []).map((x) =>
-      x.id === id ? verifyProcedure(x, verifiedBy, today) : x,
+      x.id === id ? verifyProcedure(x, verifiedBy, today, account) : x,
     ),
   };
 }

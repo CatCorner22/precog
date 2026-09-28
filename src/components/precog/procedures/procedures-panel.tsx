@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Building2,
   CheckCircle2,
@@ -37,6 +37,9 @@ import { backupProofs, proofIsStale } from "@/lib/precog/procedures/proof";
 import { isSampleBusiness } from "@/lib/precog/business-lifecycle";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { useWorkspace } from "@/lib/precog/workspace-context";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { getFirm } from "@/lib/precog/firm/server";
+import type { FirmRole } from "@/lib/precog/firm/store";
 import { downloadText } from "@/lib/download";
 import {
   exportFileName,
@@ -84,6 +87,13 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
       : { ok: true, businessId };
   const tpl = useTemplate();
   const { saveProcedure, verifyProcedure, removeProcedure, setPlaces } = usePracticeActions();
+  const user = useCurrentUser();
+  const firmRole = useFirmRole(accountId);
+  // The server refuses a verification from a firm preparer; the button is not offered.
+  const canVerify = firmRole !== "preparer";
+  const verifyingAccount = accountId
+    ? { id: accountId, name: user?.displayName || user?.primaryEmail || "" }
+    : null;
   const today = localDateKey(useToday());
   const industry = profile.industry;
   const places = useMemo(() => profile.places ?? [], [profile.places]);
@@ -380,7 +390,10 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
               .map((id) => tpl.knowledge.find((k) => k.id === id)?.name)
               .filter((n): n is string => Boolean(n))}
             onEdit={() => setEditing({ procedure: selected, isNew: false })}
-            onVerify={() => verifyProcedure(selected.id, selected.reviewerPersonId ?? "owner")}
+            canVerify={canVerify}
+            onVerify={() =>
+              verifyProcedure(selected.id, selected.reviewerPersonId ?? "owner", verifyingAccount)
+            }
             onPrint={() => setPrinting([selected])}
             onDownload={() =>
               downloadText(
@@ -425,6 +438,7 @@ function ProcedureView({
   nameOf,
   knowledgeNames,
   onEdit,
+  canVerify,
   onVerify,
   onPrint,
   onDownload,
@@ -436,6 +450,8 @@ function ProcedureView({
   nameOf: (id?: string) => string | null;
   knowledgeNames: string[];
   onEdit: () => void;
+  /** False for a firm preparer, who cannot record a verification. */
+  canVerify: boolean;
   onVerify: () => void;
   onPrint: () => void;
   onDownload: () => void;
@@ -542,7 +558,7 @@ function ProcedureView({
           <dd>
             {checker}
             {p.verifiedAt
-              ? ` · verified ${formatDay(p.verifiedAt)}${due ? `, check again by ${formatDay(due)}` : ""}`
+              ? ` · verified ${formatDay(p.verifiedAt)}${due ? `, check again by ${formatDay(due)}` : ""}${p.verifiedByAccountName ? ` · recorded by ${p.verifiedByAccountName}` : ""}`
               : p.lastVerifiedAt
                 ? ` · last verified ${formatDay(p.lastVerifiedAt)}, before the steps changed`
                 : " · not verified yet"}
@@ -570,7 +586,7 @@ function ProcedureView({
           <Button size="sm" variant="secondary" onClick={onEdit}>
             <Pencil className="size-3.5" /> Edit
           </Button>
-          {isWrittenProcedure(p) && status !== "verified" && (
+          {isWrittenProcedure(p) && status !== "verified" && canVerify && (
             <Button size="sm" onClick={onVerify}>
               <CheckCircle2 className="size-3.5" /> {checker === "the owner" ? "I" : checker}{" "}
               checked these steps today
@@ -583,6 +599,12 @@ function ProcedureView({
             <Download className="size-3.5" /> Download
           </Button>
         </div>
+        {isWrittenProcedure(p) && status !== "verified" && !canVerify && (
+          <p className="text-xs text-muted">
+            A firm reviewer or the owner verifies procedures, so that someone other than the
+            preparer checks the steps.
+          </p>
+        )}
         {following && (
           <FollowMode
             procedure={p}
@@ -746,4 +768,29 @@ function groupByPlace(procedures: readonly Procedure[], places: readonly Place[]
         Number(a.kind === "physical") - Number(b.kind === "physical") ||
         a.label.localeCompare(b.label),
     );
+}
+
+/**
+ * The signed-in account's role at its firm: null outside any firm or signed
+ * out, undefined until known. Only the button depends on it; the server
+ * checks the role on every save.
+ */
+function useFirmRole(accountId: string | null): FirmRole | null | undefined {
+  const [role, setRole] = useState<{ accountId: string; role: FirmRole | null } | null>(null);
+  useEffect(() => {
+    if (!accountId) return;
+    let cancelled = false;
+    getFirm()
+      .then((res) => {
+        if (!cancelled) setRole({ accountId, role: res.firm?.role ?? null });
+      })
+      .catch(() => {
+        if (!cancelled) setRole({ accountId, role: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId]);
+  if (!accountId) return null;
+  return role?.accountId === accountId ? role.role : undefined;
 }

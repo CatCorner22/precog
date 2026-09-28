@@ -94,6 +94,7 @@ import {
 } from "./profile-actions";
 import { localDateKey } from "./dates";
 import type { Place, Procedure, ProcedureProof } from "./procedures/types";
+import type { VerifyingAccount } from "./procedures/lifecycle";
 
 export type { SyncStatus };
 
@@ -199,7 +200,8 @@ export interface PracticeActions {
    */
   saveProcedure: (next: Procedure) => boolean;
   /** Procedures tab: record that `verifiedBy` (a person id, or "owner") confirmed the steps today. */
-  verifyProcedure: (id: string, verifiedBy: string) => void;
+  /** `account` is the signed-in account that pressed the button, recorded with the verification. */
+  verifyProcedure: (id: string, verifiedBy: string, account?: VerifyingAccount | null) => void;
   removeProcedure: (id: string) => void;
   /** Procedures tab: record that someone other than the usual person followed procedure `id`. */
   recordProcedureProof: (id: string, proof: Omit<ProcedureProof, "id">) => void;
@@ -535,9 +537,14 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     return true;
   }, []);
 
-  const verifyProcedure = useCallback((id: string, verifiedBy: string) => {
-    setProfile((p) => withProcedureVerified(p, id, verifiedBy, localDateKey(new Date())));
-  }, []);
+  const verifyProcedure = useCallback(
+    (id: string, verifiedBy: string, account?: VerifyingAccount | null) => {
+      setProfile((p) =>
+        withProcedureVerified(p, id, verifiedBy, localDateKey(new Date()), account),
+      );
+    },
+    [],
+  );
 
   const recordProcedureProof = useCallback((id: string, proof: Omit<ProcedureProof, "id">) => {
     setProfile((p) => withProcedureProof(p, id, proof));

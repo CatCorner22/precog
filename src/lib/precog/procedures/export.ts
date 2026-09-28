@@ -122,9 +122,10 @@ function statusLine(p: Procedure, ctx: ExportContext): string {
   const status = procedureStatus(p, ctx.today);
   const due = reviewByDate(p);
   if (p.verifiedAt && due) {
+    const recorded = p.verifiedByAccountName ? `; recorded by ${p.verifiedByAccountName}` : "";
     return status === "stale"
-      ? `Review overdue: verified ${formatDay(p.verifiedAt)}, due again by ${formatDay(due)}`
-      : `Verified ${formatDay(p.verifiedAt)}; check again by ${formatDay(due)}`;
+      ? `Review overdue: verified ${formatDay(p.verifiedAt)}, due again by ${formatDay(due)}${recorded}`
+      : `Verified ${formatDay(p.verifiedAt)}; check again by ${formatDay(due)}${recorded}`;
   }
   if (p.lastVerifiedAt) {
     return `Changed since verified: last verified ${formatDay(p.lastVerifiedAt)}, before the steps changed`;

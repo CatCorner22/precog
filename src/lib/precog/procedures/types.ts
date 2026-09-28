@@ -102,6 +102,14 @@ export interface Procedure {
   verifiedAt?: string;
   /** Person id of whoever confirmed it, or "owner" for the business owner. */
   verifiedBy?: string;
+  /**
+   * The signed-in account that recorded the verification, when one did. The
+   * server refuses a verification stamped with another account, and any new
+   * verification from a firm preparer.
+   */
+  verifiedByAccountId?: string;
+  /** That account's name when it recorded the verification, for display. */
+  verifiedByAccountName?: string;
   /** The last verification, kept after an edit clears it, so the screen can say "re-verify". */
   lastVerifiedAt?: string;
   version: number;
