@@ -34,6 +34,11 @@ export interface ProcedureStep {
   imageIds?: string[];
   /** A physical step where the person should take a photo as they do it. */
   requiresPhoto?: true;
+  /**
+   * Written by Grok from the owner's notes and not yet edited or verified by
+   * a person. Editing the step's text or verifying the procedure clears it.
+   */
+  aiDrafted?: true;
 }
 
 /**

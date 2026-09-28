@@ -205,6 +205,7 @@ function normalizeSteps(value: unknown): ProcedureStep[] {
       ...(caution ? { caution } : {}),
       ...(imageIds.length ? { imageIds } : {}),
       ...(raw.requiresPhoto === true ? { requiresPhoto: true as const } : {}),
+      ...(raw.aiDrafted === true ? { aiDrafted: true as const } : {}),
     });
   }
   return out;

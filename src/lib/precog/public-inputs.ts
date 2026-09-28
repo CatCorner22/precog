@@ -4,12 +4,14 @@ import { invalidRequest } from "@/lib/request-errors";
 import type { ReviewInput } from "./builder/review";
 import type { SuggestionInput } from "./builder/suggest";
 import type { PioneerProfileInput } from "./coach/pioneer-profile";
+import { DRAFT_NOTES_MAX, type ProcedureDraftInput } from "./procedures/draft";
 import { clamp } from "./number";
 
 /**
  * Input checks for the server functions anyone can call signed out
- * (loadMapShare, suggestForProcess, reviewMap, runPioneerCoach). The earlier
- * validators called .map, .trim and String() on whatever arrived, so null or
+ * (loadMapShare, suggestForProcess, draftProcedureSteps, reviewMap,
+ * runPioneerCoach). The earlier validators called .map, .trim and String() on
+ * whatever arrived, so null or
  * mistyped input crashed with a TypeError whose text went back to the
  * caller. These schemas refuse the wrong kind of container (not an object,
  * not an array, an object where text belongs) with a plain 400 "Invalid
@@ -83,6 +85,27 @@ export function parseSuggestionInput(input: unknown): SuggestionInput {
     existingIdeaTitles: data.existingIdeaTitles ?? [],
     availableControls: data.availableControls ?? [],
     ownerRoles: data.ownerRoles ?? [],
+  };
+}
+
+// --------------------------------------------------------- draftProcedureSteps
+
+const procedureDraftSchema = z.object({
+  title: text(120).nullish(),
+  placeName: text(80).nullish(),
+  module: text(120).nullish(),
+  notes: text(DRAFT_NOTES_MAX).nullish(),
+  industryLabel: text(60).nullish(),
+});
+
+export function parseProcedureDraftInput(input: unknown): ProcedureDraftInput {
+  const data = parse(procedureDraftSchema, input);
+  return {
+    title: data.title ?? "",
+    placeName: data.placeName ?? "",
+    module: data.module ?? "",
+    notes: data.notes ?? "",
+    industryLabel: data.industryLabel ?? "small business",
   };
 }
 

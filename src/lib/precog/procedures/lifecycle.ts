@@ -104,10 +104,33 @@ export function withProcedureEdit(
   };
 }
 
-/** Record that `verifiedBy` (a person id, or "owner") confirmed the steps work as written on `today`. */
+/**
+ * Record that `verifiedBy` (a person id, or "owner") confirmed the steps work
+ * as written on `today`. A person has now checked every step, so none is
+ * marked as an AI draft any longer.
+ */
 export function verifyProcedure(p: Procedure, verifiedBy: string, today: string): Procedure {
   if (!isWrittenProcedure(p)) return p;
-  return { ...p, verifiedAt: today, verifiedBy, lastVerifiedAt: today, updatedAt: today };
+  return {
+    ...p,
+    steps: p.steps.map(withoutAiMark),
+    verifiedAt: today,
+    verifiedBy,
+    lastVerifiedAt: today,
+    updatedAt: today,
+  };
+}
+
+/** The step without its AI-draft mark (the same object when it has none). */
+export function withoutAiMark(step: ProcedureStep): ProcedureStep {
+  if (!step.aiDrafted) return step;
+  const { aiDrafted: _aiDrafted, ...rest } = step;
+  return rest;
+}
+
+/** Steps Grok wrote that no person has edited or verified yet. */
+export function aiDraftedSteps(p: Pick<Procedure, "steps">): number {
+  return p.steps.filter((s) => s.aiDrafted && s.text.trim()).length;
 }
 
 /** Everything a stand-in would follow; a change to any of it needs a new verification. */

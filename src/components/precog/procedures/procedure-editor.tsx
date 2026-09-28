@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fieldCls } from "@/components/ui/field-classes";
 import { secretKindsIn, SECRET_WARNING } from "@/lib/precog/procedures/credential-guard";
-import { newStep } from "@/lib/precog/procedures/lifecycle";
+import { newStep, withoutAiMark } from "@/lib/precog/procedures/lifecycle";
+import type { ProcedureDraft } from "@/lib/precog/procedures/draft";
+import { industryMeta } from "@/lib/precog/industry";
 import {
   MAX_REVIEW_DAYS,
   MIN_REVIEW_DAYS,
@@ -16,6 +18,7 @@ import type { Place, Procedure, ProcedureStep } from "@/lib/precog/procedures/ty
 import type { KnowledgeItem, Person } from "@/lib/precog/types";
 import { StepPictures, type PictureAccess } from "./step-pictures";
 import { DutyConflictNote } from "./procedure-proof";
+import { DraftFromNotes } from "./draft-from-notes";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { procedureDutyConflicts } from "@/lib/precog/procedures/duty-conflicts";
 import { personDuties } from "@/lib/precog/sod/assignments";
@@ -57,11 +60,44 @@ export function ProcedureEditor({
   const [error, setError] = useState<string | null>(null);
   const set = <K extends keyof Procedure>(key: K, value: Procedure[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
+  // Editing a step's text makes it the person's own, so it is no longer an AI draft.
   const setStep = (id: string, patch: Partial<ProcedureStep>) =>
     set(
       "steps",
-      draft.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+      draft.steps.map((s) =>
+        s.id === id
+          ? "text" in patch
+            ? withoutAiMark({ ...s, ...patch })
+            : { ...s, ...patch }
+          : s,
+      ),
     );
+  /** Add a draft's steps after the written ones, and its purpose and prerequisites where empty. */
+  const addDraft = (d: ProcedureDraft) => {
+    const kept = draft.steps.filter(
+      (s) => s.text.trim() || s.caution?.trim() || s.imageIds?.length || s.requiresPhoto,
+    );
+    const added = d.steps
+      .slice(0, PROCEDURE_LIMITS.steps - kept.length)
+      .map((text) =>
+        d.source === "grok" ? { ...newStep(text), aiDrafted: true as const } : newStep(text),
+      );
+    setDraft((prev) => ({
+      ...prev,
+      steps: [...kept, ...added],
+      purpose: prev.purpose?.trim() ? prev.purpose : d.purpose || prev.purpose,
+      prerequisites: [
+        ...new Set([
+          ...prev.prerequisites.map((p) => p.trim()).filter(Boolean),
+          ...d.prerequisites,
+        ]),
+      ].slice(0, PROCEDURE_LIMITS.prerequisites),
+    }));
+  };
+  const place = places.find((p) => p.id === draft.placeId);
+  const filledSteps = draft.steps.filter(
+    (s) => s.text.trim() || s.caution?.trim() || s.imageIds?.length || s.requiresPhoto,
+  ).length;
   const moveStep = (index: number, delta: -1 | 1) => {
     const steps = [...draft.steps];
     const [step] = steps.splice(index, 1);
@@ -222,7 +258,9 @@ export function ProcedureEditor({
         <div className="space-y-2">
           <div className="text-xs font-medium uppercase tracking-wide text-muted">Steps</div>
           {draft.steps.length === 0 && (
-            <p className="text-xs text-muted">No steps yet. Add the first one below.</p>
+            <p className="text-xs text-muted">
+              No steps yet. Add the first one below, or draft them from notes.
+            </p>
           )}
           <ol className="space-y-3">
             {draft.steps.map((step, index) => (
@@ -235,6 +273,12 @@ export function ProcedureEditor({
                     <label className="sr-only" htmlFor={`step-${step.id}`}>
                       Step {index + 1}
                     </label>
+                    {step.aiDrafted && (
+                      <p className="text-xs text-accent">
+                        Drafted by Grok. Check it against the screen or the place, then edit it or
+                        verify the procedure.
+                      </p>
+                    )}
                     <textarea
                       id={`step-${step.id}`}
                       className={inputCls}
@@ -305,14 +349,24 @@ export function ProcedureEditor({
               </li>
             ))}
           </ol>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={draft.steps.length >= PROCEDURE_LIMITS.steps}
-            onClick={() => set("steps", [...draft.steps, newStep()])}
-          >
-            <Plus className="size-3.5" /> Add step
-          </Button>
+          <div className="flex flex-wrap items-start gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={draft.steps.length >= PROCEDURE_LIMITS.steps}
+              onClick={() => set("steps", [...draft.steps, newStep()])}
+            >
+              <Plus className="size-3.5" /> Add step
+            </Button>
+          </div>
+          <DraftFromNotes
+            title={draft.title}
+            placeName={place?.name ?? ""}
+            module={draft.module ?? ""}
+            industryLabel={industryMeta(draft.industry).label}
+            room={PROCEDURE_LIMITS.steps - filledSteps}
+            onAdd={addDraft}
+          />
         </div>
 
         {secrets.length > 0 && (

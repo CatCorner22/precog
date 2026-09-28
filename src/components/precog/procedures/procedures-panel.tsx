@@ -1,5 +1,15 @@
 import { useMemo, useState } from "react";
-import { Building2, CheckCircle2, ExternalLink, Laptop, Pencil, Plus } from "lucide-react";
+import {
+  Building2,
+  CheckCircle2,
+  Download,
+  ExternalLink,
+  Laptop,
+  ListChecks,
+  Pencil,
+  Plus,
+  Printer,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +17,7 @@ import { fieldCls } from "@/components/ui/field-classes";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
 import { usePractice, usePracticeActions, useTemplate } from "@/lib/precog/practice-context";
 import {
+  aiDraftedSteps,
   isWrittenProcedure,
   newProcedure,
   PROCEDURE_STATUS_LABEL,
@@ -26,8 +37,18 @@ import { backupProofs, proofIsStale } from "@/lib/precog/procedures/proof";
 import { isSampleBusiness } from "@/lib/precog/business-lifecycle";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { useWorkspace } from "@/lib/precog/workspace-context";
+import { downloadText } from "@/lib/download";
+import {
+  exportFileName,
+  procedureMarkdown,
+  proceduresJson,
+  proceduresMarkdown,
+  type ExportContext,
+} from "@/lib/precog/procedures/export";
+import { FollowMode } from "./follow-mode";
+import { ProcedurePrint } from "./procedure-print";
 
-type Filter = "all" | "review" | "no-backup" | "empty";
+type Filter = "all" | "review" | "no-backup" | "ai-draft" | "empty";
 
 const STATUS_BADGE: Record<ProcedureStatus, "default" | "ok" | "warn" | "danger"> = {
   empty: "default",
@@ -41,6 +62,7 @@ const FILTER_LABEL: Record<Filter, string> = {
   all: "All",
   review: "Needs checking",
   "no-backup": "No backup proven",
+  "ai-draft": "AI draft to check",
   empty: "No steps yet",
 };
 
@@ -84,6 +106,10 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
     return match?.id ?? null;
   });
   const [filter, setFilter] = useState<Filter>("all");
+  const [printing, setPrinting] = useState<Procedure[] | null>(null);
+  const itemName = (id: string) => tpl.knowledge.find((k) => k.id === id)?.name;
+  const exportContext: ExportContext = { places, nameOf, itemName, today };
+  const businessName = profile.practiceName?.trim() || "Your business";
 
   /** The editor state a deep link asks for: an existing procedure, or a new one for a register item. */
   function openFor(
@@ -109,6 +135,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
     if (filter === "no-backup") {
       return !backupProofs(p).some((x) => x.on && !proofIsStale(x.on, today));
     }
+    if (filter === "ai-draft") return aiDraftedSteps(p) > 0;
     if (filter === "empty") return status === "empty";
     return true;
   });
@@ -177,6 +204,51 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
               >
                 <Plus className="size-3.5" /> New procedure
               </Button>
+              {procedures.length > 0 && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setPrinting(sortedForExport(procedures, places))}
+                  >
+                    <Printer className="size-3.5" /> Print all
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      downloadText(
+                        exportFileName(`${businessName} procedures`, "md"),
+                        proceduresMarkdown(
+                          sortedForExport(procedures, places),
+                          businessName,
+                          exportContext,
+                        ),
+                        "text/markdown;charset=utf-8",
+                      )
+                    }
+                  >
+                    <Download className="size-3.5" /> Export all (Markdown)
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      downloadText(
+                        exportFileName(`${businessName} procedures`, "json"),
+                        proceduresJson(
+                          sortedForExport(procedures, places),
+                          businessName,
+                          exportContext,
+                        ),
+                        "application/json",
+                      )
+                    }
+                  >
+                    <Download className="size-3.5" /> Export all (JSON)
+                  </Button>
+                </>
+              )}
             </div>
             <div role="group" aria-label="Show" className="flex flex-wrap gap-1">
               {(Object.keys(FILTER_LABEL) as Filter[]).map((f) => (
@@ -298,6 +370,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
       <div id="procedure-view" className="scroll-mt-40">
         {selected ? (
           <ProcedureView
+            key={selected.id}
             procedure={selected}
             businessId={businessId}
             place={places.find((pl) => pl.id === selected.placeId) ?? null}
@@ -308,6 +381,14 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
               .filter((n): n is string => Boolean(n))}
             onEdit={() => setEditing({ procedure: selected, isNew: false })}
             onVerify={() => verifyProcedure(selected.id, selected.reviewerPersonId ?? "owner")}
+            onPrint={() => setPrinting([selected])}
+            onDownload={() =>
+              downloadText(
+                exportFileName(selected.title, "md"),
+                procedureMarkdown(selected, exportContext),
+                "text/markdown;charset=utf-8",
+              )
+            }
           />
         ) : (
           <Card>
@@ -319,6 +400,18 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
           </Card>
         )}
       </div>
+      {printing && (
+        <ProcedurePrint
+          procedures={printing}
+          places={places}
+          businessId={businessId}
+          businessName={businessName}
+          today={today}
+          nameOf={nameOf}
+          itemName={itemName}
+          onDone={() => setPrinting(null)}
+        />
+      )}
     </div>
   );
 }
@@ -333,6 +426,8 @@ function ProcedureView({
   knowledgeNames,
   onEdit,
   onVerify,
+  onPrint,
+  onDownload,
 }: {
   procedure: Procedure;
   businessId: string;
@@ -342,7 +437,12 @@ function ProcedureView({
   knowledgeNames: string[];
   onEdit: () => void;
   onVerify: () => void;
+  onPrint: () => void;
+  onDownload: () => void;
 }) {
+  const [following, setFollowing] = useState(false);
+  // Finishing follow mode reopens the proof section with its form open.
+  const [proof, setProof] = useState({ key: 0, open: false });
   const status = procedureStatus(p, today);
   const due = reviewByDate(p);
   const checker = nameOf(p.reviewerPersonId) ?? "the owner";
@@ -398,6 +498,11 @@ function ProcedureView({
                 <span className="w-6 shrink-0 text-right font-semibold text-muted">{i + 1}.</span>
                 <div>
                   <p>{s.text}</p>
+                  {s.aiDrafted && (
+                    <p className="mt-0.5 text-xs text-accent">
+                      Drafted by Grok; not yet checked by a person.
+                    </p>
+                  )}
                   {s.caution && <p className="mt-0.5 text-xs text-warn">Caution: {s.caution}</p>}
                   {s.requiresPhoto && (
                     <p className="mt-0.5 text-xs text-muted">Take a photo as you do this step.</p>
@@ -450,8 +555,18 @@ function ProcedureView({
               : ""}
           </dd>
         </dl>
-        <ProofSection procedure={p} today={today} />
+        <ProofSection
+          key={`${p.id}-${proof.key}`}
+          procedure={p}
+          today={today}
+          defaultOpen={proof.open}
+        />
         <div className="flex flex-wrap gap-2">
+          {isWrittenProcedure(p) && (
+            <Button size="sm" onClick={() => setFollowing(true)}>
+              <ListChecks className="size-3.5" /> Follow it step by step
+            </Button>
+          )}
           <Button size="sm" variant="secondary" onClick={onEdit}>
             <Pencil className="size-3.5" /> Edit
           </Button>
@@ -461,10 +576,38 @@ function ProcedureView({
               checked these steps today
             </Button>
           )}
+          <Button size="sm" variant="ghost" onClick={onPrint}>
+            <Printer className="size-3.5" /> Print
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onDownload}>
+            <Download className="size-3.5" /> Download
+          </Button>
         </div>
+        {following && (
+          <FollowMode
+            procedure={p}
+            businessId={businessId}
+            askName={nameOf(p.ownerPersonId)}
+            onClose={() => setFollowing(false)}
+            onRecordRun={() => {
+              setFollowing(false);
+              setProof((x) => ({ key: x.key + 1, open: true }));
+              requestAnimationFrame(() =>
+                document
+                  .getElementById(`proof-section-${p.id}`)
+                  ?.scrollIntoView({ block: "start" }),
+              );
+            }}
+          />
+        )}
       </CardContent>
     </Card>
   );
+}
+
+/** Procedures in the order the tab lists them: by place, then by title. */
+function sortedForExport(procedures: readonly Procedure[], places: readonly Place[]): Procedure[] {
+  return groupByPlace(procedures, places).flatMap((g) => g.items);
 }
 
 /** The platforms and places procedures are done in, with one-click suggestions. */
