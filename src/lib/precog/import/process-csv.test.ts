@@ -141,7 +141,10 @@ describe("parseProcessCsv", () => {
   it("rejects self-dependency and blank names", () => {
     const r = parseProcessCsv("process,depends on\nLoop,Loop\n,Nothing\n", tpl);
     expect(r.issues.map((i) => i.message)).toEqual(
-      expect.arrayContaining(['"Loop" cannot depend on itself', "Each row must have a process name"]),
+      expect.arrayContaining([
+        '"Loop" cannot depend on itself',
+        "Each row must have a process name",
+      ]),
     );
     expect(r.added[0].dependencies).toEqual([]);
   });
