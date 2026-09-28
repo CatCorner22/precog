@@ -39,6 +39,12 @@ export interface ProcedureStep {
    * a person. Editing the step's text or verifying the procedure clears it.
    */
   aiDrafted?: true;
+  /**
+   * Taken from a recommended procedure (procedures/library.ts) and not yet
+   * fitted to this business. Editing the step's text or verifying the
+   * procedure clears it.
+   */
+  suggested?: true;
 }
 
 /**
@@ -68,6 +74,8 @@ export interface Procedure {
   /** Template people and register ids repeat across industries, so a procedure belongs to one. */
   industry: IndustryId;
   title: string;
+  /** The recommended procedure it was started from, if any (procedures/library.ts). */
+  libraryId?: string;
   placeId?: string;
   /** The module or screen path inside the platform: "Banking > Reconcile". */
   module?: string;

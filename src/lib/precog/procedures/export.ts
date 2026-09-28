@@ -1,6 +1,12 @@
 import { formatDay } from "../dates";
 import { slug } from "../text";
-import { PROCEDURE_STATUS_LABEL, procedureStatus, reviewByDate, shownSteps } from "./lifecycle";
+import {
+  PROCEDURE_STATUS_LABEL,
+  procedureStatus,
+  reviewByDate,
+  shownSteps,
+  stepMarkNote,
+} from "./lifecycle";
 import type { Place, Procedure } from "./types";
 
 /**
@@ -55,7 +61,7 @@ export function procedureMarkdown(p: Procedure, ctx: ExportContext): string {
       s.caution ? `**Caution:** ${inline(s.caution)}` : "",
       s.requiresPhoto ? "_Take a photo as you do this step._" : "",
       pictures ? `_${pictures} ${pictures === 1 ? "picture" : "pictures"} in Precog._` : "",
-      s.aiDrafted ? "_Drafted by Grok; not yet checked by a person._" : "",
+      stepMarkNote(s) ? `_${stepMarkNote(s)}_` : "",
     ].filter(Boolean);
     parts.forEach((part, j) => lines.push(j === 0 ? `${i + 1}. ${part}` : `${pad}${part}`));
   });

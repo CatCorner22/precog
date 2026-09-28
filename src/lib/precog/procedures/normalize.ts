@@ -139,6 +139,7 @@ export function normalizeProcedure(value: unknown, today: string): Procedure | n
   const verifiedByAccountId = verifiedAt ? text(raw.verifiedByAccountId, 120) : "";
   const verifiedByAccountName = verifiedByAccountId ? text(raw.verifiedByAccountName, 120) : "";
   const optional = {
+    libraryId: text(raw.libraryId, 60),
     placeId: text(raw.placeId, 60),
     module: text(raw.module, PROCEDURE_LIMITS.module),
     url: webUrl(raw.url),
@@ -221,6 +222,7 @@ function normalizeSteps(value: unknown): ProcedureStep[] {
       ...(imageIds.length ? { imageIds } : {}),
       ...(raw.requiresPhoto === true ? { requiresPhoto: true as const } : {}),
       ...(raw.aiDrafted === true ? { aiDrafted: true as const } : {}),
+      ...(raw.suggested === true ? { suggested: true as const } : {}),
     });
   }
   return out;

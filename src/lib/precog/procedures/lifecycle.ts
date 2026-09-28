@@ -122,7 +122,7 @@ export interface VerifyingAccount {
  * Record that `verifiedBy` (a person id, or "owner") confirmed the steps work
  * as written on `today`, stamped with the signed-in `account` that pressed the
  * button (none when signed out). A person has now checked every step, so none
- * is marked as an AI draft any longer.
+ * is marked as an AI draft or a suggestion any longer.
  */
 export function verifyProcedure(
   p: Procedure,
@@ -135,7 +135,7 @@ export function verifyProcedure(
   const name = account?.name.trim().slice(0, 120);
   return {
     ...rest,
-    steps: p.steps.map(withoutAiMark),
+    steps: p.steps.map(withoutDraftMarks),
     verifiedAt: today,
     verifiedBy,
     ...(account?.id ? { verifiedByAccountId: account.id.slice(0, 120) } : {}),
@@ -145,16 +145,31 @@ export function verifyProcedure(
   };
 }
 
-/** The step without its AI-draft mark (the same object when it has none). */
-export function withoutAiMark(step: ProcedureStep): ProcedureStep {
-  if (!step.aiDrafted) return step;
-  const { aiDrafted: _aiDrafted, ...rest } = step;
+/** The step without its AI-draft or suggestion mark (the same object when it has neither). */
+export function withoutDraftMarks(step: ProcedureStep): ProcedureStep {
+  if (!step.aiDrafted && !step.suggested) return step;
+  const { aiDrafted: _aiDrafted, suggested: _suggested, ...rest } = step;
   return rest;
 }
 
 /** Steps Grok wrote that no person has edited or verified yet. */
 export function aiDraftedSteps(p: Pick<Procedure, "steps">): number {
   return p.steps.filter((s) => s.aiDrafted && s.text.trim()).length;
+}
+
+/** Steps taken from a recommended procedure and not yet fitted to this business. */
+export function suggestedSteps(p: Pick<Procedure, "steps">): number {
+  return p.steps.filter((s) => s.suggested && s.text.trim()).length;
+}
+
+/**
+ * The note shown with a step no person has checked yet, or "" for none. The
+ * view, print and export show the same words.
+ */
+export function stepMarkNote(step: Pick<ProcedureStep, "aiDrafted" | "suggested">): string {
+  if (step.aiDrafted) return "Drafted by Grok; not yet checked by a person.";
+  if (step.suggested) return "Suggested common practice; not yet fitted to this business.";
+  return "";
 }
 
 /**

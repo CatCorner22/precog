@@ -4,8 +4,9 @@
  * sample: add a place, start a procedure from a register item nothing is
  * written for, write two steps (one that looks like a password, which must
  * warn), draft two more from notes, save, verify, follow it step by step and
- * record the run, download and print it, and see the register item count as
- * written.
+ * record the run, download and print it, see the register item count as
+ * written, and start a recommended procedure whose steps stay marked as
+ * suggestions until someone edits them.
  *
  * Usage: node scripts/e2e-procedures.mjs [baseUrl]   (default http://127.0.0.1:8080/)
  * Env:   E2E_TIMEOUT_MS (default 45000), E2E_SCREENSHOT (PNG path on failure),
@@ -183,6 +184,52 @@ async function writeVerifyAndLink(page, errors) {
     "an edit did not clear the verification",
   );
   await page.getByText("Changed since verified", { exact: true }).first().waitFor();
+
+  step("start a recommended procedure; its steps stay suggestions until edited");
+  const recommended = "Reconcile the bank account";
+  // The dental sample fits more than the card shows at first.
+  await page.getByRole("button", { name: /^Show all \d+ recommendations$/ }).click();
+  await page
+    .getByRole("button", { name: `Start from the recommended procedure: ${recommended}` })
+    .click();
+  await page.getByRole("heading", { name: "New procedure" }).waitFor();
+  await page
+    .getByText(/^Suggested common practice\. Change it/)
+    .first()
+    .waitFor();
+  await page
+    .getByRole("region", { name: "Best-practice check" })
+    .getByText("Fit the 8 suggested steps to your own screens, names and people.")
+    .waitFor();
+  await page.getByRole("button", { name: "Save procedure" }).click();
+  await page.getByRole("heading", { name: recommended }).waitFor();
+  await page
+    .getByText("Suggested common practice; not yet fitted to this business.")
+    .first()
+    .waitFor();
+  const fromLibrary = (p) => p.procedures.find((x) => x.libraryId === "lib-bank-rec");
+  await waitProfile(
+    page,
+    (p) => fromLibrary(p)?.steps.every((s) => s.suggested),
+    "the recommended procedure was not saved with its steps marked as suggestions",
+  );
+  assert.equal(
+    await page
+      .getByRole("button", { name: /^Start from the recommended procedure: Reconcile the bank/ })
+      .count(),
+    0,
+    "a started recommendation must leave the list",
+  );
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page
+    .getByLabel("Step 1", { exact: true })
+    .fill("Download last month's statement from Chase.");
+  await page.getByRole("button", { name: "Save procedure" }).click();
+  await waitProfile(
+    page,
+    (p) => !fromLibrary(p).steps[0].suggested && fromLibrary(p).steps[1].suggested,
+    "editing a suggested step did not make it the business's own",
+  );
 
   if (shots) {
     await page.setViewportSize({ width: 390, height: 844 });

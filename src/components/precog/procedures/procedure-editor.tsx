@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fieldCls } from "@/components/ui/field-classes";
 import { secretKindsIn, SECRET_WARNING } from "@/lib/precog/procedures/credential-guard";
-import { newStep, stepHasContent, withoutAiMark } from "@/lib/precog/procedures/lifecycle";
+import { newStep, stepHasContent, withoutDraftMarks } from "@/lib/precog/procedures/lifecycle";
 import type { ProcedureDraft } from "@/lib/precog/procedures/draft";
 import { industryMeta } from "@/lib/precog/industry";
 import {
@@ -79,14 +79,14 @@ export function ProcedureEditor({
   }, [focusId]);
   const set = <K extends keyof Procedure>(key: K, value: Procedure[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
-  // Editing a step's text makes it the person's own, so it is no longer an AI draft.
+  // Editing a step's text makes it the person's own, so it is no longer an AI draft or a suggestion.
   const setStep = (id: string, patch: Partial<ProcedureStep>) =>
     set(
       "steps",
       draft.steps.map((s) =>
         s.id === id
           ? "text" in patch
-            ? withoutAiMark({ ...s, ...patch })
+            ? withoutDraftMarks({ ...s, ...patch })
             : { ...s, ...patch }
           : s,
       ),
@@ -315,6 +315,12 @@ export function ProcedureEditor({
                       <p className="text-xs text-accent">
                         Drafted by Grok. Check it against the screen or the place, then edit it or
                         verify the procedure.
+                      </p>
+                    )}
+                    {step.suggested && !step.aiDrafted && (
+                      <p className="text-xs text-accent">
+                        Suggested common practice. Change it to match your own screens, names and
+                        people, then verify the procedure.
                       </p>
                     )}
                     <textarea
