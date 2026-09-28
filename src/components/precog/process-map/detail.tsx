@@ -65,8 +65,8 @@ export function StandardLegend() {
         }}
       />
       <p className="mt-1.5 text-muted">
-        Small cards are colored by kind: red risk or control, amber idea, blue knowledge, green
-        person, grey waste.
+        The color of each small card shows its kind: red risk or control, amber idea, blue
+        knowledge, green person, gray waste.
       </p>
     </div>
   );
@@ -89,7 +89,7 @@ export function TerminatorLegend({ immediate }: { immediate: number | null }) {
       <p className="font-semibold tracking-widest">THREAT ANALYSIS</p>
       <p className="mt-1 normal-case tracking-normal text-red-300/90">
         {immediate === null
-          ? "Not assessed yet: nothing to lock on until the map is assessed."
+          ? "Not assessed yet: nothing to lock on until you assess the map."
           : `${immediate} target${immediate === 1 ? " requires" : "s require"} immediate attention. Pulsing lock = act this week.`}
       </p>
     </div>
@@ -154,7 +154,7 @@ export function ProcessDetail({
           <p className="text-xs text-muted">
             A sample process from the industry sample, as yet untouched. Its risks and notes are
             what such a process usually carries, not findings about your business; assign an owner
-            or edit it and it is scored.
+            or edit it, and Precog scores it.
           </p>
         )}
         {priority && (

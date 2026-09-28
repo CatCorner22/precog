@@ -367,7 +367,10 @@ export function ProcessBuilder({
   function removeProcess(id: string) {
     const p = processes.find((x) => x.id === id);
     if (!p) return;
-    if (!window.confirm(`Delete "${p.name}"? Dependencies pointing to it are removed.`)) return;
+    if (
+      !window.confirm(`Delete "${p.name}"? Precog also removes the dependencies that point to it.`)
+    )
+      return;
     setCustomProcesses((cur) =>
       cur
         .filter((x) => x.id !== id)
@@ -423,10 +426,10 @@ export function ProcessBuilder({
       toast.error("Import failed", {
         description:
           e instanceof SyntaxError
-            ? "The file is not a JSON backup from this app."
+            ? "The file is not a JSON backup from Precog."
             : e instanceof Error
               ? e.message
-              : "The file could not be read.",
+              : "Precog could not read the file.",
       });
       return;
     }

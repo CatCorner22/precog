@@ -130,9 +130,9 @@ export function SharePanel({
   if (user?.isDevFallback) {
     return (
       <div className="rounded-lg border border-border bg-panel p-2.5 text-xs text-muted">
-        Share links need a real account so they can be revoked later. Sign-in is turned off in this
-        build, so sharing is unavailable here — it works once the app is published with sign-in
-        enabled.
+        Share links need a real account so that you can revoke them later. This build has sign-in
+        turned off, so sharing is unavailable here; it works once Precog runs with sign-in turned
+        on.
       </div>
     );
   }
@@ -154,14 +154,14 @@ export function SharePanel({
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-xs">
       <p className="text-muted">
         Create a read-only snapshot for an advisor, lender, or board member — no sign-in needed to
-        view. Edits you make later are not shown; create a new link when you want to share an
-        update.
+        view. The link does not show edits you make later; create a new link when you want to share
+        an update.
       </p>
       <textarea
         className={cn(inputCls, "min-h-[44px] resize-y")}
         aria-label="Note to the reader (optional)"
         maxLength={NOTE_MAX}
-        placeholder="Optional note to the reader (e.g. 'Draft for our Q3 lender review — please focus on cash controls.')"
+        placeholder="Optional note to the reader (for example: 'Draft for our Q3 lender review — please focus on cash controls.')"
         value={note}
         onChange={(e) => setNote(e.target.value)}
       />
