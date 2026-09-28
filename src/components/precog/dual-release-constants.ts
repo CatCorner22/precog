@@ -10,7 +10,7 @@ export const EXCEPTION_ACTION_LABELS: { id: ExceptionAction; label: string; hint
   {
     id: "lower_threshold",
     label: "Lower limit",
-    hint: "Lower the threshold: two people are needed sooner.",
+    hint: "Lower the threshold: Precog requires two people sooner.",
   },
   {
     id: "force_dual",
@@ -20,7 +20,7 @@ export const EXCEPTION_ACTION_LABELS: { id: ExceptionAction; label: string; hint
   {
     id: "waive_dual",
     label: "Waiver",
-    hint: "No second signer for this match. The risk you keep is logged; use rarely.",
+    hint: "No second signer for this match. Precog logs the risk you keep; use this rarely.",
   },
 ];
 

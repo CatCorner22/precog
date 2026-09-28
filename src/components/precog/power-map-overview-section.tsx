@@ -40,9 +40,9 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
         />
         <StatTile
           icon={UserRoundCheck}
-          label="Stand-in cover (this app's index, 0 to 100)"
+          label="Stand-in cover (Precog's index, 0 to 100)"
           value={String(coverage.resilienceScore)}
-          hint={`${coverage.singlePoints.length} high-risk duties with one holder · ${coverage.unassigned.length} duties nobody holds. Assumes every duty is done in-house.`}
+          hint={`${coverage.singlePoints.length} high-risk duties with one holder · ${coverage.unassigned.length} duties nobody holds. Assumes your own staff do every duty.`}
           tone={coverage.unassigned.length > 0 ? "danger" : "primary"}
         />
         <StatTile
@@ -146,7 +146,7 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
         <CardHeader>
           <CardTitle className="text-base">How much each person can do alone</CardTitle>
           <CardDescription>
-            How much one person can do alone: this app&apos;s index, 0 to 100, from how many heavily
+            How much one person can do alone: Precog&apos;s index, 0 to 100, from how many heavily
             weighted duties they hold, across how many kinds of work, how many only they hold, and
             how many conflicts. Red from 75, amber from 50. Use it to decide whose work to review,
             not as a finding.

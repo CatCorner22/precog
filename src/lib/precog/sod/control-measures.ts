@@ -45,7 +45,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
   return {
     collect_cash: measures(
       [
-        "Write down how cash is taken and how the drawer is closed",
+        "Write down how staff take cash and close the drawer",
         "Train everyone who takes payment on receipts, shortages, and whom to tell",
       ],
       [
@@ -63,7 +63,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
     ),
     post_payments: measures(
       [
-        "Write down how payments are recorded and which reason codes are allowed",
+        "Write down how staff record payments and which reason codes they may use",
         "Keep the remittance slips and batch reports for every deposit",
       ],
       [
@@ -82,7 +82,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
     prepare_deposit: measures(
       [
         "Deposit the same day, and record who held the money at each step",
-        `Decide what proves a deposit was made, and tell ${w.overseer} about any late one`,
+        `Decide what proves that someone made a deposit, and tell ${w.overseer} about any late one`,
       ],
       [
         "Use sealed deposit bags and have two people count",
@@ -171,7 +171,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
     ),
     create_vendor: measures(
       [
-        "Write down how a supplier is added and how a change to its details is checked",
+        "Write down how staff add a supplier and check a change to its details",
         "Collect each supplier's tax form, owners, and bank details, and have staff declare any tie to it",
       ],
       [
@@ -193,7 +193,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
         "Set who approves each kind of supplier, and up to what spend",
       ],
       [
-        "Approve a supplier only once its details are checked",
+        "Approve a supplier only after someone checks its details",
         "Require a second approval for a supplier tied to staff or otherwise high-risk",
       ],
       [
@@ -219,7 +219,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
         "Review bills paid without a recorded approval",
       ],
       [
-        "Hold payment on any bill found without approval until it is approved",
+        "Hold payment on any bill that has no approval until someone approves it",
         "Recover and report any bill paid on false support",
       ],
     ),
@@ -238,7 +238,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
       ],
       [
         "Recall or stop an unauthorized payment the same day",
-        "Shut off any login that may be stolen and trace every step of the payment",
+        "Shut off any sign-in that a thief may hold, and trace every step of the payment",
       ],
     ),
     edit_payroll_master: measures(
@@ -310,30 +310,30 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
       ],
       [
         "Stop or recall a wrong payroll before it settles",
-        "Record what was recovered, what was corrected, and whose access changed",
+        "Record what you recovered, what you corrected, and whose access changed",
       ],
     ),
     pms_admin_roles: measures(
       [
-        "Give each login only what the job needs, and write down how administrator work is done",
+        "Give each sign-in only what the job needs, and write down how administrators do their work",
         "Record every access change with who asked, who approved, and when it ends, emergency access included",
       ],
       [
-        "Use named administrator logins with two-step sign-in, separate from daily logins",
+        "Use named administrator accounts with two-step sign-in, separate from daily accounts",
         "Let nobody approve their own access, and make extra rights expire",
       ],
       [
-        "Review role changes, administrator activity, and unused administrator logins",
+        "Review role changes, administrator activity, and unused administrator sign-ins",
         `${cap(w.overseer)} confirms the user list each quarter`,
       ],
       [
-        "Remove extra access and change any password that may be known",
+        "Remove extra access and change any password that someone else may know",
         "Look into changes nobody approved and put back the approved settings",
       ],
     ),
     issue_refunds: measures(
       [
-        "Write down when a refund is allowed, up to what amount, and what support it needs",
+        "Write down when staff may give a refund, up to what amount, and what support it needs",
         "Refund only to the card or account that paid, and record any exception",
       ],
       [
@@ -369,7 +369,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
     ),
     edit_patient_master: measures(
       [
-        `Write down how ${w.masterRecord} may be changed`,
+        `Write down who may change ${w.masterRecord}, and how`,
         "Train staff to open only the records they need and to verify who is asking",
       ],
       [
@@ -382,7 +382,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
       ],
       [
         "Restore the verified details and merge duplicate records",
-        "Work out whose data was affected and notify them as the law and your policy require",
+        "Work out whose data the incident affected, and notify them as the law and your policy require",
       ],
     ),
     manage_user_access: measures(
@@ -391,12 +391,12 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
         "Decide who approves administrator and emergency access",
       ],
       [
-        "Create logins from the hiring record, and keep administrator logins separate",
+        "Create sign-ins from the hiring record, and keep administrator sign-ins separate",
         `Extra rights need ${w.overseer}'s approval and expire on their own`,
       ],
       [
         `${cap(w.overseer)} confirms the user list and each user's rights every quarter`,
-        "Alert on new administrator rights, logins unused for 90 days, and logins not removed after someone leaves",
+        "Alert on new administrator rights, sign-ins unused for 90 days, and sign-ins not removed after someone leaves",
       ],
       [
         "Shut off access nobody authorized, and change the passwords involved",
@@ -405,7 +405,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
     ),
     export_bulk_data: measures(
       [
-        "Write down why data may be exported, to whom, how long it is kept, and how it is deleted",
+        "Write down why staff may export data, to whom, how long they keep it, and how they delete it",
         "Export only the data the purpose needs, with a privacy approval",
       ],
       [
@@ -414,11 +414,11 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
       ],
       [
         "Log and alert on large, after-hours, or unusual exports",
-        "Match each export to its approved request and to a confirmation it was deleted",
+        "Match each export to its approved request and to a confirmation that someone deleted it",
       ],
       [
         "Cancel the links and limit the spread of anything sent by mistake",
-        "Work out whose data was affected, notify them as required, and narrow export access",
+        "Work out whose data the incident affected, notify them as the law and your policy require, and narrow export access",
       ],
     ),
     order_supplies: measures(
@@ -441,7 +441,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
     ),
     receive_goods: measures(
       [
-        "Write down how deliveries are checked, recorded, and disputed",
+        "Write down how staff check, record, and dispute deliveries",
         "Have a named person record each delivery the day it arrives",
       ],
       [
@@ -459,7 +459,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
     ),
     enter_invoices: measures(
       [
-        "Write down what a bill needs before entry, how it is coded, and how duplicates are caught",
+        "Write down what a bill needs before entry, how staff code it, and how they catch duplicates",
         "Match each bill to its purchase order and receipt, or record who approved the exception",
       ],
       [
@@ -477,7 +477,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
     ),
     initiate_ach: measures(
       [
-        "Write down which electronic payments are allowed, their limits, and the bank's cutoff times",
+        "Write down which electronic payments staff may send, their limits, and the bank's cutoff times",
         `Act only on payment instructions you have confirmed, and take exceptions to ${w.overseer}`,
       ],
       [
@@ -490,7 +490,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
       ],
       [
         "Call the bank at once to recall a transfer",
-        "Lock the login, keep the records, and find out how it was misused",
+        "Lock the sign-in, keep the records, and find out how someone misused it",
       ],
     ),
     sign_checks: measures(
@@ -513,8 +513,8 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
     ),
     review_audit_logs: measures(
       [
-        "Decide which logs are read, how often, by whom, and whom to tell",
-        "List the high-risk events to look for and how long logs are kept",
+        "Decide who reads which logs, how often, and whom to tell",
+        "List the high-risk events to look for and how long to keep logs",
       ],
       [
         "Keep logs where nobody can edit them, and keep the reviewer apart from the administrator",
@@ -525,18 +525,18 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
         "Follow each exception until it is closed, and check that no log is missing",
       ],
       [
-        "Lock suspicious logins and keep the records",
+        "Lock suspicious sign-ins and keep the records",
         "Close logging gaps and adjust alerts after an incident",
       ],
     ),
     manage_backups: measures(
       [
-        "Decide how fast you must recover, what is backed up, how long copies are kept, and how often you test",
+        "Decide how fast you must recover, what the backups cover, how long to keep copies, and how often you test",
         "Name who restores the data and whom a failed backup alerts",
       ],
       [
-        "Keep an encrypted copy nobody can change or delete, offline or under a separate login",
-        "Require two-step sign-in for the backup system, and give each login only what it needs",
+        "Keep an encrypted copy nobody can change or delete, offline or under a separate sign-in",
+        "Require two-step sign-in for the backup system, and give each sign-in only what it needs",
       ],
       [
         "Check that every backup ran, covered everything, is recent, and has room",
@@ -568,11 +568,11 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
     review_card_statement: measures(
       [
         "Assign statement review to someone who holds no card on the account",
-        "Require a receipt and a stated purpose before a line is coded",
+        "Require a receipt and a stated purpose before anyone codes a line",
       ],
       [
         "Send the statement to the reviewer directly, not through a cardholder",
-        "Lock coding of the statement to the reviewer's login",
+        "Lock coding of the statement to the reviewer's sign-in",
       ],
       [
         `${cap(w.overseer)} reads the coded statement and questions any line without a receipt`,
@@ -580,7 +580,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
       ],
       [
         "Recode misposted lines and recover any personal charge found",
-        "Move the review when the reviewer is found to hold a card",
+        "Move the review to someone else if the reviewer holds a card",
       ],
     ),
     approve_expenses: measures(
@@ -590,7 +590,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
       ],
       [
         "Pay reimbursements as their own line, never through payroll",
-        "Require the receipt attached before a claim can be approved",
+        "Require the receipt before anyone approves a claim",
       ],
       [
         `${cap(w.overseer)} reads reimbursements by person each month and questions the pattern`,
@@ -598,7 +598,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
       ],
       [
         "Recover unsupported reimbursements and record the review",
-        "Remove approval authority after a self-approval is found",
+        "Remove approval authority from anyone found approving their own claim",
       ],
     ),
     view_reports_only: measures(
@@ -607,11 +607,11 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
         "Train report readers to keep and share only what they need",
       ],
       [
-        "Use read-only logins, hide fields not needed, and limit downloads",
+        "Use read-only sign-ins, hide fields not needed, and limit downloads",
         "Send scheduled reports instead of giving live access",
       ],
       [
-        "Review who can see reports, what they download and share, and unused logins",
+        "Review who can see reports, what they download and share, and unused sign-ins",
         "Once a year, confirm each reader still needs the reports",
       ],
       [

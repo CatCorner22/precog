@@ -43,7 +43,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
         <StatTile
           label="Segregation health"
           value={String(health)}
-          hint={`0 to 100 · ${healthLevel(health)} · this app's index`}
+          hint={`0 to 100 · ${healthLevel(health)} · Precog's index`}
           tone={
             health < HEALTH_SCALE.weak ? "danger" : health < HEALTH_SCALE.adequate ? "warn" : "ok"
           }
@@ -81,7 +81,7 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
       </div>
       {report.summary.unheldDuties.length > 0 && (
         <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-muted">
-          Nobody active is marked for:{" "}
+          You have marked nobody still working here for:{" "}
           {report.summary.unheldDuties.map(entitlementLabel).join(", ")}. Somebody does each of
           these in every business that handles money; mark who, or the map cannot see that seat.
         </p>

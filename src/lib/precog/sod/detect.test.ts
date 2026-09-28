@@ -484,7 +484,7 @@ describe("one finding per gap per person", () => {
     expect(rules).not.toContain("rule-sign-rec");
     const pair = report.conflicts.find((c) => c.ruleId === "rule-release-rec")!;
     expect(pair.compensatingControls).toContain(
-      "Bank Positive Pay: only checks on the owner's list are paid",
+      "Bank Positive Pay: the bank pays only checks on the owner's list",
     );
   });
 

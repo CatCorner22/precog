@@ -82,7 +82,7 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
             </CardTitle>
             <CardDescription>
               Each line joins a person to a duty they hold. A red moving line is a duty in a
-              conflict. Drag the boxes into whatever layout makes sense to your team.
+              conflict. Drag the boxes into the layout that makes sense to your team.
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -267,9 +267,9 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
           <CardHeader>
             <CardTitle className="text-base">Assignment builder</CardTitle>
             <CardDescription>
-              Pick a person, then add or remove duties. Each change updates this business&apos;s
-              Duty map on every tab and is saved. Undo reverses one step; Discard in Change review
-              returns to the baseline you accepted. No login or system permission changes.
+              Pick a person, then add or remove duties. Precog saves each change and updates this
+              business&apos;s Duty map on every tab. Undo reverses one step; Discard in Change
+              review returns to the baseline you accepted. No sign-in or system permission changes.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">

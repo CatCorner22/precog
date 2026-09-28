@@ -31,7 +31,7 @@ export function PowerMapResolutionSection({ model }: { model: PowerMapBuilderMod
               >
                 <ConflictSummary conflict={conflict}>
                   <p className="mt-2 text-xs text-muted">
-                    Until the duties are split:{" "}
+                    Until different people hold the duties:{" "}
                     {conflict.compensatingControls.slice(0, 2).join("; ")}
                   </p>
                 </ConflictSummary>
