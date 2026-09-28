@@ -524,7 +524,7 @@ function useLeave(
     toast.success(
       ended
         ? `${firstName(w.person.name)} is back — debrief the stand-ins below.`
-        : `${firstName(w.person.name)} is back; nothing was covered, so the entry was removed.`,
+        : `${firstName(w.person.name)} is back; nobody covered anything, so Precog removed the entry.`,
     );
   };
 

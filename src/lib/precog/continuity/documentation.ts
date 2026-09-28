@@ -75,7 +75,7 @@ export function documentationDebt(tpl: IndustryTemplate): DocumentationReport {
     let action: string;
     if (state === "none") {
       if (!author) {
-        action = `Nobody can run "${i.item.name}" and nothing is written down — find the last person who did it, or an outside provider, and get the steps on paper.`;
+        action = `Nobody can run "${i.item.name}" and nobody has written it down — find the last person who did it, or an outside provider, and get the steps on paper.`;
       } else if (i.status === "single" || i.status === "uncovered") {
         action = `Have ${author.name} write down "${i.item.name}" — it lives only in ${firstName(author.name)}'s head today.`;
       } else {

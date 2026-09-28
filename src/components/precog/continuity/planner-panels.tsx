@@ -191,7 +191,7 @@ export function PlannedLeaveCard({
         <CardDescription>
           Someone called in sick? Press their name and today&apos;s stand-in sheet appears: what
           stops, who steps in, where the procedure lives. Known absences — holidays, parental leave,
-          surgery — go in the form. The app flags overlapping absences, and once anyone is back a
+          surgery — go in the form. Precog flags overlapping absences, and once anyone is back a
           debrief asks whether the stand-in can now run it alone.
         </CardDescription>
       </CardHeader>
@@ -269,9 +269,9 @@ export function PlannedLeaveCard({
         )}
         {leave.report.windows.length === 0 && leaveHistory.length === 0 && people.length > 0 && (
           <p className="text-xs text-muted">
-            Nobody is out and no leave is booked. Add leave you know about, and the weekly plan, the
-            printed report and Pioneer will warn before it starts. The day someone calls in sick,
-            press their name above.
+            Nobody is out and nobody has booked leave. Add leave you know about, and the weekly
+            plan, the printed report and Pioneer will warn before it starts. The day someone calls
+            in sick, press their name above.
           </p>
         )}
         {leave.debriefs.map((d) => (
@@ -439,10 +439,10 @@ export function DependenceCard({
       <CardHeader>
         <CardTitle>Who the business leans on</CardTitle>
         <CardDescription>
-          Share of must-do work that stops if each person is out — the app&apos;s own index, in
-          which an item the business stops without counts three, one that hurts within a week counts
-          two, and one that can wait counts nothing. Spread the top names&apos; sole items to bring
-          these down.
+          Share of must-do work that stops if each person is out — Precog&apos;s own index, in which
+          an item the business stops without counts three, one that hurts within a week counts two,
+          and one that can wait counts nothing. Spread the top names&apos; sole items to bring these
+          down.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">

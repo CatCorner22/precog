@@ -158,7 +158,7 @@ function headline(b: TodayBrief): string | null {
       (k) => k.criticality !== "nice-to-have",
     ).length;
     const stops = !b.assessed
-      ? "nobody is marked on the register yet, so the app cannot tell what stops"
+      ? "the register does not mark anyone yet, so Precog cannot tell what stops"
       : stopCount === 0 && waiting > 0
         ? `nothing more on the register stops, but ${count(waiting, "entry", "entries")} nobody can run alone already ${verb(waiting, "waits", "wait")}`
         : stopCount === 0
@@ -184,7 +184,7 @@ function headline(b: TodayBrief): string | null {
     const l = b.leaving[0];
     const first = firstName(l.person.name);
     const work = !b.assessed
-      ? "the app cannot tell yet what depends on them alone"
+      ? "Precog cannot tell yet what depends on them alone"
       : l.handover.length === 0
         ? "nothing on the register depends on them alone"
         : `${count(l.handover.length, "entry", "entries")} to hand off${l.unlogged > 0 ? `, ${l.unlogged} not yet in the Decisions log` : ""}`;

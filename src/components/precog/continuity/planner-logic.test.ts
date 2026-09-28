@@ -43,14 +43,14 @@ describe("register confirmations", () => {
 
   it("says what a reset throws away", () => {
     expect(resetRegisterPrompt(register, "Dental")).toBe(
-      "Replace your 2 items and 3 marks with the dental sample list? Your items and every mark on them are lost, and this cannot be undone.",
+      "Replace your 2 items and 3 marks with the dental sample list? You lose your items and every mark on them, and you cannot undo this.",
     );
   });
 
   it("compares the register with the file before an import replaces it", () => {
     const file = { knowledge: [item("k9")], relations: [mark("p1", "k9")] };
     expect(importRegisterPrompt(register, file)).toBe(
-      "Replace your 2 items and 3 marks with the 1 item and 1 mark in this file? What the register says now is lost, and this cannot be undone.",
+      "Replace your 2 items and 3 marks with the 1 item and 1 mark in this file? You lose what the register says now, and you cannot undo this.",
     );
   });
 

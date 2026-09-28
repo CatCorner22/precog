@@ -194,7 +194,7 @@ describe("leaveDebriefs", () => {
     const [alone] = leaveDebriefs(solo, [leave()], [], "general", today);
     expect(alone.items[0].standIn).toBeNull();
     expect(describeDebriefItem(alone, alone.items[0])).toBe(
-      "Nobody was lined up for pms for those 8 days — did someone step in?",
+      "You lined up nobody for pms for those 8 days — did someone step in?",
     );
   });
 

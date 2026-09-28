@@ -122,12 +122,12 @@ export function checkInViewFor(choice: string | null, plan: CheckInPlan): string
 
 /** Asked before "Back to starter list" throws away the owner's own register. */
 export function resetRegisterPrompt(register: RegisterContents, industryLabel: string): string {
-  return `Replace your ${registerSize(register)} with the ${industryLabel.toLowerCase()} sample list? Your items and every mark on them are lost, and this cannot be undone.`;
+  return `Replace your ${registerSize(register)} with the ${industryLabel.toLowerCase()} sample list? You lose your items and every mark on them, and you cannot undo this.`;
 }
 
 /** Asked before an imported file replaces the owner's own register. */
 export function importRegisterPrompt(register: RegisterContents, file: RegisterContents): string {
-  return `Replace your ${registerSize(register)} with the ${registerSize(file)} in this file? What the register says now is lost, and this cannot be undone.`;
+  return `Replace your ${registerSize(register)} with the ${registerSize(file)} in this file? You lose what the register says now, and you cannot undo this.`;
 }
 
 /** Asked before one item, and everyone's mark on it, leaves the register. */

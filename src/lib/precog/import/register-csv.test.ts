@@ -189,7 +189,7 @@ describe("parseRegisterCsv", () => {
         row: 1,
         message: '"guru" is not a level for Ana Ruiz; use expert, can do, learning or aware',
       },
-      { row: 2, message: "Item name is required" },
+      { row: 2, message: "Each row must have an item name" },
       { row: 3, message: '"RUN PAYROLL" appears twice; the importer skipped the second row' },
       { row: 4, message: '"Run payroll" appears twice; the importer skipped the second row' },
     ]);
