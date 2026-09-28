@@ -55,6 +55,15 @@ export function serverUtcDay(now: Date = new Date()): string {
   return utcDateKey(now);
 }
 
+/**
+ * The latest calendar day any client may call today: the server's UTC day
+ * plus one, the limit resolveClientDate allows. Dates checked on the server
+ * against it hold for every client that later loads them.
+ */
+export function latestClientDay(now: Date = new Date()): string {
+  return shiftDay(serverUtcDay(now), 1);
+}
+
 /** True when `value` is a real "YYYY-MM-DD" day, and not later than `today` when one is given. */
 export function isCalendarDate(value: string, today?: string): boolean {
   const date = utcDay(value);

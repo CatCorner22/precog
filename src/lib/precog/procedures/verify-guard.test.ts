@@ -11,6 +11,8 @@ import {
 } from "./verify-guard";
 
 const TODAY = "2026-09-28";
+/** The latest day a client may claim on TODAY (see latestClientDay). */
+const LATEST = "2026-09-29";
 const written = (id = "proc-1"): Procedure =>
   newProcedure(
     { id, industry: "general", title: "Make the deposit", steps: [newStep("Count the drawer.")] },
@@ -30,13 +32,21 @@ function refusal(fn: () => void): string | null {
   }
 }
 
-function save(previous: unknown, next: unknown, saverRole: SaverRole, saverId = ada.id) {
+function save(
+  previous: unknown,
+  next: unknown,
+  saverRole: SaverRole,
+  saverId = ada.id,
+  saverNames = [ada.name, "ada@example.test"],
+) {
   return refusal(() =>
     assertVerificationsAllowed({
       previousProfile: previous,
       nextProfile: next,
       saverId,
       saverRole,
+      saverNames,
+      latestDay: LATEST,
     }),
   );
 }
@@ -100,13 +110,10 @@ describe("who may verify, checked when the business is saved", () => {
 
   it("treats a verification made again, or credited to someone else, as new", () => {
     const v = verifyProcedure(written(), "owner", "2026-09-01", ada);
-    expect(newVerifications(profileWith(v), profileWith({ ...v, verifiedAt: TODAY }))).toHaveLength(
-      1,
-    );
-    expect(newVerifications(profileWith(v), profileWith({ ...v, verifiedBy: "p2" }))).toHaveLength(
-      1,
-    );
-    expect(newVerifications(profileWith(v), profileWith(v))).toHaveLength(0);
+    const fresh = (next: unknown) => newVerifications(profileWith(v), next, LATEST).length;
+    expect(fresh(profileWith({ ...v, verifiedAt: TODAY }))).toBe(1);
+    expect(fresh(profileWith({ ...v, verifiedBy: "p2" }))).toBe(1);
+    expect(fresh(profileWith(v))).toBe(0);
   });
 
   it("sees a verification however the JSON hides it, as the app would show it", () => {
@@ -114,9 +121,37 @@ describe("who may verify, checked when the business is saved", () => {
     // A first entry the app drops (no title) followed by the verified copy.
     const repeated = profileWith({ id: v.id, industry: "general" }, v);
     expect(save(before, repeated, "preparer")).toBe(PREPARER_CANNOT_VERIFY);
-    // Padded id, and a date after today that the app would show once it arrives.
-    const padded = profileWith({ ...v, id: ` ${v.id} `, verifiedAt: "2027-01-01" });
+    // A padded id reads as the same procedure.
+    const padded = profileWith({ ...v, id: ` ${v.id} ` });
     expect(save(before, padded, "preparer")).toBe(PREPARER_CANNOT_VERIFY);
+  });
+
+  it("refuses a preparer who keeps a verification on steps they changed", () => {
+    const verified = verifyProcedure(written(), "owner", TODAY, ada);
+    const rewritten = { ...verified, steps: [newStep("Pay account 999 at another bank.")] };
+    expect(save(profileWith(verified), profileWith(rewritten), "preparer", "user-pat")).toBe(
+      PREPARER_CANNOT_VERIFY,
+    );
+    const moved = { ...verified, module: "Payments › Wire" };
+    expect(save(profileWith(verified), profileWith(moved), "preparer", "user-pat")).toBe(
+      PREPARER_CANNOT_VERIFY,
+    );
+  });
+
+  it("checks the recorded-by name: a preparer cannot rename it, and a stamp needs the saver's own name", () => {
+    const verified = verifyProcedure(written(), "owner", TODAY, ada);
+    const renamed = { ...verified, verifiedByAccountName: "Olga Owner, CPA" };
+    expect(save(profileWith(verified), profileWith(renamed), "preparer", "user-pat")).toBe(
+      PREPARER_CANNOT_VERIFY,
+    );
+    const underOtherName = profileWith(
+      verifyProcedure(written(), "owner", TODAY, { id: ada.id, name: "Olga Owner, CPA" }),
+    );
+    expect(save(before, underOtherName, "owner")).toBe(VERIFICATION_ACCOUNT_MISMATCH);
+    const underEmail = profileWith(
+      verifyProcedure(written(), "owner", TODAY, { id: ada.id, name: "ada@example.test" }),
+    );
+    expect(save(before, underEmail, "owner")).toBeNull();
   });
 
   it("ignores junk the app would not show as a verification", () => {

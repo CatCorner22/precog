@@ -532,8 +532,9 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const saveProcedure = useCallback((next: Procedure) => {
-    if (!procedureFits(profileRef.current, next)) return false;
-    setProfile((p) => withProcedure(p, next, localDateKey(new Date())));
+    const today = localDateKey(new Date());
+    if (!procedureFits(profileRef.current, next, today)) return false;
+    setProfile((p) => withProcedure(p, next, today));
     return true;
   }, []);
 

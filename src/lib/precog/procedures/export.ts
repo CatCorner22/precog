@@ -1,6 +1,6 @@
 import { formatDay } from "../dates";
 import { slug } from "../text";
-import { PROCEDURE_STATUS_LABEL, procedureStatus, reviewByDate } from "./lifecycle";
+import { PROCEDURE_STATUS_LABEL, procedureStatus, reviewByDate, shownSteps } from "./lifecycle";
 import type { Place, Procedure } from "./types";
 
 /**
@@ -37,23 +37,27 @@ export function procedureMarkdown(p: Procedure, ctx: ExportContext): string {
   for (const [label, value] of facts) {
     if (value) lines.push(`**${label}:** ${label === "Link" ? `<${value}>` : inline(value)}  `);
   }
-  if (p.purpose) lines.push("", block(p.purpose));
+  if (p.purpose) lines.push("", inline(p.purpose));
   if (p.prerequisites.length) {
     lines.push("", "## What you need first", "");
     for (const x of p.prerequisites) lines.push(`- ${inline(x)}`);
   }
   lines.push("", "## Steps", "");
-  const steps = p.steps.filter((s) => s.text.trim());
+  const steps = shownSteps(p);
   if (!steps.length) lines.push("No steps yet.");
   steps.forEach((s, i) => {
-    lines.push(`${i + 1}. ${inline(s.text)}`);
     const pad = " ".repeat(String(i + 1).length + 2);
-    if (s.caution) lines.push(`${pad}**Caution:** ${inline(s.caution)}`);
-    if (s.requiresPhoto) lines.push(`${pad}_Take a photo as you do this step._`);
     const pictures = s.imageIds?.length ?? 0;
-    if (pictures)
-      lines.push(`${pad}_${pictures} ${pictures === 1 ? "picture" : "pictures"} in Precog._`);
-    if (s.aiDrafted) lines.push(`${pad}_Drafted by Grok; not yet checked by a person._`);
+    // Each step's parts, in order; the first goes on the numbered line, so a
+    // step with only a caution, a photo or pictures still reads as a step.
+    const parts = [
+      s.text.trim() ? inline(s.text) : "",
+      s.caution ? `**Caution:** ${inline(s.caution)}` : "",
+      s.requiresPhoto ? "_Take a photo as you do this step._" : "",
+      pictures ? `_${pictures} ${pictures === 1 ? "picture" : "pictures"} in Precog._` : "",
+      s.aiDrafted ? "_Drafted by Grok; not yet checked by a person._" : "",
+    ].filter(Boolean);
+    parts.forEach((part, j) => lines.push(j === 0 ? `${i + 1}. ${part}` : `${pad}${part}`));
   });
   const names = (ids: readonly string[]) =>
     ids.map((id) => ctx.nameOf(id) ?? id).join(", ") || undefined;
@@ -133,12 +137,16 @@ function statusLine(p: Procedure, ctx: ExportContext): string {
   return PROCEDURE_STATUS_LABEL[status];
 }
 
-/** Owner text on one line, with the characters Markdown would act on escaped. */
+/**
+ * Owner text on one line, with the characters Markdown would act on escaped,
+ * and never read as a heading, quote, rule, code fence or list item where it
+ * starts a line or a list entry.
+ */
 function inline(value: string): string {
-  return value.replace(/\s*\n\s*/g, " ").replace(/([\\`*_[\]<>|])/g, "\\$1");
-}
-
-/** Owner text as a paragraph: inline, and never read as a heading, quote or list item. */
-function block(value: string): string {
-  return inline(value).replace(/^(#|>|[-+]\s|\d+[.)]\s)/, "\\$1");
+  return value
+    .trim()
+    .replace(/\s*\n\s*/g, " ")
+    .replace(/([\\`*_[\]<>|~])/g, "\\$1")
+    .replace(/^([#+=-])/, "\\$1")
+    .replace(/^(\d+)([.)])/, "$1\\$2");
 }

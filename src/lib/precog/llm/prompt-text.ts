@@ -14,7 +14,13 @@ import type { GrokAccess } from "./types";
  * block's content, not field by field, so no field is missed.
  */
 export function ownerText(value: string): string {
-  return value.replace(OWNER_TAG, "");
+  // Repeated until nothing changes: removing one tag must not join the text
+  // around it into another ("</owner_te</owner_text>xt>").
+  let text = value;
+  for (let next = text.replace(OWNER_TAG, ""); next !== text; next = text.replace(OWNER_TAG, "")) {
+    text = next;
+  }
+  return text;
 }
 
 /**

@@ -1,5 +1,6 @@
 import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
-import { resolveClientDate } from "./dates";
+import { latestClientDay, resolveClientDate } from "./dates";
+import { normalizePlaces, normalizeProcedures } from "./procedures/normalize";
 import { isIndustryId, type IndustryId } from "./industry";
 import { isBusinessId, validateProfileInput } from "./profile-input";
 import type { PracticeProfile } from "./practice-profile";
@@ -21,6 +22,8 @@ interface SaveBusinessRequest {
   /** The account revision the save builds on; null for a business the account has never held. */
   baseRevision: number | null;
   today: string;
+  /** The latest day a stored date may carry (see latestClientDay). */
+  latestDay: string;
 }
 
 export function parseSaveBusinessRequest(input: unknown): SaveBusinessRequest {
@@ -30,7 +33,8 @@ export function parseSaveBusinessRequest(input: unknown): SaveBusinessRequest {
       409,
       "Reload this application before saving so the account can be verified.",
     );
-  const checked = validateProfileInput(raw.profile);
+  const latestDay = latestClientDay();
+  const checked = storedProcedures(validateProfileInput(raw.profile), latestDay);
   const industry = raw.industry ?? checked.profile.industry;
   if (!isIndustryId(industry)) throw new RequestError(400, "Unknown industry");
   const baseRevision = raw.baseRevision ?? null;
@@ -45,6 +49,33 @@ export function parseSaveBusinessRequest(input: unknown): SaveBusinessRequest {
     industry,
     baseRevision,
     today: resolveClientDate(raw.today),
+    latestDay,
+  };
+}
+
+/**
+ * The profile with its places and procedures as the app will load them
+ * (normalized, within the byte budget, no date after `latestDay`), so what is
+ * stored is exactly what the verification check reads and what every client
+ * shows, however the request was built.
+ */
+function storedProcedures(
+  checked: { profile: PracticeProfile; businessId: string; json: string },
+  latestDay: string,
+): { profile: PracticeProfile; businessId: string; json: string } {
+  const raw = checked.profile as PracticeProfile & Record<string, unknown>;
+  if (raw.procedures === undefined && raw.places === undefined) return checked;
+  const profile: PracticeProfile = {
+    ...checked.profile,
+    ...(raw.places !== undefined ? { places: normalizePlaces(raw.places) } : {}),
+    ...(raw.procedures !== undefined
+      ? { procedures: normalizeProcedures(raw.procedures, latestDay) }
+      : {}),
+  };
+  return {
+    profile,
+    businessId: checked.businessId,
+    json: JSON.stringify({ ...profile, businessId: checked.businessId }),
   };
 }
 

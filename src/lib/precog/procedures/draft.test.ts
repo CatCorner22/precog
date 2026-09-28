@@ -29,6 +29,27 @@ Finally click Finish now`,
     expect(draft.steps).toEqual(["Open Banking."]);
   });
 
+  it("keeps a condition with its action, abbreviations inside a step, and hyphenated words whole", () => {
+    expect(draftLocally({ notes: "If the deposit is over $10,000 then file a CTR" }).steps).toEqual(
+      ["If the deposit is over $10,000 then file a CTR."],
+    );
+    expect(draftLocally({ notes: "Call Dr. Patel for approval" }).steps).toEqual([
+      "Call Dr. Patel for approval.",
+    ]);
+    expect(draftLocally({ notes: "Deposit by 10 a.m. Friday" }).steps).toEqual([
+      "Deposit by 10 a.m. Friday.",
+    ]);
+    expect(
+      draftLocally({
+        notes: "Next-day deposits go in the red bag\nSecond-shift manager counts the drawer",
+      }).steps,
+    ).toEqual(["Next-day deposits go in the red bag.", "Second-shift manager counts the drawer."]);
+    expect(draftLocally({ notes: "First - open the safe. Then count it." }).steps).toEqual([
+      "Open the safe.",
+      "Count it.",
+    ]);
+  });
+
   it('keeps an action phrased as "need to" as a step, not a prerequisite', () => {
     const draft = draftLocally({
       notes: "Need to open Banking\nYou need to submit the report\nYou need to have the bank login",

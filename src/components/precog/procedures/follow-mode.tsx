@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Camera, CheckCircle2, ClipboardCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { shownSteps } from "@/lib/precog/procedures/lifecycle";
 import type { Procedure } from "@/lib/precog/procedures/types";
 import { StoredPicture } from "./step-pictures";
 
@@ -24,7 +25,8 @@ export function FollowMode({
   onClose: () => void;
   onRecordRun: () => void;
 }) {
-  const steps = procedure.steps.filter((s) => s.text.trim());
+  // The same steps, in the same numbering, as the procedure view, print and export.
+  const steps = shownSteps(procedure);
   const dialog = useRef<HTMLDialogElement>(null);
   const next = useRef<HTMLButtonElement>(null);
   const [index, setIndex] = useState(0);
@@ -89,7 +91,7 @@ export function FollowMode({
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-xl leading-relaxed sm:text-2xl">{step.text}</p>
+            {step.text.trim() && <p className="text-xl leading-relaxed sm:text-2xl">{step.text}</p>}
             {step.caution && (
               <p className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-base text-warn">
                 Caution: {step.caution}

@@ -157,10 +157,27 @@ export function aiDraftedSteps(p: Pick<Procedure, "steps">): number {
   return p.steps.filter((s) => s.aiDrafted && s.text.trim()).length;
 }
 
-/** Everything a stand-in would follow; a change to any of it needs a new verification. */
+/**
+ * A step a stand-in would see: one with text, a caution, pictures or the
+ * photo flag. The view, follow mode, print and export all show these steps,
+ * so they number them the same way.
+ */
+export function stepHasContent(s: ProcedureStep): boolean {
+  return Boolean(s.text.trim() || s.caution?.trim() || s.imageIds?.length || s.requiresPhoto);
+}
+
+/** The steps a stand-in would see, in order. */
+export function shownSteps(p: Pick<Procedure, "steps">): ProcedureStep[] {
+  return p.steps.filter(stepHasContent);
+}
+
+/**
+ * Everything a stand-in would follow; a change to any of it needs a new
+ * verification. An empty step, which nobody sees, is not part of it.
+ */
 export function contentKey(p: Procedure): string {
   return JSON.stringify([
-    p.steps.map((s) => [
+    shownSteps(p).map((s) => [
       s.text.trim(),
       s.caution?.trim() ?? "",
       s.imageIds ?? [],
@@ -186,7 +203,19 @@ export function describeChange(prev: Procedure, next: Procedure): string {
     parts.push(`removed ${before - after} ${before - after === 1 ? "step" : "steps"}`);
   const stepsKey = (p: Procedure) =>
     JSON.stringify(p.steps.map((s) => [s.id, s.text.trim(), s.caution?.trim() ?? ""]));
-  if (after === before && stepsKey(prev) !== stepsKey(next)) parts.push("edited steps");
+  // A step kept from before whose words changed, even in a save that also added or removed steps.
+  const earlier = new Map(prev.steps.map((s) => [s.id, s]));
+  const reworded = next.steps.some((s) => {
+    const was = earlier.get(s.id);
+    return (
+      was !== undefined &&
+      (was.text.trim() !== s.text.trim() ||
+        (was.caution?.trim() ?? "") !== (s.caution?.trim() ?? ""))
+    );
+  });
+  if (reworded || (after === before && stepsKey(prev) !== stepsKey(next))) {
+    parts.push("edited steps");
+  }
   // Only steps that carry pictures or the photo flag; adding a plain step is not a picture change.
   const pictures = (p: Procedure) =>
     JSON.stringify(

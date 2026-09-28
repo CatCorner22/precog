@@ -375,12 +375,14 @@ export function withProcedure(p: PracticeProfile, next: Procedure, today: string
 }
 
 /** Whether saving `next` keeps the procedures within their count and byte limits. */
-export function procedureFits(p: PracticeProfile, next: Procedure): boolean {
+export function procedureFits(p: PracticeProfile, next: Procedure, today: string): boolean {
   const list = p.procedures ?? [];
-  const exists = list.some((x) => x.id === next.id);
-  if (!exists && list.length >= PROCEDURE_LIMITS.procedures) return false;
+  const prev = list.find((x) => x.id === next.id) ?? null;
+  if (!prev && list.length >= PROCEDURE_LIMITS.procedures) return false;
   const others = list.filter((x) => x.id !== next.id);
-  return proceduresBytes([next, ...others]) <= PROCEDURE_LIMITS.bytes;
+  // Measured as withProcedure will store it, with the change-log entry the edit adds.
+  const saved = withProcedureEdit(prev, next, today);
+  return proceduresBytes([saved, ...others]) <= PROCEDURE_LIMITS.bytes;
 }
 
 /**

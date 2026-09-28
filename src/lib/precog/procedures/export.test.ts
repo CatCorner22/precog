@@ -77,6 +77,39 @@ describe("a procedure as Markdown", () => {
     expect(md).toContain("- Covers on Who knows what: Bank reconciliation");
   });
 
+  it("keeps owner text from turning into code, rules, headings or nested lists", () => {
+    const p = {
+      ...newProcedure({ industry: "general", title: "Close" }, TODAY),
+      purpose: "~~~ keep the bag locked",
+      prerequisites: ["- tick each"],
+      steps: [newStep("# Totals"), newStep("---"), newStep("1. Keep the bag locked")],
+    };
+    const md = procedureMarkdown(p, ctx);
+    expect(md).toContain("\n\\~\\~\\~ keep the bag locked\n");
+    expect(md).toContain("- \\- tick each");
+    expect(md).toContain("1. \\# Totals");
+    expect(md).toContain("2. \\---");
+    expect(md).toContain("3. 1\\. Keep the bag locked");
+    expect(md).not.toMatch(/^~~~/m);
+    expect(md).not.toMatch(/^---$/m);
+  });
+
+  it("numbers steps as the view does, keeping one that is only a caution", () => {
+    const p = {
+      ...newProcedure({ industry: "general", title: "Close" }, TODAY),
+      steps: [
+        newStep("Count the drawer."),
+        { ...newStep(""), caution: "Do not press Undo." },
+        newStep(""),
+        { ...newStep(""), requiresPhoto: true as const },
+        newStep("Seal the bag."),
+      ],
+    };
+    const md = procedureMarkdown(p, ctx);
+    expect(md).toContain("1. Count the drawer.\n2. **Caution:** Do not press Undo.\n");
+    expect(md).toContain("3. _Take a photo as you do this step._\n4. Seal the bag.");
+  });
+
   it("names the account that recorded the verification, when one did", () => {
     const p = verifyProcedure(reconcile(), "owner", "2026-09-10", { id: "u1", name: "Ada Owner" });
     expect(procedureMarkdown(p, ctx)).toContain(
