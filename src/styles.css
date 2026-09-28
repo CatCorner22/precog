@@ -110,6 +110,10 @@
     text-decoration: none;
     color: inherit;
   }
+  /* Printing procedures: only the print view, none of the app around it. */
+  body:has(> .procedure-print) > :not(.procedure-print) {
+    display: none !important;
+  }
 }
 
 /* ── Keyboard focus on the map canvas (React Flow's own CSS removes it) ── */

@@ -151,11 +151,14 @@ export function StoredPicture({
   imageId,
   alt,
   className,
+  eager = false,
 }: {
   businessId: string;
   imageId: string;
   alt: string;
   className?: string;
+  /** Load now rather than when scrolled into view, as printing needs. */
+  eager?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
   if (failed) {
@@ -175,7 +178,7 @@ export function StoredPicture({
       <img
         src={pictureUrl(businessId, imageId)}
         alt={alt}
-        loading="lazy"
+        loading={eager ? "eager" : "lazy"}
         className={cn("rounded-md border border-border object-contain", className)}
         onError={() => setFailed(true)}
       />

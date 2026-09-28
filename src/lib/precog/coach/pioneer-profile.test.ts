@@ -4,6 +4,10 @@ import { getIndustryTemplate } from "../templates";
 import { executeTool, TOOL_CATALOG } from "../llm/tools";
 import { KNOWLEDGE_CORPUS } from "../rag/corpus";
 import { pioneerProfileFrom } from "./pioneer-profile";
+import { isWritten, procedureWhere } from "../continuity/documentation";
+import { LINK_ONLY_STEP, writtenProcedureLinks } from "../procedures/coverage-link";
+import { newProcedure, newStep } from "../procedures/lifecycle";
+import { parsePioneerInput } from "../public-inputs";
 
 const dental = getIndustryTemplate("dental");
 const retail = getIndustryTemplate("retail");
@@ -185,5 +189,105 @@ describe("Pioneer tools on a Retail profile", () => {
     const graph = executeTool("get_knowledge_graph", { profile: p });
     expect(graph.ok).toBe(true);
     expect(JSON.stringify(graph.data)).not.toContain(retail.people[5].name);
+  });
+});
+
+describe("procedure links sent to Pioneer", () => {
+  const item = dental.knowledge.find((k) => !k.documented)!;
+
+  it("count a register item as written, as every other screen does", () => {
+    const without = resolveTemplate(pioneerProfileFrom({ industry: "dental" }));
+    expect(isWritten(without.knowledge.find((k) => k.id === item.id)!)).toBe(false);
+    const p = pioneerProfileFrom(
+      {
+        industry: "dental",
+        procedureLinks: [{ id: "proc-1", title: "Close the day", knowledgeIds: [item.id] }],
+      },
+      "2026-09-28",
+    );
+    const linked = resolveTemplate(p).knowledge.find((k) => k.id === item.id)!;
+    expect(linked.linkedProcedures).toEqual([{ id: "proc-1", title: "Close the day" }]);
+    expect(isWritten(linked)).toBe(true);
+    expect(procedureWhere(linked)).toBe('Procedures tab: "Close the day"');
+  });
+
+  it("reach the coach's tools, which stop calling the item unwritten", () => {
+    type Spof = { knowledgeId: string; documented: boolean; procedureLocation: string | null };
+    const spofs = (profile: ReturnType<typeof pioneerProfileFrom>) =>
+      executeTool("get_knowledge_spofs", { profile }).data as Spof[];
+    const target = spofs(pioneerProfileFrom({ industry: "dental" })).find((s) => !s.documented)!;
+    expect(target).toBeDefined();
+    const after = spofs(
+      pioneerProfileFrom({
+        industry: "dental",
+        procedureLinks: [
+          { id: "proc-1", title: "Close the day", knowledgeIds: [target.knowledgeId] },
+        ],
+      }),
+    ).find((s) => s.knowledgeId === target.knowledgeId)!;
+    expect(after.documented).toBe(true);
+    expect(after.procedureLocation).toBe('Procedures tab: "Close the day"');
+  });
+
+  it("carry no steps, people or verification into the rebuilt profile", () => {
+    const [proc] = pioneerProfileFrom(
+      {
+        industry: "dental",
+        procedureLinks: [{ id: "proc-1", title: "Close the day", knowledgeIds: [item.id] }],
+      },
+      "2026-09-28",
+    ).procedures!;
+    expect(proc.steps.map((s) => s.text)).toEqual([LINK_ONLY_STEP]);
+    expect(proc.backupPersonIds).toEqual([]);
+    expect(proc.ownerPersonId).toBeUndefined();
+    expect(proc.verifiedAt).toBeUndefined();
+    expect(proc.industry).toBe("dental");
+  });
+
+  it("drop links without an id, a title or an item, and repeated ids", () => {
+    const p = pioneerProfileFrom({
+      industry: "dental",
+      procedureLinks: [
+        { id: "a", title: "One", knowledgeIds: [item.id, item.id, 7, "x".repeat(200)] },
+        { id: "a", title: "Again", knowledgeIds: [item.id] },
+        { id: "b", title: "", knowledgeIds: [item.id] },
+        { id: "c", title: "No items", knowledgeIds: [] },
+        null,
+        "text",
+      ] as never,
+    });
+    expect(p.procedures?.map((x) => [x.id, x.knowledgeIds])).toEqual([["a", [item.id]]]);
+    expect(pioneerProfileFrom({ industry: "dental" }).procedures).toBeUndefined();
+  });
+
+  it("are read by the request check, which refuses a list of the wrong kind", () => {
+    const links = [{ id: "a", title: "One", knowledgeIds: [item.id] }];
+    expect(
+      parsePioneerInput({ profile: { procedureLinks: links } }).profile.procedureLinks,
+    ).toEqual(links);
+    expect(() => parsePioneerInput({ profile: { procedureLinks: "a" } })).toThrow();
+  });
+
+  it("are built in the browser from this industry's written procedures only", () => {
+    const written = newProcedure(
+      {
+        industry: "dental",
+        title: "Close the day",
+        steps: [newStep("Print the day sheet.")],
+        knowledgeIds: [item.id],
+        backupPersonIds: ["p2"],
+      },
+      "2026-09-28",
+    );
+    const links = writtenProcedureLinks(
+      [
+        written,
+        { ...written, id: "empty", steps: [] },
+        { ...written, id: "retail", industry: "retail" },
+        { ...written, id: "unlinked", knowledgeIds: [] },
+      ],
+      "dental",
+    );
+    expect(links).toEqual([{ id: written.id, title: "Close the day", knowledgeIds: [item.id] }]);
   });
 });

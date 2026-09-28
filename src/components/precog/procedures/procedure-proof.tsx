@@ -21,7 +21,16 @@ import { firstName, joinWithAnd } from "@/lib/precog/text";
  * a form to record a run. After an unaided run the owner is offered the level
  * change on Who knows what; it is logged in the Journal when accepted.
  */
-export function ProofSection({ procedure, today }: { procedure: Procedure; today: string }) {
+export function ProofSection({
+  procedure,
+  today,
+  defaultOpen = false,
+}: {
+  procedure: Procedure;
+  today: string;
+  /** Open the form to record a run straight away, as after following the steps. */
+  defaultOpen?: boolean;
+}) {
   const tpl = useTemplate();
   const { profile } = usePractice();
   const { recordProcedureProof, setCustomRelations, addDecision } = usePracticeActions();
@@ -29,7 +38,7 @@ export function ProofSection({ procedure, today }: { procedure: Procedure; today
   const nameOf = (id: string) =>
     tpl.people.find((p) => p.id === id)?.name ?? "someone who has left";
   const candidates = people.filter((p) => p.id !== procedure.ownerPersonId);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [personId, setPersonId] = useState(procedure.backupPersonIds[0] ?? candidates[0]?.id ?? "");
   const [on, setOn] = useState(today);
   const [alone, setAlone] = useState(true);
@@ -74,7 +83,11 @@ export function ProofSection({ procedure, today }: { procedure: Procedure; today
   }
 
   return (
-    <section className="space-y-2" aria-labelledby={`proof-${procedure.id}`}>
+    <section
+      id={`proof-section-${procedure.id}`}
+      className="scroll-mt-40 space-y-2"
+      aria-labelledby={`proof-${procedure.id}`}
+    >
       <h3
         id={`proof-${procedure.id}`}
         className="text-xs font-medium uppercase tracking-wide text-muted"

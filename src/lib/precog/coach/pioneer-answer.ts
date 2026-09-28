@@ -70,9 +70,10 @@ export const MODEL_FAILED_WARNING =
 /** Validates the coach request; a profile the schema let through but the builder rejects is a 400. */
 export function readPioneerRequest(input: PioneerCoachInput): PioneerRequestData {
   const request = parsePioneerInput(input);
+  const today = resolveClientDate(request.today);
   let profile: PracticeProfile;
   try {
-    profile = pioneerProfileFrom(request.profile);
+    profile = pioneerProfileFrom(request.profile, today);
   } catch (error) {
     // The schema checked the shapes Pioneer walks; anything it missed is
     // still the caller's input, answered as such without the internal text.
@@ -82,7 +83,7 @@ export function readPioneerRequest(input: PioneerCoachInput): PioneerRequestData
   return {
     question: request.question,
     profile,
-    today: resolveClientDate(request.today),
+    today,
   };
 }
 

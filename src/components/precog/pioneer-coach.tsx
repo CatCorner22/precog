@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { writtenProcedureLinks } from "@/lib/precog/procedures/coverage-link";
 import { runPioneerCoach } from "@/lib/precog/coach/pioneer-server";
 import { CONTROL_CONFIRM_TAB, CONTROL_IN_PLACE_TAB } from "@/lib/precog/active-template";
 import { usePractice } from "@/lib/precog/practice-context";
@@ -77,6 +78,8 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
             // screen.
             decisions: profile.decisions.filter((d) => PIONEER_JOURNAL_TABS.has(d.linkedTab ?? "")),
             plannedAbsences: profile.plannedAbsences ?? [],
+            // Which register items have a written procedure; never the steps.
+            procedureLinks: writtenProcedureLinks(profile.procedures, profile.industry),
           },
         },
       });
