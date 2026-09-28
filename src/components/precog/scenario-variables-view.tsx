@@ -65,8 +65,8 @@ export function ScenarioVariablesView({
       </div>
       {whatIfActive && (
         <p className="rounded-lg border border-warn/40 bg-warn/5 p-3 text-xs text-muted">
-          These figures use your saved staffing. The staffing you are trying on One scenario is not
-          saved yet.
+          These figures use your saved staffing. You have not yet saved the staffing you are trying
+          on One scenario.
         </p>
       )}
       <DynamicVariablesPanel

@@ -93,7 +93,7 @@ export function starterScenarioNote(
 ): string | null {
   const left = starterScenariosLeftOut(tpl, confirmed);
   if (left.length === 0) return null;
-  return `${starterScenarioLabel(tpl.id)} (${left.length}) are left out: their losses and timelines are the sample's assumptions, not facts about your business. ${MAKE_SCENARIO_YOURS}`;
+  return `${starterScenarioLabel(tpl.id)} (${left.length}) stay out: their losses and timelines are the sample's assumptions, not facts about your business. ${MAKE_SCENARIO_YOURS}`;
 }
 
 const NARRATIVE_CACHE = new WeakMap<IndustryTemplate, IndustryTemplate>();

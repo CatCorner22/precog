@@ -104,7 +104,7 @@ export const nonprofitTemplate: IndustrySample = {
     {
       id: "k2",
       name: "Grant budgets & restricted funds",
-      description: "What each grant and restricted gift may pay for, by when, and what is left.",
+      description: "What each grant and restricted gift may pay for, by when, and what remains.",
       criticality: "critical",
       category: "compliance",
       linkedProcessIds: ["proc-grants"],
@@ -120,7 +120,8 @@ export const nonprofitTemplate: IndustrySample = {
     {
       id: "k4",
       name: "Form 990 & audit preparation",
-      description: "Schedules the auditor and the Form 990 need, and where the support is kept.",
+      description:
+        "Schedules the auditor and the Form 990 need, and where finance keeps the support.",
       criticality: "important",
       category: "compliance",
       linkedProcessIds: ["proc-board"],
@@ -183,7 +184,7 @@ export const nonprofitTemplate: IndustrySample = {
           kind: "fraud",
           severity: 5,
           likelihood: 3,
-          note: "A gift kept before it is logged leaves no record; the donor sees a thank-you and nobody else sees a gap.",
+          note: "A gift kept before anyone logs it leaves no record; the donor sees a thank-you and nobody else sees a gap.",
           linkedControlId: "c-gift-log",
           linkedScenarioId: "sc-skimmed-donations",
           linkedKnowledgeId: "k1",
@@ -204,7 +205,7 @@ export const nonprofitTemplate: IndustrySample = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Checks are endorsed for deposit at opening; the log goes to finance, not development.",
+          note: "The two openers endorse checks for deposit at opening; the log goes to finance, not development.",
           status: "planned",
         },
         {
@@ -222,7 +223,7 @@ export const nonprofitTemplate: IndustrySample = {
           id: "w-gift-1",
           kind: "muda_overprocessing",
           label: "Gifts keyed twice",
-          note: "Every gift is typed into the donor database and again into the accounting system.",
+          note: "Staff type every gift into the donor database and again into the accounting system.",
         },
       ],
     },
@@ -275,7 +276,7 @@ export const nonprofitTemplate: IndustrySample = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Expenses are coded when the bill is approved, not reallocated at year end.",
+          note: "Finance codes expenses when the program head approves the bill, and does not reallocate them at year end.",
           status: "planned",
         },
         {
@@ -293,7 +294,7 @@ export const nonprofitTemplate: IndustrySample = {
           id: "w-grant-1",
           kind: "muda_rework",
           label: "Time sheets reallocated to grants after the fact",
-          note: "Staff time is moved between grants at report time instead of recorded when worked.",
+          note: "Finance moves staff time between grants at report time instead of recording it when staff work it.",
         },
       ],
     },
@@ -323,7 +324,7 @@ export const nonprofitTemplate: IndustrySample = {
           kind: "control",
           severity: 4,
           likelihood: 3,
-          note: "Cards bought in bulk and handed out without a signed log cannot be traced to a participant.",
+          note: "Nobody can trace cards bought in bulk and handed out without a signed log to a participant.",
           linkedKnowledgeId: "k6",
         },
       ],
@@ -384,7 +385,7 @@ export const nonprofitTemplate: IndustrySample = {
           kind: "revenue",
           severity: 3,
           likelihood: 4,
-          note: "Reimbursement grants pay after the money is spent; late draws leave the organization short of cash.",
+          note: "Reimbursement grants pay after the organization spends the money; late draws leave the organization short of cash.",
           linkedKnowledgeId: "k7",
         },
       ],
@@ -435,7 +436,7 @@ export const nonprofitTemplate: IndustrySample = {
           kind: "fraud",
           severity: 5,
           likelihood: 3,
-          note: "Invented invoices from a company the insider controls are paid like any other bill.",
+          note: "The organization pays invented invoices from a company the insider controls like any other bill.",
           linkedControlId: "c-sod-ap",
           linkedScenarioId: "sc-vendor-fraud",
         },
@@ -534,7 +535,7 @@ export const nonprofitTemplate: IndustrySample = {
           id: "w-pay-1",
           kind: "muda_rework",
           label: "Grant time allocations fixed after payroll",
-          note: "Payroll is split across grants from memory, then corrected when funders ask.",
+          note: "Finance splits payroll across grants from memory, then corrects it when funders ask.",
         },
       ],
     },
@@ -586,7 +587,7 @@ export const nonprofitTemplate: IndustrySample = {
           category: "training",
           effort: "medium",
           impact: "high",
-          note: "Each step, its report and where the support is filed.",
+          note: "Each step, its report and where finance files the support.",
           status: "backlog",
         },
       ],
@@ -617,7 +618,8 @@ export const nonprofitTemplate: IndustrySample = {
       },
       "c-sod-billing": {
         name: "Split duties: pledge and receivable write-offs",
-        description: "Pledges and grant receivables can be written off without a second approval.",
+        description:
+          "One person can write off pledges and grant receivables without a second approval.",
         compensatingControls: ["Write-off list to the executive director monthly"],
       },
       "c-sod-ap": {
@@ -626,7 +628,7 @@ export const nonprofitTemplate: IndustrySample = {
       "c-ap": {
         name: "Bill approval",
         description:
-          "The program or department head approves each bill against the budget before it is paid.",
+          "The program or department head approves each bill against the budget before anyone pays it.",
       },
       "c-ar": {
         name: "Pledge and grant receivable review",
@@ -651,7 +653,7 @@ export const nonprofitTemplate: IndustrySample = {
       id: "c-restricted",
       name: "Restricted-fund tracking",
       description:
-        "Every restricted gift and grant has its own fund code, and spending against each restriction is reviewed quarterly by someone who does not code the expenses.",
+        "Every restricted gift and grant has its own fund code, and each quarter someone who does not code the expenses reviews spending against each restriction.",
       duties: ["recording", "review"],
       segregated: false,
       compensatingControls: ["Treasurer reads the restricted-fund balances each quarter"],
@@ -704,13 +706,13 @@ export const nonprofitTemplate: IndustrySample = {
         "sc-writeoff-abuse": {
           title: "Pledges written off without a second approval",
           description:
-            "A pledge paid by the donor can be written off as uncollectible and the payment kept, because nobody else approves write-offs.",
+            "An insider can write off a pledge the donor paid as uncollectible and keep the payment, because nobody else approves write-offs.",
           relabel: { m7: "Executive director approves pledge write-offs above a set amount" },
         },
         "sc-vendor-fraud": {
           title: "Invented vendor paid on invented invoices",
           description:
-            "The person who adds vendors also releases payments, so a company they control can be paid for services nobody received.",
+            "The person who adds vendors also releases payments, so they can pay a company they control for services nobody received.",
           relabel: { m9: "Second signer on payments above the amount the board set" },
           extraMitigations: [
             {
@@ -726,7 +728,7 @@ export const nonprofitTemplate: IndustrySample = {
     }),
     {
       id: "sc-skimmed-donations",
-      title: "Donation checks and event cash kept before they are logged",
+      title: "Donation checks and event cash kept before anyone logs them",
       description:
         "One person opens the mail or counts event cash and also records the gifts, so a gift that never reaches the log never reaches the bank, and the donor still gets a thank-you.",
       controlId: "c-gift-log",
@@ -782,7 +784,7 @@ export const nonprofitTemplate: IndustrySample = {
       id: "sc-card-abuse",
       title: "Organization cards used for personal spending",
       description:
-        "Cardholders approve their own statements, and the executive director's card is reviewed by nobody, so personal travel, cash advances and purchases are booked as program costs.",
+        "Cardholders approve their own statements, and nobody reviews the executive director's card, so personal travel, cash advances and purchases go into the books as program costs.",
       controlId: "c-cards",
       sodRuleIds: ["rule-card-review", "rule-card-approve"],
       ...SCENARIO_FIGURES.cash,

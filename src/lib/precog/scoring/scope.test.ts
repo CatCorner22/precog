@@ -53,7 +53,7 @@ describe("sample scenarios", () => {
       "Sample scenarios from the restaurant / hospitality sample",
     );
     expect(starterScenarioNote(own)).toBe(
-      'Sample scenarios from the restaurant / hospitality sample (6) are left out: their losses and timelines are the sample\'s assumptions, not facts about your business. To make one your own, open it on What could happen and choose "This could happen here"; it then counts in the threat index and your totals.',
+      'Sample scenarios from the restaurant / hospitality sample (6) stay out: their losses and timelines are the sample\'s assumptions, not facts about your business. To make one your own, open it on What could happen and choose "This could happen here"; it then counts in the threat index and your totals.',
     );
     expect(starterScenarioNote(getIndustryTemplate("restaurant"))).toBeNull();
   });
@@ -64,7 +64,7 @@ describe("sample scenarios", () => {
     );
     const leaves = dental.scenarios.find((s) => s.id === "sc-front-desk-leaves")!;
     expect(leaves.description).toBe(
-      "The front desk lead (sole expert on insurance denial appeals) resigns with two weeks' notice. Nobody else has been trained.",
+      "The front desk lead (sole expert on insurance denial appeals) resigns with two weeks' notice. Nobody else has trained for the work.",
     );
     expect(leaves.mitigations.map((m) => m.label)).toContain(
       "Record the front desk lead's denial playbook before they leave",

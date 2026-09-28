@@ -67,7 +67,7 @@ describe("insurance levers on default policy figures", () => {
     expect(sim.available).toBe(false);
     expect(sim.deltas).toEqual([]);
     expect(sim.overallVerdict).toBe(
-      "Not modelled until you confirm your policy: the deductible has not been confirmed. Review Insurance information status on Dynamic variables.",
+      "Not modeled until you confirm your policy: you have not confirmed the deductible. Review Insurance information status on Dynamic variables.",
     );
     const all = simulateAllCascades(dental, DEFAULT_RISK_VARIABLES);
     const ranked = all.rankedByCor.map((s) => s.lever.id);
@@ -202,7 +202,7 @@ describe("which scenario the cascade models", () => {
   it("flags a sample scenario nobody confirmed as out of scope for an own business", () => {
     const all = simulateAllCascades(own, DEFAULT_RISK_VARIABLES, own.staffComposition);
     expect(all.scenarioInScope).toBe(false);
-    expect(all.scopeNote).toMatch(/left out/);
+    expect(all.scopeNote).toMatch(/stay out/);
     expect(all.scenarioTitle).toBe(own.scenarios.find((s) => s.id === all.scenarioId)!.title);
   });
 

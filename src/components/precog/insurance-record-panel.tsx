@@ -89,15 +89,15 @@ export function InsuranceRecordPanel({
             />
           </label>
           <p className="text-xs text-muted">
-            Enter exact amounts below, then confirm each figure here. A figure equal to an app
-            default can still be confirmed. Confirming a figure does not verify coverage.
+            Enter exact amounts below, then confirm each figure here. You can still confirm a figure
+            equal to a Precog default. Confirming a figure does not verify coverage.
           </p>
           <div className="grid gap-2 sm:grid-cols-2">{CORE_POLICY_FIELDS.map(checkbox)}</div>
           <details className="text-xs text-muted">
             <summary className="cursor-pointer">Confirm additional quote terms and credits</summary>
             <p className="my-2">
-              Only explicitly confirmed credits and loads are included. Confirm the discount cap
-              too. Do not apply discounts again to an already-net quote.
+              Precog includes only the credits and loads you have confirmed. Confirm the discount
+              cap too. Do not apply discounts again to an already-net quote.
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
               {POLICY_FIELDS.filter(

@@ -214,7 +214,7 @@ describe("fraud scenarios outside the shared ids", () => {
   it("keeps a departure out of the fraud figures", () => {
     const r = runPrecogScenario(dental, "sc-front-desk-leaves")!;
     expect(r.crimeModifiers[0]).toBe(
-      "Not a fraud scenario, so the fraud figures are not applied to it.",
+      "Not a fraud scenario, so Precog does not apply the fraud figures to it.",
     );
   });
 });
