@@ -107,8 +107,8 @@ export function DualReleaseSimulatorCard({ model }: { model: DualReleasePanelMod
         </div>
         {activeRule && (
           <p className="text-xs text-subtle">
-            Two people are needed above {formatUsd(activeRule.thresholdUsd)}. Who may sign second:{" "}
-            {secondsLine}.
+            Every payment above {formatUsd(activeRule.thresholdUsd)} needs two people. Who may sign
+            second: {secondsLine}.
           </p>
         )}
         <Button size="sm" onClick={runEval}>

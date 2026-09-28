@@ -79,7 +79,9 @@ export function reviewLocally(input: ReviewInput): MapReview {
     strengths.push(`${owned} of ${input.processes.length} processes have owners.`);
   const controlled = input.processes.filter((p) => p.controls.length).length;
   if (controlled / Math.max(1, input.processes.length) >= 0.75)
-    strengths.push(`Controls are mapped on ${controlled} of ${input.processes.length} processes.`);
+    strengths.push(
+      `The map shows controls on ${controlled} of ${input.processes.length} processes.`,
+    );
   if (stages.size >= 3)
     strengths.push(
       `The map reads left-to-right across ${stages.size} stages — a real value stream, not a list.`,
@@ -106,7 +108,9 @@ export function reviewLocally(input: ReviewInput): MapReview {
   }
   for (const p of noControls.slice(0, 2)) {
     focus.add(p.id);
-    gaps.push(`"${p.name}" lists fraud risk but no control — the risk is described, not managed.`);
+    gaps.push(
+      `"${p.name}" lists fraud risk but no control — the map describes the risk, but nothing manages it.`,
+    );
   }
   for (const issue of input.issues.slice(0, 2)) gaps.push(issue);
   if (!gaps.length)

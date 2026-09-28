@@ -51,7 +51,7 @@ export function ChangesView({
       </p>
       {ownStart && (
         <p className="text-subtle">
-          Your team has been yours since setup, so it is not compared with the sample team.
+          Your team has been yours since setup, so Precog does not compare it with the sample team.
         </p>
       )}
       {added.length > 0 && (

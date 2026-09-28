@@ -641,7 +641,7 @@ export function ProcessMap({
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Start from the industry template, then press <strong className="text-fg">Build</strong> to
           add your own processes, owners, risks, and controls; every edit re-scores residual risk at
-          once. Switch to <strong className="text-fg">Heat</strong> to colour each card by its heat,
+          once. Switch to <strong className="text-fg">Heat</strong> to color each card by its heat,
           or <strong className="text-fg">Priority</strong> to pick out what to act on now.
         </p>
 
@@ -754,7 +754,7 @@ export function ProcessMap({
               The aim is residual risk cut to a reasonable level, not to zero.{" "}
               {mapReady
                 ? `${count(immediate, "target needs", "targets need")} action now.`
-                : "Nothing is ranked until the map is assessed."}
+                : "Precog ranks nothing until you assess the map."}
             </p>
           </div>
         )}
@@ -858,7 +858,7 @@ export function ProcessMap({
                     return;
                   }
                   if (graph.edges.some((e) => e.id === edge.id && e.kind === "feeds")) {
-                    toast("This link is inferred", {
+                    toast("Precog inferred this link", {
                       description:
                         "An output of one process matches an input of the next. Edit those Inputs or Outputs to remove it.",
                     });
@@ -986,7 +986,7 @@ export function ProcessMap({
               {!notAssessedNote && priorities.length === 0 && starterLeft > 0 && (
                 <p className="text-xs text-muted">
                   Every process on the map is still as the starter had it. Assign an owner or edit a
-                  process and it is ranked here.
+                  process, and Precog ranks it here.
                 </p>
               )}
               {(showAllTargets ? priorities : priorities.slice(0, PRIORITY_LIST_LENGTH)).map(

@@ -108,6 +108,9 @@ export function suggestEvidence(process: ProcessNode): Omit<EvidenceItem, "id">[
   if (process.controlIds.length && !out.length)
     out.push({ label: "Control operating-effectiveness walkthrough", frequency: "quarterly" });
   if (!out.length)
-    out.push({ label: "Process owner attests procedure is followed", frequency: "quarterly" });
+    out.push({
+      label: "Process owner attests that staff follow the procedure",
+      frequency: "quarterly",
+    });
   return out.slice(0, 3);
 }

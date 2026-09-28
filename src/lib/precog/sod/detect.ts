@@ -305,7 +305,7 @@ function namedFinding(
     ...(dualMitigated ? ["Dual-release policy active on related channel"] : []),
     ...(otherApprovers.length > 0
       ? [
-          `${listNames(otherApprovers.map((a) => a.personName))} approves each bill before it is paid`,
+          `${listNames(otherApprovers.map((a) => a.personName))} approves each bill before anyone pays it`,
         ]
       : []),
   ];
@@ -519,7 +519,7 @@ const FAMILY_VERB: Record<DutyFamily, string> = {
   custody: "handles the money",
   recording: "writes the record",
   reconciliation: "checks the record",
-  master_data: "changes a master record (a payee, a customer, a price, a login)",
+  master_data: "changes a master record (a payee, a customer, a price, a sign-in)",
 };
 
 /**
@@ -541,17 +541,17 @@ const FAMILY_WHY: Record<string, string> = {
   "authorization-custody":
     "The same person approves a payment and then hands over the money, so the approval is the only check and it is their own.",
   "custody-recording":
-    "The same person handles the money and writes down what was handled, so the books will always match whatever was actually taken.",
+    "The same person handles the money and writes down what they handled, so the books will always match what they actually took.",
   "custody-reconciliation":
     "The same person holds the money and confirms it arrived, which leaves nobody able to notice a shortfall.",
   "recording-reconciliation":
     "The same person writes the records and checks them, so an error or an omission has no independent reader.",
   "authorization-master_data":
-    "The same person can change a master record (a payee, a customer, a price or a login) and approve what depends on it, so a change made for their own benefit is approved by the same hands.",
+    "The same person can change a master record (a payee, a customer, a price or a sign-in) and approve what depends on it, so the same hands approve a change made for their own benefit.",
   "custody-master_data":
-    "The same person can change a master record (a payee, a customer, a price or a login) and handle the money that record governs, so the record can be bent to fit what was taken.",
+    "The same person can change a master record (a payee, a customer, a price or a sign-in) and handle the money that record governs, so they can bend the record to fit what they took.",
   "master_data-recording":
-    "The same person can change a master record (a payee, a customer, a price or a login) and write the entries that depend on it, so a changed record and its entries agree by construction.",
+    "The same person can change a master record (a payee, a customer, a price or a sign-in) and write the entries that depend on it, so a changed record and its entries agree by construction.",
   "authorization-recording":
-    "The same person approves a transaction and writes its record, so the approval can be composed after the fact to fit.",
+    "The same person approves a transaction and writes its record, so they can write the approval after the fact to fit.",
 };

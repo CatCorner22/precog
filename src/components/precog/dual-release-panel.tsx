@@ -36,7 +36,7 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Set the amount above which two people must release a payment, per channel.{" "}
           <strong className="text-fg">Exceptions</strong> for trusted payees, temporary raises, or
-          rare waivers are dated, carry a reason, and go to the {tabName("journal")}.
+          rare waivers each carry a date and a reason, and go to the {tabName("journal")}.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button

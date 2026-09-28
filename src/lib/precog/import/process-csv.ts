@@ -145,7 +145,7 @@ export function parseProcessCsv(
     const rowNumber = index + 1;
     const name = cell(cells, "process").slice(0, 60);
     if (!name) {
-      issues.push({ row: rowNumber, message: "Process name is required" });
+      issues.push({ row: rowNumber, message: "Each row must have a process name" });
       return null;
     }
     const match = existingByName.get(nameKey(name));
@@ -153,7 +153,7 @@ export function parseProcessCsv(
     if (match && !existing) {
       issues.push({
         row: rowNumber,
-        message: `"${name}" appears more than once; later rows were imported as separate processes`,
+        message: `"${name}" appears more than once; Precog imported the later rows as separate processes`,
       });
     }
     rowExisting[index] = existing;

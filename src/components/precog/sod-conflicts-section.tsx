@@ -140,7 +140,7 @@ function ConflictCardDetails({
       )}
       {stillToDo.length > 0 && (
         <p className="mt-2 text-xs text-muted">
-          Until the duties are split: {stillToDo.join("; ")}
+          Until different people hold the duties: {stillToDo.join("; ")}
         </p>
       )}
       {/*

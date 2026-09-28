@@ -56,7 +56,7 @@ export function DualReleaseExceptionsCard({ model }: { model: DualReleasePanelMo
                 <input
                   value={exForm.label}
                   onChange={(e) => updateExForm({ label: e.target.value })}
-                  placeholder="e.g. Trusted lab ACH raise"
+                  placeholder="For example: Trusted lab ACH raise"
                   className="mt-1 w-full rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg"
                 />
               </label>

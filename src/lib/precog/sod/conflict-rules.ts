@@ -362,7 +362,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     why: "The same person can enter an unsupported invoice and pay it.",
     fraudPath: "Enter fictitious invoice and release payment",
     compensatingDefaults: [
-      "Someone who enters no bills approves each one before it is paid (record them as approving bills for payment)",
+      "Someone who enters no bills approves each one before anyone pays it (record them as approving bills for payment)",
       "Dual release above threshold",
     ],
     linkedControlId: "c-sod-ap",
@@ -402,7 +402,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     fraudPath: "Set up an electronic payment to yourself, then approve its release",
     compensatingDefaults: [
       "The bank requires a second person's approval to release each electronic payment",
-      "Owner approves each release from their own bank login",
+      "Owner approves each release from their own bank sign-in",
     ],
     linkedControlId: "c-sod-ap",
   },
@@ -445,7 +445,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "post_adjustments",
     severity: "high",
     title: "Payment posting + write-off entry",
-    why: "The same person records what customers paid and can write off or credit what they still owe, so a payment that never reached the bank can be covered by an adjustment and the customer's account still looks settled.",
+    why: "The same person records what customers paid and can write off or credit what they still owe, so an adjustment can cover a payment that never reached the bank, and the customer's account still looks settled.",
     fraudPath: "Take a payment, then post a write-off or credit so the balance closes without it",
     compensatingDefaults: [
       "Monthly report of every write-off and credit, by employee, read by the owner",
@@ -459,11 +459,11 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "bank_reconcile",
     severity: "critical",
     title: "Check signing + bank reconciliation",
-    why: "The same person signs or releases the checks and reconciles the account they clear through, so a check to themselves is approved and then confirmed by the same hand.",
+    why: "The same person signs or releases the checks and reconciles the account they clear through, so the same hand approves a check to themselves and then confirms it.",
     fraudPath: "Sign a check to yourself and reconcile the statement so nobody else sees it clear",
     compensatingDefaults: [
       "Owner opens the bank statement first and reads every cleared-check image",
-      "Bank Positive Pay: only checks on the owner's list are paid",
+      "Bank Positive Pay: the bank pays only checks on the owner's list",
     ],
     linkedControlId: "c-sod-cash",
   },
@@ -473,7 +473,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "bank_reconcile",
     severity: "critical",
     title: "Payment release + bank reconciliation",
-    why: "The person who sends the money out also produces the record that proves it went where it was meant to go. A transfer to their own account, or to a payee they invented, is reconciled by the same hands, and the one check that compares the books with the bank is done by the one person with a reason to make them agree.",
+    why: "The person who sends the money out also produces the record that proves it went where it belonged. The same hands reconcile a transfer to their own account, or to a payee they invented, and the one person with a reason to make the books agree with the bank runs the one check that compares them.",
     fraudPath:
       "Pay yourself or an invented payee by ACH or card, then reconcile the statement so nobody else sees where it went",
     compensatingDefaults: [
@@ -488,7 +488,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "post_journal_entries",
     severity: "critical",
     title: "Payment release + manual journal entries",
-    why: "The person who sends money out can also post the journal entry that explains it, so a transfer to their own account is booked as an expense or buried in a balance-sheet account and the books still balance. A dealership office manager who wired himself $1.4 million over 14 years, and a practice office manager who moved payments to her own card, each covered it with false journal entries.",
+    why: "The person who sends money out can also post the journal entry that explains it, so they can book a transfer to their own account as an expense or bury it in a balance-sheet account, and the books still balance. A dealership office manager who wired himself $1.4 million over 14 years, and a practice office manager who moved payments to her own card, each covered it with false journal entries.",
     fraudPath:
       "Send a payment to yourself, then post a journal entry that makes the books balance around it",
     compensatingDefaults: [
@@ -503,7 +503,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "release_payment",
     severity: "high",
     title: "Change employee records + release payments",
-    why: "The person who can add an employee or change a bank account on the payroll file can also send payments, so a ghost employee or a redirected paycheck is set up and then paid by the same hands without passing anyone else.",
+    why: "The person who can add an employee or change a bank account on the payroll file can also send payments, so the same hands set up a ghost employee or a redirected paycheck and then pay it, without passing anyone else.",
     fraudPath: "Add a ghost employee or change a pay account to your own, then release the payment",
     compensatingDefaults: [
       "Owner reads the payroll register each cycle against who actually works there",
@@ -517,11 +517,11 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "release_payment",
     severity: "high",
     title: "Payroll entry + payment release",
-    why: "Whoever enters the hours and pay rates also sends the pay run to the bank or prints the checks, so an extra check to themselves, a raised rate, or a pay line for someone who has left is paid without a second person seeing the register.",
+    why: "Whoever enters the hours and pay rates also sends the pay run to the bank or prints the checks, so an extra check to themselves, a raised rate, or a pay line for someone who has left goes out without a second person seeing the register.",
     fraudPath:
       "Add a pay line or a paper check for yourself and release it with the rest of the run",
     compensatingDefaults: [
-      "Owner reads the payroll register each cycle before the run is released",
+      "Owner reads the payroll register each cycle before anyone releases the run",
       "Owner compares the payroll register with the bank's cleared payments and headcount",
     ],
     linkedControlId: "c-payroll",
@@ -532,7 +532,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "bank_reconcile",
     severity: "high",
     title: "Payroll entry + bank reconciliation",
-    why: "The person who runs payroll also reconciles the account it pays from, so a payroll payment nobody authorized is matched off by the same hands and never reaches anyone who would ask who it was for.",
+    why: "The person who runs payroll also reconciles the account it pays from, so the same hands match off a payroll payment nobody authorized, and it never reaches anyone who would ask who it was for.",
     fraudPath:
       "Pay yourself through payroll, then reconcile the account so the extra payment looks like any other pay run",
     compensatingDefaults: [
@@ -547,7 +547,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "bank_reconcile",
     severity: "critical",
     title: "Payment posting + bank reconciliation",
-    why: "The same person records the money and checks whether it arrived, so a missing deposit can be papered over in the books and the check will still balance.",
+    why: "The same person records the money and checks whether it arrived, so they can paper over a missing deposit in the books, and the check will still balance.",
     fraudPath: "Take cash, then adjust the books so the bank check still balances",
     compensatingDefaults: [
       "Owner checks the bank statement against the books every week, personally",
@@ -562,7 +562,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "bank_reconcile",
     severity: "critical",
     title: "Manual journal entries + bank reconciliation",
-    why: "A journal entry can make the books agree with any bank balance. When the person who reconciles the account can also post entries, a missing deposit or an unexplained wire is written away rather than found. A Granger, Iowa dealership office manager wired $1.4 million to himself over 14 years and balanced the books with journal entries; an Indiana business's accountant who reconciled the bank himself recorded his transfers to himself as invoice payments.",
+    why: "A journal entry can make the books agree with any bank balance. When the person who reconciles the account can also post entries, they can write away a missing deposit or an unexplained wire rather than find it. A Granger, Iowa dealership office manager wired $1.4 million to himself over 14 years and balanced the books with journal entries; an Indiana business's accountant who reconciled the bank himself recorded his transfers to himself as invoice payments.",
     fraudPath: "Take the money, then post an entry that makes the reconciliation tie",
     compensatingDefaults: [
       "Owner or outside accountant reviews every manual journal entry each month with its support",
@@ -620,7 +620,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "post_adjustments",
     severity: "high",
     title: "Collect cash + enter write-offs",
-    why: "The person who takes the customer's money can also void the sale, edit the payment record, or write the balance off, so a payment kept at the counter leaves behind a record that says nothing was owed. A counter clerk who entered voids and no-sales, a dental employee who edited payment records in the billing software, and a dealership office manager who falsified transaction entries each hid a kept payment this way.",
+    why: "The person who takes the customer's money can also void the sale, edit the payment record, or write the balance off, so a payment kept at the counter leaves behind a record that says the customer owed nothing. A counter clerk who entered voids and no-sales, a dental employee who edited payment records in the billing software, and a dealership office manager who falsified transaction entries each hid a kept payment this way.",
     fraudPath:
       "Take the payment, then post a void, credit, or write-off so the account closes without it",
     compensatingDefaults: [
@@ -663,11 +663,12 @@ export const CONFLICT_RULES: ConflictRule[] = [
     a: "manage_user_access",
     b: "release_payment",
     severity: "high",
-    title: "Control logins + release payments",
-    why: "The person who decides who can log in to the payment or banking system can also send payments, so they can create or borrow a second signer's login and release a payment that dual release was meant to stop.",
-    fraudPath: "Give yourself a second signer's login, then release a payment with both approvals",
+    title: "Control sign-ins + release payments",
+    why: "The person who decides who can sign in to the payment or banking system can also send payments, so they can create or borrow a second signer's sign-in and release a payment that dual release exists to stop.",
+    fraudPath:
+      "Give yourself a second signer's sign-in, then release a payment with both approvals",
     compensatingDefaults: [
-      "Access to the bank and payment systems is managed by the owner, not by anyone who releases payments",
+      "The owner, not anyone who releases payments, manages access to the bank and payment systems",
       "The bank alerts the owner to every new user or permission change",
     ],
     linkedControlId: "c-sod-ap",
@@ -692,10 +693,10 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "post_payments",
     severity: "high",
     title: "Issue refunds + record payments",
-    why: "The person who records what customers paid can also send money back to them, so a refund can go out against a payment that was never received, or against a balance recorded as overpaid, and the account still looks settled.",
+    why: "The person who records what customers paid can also send money back to them, so a refund can go out against a payment the business never received, or against a balance recorded as overpaid, and the account still looks settled.",
     fraudPath: "Record a credit or overpayment on an account, then refund it to yourself",
     compensatingDefaults: [
-      "A second person approves each refund before it is paid, with the original payment attached",
+      "A second person approves each refund before anyone pays it, with the original payment attached",
       "Owner reads a monthly list of refunds by employee and by destination",
     ],
     linkedControlId: "c-sod-billing",
@@ -706,8 +707,8 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "post_payments",
     severity: "high",
     title: "Deposit prep + payment posting",
-    why: "Whoever prepares the deposit can also change what the books say was received, so the two will always agree no matter what went in the bag.",
-    fraudPath: "Bank less than was taken, then adjust the books to match",
+    why: "Whoever prepares the deposit can also change what the books say came in, so the two will always agree no matter what went in the bag.",
+    fraudPath: "Bank less than came in, then adjust the books to match",
     compensatingDefaults: ["Independent deposit review", "Dual signature on deposit log"],
     linkedControlId: "c-sod-cash",
   },
@@ -717,8 +718,8 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "post_adjustments",
     severity: "critical",
     title: "Approve + post write-offs",
-    why: "An adjustment that needs nobody else’s approval can erase a balance that was actually paid, and the payment goes with it.",
-    fraudPath: "Write off a balance that was paid, and keep the payment",
+    why: "An adjustment that needs nobody else’s approval can erase a balance the customer actually paid, and the payment goes with it.",
+    fraudPath: "Write off a balance the customer paid, and keep the payment",
     compensatingDefaults: [
       "Owner approves any write-off above the amount you set",
       "Monthly list of every write-off, reviewed by the owner",
@@ -732,7 +733,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "approve_writeoffs",
     severity: "high",
     title: "Claims submission + write-off authority",
-    why: "Unpaid invoices and claims can be written off rather than chased, which hides lost revenue as though it were a routine adjustment.",
+    why: "The same person can write off unpaid invoices and claims rather than chase them, which hides lost revenue as though it were a routine adjustment.",
     fraudPath: "Write off unpaid claims instead of pursuing them, hiding the loss",
     compensatingDefaults: ["Denial aging review by office manager", "Write-off threshold"],
     linkedScenarioId: "sc-writeoff-abuse",
@@ -747,7 +748,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     why: "One person can invent a supplier and then pay it, and the payments look entirely ordinary in the accounts. Nothing in the books distinguishes an invented supplier from a real one.",
     fraudPath: "Set up a supplier that does not exist, then pay it",
     compensatingDefaults: [
-      "A second person releases any electronic payment above the amount you set, using their own login",
+      "A second person releases any electronic payment above the amount you set, using their own sign-in",
       "Owner reviews every supplier added that month",
     ],
     linkedScenarioId: "sc-vendor-fraud",
@@ -773,7 +774,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     // nonprofit), so it ranks high.
     severity: "high",
     title: "Approve vendor + release payment",
-    why: "The approval meant to confirm a supplier is real is given by the person releasing the money, which removes the only check on where it goes.",
+    why: "The person releasing the money also gives the approval that confirms a supplier is real, which removes the only check on where it goes.",
     fraudPath: "Approve and pay in one motion, with no one else looking",
     compensatingDefaults: ["Separate payment batch review", "Dollar thresholds"],
     linkedControlId: "c-sod-ap",
@@ -805,9 +806,9 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "post_adjustments",
     severity: "high",
     title: "System administration + post adjustments",
-    why: "System administration plus write-off authority means the approval requirement itself can be switched off before it is used.",
+    why: "System administration plus write-off authority means one person can switch off the approval requirement itself before anyone uses it.",
     fraudPath: "Turn off the approval requirement, then write the balance off",
-    compensatingDefaults: ["Separate admin account from daily billing login"],
+    compensatingDefaults: ["Separate admin account from daily billing sign-in"],
     linkedControlId: "c-sod-billing",
   },
   {
@@ -816,11 +817,11 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "review_card_statement",
     severity: "high",
     title: "Company card + its statement review",
-    why: "The person who spends on the company card is the person who reads its statement and codes each line into the books, so a personal charge, a cash advance, or a gift card is booked as supplies and nobody else ever sees the line. A Bellevue dental office worker ran $174,336 of cash advances and personal spending through a practice card whose statement came to her; a Hutchinson construction controller who held the company cards and reconciled everything took $2.06 million.",
+    why: "The person who spends on the company card is the person who reads its statement and codes each line into the books, so a personal charge, a cash advance, or a gift card goes into the books as supplies, and nobody else ever sees the line. A Bellevue dental office worker ran $174,336 of cash advances and personal spending through a practice card whose statement came to her; a Hutchinson construction controller who held the company cards and reconciled everything took $2.06 million.",
     fraudPath:
       "Spend on the card, then code the charge as a business expense on a statement nobody else reads",
     compensatingDefaults: [
-      "Owner reads the company card statement line by line every month, before it is coded",
+      "Owner reads the company card statement line by line every month, before anyone codes it",
       "Cash advances turned off on every company card, with a low limit per card",
     ],
     linkedControlId: "c-cards",

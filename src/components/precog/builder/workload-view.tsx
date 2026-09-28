@@ -120,4 +120,4 @@ function loadColor(load: number): string {
 }
 
 const LOAD_BASIS =
-  "Load index, 0–100: this app's weighting of each person's share of process ownership, their number of duties, critical duty conflicts, knowledge only they hold, and hot processes they own. It orders attention; it is not a measurement.";
+  "Load index, 0–100: Precog's weighting of each person's share of process ownership, their number of duties, critical duty conflicts, knowledge only they hold, and hot processes they own. It orders attention; it is not a measurement.";

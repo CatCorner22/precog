@@ -61,7 +61,7 @@ export function SpreadsheetPanel({
       }`,
       {
         description: preview.issues.length
-          ? `${count(preview.issues.length, "row")} had values that were skipped. Ctrl+Z undoes the import.`
+          ? `${count(preview.issues.length, "row")} had values that Precog skipped. Ctrl+Z undoes the import.`
           : "Ctrl+Z undoes the import.",
       },
     );
@@ -74,9 +74,9 @@ export function SpreadsheetPanel({
         <FileSpreadsheet className="size-3.5 text-primary" /> Spreadsheet
       </p>
       <p className="text-xs text-muted">
-        Work in Excel or Google Sheets, then bring it back. Owners, dependencies, and controls are
-        matched by name; rows that match a current process update it in place and keep its risks and
-        evidence.
+        Work in Excel or Google Sheets, then bring it back. Precog matches owners, dependencies, and
+        controls by name; rows that match a current process update it in place and keep its risks
+        and evidence.
       </p>
       <div className="flex flex-wrap items-center gap-1.5">
         <Button

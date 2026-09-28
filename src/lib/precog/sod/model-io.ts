@@ -36,7 +36,7 @@ export function readRoleAssignments(value: unknown): PowerMapImport {
     return {
       assignments: [],
       issues: [],
-      problem: "This map was saved by a newer version of Precog.",
+      problem: "A newer version of Precog saved this map.",
     };
   }
   const rows = file ? (file as { assignments?: unknown }).assignments : value;

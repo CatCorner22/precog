@@ -286,7 +286,7 @@ function guidanceFor(w: GuidanceWords, business: string): Record<EntitlementId, 
       purpose: `Configure ${w.system} roles, permissions, and privileged settings.`,
       evidence: "Approved access ticket and role-change log",
       boundary:
-        "Uses a named administrator login, separate from their daily one. Nobody approves their own access.",
+        "Uses a named administrator sign-in, separate from their daily one. Nobody approves their own access.",
     },
     issue_refunds: {
       purpose: `Send an approved ${w.payer} credit back through an authorized channel.`,
@@ -306,7 +306,7 @@ function guidanceFor(w: GuidanceWords, business: string): Record<EntitlementId, 
     manage_user_access: {
       purpose: "Create, disable, and change workforce and vendor system accounts.",
       evidence: "Access ticket, approval, and periodic user listing",
-      boundary: "Administers logins. Does not review their own activity logs.",
+      boundary: "Administers sign-ins. Does not review their own activity logs.",
     },
     export_bulk_data: {
       purpose: `Extract ${w.exportData} outside normal screens.`,
@@ -363,7 +363,7 @@ function guidanceFor(w: GuidanceWords, business: string): Record<EntitlementId, 
       boundary: "Holds no card on the account they review.",
     },
     approve_expenses: {
-      purpose: "Approve expense claims, reimbursements, and card spending before they are paid.",
+      purpose: "Approve expense claims, reimbursements, and card spending before anyone pays them.",
       evidence: "Approval on each claim, with the receipt and the purpose stated",
       boundary: "Approves no claim of their own and no statement of a card they hold.",
     },

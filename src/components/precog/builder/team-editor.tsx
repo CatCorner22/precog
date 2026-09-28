@@ -154,7 +154,8 @@ export function TeamEditor({
       toast.error("Keep at least one person on the team.");
       return;
     }
-    if (!window.confirm(`Remove ${p.name}? They will be unassigned from any processes.`)) return;
+    if (!window.confirm(`Remove ${p.name}? Precog also removes their name from every process.`))
+      return;
     onChange(people.filter((x) => x.id !== id));
   }
 
@@ -229,7 +230,7 @@ export function TeamEditor({
         .join(" and ");
       issues.push({
         row: 0,
-        message: `${shown} ${verb(names.length, "is", "are")} not in the file, so ${lost} were cleared. Spell names exactly as they appear on the team to keep them.`,
+        message: `${shown} ${verb(names.length, "is", "are")} not in the file, so Precog cleared ${lost}. Spell names exactly as they appear on the team to keep them.`,
       });
     }
     setImportIssues(issues);
@@ -280,7 +281,7 @@ export function TeamEditor({
           industry: tpl.id,
           from: today,
           to: today,
-          note: "On leave in the imported roster; the return date was not given.",
+          note: "On leave in the imported roster; the roster gives no return date.",
         }));
       return added.length ? [...current, ...added] : current;
     });
@@ -513,7 +514,8 @@ export function TeamEditor({
       {catalogChoice && (
         <div className="space-y-1.5">
           <p className="text-xs text-muted">
-            {catalogChoice.description} {catalogChoice.note} Duties can be changed after adding.
+            {catalogChoice.description} {catalogChoice.note} You can change the duties after you add
+            the person.
           </p>
           <div className="flex flex-wrap items-center gap-1.5">
             <input

@@ -27,7 +27,7 @@ export function ConflictSummary({
         <Badge variant={tone}>{conflictBadge(conflict)}</Badge>
         <span
           className="text-xs text-subtle tabular"
-          title="This app's ranking index from 12 to 100, by severity, duty weight and staffing; not a probability."
+          title="Precog's ranking index from 12 to 100, by severity, duty weight and staffing; not a probability."
         >
           Rank {conflict.score} of 100
         </span>

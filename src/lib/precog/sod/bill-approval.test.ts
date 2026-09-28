@@ -29,7 +29,9 @@ describe("approving bills for payment", () => {
     const without = invoicePay(childcare(false))!;
     const withApproval = invoicePay(childcare(true))!;
     expect(without.controlsInPlace).toEqual([]);
-    expect(withApproval.controlsInPlace).toContain("Rosa Lin approves each bill before it is paid");
+    expect(withApproval.controlsInPlace).toContain(
+      "Rosa Lin approves each bill before anyone pays it",
+    );
     expect(withApproval.score).toBeLessThan(without.score);
     // The pair is still open: the approval narrows it, it does not remove it.
     expect(withApproval.severity).toBe("critical");

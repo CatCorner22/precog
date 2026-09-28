@@ -745,8 +745,8 @@ function WasteList({
             </select>
             <input
               className={inputCls}
-              placeholder="What is wasted?"
-              aria-label="What is wasted"
+              placeholder="What goes to waste?"
+              aria-label="What goes to waste"
               maxLength={LIMITS.itemTitle}
               value={draft.title}
               onChange={(e) => set("title", e.target.value)}

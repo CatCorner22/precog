@@ -128,7 +128,7 @@ export function EvidenceList({
               type="button"
               onClick={() => markDone(e.id)}
               className="shrink-0 rounded border border-border px-1.5 py-0.5 text-xs text-fg hover:border-ok/50 hover:text-ok"
-              title="Record that this review was completed today"
+              title="Record that you completed this review today"
             >
               Done today
             </button>
@@ -147,7 +147,7 @@ export function EvidenceList({
         <div className="space-y-1.5 rounded-md border border-dashed border-border p-2">
           <input
             className={inputCls}
-            placeholder="e.g. Owner signs off bank reconciliation"
+            placeholder="For example: Owner signs off the bank reconciliation"
             aria-label="Evidence"
             maxLength={PROCESS_TEXT_LIMITS.evidenceLabel}
             value={draft.title}
