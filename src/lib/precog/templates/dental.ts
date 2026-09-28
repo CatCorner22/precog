@@ -119,7 +119,7 @@ export const dentalTemplate: IndustrySample = {
     {
       id: "k7",
       name: "Write-off & adjustment authority",
-      description: "Who may adjust balances and how they are documented.",
+      description: "Who may adjust balances and how they document each adjustment.",
       criticality: "critical",
       category: "compliance",
       linkedProcessIds: ["proc-ar"],
@@ -428,7 +428,7 @@ export const dentalTemplate: IndustrySample = {
           category: "control",
           effort: "low",
           impact: "high",
-          note: "Owner sees bank activity without going through the person who posts payments, so a diverted payment cannot be hidden by adjusting the books. About twenty minutes a week.",
+          note: "Owner sees bank activity without going through the person who posts payments, so nobody can hide a diverted payment by adjusting the books. About twenty minutes a week.",
           status: "planned",
         },
         {
@@ -520,7 +520,7 @@ export const dentalTemplate: IndustrySample = {
           kind: "fraud",
           severity: 5,
           likelihood: 3,
-          note: "A fake vendor can be set up and paid, because no second person releases payments.",
+          note: "An insider can set up and pay a fake vendor, because no second person releases payments.",
           linkedControlId: "c-sod-ap",
           linkedScenarioId: "sc-vendor-fraud",
         },
@@ -568,7 +568,7 @@ export const dentalTemplate: IndustrySample = {
       risks: [
         {
           id: "r-pay-1",
-          title: "Payroll exceptions are not written down",
+          title: "Nobody writes down payroll exceptions",
           kind: "continuity",
           severity: 3,
           likelihood: 3,
@@ -639,7 +639,7 @@ export const dentalTemplate: IndustrySample = {
       id: "c-controlled",
       name: "Controlled-substance log and counts",
       description:
-        "Someone who does not administer the drugs counts stock against the log and purchase records; any difference is investigated and theft or significant loss reported to DEA.",
+        "Someone who does not administer the drugs counts stock against the log and purchase records; the practice investigates any difference and reports theft or significant loss to DEA.",
       duties: ["custody", "recording", "reconciliation"],
       segregated: false,
       compensatingControls: ["Owner reads the log at month end"],
@@ -652,7 +652,7 @@ export const dentalTemplate: IndustrySample = {
       id: "sc-front-desk-leaves",
       title: "Front desk lead leaves with sole denial knowledge",
       description:
-        "The front desk lead (sole expert on insurance denial appeals) resigns with two weeks' notice. Nobody else has been trained.",
+        "The front desk lead (sole expert on insurance denial appeals) resigns with two weeks' notice. Nobody else has trained for the work.",
       knowledgeId: "k1",
       controlId: "c-claims",
       baseTimelineDays: SCENARIO_FIGURES.keyPerson.baseTimelineDays,

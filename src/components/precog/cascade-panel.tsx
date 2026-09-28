@@ -67,8 +67,8 @@ export function CascadePanel() {
         <CardContent className="space-y-2">
           {waiting.length > 0 && (
             <p className="rounded-lg border border-dashed border-border bg-panel/60 px-3 py-2 text-xs text-muted">
-              {waiting.map((l) => l.label).join(", ")}: not modelled until you enter your policy on
-              Settings and insurance, so they are not ranked.
+              {waiting.map((l) => l.label).join(", ")}: not modeled until you enter your policy on
+              Settings and insurance, so Precog does not rank them.
             </p>
           )}
           {all.rankedByCor.slice(0, 8).map((s) => {

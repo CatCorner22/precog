@@ -117,7 +117,7 @@ export function SingleScenarioView({
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-panel p-3 text-sm">
           <p className="max-w-2xl text-muted">
             &ldquo;{scenario.title}&rdquo; is a sample scenario. If it could happen in your
-            business, make it yours: it is logged in your {tabName("journal")} with a review date
+            business, make it yours: Precog logs it in your {tabName("journal")} with a review date
             and starts counting in the threat index and your totals.
           </p>
           <Button size="sm" onClick={() => addDecision(scenarioConfirmation(scenario, new Date()))}>
@@ -141,8 +141,8 @@ export function SingleScenarioView({
           <CardContent className="space-y-5">
             <p className="rounded-lg border border-border bg-panel p-3 text-xs leading-relaxed text-muted">
               These figures are assumptions written into this scenario, scaled by your settings.
-              They are not predictions and were not measured at any business. For what failures like
-              this one actually cost, see the prosecuted cases on Start here.
+              They are not predictions, and nobody measured them at any business. For what failures
+              like this one actually cost, see the prosecuted cases on Start here.
             </p>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <FigureTile
@@ -344,7 +344,7 @@ function RealCasesCard({ cases }: { cases: ScenarioCases }) {
           {related > 0
             ? ` ${count(related, "more case")} ${verb(related, "shows", "show")} a related scheme and ${verb(related, "is", "are")} not counted.`
             : ""}{" "}
-          The assumed figures below are not drawn from these cases; the cases are what the same
+          The assumed figures below do not come from these cases; the cases are what the same
           failure cost other businesses.
         </CardDescription>
       </CardHeader>

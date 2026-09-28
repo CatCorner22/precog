@@ -292,7 +292,7 @@ const SHARED_FRAUD_SCENARIOS: readonly ScenarioTemplate[] = [
     id: "sc-vendor-fraud",
     title: "One person sets up vendors and pays them",
     description:
-      "The person who pays bills can also add vendors, so a fake vendor can be set up and paid.",
+      "The person who pays bills can also add vendors, so they can set up and pay a fake vendor.",
     controlId: "c-sod-ap",
     ...SCENARIO_FIGURES.vendor,
     cascadeLayers: ["control", "source", "process", "continuity"],

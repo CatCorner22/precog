@@ -57,7 +57,7 @@ const ASSUMED_STAFF_UPLIFT: readonly {
     applies: (s) => s.segregationScore < 50,
     factor: 1.25,
     sentence: (s) =>
-      `Assumed uplift: segregation index ${s.segregationScore}/100 is below this app's weak line.`,
+      `Assumed uplift: segregation index ${s.segregationScore}/100 is below Precog's weak line.`,
   },
   {
     // Dual control also flows through the risk variables; mild here.
@@ -70,7 +70,7 @@ const ASSUMED_STAFF_UPLIFT: readonly {
     applies: (s) => !s.independentBankRec,
     factor: 1.06,
     sentence: () =>
-      "Assumed uplift: the bank is reconciled by the person who posts, so detection takes longer.",
+      "Assumed uplift: the person who posts also reconciles the bank, so detection takes longer.",
   },
   {
     applies: (s) => s.avgTenureYears < 3,
@@ -211,13 +211,13 @@ export function runPrecogScenario(
       `For reference only, not applied to the figures above: small organizations in the ACFE study carried a median loss of ${formatUsd(DEFAULT_FRAUD_STATS.medianLossSmallOrgUsd)} against ${formatUsd(DEFAULT_FRAUD_STATS.medianLossAllUsd)} across all cases studied.`,
     );
     crimeModifiers.push(
-      `Median time from a scheme starting to being found: ${DEFAULT_FRAUD_STATS.medianDetectionMonths} months. Found inside six months the median loss is ${formatUsd(DEFAULT_FRAUD_STATS.lossIfCaughtEarlyUsd)}; past five years it is more than ${formatUsd(DEFAULT_FRAUD_STATS.lossIfRunsLongUsd)}.`,
+      `Median time from a scheme starting to someone finding it: ${DEFAULT_FRAUD_STATS.medianDetectionMonths} months. Found inside six months the median loss is ${formatUsd(DEFAULT_FRAUD_STATS.lossIfCaughtEarlyUsd)}; past five years it is more than ${formatUsd(DEFAULT_FRAUD_STATS.lossIfRunsLongUsd)}.`,
     );
     crimeModifiers.push(
       `These are medians among organizations that suffered an investigated fraud, not a prediction for this business.`,
     );
   } else {
-    crimeModifiers.push("Not a fraud scenario, so the fraud figures are not applied to it.");
+    crimeModifiers.push("Not a fraud scenario, so Precog does not apply the fraud figures to it.");
   }
   crimeModifiers.push(
     `Assumed multipliers from your settings: likelihood ×${dynamic.likelihoodSeverity.likelihoodMultiplier.toFixed(2)} · severity ×${dynamic.likelihoodSeverity.grossSeverityMultiplier.toFixed(2)} · detection lag ×${dynamic.likelihoodSeverity.detectionLagMultiplier.toFixed(2)}.`,
@@ -234,7 +234,7 @@ export function runPrecogScenario(
       surface: `${served[0].toUpperCase()}${served.slice(1)} feel delays, and cash flow gets less predictable.`,
       control: "The control stops working and nobody notices, so the exposure becomes normal.",
       source: "Only one person can change system access or vendor settings.",
-      continuity: "If that person leaves or the system fails, the loss is uninsured.",
+      continuity: "If that person leaves or the system fails, no insurance covers the loss.",
     };
     return { layer, effect: effects[layer] ?? "Downstream impact." };
   });
@@ -264,8 +264,8 @@ export function runPrecogScenario(
       "If you accept this risk as it is, the exposure stays until your staffing, your insurance terms, or your controls change. The figures update when you change any setting.",
     sources: [DEFAULT_FRAUD_STATS.source],
     assumptions: [
-      "The base timeline and loss figures are assumptions the scenario author wrote; they were not drawn from a study or from any business.",
-      "Staffing and control multipliers are this app's assumptions about direction and rough size.",
+      "The base timeline and loss figures are assumptions the scenario author wrote; they do not come from a study or from any business.",
+      "Staffing and control multipliers are Precog's assumptions about direction and rough size.",
       "Insurance credits and retention arithmetic are illustrative decision tools, not carrier quotes or policy interpretations.",
       "The day range and loss range are the scenario's assumptions scaled by your settings; they are not confidence intervals.",
     ],

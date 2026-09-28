@@ -344,10 +344,10 @@ export function leverUnavailableReason(
   if (policyFieldIsDefault(vars, field)) {
     const word =
       field === "policyLimit" ? "limit" : field === "basePremiumAnnual" ? "premium" : "deductible";
-    return `Not modelled until you confirm your policy: the ${word} has not been confirmed. Review Insurance information status on Dynamic variables.`;
+    return `Not modeled until you confirm your policy: you have not confirmed the ${word}. Review Insurance information status on Dynamic variables.`;
   }
   if (field !== "basePremiumAnnual" && scenarioId && !recoveryModelled(vars, scenarioId)) {
-    return "Not modelled until you confirm every core policy figure and mark this scenario as covered on Insurance information.";
+    return "Not modeled until you confirm every core policy figure and mark this scenario as covered on Insurance information.";
   }
   return null;
 }

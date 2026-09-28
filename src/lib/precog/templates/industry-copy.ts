@@ -59,7 +59,7 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       "Where can one person move money alone, and which dual-release rules would help?",
       "If my front desk lead leaves, what breaks first?",
       "Walk me through a write-off abuse scenario and mitigations.",
-      "Give me a plain-English one-page brief on what is still exposed.",
+      "Give me a plain-English one-page brief on the exposure that remains.",
     ],
   },
   retail: {
@@ -96,7 +96,7 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       "Where can one person steal via returns or markdowns?",
       "If my lead cashier leaves, what knowledge gaps appear?",
       "Compare vendor fraud vs cash skimming scenarios for my store.",
-      "Give me a plain-English brief on what is still exposed.",
+      "Give me a plain-English brief on the exposure that remains.",
     ],
   },
   restaurant: {
@@ -133,7 +133,7 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       "Where is tip skimming or void abuse most likely?",
       "If my shift lead leaves, what breaks in nightly close?",
       "Walk me through a vendor fraud scenario for my kitchen.",
-      "Give me a plain-English brief on what is still exposed.",
+      "Give me a plain-English brief on the exposure that remains.",
     ],
   },
   professional_services: {
@@ -207,7 +207,7 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       "Where could someone pay a fake subcontractor or pad field hours?",
       "If my project accountant leaves, what billing stops?",
       "Walk me through a change-order kickback scenario and its controls.",
-      "Give me a plain-English brief on what is still exposed.",
+      "Give me a plain-English brief on the exposure that remains.",
     ],
   },
   automotive: {
@@ -279,7 +279,7 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
     },
     pioneerPrompts: [
       "What do we fix first this week to protect donations?",
-      "Where could restricted grant money be spent on the wrong thing?",
+      "Where could someone spend restricted grant money on the wrong thing?",
       "If our finance manager leaves, what stops first?",
       "Walk me through a card abuse scenario and the checks the treasurer runs.",
       "Give me a plain-English brief for the board.",
@@ -319,7 +319,7 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       "Where can one person move money alone right now?",
       "If my office manager leaves, what processes stall?",
       "Walk me through a vendor fraud scenario step by step.",
-      "Give me a plain-English brief on what is still exposed.",
+      "Give me a plain-English brief on the exposure that remains.",
     ],
   },
 };

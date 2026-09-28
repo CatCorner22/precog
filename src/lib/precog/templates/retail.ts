@@ -170,7 +170,7 @@ export const retailTemplate: IndustrySample = {
           id: "w-pos-1",
           kind: "muda_waiting",
           label: "Line stalls waiting for manager override",
-          note: "Customers wait while a manager is paged for any price change or return.",
+          note: "Customers wait while the cashier pages a manager for any price change or return.",
         },
       ],
     },
@@ -372,7 +372,7 @@ export const retailTemplate: IndustrySample = {
           kind: "fraud",
           severity: 5,
           likelihood: 3,
-          note: "A fake vendor can be set up and paid.",
+          note: "An insider can set up and pay a fake vendor.",
           linkedControlId: "c-sod-ap",
           linkedScenarioId: "sc-vendor-fraud",
         },
@@ -382,7 +382,7 @@ export const retailTemplate: IndustrySample = {
           kind: "control",
           severity: 3,
           likelihood: 3,
-          note: "Invoices are approved without checking the receiving count; vendor shortages become our cost.",
+          note: "The buyer approves invoices without checking the receiving count; vendor shortages become our cost.",
         },
       ],
       ideas: [
@@ -500,7 +500,7 @@ export const retailTemplate: IndustrySample = {
           kind: "continuity",
           severity: 3,
           likelihood: 3,
-          note: "Split-sale and return-clawback rules are not written down.",
+          note: "Nobody has written down the split-sale and return-clawback rules.",
         },
       ],
       ideas: [
@@ -553,7 +553,7 @@ export const retailTemplate: IndustrySample = {
   scenarios: baseFraudScenarios({
     keyPersonTitle: "Lead cashier leaves with sole register and returns knowledge",
     keyPersonDesc:
-      "The lead cashier (sole expert on POS overrides and return policy) resigns with two weeks' notice. Nobody else has been trained.",
+      "The lead cashier (sole expert on POS overrides and return policy) resigns with two weeks' notice. Nobody else has trained for the work.",
     knowledgeId: "k1",
     billingLabel: "Markdowns and adjustments posted without a second approval",
   }),
