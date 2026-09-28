@@ -1,4 +1,5 @@
 import type { IndustryId } from "../industry";
+import type { EntitlementId } from "../sod/conflict-rules";
 import type { ProcessCadence } from "../types";
 
 /**
@@ -35,6 +36,20 @@ export interface ProcedureStep {
   requiresPhoto?: true;
 }
 
+/**
+ * Evidence that someone other than the usual person can do the task: they
+ * followed the procedure on a given day, alone or with help.
+ */
+export interface ProcedureProof {
+  id: string;
+  personId: string;
+  /** Calendar day (YYYY-MM-DD) they did it. */
+  on: string;
+  /** Did it without help. Only an unaided run is offered as a reason to raise their level. */
+  alone: boolean;
+  note?: string;
+}
+
 /** One saved change to a procedure's content. */
 export interface ProcedureChange {
   version: number;
@@ -64,6 +79,12 @@ export interface Procedure {
   /** Register items this procedure lets someone cover. */
   knowledgeIds: string[];
   processIds: string[];
+  /**
+   * The duties following this procedure exercises (release a payment,
+   * reconcile the bank). A backup who would newly hold a conflicting pair is
+   * warned about before they are asked to cover.
+   */
+  dutyIds?: EntitlementId[];
   /** Who does it today. */
   ownerPersonId?: string;
   /** Who should be able to follow it when the owner is away. */
@@ -81,6 +102,8 @@ export interface Procedure {
   version: number;
   /** Newest first. */
   changelog: ProcedureChange[];
+  /** Runs by someone other than the usual person, newest first. */
+  proofs: ProcedureProof[];
   /** Calendar days. */
   createdAt: string;
   updatedAt: string;

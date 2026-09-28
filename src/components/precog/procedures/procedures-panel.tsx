@@ -21,6 +21,8 @@ import { uid } from "@/lib/precog/text";
 import { useToday } from "@/lib/use-today";
 import { ProcedureEditor } from "./procedure-editor";
 import { StoredPicture, type PictureAccess } from "./step-pictures";
+import { ProofSection } from "./procedure-proof";
+import { backupProofs, proofIsStale } from "@/lib/precog/procedures/proof";
 import { isSampleBusiness } from "@/lib/precog/business-lifecycle";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { useWorkspace } from "@/lib/precog/workspace-context";
@@ -38,7 +40,7 @@ const STATUS_BADGE: Record<ProcedureStatus, "default" | "ok" | "warn" | "danger"
 const FILTER_LABEL: Record<Filter, string> = {
   all: "All",
   review: "Needs checking",
-  "no-backup": "No backup named",
+  "no-backup": "No backup proven",
   empty: "No steps yet",
 };
 
@@ -104,7 +106,9 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
     const status = procedureStatus(p, today);
     if (filter === "review")
       return status === "draft" || status === "stale" || status === "needs_reverify";
-    if (filter === "no-backup") return p.backupPersonIds.length === 0;
+    if (filter === "no-backup") {
+      return !backupProofs(p).some((x) => x.on && !proofIsStale(x.on, today));
+    }
     if (filter === "empty") return status === "empty";
     return true;
   });
@@ -446,6 +450,7 @@ function ProcedureView({
               : ""}
           </dd>
         </dl>
+        <ProofSection procedure={p} today={today} />
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={onEdit}>
             <Pencil className="size-3.5" /> Edit

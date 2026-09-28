@@ -80,6 +80,7 @@ import {
   withPracticeName,
   withProcedure,
   withProcedureVerified,
+  withProcedureProof,
   withoutProcedure,
   procedureFits,
   withProcesses,
@@ -92,7 +93,7 @@ import {
   type DecisionInput,
 } from "./profile-actions";
 import { localDateKey } from "./dates";
-import type { Place, Procedure } from "./procedures/types";
+import type { Place, Procedure, ProcedureProof } from "./procedures/types";
 
 export type { SyncStatus };
 
@@ -200,6 +201,8 @@ export interface PracticeActions {
   /** Procedures tab: record that `verifiedBy` (a person id, or "owner") confirmed the steps today. */
   verifyProcedure: (id: string, verifiedBy: string) => void;
   removeProcedure: (id: string) => void;
+  /** Procedures tab: record that someone other than the usual person followed procedure `id`. */
+  recordProcedureProof: (id: string, proof: Omit<ProcedureProof, "id">) => void;
   resetSegregationToDerived: () => void;
   /** Map builder: pin canvas positions for process nodes. */
   setMapLayout: (v: SetStateAction<Record<string, { x: number; y: number }>>) => void;
@@ -536,6 +539,10 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     setProfile((p) => withProcedureVerified(p, id, verifiedBy, localDateKey(new Date())));
   }, []);
 
+  const recordProcedureProof = useCallback((id: string, proof: Omit<ProcedureProof, "id">) => {
+    setProfile((p) => withProcedureProof(p, id, proof));
+  }, []);
+
   const removeProcedure = useCallback((id: string) => {
     setProfile((p) => withoutProcedure(p, id));
   }, []);
@@ -612,6 +619,7 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       saveProcedure,
       verifyProcedure,
       removeProcedure,
+      recordProcedureProof,
       resetSegregationToDerived,
       setMapLayout,
       setSavedProcessBlocks,
@@ -653,6 +661,7 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       saveProcedure,
       verifyProcedure,
       removeProcedure,
+      recordProcedureProof,
       resetSegregationToDerived,
       setMapLayout,
       setSavedProcessBlocks,

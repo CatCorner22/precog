@@ -10,6 +10,7 @@ import { coverageReport } from "../continuity/coverage";
 import { checkInPlan, staleItems } from "../continuity/staleness";
 import { contingencyCards } from "../continuity/absence-impact";
 import { documentationDebt } from "../continuity/documentation";
+import { procedureSummary } from "../procedures/attention";
 import { plannedAbsenceReport } from "../continuity/planned-absence";
 import { leaveDebriefs } from "../continuity/leave-debrief";
 import { leavers as leaversReport } from "../continuity/leavers";
@@ -106,6 +107,7 @@ export function buildControlReportModel({
     mapAssessed: mapReady,
     decisions: profile.decisions,
     plannedAbsences: profile.plannedAbsences,
+    procedures: profile.procedures,
   });
   const issues = validateProcessMap(
     tpl.processes,
@@ -188,6 +190,7 @@ export function buildControlReportModel({
     policyNote,
     healthDelta,
     registerReady,
+    procedures: procedureSummary(profile.procedures ?? [], tpl.knowledge, profile.industry, today),
     decisionLog: decisionLog(profile.decisions),
     followThrough: continuityFollowThrough(profile.decisions, profile.industry),
   };

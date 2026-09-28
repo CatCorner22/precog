@@ -80,6 +80,7 @@ const READ_ONLY_ACTIONS: PracticeActions = {
   saveProcedure: () => false,
   verifyProcedure: noop,
   removeProcedure: noop,
+  recordProcedureProof: noop,
   resetSegregationToDerived: noop,
   setMapLayout: noop,
   setSavedProcessBlocks: noop,
