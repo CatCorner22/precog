@@ -192,6 +192,7 @@ export const PIONEER_LIST_CAPS = {
   relations: 2_500,
   decisions: 500,
   absences: 200,
+  procedures: 120,
 } as const;
 
 const optString = z.string().nullish();
@@ -292,6 +293,8 @@ const pioneerProfileSchema = z.looseObject({
   // Journal entries and absences are rebuilt field by field downstream.
   decisions: list(z.unknown(), PIONEER_LIST_CAPS.decisions).nullish(),
   plannedAbsences: list(z.unknown(), PIONEER_LIST_CAPS.absences).nullish(),
+  // Links only (id, title, register items); rebuilt field by field downstream.
+  procedureLinks: list(z.unknown(), PIONEER_LIST_CAPS.procedures).nullish(),
 });
 
 const pioneerSchema = z.object({

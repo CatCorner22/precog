@@ -21,6 +21,8 @@ import type {
   StaffComposition,
 } from "../types";
 import { PIONEER_LIST_CAPS } from "../public-inputs";
+import { linkOnlyProcedure, type ProcedureLinkInput } from "../procedures/coverage-link";
+import { PROCEDURE_LIMITS } from "../procedures/normalize";
 
 /** The slice of a PracticeProfile that changes what Pioneer computes. */
 export interface PioneerProfileInput {
@@ -37,6 +39,12 @@ export interface PioneerProfileInput {
   decisions?: DecisionEntry[] | null;
   /** Known leave, so Pioneer can warn ahead of it. */
   plannedAbsences?: PlannedAbsence[] | null;
+  /**
+   * Which register items have a written procedure, so Pioneer counts them as
+   * written down as every other screen does. Only the links are sent, never
+   * the steps, people or pictures.
+   */
+  procedureLinks?: ProcedureLinkInput[] | null;
 }
 
 function capList<T>(list: T[] | null | undefined): T[] | null {
@@ -85,11 +93,31 @@ function sanitizeDecision(value: unknown): DecisionEntry | null {
   };
 }
 
+/** A procedure link from an untrusted payload, bounded; null without an id, title or item. */
+function sanitizeProcedureLink(value: unknown): ProcedureLinkInput | null {
+  if (typeof value !== "object" || value === null) return null;
+  const raw = value as Record<string, unknown>;
+  const id = optionalString(raw.id, 60)?.trim();
+  const title = optionalString(raw.title, PROCEDURE_LIMITS.title)?.trim();
+  const knowledgeIds = Array.isArray(raw.knowledgeIds)
+    ? [
+        ...new Set(
+          raw.knowledgeIds.filter((k): k is string => typeof k === "string" && k.length <= 120),
+        ),
+      ].slice(0, PROCEDURE_LIMITS.links)
+    : [];
+  return id && title && knowledgeIds.length ? { id, title, knowledgeIds } : null;
+}
+
 /**
  * Build the canonical profile Pioneer reasons over. Missing fields fall back
- * to the chosen industry's template — never to another industry's.
+ * to the chosen industry's template — never to another industry's. `today`
+ * dates the link-only procedures, which no rule reads the date of.
  */
-export function pioneerProfileFrom(input: PioneerProfileInput): PracticeProfile {
+export function pioneerProfileFrom(
+  input: PioneerProfileInput,
+  today = new Date().toISOString().slice(0, 10),
+): PracticeProfile {
   const industry: IndustryId = isIndustryId(input.industry) ? input.industry : "general";
   const base = defaultProfile(industry);
   const staff: StaffComposition = { ...base.staff, ...(input.staff ?? {}) };
@@ -120,6 +148,16 @@ export function pioneerProfileFrom(input: PioneerProfileInput): PracticeProfile 
     0,
     PIONEER_LIST_CAPS.absences,
   );
+  const seenLinks = new Set<string>();
+  const procedures = (Array.isArray(input.procedureLinks) ? input.procedureLinks : [])
+    .slice(0, PIONEER_LIST_CAPS.procedures)
+    .map(sanitizeProcedureLink)
+    .filter((l): l is ProcedureLinkInput => {
+      if (!l || seenLinks.has(l.id)) return false;
+      seenLinks.add(l.id);
+      return true;
+    })
+    .map((l) => linkOnlyProcedure(l, industry, today));
   return {
     ...base,
     practiceName: practiceName || base.practiceName,
@@ -133,5 +171,6 @@ export function pioneerProfileFrom(input: PioneerProfileInput): PracticeProfile 
     customRelations,
     decisions,
     plannedAbsences,
+    ...(procedures.length ? { procedures } : {}),
   };
 }
