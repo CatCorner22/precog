@@ -15,13 +15,13 @@ export const LEVEL_SHORT: Record<KnowledgeLevel, string> = {
   aware: "Aware",
 };
 
-export const NOT_ASSESSED_HINT = "Fills in once someone is marked on an item.";
+export const NOT_ASSESSED_HINT = "Fills in once you mark someone on an item.";
 
 export const NOT_ASSESSED_PLAN =
-  "Nobody is marked on the register yet, so there is nobody to name. Mark who can do each item above; the plan then names the trainee and the trainer.";
+  "The register does not mark anyone yet, so there is nobody to name. Mark who can do each item above; the plan then names the trainee and the trainer.";
 
 export const NOT_ASSESSED_ABSENCE =
-  "Not assessed yet: nobody is marked on the register, so the app cannot tell what stops when someone is out. Mark who can do each item above and this fills in.";
+  "Not assessed yet: the register does not mark anyone, so Precog cannot tell what stops when someone is out. Mark who can do each item above and this fills in.";
 
 export const KIND_LABEL: Record<KnowledgeKind, string> = {
   duty: "Duty",

@@ -123,7 +123,7 @@ export function PlannerRegisterBanners({
           <p className="mt-1 leading-relaxed text-muted">
             These {tpl.knowledge.length} duties and pieces of know-how are what a business like
             yours usually runs on. Mark who can do each, edit or delete what does not apply, or
-            start from a blank list. The figures above stay blank until someone is marked.
+            start from a blank list. The figures above stay blank until you mark someone.
           </p>
           <Button size="sm" variant="secondary" className="mt-3" onClick={register.clearStarter}>
             Start from a blank list

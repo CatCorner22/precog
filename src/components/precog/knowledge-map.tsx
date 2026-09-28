@@ -188,7 +188,7 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
         <p className="text-xs font-medium tracking-wide text-subtle uppercase">Selected item</p>
         {!assessed ? (
           <p className="mt-3 text-sm text-muted">
-            Nobody is marked on the register above yet, so the map cannot say who holds what. Mark
+            The register above does not mark anyone yet, so the map cannot say who holds what. Mark
             who can do each item there and the map fills in.
           </p>
         ) : selected ? (
@@ -256,7 +256,7 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
                       <span className="font-medium">{r.name}</span>
                       <span className="mt-0.5 block text-xs text-muted">
                         {r.ownerCount === 0 ? "Nobody can run it alone" : "One person only"} ·
-                        attention index {r.riskScore} of 100 (this app&apos;s own scale)
+                        attention index {r.riskScore} of 100 (Precog&apos;s own scale)
                       </span>
                     </button>
                   </li>

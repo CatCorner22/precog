@@ -200,7 +200,7 @@ export function parseRegisterCsv(
     const rowNumber = index + 1;
     const name = (cells[itemColumn] ?? "").trim();
     if (!name) {
-      issues.push({ row: rowNumber, message: "Item name is required" });
+      issues.push({ row: rowNumber, message: "Each row must have an item name" });
       return;
     }
     const itemKey = nameKey(name);
@@ -255,7 +255,7 @@ export function parseRegisterCsv(
       issues.push({
         row: rowNumber,
         message: isCalendarDate(confirmedValue)
-          ? `Last confirmed ${confirmedValue} is after today; the date on record was kept`
+          ? `Last confirmed ${confirmedValue} is after today; Precog kept the date on record`
           : `Last confirmed "${confirmedValue}" is not a date; write it as YYYY-MM-DD`,
       });
     }

@@ -86,7 +86,7 @@ export function RegisterGrid({
             className={inputClass}
             value={register.draftName}
             onChange={(e) => register.setDraftName(e.target.value)}
-            placeholder="e.g. Run payroll, Close the till, Reset the alarm"
+            placeholder="For example: Run payroll, Close the till, Reset the alarm"
             aria-label="New item name"
           />
         </label>

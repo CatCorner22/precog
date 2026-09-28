@@ -464,7 +464,7 @@ export function SelectedKnowledgeCard({
               className={inputClass}
               value={selected.item.procedureLocation ?? ""}
               maxLength={200}
-              placeholder="e.g. Shared drive › Office › Payroll checklist.pdf"
+              placeholder="For example: Shared drive › Office › Payroll checklist.pdf"
               onChange={(e) => updateItem(selected.item.id, { procedureLocation: e.target.value })}
             />
           </label>
@@ -505,8 +505,8 @@ export function SelectedKnowledgeCard({
             </div>
           ) : (
             <p className="text-xs text-muted">
-              Nobody is marked on this item yet. Mark who can do it; the app suggests who to train
-              once someone is marked.
+              You have not marked anyone on this item yet. Mark who can do it; Precog suggests who
+              to train once you mark someone.
             </p>
           ))}
       </CardContent>

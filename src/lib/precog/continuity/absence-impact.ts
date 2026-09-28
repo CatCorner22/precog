@@ -121,7 +121,7 @@ export function absenceImpact(
           standIn: learner,
           note: isWritten(i.item)
             ? `${learner.name} has the basics and there is a written procedure to follow${where(i.item)}.`
-            : `${learner.name} has the basics but nothing is written down — expect mistakes.`,
+            : `${learner.name} has the basics but nobody has written the steps down — expect mistakes.`,
         };
       }
       // A covered item carries no ranked backups; when every holder is out at
@@ -243,7 +243,7 @@ export function absenceImpact(
     });
   if (!assessed)
     actions.push({
-      text: `Nobody is marked on the register yet, so the app cannot tell what stops if ${names} ${single ? "is" : "are"} out. Mark who can do each item first.`,
+      text: `The register does not mark anyone yet, so Precog cannot tell what stops if ${names} ${single ? "is" : "are"} out. Mark who can do each item first.`,
       step: "cover",
       knowledgeIds: [],
     });

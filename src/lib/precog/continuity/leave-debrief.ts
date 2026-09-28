@@ -122,7 +122,7 @@ export function describeDebriefItem(debrief: LeaveDebrief, entry: DebriefItem): 
   const days = `${debrief.lengthDays} day${debrief.lengthDays === 1 ? "" : "s"}`;
   const notice = debrief.absence.unplanned ? " at short notice" : "";
   if (!entry.standIn) {
-    return `Nobody was lined up for ${entry.item.name} for those ${days}${notice} — did someone step in?`;
+    return `You lined up nobody for ${entry.item.name} for those ${days}${notice} — did someone step in?`;
   }
   const first = firstName(entry.standIn.name);
   if (standInAlreadyStrong(entry)) {

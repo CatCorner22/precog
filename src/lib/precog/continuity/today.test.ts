@@ -317,7 +317,7 @@ describe("today's brief over a sample register nobody has marked", () => {
     const brief = todayBrief(starter, [absence()], [], "general", TODAY);
     expect(brief.assessed).toBe(false);
     expect(brief.headline).toBe(
-      "Maya is out unexpectedly today — nobody is marked on the register yet, so the app cannot tell what stops.",
+      "Maya is out unexpectedly today — the register does not mark anyone yet, so Precog cannot tell what stops.",
     );
   });
 });
