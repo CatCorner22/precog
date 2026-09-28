@@ -29,6 +29,14 @@ Finally click Finish now`,
     expect(draft.steps).toEqual(["Open Banking."]);
   });
 
+  it('keeps an action phrased as "need to" as a step, not a prerequisite', () => {
+    const draft = draftLocally({
+      notes: "Need to open Banking\nYou need to submit the report\nYou need to have the bank login",
+    });
+    expect(draft.steps).toEqual(["Open Banking.", "Submit the report."]);
+    expect(draft.prerequisites).toEqual(["The bank login"]);
+  });
+
   it("masks anything that looks like a password and never invents a purpose", () => {
     const draft = draftLocally({ notes: "Sign in with password: Summer2026! and open Reports." });
     expect(draft.steps.join(" ")).not.toContain("Summer2026");

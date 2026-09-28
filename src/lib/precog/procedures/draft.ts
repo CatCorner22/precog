@@ -33,14 +33,19 @@ export interface ProcedureDraft {
 /** The most notes one draft reads. */
 export const DRAFT_NOTES_MAX = 2000;
 
-/** A line that names something needed first: "Need: the bank login", "You'll need the deposit book". */
+/**
+ * A line that names something needed first: "Need: the bank login", "You'll
+ * need the deposit book". "Need to open Banking" is an action, not a
+ * prerequisite, so "need" followed by "to" does not count (except "need to
+ * have", which names a thing).
+ */
 const PREREQUISITE =
-  /^(?:you(?:'ll| will)? need|you need to have|need(?:ed)?|requires?|before you start|have ready|what you need)\b[\s:,-]*/i;
+  /^(?:(?:you(?:'ll| will)? )?need(?:ed)? to have|(?:you(?:'ll| will)? )?need(?:ed)?(?!\s+to\b)|requires?|before you start|have ready|what you need)\b[\s:,-]*/i;
 const BULLET = /^\s*(?:[-*•·>]+|\(?\d{1,2}[.):]|step\s+\d{1,2}\s*[.:)-]?)\s*/i;
 const FILLER =
   /^(?:first(?:ly)?|second(?:ly)?|then|next|after that|afterwards|after this|finally|lastly|and|so|also|now|ok(?:ay)?)\b[\s,:-]*/i;
 const SUBJECT =
-  /^(?:(?:you|we|i|they)(?: then)?(?: (?:usually|always|normally|just|then))?(?: (?:need to|have to|should|must|will|can|go and|go to and))?|please)\s+(?=[a-z])/i;
+  /^(?:(?:you|we|i|they)(?: then)?(?: (?:usually|always|normally|just|then))?(?: (?:need to|have to|should|must|will|can|go and|go to and))?|please|need to|have to|must)\s+(?=[a-z])/i;
 /** Where one action ends and the next begins inside a sentence. */
 const ACTION_BREAK = /\s*;\s*|,?\s+(?:and then|then|after that|afterwards)\s+/i;
 
