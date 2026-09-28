@@ -156,7 +156,7 @@ export function ProcedurePrint({
               )}
             </section>
             <footer className="border-t border-neutral-300 pt-2 text-[9pt] text-neutral-600">
-              Does it today: {nameOf(p.ownerPersonId) ?? "not set"} · Backups:{" "}
+              Does it today: {nameOf(p.ownerPersonId) ?? "not set"} · Stand-ins:{" "}
               {p.backupPersonIds.map((id) => nameOf(id)).join(", ") || "nobody named yet"} ·
               Reviewer: {nameOf(p.reviewerPersonId) ?? "the owner"}
               {items ? ` · Covers: ${items}` : ""}

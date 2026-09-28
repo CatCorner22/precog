@@ -48,4 +48,4 @@ const HEALTH_TONE: Record<HealthLevel, HealthTone> = {
 
 /** The one sentence every index surface shows beside its number. */
 export const INDEX_BASIS =
-  "Indices are this app's weighting of your answers, not measurements. The bands order attention; no study set them.";
+  "Indices are Precog's weighting of your answers, not measurements. The bands order attention; no study set them.";

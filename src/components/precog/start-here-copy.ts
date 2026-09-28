@@ -34,8 +34,8 @@ export const SCHEME_PHRASE: Record<SchemeKind, string> = {
   "expense-reimbursement": "Company card and expenses",
   payroll: "Payroll",
   "receivables-diversion": "Customer payments diverted",
-  skimming: "Cash taken before it was recorded",
-  "cash-larceny": "Cash taken after it was recorded",
+  skimming: "Cash taken before anyone recorded it",
+  "cash-larceny": "Cash taken after someone recorded it",
   "financial-statement": "Doctored books and statements",
   corruption: "Kickbacks and conflicts of interest",
   "refund-fraud": "Refunds and voids with no sale behind them",
@@ -59,7 +59,7 @@ export function joinClauses(parts: string[]): string {
 }
 
 /** How the register percentages are weighted, said once wherever one is shown. */
-export const WEIGHTED_SHARE_NOTE = `Shares are weighted: a critical item counts ${times(CRITICALITY_WEIGHT.critical)} as much as a nice-to-have, an important one ${times(CRITICALITY_WEIGHT.important)}. Must-do work means the critical and important items.`;
+export const WEIGHTED_SHARE_NOTE = `The shares use weights: a critical item counts ${times(CRITICALITY_WEIGHT.critical)} as much as a nice-to-have, an important one ${times(CRITICALITY_WEIGHT.important)}. Must-do work means the critical and important items.`;
 
 /**
  * The line under someone out today when nothing on the register stops, or

@@ -485,7 +485,7 @@ describe("leave booked over a sample register nobody has marked", () => {
     expect(w.impact.stops).toEqual([]);
     expect(w.impact.alreadyStopped).toEqual([]);
     expect(describeWindow(w)).toBe(
-      "Ana is out Nov 2, tomorrow: nobody is marked on the register yet, so the app cannot tell what stops.",
+      "Ana is out Nov 2, tomorrow: the register does not mark anyone yet, so Precog cannot tell what stops.",
     );
   });
 

@@ -29,7 +29,7 @@ describe("reviewDelta", () => {
     expect(line).toContain(
       'must-do items marked "Only one person" or "Nobody can do this alone" 5 → 4 (down 1, better)',
     );
-    expect(line).toContain("backed up 40% → 45% (up 5, better)");
+    expect(line).toContain("with a stand-in 40% → 45% (up 5, better)");
   });
 
   it("says which way the exposure moved and whether that is better", () => {

@@ -104,7 +104,7 @@ describe("buildWeeklyActions journal awareness", () => {
   it("falls back to the item when the planned trainee left the team", () => {
     const actions = build([coverDecision({ linkedPersonId: "p-gone" })], "2025-05-02");
     expect(actions.find((a) => a.id === "commit-d-cover")?.title).toBe(
-      `Review overdue: is ${item.name} backed up yet?`,
+      `Review overdue: does ${item.name} have a stand-in yet?`,
     );
   });
 

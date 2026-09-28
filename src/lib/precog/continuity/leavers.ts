@@ -141,7 +141,7 @@ function handoverActions(
   const actions: AbsenceAction[] = [];
   if (!assessed)
     actions.push({
-      text: `Nobody is marked on the register yet, so the app cannot tell what leaves with ${first}. Mark who can do each item before ${first}'s last day.`,
+      text: `The register does not mark anyone yet, so Precog cannot tell what leaves with ${first}. Mark who can do each item before ${first}'s last day.`,
       step: "cover",
       knowledgeIds: [],
     });
@@ -215,14 +215,14 @@ export function describeLeaver(l: Leaver): string {
   const when = `${first} ${leaverLead(l.daysLeft)} (last day ${formatDayRange(l.lastDay, l.lastDay)})`;
   if (l.status === "gone") {
     const n = l.handover.length;
-    return `${when} and is still counted as on the team — mark ${first} as left${
+    return `${when} and Precog still counts them as on the team — mark ${first} as left${
       n > 0
         ? ` so the register stops relying on ${first} for ${n} ${n === 1 ? "entry" : "entries"}`
         : ""
     }.`;
   }
   if (!l.assessed && l.orphanedProcesses.length === 0) {
-    return `${when}: nobody is marked on the register yet, so the app cannot tell what leaves with ${first}.`;
+    return `${when}: the register does not mark anyone yet, so Precog cannot tell what leaves with ${first}.`;
   }
   if (l.handover.length === 0 && l.orphanedProcesses.length === 0) {
     return `${when}: nothing on the register leaves with ${first}.`;
@@ -247,7 +247,7 @@ export function describeLeaver(l: Leaver): string {
     n === 0 ? "" : `${n} register ${n === 1 ? "entry" : "entries"} only ${first} can run alone`;
   return `${when}: ${[stops, ...parts].filter(Boolean).join(" — ")}${
     l.unlogged > 0 && n > 0
-      ? `; ${l.unlogged === n ? "none" : `${n - l.unlogged} of ${n}`} logged in the Decisions log`
+      ? `; ${l.unlogged === n ? "none" : `${n - l.unlogged} of ${n}`} recorded in the Decisions log`
       : ""
   }.`;
 }

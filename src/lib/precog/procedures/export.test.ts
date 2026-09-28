@@ -52,7 +52,7 @@ function reconcile(): Procedure {
 }
 
 describe("a procedure as Markdown", () => {
-  it("reads in the order a backup follows it, with owner text escaped", () => {
+  it("reads in the order a stand-in follows it, with owner text escaped", () => {
     const p = reconcile();
     // Verifying clears the mark, so put it back on one step to see how it reads.
     p.steps[2] = { ...p.steps[2], aiDrafted: true };
@@ -79,7 +79,7 @@ describe("a procedure as Markdown", () => {
       "3. Match each line.\n   _Suggested common practice; not yet fitted to this business._",
     );
     expect(md).toContain("- Does it today: Ada Owner");
-    expect(md).toContain("- Backups: Bea Books");
+    expect(md).toContain("- Stand-ins: Bea Books");
     expect(md).toContain("- Covers on Who knows what: Bank reconciliation");
   });
 

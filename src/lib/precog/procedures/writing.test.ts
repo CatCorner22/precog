@@ -101,6 +101,7 @@ describe("the writing screen", () => {
       expect(findPassive("Check that the safe is locked.")).toBeNull();
       expect(findPassive("Skip it if the bank is closed.")).toBeNull();
       expect(findPassive("Stop if the light is red.")).toBeNull();
+      expect(findPassive("Report anyone you are worried about.")).toBeNull();
     });
   });
 

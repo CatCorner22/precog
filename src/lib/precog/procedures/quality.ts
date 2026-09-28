@@ -101,14 +101,14 @@ export function procedureRecommendations(
       id: "owner",
       level: "improve",
       title: "Name who does it today.",
-      why: "A backup who is stuck needs to know who to ask.",
+      why: "A stand-in who is stuck needs to know who to ask.",
     });
   }
   if (p.backupPersonIds.length === 0) {
     add({
       id: "backup",
       level: "fix",
-      title: "Name at least one backup: a person who can follow it when the usual person is out.",
+      title: "Name at least one stand-in: a person who can follow it when the usual person is out.",
       why: "A procedure only protects the business if someone else is ready to use it.",
     });
   }
@@ -139,7 +139,7 @@ export function procedureRecommendations(
       id: "pictures",
       level: "improve",
       title: "Add a screenshot where the screen is hard to describe.",
-      why: "A picture of the right button saves a backup from guessing between similar ones.",
+      why: "A picture of the right button saves a stand-in from guessing between similar ones.",
     });
   }
   if (written.length > MANY_STEPS) {
@@ -147,7 +147,7 @@ export function procedureRecommendations(
       id: "length",
       level: "improve",
       title: `Split it into two procedures, or group the steps; it has ${written.length}.`,
-      why: "Long procedures are where a backup loses their place.",
+      why: "Long procedures are where a stand-in loses their place.",
     });
   }
   const drafted = aiDraftedSteps(p);

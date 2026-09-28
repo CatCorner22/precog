@@ -648,11 +648,11 @@ function procedureActions({ tpl, input, today }: WeeklyContext): WeeklyAction[] 
   const actions: WeeklyAction[] = [];
   for (const { procedure, backupIds } of attention.unproven.slice(0, MAX_PER_SOURCE)) {
     const names = backupIds.map(nameOf).filter((n): n is string => Boolean(n));
-    const who = names.length ? firstName(names[0]) : "a backup";
+    const who = names.length ? firstName(names[0]) : "a stand-in";
     actions.push({
       id: `procedure-unproven-${procedure.id}`,
       title: `Have ${who} do "${procedure.title}" alone`,
-      why: `This is critical work, and nobody named to cover it has shown they can follow the written steps without help. Let a backup try it first on an ordinary day, not on the day the usual person is out.`,
+      why: `This is critical work, and nobody named to cover it has shown they can follow the written steps without help. Let a stand-in try it first on an ordinary day, not on the day the usual person is out.`,
       effort: "low",
       tab: "procedures",
       priority: PRIORITY.procedureUnproven,
@@ -876,7 +876,7 @@ function committedAction(
         c.step === "cover"
           ? first
             ? `Review overdue: can ${first} run ${c.item.name} alone yet?`
-            : `Review overdue: is ${c.item.name} backed up yet?`
+            : `Review overdue: does ${c.item.name} have a stand-in yet?`
           : c.step === "document"
             ? `Review overdue: is ${c.item.name} written down yet?`
             : c.step === "locate"

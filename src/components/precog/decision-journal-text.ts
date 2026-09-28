@@ -36,7 +36,7 @@ export function reviewDelta(
       c.docsThen && c.docsNow && c.docsThen !== c.docsNow
         ? `${DOCUMENTATION_LABEL[c.docsThen].toLowerCase()} → ${DOCUMENTATION_LABEL[c.docsNow].toLowerCase()} · `
         : "";
-    return `${item}${docs}backed up ${d.snapshot.continuity.coverageIndex}% → ${current.continuity.coverageIndex}% (${change(c.coverageIndex, "higher")}) · must-do items marked "${STATUS_LABEL.single}" or "${STATUS_LABEL.uncovered}" ${d.snapshot.continuity.singlePoints} → ${current.continuity.singlePoints} (${change(c.singlePoints, "lower")})`;
+    return `${item}${docs}with a stand-in ${d.snapshot.continuity.coverageIndex}% → ${current.continuity.coverageIndex}% (${change(c.coverageIndex, "higher")}) · must-do items marked "${STATUS_LABEL.single}" or "${STATUS_LABEL.uncovered}" ${d.snapshot.continuity.singlePoints} → ${current.continuity.singlePoints} (${change(c.singlePoints, "lower")})`;
   }
   if (delta.subject !== undefined && d.snapshot.subjectResidual !== undefined) {
     return `still exposed ${d.snapshot.subjectResidual} → ${current.subjectResidual} (${change(delta.subject, "lower")}) · ${conflicts}`;

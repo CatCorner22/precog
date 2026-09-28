@@ -73,7 +73,7 @@ export function CaseCard({ study }: { study: CaseStudy }) {
           <Section title="What we think would have caught it">
             <p className="mb-1.5 text-xs text-subtle">
               Our reading of the public record, not a finding from the case. Where the source says
-              how the theft was found, the card names that route below.
+              how the theft came to light, the card names that route below.
             </p>
             <ul className="space-y-1.5">
               {study.wouldHaveCaughtIt.map((step, i) => (
@@ -88,7 +88,7 @@ export function CaseCard({ study }: { study: CaseStudy }) {
           </Section>
 
           <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-subtle">
-            <span>How it was found: {DETECTION_LABEL[study.detection]}</span>
+            <span>How it came to light: {DETECTION_LABEL[study.detection]}</span>
             {typeof study.tenureYearsStated === "number" ? (
               <span>
                 Time with the employer:{" "}

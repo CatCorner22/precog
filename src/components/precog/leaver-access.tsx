@@ -16,7 +16,7 @@ import { joinWithAnd } from "@/lib/precog/text";
 import { formatDay } from "@/lib/precog/dates";
 
 const WHY =
-  "Someone who has left but whose login, card or PIN still works can move money or copy customer records. Checking each one takes a few minutes.";
+  "Someone who has left but whose sign-in, card or PIN still works can move money or copy customer records. Checking each one takes a few minutes.";
 
 /** The logins and pay to check for someone who has left, ticked one by one before confirming. */
 function AccessChecklist({
@@ -66,7 +66,7 @@ function AccessChecklist({
         </Button>
         {children}
         {!allTicked && (
-          <span className="text-xs text-muted">Tick each one once it is done to confirm.</span>
+          <span className="text-xs text-muted">Tick each one once you have done it.</span>
         )}
       </div>
     </div>
@@ -105,8 +105,8 @@ export function LeaverAccessPrompt() {
         <p id="leaver-access-prompt-title" className="flex items-center gap-2 text-sm font-medium">
           <KeyRound className="size-4 shrink-0" aria-hidden />
           {one
-            ? `${names} has left. Stop their pay and remove their logins.`
-            : `${pending.length} people have left: ${names}. Stop their pay and remove their logins.`}
+            ? `${names} has left. Stop their pay and remove their sign-ins.`
+            : `${pending.length} people have left: ${names}. Stop their pay and remove their sign-ins.`}
         </p>
         <p className="max-w-3xl text-sm text-muted">{WHY}</p>
         <AccessChecklist
@@ -148,8 +148,8 @@ export function LeaverAccessList({ explainOnSample = false }: { explainOnSample?
     return explainOnSample && !profile.customPeople ? (
       <p className="flex items-center gap-2 text-sm text-muted">
         <KeyRound className="size-4 shrink-0" aria-hidden />
-        On your own business, marking someone as left also asks you to confirm their pay and logins
-        are stopped.
+        On your own business, marking someone as left also asks you to confirm that you have stopped
+        their pay and their sign-ins.
       </p>
     ) : null;
   }
@@ -161,8 +161,8 @@ export function LeaverAccessList({ explainOnSample = false }: { explainOnSample?
       <p id="leaver-access-list-title" className="flex items-center gap-2 text-sm font-medium">
         <UserMinus className="size-4 shrink-0" aria-hidden />
         {open.length === 1
-          ? "1 person who left still needs their pay and logins checked"
-          : `${open.length} people who left still need their pay and logins checked`}
+          ? "1 person who left still needs their pay and sign-ins checked"
+          : `${open.length} people who left still need their pay and sign-ins checked`}
       </p>
       <p className="mt-1 text-sm leading-relaxed text-muted">{WHY}</p>
       <ul className="mt-3 space-y-2">
@@ -185,7 +185,7 @@ export function LeaverAccessList({ explainOnSample = false }: { explainOnSample?
                 aria-expanded={expanded === check.id}
                 onClick={() => setExpanded(expanded === check.id ? null : check.id)}
               >
-                {expanded === check.id ? "Close" : "Check pay and logins"}
+                {expanded === check.id ? "Close" : "Check pay and sign-ins"}
               </Button>
             </div>
             {expanded === check.id && (

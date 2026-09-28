@@ -132,7 +132,7 @@ export function StartHereContinuitySection({
                     </Badge>
                     <span className="text-xs text-muted">
                       {l.status === "gone"
-                        ? "still counted as a stand-in"
+                        ? "Precog still counts them as a stand-in"
                         : l.handover.length === 0
                           ? "nothing depends on them alone"
                           : `${l.handover.length} to hand off`}
@@ -177,7 +177,7 @@ export function StartHereContinuitySection({
               <p className="mt-1 text-sm leading-relaxed text-muted">
                 {registerSize === 0
                   ? "Your register is empty. List the duties and know-how the business runs on and mark who can do each, and these figures fill in."
-                  : `Your register holds ${registerSize} sample items from the ${industryLabel} sample, and nobody is marked on any of them yet. Mark who can do each, or remove what does not apply, and these figures fill in.`}
+                  : `Your register holds ${registerSize} sample items from the ${industryLabel} sample, and you have not yet marked anyone on any of them. Mark who can do each, or remove what does not apply, and these figures fill in.`}
               </p>
             </div>
           ) : (
@@ -186,7 +186,7 @@ export function StartHereContinuitySection({
                 <p className="font-mono text-2xl font-semibold tracking-tight">
                   {readiness.coverageIndex}%
                 </p>
-                <p className="mt-1 text-sm font-medium">Backed up</p>
+                <p className="mt-1 text-sm font-medium">Has a stand-in</p>
                 <p className="mt-1 text-xs text-subtle">work two or more people can run</p>
               </div>
               <div className="rounded-lg border border-border bg-panel/60 p-4">

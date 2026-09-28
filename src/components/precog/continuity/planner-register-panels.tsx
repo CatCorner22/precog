@@ -559,7 +559,7 @@ function ProcedureLinkLine({ item }: { item: KnowledgeItem }) {
       </div>
       {proven.length > 0 && (
         <p className="text-xs text-muted">
-          Backup proved it:{" "}
+          Stand-in proved it:{" "}
           {proven.map((x) => `${x.name} did it alone ${formatDay(x.on)}`).join("; ")}
         </p>
       )}
