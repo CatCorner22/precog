@@ -6,6 +6,7 @@ import { signPayload } from "@/lib/precog/billing/stripe";
 import { Route as QboCallback } from "./integrations/qbo/callback";
 import { Route as Cron } from "./cron/digest";
 import { Route as StripeWebhook } from "./stripe/webhook";
+import { Route as ProcedureImage } from "./procedure-image";
 
 // The leading "-" keeps this file out of the generated route tree.
 
@@ -193,5 +194,59 @@ describe("Stripe webhook", () => {
     const res = await deliver(payload, { "stripe-signature": `t=${t},v1=${v1}` });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ received: true });
+  });
+});
+
+describe("procedure image", () => {
+  beforeEach(async () => {
+    const t = db.current!;
+    await t.clear("procedure_images", "businesses", '"user"');
+    await t.seedUser("owner");
+    await t.seedUser("other");
+    for (const user of ["owner", "other"]) {
+      await t.pg.query(
+        `insert into businesses (id, user_id, name, industry, profile, revision)
+         values ('biz_1', $1, 'Riverside Plumbing', 'general', '{}'::jsonb, 1)`,
+        [user],
+      );
+    }
+    await t.pg.query(
+      `insert into procedure_images (id, user_id, business_id, content_type, bytes, byte_size, width, height, sha256)
+       values ('img_one', 'owner', 'biz_1', 'image/png', '\\x89504e47', 4, 1, 1, 'abc')`,
+    );
+  });
+
+  const get = (query: string) =>
+    handlers(ProcedureImage).GET({
+      request: new Request(`https://app.example/api/procedure-image?${query}`),
+    });
+
+  it("serves the owner's picture with its stored type and private, no-sniff headers", async () => {
+    session.userId = "owner";
+    const res = await get("b=biz_1&id=img_one");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/png");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("cache-control")).toBe("private, max-age=86400");
+    expect(res.headers.get("content-security-policy")).toBe("default-src 'none'");
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    );
+  });
+
+  it("answers 404 to a signed-out viewer, another account, and a malformed request", async () => {
+    expect((await get("b=biz_1&id=img_one")).status).toBe(404);
+    session.userId = "other";
+    expect((await get("b=biz_1&id=img_one")).status).toBe(404);
+    session.userId = "owner";
+    expect((await get("b=biz_1&id=../../etc")).status).toBe(404);
+    expect((await get("id=img_one")).status).toBe(404);
+  });
+
+  it("refuses other methods", async () => {
+    const res = await handlers(ProcedureImage).ANY({
+      request: new Request("https://app.example/api/procedure-image", { method: "POST" }),
+    });
+    expect(res.status).toBe(405);
   });
 });

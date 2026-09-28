@@ -20,6 +20,10 @@ import type { Place, PlaceKind, Procedure, ProcedureStatus } from "@/lib/precog/
 import { uid } from "@/lib/precog/text";
 import { useToday } from "@/lib/use-today";
 import { ProcedureEditor } from "./procedure-editor";
+import { StoredPicture, type PictureAccess } from "./step-pictures";
+import { isSampleBusiness } from "@/lib/precog/business-lifecycle";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
+import { useWorkspace } from "@/lib/precog/workspace-context";
 
 type Filter = "all" | "review" | "no-backup" | "empty";
 
@@ -46,6 +50,14 @@ const FILTER_LABEL: Record<Filter, string> = {
  */
 export function ProceduresPanel({ initialItem }: { initialItem?: string | null }) {
   const { profile } = usePractice();
+  const { accountId } = useWorkspace();
+  const businessId = profile.businessId ?? DEFAULT_BUSINESS_ID;
+  // Pictures are stored with the account's copy of the business, never in this browser.
+  const pictureAccess: PictureAccess = !accountId
+    ? { ok: false, reason: "Sign in to add pictures." }
+    : isSampleBusiness(profile)
+      ? { ok: false, reason: "Pictures can be added to your own business, not the sample." }
+      : { ok: true, businessId };
   const tpl = useTemplate();
   const { saveProcedure, verifyProcedure, removeProcedure, setPlaces } = usePracticeActions();
   const today = localDateKey(useToday());
@@ -119,6 +131,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
         places={places}
         people={people}
         knowledge={tpl.knowledge}
+        pictureAccess={pictureAccess}
         onSave={(next) => {
           const ok = saveProcedure(next);
           if (ok) {
@@ -282,6 +295,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
         {selected ? (
           <ProcedureView
             procedure={selected}
+            businessId={businessId}
             place={places.find((pl) => pl.id === selected.placeId) ?? null}
             today={today}
             nameOf={nameOf}
@@ -308,6 +322,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
 /** One procedure as a stand-in reads it, with its review state. */
 function ProcedureView({
   procedure: p,
+  businessId,
   place,
   today,
   nameOf,
@@ -316,6 +331,7 @@ function ProcedureView({
   onVerify,
 }: {
   procedure: Procedure;
+  businessId: string;
   place: Place | null;
   today: string;
   nameOf: (id?: string) => string | null;
@@ -379,6 +395,22 @@ function ProcedureView({
                 <div>
                   <p>{s.text}</p>
                   {s.caution && <p className="mt-0.5 text-xs text-warn">Caution: {s.caution}</p>}
+                  {s.requiresPhoto && (
+                    <p className="mt-0.5 text-xs text-muted">Take a photo as you do this step.</p>
+                  )}
+                  {s.imageIds && s.imageIds.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {s.imageIds.map((id, j) => (
+                        <StoredPicture
+                          key={id}
+                          businessId={businessId}
+                          imageId={id}
+                          alt={`Picture ${j + 1} for step ${i + 1}`}
+                          className="max-h-48 w-auto max-w-full"
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </li>
             ))}

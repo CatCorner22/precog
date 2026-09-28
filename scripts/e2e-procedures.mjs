@@ -47,6 +47,9 @@ async function writeVerifyAndLink(page, errors) {
   await page.getByLabel("Module or screen").fill("Reports › Day sheet");
   await page.getByRole("button", { name: "Add step" }).click();
   await page.getByLabel("Step 1", { exact: true }).fill("Open Reports and choose Day sheet.");
+  // A guest's pictures would have nowhere to go: the step asks them to sign in.
+  await page.getByText("Sign in to add pictures.").first().waitFor();
+  assert.equal(await page.getByRole("button", { name: /^Add a picture/ }).count(), 0);
   await page.getByRole("button", { name: "Add step" }).click();
   await page.getByLabel("Step 2", { exact: true }).fill("Sign in with password: Summer2026!");
   await page.getByRole("alert").filter({ hasText: "looks like a password" }).waitFor();

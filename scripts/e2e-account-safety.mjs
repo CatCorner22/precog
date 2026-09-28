@@ -27,10 +27,15 @@ const businessA = "biz_safety_alpha",
   businessB = "biz_safety_beta";
 const guestKey = profileStorageKey();
 const PROFILE_SERVER = "src/lib/precog/profile-server.ts";
+const IMAGE_SERVER = "src/lib/precog/procedures/image-server.ts";
 const ids = {
   saveBusinessProfile: serverFunctionIdOf(PROFILE_SERVER, "saveBusinessProfile"),
   deleteBusiness: serverFunctionIdOf(PROFILE_SERVER, "deleteBusiness"),
+  uploadProcedureImage: serverFunctionIdOf(IMAGE_SERVER, "uploadProcedureImage"),
 };
+/** A real 1×1 PNG. */
+const PNG_1PX =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 const step = stepLogger();
 const errors = [];
 let browser, page;
@@ -205,6 +210,79 @@ try {
     ),
     0,
   );
+
+  step("B: a procedure picture is stored for B's business and shown only to B");
+  const serverFn = (id, data) =>
+    context.request.post(`${base}/_serverFn/${id}`, {
+      headers: { "content-type": "application/json", "x-tsr-serverFn": "true", Origin: base },
+      data,
+    });
+  const uploadFor = async (businessId, contentType, data) =>
+    serverFn(
+      ids.uploadProcedureImage,
+      await requestBody({ expectedAccountId: b, businessId, contentType, data }, b),
+    );
+  const uploaded = await uploadFor(businessB, "image/png", PNG_1PX);
+  assert.equal(uploaded.status(), 200, await uploaded.text());
+  const imageId = (await uploaded.text()).match(/img_[a-z0-9_]+/)?.[0];
+  assert.ok(imageId, "the upload did not return an image id");
+  const stored = await db.query(
+    "select user_id, content_type from procedure_images where id = $1",
+    [imageId],
+  );
+  assert.deepEqual(stored.rows, [{ user_id: b, content_type: "image/png" }]);
+  const picture = (businessId) =>
+    context.request.get(`${base}/api/procedure-image?b=${businessId}&id=${imageId}`);
+  const own = await picture(businessB);
+  assert.equal(own.status(), 200);
+  assert.equal(own.headers()["content-type"], "image/png");
+  assert.equal(own.headers()["x-content-type-options"], "nosniff");
+  step("B: an SVG, a mislabelled file, or A's business is refused");
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>').toString("base64");
+  assert.equal((await uploadFor(businessB, "image/svg+xml", svg)).status(), 415);
+  assert.equal((await uploadFor(businessB, "image/png", svg)).status(), 415);
+  assert.equal((await uploadFor(businessA, "image/png", PNG_1PX)).status(), 409);
+  step("A: cannot fetch B's picture under either business id; signed out gets nothing");
+  await context.clearCookies();
+  await context.addCookies([cookieA]);
+  assert.equal((await picture(businessB)).status(), 404);
+  assert.equal((await picture(businessA)).status(), 404);
+  await context.clearCookies();
+  assert.equal((await picture(businessB)).status(), 404);
+  await context.addCookies([cookieB]);
+
+  step("B: a picture added in the editor is hidden where marked, stored, and saved with the step");
+  await page.goto(`${base}/?tab=procedures`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "New procedure" }).click();
+  await page.getByLabel("Title").fill("Count the drawer");
+  await page.getByRole("button", { name: "Add step" }).click();
+  await page.getByLabel("Step 1", { exact: true }).fill("Open the drawer report.");
+  await page
+    .locator('input[type="file"]')
+    .first()
+    .setInputFiles({
+      name: "drawer.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(PNG_1PX, "base64"),
+    });
+  const redact = page.getByRole("dialog");
+  await redact.getByRole("button", { name: "Add a hidden area" }).click();
+  await redact.getByRole("button", { name: "Save picture" }).click();
+  await redact.waitFor({ state: "detached" });
+  await page.getByRole("button", { name: "Save procedure" }).click();
+  await page.getByRole("img", { name: "Picture 1 for step 1" }).waitFor();
+  await eventually(async () => {
+    const saved = (
+      await db.query("select profile from businesses where user_id=$1 and id=$2", [b, businessB])
+    ).rows[0]?.profile;
+    const pictureId = saved?.procedures?.[0]?.steps?.[0]?.imageIds?.[0];
+    if (!pictureId) return false;
+    const row = await db.query(
+      "select content_type from procedure_images where user_id=$1 and id=$2",
+      [b, pictureId],
+    );
+    return row.rows[0]?.content_type === "image/webp";
+  }, "the picture added in the editor was not stored and saved with its step");
 
   step("B: authenticated delete cannot be undone by an old save");
   const bProfile = await page.evaluate(

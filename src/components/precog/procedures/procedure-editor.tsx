@@ -14,6 +14,7 @@ import {
 } from "@/lib/precog/procedures/normalize";
 import type { Place, Procedure, ProcedureStep } from "@/lib/precog/procedures/types";
 import type { KnowledgeItem, Person } from "@/lib/precog/types";
+import { StepPictures, type PictureAccess } from "./step-pictures";
 
 const labelCls = "flex flex-col gap-1 text-xs text-muted";
 const inputCls = `${fieldCls} w-full`;
@@ -30,6 +31,7 @@ export function ProcedureEditor({
   places,
   people,
   knowledge,
+  pictureAccess,
   onSave,
   onCancel,
   onDelete,
@@ -39,6 +41,8 @@ export function ProcedureEditor({
   places: readonly Place[];
   people: readonly Person[];
   knowledge: readonly KnowledgeItem[];
+  /** Whether step pictures can be added, and why not. */
+  pictureAccess: PictureAccess;
   /** False when the procedure did not fit and was not saved. */
   onSave: (next: Procedure) => boolean;
   onCancel: () => void;
@@ -92,7 +96,7 @@ export function ProcedureEditor({
       prerequisites: draft.prerequisites.map((p) => p.trim()).filter(Boolean),
       steps: draft.steps
         .map((s) => ({ ...s, text: s.text.trim(), caution: s.caution?.trim() || undefined }))
-        .filter((s) => s.text || s.caution),
+        .filter((s) => s.text || s.caution || s.imageIds?.length || s.requiresPhoto),
       backupPersonIds: draft.backupPersonIds.filter((id) => id !== draft.ownerPersonId),
       reviewEveryDays: reviewDays(draft.reviewEveryDays),
     };
@@ -242,6 +246,18 @@ export function ProcedureEditor({
                       maxLength={PROCEDURE_LIMITS.caution}
                       placeholder="Caution (optional): what not to do here"
                       onChange={(e) => setStep(step.id, { caution: e.target.value })}
+                    />
+                    <StepPictures
+                      stepNumber={index + 1}
+                      imageIds={step.imageIds ?? []}
+                      requiresPhoto={Boolean(step.requiresPhoto)}
+                      access={pictureAccess}
+                      onChange={({ imageIds, requiresPhoto }) =>
+                        setStep(step.id, {
+                          imageIds: imageIds.length ? imageIds : undefined,
+                          requiresPhoto: requiresPhoto ? true : undefined,
+                        })
+                      }
                     />
                   </div>
                   <div className="flex shrink-0 flex-col gap-1">

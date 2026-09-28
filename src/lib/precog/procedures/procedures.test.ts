@@ -102,6 +102,67 @@ describe("normalizeProcedures", () => {
   });
 });
 
+describe("step pictures", () => {
+  it("keeps well-formed picture ids and the photo flag, and drops anything else", () => {
+    const [p] = normalizeProcedures(
+      [
+        {
+          ...written(),
+          steps: [
+            {
+              id: "s1",
+              text: "Open the safe.",
+              imageIds: ["img_abc_1", "img_abc_1", "../etc/passwd", 42, "img_x"],
+              requiresPhoto: true,
+            },
+            { id: "s2", text: "Count the drawer.", imageIds: "img_abc_1", requiresPhoto: "yes" },
+          ],
+        },
+      ],
+      TODAY,
+    );
+    expect(p.steps[0]).toEqual({
+      id: "s1",
+      text: "Open the safe.",
+      imageIds: ["img_abc_1", "img_x"],
+      requiresPhoto: true,
+    });
+    expect(p.steps[1]).toEqual({ id: "s2", text: "Count the drawer." });
+  });
+
+  it("caps pictures per step", () => {
+    const imageIds = Array.from({ length: 10 }, (_, i) => `img_${i}`);
+    const [p] = normalizeProcedures(
+      [{ ...written(), steps: [{ id: "s", text: "t", imageIds }] }],
+      TODAY,
+    );
+    expect(p.steps[0].imageIds).toHaveLength(PROCEDURE_LIMITS.imagesPerStep);
+  });
+
+  it("clears the verification when a picture is added or the photo flag changes", () => {
+    const verified = verifyProcedure(written(), "owner", TODAY);
+    const withPicture = withProcedureEdit(
+      verified,
+      {
+        ...verified,
+        steps: verified.steps.map((s, i) => (i === 0 ? { ...s, imageIds: ["img_a"] } : s)),
+      },
+      "2026-10-02",
+    );
+    expect(withPicture.verifiedAt).toBeUndefined();
+    expect(withPicture.changelog[0].summary).toBe("Changed pictures");
+    const flagged = withProcedureEdit(
+      verified,
+      {
+        ...verified,
+        steps: verified.steps.map((s, i) => (i === 1 ? { ...s, requiresPhoto: true as const } : s)),
+      },
+      "2026-10-02",
+    );
+    expect(flagged.verifiedAt).toBeUndefined();
+  });
+});
+
 describe("places and addresses", () => {
   it("accepts only http and https links", () => {
     expect(webUrl("https://qbo.intuit.com/app/banking")).toBe("https://qbo.intuit.com/app/banking");

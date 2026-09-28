@@ -29,6 +29,10 @@ export interface ProcedureStep {
   text: string;
   /** What goes wrong here, or what not to do: "Do not click Undo reconciliation." */
   caution?: string;
+  /** Screenshots or photos for this step, by id (see procedures/image-store.server.ts). */
+  imageIds?: string[];
+  /** A physical step where the person should take a photo as they do it. */
+  requiresPhoto?: true;
 }
 
 /** One saved change to a procedure's content. */
