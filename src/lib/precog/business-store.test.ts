@@ -487,3 +487,37 @@ describe("listBusinessSummaries", () => {
     expect(await listBusinessSummaries(sql, "user-a")).toEqual([]);
   });
 });
+
+describe("checking a write against the stored profile", () => {
+  it("hands the check the stored profile, or null for a new business", async () => {
+    const seen: unknown[] = [];
+    const checkWrite = (previous: unknown) => {
+      seen.push(previous);
+    };
+    await saveBusinessRevision(sql, { ...input("user-a", "biz_check", null, "First"), checkWrite });
+    await saveBusinessRevision(sql, { ...input("user-a", "biz_check", 1, "Second"), checkWrite });
+    expect(seen).toEqual([null, { practiceName: "First", businessId: "biz_check" }]);
+  });
+
+  it("writes nothing, and keeps no history, when the check refuses", async () => {
+    await saveBusinessRevision(sql, input("user-a", "biz_refused", null, "Kept"));
+    const refuse = () => {
+      throw new Error("refused");
+    };
+    await expect(
+      saveBusinessRevision(sql, {
+        ...input("user-a", "biz_refused", 1, "Replaced"),
+        checkWrite: refuse,
+      }),
+    ).rejects.toThrow("refused");
+    await expect(
+      saveBusinessRevision(sql, { ...input("user-a", "biz_new", null), checkWrite: refuse }),
+    ).rejects.toThrow("refused");
+    expect(await revisionOf("user-a", "biz_refused")).toBe(1);
+    expect(await revisionOf("user-a", "biz_new")).toBeNull();
+    const rows = await sql<{ name: string }>`
+      select name from businesses where user_id = 'user-a' and id = 'biz_refused'`;
+    expect(rows[0].name).toBe("Kept");
+    expect(await listBusinessHistory(sql, "user-a", "biz_refused")).toEqual([]);
+  });
+});

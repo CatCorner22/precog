@@ -34,6 +34,11 @@ interface BusinessSaveInput {
   firmUserId?: string | null;
   /** Set the saver's active pointer in the same transaction as this save. */
   activate?: boolean;
+  /**
+   * Checks the write against the stored profile (null for a new business)
+   * while the row is locked, before anything is written; throws to refuse it.
+   */
+  checkWrite?: (previous: unknown) => void;
 }
 
 interface BusinessRowSnapshot<TProfile = unknown> {
@@ -191,6 +196,7 @@ export async function saveBusinessRevision<TProfile = unknown>(
           updatedAt: toIsoTimestamp(current.updated_at),
         };
       }
+      input.checkWrite?.(current.profile);
       // Only a successful replacement archives the old row, in the same transaction.
       await tx`insert into business_history
         (user_id, business_id, revision, name, industry, profile, saved_by, saved_at)
@@ -206,6 +212,7 @@ export async function saveBusinessRevision<TProfile = unknown>(
       const held = await tx<{ n: number | string }>`select count(*) as n from businesses
         where user_id = ${input.userId} and deleted_at is null`;
       if (Number(held[0]?.n ?? 0) >= limit) throw new BusinessLimitError(limit);
+      input.checkWrite?.(null);
     }
     const written = current
       ? await tx<{ revision: number | string; updated_at: string }>`

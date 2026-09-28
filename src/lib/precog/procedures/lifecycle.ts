@@ -85,6 +85,8 @@ export function withProcedureEdit(
       changelog: prev.changelog,
       verifiedAt: prev.verifiedAt,
       verifiedBy: prev.verifiedBy,
+      verifiedByAccountId: prev.verifiedByAccountId,
+      verifiedByAccountName: prev.verifiedByAccountName,
       lastVerifiedAt: prev.lastVerifiedAt,
     };
   }
@@ -93,7 +95,13 @@ export function withProcedureEdit(
     { version, on: today, summary: describeChange(prev, next) },
     ...prev.changelog,
   ].slice(0, PROCEDURE_LIMITS.changelog);
-  const { verifiedAt: _verifiedAt, verifiedBy: _verifiedBy, ...unverified } = saved;
+  const {
+    verifiedAt: _verifiedAt,
+    verifiedBy: _verifiedBy,
+    verifiedByAccountId: _accountId,
+    verifiedByAccountName: _accountName,
+    ...unverified
+  } = saved;
   return {
     ...unverified,
     version,
@@ -104,18 +112,34 @@ export function withProcedureEdit(
   };
 }
 
+/** The signed-in account that records a verification. */
+export interface VerifyingAccount {
+  id: string;
+  name: string;
+}
+
 /**
  * Record that `verifiedBy` (a person id, or "owner") confirmed the steps work
- * as written on `today`. A person has now checked every step, so none is
- * marked as an AI draft any longer.
+ * as written on `today`, stamped with the signed-in `account` that pressed the
+ * button (none when signed out). A person has now checked every step, so none
+ * is marked as an AI draft any longer.
  */
-export function verifyProcedure(p: Procedure, verifiedBy: string, today: string): Procedure {
+export function verifyProcedure(
+  p: Procedure,
+  verifiedBy: string,
+  today: string,
+  account?: VerifyingAccount | null,
+): Procedure {
   if (!isWrittenProcedure(p)) return p;
+  const { verifiedByAccountId: _accountId, verifiedByAccountName: _accountName, ...rest } = p;
+  const name = account?.name.trim().slice(0, 120);
   return {
-    ...p,
+    ...rest,
     steps: p.steps.map(withoutAiMark),
     verifiedAt: today,
     verifiedBy,
+    ...(account?.id ? { verifiedByAccountId: account.id.slice(0, 120) } : {}),
+    ...(account?.id && name ? { verifiedByAccountName: name } : {}),
     lastVerifiedAt: today,
     updatedAt: today,
   };

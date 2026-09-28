@@ -125,6 +125,8 @@ export function normalizeProcedure(value: unknown, today: string): Procedure | n
   const verifiedAt = day(raw.verifiedAt, today);
   const lastVerifiedAt = day(raw.lastVerifiedAt, today) ?? verifiedAt;
   const verifiedBy = verifiedAt ? text(raw.verifiedBy, 120) : "";
+  const verifiedByAccountId = verifiedAt ? text(raw.verifiedByAccountId, 120) : "";
+  const verifiedByAccountName = verifiedByAccountId ? text(raw.verifiedByAccountName, 120) : "";
   const optional = {
     placeId: text(raw.placeId, 60),
     module: text(raw.module, PROCEDURE_LIMITS.module),
@@ -157,6 +159,8 @@ export function normalizeProcedure(value: unknown, today: string): Procedure | n
     reviewEveryDays: reviewDays(raw.reviewEveryDays),
     ...(verifiedAt ? { verifiedAt } : {}),
     ...(verifiedAt && verifiedBy ? { verifiedBy } : {}),
+    ...(verifiedByAccountId ? { verifiedByAccountId } : {}),
+    ...(verifiedByAccountName ? { verifiedByAccountName } : {}),
     ...(lastVerifiedAt ? { lastVerifiedAt } : {}),
     version:
       Number.isInteger(raw.version) && (raw.version as number) >= 1 ? (raw.version as number) : 1,

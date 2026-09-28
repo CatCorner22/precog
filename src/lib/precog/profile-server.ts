@@ -13,6 +13,7 @@ import {
   saveBusinessRevision,
 } from "./business-store";
 import { loadFirmFor } from "./firm/store";
+import { assertVerificationsAllowed } from "./procedures/verify-guard";
 import { resolveClientDate } from "./dates";
 import {
   parseDeleteBusinessRequest,
@@ -72,6 +73,14 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       savedBy: context.userId,
       firmUserId: firm?.firmUserId ?? null,
       activate: true,
+      // A new verification must come from someone allowed to record one.
+      checkWrite: (previous) =>
+        assertVerificationsAllowed({
+          previousProfile: previous,
+          nextProfile: data.profile,
+          saverId: context.userId,
+          saverRole: firm?.role ?? null,
+        }),
     });
     if (!saved.ok) {
       return {

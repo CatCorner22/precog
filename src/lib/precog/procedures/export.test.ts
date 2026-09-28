@@ -77,6 +77,13 @@ describe("a procedure as Markdown", () => {
     expect(md).toContain("- Covers on Who knows what: Bank reconciliation");
   });
 
+  it("names the account that recorded the verification, when one did", () => {
+    const p = verifyProcedure(reconcile(), "owner", "2026-09-10", { id: "u1", name: "Ada Owner" });
+    expect(procedureMarkdown(p, ctx)).toContain(
+      "**Status:** Verified Sep 10, 2026; check again by Mar 9, 2027; recorded by Ada Owner",
+    );
+  });
+
   it("puts every procedure under one heading for the business, one level down", () => {
     const other = newProcedure(
       { id: "proc-safe", industry: "general", title: "Open the safe", placeId: "safe" },

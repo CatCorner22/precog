@@ -284,6 +284,84 @@ try {
     return row.rows[0]?.content_type === "image/webp";
   }, "the picture added in the editor was not stored and saved with its step");
 
+  step("B: pressing the verify button records B's account with the verification");
+  await page.getByRole("button", { name: /checked these steps today/ }).click();
+  await eventually(async () => {
+    const saved = (
+      await db.query("select profile from businesses where user_id=$1 and id=$2", [b, businessB])
+    ).rows[0]?.profile;
+    const p = saved?.procedures?.[0];
+    return Boolean(p?.verifiedAt) && p.verifiedByAccountId === b;
+  }, "the verification was not saved under B's account");
+  await page.getByText(`recorded by ${b}`).waitFor();
+
+  step(
+    "B: as a firm preparer, a save that verifies a procedure is refused; as a reviewer it is kept",
+  );
+  await db.query("insert into firms (user_id, name) values ($1, 'Safety Firm')", [a]);
+  await db.query(
+    "insert into firm_members (firm_user_id, member_user_id, role) values ($1, $2, 'preparer')",
+    [a, b],
+  );
+  const storedB = async () =>
+    (
+      await db.query("select revision, profile from businesses where user_id=$1 and id=$2", [
+        b,
+        businessB,
+      ])
+    ).rows[0];
+  const verifiedProcedure = (accountId) => ({
+    id: "proc_safety_verify",
+    industry: "dental",
+    title: "Close the day",
+    prerequisites: [],
+    steps: [{ id: "step_safety_verify", text: "Print the day sheet." }],
+    knowledgeIds: [],
+    processIds: [],
+    backupPersonIds: [],
+    reviewEveryDays: 180,
+    verifiedAt: "2026-09-01",
+    verifiedBy: "owner",
+    verifiedByAccountId: accountId,
+    verifiedByAccountName: accountId,
+    lastVerifiedAt: "2026-09-01",
+    version: 1,
+    changelog: [],
+    proofs: [],
+    createdAt: "2026-09-01",
+    updatedAt: "2026-09-01",
+  });
+  const saveVerified = async (accountId) => {
+    const current = await storedB();
+    const others = (current.profile.procedures ?? []).filter((x) => x.id !== "proc_safety_verify");
+    return context.request.post(`${base}/_serverFn/${ids.saveBusinessProfile}`, {
+      headers: { "content-type": "application/json", "x-tsr-serverFn": "true", Origin: base },
+      data: await requestBody(
+        {
+          expectedAccountId: b,
+          profile: { ...current.profile, procedures: [...others, verifiedProcedure(accountId)] },
+          industry: "dental",
+          baseRevision: Number(current.revision),
+        },
+        b,
+      ),
+    });
+  };
+  const revisionBefore = Number((await storedB()).revision);
+  const asPreparer = await saveVerified(b);
+  assert.equal(asPreparer.status(), 403, await asPreparer.text());
+  assert.match(await asPreparer.text(), /preparer cannot verify/);
+  assert.equal(Number((await storedB()).revision), revisionBefore, "a refused save wrote nothing");
+  await db.query("update firm_members set role = 'reviewer' where member_user_id = $1", [b]);
+  const underOther = await saveVerified(a);
+  assert.equal(underOther.status(), 403, await underOther.text());
+  assert.match(await underOther.text(), /another account/);
+  const asReviewer = await saveVerified(b);
+  assert.equal(asReviewer.status(), 200, await asReviewer.text());
+  const kept = (await storedB()).profile.procedures.find((x) => x.id === "proc_safety_verify");
+  assert.equal(kept.verifiedByAccountId, b);
+  await db.query("delete from firms where user_id = $1", [a]);
+
   step("B: authenticated delete cannot be undone by an old save");
   const bProfile = await page.evaluate(
     (key) => JSON.parse(localStorage.getItem(key)),

@@ -92,6 +92,9 @@ export function ProcedurePrint({
               <p className="text-[9pt] text-neutral-600">
                 {PROCEDURE_STATUS_LABEL[procedureStatus(p, today)]}
                 {p.verifiedAt ? ` · verified ${formatDay(p.verifiedAt)}` : ""}
+                {p.verifiedAt && p.verifiedByAccountName
+                  ? ` · recorded by ${p.verifiedByAccountName}`
+                  : ""}
                 {due ? ` · check again by ${formatDay(due)}` : ""} · version {p.version}
               </p>
             </header>
