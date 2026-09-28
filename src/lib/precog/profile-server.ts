@@ -55,9 +55,11 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
 
     // A firm member saving a colleague's client writes the colleague's row;
     // a new business is created under the saver and joins their firm.
-    const [owner, firm] = await Promise.all([
+    const [owner, firm, saver] = await Promise.all([
       resolveBusinessOwner(sql, context.userId, businessId, true),
       loadFirmFor(sql, context.userId),
+      sql<{ name: string | null; email: string | null }>`
+        select name, email from "user" where id = ${context.userId}`,
     ]);
 
     // Revision check and write are a single compare-and-swap statement; see
@@ -80,6 +82,9 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
           nextProfile: data.profile,
           saverId: context.userId,
           saverRole: firm?.role ?? null,
+          // A "recorded by" name must be the saver's own account name or email.
+          saverNames: [saver[0]?.name ?? "", saver[0]?.email ?? ""],
+          latestDay: data.latestDay,
         }),
     });
     if (!saved.ok) {

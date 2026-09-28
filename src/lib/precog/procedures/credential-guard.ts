@@ -22,10 +22,26 @@ export const SECRET_WARNING: Record<SecretKind, string> = {
   token: "This looks like an access key or code. Name where it is kept instead.",
 };
 
-// "password: hunter2", "PIN is 4417", "combination = 12-34-56", "passcode - 0000"
-const SECRET_LABEL =
-  /\b(?:password|passwd|passcode|pass code|pwd|pin|pin number|combination|combo|access code|login code|security code)\s*(?::|=|\bis\b|-)\s*(?!where\b|kept\b|in\b|on\b|stored\b|the\b|a\b|an\b|from\b)[^\s,;.]{3,}/gi;
-const SSN = /\b\d{3}-\d{2}-\d{4}\b/g;
+// "password: hunter2", "PIN is 4417", "combination = 12 34 56", "password for the bank
+// portal: Tr0ub4dor", "the password is correct horse battery staple". The label may be
+// followed by a short "for the …" phrase; the value runs over digit groups, or up to six
+// words, and stops at a word that starts the next instruction ("then", "and", "press").
+const LABELS =
+  "password|passwd|passcode|pass code|pwd|pw|pin|pin number|combination|combo|access code|login code|security code|door code|alarm code|gate code|safe code|lock code|keypad code";
+const QUALIFIER = String.raw`(?:\s+(?:for|to|on|of)\s+(?:the\s+|our\s+|my\s+)?[\w'-]+(?:\s+[\w'-]+){0,3}?)?`;
+const SEPARATOR = String.raw`\s*(?::|=|\bis\b|-)\s*`;
+// Words that describe where or how the secret is kept, not the secret itself.
+const NOT_THE_SECRET = String.raw`(?!(?:where|kept|in|on|stored|the|a|an|from|written|saved|taped|located|with|at|inside|under|changed|reset|required|needed|managed|shared|set|updated|expires|expired|different|same)\b)`;
+const STOP = String.raw`(?:and|then|to|in|on|from|at|for|with|which|that|so|or|but|if|when|before|after|press|enter|click|type|tap)`;
+const VALUE = String.raw`(?:\d+(?:[ -]\d+)*(?![^\s,;])|[^\s,;]{3,}(?:[ \t]+(?!${STOP}\b)[^\s,;]+){0,5})`;
+const SECRET_LABEL = new RegExp(
+  String.raw`\b(?:${LABELS})${QUALIFIER}${SEPARATOR}${NOT_THE_SECRET}${VALUE}`,
+  "gi",
+);
+// A code written straight after its label: "PIN 4417", "door code 1234".
+const BARE_CODE =
+  /\b(?:pin|pin number|door code|alarm code|gate code|safe code|lock code|keypad code|combination|combo)\s+#?\d{3,}(?:[ -]\d+)*\b/gi;
+const SSN = /\b\d{3}[- ]\d{2}[- ]\d{4}\b/g;
 const CARD_CANDIDATE = /\b(?:\d[ -]?){13,19}\b/g;
 // A long run of letters and digits mixed, as API keys and recovery codes are.
 const TOKEN = /\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{24,}\b/g;
@@ -36,6 +52,7 @@ export function findLikelySecrets(text: string): LikelySecret[] {
   const add = (kind: SecretKind, m: RegExpMatchArray) =>
     found.push({ kind, index: m.index ?? 0, length: m[0].length });
   for (const m of text.matchAll(SECRET_LABEL)) add("password", m);
+  for (const m of text.matchAll(BARE_CODE)) add("password", m);
   for (const m of text.matchAll(SSN)) add("ssn", m);
   for (const m of text.matchAll(CARD_CANDIDATE)) {
     const digits = m[0].replace(/\D/g, "");

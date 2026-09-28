@@ -88,7 +88,10 @@ export function procedureSummary(
   const writtenItems = new Set<string>();
   for (const p of own) {
     for (const id of p.knowledgeIds) writtenItems.add(id);
-    const proven = backupProofs(p).some((b) => b.on && !proofIsStale(b.on, today));
+    // Only a named backup's unaided run counts, as in procedureAttention above.
+    const proven = backupProofs(p).some(
+      (b) => p.backupPersonIds.includes(b.personId) && b.on && !proofIsStale(b.on, today),
+    );
     if (proven) for (const id of p.knowledgeIds) provenItems.add(id);
   }
   return {

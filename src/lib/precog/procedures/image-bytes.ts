@@ -89,7 +89,7 @@ function stripJpeg(bytes: Uint8Array): Uint8Array | null {
       if (!dropped) kept.push(bytes.subarray(start, end));
       return true;
     },
-    (rest) => kept.push(rest),
+    (start, end) => kept.push(bytes.subarray(start, end)),
   );
   return ok ? concat(kept) : null;
 }
@@ -97,31 +97,46 @@ function stripJpeg(bytes: Uint8Array): Uint8Array | null {
 /**
  * Calls `segment(marker, start, end)` for each marker segment after the
  * start-of-image, where [start, end) covers the marker and its payload, and
- * `scan(rest)` with everything from the start-of-scan marker to the end of
- * the file. False when the structure is broken.
+ * `data(start, end)` for the image data after each start-of-scan. It walks
+ * every scan of a progressive JPEG, so metadata between scans is seen as
+ * segments too, and it stops at the end-of-image marker (passed to `segment`
+ * with no payload), so nothing after it is kept. False when the structure is
+ * broken.
  */
 function walkJpeg(
   bytes: Uint8Array,
   segment: (marker: number, start: number, end: number) => boolean,
-  scan?: (rest: Uint8Array) => void,
+  data?: (start: number, end: number) => void,
 ): boolean {
   let at = 2;
-  while (at + 4 <= bytes.length) {
+  while (at + 2 <= bytes.length) {
     if (bytes[at] !== 0xff) return false;
     const marker = bytes[at + 1];
     if (marker === 0xff) {
       at += 1; // fill byte
       continue;
     }
-    if (marker === 0xd9) return true; // end of image with no scan
+    if (marker === 0xd9) return segment(marker, at, at + 2); // end of image
+    if (at + 4 > bytes.length) return false;
     const length = u16be(bytes, at + 2);
     if (length < 2 || at + 2 + length > bytes.length) return false;
-    if (marker === 0xda) {
-      scan?.(bytes.subarray(at));
-      return true;
-    }
     if (!segment(marker, at, at + 2 + length)) return false;
     at += 2 + length;
+    if (marker === 0xda) {
+      // Image data runs to the next marker that is not a stuffed 0xFF00, a
+      // restart marker or a fill byte.
+      const from = at;
+      while (at + 1 < bytes.length) {
+        const next = bytes[at + 1];
+        if (bytes[at] === 0xff && next !== 0x00 && next !== 0xff && (next < 0xd0 || next > 0xd7)) {
+          break;
+        }
+        at += 1;
+      }
+      if (at + 1 >= bytes.length) at = bytes.length; // no end-of-image: keep the data as it is
+      data?.(from, at);
+      if (at >= bytes.length) return true;
+    }
   }
   return false;
 }

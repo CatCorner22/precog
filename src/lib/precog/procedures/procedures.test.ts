@@ -24,7 +24,13 @@ import {
   verifyProcedure,
   withProcedureEdit,
 } from "./lifecycle";
-import { normalizePlaces, normalizeProcedures, PROCEDURE_LIMITS, webUrl } from "./normalize";
+import {
+  normalizePlaces,
+  normalizeProcedures,
+  PROCEDURE_LIMITS,
+  proceduresBytes,
+  webUrl,
+} from "./normalize";
 import { placeSuggestions } from "./places";
 import { unwrittenProcedureRows } from "./starter";
 import type { Procedure } from "./types";
@@ -239,6 +245,31 @@ describe("review lifecycle", () => {
     expect(relinked.changelog).toEqual([]);
   });
 
+  it("names a reworded step even when the same save adds one", () => {
+    const verified = verifyProcedure(written(), "p2", TODAY);
+    const [first, second] = verified.steps;
+    const edited = withProcedureEdit(
+      verified,
+      {
+        ...verified,
+        steps: [{ ...first, text: "Open Banking › Reconcile." }, second, newStep("Save it.")],
+      },
+      "2026-10-05",
+    );
+    expect(edited.changelog[0].summary).toBe("Added 1 step, edited steps");
+  });
+
+  it("keeps the verification when only an empty step is added", () => {
+    const verified = verifyProcedure(written(), "p2", TODAY);
+    const padded = withProcedureEdit(
+      verified,
+      { ...verified, steps: [...verified.steps, newStep("")] },
+      "2026-10-05",
+    );
+    expect(padded.verifiedAt).toBe(TODAY);
+    expect(padded.version).toBe(1);
+  });
+
   it("does not verify a procedure with no steps", () => {
     const empty = newProcedure({ industry: "general", title: "t" }, TODAY);
     expect(verifyProcedure(empty, "owner", TODAY).verifiedAt).toBeUndefined();
@@ -265,6 +296,31 @@ describe("credential guard", () => {
 
   it("masks what it finds", () => {
     expect(maskLikelySecrets("PIN: 4417 then press Enter")).toBe("[removed] then press Enter");
+  });
+
+  it("finds a secret written with spaces, a phrase before it, or no separator", () => {
+    const masked = (t: string) => maskLikelySecrets(t);
+    expect(masked("Safe combination is 12 34 56")).toBe("Safe [removed]");
+    expect(masked("Combo is 36 24 12, then turn the handle")).toBe(
+      "[removed], then turn the handle",
+    );
+    expect(masked("The password is correct horse battery staple")).toBe("The [removed]");
+    expect(masked("Password for the bank portal: Tr0ub4dor")).toBe("[removed]");
+    expect(masked("pw: hunter22")).toBe("[removed]");
+    expect(masked("Door code is 4417")).toBe("[removed]");
+    expect(masked("Enter PIN 4417 and press OK")).toBe("Enter [removed] and press OK");
+    expect(masked("SSN 123 45 6789")).toBe("SSN [removed]");
+  });
+
+  it("still leaves alone where a secret is kept and how it is handled", () => {
+    for (const text of [
+      "The password is kept in the office manager's vault",
+      "The door code is changed every quarter",
+      "Password for payroll is stored in 1Password",
+      "Zip code 90210 and invoice 10045",
+    ]) {
+      expect(findLikelySecrets(text), text).toEqual([]);
+    }
   });
 });
 
@@ -327,6 +383,16 @@ describe("linking procedures to the register", () => {
     );
     expect(rows.map((r) => r.item.id)).toEqual(["major", "minor", "know"]);
   });
+
+  it("still lists an item whose procedure has no steps, to continue that one", () => {
+    const empty = newProcedure({ industry: "general", title: "t", knowledgeIds: ["major"] }, TODAY);
+    const rows = unwrittenProcedureRows(
+      [knowledgeItem("major", { kind: "duty" })],
+      [empty],
+      "general",
+    );
+    expect(rows).toEqual([{ item: expect.objectContaining({ id: "major" }), startedId: empty.id }]);
+  });
 });
 
 describe("profile actions", () => {
@@ -352,12 +418,44 @@ describe("profile actions", () => {
     let refused = false;
     for (let i = 0; i < 120 && !refused; i++) {
       const next = { ...huge, id: `p${i}` };
-      if (!procedureFits(profile, next)) {
+      if (!procedureFits(profile, next, TODAY)) {
         refused = true;
         expect(withProcedure(profile, next, TODAY)).toBe(profile);
       } else profile = withProcedure(profile, next, TODAY);
     }
     expect(refused).toBe(true);
+  });
+
+  it("says a save fits exactly when it will be stored, change-log entry included", () => {
+    let profile = defaultProfile("general");
+    const base = written({
+      steps: Array.from({ length: 25 }, (_, j) => ({ id: `s${j}`, text: "z".repeat(300) })),
+    });
+    // Fill close to the budget, then edit the first procedure in small steps across the boundary.
+    for (let i = 0; procedureFits(profile, { ...base, id: `p${i}` }, TODAY); i++) {
+      profile = withProcedure(profile, { ...base, id: `p${i}` }, TODAY);
+    }
+    const first = profile.procedures!.find((x) => x.id === "p0")!;
+    for (let n = 0; n < 60; n++) {
+      const next = { ...first, purpose: "x".repeat(n * 5) };
+      const stored = withProcedure(profile, next, TODAY) !== profile;
+      expect(procedureFits(profile, next, TODAY), `purpose of ${n * 5}`).toBe(stored);
+    }
+  });
+
+  it("measures the budget in UTF-8 bytes, as the 2 MB profile cap does", () => {
+    const heavy = (i: number) =>
+      written({
+        id: `cjk${i}`,
+        steps: Array.from({ length: 25 }, (_, j) => ({ id: `s${j}`, text: "日".repeat(300) })),
+      });
+    const kept = normalizeProcedures(
+      Array.from({ length: 120 }, (_, i) => heavy(i)),
+      TODAY,
+    );
+    const bytes = new TextEncoder().encode(JSON.stringify(kept)).length;
+    expect(bytes).toBeLessThanOrEqual(PROCEDURE_LIMITS.bytes + kept.length);
+    expect(proceduresBytes(kept)).toBeLessThanOrEqual(PROCEDURE_LIMITS.bytes);
   });
 
   it("survives a round trip through the normaliser", () => {

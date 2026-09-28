@@ -96,6 +96,32 @@ describe("stripping metadata", () => {
     expect([...out.subarray(-2)]).toEqual([0xff, 0xd9]);
   });
 
+  it("drops metadata between the scans of a progressive JPEG, and anything after its end", () => {
+    const segment = (marker: number, payload: Uint8Array) =>
+      bytes([0xff, marker], be16(payload.length + 2), payload);
+    const progressive = bytes(
+      [0xff, 0xd8],
+      segment(0xc2, bytes([8], be16(480), be16(640), [1, 1, 0x11, 0])),
+      segment(0xda, bytes([1, 1, 0, 0, 0x3f, 0])),
+      [0x12, 0xff, 0x00, 0x34, 0xff, 0xd0, 0x56],
+      segment(0xe1, bytes("Exif", [0, 0], "GPSLatitude 51.5")),
+      segment(0xfe, bytes("Taken by Dana")),
+      segment(0xda, bytes([1, 1, 0, 0, 0x3f, 0])),
+      [0x78, 0x5a],
+      [0xff, 0xd9],
+      bytes("TRAILER secret"),
+    );
+    const out = stripImageMetadata(progressive, "image/jpeg")!;
+    expect(has(out, "GPSLatitude")).toBe(false);
+    expect(has(out, "Taken by Dana")).toBe(false);
+    expect(has(out, "TRAILER")).toBe(false);
+    expect([...out.subarray(-2)]).toEqual([0xff, 0xd9]);
+    // Both scans, with their stuffed byte and restart marker, are kept as they were.
+    expect(has(out, "\x12\xff\x00\x34\xff\xd0\x56")).toBe(true);
+    expect(has(out, "\x78\x5a")).toBe(true);
+    expect(readImageInfo(out)).toEqual({ type: "image/jpeg", width: 640, height: 480 });
+  });
+
   it("drops PNG text and EXIF chunks", () => {
     const out = stripImageMetadata(png(), "image/png")!;
     expect(has(out, "Dana")).toBe(false);

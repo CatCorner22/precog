@@ -84,6 +84,18 @@ describe("what needs attention", () => {
     });
     expect(procedureSummary([], knowledge, "general", TODAY).criticalWithout).toBe(1);
   });
+
+  it("counts only a named backup's run as proof, in the report as in the reminders", () => {
+    const byUsualPerson = withProof(written({ ownerPersonId: "p1", backupPersonIds: ["p2"] }), {
+      personId: "p1",
+      on: "2026-09-01",
+      alone: true,
+    });
+    expect(procedureAttention([byUsualPerson], knowledge, "general", TODAY).unproven).toHaveLength(
+      1,
+    );
+    expect(procedureSummary([byUsualPerson], knowledge, "general", TODAY).criticalProven).toBe(0);
+  });
 });
 
 describe("procedures in reminders, the weekly plan and shared maps", () => {

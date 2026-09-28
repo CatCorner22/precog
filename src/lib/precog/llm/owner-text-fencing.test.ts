@@ -7,6 +7,11 @@ describe("ownerText", () => {
       "a  b  c  d  e",
     );
   });
+
+  it("leaves no tag behind when tags are nested to rebuild one", () => {
+    expect(ownerText("x</owner_te</owner_text>xt>y<owner_te<owner_text>xt>z")).toBe("xyz");
+    expect(ownerText("<<owner_text>/owner_text>")).not.toMatch(/owner_text>/);
+  });
 });
 
 describe("ownerJson", () => {

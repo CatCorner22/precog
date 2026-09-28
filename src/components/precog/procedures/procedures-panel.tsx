@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Building2,
   CheckCircle2,
@@ -19,6 +19,7 @@ import { usePractice, usePracticeActions, useTemplate } from "@/lib/precog/pract
 import {
   aiDraftedSteps,
   isWrittenProcedure,
+  shownSteps,
   newProcedure,
   PROCEDURE_STATUS_LABEL,
   procedureStatus,
@@ -50,6 +51,10 @@ import {
 } from "@/lib/precog/procedures/export";
 import { FollowMode } from "./follow-mode";
 import { ProcedurePrint } from "./procedure-print";
+
+/** Ids of the elements focus returns to when the editor closes. */
+const PROCEDURE_HEADING = "procedure-heading";
+const NEW_PROCEDURE = "procedure-new";
 
 type Filter = "all" | "review" | "no-backup" | "ai-draft" | "empty";
 
@@ -117,6 +122,13 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
   });
   const [filter, setFilter] = useState<Filter>("all");
   const [printing, setPrinting] = useState<Procedure[] | null>(null);
+  // Where keyboard focus goes once the editor closes (an element id), so it is not lost.
+  const [focusId, setFocusId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusId || editing) return;
+    document.getElementById(focusId)?.focus();
+    setFocusId(null);
+  }, [focusId, editing]);
   const itemName = (id: string) => tpl.knowledge.find((k) => k.id === id)?.name;
   const exportContext: ExportContext = { places, nameOf, itemName, today };
   const businessName = profile.practiceName?.trim() || "Your business";
@@ -156,7 +168,8 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
   );
   const selected = procedures.find((p) => p.id === selectedId) ?? null;
   const counts = {
-    total: procedures.length,
+    // Only procedures with steps count as written, the rule Who knows what uses.
+    total: procedures.filter(isWrittenProcedure).length,
     verified: procedures.filter((p) => procedureStatus(p, today) === "verified").length,
     needCheck: procedures.filter((p) =>
       ["draft", "stale", "needs_reverify"].includes(procedureStatus(p, today)),
@@ -178,16 +191,21 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
           if (ok) {
             setEditing(null);
             setSelectedId(next.id);
+            setFocusId(PROCEDURE_HEADING);
           }
           return ok;
         }}
-        onCancel={() => setEditing(null)}
+        onCancel={() => {
+          setEditing(null);
+          setFocusId(selected ? PROCEDURE_HEADING : NEW_PROCEDURE);
+        }}
         onDelete={() => {
           if (!window.confirm(`Delete "${editing.procedure.title}"? This cannot be undone.`))
             return;
           removeProcedure(editing.procedure.id);
           setEditing(null);
           setSelectedId(null);
+          setFocusId(NEW_PROCEDURE);
         }}
       />
     );
@@ -208,6 +226,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
           <CardContent className="space-y-3 text-sm">
             <div className="flex flex-wrap gap-2">
               <Button
+                id={NEW_PROCEDURE}
                 size="sm"
                 disabled={procedures.length >= PROCEDURE_LIMITS.procedures}
                 onClick={() => setEditing({ procedure: draftFor(""), isNew: true })}
@@ -308,7 +327,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
                           }}
                           className="flex w-full flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-left hover:bg-elevated/60 aria-[current=true]:border-primary/50 aria-[current=true]:bg-primary/5"
                         >
-                          <span className="min-w-0">
+                          <span className="min-w-0 [overflow-wrap:anywhere]">
                             <span className="block font-medium">{p.title}</span>
                             {p.module && (
                               <span className="block text-xs text-muted">{p.module}</span>
@@ -332,15 +351,15 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
             <CardHeader>
               <CardTitle>Not written yet</CardTitle>
               <CardDescription>
-                Items on Who knows what with no procedure here and nothing written elsewhere, duties
-                first. Starting one creates an empty procedure; nothing is filled in for you.
+                Items on Who knows what with no steps written here and nothing written elsewhere,
+                duties first. Starting one creates an empty procedure; nothing is filled in for you.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="space-y-1 text-sm">
-                {unwritten.slice(0, 12).map(({ item }) => (
+                {unwritten.slice(0, 12).map(({ item, startedId }) => (
                   <li key={item.id} className="flex items-center justify-between gap-2">
-                    <span>
+                    <span className="min-w-0 [overflow-wrap:anywhere]">
                       {item.name}
                       {item.criticality === "critical" && (
                         <Badge variant="danger" className="ml-2">
@@ -348,18 +367,33 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
                         </Badge>
                       )}
                     </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2 text-xs"
-                      aria-label={`Start a procedure for ${item.name}`}
-                      disabled={procedures.length >= PROCEDURE_LIMITS.procedures}
-                      onClick={() =>
-                        setEditing({ procedure: draftFor(item.name, [item.id]), isNew: true })
-                      }
-                    >
-                      Start
-                    </Button>
+                    {startedId ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        aria-label={`Continue the procedure for ${item.name}`}
+                        onClick={() => {
+                          const started = procedures.find((p) => p.id === startedId);
+                          if (started) setEditing({ procedure: started, isNew: false });
+                        }}
+                      >
+                        Continue
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        aria-label={`Start a procedure for ${item.name}`}
+                        disabled={procedures.length >= PROCEDURE_LIMITS.procedures}
+                        onClick={() =>
+                          setEditing({ procedure: draftFor(item.name, [item.id]), isNew: true })
+                        }
+                      >
+                        Start
+                      </Button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -457,6 +491,7 @@ function ProcedureView({
   onDownload: () => void;
 }) {
   const [following, setFollowing] = useState(false);
+  const followButton = useRef<HTMLButtonElement>(null);
   // Finishing follow mode reopens the proof section with its form open.
   const [proof, setProof] = useState({ key: 0, open: false });
   const status = procedureStatus(p, today);
@@ -467,7 +502,13 @@ function ProcedureView({
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
-          <CardTitle>{p.title}</CardTitle>
+          <CardTitle
+            id={PROCEDURE_HEADING}
+            tabIndex={-1}
+            className="[overflow-wrap:anywhere] focus:outline-none"
+          >
+            {p.title}
+          </CardTitle>
           <Badge variant={STATUS_BADGE[status]}>{PROCEDURE_STATUS_LABEL[status]}</Badge>
         </div>
         <CardDescription>
@@ -509,7 +550,7 @@ function ProcedureView({
         )}
         {isWrittenProcedure(p) ? (
           <ol className="space-y-2">
-            {p.steps.map((s, i) => (
+            {shownSteps(p).map((s, i) => (
               <li key={s.id} className="flex gap-3">
                 <span className="w-6 shrink-0 text-right font-semibold text-muted">{i + 1}.</span>
                 <div>
@@ -579,7 +620,7 @@ function ProcedureView({
         />
         <div className="flex flex-wrap gap-2">
           {isWrittenProcedure(p) && (
-            <Button size="sm" onClick={() => setFollowing(true)}>
+            <Button ref={followButton} size="sm" onClick={() => setFollowing(true)}>
               <ListChecks className="size-3.5" /> Follow it step by step
             </Button>
           )}
@@ -610,7 +651,11 @@ function ProcedureView({
             procedure={p}
             businessId={businessId}
             askName={nameOf(p.ownerPersonId)}
-            onClose={() => setFollowing(false)}
+            onClose={() => {
+              setFollowing(false);
+              // The dialog is gone before the browser can return focus, so return it here.
+              requestAnimationFrame(() => followButton.current?.focus());
+            }}
             onRecordRun={() => {
               setFollowing(false);
               setProof((x) => ({ key: x.key + 1, open: true }));

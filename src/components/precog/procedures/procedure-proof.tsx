@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { fieldCls } from "@/components/ui/field-classes";
@@ -6,20 +6,23 @@ import { formatDay } from "@/lib/precog/dates";
 import { setRelationLevel } from "@/lib/precog/continuity/coverage";
 import { usePractice, usePracticeActions, useTemplate } from "@/lib/precog/practice-context";
 import { procedureDutyConflicts } from "@/lib/precog/procedures/duty-conflicts";
-import {
-  backupProofs,
-  levelRaiseOffer,
-  proofIsStale,
-  type LevelRaise,
-} from "@/lib/precog/procedures/proof";
+import { backupProofs, levelRaiseOffer, proofIsStale } from "@/lib/precog/procedures/proof";
 import { PROCEDURE_LIMITS } from "@/lib/precog/procedures/normalize";
 import type { Procedure } from "@/lib/precog/procedures/types";
 import { firstName, joinWithAnd } from "@/lib/precog/text";
 
 /**
+ * Runs whose level offer the owner answered "Not now" to in this session, by
+ * procedure and run, so the offer stays answered when they switch procedures.
+ */
+const declinedOffers = new Set<string>();
+
+/**
  * Who has shown they can follow this procedure without the usual person, and
  * a form to record a run. After an unaided run the owner is offered the level
- * change on Who knows what; it is logged in the Journal when accepted.
+ * change on Who knows what; it is logged in the Journal when accepted. The
+ * offer is worked out from the latest run each time, so leaving the
+ * procedure and coming back does not lose it.
  */
 export function ProofSection({
   procedure,
@@ -43,9 +46,26 @@ export function ProofSection({
   const [on, setOn] = useState(today);
   const [alone, setAlone] = useState(true);
   const [note, setNote] = useState("");
-  const [offer, setOffer] = useState<{ personId: string; on: string; raises: LevelRaise[] } | null>(
-    null,
-  );
+  // "Not now" is kept outside the component, so this only redraws it.
+  const [, redraw] = useReducer((n: number) => n + 1, 0);
+  const latest = procedure.proofs[0];
+  const offerKey = latest ? `${procedure.id}:${latest.id}` : "";
+  const raises =
+    latest && latest.alone && !proofIsStale(latest.on, today) && !declinedOffers.has(offerKey)
+      ? levelRaiseOffer(tpl.relations, procedure, latest.personId, true)
+      : [];
+  const offer =
+    latest && raises.length ? { personId: latest.personId, on: latest.on, raises } : null;
+  // Keyboard focus follows the form and the offer as they appear and go.
+  const recordButton = useRef<HTMLButtonElement>(null);
+  const offerBox = useRef<HTMLDivElement>(null);
+  const [focusNext, setFocusNext] = useState<"offer" | "record" | null>(null);
+  useEffect(() => {
+    if (!focusNext) return;
+    if (focusNext === "offer" && offerBox.current) offerBox.current.focus();
+    else recordButton.current?.focus();
+    setFocusNext(null);
+  }, [focusNext]);
   const proofs = backupProofs(procedure);
   const itemName = (id: string) => tpl.knowledge.find((k) => k.id === id)?.name ?? id;
 
@@ -57,10 +77,11 @@ export function ProofSection({
       alone,
       ...(note.trim() ? { note: note.trim().slice(0, PROCEDURE_LIMITS.proofNote) } : {}),
     });
-    const raises = levelRaiseOffer(tpl.relations, procedure, personId, alone);
-    setOffer(raises.length ? { personId, on, raises } : null);
     setOpen(false);
     setNote("");
+    setFocusNext(
+      levelRaiseOffer(tpl.relations, procedure, personId, alone).length ? "offer" : "record",
+    );
   }
 
   function acceptRaise() {
@@ -79,7 +100,13 @@ export function ProofSection({
       linkedTab: "procedures",
       linkedId: procedure.id,
     });
-    setOffer(null);
+    setFocusNext("record");
+  }
+
+  function declineRaise() {
+    declinedOffers.add(offerKey);
+    redraw();
+    setFocusNext("record");
   }
 
   return (
@@ -136,8 +163,10 @@ export function ProofSection({
       )}
       {offer && (
         <div
+          ref={offerBox}
           role="status"
-          className="space-y-2 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm"
+          tabIndex={-1}
+          className="space-y-2 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
         >
           <p>
             {firstName(nameOf(offer.personId))} did this alone. Mark them as able to do{" "}
@@ -148,7 +177,7 @@ export function ProofSection({
             <Button size="sm" onClick={acceptRaise}>
               Mark as able to do it alone
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setOffer(null)}>
+            <Button size="sm" variant="ghost" onClick={declineRaise}>
               Not now
             </Button>
           </div>
@@ -165,6 +194,8 @@ export function ProofSection({
           <label className="flex flex-col gap-1 text-muted">
             Who followed it
             <select
+              // Opened after following the steps: start the keyboard here.
+              autoFocus={defaultOpen}
               className={fieldCls}
               value={personId}
               onChange={(e) => setPersonId(e.target.value)}
@@ -204,7 +235,15 @@ export function ProofSection({
             <Button size="sm" type="submit" disabled={!personId || !on || on > today}>
               Record the run
             </Button>
-            <Button size="sm" variant="ghost" type="button" onClick={() => setOpen(false)}>
+            <Button
+              size="sm"
+              variant="ghost"
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setFocusNext("record");
+              }}
+            >
               Cancel
             </Button>
           </div>
@@ -214,6 +253,7 @@ export function ProofSection({
           size="sm"
           variant="outline"
           disabled={candidates.length === 0}
+          ref={recordButton}
           onClick={() => setOpen(true)}
         >
           <ClipboardCheck className="size-3.5" /> Record a run by someone else

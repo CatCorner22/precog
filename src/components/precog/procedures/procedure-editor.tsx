@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fieldCls } from "@/components/ui/field-classes";
 import { secretKindsIn, SECRET_WARNING } from "@/lib/precog/procedures/credential-guard";
-import { newStep, withoutAiMark } from "@/lib/precog/procedures/lifecycle";
+import { newStep, stepHasContent, withoutAiMark } from "@/lib/precog/procedures/lifecycle";
 import type { ProcedureDraft } from "@/lib/precog/procedures/draft";
 import { industryMeta } from "@/lib/precog/industry";
 import {
@@ -25,6 +25,7 @@ import { personDuties } from "@/lib/precog/sod/assignments";
 import { ENTITLEMENTS, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
 
 const labelCls = "flex flex-col gap-1 text-xs text-muted";
+const TITLE_NEEDED = "Give the procedure a title.";
 const inputCls = `${fieldCls} w-full`;
 
 /**
@@ -58,6 +59,20 @@ export function ProcedureEditor({
 }) {
   const [draft, setDraft] = useState<Procedure>(initial);
   const [error, setError] = useState<string | null>(null);
+  // Where keyboard focus goes after a step control that may disappear is used (an element id).
+  const [focusId, setFocusId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusId) return;
+    const el = document.getElementById(focusId);
+    if (el instanceof HTMLButtonElement && el.disabled) {
+      // A step moved to an end: its button that way is disabled, so use the other one.
+      const other = focusId.endsWith("-down")
+        ? focusId.replace(/-down$/, "-up")
+        : focusId.replace(/-up$/, "-down");
+      document.getElementById(other)?.focus();
+    } else el?.focus();
+    setFocusId(null);
+  }, [focusId]);
   const set = <K extends keyof Procedure>(key: K, value: Procedure[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
   // Editing a step's text makes it the person's own, so it is no longer an AI draft.
@@ -74,9 +89,7 @@ export function ProcedureEditor({
     );
   /** Add a draft's steps after the written ones, and its purpose and prerequisites where empty. */
   const addDraft = (d: ProcedureDraft) => {
-    const kept = draft.steps.filter(
-      (s) => s.text.trim() || s.caution?.trim() || s.imageIds?.length || s.requiresPhoto,
-    );
+    const kept = draft.steps.filter(stepHasContent);
     const added = d.steps
       .slice(0, PROCEDURE_LIMITS.steps - kept.length)
       .map((text) =>
@@ -93,16 +106,23 @@ export function ProcedureEditor({
         ]),
       ].slice(0, PROCEDURE_LIMITS.prerequisites),
     }));
+    if (added[0]) setFocusId(`step-${added[0].id}`);
   };
   const place = places.find((p) => p.id === draft.placeId);
-  const filledSteps = draft.steps.filter(
-    (s) => s.text.trim() || s.caution?.trim() || s.imageIds?.length || s.requiresPhoto,
-  ).length;
+  const filledSteps = draft.steps.filter(stepHasContent).length;
   const moveStep = (index: number, delta: -1 | 1) => {
     const steps = [...draft.steps];
     const [step] = steps.splice(index, 1);
     steps.splice(index + delta, 0, step);
     set("steps", steps);
+    setFocusId(`step-${step.id}-${delta < 0 ? "up" : "down"}`);
+  };
+  const removeStep = (index: number) => {
+    const steps = draft.steps.filter((_, i) => i !== index);
+    set("steps", steps);
+    // Focus the step that took its place, or the one before it, or "Add step".
+    const next = steps[index] ?? steps[index - 1];
+    setFocusId(next ? `step-${next.id}` : "procedure-add-step");
   };
   const secrets = useMemo(
     () =>
@@ -119,7 +139,7 @@ export function ProcedureEditor({
   function save() {
     const title = draft.title.trim();
     if (!title) {
-      setError("Give the procedure a title.");
+      setError(TITLE_NEEDED);
       return;
     }
     const url = draft.url?.trim() ? webUrl(draft.url) : "";
@@ -137,7 +157,7 @@ export function ProcedureEditor({
       prerequisites: draft.prerequisites.map((p) => p.trim()).filter(Boolean),
       steps: draft.steps
         .map((s) => ({ ...s, text: s.text.trim(), caution: s.caution?.trim() || undefined }))
-        .filter((s) => s.text || s.caution || s.imageIds?.length || s.requiresPhoto),
+        .filter(stepHasContent),
       backupPersonIds: draft.backupPersonIds.filter((id) => id !== draft.ownerPersonId),
       reviewEveryDays: reviewDays(draft.reviewEveryDays),
     };
@@ -168,7 +188,10 @@ export function ProcedureEditor({
             value={draft.title}
             maxLength={PROCEDURE_LIMITS.title}
             placeholder="e.g. Reconcile the checking account"
-            onChange={(e) => set("title", e.target.value)}
+            onChange={(e) => {
+              set("title", e.target.value);
+              if (error === TITLE_NEEDED && e.target.value.trim()) setError(null);
+            }}
           />
         </label>
 
@@ -314,6 +337,7 @@ export function ProcedureEditor({
                       size="sm"
                       variant="ghost"
                       className="h-7 px-2"
+                      id={`step-${step.id}-up`}
                       aria-label={`Move step ${index + 1} up`}
                       disabled={index === 0}
                       onClick={() => moveStep(index, -1)}
@@ -324,6 +348,7 @@ export function ProcedureEditor({
                       size="sm"
                       variant="ghost"
                       className="h-7 px-2"
+                      id={`step-${step.id}-down`}
                       aria-label={`Move step ${index + 1} down`}
                       disabled={index === draft.steps.length - 1}
                       onClick={() => moveStep(index, 1)}
@@ -335,12 +360,7 @@ export function ProcedureEditor({
                       variant="ghost"
                       className="h-7 px-2"
                       aria-label={`Remove step ${index + 1}`}
-                      onClick={() =>
-                        set(
-                          "steps",
-                          draft.steps.filter((s) => s.id !== step.id),
-                        )
-                      }
+                      onClick={() => removeStep(index)}
                     >
                       <Trash2 className="size-3.5" />
                     </Button>
@@ -351,10 +371,15 @@ export function ProcedureEditor({
           </ol>
           <div className="flex flex-wrap items-start gap-2">
             <Button
+              id="procedure-add-step"
               size="sm"
               variant="outline"
               disabled={draft.steps.length >= PROCEDURE_LIMITS.steps}
-              onClick={() => set("steps", [...draft.steps, newStep()])}
+              onClick={() => {
+                const step = newStep();
+                set("steps", [...draft.steps, step]);
+                setFocusId(`step-${step.id}`);
+              }}
             >
               <Plus className="size-3.5" /> Add step
             </Button>

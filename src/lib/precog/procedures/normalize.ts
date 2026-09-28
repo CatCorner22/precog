@@ -100,7 +100,7 @@ export function normalizeProcedures(value: unknown, today: string): Procedure[] 
     if (out.length >= PROCEDURE_LIMITS.procedures) break;
     const procedure = normalizeProcedure(entry, today);
     if (!procedure || seen.has(procedure.id)) continue;
-    const size = JSON.stringify(procedure).length;
+    const size = jsonBytes(procedure);
     if (bytes + size > PROCEDURE_LIMITS.bytes) break;
     bytes += size;
     seen.add(procedure.id);
@@ -111,7 +111,18 @@ export function normalizeProcedures(value: unknown, today: string): Procedure[] 
 
 /** Serialized size of a list of procedures, as the byte budget counts it. */
 export function proceduresBytes(procedures: readonly Procedure[]): number {
-  return procedures.reduce((sum, p) => sum + JSON.stringify(p).length, 0);
+  return procedures.reduce((sum, p) => sum + jsonBytes(p), 0);
+}
+
+const utf8 = new TextEncoder();
+
+/**
+ * UTF-8 bytes of a value as JSON, the unit the 2 MB profile cap is measured
+ * in (profile-input.ts); counting characters would let text in other scripts
+ * take up to three times the budget.
+ */
+function jsonBytes(value: unknown): number {
+  return utf8.encode(JSON.stringify(value)).length;
 }
 
 /** One stored procedure made safe, or null when it has no id, title or known industry. */

@@ -42,12 +42,18 @@ export const DRAFT_NOTES_MAX = 2000;
 const PREREQUISITE =
   /^(?:(?:you(?:'ll| will)? )?need(?:ed)? to have|(?:you(?:'ll| will)? )?need(?:ed)?(?!\s+to\b)|requires?|before you start|have ready|what you need)\b[\s:,-]*/i;
 const BULLET = /^\s*(?:[-*•·>]+|\(?\d{1,2}[.):]|step\s+\d{1,2}\s*[.:)-]?)\s*/i;
+// Followed by a space, comma or colon, so "Next-day" and "Second-shift" are kept whole.
 const FILLER =
-  /^(?:first(?:ly)?|second(?:ly)?|then|next|after that|afterwards|after this|finally|lastly|and|so|also|now|ok(?:ay)?)\b[\s,:-]*/i;
+  /^(?:first(?:ly)?|second(?:ly)?|then|next|after that|afterwards|after this|finally|lastly|and|so|also|now|ok(?:ay)?)(?=[\s,:]|$)[\s,:-]*/i;
 const SUBJECT =
   /^(?:(?:you|we|i|they)(?: then)?(?: (?:usually|always|normally|just|then))?(?: (?:need to|have to|should|must|will|can|go and|go to and))?|please|need to|have to|must)\s+(?=[a-z])/i;
 /** Where one action ends and the next begins inside a sentence. */
 const ACTION_BREAK = /\s*;\s*|,?\s+(?:and then|then|after that|afterwards)\s+/i;
+/** A sentence whose "then" joins a condition to its action, which must stay one step. */
+const CONDITION = /^(?:if|when|whenever|once|unless|only if|in case)\b/i;
+/** Where a sentence ends: a full stop before a capital, but not after "Dr." or "a.m.". */
+const SENTENCE_END =
+  /(?<=[.!?])(?<!\b(?:Dr|Mr|Mrs|Ms|St|Jr|Sr|No|vs|etc|e\.g|i\.e|a\.m|p\.m|approx|dept|ext)\.)\s+(?=[A-Z])/;
 
 /** Numbered steps, a purpose and prerequisites from the owner's own words. */
 export function draftLocally(input: Pick<ProcedureDraftInput, "notes">): ProcedureDraft {
@@ -77,8 +83,8 @@ export function draftLocally(input: Pick<ProcedureDraftInput, "notes">): Procedu
 /** One line of notes split into its sentences, then each sentence into its actions. */
 function splitActions(line: string): string[] {
   return line
-    .split(/(?<=[.!?])\s+(?=[A-Za-z])/)
-    .flatMap((s) => s.split(ACTION_BREAK))
+    .split(SENTENCE_END)
+    .flatMap((s) => (CONDITION.test(s.trim()) ? s.split(/\s*;\s*/) : s.split(ACTION_BREAK)))
     .map((s) => s.trim())
     .filter(Boolean);
 }

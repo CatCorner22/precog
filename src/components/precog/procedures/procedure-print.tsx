@@ -5,6 +5,7 @@ import {
   PROCEDURE_STATUS_LABEL,
   procedureStatus,
   reviewByDate,
+  shownSteps,
 } from "@/lib/precog/procedures/lifecycle";
 import type { Place, Procedure } from "@/lib/precog/procedures/types";
 import { StoredPicture } from "./step-pictures";
@@ -73,7 +74,7 @@ export function ProcedurePrint({
       {procedures.map((p, n) => {
         const place = places.find((pl) => pl.id === p.placeId);
         const where = [place?.name, p.module].filter(Boolean).join(" › ");
-        const steps = p.steps.filter((s) => s.text.trim());
+        const steps = shownSteps(p);
         const due = reviewByDate(p);
         const items = p.knowledgeIds.map(itemName).filter(Boolean).join(", ");
         return (
