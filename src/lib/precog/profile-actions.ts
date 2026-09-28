@@ -53,7 +53,8 @@ import { nameKey, uid } from "./text";
 import { stripProcedureLinks } from "./procedures/coverage-link";
 import { verifyProcedure, withProcedureEdit } from "./procedures/lifecycle";
 import { PROCEDURE_LIMITS, proceduresBytes } from "./procedures/normalize";
-import type { Place, Procedure } from "./procedures/types";
+import { withProof } from "./procedures/proof";
+import type { Place, Procedure, ProcedureProof } from "./procedures/types";
 
 /**
  * Every edit the app makes to a business, as a pure function from one
@@ -394,6 +395,18 @@ export function withProcedureVerified(
     procedures: (p.procedures ?? []).map((x) =>
       x.id === id ? verifyProcedure(x, verifiedBy, today) : x,
     ),
+  };
+}
+
+/** The business with a run of procedure `id` recorded (see procedures/proof.ts). */
+export function withProcedureProof(
+  p: PracticeProfile,
+  id: string,
+  proof: Omit<ProcedureProof, "id">,
+): PracticeProfile {
+  return {
+    ...p,
+    procedures: (p.procedures ?? []).map((x) => (x.id === id ? withProof(x, proof) : x)),
   };
 }
 

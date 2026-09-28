@@ -73,6 +73,24 @@ async function writeVerifyAndLink(page, errors) {
   await page.getByRole("button", { name: /checked these steps today/ }).click();
   await waitProfile(page, (p) => Boolean(p.procedures[0].verifiedAt), "verification not saved");
   await page.getByText("Verified", { exact: true }).first().waitFor();
+
+  step("record an unaided run by someone else; accepting the offer logs a decision");
+  await page.getByRole("button", { name: /Record a run by someone else/ }).click();
+  await page.getByRole("button", { name: "Record the run" }).click();
+  await waitProfile(page, (p) => p.procedures[0].proofs?.length === 1, "the run was not saved");
+  const raise = page.getByRole("button", { name: "Mark as able to do it alone" });
+  if (await raise.count()) {
+    await raise.click();
+    await waitProfile(
+      page,
+      (p) => p.decisions.some((d) => d.linkedTab === "procedures"),
+      "accepting the level raise did not log a decision",
+    );
+  }
+  await page
+    .getByText(/did it alone/)
+    .first()
+    .waitFor();
   if (shots) await page.screenshot({ path: `${shots}/procedures-desktop.png`, fullPage: true });
 
   step("the register item now counts as written, and links back");

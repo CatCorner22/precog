@@ -1,7 +1,15 @@
 import { isCalendarDate } from "../dates";
 import { isIndustryId } from "../industry";
 import type { ProcessCadence } from "../types";
-import type { Place, PlaceKind, Procedure, ProcedureChange, ProcedureStep } from "./types";
+import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
+import type {
+  Place,
+  PlaceKind,
+  Procedure,
+  ProcedureChange,
+  ProcedureProof,
+  ProcedureStep,
+} from "./types";
 
 /**
  * Limits that keep procedures inside the stored business (2 MB in all, shared
@@ -27,6 +35,9 @@ export const PROCEDURE_LIMITS = {
   changeSummary: 120,
   links: 50,
   imagesPerStep: 6,
+  proofs: 20,
+  proofNote: 200,
+  duties: 16,
   backups: 10,
   /** Serialized size of every procedure together. */
   bytes: 700 * 1024,
@@ -139,6 +150,7 @@ export function normalizeProcedure(value: unknown, today: string): Procedure | n
     steps: normalizeSteps(raw.steps),
     knowledgeIds: ids(raw.knowledgeIds, PROCEDURE_LIMITS.links),
     processIds: ids(raw.processIds, PROCEDURE_LIMITS.links),
+    ...(dutyIds(raw.dutyIds).length ? { dutyIds: dutyIds(raw.dutyIds) } : {}),
     backupPersonIds: ids(raw.backupPersonIds, PROCEDURE_LIMITS.backups).filter(
       (personId) => personId !== optional.ownerPersonId,
     ),
@@ -149,6 +161,7 @@ export function normalizeProcedure(value: unknown, today: string): Procedure | n
     version:
       Number.isInteger(raw.version) && (raw.version as number) >= 1 ? (raw.version as number) : 1,
     changelog: normalizeChangelog(raw.changelog, today),
+    proofs: normalizeProofs(raw.proofs, today),
     createdAt,
     updatedAt: updatedAt < createdAt ? createdAt : updatedAt,
   };
@@ -207,6 +220,30 @@ function normalizeChangelog(value: unknown, today: string): ProcedureChange[] {
     const summary = text(raw.summary, PROCEDURE_LIMITS.changeSummary);
     if (!on || !summary || !Number.isInteger(raw.version)) continue;
     out.push({ version: raw.version as number, on, summary });
+  }
+  return out;
+}
+
+const DUTY_IDS = new Set<string>(ENTITLEMENTS.map((e) => e.id));
+
+function dutyIds(value: unknown): EntitlementId[] {
+  return ids(value, PROCEDURE_LIMITS.duties).filter((id): id is EntitlementId => DUTY_IDS.has(id));
+}
+
+function normalizeProofs(value: unknown, today: string): ProcedureProof[] {
+  if (!Array.isArray(value)) return [];
+  const out: ProcedureProof[] = [];
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (out.length >= PROCEDURE_LIMITS.proofs) break;
+    const raw = record(entry);
+    const id = text(raw.id, 60);
+    const personId = text(raw.personId, 120);
+    const on = day(raw.on, today);
+    if (!id || !personId || !on || seen.has(id)) continue;
+    seen.add(id);
+    const note = text(raw.note, PROCEDURE_LIMITS.proofNote);
+    out.push({ id, personId, on, alone: raw.alone === true, ...(note ? { note } : {}) });
   }
   return out;
 }

@@ -1,6 +1,8 @@
 import { BookOpenCheck, UserCheck } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { buttonClass } from "@/components/ui/button-variants";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import { provenBackups } from "@/lib/precog/procedures/proof";
 import { ItemButton, JournalStepStatus, PeopleLine } from "@/components/precog/continuity/parts";
 import type {
   CheckIn,
@@ -518,6 +520,15 @@ export function SelectedKnowledgeCard({
  */
 function ProcedureLinkLine({ item }: { item: KnowledgeItem }) {
   const linked = item.linkedProcedures ?? [];
+  const { profile } = usePractice();
+  const tpl = useTemplate();
+  const proven = [...provenBackups(profile.procedures ?? [], profile.industry)]
+    .filter(([key]) => key.endsWith(`\u0000${item.id}`))
+    .map(([key, on]) => ({
+      name: tpl.people.find((p) => p.id === key.split("\u0000")[0])?.name,
+      on,
+    }))
+    .filter((x): x is { name: string; on: string } => Boolean(x.name));
   if (linked.length === 0) {
     return (
       <Link
@@ -530,19 +541,27 @@ function ProcedureLinkLine({ item }: { item: KnowledgeItem }) {
     );
   }
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs">
-      <BookOpenCheck className="size-3.5 text-ok" aria-hidden />
-      <span className="text-muted">Written in Procedures:</span>
-      {linked.map((p) => (
-        <Link
-          key={p.id}
-          to="/"
-          search={{ tab: "procedures", item: p.id }}
-          className="text-primary underline-offset-2 hover:underline"
-        >
-          {p.title}
-        </Link>
-      ))}
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <BookOpenCheck className="size-3.5 text-ok" aria-hidden />
+        <span className="text-muted">Written in Procedures:</span>
+        {linked.map((p) => (
+          <Link
+            key={p.id}
+            to="/"
+            search={{ tab: "procedures", item: p.id }}
+            className="text-primary underline-offset-2 hover:underline"
+          >
+            {p.title}
+          </Link>
+        ))}
+      </div>
+      {proven.length > 0 && (
+        <p className="text-xs text-muted">
+          Backup proved it:{" "}
+          {proven.map((x) => `${x.name} did it alone ${formatDay(x.on)}`).join("; ")}
+        </p>
+      )}
     </div>
   );
 }

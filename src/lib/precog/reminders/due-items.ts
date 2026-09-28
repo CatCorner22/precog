@@ -6,7 +6,8 @@ import { latestReview, monthKey, monthlyReviewTasks, reviewDueOn } from "../firm
 import { isOwnTeam } from "../firm/engagement";
 import type { PracticeProfile } from "../practice-profile";
 import { daysBetween, formatDay } from "../dates";
-import { count, verb } from "../text";
+import { count, joinWithAnd, verb } from "../text";
+import { procedureAttention } from "../procedures/attention";
 
 /**
  * What is due on one business, read from the saved profile the same way the
@@ -113,6 +114,40 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
       ownerDetail: detail,
       dueOn: deadline,
       overdue: deadline <= today,
+      advisorOnly: false,
+    });
+  }
+
+  const nameOf = (id: string | undefined) => tpl.people.find((p) => p.id === id)?.name;
+  const attention = procedureAttention(
+    profile.procedures ?? [],
+    tpl.knowledge,
+    profile.industry,
+    today,
+  );
+  for (const { procedure, dueOn, overdue } of attention.reviewDue) {
+    const checker = nameOf(procedure.reviewerPersonId) ?? "The owner";
+    const detail = `${checker} checks the steps still match the software or the place. They were last checked on ${formatDay(procedure.verifiedAt ?? dueOn)}.`;
+    add({
+      key: `procedure-review:${procedure.id}`,
+      title: `Check the procedure "${procedure.title}" still works`,
+      detail,
+      ownerDetail: detail,
+      dueOn,
+      overdue,
+      advisorOnly: false,
+    });
+  }
+  for (const { procedure, backupIds, dueOn, overdue } of attention.unproven) {
+    const names = backupIds.map(nameOf).filter((n): n is string => Boolean(n));
+    const detail = `${names.length ? joinWithAnd(names) : "The named backup"} ${verb(names.length || 1, "has", "have")} not yet done this critical task alone. Have one of them follow the procedure while someone watches.`;
+    add({
+      key: `procedure-unproven:${procedure.id}`,
+      title: `Have a backup do "${procedure.title}" alone`,
+      detail,
+      ownerDetail: detail,
+      dueOn,
+      overdue,
       advisorOnly: false,
     });
   }

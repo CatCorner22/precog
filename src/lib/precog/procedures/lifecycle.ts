@@ -52,6 +52,7 @@ export function newProcedure(
     reviewEveryDays: DEFAULT_REVIEW_DAYS,
     version: 1,
     changelog: [],
+    proofs: [],
     ...fields,
     id: fields.id ?? uid("proc"),
     createdAt: today,

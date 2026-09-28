@@ -15,6 +15,11 @@ import {
 import type { Place, Procedure, ProcedureStep } from "@/lib/precog/procedures/types";
 import type { KnowledgeItem, Person } from "@/lib/precog/types";
 import { StepPictures, type PictureAccess } from "./step-pictures";
+import { DutyConflictNote } from "./procedure-proof";
+import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import { procedureDutyConflicts } from "@/lib/precog/procedures/duty-conflicts";
+import { personDuties } from "@/lib/precog/sod/assignments";
+import { ENTITLEMENTS, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
 
 const labelCls = "flex flex-col gap-1 text-xs text-muted";
 const inputCls = `${fieldCls} w-full`;
@@ -404,6 +409,11 @@ export function ProcedureEditor({
           </div>
         </fieldset>
 
+        <DutiesField
+          draft={draft}
+          onChange={(dutyIds) => set("dutyIds", dutyIds.length ? dutyIds : undefined)}
+        />
+
         <fieldset>
           <legend className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
             What it covers on Who knows what
@@ -447,5 +457,66 @@ export function ProcedureEditor({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The duties following this procedure exercises, with the usual person's
+ * duties listed first, and a warning for each named backup who would then
+ * hold two duties that should be kept apart.
+ */
+function DutiesField({
+  draft,
+  onChange,
+}: {
+  draft: Procedure;
+  onChange: (next: EntitlementId[]) => void;
+}) {
+  const tpl = useTemplate();
+  const { profile } = usePractice();
+  const selected = draft.dutyIds ?? [];
+  const owner = tpl.people.find((p) => p.id === draft.ownerPersonId);
+  const ownerDuties = new Set<string>(owner ? personDuties(owner, tpl.roleTemplates) : []);
+  const choices = ENTITLEMENTS.filter((e) => e.id !== "view_reports_only").sort(
+    (a, b) => Number(ownerDuties.has(b.id)) - Number(ownerDuties.has(a.id)),
+  );
+  const warnings = draft.backupPersonIds
+    .map((id) => ({
+      name: tpl.people.find((p) => p.id === id)?.name ?? "A backup",
+      conflicts: procedureDutyConflicts(tpl, profile.dualRelease, draft, id, profile.staff),
+    }))
+    .filter((w) => w.conflicts.length > 0);
+  return (
+    <fieldset className="space-y-2">
+      <legend className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
+        Duties someone exercises by following it
+      </legend>
+      <p className="text-xs text-muted">
+        Tick what a person does by following these steps
+        {owner ? `; ${owner.name}'s duties are listed first` : ""}. A backup who would then hold two
+        duties that should be kept apart is warned about below.
+      </p>
+      <div className="flex max-h-40 flex-wrap gap-x-4 gap-y-1 overflow-y-auto">
+        {choices.map((e) => (
+          <label key={e.id} className="flex items-center gap-1.5 text-xs">
+            <input
+              type="checkbox"
+              checked={selected.includes(e.id)}
+              onChange={(ev) =>
+                onChange(
+                  ev.target.checked
+                    ? [...selected, e.id].slice(0, PROCEDURE_LIMITS.duties)
+                    : selected.filter((id) => id !== e.id),
+                )
+              }
+            />
+            {e.label}
+          </label>
+        ))}
+      </div>
+      {warnings.map((w) => (
+        <DutyConflictNote key={w.name} name={w.name} conflicts={w.conflicts} />
+      ))}
+    </fieldset>
   );
 }

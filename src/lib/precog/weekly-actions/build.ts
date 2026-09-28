@@ -57,6 +57,8 @@ import {
 import type { StaffComposition } from "@/lib/precog/types";
 import { localDateKey, formatDay, formatDayNear, formatDayRange } from "../dates";
 import { joinWithAnd, verb, firstName, count } from "../text";
+import { procedureAttention } from "../procedures/attention";
+import type { Procedure } from "../procedures/types";
 
 interface WeeklyAction {
   id: string;
@@ -94,6 +96,8 @@ interface WeeklyActionsInput {
   decisions?: readonly DecisionEntry[];
   /** Known leave, so hand-offs are advised ahead of time. */
   plannedAbsences?: readonly PlannedAbsence[];
+  /** Written procedures, so a lapsing review or an unproven backup is advised. */
+  procedures?: readonly Procedure[];
 }
 
 /**
@@ -156,6 +160,10 @@ const PRIORITY = {
   debriefOther: 68,
   /** A check-in with someone who holds stale work alone. */
   checkInSole: 64,
+  /** A critical procedure whose named backups have not done it alone. */
+  procedureUnproven: 63,
+  /** A procedure whose verification has run out or is about to. */
+  procedureReview: 58,
   /** A check-in on stale register entries. */
   checkIn: 60,
   /** Stale entries nobody active holds. */
@@ -196,6 +204,7 @@ export function buildWeeklyActions(input: WeeklyActionsInput): WeeklyAction[] {
     ...documentationActions(ctx),
     ...registerStartActions(ctx),
     ...checkInActions(ctx),
+    ...procedureActions(ctx),
     ...dependenceActions(ctx),
     ...residualActions(
       ctx,
@@ -626,6 +635,37 @@ function documentationActions({ tpl, registerReady, committed }: WeeklyContext):
       effort: g.state === "none" ? "medium" : "low",
       tab: "knowledge",
       priority,
+    });
+  }
+  return actions;
+}
+
+/** A critical procedure no backup has done alone, and procedures due for a check. */
+function procedureActions({ tpl, input, today }: WeeklyContext): WeeklyAction[] {
+  if (!input.procedures?.length) return [];
+  const attention = procedureAttention(input.procedures, tpl.knowledge, tpl.id, today);
+  const nameOf = (id: string) => tpl.people.find((p) => p.id === id)?.name;
+  const actions: WeeklyAction[] = [];
+  for (const { procedure, backupIds } of attention.unproven.slice(0, MAX_PER_SOURCE)) {
+    const names = backupIds.map(nameOf).filter((n): n is string => Boolean(n));
+    const who = names.length ? firstName(names[0]) : "a backup";
+    actions.push({
+      id: `procedure-unproven-${procedure.id}`,
+      title: `Have ${who} do "${procedure.title}" alone`,
+      why: `This is critical work, and nobody named to cover it has shown they can follow the written steps without help. The first time a backup tries it should not be the day the usual person is out.`,
+      effort: "low",
+      tab: "procedures",
+      priority: PRIORITY.procedureUnproven,
+    });
+  }
+  for (const { procedure, dueOn, overdue } of attention.reviewDue.slice(0, MAX_PER_SOURCE)) {
+    actions.push({
+      id: `procedure-review-${procedure.id}`,
+      title: `Check "${procedure.title}" still works`,
+      why: `${overdue ? "The check was due" : "The check is due"} ${formatDay(dueOn)}. Software screens and office routines change; steps nobody has re-checked send a stand-in down the wrong path.`,
+      effort: "low",
+      tab: "procedures",
+      priority: PRIORITY.procedureReview,
     });
   }
   return actions;

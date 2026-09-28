@@ -44,6 +44,7 @@ export function WeeklyActionPlan({
       mapAssessed: mapReady,
       decisions: profile.decisions,
       plannedAbsences: profile.plannedAbsences,
+      procedures: profile.procedures,
     });
   }, [
     template,
@@ -53,6 +54,7 @@ export function WeeklyActionPlan({
     mapReady,
     profile.decisions,
     profile.plannedAbsences,
+    profile.procedures,
     today,
   ]);
 
