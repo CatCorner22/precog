@@ -72,6 +72,10 @@ describe("a procedure as Markdown", () => {
     expect(md).toContain("   _1 picture in Precog._");
     expect(md).toContain("3. Match each line.\n   _Drafted by Grok; not yet checked by a person._");
     expect(md).not.toContain("4.");
+    p.steps[2] = { ...p.steps[2], aiDrafted: undefined, suggested: true };
+    expect(procedureMarkdown(p, ctx)).toContain(
+      "3. Match each line.\n   _Suggested common practice; not yet fitted to this business._",
+    );
     expect(md).toContain("- Does it today: Ada Owner");
     expect(md).toContain("- Can follow it when that person is out: Bea Books");
     expect(md).toContain("- Covers on Who knows what: Bank reconciliation");

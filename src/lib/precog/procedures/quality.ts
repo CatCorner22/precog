@@ -1,6 +1,6 @@
 import type { EntitlementId } from "../sod/conflict-rules";
 import { secretKindsIn } from "./credential-guard";
-import { aiDraftedSteps, procedureStatus, shownSteps } from "./lifecycle";
+import { aiDraftedSteps, procedureStatus, shownSteps, suggestedSteps } from "./lifecycle";
 import type { Place, Procedure, ProcedureStep } from "./types";
 
 /**
@@ -193,6 +193,15 @@ export function procedureRecommendations(
       level: "fix",
       title: `Check the ${drafted === 1 ? "step" : `${drafted} steps`} Grok drafted against the real screen or place.`,
       why: "A drafted step is only a guess until a person has followed it.",
+    });
+  }
+  const suggested = suggestedSteps(p);
+  if (suggested > 0) {
+    add({
+      id: "suggested",
+      level: "fix",
+      title: `Fit the ${suggested === 1 ? "suggested step" : `${suggested} suggested steps`} to your own screens, names and people.`,
+      why: "A suggested step describes common practice, not the way this business does the task.",
     });
   }
   const status = procedureStatus(p, context.today);

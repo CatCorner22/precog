@@ -24,15 +24,19 @@ import {
   PROCEDURE_STATUS_LABEL,
   procedureStatus,
   reviewByDate,
+  stepMarkNote,
+  suggestedSteps,
 } from "@/lib/precog/procedures/lifecycle";
 import { PROCEDURE_LIMITS } from "@/lib/precog/procedures/normalize";
 import { placeSuggestions } from "@/lib/precog/procedures/places";
 import { unwrittenProcedureRows } from "@/lib/precog/procedures/starter";
+import { libraryRows, procedureFromLibrary } from "@/lib/precog/procedures/library";
 import type { Place, PlaceKind, Procedure, ProcedureStatus } from "@/lib/precog/procedures/types";
 import { uid } from "@/lib/precog/text";
 import { useToday } from "@/lib/use-today";
 import { ProcedureEditor } from "./procedure-editor";
 import { BestPracticeCheck } from "./best-practice-check";
+import { RecommendedCard } from "./recommended-card";
 import { procedureRecommendations } from "@/lib/precog/procedures/quality";
 import { StoredPicture, type PictureAccess } from "./step-pictures";
 import { ProofSection } from "./procedure-proof";
@@ -72,7 +76,7 @@ const FILTER_LABEL: Record<Filter, string> = {
   all: "All",
   review: "Needs checking",
   "no-backup": "No backup proven",
-  "ai-draft": "AI draft to check",
+  "ai-draft": "Draft or suggestion to check",
   empty: "No steps yet",
 };
 
@@ -159,7 +163,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
     if (filter === "no-backup") {
       return !backupProofs(p).some((x) => x.on && !proofIsStale(x.on, today));
     }
-    if (filter === "ai-draft") return aiDraftedSteps(p) > 0;
+    if (filter === "ai-draft") return aiDraftedSteps(p) + suggestedSteps(p) > 0;
     if (filter === "empty") return status === "empty";
     return true;
   });
@@ -167,6 +171,10 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
   const unwritten = useMemo(
     () => unwrittenProcedureRows(tpl.knowledge, procedures, industry),
     [tpl.knowledge, procedures, industry],
+  );
+  const recommended = useMemo(
+    () => libraryRows(tpl, procedures, industry),
+    [tpl, procedures, industry],
   );
   const selected = procedures.find((p) => p.id === selectedId) ?? null;
   const counts = {
@@ -347,6 +355,16 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
             ))}
           </CardContent>
         </Card>
+
+        <RecommendedCard
+          rows={recommended}
+          itemName={itemName}
+          nameOf={nameOf}
+          disabled={procedures.length >= PROCEDURE_LIMITS.procedures}
+          onStart={(row) =>
+            setEditing({ procedure: procedureFromLibrary(row, industry, today), isNew: true })
+          }
+        />
 
         {unwritten.length > 0 && (
           <Card>
@@ -561,10 +579,8 @@ function ProcedureView({
                 <span className="w-6 shrink-0 text-right font-semibold text-muted">{i + 1}.</span>
                 <div>
                   <p>{s.text}</p>
-                  {s.aiDrafted && (
-                    <p className="mt-0.5 text-xs text-accent">
-                      Drafted by Grok; not yet checked by a person.
-                    </p>
+                  {stepMarkNote(s) && (
+                    <p className="mt-0.5 text-xs text-accent">{stepMarkNote(s)}</p>
                   )}
                   {s.caution && <p className="mt-0.5 text-xs text-warn">Caution: {s.caution}</p>}
                   {s.requiresPhoto && (

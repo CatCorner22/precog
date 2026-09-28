@@ -6,6 +6,7 @@ import {
   procedureStatus,
   reviewByDate,
   shownSteps,
+  stepMarkNote,
 } from "@/lib/precog/procedures/lifecycle";
 import type { Place, Procedure } from "@/lib/precog/procedures/types";
 import { StoredPicture } from "./step-pictures";
@@ -133,11 +134,7 @@ export function ProcedurePrint({
                         {s.requiresPhoto && (
                           <p className="text-[10pt] italic">Take a photo as you do this step.</p>
                         )}
-                        {s.aiDrafted && (
-                          <p className="text-[10pt] italic">
-                            Drafted by Grok; not yet checked by a person.
-                          </p>
-                        )}
+                        {stepMarkNote(s) && <p className="text-[10pt] italic">{stepMarkNote(s)}</p>}
                         {s.imageIds && s.imageIds.length > 0 && (
                           <div className="mt-1 flex flex-wrap gap-2">
                             {s.imageIds.map((id, j) => (
