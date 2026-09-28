@@ -25,7 +25,7 @@ export function PlannerStats({
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
       <Stat
-        label="Backed up"
+        label="Has a stand-in"
         value={registerAssessed ? `${report.coverageIndex}%` : "—"}
         hint={
           registerAssessed

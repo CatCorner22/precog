@@ -215,7 +215,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "Knowledge single points of failure",
     domain: "continuity",
     tags: ["spof", "cross-training", "continuity", "tribal knowledge"],
-    text: "Critical knowledge with one expert owner is a continuity and control risk. If the sole expert can also authorize write-offs or vendor changes, process failure and fraud opportunity combine. Document procedures, cross-train a backup, and re-score residual risk after any key person leave.",
+    text: "Critical knowledge with one expert owner is a continuity and control risk. If the sole expert can also authorize write-offs or vendor changes, process failure and fraud opportunity combine. Document procedures, cross-train a stand-in, and re-score residual risk after any key person leaves.",
     basis: practice("Business-continuity practice for small teams."),
   },
   {

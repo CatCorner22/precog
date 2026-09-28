@@ -73,7 +73,7 @@ export function procedureMarkdown(p: Procedure, ctx: ExportContext): string {
     "## People",
     "",
     `- Does it today: ${inline(ctx.nameOf(p.ownerPersonId) ?? "Not set")}`,
-    `- Backups: ${inline(names(p.backupPersonIds) ?? "Nobody named yet")}`,
+    `- Stand-ins: ${inline(names(p.backupPersonIds) ?? "Nobody named yet")}`,
     `- Reviewer: ${inline(ctx.nameOf(p.reviewerPersonId) ?? "the owner")}`,
     `- Covers on Who knows what: ${inline(items.join(", ") || "Nothing linked")}`,
   );

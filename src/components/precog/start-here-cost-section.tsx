@@ -80,10 +80,10 @@ export function StartHereCostSection({ model }: { model: StartHereModel["cost"] 
         <p className="rounded border border-border bg-elevated/40 p-3 text-xs leading-relaxed text-subtle">
           <span className="font-medium text-muted">Read these numbers as conditional. </span>
           Neither figure predicts your business. Both describe what happened once a fraud occurred
-          and was found. {medianLossValue ?? medianLoss.value} is the median across investigated
+          and came to light. {medianLossValue ?? medianLoss.value} is the median across investigated
           cases{smallOrg ? " at organizations under 100 employees" : ""}.{" "}
           {comparison === "higher" &&
-            `The case median above sits higher: every case in this library was prosecuted by a U.S. Attorney's Office, and the smallest loss in it is ${formatUsd(SMALLEST_CASE_LOSS)}. `}
+            `The case median above sits higher: a U.S. Attorney's Office prosecuted every case in this library, and the smallest loss in it is ${formatUsd(SMALLEST_CASE_LOSS)}. `}
           {comparison === "lower" &&
             `The case median above sits lower; it rests on ${count(lossRange.n, "case")}. `}
           Nothing here says how likely any of it is for you; that depends on the gaps listed at the
@@ -112,7 +112,7 @@ export function StartHereCostSection({ model }: { model: StartHereModel["cost"] 
                   ["reconciliation", "external-audit", "tip"].includes(r.route),
                 ) && (
                   <p className="text-sm leading-relaxed text-muted">
-                    Where the source says how the scheme was found, it was{" "}
+                    Where the source says how the scheme came to light, it was{" "}
                     {joinClauses(found.byRoute.map((r) => ROUTE_CLAUSE[r.route] ?? r.route))}{" "}
                     &mdash; never a reconciliation, an audit, or a report from staff. That is what
                     the controls below change: they put someone in the position to look before the

@@ -484,7 +484,7 @@ export function ProcedureEditor({
 
         <fieldset>
           <legend className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
-            Backups (who cover it when the usual person is out)
+            Stand-ins (who cover it when the usual person is out)
           </legend>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             {activePeople
@@ -584,7 +584,7 @@ function DutiesField({
   );
   const warnings = draft.backupPersonIds
     .map((id) => ({
-      name: tpl.people.find((p) => p.id === id)?.name ?? "A backup",
+      name: tpl.people.find((p) => p.id === id)?.name ?? "A stand-in",
       conflicts: procedureDutyConflicts(tpl, profile.dualRelease, draft, id, profile.staff),
     }))
     .filter((w) => w.conflicts.length > 0);
@@ -596,7 +596,7 @@ function DutiesField({
       <p className="text-xs text-muted">
         Tick what a person does by following these steps
         {owner ? `; ${owner.name}'s duties come first` : ""}. Below, the editor warns about any
-        backup who would then hold two conflicting duties.
+        stand-in who would then hold two conflicting duties.
       </p>
       <div className="flex max-h-40 flex-wrap gap-x-4 gap-y-1 overflow-y-auto">
         {choices.map((e) => (

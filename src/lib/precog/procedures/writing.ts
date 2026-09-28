@@ -87,6 +87,16 @@ const NOT_PASSIVE = new Set([
   "speed",
   "hundred",
   "based",
+  // Feelings, not actions: "the person they are worried about".
+  "worried",
+  "concerned",
+  "interested",
+  "pleased",
+  "surprised",
+  "satisfied",
+  "confused",
+  "scared",
+  "tired",
 ]);
 
 /** Words for the same thing; a procedure that uses more than one of a family reads as two things. */
@@ -189,7 +199,7 @@ export function screenProcedureWriting(
       standard: "completeness",
       blocking: true,
       title: "Say why the task matters and what done looks like (“Done when …”).",
-      why: "A backup who knows the goal can tell when something has gone wrong.",
+      why: "A stand-in who knows the goal can tell when something has gone wrong.",
     });
   } else if (!/\b(?:done|finished|complete)\s+when\b/i.test(purpose)) {
     add({
@@ -197,7 +207,7 @@ export function screenProcedureWriting(
       standard: "completeness",
       blocking: true,
       title: "Add what done looks like to the purpose, starting “Done when …”.",
-      why: "Without it, a backup cannot tell whether they have finished.",
+      why: "Without it, a stand-in cannot tell whether they have finished.",
     });
   }
   if (!p.trigger?.trim() && !p.cadence) {
@@ -206,7 +216,7 @@ export function screenProcedureWriting(
       standard: "completeness",
       blocking: true,
       title: "Say when to do it.",
-      why: "A backup cannot cover a task they do not know is due.",
+      why: "A stand-in cannot cover a task they do not know is due.",
     });
   }
   if (!p.placeId && !p.module?.trim()) {
@@ -215,7 +225,7 @@ export function screenProcedureWriting(
       standard: "completeness",
       blocking: true,
       title: "Say where to do it: the platform or place, and the screen.",
-      why: "The first thing a backup needs is where to start.",
+      why: "The first thing a stand-in needs is where to start.",
     });
   }
   if (context.place?.kind === "software" && p.prerequisites.length === 0) {
@@ -223,8 +233,8 @@ export function screenProcedureWriting(
       id: "prerequisites",
       standard: "completeness",
       blocking: false,
-      title: "List the sign-in and anything else a backup needs before starting.",
-      why: "A backup who finds out halfway through that they have no access stops there.",
+      title: "List the sign-in and anything else a stand-in needs before starting.",
+      why: "A stand-in who finds out halfway through that they have no access stops there.",
     });
   }
 
@@ -278,7 +288,7 @@ export function screenProcedureWriting(
         standard: "consistency",
         blocking: true,
         title: `Use one term for ${family.thing}; it says ${used.map((u) => `“${u}”`).join(" and ")}.`,
-        why: "Two words for one thing make a backup wonder whether they are two things.",
+        why: "Two words for one thing make a stand-in wonder whether they are two things.",
       });
     }
   }
@@ -290,7 +300,7 @@ export function screenProcedureWriting(
       standard: "consistency",
       blocking: false,
       title: `End every step the same way; ${withStop} of ${ends.length} end with a full stop.`,
-      why: "Steps that look alike read as a set a backup can follow in order.",
+      why: "Steps that look alike read as a set a stand-in can follow in order.",
     });
   }
 
@@ -316,7 +326,7 @@ export function stepWritingIssues(s: ProcedureStep, step: number): WritingIssue[
       blocking: true,
       step,
       title: "Write the instruction for this step.",
-      why: "A caution or a picture alone does not tell a backup what to do.",
+      why: "A caution or a picture alone does not tell a stand-in what to do.",
     });
   } else {
     const conditional = CONDITION_START.test(text);
@@ -348,7 +358,7 @@ export function stepWritingIssues(s: ProcedureStep, step: number): WritingIssue[
         blocking: true,
         step,
         title: "Split this into one action per step.",
-        why: "A backup who ticks off a step must have done exactly one thing.",
+        why: "A stand-in who ticks off a step must have done exactly one thing.",
       });
     } else if (text.length > LONG_STEP) {
       out.push({
@@ -357,7 +367,7 @@ export function stepWritingIssues(s: ProcedureStep, step: number): WritingIssue[
         blocking: false,
         step,
         title: "Shorten this step, or split it.",
-        why: "A long step hides the action a backup has to take.",
+        why: "A long step hides the action a stand-in has to take.",
       });
     }
     out.push(...wordingIssues(text).map((i) => ({ ...i, id: key(i.id), step })));
@@ -416,7 +426,7 @@ function wordingIssues(text: string): WritingIssue[] {
       standard: "clarity",
       blocking: true,
       title: `Replace “${vague}” with exactly what to do.`,
-      why: "A backup cannot guess what the usual person means.",
+      why: "A stand-in cannot guess what the usual person means.",
     });
   }
   if (LATIN.test(text)) {

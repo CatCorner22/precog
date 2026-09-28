@@ -77,7 +77,7 @@ export function StartHereExposureSection({
 
       {unheld.length > 0 && (
         <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
-          Nobody still working here is marked for: {unheld.join(", ")}. Somebody does{" "}
+          You have marked nobody still working here for: {unheld.join(", ")}. Somebody does{" "}
           {verb(unheld.length, "this", "each of these")} in every {industryNoun(industryId)} that
           handles money, so mark who on {tabName("sod")}; until then this check cannot cover{" "}
           {verb(unheld.length, "that duty", "those duties")}.
@@ -233,8 +233,7 @@ export function StartHereExposureSection({
         <div className="rounded-lg border border-ok/30 bg-ok/5 p-4">
           <p className="text-sm font-medium">Kept apart on your team</p>
           <p className="mt-1 text-sm leading-relaxed text-muted">
-            Both duties in each of these pairs are held, by different people, so the pair needs no
-            fix:{" "}
+            Different people hold the two duties in each of these pairs, so the pair needs no fix:{" "}
             {keptApart
               .slice(0, 6)
               .map((p) => midSentence(p.title))
@@ -291,7 +290,7 @@ function TenureNote({ note }: { note: TenureNoteModel }) {
               : `after ${shortest.tenureYearsStated} years`
           } and cost ${lossPhrase(shortest)}.`
         : ""}{" "}
-      The people in those cases were trusted for the same reason yours are.
+      Their employers trusted the people in those cases for the same reason you trust yours.
     </p>
   );
 }

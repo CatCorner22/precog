@@ -165,7 +165,7 @@ export function ControlReportContinuitySections({
                 </>
               )}{" "}
               {procedures.criticalTotal > 0 &&
-                `Of ${count(procedures.criticalTotal, "critical item")}, ${procedures.criticalProven} ${verb(procedures.criticalProven, "has", "have")} a backup who did it alone from the written steps in the past year, and ${procedures.criticalWithout} ${verb(procedures.criticalWithout, "has", "have")} no procedure written.`}
+                `Of ${count(procedures.criticalTotal, "critical item")}, ${procedures.criticalProven} ${verb(procedures.criticalProven, "has", "have")} a stand-in who did it alone from the written steps in the past year, and ${procedures.criticalWithout} ${verb(procedures.criticalWithout, "has", "have")} no procedure written.`}
             </p>
             {trackFreshness && (
               <p className="mt-3 text-sm text-neutral-700">

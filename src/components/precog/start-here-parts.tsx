@@ -46,7 +46,7 @@ export function EvidenceFooter({ model }: { model: StartHereModel["footer"] }) {
     <section className="space-y-3">
       <SectionHeading
         title="Every case behind this page"
-        subtitle="Open any one to read what happened and confirm it at the source. Filter by how the money was taken."
+        subtitle="Open any one to read what happened and confirm it at the source. Filter by how the person took the money."
       />
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter cases">
         <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
@@ -64,7 +64,7 @@ export function EvidenceFooter({ model }: { model: StartHereModel["footer"] }) {
         ))}
       </div>
       <p className="text-xs text-subtle">
-        {`Each card's "what would have caught it" is our reading of the record. The source states how the theft was found in ${found.known} of ${found.n} ${found.n === 1 ? "case" : "cases"}; in the other ${found.unknown} it does not say.`}
+        {`Each card's "what would have caught it" is our reading of the record. The source states how the theft came to light in ${found.known} of ${found.n} ${found.n === 1 ? "case" : "cases"}; in the other ${found.unknown} it does not say.`}
       </p>
       <div className="space-y-2">
         {ordered.map((c) => (

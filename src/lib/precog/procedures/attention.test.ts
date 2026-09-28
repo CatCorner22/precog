@@ -118,7 +118,7 @@ describe("procedures in reminders, the weekly plan and shared maps", () => {
   it("reminds the owner to have a backup do the critical procedure alone", () => {
     const items = dueItemsFor(profile(), TODAY).filter((i) => i.key.startsWith("procedure-"));
     expect(items.map((i) => i.key)).toEqual(["procedure-unproven:deposit-proc"]);
-    expect(items[0].title).toBe('Have a backup do "Make the daily deposit" alone');
+    expect(items[0].title).toBe('Have a stand-in do "Make the daily deposit" alone');
     expect(items[0].detail).toContain("Bea Books has not yet done this critical task alone");
   });
 

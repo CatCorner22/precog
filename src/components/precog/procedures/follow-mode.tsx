@@ -86,7 +86,7 @@ export function FollowMode({
             <p className="text-lg font-medium">You have done every step.</p>
             <p className="text-sm text-muted">
               If someone other than the usual person just followed it, record the run. It shows the
-              procedure works for a backup.
+              procedure works for a stand-in.
             </p>
           </div>
         ) : (

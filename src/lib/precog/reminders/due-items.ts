@@ -140,10 +140,10 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
   }
   for (const { procedure, backupIds, dueOn, overdue } of attention.unproven) {
     const names = backupIds.map(nameOf).filter((n): n is string => Boolean(n));
-    const detail = `${names.length ? joinWithAnd(names) : "The named backup"} ${verb(names.length || 1, "has", "have")} not yet done this critical task alone. Have one of them follow the procedure while someone watches.`;
+    const detail = `${names.length ? joinWithAnd(names) : "The named stand-in"} ${verb(names.length || 1, "has", "have")} not yet done this critical task alone. Have one of them follow the procedure while someone watches.`;
     add({
       key: `procedure-unproven:${procedure.id}`,
-      title: `Have a backup do "${procedure.title}" alone`,
+      title: `Have a stand-in do "${procedure.title}" alone`,
       detail,
       ownerDetail: detail,
       dueOn,

@@ -67,7 +67,9 @@ async function writeVerifyAndLink(page, errors) {
   const check = page.getByRole("region", { name: "Best-practice check" });
   await check.getByText("Say when to do it.").waitFor();
   await check
-    .getByText("Name at least one backup: a person who can follow it when the usual person is out.")
+    .getByText(
+      "Name at least one stand-in: a person who can follow it when the usual person is out.",
+    )
     .waitFor();
   await page.getByLabel("When to do it").fill("Every evening at close");
   await eventually(

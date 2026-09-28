@@ -20,12 +20,15 @@ import { formatDay } from "../dates";
 /** The logins the owner confirms are removed, in the words the prompt uses. */
 export const LEAVER_ACCESS_ITEMS = [
   { id: "payroll", label: "Off payroll: no more pay runs or direct deposits to them" },
-  { id: "bank", label: "Bank logins and cards removed, and their name off the bank's signer list" },
-  { id: "payroll_login", label: "Payroll system login removed" },
-  { id: "pos", label: "Point-of-sale or till login and PIN removed" },
+  {
+    id: "bank",
+    label: "Bank sign-ins and cards removed, and their name off the bank's signer list",
+  },
+  { id: "payroll_login", label: "Payroll system sign-in removed" },
+  { id: "pos", label: "Point-of-sale or till sign-in and PIN removed" },
   {
     id: "software",
-    label: "Practice or business software logins removed (email, bookkeeping, scheduling)",
+    label: "Practice or business software sign-ins removed (email, bookkeeping, scheduling)",
   },
 ] as const;
 
@@ -175,9 +178,9 @@ export function confirmAccessRemoved(
     decisions.push({
       id: makeDecisionId(),
       createdAt: now.toISOString(),
-      subject: `${check.name} has left: pay and logins stopped`.slice(0, 120),
+      subject: `${check.name} has left: pay and sign-ins stopped`.slice(0, 120),
       kind: "remediate",
-      note: `On ${formatDay(today)} you confirmed that ${leaverLabel(check)} is off payroll and that their logins are removed: bank, payroll, point of sale, and practice or business software. ${
+      note: `On ${formatDay(today)} you confirmed that ${leaverLabel(check)} is off payroll and that you have removed their sign-ins: bank, payroll, point of sale, and practice or business software. ${
         check.source === "roster"
           ? `Noted as left from a roster on ${formatDay(check.notedOn)}.`
           : `Marked as left on ${formatDay(check.notedOn)}.`

@@ -75,7 +75,7 @@ const STATUS_BADGE: Record<ProcedureStatus, "default" | "ok" | "warn" | "danger"
 const FILTER_LABEL: Record<Filter, string> = {
   all: "All",
   review: "Needs verifying",
-  "no-backup": "No backup proven",
+  "no-backup": "No stand-in proven",
   "ai-draft": "Draft or suggestion to fit",
   empty: "No steps yet",
 };
@@ -613,7 +613,7 @@ function ProcedureView({
         <dl className="grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
           <dt className="text-muted">Does it today</dt>
           <dd>{nameOf(p.ownerPersonId) ?? "Not set"}</dd>
-          <dt className="text-muted">Backups</dt>
+          <dt className="text-muted">Stand-ins</dt>
           <dd>
             {p.backupPersonIds.length
               ? p.backupPersonIds.map((id) => nameOf(id)).join(", ")

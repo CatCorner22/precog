@@ -119,11 +119,11 @@ export function ProofSection({
         id={`proof-${procedure.id}`}
         className="text-xs font-medium uppercase tracking-wide text-muted"
       >
-        Backup proved it
+        Stand-in proved it
       </h3>
       {proofs.length === 0 ? (
         <p className="text-xs text-muted">
-          Name a backup, then record a run when the backup follows it.
+          Name a stand-in, then record a run when the stand-in follows it.
         </p>
       ) : (
         <ul className="space-y-1 text-sm">
