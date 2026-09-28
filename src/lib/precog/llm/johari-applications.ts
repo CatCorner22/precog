@@ -375,7 +375,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
     "2. Bring BLIND spots out through the app's feedback (residual, duty conflicts, indicators, known gaps)",
     "3. Invite HIDDEN knowledge out (interviews, exception logging, who-trusts-whom)",
     "4. Take on UNKNOWN areas with checks and new scenarios (the list of areas outside the model)",
-    "5. Re-run the what-the-app-can-see check — OPEN should grow each cycle",
+    "5. Re-run the what-the-app-can-see check — expect OPEN to grow each cycle",
     "6. Log decisions so what is OPEN has written evidence",
   ],
   antiPatterns: [

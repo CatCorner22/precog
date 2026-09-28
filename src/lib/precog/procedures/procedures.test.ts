@@ -398,7 +398,11 @@ describe("linking procedures to the register", () => {
 describe("profile actions", () => {
   it("adds, edits, verifies and removes a procedure", () => {
     const base = defaultProfile("general");
-    const p = written();
+    const p = written({
+      purpose: "Keeps the books matching the bank. Done when every line matches.",
+      trigger: "When the statement arrives",
+      module: "Banking › Reconcile",
+    });
     const added = withProcedure(base, p, TODAY);
     expect(added.procedures?.map((x) => x.id)).toEqual([p.id]);
     const verified = withProcedureVerified(added, p.id, "owner", TODAY);
@@ -408,6 +412,13 @@ describe("profile actions", () => {
     expect(resaved.procedures?.[0].verifiedAt).toBe(TODAY);
     expect(resaved.procedures?.[0].title).toBe("New title");
     expect(withoutProcedure(resaved, p.id).procedures).toEqual([]);
+  });
+
+  it("leaves a procedure unverified while its writing has errors", () => {
+    const loose = written({ steps: [newStep("The drawer is counted.")] });
+    const added = withProcedure(defaultProfile("general"), loose, TODAY);
+    const pressed = withProcedureVerified(added, loose.id, "owner", TODAY);
+    expect(pressed.procedures?.[0].verifiedAt).toBeUndefined();
   });
 
   it("refuses a save past the byte budget and says so", () => {

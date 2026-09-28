@@ -67,7 +67,7 @@ async function writeVerifyAndLink(page, errors) {
   const check = page.getByRole("region", { name: "Best-practice check" });
   await check.getByText("Say when to do it.").waitFor();
   await check
-    .getByText("Name at least one person who can follow it when the usual person is out.")
+    .getByText("Name at least one backup: a person who can follow it when the usual person is out.")
     .waitFor();
   await page.getByLabel("When to do it").fill("Every evening at close");
   await eventually(
@@ -101,7 +101,19 @@ async function writeVerifyAndLink(page, errors) {
   assert.deepEqual(saved.procedures[0].prerequisites, ["The day-sheet binder"]);
   assert.ok(!saved.procedures[0].steps.some((s) => s.aiDrafted), "local drafts are not AI drafts");
   assert.equal(saved.procedures[0].verifiedAt, undefined);
-  await page.getByRole("button", { name: /checked these steps today/ }).click();
+  // No purpose yet: a writing error, so the verify button waits until it is written.
+  const verify = page.getByRole("button", { name: /verified these steps today/ });
+  assert.ok(await verify.isDisabled(), "verify must wait for the writing errors to be fixed");
+  await page.getByText(/^Fix the writing error in the best-practice check/).waitFor();
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page
+    .getByLabel("Why it matters and what done looks like")
+    .fill(
+      "Shows the day's takings match the deposit. Done when the closer has signed the day sheet.",
+    );
+  await page.getByRole("button", { name: "Save procedure" }).click();
+  await page.getByRole("heading", { name: itemName }).waitFor();
+  await verify.click();
   await waitProfile(page, (p) => Boolean(p.procedures[0].verifiedAt), "verification not saved");
   await page.getByText("Verified", { exact: true }).first().waitFor();
 
@@ -112,7 +124,7 @@ async function writeVerifyAndLink(page, errors) {
   await follow.getByText("Open Reports and choose Day sheet.").waitFor();
   for (let i = 0; i < 3; i++) await follow.getByRole("button", { name: "Done, next step" }).click();
   await follow.getByRole("button", { name: "Done, finish" }).click();
-  await follow.getByText("Every step is done.").waitFor();
+  await follow.getByText("You have done every step.").waitFor();
   if (shots) await page.screenshot({ path: `${shots}/procedures-follow.png` });
   await follow.getByRole("button", { name: "Record this run" }).click();
   await follow.waitFor({ state: "detached" });
@@ -180,7 +192,7 @@ async function writeVerifyAndLink(page, errors) {
   await page.getByRole("button", { name: "Save procedure" }).click();
   await waitProfile(
     page,
-    (p) => !p.procedures[0].verifiedAt && p.procedures[0].version === 2,
+    (p) => !p.procedures[0].verifiedAt && p.procedures[0].version === 3,
     "an edit did not clear the verification",
   );
   await page.getByText("Changed since verified", { exact: true }).first().waitFor();

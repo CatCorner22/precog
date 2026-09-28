@@ -1,6 +1,7 @@
 import { RequestError } from "@/lib/request-errors";
 import { contentKey } from "./lifecycle";
 import { normalizeProcedures } from "./normalize";
+import { verificationBlockers } from "./writing";
 
 /**
  * Who may verify a procedure, checked on the server when a business is saved.
@@ -8,7 +9,9 @@ import { normalizeProcedures } from "./normalize";
  * firm preparer cannot record one (a firm reviewer or owner, or the owner of
  * an account outside any firm, can), and one stamped with an account records
  * only the account that saved it, under that account's own name. A stored
- * verification kept on steps that changed counts as a new one. Verifications
+ * verification kept on steps that changed counts as a new one. A new
+ * verification of a procedure whose writing has errors (procedures/writing.ts)
+ * is refused too, so the writing standards hold for every client. Verifications
  * already stored on unchanged steps are never re-checked, so an older one
  * without a stamp stays as it is.
  *
@@ -20,9 +23,11 @@ import { normalizeProcedures } from "./normalize";
 export type SaverRole = "owner" | "reviewer" | "preparer" | null;
 
 export const PREPARER_CANNOT_VERIFY =
-  "A firm preparer cannot verify a procedure. Ask a firm reviewer or the owner to check the steps.";
+  "A firm preparer cannot verify a procedure. Ask a firm reviewer or the owner to verify the steps.";
+export const WRITING_BLOCKS_VERIFICATION =
+  "Nobody can verify a procedure that has writing errors. Fix the errors the best-practice check lists, then verify it.";
 export const VERIFICATION_ACCOUNT_MISMATCH =
-  "This verification was recorded under another account. Reload and verify it again.";
+  "Another account recorded this verification. Reload and verify it again.";
 
 interface Verification {
   verifiedAt: string;
@@ -31,6 +36,8 @@ interface Verification {
   accountName: string;
   /** What the verification vouches for: the steps and where they are done. */
   content: string;
+  /** Writing errors in the procedure it vouches for. */
+  blockers: number;
 }
 
 /**
@@ -52,6 +59,7 @@ function verificationsIn(profile: unknown, latestDay: string): Map<string, Verif
       accountId: p.verifiedByAccountId ?? "",
       accountName: p.verifiedByAccountName ?? "",
       content: contentKey(p),
+      blockers: verificationBlockers(p).length,
     });
   }
   return found;
@@ -84,8 +92,8 @@ export function newVerifications(
 }
 
 /**
- * Refuses the save (403) when it adds a verification this saver may not
- * record. Both profiles are whole business profiles, not procedure lists.
+ * Refuses the save when it adds a verification this saver may not record
+ * (403), or one of a procedure whose writing has errors (422). Both profiles are whole business profiles, not procedure lists.
  * `saverNames` are the names a stamp may carry for the saver's account (its
  * name and email); a stamp under any other name is refused.
  */
@@ -104,4 +112,5 @@ export function assertVerificationsAllowed(input: {
   const mismatch = (v: Verification) =>
     (v.accountId && v.accountId !== input.saverId) || (v.accountName && !names.has(v.accountName));
   if (fresh.some(mismatch)) throw new RequestError(403, VERIFICATION_ACCOUNT_MISMATCH);
+  if (fresh.some((v) => v.blockers > 0)) throw new RequestError(422, WRITING_BLOCKS_VERIFICATION);
 }

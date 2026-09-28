@@ -83,10 +83,10 @@ export function FollowMode({
         {finished ? (
           <div className="space-y-3 text-center">
             <CheckCircle2 className="mx-auto size-10 text-ok" aria-hidden />
-            <p className="text-lg font-medium">Every step is done.</p>
+            <p className="text-lg font-medium">You have done every step.</p>
             <p className="text-sm text-muted">
               If someone other than the usual person just followed it, record the run. It shows the
-              procedure works for a stand-in.
+              procedure works for a backup.
             </p>
           </div>
         ) : (

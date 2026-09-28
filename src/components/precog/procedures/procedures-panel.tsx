@@ -74,9 +74,9 @@ const STATUS_BADGE: Record<ProcedureStatus, "default" | "ok" | "warn" | "danger"
 
 const FILTER_LABEL: Record<Filter, string> = {
   all: "All",
-  review: "Needs checking",
+  review: "Needs verifying",
   "no-backup": "No backup proven",
-  "ai-draft": "Draft or suggestion to check",
+  "ai-draft": "Draft or suggestion to fit",
   empty: "No steps yet",
 };
 
@@ -94,7 +94,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
   const pictureAccess: PictureAccess = !accountId
     ? { ok: false, reason: "Sign in to add pictures." }
     : isSampleBusiness(profile)
-      ? { ok: false, reason: "Pictures can be added to your own business, not the sample." }
+      ? { ok: false, reason: "You can add pictures to your own business, not to the sample." }
       : { ok: true, businessId };
   const tpl = useTemplate();
   const { saveProcedure, verifyProcedure, removeProcedure, setPlaces } = usePracticeActions();
@@ -230,7 +230,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
             <CardDescription>
               {counts.total === 0
                 ? "Nothing written yet. Start with a duty only one person can do."
-                : `${counts.total} written · ${counts.verified} verified · ${counts.needCheck} need checking`}
+                : `${counts.total} written · ${counts.verified} verified · ${counts.needCheck} need verifying`}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
@@ -372,7 +372,8 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
               <CardTitle>Not written yet</CardTitle>
               <CardDescription>
                 Items on Who knows what with no steps written here and nothing written elsewhere,
-                duties first. Starting one creates an empty procedure; nothing is filled in for you.
+                duties first. Starting one creates an empty procedure; Precog fills in nothing for
+                you.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -522,6 +523,9 @@ function ProcedureView({
   const due = reviewByDate(p);
   const checker = nameOf(p.reviewerPersonId) ?? "the owner";
   const where = [place?.name, p.module].filter(Boolean).join(" › ");
+  const recommendations = procedureRecommendations(p, { place, today, canAddPictures });
+  // Writing errors block verification; the server refuses one too (verify-guard.ts).
+  const writingErrors = recommendations.filter((r) => r.blocksVerification).length;
   return (
     <Card>
       <CardHeader>
@@ -536,7 +540,7 @@ function ProcedureView({
           <Badge variant={STATUS_BADGE[status]}>{PROCEDURE_STATUS_LABEL[status]}</Badge>
         </div>
         <CardDescription>
-          {where || "Where it is done is not set."}
+          {where || "Where to do it: not set."}
           {p.url && (
             <>
               {" · "}
@@ -609,7 +613,7 @@ function ProcedureView({
         <dl className="grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
           <dt className="text-muted">Does it today</dt>
           <dd>{nameOf(p.ownerPersonId) ?? "Not set"}</dd>
-          <dt className="text-muted">Can follow it when that person is out</dt>
+          <dt className="text-muted">Backups</dt>
           <dd>
             {p.backupPersonIds.length
               ? p.backupPersonIds.map((id) => nameOf(id)).join(", ")
@@ -617,11 +621,11 @@ function ProcedureView({
           </dd>
           <dt className="text-muted">Covers on Who knows what</dt>
           <dd>{knowledgeNames.length ? knowledgeNames.join(", ") : "Nothing linked"}</dd>
-          <dt className="text-muted">Checked by</dt>
+          <dt className="text-muted">Reviewer</dt>
           <dd>
             {checker}
             {p.verifiedAt
-              ? ` · verified ${formatDay(p.verifiedAt)}${due ? `, check again by ${formatDay(due)}` : ""}${p.verifiedByAccountName ? ` · recorded by ${p.verifiedByAccountName}` : ""}`
+              ? ` · verified ${formatDay(p.verifiedAt)}${due ? `, verify again by ${formatDay(due)}` : ""}${p.verifiedByAccountName ? ` · recorded by ${p.verifiedByAccountName}` : ""}`
               : p.lastVerifiedAt
                 ? ` · last verified ${formatDay(p.lastVerifiedAt)}, before the steps changed`
                 : " · not verified yet"}
@@ -634,9 +638,7 @@ function ProcedureView({
               : ""}
           </dd>
         </dl>
-        <BestPracticeCheck
-          recommendations={procedureRecommendations(p, { place, today, canAddPictures })}
-        />
+        <BestPracticeCheck recommendations={recommendations} />
         <ProofSection
           key={`${p.id}-${proof.key}`}
           procedure={p}
@@ -653,9 +655,14 @@ function ProcedureView({
             <Pencil className="size-3.5" /> Edit
           </Button>
           {isWrittenProcedure(p) && status !== "verified" && canVerify && (
-            <Button size="sm" onClick={onVerify}>
+            <Button
+              size="sm"
+              onClick={onVerify}
+              disabled={writingErrors > 0}
+              aria-describedby={writingErrors > 0 ? "verify-blocked" : undefined}
+            >
               <CheckCircle2 className="size-3.5" /> {checker === "the owner" ? "I" : checker}{" "}
-              checked these steps today
+              verified these steps today
             </Button>
           )}
           <Button size="sm" variant="ghost" onClick={onPrint}>
@@ -665,10 +672,16 @@ function ProcedureView({
             <Download className="size-3.5" /> Download
           </Button>
         </div>
+        {isWrittenProcedure(p) && status !== "verified" && canVerify && writingErrors > 0 && (
+          <p id="verify-blocked" className="text-xs text-warn">
+            Fix the {writingErrors === 1 ? "writing error" : `${writingErrors} writing errors`} in
+            the best-practice check before you verify this procedure.
+          </p>
+        )}
         {isWrittenProcedure(p) && status !== "verified" && !canVerify && (
           <p className="text-xs text-muted">
             A firm reviewer or the owner verifies procedures, so that someone other than the
-            preparer checks the steps.
+            preparer verifies the steps.
           </p>
         )}
         {following && (
@@ -726,7 +739,7 @@ function PlacesCard({
       <CardHeader>
         <CardTitle>Platforms and places</CardTitle>
         <CardDescription>
-          The software and the physical places your procedures are done in.
+          The software and the physical places where your procedures happen.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
@@ -768,7 +781,7 @@ function PlacesCard({
             className={`${fieldCls} min-w-0 flex-1`}
             value={name}
             maxLength={PROCEDURE_LIMITS.placeName}
-            placeholder="e.g. QuickBooks Online"
+            placeholder="For example: QuickBooks Online"
             onChange={(e) => setName(e.target.value)}
           />
           <select

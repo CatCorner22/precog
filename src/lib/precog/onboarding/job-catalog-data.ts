@@ -463,7 +463,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     soc: "13-2082",
     entitlements: ["collect_cash", "view_reports_only"],
     description: "Prepares tax returns for individuals or small businesses and collects the fee.",
-    note: "A preparer takes the client's fee; the refund itself should never pass through the firm.",
+    note: "A preparer takes the client's fee; keep the refund itself out of the firm's hands.",
     aliases: ["tax professional", "tax associate", "tax senior", "enrolled agent", "tax advisor"],
   },
   {
@@ -474,7 +474,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["review_audit_logs", "view_reports_only"],
     description:
       "Examines records and controls, tests transactions, and reports findings; holds no transaction duty.",
-    note: "An auditor reads the logs and the records and should hold no transaction duty.",
+    note: "An auditor reads the logs and the records; give an auditor no transaction duty.",
     aliases: [
       "staff auditor",
       "audit senior",
@@ -839,7 +839,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["view_reports_only"],
     description:
       "Performs clinical and administrative tasks under a provider's direction, including intake, vitals, charting, and specimen handling.",
-    note: "Clinical staff update the clinical chart, not the billing record, and should not touch payments or claims; tick Edit customer master records if they register patients.",
+    note: "Clinical staff update the clinical chart, not the billing record, and handle no payments or claims; tick Edit customer master records if they register patients.",
     aliases: [
       "medical assistant",
       "ma",
@@ -1638,7 +1638,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     ],
     description:
       "Installs, configures, and maintains the business's systems, networks, user accounts, and backups.",
-    note: "IT administers the system, grants access, holds the backups, can export everything, and puts the software subscriptions on a company card; the data-theft and data-destruction cases sit here. Someone else should review the access logs: tick Review system audit / access logs here only if IT does it.",
+    note: "IT administers the system, grants access, holds the backups, can export everything, and puts the software subscriptions on a company card; the data-theft and data-destruction cases sit here. Have someone else review the access logs: tick Review system audit / access logs here only if IT does it.",
     aliases: [
       "systems administrator",
       "system administrator",
@@ -1855,7 +1855,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["review_audit_logs", "view_reports_only"],
     description:
       "Monitors compliance with laws, standards, and internal policy; tests controls and reads the logs.",
-    note: "Compliance reads the logs and tests the controls and should hold no transaction duty.",
+    note: "Compliance reads the logs and tests the controls; give compliance staff no transaction duty.",
     aliases: [
       "compliance officer",
       "compliance manager",

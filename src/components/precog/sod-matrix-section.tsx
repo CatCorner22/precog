@@ -19,7 +19,7 @@ export function SodMatrixSection({ report }: { report: SodDetectionReport }) {
       <CardHeader>
         <CardTitle>Duty conflict matrix</CardTitle>
         <CardDescription>
-          A red cell marks two duties one person should not hold at once.
+          A red cell marks two duties that conflict when one person holds both.
         </CardDescription>
       </CardHeader>
       <CardContent className="overflow-x-auto">

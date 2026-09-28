@@ -552,7 +552,7 @@ export const nonprofitTemplate: IndustrySample = {
       risks: [
         {
           id: "r-board-1",
-          title: "Board sees reports prepared by the person it should check",
+          title: "Board sees reports prepared by the person whose work it oversees",
           kind: "control",
           severity: 5,
           likelihood: 3,

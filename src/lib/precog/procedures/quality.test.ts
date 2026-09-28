@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { newProcedure, newStep, verifyProcedure } from "./lifecycle";
-import { procedureRecommendations, stepRecommendations } from "./quality";
+import { procedureRecommendations } from "./quality";
 import type { Place, Procedure } from "./types";
 
 const TODAY = "2026-10-01";
@@ -15,9 +15,9 @@ function exemplary(extra: Partial<Procedure> = {}): Procedure {
         title: "Release the weekly vendor payments",
         placeId: "qbo",
         module: "Expenses › Pay bills",
-        purpose: "Pays approved bills on time; done when every approved bill shows Paid.",
+        purpose: "Pays approved bills on time. Done when every approved bill shows Paid.",
         trigger: "Every Thursday by noon",
-        prerequisites: ["Bookkeeper login to QuickBooks Online"],
+        prerequisites: ["Bookkeeper sign-in to QuickBooks Online"],
         ownerPersonId: "p1",
         backupPersonIds: ["p2"],
         reviewerPersonId: "p3",
@@ -83,12 +83,18 @@ describe("the best-practice check", () => {
     expect(signedOut.map((r) => r.id)).not.toContain("pictures");
   });
 
-  it("puts fixes before improvements", () => {
-    const recs = procedureRecommendations(exemplary({ backupPersonIds: [], purpose: undefined }), {
-      place: software,
-      today: TODAY,
-    });
-    expect(recs.map((r) => r.level)).toEqual(["fix", "improve"]);
+  it("puts writing errors first, then other fixes, then improvements", () => {
+    const recs = procedureRecommendations(
+      exemplary({ backupPersonIds: [], purpose: undefined, ownerPersonId: undefined }),
+      { place: software, today: TODAY },
+    );
+    expect(recs.map((r) => [r.id, r.level, Boolean(r.blocksVerification)])).toEqual([
+      ["purpose", "fix", true],
+      ["backup", "fix", false],
+      ["owner", "improve", false],
+    ]);
+    expect(recs[0].standard).toBe("completeness");
+    expect(recs[1].standard).toBeUndefined();
   });
 
   it("flags a written secret, drafted steps, and a check that has lapsed or is missing", () => {
@@ -105,40 +111,13 @@ describe("the best-practice check", () => {
   });
 });
 
-describe("the check on each step", () => {
-  const titles = (text: string) =>
-    stepRecommendations(newStep(text), 1).map((r) => r.id.split(":")[0]);
-
-  it("asks for an instruction instead of a description", () => {
-    expect(titles("The drawer is counted by the closer.")).toEqual(["verb"]);
-    expect(titles("Deposit is made at noon.")).toEqual(["verb"]);
-    expect(titles("Count the drawer.")).toEqual([]);
-    expect(titles("Make sure the bag is sealed.")).toEqual([]);
-    expect(titles("If the total is off, call the owner.")).toEqual([]);
-  });
-
-  it("asks for one action per step, but not for an abbreviation or a condition", () => {
-    expect(titles("Count the drawer, then seal the bag.")).toEqual(["one-action"]);
-    expect(titles("Count the drawer. Seal the bag.")).toEqual(["one-action"]);
-    expect(titles("Call Dr. Patel for approval.")).toEqual([]);
-    expect(titles("If the deposit is over $10,000 then file a CTR.")).toEqual([]);
-  });
-
-  it("asks to replace vague words and shorten long steps", () => {
-    expect(titles("Fill in the form, etc.")).toEqual(["vague"]);
-    expect(stepRecommendations(newStep("Fill in the form, etc."), 2)[0].title).toBe(
-      "Replace “etc.” with exactly what to do.",
-    );
-    expect(titles(`Open the ${"very ".repeat(45)}long report.`)).toEqual(["long"]);
-  });
-
-  it("numbers each step as the procedure shows it", () => {
+describe("the writing screen inside the check", () => {
+  it("carries each step's writing issues, numbered as the procedure shows it", () => {
     const p = exemplary({
       steps: [newStep("Open Pay bills."), newStep(""), newStep("The bills are ticked.")],
     });
-    const verb = procedureRecommendations(p, { place: software, today: TODAY }).find((r) =>
-      r.id.startsWith("verb"),
-    );
-    expect(verb?.step).toBe(2);
+    const recs = procedureRecommendations(p, { place: software, today: TODAY });
+    const verb = recs.find((r) => r.id.startsWith("verb"));
+    expect(verb).toMatchObject({ step: 2, standard: "active-voice", blocksVerification: true });
   });
 });

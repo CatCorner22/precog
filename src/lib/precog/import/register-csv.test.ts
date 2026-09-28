@@ -252,7 +252,7 @@ describe("documented and level cells", () => {
     const r = parseRegisterCsv("item,documented\nRun payroll,maybe\nVendor quirks,x", tpl);
     expect(r.knowledge.map((k) => k.documented)).toEqual([false, true]);
     expect(r.issues).toEqual([
-      { row: 1, message: 'Documented "maybe" should be yes or no; kept no' },
+      { row: 1, message: 'Documented "maybe" must be yes or no; kept no' },
     ]);
   });
 

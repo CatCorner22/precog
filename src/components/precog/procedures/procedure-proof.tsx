@@ -96,7 +96,7 @@ export function ProofSection({
     addDecision({
       subject: `${nameOf(offer.personId)} can do "${procedure.title}" alone`,
       kind: "remediate",
-      note: `Followed the procedure without help on ${formatDay(offer.on)}. Marked as able to do ${joinWithAnd(items.map((n) => `"${n}"`))} alone on Who knows what.`,
+      note: `Followed the procedure without help on ${formatDay(offer.on)}. Who knows what now shows them as able to do ${joinWithAnd(items.map((n) => `"${n}"`))} alone.`,
       linkedTab: "procedures",
       linkedId: procedure.id,
     });
@@ -123,8 +123,7 @@ export function ProofSection({
       </h3>
       {proofs.length === 0 ? (
         <p className="text-xs text-muted">
-          Name who should be able to follow it when the usual person is out, then record a run when
-          they do it.
+          Name a backup, then record a run when the backup follows it.
         </p>
       ) : (
         <ul className="space-y-1 text-sm">
@@ -171,7 +170,7 @@ export function ProofSection({
           <p>
             {firstName(nameOf(offer.personId))} did this alone. Mark them as able to do{" "}
             {joinWithAnd(offer.raises.map((r) => `"${itemName(r.knowledgeId)}"`))} alone on Who
-            knows what? The change is logged in the Decisions log.
+            knows what? Precog logs the change in the Decisions log.
           </p>
           <div className="flex gap-2">
             <Button size="sm" onClick={acceptRaise}>
@@ -227,7 +226,7 @@ export function ProofSection({
               className={fieldCls}
               value={note}
               maxLength={PROCEDURE_LIMITS.proofNote}
-              placeholder="e.g. Covered the Friday deposit while Dana was out"
+              placeholder="For example: Covered the Friday deposit while Dana was out"
               onChange={(e) => setNote(e.target.value)}
             />
           </label>

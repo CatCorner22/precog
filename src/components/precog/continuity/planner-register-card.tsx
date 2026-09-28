@@ -30,8 +30,7 @@ export function PlannerRegisterCard({
           <CardTitle>{`${tabName("knowledge")} register`}</CardTitle>
           <CardDescription>
             Every duty and piece of know-how the business runs on, and who can do it. Anyone can
-            hold as many as they like; each item should have at least two people who can run it
-            alone.
+            hold as many as they like; aim for at least two people who can run each item alone.
           </CardDescription>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5">

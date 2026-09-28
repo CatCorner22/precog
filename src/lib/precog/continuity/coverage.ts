@@ -329,7 +329,7 @@ function buildCoverageReport(tpl: IndustryTemplate): CoverageReport {
           : " Write the steps down first so the stand-in has something to follow.";
       let action: string;
       if (i.status === "uncovered" && !marked) {
-        action = `Nobody is marked on "${i.item.name}" yet. Mark who can do it; if nobody can, choose who should learn it and write the steps down.`;
+        action = `Nobody is marked on "${i.item.name}" yet. Mark who can do it; if nobody can, choose someone to learn it and write the steps down.`;
       } else if (i.status === "uncovered") {
         action = trainee
           ? `Nobody can run "${i.item.name}" alone. Pick ${trainee.name} to own it and get it documented.`

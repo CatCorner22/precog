@@ -748,7 +748,7 @@ describe("sample register nobody has marked", () => {
     for (const move of r.plan) {
       expect(move.trainee).toBeNull();
       expect(move.action).toBe(
-        `Nobody is marked on "${move.item.name}" yet. Mark who can do it; if nobody can, choose who should learn it and write the steps down.`,
+        `Nobody is marked on "${move.item.name}" yet. Mark who can do it; if nobody can, choose someone to learn it and write the steps down.`,
       );
       expect(move.action).not.toMatch(/Anjali|Kevin|Zoe/);
     }

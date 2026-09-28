@@ -191,8 +191,8 @@ export function ProcedureEditor({
         <CardTitle>{isNew ? "New procedure" : "Edit procedure"}</CardTitle>
         <CardDescription>
           Write it for someone who has never done the task. Start each step with a verb and keep to
-          one action per step. Changing the steps clears the verification until someone checks them
-          again.
+          one action per step. Changing the steps clears the verification until the reviewer
+          verifies them again.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
@@ -202,7 +202,7 @@ export function ProcedureEditor({
             className={inputCls}
             value={draft.title}
             maxLength={PROCEDURE_LIMITS.title}
-            placeholder="e.g. Reconcile the checking account"
+            placeholder="For example: Reconcile the checking account"
             onChange={(e) => {
               set("title", e.target.value);
               if (error === TITLE_NEEDED && e.target.value.trim()) setError(null);
@@ -212,7 +212,7 @@ export function ProcedureEditor({
 
         <fieldset className="grid gap-3 sm:grid-cols-3">
           <legend className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
-            Where it is done
+            Where to do it
           </legend>
           <label className={labelCls}>
             Platform or place
@@ -236,7 +236,7 @@ export function ProcedureEditor({
               className={inputCls}
               value={draft.module ?? ""}
               maxLength={PROCEDURE_LIMITS.module}
-              placeholder="e.g. Banking › Reconcile"
+              placeholder="For example: Banking › Reconcile"
               onChange={(e) => set("module", e.target.value)}
             />
           </label>
@@ -271,19 +271,19 @@ export function ProcedureEditor({
               rows={2}
               value={draft.trigger ?? ""}
               maxLength={PROCEDURE_LIMITS.trigger}
-              placeholder="e.g. When the bank statement arrives, by the 5th"
+              placeholder="For example: When the bank statement arrives, by the 5th"
               onChange={(e) => set("trigger", e.target.value)}
             />
           </label>
         </div>
 
         <label className={labelCls}>
-          What you need first, one per line (name the login or key, never the password)
+          What you need first, one per line (name the sign-in or key, never the password)
           <textarea
             className={inputCls}
             rows={2}
             value={draft.prerequisites.join("\n")}
-            placeholder={"Bookkeeper login to QuickBooks Online\nLast month's bank statement"}
+            placeholder={"Bookkeeper sign-in to QuickBooks Online\nLast month's bank statement"}
             onChange={(e) =>
               set(
                 "prerequisites",
@@ -313,7 +313,7 @@ export function ProcedureEditor({
                     </label>
                     {step.aiDrafted && (
                       <p className="text-xs text-accent">
-                        Drafted by Grok. Check it against the screen or the place, then edit it or
+                        Drafted by Grok. Compare it with the screen or the place, then edit it or
                         verify the procedure.
                       </p>
                     )}
@@ -329,7 +329,7 @@ export function ProcedureEditor({
                       rows={2}
                       value={step.text}
                       maxLength={PROCEDURE_LIMITS.stepText}
-                      placeholder="e.g. Open Banking and choose the checking account."
+                      placeholder="For example: Open Banking and choose the checking account."
                       onChange={(e) => setStep(step.id, { text: e.target.value })}
                     />
                     <input
@@ -449,7 +449,7 @@ export function ProcedureEditor({
             </select>
           </label>
           <label className={labelCls}>
-            Who checks it still works
+            Reviewer (verifies that the steps still work)
             <select
               className={inputCls}
               value={draft.reviewerPersonId ?? ""}
@@ -464,7 +464,7 @@ export function ProcedureEditor({
             </select>
           </label>
           <label className={labelCls}>
-            Check it every (days)
+            Verify it every (days)
             <input
               className={inputCls}
               type="number"
@@ -477,14 +477,14 @@ export function ProcedureEditor({
         </fieldset>
         {draft.reviewerPersonId && draft.reviewerPersonId === draft.ownerPersonId && (
           <p className="text-xs text-muted">
-            The person who does the task is also the one checking it. Someone else checking catches
-            steps the author skips without noticing.
+            The person who does the task is also its reviewer. A different reviewer finds the steps
+            the author skips without noticing.
           </p>
         )}
 
         <fieldset>
           <legend className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
-            Who should be able to follow it when that person is out
+            Backups (who cover it when the usual person is out)
           </legend>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             {activePeople
@@ -595,8 +595,8 @@ function DutiesField({
       </legend>
       <p className="text-xs text-muted">
         Tick what a person does by following these steps
-        {owner ? `; ${owner.name}'s duties are listed first` : ""}. A backup who would then hold two
-        duties that should be kept apart is warned about below.
+        {owner ? `; ${owner.name}'s duties come first` : ""}. Below, the editor warns about any
+        backup who would then hold two conflicting duties.
       </p>
       <div className="flex max-h-40 flex-wrap gap-x-4 gap-y-1 overflow-y-auto">
         {choices.map((e) => (

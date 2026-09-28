@@ -53,7 +53,7 @@ export function executiveSummary(input: SummaryInput): string[] {
     (c) => !c.ownerHeld && !c.residualRiskAccepted && !c.dualReleaseMitigated,
   );
   if (open.length === 0) {
-    lines.push("No open duty conflicts: no one person holds two duties that should be split.");
+    lines.push("No open duty conflicts: no one person holds two conflicting duties.");
   } else {
     const critical = open.filter((c) => c.severity === "critical").length;
     const people = new Set(open.map((c) => c.personId)).size;

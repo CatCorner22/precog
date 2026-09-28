@@ -54,6 +54,7 @@ import { stripProcedureLinks } from "./procedures/coverage-link";
 import { verifyProcedure, withProcedureEdit, type VerifyingAccount } from "./procedures/lifecycle";
 import { PROCEDURE_LIMITS, proceduresBytes } from "./procedures/normalize";
 import { withProof } from "./procedures/proof";
+import { verificationBlockers } from "./procedures/writing";
 import type { Place, Procedure, ProcedureProof } from "./procedures/types";
 
 /**
@@ -388,6 +389,7 @@ export function procedureFits(p: PracticeProfile, next: Procedure, today: string
 /**
  * The business with procedure `id` verified by `verifiedBy` (a person id, or
  * "owner") on `today`, recorded under the signed-in `account` when there is one.
+ * A procedure whose writing has errors (procedures/writing.ts) stays unverified.
  */
 export function withProcedureVerified(
   p: PracticeProfile,
@@ -399,7 +401,9 @@ export function withProcedureVerified(
   return {
     ...p,
     procedures: (p.procedures ?? []).map((x) =>
-      x.id === id ? verifyProcedure(x, verifiedBy, today, account) : x,
+      x.id === id && verificationBlockers(x).length === 0
+        ? verifyProcedure(x, verifiedBy, today, account)
+        : x,
     ),
   };
 }

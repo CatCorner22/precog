@@ -18,7 +18,7 @@ export const LEVEL_SHORT: Record<KnowledgeLevel, string> = {
 export const NOT_ASSESSED_HINT = "Fills in once someone is marked on an item.";
 
 export const NOT_ASSESSED_PLAN =
-  "Nobody is marked on the register yet, so there is nobody to name. Mark who can do each item above; the plan then names who to train and who should teach.";
+  "Nobody is marked on the register yet, so there is nobody to name. Mark who can do each item above; the plan then names the trainee and the trainer.";
 
 export const NOT_ASSESSED_ABSENCE =
   "Not assessed yet: nobody is marked on the register, so the app cannot tell what stops when someone is out. Mark who can do each item above and this fills in.";

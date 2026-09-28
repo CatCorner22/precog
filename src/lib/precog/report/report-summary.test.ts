@@ -116,7 +116,7 @@ describe("executive summary", () => {
       topPriority: null,
     });
     expect(lines).toEqual([
-      "No open duty conflicts: no one person holds two duties that should be split.",
+      "No open duty conflicts: no one person holds two conflicting duties.",
       "Continuity is not assessed yet: nobody is marked on the register of duties and know-how.",
     ]);
   });
