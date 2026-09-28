@@ -18,6 +18,7 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ThreatRouteImport } from './routes/threat'
 import { Route as ApiErrorsRouteImport } from './routes/api/errors'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiProcedureImageRouteImport } from './routes/api/procedure-image'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -70,6 +71,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProcedureImageRoute = ApiProcedureImageRouteImport.update({
+  id: '/api/procedure-image',
+  path: '/api/procedure-image',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JoinTokenRoute = JoinTokenRouteImport.update({
   id: '/join/$token',
   path: '/join/$token',
@@ -112,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/threat': typeof ThreatRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/procedure-image': typeof ApiProcedureImageRoute
   '/join/$token': typeof JoinTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -129,6 +136,7 @@ export interface FileRoutesByTo {
   '/threat': typeof ThreatRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/procedure-image': typeof ApiProcedureImageRoute
   '/join/$token': typeof JoinTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   '/threat': typeof ThreatRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/procedure-image': typeof ApiProcedureImageRoute
   '/join/$token': typeof JoinTokenRoute
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -166,6 +175,7 @@ export interface FileRouteTypes {
     | '/threat'
     | '/api/errors'
     | '/api/health'
+    | '/api/procedure-image'
     | '/join/$token'
     | '/share/$token'
     | '/api/auth/$'
@@ -183,6 +193,7 @@ export interface FileRouteTypes {
     | '/threat'
     | '/api/errors'
     | '/api/health'
+    | '/api/procedure-image'
     | '/join/$token'
     | '/share/$token'
     | '/api/auth/$'
@@ -200,6 +211,7 @@ export interface FileRouteTypes {
     | '/threat'
     | '/api/errors'
     | '/api/health'
+    | '/api/procedure-image'
     | '/join/$token'
     | '/share/$token'
     | '/api/auth/$'
@@ -218,6 +230,7 @@ export interface RootRouteChildren {
   ThreatRoute: typeof ThreatRoute
   ApiErrorsRoute: typeof ApiErrorsRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiProcedureImageRoute: typeof ApiProcedureImageRoute
   JoinTokenRoute: typeof JoinTokenRoute
   ShareTokenRoute: typeof ShareTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -291,6 +304,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/procedure-image': {
+      id: '/api/procedure-image'
+      path: '/api/procedure-image'
+      fullPath: '/api/procedure-image'
+      preLoaderRoute: typeof ApiProcedureImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/join/$token': {
       id: '/join/$token'
       path: '/join/$token'
@@ -346,6 +366,7 @@ const rootRouteChildren: RootRouteChildren = {
   ThreatRoute: ThreatRoute,
   ApiErrorsRoute: ApiErrorsRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiProcedureImageRoute: ApiProcedureImageRoute,
   JoinTokenRoute: JoinTokenRoute,
   ShareTokenRoute: ShareTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

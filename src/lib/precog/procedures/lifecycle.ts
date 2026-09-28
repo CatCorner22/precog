@@ -112,7 +112,12 @@ export function verifyProcedure(p: Procedure, verifiedBy: string, today: string)
 /** Everything a stand-in would follow; a change to any of it needs a new verification. */
 export function contentKey(p: Procedure): string {
   return JSON.stringify([
-    p.steps.map((s) => [s.text.trim(), s.caution?.trim() ?? ""]),
+    p.steps.map((s) => [
+      s.text.trim(),
+      s.caution?.trim() ?? "",
+      s.imageIds ?? [],
+      Boolean(s.requiresPhoto),
+    ]),
     p.prerequisites,
     p.placeId ?? "",
     p.module ?? "",
@@ -134,6 +139,14 @@ export function describeChange(prev: Procedure, next: Procedure): string {
   const stepsKey = (p: Procedure) =>
     JSON.stringify(p.steps.map((s) => [s.id, s.text.trim(), s.caution?.trim() ?? ""]));
   if (after === before && stepsKey(prev) !== stepsKey(next)) parts.push("edited steps");
+  // Only steps that carry pictures or the photo flag; adding a plain step is not a picture change.
+  const pictures = (p: Procedure) =>
+    JSON.stringify(
+      p.steps
+        .filter((s) => s.imageIds?.length || s.requiresPhoto)
+        .map((s) => [s.id, s.imageIds ?? [], Boolean(s.requiresPhoto)]),
+    );
+  if (pictures(prev) !== pictures(next)) parts.push("changed pictures");
   if (JSON.stringify(prev.prerequisites) !== JSON.stringify(next.prerequisites)) {
     parts.push("changed what is needed first");
   }

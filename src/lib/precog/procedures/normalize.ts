@@ -26,6 +26,7 @@ export const PROCEDURE_LIMITS = {
   changelog: 10,
   changeSummary: 120,
   links: 50,
+  imagesPerStep: 6,
   backups: 10,
   /** Serialized size of every procedure together. */
   bytes: 700 * 1024,
@@ -35,6 +36,9 @@ export const PROCEDURE_LIMITS = {
 export const DEFAULT_REVIEW_DAYS = 180;
 export const MIN_REVIEW_DAYS = 30;
 export const MAX_REVIEW_DAYS = 365;
+
+/** The id the image store gives a picture. */
+export const IMAGE_ID = /^img_[a-z0-9_]{1,60}$/;
 
 const CADENCES: readonly ProcessCadence[] = [
   "continuous",
@@ -179,10 +183,15 @@ function normalizeSteps(value: unknown): ProcedureStep[] {
     if (!id || seen.has(id)) continue;
     seen.add(id);
     const caution = text(raw.caution, PROCEDURE_LIMITS.caution);
+    const imageIds = ids(raw.imageIds, PROCEDURE_LIMITS.imagesPerStep).filter((v) =>
+      IMAGE_ID.test(v),
+    );
     out.push({
       id,
       text: typeof raw.text === "string" ? raw.text.slice(0, PROCEDURE_LIMITS.stepText) : "",
       ...(caution ? { caution } : {}),
+      ...(imageIds.length ? { imageIds } : {}),
+      ...(raw.requiresPhoto === true ? { requiresPhoto: true as const } : {}),
     });
   }
   return out;

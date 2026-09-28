@@ -83,12 +83,34 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       };
     }
 
+    await sweepProcedureImages(sql, owner ?? context.userId, businessId, data.profile);
     return {
       ok: true as const,
       revision: saved.revision,
       updatedAt: saved.updatedAt,
     };
   });
+
+/**
+ * After a save, delete the business's step pictures no procedure names any
+ * more (past their grace period). A failure here is reported and never fails
+ * the save: the pictures wait for the next one.
+ */
+async function sweepProcedureImages(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  ownerId: string,
+  businessId: string,
+  profile: unknown,
+): Promise<void> {
+  try {
+    const { referencedImageIds, sweepUnreferencedImages } =
+      await import("./procedures/image-store.server");
+    await sweepUnreferencedImages(sql, ownerId, businessId, referencedImageIds(profile));
+  } catch (err) {
+    const { reportServerError } = await import("@/lib/observability/report.server");
+    await reportServerError(err, "procedure-image-sweep");
+  }
+}
 
 type BusinessRow = {
   id: string;
