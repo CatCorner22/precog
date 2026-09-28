@@ -16,6 +16,7 @@ export const TAB_WORDS = [
   { id: "coso", label: "Coverage check", tactical: "COSO" },
   { id: "layers", label: "Where risk sits", tactical: "Layers" },
   { id: "knowledge", label: "Who knows what", tactical: "Knowledge" },
+  { id: "procedures", label: "Procedures", tactical: "Procedures" },
   { id: "precog", label: "What could happen", tactical: "Precog" },
   { id: "sod", label: "Who controls what", tactical: "SoD" },
   { id: "journal", label: "Decisions log", tactical: "Journal" },
@@ -89,8 +90,14 @@ export function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
   };
 }
 
-/** The tabs that open on one item: a scenario, a register entry, a process, or a layer. */
-const ITEM_TABS: ReadonlySet<TabId> = new Set(["precog", "knowledge", "map", "layers"]);
+/** The tabs that open on one item: a scenario, a register entry, a procedure, a process, or a layer. */
+const ITEM_TABS: ReadonlySet<TabId> = new Set([
+  "precog",
+  "knowledge",
+  "procedures",
+  "map",
+  "layers",
+]);
 
 const ITEM_MAX = 120;
 

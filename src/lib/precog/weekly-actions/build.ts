@@ -13,6 +13,7 @@ import {
 import {
   documentationDebt,
   DOCUMENTATION_LABEL,
+  isWritten,
   procedurePointer,
 } from "@/lib/precog/continuity/documentation";
 import { ownerlessProcesses } from "@/lib/precog/continuity/absence-impact";
@@ -393,7 +394,7 @@ function crossTrainingActions(ctx: WeeklyContext): WeeklyAction[] {
             ? `${m.status === "thin" ? "Finish training" : "Cross-train"} ${firstName(m.trainee.name)} on ${m.item.name}`
             : `Cross-train a stand-in for ${m.item.name}`,
       why: `${m.action} While one person holds critical work alone, nobody can cover it when they are out, and nobody else can compare what they do with what should be done.`,
-      effort: m.item.documented ? "low" : "medium",
+      effort: isWritten(m.item) ? "low" : "medium",
       tab: "knowledge",
       priority,
     });
@@ -527,7 +528,7 @@ function leaverActions({ departing, today, committed }: WeeklyContext): WeeklyAc
       continue;
     }
     const noOne = open.filter((h) => !h.successor);
-    const unwritten = l.handover.filter((h) => !h.item.documented);
+    const unwritten = l.handover.filter((h) => !isWritten(h.item));
     const others = open.length - 1;
     const successor = top.successor ? firstName(top.successor.name) : "";
     actions.push({

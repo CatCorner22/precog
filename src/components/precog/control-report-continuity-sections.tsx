@@ -473,11 +473,13 @@ function ControlReportLeavingSection({
                           : "Nobody remaining to take it"}
                       </td>
                       <td className="py-1 pr-2">
-                        {!h.item.documented
-                          ? "Nothing written down"
-                          : h.item.procedureLocation?.trim()
-                            ? h.item.procedureLocation.trim()
-                            : "Written; location not recorded"}
+                        {h.item.linkedProcedures?.[0]
+                          ? `Procedures: ${h.item.linkedProcedures[0].title}`
+                          : !h.item.documented
+                            ? "Nothing written down"
+                            : h.item.procedureLocation?.trim()
+                              ? h.item.procedureLocation.trim()
+                              : "Written; location not recorded"}
                       </td>
                       <td className="py-1 text-neutral-600">
                         {h.training
@@ -548,9 +550,11 @@ function ControlReportCardsSection({ cards }: { cards: ControlReportModel["cards
                         {s.standIn?.name ?? "Nobody — outside provider or it waits"}
                       </td>
                       <td className="py-1 text-neutral-600">
-                        {!s.item.documented
-                          ? "None written"
-                          : s.item.procedureLocation?.trim() || "Exists; location not recorded"}
+                        {s.item.linkedProcedures?.[0]
+                          ? `Procedures: ${s.item.linkedProcedures[0].title}`
+                          : !s.item.documented
+                            ? "None written"
+                            : s.item.procedureLocation?.trim() || "Exists; location not recorded"}
                       </td>
                     </tr>
                   ))}

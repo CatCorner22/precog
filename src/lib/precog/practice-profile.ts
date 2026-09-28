@@ -43,6 +43,9 @@ import {
   savedBlockEntries,
 } from "./profile-entries";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
+import { stripProcedureLinks } from "./procedures/coverage-link";
+import { normalizePlaces, normalizeProcedures } from "./procedures/normalize";
+import type { Place, Procedure } from "./procedures/types";
 
 /**
  * One business: what it is, the owner's own team, map and register (or null
@@ -87,6 +90,10 @@ export interface PracticeProfile {
   monthlyReviews?: ReviewRecord[];
   /** Read-only user and vendor export compared with the duty map. */
   accessReconciliation?: AccessReconciliation;
+  /** Software platforms and physical places procedures are done in. */
+  places?: Place[];
+  /** Written step-by-step procedures (the Procedures tab). */
+  procedures?: Procedure[];
   updatedAt: string;
 }
 
@@ -283,10 +290,8 @@ export function normalizeProfile(
   const staff = normalizeStaff(parsed.staff, base.staff);
   const customProcesses = processEntries(parsed.customProcesses);
   const customPeople = peopleEntries(parsed.customPeople);
-  const customKnowledge = normalizeCustomKnowledge(
-    knowledgeEntries(parsed.customKnowledge),
-    options.today ?? localDateKey(new Date()),
-  );
+  const today = options.today ?? localDateKey(new Date());
+  const customKnowledge = normalizeCustomKnowledge(knowledgeEntries(parsed.customKnowledge), today);
   const customRelations = relationEntries(parsed.customRelations);
   const dualRelease = mergeDualReleasePolicy(
     resolveTemplate({
@@ -336,6 +341,8 @@ export function normalizeProfile(
     engagement: normalizeEngagement(parsed.engagement),
     monthlyReviews: normalizeReviewRecords(parsed.monthlyReviews),
     accessReconciliation: normalizeAccessReconciliation(parsed.accessReconciliation),
+    places: normalizePlaces(parsed.places),
+    procedures: normalizeProcedures(parsed.procedures, today),
     updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : new Date().toISOString(),
   };
 }
@@ -376,11 +383,12 @@ export function withRiskFlags(
 
 /**
  * Drop confirmation dates that are not real calendar days on or before `today`
- * — the owner's local day, since that is the calendar the register was written in.
+ * — the owner's local day, since that is the calendar the register was written in —
+ * and the derived links to procedures, which are rebuilt whenever the template is.
  */
 export function normalizeCustomKnowledge(value: unknown, today: string): KnowledgeItem[] | null {
   if (!Array.isArray(value)) return null;
-  return value.map((entry) => {
+  return stripProcedureLinks(value as KnowledgeItem[]).map((entry) => {
     if (!entry || typeof entry !== "object") return entry as KnowledgeItem;
     const item = entry as KnowledgeItem & { confirmedAt?: unknown };
     if (typeof item.confirmedAt === "string" && isCalendarDate(item.confirmedAt, today)) {

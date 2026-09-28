@@ -133,6 +133,11 @@ jobs:
         env:
           E2E_SCREENSHOT: e2e-tabs-failure.png
 
+      - name: Write, verify and link a procedure
+        run: npm run e2e:procedures -- http://127.0.0.1:8080/
+        env:
+          E2E_SCREENSHOT: e2e-procedures-failure.png
+
       - if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -141,6 +146,7 @@ jobs:
             e2e-failure.png
             e2e-tabs-failure.png
             e2e-enhancements-failure.png
+            e2e-procedures-failure.png
             dev.log
           if-no-files-found: ignore
 

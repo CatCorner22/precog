@@ -4,6 +4,8 @@ import type { ControlItem, KnowledgeItem, KnowledgeRelation, Person, ProcessNode
 import { CONFLICT_RULES } from "./sod/conflict-rules";
 import { detectSodConflicts, type DetectedConflict } from "./sod/detect";
 import { midSentence } from "./text";
+import { linkProcedures } from "./procedures/coverage-link";
+import type { Procedure } from "./procedures/types";
 
 /** A journal entry's link to what it is about (see DecisionEntry in practice-profile). */
 interface DecisionLink {
@@ -27,6 +29,8 @@ export interface TemplateSource {
   confirmedControlIds?: readonly string[] | null;
   /** Controls the owner already has, by control id; read from `decisions` when absent. */
   controlsInPlace?: Readonly<Record<string, readonly string[]>> | null;
+  /** Written procedures: a register item with one counts as written down. */
+  procedures?: readonly Procedure[] | null;
 }
 
 /** The linkedTab of a journal entry that confirms a starter control runs in this business. */
@@ -81,7 +85,7 @@ export function controlsInPlace(
 
 /**
  * Layer a business's own people, process map, and duty/knowledge register
- * over its industry template.
+ * over its industry template, with each register item's written procedures.
  *
  * Pure: the same source always yields an equivalent template, so callers on
  * the server can build one per request and callers in React can memoize on
@@ -97,7 +101,11 @@ export function resolveTemplate(source: TemplateSource): IndustryTemplate {
   const relationOverrides = source.customRelations ?? null;
   const people = peopleOverrides ?? base.people;
   const ids = new Set(people.map((p) => p.id));
-  const knowledge = knowledgeOverrides ?? base.knowledge;
+  const knowledge = linkProcedures(
+    knowledgeOverrides ?? base.knowledge,
+    source.procedures,
+    source.industry,
+  );
   const knowledgeIds = new Set(knowledge.map((k) => k.id));
   const rawRelations = relationOverrides ?? base.relations;
   const relations =

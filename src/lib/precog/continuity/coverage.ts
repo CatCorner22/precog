@@ -322,9 +322,11 @@ function buildCoverageReport(tpl: IndustryTemplate): CoverageReport {
       const trainee = marked ? (i.suggestedBackups[0]?.person ?? null) : null;
       const trainer = i.primaries[0] ?? null;
       const priority = CRITICALITY_WEIGHT[i.item.criticality] * STATUS_URGENCY[i.status];
-      const doc = i.item.documented
-        ? ""
-        : " Write the steps down first so the stand-in has something to follow.";
+      // Read here rather than through documentation.ts, which imports this module.
+      const doc =
+        i.item.documented || i.item.linkedProcedures?.length
+          ? ""
+          : " Write the steps down first so the stand-in has something to follow.";
       let action: string;
       if (i.status === "uncovered" && !marked) {
         action = `Nobody is marked on "${i.item.name}" yet. Mark who can do it; if nobody can, choose who should learn it and write the steps down.`;

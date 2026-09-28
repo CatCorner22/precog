@@ -4,7 +4,7 @@
 import { registerAssessed, trackRegisterFreshness } from "../continuity/register-state";
 import { CONFIRMATION_MAX_AGE_DAYS, checkInPlan, staleItems } from "../continuity/staleness";
 import { coverageReport } from "../continuity/coverage";
-import { documentationDebt } from "../continuity/documentation";
+import { documentationDebt, isWritten, procedureWhere } from "../continuity/documentation";
 import {
   absencesNeedingAttention,
   describeWindow,
@@ -96,10 +96,8 @@ export function knowledgeSpofs({ profile, tpl, today }: ContinuityToolInput): To
         suggestedTrainee: move?.trainee
           ? { id: move.trainee.id, name: move.trainee.name, role: move.trainee.role }
           : null,
-        documented: Boolean(move?.item.documented),
-        procedureLocation: move?.item.documented
-          ? move.item.procedureLocation?.trim() || null
-          : null,
+        documented: move ? isWritten(move.item) : false,
+        procedureLocation: move ? procedureWhere(move.item) : null,
         confirmedAt: move?.item.confirmedAt ?? null,
         stale: staleIds.has(r.knowledgeId),
         nextStep: move?.action ?? null,
@@ -158,8 +156,8 @@ export function plannedAbsences({ profile, tpl, today }: ContinuityToolInput): T
         name: s.item.name,
         criticality: s.item.criticality,
         standIn: s.standIn ? { id: s.standIn.id, name: s.standIn.name } : null,
-        documented: Boolean(s.item.documented),
-        procedureLocation: s.item.documented ? s.item.procedureLocation?.trim() || null : null,
+        documented: isWritten(s.item),
+        procedureLocation: procedureWhere(s.item),
         handoffCommitted: handoff
           ? {
               subject: handoff.decision.subject,
@@ -213,8 +211,8 @@ export function plannedAbsences({ profile, tpl, today }: ContinuityToolInput): T
       criticality: h.item.criticality,
       successor: h.successor ? { id: h.successor.id, name: h.successor.name } : null,
       successorLevel: h.successorLevel ?? null,
-      documented: Boolean(h.item.documented),
-      procedureLocation: h.item.documented ? h.item.procedureLocation?.trim() || null : null,
+      documented: isWritten(h.item),
+      procedureLocation: procedureWhere(h.item),
       trainingLogged: h.training
         ? { subject: h.training.subject, reviewBy: h.training.reviewBy ?? null }
         : null,

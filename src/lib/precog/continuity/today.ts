@@ -7,7 +7,7 @@ import { leaveDebriefs } from "./leave-debrief";
 import { registerAssessed } from "./register-state";
 import { leaverLead, leavers, type Leaver } from "./leavers";
 import { plannedAbsenceReport, type AbsenceWindow } from "./planned-absence";
-import { procedurePointer } from "./documentation";
+import { isWritten, procedurePointer } from "./documentation";
 import { joinWithAnd, firstName, count, verb } from "../text";
 import { formatDayRange } from "../dates";
 import { relationLevel, STRONG_LEVELS } from "./coverage";
@@ -126,7 +126,7 @@ export function todayBrief(
     out,
     stopped: stops.length,
     cold: stops.filter((s) => s.cold).length,
-    unwritten: stops.filter((s) => !s.item.documented).length,
+    unwritten: stops.filter((s) => !isWritten(s.item)).length,
     unlogged: stops.filter((s) => !s.handoffLogged).length,
     startingSoon,
     debriefs,
