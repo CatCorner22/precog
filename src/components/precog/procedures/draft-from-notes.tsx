@@ -46,7 +46,7 @@ export function DraftFromNotes({
         }),
       );
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : "The draft did not come back.");
+      setError(e instanceof Error && e.message ? e.message : "No draft came back. Try again.");
     } finally {
       setLoading(false);
     }
@@ -71,14 +71,15 @@ export function DraftFromNotes({
       </h3>
       <label className="flex flex-col gap-1 text-xs text-muted">
         Describe the task the way you would tell someone, in any order of detail. Signed in, Grok
-        turns it into steps; anything that looks like a password or card number is removed first.
+        turns it into steps; Precog first removes anything that looks like a password or card
+        number.
         <textarea
           className={`${fieldCls} w-full`}
           rows={4}
           value={notes}
           maxLength={DRAFT_NOTES_MAX}
           placeholder={
-            "Need: bookkeeper login\nOpen Banking and pick the checking account, then match each line to the statement. If it's off, don't click Undo, call me."
+            "Need: bookkeeper sign-in\nOpen Banking and pick the checking account, then match each line to the statement. If it's off, don't click Undo, call me."
           }
           onChange={(e) => setNotes(e.target.value)}
         />
@@ -119,7 +120,7 @@ export function DraftFromNotes({
             {reason && <span>{reason}</span>}
           </div>
           {result.steps.length === 0 ? (
-            <p className="text-xs text-muted">No steps could be read from these notes.</p>
+            <p className="text-xs text-muted">Precog found no steps in these notes.</p>
           ) : (
             <>
               {result.purpose && <p className="text-xs">{result.purpose}</p>}

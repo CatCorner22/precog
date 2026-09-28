@@ -399,7 +399,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
         "Alert on new administrator rights, logins unused for 90 days, and logins not removed after someone leaves",
       ],
       [
-        "Shut off access that should not exist and change the passwords involved",
+        "Shut off access nobody authorized, and change the passwords involved",
         "Look into everything done under access nobody approved",
       ],
     ),
@@ -616,7 +616,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
       ],
       [
         "Remove access nobody needs and get back copies shared by mistake",
-        "Look into any report shared where it should not be, and narrow what it shows",
+        "Look into any report shared beyond the people who need it, and narrow what it shows",
       ],
     ),
   };

@@ -123,7 +123,7 @@ describe("parseProcessCsv", () => {
     expect(
       messages.some((m) => m.includes('The importer does not know the cadence "sometimes"')),
     ).toBe(true);
-    expect(messages.some((m) => m.includes('Documented "maybe" should be yes or no'))).toBe(true);
+    expect(messages.some((m) => m.includes('Documented "maybe" must be yes or no'))).toBe(true);
     const p = r.added[0];
     expect(p.ownerPersonIds).toEqual([]);
     expect(p.dependencies).toEqual([]);

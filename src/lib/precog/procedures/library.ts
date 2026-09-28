@@ -8,7 +8,7 @@ import type { Procedure } from "./types";
 
 /**
  * Procedures a small business should have written, each with suggested steps
- * that follow recognised control practice. They are a starting point: every
+ * that follow recognized control practice. They are a starting point: every
  * suggested step stays marked as a suggestion until the owner fits it to
  * their own screens and people (by editing it, or by verifying the
  * procedure), and the best-practice check says so until then.
@@ -46,7 +46,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-bank-rec",
     title: "Reconcile the bank account",
     purpose:
-      "Catches missing deposits, duplicate or unauthorised payments, and bank errors. Done when every line on the statement matches the books and a second person has signed the reconciliation.",
+      "Catches missing deposits, duplicate or unauthorized payments, and bank errors. Done when every line on the statement matches the books and a second person has signed the reconciliation.",
     trigger: "When the monthly bank statement arrives, by the 10th of the month",
     cadence: "monthly",
     dutyIds: ["bank_reconcile"],
@@ -74,7 +74,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     title: "Change a vendor's bank details",
     purpose:
       "Stops payments going to a criminal who pretends to be a vendor. Done when a call to a number already on file confirms the change and a second person approves it.",
-    trigger: "Whenever a vendor asks to change where they are paid",
+    trigger: "Whenever a vendor asks you to pay them into a different account",
     cadence: "ad-hoc",
     dutyIds: ["create_vendor", "approve_vendor"],
     covers:
@@ -89,7 +89,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       },
       { text: "Confirm the new bank details with the person who answers." },
       { text: "Write down who confirmed, the date and the number you called." },
-      { text: "Ask a second person to approve the change before it is saved." },
+      { text: "Ask a second person to approve the change before anyone saves it." },
       { text: "Save the new bank details in the vendor record." },
       { text: "Confirm with the vendor that the first payment to the new account arrived." },
     ],
@@ -112,13 +112,13 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       { text: "Select only bills marked as approved." },
       { text: "Compare each selected bill with its purchase order or receipt." },
       {
-        text: "Remove any bill that has already been paid.",
+        text: "Remove any bill the business has already paid.",
         caution:
           "Check the vendor, amount and invoice number together; a duplicate bill can differ in one of them.",
       },
       { text: "Total the batch and write the total down." },
       {
-        text: "Send the batch to a second person to approve before it is released.",
+        text: "Send the batch to a second person to approve before anyone releases it.",
         caution: "The person who prepared the batch must not also approve its release.",
       },
       { text: "Release the approved batch." },
@@ -215,7 +215,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       { text: "Compare each count with the quantity in the system." },
       { text: "Recount each item that differs." },
       {
-        text: "Ask a second person to approve each adjustment before it is entered.",
+        text: "Ask a second person to approve each adjustment before anyone enters it.",
         caution: "The person who counts must not also approve the adjustment.",
       },
       { text: "Enter the approved adjustments." },
@@ -226,7 +226,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-receiving",
     title: "Receive a delivery",
     purpose:
-      "Pays only for goods that arrived. Done when the received quantities are entered and sent to accounts payable to match with the invoice.",
+      "Pays only for goods that arrived. Done when you have entered the received quantities and sent them to accounts payable to match with the invoice.",
     trigger: "Whenever a delivery arrives",
     cadence: "ad-hoc",
     dutyIds: ["receive_goods", "order_supplies"],
@@ -239,7 +239,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       { text: "Enter the received quantities." },
       {
         text: "Send the receiving record to accounts payable to match with the invoice.",
-        caution: "The person who ordered the goods should not be the only one who receives them.",
+        caution: "The person who ordered the goods must not be the only person who receives them.",
       },
     ],
     source: COMMON_PRACTICE,
@@ -248,7 +248,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-leaver-access",
     title: "Remove a leaver's access",
     purpose:
-      "Stops a former employee getting into systems, money or the building. Done when every account is disabled and every shared code they knew is changed.",
+      "Stops a former employee getting into systems, money or the building. Done when you have disabled every account and changed every shared code the person knew.",
     trigger: "On the person's last day, before they leave",
     cadence: "ad-hoc",
     dutyIds: ["manage_user_access", "pms_admin_roles"],
@@ -258,13 +258,13 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     steps: [
       { text: "List every system, card and key the person had." },
       { text: "Disable each of the person's accounts." },
-      { text: "Remove the person from the bank's list of authorised users." },
+      { text: "Remove the person from the bank's list of authorized users." },
       {
         text: "Change every shared password, door code and safe combination the person knew.",
-        caution: "Write down where each new code is kept, never the code itself.",
+        caution: "Write down where you keep each new code, never the code itself.",
       },
       { text: "Collect keys, access cards and company equipment." },
-      { text: "Record the date each item was done." },
+      { text: "Record the date you finished each item." },
     ],
     source:
       "NIST SP 800-53, control PS-4 (Personnel Termination): disable access and retrieve property when employment ends.",
@@ -273,7 +273,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-backup-test",
     title: "Check the backups and test a restore",
     purpose:
-      "Shows the business could get its records back after a failure or ransomware. Done when a file has been restored from backup and opened.",
+      "Shows the business could get its records back after a failure or ransomware. Done when you have restored a file from backup and opened it.",
     trigger: "The first Monday of each quarter",
     cadence: "quarterly",
     dutyIds: ["manage_backups"],
@@ -295,7 +295,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-card-review",
     title: "Review the company card statement",
     purpose:
-      "Finds personal or unauthorised card spending. Done when every charge has a receipt and a second person other than the cardholder has reviewed it.",
+      "Finds personal or unauthorized card spending. Done when every charge has a receipt and a second person other than the cardholder has reviewed it.",
     trigger: "When the monthly card statement arrives",
     cadence: "monthly",
     dutyIds: ["review_card_statement", "hold_company_card", "approve_expenses"],
@@ -318,7 +318,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-controlled-count",
     title: "Count controlled drugs against the log",
     purpose:
-      "Shows every controlled drug is accounted for and finds a loss the day it happens. Done when each count matches the log and both counters have signed it.",
+      "Shows the practice can account for every controlled drug and finds a loss the day it happens. Done when each count matches the log and both counters have signed it.",
     trigger: "Every Friday at close, and on the biennial inventory date",
     cadence: "weekly",
     industries: ["dental"],
@@ -332,7 +332,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       {
         text: "Report any difference to the dentist in charge the same day.",
         caution:
-          "A theft or significant loss must be reported to the DEA in writing within one business day of discovery (21 CFR 1301.76(b)).",
+          "The practice must report a theft or significant loss to the DEA in writing within one business day of discovery (21 CFR 1301.76(b)).",
       },
       { text: "Sign and date the log with the second person." },
     ],
@@ -343,7 +343,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-trust-rec",
     title: "Reconcile the client trust account three ways",
     purpose:
-      "Shows each client's money is still there and none was used for another client or the firm. Done when the bank, the trust ledger and the client ledgers agree and a second person has signed.",
+      "Shows each client's money is still there and nobody used it for another client or the firm. Done when the bank, the trust ledger and the client ledgers agree and a second person has signed.",
     trigger: "When the trust account's monthly statement arrives",
     cadence: "monthly",
     industries: ["professional_services"],
@@ -363,7 +363,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       {
         text: "List any client ledger with a negative balance.",
         caution:
-          "A negative client balance means another client's money was used; report it the same day.",
+          "A negative client balance means someone used another client's money; report it the same day.",
       },
       { text: "Give the reconciliation to a second person to review and sign." },
       { text: "Save the signed reconciliation with the statement." },
@@ -375,7 +375,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-tip-report",
     title: "Collect and record reported tips",
     purpose:
-      "Gets each employee's tips into payroll so the business withholds and reports the right taxes. Done when every employee's reported tips are entered for the period.",
+      "Gets each employee's tips into payroll so the business withholds and reports the right taxes. Done when you have entered every employee's reported tips for the period.",
     trigger: "At the end of each shift, and by the 10th of each month for the month before",
     cadence: "daily",
     industries: ["restaurant"],
@@ -399,7 +399,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-lien-waiver",
     title: "Collect lien waivers before paying a subcontractor",
     purpose:
-      "Stops a subcontractor or supplier who was not paid putting a lien on the client's property. Done when a waiver for each payment is on file with the job.",
+      "Stops an unpaid subcontractor or supplier putting a lien on the client's property. Done when a waiver for each payment is on file with the job.",
     trigger: "Before each payment to a subcontractor or supplier",
     cadence: "ad-hoc",
     industries: ["construction"],
@@ -411,7 +411,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
         text: "Ask the subcontractor for a conditional lien waiver for the amount of this payment.",
       },
       {
-        text: "Check that the waiver names the job, the amount and the date work is paid through.",
+        text: "Check that the waiver names the job, the amount and the last date of work this payment covers.",
       },
       { text: "Check that the subcontractor's insurance certificate is current." },
       {
@@ -429,7 +429,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-restricted-gift",
     title: "Record a restricted gift or grant",
     purpose:
-      "Spends each gift only as the donor allowed and shows it in the right net asset class. Done when the gift is recorded with its restriction and released only once the restriction is met.",
+      "Spends each gift only as the donor allowed and shows it in the right net asset class. Done when you have recorded the gift with its restriction and released it only after the organization meets the donor's terms.",
     trigger: "Whenever a gift or grant arrives with a letter or agreement",
     cadence: "ad-hoc",
     industries: ["nonprofit"],
@@ -444,18 +444,18 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       },
       { text: "Tag each payment from the gift with its restricted-fund code." },
       {
-        text: "Move the amount to without donor restrictions once the donor's purpose or time is met.",
+        text: "Move the amount to without donor restrictions once the organization meets the donor's purpose or time limit.",
       },
       { text: "Compare each restricted balance with the donor's terms every month." },
     ],
     source:
-      "FASB ASU 2016-14 (ASC 958): gifts with donor restrictions are reported as net assets with donor restrictions and reclassified when the restriction is met.",
+      "FASB ASU 2016-14 (ASC 958): an organization reports a gift with donor restrictions as net assets with donor restrictions and reclassifies it when the organization meets the restriction.",
   },
   {
     id: "lib-deal-jacket",
     title: "Audit deal jackets and title fees",
     purpose:
-      "Shows each sold vehicle's paperwork is complete and each title fee collected reached the state. Done when every deal from last week is checked and signed off.",
+      "Shows each sold vehicle's paperwork is complete and each title fee collected reached the state. Done when you have checked and signed off every deal from last week.",
     trigger: "Every Monday, for the deals delivered the week before",
     cadence: "weekly",
     industries: ["automotive"],

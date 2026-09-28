@@ -1,10 +1,12 @@
-import { CheckCircle2, CircleAlert, Lightbulb } from "lucide-react";
+import { CheckCircle2, CircleAlert, Lightbulb, OctagonX } from "lucide-react";
 import type { Recommendation } from "@/lib/precog/procedures/quality";
+import { WRITING_STANDARD_LABEL } from "@/lib/precog/procedures/writing";
 
 /**
  * What to change so a stand-in can follow the procedure, from the
- * best-practice check (procedures/quality.ts): fixes first, then
- * improvements, each with the step it is about and why it matters.
+ * best-practice check (procedures/quality.ts): writing errors that block
+ * verification first, then other fixes, then improvements. Each names the
+ * writing standard it enforces, the step it is about and why it matters.
  */
 export function BestPracticeCheck({
   recommendations,
@@ -14,8 +16,9 @@ export function BestPracticeCheck({
   headingLevel?: "h2" | "h3";
 }) {
   const Heading = headingLevel;
-  const fixes = recommendations.filter((r) => r.level === "fix").length;
-  const improvements = recommendations.length - fixes;
+  const blocking = recommendations.filter((r) => r.blocksVerification).length;
+  const fixes = recommendations.filter((r) => r.level === "fix").length - blocking;
+  const improvements = recommendations.length - blocking - fixes;
   return (
     <section aria-labelledby="best-practice-heading" className="space-y-2">
       <Heading
@@ -27,12 +30,15 @@ export function BestPracticeCheck({
       {recommendations.length === 0 ? (
         <p className="flex items-center gap-1.5 text-xs text-ok">
           <CheckCircle2 className="size-3.5" aria-hidden />
-          It follows every practice this check looks for.
+          It meets every standard this check applies.
         </p>
       ) : (
         <>
           <p className="text-xs text-muted">
             {[
+              blocking
+                ? `${blocking} writing ${blocking === 1 ? "error blocks" : "errors block"} verification`
+                : "",
               fixes ? `${fixes} to fix before someone else relies on it` : "",
               improvements ? `${improvements} to make it easier to follow` : "",
             ]
@@ -42,7 +48,12 @@ export function BestPracticeCheck({
           <ul className="space-y-1.5">
             {recommendations.map((r) => (
               <li key={r.id} className="flex gap-2 text-sm">
-                {r.level === "fix" ? (
+                {r.blocksVerification ? (
+                  <OctagonX
+                    className="mt-0.5 size-4 shrink-0 text-danger"
+                    aria-label="Blocks verification"
+                  />
+                ) : r.level === "fix" ? (
                   <CircleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-label="Fix" />
                 ) : (
                   <Lightbulb className="mt-0.5 size-4 shrink-0 text-muted" aria-label="Improve" />
@@ -52,7 +63,12 @@ export function BestPracticeCheck({
                     {r.step ? <span className="font-medium">Step {r.step}: </span> : null}
                     {r.title}
                   </p>
-                  <p className="text-xs text-muted">{r.why}</p>
+                  <p className="text-xs text-muted">
+                    {r.standard && r.standard !== "practice" && (
+                      <span className="font-medium">{WRITING_STANDARD_LABEL[r.standard]}. </span>
+                    )}
+                    {r.why}
+                  </p>
                 </div>
               </li>
             ))}

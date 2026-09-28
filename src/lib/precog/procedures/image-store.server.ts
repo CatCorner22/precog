@@ -55,7 +55,7 @@ export async function insertProcedureImage(
     throw new RequestError(413, "The picture is too large. Try a smaller screenshot or photo.");
   }
   const stripped = stripImageMetadata(input.bytes, info.type);
-  if (!stripped) throw new RequestError(415, "The picture could not be read.");
+  if (!stripped) throw new RequestError(415, "Precog could not read the picture.");
   const sha256 = createHash("sha256").update(stripped).digest("hex");
 
   return inTransaction(sql, async (tx) => {

@@ -255,6 +255,12 @@ try {
   await page.goto(`${base}/?tab=procedures`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "New procedure" }).click();
   await page.getByLabel("Title").fill("Count the drawer");
+  // Written to the writing standards, which a verification requires.
+  await page.getByLabel("Module or screen").fill("Reports › Drawer");
+  await page
+    .getByLabel("Why it matters and what done looks like")
+    .fill("Finds a shortage the same day. Done when the count matches the drawer report.");
+  await page.getByLabel("When to do it").fill("Every day at close");
   await page.getByRole("button", { name: "Add step" }).click();
   await page.getByLabel("Step 1", { exact: true }).fill("Open the drawer report.");
   await page
@@ -285,7 +291,7 @@ try {
   }, "the picture added in the editor was not stored and saved with its step");
 
   step("B: pressing the verify button records B's account with the verification");
-  await page.getByRole("button", { name: /checked these steps today/ }).click();
+  await page.getByRole("button", { name: /verified these steps today/ }).click();
   await eventually(async () => {
     const saved = (
       await db.query("select profile from businesses where user_id=$1 and id=$2", [b, businessB])
@@ -314,6 +320,9 @@ try {
     id: "proc_safety_verify",
     industry: "dental",
     title: "Close the day",
+    module: "Reports › Day sheet",
+    purpose: "Closes the books for the day. Done when the day sheet prints.",
+    trigger: "Every day at close",
     prerequisites: [],
     steps: [{ id: "step_safety_verify", text: "Print the day sheet." }],
     knowledgeIds: [],
@@ -355,7 +364,7 @@ try {
   await db.query("update firm_members set role = 'reviewer' where member_user_id = $1", [b]);
   const underOther = await saveVerified(a);
   assert.equal(underOther.status(), 403, await underOther.text());
-  assert.match(await underOther.text(), /another account/);
+  assert.match(await underOther.text(), /Another account recorded this verification/);
   const asReviewer = await saveVerified(b);
   assert.equal(asReviewer.status(), 200, await asReviewer.text());
   const kept = (await storedB()).profile.procedures.find((x) => x.id === "proc_safety_verify");

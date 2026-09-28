@@ -239,7 +239,7 @@ export function parseRegisterCsv(
       if (read === undefined) {
         issues.push({
           row: rowNumber,
-          message: `Documented "${documentedValue}" should be yes or no; kept ${documented ? "yes" : "no"}`,
+          message: `Documented "${documentedValue}" must be yes or no; kept ${documented ? "yes" : "no"}`,
         });
       } else documented = read;
     }

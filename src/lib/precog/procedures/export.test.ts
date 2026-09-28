@@ -52,7 +52,7 @@ function reconcile(): Procedure {
 }
 
 describe("a procedure as Markdown", () => {
-  it("reads in the order a stand-in follows it, with owner text escaped", () => {
+  it("reads in the order a backup follows it, with owner text escaped", () => {
     const p = reconcile();
     // Verifying clears the mark, so put it back on one step to see how it reads.
     p.steps[2] = { ...p.steps[2], aiDrafted: true };
@@ -60,7 +60,7 @@ describe("a procedure as Markdown", () => {
     expect(md).toContain("# Reconcile the \\*checking\\* account\n");
     expect(md).toContain("**Where:** QuickBooks Online › Banking › Reconcile");
     expect(md).toContain("**Link:** <https://qbo.intuit.com/app/reconcile>");
-    expect(md).toContain("**Status:** Verified Sep 10, 2026; check again by Mar 9, 2027");
+    expect(md).toContain("**Status:** Verified Sep 10, 2026; verify again by Mar 9, 2027");
     expect(md).toContain("\n\\# Keeps the books matching the bank.\n");
     expect(md).toContain("## What you need first\n\n- Bookkeeper login");
     expect(md).toContain(
@@ -70,14 +70,16 @@ describe("a procedure as Markdown", () => {
       "2. Photograph the signed report.\n   _Take a photo as you do this step._",
     );
     expect(md).toContain("   _1 picture in Precog._");
-    expect(md).toContain("3. Match each line.\n   _Drafted by Grok; not yet checked by a person._");
+    expect(md).toContain(
+      "3. Match each line.\n   _Drafted by Grok; not yet verified by a person._",
+    );
     expect(md).not.toContain("4.");
     p.steps[2] = { ...p.steps[2], aiDrafted: undefined, suggested: true };
     expect(procedureMarkdown(p, ctx)).toContain(
       "3. Match each line.\n   _Suggested common practice; not yet fitted to this business._",
     );
     expect(md).toContain("- Does it today: Ada Owner");
-    expect(md).toContain("- Can follow it when that person is out: Bea Books");
+    expect(md).toContain("- Backups: Bea Books");
     expect(md).toContain("- Covers on Who knows what: Bank reconciliation");
   });
 
@@ -117,7 +119,7 @@ describe("a procedure as Markdown", () => {
   it("names the account that recorded the verification, when one did", () => {
     const p = verifyProcedure(reconcile(), "owner", "2026-09-10", { id: "u1", name: "Ada Owner" });
     expect(procedureMarkdown(p, ctx)).toContain(
-      "**Status:** Verified Sep 10, 2026; check again by Mar 9, 2027; recorded by Ada Owner",
+      "**Status:** Verified Sep 10, 2026; verify again by Mar 9, 2027; recorded by Ada Owner",
     );
   });
 

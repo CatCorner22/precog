@@ -45,7 +45,7 @@ export const DEFAULT_LAYERS: LayerConfig[] = [
     label: "SoD / controls",
     visible: true,
     interactive: true,
-    description: "Duties one person holds that should be split",
+    description: "Conflicting duties one person holds",
   },
   {
     id: "knowledge",

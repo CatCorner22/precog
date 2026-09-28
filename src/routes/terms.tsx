@@ -26,10 +26,10 @@ function TermsPage() {
       <div className="mt-6 space-y-4 text-sm">
         <p>
           Precog helps an owner or advisor describe who holds which duties, which combinations
-          conflict, and what a monthly review should check. Scores are this application’s own
-          indexes. Scenario figures are assumptions. Case amounts are losses stated in public
-          sources about other businesses. None of these is a measurement of your business, a
-          forecast, or an insurance quote.
+          conflict, and what a monthly review checks. Scores are this application’s own indexes.
+          Scenario figures are assumptions. Case amounts are losses stated in public sources about
+          other businesses. None of these is a measurement of your business, a forecast, or an
+          insurance quote.
         </p>
         <p>
           The duty map is what you enter or what a job title suggested. An access import compares a

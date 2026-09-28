@@ -402,7 +402,7 @@ function crossTrainingActions(ctx: WeeklyContext): WeeklyAction[] {
           : m.trainee
             ? `${m.status === "thin" ? "Finish training" : "Cross-train"} ${firstName(m.trainee.name)} on ${m.item.name}`
             : `Cross-train a stand-in for ${m.item.name}`,
-      why: `${m.action} While one person holds critical work alone, nobody can cover it when they are out, and nobody else can compare what they do with what should be done.`,
+      why: `${m.action} While one person holds critical work alone, nobody can cover it when they are out, and nobody else can compare their work with the written steps.`,
       effort: isWritten(m.item) ? "low" : "medium",
       tab: "knowledge",
       priority,
@@ -652,7 +652,7 @@ function procedureActions({ tpl, input, today }: WeeklyContext): WeeklyAction[] 
     actions.push({
       id: `procedure-unproven-${procedure.id}`,
       title: `Have ${who} do "${procedure.title}" alone`,
-      why: `This is critical work, and nobody named to cover it has shown they can follow the written steps without help. The first time a backup tries it should not be the day the usual person is out.`,
+      why: `This is critical work, and nobody named to cover it has shown they can follow the written steps without help. Let a backup try it first on an ordinary day, not on the day the usual person is out.`,
       effort: "low",
       tab: "procedures",
       priority: PRIORITY.procedureUnproven,

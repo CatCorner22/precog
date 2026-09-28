@@ -16,10 +16,10 @@ export interface LikelySecret {
 
 export const SECRET_WARNING: Record<SecretKind, string> = {
   password:
-    "This looks like a password, PIN or combination. Name where it is kept (for example the password-manager entry), never the secret itself.",
+    "This looks like a password, PIN or combination. Name where you keep it (for example, the password-manager entry), never the secret itself.",
   card: 'This looks like a card number. Name the card (for example "the office Visa ending 4417") instead.',
   ssn: "This looks like a Social Security number. Leave it out of the procedure.",
-  token: "This looks like an access key or code. Name where it is kept instead.",
+  token: "This looks like an access key or code. Name where you keep it instead.",
 };
 
 // "password: hunter2", "PIN is 4417", "combination = 12 34 56", "password for the bank

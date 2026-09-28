@@ -45,7 +45,7 @@ export const REVIEW_ITEMS: readonly {
   {
     key: "bank_statement",
     title: "Open the bank statement",
-    why: "Someone other than the person who pays the bills should see the real statement, not only the books.",
+    why: "The check works only if someone other than the person who pays the bills sees the real statement, not only the books.",
     checkedDuties: ["bank_reconcile", "release_payment", "sign_checks"],
   },
   {

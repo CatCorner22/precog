@@ -473,7 +473,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "bank_reconcile",
     severity: "critical",
     title: "Payment release + bank reconciliation",
-    why: "The person who sends the money out also produces the record that proves it went where it should. A transfer to their own account, or to a payee they invented, is reconciled by the same hands, and the one check that compares the books with the bank is done by the one person with a reason to make them agree.",
+    why: "The person who sends the money out also produces the record that proves it went where it was meant to go. A transfer to their own account, or to a payee they invented, is reconciled by the same hands, and the one check that compares the books with the bank is done by the one person with a reason to make them agree.",
     fraudPath:
       "Pay yourself or an invented payee by ACH or card, then reconcile the statement so nobody else sees where it went",
     compensatingDefaults: [
@@ -532,7 +532,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     b: "bank_reconcile",
     severity: "high",
     title: "Payroll entry + bank reconciliation",
-    why: "The person who runs payroll also reconciles the account it pays from, so a payroll payment that should not exist is matched off by the same hands and never reaches anyone who would ask who it was for.",
+    why: "The person who runs payroll also reconciles the account it pays from, so a payroll payment nobody authorized is matched off by the same hands and never reaches anyone who would ask who it was for.",
     fraudPath:
       "Pay yourself through payroll, then reconcile the account so the extra payment looks like any other pay run",
     compensatingDefaults: [

@@ -97,7 +97,7 @@ export function ProcedurePrint({
                 {p.verifiedAt && p.verifiedByAccountName
                   ? ` · recorded by ${p.verifiedByAccountName}`
                   : ""}
-                {due ? ` · check again by ${formatDay(due)}` : ""} · version {p.version}
+                {due ? ` · verify again by ${formatDay(due)}` : ""} · version {p.version}
               </p>
             </header>
             {p.purpose && <p>{p.purpose}</p>}
@@ -156,9 +156,9 @@ export function ProcedurePrint({
               )}
             </section>
             <footer className="border-t border-neutral-300 pt-2 text-[9pt] text-neutral-600">
-              Does it today: {nameOf(p.ownerPersonId) ?? "not set"} · Can follow it when that person
-              is out: {p.backupPersonIds.map((id) => nameOf(id)).join(", ") || "nobody named yet"} ·
-              Checked by: {nameOf(p.reviewerPersonId) ?? "the owner"}
+              Does it today: {nameOf(p.ownerPersonId) ?? "not set"} · Backups:{" "}
+              {p.backupPersonIds.map((id) => nameOf(id)).join(", ") || "nobody named yet"} ·
+              Reviewer: {nameOf(p.reviewerPersonId) ?? "the owner"}
               {items ? ` · Covers: ${items}` : ""}
             </footer>
           </article>

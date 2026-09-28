@@ -271,7 +271,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "owner-opens-bank-statement",
         asApplied:
-          "Owner keeps a list of every account in the practice's name, closes the ones that should be closed, and reads the statements of the rest",
+          "Owner keeps a list of every account in the practice's name, closes the ones nobody uses, and reads the statements of the rest",
       },
       {
         control: "log-payments-at-the-mail",
@@ -583,7 +583,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     howItWorked:
       "An area manager hired in July 2017 to run three fast-food franchise locations in the Omaha area initiated about 275 credit-card refunds through the point-of-sale system between October 2017 and June 2018 — none tied to a real purchase — and directed them to eight of his own credit cards, pulling $30,075.16 from the company's bank account. He had passed the hiring background check by using his brother's identity on his I-9 and W-4.",
     controlGap:
-      "A refund with no original sale is a payment, and the manager who could issue it was also the manager who reviewed the store's refunds. A monthly refunds-by-employee report, or a rule that refunds go only to the card that paid, would have shown 275 refunds to the same eight card numbers. The background check that should have stopped the hire was defeated by borrowed identity documents.",
+      "A refund with no original sale is a payment, and the manager who could issue it was also the manager who reviewed the store's refunds. A monthly refunds-by-employee report, or a rule that refunds go only to the card that paid, would have shown 275 refunds to the same eight card numbers. Borrowed identity documents defeated the background check meant to stop the hire.",
     lossUsd: 30075,
     lossIsFloor: false,
     durationMonths: 8,

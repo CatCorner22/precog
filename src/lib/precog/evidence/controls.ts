@@ -130,7 +130,7 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   },
   "expected-receipts-vs-deposits": {
     id: "expected-receipts-vs-deposits",
-    label: "Owner compares what should have come in against what was deposited, monthly",
+    label: "Owner compares the money expected in with what was deposited, monthly",
     why: "Money that never arrives leaves no trace in the books. Only an outside expectation reveals it.",
     setup: "an hour",
     cadence: "monthly",

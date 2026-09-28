@@ -287,7 +287,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     domain: "retail_ops",
     industry: "retail",
     tags: ["retail", "cash drawer", "deposit", "over short", "blind count"],
-    text: "One cashier per drawer per shift, blind drop counts (the counter does not see the POS expected total), and a cash-over/short log by employee turn skimming into a visible pattern within weeks. The person who counts the drawer should not also prepare the deposit and post it to the books; if the team is too small, the owner reviews the deposit slip against the POS Z-report weekly.",
+    text: "One cashier per drawer per shift, blind drop counts (the counter does not see the POS expected total), and a cash-over/short log by employee turn skimming into a visible pattern within weeks. Do not let the person who counts the drawer also prepare the deposit and post it to the books; if the team is too small, the owner reviews the deposit slip against the POS Z-report weekly.",
     basis: practice("Retail cash-handling practice."),
   },
   {
@@ -361,7 +361,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
       "commingling",
       "three-way reconciliation",
     ],
-    text: "Client funds held in trust must never mix with operating cash. Monthly three-way reconciliation (bank statement, trust ledger, individual client balances) signed by a partner is the core control; disbursements require a second approval; and no single person should be able to move money from trust to operating without documented authority. Trust shortfalls are a license-level compliance problem, not just a loss.",
+    text: "Client funds held in trust must never mix with operating cash. Monthly three-way reconciliation (bank statement, trust ledger, individual client balances) signed by a partner is the core control; disbursements require a second approval; and make sure no single person can move money from trust to operating without documented authority. Trust shortfalls are a license-level compliance problem, not just a loss.",
     basis: practice("Client-trust accounting practice for professional firms."),
   },
   {
@@ -493,7 +493,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
       "banking",
       "audit log",
     ],
-    text: "Access control should follow least privilege and unique user identity. Avoid shared logins to the main business system, accounting, email, and banking; require MFA where available; review privileged access periodically; and disable access promptly when duties or employment change. Preserve audit logs and review high-risk activity such as exports, vendor edits, refunds, write-offs, and permission changes.",
+    text: "Base access control on least privilege and unique user identity. Avoid shared logins to the main business system, accounting, email, and banking; require MFA where available; review privileged access periodically; and disable access promptly when duties or employment change. Preserve audit logs and review high-risk activity such as exports, vendor edits, refunds, write-offs, and permission changes.",
     basis: NIST_CSF,
   },
   {
@@ -502,7 +502,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     domain: "privacy",
     industry: "dental",
     tags: ["hipaa", "phi", "ephi", "risk analysis", "audit controls", "dental", "security"],
-    text: "A dental practice handling electronic protected health information should perform an accurate and thorough risk analysis, implement reasonable and appropriate administrative, physical, and technical safeguards, and revisit the analysis when systems or operations change. Internal-control evidence should include system inventory, access decisions, security incidents, contingency procedures, and audit-control review. This educational summary is not a legal compliance determination.",
+    text: "A dental practice handling electronic protected health information must perform an accurate and thorough risk analysis, implement reasonable and appropriate administrative, physical, and technical safeguards, and revisit the analysis when systems or operations change. Keep as internal-control evidence the system inventory, access decisions, security incidents, contingency procedures, and audit-control review. This educational summary is not a legal compliance determination.",
     basis: HHS_HIPAA_RISK,
   },
   {

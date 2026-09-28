@@ -7,6 +7,7 @@ import {
   newVerifications,
   PREPARER_CANNOT_VERIFY,
   VERIFICATION_ACCOUNT_MISMATCH,
+  WRITING_BLOCKS_VERIFICATION,
   type SaverRole,
 } from "./verify-guard";
 
@@ -15,7 +16,15 @@ const TODAY = "2026-09-28";
 const LATEST = "2026-09-29";
 const written = (id = "proc-1"): Procedure =>
   newProcedure(
-    { id, industry: "general", title: "Make the deposit", steps: [newStep("Count the drawer.")] },
+    {
+      id,
+      industry: "general",
+      title: "Make the deposit",
+      purpose: "Gets the day's cash to the bank. Done when the bank shows the deposit.",
+      trigger: "Every day at close",
+      module: "Front-office safe",
+      steps: [newStep("Count the drawer.")],
+    },
     "2026-09-01",
   );
 const profileWith = (...procedures: unknown[]) => ({ procedures });
@@ -163,5 +172,42 @@ describe("who may verify, checked when the business is saved", () => {
     ];
     expect(save(before, profileWith(...junk), "preparer")).toBeNull();
     expect(save(before, { procedures: "nope" }, "preparer")).toBeNull();
+  });
+});
+
+describe("the writing standards on the server", () => {
+  it("refuses a new verification of a procedure whose writing has errors (422)", () => {
+    const loose = verifyProcedure(
+      { ...written(), steps: [newStep("The drawer is counted.")] },
+      "owner",
+      TODAY,
+      ada,
+    );
+    let status = 0;
+    let message = "";
+    try {
+      assertVerificationsAllowed({
+        previousProfile: profileWith(written()),
+        nextProfile: profileWith(loose),
+        saverId: ada.id,
+        saverRole: null,
+        saverNames: [ada.name],
+        latestDay: LATEST,
+      });
+    } catch (err) {
+      status = (err as RequestError).status;
+      message = (err as Error).message;
+    }
+    expect([status, message]).toEqual([422, WRITING_BLOCKS_VERIFICATION]);
+  });
+
+  it("never re-checks a verification already stored on unchanged steps", () => {
+    const loose = verifyProcedure(
+      { ...written(), steps: [newStep("The drawer is counted.")] },
+      "owner",
+      TODAY,
+      ada,
+    );
+    expect(save(profileWith(loose), profileWith(loose), null)).toBeNull();
   });
 });

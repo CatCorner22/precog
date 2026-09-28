@@ -52,7 +52,7 @@ export function StepPictures({
     try {
       setPicture(await loadPicture(file));
     } catch {
-      setError("This picture could not be opened in the browser. Try a JPEG or PNG.");
+      setError("The browser could not open this picture. Try a JPEG or PNG.");
     }
   }
 
@@ -287,7 +287,9 @@ function RedactDialog({
       });
       onUploaded(result.id);
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : "The picture was not saved.");
+      setError(
+        err instanceof Error && err.message ? err.message : "Precog could not save the picture.",
+      );
       setBusy(false);
     }
   }
@@ -314,11 +316,11 @@ function RedactDialog({
       <div className="space-y-3 p-4">
         <div>
           <h2 id="redact-title" className="text-base font-semibold">
-            Hide anything private before this picture is saved (step {stepNumber})
+            Hide anything private before you save this picture (step {stepNumber})
           </h2>
           <p className="text-sm text-muted">
-            Drag across names, account numbers, passwords or faces to hide them. The picture is
-            saved exactly as shown here; the original stays on this device.
+            Drag across names, account numbers, passwords or faces to hide them. Precog saves the
+            picture exactly as shown here; the original stays on this device.
           </p>
         </div>
         <div className="relative select-none">
@@ -381,7 +383,7 @@ function RedactDialog({
               <li key={i} className="flex flex-wrap items-center gap-2">
                 <span className="w-24 text-xs text-muted">Hidden area {i + 1}</span>
                 <select
-                  aria-label={`How hidden area ${i + 1} is hidden`}
+                  aria-label={`How to hide hidden area ${i + 1}`}
                   className="rounded-md border border-border bg-bg px-2 py-1 text-xs"
                   value={b.style}
                   onChange={(e) => update(i, { style: e.target.value as Redaction["style"] })}

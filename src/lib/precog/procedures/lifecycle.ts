@@ -24,7 +24,7 @@ export const PROCEDURE_STATUS_LABEL: Record<ProcedureStatus, string> = {
   empty: "No steps yet",
   draft: "Not verified",
   verified: "Verified",
-  stale: "Review overdue",
+  stale: "Verification overdue",
   needs_reverify: "Changed since verified",
 };
 
@@ -167,7 +167,7 @@ export function suggestedSteps(p: Pick<Procedure, "steps">): number {
  * view, print and export show the same words.
  */
 export function stepMarkNote(step: Pick<ProcedureStep, "aiDrafted" | "suggested">): string {
-  if (step.aiDrafted) return "Drafted by Grok; not yet checked by a person.";
+  if (step.aiDrafted) return "Drafted by Grok; not yet verified by a person.";
   if (step.suggested) return "Suggested common practice; not yet fitted to this business.";
   return "";
 }
@@ -240,14 +240,14 @@ export function describeChange(prev: Procedure, next: Procedure): string {
     );
   if (pictures(prev) !== pictures(next)) parts.push("changed pictures");
   if (JSON.stringify(prev.prerequisites) !== JSON.stringify(next.prerequisites)) {
-    parts.push("changed what is needed first");
+    parts.push("changed what you need first");
   }
   if (
     (prev.placeId ?? "") !== (next.placeId ?? "") ||
     (prev.module ?? "") !== (next.module ?? "") ||
     (prev.url ?? "") !== (next.url ?? "")
   ) {
-    parts.push("changed where it is done");
+    parts.push("changed where to do it");
   }
   if (
     (prev.purpose ?? "") !== (next.purpose ?? "") ||

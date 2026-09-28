@@ -73,8 +73,8 @@ export function procedureMarkdown(p: Procedure, ctx: ExportContext): string {
     "## People",
     "",
     `- Does it today: ${inline(ctx.nameOf(p.ownerPersonId) ?? "Not set")}`,
-    `- Can follow it when that person is out: ${inline(names(p.backupPersonIds) ?? "Nobody named yet")}`,
-    `- Checked by: ${inline(ctx.nameOf(p.reviewerPersonId) ?? "the owner")}`,
+    `- Backups: ${inline(names(p.backupPersonIds) ?? "Nobody named yet")}`,
+    `- Reviewer: ${inline(ctx.nameOf(p.reviewerPersonId) ?? "the owner")}`,
     `- Covers on Who knows what: ${inline(items.join(", ") || "Nothing linked")}`,
   );
   return `${lines.join("\n")}\n`;
@@ -134,8 +134,8 @@ function statusLine(p: Procedure, ctx: ExportContext): string {
   if (p.verifiedAt && due) {
     const recorded = p.verifiedByAccountName ? `; recorded by ${p.verifiedByAccountName}` : "";
     return status === "stale"
-      ? `Review overdue: verified ${formatDay(p.verifiedAt)}, due again by ${formatDay(due)}${recorded}`
-      : `Verified ${formatDay(p.verifiedAt)}; check again by ${formatDay(due)}${recorded}`;
+      ? `Verification overdue: verified ${formatDay(p.verifiedAt)}; verify again by ${formatDay(due)}${recorded}`
+      : `Verified ${formatDay(p.verifiedAt)}; verify again by ${formatDay(due)}${recorded}`;
   }
   if (p.lastVerifiedAt) {
     return `Changed since verified: last verified ${formatDay(p.lastVerifiedAt)}, before the steps changed`;

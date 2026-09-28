@@ -57,7 +57,8 @@ export function CrossTrainingPlanCard({
       <CardHeader>
         <CardTitle>Cross-training plan</CardTitle>
         <CardDescription>
-          What to do next, most urgent first. Each step names who should learn and who should teach.
+          What to do next, most urgent first. Each step names the person to learn and the person to
+          teach.
         </CardDescription>
       </CardHeader>
       <CardContent>

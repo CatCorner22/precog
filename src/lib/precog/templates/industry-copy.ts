@@ -55,7 +55,7 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       exceptionLabel: "Trusted lab ACH raise",
     },
     pioneerPrompts: [
-      "What should I fix this week to reduce embezzlement risk?",
+      "What do I fix first this week to reduce embezzlement risk?",
       "Where can one person move money alone, and which dual-release rules would help?",
       "If my front desk lead leaves, what breaks first?",
       "Walk me through a write-off abuse scenario and mitigations.",
@@ -92,7 +92,7 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       exceptionLabel: "Trusted supplier ACH raise",
     },
     pioneerPrompts: [
-      "What should I fix this week to reduce shrink and cash loss?",
+      "What do I fix first this week to reduce shrink and cash loss?",
       "Where can one person steal via returns or markdowns?",
       "If my lead cashier leaves, what knowledge gaps appear?",
       "Compare vendor fraud vs cash skimming scenarios for my store.",
@@ -129,7 +129,7 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       exceptionLabel: "Trusted produce vendor ACH raise",
     },
     pioneerPrompts: [
-      "What should I fix this week to protect cash and tips?",
+      "What do I fix first this week to protect cash and tips?",
       "Where is tip skimming or void abuse most likely?",
       "If my shift lead leaves, what breaks in nightly close?",
       "Walk me through a vendor fraud scenario for my kitchen.",
@@ -166,7 +166,7 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       exceptionLabel: "Trusted vendor ACH raise",
     },
     pioneerPrompts: [
-      "What should I fix this week to protect client trust funds?",
+      "What do I fix first this week to protect client trust funds?",
       "Where can billing and collections overlap create fraud risk?",
       "If my billing lead leaves, what client revenue is at risk?",
       "Compare trust commingling vs vendor fraud scenarios.",
@@ -203,7 +203,7 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       exceptionLabel: "Trusted supplier ACH raise",
     },
     pioneerPrompts: [
-      "What should I fix this week to protect subcontractor payments?",
+      "What do I fix first this week to protect subcontractor payments?",
       "Where could someone pay a fake subcontractor or pad field hours?",
       "If my project accountant leaves, what billing stops?",
       "Walk me through a change-order kickback scenario and its controls.",
@@ -241,7 +241,7 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       exceptionLabel: "Trusted parts supplier ACH raise",
     },
     pioneerPrompts: [
-      "What should I fix this week to protect repair-order cash and the parts room?",
+      "What do I fix first this week to protect repair-order cash and the parts room?",
       "Where could someone edit a repair order, wire money out, or sell parts on the side?",
       "If my service manager leaves, what warranty money is at risk?",
       "Walk me through a title-fee or rebate diversion scenario and its controls.",
@@ -278,10 +278,10 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       exceptionLabel: "Trusted vendor ACH raise",
     },
     pioneerPrompts: [
-      "What should we fix this week to protect donations?",
+      "What do we fix first this week to protect donations?",
       "Where could restricted grant money be spent on the wrong thing?",
       "If our finance manager leaves, what stops first?",
-      "Walk me through a card abuse scenario and what the treasurer should check.",
+      "Walk me through a card abuse scenario and the checks the treasurer runs.",
       "Give me a plain-English brief for the board.",
     ],
   },
@@ -315,7 +315,7 @@ const INDUSTRY_COPY: Record<IndustryId, IndustryCopyBundle> = {
       exceptionLabel: "Trusted supplier ACH raise",
     },
     pioneerPrompts: [
-      "What should I fix this week to reduce fraud exposure?",
+      "What do I fix first this week to reduce fraud exposure?",
       "Where can one person move money alone right now?",
       "If my office manager leaves, what processes stall?",
       "Walk me through a vendor fraud scenario step by step.",

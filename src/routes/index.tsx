@@ -452,7 +452,7 @@ const TAB_INTROS = {
   procedures: {
     heading: "Procedures",
     plain:
-      "Write the steps for each task, in the software screen or the physical place it is done, so someone else can do it when the usual person is away.",
+      "Write the steps for each task, in the software screen or the physical place where it happens, so someone else can do it when the usual person is away.",
     tactical:
       "Step-by-step desk procedures by platform and module, linked to the register, with review dates.",
   },

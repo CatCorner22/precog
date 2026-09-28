@@ -6,7 +6,8 @@ import { findLikelySecrets } from "./credential-guard";
 import { verifyProcedure, withProcedureEdit } from "./lifecycle";
 import { libraryRows, procedureFromLibrary, RECOMMENDED_PROCEDURES } from "./library";
 import { normalizeProcedure, PROCEDURE_LIMITS } from "./normalize";
-import { procedureRecommendations, stepRecommendations } from "./quality";
+import { procedureRecommendations } from "./quality";
+import { stepWritingIssues } from "./writing";
 
 const TODAY = "2026-10-01";
 
@@ -39,7 +40,7 @@ describe("the recommended procedures", () => {
     for (const r of RECOMMENDED_PROCEDURES) {
       r.steps.forEach((s, i) => {
         const step = { id: `s${i}`, text: s.text, ...(s.caution ? { caution: s.caution } : {}) };
-        expect(stepRecommendations(step, i + 1), s.text).toEqual([]);
+        expect(stepWritingIssues(step, i + 1), s.text).toEqual([]);
         expect(findLikelySecrets(`${s.text} ${s.caution ?? ""}`), s.text).toEqual([]);
       });
     }
