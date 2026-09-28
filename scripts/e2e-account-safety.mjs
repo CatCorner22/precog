@@ -364,7 +364,7 @@ try {
   await db.query("update firm_members set role = 'reviewer' where member_user_id = $1", [b]);
   const underOther = await saveVerified(a);
   assert.equal(underOther.status(), 403, await underOther.text());
-  assert.match(await underOther.text(), /another account/);
+  assert.match(await underOther.text(), /Another account recorded this verification/);
   const asReviewer = await saveVerified(b);
   assert.equal(asReviewer.status(), 200, await asReviewer.text());
   const kept = (await storedB()).profile.procedures.find((x) => x.id === "proc_safety_verify");
