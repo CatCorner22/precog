@@ -16,14 +16,14 @@ export function knownUnknowns(
     {
       id: "ku-actual-cash-counts",
       title: "Actual cash drawer variance history",
-      description: `No daily cash count is compared with the ${words.system}, so lapping and skimming are judged from assumptions, not records.`,
+      description: `Nobody compares a daily cash count with the ${words.system}, so Precog judges lapping and skimming from assumptions, not records.`,
       severity: "critical",
       affects: ["precog", "watched conditions", "cash process"],
       confidenceDrag: 0.12,
       probe: {
         kind: "system_export",
         action:
-          "Compare 90 days of drawer close reports with the deposit slips yourself; this app cannot import them yet",
+          "Compare 90 days of drawer close reports with the deposit slips yourself; Precog cannot import them yet",
         effort: "hours",
         expectedLift: "Shows whether the cash scenarios' assumptions match what happened",
       },
@@ -33,14 +33,14 @@ export function knownUnknowns(
       id: "ku-bank-rec-cadence",
       title: "Bank reconciliation dates and findings",
       description:
-        "Independent bank reconciliation is recorded as yes or no, not as dated work with the exceptions found.",
+        "The profile records independent bank reconciliation as yes or no, not as dated work with the exceptions found.",
       severity: "high",
       affects: ["sod", "monitoring", "coso"],
       confidenceDrag: 0.09,
       probe: {
         kind: "data_capture",
         action:
-          "Note the last 6 reconciliation dates, who did each, and how many items were left open",
+          "Note the last 6 reconciliation dates, who did each, and how many items stayed open",
         effort: "minutes",
         expectedLift: "Turns the reconciliation from a yes/no answer into a measured control",
       },
@@ -66,7 +66,7 @@ export function knownUnknowns(
       id: "ku-pms-audit-log",
       title: `${capitalize(words.system)} void / adjustment audit log`,
       description:
-        "Write-off dual-release thresholds exist, but live void/adjustment velocity is not streamed.",
+        "Write-off dual-release thresholds exist, but Precog receives no live feed of how fast voids and adjustments occur.",
       severity: "high",
       affects: ["watched conditions", "ar process", "sod"],
       confidenceDrag: 0.1,
@@ -74,7 +74,7 @@ export function knownUnknowns(
         kind: "system_export",
         action: "Weekly export of voids, write-offs, and user who posted",
         effort: "hours",
-        expectedLift: "Lets the app watch the billing path at transaction level",
+        expectedLift: "Lets Precog watch the billing path at transaction level",
       },
       link: { tab: "map", id: "proc-ar" },
     },
@@ -82,7 +82,7 @@ export function knownUnknowns(
       id: "ku-vendor-master-changes",
       title: "Vendor master change log",
       description:
-        "The invented-vendor path is modeled; the real vendor additions and edits are not imported.",
+        "Precog models the invented-vendor path but does not import the real vendor additions and edits.",
       severity: "high",
       affects: ["ap", "dual-release", "precog"],
       confidenceDrag: 0.07,
@@ -98,7 +98,7 @@ export function knownUnknowns(
       id: "ku-background-check-dates",
       title: "Bonding & background-check currency",
       description:
-        "Bonded cash handlers are recorded as yes or no, with no expiry date per person.",
+        "The profile records bonded cash handlers as yes or no, with no expiry date per person.",
       severity: "medium",
       affects: ["insurance discount", "people risk"],
       confidenceDrag: 0.04,
@@ -149,13 +149,13 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
     {
       id: "uu-collusion-rings",
       title: "Collusion between two or more people",
-      description: `The duty-conflict check finds one person holding two duties. Two people working together (${words.pair}) can pass dual release by design, and the app does not model collusion or lifestyle red flags.`,
+      description: `The duty-conflict check finds one person holding two duties. Two people working together (${words.pair}) can pass dual release by design, and Precog does not model collusion or lifestyle red flags.`,
       severity: "critical",
       affects: ["sod", "dual-release", "precog"],
       confidenceDrag: 0.14,
       probe: {
         kind: "scenario_design",
-        action: "Add collusion scenario: dual signers who are related / share finances",
+        action: "Add collusion scenario: dual signers who are relatives or share finances",
         effort: "days",
         expectedLift: "Takes the model beyond one person holding two duties",
       },
@@ -170,7 +170,7 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
       probe: {
         kind: "external_stat",
         action:
-          "Read your cyber policy's terms and note the date of the last test restore from backup (outside this app)",
+          "Read your cyber policy's terms and note the date of the last test restore from backup (outside Precog)",
         effort: "hours",
         expectedLift: "Opens a new residual domain Pioneer can score",
       },
@@ -224,7 +224,7 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
       id: "uu-ai-tooling-risk",
       title: "Pioneer's own model risk",
       description:
-        "Pioneer's advice can create false confidence. This list exists to say that residual risk scores rest on this app's assumptions, not on measurements.",
+        "Pioneer's advice can create false confidence. This list exists to say that residual risk scores rest on Precog's assumptions, not on measurements.",
       severity: "medium",
       affects: ["pioneer", "all modules"],
       confidenceDrag: 0.06,

@@ -63,7 +63,7 @@ describe("runMetaAnalysis follows the business's own facts", () => {
     const base = defaultProfile("retail");
     const bare = runMetaAnalysis({ ...base, decisions: [] });
     expect(bare.recommendations[0]).toBe(
-      "Give the app more to work with: turn on dual release and log a first decision in the Decisions log.",
+      "Give Precog more to work with: turn on dual release and log a first decision in the Decisions log.",
     );
     const done = runMetaAnalysis({
       ...base,

@@ -98,15 +98,15 @@ export function ForensicPanel() {
               Paste payment or deposit amounts, or a transaction CSV
             </label>
             <p className="text-xs text-subtle">
-              Paste what was received or banked, not the fee schedule: set prices do not follow the
-              digit pattern the screen compares against. A CSV with a kind column is screened by
-              kind.
+              Paste what you received or banked, not the fee schedule: fixed prices do not follow
+              the digit pattern the screen compares against. If a CSV has a kind column, Precog
+              screens each kind separately.
             </p>
             <textarea
               id="forensic-paste"
               value={paste}
               onChange={(event) => setPaste(event.target.value)}
-              placeholder={"One amount per line, e.g.\n125.00\n(40.00)"}
+              placeholder={"One amount per line, for example:\n125.00\n(40.00)"}
               className="min-h-24 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
             />
             <Button size="sm" variant="outline" onClick={screenPaste}>

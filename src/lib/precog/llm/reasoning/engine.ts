@@ -60,12 +60,12 @@ export function runAdvancedReasoning(
 
   const synthesis = [
     recommendedSequence.length
-      ? `Levers in the order this app's model prefers: ${recommendedSequence.join(" → ")}.`
-      : "No lever in this app's model improves on the current setup.",
+      ? `Levers in the order Precog's model prefers: ${recommendedSequence.join(" → ")}.`
+      : "No lever in Precog's model improves on the current setup.",
     `Single lever that lowers the residual index most in a side-by-side comparison: ${cf.bestIntervention}.`,
     `Most useful thing to verify next: ${checks.topObservation}.`,
     `Strongest causal path to the owner's decision: ${strongest ? CAUSAL_LABEL[strongest.intervention] : "none"}.`,
-    "Basis: every figure behind this ordering is one of this app's weights, not a measurement of this business.",
+    "Basis: every figure behind this ordering is one of Precog's weights, not a measurement of this business.",
   ];
 
   return {

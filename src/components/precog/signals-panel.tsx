@@ -46,13 +46,12 @@ export function SignalsPanel({ onNavigate }: { onNavigate?: NavFn }) {
         </div>
         <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <Brain className="size-5 text-primary" aria-hidden />
-          Conditions this app watches
+          Conditions Precog watches
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Each condition below is either a setting in your profile that the prosecuted cases on
-          Start here turned on, or one of this app&rsquo;s own indices crossing a line this app
-          chose. The thresholds are set in this app; they are not benchmarks, and none of this is a
-          prediction.
+          Start here turned on, or one of Precog&rsquo;s own indices crossing a line Precog chose.
+          Precog sets the thresholds; they are not benchmarks, and none of this is a prediction.
         </p>
       </section>
 

@@ -80,15 +80,15 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
   modelOrigin:
     "Joseph Luft & Harrington Ingham (1955) — interpersonal awareness model; adapted here for a small business's controls.",
   coreInsight:
-    "Trust and control quality improve when the OPEN pane grows: what the business knows about itself and what outside eyes (this app, the accountant, the insurer, staff feedback) also know.",
+    "Trust and control quality improve when the OPEN pane grows: what the business knows about itself and what outside eyes (Precog, the accountant, the insurer, staff feedback) also know.",
   axesRemap: {
     self: "The business (how the owner and staff really work, what they know, their workarounds)",
     others:
-      "Outside eyes (this app's checks, dual-release logs, bank reconciliation, auditors, insurer, peer feedback)",
+      "Outside eyes (Precog's checks, dual-release logs, bank reconciliation, auditors, insurer, peer feedback)",
   },
   strategicGoals: [
-    "Enlarge OPEN: document controls that both operate and are measured",
-    "Shrink BLIND: feed the app's residual, duty-conflict, and indicator findings back to the owner weekly",
+    "Enlarge OPEN: document controls that both operate and that someone measures",
+    "Shrink BLIND: feed Precog's residual, duty-conflict, and indicator findings back to the owner weekly",
     "Shrink HIDDEN: record the owner's judgment, informal rules and who-trusts-whom in the register",
     "Shrink UNKNOWN: run checks on the areas outside the model and add scenarios for what they find",
   ],
@@ -98,15 +98,15 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       classicName: "Open / Arena",
       classicMeaning: "Known to self and known to others — shared, discussable reality.",
       precogMeaning:
-        "Controls and facts that are both true in the business and recorded in this app (staff size, dual-release policy on or off, duty conflicts, residual rankings).",
+        "Controls and facts that are both true in the business and recorded in Precog (staff size, dual-release policy on or off, duty conflicts, residual rankings).",
       axes: { self: true, others: true },
       riskIfLarge:
         "Low — large open area is healthy. Risk only if OPEN is theater (documented but not operating).",
       goal: "Grow this pane: more shared, evidenced control truth.",
       examples: [
         "Owner and app both know the owner alone reconciles the bank each week",
-        "Transfers over $500 need a second signer, and the rule is written down and switched on",
-        "Every critical duty only one person can do is listed with a named stand-in",
+        "Transfers over $500 need a second signer, and the business has written the rule down and switched it on",
+        "The register lists every critical duty only one person can do, with a named stand-in",
       ],
       moves: [
         {
@@ -126,13 +126,13 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       classicName: "Blind spot",
       classicMeaning: "Unknown to self, known to others — needs feedback.",
       precogMeaning:
-        "What the app's residual, duty-conflict and indicator checks see that the owner has not taken in (for example, duty separation weaker than the owner's own rating, or dual-release waivers adding up).",
+        "What Precog's residual, duty-conflict and indicator checks see that the owner has not taken in (for example, duty separation weaker than the owner's own rating, or dual-release waivers adding up).",
       axes: { self: false, others: true },
       riskIfLarge:
         "High — owner overconfidence; the insurance and residual figures drift from the owner's own account.",
       goal: "Move BLIND into OPEN through regular feedback (Pioneer's brief, the residual ranking, duty-conflict badges).",
       examples: [
-        "The app flags one person who can both add a vendor and pay it; the owner thought 'we're too small for that'",
+        "Precog flags one person who can both add a vendor and pay it; the owner thought 'we're too small for that'",
         "Watched conditions breached while the owner rates the culture as strong",
         "Exceptions to dual release pile up until the insurance credit for dual release is at risk",
       ],
@@ -164,14 +164,14 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       classicName: "Hidden / Facade",
       classicMeaning: "Known to self, unknown to others — needs disclosure.",
       precogMeaning:
-        "What the business knows but never recorded: who is never left alone with the deposit, informal void workarounds, family members as the two signers, dual-release waivers nobody logged.",
+        "What the business knows but never recorded: who never handles the deposit alone, informal void workarounds, family members as the two signers, dual-release waivers nobody logged.",
       axes: { self: true, others: false },
       riskIfLarge:
-        "High — the app under-scores the risk, Pioneer gives false comfort, and an audit surprises the owner.",
+        "High — Precog under-scores the risk, Pioneer gives false comfort, and an audit surprises the owner.",
       goal: "Move HIDDEN into OPEN by writing it into the profile, the register, dual-release exceptions and the Decisions log.",
       examples: [
-        "The owner knows two staff who check each other's work share a home; the app does not model that",
-        "A shared login to the main business system 'for speed' was never recorded as a control failure",
+        "The owner knows two staff who check each other's work share a home; Precog does not model that",
+        "Nobody recorded a shared sign-in to the main business system 'for speed' as a control failure",
         "The refund process exists only in the office manager's head",
       ],
       moves: [
@@ -181,7 +181,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
           to: "open",
           mechanism: "disclosure",
           action:
-            "Structured 15-minute interview: who is trusted with what, never-alone rules, workarounds",
+            "Structured 15-minute interview: whom the business trusts with what, never-alone rules, workarounds",
           effort: "minutes",
           precogTab: "knowledge",
         },
@@ -213,7 +213,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       classicName: "Unknown / Mystery",
       classicMeaning: "Unknown to self and unknown to others — joint discovery.",
       precogMeaning:
-        "Areas outside the model: fraud by two or more people together, how long a ransomware outage would last, a culture of silence, the loss of the largest customer or funder, the owner falling ill — neither the business nor this app sees them yet.",
+        "Areas outside the model: fraud by two or more people together, how long a ransomware outage would last, a culture of silence, the loss of the largest customer or funder, the owner falling ill — neither the business nor Precog sees them yet.",
       axes: { self: false, others: false },
       riskIfLarge:
         "Critical for rare, severe events — the residual looks fine until the model grows.",
@@ -293,9 +293,9 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       selfLabel: "What experts know they know",
       othersLabel: "What the register records",
       openExample: "Written steps for the hardest recurring task, with a named stand-in",
-      blindExample: "The app shows one person holds a duty; they believe 'anyone can do it'",
+      blindExample: "Precog shows one person holds a duty; they believe 'anyone can do it'",
       hiddenExample: "Vendor relationships only the office manager holds, written nowhere",
-      unknownExample: "A key person planning to leave, unknown to the owner and the app",
+      unknownExample: "A key person planning to leave, unknown to the owner and Precog",
       primaryMove: "Interview each expert; add what they alone can do to the register",
       whyItMatters: "Continuity risk stays HIDDEN or UNKNOWN until someone quits.",
     },
@@ -304,7 +304,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       title: "Duty conflicts & dual release",
       summary:
         "Who holds which duty is OPEN once checked; collusion and piled-up exceptions are often HIDDEN or UNKNOWN.",
-      selfLabel: "How roles were meant to be split",
+      selfLabel: "How the owner meant to split roles",
       othersLabel: "The duty-conflict check and the release simulator",
       openExample: "Duty conflicts listed, each marked when dual release covers it",
       blindExample: "The owner has not noticed raised thresholds wore away the dual-release credit",
@@ -317,7 +317,8 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
     {
       domain: "insurance_underwriting",
       title: "Insurance & cost of risk",
-      summary: "Application answers are HIDDEN until disclosed; loss runs move UNKNOWN → OPEN.",
+      summary:
+        "Application answers are HIDDEN until the business discloses them; loss runs move UNKNOWN → OPEN.",
       selfLabel: "The owner's account of the risk",
       othersLabel: "The insurer and the cost-of-risk figure",
       openExample: "Dual release + cameras reflected in discount variables",
@@ -338,7 +339,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       openExample: "A residual figure shown with the duty conflicts and cases behind it",
       blindExample: "A residual of 35 read as 'safe' without looking at the known gaps",
       hiddenExample: "The model's limits stay out of sight until someone opens the gaps list",
-      unknownExample: "Ways things could go wrong that the model was never built to see",
+      unknownExample: "Ways things could go wrong that nobody built the model to see",
       primaryMove: "Read every Pioneer brief next to the list of known gaps",
       whyItMatters: "Keeps an AI answer from giving false comfort, a modern blind spot.",
     },
@@ -363,7 +364,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
       selfLabel: "How work actually runs",
       othersLabel: "Written procedures and the process map",
       openExample: "Cash process with risks, waste, owners on map",
-      blindExample: "Owner believes SOP; shadow shows shared login",
+      blindExample: "Owner believes SOP; shadow shows shared sign-in",
       hiddenExample: "Speed hacks staff won't admit in meetings",
       unknownExample: "A seasonal pattern in refunds or write-offs nobody has noticed yet",
       primaryMove: "Walk one process a month; update the map and its ideas",
@@ -371,8 +372,8 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
     },
   ],
   controlCoachingLoop: [
-    "1. List what is OPEN (what the app measures) — credit the controls that run",
-    "2. Bring BLIND spots out through the app's feedback (residual, duty conflicts, indicators, known gaps)",
+    "1. List what is OPEN (what Precog measures) — credit the controls that run",
+    "2. Bring BLIND spots out through Precog's feedback (residual, duty conflicts, indicators, known gaps)",
     "3. Invite HIDDEN knowledge out (interviews, exception logging, who-trusts-whom)",
     "4. Take on UNKNOWN areas with checks and new scenarios (the list of areas outside the model)",
     "5. Re-run the what-the-app-can-see check — expect OPEN to grow each cycle",
@@ -416,7 +417,7 @@ export const JOHARI_PLAYBOOK: JohariApplicationPlaybook = {
     },
     {
       name: "Known gaps closed",
-      how: "Known gaps turned into something the app measures, per cycle",
+      how: "Known gaps turned into something Precog measures, per cycle",
       target: "At least one per cycle",
       basis:
         "A goal this playbook sets for a small team, not a published benchmark. Adjust it to your own programme.",

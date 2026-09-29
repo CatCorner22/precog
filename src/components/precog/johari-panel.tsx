@@ -163,7 +163,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <p className="text-muted">
-                <span className="font-medium text-fg">In this app: </span>
+                <span className="font-medium text-fg">In Precog: </span>
                 {guide.precogMeaning}
               </p>
               <p className="text-xs">
@@ -220,7 +220,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
               <CardTitle className="text-base">
                 Live items in {Q_META[activeQ].label} ({pane.count})
               </CardTitle>
-              <CardDescription>From the list of what this app can and cannot see</CardDescription>
+              <CardDescription>From the list of what Precog can and cannot see</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {liveItems.length === 0 && (
@@ -325,7 +325,7 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Control coaching loop</CardTitle>
-              <CardDescription>How this app uses the Johari window every cycle</CardDescription>
+              <CardDescription>How Precog uses the Johari window every cycle</CardDescription>
             </CardHeader>
             <CardContent>
               <ol className="space-y-2 text-sm text-muted">

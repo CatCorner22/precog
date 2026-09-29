@@ -138,7 +138,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
         .slice(0, 6),
     },
     narrative: [
-      `This app measures ${knownKnowns} of these items directly from your profile, admits ${knownUnknowns} gaps it knows about, and lists ${unknownUnknowns} areas outside what it models.`,
+      `Precog measures ${knownKnowns} of these items directly from your profile, admits ${knownUnknowns} gaps it knows about, and lists ${unknownUnknowns} areas outside what it models.`,
       `${rtReady} of ${realtimeCapabilities.length} inputs re-score live from the profile; the rest need something imported or written down.`,
       `Most useful next step: ${topProbe}.`,
       "Areas outside the model are not a failure of diligence; they mark where the model stops. Treat them as questions to look into, not as risk scores.",
@@ -188,7 +188,7 @@ function inventoryItems(
       classification: "known_known",
       title: "Team size, tenure, segregation score",
       description:
-        "Team size and the owner's own rating of how duties are split are recorded and feed the residual index, the scenarios and the duty-conflict check.",
+        "Precog records team size and the owner's own rating of how the business splits duties, and both feed the residual index, the scenarios and the duty-conflict check.",
       severity: "low",
       affects: ["residual", "precog", "sod"],
       confidenceDrag: 0,
@@ -262,7 +262,7 @@ function inventoryItems(
         kind: "interview",
         action: "15-minute structured interview: trust, access, and 'never alone' rules",
         effort: "minutes",
-        expectedLift: "Records the owner's judgment about people where the app can use it",
+        expectedLift: "Records the owner's judgment about people where Precog can use it",
       },
       link: { tab: "knowledge" },
     },
@@ -271,7 +271,7 @@ function inventoryItems(
       classification: "unknown_known",
       title: "Informal workarounds staff use daily",
       description:
-        "Shared passwords, sticky-note overrides, and 'just this once' voids are known to staff and invisible to the model until someone walks the process.",
+        "Staff know about shared passwords, sticky-note overrides, and 'just this once' voids, but the model cannot see them until someone walks the process.",
       severity: "high",
       affects: ["process map", "controls"],
       confidenceDrag: 0.07,
@@ -279,7 +279,7 @@ function inventoryItems(
         kind: "process_walk",
         action: "Shadow the front desk for one busy morning; note every workaround",
         effort: "hours",
-        expectedLift: "Shows how controls run in practice, not only how they were designed",
+        expectedLift: "Shows how controls run in practice, not only how someone designed them",
       },
       link: { tab: "map" },
     },
@@ -290,7 +290,7 @@ function inventoryItems(
       id: "ku-active-waives",
       classification: "known_unknown",
       title: "Active dual-release waivers",
-      description: `${count(facts.waives, "waiver")} deliberately let one person release some payments; the risk may be accepted with no re-test on record.`,
+      description: `${count(facts.waives, "waiver")} deliberately let one person release some payments; the business may have accepted the risk with no re-test on record.`,
       severity: "high",
       affects: ["dual-release", "insurance"],
       confidenceDrag: 0.06 * facts.waives,
@@ -386,7 +386,7 @@ function realtimeCapabilitiesFor(words: InventoryWords): RealtimeCapability[] {
       ready: false,
       latencyClass: "manual",
       description:
-        "No live import of payments, voids, or claims, so transaction-level conditions cannot be watched.",
+        "No live import of payments, voids, or claims, so Precog cannot watch transaction-level conditions.",
       dependency: `${words.system} API or scheduled CSV`,
     },
     {
@@ -428,10 +428,10 @@ function blindPane(facts: BusinessFacts): string[] {
   const top = facts.portfolio.top[0];
   if (top?.p50Days !== undefined) {
     lines.push(
-      `${top.name}: this app assumes about ${count(top.p50Days, "day")} before anyone would find it`,
+      `${top.name}: Precog assumes about ${count(top.p50Days, "day")} before anyone would find it`,
     );
   }
-  return lines.length ? lines : ["Nothing the app sees that you have not marked."];
+  return lines.length ? lines : ["Nothing Precog sees that you have not marked."];
 }
 
 /** Recommendations that follow from this business's facts, then the standing ones. */
@@ -448,13 +448,13 @@ function recommendationsFor(
   const topGap = probes.find((i) => i.classification === "known_unknown");
   const topOutside = items.find((i) => i.classification === "unknown_unknown");
   return [
-    missing.length ? `Give the app more to work with: ${joinWithAnd(missing)}.` : "",
+    missing.length ? `Give Precog more to work with: ${joinWithAnd(missing)}.` : "",
     profile.staff.independentBankRec
       ? ""
       : "Read every index here with the gaps in mind while nobody independent reconciles the bank.",
     topGap ? `Close the top known gap: ${topGap.title}.` : "",
     topOutside ? `Look into the top area outside the model: ${topOutside.title}.` : "",
-    "Schedule a weekly export of voids, payments, and write-offs so the app can watch transaction-level conditions.",
+    "Schedule a weekly export of voids, payments, and write-offs so Precog can watch transaction-level conditions.",
     "Re-run this check after any dual-release exception, team change, or new Decisions log entry.",
   ].filter(Boolean);
 }
