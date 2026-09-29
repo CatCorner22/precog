@@ -81,9 +81,9 @@ export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarge
               <div>
                 <CardTitle>COSO internal control heat map</CardTitle>
                 <CardDescription>
-                  Five components · 17 principles · an index this app derives from your controls,
-                  register, team profile and scenarios; a register nobody has marked and starter
-                  scenarios you have not confirmed are left out
+                  Five components · 17 principles · an index Precog derives from your controls,
+                  register, team profile and scenarios; it leaves out a register nobody has marked
+                  and sample scenarios you have not confirmed
                 </CardDescription>
                 <IndexBasis className="mt-1" />
               </div>

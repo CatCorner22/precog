@@ -159,9 +159,9 @@ export function assessCoso(
       principles: [
         {
           number: 1,
-          name: "Integrity & ethical values",
+          name: "Integrity and ethical values",
           status: controlEnvScore >= 60 ? "adequate" : "weak",
-          note: "Read from segregation and open duty conflicts; no written code of conduct is recorded here.",
+          note: "Precog reads this from segregation and open duty conflicts; it does not record a written code of conduct.",
         },
         {
           number: 2,
@@ -169,7 +169,7 @@ export function assessCoso(
           status: staff.independentBankRec ? "adequate" : "weak",
           note: staff.independentBankRec
             ? "Independent bank oversight in place."
-            : "Owner/manager oversight of cash path is incomplete.",
+            : "Oversight of the cash path by the owner or manager is incomplete.",
         },
         {
           number: 3,
@@ -177,8 +177,8 @@ export function assessCoso(
           status: unaddressedGaps.length > 2 ? "weak" : "adequate",
           note:
             unaddressedGaps.length > 0
-              ? `${count(unaddressedGaps.length, "duty conflict")} without a decision on who approves.`
-              : "Every duty conflict has a recorded decision.",
+              ? `${count(unaddressedGaps.length, "duty conflict")} without a recorded residual-risk decision.`
+              : "Every duty conflict has a recorded residual-risk decision.",
         },
         {
           number: 4,
@@ -197,8 +197,8 @@ export function assessCoso(
           status: residualAccepted.length > 0 ? "adequate" : "weak",
           note:
             residualAccepted.length > 0
-              ? "Some residual risk is documented as accepted."
-              : "Gaps exist without explicit residual-risk decisions.",
+              ? "The business has recorded a residual-risk decision on at least one duty conflict."
+              : "The business has not recorded a residual-risk decision on any duty conflict.",
         },
       ],
       findings:
@@ -207,15 +207,15 @@ export function assessCoso(
               {
                 id: "ce-spof",
                 label: "Key-person concentration weakens accountability",
-                detail: `${count(spofs.length, "critical knowledge area")} held by one person, which puts competence and succession under pressure.`,
+                detail: `${count(spofs.length, "critical knowledge item")} held by one person, which puts competence and succession under pressure.`,
                 severity: spofs.length >= 2 ? "critical" : "weak",
                 link: { type: "knowledge", knowledgeId: spofs[0]?.knowledgeId },
               },
             ]
           : [],
       primaryActions: [
-        { label: "Review knowledge SPOFs", link: { type: "knowledge" } },
-        { label: "Open SoD conflicts", link: { type: "sod" } },
+        { label: "Review items held by one person", link: { type: "knowledge" } },
+        { label: "Review duty conflicts", link: { type: "sod" } },
       ],
     },
     {
@@ -230,18 +230,18 @@ export function assessCoso(
           number: 6,
           name: "Suitable objectives",
           status: "adequate",
-          note: "Not assessed: the app does not record the business's objectives.",
+          note: "Not assessed: Precog does not record the business's objectives.",
           notAssessed: true,
         },
         {
           number: 7,
-          name: "Identify & analyze risks",
+          name: "Identify and analyze risks",
           status: ranked.length > 0 ? "adequate" : "weak",
           note:
             ranked.length > 0
-              ? "Precog scenarios surface ranked operational and control risks."
+              ? `Precog ranks the scenarios on ${tabLabel("precog")} that describe this business, by operational and control risk.`
               : scenariosLeftOut > 0
-                ? `${starterScenarioLabel(tpl.id)} are not counted yet. ${MAKE_SCENARIO_YOURS}`
+                ? `Precog does not count ${starterScenarioLabel(tpl.id).toLowerCase()} yet. ${MAKE_SCENARIO_YOURS}`
                 : "No scenario describes this business yet.",
           ...(ranked.length === 0 && scenariosLeftOut > 0 ? { notAssessed: true } : {}),
         },
@@ -257,7 +257,7 @@ export function assessCoso(
           number: 9,
           name: "Assess change",
           status: "weak",
-          note: "Not assessed: people leaving and role changes are tracked on the continuity planner, not scored here.",
+          note: `Not assessed: this check does not score changes to the business. Record anyone leaving the team on ${tabLabel("knowledge")}.`,
           notAssessed: true,
         },
       ],
@@ -266,7 +266,7 @@ export function assessCoso(
           ? [
               {
                 id: "ra-top",
-                label: `Top residual future: ${topScenario.scenario.title}`,
+                label: `Top residual scenario: ${topScenario.scenario.title}`,
                 detail: `Scenario assumes a loss of ${formatUsd(topScenario.result.financialImpact.expected)} and about ${topScenario.result.timelineDays.p50} assumed days until found (assumed range ${topScenario.result.timelineDays.p95Low}–${topScenario.result.timelineDays.p95High} days). An assumption written into the scenario, not a forecast.`,
                 severity: "critical" as HealthLevel,
                 link: {
@@ -286,17 +286,18 @@ export function assessCoso(
       ],
       primaryActions: [
         {
-          label: "Run top Precog scenario",
+          label: "Run the top scenario",
           link: { type: "precog", scenarioId: topScenario?.scenario.id },
         },
-        { label: "Inspect SoD gaps", link: { type: "sod" } },
+        { label: "Review duty conflicts", link: { type: "sod" } },
       ],
     },
     {
       id: "control_activities",
       name: "Control Activities",
       shortName: "Activities",
-      description: "Authorizations, SoD, reconciliations, access, and technology controls.",
+      description:
+        "Authorizations, segregation of duties, reconciliations, access, and technology controls.",
       score: controlActivitiesScore,
       status: healthLevel(controlActivitiesScore),
       principles: [
@@ -304,26 +305,26 @@ export function assessCoso(
           number: 10,
           name: "Select control activities",
           status: healthLevel(controlActivitiesScore),
-          note: `Segregation score ${staff.segregationScore}/100 with ${count(sodGaps.length, "active conflict")}.${startersLeftOut ? ` ${count(startersLeftOut, "sample control")} not yet confirmed as running here.` : ""}`,
+          note: `Segregation score ${staff.segregationScore}/100 with ${count(sodGaps.length, "open duty conflict")}.${startersLeftOut ? ` Precog leaves out ${count(startersLeftOut, "sample control")} until you confirm ${startersLeftOut === 1 ? "it runs" : "they run"} here.` : ""}`,
         },
         {
           number: 11,
           name: "Technology general controls",
           status: "adequate",
-          note: "Not assessed: the app does not record who has which system access. Re-check access when someone joins or leaves.",
+          note: "Not assessed: Precog does not record who has which system access. Re-check access when someone joins or leaves.",
           notAssessed: true,
         },
         {
           number: 12,
-          name: "Policies & procedures",
+          name: "Policies and procedures",
           status: unaddressedGaps.some((g) => g.compensatingControls.length === 0)
             ? "weak"
             : "adequate",
           note: (() => {
             const bare = unaddressedGaps.filter((g) => g.compensatingControls.length === 0).length;
             return bare
-              ? `${count(bare, "open conflict")} with no compensating control written down.`
-              : "Every open conflict has a compensating control written down.";
+              ? `${count(bare, "duty conflict")} with no recorded residual-risk decision and no compensating control written down.`
+              : "Every duty conflict without a recorded residual-risk decision has a compensating control written down.";
           })(),
         },
       ],
@@ -337,12 +338,12 @@ export function assessCoso(
                   withLiveThreshold(c, opts.dualRelease, RULE_IDS_BY_CONTROL.get(g.id) ?? []),
                 )
                 .join("; ")}`
-            : "No compensating control documented.",
+            : "Nobody has written down a compensating control.",
         severity: g.residualRiskAccepted ? "adequate" : "critical",
         link: { type: "sod" as const },
       })),
       primaryActions: [
-        { label: "Address SoD conflicts", link: { type: "sod" } },
+        { label: "Address duty conflicts", link: { type: "sod" } },
         {
           label: "Model cash control failure",
           link: { type: "precog", scenarioId: "sc-cash-sod-failure" },
@@ -351,7 +352,7 @@ export function assessCoso(
     },
     {
       id: "information_communication",
-      name: "Information & Communication",
+      name: "Information and Communication",
       shortName: "Info & Comm",
       description: "Quality information and clear communication of control responsibilities.",
       score: infoCommScore,
@@ -361,7 +362,7 @@ export function assessCoso(
           number: 13,
           name: "Relevant quality information",
           status: "adequate",
-          note: "Not assessed: the app does not record which reports the owner reviews (aging, adjustments, deposits).",
+          note: "Not assessed: Precog does not record which reports the owner reviews (aging, adjustments, deposits).",
           notAssessed: true,
         },
         {
@@ -377,15 +378,15 @@ export function assessCoso(
           number: 15,
           name: "External communication",
           status: "adequate",
-          note: "Not assessed: the app does not record how customers and vendors raise problems.",
+          note: "Not assessed: Precog does not record how customers and vendors raise problems.",
           notAssessed: true,
         },
       ],
       findings: knowledgeAssessed
         ? spofs.slice(0, 3).map((s) => ({
             id: `ic-${s.knowledgeId}`,
-            label: `SPOF: ${s.name}`,
-            detail: `Sole strong owner: ${s.owners[0]?.name ?? "unknown"}. Continuity and internal know-how at risk.`,
+            label: `Held by one person: ${s.name}`,
+            detail: `Sole strong owner: ${s.owners[0]?.name ?? "unknown"}. This puts continuity and internal know-how at risk.`,
             severity: "critical" as HealthLevel,
             link: { type: "knowledge" as const, knowledgeId: s.knowledgeId },
           }))
@@ -394,7 +395,7 @@ export function assessCoso(
               id: "ic-register",
               label: "Register not assessed yet",
               detail:
-                "Mark who can do each item on Who knows what. Until then key-person concentration is not scored here.",
+                "Mark who can do each item on Who knows what. Until then, this check does not score key-person concentration.",
               severity: "weak" as HealthLevel,
               link: { type: "knowledge" as const },
             },
@@ -426,7 +427,7 @@ export function assessCoso(
       principles: [
         {
           number: 16,
-          name: "Ongoing / separate evaluations",
+          name: "Ongoing and separate evaluations",
           status: staff.independentBankRec ? "adequate" : "weak",
           note: "Bank and adjustment reviews are the main detective check in a small business.",
         },
@@ -436,35 +437,35 @@ export function assessCoso(
           status: unaddressedGaps.length > 0 ? "weak" : "adequate",
           note:
             unaddressedGaps.length > 0
-              ? `${count(unaddressedGaps.length, "control gap")} without a residual-risk or remediation decision.`
-              : "Deficiencies are tagged with residual-risk decisions.",
+              ? `${count(unaddressedGaps.length, "duty conflict")} without a recorded residual-risk decision.`
+              : "Every duty conflict has a recorded residual-risk decision.",
         },
       ],
       findings: [
         {
           id: "mon-rec",
           label: staff.independentBankRec
-            ? "Independent bank rec active"
-            : "Independent bank rec missing",
+            ? "Independent bank reconciliation on"
+            : "Independent bank reconciliation off",
           detail: staff.independentBankRec
-            ? "Detective control reduces detection lag."
-            : "Without independent rec, fraud and error lag rises — elevates Precog timelines.",
+            ? "This detective control shortens the time before someone finds a problem."
+            : "Without an independent bank reconciliation, fraud and errors go unnoticed longer, which lengthens the scenario timelines.",
           severity: staff.independentBankRec ? "adequate" : "critical",
           link: { type: "precog", scenarioId: "sc-cash-sod-failure" },
         },
         {
           id: "mon-residual",
-          label: `${count(unaddressedGaps.length, "gap")} without a residual decision`,
+          label: `${count(unaddressedGaps.length, "duty conflict")} without a residual-risk decision`,
           detail:
-            "COSO expects deficiencies to be evaluated and either fixed or accepted with compensating design.",
+            "COSO expects the business to evaluate each duty conflict and then either fix it or accept it with a compensating design.",
           severity: unaddressedGaps.length > 0 ? "weak" : "strong",
           link: { type: "sod" },
         },
       ],
       primaryActions: [
-        { label: "Close SoD residual decisions", link: { type: "sod" } },
+        { label: "Record a residual-risk decision on each duty conflict", link: { type: "sod" } },
         {
-          label: "Re-run cash Precog after control change",
+          label: "Re-run the cash scenario after a control change",
           link: { type: "precog", scenarioId: "sc-cash-sod-failure" },
         },
       ],

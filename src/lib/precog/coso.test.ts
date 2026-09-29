@@ -66,10 +66,12 @@ describe("assessCoso", () => {
       .find((c) => c.id === "risk_assessment")!
       .principles.find((p) => p.number === 7)!;
     expect(p7.notAssessed).toBe(true);
-    expect(p7.note).toMatch(/^Sample scenarios from the general small business sample/);
+    expect(p7.note).toMatch(
+      /^Precog does not count sample scenarios from the general small business sample yet/,
+    );
     const one = assessCoso(own, clean, { confirmedScenarioIds: new Set(["sc-vendor-fraud"]) });
     const top = one.priorityFindings.find((f) => f.id === "ra-top")!;
-    expect(top.label).toBe("Top residual future: One person sets up vendors and pays them");
+    expect(top.label).toBe("Top residual scenario: One person sets up vendors and pays them");
     expect(top.detail).toContain("assumed days until found");
   });
 });
@@ -147,7 +149,9 @@ describe("sample controls in COSO", () => {
     const p10 = a.components
       .find((c) => c.id === "control_activities")!
       .principles.find((p) => p.number === 10)!;
-    expect(p10.note).toMatch(/sample controls? not yet confirmed/);
+    expect(p10.note).toMatch(
+      /Precog leaves out \d+ sample controls? until you confirm (it runs|they run) here\./,
+    );
   });
 });
 
