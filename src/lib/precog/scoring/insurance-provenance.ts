@@ -105,7 +105,7 @@ export function insuranceFigureNote(
 ): string | null {
   const basis = insuranceBasis(v, ownBusiness);
   if (basis === "unknown")
-    return "Insurance not assessed; no recovery modeled. This does not mean you are uninsured.";
+    return "Nobody has assessed insurance, so Precog models no recovery. This does not mean you are uninsured.";
   if (basis === "none")
     return "You reported no crime policy; the modeled loss stays with the business.";
   if (basis === "app_default") return APP_DEFAULT_POLICY;
@@ -114,12 +114,12 @@ export function insuranceFigureNote(
     (key) => POLICY_FIELD_WORD[key],
   );
   if (left.length)
-    return `Policy reported; confirm ${joinWithAnd(left)}. No recovery modeled until terms and this scenario are reviewed.`;
+    return `You reported a policy; confirm ${joinWithAnd(left)}. Precog models no recovery until someone reviews the terms and this scenario.`;
   if (!scenarioId)
     return record.modeledScenarioIds.length
-      ? "Policy figures confirmed. Recovery is conditional and modeled only for individually selected scenarios, not established coverage."
-      : "Policy figures confirmed; no scenario recovery assumptions selected. No recovery modeled.";
+      ? "You confirmed the policy figures. Precog models a conditional recovery only for the scenarios you selected one by one; that recovery does not establish coverage."
+      : "You confirmed the policy figures but selected no scenario recovery assumptions, so Precog models no recovery.";
   if (!record.modeledScenarioIds.includes(scenarioId))
-    return "Policy figures confirmed; this scenario's coverage is not established. No recovery modeled.";
+    return "You confirmed the policy figures, but nobody has established coverage for this scenario, so Precog models no recovery.";
   return "Conditional recovery using your scenario assumption, not a coverage or claim determination. Check exclusions, sublimits, dates and aggregate limits with your broker.";
 }

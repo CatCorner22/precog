@@ -21,7 +21,7 @@ export function ScoringBasis({ sensitivity }: { sensitivity: SensitivityReport }
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between gap-3">
-        <CardTitle>How these numbers are made</CardTitle>
+        <CardTitle>How Precog makes these numbers</CardTitle>
         <Button
           size="sm"
           variant="ghost"

@@ -103,19 +103,19 @@ export function applyInsuranceTransfer(
   const noRecovery = v.policyLimit === 0;
   const noPolicy = v.basePremiumAnnual === 0 && noRecovery;
   const recorded = normalizeInsuranceRecord(v.insurance);
-  const annualNote = `Annual cost of risk assumes the event happens in ${formatPct(annualFreqWeight, 1)} of years (this app's assumption) × the retained loss`;
+  const annualNote = `Annual cost of risk assumes the event happens in ${formatPct(annualFreqWeight, 1)} of years (Precog's assumption) × the retained loss`;
   const premiumNote = `Net premium ${formatUsd(premiumAnnualNet)} after ${discountPctApplied}% control credits (cap ${v.maxDiscountPct}%).`;
   const notes: string[] = noPolicy
     ? [
         recorded && recorded.status !== "none"
-          ? "No recovery or premium modeled from unconfirmed policy terms; this is not a finding that the business is uninsured."
+          ? "Precog models no recovery or premium from unconfirmed policy terms; this is not a finding that the business is uninsured."
           : "No crime policy in these figures: the business keeps the whole assumed loss and pays no premium.",
         `${annualNote}.`,
       ]
     : noRecovery
       ? [
           premiumNote,
-          "Premium counted; no recovery modeled for this scenario, so the business keeps the whole assumed loss until coverage assumptions are entered.",
+          "Precog counts the premium but models no recovery for this scenario, so the business keeps the whole assumed loss until you enter coverage assumptions.",
           `${annualNote}, plus the premium.`,
         ]
       : [
@@ -177,8 +177,8 @@ export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[]
     !present
       ? none
       : pct > 0
-        ? `${what} present; the ${pct}% credit you entered from your quote is applied.`
-        : `${what} present; no credit entered from your quote, so none is applied.`;
+        ? `${what} present; Precog applies the ${pct}% credit you entered from your quote.`
+        : `${what} present; you entered no credit from your quote, so Precog applies none.`;
   const items: AppliedDiscount[] = [
     {
       id: "cameras",

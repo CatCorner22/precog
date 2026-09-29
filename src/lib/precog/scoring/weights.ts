@@ -91,7 +91,7 @@ export const WEIGHT_DESCRIPTIONS: Record<string, string> = {
   "control.dualAuthorization": "Weights a second signer as evidence of control strength.",
   "control.independentReconciliation": "Weights independent checking of records and balances.",
   "control.compensatingControls":
-    "Weights documented backup controls when primary separation is limited.",
+    "Weights documented compensating controls when the business cannot fully separate duties.",
   "control.monitoringCadence": "Weights recurring monitoring as a source of control strength.",
   "control.knowledgeRedundancy":
     "Weights having more than one capable holder of critical knowledge.",
@@ -110,20 +110,20 @@ export const WEIGHT_DESCRIPTIONS: Record<string, string> = {
   "scenario.lossShare": "Weights expected financial impact in the scenario inherent-risk blend.",
   "scenario.timeShare": "Weights time to material impact in the scenario inherent-risk blend.",
   "scenario.timeFloor":
-    "The share of the time weight a scenario keeps however long it runs before it is found.",
+    "The share of the time weight a scenario keeps however long it runs before someone finds it.",
   "scenario.effectivenessCredit":
     "Scales how much scenario control effectiveness reduces residual risk.",
   "scenario.baseEffectiveness":
-    "Sets the baseline scenario effectiveness before explicit controls are credited.",
+    "Sets the baseline scenario effectiveness before Precog credits explicit controls.",
   "scenario.dualControlCredit":
-    "Credits dual payment control in the effectiveness of fraud scenarios; a departure is not slowed by it.",
+    "Credits dual payment control in the effectiveness of fraud scenarios; it does not slow a departure.",
   "scenario.independentBankRecCredit":
     "Credits independent bank reconciliation in scenario effectiveness.",
   "scenario.segregationCredit": "Credits the staff segregation score in scenario effectiveness.",
   "knowledge.documentedLocatedCredit":
-    "Credits a know-how item whose procedure is written down and its location recorded, so a stand-in can follow it.",
+    "Credits a know-how item when someone has written its procedure down and recorded where it lives, so a stand-in can follow it.",
   "knowledge.documentedUnlocatedCredit":
-    "Smaller credit when a procedure is written but nobody has recorded where it lives.",
+    "Smaller credit when someone has written a procedure but nobody has recorded where it lives.",
 };
 
 export type ActionBand = "accept_monitor" | "mitigate" | "act_now" | "critical_path";

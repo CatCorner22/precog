@@ -241,7 +241,7 @@ describe("insurance on an own business", () => {
     expect(r.dynamic?.transferredExpected).toBe(0);
     expect(r.dynamic?.discountPctApplied).toBe(0);
     const line = r.crimeModifiers.find((m) => m.startsWith("Insurance"))!;
-    expect(line).toContain("Insurance not assessed");
+    expect(line).toContain("Nobody has assessed insurance");
     expect(line).toContain("does not mean you are uninsured");
     expect(r.crimeModifiers.join(" ")).not.toMatch(/your premium/);
   });

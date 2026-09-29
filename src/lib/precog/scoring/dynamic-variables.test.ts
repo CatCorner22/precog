@@ -128,7 +128,7 @@ describe("explicit insurance status", () => {
     expect(retainLoss(56095, variables)).toEqual({ retained: 56095, transferred: 0 });
     const result = applyInsuranceTransfer(56095, 10000, 120000, variables, 1);
     expect(result.expectedAnnualCostOfRisk).toBe(Math.round(56095 * 0.12));
-    expect(result.notes.join(" ")).toContain("this app's assumption");
+    expect(result.notes.join(" ")).toContain("Precog's assumption");
   });
 });
 
@@ -186,7 +186,7 @@ describe("insurance arithmetic", () => {
     const alarm = computeAppliedDiscounts({ ...DEFAULT_RISK_VARIABLES, hasAlarmAccess: true }).find(
       (d) => d.id === "alarm",
     )!;
-    expect(alarm.reason).toContain("no credit entered");
+    expect(alarm.reason).toContain("you entered no credit");
   });
 });
 
@@ -282,7 +282,7 @@ describe("notes with a premium but no modeled recovery", () => {
   it("do not describe a deductible and limit that are not in the calculation", () => {
     const v = { ...DEFAULT_RISK_VARIABLES, deductible: 0, policyLimit: 0, coinsurancePct: 0 };
     const t = applyInsuranceTransfer(80000, 40000, 120000, v, 1);
-    expect(t.notes.join(" ")).toContain("no recovery modeled");
+    expect(t.notes.join(" ")).toContain("models no recovery");
     expect(t.notes.join(" ")).not.toMatch(/deductible/i);
   });
 });

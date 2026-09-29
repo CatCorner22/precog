@@ -106,8 +106,8 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     category: "insurance",
     kind: "percent",
     description:
-      "The credit your own carrier quoted for cameras, if any. The app assumes none until you enter one.",
-    likelihoodEffect: "Indirect — only if cameras are actually installed.",
+      "The credit your own carrier quoted for cameras, if any. Precog assumes none until you enter one.",
+    likelihoodEffect: "Indirect — only if the business has actually installed cameras.",
     severityEffect: "Reduces premium cost-of-risk.",
     min: 0,
     max: 20,
@@ -121,7 +121,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     kind: "boolean",
     description: "A second signer for ACH release, or deposit custody kept apart from posting.",
     likelihoodEffect:
-      "This app assumes dual release lowers the chance of a fraud starting (see the multiplier it applies).",
+      "Precog assumes dual release lowers the chance of a fraud starting (see the multiplier it applies).",
     severityEffect: "Limits size of unauthorized transfers.",
     defaultValue: DEFAULT_RISK_VARIABLES.hasDualControl,
     unlocksDiscount: true,
@@ -132,7 +132,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     category: "insurance",
     kind: "percent",
     description:
-      "The credit your own carrier quoted for dual signature or dual release, if any. The app assumes none until you enter one.",
+      "The credit your own carrier quoted for dual signature or dual release, if any. Precog assumes none until you enter one.",
     likelihoodEffect: "Indirect via control presence.",
     severityEffect: "Reduces premium.",
     min: 0,
@@ -157,7 +157,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     category: "insurance",
     kind: "percent",
     description:
-      "The credit your own carrier quoted for independent reconciliation or an outside review, if any. The app assumes none until you enter one.",
+      "The credit your own carrier quoted for independent reconciliation or an outside review, if any. Precog assumes none until you enter one.",
     likelihoodEffect: "Indirect.",
     severityEffect: "Reduces premium.",
     min: 0,
@@ -182,7 +182,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     category: "insurance",
     kind: "percent",
     description:
-      "The credit your own carrier quoted for an alarm, if any. The app assumes none until you enter one.",
+      "The credit your own carrier quoted for an alarm, if any. Precog assumes none until you enter one.",
     likelihoodEffect: "Indirect.",
     severityEffect: "Reduces premium.",
     min: 0,
@@ -207,7 +207,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
     category: "insurance",
     kind: "percent",
     description:
-      "The credit your own carrier quoted for bonding or screening, if any. The app assumes none until you enter one.",
+      "The credit your own carrier quoted for bonding or screening, if any. Precog assumes none until you enter one.",
     likelihoodEffect: "Indirect.",
     severityEffect: "Reduces premium.",
     min: 0,

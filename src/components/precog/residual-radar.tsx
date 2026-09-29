@@ -84,7 +84,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
           label="Average residual risk score"
           value={bandForScore(summary.averageResidual).label}
           detail={`${summary.averageResidual} (${sensitivity.averageLow}–${sensitivity.averageHigh} across weight trials of ±20%)`}
-          hint="This app's index, from your profile"
+          hint="Precog's index, from your profile"
         />
         <FigureTile
           className="bg-surface p-4"
@@ -106,8 +106,8 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
           <CardHeader>
             <CardTitle>Residual risk register</CardTitle>
             <CardDescription>
-              Inherent × (1 − control effectiveness) × staff modifiers, each a weight this app
-              chose, sorted by the resulting index. Scenario rows credit control effectiveness at{" "}
+              Inherent × (1 − control effectiveness) × staff modifiers, each a weight Precog chose,
+              sorted by the resulting index. Scenario rows credit control effectiveness at{" "}
               {formatPct(scenarioCredit)}: Inherent × (1 − effectiveness × {scenarioCredit}) × staff
               modifiers.
             </CardDescription>
@@ -123,7 +123,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
             )}
             {summary.starterControlsLeftOut.length > 0 && (
               <NotCounted onClick={() => onNavigate({ type: "layers", layer: "control" })}>
-                {`Sample controls (${summary.starterControlsLeftOut.length}) are left out: nobody has confirmed they run in your business. Confirm one on Where risk sits with "This runs here" and it counts.`}
+                {`Precog leaves out sample controls (${summary.starterControlsLeftOut.length}): nobody has confirmed they run in your business. Confirm one on Where risk sits with "This runs here" and it counts.`}
               </NotCounted>
             )}
             <p className="text-xs text-subtle">
@@ -260,7 +260,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
             <CardHeader>
               <CardTitle className="text-base">Which lever moves it most</CardTitle>
               <CardDescription>
-                Approximate drop in the average residual risk if each lever is pulled
+                Approximate drop in the average residual risk if you pull each lever
               </CardDescription>
             </CardHeader>
             <CardContent>
