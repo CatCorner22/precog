@@ -86,7 +86,7 @@ async function insuranceAndMapHistory(page, errors) {
   await status.selectOption("unknown");
   await page
     .getByText(
-      "Insurance not assessed; no recovery modeled. This does not mean you are uninsured.",
+      "Nobody has assessed insurance, so Precog models no recovery. This does not mean you are uninsured.",
       { exact: true },
     )
     .first()
