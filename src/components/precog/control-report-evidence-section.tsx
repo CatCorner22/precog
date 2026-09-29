@@ -35,7 +35,7 @@ export function ControlReportEvidenceSection({
                 ? `; ${evidence.length - citing.count} more share their schemes`
                 : ""
             }.`
-          : `No case in the library shows these exact pairs, so no loss figure is given for them; the ${evidence.length} listed share their schemes.`}
+          : `No case in the library shows these exact pairs, so the report gives no loss figure for them; the ${evidence.length} listed share their schemes.`}
         {lossRange
           ? ` Of the ${statsScope.count} cases that show these gaps, ${lossRange.n} state a loss: median ${formatUsd(lossRange.median)}, from ${formatUsd(lossRange.low)} to ${formatUsd(lossRange.high)}${
               statsScope.floors > 0
@@ -51,10 +51,10 @@ export function ControlReportEvidenceSection({
         {found.n > 0 ? ` Not stated in the source: ${found.unknown} of ${found.n}.` : ""}
       </p>
       <p className="mt-2 text-xs leading-relaxed text-neutral-500">
-        These describe other businesses, not this one, and these are prosecuted cases, so they leave
-        out small thefts. They are a reference class, not a forecast. The{" "}
+        These describe other businesses, not this one, and they come from prosecutions, so they
+        leave out small thefts. They are a reference class, not a forecast. The appendix lists the{" "}
         {count(evidence.length, "case")} and{" "}
-        {evidence.length === 1 ? "its source" : "their sources"} are listed in the appendix.
+        {evidence.length === 1 ? "its source" : "their sources"}.
       </p>
 
       <h3 className="mt-4 text-sm font-semibold text-neutral-800">Do these first</h3>

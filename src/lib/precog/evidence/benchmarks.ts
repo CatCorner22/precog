@@ -39,7 +39,7 @@ export const BENCHMARKS: Benchmark[] = [
   },
   {
     id: "bm-median-duration",
-    label: "Median time from when a scheme starts to when it is found",
+    label: "Median time from when a scheme starts to when someone finds it",
     value: "12 months",
     numeric: 12,
     soWhat:
@@ -64,7 +64,7 @@ export const BENCHMARKS: Benchmark[] = [
       "A tip is the single largest route by which fraud comes to light — larger than any one review, audit, or control on its own. A way for staff to raise a concern is one of the cheapest controls a small business can put in place.",
     ...ACFE_2026,
     caveat:
-      "43% is a plurality, not a majority. The other 57% of cases were found by controls and reviews taken together — internal audit and management review alone account for over a quarter — so a reporting channel complements those controls rather than replacing them.",
+      "43% is a plurality, not a majority. Controls and reviews, taken together, found the other 57% of cases — internal audit and management review alone account for over a quarter — so a reporting channel complements those controls rather than replacing them.",
   },
   {
     id: "bm-small-org-hotline-gap",
@@ -99,9 +99,9 @@ export const BENCHMARKS: Benchmark[] = [
   {
     id: "bm-duration-distribution",
     label: "How long schemes actually run",
-    value: "A third are found within six months; 5% run beyond five years",
+    value: "A third come to light within six months; 5% run beyond five years",
     soWhat:
-      "A third are found within six months, which means two thirds are not — consistent with the twelve-month median above. The damage concentrates in the small share that run for years, which is why detection speed matters more than detection certainty.",
+      "A third come to light within six months, which means two thirds do not — consistent with the twelve-month median above. The damage concentrates in the small share that run for years, which is why detection speed matters more than detection certainty.",
     ...ACFE_2026,
   },
   {
@@ -130,7 +130,7 @@ export const BENCHMARKS: Benchmark[] = [
     value: "6% of cases, $1 million median loss",
     numeric: 0.06,
     soWhat:
-      "Rare but severe. For a small business this matters most around a sale, a loan application, or a partner buyout, when the numbers are being relied on by someone else.",
+      "Rare but severe. For a small business this matters most around a sale, a loan application, or a partner buyout, when someone else relies on the numbers.",
     ...ACFE_2026,
     caveat: CATEGORY_OVERLAP,
   },
@@ -140,10 +140,10 @@ export const BENCHMARKS: Benchmark[] = [
     value:
       "2,402 cases, 143 countries, over $3.4 billion in documented losses, investigated and closed between January 2024 and September 2025",
     soWhat:
-      "These figures come from cases that were investigated and substantiated, not from a survey of opinions.",
+      "These figures come from cases that investigators examined and substantiated, not from a survey of opinions.",
     ...ACFE_2026,
     caveat:
-      "Selection effect worth understanding: the study counts cases that were found. Schemes never detected cannot appear in it, so real frequency is higher than any such study can show, and median durations are, if anything, understated.",
+      "Selection effect worth understanding: the study counts only cases that came to light. Schemes nobody detected cannot appear in it, so real frequency is higher than any such study can show, and median durations are, if anything, understated.",
   },
 ];
 
@@ -158,9 +158,9 @@ export const BENCHMARK_BY_ID: Record<string, Benchmark> = Object.fromEntries(
  */
 export const METHOD_CAVEATS: string[] = [
   "These figures describe what happened to other businesses. They are a reference class, not a prediction about yours.",
-  "The published medians cover cases that were detected and investigated. Schemes that were never found cannot be in the data, so real frequency runs higher than any study can measure.",
+  "The published medians cover cases that someone detected and investigated. Schemes that nobody found cannot be in the data, so real frequency runs higher than any study can measure.",
   "Loss figures are medians, not averages. Half of cases cost more. The distribution has a long tail.",
-  "Nothing here scores a person. Every gap this application shows is a structural weakness in how work is divided, which is a fact about the organization chart and not about anyone's character.",
-  "Segregation of duties assumes people do not collude. Two people acting together defeat every control built on one person checking another; at least one case in this library was carried out with co-conspirators.",
+  "Nothing here scores a person. Every gap Precog shows is a structural weakness in how the business divides work, which is a fact about the organization chart and not about anyone's character.",
+  "Segregation of duties assumes people do not collude. Two people acting together defeat every control built on one person checking another; co-conspirators carried out at least one case in this library.",
   "This is decision support for prioritizing internal controls. It is not an audit, an actuarial estimate, or legal advice.",
 ];

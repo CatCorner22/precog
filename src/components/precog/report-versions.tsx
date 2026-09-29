@@ -127,8 +127,8 @@ export function ReportVersionsPanel() {
         </div>
         <p className="mt-2 text-xs text-neutral-500">
           Locking freezes the business as you have saved it to your account, with your name and
-          today's date. A firm reviewer who did not prepare it signs it off; the sent stamp is set
-          once.
+          today's date. A firm reviewer who did not prepare it signs it off; Precog sets the sent
+          stamp only once.
         </p>
         {versions && versions.length > 0 && (
           <ul className="mt-3 divide-y divide-neutral-200">

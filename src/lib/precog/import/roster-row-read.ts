@@ -148,7 +148,7 @@ function readRowFields(
   const { tpl, columns } = context;
   const { name, idInName } = readName(cells, columns, context.ownExport);
   if (!name) {
-    context.issues.push({ row, message: "Name is required" });
+    context.issues.push({ row, message: "Enter a name." });
     return undefined;
   }
   const titleValues = columns.titles.map((column) => cellAt(cells, column)).filter(Boolean);

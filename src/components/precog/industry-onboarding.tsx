@@ -1034,8 +1034,9 @@ export function IndustryOnboarding() {
                       Paste the roster as exported, header row included, or one person per line as{" "}
                       <span className="font-mono">Name, Job title</span>. Precog matches job titles
                       such as Bookkeeper, Office Manager, AP Specialist, or Cashier to a catalog of
-                      common jobs and ticks their usual duties. People already in the table are
-                      updated, not added twice. People the roster marks as having left are skipped.
+                      common jobs and ticks their usual duties. Precog updates people already in the
+                      table rather than adding them twice, and skips people the roster marks as
+                      having left.
                     </p>
                     <textarea
                       className={cn(fieldCls, "min-h-28 w-full font-mono text-xs")}

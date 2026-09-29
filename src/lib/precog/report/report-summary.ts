@@ -41,7 +41,7 @@ const DECISION_LOG_MAX = 10;
  * insurer or accountant as much as the owner).
  */
 export const REPORT_CAVEATS =
-  "Every index here is computed by this app from what the business entered. Loss and detection figures describe prosecuted cases and published studies about other businesses, not this one.";
+  "Precog computes every index here from what the business entered. Loss and detection figures describe prosecuted cases and published studies about other businesses, not this one.";
 
 /**
  * The executive summary: a few plain sentences from the report's own
