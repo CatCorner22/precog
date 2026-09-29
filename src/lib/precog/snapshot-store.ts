@@ -70,7 +70,7 @@ export async function insertSnapshot(
   userId: string,
   input: SnapshotInput,
 ): Promise<AssessmentSnapshotSummary> {
-  if (!input.title) throw new RequestError(400, "Snapshot title is required");
+  if (!input.title) throw new RequestError(400, "Enter a snapshot title.");
   const { profile, json } = sanitizeSnapshotProfile(input.profile);
   if (!profile.practiceName) throw new RequestError(400, "The business needs a name");
   const powerMap = sanitizePowerMap(input.powerMap);
