@@ -115,8 +115,8 @@ export function AssessmentSnapshots() {
     const replaced =
       "line of business, name, team, process map, register, controls, team figures, risk inputs, known leave, decisions and value proof";
     const question = ofThisBusiness(item)
-      ? `Restore this snapshot into ${into}? Its ${replaced} replace what is there now. Saved maps, monthly reviews, and pay and login checks for people who have left stay. Save a snapshot first if you want to keep what is there now.`
-      : `This snapshot is of ${item.practiceName}, not ${into}. Restoring it replaces ${into}'s ${replaced} with ${item.practiceName}'s. Saved maps, monthly reviews, and pay and login checks for people who have left stay. Restore it into ${into} anyway?`;
+      ? `Restore this snapshot into ${into}? Its ${replaced} replace what is there now. Saved maps, monthly reviews, and pay and sign-in checks for people who have left stay. Save a snapshot first if you want to keep what is there now.`
+      : `This snapshot is of ${item.practiceName}, not ${into}. Restoring it replaces ${into}'s ${replaced} with ${item.practiceName}'s. Saved maps, monthly reviews, and pay and sign-in checks for people who have left stay. Restore it into ${into} anyway?`;
     if (!window.confirm(question)) return;
     setBusy(true);
     setError(null);
@@ -128,7 +128,7 @@ export function AssessmentSnapshots() {
       const restored = restoredProfile(snapshot, profile);
       if (!restored) {
         throw new Error(
-          "This snapshot was saved before snapshots kept the team and process map, so restoring it would replace your business with the sample. Compare still works.",
+          "You saved this snapshot before Precog kept the team and process map in snapshots, so restoring it would replace your business with the sample. Compare still works.",
         );
       }
       replaceProfile(restored);
@@ -273,7 +273,7 @@ export function AssessmentSnapshots() {
               <div className="rounded-lg border border-border bg-elevated p-3 text-xs text-muted">
                 <p>{profile.practiceName}</p>
                 <p className="mt-1">
-                  {profile.decisions.length} logged decision(s) · profile updated{" "}
+                  Decisions logged: {profile.decisions.length} · profile updated{" "}
                   {formatDay(profile.updatedAt)}
                 </p>
               </div>
@@ -346,12 +346,12 @@ export function AssessmentSnapshots() {
                       value={String(comparison.result.grants)}
                     />
                     <CompareMetric
-                      label="Duty revocations"
+                      label="Duties revoked"
                       value={String(comparison.result.revocations)}
                     />
                     <CompareMetric
-                      label="People added / removed"
-                      value={`${comparison.result.hires} / ${comparison.result.removals}`}
+                      label="People added and removed"
+                      value={`${comparison.result.hires} added, ${comparison.result.removals} removed`}
                     />
                     <CompareMetric
                       label="Net observed value"

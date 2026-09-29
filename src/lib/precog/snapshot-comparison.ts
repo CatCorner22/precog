@@ -79,8 +79,8 @@ export function createSnapshotComparisonReport(
     "",
     `- Team size: ${formatSigned(comparison.teamSizeDelta)}`,
     `- Risk inputs changed: ${comparison.riskChanges}`,
-    `- Duty grants / revocations: ${comparison.grants} / ${comparison.revocations}`,
-    `- People added / removed: ${comparison.hires} / ${comparison.removals}`,
+    `- Duties assigned and revoked: ${comparison.grants} assigned, ${comparison.revocations} revoked`,
+    `- People added and removed: ${comparison.hires} added, ${comparison.removals} removed`,
     `- Net observed value: ${
       comparison.netObservedValueDelta === null
         ? "not observed in both assessments"
@@ -97,7 +97,7 @@ export function createSnapshotComparisonReport(
           (change) =>
             `- ${safe(change.kind.replaceAll("_", " "))}: ${safe(change.personName)} — ${safe(change.dutyLabel ?? change.role)}`,
         )
-      : ["- No responsibility changes detected."]),
+      : ["- Precog found no responsibility changes."]),
     "",
     "## Risk-input changes",
     "",
@@ -105,7 +105,7 @@ export function createSnapshotComparisonReport(
       ? comparison.riskVariableChanges.map(
           (change) => `- ${safe(change.key)}: ${String(change.before)} → ${String(change.after)}`,
         )
-      : ["- No risk-input changes detected."]),
+      : ["- Precog found no risk-input changes."]),
     "",
     "> This comparison describes modeled assessment changes. Validate actual access, evidence, and operating conditions before relying on it.",
     "",
