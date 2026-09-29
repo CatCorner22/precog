@@ -26,10 +26,10 @@ function TermsPage() {
       <div className="mt-6 space-y-4 text-sm">
         <p>
           Precog helps an owner or advisor describe who holds which duties, which combinations
-          conflict, and what a monthly review checks. Scores are this application’s own indexes.
-          Scenario figures are assumptions. Case amounts are losses stated in public sources about
-          other businesses. None of these is a measurement of your business, a forecast, or an
-          insurance quote.
+          conflict, and what a monthly review checks. Scores are Precog’s own indexes. Scenario
+          figures are assumptions. Case amounts are losses stated in public sources about other
+          businesses. None of these is a measurement of your business, a forecast, or an insurance
+          quote.
         </p>
         <p>
           The duty map is what you enter or what a job title suggested. An access import compares a
@@ -45,10 +45,10 @@ function TermsPage() {
         </p>
         <p>
           The firm workspace records a pilot offer (a fixed assessment that can convert to a monthly
-          firm plan), time to a complete map, how many gaps received a decision, and whether a
-          report was marked sent. A firm can pay for the assessment or the firm plan through
-          Stripe’s checkout. Stripe takes the card; Precog never sees a card number. An invoice you
-          mark by hand is your own record.
+          firm plan), time to a complete map, how many gaps received a decision, and whether you
+          marked a report sent. A firm can pay for the assessment or the firm plan through Stripe’s
+          checkout. Stripe takes the card; Precog never sees a card number. An invoice you mark by
+          hand is your own record.
         </p>
         <p>
           You are responsible for the accuracy of what you enter, for who you share a link with, and
@@ -57,8 +57,8 @@ function TermsPage() {
           statement, the payroll register, or an accountant’s work.
         </p>
         <p>
-          The service is provided as available. A control designed here can still fail, and a month
-          with no recorded loss is not evidence that loss was prevented.
+          Precog provides the service as available. A control designed here can still fail, and a
+          month with no recorded loss is not evidence that any control prevented a loss.
         </p>
       </div>
       <p className="mt-8 text-sm">

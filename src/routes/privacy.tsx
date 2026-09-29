@@ -12,7 +12,7 @@ export const Route = createFileRoute("/privacy")({
       {
         name: "description",
         content:
-          "What Precog stores in the browser, what is synced to your account, what is sent to the model, and how to export or delete it.",
+          "What Precog stores in the browser, what it syncs to your account, what it sends to the model, and how to export or delete it.",
       },
     ],
   }),
@@ -32,18 +32,18 @@ function PrivacyPage() {
       <section className="mt-8 space-y-3 text-sm">
         <h2 className="text-lg font-semibold">What stays in this browser</h2>
         <p>
-          Until you sign in, the business profile, Decisions log, monthly review notes, and
-          access-import queue are stored in this browser only. A private window or a full site-data
-          clear removes them. They are not sent to a server.
+          Until you sign in, Precog stores the business profile, Decisions log, monthly review
+          notes, and access-import queue in this browser only. A private window or a full site-data
+          clear removes them. Precog does not send them to a server.
         </p>
       </section>
 
       <section className="mt-8 space-y-3 text-sm">
-        <h2 className="text-lg font-semibold">What is synced when you sign in</h2>
+        <h2 className="text-lg font-semibold">What Precog syncs when you sign in</h2>
         <p>
-          Sign-in uses Google or X through the app’s auth broker, or an email and password kept by
-          this app. For an email account the database holds your name, your email address, and a
-          hash of the password, never the password itself. The session cookie stays on this app. A
+          Sign-in uses Google or X through Precog’s auth broker, or an email and password that
+          Precog keeps. For an email account the database holds your name, your email address, and a
+          hash of the password, never the password itself. The session cookie stays with Precog. A
           signed-in save stores the business profile, assessment snapshots, and firm workspace (firm
           name, client list, engagement stamps, and the monthly review log) in the database, tied to
           your account. Another customer’s account cannot read them.
@@ -55,8 +55,8 @@ function PrivacyPage() {
         </p>
         <p>
           When a firm pays through Stripe, the database keeps the Stripe customer and subscription
-          ids, the plan status, and the date the assessment was paid. The card itself goes to
-          Stripe; Precog never sees the card number.
+          ids, the plan status, and the date the firm paid for the assessment. The card itself goes
+          to Stripe; Precog never sees the card number.
         </p>
         <p>
           A signed-in account with a business gets a weekly reminder email at its sign-in address,
@@ -66,18 +66,18 @@ function PrivacyPage() {
         </p>
         <p>
           Shared map links are separate. Anyone with the link can open that frozen map until it
-          expires or you revoke it. A passcode, when you set one, is stored as a hash. View logs
+          expires or you revoke it. When you set a passcode, Precog stores it as a hash. View logs
           keep a hash of the visitor address and the browser string for {SHARE_VIEW_RETENTION_DAYS}{" "}
-          days, then they are deleted.
+          days, then Precog deletes them.
         </p>
       </section>
 
       <section className="mt-8 space-y-3 text-sm">
-        <h2 className="text-lg font-semibold">What is sent to the model</h2>
+        <h2 className="text-lg font-semibold">What Precog sends to the model</h2>
         <p>
           Pioneer answers on this device from your profile with no model call until you ask a
-          question while signed in and a model key is configured. That question, plus the tool
-          results it needs (names, duties, gaps, and notes you typed), is sent to xAI to write the
+          question while signed in and Precog has a model key. Precog sends that question, plus the
+          tool results it needs (names, duties, gaps, and notes you typed), to xAI to write the
           brief. Logged-out use never makes that call. Do not paste patient, customer, or account
           numbers into notes or questions.
         </p>
@@ -88,9 +88,9 @@ function PrivacyPage() {
         <p>
           Signed in, <strong>Export data</strong> in the header downloads one JSON file of the
           account: businesses, snapshots, shares, the firm record, engagement stamps, and the review
-          log. Passcode hashes are left out. <strong>Delete account</strong> removes the account and
-          those rows. It asks you to type DELETE first. Clearing saved data on this device, from the
-          error screen or after deletion, removes only the browser copy.
+          log. The file leaves out passcode hashes. <strong>Delete account</strong> removes the
+          account and those rows. It asks you to type DELETE first. Clearing saved data on this
+          device, from the error screen or after deletion, removes only the browser copy.
         </p>
       </section>
 
