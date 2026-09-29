@@ -193,7 +193,7 @@ export function scorePriority(input: {
   }
   if (input.soleOwner || input.kind === "knowledge") {
     impact = Math.max(impact, 0.65);
-    if (input.soleOwner) reasons.push("Knowledge held by one person");
+    if (input.soleOwner) reasons.push("Knowledge only one person holds");
   }
 
   impact = Math.min(1, impact);

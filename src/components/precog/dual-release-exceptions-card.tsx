@@ -278,7 +278,7 @@ export function DualReleaseExceptionsCard({ model }: { model: DualReleasePanelMo
                   className="h-7 px-2 text-danger"
                   onClick={() => {
                     if (
-                      window.confirm(`Delete the exception "${ex.label}"? This cannot be undone.`)
+                      window.confirm(`Delete the exception "${ex.label}"? You cannot undo this.`)
                     ) {
                       removeException(ex.id);
                     }

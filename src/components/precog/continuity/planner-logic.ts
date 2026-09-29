@@ -138,7 +138,7 @@ export function removeItemPrompt(
   const marks = relations.filter((r) => r.knowledgeId === item.id).length;
   return `Remove "${item.name}" from the register${
     marks > 0 ? ` with the ${count(marks, "mark")} on it` : ""
-  }? This cannot be undone.`;
+  }? You cannot undo this.`;
 }
 
 interface RegisterContents {

@@ -462,7 +462,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
 const KIND_LABEL: Record<string, string> = {
   sod: "Duty conflict",
   control: "Control",
-  knowledge: "Know-how held by one person",
+  knowledge: "Know-how only one person holds",
   scenario: "Scenario",
   process: "Process",
 };

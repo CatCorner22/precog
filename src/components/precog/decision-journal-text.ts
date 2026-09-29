@@ -49,7 +49,7 @@ export function deleteDecisionPrompt(d: Pick<DecisionEntry, "subject" | "reviews
   const reviews = d.reviews?.length ?? 0;
   return `Delete "${d.subject}" from the Decisions log?${
     reviews > 0 ? ` Precog also deletes its ${count(reviews, "review")} on record.` : ""
-  } This cannot be undone.`;
+  } You cannot undo this.`;
 }
 
 /** "down 7, better", "up 5, worse" or "no change", given which direction is better. */

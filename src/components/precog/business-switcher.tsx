@@ -102,7 +102,7 @@ export function BusinessSwitcher() {
   }
 
   function removeBusiness(b: BusinessSummary) {
-    if (!window.confirm(`Remove "${b.name}" from your portfolio? This can't be undone.`)) return;
+    if (!window.confirm(`Remove "${b.name}" from your portfolio? You cannot undo this.`)) return;
     void deleteBusiness(b.id).then(
       () => toast(`Removed ${b.name}`),
       (error: unknown) =>

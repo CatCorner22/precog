@@ -206,7 +206,7 @@ export function computeAppliedDiscounts(v: RiskVariableState): AppliedDiscount[]
     },
     {
       id: "bank",
-      label: "Independent bank rec",
+      label: "Independent bank reconciliation",
       pct: v.discountBankRecPct,
       active: v.hasIndependentBankRec,
       reason: reason(

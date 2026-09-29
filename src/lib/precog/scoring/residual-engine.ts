@@ -413,7 +413,7 @@ function staffUplift(staff: StaffComposition, weights: ScoringWeights): StaffUpl
       label: "Small team",
       direction: "increases",
       weight: weights.staff.smallTeamUplift,
-      detail: `Team size ${staff.teamSize} reduces natural SoD options.`,
+      detail: `A team of ${staff.teamSize} has fewer people to keep duties apart.`,
     });
   }
   if (staff.soleOwnerKnowledgeCount > 0) {
@@ -546,7 +546,7 @@ function controlEffectiveness(
   if (!c.segregated) {
     drivers.push({
       id: `${c.id}-eff-seg`,
-      label: "SoD not achieved",
+      label: "Duties not kept apart",
       direction: "increases",
       weight: 1 - seg,
       detail: "Primary segregation missing; residual depends on compensating controls.",

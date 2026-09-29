@@ -83,7 +83,7 @@ export function analyzeWorkload(
       const flags: string[] = [];
       if (ownershipShare >= 0.4 && total >= 4)
         flags.push(`owns ${formatPct(ownershipShare)} of processes`);
-      if (criticalConflicts) flags.push(`${criticalConflicts} critical SoD conflict(s)`);
+      if (criticalConflicts) flags.push(`${criticalConflicts} critical duty conflict(s)`);
       if (soleOwnerKnowledge) flags.push(`sole owner of ${soleOwnerKnowledge} knowledge item(s)`);
       if (ownedHeat >= HEAT_BANDS.hot) flags.push("owns hot processes");
       if (!owned.length && entitlementCount === 0) flags.push("no processes or duties assigned");

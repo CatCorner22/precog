@@ -187,7 +187,7 @@ export function assessCoso(
           note: !knowledgeAssessed
             ? REGISTER_NOT_ASSESSED
             : spofs.length > 0
-              ? `${count(spofs.length, "critical knowledge item")} held by one person.`
+              ? `${count(spofs.length, "critical knowledge item")} that only one person holds.`
               : "Critical skills have redundancy.",
           ...(knowledgeAssessed ? {} : { notAssessed: true }),
         },
@@ -207,14 +207,14 @@ export function assessCoso(
               {
                 id: "ce-spof",
                 label: "Key-person concentration weakens accountability",
-                detail: `${count(spofs.length, "critical knowledge item")} held by one person, which puts competence and succession under pressure.`,
+                detail: `${count(spofs.length, "critical knowledge item")} that only one person holds, which puts competence and succession under pressure.`,
                 severity: spofs.length >= 2 ? "critical" : "weak",
                 link: { type: "knowledge", knowledgeId: spofs[0]?.knowledgeId },
               },
             ]
           : [],
       primaryActions: [
-        { label: "Review items held by one person", link: { type: "knowledge" } },
+        { label: "Review items only one person holds", link: { type: "knowledge" } },
         { label: "Review duty conflicts", link: { type: "sod" } },
       ],
     },
@@ -385,7 +385,7 @@ export function assessCoso(
       findings: knowledgeAssessed
         ? spofs.slice(0, 3).map((s) => ({
             id: `ic-${s.knowledgeId}`,
-            label: `Held by one person: ${s.name}`,
+            label: `Only one person holds: ${s.name}`,
             detail: `Sole strong owner: ${s.owners[0]?.name ?? "unknown"}. This puts continuity and internal know-how at risk.`,
             severity: "critical" as HealthLevel,
             link: { type: "knowledge" as const, knowledgeId: s.knowledgeId },

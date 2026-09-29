@@ -153,7 +153,7 @@ export const VARIABLE_CATALOG: DynamicVariableDef[] = [
   },
   {
     id: "discountBankRecPct",
-    label: "Credit from your quote: bank rec / CPA",
+    label: "Credit from your quote: bank reconciliation or CPA review",
     category: "insurance",
     kind: "percent",
     description:

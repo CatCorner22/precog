@@ -97,7 +97,7 @@ export function reviewLocally(input: ReviewInput): MapReview {
   for (const p of hot.slice(0, 3)) {
     focus.add(p.id);
     gaps.push(
-      `"${p.name}" runs hot (${p.heat})${p.openSodGaps ? ` with ${p.openSodGaps} open SoD gap(s)` : ""}${
+      `"${p.name}" runs hot (${p.heat})${p.openSodGaps ? ` with ${p.openSodGaps} open duty conflict(s)` : ""}${
         p.riskTitles[0] ? ` — top risk: ${p.riskTitles[0]}` : ""
       }.`,
     );
