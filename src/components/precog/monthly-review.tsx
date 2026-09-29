@@ -7,6 +7,7 @@ import {
   latestReview,
   monthlyReviewTasks,
   recordReview,
+  reviewIndependenceMessage,
   type ReviewResult,
 } from "@/lib/precog/firm/reviews";
 import { recordMonthlyReview } from "@/lib/precog/firm/server";
@@ -73,7 +74,8 @@ export function MonthlyReview() {
       <h2 className="text-lg font-semibold">This month’s review</h2>
       <p className="mt-1 text-sm text-muted">
         Four checks taken from the register. Record a result with an owner and a note. Precog adds a
-        later result; the earlier one stays in the log.
+        later result; the earlier one stays in the log. Recording “Done” does not establish
+        independent verification.
       </p>
       <ul className="mt-4 space-y-4">
         {tasks.map((task) => {
@@ -87,9 +89,12 @@ export function MonthlyReview() {
                 </p>
               </div>
               <p className="mt-1 text-sm text-muted">{task.why}</p>
+              <p className="mt-2 text-xs" data-review-independence={task.reviewerIndependence}>
+                {reviewIndependenceMessage(task.reviewerIndependence)}
+              </p>
               {latest && (
                 <p className="mt-2 text-xs">
-                  Latest: {RESULT_LABEL[latest.result]}
+                  Reported result: {RESULT_LABEL[latest.result]}
                   {latest.ownerName ? ` by ${latest.ownerName}` : ""} on{" "}
                   {formatDay(latest.recordedAt)}
                   {latest.notes ? ` — ${latest.notes}` : ""}

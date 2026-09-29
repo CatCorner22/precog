@@ -239,7 +239,7 @@ describe("release, payroll and reconciliation pairs", () => {
       compensatingByControlId: { "c-sod-cash": ["Owner reads every cleared-check image monthly"] },
     }).conflicts.find((c) => c.ruleId === "rule-sign-rec")!;
     expect(mitigated.controlsInPlace).toHaveLength(1);
-    expect(mitigated.score).toBeLessThan(hit.score);
+    expect(mitigated.score).toBe(hit.score);
   });
 });
 

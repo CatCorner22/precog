@@ -1,6 +1,7 @@
 import type { EntitlementId } from "../sod/conflict-rules";
-import { ownersMarked, ownsBusiness, soleOwnerId } from "../sod/owner-role";
-import { ROLE_TEMPLATES } from "../sod/role-templates";
+import { ownersMarked, ownsBusiness } from "../sod/owner-role";
+import { personDuties } from "../sod/assignments";
+import { BANK_ACTIVITY_DUTIES } from "../sod/derive-staff";
 import type { Person } from "../types";
 import { utcDateKey } from "../dates";
 
@@ -22,6 +23,8 @@ interface ReviewTask {
    * suggested owner checks their own work. The screen should say so.
    */
   reviewerHoldsDuty: boolean;
+  /** A check of recorded responsibilities, not proof of actual access or performance. */
+  reviewerIndependence: "separate_duties" | "self_review" | "not_established";
   /** Calendar day the result should be recorded by, YYYY-MM-DD. */
   dueOn: string;
 }
@@ -46,19 +49,19 @@ export const REVIEW_ITEMS: readonly {
     key: "bank_statement",
     title: "Open the bank statement",
     why: "The check works only if someone other than the person who pays the bills sees the real statement, not only the books.",
-    checkedDuties: ["bank_reconcile", "release_payment", "sign_checks"],
+    checkedDuties: ["bank_reconcile", ...BANK_ACTIVITY_DUTIES],
   },
   {
     key: "cleared_checks",
     title: "Read the cleared-check images",
     why: "A check coded as supplies can still be payable to a person. The image is the only place that shows.",
-    checkedDuties: ["sign_checks", "release_payment", "prepare_deposit"],
+    checkedDuties: ["sign_checks", "release_payment", "initiate_ach", "prepare_deposit"],
   },
   {
     key: "payroll_headcount",
     title: "Compare payroll to who still works here",
     why: "A name on the payroll register who is not on the team is the usual payroll scheme.",
-    checkedDuties: ["approve_payroll", "enter_payroll"],
+    checkedDuties: ["approve_payroll", "enter_payroll", "edit_payroll_master"],
   },
   {
     key: "new_vendors",
@@ -100,11 +103,10 @@ export function reviewDueOn(period: string): string {
 
 /**
  * The four monthly checks, each with a suggested owner who does not hold the
- * duties it checks. A sole owner is always suggested: they cannot steal from
- * themselves, the same rule the conflict engine applies. Otherwise the first
- * active person free of the checked duties takes it, owners first. A person's
- * duties are their own entitlements, else `roleDuties` for their title (the
- * business's template), else the shared role templates.
+ * duties it checks. Ownership never turns self-review into independent
+ * review. Recorded separate duties rank before provisional title suggestions;
+ * an overlapping fallback is explicitly marked. Actual permissions and
+ * competence still need verification before relying on the suggested reviewer.
  */
 export function monthlyReviewTasks(
   today: string,
@@ -124,6 +126,7 @@ export function monthlyReviewTasks(
       dueOn,
       suggestedOwner: reviewer.name,
       reviewerHoldsDuty: reviewer.holdsDuty,
+      reviewerIndependence: reviewer.independence,
     };
   });
 }
@@ -179,23 +182,40 @@ function reviewerFor(
   team: readonly Person[],
   checked: readonly EntitlementId[],
   roleDuties: Readonly<Record<string, readonly string[]>>,
-): { name: string; holdsDuty: boolean } {
-  const soleOwner = soleOwnerId(team);
-  const sole = team.find((p) => p.id === soleOwner);
-  if (sole) return { name: sole.name, holdsDuty: false };
+): { name: string; holdsDuty: boolean; independence: ReviewTask["reviewerIndependence"] } {
   const marked = ownersMarked(team);
   const ranked = [
     ...team.filter((p) => ownsBusiness(p, marked)),
     ...team.filter((p) => !ownsBusiness(p, marked)),
   ];
-  const holds = (p: Person) => {
-    const duties = p.entitlements?.length
-      ? p.entitlements
-      : (roleDuties[p.role] ?? ROLE_TEMPLATES[p.role] ?? []);
-    return checked.some((d) => duties.includes(d));
-  };
-  const free = ranked.find((p) => !holds(p));
-  if (free) return { name: free.name, holdsDuty: false };
-  const fallback = ranked[0];
-  return fallback ? { name: fallback.name, holdsDuty: true } : { name: "Owner", holdsDuty: false };
+  const candidates = ranked.map((p) => {
+    const holdsDuty = personDuties(p, roleDuties).some((d) => checked.includes(d));
+    const recorded = Boolean(p.entitlements?.length) && !p.dutiesFromTitle;
+    const independence: ReviewTask["reviewerIndependence"] = holdsDuty
+      ? "self_review"
+      : recorded
+        ? "separate_duties"
+        : "not_established";
+    return { name: p.name, holdsDuty, independence };
+  });
+  return (
+    candidates.find((c) => c.independence === "separate_duties") ??
+    candidates.find((c) => !c.holdsDuty) ??
+    candidates[0] ?? {
+      name: "Reviewer not assigned",
+      holdsDuty: false,
+      independence: "not_established",
+    }
+  );
+}
+
+export function reviewIndependenceMessage(status: ReviewTask["reviewerIndependence"]): string {
+  switch (status) {
+    case "self_review":
+      return "Self-review risk: this person's duties overlap the work being checked. Arrange a separate reviewer; ownership alone does not make the review independent.";
+    case "separate_duties":
+      return "No overlap in recorded duties. Confirm actual permissions and ability before relying on this reviewer.";
+    case "not_established":
+      return "Independent review is not established. Confirm who performs the work and who can check it separately.";
+  }
 }

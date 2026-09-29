@@ -21,8 +21,10 @@ interface ScoreInputs {
   pair: readonly [EntitlementId, EntitlementId];
   /** The owner accepted the residual risk on the rule's linked control. */
   accepted: boolean;
-  /** How many controls are recorded as in place for this gap. */
+  /** Retained for callers; a count of notes is not evidence and earns no credit. */
   controlsInPlace: number;
+  /** A separate bill approver recorded in the duty map; design credit only. */
+  independentApproval?: boolean;
   /** An active dual-release rule narrows the gap. */
   dualMitigated: boolean;
   staff?: StaffComposition;
@@ -37,14 +39,14 @@ export const OWNER_HELD_DISCOUNT = 30;
  * staffing.
  */
 export function rawConflictScore(inputs: ScoreInputs): number {
-  const { severity, pair, accepted, controlsInPlace, dualMitigated, staff } = inputs;
+  const { severity, pair, independentApproval, dualMitigated, staff } = inputs;
   const [a, b] = pair;
   // Bases leave room above them for the staff modifiers below: a critical
   // pair in a business with nobody independent on the bank account must read
   // higher than the same pair where the owner reconciles.
   let s = BASE_SCORE[severity] + (dutyWeight(a) + dutyWeight(b) - 6) * 3;
-  if (accepted) s -= 18;
-  s -= Math.min(20, controlsInPlace * 6);
+  // Accepting exposure or writing notes changes neither the failure nor its controls.
+  if (independentApproval) s -= 6;
   if (dualMitigated) s -= 28; // dual release is a strong compensating control
   if (staff && !staff.dualControlPayments && (PAYMENT_DUTIES.has(a) || PAYMENT_DUTIES.has(b))) {
     s += 6;
@@ -95,7 +97,8 @@ interface PressureFinding {
  * (log2), so more people in a flagged seat still lower the index, slowly. A
  * dual-release rule narrows a pair rather than closing it (×0.35), and an
  * owner-held pair is error rather than theft (×0.5). A gap with a holder
- * whose risk nobody has accepted adds 1.5 on the same basis. Adding a
+ * without a configured dual-release mitigation adds 1.5. Acceptance is a
+ * governance decision, not a reduction in control exposure. Adding a
  * conflict never raises the index. This is an index this app defines, not a
  * measurement.
  */
@@ -112,12 +115,7 @@ export function segregationPressure(conflicts: readonly PressureFinding[]): numb
       weight *
       spread(holders.map((c) => (c.dualReleaseMitigated ? 0.35 : 1) * (c.ownerHeld ? 0.5 : 1)));
     total +=
-      1.5 *
-      spread(
-        holders
-          .filter((c) => !c.residualRiskAccepted && !c.dualReleaseMitigated && !c.ownerHeld)
-          .map(() => 1),
-      );
+      1.5 * spread(holders.filter((c) => !c.dualReleaseMitigated && !c.ownerHeld).map(() => 1));
   }
   return total;
 }

@@ -94,13 +94,13 @@ describe("independent reconciliation read from the team", () => {
     entitlements: [...duties, "view_reports_only"],
   });
 
-  it("counts an owner who signs checks and reconciles as independent", () => {
+  it("does not count self-review of the owner's signed checks as independent", () => {
     expect(
       independentReconciliationFromTeam([
         person("o", "Owner / Dentist", ["sign_checks", "approve_payroll", "bank_reconcile"]),
         person("m", "Office Manager", ["collect_cash", "post_payments", "enter_invoices"]),
       ]),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("does not count an owner who also records the payments they reconcile", () => {
@@ -147,7 +147,7 @@ describe("independent reconciliation on a team that relies on job titles", () =>
     expect(derived.independentBankRec).toBe(true);
   });
 
-  it("gives no owner's exemption on a nonprofit, which has no owner", () => {
+  it("gives no ownership exemption in either a business or nonprofit", () => {
     const person = (id: string, role: string, entitlements: string[]): Person => ({
       id,
       name: id,
@@ -159,7 +159,7 @@ describe("independent reconciliation on a team that relies on job titles", () =>
       person("ed", "Founder & Executive Director", ["sign_checks", "bank_reconcile"]),
       person("b", "Bookkeeper", ["post_payments"]),
     ];
-    expect(independentReconciliationFromTeam(team)).toBe(true);
+    expect(independentReconciliationFromTeam(team)).toBe(false);
     expect(independentReconciliationFromTeam(team, {}, "nonprofit")).toBe(false);
   });
 });

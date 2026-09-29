@@ -27,10 +27,15 @@ const owner = (tasks: ReturnType<typeof monthlyReviewTasks>, key: string) =>
   tasks.find((t) => t.key === key)?.suggestedOwner;
 
 describe("monthly review", () => {
-  it("suggests the sole owner for every check and dates the close to the 10th", () => {
+  it("suggests a separate reviewer for owner-prepared work and dates the close to the 10th", () => {
     const tasks = monthlyReviewTasks("2026-09-24", people);
     expect(tasks).toHaveLength(4);
-    expect(tasks.map((t) => t.suggestedOwner)).toEqual(Array(4).fill("Ada Owner"));
+    expect(tasks.map((t) => t.suggestedOwner)).toEqual([
+      "Ben Payroll",
+      "Ada Owner",
+      "Ada Owner",
+      "Ada Owner",
+    ]);
     expect(tasks.every((t) => !t.reviewerHoldsDuty)).toBe(true);
     expect(tasks[0].dueOn).toBe("2026-10-10");
   });
@@ -104,7 +109,7 @@ describe("monthly review", () => {
         monthlyReviewTasks("2026-09-24", dental.people, dental.roleTemplates),
         "bank_statement",
       ),
-    ).toBe("Dr. Elena Vargas");
+    ).toBe("Sam Ortiz");
   });
 
   it("keeps the earlier result when a later one is recorded", () => {

@@ -95,7 +95,7 @@ describe("briefAuthorLine", () => {
     expect(briefAuthorLine({ modelStatus: "not-asked" })).toMatch(/No AI model wrote it/);
     expect(briefAuthorLine({ modelStatus: "failed" })).toMatch(/No AI model wrote it/);
     expect(briefAuthorLine({ modelStatus: "answered", model: "grok-4.5" })).toMatch(
-      /^Written by Grok \(grok-4\.5\)/,
+      /^Selected by Grok \(grok-4\.5\)/,
     );
   });
 });

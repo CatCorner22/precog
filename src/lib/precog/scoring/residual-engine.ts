@@ -468,7 +468,8 @@ function controlInherent(
     MONEY_EXPOSURE_CONTROLS.has(c.id) || guarded.some((f) => f.fraudRelated && f.cashRelated)
       ? 0.9
       : 0.55;
-  const detectHard = !c.segregated ? 0.75 : 0.35;
+  // Inherent exposure is evaluated before crediting the control design.
+  const detectHard = 0.75;
   const cascade = c.id.startsWith("c-sod-") ? 0.7 : 0.4;
 
   const score =
@@ -486,7 +487,7 @@ function controlInherent(
         label: "Fraud opportunity class",
         direction: "increases",
         weight: fraudClass,
-        detail: c.segregated ? "Duties largely separated." : "Incompatible duties concentrated.",
+        detail: "Exposure of the duties and scenarios in scope, before control credit.",
       },
       {
         id: `${c.id}-inher-exp`,
@@ -525,10 +526,10 @@ function controlEffectiveness(
       : staff.independentBankRec
         ? 0.45
         : 0.1;
-  const comp =
-    c.compensatingControls.length === 0
-      ? 0.1
-      : Math.min(0.85, 0.35 + c.compensatingControls.length * 0.25);
+  // Free-text descriptions are retained for review, not treated as tested
+  // controls. Structured operating evidence must exist before this factor
+  // can receive credit; note count, wording and duplication are irrelevant.
+  const comp = 0;
   const mon = staff.independentBankRec ? 0.55 : 0.25;
 
   const scoredWithoutKnowledge =
@@ -555,18 +556,21 @@ function controlEffectiveness(
   if (c.compensatingControls.length > 0) {
     drivers.push({
       id: `${c.id}-eff-comp`,
-      label: "Compensating controls present",
-      direction: "decreases",
-      weight: comp,
-      detail: c.compensatingControls.join("; "),
+      label: "Control notes awaiting verification",
+      direction: "increases",
+      weight: 1,
+      detail:
+        "These descriptions are not verified operating evidence and receive no effectiveness credit: " +
+        c.compensatingControls.join("; "),
     });
   } else if (!c.segregated) {
     drivers.push({
       id: `${c.id}-eff-nocomp`,
-      label: "No compensating control",
+      label: "Compensating control not verified",
       direction: "increases",
       weight: 0.8,
-      detail: "Gap is open with no detective control and no dual release.",
+      detail:
+        "No tested compensating measure is established by this record. Check design, operation and evidence before relying on one.",
     });
   }
   if (c.residualRiskAccepted) {

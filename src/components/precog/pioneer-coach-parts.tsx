@@ -239,7 +239,7 @@ export function BriefMarkdown({ markdown }: { markdown: string }) {
 /** Who wrote the brief, in one line the owner can repeat to their accountant. */
 export function briefAuthorLine(result: Pick<CoachResult, "modelStatus" | "model">): string {
   return result.modelStatus === "answered"
-    ? `Written by Grok (${result.model ?? "model"}) from Precog's tool results; Precog checked its figures and case names against them.`
+    ? `Selected by Grok (${result.model ?? "model"}) from complete statements written by Precog's rules. No model-written claims were added.`
     : "Written by Precog's rules from your data. No AI model wrote it.";
 }
 

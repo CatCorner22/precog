@@ -1,3 +1,4 @@
+import { PAYMENT_DESTINATION_CHANGE } from "../controls/critical-guidance";
 import type { IndustryId } from "../industry";
 import { personDuties } from "../sod/assignments";
 import type { EntitlementId } from "../sod/conflict-rules";
@@ -83,18 +84,19 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     steps: [
       { text: "Stop: make no change from the email, letter or call that asked for it." },
       {
-        text: "Call the vendor on the phone number already on file.",
-        caution:
-          "Never use a phone number, link or contact given in the request itself; criminals supply their own.",
+        text: PAYMENT_DESTINATION_CHANGE.verification,
+        caution: PAYMENT_DESTINATION_CHANGE.caution,
       },
-      { text: "Confirm the new bank details with the person who answers." },
+      {
+        text: "Confirm the new bank details only with the authorized supplier contact.",
+        caution: "Stop if the contact's identity or authority is uncertain.",
+      },
       { text: "Write down who confirmed, the date and the number you called." },
-      { text: "Ask a second person to approve the change before anyone saves it." },
+      { text: PAYMENT_DESTINATION_CHANGE.secondReview },
       { text: "Save the new bank details in the vendor record." },
       { text: "Confirm with the vendor that the first payment to the new account arrived." },
     ],
-    source:
-      "FBI Internet Crime Complaint Center (IC3) public service announcements on business email compromise: verify every change of payment account by a second channel, calling a number already known, never one given in the request.",
+    source: `${PAYMENT_DESTINATION_CHANGE.source.publisher}: ${PAYMENT_DESTINATION_CHANGE.source.document}, ${PAYMENT_DESTINATION_CHANGE.source.url}. ${PAYMENT_DESTINATION_CHANGE.source.scope}`,
   },
   {
     id: "lib-release-payments",

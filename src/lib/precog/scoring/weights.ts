@@ -7,7 +7,7 @@
  */
 import { RISK_SCALE } from "./bands";
 import { clamp } from "../number";
-export const SCORING_VERSION = "precog-residual-v1.3.0";
+export const SCORING_VERSION = "precog-residual-v1.4.0";
 
 /** Inherent risk factors (0–1 contribution before normalization) */
 const INHERENT_WEIGHTS = {
@@ -91,7 +91,7 @@ export const WEIGHT_DESCRIPTIONS: Record<string, string> = {
   "control.dualAuthorization": "Weights a second signer as evidence of control strength.",
   "control.independentReconciliation": "Weights independent checking of records and balances.",
   "control.compensatingControls":
-    "Weights documented compensating controls when the business cannot fully separate duties.",
+    "Reserved for tested compensating measures. Free-text control notes receive no effectiveness credit.",
   "control.monitoringCadence": "Weights recurring monitoring as a source of control strength.",
   "control.knowledgeRedundancy":
     "Weights having more than one capable holder of critical knowledge.",
