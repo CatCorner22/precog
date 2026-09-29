@@ -79,8 +79,8 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
       roundShare > 0.15 && priced.length >= 50 ? "review" : roundShare > 0.1 ? "watch" : "info",
     summary: `${round.length} of ${priced.length} amounts (${formatPct(roundShare, 1)}) are exact multiples of ${threshold}.`,
     detail: [
-      "Round values can be useful prompts to review how amounts are entered and approved.",
-      "Charges are excluded: fee-schedule prices are round by design. Zero amounts are left out.",
+      "Round values can be useful prompts to review how staff enter and approve amounts.",
+      "The screen leaves out charges, because fee-schedule prices are round by design. It also leaves out zero amounts.",
     ],
     examples: round.slice(0, 8).map(describeTransaction),
   });
@@ -101,7 +101,7 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
     summary: `${outliers.length} amount${outliers.length === 1 ? "" : "s"} exceed the modified-z threshold for their kind.`,
     detail: [
       "The modified z-score uses the median and median absolute deviation, which are less influenced by unusually large values.",
-      "Each kind (charges, payments, deposits, adjustments, refunds) is compared only with amounts of the same kind, on a logarithmic scale.",
+      "The screen compares each kind (charges, payments, deposits, adjustments, refunds) only with amounts of the same kind, on a logarithmic scale.",
     ],
     examples: outliers.slice(0, 8).map(describeTransaction),
   });
@@ -129,7 +129,7 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
     summary: `${duplicates.length} repeated group${duplicates.length === 1 ? "" : "s"} covering ${duplicateTransactions} transaction${duplicateTransactions === 1 ? "" : "s"}.`,
     detail: [
       "Repeated amount-and-date combinations can prompt a review of source records and workflow timing.",
-      "A charge and the payment that settles it are not a repeat: only entries of the same kind are grouped.",
+      "A charge and the payment that settles it are not a repeat: the screen groups only entries of the same kind.",
     ],
     examples: duplicates
       .flatMap((group) => group)
@@ -193,7 +193,7 @@ export function runForensicSuite(txns: Transaction[]): ForensicReport {
       severity: onePoster ? "watch" : share > 0.8 ? "review" : share > 0.6 ? "watch" : "info",
       summary: onePoster
         ? `One person posts every adjustment and refund (${adjustments.length}); make sure someone else reviews them.`
-        : `${formatPct(share, 1)} of adjustments/refunds are associated with one person record.`,
+        : `${formatPct(share, 1)} of adjustments and refunds belong to one person record.`,
       detail: [
         `The largest share is ${count} of ${adjustments.length} records for ${personId}.`,
         "Concentration can prompt a conversation about training, access, and review coverage.",
@@ -257,7 +257,7 @@ function benfordFinding(id: "benford_first" | "benford_second", test: DigitTest)
     detail: [
       `Chi-square ${test.chiSquare.toFixed(2)} with ${test.df} degrees of freedom (${test.pValueBand}).`,
       "This screen compares the distribution of leading digits with a mathematical reference pattern.",
-      "Only payments and deposits are tested. Charges are set prices, and adjustments and refunds are chosen amounts, so the reference pattern does not apply to them.",
+      "The screen tests only payments and deposits. Charges are fixed prices, and adjustments and refunds are chosen amounts, so the reference pattern does not apply to them.",
     ],
     examples: [],
   };

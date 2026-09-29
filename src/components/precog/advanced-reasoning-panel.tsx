@@ -30,17 +30,17 @@ export function AdvancedReasoningPanel() {
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="accent">Order of fixes</Badge>
-          <Badge variant="primary">This app&rsquo;s model</Badge>
+          <Badge variant="primary">Precog&rsquo;s model</Badge>
         </div>
         <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <Sparkles className="size-5 text-primary" />
           Which lever first, and why
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          This page orders the control and insurance levers by how much they move this app&rsquo;s
-          own residual index and cost-of-risk figure. Every number behind it is one of this
-          app&rsquo;s weights, not a measurement of your business, so the order is worth reading and
-          the decimals are not shown.
+          This page orders the control and insurance levers by how much they move Precog&rsquo;s own
+          residual index and cost-of-risk figure. Every number behind it is one of Precog&rsquo;s
+          weights, not a measurement of your business, so the order is worth reading and the page
+          hides the decimals.
         </p>
       </section>
 

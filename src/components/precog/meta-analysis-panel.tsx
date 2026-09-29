@@ -20,22 +20,22 @@ const CLASS_META: Record<
 > = {
   known_known: {
     label: "Known known",
-    blurb: "This app measures it",
+    blurb: "Precog measures it",
     variant: "ok",
   },
   known_unknown: {
     label: "Known unknown",
-    blurb: "This app knows it cannot see this yet",
+    blurb: "Precog knows it cannot see this yet",
     variant: "warn",
   },
   unknown_unknown: {
     label: "Unknown unknown",
-    blurb: "Outside what this app models",
+    blurb: "Outside what Precog models",
     variant: "danger",
   },
   unknown_known: {
     label: "Unknown known",
-    blurb: "Your team knows it; the app does not",
+    blurb: "Your team knows it; Precog does not",
     variant: "primary",
   },
 };
@@ -62,19 +62,19 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent">What this app can see</Badge>
+          <Badge variant="accent">What Precog can see</Badge>
           <Badge variant="primary">Inventory, not a score</Badge>
         </div>
         <h2 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <Radar className="size-5 text-primary" />
-          What this app measures, what it knows it cannot see, and what lies outside its model
+          What Precog measures, what it knows it cannot see, and what lies outside its model
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           An inventory of{" "}
           <strong className="text-fg">what is behind every other number here</strong>: items
-          measured from your profile, gaps this app admits (known unknowns), and areas outside what
-          it models (unknown unknowns). It is a list to work through, not a score. It re-evaluates
-          as your profile, dual release, and decisions change.
+          measured from your profile, gaps Precog admits (known unknowns), and areas outside what it
+          models (unknown unknowns). It is a list to work through, not a score. It re-evaluates as
+          your profile, dual release, and decisions change.
         </p>
         <p className="mt-3 text-xs text-subtle">From the current profile · {report.practiceName}</p>
       </section>
@@ -214,7 +214,7 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
             <CardContent className="grid gap-2 sm:grid-cols-2">
               <JohariCell title="Open" icon={<Eye className="size-3" />} items={panes.open} />
               <JohariCell
-                title="Blind (the app sees, you may not)"
+                title="Blind (Precog sees, you may not)"
                 icon={<Search className="size-3" />}
                 items={panes.blind}
               />
@@ -236,10 +236,10 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            Everything this app can and cannot see ({filtered.length})
+            Everything Precog can and cannot see ({filtered.length})
           </CardTitle>
           <CardDescription>
-            Known unknowns are the gaps this app admits; unknown unknowns are what to look for next.
+            Known unknowns are the gaps Precog admits; unknown unknowns are what to look for next.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

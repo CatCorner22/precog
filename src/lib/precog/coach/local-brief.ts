@@ -48,7 +48,7 @@ interface LocalBrief extends LocalAgentRun {
 
 /** The question the coach answers when the owner sends none. */
 export const DEFAULT_COACH_QUESTION =
-  "Brief me on my biggest risks, the conditions this app watches, and what to do this week.";
+  "Brief me on my biggest risks, the conditions Precog watches, and what to do this week.";
 
 /**
  * The deterministic local brief with this business's own duty conflicts first
@@ -154,7 +154,7 @@ export function fallbackBrief(
   const situation = `**${profile.practiceName}**: ${people.length} ${people.length === 1 ? "person holds" : "people hold"} an open duty conflict. Question: _${question}_`;
   const frontierNextMove = people[0] ? thisWeek(people[0]) : `This week: ${STATEMENT_THIS_WEEK}.`;
   const warning =
-    "Part of the full brief could not be computed for this business, so this one is built from your team's duty conflicts alone.";
+    "Pioneer could not compute part of the full brief for this business, so it built this one from your team's duty conflicts alone.";
   const markdown = [
     `## ${BRIEF_SECTION.situation}`,
     situation,
@@ -364,7 +364,7 @@ function absenceAnswer(question: string, toolResults: ToolResult[]): string[] | 
   if (!spof) return null;
   if (!spof.assessed) {
     return [
-      "Nobody is marked on Who knows what yet, so this app cannot say what stops when someone is away. Mark who can do each item first.",
+      "Who knows what does not mark anyone yet, so Precog cannot say what stops when someone is away. Mark who can do each item first.",
     ];
   }
   const soleRows = spof.rows.filter((r) => r.owners.length === 1);

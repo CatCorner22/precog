@@ -20,7 +20,7 @@ const VIEWS: { id: PatternsView; label: string; icon: typeof Brain }[] = [
   { id: "signals", label: "Signals + guidance", icon: Brain },
   { id: "reasoning", label: "Order of fixes", icon: Sparkles },
   { id: "forensic", label: "Forensic screen", icon: Sigma },
-  { id: "meta", label: "What this app can see", icon: Radar },
+  { id: "meta", label: "What Precog can see", icon: Radar },
   { id: "johari", label: "Johari window", icon: Grid2x2 },
 ];
 

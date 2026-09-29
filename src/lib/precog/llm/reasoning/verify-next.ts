@@ -42,7 +42,7 @@ const CHECKS: (VerifyNextItem & { appliesFirst: (f: Facts) => boolean })[] = [
     observation: "Owner re-performs the last 2 bank reconciliations",
     effort: "low",
     rationale:
-      "Shows whether a missing deposit would be caught. First while nobody independent reconciles the bank.",
+      "Shows whether anyone would catch a missing deposit. First while nobody independent reconciles the bank.",
     appliesFirst: (f) => !f.staff.independentBankRec,
   },
   {
@@ -65,15 +65,14 @@ const CHECKS: (VerifyNextItem & { appliesFirst: (f: Facts) => boolean })[] = [
     id: "evoi_writeoff_aging",
     observation: "Export 90 days of adjustments and write-offs with their reason codes",
     effort: "low",
-    rationale:
-      "Shows whether balances are being written off by the person who also takes payments.",
+    rationale: "Shows whether the person who also takes payments writes off balances.",
     appliesFirst: (f) => f.staff.segregationScore < HEALTH_SCALE.adequate,
   },
   {
     id: "evoi_camera_audit",
     observation: "Verify camera coverage of the cash drawer and safe (or note the gaps)",
     effort: "low",
-    rationale: "Confirms the camera credit and deterrence this app assumes actually hold.",
+    rationale: "Confirms the camera credit and deterrence Precog assumes actually hold.",
     appliesFirst: (f) => f.vars.hasSecurityCameras,
   },
   {

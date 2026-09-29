@@ -123,22 +123,22 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
   return (
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-        <Badge variant="primary">Grounded in this app&rsquo;s tools</Badge>
+        <Badge variant="primary">Grounded in Precog&rsquo;s tools</Badge>
         <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
           <Compass className="size-6 text-primary" aria-hidden />
           Pioneer
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted sm:text-base">
-          Every answer is built from this app&rsquo;s own records: what is still exposed, duty
-          conflicts, scenarios, the guidance library, and the prosecuted cases. Where it orders
-          fixes it uses this app&rsquo;s weights and says so. It never invents a measurement.
+          Pioneer builds every answer from Precog&rsquo;s own records: the exposure that remains,
+          duty conflicts, scenarios, the guidance library, and the prosecuted cases. Where it orders
+          fixes, it uses Precog&rsquo;s weights and says so. It never invents a measurement.
         </p>
       </section>
 
       <Card>
         <CardHeader>
           <CardTitle>Ask Pioneer</CardTitle>
-          <CardDescription>Answers use only this app&rsquo;s own figures.</CardDescription>
+          <CardDescription>Answers use only Precog&rsquo;s own figures.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <textarea

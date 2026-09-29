@@ -33,7 +33,7 @@ export const INVENTORY_WORDS: Record<IndustryId, InventoryWords> = {
     partnerCheck: "Reconcile lab invoices to cases completed for 30 days",
     regulator: "HIPAA / OCR enforcement trajectory",
     regulatorDetail:
-      "Privacy breaches and OCR civil money penalties are not linked to control failures (e.g. snooping, misdirected claims).",
+      "Precog does not link privacy breaches and OCR civil money penalties to control failures (for example, snooping, misdirected claims).",
     regulatorProbe: "Add OCR/HIPAA breach butterfly scenario tied to access admin entitlements",
     hostageData: "Full PMS hostage, ePHI extortion",
     revenueShock: "Payer mix / Medicaid cliff / fee schedule shock",
@@ -48,7 +48,7 @@ export const INVENTORY_WORDS: Record<IndustryId, InventoryWords> = {
     partnerCheck: "Reconcile supplier invoices to goods received for 30 days",
     regulator: "Card-data and consumer-privacy enforcement",
     regulatorDetail:
-      "Card-data breaches and privacy penalties are not linked to control failures (e.g. snooping, exported customer lists).",
+      "Precog does not link card-data breaches and privacy penalties to control failures (for example, snooping, exported customer lists).",
     regulatorProbe: "Add a card-data breach scenario tied to access admin entitlements",
     hostageData: "Full POS hostage, customer-data extortion",
     revenueShock: "Sales mix / largest channel / pricing shock",
@@ -63,7 +63,7 @@ export const INVENTORY_WORDS: Record<IndustryId, InventoryWords> = {
     partnerCheck: "Reconcile vendor invoices to deliveries received for 30 days",
     regulator: "Card-data and labor-law enforcement",
     regulatorDetail:
-      "Card-data breaches and tip or wage claims are not linked to control failures (e.g. punch edits, exported guest lists).",
+      "Precog does not link card-data breaches and tip or wage claims to control failures (for example, punch edits, exported guest lists).",
     regulatorProbe: "Add a card-data breach scenario tied to access admin entitlements",
     hostageData: "Full POS hostage, guest-data extortion",
     revenueShock: "Covers / delivery mix / food cost shock",
@@ -78,7 +78,7 @@ export const INVENTORY_WORDS: Record<IndustryId, InventoryWords> = {
     partnerCheck: "Reconcile subcontractor invoices to work delivered for 30 days",
     regulator: "Client-confidentiality and trust-account enforcement",
     regulatorDetail:
-      "Confidentiality breaches and trust-account findings are not linked to control failures (e.g. snooping, misdirected client files).",
+      "Precog does not link confidentiality breaches and trust-account findings to control failures (for example, snooping, misdirected client files).",
     regulatorProbe: "Add a client-data breach scenario tied to access admin entitlements",
     hostageData: "Full billing-system hostage, client-data extortion",
     revenueShock: "Client mix / largest client / rate shock",
@@ -94,7 +94,7 @@ export const INVENTORY_WORDS: Record<IndustryId, InventoryWords> = {
       "Compare subcontractor pay applications to work in place and lien waivers for 30 days",
     regulator: "Prevailing-wage and worker-classification enforcement",
     regulatorDetail:
-      "Certified payroll findings and misclassification penalties are not linked to control failures (e.g. unapproved field-time edits, crews paid off the books).",
+      "Precog does not link certified payroll findings and misclassification penalties to control failures (for example, unapproved field-time edits, crews paid off the books).",
     regulatorProbe: "Add a certified-payroll finding scenario tied to payroll entitlements",
     hostageData: "Full job-cost system hostage, bid-data extortion",
     revenueShock: "Backlog / largest client / material price shock",
@@ -109,7 +109,7 @@ export const INVENTORY_WORDS: Record<IndustryId, InventoryWords> = {
     partnerCheck: "Match sublet invoices and parts credits to repair orders for 30 days",
     regulator: "Consumer-protection and titling enforcement",
     regulatorDetail:
-      "Title and registration fee findings and financing or advertising violations are not linked to control failures (e.g. fees collected but never remitted, deal terms changed after signing).",
+      "Precog does not link title and registration fee findings and financing or advertising violations to control failures (for example, fees collected but never remitted, deal terms changed after signing).",
     regulatorProbe: "Add a title-fee remittance finding scenario tied to deal posting entitlements",
     hostageData: "Full DMS hostage, credit-application data extortion",
     revenueShock: "New-versus-used mix / manufacturer allocation / warranty rate shock",
@@ -125,7 +125,7 @@ export const INVENTORY_WORDS: Record<IndustryId, InventoryWords> = {
     partnerCheck: "Reconcile online-giving payouts to donor records for 30 days",
     regulator: "State charity regulator and IRS reporting",
     regulatorDetail:
-      "Form 990 and state charity findings are not linked to control failures (e.g. restricted gifts spent on operations, unreviewed executive pay).",
+      "Precog does not link form 990 and state charity findings to control failures (for example, restricted gifts spent on operations, unreviewed executive pay).",
     regulatorProbe: "Add a restricted-fund misuse scenario tied to grant entitlements",
     hostageData: "Full donor-database hostage, donor-data extortion",
     revenueShock: "Largest funder / grant cliff / event shortfall",
@@ -140,7 +140,7 @@ export const INVENTORY_WORDS: Record<IndustryId, InventoryWords> = {
     partnerCheck: "Reconcile supplier invoices to goods or work received for 30 days",
     regulator: "Privacy and data-protection enforcement",
     regulatorDetail:
-      "Data breaches and privacy penalties are not linked to control failures (e.g. snooping, exported customer lists).",
+      "Precog does not link data breaches and privacy penalties to control failures (for example, snooping, exported customer lists).",
     regulatorProbe: "Add a data breach scenario tied to access admin entitlements",
     hostageData: "Full accounting-system hostage, customer-data extortion",
     revenueShock: "Customer mix / largest customer / pricing shock",
