@@ -132,7 +132,7 @@ export function parseValueEvidence(input: string) {
   if (!Array.isArray(envelope.evidence)) throw new Error("Evidence file has no evidence register");
   if (envelope.evidence.length > MAX_VALUE_EVIDENCE_ITEMS) {
     throw new Error(
-      `Evidence file has ${envelope.evidence.length.toLocaleString("en-US")} records; the register holds at most ${MAX_VALUE_EVIDENCE_ITEMS}. Nothing was imported.`,
+      `Evidence file has ${envelope.evidence.length.toLocaleString("en-US")} records; the register holds at most ${MAX_VALUE_EVIDENCE_ITEMS}. Precog imported nothing.`,
     );
   }
   return normalizeValueEvidence(envelope.evidence);

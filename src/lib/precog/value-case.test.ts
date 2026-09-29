@@ -61,7 +61,7 @@ describe("createValueCaseMemo", () => {
     expect(memo).not.toMatch(/Observed ROI/);
     expect(memo).not.toMatch(/Net observed value/);
     expect(memo).toContain("## Observed value\n\nNot yet observed.");
-    expect(memo).toContain("- Annual exposure (app default): $250,000");
+    expect(memo).toContain("- Annual exposure (Precog default): $250,000");
     expect(memo).not.toContain("your assumption)");
   });
 
@@ -76,12 +76,12 @@ describe("createValueCaseMemo", () => {
   it("labels the owner's own assumptions as theirs", () => {
     const memo = createValueCaseMemo({ ...DEFAULT_VALUE_CASE, annualExposure: 400_000 }, at);
     expect(memo).toContain("- Annual exposure (your assumption): $400,000");
-    expect(memo).toContain("- Baseline event probability (app default): 4.0%");
+    expect(memo).toContain("- Baseline event probability (Precog default): 4.0%");
   });
 
   it("says where the modeled range comes from", () => {
     const memo = createValueCaseMemo(DEFAULT_VALUE_CASE, at);
-    expect(memo).toContain("(base ×0.5 and ×1.5, this app's assumption)");
+    expect(memo).toContain("(base ×0.5 and ×1.5, Precog's assumption)");
     expect(MODELED_RANGE_NOTE).toMatch(/half, or one and a half times/);
   });
 

@@ -306,10 +306,10 @@ function DraftFields({
         ))}
       </select>
       <input
-        aria-label={`${labelPrefix}: what was observed`}
+        aria-label={`${labelPrefix}: what you observed`}
         value={draft.description}
         onChange={(event) => onChange({ ...draft, description: event.target.value })}
-        placeholder="What was observed?"
+        placeholder="What did you observe?"
         className={field}
       />
       <input
