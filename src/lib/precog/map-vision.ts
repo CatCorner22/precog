@@ -189,11 +189,11 @@ export function scorePriority(input: {
   }
   if (input.kind === "control" || input.controlOpen) {
     impact = Math.max(impact, 0.72);
-    reasons.push("Open control / SoD gap");
+    reasons.push("Open duty conflict");
   }
   if (input.soleOwner || input.kind === "knowledge") {
     impact = Math.max(impact, 0.65);
-    if (input.soleOwner) reasons.push("Knowledge SPOF");
+    if (input.soleOwner) reasons.push("Knowledge held by one person");
   }
 
   impact = Math.min(1, impact);

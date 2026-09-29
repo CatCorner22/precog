@@ -350,7 +350,7 @@ describe("domain invariants", () => {
     const high = samples.at(-1);
     assert.ok(samples.every(({ priority }) => priority >= 0 && priority <= 100));
     assert.equal(high.immediate, true);
-    assert.ok(high.reasons.includes("Open control / SoD gap"));
+    assert.ok(high.reasons.includes("Open duty conflict"));
   });
 
   it("control guidance retrieval returns authoritative guidance", () => {

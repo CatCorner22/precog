@@ -371,10 +371,10 @@ export function buildProcessMapGraph(
         id: cid,
         kind: "control",
         label: c.name,
-        subtitle: c.residualRiskAccepted ? "Residual accepted" : "Open SoD gap",
+        subtitle: c.residualRiskAccepted ? "Residual risk accepted" : "Open duty conflict",
         processId: p.id,
         severity: c.residualRiskAccepted ? 55 : 80,
-        badges: ["SoD gap"],
+        badges: ["Duty conflict"],
         data: { ...c },
       });
       edges.push({

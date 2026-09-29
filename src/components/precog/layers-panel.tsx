@@ -47,11 +47,11 @@ export function LayersPanel({
             : id === "knowledge"
               ? `${knowledge.length} knowledge items`
               : id === "control"
-                ? `${controls.filter((c) => !c.segregated).length} SoD gaps`
+                ? `${controls.filter((c) => !c.segregated).length} duty conflicts`
                 : id === "surface"
                   ? "Live operations view"
                   : id === "source"
-                    ? "Systems & vendors"
+                    ? "Systems and vendors"
                     : "Fragility paths";
 
         return (
@@ -127,16 +127,16 @@ export function LayerDetail({
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{c.name}</span>
-                {!c.segregated && <Badge variant="danger">SoD gap</Badge>}
-                {c.starter && <Badge variant="default">Starter · not confirmed</Badge>}
-                {c.residualRiskAccepted && <Badge variant="warn">Residual accepted</Badge>}
+                {!c.segregated && <Badge variant="danger">Duty conflict</Badge>}
+                {c.starter && <Badge variant="default">Sample · not confirmed</Badge>}
+                {c.residualRiskAccepted && <Badge variant="warn">Residual risk accepted</Badge>}
               </div>
               <p className="mt-1 text-muted">{c.description}</p>
               {c.starter && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <p className="text-xs text-subtle">
                     From the industry sample. Nobody has confirmed this control runs in your
-                    business, so the app does not score it yet.
+                    business, so Precog does not score it yet.
                   </p>
                   <Button
                     size="sm"
@@ -285,7 +285,7 @@ function InPlaceForm({ onRecord }: { onRecord: (text: string) => void }) {
         What does someone else do that would catch a problem here?
         <input
           className="mt-1 w-full rounded-md border border-border bg-bg px-2 py-1.5 text-sm text-fg"
-          placeholder="e.g. The CFO reviews each bank reconciliation and its statement"
+          placeholder="For example: The CFO reviews each bank reconciliation and its statement"
           value={text}
           maxLength={200}
           onChange={(e) => setText(e.target.value)}
@@ -293,8 +293,8 @@ function InPlaceForm({ onRecord }: { onRecord: (text: string) => void }) {
         />
       </label>
       <p className="text-xs text-subtle">
-        It goes in your {tabName("journal")} with a review date in 90 days. It lowers these
-        gaps&apos; scores a little but does not close them: one person still holds both duties.
+        It goes in your {tabName("journal")} with a review date in 90 days. It lowers the scores a
+        little but does not close the duty conflict: one person still holds both duties.
       </p>
       <div className="flex gap-2">
         <Button size="sm" type="submit" disabled={!trimmed}>
