@@ -72,7 +72,7 @@ describe("assessCoso", () => {
     const one = assessCoso(own, clean, { confirmedScenarioIds: new Set(["sc-vendor-fraud"]) });
     const top = one.priorityFindings.find((f) => f.id === "ra-top")!;
     expect(top.label).toBe("Top residual scenario: One person sets up vendors and pays them");
-    expect(top.detail).toContain("assumed days until someone finds it");
+    expect(top.detail).toContain("assumed days until found");
   });
 });
 
