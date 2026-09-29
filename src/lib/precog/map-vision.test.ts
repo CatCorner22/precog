@@ -87,7 +87,7 @@ describe("scorePriority", () => {
 
   it("flags an open control gap as high impact", () => {
     const r = scorePriority({ heat: 80, kind: "control" });
-    expect(r.reasons).toContain("Open control / SoD gap");
+    expect(r.reasons).toContain("Open duty conflict");
     expect(r.immediate).toBe(true);
   });
 });
