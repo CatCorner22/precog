@@ -37,7 +37,7 @@ export function AccountDataControls() {
       await deleteAccount({ data: { confirm: "DELETE" } });
       clearLocalCopies(workspace.local);
       workspace.session?.clear();
-      toast.success("Your account and its data are deleted.");
+      toast.success("Precog has deleted your account and its data.");
       await signOut("/", { skipRecovery: true });
     } catch (error) {
       toast.error(

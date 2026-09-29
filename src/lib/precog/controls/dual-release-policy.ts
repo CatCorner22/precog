@@ -231,7 +231,7 @@ const DEFAULT_DUAL_RELEASE_RULES: DualReleaseRule[] = [
     // adjusting the books, so collect + post and post + reconcile stay open.
     mitigatesRuleIds: ["rule-deposit-post"],
     processIds: ["proc-cash"],
-    description: "Dual count of deposit before bag is sealed.",
+    description: "Two people count the deposit before anyone seals the bag.",
   },
   {
     channel: "payroll",

@@ -55,7 +55,7 @@ export function ReportVersionsPanel() {
     if (!businessId) return;
     if (syncStatus !== "synced") {
       toast("Wait for the save to finish", {
-        description: "A locked version freezes what is saved to your account.",
+        description: "A locked version freezes what you have saved to your account.",
       });
       return;
     }
@@ -80,7 +80,7 @@ export function ReportVersionsPanel() {
       setVersions((cur) => (cur ?? []).map((v) => (v.id === id ? version : v)));
       toast.success("Signed off.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "The sign-off was not recorded.");
+      toast.error(err instanceof Error ? err.message : "Precog did not record the sign-off.");
     } finally {
       setBusy(false);
     }
@@ -126,8 +126,9 @@ export function ReportVersionsPanel() {
           </Button>
         </div>
         <p className="mt-2 text-xs text-neutral-500">
-          Locking freezes the business as it is saved to your account, with your name and today's
-          date. A firm reviewer who did not prepare it signs it off; the sent stamp is set once.
+          Locking freezes the business as you have saved it to your account, with your name and
+          today's date. A firm reviewer who did not prepare it signs it off; the sent stamp is set
+          once.
         </p>
         {versions && versions.length > 0 && (
           <ul className="mt-3 divide-y divide-neutral-200">

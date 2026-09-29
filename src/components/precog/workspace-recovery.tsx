@@ -44,7 +44,7 @@ export function WorkspaceRecovery() {
   function exportLegacy() {
     if (
       !window.confirm(
-        "These older browser records have no verified account owner. Export them for manual recovery only if you are authorized to access this browser's business records.",
+        "These older browser records have no verified account owner. Export them for manual recovery only if you have permission to access this browser's business records.",
       )
     )
       return;

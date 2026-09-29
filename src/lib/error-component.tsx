@@ -23,7 +23,7 @@ export function AppErrorComponent({ error }: ErrorComponentProps) {
   function clearAndReload() {
     if (
       !window.confirm(
-        "Clear the saved data on this device? You lose changes that have not synced to your account. Other accounts are not affected.",
+        "Clear the saved data on this device? You lose changes that have not synced to your account. This does not affect other accounts.",
       )
     )
       return;

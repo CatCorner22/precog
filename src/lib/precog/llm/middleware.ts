@@ -33,7 +33,7 @@ function llmMiddlewareFor(options: LlmAccessOptions) {
         },
       });
       if (!identityUnchanged(identity))
-        throw new Error("The account changed. The old response was discarded.");
+        throw new Error("The account changed. Precog discarded the old response.");
       return result;
     })
     .server(async ({ next, context }) => {

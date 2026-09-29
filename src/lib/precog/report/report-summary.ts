@@ -71,7 +71,7 @@ export function executiveSummary(input: SummaryInput): string[] {
   lines.push(
     input.registerReady
       ? `${input.coverageIndex}% of the work on the register (weighted by how critical it is) has two or more people who can run it alone; ${count(input.singlePoints, "critical or important item")} ${input.singlePoints === 1 ? "relies" : "rely"} on one person or nobody.`
-      : "Continuity is not assessed yet: nobody is marked on the register of duties and know-how.",
+      : "Precog has not assessed continuity yet: the register of duties and know-how marks nobody.",
   );
   if (input.mapHealth) {
     lines.push(

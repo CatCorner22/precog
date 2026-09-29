@@ -36,7 +36,7 @@ export function NotificationSettingsPanel({ signedIn }: { signedIn: boolean }) {
       await updateNotificationSettings({ data: next });
     } catch {
       setState((cur) => (cur ? { ...cur, settings: previous } : cur));
-      toast.error("The reminder settings were not saved.");
+      toast.error("Precog did not save the reminder settings.");
     }
   }
 

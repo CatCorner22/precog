@@ -324,7 +324,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
           </p>
           {unheld.length > 0 && (
             <p className="mt-2 text-sm text-neutral-700">
-              Nobody still working here is marked for: {unheld.join(", ")}. Somebody does{" "}
+              The register marks nobody still working here for: {unheld.join(", ")}. Somebody does{" "}
               {verb(unheld.length, "this", "each of these")} in every {industry.teamLabel} that
               handles money; until the team records who, the findings cannot cover{" "}
               {verb(unheld.length, "that duty", "those duties")}.
@@ -440,7 +440,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
             </ul>
             {decisionLog.more > 0 && (
               <p className="mt-2 text-xs text-neutral-500">
-                The {decisionLog.shown.length} newest decisions are shown;{" "}
+                This report shows the {decisionLog.shown.length} newest decisions;{" "}
                 {count(decisionLog.more, "earlier decision is", "earlier decisions are")} not.
               </p>
             )}

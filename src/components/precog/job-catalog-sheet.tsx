@@ -15,9 +15,9 @@ export function JobCatalogSheet() {
         See the {JOB_CATALOG.length} job titles and the duties each one starts with
       </summary>
       <p className="mt-2 text-subtle">
-        Duties are this app's reading of what a title usually holds in a business of two to fifty
+        Duties are Precog's reading of what a title usually holds in a business of two to fifty
         people, never a fact about yours. Where a title matches one occupation in the U.S. Bureau of
-        Labor Statistics classification (SOC 2018), its code is shown.
+        Labor Statistics classification (SOC 2018), Precog shows its code.
       </p>
       <div className="mt-2 max-h-80 overflow-y-auto">
         {(Object.keys(JOB_FAMILY_LABEL) as JobFamily[]).map((family) => {

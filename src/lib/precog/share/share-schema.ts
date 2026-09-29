@@ -89,7 +89,7 @@ export function validateSharePayload(input: unknown): SharedMapPayload {
     console.warn("Refused a map share", first?.path.join("."), first?.message);
     throw new RequestError(
       400,
-      "This share could not be created from the map as it stands. Reload the page and try again.",
+      "Precog could not create this share from the map as it stands. Reload the page and try again.",
     );
   }
   return parsed.data;

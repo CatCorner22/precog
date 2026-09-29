@@ -29,10 +29,7 @@ interface SaveBusinessRequest {
 export function parseSaveBusinessRequest(input: unknown): SaveBusinessRequest {
   const raw = requireObject(input);
   if (typeof raw.expectedAccountId !== "string" || !raw.expectedAccountId)
-    throw new RequestError(
-      409,
-      "Reload this application before saving so the account can be verified.",
-    );
+    throw new RequestError(409, "Reload Precog before saving so it can verify the account.");
   const latestDay = latestClientDay();
   const checked = storedProcedures(validateProfileInput(raw.profile), latestDay);
   const industry = raw.industry ?? checked.profile.industry;

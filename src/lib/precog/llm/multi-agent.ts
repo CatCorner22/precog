@@ -50,7 +50,7 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
         ? `Average risk index ${residual.averageResidual}/100 (this app's own index); most exposed: ${residual.top[0]?.name ?? "nothing listed"} (${residual.top[0]?.residual ?? "?"}/100).`
         : "No risk index in this run.",
       spofState && !spofState.assessed
-        ? "Who knows what: not assessed yet. Nobody is marked, so nothing shows who alone can run what."
+        ? "Who knows what: not assessed yet. The register marks nobody, so nothing shows who alone can run what."
         : spofState && spofState.rows.length
           ? `${count(spofState.rows.length, "item")} only one person can run; training a second person adds capacity, not paperwork.`
           : "No critical item rests on one person.",

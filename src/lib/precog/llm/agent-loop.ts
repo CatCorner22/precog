@@ -238,7 +238,7 @@ function normalized(text: string): string {
 /** Footnote for case names the library did not return. */
 function caseNote(unknown: string[]): string {
   if (!unknown.length) return "";
-  return `\n\n**Check before quoting:** ${unknown.length === 1 ? "this case" : "these cases"} did not come from this app's case library and could not be verified: ${unknown.join("; ")}.`;
+  return `\n\n**Check before quoting:** ${unknown.length === 1 ? "this case" : "these cases"} did not come from Precog's case library, so Precog could not check the source: ${unknown.join("; ")}.`;
 }
 
 /** Tool summaries for the trace, with tools that said the same thing listed once. */

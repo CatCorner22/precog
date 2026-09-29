@@ -48,7 +48,7 @@ export function checkGrounding(markdown: string, toolResults: ToolResult[]): Gro
 /** Footnote appended to a brief whose figures could not all be traced to a tool. */
 export function groundingNote(report: GroundingReport): string | null {
   if (!report.unsupported.length) return null;
-  return `\n\n---\n\n**Check before quoting:** ${report.unsupported.length === 1 ? "this figure" : "these figures"} did not come from the tools this brief ran and could not be verified: ${report.unsupported.join(", ")}. The other money and percent figures above match numbers the tools returned.`;
+  return `\n\n---\n\n**Check before quoting:** ${report.unsupported.length === 1 ? "this figure" : "these figures"} did not come from the tools this brief ran, so Precog could not check the source: ${report.unsupported.join(", ")}. The other money and percent figures above match numbers the tools returned.`;
 }
 
 /**

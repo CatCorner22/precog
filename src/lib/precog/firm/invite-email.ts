@@ -8,7 +8,7 @@ export function renderFirmInvitation(input: {
   role: InviteRole;
   link: string;
 }): RenderedEmail {
-  const who = input.inviterName ? `${input.inviterName} invited you` : "You are invited";
+  const who = input.inviterName ? `${input.inviterName} invited you` : "The firm invites you";
   const intro = `${who} to join ${input.firmName} on Precog as a ${input.role}.`;
   const duty = ROLE_DUTY[input.role];
   const closing = "The link works once and expires in two weeks. Sign in, then open it to join.";

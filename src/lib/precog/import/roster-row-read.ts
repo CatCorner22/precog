@@ -291,7 +291,7 @@ function joinLocation(
   person.department = joined;
   context.issues.push({
     row,
-    message: `"${person.name}" is listed at ${held.join(", ") || "no location"} and ${department} with the same title; kept as one person at both`,
+    message: `"${person.name}" appears at ${held.join(", ") || "no location"} and ${department} with the same title; kept as one person at both`,
   });
   return true;
 }
@@ -387,7 +387,7 @@ function readStatusAndLastDay(
     if (hasStatus(context, cells)) {
       context.issues.push({
         row,
-        message: `"${name}" has a past last day (${lastDay}) but an active status; the last day was not kept`,
+        message: `"${name}" has a past last day (${lastDay}) but an active status, so Precog dropped the last day`,
       });
       lastDay = undefined;
     } else {
@@ -395,7 +395,7 @@ function readStatusAndLastDay(
       delete status.leave;
       context.issues.push({
         row,
-        message: `"${name}" left on ${lastDay}, so is read as no longer working here`,
+        message: `"${name}" left on ${lastDay}, so Precog treats them as no longer working here`,
       });
     }
   }
@@ -586,7 +586,7 @@ function addPosition(
   if (!position.active) {
     context.issues.push({
       row,
-      message: `${who}: the ${position.role} position is marked inactive, so its duties are left out`,
+      message: `${who}: the ${position.role} position is inactive, so Precog leaves out its duties`,
     });
     return;
   }
@@ -607,7 +607,7 @@ function addPosition(
     if (endedDay && endedDay !== position.lastDay) {
       context.issues.push({
         row,
-        message: `${who}: the ${position.role} position is active, so the last day ${endedDay} of the inactive ${endedRole} position was not kept`,
+        message: `${who}: the ${position.role} position is active, so Precog dropped the last day ${endedDay} of the inactive ${endedRole} position`,
       });
     }
     return;

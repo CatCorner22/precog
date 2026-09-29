@@ -49,7 +49,7 @@ export function AccessReconcile() {
     const text = await readFile(file, setIssues);
     if (text === null) return;
     const vendors = parseVendorExport(text, today);
-    setIssues(vendors.length === 0 ? ["No vendor rows were read from that file."] : []);
+    setIssues(vendors.length === 0 ? ["Precog read no vendor rows from that file."] : []);
     setAccessReconciliation((current) => ({
       importedAt: new Date().toISOString(),
       source: current?.source ?? "unknown",
@@ -274,7 +274,7 @@ async function readFile(file: File, report: (issues: string[]) => void): Promise
   try {
     return await file.text();
   } catch {
-    report([`${file.name} could not be read. Choose the file again, or export it again.`]);
+    report([`Precog could not read ${file.name}. Choose the file again, or export it again.`]);
     return null;
   }
 }

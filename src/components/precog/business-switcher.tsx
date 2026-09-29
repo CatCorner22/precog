@@ -264,8 +264,8 @@ export function BusinessSwitcher() {
                   </Button>
                 </div>
                 <p className="text-xs text-subtle">
-                  Next you enter its team, or load the sample business. Your current business is
-                  saved first.
+                  Next you enter its team, or load the sample business. Precog saves your current
+                  business first.
                 </p>
               </div>
             ) : (
