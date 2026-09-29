@@ -132,9 +132,9 @@ function sharedBlueprints(v: Vocabulary): PracticeProcessBlueprint[] {
   return [
     {
       id: "billing-ar",
-      name: `${cap(v.bills)}, credits & receivables`,
+      name: `${cap(v.bills)}, credits and receivables`,
       domain: "revenue",
-      objective: `Every sale is billed, every ${v.bill} is chased, and every credit has a reason.`,
+      objective: `Every sale produces a ${v.bill}, someone follows up every unpaid ${v.bill}, and every credit has a reason.`,
       primaryOwner: v.books,
       independentReviewer: v.approver,
       standard: [
@@ -157,7 +157,7 @@ function sharedBlueprints(v: Vocabulary): PracticeProcessBlueprint[] {
     },
     {
       id: "cash-receipts",
-      name: "Cash, card & deposits",
+      name: "Cash, card and deposits",
       domain: "cash",
       objective: `Money taken from ${v.customers} equals money recorded and money banked.`,
       primaryOwner: v.frontLead,
@@ -179,7 +179,7 @@ function sharedBlueprints(v: Vocabulary): PracticeProcessBlueprint[] {
     },
     {
       id: "refunds-writeoffs",
-      name: "Refunds, voids & write-offs",
+      name: "Refunds, voids and write-offs",
       domain: "revenue",
       objective: "Money given back or forgiven is real, approved, and traceable.",
       primaryOwner: v.books,
@@ -200,7 +200,7 @@ function sharedBlueprints(v: Vocabulary): PracticeProcessBlueprint[] {
     },
     {
       id: "procure-pay",
-      name: "Suppliers, bills & payments",
+      name: "Suppliers, bills and payments",
       domain: "purchasing",
       objective:
         "Real suppliers, real goods, approved bills, released by someone who did not enter them.",
@@ -223,9 +223,9 @@ function sharedBlueprints(v: Vocabulary): PracticeProcessBlueprint[] {
     },
     {
       id: "payroll",
-      name: "Payroll & pay changes",
+      name: "Payroll and pay changes",
       domain: "payroll",
-      objective: "Only real people are paid, at approved rates, to their own accounts.",
+      objective: "Payroll pays only real people, at approved rates, into their own accounts.",
       primaryOwner: v.books,
       independentReviewer: v.approver,
       standard: [
@@ -241,13 +241,13 @@ function sharedBlueprints(v: Vocabulary): PracticeProcessBlueprint[] {
     },
     {
       id: "access-change",
-      name: "System access & changes",
+      name: "System access and changes",
       domain: "technology",
       objective: `Access to the ${v.system}, the bank and payroll matches the job, and changes leave a trail.`,
       primaryOwner: v.books,
       independentReviewer: v.approver,
       standard: [
-        "Named logins, no shared accounts",
+        "Named sign-ins, no shared accounts",
         "Access removed on the last day",
         "Admin rights held by as few people as possible",
       ],
@@ -262,7 +262,7 @@ function sharedBlueprints(v: Vocabulary): PracticeProcessBlueprint[] {
     },
     {
       id: "close-report",
-      name: "Month-end close & reporting",
+      name: "Month-end close and reporting",
       domain: "governance",
       objective: "The owner sees true numbers, on time, from someone who did not make them.",
       primaryOwner: v.books,
@@ -285,7 +285,7 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
   dental: [
     {
       id: "patient-intake",
-      name: "Patient intake, scheduling & eligibility",
+      name: "Patient intake, scheduling and eligibility",
       domain: "operations",
       objective: "Accurate patient, coverage, consent, and appointment data before care.",
       primaryOwner: "Front desk lead",
@@ -313,11 +313,11 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "clinical-documentation",
-      name: "Clinical documentation, coding & charge capture",
+      name: "Clinical documentation, coding and charge capture",
       domain: "operations",
       objective: "Complete, supported, timely records and charges for services performed.",
       primaryOwner: "Treating provider",
-      independentReviewer: "Clinical lead / billing specialist",
+      independentReviewer: "Clinical lead or billing specialist",
       standard: [
         "Provider closes notes",
         "Codes trace to documentation",
@@ -335,7 +335,7 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "insurance-adjustments",
-      name: "Insurance adjustments & patient balances",
+      name: "Insurance adjustments and patient balances",
       domain: "revenue",
       objective:
         "Contractual adjustments are what the carrier allows, not a place to hide a payment kept.",
@@ -358,13 +358,13 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
   retail: [
     {
       id: "register-returns",
-      name: "Register sales, returns & discounts",
+      name: "Register sales, returns and discounts",
       domain: "operations",
       objective: "Every sale rings, every return has a receipt, every discount has a reason.",
       primaryOwner: "Store manager",
       independentReviewer: "Owner",
       standard: [
-        "Named POS logins",
+        "Named POS sign-ins",
         "Return requires the original receipt or manager code",
         "Discount and no-sale reasons recorded",
       ],
@@ -379,10 +379,10 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "inventory-shrink",
-      name: "Receiving, inventory & shrink",
+      name: "Receiving, inventory and shrink",
       domain: "purchasing",
       objective:
-        "What was paid for arrived, what is on the shelf is counted, and shrink is explained.",
+        "Everything the store paid for arrived, someone counts what is on the shelf, and someone explains any shrink.",
       primaryOwner: "Inventory lead",
       independentReviewer: "Store manager",
       standard: [
@@ -398,9 +398,10 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "gift-cards-loyalty",
-      name: "Gift cards, store credit & loyalty",
+      name: "Gift cards, store credit and loyalty",
       domain: "revenue",
-      objective: "Stored value is issued for money received and redeemed once.",
+      objective:
+        "The store issues stored value only for money received, and a customer can redeem it only once.",
       primaryOwner: "Store manager",
       independentReviewer: "Bookkeeper",
       standard: [
@@ -418,10 +419,10 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
   professional_services: [
     {
       id: "time-billing",
-      name: "Time capture, rates & invoicing",
+      name: "Time capture, rates and invoicing",
       domain: "revenue",
       objective:
-        "Work done is recorded, billed at the agreed rate, and not written down without a reason.",
+        "The firm records all work done, bills it at the agreed rate, and writes it down only for a stated reason.",
       primaryOwner: "Billing coordinator",
       independentReviewer: "Managing partner",
       standard: [
@@ -440,10 +441,10 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "client-trust",
-      name: "Client trust & retainer accounts",
+      name: "Client trust and retainer accounts",
       domain: "cash",
       objective:
-        "Money held for clients stays theirs, is reconciled three ways, and moves only on authority.",
+        "Money held for clients stays theirs; the firm reconciles it three ways and moves it only with authority.",
       primaryOwner: "Bookkeeper",
       independentReviewer: "Managing partner",
       standard: [
@@ -462,9 +463,10 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "engagement-acceptance",
-      name: "Engagement acceptance & expenses",
+      name: "Engagement acceptance and expenses",
       domain: "governance",
-      objective: "Work is taken on knowingly and expenses billed to clients are real.",
+      objective:
+        "The firm takes on work knowingly, and every expense it bills to a client is real.",
       primaryOwner: "Managing partner",
       independentReviewer: "Second partner",
       standard: [
@@ -482,15 +484,15 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
   restaurant: [
     {
       id: "comps-voids",
-      name: "Comps, voids & discounts",
+      name: "Comps, voids and discounts",
       domain: "operations",
-      objective: "Food and drink given away is authorized and counted.",
+      objective: "Someone with authority approves and counts all food and drink given away.",
       primaryOwner: "General manager",
       independentReviewer: "Owner",
       standard: [
         "Manager approval for comps and voids",
         "Reasons recorded at the terminal",
-        "Named logins on every server",
+        "Named sign-ins on every server",
       ],
       leading: [
         "Comp and void report by server and manager reviewed daily",
@@ -503,9 +505,10 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "tips-payroll",
-      name: "Tips, tip pooling & payroll",
+      name: "Tips, tip pooling and payroll",
       domain: "payroll",
-      objective: "Tips reach the people who earned them and are reported as the law requires.",
+      objective:
+        "Tips reach the people who earned them, and the restaurant reports them as the law requires.",
       primaryOwner: "General manager",
       independentReviewer: "Bookkeeper",
       standard: [
@@ -524,10 +527,11 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "food-liquor-inventory",
-      name: "Food & liquor purchasing and inventory",
+      name: "Food and liquor purchasing and inventory",
       domain: "purchasing",
-      objective: "What was ordered arrived, what arrived was used, and pour cost is explained.",
-      primaryOwner: "Kitchen manager / bar manager",
+      objective:
+        "Everything the restaurant ordered arrived, the kitchen and bar used what arrived, and someone explains the pour cost.",
+      primaryOwner: "Kitchen manager or bar manager",
       independentReviewer: "General manager",
       standard: [
         "Deliveries checked against the order by someone who did not order",
@@ -544,10 +548,10 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
   construction: [
     {
       id: "job-costing",
-      name: "Job costing & change orders",
+      name: "Job costing and change orders",
       domain: "operations",
       objective:
-        "Every cost lands on the right job and every change is priced and signed before the work.",
+        "Every cost lands on the right job, and every change has an agreed price and a signature before the work starts.",
       primaryOwner: "Project manager",
       independentReviewer: "Owner",
       standard: [
@@ -563,10 +567,10 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "progress-billing",
-      name: "Progress billing, retainage & lien waivers",
+      name: "Progress billing, retainage and lien waivers",
       domain: "revenue",
       objective:
-        "Billing follows the work completed and money owed to subcontractors is released on proof.",
+        "Billing follows the work completed, and the business releases money owed to subcontractors only on proof.",
       primaryOwner: "Office manager",
       independentReviewer: "Owner",
       standard: [
@@ -582,10 +586,10 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "equipment-materials",
-      name: "Equipment, materials & yard",
+      name: "Equipment, materials and yard",
       domain: "purchasing",
       objective: "Materials bought reach the job, and equipment is where the records say.",
-      primaryOwner: "Yard / warehouse lead",
+      primaryOwner: "Yard or warehouse lead",
       independentReviewer: "Project manager",
       standard: [
         "Deliveries signed for on site",
@@ -602,10 +606,10 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
   automotive: [
     {
       id: "repair-orders",
-      name: "Repair orders, service cash & warranty claims",
+      name: "Repair orders, service cash and warranty claims",
       domain: "operations",
       objective:
-        "Every repair order is priced, closed and paid on the record, and every warranty dollar earned is claimed.",
+        "The dealership prices, closes and collects every repair order on the record, and claims every warranty dollar it earns.",
       primaryOwner: "Service manager",
       independentReviewer: "Dealer principal",
       standard: [
@@ -627,7 +631,7 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "parts-inventory",
-      name: "Parts ordering, receiving & counter sales",
+      name: "Parts ordering, receiving and counter sales",
       domain: "purchasing",
       objective:
         "Parts bought reach a repair order or a shelf, and the shelf agrees with the books.",
@@ -652,7 +656,7 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "vehicle-deals-title",
-      name: "Vehicle deals, F&I & title work",
+      name: "Vehicle deals, F&I and title work",
       domain: "revenue",
       objective:
         "Every deal funds as written, every fee collected reaches the state, and every rebate reaches the dealership.",
@@ -679,9 +683,9 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
   nonprofit: [
     {
       id: "donations-pledges",
-      name: "Donations, pledges & receipting",
+      name: "Donations, pledges and receipting",
       domain: "revenue",
-      objective: "Every gift is recorded, receipted, and banked by different hands.",
+      objective: "Different people record, receipt, and bank each gift.",
       primaryOwner: "Development lead",
       independentReviewer: "Finance manager",
       standard: [
@@ -697,9 +701,10 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "restricted-funds",
-      name: "Grants, restricted funds & compliance",
+      name: "Grants, restricted funds and compliance",
       domain: "governance",
-      objective: "Restricted money is spent on what it was given for, and the funder can see it.",
+      objective:
+        "The organization spends restricted money on what the donor gave it for, and the funder can see it.",
       primaryOwner: "Finance manager",
       independentReviewer: "Executive director and treasurer",
       standard: [
@@ -715,9 +720,9 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "program-expense-allocation",
-      name: "Program expenses, credit cards & reimbursements",
+      name: "Program expenses, credit cards and reimbursements",
       domain: "purchasing",
-      objective: "Spending serves the mission and is approved by someone other than the spender.",
+      objective: "Spending serves the mission, and someone other than the spender approves it.",
       primaryOwner: "Program director",
       independentReviewer: "Finance manager",
       standard: [
@@ -735,9 +740,9 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
   general: [
     {
       id: "sales-orders",
-      name: "Quotes, orders & delivery",
+      name: "Quotes, orders and delivery",
       domain: "operations",
-      objective: "What was sold is what was delivered and billed.",
+      objective: "The business delivers and bills exactly what it sold.",
       primaryOwner: "Operations lead",
       independentReviewer: "Owner",
       standard: [
@@ -753,7 +758,7 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "inventory-assets",
-      name: "Inventory & equipment",
+      name: "Inventory and equipment",
       domain: "purchasing",
       objective: "What the business paid for is on hand and counted.",
       primaryOwner: "Operations lead",
@@ -767,7 +772,7 @@ const INDUSTRY_BLUEPRINTS: Record<IndustryId, PracticeProcessBlueprint[]> = {
     },
     {
       id: "credit-cards-expenses",
-      name: "Company cards & expense claims",
+      name: "Company cards and expense claims",
       domain: "purchasing",
       objective: "Card and expense spending is business spending, seen by someone else.",
       primaryOwner: "Bookkeeper",
