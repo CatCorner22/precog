@@ -2,10 +2,10 @@ import type { ToolResult } from "./types";
 
 /**
  * Deterministic check that the model's dollar figures and percentages came
- * from the tool results it was given. The system prompt says "use only numbers
- * the tools returned"; this makes that a verified property rather than a hope.
- * Unsupported figures are reported, not silently accepted, and the caller
- * decides what to do (we flag them in the brief rather than drop the answer).
+ * from the tool results it was given. This is a diagnostic only: it cannot
+ * validate a number's subject, unit, period, applicability or interpretation.
+ * It must never be used as permission to display a model-written claim.
+ * The live brief uses complete statement selection in brief-selection.ts.
  */
 
 interface GroundingReport {

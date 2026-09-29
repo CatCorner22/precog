@@ -77,9 +77,11 @@ function PrivacyPage() {
         <p>
           Pioneer answers on this device from your profile with no model call until you ask a
           question while signed in and Precog has a model key. Precog sends that question, plus the
-          tool results it needs (names, duties, gaps, and notes you typed), to xAI to write the
-          brief. Logged-out use never makes that call. Do not paste patient, customer, or account
-          numbers into notes or questions.
+          complete rule-based statements and their warnings and evidence references (which can
+          include names, duties, gaps, and notes you typed), to xAI to select relevant details.
+          Precog keeps the statements intact and withholds responses that do not follow this
+          selection format. Logged-out use never makes that call. Do not paste patient, customer, or
+          account numbers into notes or questions.
         </p>
       </section>
 

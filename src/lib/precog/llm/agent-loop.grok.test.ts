@@ -61,7 +61,7 @@ describe("runGrokAgentLoop", () => {
     vi.restoreAllMocks();
   });
 
-  it("rewrites only the text of the corrected rules brief, and flags an invented figure", async () => {
+  it("keeps the corrected rules brief instead of displaying an invented figure", async () => {
     vi.stubEnv("XAI_API_KEY", "test-key");
     modelReplies("## Situation\nYou could lose $9,999 this year.");
     const profile = clinic();
@@ -69,10 +69,10 @@ describe("runGrokAgentLoop", () => {
 
     const result = await runGrokAgentLoop(local, ALLOWED);
 
-    expect(result.source).toBe("grok-agent");
-    expect(result.modelStatus).toBe("answered");
-    expect(result.brief.markdown).toMatch(/^## Situation\nYou could lose \$9,999 this year\./);
-    expect(result.brief.markdown).toMatch(/Check before quoting:.*\$9,999/);
+    expect(result.source).toBe("local-agent");
+    expect(result.modelStatus).toBe("rejected");
+    expect(result.brief.markdown).toBe(local.brief.markdown);
+    expect(result.brief.markdown).not.toContain("$9,999");
     // The decisions are the corrected ones (this clinic's own conflict first),
     // not the raw rules loop's.
     expect(result.brief.decisions).toEqual(local.brief.decisions);

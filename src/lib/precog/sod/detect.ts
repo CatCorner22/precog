@@ -63,7 +63,7 @@ export interface DetectedConflict {
   score: number; // 0–100
   /** Controls that would close or narrow this gap: the rule's suggestions plus anything recorded as in place. */
   compensatingControls: string[];
-  /** Controls recorded as in place for this gap (the business's own controls and an active dual-release rule). Only these lower the score. */
+  /** Controls recorded as in place for this gap (the business's own controls and an active dual-release rule). Descriptions do not establish operating effectiveness. */
   controlsInPlace: string[];
   /**
    * Both duties sit with the owner. An owner cannot steal from themselves, so
@@ -295,7 +295,8 @@ function namedFinding(
   const [heldA, heldB] = canonicalPair(match.a, match.b);
   const dualMitigated = context.dualMitigatedRules.has(rule.id);
   // A rule's suggested controls are advice, not controls the business has;
-  // only what is recorded as in place lowers the score.
+  // only separately modeled design mechanisms receive design credit. Notes
+  // are preserved without inferring operating effectiveness from their count.
   const otherApprovers =
     rule.id === BILL_APPROVAL_RULE
       ? context.billApprovers.filter((a) => a.personId !== person.personId)
@@ -321,6 +322,7 @@ function namedFinding(
       pair: canonicalPair(rule.a, rule.b),
       accepted,
       controlsInPlace: inPlace.length,
+      independentApproval: otherApprovers.length > 0,
       dualMitigated,
       staff: context.staff,
     }) - (owner ? OWNER_HELD_DISCOUNT : 0);

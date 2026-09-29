@@ -2,35 +2,29 @@ import { soleOwnerCriticalCount } from "../continuity/coverage";
 import type { IndustryTemplate } from "../templates/types";
 import type { Person, StaffComposition } from "../types";
 import { personDuties } from "./assignments";
-import { PAYMENT_CHANNELS, type EntitlementId } from "./conflict-rules";
+import { type EntitlementId } from "./conflict-rules";
 import { controlOptions, detectSodConflicts } from "./detect";
-import { soleOwnerId } from "./owner-role";
 
 /**
  * Whether someone reconciles the bank account who neither handles nor records
  * the money: the one check the ledger-keeper cannot make agree by hand. Each
  * person's duties resolve the way the conflict engine reads them (their own,
  * else their title's in `roleTemplates`), so a team that relies on job titles
- * is read the same as one with duties entered by hand. For the sole owner,
- * sending money out (signing checks, releasing payments, approving an ACH) is
- * the oversight itself: an owner who signs and then reads the statement is the
- * independent reconciliation the app recommends. Only handling the cash or
- * writing the records makes the owner's reconciliation a check on their own
- * work.
+ * is read the same as one with duties entered by hand. Ownership is not an
+ * exception: someone who releases payments reviews their own transactions.
+ * This models recorded responsibilities; it does not verify actual access
+ * or establish that a reconciliation was performed.
  */
 export function independentReconciliationFromTeam(
   people: readonly Person[],
   roleTemplates: Readonly<Record<string, readonly string[]>> = {},
-  industry?: string,
+  _industry?: string,
 ): boolean {
   const active = people.filter((p) => p.active);
-  const ownerId = soleOwnerId(active, industry);
   return active.some((p) => {
     const duties = personDuties(p, roleTemplates);
     if (!duties.includes("bank_reconcile")) return false;
-    const disqualifying = (d: EntitlementId) =>
-      MONEY_HANDS.has(d) && !(p.id === ownerId && PAYMENT_CHANNELS.has(d));
-    return !duties.some(disqualifying);
+    return !duties.some((d) => BANK_ACTIVITY_DUTIES.has(d));
   });
 }
 
@@ -81,7 +75,7 @@ export function deriveStaffFromTeam(
  * master data or posting journal entries lets a reconciler make the books
  * agree, even though neither is a step the onboarding grid asks about.
  */
-const MONEY_HANDS = new Set<EntitlementId>([
+export const BANK_ACTIVITY_DUTIES: ReadonlySet<EntitlementId> = new Set([
   "collect_cash",
   "post_payments",
   "prepare_deposit",

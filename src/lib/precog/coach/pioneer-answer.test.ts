@@ -83,13 +83,13 @@ describe("answerPioneer", () => {
     expect(res.decisions.some((d) => d.link)).toBe(true);
   });
 
-  it("tells a signed-out caller that signing in gets the Grok-written brief", async () => {
+  it("tells a signed-out caller what the constrained model adds", async () => {
     const res = await answerPioneer(
       request("What should I fix this week?"),
       access("unauthenticated"),
     );
     if (!res.ok) throw new Error(res.error);
-    expect(res.warnings.at(-1)).toMatch(/^Sign in to have Grok write the brief/);
+    expect(res.warnings.at(-1)).toMatch(/^Sign in to have Grok select the most relevant details/);
   });
 
   it("says so when the model was allowed but failed", async () => {

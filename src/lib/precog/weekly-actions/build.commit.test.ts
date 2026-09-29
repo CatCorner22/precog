@@ -123,16 +123,9 @@ describe("buildWeeklyActions journal awareness", () => {
         level: "expert" as const,
       })),
     });
-    // A vendor-setup check in place keeps that control's residual below the
-    // register gaps this test ranks.
-    const three = {
-      ...resolved,
-      controls: resolved.controls.map((c) =>
-        c.id === "c-sod-ap"
-          ? { ...c, compensatingControls: ["Owner approves every new vendor"] }
-          : c,
-      ),
-    };
+    // Isolate continuity commitments from unrelated controls. A free-text
+    // approval note cannot be used to lower those controls' modeled risk.
+    const three = { ...resolved, controls: [] };
     const actions = buildWeeklyActions({
       tpl: three,
       staff,

@@ -1,3 +1,4 @@
+import { PAYMENT_DESTINATION_CHANGE, RECEIPT_SETTLEMENT } from "./controls/critical-guidance";
 import type { IndustryId } from "./industry";
 
 /**
@@ -159,12 +160,12 @@ function sharedBlueprints(v: Vocabulary): PracticeProcessBlueprint[] {
       id: "cash-receipts",
       name: "Cash, card and deposits",
       domain: "cash",
-      objective: `Money taken from ${v.customers} equals money recorded and money banked.`,
+      objective: `Money received from ${v.customers} is recorded completely, and documented settlement differences explain what reached the bank.`,
       primaryOwner: v.frontLead,
       independentReviewer: v.books,
       standard: [
-        `Deposit equals the ${v.system}'s receipts for the day`,
-        "Card batches tie to the processor statement",
+        RECEIPT_SETTLEMENT.reconciliation,
+        "Card batches tie to the processor settlement detail and the bank",
         "Someone other than the taker counts and deposits",
       ],
       leading: [
@@ -174,7 +175,12 @@ function sharedBlueprints(v: Vocabulary): PracticeProcessBlueprint[] {
       ],
       optimal: ["Daily exception alerts", "Variance trend by day and person"],
       fallback: ["Weekly deposit tie-out", "Owner review of variances"],
-      evidence: ["Daily close report", "Deposit slip", "Variance log"],
+      evidence: [
+        "Daily close report",
+        "Deposit slip",
+        "Variance log",
+        ...RECEIPT_SETTLEMENT.evidence,
+      ],
       cadence: "Daily; weekly tie-out",
     },
     {
@@ -208,17 +214,28 @@ function sharedBlueprints(v: Vocabulary): PracticeProcessBlueprint[] {
       independentReviewer: v.approver,
       standard: [
         "New suppliers approved by a second person",
+        PAYMENT_DESTINATION_CHANGE.verification,
+        PAYMENT_DESTINATION_CHANGE.secondReview,
         "Bill matched to order and receipt",
         "Payment released by someone other than the preparer",
       ],
       leading: [
-        "Bank detail changes verified by call-back",
+        PAYMENT_DESTINATION_CHANGE.monitoring,
         "Dual release above a threshold",
         "Vendor master change report",
       ],
       optimal: ["Positive pay or ACH filters", "Duplicate payment detection"],
-      fallback: ["Monthly vendor master review", "Owner signs checks above the threshold"],
-      evidence: ["Approved supplier list", "Match report", "Release log"],
+      fallback: [
+        PAYMENT_DESTINATION_CHANGE.verification,
+        PAYMENT_DESTINATION_CHANGE.monitoring,
+        "Arrange a separate authorized reviewer where the usual owner also prepares or changes the payment",
+      ],
+      evidence: [
+        "Approved supplier list",
+        "Match report",
+        "Release log",
+        ...PAYMENT_DESTINATION_CHANGE.evidence,
+      ],
       cadence: "Per payment run; monthly review",
     },
     {

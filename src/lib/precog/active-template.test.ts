@@ -198,7 +198,7 @@ describe("controls the owner already has", () => {
       (c) => c.personId === "own-1" && c.ruleId === "rule-release-rec",
     )!;
 
-  it("credits the CFO's review of each reconciliation on the controller's release + reconcile", () => {
+  it("keeps a reported review without treating its note as tested effectiveness", () => {
     const without = resolveTemplate({ industry: "general", customPeople: people });
     const withReview = resolveTemplate({
       industry: "general",
@@ -213,7 +213,7 @@ describe("controls the owner already has", () => {
     expect(after.controlsInPlace).toContain(
       "The CFO reviews each bank reconciliation and its statement",
     );
-    expect(after.score).toBeLessThan(before.score);
+    expect(after.score).toBe(before.score);
     // The gap stays open: the same person still holds both duties.
     expect(after.severity).toBe(before.severity);
   });

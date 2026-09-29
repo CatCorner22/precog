@@ -1,3 +1,4 @@
+import { PAYMENT_DESTINATION_CHANGE, RECEIPT_SETTLEMENT } from "../controls/critical-guidance";
 /**
  * Curated knowledge corpus for Pioneer RAG.
  *
@@ -149,7 +150,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "A monitoring rhythm for a small business",
     domain: "coso",
     tags: ["monitoring", "ongoing", "cadence", "owner review", "bank reconciliation"],
-    text: "A workable rhythm for a small business: the owner reviews the bank reconciliation weekly, reads write-off and adjustment aging monthly, and reads the new-supplier and bank-detail change list quarterly. Keep a dated note of each review; a review nobody can show happened is not one an outside reviewer will credit. The cadence is practitioner guidance; COSO does not prescribe review frequencies.",
+    text: `Use a risk-based monitoring schedule and retain the results. ${PAYMENT_DESTINATION_CHANGE.verification} ${PAYMENT_DESTINATION_CHANGE.monitoring} ${RECEIPT_SETTLEMENT.reconciliation} Assign a reviewer outside the activities being checked, including when the preparer is an owner. Frequencies are application suggestions, not frequencies prescribed by COSO.`,
     basis: practice(
       "Review cadence written for this app; COSO describes ongoing and separate evaluations but sets no frequencies.",
     ),
@@ -170,7 +171,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     domain: "dental_ops",
     industry: "dental",
     tags: ["cash", "deposits", "front desk", "payments"],
-    text: "High-risk dental cash path: collect patient payments, void or adjust charges, prepare the deposit, post to the practice-management system, and reconcile the bank. One person both receiving payments and recording them is the pattern behind two prosecuted dental cases in this library. Dual control on deposit bags, camera coverage of the cash drawer, and owner-only bank reconciliation each remove one step a single person can take alone.",
+    text: "High-risk dental cash path: collect patient payments, void or adjust charges, prepare the deposit, post to the practice-management system, and reconcile the bank. One person both receiving payments and recording them is the pattern behind two prosecuted dental cases in this library. Separate custody, recording and reconciliation where possible; an owner who performs the activity is not its independent reviewer. Cameras may support investigation but do not enforce separation or replace reconciliation.",
     basis: practice("Dental front-desk cash-handling practice."),
     caseIds: ["case-boston-dental", "case-houston-dental-shell"],
   },

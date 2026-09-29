@@ -11,7 +11,7 @@ import { DEFAULT_COACH_QUESTION, localBrief } from "./local-brief";
 
 /**
  * What the coach's server function does, apart from the transport: read the
- * request, build the rules brief for this business, have the model rewrite it
+ * request, build the rules brief for this business, have the model select complete statements
  * when this caller may use the model, and say in the warnings when it could
  * not. pioneer-server.ts wraps these two functions in the server function.
  */
@@ -34,7 +34,7 @@ export type PioneerCoachResult = {
   ok: true;
   source: AgentRunResult["source"];
   model?: string;
-  /** Whether a model wrote the brief text; the screen labels the brief with it. */
+  /** Whether a model selected complete statements; the screen labels the brief with it. */
   modelStatus: ModelStatus;
   /** True when only the conflict-only brief could be built. */
   partial: boolean;
@@ -89,7 +89,7 @@ export function readPioneerRequest(input: PioneerCoachInput): PioneerRequestData
 
 /**
  * The brief for one validated request. The rules brief is always built first
- * and the model only rewrites its text, so both paths carry the same
+ * and the model only selects complete statements, so both paths carry the same
  * decisions, evidence and warnings for this business.
  */
 export async function answerPioneer(
@@ -141,17 +141,20 @@ export async function answerPioneer(
 }
 
 /**
- * Why the model did not write this brief, when the owner could do something
+ * Why the model did not select highlights, when the owner could do something
  * about it or should know. With no model key on the server there is nothing
  * the owner can do, so no warning: the screen's status line already says the
  * brief was built by this app's rules.
  */
 function modelWarning(grok: GrokAccess, status: ModelStatus): string | null {
   if (grok === "unauthenticated") {
-    return "Sign in to have Grok write the brief; Precog's rules built this one.";
+    return "Sign in to have Grok select the most relevant details; Precog's rules built this brief.";
   }
   if (grok === "rate_limited") {
     return "Grok is busy for the moment, so Precog's rules built this brief.";
+  }
+  if (status === "rejected") {
+    return "The model's response could not be validated and was not shown. This is the unchanged brief from Precog's rules.";
   }
   return status === "failed" ? MODEL_FAILED_WARNING : null;
 }

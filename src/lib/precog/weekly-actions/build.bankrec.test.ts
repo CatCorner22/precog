@@ -21,14 +21,14 @@ function bankRecAction(rows: Parameters<typeof buildOwnTeam>[0]) {
 }
 
 describe("the bank-reconciliation action", () => {
-  it("does not appear when the owner signs checks and reconciles while employees hold the money", () => {
+  it("asks for a separate reader when the owner signs checks and reconciles", () => {
     const { profile, action } = bankRecAction([
       { name: "Olive Owner", role: "Owner", duties: ["sign_checks", "bank_reconcile"] },
       { name: "Ben Cole", role: "Office Manager", duties: ["post_payments", "prepare_deposit"] },
       { name: "Cal Diaz", role: "Cashier", duties: ["collect_cash"] },
     ]);
-    expect(profile.staff.independentBankRec).toBe(true);
-    expect(action).toBeUndefined();
+    expect(profile.staff.independentBankRec).toBe(false);
+    expect(action?.title).toBe("Have someone outside the books read the bank statement each month");
   });
 
   it("asks for an outside reader, not a start, when the owner reconciles and records", () => {
