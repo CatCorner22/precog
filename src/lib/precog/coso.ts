@@ -177,8 +177,8 @@ export function assessCoso(
           status: unaddressedGaps.length > 2 ? "weak" : "adequate",
           note:
             unaddressedGaps.length > 0
-              ? `${count(unaddressedGaps.length, "duty conflict")} without a decision on who approves.`
-              : "Every duty conflict has a recorded decision.",
+              ? `${count(unaddressedGaps.length, "duty conflict")} without a recorded residual-risk decision.`
+              : "Every duty conflict has a recorded residual-risk decision.",
         },
         {
           number: 4,
@@ -197,8 +197,8 @@ export function assessCoso(
           status: residualAccepted.length > 0 ? "adequate" : "weak",
           note:
             residualAccepted.length > 0
-              ? "The business has recorded a decision to accept some residual risk."
-              : "The business has not recorded a decision to accept any residual risk.",
+              ? "The business has recorded a residual-risk decision on at least one duty conflict."
+              : "The business has not recorded a residual-risk decision on any duty conflict.",
         },
       ],
       findings:
@@ -207,7 +207,7 @@ export function assessCoso(
               {
                 id: "ce-spof",
                 label: "Key-person concentration weakens accountability",
-                detail: `${count(spofs.length, "critical knowledge area")} held by one person, which puts competence and succession under pressure.`,
+                detail: `${count(spofs.length, "critical knowledge item")} held by one person, which puts competence and succession under pressure.`,
                 severity: spofs.length >= 2 ? "critical" : "weak",
                 link: { type: "knowledge", knowledgeId: spofs[0]?.knowledgeId },
               },
@@ -239,7 +239,7 @@ export function assessCoso(
           status: ranked.length > 0 ? "adequate" : "weak",
           note:
             ranked.length > 0
-              ? `Precog ranks the scenarios on ${tabLabel("precog")}, which describe operational and control risks.`
+              ? `Precog ranks the scenarios on ${tabLabel("precog")} that describe this business, by operational and control risk.`
               : scenariosLeftOut > 0
                 ? `Precog does not count ${starterScenarioLabel(tpl.id).toLowerCase()} yet. ${MAKE_SCENARIO_YOURS}`
                 : "No scenario describes this business yet.",
@@ -437,7 +437,7 @@ export function assessCoso(
           status: unaddressedGaps.length > 0 ? "weak" : "adequate",
           note:
             unaddressedGaps.length > 0
-              ? `${count(unaddressedGaps.length, "duty conflict")} without a residual-risk or remediation decision.`
+              ? `${count(unaddressedGaps.length, "duty conflict")} without a recorded residual-risk decision.`
               : "Every duty conflict has a recorded residual-risk decision.",
         },
       ],
@@ -457,13 +457,13 @@ export function assessCoso(
           id: "mon-residual",
           label: `${count(unaddressedGaps.length, "duty conflict")} without a residual-risk decision`,
           detail:
-            "COSO expects the business to evaluate each deficiency and then either fix it or accept it with a compensating design.",
+            "COSO expects the business to evaluate each duty conflict and then either fix it or accept it with a compensating design.",
           severity: unaddressedGaps.length > 0 ? "weak" : "strong",
           link: { type: "sod" },
         },
       ],
       primaryActions: [
-        { label: "Record a decision on each duty conflict", link: { type: "sod" } },
+        { label: "Record a residual-risk decision on each duty conflict", link: { type: "sod" } },
         {
           label: "Re-run the cash scenario after a control change",
           link: { type: "precog", scenarioId: "sc-cash-sod-failure" },
