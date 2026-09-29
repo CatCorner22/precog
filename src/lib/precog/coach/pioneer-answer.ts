@@ -65,7 +65,7 @@ export const PIONEER_FAILED_MESSAGE =
 
 /** The warning when the model was asked and gave no answer. */
 export const MODEL_FAILED_WARNING =
-  "Grok could not answer this time, so this brief was built by this app's rules.";
+  "Grok could not answer this time, so Precog's rules built this brief.";
 
 /** Validates the coach request; a profile the schema let through but the builder rejects is a 400. */
 export function readPioneerRequest(input: PioneerCoachInput): PioneerRequestData {
@@ -148,10 +148,10 @@ export async function answerPioneer(
  */
 function modelWarning(grok: GrokAccess, status: ModelStatus): string | null {
   if (grok === "unauthenticated") {
-    return "Sign in to have Grok write the brief; this one was built by this app's rules.";
+    return "Sign in to have Grok write the brief; Precog's rules built this one.";
   }
   if (grok === "rate_limited") {
-    return "Grok is busy for the moment, so this brief was built by this app's rules.";
+    return "Grok is busy for the moment, so Precog's rules built this brief.";
   }
   return status === "failed" ? MODEL_FAILED_WARNING : null;
 }

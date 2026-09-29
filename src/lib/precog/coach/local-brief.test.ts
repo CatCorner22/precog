@@ -73,7 +73,9 @@ describe("local advisor brief", () => {
 
   it("builds a brief from the team's conflicts when the full brief cannot be computed", () => {
     const brief = fallbackBrief(clinic(), EMBEZZLEMENT);
-    expect(brief.chickenLittleWarnings[0]).toMatch(/^Part of the full brief could not be computed/);
+    expect(brief.chickenLittleWarnings[0]).toMatch(
+      /^Pioneer could not compute part of the full brief/,
+    );
     expect(brief.decisions.map((d) => d.action)).toContain(
       "Mark who can do each item on Who knows what",
     );
@@ -138,7 +140,9 @@ describe("local brief fallback", () => {
     const result = localBrief(EMBEZZLEMENT, { profile, question: EMBEZZLEMENT }, profile);
     expect(result.partial).toBe(true);
     expect(result.toolResults).toEqual([]);
-    expect(result.brief.chickenLittleWarnings[0]).toMatch(/^Part of the full brief/);
+    expect(result.brief.chickenLittleWarnings[0]).toMatch(
+      /^Pioneer could not compute part of the full brief/,
+    );
     expect(logged.mock.calls[0][0]).toContain("TypeError");
     expect(localBrief(EMBEZZLEMENT, { profile, question: EMBEZZLEMENT }, profile).partial).toBe(
       false,

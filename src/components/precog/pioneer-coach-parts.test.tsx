@@ -59,9 +59,11 @@ describe("coachErrorMessage", () => {
 
   it("shows a plain sentence for an error the server did not explain", () => {
     expect(coachErrorMessage(new Error("TypeError: x is undefined"))).toBe(
-      "The brief could not be built. Try again in a moment.",
+      "Pioneer could not build the brief. Try again in a moment.",
     );
-    expect(coachErrorMessage("boom")).toBe("The brief could not be built. Try again in a moment.");
+    expect(coachErrorMessage("boom")).toBe(
+      "Pioneer could not build the brief. Try again in a moment.",
+    );
   });
 });
 
@@ -103,7 +105,7 @@ describe("CoachResultView", () => {
     const html = view(result());
     const brief = html.indexOf("Your brief");
     const moves = html.indexOf("Add a move to the Decisions log");
-    const built = html.indexOf("How this brief was built");
+    const built = html.indexOf("How Pioneer built this brief");
     expect(brief).toBeGreaterThanOrEqual(0);
     expect(brief).toBeLessThan(moves);
     expect(moves).toBeLessThan(built);

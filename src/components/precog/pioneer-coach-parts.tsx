@@ -17,7 +17,7 @@ export type CoachDecision = CoachResult["decisions"][number];
 
 /** The message when the business changes while a brief is being built for the old one. */
 export const BUSINESS_CHANGED_MESSAGE =
-  "The business changed while the brief was being built; ask again for this one.";
+  "The business changed while Pioneer was building the brief; ask again for this one.";
 
 /** How many recommended moves show before "Show all". */
 export const MOVES_PREVIEW = 3;
@@ -131,7 +131,7 @@ export function CoachResultView({
       <details className="group rounded-2xl border border-border bg-surface">
         <summary className="flex cursor-pointer items-center gap-2 px-6 py-4 text-sm font-semibold">
           <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden />
-          How this brief was built
+          How Pioneer built this brief
         </summary>
         <div className="space-y-4 px-6 pb-6">
           {result.steps.length > 0 && (
@@ -239,8 +239,8 @@ export function BriefMarkdown({ markdown }: { markdown: string }) {
 /** Who wrote the brief, in one line the owner can repeat to their accountant. */
 export function briefAuthorLine(result: Pick<CoachResult, "modelStatus" | "model">): string {
   return result.modelStatus === "answered"
-    ? `Written by Grok (${result.model ?? "model"}) from this app's tool results; its figures and case names were checked against them.`
-    : "Written by this app's rules from your data. No AI model wrote it.";
+    ? `Written by Grok (${result.model ?? "model"}) from Precog's tool results; Precog checked its figures and case names against them.`
+    : "Written by Precog's rules from your data. No AI model wrote it.";
 }
 
 /** Warnings the brief's own Warnings section does not already list (sign in, the model failed). */
@@ -258,7 +258,7 @@ export function coachErrorMessage(e: unknown): string {
     e && typeof e === "object" && "status" in e ? (e as { status: unknown }).status : null;
   const refusal = typeof status === "number" && status >= 400 && status < 500;
   if (refusal && e instanceof Error && e.message.trim()) return e.message;
-  return "The brief could not be built. Try again in a moment.";
+  return "Pioneer could not build the brief. Try again in a moment.";
 }
 
 /** The Journal entry for one recommended move, linked so the next brief recognises it. */
