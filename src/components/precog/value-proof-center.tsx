@@ -167,7 +167,7 @@ export function ValueProofCenter() {
           note={
             status.hours.observed
               ? usesDefaults(status.hours, "Your review hours × reviews per year")
-              : `App default assumption: ${value.observed.hoursSaved.toLocaleString()} hrs (${inputs.reviewHoursBefore} → ${inputs.reviewHoursAfter} hrs × ${inputs.annualReviews} reviews). Enter your own review hours.`
+              : `Precog default assumption: ${value.observed.hoursSaved.toLocaleString()} hrs (${inputs.reviewHoursBefore} → ${inputs.reviewHoursAfter} hrs × ${inputs.annualReviews} reviews). Enter your own review hours.`
           }
         />
         <Metric
@@ -177,7 +177,7 @@ export function ValueProofCenter() {
           note={
             status.value.observed
               ? usesDefaults(status.value, observedValueParts(inputs, typed))
-              : `App default assumption: ${formatUsd(value.observed.total)} of labor. Enter your review hours and hourly cost, or money recovered.`
+              : `Precog default assumption: ${formatUsd(value.observed.total)} of labor. Enter your review hours and hourly cost, or money recovered.`
           }
         />
         <Metric
@@ -188,7 +188,7 @@ export function ValueProofCenter() {
             isDefault("annualExposure") &&
             isDefault("eventProbability") &&
             isDefault("controlEffectiveness")
-              ? "Scenario, not realized savings; every input is an app default"
+              ? "Scenario, not realized savings; every input is a Precog default"
               : "Scenario, not realized savings"
           }
           warning
@@ -197,7 +197,7 @@ export function ValueProofCenter() {
           icon={Calculator}
           label="Assumed loss baseline"
           value={formatUsd(value.modeled.expectedLossBefore)}
-          note={`${isDefault("annualExposure") ? "App default exposure" : "Your exposure"} × ${isDefault("eventProbability") ? "app default probability" : "your probability assumption"}`}
+          note={`${isDefault("annualExposure") ? "Precog default exposure" : "Your exposure"} × ${isDefault("eventProbability") ? "Precog default probability" : "your probability assumption"}`}
           warning
         />
       </div>
@@ -220,7 +220,7 @@ export function ValueProofCenter() {
             </>
           ) : (
             <p className="text-sm text-muted sm:col-span-3">
-              Not yet observed. Every figure on this tab starts as an app default; enter your own
+              Not yet observed. Every figure on this tab starts as a Precog default; enter your own
               review hours, costs and money recovered below, or add an item to the evidence
               register, and the net value, return and payback appear here once the figures behind
               them are yours.
@@ -291,8 +291,9 @@ export function ValueProofCenter() {
           <CardHeader>
             <CardTitle>Value assumptions</CardTitle>
             <CardDescription>
-              Figures marked app default are the app&apos;s starting figures, not measured results;
-              replace each one with your own where you have it. Values save in this browser.
+              Figures marked Precog default are Precog&apos;s starting figures, not measured
+              results; replace each one with your own where you have it. Values save in this
+              browser.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -475,7 +476,7 @@ function ObservedInline({
       </p>
       {figure.observed && figure.defaultsUsed.length > 0 && (
         <p className="mt-0.5 text-xs text-subtle">
-          Uses the app default for {inputList(figure.defaultsUsed)}
+          Uses the Precog default for {inputList(figure.defaultsUsed)}
         </p>
       )}
       {!figure.observed && figure.missing.length > 0 && (
@@ -554,7 +555,7 @@ function Field({
         {label}
         {appDefault && (
           <span className="rounded border border-border px-1.5 py-0.5 text-xs font-normal text-subtle">
-            app default
+            Precog default
           </span>
         )}
       </span>
@@ -589,6 +590,6 @@ function Field({
 /** The note under an observed figure, naming any app default it still uses. */
 function usesDefaults(figure: ObservedFigure, plain: string): string {
   return figure.defaultsUsed.length
-    ? `${plain}; uses the app default for ${inputList(figure.defaultsUsed)}`
+    ? `${plain}; uses the Precog default for ${inputList(figure.defaultsUsed)}`
     : plain;
 }

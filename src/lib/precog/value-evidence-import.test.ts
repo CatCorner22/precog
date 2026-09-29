@@ -35,7 +35,7 @@ describe("mergeImportedEvidence", () => {
   it("refuses an import that would overflow the register", () => {
     const current = Array.from({ length: MAX_VALUE_EVIDENCE_ITEMS }, (_, i) => item(`c${i}`));
     expect(() => mergeImportedEvidence(current, [item("one-more")])).toThrow(
-      /Nothing was imported/,
+      /Precog imported nothing/,
     );
   });
 });

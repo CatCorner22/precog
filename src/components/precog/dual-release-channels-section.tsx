@@ -35,7 +35,7 @@ export function DualReleaseChannelsSection({ model }: { model: DualReleasePanelM
                 ? "Two people on every amount"
                 : `Two people above ${formatUsd(c.thresholdUsd)}`}
               {appDefault.get(c.channel) === c.thresholdUsd && (
-                <span className="text-subtle"> · app default, change it below</span>
+                <span className="text-subtle"> · Precog default, change it below</span>
               )}
             </CardDescription>
           </CardHeader>

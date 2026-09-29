@@ -24,7 +24,7 @@ export function mergeImportedEvidence(
   const merged = [...items, ...fresh];
   if (merged.length > MAX_VALUE_EVIDENCE_ITEMS) {
     throw new Error(
-      `Importing these ${imported.length} records would give the register ${merged.length}; it holds at most ${MAX_VALUE_EVIDENCE_ITEMS}. Nothing was imported.`,
+      `Importing these ${imported.length} records would give the register ${merged.length}; it holds at most ${MAX_VALUE_EVIDENCE_ITEMS}. Precog imported nothing.`,
     );
   }
   return { items: merged, added: fresh.length, updated: imported.length - fresh.length };

@@ -64,7 +64,7 @@ export function DynamicVariablesPanel({
               onClick={() => onChange(withPolicyEdit(value, { ...DEFAULT_RISK_VARIABLES }))}
             >
               <RefreshCw className="size-3.5" />
-              Reset figures to app defaults
+              Reset figures to Precog defaults
             </Button>
           </div>
         </CardHeader>

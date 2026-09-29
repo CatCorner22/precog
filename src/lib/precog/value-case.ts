@@ -19,7 +19,7 @@ const MODELED_RANGE = { low: 0.5, high: 1.5 } as const;
 
 /** The sentence that says where Low and High come from, for the memo and the card. */
 export const MODELED_RANGE_NOTE =
-  "Low and High assume the control reduction is half, or one and a half times, the base figure (this app's assumption).";
+  "Low and High assume the control reduction is half, or one and a half times, the base figure (Precog's assumption).";
 
 export type ValueCaseInputs = {
   reviewHoursBefore: number;
@@ -310,13 +310,13 @@ export function createValueCaseMemo(
   const value = calculateValueCase(raw);
   const status = observedValueStatus(value.inputs, typed);
   const uses = (f: ObservedFigure) =>
-    f.defaultsUsed.length ? ` (uses the app default for ${inputList(f.defaultsUsed)})` : "";
+    f.defaultsUsed.length ? ` (uses the Precog default for ${inputList(f.defaultsUsed)})` : "";
   const notYet = (f: ObservedFigure) =>
     `not yet observed${f.missing.length ? `; enter ${inputList(f.missing)}` : ""}`;
   const line = (label: string, f: ObservedFigure, show: (v: number) => string) =>
     `- ${label}: ${f.observed && f.value !== null ? `${show(f.value)}${uses(f)}` : notYet(f)}`;
   const assumption = (key: ValueInputKey) =>
-    status.entered.has(key) ? "your assumption" : "app default";
+    status.entered.has(key) ? "your assumption" : "Precog default";
   const cell = (text: string) => text.replaceAll("|", "\\|") || "—";
   const evidenceRows = evidence.length
     ? evidence.map(
@@ -347,7 +347,7 @@ export function createValueCaseMemo(
       : [
           "## Observed value",
           "",
-          "Not yet observed. Nothing on this memo is observed until you enter your own review hours, costs or recoveries on Value proof, or record evidence; the figures below are app defaults unless marked as your assumption.",
+          "Not yet observed. This memo shows no observed figure until you enter your own review hours, costs or recoveries on Value proof, or record evidence; the figures below are Precog defaults unless marked as your assumption.",
         ];
   return [
     "# Precog value case",
@@ -361,7 +361,7 @@ export function createValueCaseMemo(
     `- Annual exposure (${assumption("annualExposure")}): ${formatUsd(value.inputs.annualExposure)}`,
     `- Baseline event probability (${assumption("eventProbability")}): ${formatPct(value.inputs.eventProbability, 1)}`,
     `- Estimated control effectiveness (${assumption("controlEffectiveness")}): ${formatPct(value.inputs.controlEffectiveness, 1)}`,
-    `- Low / base / high: ${formatUsd(value.modeled.low)} / ${formatUsd(value.modeled.base)} / ${formatUsd(value.modeled.high)} (base ×${MODELED_RANGE.low} and ×${MODELED_RANGE.high}, this app's assumption)`,
+    `- Low / base / high: ${formatUsd(value.modeled.low)} / ${formatUsd(value.modeled.base)} / ${formatUsd(value.modeled.high)} (base ×${MODELED_RANGE.low} and ×${MODELED_RANGE.high}, Precog's assumption)`,
     "",
     "> Modeled avoided loss is a decision scenario, not booked savings. Validate assumptions independently and report it separately from observed value.",
     "",

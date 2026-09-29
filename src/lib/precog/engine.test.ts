@@ -270,7 +270,7 @@ describe("insurance on an own business", () => {
     const r = runPrecogScenario(dental, "sc-front-desk-leaves")!;
     expect(r.dynamic?.premiumAnnualNet).toBe(4200);
     expect(r.retainedImpact.expected).toBe(5000);
-    expect(r.crimeModifiers.join(" ")).toContain("Insurance: app default, enter your policy");
+    expect(r.crimeModifiers.join(" ")).toContain("Insurance: Precog default, enter your policy");
   });
 });
 

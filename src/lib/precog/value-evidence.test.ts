@@ -81,6 +81,6 @@ describe("register size", () => {
       version: 1,
       evidence: many(MAX_VALUE_EVIDENCE_ITEMS + 1).map((item) => ({ id: item.id })),
     });
-    expect(() => parseValueEvidence(envelope)).toThrow(/Nothing was imported/);
+    expect(() => parseValueEvidence(envelope)).toThrow(/Precog imported nothing/);
   });
 });

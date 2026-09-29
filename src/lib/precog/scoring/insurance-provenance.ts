@@ -8,7 +8,7 @@ import { CORE_POLICY_FIELDS, normalizeInsuranceRecord, type PolicyField } from "
 import type { RiskVariableState } from "./risk-variables";
 
 /** The label demonstration figures carry until explicitly confirmed. */
-export const APP_DEFAULT_POLICY = "app default, enter your policy";
+export const APP_DEFAULT_POLICY = "Precog default, enter your policy";
 
 export function policyFieldIsDefault(v: RiskVariableState, key: PolicyField): boolean {
   const record = normalizeInsuranceRecord(v.insurance);
