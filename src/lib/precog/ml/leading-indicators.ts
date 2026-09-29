@@ -183,7 +183,7 @@ export function scoreLeadingIndicators(
     band,
     indicators,
     topActions,
-    method: "Weighted count of the indicators past this app's watch and breach lines",
+    method: "Weighted count of the indicators past Precog's watch and breach lines",
     assumptions: ASSUMPTION_LINES,
   };
 }
@@ -230,7 +230,7 @@ const PRESSURE_BANDS = { watch: 25, heat: 45, red: 70 } as const;
 const { lines: L, weights: W } = INDICATOR_ASSUMPTIONS;
 
 const ASSUMPTION_LINES: string[] = [
-  "Every threshold, weight and band below is this app's assumption about what to watch first, not a measured or published figure.",
+  "Every threshold, weight and band below is Precog's assumption about what to watch first, not a measured or published figure.",
   `Critical know-how held by one person: watch at ${L.soleHeld.watch} item, breach at ${L.soleHeld.breach}; weight ${W.soleHeld}.`,
   `Open duty conflicts not accepted: watch at ${L.openConflicts.watch}, breach at ${L.openConflicts.breach}; weight ${W.openConflicts}.`,
   `No independent bank reconciliation is a breach; weight ${W.bankRec}. No dual control on payments is a breach; weight ${W.dualControl}.`,

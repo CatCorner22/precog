@@ -286,10 +286,9 @@ export function ControlCalendarCard({
             )}
             {summary.unscheduled > 0 && (
               <p className="text-xs text-subtle">
-                {count(summary.unscheduled, "item")} {verb(summary.unscheduled, "has", "have")}{" "}
-                never been recorded and so {verb(summary.unscheduled, "has", "have")} no date — open
-                them from &ldquo;This week&rdquo; and mark the first review done to start the
-                cadence.
+                {count(summary.unscheduled, "item")} {verb(summary.unscheduled, "has", "have")} no
+                recorded review, so {verb(summary.unscheduled, "has", "have")} no date — open them
+                from &ldquo;This week&rdquo; and mark the first review done to start the cadence.
               </p>
             )}
           </div>

@@ -19,7 +19,7 @@ export function mailConfigured(): boolean {
 export async function sendEmail(to: string, message: RenderedEmail): Promise<void> {
   const key = env("RESEND_API_KEY");
   const from = env("EMAIL_FROM");
-  if (!key || !from) throw new Error("Email is not configured");
+  if (!key || !from) throw new Error("This copy of Precog has no email set up");
   const replyTo = message.replyTo ?? env("EMAIL_REPLY_TO");
   const request = {
     method: "POST",

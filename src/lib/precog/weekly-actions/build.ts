@@ -329,7 +329,7 @@ function dualControlActions({ tpl, input }: WeeklyContext): WeeklyAction[] {
     {
       id: "dual-control",
       title: "Turn on dual release for payments",
-      why: "Separates payment release from vendor setup, so an invented supplier needs a second person to get paid. Narrows the path above the threshold; does not close it below.",
+      why: "Separates payment release from vendor setup, so an invented supplier needs a second person before anyone pays it. Narrows the path above the threshold; does not close it below.",
       effort: "medium",
       tab: "sod",
       priority: PRIORITY.dualControl,
@@ -353,7 +353,7 @@ function sodSplitActions({ tpl, input }: WeeklyContext): WeeklyAction[] {
     .map((c) => ({
       id: `sod-${c.ruleId}`,
       title: `Split ${c.labelA.toLowerCase()} from ${c.labelB.toLowerCase()}`,
-      why: c.why || "Incompatible duties are concentrated on one role.",
+      why: c.why || "One role holds duties that conflict.",
       effort: "medium",
       tab: "sod",
       priority: PRIORITY.sodSplit,
@@ -631,7 +631,7 @@ function documentationActions({ tpl, registerReady, committed }: WeeklyContext):
         g.state === "none"
           ? `Write down ${g.item.name}`
           : `Record where ${g.item.name}'s procedure lives`,
-      why: `${g.action} A stand-in cannot follow steps that exist only in someone's head, and nobody else can compare unwritten steps with what was done.`,
+      why: `${g.action} A stand-in cannot follow steps that exist only in someone's head, and nobody else can compare unwritten steps with the work.`,
       effort: g.state === "none" ? "medium" : "low",
       tab: "knowledge",
       priority,
@@ -679,7 +679,7 @@ function registerStartActions({ tpl, registerReady }: WeeklyContext): WeeklyActi
       ? {
           id: "register-start",
           title: "List the duties and know-how the business runs on",
-          why: "The register is empty. Until it lists what the business runs on and who can do each, the app cannot say what stops when someone is out or who holds work alone.",
+          why: "The register is empty. Until it lists what the business runs on and who can do each, Precog cannot say what stops when someone is out or who holds work alone.",
           effort: "low",
           tab: "knowledge",
           priority: PRIORITY.registerStartEmpty,
@@ -687,7 +687,7 @@ function registerStartActions({ tpl, registerReady }: WeeklyContext): WeeklyActi
       : {
           id: "register-start",
           title: `Mark who can do each of the ${tpl.knowledge.length} things the business runs on`,
-          why: `The register lists ${tpl.knowledge.length} duties and pieces of know-how a business like yours usually runs on, with nobody marked yet. Until someone is marked, the app cannot say what stops when a person is out or who holds work alone. Remove what does not apply.`,
+          why: `The register lists ${tpl.knowledge.length} duties and pieces of know-how a business like yours usually runs on, with nobody marked yet. Until you mark someone, Precog cannot say what stops when a person is out or who holds work alone. Remove what does not apply.`,
           effort: "low",
           tab: "knowledge",
           priority: PRIORITY.registerStartListed,
@@ -799,7 +799,7 @@ function mapActions({ tpl, input, mapReady }: WeeklyContext): WeeklyAction[] {
         ? {
             id: "map-start",
             title: "Add the processes your business runs to the map",
-            why: "The map is empty. Until it lists the processes your business runs and who owns each, the app cannot score ownership, controls, documentation or heat.",
+            why: "The map is empty. Until it lists the processes your business runs and who owns each, Precog cannot score ownership, controls, documentation or heat.",
             effort: "low",
             tab: "map",
             priority: PRIORITY.mapStart,
@@ -807,7 +807,7 @@ function mapActions({ tpl, input, mapReady }: WeeklyContext): WeeklyAction[] {
         : {
             id: "map-start",
             title: `Assign an owner to each of the ${starterCount} sample processes`,
-            why: `Your map holds ${starterCount} sample processes from the ${industryMeta(tpl.id).label.toLowerCase()} sample and none has an owner yet. Until each has an owner, the app cannot score ownership, controls, documentation or heat as facts about your business. Remove what does not apply.`,
+            why: `Your map holds ${starterCount} sample processes from the ${industryMeta(tpl.id).label.toLowerCase()} sample and none has an owner yet. Until each has an owner, Precog cannot score ownership, controls, documentation or heat as facts about your business. Remove what does not apply.`,
             effort: "low",
             tab: "map",
             priority: PRIORITY.mapStart,

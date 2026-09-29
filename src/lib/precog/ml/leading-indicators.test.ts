@@ -69,13 +69,13 @@ describe("scoreLeadingIndicators", () => {
     expect(at(6000)).toBe("breach");
   });
 
-  it("lists every threshold and weight as this app's assumption", () => {
+  it("lists every threshold and weight as Precog's assumption", () => {
     const report = scoreLeadingIndicators(
       getIndustryTemplate("general"),
       calmStaff,
       DEFAULT_RISK_VARIABLES,
     );
-    expect(report.assumptions[0]).toMatch(/this app's assumption/);
+    expect(report.assumptions[0]).toMatch(/Precog's assumption/);
     expect(report.assumptions.join(" ")).toContain("$4,000");
     expect(report.method).not.toMatch(/composite/);
   });

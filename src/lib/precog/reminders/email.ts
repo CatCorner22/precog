@@ -90,8 +90,8 @@ export function renderOwnerReminder(input: {
   const from = input.firmName ? ` from ${input.firmName}` : "";
   const subject = `${input.businessName}: ${count(input.items.length, "item")} to confirm`;
   const reply = input.advisorEmail
-    ? `Reply to this email to reach ${input.firmName ?? "your advisor"} once each is done, or if something has changed.`
-    : `Tell ${input.firmName ?? "your advisor"} once each is done, or if something has changed.`;
+    ? `Reply to this email to reach ${input.firmName ?? "your advisor"} once you have done each, or if something has changed.`
+    : `Tell ${input.firmName ?? "your advisor"} once you have done each, or if something has changed.`;
   const setUp = `${advisor} set these reminders up in Precog. To stop them, ask ${input.firmName ?? "them"} to remove your address.`;
   const text = [
     `A reminder${from} about ${input.businessName}.`,
