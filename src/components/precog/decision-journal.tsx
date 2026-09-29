@@ -191,8 +191,8 @@ export function DecisionJournal({
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Checking that controls still work (what the COSO framework calls monitoring) needs a paper
-          trail. Record remediate, accept residual, monitor, or insure decisions with a review date.
-          Syncs to your account when signed in.
+          trail. Record remediate, accept residual risk, monitor, or insure decisions with a review
+          date. When you sign in, Precog syncs the log to your account.
         </p>
       </section>
 
@@ -204,8 +204,8 @@ export function DecisionJournal({
                 <CardTitle className="text-base">Slipped since closed</CardTitle>
                 <CardDescription>
                   You closed these as done, but the register no longer backs them up or the
-                  procedure is no longer written/findable. Reopen to put the step back on a review
-                  date.
+                  procedure is no longer written down or has no recorded location. Reopen to put the
+                  step back on a review date.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -269,8 +269,8 @@ export function DecisionJournal({
               <CardHeader>
                 <CardTitle className="text-base">Reviews due</CardTitle>
                 <CardDescription>
-                  Re-score the decision before you close the loop. The figures below are the
-                  app&apos;s own scores at the time you decided and now, not measured outcomes.
+                  Re-score the decision before you close the loop. The figures below are
+                  Precog&apos;s own scores at the time you decided and now, not measured outcomes.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -350,7 +350,7 @@ export function DecisionJournal({
                     </option>
                   ))}
                   <option value="Business-wide monitoring">Business-wide monitoring</option>
-                  <option value="Insurance / transfer terms">Insurance / transfer terms</option>
+                  <option value="Insurance and transfer terms">Insurance and transfer terms</option>
                 </select>
               </label>
               <div className="flex flex-wrap gap-2">
@@ -528,7 +528,7 @@ function RegisterCloseOutControls({
         {closeOut.step === "cover"
           ? `The register still says "${closeOut.item.name}" is ${STATUS_LABEL[closeOut.status].toLowerCase()}. Who can run it alone now?`
           : closeOut.step === "document"
-            ? `The register still says nothing is written down for "${closeOut.item.name}".`
+            ? `The register still shows no written procedure for "${closeOut.item.name}".`
             : `The register still has no location for the written "${closeOut.item.name}" procedure.`}
       </p>
       <div className="flex flex-wrap items-center gap-2">

@@ -22,7 +22,7 @@ export function reviewDelta(
   const delta = decisionDelta(d, current);
   if (!delta || !d.snapshot) return "No snapshot on record.";
   if (!delta.comparable) {
-    return `The scoring model changed since this was logged (v${d.snapshot.scoringVersion} → v${current.scoringVersion}), so the figures cannot be compared.`;
+    return `The scoring model changed since you logged this (v${d.snapshot.scoringVersion} → v${current.scoringVersion}), so Precog cannot compare the figures.`;
   }
   const conflicts = `open duty conflicts ${d.snapshot.sodOpenConflicts} → ${current.sodOpenConflicts} (${change(delta.sodOpen, "lower")})`;
   if (delta.continuity && d.snapshot.continuity && current.continuity) {
@@ -48,9 +48,7 @@ export function reviewDelta(
 export function deleteDecisionPrompt(d: Pick<DecisionEntry, "subject" | "reviews">): string {
   const reviews = d.reviews?.length ?? 0;
   return `Delete "${d.subject}" from the Decisions log?${
-    reviews > 0
-      ? ` Its ${count(reviews, "review")} on record ${reviews === 1 ? "is" : "are"} deleted with it.`
-      : ""
+    reviews > 0 ? ` Precog also deletes its ${count(reviews, "review")} on record.` : ""
   } This cannot be undone.`;
 }
 
