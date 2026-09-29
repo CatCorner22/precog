@@ -61,10 +61,10 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
 
   for (const check of profile.leaverAccessChecks ?? []) {
     if (check.confirmedOn || check.industry !== profile.industry) continue;
-    const detail = `${check.name} was recorded as left on ${formatDay(check.notedOn)}. A login that still works lets someone who has left move money.`;
+    const detail = `Precog recorded ${check.name} as left on ${formatDay(check.notedOn)}. A sign-in that still works lets someone who has left move money.`;
     add({
       key: `leaver:${check.id}`,
-      title: `Confirm ${check.name} is off payroll and their logins are removed`,
+      title: `Confirm ${check.name} is off payroll and you have removed their sign-ins`,
       detail,
       ownerDetail: detail,
       dueOn: check.notedOn,
@@ -86,7 +86,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
       (d) => d.linkedAbsenceId === window.absence.id && d.status !== "closed",
     );
     if (hasHandoff) continue;
-    const detail = `${count(stops.length, "task")} ${verb(stops.length, "stops", "stop")} while they are out, and no one is named to cover ${verb(stops.length, "it", "them")}.`;
+    const detail = `${count(stops.length, "task")} ${verb(stops.length, "stops", "stop")} while they are out, and you have named no one to cover ${verb(stops.length, "it", "them")}.`;
     add({
       key: `absence:${window.absence.id}`,
       title: `${window.person.name} is away from ${formatDay(window.absence.from)}: name who covers`,

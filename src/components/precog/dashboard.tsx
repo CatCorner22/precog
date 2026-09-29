@@ -107,7 +107,7 @@ export function Dashboard({
         <Badge variant="accent">{industry.label} · internal controls</Badge>
         <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
           {say(
-            "Know what is still exposed before it becomes a loss",
+            "Know the exposure that remains before it becomes a loss",
             "Know your residual risk before it becomes a loss",
           )}
         </h1>

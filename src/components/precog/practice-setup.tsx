@@ -89,13 +89,13 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
   // Figures that are not facts about this business yet say so.
   const soleOwnerNote = registerAssessed(template)
     ? "From Who knows what: the critical items only one person holds."
-    : "Not assessed yet: this figure comes from Who knows what once someone is marked there.";
+    : "Not assessed yet: this figure comes from Who knows what once you mark someone there.";
   const tenureFromTeam =
     ownTeam && template.people.some((p) => p.active && typeof p.tenureYears === "number");
   const tenureNote = ownTeam
     ? tenureFromTeam
       ? "From the hire dates on your team."
-      : "No hire dates were entered for your team, so this is the sample business's figure."
+      : "You have not entered hire dates for your team, so this is the sample business's figure."
     : undefined;
   const segregationNote = ownTeam ? (
     s.segregationSource === "manual" ? (
