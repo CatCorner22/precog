@@ -71,7 +71,7 @@ export class BusinessUnavailableError extends RequestError {
   constructor() {
     super(
       409,
-      "This business was deleted or is no longer available to you. Export any work not yet saved before closing this page.",
+      "Someone deleted this business, or it is no longer available to you. Export any work not yet saved before closing this page.",
     );
   }
 }

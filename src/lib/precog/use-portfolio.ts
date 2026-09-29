@@ -130,7 +130,7 @@ export function usePortfolio(input: {
             ok: false,
             reason: saveConflictRef.current
               ? CHOOSE_A_VERSION_FIRST
-              : "The open business could not be saved, so it stays open.",
+              : "Precog could not save the open business, so it stays open.",
           };
         if (!mounted.current) return { ok: false, reason: "The page closed before the switch." };
         const remote = cloudUser
@@ -306,4 +306,4 @@ export function usePortfolio(input: {
   };
 }
 
-const CHOOSE_A_VERSION_FIRST = "Choose a copy in the banner at the top first, so no work is lost.";
+const CHOOSE_A_VERSION_FIRST = "Choose a copy in the banner at the top first, so you lose no work.";

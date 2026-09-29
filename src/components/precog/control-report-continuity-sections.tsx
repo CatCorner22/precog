@@ -80,7 +80,7 @@ export function ControlReportContinuitySections({
             Not assessed yet.{" "}
             {knowledgeCount === 0
               ? "The register is empty: the business has not yet listed the duties and know-how it runs on."
-              : `The register holds ${knowledgeCount} sample items from the ${industryLabel.toLowerCase()} sample with nobody marked on any of them, so no continuity figure is reported.`}
+              : `The register holds ${knowledgeCount} sample items from the ${industryLabel.toLowerCase()} sample with nobody marked on any of them, so the report gives no continuity figure.`}
           </p>
         ) : (
           <>
@@ -132,8 +132,8 @@ export function ControlReportContinuitySections({
               </ol>
             )}
             <p className="mt-3 text-sm text-neutral-700">
-              <strong>{docs.documentedIndex}%</strong> of work is written down and findable.{" "}
-              {count(docs.counts.none, "item")} with nothing written, {docs.counts.unlocated}{" "}
+              <strong>{docs.documentedIndex}%</strong> of work has written steps that someone can
+              find. {count(docs.counts.none, "item")} with nothing written, {docs.counts.unlocated}{" "}
               written but location not recorded.
             </p>
             {docs.gaps.length > 0 && (
@@ -153,7 +153,7 @@ export function ControlReportContinuitySections({
             )}
             <p className="mt-3 text-sm text-neutral-700">
               {procedures.written === 0 ? (
-                "No step-by-step procedures are written on the Procedures tab yet."
+                "Nobody has written step-by-step procedures on the Procedures tab yet."
               ) : (
                 <>
                   <strong>{count(procedures.written, "procedure")}</strong> written,{" "}
@@ -169,8 +169,8 @@ export function ControlReportContinuitySections({
             </p>
             {trackFreshness && (
               <p className="mt-3 text-sm text-neutral-700">
-                <strong>{staleness.confirmedIndex}%</strong> of work was confirmed in the last{" "}
-                {CONFIRMATION_MAX_AGE_DAYS} days.
+                <strong>{staleness.confirmedIndex}%</strong> of work has a confirmation from the
+                last {CONFIRMATION_MAX_AGE_DAYS} days.
                 {staleness.stale.length > 0 && (
                   <> {count(staleness.stale.length, "item")} to re-confirm.</>
                 )}
@@ -259,8 +259,9 @@ function ControlReportLeaveSection({
     >
       <p className="text-xs text-neutral-500">
         Absences on the register, soonest first — leave booked ahead and anyone recorded out on the
-        day (sick, emergency). Hand-offs the business has already logged are marked; everything else
-        needs a named stand-in before the leave starts, or today for anyone already out.
+        day (sick, emergency). The report marks hand-offs the business has already logged;
+        everything else needs a named stand-in before the leave starts, or today for anyone already
+        out.
       </p>
       <ul className="mt-2 space-y-3">
         {leave.windows.slice(0, 8).map((w) => {
@@ -405,7 +406,7 @@ function ControlReportDebriefSection({ debriefs }: { debriefs: ControlReportMode
                     <td className="py-1 pr-2">
                       {e.standIn
                         ? `${e.standIn.name}${e.standInLevel ? ` (${LEVEL_LABEL[e.standInLevel].toLowerCase()})` : ""}`
-                        : "Nobody was lined up"}
+                        : "Nobody lined up"}
                     </td>
                     <td className="py-1 text-neutral-600">
                       {!e.standIn
@@ -623,7 +624,7 @@ function ControlReportFollowThroughSection({
         {openContinuity.length} open, {doneContinuity} closed as done
         {slips.length > 0 ? `, ${slips.length} closed as done but slipped since` : ""}
         {droppedContinuity > 0 ? `, ${droppedContinuity} closed as no longer relevant` : ""}.
-        Coverage and documentation are the register today, not when the step was logged.
+        Coverage and documentation are the register today, not when you logged the step.
       </p>
       {slips.length > 0 && (
         <ul className="mt-2 space-y-1.5 text-sm">
@@ -680,9 +681,9 @@ function ControlReportFollowThroughSection({
         <p className="mt-2 text-sm text-neutral-600">
           {doneContinuity > 0
             ? droppedContinuity > 0
-              ? "Nothing open and nothing slipped — every step closed as done still holds; the rest were dropped as no longer relevant."
+              ? "Nothing open and nothing slipped — every step closed as done still holds; you closed the rest as no longer relevant."
               : "Nothing open and nothing slipped — you completed every logged step and each still holds."
-            : "Nothing open — you closed every logged step as no longer relevant, so none was completed."}
+            : "Nothing open — you closed every logged step as no longer relevant, so you completed none of them."}
         </p>
       )}
     </Section>

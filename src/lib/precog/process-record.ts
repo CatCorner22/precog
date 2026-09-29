@@ -25,7 +25,7 @@ export const CADENCE_LABEL: Record<ProcessCadence, string> = {
   monthly: "Monthly",
   quarterly: "Quarterly",
   annual: "Annual",
-  "ad-hoc": "Ad hoc / as needed",
+  "ad-hoc": "Ad hoc, when needed",
 };
 
 /**
@@ -139,7 +139,7 @@ export function processRecordReport(processes: readonly ProcessNode[]): ProcessR
       unowned,
       nextStep:
         state === "none"
-          ? `Write down how "${p.name}" is done${p.systems?.length ? ` in ${p.systems.join(", ")}` : ""} so a stand-in can run it${unowned ? ", and assign an owner" : ""}.`
+          ? `Write down how to do "${p.name}"${p.systems?.length ? ` in ${p.systems.join(", ")}` : ""} so a stand-in can run it${unowned ? ", and assign an owner" : ""}.`
           : `Record where the written procedure for "${p.name}" lives so a stand-in can find it.`,
     });
   }

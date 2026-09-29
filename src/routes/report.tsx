@@ -19,7 +19,7 @@ export const Route = createFileRoute("/report")({
       {
         name: "description",
         content:
-          "Print-ready internal control priorities report: this week's actions, priority stack, duty conflicts, know-how held by one person, and the Decisions log.",
+          "Print-ready internal control priorities report: this week's actions, priority stack, duty conflicts, know-how only one person holds, and the Decisions log.",
       },
     ],
   }),
@@ -72,7 +72,7 @@ function LockedReport({ id }: { id: string }) {
   if (state.kind === "error") {
     return (
       <main className="mx-auto max-w-xl px-6 py-16 text-center">
-        <h1 className="text-xl font-semibold">This report version could not be opened</h1>
+        <h1 className="text-xl font-semibold">Precog could not open this report version</h1>
         <p className="mt-2 text-sm text-muted">{state.message}</p>
         <p className="mt-6 text-sm">
           <Link to="/report" className="underline-offset-4 hover:underline">

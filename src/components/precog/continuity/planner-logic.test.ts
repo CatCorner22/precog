@@ -56,10 +56,10 @@ describe("register confirmations", () => {
 
   it("counts only the marks on the item being removed", () => {
     expect(removeItemPrompt(register.knowledge[0], register.relations)).toBe(
-      'Remove "Payroll" from the register with the 2 marks on it? This cannot be undone.',
+      'Remove "Payroll" from the register with the 2 marks on it? You cannot undo this.',
     );
     expect(removeItemPrompt(item("k3", "Alarm"), register.relations)).toBe(
-      'Remove "Alarm" from the register? This cannot be undone.',
+      'Remove "Alarm" from the register? You cannot undo this.',
     );
   });
 });

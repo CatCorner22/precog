@@ -51,7 +51,7 @@ const ASSUMED_STAFF_UPLIFT: readonly {
     applies: (s) => s.soleOwnerKnowledgeCount >= 2,
     factor: 1.2,
     sentence: (s) =>
-      `Assumed uplift: ${count(s.soleOwnerKnowledgeCount, "critical knowledge item")} held by one person.`,
+      `Assumed uplift: ${count(s.soleOwnerKnowledgeCount, "critical knowledge item")} that only one person holds.`,
   },
   {
     applies: (s) => s.segregationScore < 50,

@@ -117,7 +117,7 @@ describe("executive summary", () => {
     });
     expect(lines).toEqual([
       "No open duty conflicts: no one person holds two conflicting duties.",
-      "Continuity is not assessed yet: nobody is marked on the register of duties and know-how.",
+      "Precog has not assessed continuity yet: the register of duties and know-how marks nobody.",
     ]);
   });
 

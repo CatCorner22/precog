@@ -192,7 +192,7 @@ export async function removeMember(
   firmUserId: string,
   memberUserId: string,
 ): Promise<void> {
-  if (memberUserId === firmUserId) throw new FirmMembershipError("The owner cannot be removed.");
+  if (memberUserId === firmUserId) throw new FirmMembershipError("Nobody can remove the owner.");
   await detachMember(sql, firmUserId, memberUserId);
 }
 

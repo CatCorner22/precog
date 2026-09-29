@@ -59,7 +59,7 @@ export function computeLikelihoodSeverity(
     grossSeverity *= 0.88;
     drivers.push({
       id: "rec-d",
-      label: "Independent bank rec",
+      label: "Independent bank reconciliation",
       effect: "Assumed −25% detection lag; −12% cumulative severity",
       on: "detection",
     });

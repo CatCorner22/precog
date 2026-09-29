@@ -525,7 +525,7 @@ export const automotiveTemplate: IndustrySample = {
         },
         {
           id: "r-clm-2",
-          title: "Claim rules and deadlines held by one person",
+          title: "Claim rules and deadlines only one person knows",
           kind: "continuity",
           severity: 4,
           likelihood: 3,

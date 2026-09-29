@@ -35,7 +35,7 @@ function Login() {
         {authEnabled ? (
           <ProviderButtons />
         ) : (
-          <p className="mt-6 text-sm text-muted">Sign-in is disabled in this environment.</p>
+          <p className="mt-6 text-sm text-muted">Sign-in is off in this environment.</p>
         )}
         {authEnabled && emailAndPasswordEnabled && <EmailPasswordForm />}
         <Link

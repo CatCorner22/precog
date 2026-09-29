@@ -70,7 +70,7 @@ export function FirmMembers({
       if (emailed) toast.success(`We emailed the invitation to ${created.email}.`);
       else await copyLink(created.token);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "The invitation was not created.");
+      toast.error(err instanceof Error ? err.message : "Precog did not create the invitation.");
     } finally {
       setBusy(false);
     }
@@ -81,7 +81,7 @@ export function FirmMembers({
       await revokeFirmInvite({ data: { token } });
       onChange({ invites: invites.filter((i) => i.token !== token) });
     } catch {
-      toast.error("The invitation was not revoked.");
+      toast.error("Precog did not revoke the invitation.");
     }
   }
 
@@ -90,7 +90,7 @@ export function FirmMembers({
       const res = await setFirmMemberRole({ data: { userId, role: next } });
       onChange({ members: res.members });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "The role was not changed.");
+      toast.error(err instanceof Error ? err.message : "Precog did not change the role.");
     }
   }
 
@@ -105,7 +105,7 @@ export function FirmMembers({
       const res = await removeFirmMember({ data: { userId } });
       onChange({ members: res.members });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "The member was not removed.");
+      toast.error(err instanceof Error ? err.message : "Precog did not remove the member.");
     }
   }
 

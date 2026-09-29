@@ -210,8 +210,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
           setFocusId(selected ? PROCEDURE_HEADING : NEW_PROCEDURE);
         }}
         onDelete={() => {
-          if (!window.confirm(`Delete "${editing.procedure.title}"? This cannot be undone.`))
-            return;
+          if (!window.confirm(`Delete "${editing.procedure.title}"? You cannot undo this.`)) return;
           removeProcedure(editing.procedure.id);
           setEditing(null);
           setSelectedId(null);

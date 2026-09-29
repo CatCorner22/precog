@@ -170,7 +170,7 @@ async function freshAccessToken(sql: Sql, connection: ConnectionRow): Promise<st
   });
   if (stored) return fresh.accessToken;
   const winner = await loadConnection(sql, connection.ownerUserId, connection.businessId);
-  if (!winner) throw new Error("The QuickBooks connection was removed during the reading");
+  if (!winner) throw new Error("Someone removed the QuickBooks connection during the reading");
   return unseal(winner.accessTokenEnc);
 }
 

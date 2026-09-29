@@ -47,7 +47,7 @@ function JoinPage() {
       toast.success(`You joined ${firm.name} as ${firm.role}.`);
       void navigate({ to: "/firm" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "The invitation could not be accepted.");
+      toast.error(err instanceof Error ? err.message : "Precog could not accept the invitation.");
     } finally {
       setBusy(false);
     }
@@ -65,16 +65,16 @@ function JoinPage() {
               This invitation is no longer open
             </h1>
             <p className="mt-2 text-sm text-muted">
-              It may have expired (invitations last two weeks) or already been used. Ask the firm
-              owner for a new link.
+              It may have expired (invitations last two weeks), or someone may already have used it.
+              Ask the firm owner for a new link.
             </p>
           </>
         ) : (
           <>
             <h1 className="mt-2 text-xl font-semibold tracking-tight">Join {invite.firmName}</h1>
             <p className="mt-2 text-sm text-muted">
-              You were invited as a <strong className="text-fg">{invite.role}</strong>. A preparer
-              maps clients and locks reports; a reviewer also signs reports off.
+              The firm invited you as a <strong className="text-fg">{invite.role}</strong>. A
+              preparer maps clients and locks reports; a reviewer also signs reports off.
             </p>
             {isPending ? (
               <p className="mt-4 text-sm text-muted">Checking your sign-in…</p>
@@ -103,13 +103,13 @@ function JoinPage() {
 function SignInHere({ token, email }: { token: string; email: string }) {
   const here = `/join/${token}`;
   if (!authEnabled) {
-    return <p className="mt-4 text-sm text-muted">Sign-in is turned off on this deployment.</p>;
+    return <p className="mt-4 text-sm text-muted">Sign-in is off on this deployment.</p>;
   }
   return (
     <>
       <p className="mt-4 text-sm text-muted">
-        Sign in to join. The invitation was sent to <span className="text-fg">{email}</span>; any
-        account can use it.
+        Sign in to join. The firm sent the invitation to <span className="text-fg">{email}</span>;
+        any account can use it.
       </p>
       <div className="mt-4 space-y-2">
         {GROK_PROVIDERS.map((p) => (

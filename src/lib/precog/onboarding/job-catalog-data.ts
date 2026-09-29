@@ -117,7 +117,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     ],
     description:
       "Owns the business, sets its policies, and holds final authority over spending, hiring, and pay.",
-    note: "The owner approves last, usually signs, and approves the team's expense claims and card spending. Tick Spend on a company card or charge account if you hold a card, Reconcile the bank account if you check the statement against the books yourself, and Create users / assign system access if you give people their logins.",
+    note: "The owner approves last, usually signs, and approves the team's expense claims and card spending. Tick Spend on a company card or charge account if you hold a card, Reconcile the bank account if you check the statement against the books yourself, and Create users / assign system access if you give people their sign-ins.",
     aliases: [
       "owner",
       "proprietor",
@@ -544,7 +544,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     ],
     description:
       "Supervises the office and administrative staff and, in a small business, runs the daily money work: payments, deposits, bills, and payroll.",
-    note: "In a small office the office manager records payments, makes the deposit, pays the bills, runs payroll, and codes the statement of the company card they buy supplies on. In a dental, medical or veterinary office they usually reconcile the bank too, and a practice administrator or business manager is read as this seat. Tick Enter write-offs or Administer the system and its user roles if they do it; untick what someone else does.",
+    note: "In a small office the office manager records payments, makes the deposit, pays the bills, runs payroll, and codes the statement of the company card they buy supplies on. In a dental, medical or veterinary office they usually reconcile the bank too, and Precog reads a practice administrator or business manager as this seat. Tick Enter write-offs or Administer the system and its user roles if they do it; untick what someone else does.",
     aliases: [
       "practice manager",
       "administrative manager",
@@ -1045,7 +1045,7 @@ export const JOB_CATALOG: readonly JobCatalogEntry[] = [
     entitlements: ["order_supplies", "receive_goods", "hold_company_card", "view_reports_only"],
     description:
       "Directs food preparation and the kitchen staff, plans menus, and orders and receives food and supplies.",
-    note: "The kitchen orders food and receives the delivery, so the check on the supplier is the same person who chose it, and the kitchen card pays for whatever the suppliers do not deliver.",
+    note: "The kitchen orders food and receives the delivery, so the check on the supplier is the same person who chose it, and the kitchen card pays for goods the suppliers never deliver.",
     aliases: [
       "executive chef",
       "head chef",

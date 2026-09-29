@@ -254,7 +254,7 @@ export function useCloudSync(input: {
     const message =
       !raw || /fetch|network|load failed/i.test(raw)
         ? keptHere
-          ? "Could not reach the server. Your work is saved on this device; your next change tries your account again."
+          ? "Could not reach the server. Precog saved your work on this device; your next change tries your account again."
           : "Could not reach the server or save on this device. Export a recovery copy before closing this page."
         : raw;
     if (message === lastCloudError.current) return;
@@ -307,7 +307,7 @@ export function useCloudSync(input: {
       } catch {
         if (!mounted.current) return;
         toast.error("Could not load your account's businesses", {
-          description: "Only the businesses on this device are listed for now.",
+          description: "For now, Precog lists only the businesses on this device.",
           action: { label: "Try again", onClick: () => void attempt() },
         });
       }
@@ -622,7 +622,7 @@ export function useCloudSync(input: {
           }
           activateProfile(theirs);
           toast("Loaded the copy saved in the other tab.", {
-            description: `This tab's copy is kept as “${kept}” in your businesses.`,
+            description: `Precog keeps this tab's copy as “${kept}” in your businesses.`,
           });
           return;
         }
@@ -635,7 +635,7 @@ export function useCloudSync(input: {
         savePortfolioEntry(mine, workspace.local);
         setSyncStatus(result.kind === "saved" ? "local" : "local-error");
         toast("Kept this tab's copy.", {
-          description: `The other tab's copy is kept as “${kept}” in your businesses.`,
+          description: `Precog keeps the other tab's copy as “${kept}” in your businesses.`,
         });
         return;
       }
@@ -657,7 +657,7 @@ export function useCloudSync(input: {
         activateProfile(accountCopy);
         setSyncStatus("synced");
         toast("Loaded the copy saved in your account.", {
-          description: `This device's copy is kept as “${kept}” in your businesses.`,
+          description: `Precog keeps this device's copy as “${kept}” in your businesses.`,
         });
         return;
       }
@@ -665,7 +665,7 @@ export function useCloudSync(input: {
       const kept = keepAsCopy(conflict.remote, "copy from your account");
       setSyncStatus("saving");
       toast("Kept this device's copy.", {
-        description: `The account's copy is kept as “${kept}” in your businesses.`,
+        description: `Precog keeps the account's copy as “${kept}” in your businesses.`,
       });
       await saveCloud(profileRef.current).catch(reportCloudError);
     },
@@ -690,7 +690,7 @@ export function useCloudSync(input: {
         const next = transition === "sign-in" ? "continue signing in" : "sign out";
         if (
           !window.confirm(
-            `Some work is not synced. Export a local recovery copy and ${next}? Cancel keeps this workspace open.`,
+            `Some work has not synced. Export a local recovery copy and ${next}? Cancel keeps this workspace open.`,
           )
         )
           return false;

@@ -296,7 +296,7 @@ export function buildThreatAssessment(input: {
         : `Know-how: ${REGISTER_NOT_ASSESSED}`,
       ...(scenariosLeftOut > 0
         ? [
-            `Scenarios: ${starterScenarioLabel(tpl.id)} (${scenariosLeftOut}) are left out. ${MAKE_SCENARIO_YOURS}`,
+            `Scenarios: ${starterScenarioLabel(tpl.id)} (${scenariosLeftOut}): Precog leaves them out. ${MAKE_SCENARIO_YOURS}`,
           ]
         : []),
       `Early-warning checks: ${breached} breached, ${watched} to watch.`,
@@ -365,7 +365,7 @@ function deriveRoe(category: string, name: string, residual: number): string[] {
   }
   return [
     "Monitor leading indicators weekly",
-    "Confirm compensating control is documented",
+    "Confirm someone has documented the compensating control",
     "Revisit at next residual acceptance review",
   ];
 }

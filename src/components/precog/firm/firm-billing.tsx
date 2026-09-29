@@ -63,7 +63,7 @@ export function FirmBilling({
       const { url } = await startCheckout({ data: { plan: which } });
       window.location.href = url;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Checkout could not be started.");
+      toast.error(err instanceof Error ? err.message : "Precog could not start checkout.");
       setBusy(false);
     }
   }
@@ -74,7 +74,7 @@ export function FirmBilling({
       const { url } = await openBillingPortal();
       window.location.href = url;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "The billing portal could not be opened.");
+      toast.error(err instanceof Error ? err.message : "Precog could not open the billing portal.");
       setBusy(false);
     }
   }

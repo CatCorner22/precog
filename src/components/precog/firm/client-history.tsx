@@ -53,7 +53,7 @@ export function ClientHistory({ signedIn }: { signedIn: boolean }) {
       replaceProfile({ ...res.profile, businessId });
       toast.success(`Loaded the snapshot from ${formatDayTime(entry.savedAt)}.`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That snapshot could not be loaded.");
+      toast.error(err instanceof Error ? err.message : "Precog could not load that snapshot.");
     } finally {
       setBusy(false);
     }
@@ -65,8 +65,8 @@ export function ClientHistory({ signedIn }: { signedIn: boolean }) {
         <div>
           <h2 className="text-lg font-semibold">Change history</h2>
           <p className="mt-1 text-sm text-muted">
-            Every save of {profile.practiceName} is kept with who made it, so the map as it stood on
-            a given day can be brought back.
+            Precog keeps every save of {profile.practiceName} with who made it, so you can bring
+            back the map as it stood on a given day.
           </p>
         </div>
         <Button size="sm" variant="secondary" onClick={() => setOpen((v) => !v)}>

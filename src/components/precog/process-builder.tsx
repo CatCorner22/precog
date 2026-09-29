@@ -310,7 +310,7 @@ export function ProcessBuilder({
   function deleteVersion(id: string) {
     const version = versions.find((v) => v.id === id);
     if (!version) return;
-    if (!window.confirm(`Delete version "${version.name}"? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete version "${version.name}"? You cannot undo this.`)) return;
     deleteMapVersion(id);
     toast(`Deleted version "${version.name}"`);
   }

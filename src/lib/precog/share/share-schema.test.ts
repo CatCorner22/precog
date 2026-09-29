@@ -24,8 +24,8 @@ describe("validateSharePayload", () => {
 
   it("rejects a payload that is not an object", () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    expect(() => validateSharePayload("nope")).toThrow(/could not be created/);
-    expect(() => validateSharePayload(null)).toThrow(/could not be created/);
+    expect(() => validateSharePayload("nope")).toThrow(/Precog could not create this share/);
+    expect(() => validateSharePayload(null)).toThrow(/Precog could not create this share/);
   });
 
   it("answers a bad or oversized payload with a 4xx status", () => {
@@ -47,7 +47,7 @@ describe("validateSharePayload", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const payload = buildSharePayload(defaultProfile("dental"), []);
     expect(() => validateSharePayload({ ...payload, industry: "crypto" })).toThrow(
-      "This share could not be created from the map as it stands. Reload the page and try again.",
+      "Precog could not create this share from the map as it stands. Reload the page and try again.",
     );
     expect(warn.mock.calls[0]?.[1]).toBe("industry");
   });
@@ -67,7 +67,7 @@ describe("validateSharePayload", () => {
       processes: [{ ...payload.processes[0], name: undefined }],
     };
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    expect(() => validateSharePayload(broken)).toThrow(/could not be created/);
+    expect(() => validateSharePayload(broken)).toThrow(/Precog could not create this share/);
     expect(warn.mock.calls[0]?.[1]).toBe("processes.0.name");
   });
 });

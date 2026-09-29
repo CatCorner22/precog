@@ -58,10 +58,10 @@ describe("deleteDecisionPrompt", () => {
   it("warns that reviews on record go with the entry", () => {
     const review = { at: then.at, outcome: "still_open" as const, snapshot: then };
     expect(deleteDecisionPrompt({ subject: "Payroll", reviews: [review, review] })).toBe(
-      'Delete "Payroll" from the Decisions log? Precog also deletes its 2 reviews on record. This cannot be undone.',
+      'Delete "Payroll" from the Decisions log? Precog also deletes its 2 reviews on record. You cannot undo this.',
     );
     expect(deleteDecisionPrompt({ subject: "Payroll" })).toBe(
-      'Delete "Payroll" from the Decisions log? This cannot be undone.',
+      'Delete "Payroll" from the Decisions log? You cannot undo this.',
     );
   });
 });

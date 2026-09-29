@@ -87,7 +87,7 @@ export function sodRecommendations(
   }
   if (openOf("rule-card-review", "rule-card-approve")) {
     recommendations.push(
-      `Have ${reader} read every company card statement line by line before it is coded, turn off cash advances on the cards, and let nobody approve their own card spending or expense claims.`,
+      `Have ${reader} read every company card statement line by line before anyone codes it, turn off cash advances on the cards, and let nobody approve their own card spending or expense claims.`,
     );
   }
   if (openOf("rule-writeoff", "rule-claims-writeoff")) {

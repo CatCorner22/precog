@@ -51,7 +51,7 @@ export function evaluateRelease(
       dualWaived: false,
       dualForced: false,
       dualRequired: false,
-      reasons: ["Dual release is turned off for this business."],
+      reasons: ["Dual release is off for this business."],
       nextSteps: ["Turn on dual release in Controls, then set each channel's threshold."],
       eligibleSeconds: [],
       ...people,
@@ -71,7 +71,7 @@ export function evaluateRelease(
       dualWaived: false,
       dualForced: false,
       dualRequired: false,
-      reasons: [`Dual release is turned off for ${rule?.label ?? request.channel}.`],
+      reasons: [`Dual release is off for ${rule?.label ?? request.channel}.`],
       nextSteps: ["Turn this channel on in the dual-release policy."],
       eligibleSeconds: listEligibleApprovers(tpl, policy, request.channel).filter(
         (p) => p.canSecond,
@@ -130,7 +130,7 @@ export function evaluateRelease(
       eligibleSeconds,
       second: undefined,
       reasons: [
-        `${personLabel(initiator.name, initiator.role)} is not allowed to be first signer on ${rule.label}.`,
+        `${personLabel(initiator.name, initiator.role)} cannot be first signer on ${rule.label}.`,
         ...tieNote,
       ],
       nextSteps: [`Allowed first signers: ${peopleList(eligible.filter((p) => p.canInitiate))}.`],

@@ -37,13 +37,13 @@ export function AccountDataControls() {
       await deleteAccount({ data: { confirm: "DELETE" } });
       clearLocalCopies(workspace.local);
       workspace.session?.clear();
-      toast.success("Your account and its data are deleted.");
+      toast.success("Precog has deleted your account and its data.");
       await signOut("/", { skipRecovery: true });
     } catch (error) {
       toast.error(
         clientErrorStatus(error) === 409 && error instanceof Error
           ? error.message
-          : "The deletion or the sign-out did not finish. Reload to check the account; a finished deletion cannot be undone.",
+          : "The deletion or the sign-out did not finish. Reload to check the account; you cannot undo a finished deletion.",
       );
       setBusy(null);
     }

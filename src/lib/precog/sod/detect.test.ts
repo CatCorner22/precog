@@ -602,7 +602,7 @@ describe("family catch-all", () => {
   it("names two master-record duties as such, not as payee-list duties", () => {
     const report = detectSodConflicts(oneClerk(["change_fee_schedule", "edit_patient_master"]));
     const family = report.conflicts.find((c) => c.ruleId.startsWith("family-"));
-    expect(family?.title).toBe("Two master-record duties held by one person");
+    expect(family?.title).toBe("One person holds two master-record duties");
   });
 });
 

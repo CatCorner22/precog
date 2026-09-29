@@ -41,7 +41,7 @@ const DECISION_LOG_MAX = 10;
  * insurer or accountant as much as the owner).
  */
 export const REPORT_CAVEATS =
-  "Every index here is computed by this app from what the business entered. Loss and detection figures describe prosecuted cases and published studies about other businesses, not this one.";
+  "Precog computes every index here from what the business entered. Loss and detection figures describe prosecuted cases and published studies about other businesses, not this one.";
 
 /**
  * The executive summary: a few plain sentences from the report's own
@@ -71,7 +71,7 @@ export function executiveSummary(input: SummaryInput): string[] {
   lines.push(
     input.registerReady
       ? `${input.coverageIndex}% of the work on the register (weighted by how critical it is) has two or more people who can run it alone; ${count(input.singlePoints, "critical or important item")} ${input.singlePoints === 1 ? "relies" : "rely"} on one person or nobody.`
-      : "Continuity is not assessed yet: nobody is marked on the register of duties and know-how.",
+      : "Precog has not assessed continuity yet: the register of duties and know-how marks nobody.",
   );
   if (input.mapHealth) {
     lines.push(

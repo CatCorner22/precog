@@ -46,7 +46,7 @@ export function VersionsPanel({
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-xs">
       <p className="text-muted">
         Saved versions of your map. Compare one to see what changed, or restore it (Ctrl+Z undoes a
-        restore). Deleting a version cannot be undone.
+        restore). You cannot undo deleting a version.
       </p>
       <ul className="space-y-1">
         {versions.map((v) => {

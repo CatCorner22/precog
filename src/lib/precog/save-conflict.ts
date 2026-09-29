@@ -287,8 +287,8 @@ export function pickSwitchCopy(input: {
     return {
       ok: false,
       reason: local
-        ? "This business was deleted from your account or your access was removed. Its copy on this device was kept."
-        : "This business was deleted from your account or your access was removed.",
+        ? "Someone deleted this business from your account or removed your access. Precog kept its copy on this device."
+        : "Someone deleted this business from your account or removed your access.",
     };
   }
   if (!local) return { ok: false, reason: "This business is no longer on this device." };

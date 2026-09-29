@@ -124,13 +124,13 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "electronic-remittance": {
     id: "electronic-remittance",
     label: "Take payment electronically so no payable check passes through the office",
-    why: "A check that never exists cannot be diverted. This removes the exposure rather than watching it.",
+    why: "Nobody can divert a check that never exists. This removes the exposure rather than watching it.",
     setup: "a day",
     cadence: "once",
   },
   "expected-receipts-vs-deposits": {
     id: "expected-receipts-vs-deposits",
-    label: "Owner compares the money expected in with what was deposited, monthly",
+    label: "Owner compares the money expected in with the deposits, monthly",
     why: "Money that never arrives leaves no trace in the books. Only an outside expectation reveals it.",
     setup: "an hour",
     cadence: "monthly",
@@ -139,7 +139,7 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
     id: "new-payee-review",
     label:
       "Owner reads the month's list of new suppliers and changed supplier bank details, and confirms any they do not recognize",
-    why: "An invented supplier is added once and paid for years, and the payments look entirely ordinary in the accounts. The one moment it is visible is the month it appears on the list of additions and bank-detail changes, read by someone who cannot add them.",
+    why: "Someone adds an invented supplier once and pays it for years, and the payments look entirely ordinary in the accounts. The one moment it is visible is the month it appears on the list of additions and bank-detail changes, read by someone who cannot add them.",
     setup: "minutes",
     cadence: "monthly",
   },
@@ -147,7 +147,7 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
     id: "new-payee-second-approval",
     label:
       "A second person approves each new supplier before its first payment, against a W-9 and a real address",
-    why: "Documentation that arrives by email from the supplier proves nothing when the supplier is the one being invented.",
+    why: "Documentation that arrives by email from the supplier proves nothing when the supplier itself is fake.",
     setup: "minutes",
     cadence: "each new supplier",
   },
@@ -160,8 +160,8 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   },
   "dual-release-above-threshold": {
     id: "dual-release-above-threshold",
-    label: "A second person releases payments above a set amount, using their own login",
-    why: "A shared login defeats this entirely. If the first person can give the second approval, the control exists only on paper.",
+    label: "A second person releases payments above a set amount, using their own sign-in",
+    why: "A shared sign-in defeats this entirely. If the first person can give the second approval, the control exists only on paper.",
     setup: "an hour",
     cadence: "each payment",
   },
@@ -175,7 +175,7 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "receipt-and-second-approval": {
     id: "receipt-and-second-approval",
     label: "Reimbursements need a receipt and a second person's approval",
-    why: "A reimbursement is not taxed and does not read as a raise, so it is the quietest way to inflate one's own pay.",
+    why: "A reimbursement carries no tax and does not read as a raise, so it is the quietest way to inflate one's own pay.",
     setup: "minutes",
     cadence: "each claim",
   },
@@ -196,20 +196,22 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "permission-review": {
     id: "permission-review",
     label: "Review who holds which system permissions, not who holds which job title",
-    why: "Oversight gets designed around the senior title while a deputy quietly inherits the same access.",
+    why: "Owners design oversight around the senior title while a deputy quietly inherits the same access.",
     setup: "an hour",
     cadence: "quarterly",
   },
   "log-payments-at-the-mail": {
     id: "log-payments-at-the-mail",
-    label: "Log incoming payments when the mail is opened, before they reach whoever posts them",
-    why: "Creates a record made by a different person, which is the only thing a diverted payment can be checked against.",
+    label:
+      "Log incoming payments when someone opens the mail, before they reach whoever posts them",
+    why: "Creates a record made by a different person, the only thing anyone can check a diverted payment against.",
     setup: "minutes",
     cadence: "daily",
   },
   "independent-financial-review": {
     id: "independent-financial-review",
-    label: "Have an outside accountant review the books annually, even where no audit is required",
+    label:
+      "Have an outside accountant review the books annually, even where no law or lender requires an audit",
     why: "An outsider asks the questions everyone inside has stopped asking.",
     setup: "a day",
     cadence: "yearly",
@@ -218,13 +220,13 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
     id: "verify-oversight-is-real",
     label:
       "Confirm the people your controls rely on know they hold the role, and that approvals leave evidence",
-    why: "A control that is documented but never performed is worse than none, because it stops anyone asking the question.",
+    why: "A control that someone documents but nobody performs is worse than none, because it stops anyone asking the question.",
     setup: "an hour",
     cadence: "yearly",
   },
   "billing-matches-the-schedule": {
     id: "billing-matches-the-schedule",
-    label: "Check that what you billed matches who actually worked and what was actually delivered",
+    label: "Check that what you billed matches who actually worked and what you actually delivered",
     why: "Billing under a name that did not work that day exposes the business to repayment and to the insurer's own fraud finding.",
     setup: "an hour",
     cadence: "monthly",
@@ -245,7 +247,7 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   },
   "payee-account-not-an-employee": {
     id: "payee-account-not-an-employee",
-    label: "No supplier is paid to a bank account matching an employee's",
+    label: "Nobody pays a supplier into a bank account matching an employee's",
     why: "A one-line check against payroll details that catches the crudest and most common version outright.",
     setup: "minutes",
     cadence: "monthly",
@@ -260,7 +262,7 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "terminated-staff-vs-payroll": {
     id: "terminated-staff-vs-payroll",
     label: "Compare the list of people who have left against everyone paid this month",
-    why: "A ghost employee is almost always a real person who has left and whose record was quietly reactivated. The list of people who have left is the one thing the payroll operator does not control.",
+    why: "A ghost employee is almost always a real person who has left and whose record someone quietly reactivated. The list of people who have left is the one thing the payroll operator does not control.",
     setup: "minutes",
     cadence: "monthly",
   },
@@ -289,7 +291,7 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "count-inventory-independently": {
     id: "count-inventory-independently",
     label:
-      "Someone who neither orders nor receives stock counts it and compares the count to what was bought",
+      "Someone who neither orders nor receives stock counts it and compares the count to the purchase records",
     why: "Goods leave a business as quietly as cash does, and an order placed for personal use looks exactly like a real one on the invoice. A count by a third pair of hands is the only record that does not depend on the person who ordered and signed for it.",
     setup: "an hour",
     cadence: "monthly",
@@ -305,15 +307,15 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "no-shared-logins": {
     id: "no-shared-logins",
     label:
-      "Every person has their own login, and every shared password changes the day anyone leaves",
-    why: "A departing employee who knows a colleague's password still has your customer list. Named logins make access removable, and make the audit log mean something when you need it.",
+      "Every person has their own sign-in, and every shared password changes the day anyone leaves",
+    why: "A departing employee who knows a colleague's password still has your customer list. Named sign-ins make access removable, and make the audit log mean something when you need it.",
     setup: "an hour",
     cadence: "once",
   },
   "recovery-copy-out-of-reach": {
     id: "recovery-copy-out-of-reach",
     label:
-      "Keep one backup copy that no employee login can delete — under the owner's own account, or offline",
+      "Keep one backup copy that no employee sign-in can delete — under the owner's own account, or offline",
     why: "A backup the administrator can reach is a backup the administrator can erase, and an angry administrator erases it first. A copy only the owner controls turns a wipe into an afternoon's restore.",
     setup: "an hour",
     cadence: "once",
@@ -321,7 +323,7 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "payroll-tax-remittance-verified": {
     id: "payroll-tax-remittance-verified",
     label:
-      "Each quarter, log in to the IRS and state payroll-tax portals yourself and confirm the deposits were made",
+      "Each quarter, sign in to the IRS and state payroll-tax portals yourself and confirm the deposits went in",
     why: "A bookkeeper who is short of cash can stop paying the payroll taxes and keep the money; the notices arrive months later, addressed to the person who caused them. The portals show in minutes whether the deposits exist.",
     setup: "minutes",
     cadence: "quarterly",
@@ -329,8 +331,8 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "same-day-access-removal": {
     id: "same-day-access-removal",
     label:
-      "Remove every login, administrator right, and shared password the day a person's duties change or they leave",
-    why: "Access that outlives the job is how someone who has left or been demoted reaches the server, the backups, or a colleague's account. Doing it the same day, from a written list of every system, closes the door before the grievance forms.",
+      "Remove every sign-in, administrator right, and shared password the day a person's duties change or they leave",
+    why: "Access that outlives the job is how someone who has left or moved to a lesser role reaches the server, the backups, or a colleague's account. Doing it the same day, from a written list of every system, closes the door before the grievance forms.",
     setup: "an hour",
     cadence: "whenever someone leaves",
   },

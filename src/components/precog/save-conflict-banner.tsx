@@ -14,7 +14,7 @@ export function SaveConflictBanner() {
     ? `Another tab in this browser saved changes to this business ${when}. This tab has stopped saving so neither copy is overwritten.`
     : saveConflict.reason === "sign-in"
       ? `This device has work on this business from before you signed in, and your account holds a different copy (saved ${when}). Nothing has been overwritten yet.`
-      : `This business was changed on another device or tab (saved ${when}). Your latest edits here are not saved to your account yet.`;
+      : `Someone changed this business on another device or tab (saved ${when}). Precog has not saved your latest edits here to your account yet.`;
 
   return (
     <Card
@@ -23,7 +23,8 @@ export function SaveConflictBanner() {
     >
       <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p className="text-sm text-fg">
-          {situation} Choose one; the one you do not choose is kept as a copy in your businesses.
+          {situation} Choose one; Precog keeps the one you do not choose as a copy in your
+          businesses.
         </p>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Button size="sm" variant="secondary" onClick={() => void resolveSaveConflict("reload")}>

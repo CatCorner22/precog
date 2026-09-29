@@ -480,7 +480,7 @@ export function IndustryOnboarding() {
           industry: selected,
           from: today,
           to: today,
-          note: "On leave in the pasted roster; the return date was not given.",
+          note: "On leave in the pasted roster; the roster gives no return date.",
         })),
       ]);
     }
@@ -646,7 +646,7 @@ export function IndustryOnboarding() {
                 </Button>
               </div>
               <p className="text-center text-xs text-subtle">
-                The sample team is made up; every gap on it says so until you enter your own.
+                The sample team is fictional; every gap on it says so until you enter your own.
               </p>
               {cancelLink}
             </CardContent>
@@ -725,7 +725,7 @@ export function IndustryOnboarding() {
                   {reviewOnly && (
                     <p role="status" className="text-xs text-muted">
                       {attentionIndices.size === 0
-                        ? "No name or job title is left to review. Show all rows to check their suggested duties."
+                        ? "No name or job title remains to review. Show all rows to check their suggested duties."
                         : "Showing rows to review. Rows you fix stay in view; hidden rows stay on your team."}
                     </p>
                   )}
@@ -1032,11 +1032,11 @@ export function IndustryOnboarding() {
                   <div className="mt-2 space-y-2">
                     <p className="text-xs text-muted">
                       Paste the roster as exported, header row included, or one person per line as{" "}
-                      <span className="font-mono">Name, Job title</span>. Job titles such as
-                      Bookkeeper, Office Manager, AP Specialist, or Cashier are read from a catalog
-                      of common jobs and their usual duties are ticked. People already in the table
-                      are updated, not added twice. People the roster marks as having left are
-                      skipped.
+                      <span className="font-mono">Name, Job title</span>. Precog matches job titles
+                      such as Bookkeeper, Office Manager, AP Specialist, or Cashier to a catalog of
+                      common jobs and ticks their usual duties. Precog updates people already in the
+                      table rather than adding them twice, and skips people the roster marks as
+                      having left.
                     </p>
                     <textarea
                       className={cn(fieldCls, "min-h-28 w-full font-mono text-xs")}

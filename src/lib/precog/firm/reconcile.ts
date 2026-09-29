@@ -144,7 +144,7 @@ export function parseAccessExport(
       source: "unknown",
       users: [],
       vendors: [],
-      issues: ["No user or vendor header was found."],
+      issues: ["Precog found no user or vendor header."],
     };
   }
   const headers = located.rows[0].map((c) => c.trim());

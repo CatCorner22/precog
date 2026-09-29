@@ -102,7 +102,7 @@ export function BusinessSwitcher() {
   }
 
   function removeBusiness(b: BusinessSummary) {
-    if (!window.confirm(`Remove "${b.name}" from your portfolio? This can't be undone.`)) return;
+    if (!window.confirm(`Remove "${b.name}" from your portfolio? You cannot undo this.`)) return;
     void deleteBusiness(b.id).then(
       () => toast(`Removed ${b.name}`),
       (error: unknown) =>
@@ -264,8 +264,8 @@ export function BusinessSwitcher() {
                   </Button>
                 </div>
                 <p className="text-xs text-subtle">
-                  Next you enter its team, or load the sample business. Your current business is
-                  saved first.
+                  Next you enter its team, or load the sample business. Precog saves your current
+                  business first.
                 </p>
               </div>
             ) : (

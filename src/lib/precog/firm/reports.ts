@@ -189,7 +189,7 @@ export async function signOffReportVersion(
   const current = await loadReportVersion(sql, input.ownerUserId, input.id);
   if (!current) throw new ReportVersionError(404, "That report version does not exist");
   if (current.version.reviewedAt) {
-    throw new ReportVersionError(409, "This version has already been signed off");
+    throw new ReportVersionError(409, "Someone has already signed off this version");
   }
   if (current.version.preparedBy === input.reviewedBy) {
     throw new ReportVersionError(409, "The preparer cannot sign off their own report");

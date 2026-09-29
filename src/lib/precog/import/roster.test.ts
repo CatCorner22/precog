@@ -614,7 +614,7 @@ describe("parseRoster", () => {
       ["Dee Park", "Server", true, ["collect_cash", "view_reports_only"]],
     ]);
     expect(ended.issues[0].message).toBe(
-      '"Cal Diaz" (employee ID 7): the Bookkeeper position is marked inactive, so its duties are left out',
+      '"Cal Diaz" (employee ID 7): the Bookkeeper position is inactive, so Precog leaves out its duties',
     );
   });
 
@@ -628,7 +628,7 @@ describe("parseRoster", () => {
     expect(result.people[0]).toMatchObject({ name: "Dee Park", role: "Server", active: true });
     expect(result.people[0].lastDay).toBeUndefined();
     expect(result.issues.map((issue) => issue.message)).toContain(
-      '"Dee Park" (employee ID 8): the Server position is active, so the last day 2020-01-10 of the inactive Cashier position was not kept',
+      '"Dee Park" (employee ID 8): the Server position is active, so Precog dropped the last day 2020-01-10 of the inactive Cashier position',
     );
   });
 
@@ -1110,8 +1110,8 @@ describe("parseRoster", () => {
       ["Leaving Soon", true, "2026-12-31"],
     ]);
     expect(result.issues.map((i) => i.message)).toEqual([
-      '"Former Person1" left on 2024-02-01, so is read as no longer working here',
-      '"Former Person2" left on 2024-02-01, so is read as no longer working here',
+      '"Former Person1" left on 2024-02-01, so Precog treats them as no longer working here',
+      '"Former Person2" left on 2024-02-01, so Precog treats them as no longer working here',
     ]);
 
     // A status column outranks an old date: a rehire keeps working here.
@@ -1123,7 +1123,7 @@ describe("parseRoster", () => {
     expect(rehired.people[0]).toMatchObject({ active: true });
     expect(rehired.people[0].lastDay).toBeUndefined();
     expect(rehired.issues.map((i) => i.message)).toEqual([
-      '"Rita Rehire" has a past last day (2019-03-01) but an active status; the last day was not kept',
+      '"Rita Rehire" has a past last day (2019-03-01) but an active status, so Precog dropped the last day',
     ]);
   });
 
@@ -1235,7 +1235,7 @@ describe("parseRoster", () => {
     expect(result.issues.map((i) => [i.row, i.message])).toEqual([
       [
         4,
-        '"Chloe Bennett" is listed at Larkspur - Oakridge Mall and Larkspur - Riverside with the same title; kept as one person at both',
+        '"Chloe Bennett" appears at Larkspur - Oakridge Mall and Larkspur - Riverside with the same title; kept as one person at both',
       ],
       [5, '"Chloe Bennett" appears twice; the importer skipped the second row'],
     ]);

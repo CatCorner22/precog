@@ -54,7 +54,7 @@ export function scoreLeadingIndicators(
   const indicators: LeadingIndicator[] = [
     {
       id: "li_spof",
-      label: "Critical know-how held by one person",
+      label: "Critical know-how only one person holds",
       value: spofs.length,
       threshold: lines.soleHeld.watch,
       status: status(spofs.length, lines.soleHeld),
@@ -231,7 +231,7 @@ const { lines: L, weights: W } = INDICATOR_ASSUMPTIONS;
 
 const ASSUMPTION_LINES: string[] = [
   "Every threshold, weight and band below is Precog's assumption about what to watch first, not a measured or published figure.",
-  `Critical know-how held by one person: watch at ${L.soleHeld.watch} item, breach at ${L.soleHeld.breach}; weight ${W.soleHeld}.`,
+  `Critical know-how only one person holds: watch at ${L.soleHeld.watch} item, breach at ${L.soleHeld.breach}; weight ${W.soleHeld}.`,
   `Open duty conflicts not accepted: watch at ${L.openConflicts.watch}, breach at ${L.openConflicts.breach}; weight ${W.openConflicts}.`,
   `No independent bank reconciliation is a breach; weight ${W.bankRec}. No dual control on payments is a breach; weight ${W.dualControl}.`,
   `Average residual risk: watch at ${L.averageResidual.watch}, breach at ${L.averageResidual.breach}; weight ${W.averageResidual}.`,

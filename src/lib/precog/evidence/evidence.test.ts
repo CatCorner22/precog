@@ -635,7 +635,7 @@ describe("benchmarks and the shared statistics record", () => {
 
     const spread = bm("bm-duration-distribution").value;
     expect(spread).toContain(`${Math.round(DEFAULT_FRAUD_STATS.shareRunningOverFiveYears * 100)}%`);
-    expect(spread).toMatch(/^A third are found within six months/);
+    expect(spread).toMatch(/^A third come to light within six months/);
     expect(Math.abs(DEFAULT_FRAUD_STATS.shareFoundUnderSixMonths - 1 / 3)).toBeLessThan(0.01);
 
     expect(DEFAULT_FRAUD_STATS.sourceUrl).toBe(bm("bm-median-loss").source.url);

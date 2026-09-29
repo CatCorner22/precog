@@ -323,7 +323,7 @@ describe("switching to another business", () => {
       heldByAccount: true,
     });
     expect(copy.ok).toBe(false);
-    if (!copy.ok) expect(copy.reason).toMatch(/copy on this device was kept/);
+    if (!copy.ok) expect(copy.reason).toMatch(/Precog kept its copy on this device/);
   });
 
   it("normalises the stored copy as every other load does", () => {

@@ -84,7 +84,7 @@ export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
         driftIsEmpty(drift) ? "Books read; nothing changed." : "Books read; see what changed.",
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "The books could not be read.");
+      toast.error(err instanceof Error ? err.message : "Precog could not read the books.");
     } finally {
       setBusy(false);
     }
@@ -92,14 +92,16 @@ export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
 
   async function disconnect() {
     if (!businessId) return;
-    if (!window.confirm("Disconnect QuickBooks for this client? Past readings are removed too."))
+    if (
+      !window.confirm("Disconnect QuickBooks for this client? Precog also removes past readings.")
+    )
       return;
     setBusy(true);
     try {
       await disconnectQuickBooks({ data: { businessId } });
       setStatus((cur) => (cur ? { ...cur, connection: null, drift: null } : cur));
     } catch {
-      toast.error("QuickBooks was not disconnected.");
+      toast.error("Precog did not disconnect QuickBooks.");
     } finally {
       setBusy(false);
     }
@@ -175,7 +177,7 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
   if (drift.employeesReleased.length) {
     lines.push({
       label: "Released from payroll",
-      text: `${names(drift.employeesReleased)} — confirm their logins are removed and mark them as left on the map.`,
+      text: `${names(drift.employeesReleased)} — confirm someone has removed their sign-ins and mark them as left on the map.`,
       warn: true,
     });
   }
@@ -185,7 +187,7 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
       text:
         drift.vendorsChanged
           .map((c) => `${c.vendor.name} (${c.fields.map((f) => VENDOR_FIELD_LABEL[f]).join(", ")})`)
-          .join("; ") + " — a changed address or account is how a payee gets redirected.",
+          .join("; ") + " — a changed address or account is how someone redirects a payment.",
       warn: true,
     });
   }

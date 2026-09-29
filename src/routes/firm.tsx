@@ -54,11 +54,11 @@ export const Route = createFileRoute("/firm")({
 
 const QUICKBOOKS_MESSAGE: Record<string, string> = {
   connected: "QuickBooks is connected. Read the books now to take the first reading.",
-  declined: "The QuickBooks connection was declined.",
+  declined: "Someone declined the QuickBooks connection.",
   invalid: "The QuickBooks connection link was not valid. Start again from this page.",
   "signed-out": "Sign in, then connect QuickBooks again from this page.",
   "wrong-account":
-    "Another Precog account started this QuickBooks connection, so it was not saved. Connect again from this page while signed in to your own account.",
+    "Another Precog account started this QuickBooks connection, so Precog did not save it. Connect again from this page while signed in to your own account.",
   failed: "QuickBooks did not complete the connection. Try again.",
   "not-configured": "QuickBooks is not available on this deployment.",
 };
@@ -117,7 +117,7 @@ function FirmPage() {
   useEffect(() => {
     if (search.billing === "success")
       toast.success("Checkout finished. The plan updates once Stripe confirms the payment.");
-    if (search.billing === "cancelled") toast("Checkout was cancelled.");
+    if (search.billing === "cancelled") toast("You cancelled checkout.");
     if (search.quickbooks && QUICKBOOKS_MESSAGE[search.quickbooks]) {
       const message = QUICKBOOKS_MESSAGE[search.quickbooks];
       if (search.quickbooks === "connected") toast.success(message);
@@ -150,7 +150,7 @@ function FirmPage() {
         setClients(clientRes.clients);
         setDeleted(deletedRes.deleted);
       } catch {
-        if (!cancel) toast.error("The firm workspace could not be loaded.");
+        if (!cancel) toast.error("Precog could not load the firm workspace.");
       } finally {
         if (!cancel) setLoaded(true);
       }
@@ -245,7 +245,7 @@ function FirmPage() {
       const ownBusiness = clientRes.clients.find((c) => !c.shared);
       if (wasShared && ownBusiness) await switchBusiness(ownBusiness.id);
     } catch {
-      toast.error("The client list could not be refreshed. Reload the page.");
+      toast.error("Precog could not refresh the client list. Reload the page.");
     }
   }
 
@@ -261,7 +261,7 @@ function FirmPage() {
       }
       toast.success(firm ? "Firm saved." : "Firm created. Your businesses are now its clients.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "The firm was not saved.");
+      toast.error(err instanceof Error ? err.message : "Precog did not save the firm.");
     }
   }
 

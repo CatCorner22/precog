@@ -410,7 +410,7 @@ function familyFinding(
       labelB: entitlementLabel(b),
       severity: "family",
       title: same
-        ? `Two ${SAME_FAMILY_NOUN[familyA]} duties held by one person`
+        ? `One person holds two ${SAME_FAMILY_NOUN[familyA]} duties`
         : `${FAMILY_LABEL[familyA]} and ${FAMILY_LABEL[familyB]} in one pair of hands`,
       why: same
         ? `One person holds both of these ${SAME_FAMILY_NOUN[familyA]} duties. Either one alone is ordinary; together they let the same hands complete a transaction end to end with nobody in between.`

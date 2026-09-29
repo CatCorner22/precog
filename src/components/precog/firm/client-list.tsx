@@ -39,7 +39,7 @@ export function ClientList({
       setEditing(null);
       toast.success(draft.trim() ? "Owner address saved." : "Owner address removed.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "The address was not saved.");
+      toast.error(err instanceof Error ? err.message : "Precog did not save the address.");
     }
   }
 
@@ -49,7 +49,7 @@ export function ClientList({
       onRestored(id);
       toast.success("Business restored.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "The business was not restored.");
+      toast.error(err instanceof Error ? err.message : "Precog did not restore the business.");
     }
   }
 
@@ -58,7 +58,7 @@ export function ClientList({
       <h2 className="text-lg font-semibold">Clients</h2>
       <p className="mt-1 text-sm text-muted">
         Last review is the newest monthly result stored for that client. An owner address receives
-        the reminders about their own business; nothing else is sent to it.
+        the reminders about their own business; Precog sends nothing else to it.
       </p>
       {clients.length === 0 ? (
         <p className="mt-3 text-sm text-muted">

@@ -158,7 +158,7 @@ function ConflictCardDetails({
             className="h-7 text-xs"
             onClick={() => onNavigate?.("precog", c.linkedScenarioId)}
           >
-            Precog scenario
+            Open the scenario
           </Button>
         )}
         {c.processIds[0] && (

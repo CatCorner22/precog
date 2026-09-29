@@ -72,8 +72,8 @@ export function MonthlyReview() {
     <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-lg font-semibold">This month’s review</h2>
       <p className="mt-1 text-sm text-muted">
-        Four checks taken from the register. Record a result with an owner and a note. A later
-        result is added; the earlier one stays in the log.
+        Four checks taken from the register. Record a result with an owner and a note. Precog adds a
+        later result; the earlier one stays in the log.
       </p>
       <ul className="mt-4 space-y-4">
         {tasks.map((task) => {
