@@ -32,7 +32,7 @@ jobs:
           import gzip, hashlib, os
           from pathlib import Path
           packed = b''.join(Path(f'.github/control-transport/{i}.part').read_bytes() for i in range(13))
-          assert hashlib.sha256(packed).hexdigest() == '83a522635da555e90d846a80f0dcb85eac1c751dd741ceaebee4fc3af333227e'
+          assert hashlib.sha256(packed).hexdigest() == '89e598b5e376d2f6f9172376d4a65c93c47a64470d8b485faf47cbc4ae2fe06f'
           patch = gzip.decompress(packed)
           assert hashlib.sha256(patch).hexdigest() == '8b362b75aac4c46125eae9e55913a697e29dc2a6a9427176551c0e7dfe02d288'
           Path(os.environ['RUNNER_TEMP'], 'control-accuracy.patch').write_bytes(patch)
