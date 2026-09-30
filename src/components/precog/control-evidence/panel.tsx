@@ -15,6 +15,7 @@ import {
   type ExecutionCommand,
 } from "@/lib/precog/controls/executions/model";
 import { clientErrorStatus } from "@/lib/request-errors";
+import { withExecutionHttpStatus } from "@/lib/precog/controls/executions/client";
 import { ExecutionForm, Field, buttonClass, fieldClass } from "./forms";
 
 export function ControlEvidencePanel() {
@@ -88,9 +89,12 @@ function ExecutionWorkspace({
     let ignore = false;
     setLoading(true);
     setError("");
-    void getControlExecutionLog({
-      data: { businessId, expectedAccountId: accountId, period, cursor },
-    })
+    void withExecutionHttpStatus((fetch) =>
+      getControlExecutionLog({
+        data: { businessId, expectedAccountId: accountId, period, cursor },
+        fetch,
+      }),
+    )
       .then((result) => {
         if (!ignore) {
           setData(result);
@@ -115,9 +119,12 @@ function ExecutionWorkspace({
   const save = useCallback(
     async (command: ExecutionCommand) => {
       try {
-        await recordControlExecution({
-          data: { businessId, expectedAccountId: accountId, command },
-        });
+        await withExecutionHttpStatus((fetch) =>
+          recordControlExecution({
+            data: { businessId, expectedAccountId: accountId, command },
+            fetch,
+          }),
+        );
         if (!active.current) return false;
         setNotice("Recorded in the account log.");
         setRefresh((n) => n + 1);
