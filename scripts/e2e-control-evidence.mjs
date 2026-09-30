@@ -68,6 +68,19 @@ try {
   const panel = page.getByRole("region", { name: "Control evidence log" });
   await panel.getByText("Record a check with evidence", { exact: true }).waitFor();
   step("Real preparer session can open the account log");
+  // Stop the previous page before replacing its fixture session. Otherwise a
+  // late response from that page can refresh the cookie after it was replaced.
+  // Keep the browser context and storage; do not bypass the application's identity guard.
+  const switchSession = async (key) => {
+    await page.goto("about:blank");
+    await context.clearCookies();
+    await context.addCookies([cookies[key]]);
+    assert.equal(
+      (await (await context.request.get(base + "/api/auth/get-session")).json()).user.id,
+      actor[key],
+    );
+    await page.goto(base + "/firm", { waitUntil: "domcontentloaded" });
+  };
   await panel.getByText("Record a check with evidence", { exact: true }).click();
   let form = panel.locator("form").first();
   await form
@@ -133,9 +146,7 @@ try {
     });
   assert.equal((await call(review)).status(), 403);
   step("Direct API self-review/preparer approval rejected");
-  await context.clearCookies();
-  await context.addCookies([cookies.reviewer]);
-  await page.goto(base + "/firm", { waitUntil: "domcontentloaded" });
+  await switchSession("reviewer");
   await panel.getByText("Review this check", { exact: true }).click();
   let reviewForm = panel.locator("article form");
   await reviewForm.getByRole("combobox", { name: "Method", exact: true }).selectOption("inquiry");
@@ -168,9 +179,7 @@ try {
   await reviewForm.getByRole("button", { name: "Record review conclusion" }).click();
   await panel.getByText("Exception — correction needed", { exact: true }).waitFor();
   step("Independent reviewer records an exception with owner and due date");
-  await context.clearCookies();
-  await context.addCookies([cookies.prep]);
-  await page.goto(base + "/firm", { waitUntil: "domcontentloaded" });
+  await switchSession("prep");
   await panel.getByText("Record a correction", { exact: true }).click();
   const correction = panel.locator("article form");
   await correction
@@ -185,9 +194,7 @@ try {
   await correction.getByRole("button", { name: "Record correction for retest" }).click();
   await panel.getByText("Correction recorded — retest needed", { exact: true }).waitFor();
   step("Correction does not close the exception without a retest");
-  await context.clearCookies();
-  await context.addCookies([cookies.reviewer]);
-  await page.goto(base + "/firm", { waitUntil: "domcontentloaded" });
+  await switchSession("reviewer");
   await panel.getByText("Review this check", { exact: true }).click();
   reviewForm = panel.locator("article form");
   await reviewForm
@@ -234,6 +241,7 @@ try {
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
     "Mobile horizontal overflow",
   );
+  await page.goto("about:blank");
   await context.clearCookies();
   await context.addCookies([cookies.outside]);
   assert.equal((await call(review, actor.outside)).status(), 404);
