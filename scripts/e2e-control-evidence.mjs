@@ -79,8 +79,8 @@ try {
   await form
     .getByLabel("Work performed and conclusion")
     .fill("Inspected all statement lines and documented each difference.");
-  await form.getByLabel("Method", { exact: true }).selectOption("inspection");
-  await form.getByLabel("Result", { exact: true }).selectOption("no_exception");
+  await form.getByRole("combobox", { name: "Method", exact: true }).selectOption("inspection");
+  await form.getByRole("combobox", { name: "Result", exact: true }).selectOption("no_exception");
   await page.reload({ waitUntil: "domcontentloaded" });
   await panel.getByText("Record a check with evidence", { exact: true }).click();
   form = panel.locator("form").first();
@@ -138,8 +138,10 @@ try {
   await page.goto(base + "/firm", { waitUntil: "domcontentloaded" });
   await panel.getByText("Review this check", { exact: true }).click();
   let reviewForm = panel.locator("article form");
-  await reviewForm.getByLabel("Method", { exact: true }).selectOption("inquiry");
-  await reviewForm.getByLabel("Result", { exact: true }).selectOption("no_exception");
+  await reviewForm.getByRole("combobox", { name: "Method", exact: true }).selectOption("inquiry");
+  await reviewForm
+    .getByRole("combobox", { name: "Result", exact: true })
+    .selectOption("no_exception");
   await reviewForm
     .getByLabel("Evidence references (one per line, up to 8)")
     .fill("Reviewer worksheet / v1");
@@ -154,8 +156,10 @@ try {
     .waitFor();
   assert.equal((await pg.query("select revision from control_execution_log")).rows[0].revision, 1);
   step("Inquiry-only no-exception conclusion is rejected by server");
-  await reviewForm.getByLabel("Method", { exact: true }).selectOption("inspection");
-  await reviewForm.getByLabel("Result", { exact: true }).selectOption("exception");
+  await reviewForm
+    .getByRole("combobox", { name: "Method", exact: true })
+    .selectOption("inspection");
+  await reviewForm.getByRole("combobox", { name: "Result", exact: true }).selectOption("exception");
   await reviewForm
     .getByLabel("Work performed and conclusion")
     .fill("A reconciliation item lacks a supporting explanation.");
@@ -186,8 +190,12 @@ try {
   await page.goto(base + "/firm", { waitUntil: "domcontentloaded" });
   await panel.getByText("Review this check", { exact: true }).click();
   reviewForm = panel.locator("article form");
-  await reviewForm.getByLabel("Method", { exact: true }).selectOption("reperformance");
-  await reviewForm.getByLabel("Result", { exact: true }).selectOption("no_exception");
+  await reviewForm
+    .getByRole("combobox", { name: "Method", exact: true })
+    .selectOption("reperformance");
+  await reviewForm
+    .getByRole("combobox", { name: "Result", exact: true })
+    .selectOption("no_exception");
   await reviewForm
     .getByLabel("Evidence references (one per line, up to 8)")
     .fill("Independent retest worksheet / v3");
