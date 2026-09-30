@@ -1,0 +1,72 @@
+name: Prepare verified control-evidence source
+
+on:
+  push:
+    branches: [feat/control-evidence-log-20260930]
+    paths:
+      - .github/evidence-transfer/**
+      - .github/workflows/evidence-publication-transfer.yml
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: github.repository == 'CatCorner22/precog' && github.ref == 'refs/heads/feat/control-evidence-log-20260930'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify the approved patch and exact resulting source tree
+        env:
+          BASE_COMMIT: efb358b4e345ff7c7314760666d5f80acb9b5361
+          EXPECTED_TREE: 1d4ea64543b37453d35f0739a02c578a6afcc133
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, lzma, os
+          from pathlib import Path
+          encoded = b''.join(Path(f'.github/evidence-transfer/{i}.b64').read_bytes() for i in range(7))
+          assert len(encoded) == 44368
+          assert hashlib.sha256(encoded).hexdigest() == '785d5a07bf578fa158bdc1754e0898c9e4a963663e75c4d6245ae20c537e9cff'
+          patch = lzma.decompress(base64.b64decode(encoded, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == '372c06c51fe67b71708be468d258badf1db9f9ab739597bd2a60f2f42208862c'
+          Path(os.environ['RUNNER_TEMP'], 'control-evidence.patch').write_bytes(patch)
+          PY
+          test "$(git rev-parse "$BASE_COMMIT^{tree}")" = b85abdbbd88ed7652a4ff3d743c7ec2d83ee26d9
+          git read-tree --reset -u "$BASE_COMMIT"
+          git apply --index --unidiff-zero "$RUNNER_TEMP/control-evidence.patch"
+          test "$(git write-tree)" = "$EXPECTED_TREE"
+      - name: Upload verified blobs only; never update refs, merge or deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_COMMIT: efb358b4e345ff7c7314760666d5f80acb9b5361
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, os, subprocess, urllib.request
+          def git(*args):
+              return subprocess.check_output(['git', *args]).decode().strip()
+          assert git('write-tree') == '1d4ea64543b37453d35f0739a02c578a6afcc133'
+          rows = git('diff', '--cached', '--name-status', os.environ['BASE_COMMIT']).splitlines()
+          assert len(rows) == 28
+          for row in rows:
+              status, path = row.split('\t')
+              assert status in ('A', 'M')
+              assert path.startswith(('src/', 'scripts/', 'docs/', 'migrations/')) or path in ('.env.example', '.github/workflows/ci.yml', 'README.md', 'package.json')
+              content = subprocess.check_output(['git', 'show', ':' + path])
+              expected = hashlib.sha1(('blob ' + str(len(content)) + '\0').encode() + content).hexdigest()
+              assert expected == git('rev-parse', ':' + path)
+              request = urllib.request.Request(
+                  'https://api.github.com/repos/CatCorner22/precog/git/blobs',
+                  data=json.dumps({'content': base64.b64encode(content).decode(), 'encoding': 'base64'}).encode(),
+                  headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28'},
+                  method='POST')
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  result = json.load(response)
+              assert result['sha'] == expected
+              print(json.dumps({'path': path, 'sha': result['sha']}))
+          print(json.dumps({'verifiedBlobs': len(rows), 'tree': git('write-tree'), 'branchUpdated': False, 'deployed': False}))
+          PY
