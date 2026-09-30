@@ -148,6 +148,29 @@ hidden or closed, and if the browser refuses local storage (private mode, quota)
 badge says so instead of the page failing. The open tab is part of the URL (`/?tab=map`),
 so refresh, back, and shared links keep the view.
 
+## Control evidence log
+
+On the Firm page, signed-in users can record a monthly check with its scope,
+reported performer, method, evidence references and conclusion. The first
+release covers bank-statement review, cleared-check images, payroll headcount,
+and vendor changes. References are pointers to restricted records, not uploaded
+or automatically verified documents. The existing monthly “Done” notes remain
+separate and receive no automatic evidence credit.
+
+The recording account cannot approve its own work. Firm preparers can record
+work and corrections; a separate firm owner or reviewer records review
+conclusions with an independence attestation. The log does not prove actual
+permissions, competence, evidence authenticity or operating effectiveness.
+Exceptions need an owner and date, corrections require a later reperformance
+before a no-exception conclusion, and reopening appends history instead of
+erasing the earlier conclusion. No risk score changes as a result of logging.
+
+Migration `0026_control_execution_log.sql` adds separate account/business-owned
+storage. Account exports include owned logs, hard deletion cascades, and profile
+or snapshot restoration cannot replace the history. Apply through the approved
+release process before enabling the new code in a deployed environment.
+See `docs/CONTROL_EVIDENCE_WORKFLOW.md` for boundaries and test instructions.
+
 ## Firm workspace
 
 `/firm` is for an advisor (a CPA or bookkeeping firm) who runs the assessment

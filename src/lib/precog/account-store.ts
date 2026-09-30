@@ -1,3 +1,4 @@
+import type { ControlExecution } from "./controls/executions/model";
 import type { Sql } from "@/lib/db";
 import { RequestError } from "@/lib/request-errors";
 import { inTransaction } from "@/lib/sql-transaction";
@@ -13,6 +14,8 @@ import { count } from "./text";
  */
 interface AccountExport {
   exportedAt: string;
+  /** Server-recorded control work and review history; no evidence-file contents. */
+  controlExecutions: Array<{ businessId: string; record: ControlExecution }>;
   user: { id: string; name: string; email: string; createdAt: string } | null;
   businesses: Array<{
     id: string;
@@ -161,6 +164,7 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
       billing,
       quickBooksConnections,
       quickBooksSnapshots,
+      controlExecutions,
     ] = await Promise.all([
       readUser(tx, userId),
       readBusinesses(tx, userId),
@@ -180,9 +184,14 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
       readBilling(tx, userId),
       readQuickBooksConnections(tx, userId),
       readQuickBooksSnapshots(tx, userId),
+      tx<{
+        businessId: string;
+        record: ControlExecution;
+      }>`select business_id as "businessId", record from control_execution_log where user_id=${userId} order by created_at,id`,
     ]);
     return {
       exportedAt: new Date().toISOString(),
+      controlExecutions,
       user,
       businesses,
       businessHistory,
