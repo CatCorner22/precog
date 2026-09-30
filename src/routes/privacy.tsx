@@ -73,6 +73,25 @@ function PrivacyPage() {
       </section>
 
       <section className="mt-8 space-y-3 text-sm">
+        <h2 className="text-lg font-semibold">Control evidence log</h2>
+        <p>
+          Draft evidence forms stay in this tab's account-specific browser storage until you submit
+          them. Closing the tab can remove an unsubmitted draft. Submitting a check stores its
+          scope, reported performer, method, result and document references with the business.
+          Review, correction and reopening events keep the recording account's id and name and a
+          server timestamp. Precog does not fetch or upload the referenced documents through this
+          log.
+        </p>
+        <p>
+          Authorized members of the business's firm can read the log. A separate authorized reviewer
+          records review conclusions. Export data includes logs for businesses your account owns.
+          Permanently deleting the owning business or its account removes those logs. Deleting a
+          contributor's account does not erase the attribution already recorded in another account's
+          business log. Restoring an older business profile does not replace this separate history.
+        </p>
+      </section>
+
+      <section className="mt-8 space-y-3 text-sm">
         <h2 className="text-lg font-semibold">What Precog sends to the model</h2>
         <p>
           Pioneer answers on this device from your profile with no model call until you ask a

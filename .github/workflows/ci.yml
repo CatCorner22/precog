@@ -39,6 +39,11 @@ jobs:
       - run: npm run build
       - run: npm run check:bundle
       - run: npm run check:headers
+      - name: Signed control evidence lifecycle on compiled HTTP handlers
+        run: npm run test:evidence:http
+        env:
+          DATABASE_URL: ""
+          PRECOG_CONTROL_E2E: "1"
 
   migrations:
     name: Migrations against real Postgres, applied twice
@@ -88,6 +93,11 @@ jobs:
 
       - name: Business lifecycle on concurrent real PostgreSQL connections
         run: npm run test:postgres:lifecycle
+        env:
+          PRECOG_LIFECYCLE_POSTGRES: "1"
+
+      - name: Control evidence on concurrent real PostgreSQL connections
+        run: npm run test:postgres:evidence
         env:
           PRECOG_LIFECYCLE_POSTGRES: "1"
 
@@ -196,6 +206,12 @@ jobs:
           exit 1
       - name: Signed sessions and account boundaries
         run: npm run e2e:safety
+      - name: Control evidence workflow in the browser (isolated embedded database)
+        run: npm run e2e:evidence
+        env:
+          DATABASE_URL: ""
+          PRECOG_CONTROL_E2E: "1"
+          PRECOG_E2E_OUTPUT: artifacts/control-evidence
       - name: Every tab, every industry, on the compiled handler (signed out)
         run: npm run e2e:tabs -- http://localhost:8080/
         env:
@@ -207,6 +223,7 @@ jobs:
           path: |
             artifacts/account-safety-failure.png
             artifacts/compiled-tabs-failure.png
+            artifacts/control-evidence/
             compiled-test.log
           retention-days: 3
           if-no-files-found: ignore
