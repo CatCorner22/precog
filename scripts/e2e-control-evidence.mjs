@@ -63,7 +63,8 @@ try {
     (await (await context.request.get(base + "/api/auth/get-session")).json()).user.id,
     actor.prep,
   );
-  await page.goto(base + "/firm", { waitUntil: "networkidle" });
+  // Readiness comes from the loaded account-log controls, not global network silence.
+  await page.goto(base + "/firm", { waitUntil: "domcontentloaded" });
   const panel = page.getByRole("region", { name: "Control evidence log" });
   await panel.getByText("Record a check with evidence", { exact: true }).waitFor();
   step("Real preparer session can open the account log");
@@ -80,7 +81,7 @@ try {
     .fill("Inspected all statement lines and documented each difference.");
   await form.getByLabel("Method", { exact: true }).selectOption("inspection");
   await form.getByLabel("Result", { exact: true }).selectOption("no_exception");
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await panel.getByText("Record a check with evidence", { exact: true }).click();
   form = panel.locator("form").first();
   assert.equal(
@@ -134,7 +135,7 @@ try {
   step("Direct API self-review/preparer approval rejected");
   await context.clearCookies();
   await context.addCookies([cookies.reviewer]);
-  await page.goto(base + "/firm", { waitUntil: "networkidle" });
+  await page.goto(base + "/firm", { waitUntil: "domcontentloaded" });
   await panel.getByText("Review this check", { exact: true }).click();
   let reviewForm = panel.locator("article form");
   await reviewForm.getByLabel("Method", { exact: true }).selectOption("inquiry");
@@ -165,7 +166,7 @@ try {
   step("Independent reviewer records an exception with owner and due date");
   await context.clearCookies();
   await context.addCookies([cookies.prep]);
-  await page.goto(base + "/firm", { waitUntil: "networkidle" });
+  await page.goto(base + "/firm", { waitUntil: "domcontentloaded" });
   await panel.getByText("Record a correction", { exact: true }).click();
   const correction = panel.locator("article form");
   await correction
@@ -182,7 +183,7 @@ try {
   step("Correction does not close the exception without a retest");
   await context.clearCookies();
   await context.addCookies([cookies.reviewer]);
-  await page.goto(base + "/firm", { waitUntil: "networkidle" });
+  await page.goto(base + "/firm", { waitUntil: "domcontentloaded" });
   await panel.getByText("Review this check", { exact: true }).click();
   reviewForm = panel.locator("article form");
   await reviewForm.getByLabel("Method", { exact: true }).selectOption("reperformance");
@@ -194,7 +195,7 @@ try {
     .getByLabel("Work performed and conclusion")
     .fill("Reperformed the reconciliation and inspected the supported correction.");
   await reviewForm.getByRole("checkbox").check();
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await panel.getByText("Review this check", { exact: true }).click();
   reviewForm = panel.locator("article form");
   assert.equal(await reviewForm.getByRole("checkbox").isChecked(), false);
