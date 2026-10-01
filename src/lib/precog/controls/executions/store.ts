@@ -118,10 +118,7 @@ export async function executeControlCommand(
           limit 1
         `;
         if (others.length)
-          throw new RequestError(
-            403,
-            "A different person at the firm must review this check.",
-          );
+          throw new RequestError(403, "A different person at the firm must review this check.");
       }
     }
     const next = applyCommand(

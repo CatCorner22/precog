@@ -199,12 +199,7 @@ const PINNED: Record<
       "sc-writeoff-abuse:43445:5000:237:4800",
       "sc-drug-diversion:43445:5000:237:4800",
     ],
-    tornado: [
-      "spof:13",
-      "bank:5",
-      "seg:4",
-      "dual:3",
-    ],
+    tornado: ["spof:13", "bank:5", "seg:4", "dual:3"],
   },
   retail: {
     averageResidual: 67,
@@ -255,12 +250,7 @@ const PINNED: Record<
       "sc-key-person-leaves:32584:5000:89:4800",
       "sc-writeoff-abuse:43445:5000:237:4800",
     ],
-    tornado: [
-      "spof:19",
-      "bank:6",
-      "seg:6",
-      "dual:5",
-    ],
+    tornado: ["spof:19", "bank:6", "seg:6", "dual:5"],
   },
   professional_services: {
     averageResidual: 66,
@@ -316,12 +306,7 @@ const PINNED: Record<
       "sc-writeoff-abuse:43445:5000:237:4800",
       "sc-trust-misappropriation:55294:5000:178:4800",
     ],
-    tornado: [
-      "spof:19",
-      "bank:6",
-      "seg:6",
-      "dual:5",
-    ],
+    tornado: ["spof:19", "bank:6", "seg:6", "dual:5"],
   },
   restaurant: {
     averageResidual: 66,
@@ -377,12 +362,7 @@ const PINNED: Record<
       "sc-salestax-unremitted:55294:5000:178:4800",
       "sc-tip-pool-manipulation:43445:5000:237:4800",
     ],
-    tornado: [
-      "spof:19",
-      "bank:6",
-      "seg:6",
-      "dual:5",
-    ],
+    tornado: ["spof:19", "bank:6", "seg:6", "dual:5"],
   },
   construction: {
     averageResidual: 55,
@@ -447,12 +427,7 @@ const PINNED: Record<
       "sc-material-theft:37778:5000:206:4800",
       "sc-field-time-padding:48082:5000:155:4800",
     ],
-    tornado: [
-      "spof:11",
-      "bank:6",
-      "seg:6",
-      "dual:5",
-    ],
+    tornado: ["spof:11", "bank:6", "seg:6", "dual:5"],
   },
   automotive: {
     averageResidual: 54,
@@ -519,12 +494,7 @@ const PINNED: Record<
       "sc-parts-resale:37778:5000:206:4800",
       "sc-deal-fee-skim:68688:5000:172:4800",
     ],
-    tornado: [
-      "spof:8",
-      "bank:6",
-      "seg:6",
-      "dual:4",
-    ],
+    tornado: ["spof:8", "bank:6", "seg:6", "dual:4"],
   },
   nonprofit: {
     averageResidual: 55,
@@ -585,12 +555,7 @@ const PINNED: Record<
       "sc-restricted-diverted:37778:5000:206:4800",
       "sc-card-abuse:48082:5000:155:4800",
     ],
-    tornado: [
-      "spof:11",
-      "bank:6",
-      "seg:6",
-      "dual:4",
-    ],
+    tornado: ["spof:11", "bank:6", "seg:6", "dual:4"],
   },
   general: {
     averageResidual: 61,
@@ -641,12 +606,7 @@ const PINNED: Record<
       "sc-key-person-leaves:32584:5000:89:4800",
       "sc-writeoff-abuse:43445:5000:237:4800",
     ],
-    tornado: [
-      "spof:15",
-      "bank:6",
-      "dual:5",
-      "seg:5",
-    ],
+    tornado: ["spof:15", "bank:6", "dual:5", "seg:5"],
   },
 };
 

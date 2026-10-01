@@ -162,7 +162,6 @@ describe("redactSharePayload", () => {
     expect(plain.businessName).toBe("Riverside Dental");
   });
 
-  it("returns a payload already marked namesHidden unchanged", () => {
   it("returns a payload already marked namesHidden unchanged when no roster is supplied", () => {
     const once = redactSharePayload(payload());
     expect(redactSharePayload(once)).toBe(once);

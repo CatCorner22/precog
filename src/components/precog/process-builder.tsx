@@ -735,27 +735,27 @@ export function ProcessBuilder({
           evidenceDue > 0 &&
           evidenceSummary.coverage !== null &&
           !isOpen("validate") && (
-          <button
-            type="button"
-            onClick={() => {
-              const first = evidenceSummary.overdueItems[0];
-              if (first) onSelectProcess(first.process.id);
-            }}
-            className="flex w-full items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-left text-xs text-fg hover:border-warn/60"
-          >
-            <Clock className="size-3.5 shrink-0 text-warn" />
-            <span className="min-w-0 flex-1">
-              <span className="font-medium">
-                {count(evidenceDue, "evidence item needs", "evidence items need")} attention
+            <button
+              type="button"
+              onClick={() => {
+                const first = evidenceSummary.overdueItems[0];
+                if (first) onSelectProcess(first.process.id);
+              }}
+              className="flex w-full items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-left text-xs text-fg hover:border-warn/60"
+            >
+              <Clock className="size-3.5 shrink-0 text-warn" />
+              <span className="min-w-0 flex-1">
+                <span className="font-medium">
+                  {count(evidenceDue, "evidence item needs", "evidence items need")} attention
+                </span>
+                <span className="text-muted">
+                  {" "}
+                  · {evidenceSummary.coverage}% of control evidence is current
+                </span>
               </span>
-              <span className="text-muted">
-                {" "}
-                · {evidenceSummary.coverage}% of control evidence is current
-              </span>
-            </span>
-            <ChevronRight className="size-3 shrink-0 text-subtle" />
-          </button>
-        )}
+              <ChevronRight className="size-3 shrink-0 text-subtle" />
+            </button>
+          )}
 
         {isOpen("review") && (
           <ReviewPanel

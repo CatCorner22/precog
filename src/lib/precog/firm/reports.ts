@@ -222,9 +222,7 @@ export async function signOffReportVersion(
       }
     }
   }
-  const note = self
-    ? `Not an independent review. ${input.note}`.trim().slice(0, 600)
-    : input.note;
+  const note = self ? `Not an independent review. ${input.note}`.trim().slice(0, 600) : input.note;
   await sql`
     update report_versions
     set reviewed_by = ${input.reviewedBy}, reviewed_at = now(), review_note = ${note}
