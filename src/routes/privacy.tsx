@@ -34,7 +34,16 @@ function PrivacyPage() {
         <p>
           Until you sign in, Precog stores the business profile, Decisions log, monthly review
           notes, and access-import queue in this browser only. A private window or a full site-data
-          clear removes them. Precog does not send them to a server.
+          clear removes them. Precog does not save them on its server.
+        </p>
+        <p>
+          Pioneer and the <strong>Review</strong>, <strong>Suggest</strong>, and{" "}
+          <strong>Draft steps from notes</strong> buttons run on Precog’s server, whether or not you
+          are signed in. When you use one of them, this browser sends the server the parts of the
+          profile that feature needs. Pioneer, for example, sends the business name, team, duties,
+          processes, risk inputs, planned absences, the Decisions log entries it reads, and which
+          items have a written procedure. The server works out the answer and does not save what the
+          browser sent.
         </p>
       </section>
 
@@ -59,10 +68,25 @@ function PrivacyPage() {
           to Stripe; Precog never sees the card number.
         </p>
         <p>
-          A signed-in account with a business gets a weekly reminder email at its sign-in address,
-          sent through Resend, listing what is due. Turn it off under Reminders in the firm
-          workspace. If you turn on reminders for client owners, each owner gets a short note at the
-          address on their client card.
+          When you add a picture to a procedure step, this browser turns it upright, shrinks it,
+          covers what you marked, and re-encodes it before upload, which drops the file’s metadata
+          (for example, the camera, GPS position, and owner names). The server checks the picture,
+          strips any metadata again, and stores it with the business. Only signed-in people who can
+          open the business can see it. When no step uses a picture any more, Precog keeps it for 30
+          days, so an undo can bring it back, and then deletes it at the next save or upload. Each
+          account can store up to 250 MB of pictures.
+        </p>
+        <p>
+          Precog sends email through Resend. For an email account, Precog emails a link to confirm
+          your address and, when you ask, a link to set a new password. Precog may remove a new
+          sign-up that nobody confirms within a day. An account with a confirmed address, or a
+          Google or X sign-in, and a business of its own or of its firm gets a weekly digest at its
+          sign-in address listing what is due. Turn it off under Reminders in the firm workspace.
+          When you enter a client owner’s address on their client card, Precog emails the owner once
+          to ask whether they agree to reminders, and sends that address nothing more until the
+          owner agrees. Each reminder has a link that stops them. When a firm owner invites a
+          colleague, Precog emails the invitation. When someone joins with an invitation that Precog
+          cannot match to their sign-in, Precog emails the firm owner.
         </p>
         <p>
           Shared map links are separate. Anyone with the link can open that frozen map until it
@@ -94,13 +118,34 @@ function PrivacyPage() {
       <section className="mt-8 space-y-3 text-sm">
         <h2 className="text-lg font-semibold">What Precog sends to the model</h2>
         <p>
-          Pioneer answers on this device from your profile with no model call until you ask a
-          question while signed in and Precog has a model key. Precog sends that question, plus the
-          complete rule-based statements and their warnings and evidence references (which can
-          include names, duties, gaps, and notes you typed), to xAI to select relevant details.
-          Precog keeps the statements intact and withholds responses that do not follow this
-          selection format. Logged-out use never makes that call. Do not paste patient, customer, or
-          account numbers into notes or questions.
+          Precog sends nothing to the model unless you are signed in and Precog has a model key.
+          Signed out, or without a key, Pioneer, Review, Suggest, and Draft steps from notes answer
+          from Precog’s rules.
+        </p>
+        <p>
+          Pioneer builds its brief from your profile with Precog’s rules. When you ask Pioneer for a
+          brief, Precog sends your question, plus the complete rule-based statements and their
+          warnings and evidence references (which can include names, duties, gaps, and notes you
+          typed), to xAI to select relevant details. Precog keeps the statements intact and
+          withholds responses that do not follow this selection format.
+        </p>
+        <p>
+          The other three features send text to xAI and show the model’s reply in its own words.
+          Precog trims its length but does not check what it says. <strong>Review</strong> on the
+          How work flows tab sends the business name, industry, and team size, the map’s health
+          figures and warnings, each process’s name, owners’ names, and top risk title, and the
+          names and roles of people who carry too much work. <strong>Suggest</strong> sends a
+          process’s name, description, owners’ roles, and existing risk and idea titles, the
+          industry, and the names of the available controls. <strong>Draft steps from notes</strong>{" "}
+          sends your notes, the procedure’s title, place, and module, and the industry, after Precog
+          masks anything that looks like a password, card number, or code; Precog masks the draft
+          that comes back too.
+        </p>
+        <p>
+          Precog counts model calls per account, per day, and, where it can tell, per network
+          address, which it keeps only as a one-way hash, to cap their use. The count holds no
+          question or reply. Do not paste patient, customer, or account numbers into notes or
+          questions.
         </p>
       </section>
 
@@ -109,9 +154,11 @@ function PrivacyPage() {
         <p>
           Signed in, <strong>Export data</strong> in the header downloads one JSON file of the
           account: businesses, snapshots, shares, the firm record, engagement stamps, and the review
-          log. The file leaves out passcode hashes. <strong>Delete account</strong> removes the
-          account and those rows. It asks you to type DELETE first. Clearing saved data on this
-          device, from the error screen or after deletion, removes only the browser copy.
+          log. For step pictures, the file lists each picture’s details and the link that shows it
+          while the account exists, not the picture itself. The file leaves out passcode hashes.{" "}
+          <strong>Delete account</strong> removes the account and those rows. It asks you to type
+          DELETE first. Clearing saved data on this device, from the error screen or after deletion,
+          removes only the browser copy.
         </p>
       </section>
 

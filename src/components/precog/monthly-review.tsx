@@ -53,7 +53,7 @@ export function MonthlyReview() {
       });
     } catch (error) {
       toast.error(
-        "Saved on this business. The account log did not update — check your connection and press the result again.",
+        "Precog saved this on the business but could not update the monthly review log in your account. Check your connection and press the result again.",
         // A refusal (not the owner, a bad value) carries the server's reason.
         error instanceof Error && clientErrorStatus(error) !== null
           ? { description: error.message }

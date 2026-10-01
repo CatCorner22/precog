@@ -308,7 +308,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
             </table>
           </div>
           <p className="mt-2 text-xs text-neutral-600">
-            Assumed loss is the scenario&apos;s assumption in this app, not a measured figure.
+            Assumed loss is the scenario&apos;s assumption in Precog, not a measured figure.
             {data.policyNote ? ` Insurance: ${data.policyNote}.` : ""}
           </p>
         </Section>

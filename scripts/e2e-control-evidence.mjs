@@ -67,7 +67,7 @@ try {
   await page.goto(base + "/firm", { waitUntil: "domcontentloaded" });
   const panel = page.getByRole("region", { name: "Control evidence log" });
   await panel.getByText("Record a check with evidence", { exact: true }).waitFor();
-  step("Real preparer session can open the account log");
+  step("Real preparer session can open the control evidence log");
   // Stop the previous page before replacing its fixture session. Otherwise a
   // late response from that page can refresh the cookie after it was replaced.
   // Keep the browser context and storage; do not bypass the application's identity guard.
@@ -189,7 +189,7 @@ try {
     .getByLabel("Evidence references (one per line, up to 8)")
     .fill("Correction worksheet / v2");
   await correction
-    .getByLabel("What was corrected and how")
+    .getByLabel("What you corrected and how")
     .fill("Traced the difference and documented the supported resolution.");
   await correction.getByRole("button", { name: "Record correction for retest" }).click();
   await panel.getByText("Correction recorded — retest needed", { exact: true }).waitFor();

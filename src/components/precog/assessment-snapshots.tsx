@@ -189,7 +189,7 @@ export function AssessmentSnapshots() {
   }
 
   async function remove(id: string) {
-    if (!window.confirm("Delete this snapshot permanently?")) return;
+    if (!window.confirm("Delete this snapshot? You cannot undo this.")) return;
     setBusy(true);
     setError(null);
     try {

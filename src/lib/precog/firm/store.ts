@@ -388,12 +388,12 @@ export async function acceptInvite(
     const { fit, accountEmail } = await accountFit(tx, userId, invite.email);
     if (fit === "mismatch") {
       throw new FirmMembershipError(
-        `This invitation was sent to ${maskEmail(invite.email)}, and you are signed in as ${accountEmail}. Sign in with the invited address, or ask the firm owner to invite ${accountEmail}.`,
+        `The firm sent this invitation to ${maskEmail(invite.email)}, and you are signed in as ${accountEmail}. Sign in with the invited address, or ask the firm owner to invite ${accountEmail}.`,
       );
     }
     if (fit === "confirm" && !options.confirmOtherEmail) {
       throw new FirmMembershipError(
-        `Confirm that you are the person this invitation was sent to (${maskEmail(invite.email)}).`,
+        `Confirm that you are the person the firm sent this invitation to (${maskEmail(invite.email)}).`,
       );
     }
     const current = await loadFirmFor(tx, userId);

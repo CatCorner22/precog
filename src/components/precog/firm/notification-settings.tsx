@@ -45,9 +45,9 @@ export function NotificationSettingsPanel({ signedIn }: { signedIn: boolean }) {
     <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-lg font-semibold">Reminders</h2>
       <p className="mt-1 text-sm text-muted">
-        Once a week, what is due across your clients arrives by email: decisions past their review
-        date, people who have left whose logins are not yet confirmed removed, leave with nobody
-        named to cover, and the monthly review still open. We announce each item once.
+        Once a week, Precog emails what is due across your clients: decisions past their review
+        date, people who have left whose sign-ins nobody has yet confirmed removed, leave with
+        nobody named to cover, and the monthly review still open. Precog announces each item once.
       </p>
       {!mailConfigured && (
         <p className="mt-2 text-sm text-warn">

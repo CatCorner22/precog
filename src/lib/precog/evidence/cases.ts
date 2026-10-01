@@ -1048,7 +1048,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     sector: "trades",
     schemes: ["check-tampering", "payroll"],
     howItWorked:
-      "The office manager of AMK Heating and Cooling in Edwardsville, Illinois held both the company checkbook and the accounting software login. She wrote more than 100 checks payable to herself, forged the owner's signature, and coded the payments in the books as payroll and as loans from the company so the ledger balanced.",
+      "The office manager of AMK Heating and Cooling in Edwardsville, Illinois held both the company checkbook and the accounting software sign-in. She wrote more than 100 checks payable to herself, forged the owner's signature, and coded the payments in the books as payroll and as loans from the company so the ledger balanced.",
     controlGap:
       "One person held check-writing custody and the accounting records, and no one outside that role reconciled the bank statement. A forged signature on a real company check clears the bank; only an independent look at the cleared-check images catches it.",
     lossUsd: 158658,
@@ -1327,13 +1327,13 @@ export const CASE_LIBRARY: CaseStudy[] = [
   {
     id: "case-irvine-consultancy-it-wipe",
     title:
-      "Consulting firm's IT lead, stripped of his duties but not his logins, deleted eight years of work and the off-site backups",
+      "Consulting firm's IT lead, stripped of his duties but not his sign-ins, deleted eight years of work and the off-site backups",
     sector: "professional-services",
     schemes: ["data-destruction"],
     howItWorked:
       "A senior strategist hired in April 2014 by Blue Stone Strategy Group, an Irvine, California consulting firm serving tribal governments, ran the firm's information technology and marketing. In November 2014, after he fell behind and the firm took those duties away and sent him to a client project in Florida, he used the administrator access he still held to delete files on the office server and the firm's cloud services, and sent a remote wipe command to the office Mac Pro from his phone. After resigning he kept deleting: client information, the firm's work product, its website and marketing materials built over eight years, and the backup copies a third-party provider held for the firm.",
     controlGap:
-      "One person administered the user accounts, the cloud services, and the backup provider, and nobody revoked that access when his duties changed or when he resigned. A backup the same login can delete is not a backup. Only a recovery copy outside every employee's reach, plus removing administrator rights the day a role changes, would have limited the damage to an afternoon.",
+      "One person administered the user accounts, the cloud services, and the backup provider, and nobody revoked that access when his duties changed or when he resigned. A backup the same sign-in can delete is not a backup. Only a recovery copy outside every employee's reach, plus removing administrator rights the day a role changes, would have limited the damage to an afternoon.",
     lossUsd: 53305,
     lossIsFloor: true,
     durationMonths: 1,
@@ -1345,7 +1345,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "recovery-copy-out-of-reach",
         asApplied:
-          "One backup copy that no employee login can delete — held by a provider under the owner's own account, or offline",
+          "One backup copy that no employee sign-in can delete — held by a provider under the owner's own account, or offline",
       },
       {
         control: "permission-review",
@@ -1355,12 +1355,12 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "no-shared-logins",
         asApplied:
-          "Each system administered under a named login the owner can switch off in one step, with the owner holding a second administrator account",
+          "Each system administered under a named sign-in the owner can switch off in one step, with the owner holding a second administrator account",
       },
       {
         control: "same-day-access-removal",
         asApplied:
-          "Every login, cloud credential, and backup-provider account revoked the day his duties were taken away, not left until he resigned",
+          "Every sign-in, cloud credential, and backup-provider account revoked the day his duties were taken away, not left until he resigned",
       },
     ],
     source: {
@@ -1511,7 +1511,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     howItWorked:
       "A nonprofit advocacy organization in Washington, D.C. hired a director of finance in June 2021 and gave him, as one of three people with access to the bank account, the job of paying the bills. On 32 occasions between then and October 2022 he sent the organization's money to accounts he controlled, recording the payments as going to a vendor for digital services and creating other false documents to match. He also put personal travel for himself, family, and friends on the organization's credit card. He was gone by October 2022.",
     controlGap:
-      "Three people could log in to the bank, but no second person had to approve a transfer before it left, so the person who entered the payment also released it. A payee record that reads 'digital services' is the whole check when nobody matches the bank's destination account to the vendor's real one. The card had the same gap: he approved his own statement.",
+      "Three people could sign in to the bank, but no second person had to approve a transfer before it left, so the person who entered the payment also released it. A payee record that reads 'digital services' is the whole check when nobody matches the bank's destination account to the vendor's real one. The card had the same gap: he approved his own statement.",
     lossUsd: 318000,
     lossIsFloor: false,
     durationMonths: 16,
@@ -1659,7 +1659,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       url: "https://www.justice.gov/usao-wdwa/pr/former-finance-director-two-non-profits-sentenced-41-months-prison-embezzling-over-3",
     },
     caveat:
-      "Susana Tantico, 63, of Renton, Washington pleaded guilty in May 2023 to two counts of wire fraud and was sentenced in September 2023 to 41 months in prison, three years of supervised release, and $3,121,572 in restitution, the figure recorded here. The release describes the thefts as running over an eleven-year period, but the dated spans it gives (December 2016 to May 2022) cover 66 months, which is what is recorded. One nonprofit spent $132,000 on a forensic audit and repairs to its records afterward. The release does not say how the thefts came to light; the bank inquiry it describes was deflected, not acted on. These employers are larger than most businesses this app serves.",
+      "Susana Tantico, 63, of Renton, Washington pleaded guilty in May 2023 to two counts of wire fraud and was sentenced in September 2023 to 41 months in prison, three years of supervised release, and $3,121,572 in restitution, the figure recorded here. The release describes the thefts as running over an eleven-year period, but the dated spans it gives (December 2016 to May 2022) cover 66 months, which is what is recorded. One nonprofit spent $132,000 on a forensic audit and repairs to its records afterward. The release does not say how the thefts came to light; the bank inquiry it describes was deflected, not acted on. These employers are larger than most businesses Precog serves.",
   },
   {
     id: "case-san-antonio-nonprofit-bookkeeper-checks",
@@ -2044,13 +2044,13 @@ export const CASE_LIBRARY: CaseStudy[] = [
   {
     id: "case-dothan-printing-credentials",
     title:
-      "Former employee handed a competitor a colleague's login, exposing 30 customer accounts and their pricing for a year",
+      "Former employee handed a competitor a colleague's sign-in, exposing 30 customer accounts and their pricing for a year",
     sector: "any",
     schemes: ["data-theft"],
     howItWorked:
-      "In March 2016 a printing company's former employee, recruited by the owner of a competing print shop in Dothan, Alabama, sent that owner the email address and password of a current employee whose account had elevated privileges. The competitor logged in repeatedly from his home for about a year, reading more than 30 customer account profiles and their pricing, and used the information to win the company's existing and prospective clients. The company discovered the intrusion on April 4, 2017 and cut off the access.",
+      "In March 2016 a printing company's former employee, recruited by the owner of a competing print shop in Dothan, Alabama, sent that owner the email address and password of a current employee whose account had elevated privileges. The competitor signed in repeatedly from his home for about a year, reading more than 30 customer account profiles and their pricing, and used the information to win the company's existing and prospective clients. The company discovered the intrusion on April 4, 2017 and cut off the access.",
     controlGap:
-      "A departing employee knew a colleague's password, and the password did not change when he left. Elevated access lived in an account nobody reviewed, so a year of logins from an outside address raised no alarm. The loss here is not cash but the customer list itself.",
+      "A departing employee knew a colleague's password, and the password did not change when he left. Elevated access lived in an account nobody reviewed, so a year of sign-ins from an outside address raised no alarm. The loss here is not cash but the customer list itself.",
     lossUsd: 40000,
     lossIsFloor: true,
     durationMonths: 12,
@@ -2061,17 +2061,17 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "no-shared-logins",
         asApplied:
-          "Every person has their own login, and passwords known to a departing employee change the day they leave",
+          "Every person has their own sign-in, and passwords known to a departing employee change the day they leave",
       },
       {
         control: "permission-review",
         asApplied:
-          "Quarterly list of accounts with elevated privileges and their recent login locations, read by the owner",
+          "Quarterly list of accounts with elevated privileges and their recent sign-in locations, read by the owner",
       },
       {
         control: "same-day-access-removal",
         asApplied:
-          "The departing employee's own login disabled on their last day, and every shared password changed the same day",
+          "The departing employee's own sign-in disabled on their last day, and every shared password changed the same day",
       },
     ],
     source: {
@@ -2127,9 +2127,9 @@ export const CASE_LIBRARY: CaseStudy[] = [
     sector: "any",
     schemes: ["check-tampering"],
     howItWorked:
-      "A small company in a Boston suburb hired a controller in April 2017 and gave her the checkbook, the QuickBooks file, and the online banking login. Some checks had been pre-signed in blank by a founder for business use; she wrote them to herself, and later forged the founder's signature on others, sometimes writing 'Consulting Fees' on the memo line although she was salaried. She deposited about $141,845 in checks to her own account and logged into online banking to send another $87,243 to her personal credit cards. She was fired in January 2018.",
+      "A small company in a Boston suburb hired a controller in April 2017 and gave her the checkbook, the QuickBooks file, and the online banking sign-in. Some checks had been pre-signed in blank by a founder for business use; she wrote them to herself, and later forged the founder's signature on others, sometimes writing 'Consulting Fees' on the memo line although she was salaried. She deposited about $141,845 in checks to her own account and signed in to online banking to send another $87,243 to her personal credit cards. She was fired in January 2018.",
     controlGap:
-      "A founder who pre-signs blank checks has delegated the signature itself, and an online banking login with no second approver is the same thing in electronic form. The loss ran above $25,000 a month from the first month of employment — the short tenure that fraud-benchmark averages would call lowest-risk.",
+      "A founder who pre-signs blank checks has delegated the signature itself, and an online banking sign-in with no second approver is the same thing in electronic form. The loss ran above $25,000 a month from the first month of employment — the short tenure that fraud-benchmark averages would call lowest-risk.",
     lossUsd: 229088,
     lossIsFloor: false,
     durationMonths: 9,
@@ -2141,7 +2141,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       {
         control: "dual-release-above-threshold",
         asApplied:
-          "Bank-enforced dual approval on every online transfer, using the founder's own login",
+          "Bank-enforced dual approval on every online transfer, using the founder's own sign-in",
       },
       {
         control: "positive-pay",

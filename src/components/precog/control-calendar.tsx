@@ -100,7 +100,7 @@ export function ControlCalendarCard({
               Control calendar
             </CardTitle>
             <CardDescription>
-              Evidence reviews, journal re-reviews, and map hygiene — what's due and when.
+              Evidence reviews, decisions due for review, and map upkeep — what's due and when.
             </CardDescription>
           </div>
           <div className="inline-flex overflow-hidden rounded-md border border-border text-xs">

@@ -162,7 +162,8 @@ function EmailPasswordForm() {
         setError(
           result.error.code === "EMAIL_NOT_VERIFIED"
             ? `Confirm your email first. Precog sent a link to ${address}; open it, then sign in. Precog now confirms every email address, so accounts made before this confirm once too.`
-            : (result.error.message ?? "Sign-in failed. Check the email and password."),
+            : (result.error.message ??
+                "Precog could not sign you in. Check the email and password."),
         );
         return;
       }
@@ -176,7 +177,7 @@ function EmailPasswordForm() {
       }
       window.location.href = "/";
     } catch {
-      setError("Could not reach the sign-in service. Try again in a moment.");
+      setError("Precog could not reach the sign-in service. Try again in a moment.");
     } finally {
       setBusy(false);
     }
@@ -202,7 +203,7 @@ function EmailPasswordForm() {
         `If ${address} has a Precog account, Precog sent it a link to set a new password. The link works for one hour.`,
       );
     } catch {
-      setError("Could not reach the sign-in service. Try again in a moment.");
+      setError("Precog could not reach the sign-in service. Try again in a moment.");
     } finally {
       setBusy(false);
     }
@@ -227,7 +228,7 @@ function EmailPasswordForm() {
       switchTo("sign-in");
       setNotice("Your new password is set. Sign in with it.");
     } catch {
-      setError("Could not reach the sign-in service. Try again in a moment.");
+      setError("Precog could not reach the sign-in service. Try again in a moment.");
     } finally {
       setBusy(false);
     }

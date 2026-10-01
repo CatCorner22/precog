@@ -52,6 +52,8 @@ export function renderUnmatchedJoin(input: {
 }
 
 const ROLE_DUTY: Record<InviteRole, string> = {
-  preparer: "A preparer maps clients, records reviews and locks reports.",
-  reviewer: "A reviewer maps clients too and signs off reports someone else prepared.",
+  preparer:
+    "A preparer maps clients, records monthly review results and control checks, and locks reports.",
+  reviewer:
+    "A reviewer does what a preparer does, reviews control checks, and signs off reports that someone else prepared.",
 };

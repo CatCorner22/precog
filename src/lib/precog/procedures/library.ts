@@ -137,7 +137,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     cadence: "weekly",
     dutyIds: ["enter_payroll", "approve_payroll", "edit_payroll_master"],
     covers: /\bpayroll\b/i,
-    prerequisites: ["Payroll provider login", "Approved timesheets for the period"],
+    prerequisites: ["Payroll provider sign-in", "Approved timesheets for the period"],
     steps: [
       { text: "Enter the approved hours for each person." },
       { text: "Compare the headcount with the last pay period." },

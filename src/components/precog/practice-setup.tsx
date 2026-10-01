@@ -66,7 +66,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
     const kept = profile.practiceName;
     const result = await createBusiness(next);
     if (!result.ok) {
-      toast.error("Could not add a business", { description: result.reason });
+      toast.error("Precog could not add a business", { description: result.reason });
       return;
     }
     setPendingIndustry(null);
@@ -255,7 +255,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
               onClick={() => {
                 if (
                   !window.confirm(
-                    "Go back to the sample process map? This discards your process map edits. Your team, register and journal stay.",
+                    `Go back to the sample process map? Precog discards your edits to the map. Your team, register and ${tabName("journal")} stay.`,
                   )
                 )
                   return;

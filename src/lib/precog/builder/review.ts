@@ -158,7 +158,7 @@ export function reviewLocally(input: ReviewInput): MapReview {
   const nextMove = unowned.length
     ? `Assign an owner to "${unowned[0].name}" this week.`
     : hot[0]
-      ? `Decide how you'll treat the risk on "${hot[0].name}" — remediate, compensate, or accept — and journal it.`
+      ? `Decide how you'll treat the risk on "${hot[0].name}" — remediate, compensate, or accept — and record it in the Decisions log.`
       : input.overburdened[0]
         ? `Move one process off ${input.overburdened[0].name} to spread the load.`
         : "Save a snapshot and schedule a 15-minute review in 30 days.";

@@ -303,7 +303,9 @@ describe("invitation and the accepting account's address", () => {
       fit: "mismatch",
       accountEmail: "ub@example.test",
     });
-    await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toThrow(/sent to a\*\*\*@cpa\.test/);
+    await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toThrow(
+      /sent this invitation to a\*\*\*@cpa\.test/,
+    );
     await expect(
       acceptInvite(db.sql, "t1", "ub", { confirmOtherEmail: true }),
     ).rejects.toBeInstanceOf(FirmMembershipError);

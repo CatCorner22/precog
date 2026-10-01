@@ -645,7 +645,7 @@ export function useCloudSync(input: {
           });
         } else {
           const kept = keepAsCopy(conflict.remote, "copy from your account");
-          toast("Kept this device's copy.", {
+          toast("Precog kept this device's copy.", {
             description: `Precog keeps the account's copy as “${kept}” in your businesses.`,
           });
           if (local) await saveCloud(normalizeProfile(local)).catch(reportCloudError);
@@ -726,7 +726,7 @@ export function useCloudSync(input: {
 
       const kept = keepAsCopy(conflict.remote, "copy from your account");
       setSyncStatus("saving");
-      toast("Kept this device's copy.", {
+      toast("Precog kept this device's copy.", {
         description: `Precog keeps the account's copy as “${kept}” in your businesses.`,
       });
       await saveCloud(cur).catch(reportCloudError);

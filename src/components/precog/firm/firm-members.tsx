@@ -128,8 +128,9 @@ export function FirmMembers({
     <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-lg font-semibold">People at the firm</h2>
       <p className="mt-1 text-sm text-muted">
-        A preparer maps clients, records reviews and locks reports. A reviewer does the same and
-        signs off reports prepared by someone else. Every member sees every client of the firm.
+        A preparer maps clients, records monthly review results and control checks, and locks
+        reports. A reviewer does the same, reviews control checks, and signs off reports that
+        someone else prepared. Every member sees every client of the firm.
       </p>
       <ul className="mt-3 divide-y divide-border">
         {members.map((m) => (

@@ -89,7 +89,7 @@ export function PlannerStats({
         value={registerAssessed && mostDepended ? mostDepended.person.name : "—"}
         hint={
           registerAssessed && mostDepended
-            ? `${mostDepended.dependence}% of must-do work stops if they are out (app's own index).`
+            ? `${mostDepended.dependence}% of must-do work stops if they are out (Precog's own index).`
             : registerAssessed
               ? "Add people to see who the business leans on."
               : NOT_ASSESSED_HINT

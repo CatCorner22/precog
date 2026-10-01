@@ -48,7 +48,7 @@ export const Route = createFileRoute("/firm")({
       {
         name: "description",
         content:
-          "Advisor workspace: firm members and roles, client list, plan and billing, reminders, change history and accounting connections.",
+          "Firm workspace: firm members and roles, client list, plan and billing, reminders, change history and accounting connections.",
       },
     ],
   }),
@@ -273,9 +273,7 @@ function FirmPage() {
 
   return (
     <main className="mx-auto min-h-[calc(100dvh-var(--grok-banner-h,0px))] max-w-3xl px-6 py-8">
-      <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">
-        Advisor workspace
-      </p>
+      <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">Firm workspace</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">{firm?.name || "Firm"}</h1>
       <p className="mt-2 text-sm text-muted">
         One firm, its people, and each client kept apart. The open business is the one the review,

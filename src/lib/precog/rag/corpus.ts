@@ -107,7 +107,7 @@ export function describeChunkBasis(chunk: KnowledgeChunk): string {
     : "";
   return b.kind === "cited"
     ? `Restates ${b.document} (${b.publisher}), ${b.url}.${cases}`
-    : `Practitioner guidance written for this app, with no single document behind it. ${b.note}${cases}`;
+    : `Practitioner guidance written for Precog, with no single document behind it. ${b.note}${cases}`;
 }
 
 export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
@@ -152,7 +152,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     tags: ["monitoring", "ongoing", "cadence", "owner review", "bank reconciliation"],
     text: `Use a risk-based monitoring schedule and retain the results. ${PAYMENT_DESTINATION_CHANGE.verification} ${PAYMENT_DESTINATION_CHANGE.monitoring} ${RECEIPT_SETTLEMENT.reconciliation} Assign a reviewer outside the activities being checked, including when the preparer is an owner. Frequencies are application suggestions, not frequencies prescribed by COSO.`,
     basis: practice(
-      "Review cadence written for this app; COSO describes ongoing and separate evaluations but sets no frequencies.",
+      "Review cadence written for Precog; COSO describes ongoing and separate evaluations but sets no frequencies.",
     ),
   },
   {
@@ -182,7 +182,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     tags: ["fraud", "opportunity", "pressure", "rationalization"],
     text: "The fraud triangle is pressure, opportunity, and rationalization. Controls act on opportunity (segregation of duties, dual control, monitoring); a business cannot see pressure or rationalization from the outside. Trust in a person does not shrink opportunity, because opportunity is a property of how work is divided, not of character. Benchmarks about occupational fraud describe populations, never any employee.",
     basis: practice(
-      "Summary of the fraud triangle, a concept from Donald R. Cressey, Other People's Money (1953). The application to small businesses is this app's.",
+      "Summary of the fraud triangle, a concept from Donald R. Cressey, Other People's Money (1953). Precog applies it to small businesses.",
     ),
   },
   {
@@ -243,7 +243,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     domain: "coso",
     tags: ["residual", "appetite", "accept", "remediate"],
     text: "Owners may accept residual risk deliberately when cost of further control exceeds benefit, but acceptance must be explicit, dated, and re-reviewed after staff or insurance changes. 'We trust our team' without monitoring is not residual acceptance — it is unmeasured residual.",
-    basis: practice("Risk-acceptance practice; the wording is this app's."),
+    basis: practice("Risk-acceptance practice; the wording is Precog's."),
   },
   {
     id: "dental-writeoffs",
@@ -269,7 +269,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     domain: "fraud",
     tags: ["leading indicators", "monitoring", "anomalies"],
     text: "Leading indicators include rising void/adjustment rates, delayed bank reconciliations, sole ownership of critical knowledge, overdue residual acceptance reviews, claims load factor increases, and sudden cash intensity spikes. Leading indicators beat lagging loss discovery.",
-    basis: practice("Monitoring practice; the indicator list is this app's."),
+    basis: practice("Monitoring practice; the indicator list is Precog's."),
   },
 
   // ---- Retail ----
@@ -494,7 +494,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
       "banking",
       "audit log",
     ],
-    text: "Base access control on least privilege and unique user identity. Avoid shared logins to the main business system, accounting, email, and banking; require MFA where available; review privileged access periodically; and disable access promptly when duties or employment change. Preserve audit logs and review high-risk activity such as exports, vendor edits, refunds, write-offs, and permission changes.",
+    text: "Base access control on least privilege and unique user identity. Avoid shared sign-ins to the main business system, accounting, email, and banking; require MFA where available; review privileged access periodically; and disable access promptly when duties or employment change. Preserve audit logs and review high-risk activity such as exports, vendor edits, refunds, write-offs, and permission changes.",
     basis: NIST_CSF,
   },
   {

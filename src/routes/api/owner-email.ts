@@ -79,7 +79,7 @@ function parse(url: string): { token: string; action: "confirm" | "stop" } | nul
 
 function gone(): Response {
   return page(404, "This link no longer works", [
-    "The address may have changed since the email was sent. Ask the advisor who set up the reminders.",
+    "The address may have changed since Precog sent the email. Ask the advisor who set up the reminders.",
   ]);
 }
 

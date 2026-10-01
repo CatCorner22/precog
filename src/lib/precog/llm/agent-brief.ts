@@ -22,7 +22,7 @@ export const BRIEF_SECTION = {
   cases: "What this has cost other businesses",
   conditions: "Watched conditions",
   cascades: "What else moves",
-  order: "Order of fixes (this app's model)",
+  order: "Order of fixes (Precog's model)",
   lenses: "Four review lenses",
   tradeoffs: "Tradeoffs",
   sources: "Where the figures come from",
@@ -242,7 +242,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
       evidence.push({
         id: `ev-${++i}`,
         kind: "reasoning",
-        label: "Lever order (this app's model)",
+        label: "Lever order (Precog's model)",
         metric: d.recommendedSequence.join(" → ") || "status quo",
         link: { tab: "intel" },
       });
@@ -318,7 +318,7 @@ export function chickenLittleCritique(tools: ToolResult[]): string[] {
 
   if ((residual?.averageResidual ?? 0) >= WARNING_RULES.averageResidual) {
     warnings.push(
-      `The average risk index is ${residual!.averageResidual}/100, in the "fix soon" band (${WARNING_RULES.averageResidual} or more on this app's own index).`,
+      `The average risk index is ${residual!.averageResidual}/100, in the "fix soon" band (${WARNING_RULES.averageResidual} or more on Precog's own index).`,
     );
   }
   if ((residual?.criticalPath ?? 0) >= WARNING_RULES.criticalPathCount) {
@@ -335,7 +335,7 @@ export function chickenLittleCritique(tools: ToolResult[]): string[] {
     scenario.timelineDays.p50 < WARNING_RULES.scenarioDaysUntilFound
   ) {
     warnings.push(
-      `"${scenario.title}" assumes ${formatUsd(scenario.retained.expected)} retained, found about ${scenario.timelineDays.p50} days in (a scenario assumption, not a forecast; this app warns above ${formatUsd(WARNING_RULES.scenarioRetainedUsd)} found within ${WARNING_RULES.scenarioDaysUntilFound} days).`,
+      `"${scenario.title}" assumes ${formatUsd(scenario.retained.expected)} retained, found about ${scenario.timelineDays.p50} days in (a scenario assumption, not a forecast; Precog warns above ${formatUsd(WARNING_RULES.scenarioRetainedUsd)} found within ${WARNING_RULES.scenarioDaysUntilFound} days).`,
     );
   }
   const leave = tools.find((t) => t.tool === "get_planned_absences")?.data as
@@ -538,7 +538,7 @@ export function localSynthesize(
       if (typeof n !== "number")
         return "Team size unknown: enter your team to see how far duties can be separated.";
       return n <= WARNING_RULES.smallTeamSize
-        ? `Team of ${n}: at ${WARNING_RULES.smallTeamSize} people or fewer (this app's cut-off), separating every duty is rarely realistic, so compensating controls and owner review carry the load.`
+        ? `Team of ${n}: at ${WARNING_RULES.smallTeamSize} people or fewer (Precog's cut-off), separating every duty is rarely realistic, so compensating controls and owner review carry the load.`
         : `Team of ${n}: enough people to separate the critical duties; resolve the open conflicts before adding compensating controls.`;
     })(),
     leading
@@ -772,7 +772,7 @@ export function localSynthesize(
         bestCascade?.label ||
         "Turn on a second signer for payments and an independent bank reconciliation",
       rationale: beamAction
-        ? "The order this app's lever model prefers, using its own weights; read it as an ordering, not a measurement."
+        ? "The order Precog's lever model prefers, using its own weights; read it as an ordering, not a measurement."
         : bestCascade
           ? `The what-else-moves check puts this first: it lowers the yearly cost of risk and the risk index the most. ${bestCascade.secondOrderNotes[0] ?? ""}`.trim()
           : "Default when no ranking ran: a second signer on payments and an independent bank reconciliation each remove a path one person can use alone.",
@@ -884,7 +884,7 @@ export function localSynthesize(
     "",
     `## ${BRIEF_SECTION.conditions}`,
     leading
-      ? `- **${leading.breached} breached**, ${leading.watch} at watch (thresholds set in this app, not benchmarks)`
+      ? `- **${leading.breached} breached**, ${leading.watch} at watch (thresholds set in Precog, not benchmarks)`
       : "- Not checked in this run",
     "",
     `## ${BRIEF_SECTION.cascades}`,

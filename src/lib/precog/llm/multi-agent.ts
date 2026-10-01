@@ -47,7 +47,7 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
     title: "Operations: who carries the work",
     bullets: [
       residual
-        ? `Average risk index ${residual.averageResidual}/100 (this app's own index); most exposed: ${residual.top[0]?.name ?? "nothing listed"} (${residual.top[0]?.residual ?? "?"}/100).`
+        ? `Average risk index ${residual.averageResidual}/100 (Precog's own index); most exposed: ${residual.top[0]?.name ?? "nothing listed"} (${residual.top[0]?.residual ?? "?"}/100).`
         : "No risk index in this run.",
       spofState && !spofState.assessed
         ? "Who knows what: not assessed yet. The register marks nobody, so nothing shows who alone can run what."

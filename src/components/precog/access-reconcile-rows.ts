@@ -38,7 +38,7 @@ export function grantDuty(
 export function rowDifferences(row: AccessUserRow): string {
   const duties = (ids: readonly EntitlementId[]) => joinWithAnd(ids.map(entitlementLabel));
   return [
-    row.leftBusiness ? "Precog has this person as left: remove this login from the books." : "",
+    row.leftBusiness ? "Precog has this person as left: remove this sign-in from the books." : "",
     row.personId ? "" : "No one on this team has this name.",
     row.unmatchedTokens.length
       ? `Role words we could not match to a duty: ${row.unmatchedTokens.join(", ")}.`
