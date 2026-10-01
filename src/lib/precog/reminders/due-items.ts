@@ -1,3 +1,4 @@
+import { profileStandInConflicts } from "../continuity/standin-conflicts";
 import { resolveTemplate } from "../active-template";
 import { decisionsDue } from "../decisions/follow-through";
 import { absencesNeedingAttention, plannedAbsenceReport } from "../continuity/planned-absence";
@@ -73,11 +74,13 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
     });
   }
 
+  const conflictsFor = profileStandInConflicts(tpl, profile);
   const absences = plannedAbsenceReport(
     tpl,
     profile.plannedAbsences ?? [],
     profile.industry,
     today,
+    conflictsFor,
   );
   for (const window of absencesNeedingAttention(absences.windows)) {
     const stops = window.impact.stops;
@@ -98,7 +101,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
     });
   }
 
-  for (const leaver of leavers(tpl, profile.decisions, today)) {
+  for (const leaver of leavers(tpl, profile.decisions, today, conflictsFor)) {
     const deadline = handoverDeadline(leaver, today);
     if ((daysBetween(today, deadline) ?? 0) > LEAVER_LEAD_DAYS) continue;
     const open = leaver.handover.filter((item) => !item.training && !item.documenting);
@@ -122,6 +125,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
   const attention = procedureAttention(
     profile.procedures ?? [],
     tpl.knowledge,
+    tpl.people,
     profile.industry,
     today,
   );

@@ -613,14 +613,12 @@ function verdict(deltas: MetricDelta[]): string {
   if (deltas.length === 0) return "No figure moves under current inputs.";
   const improves = deltas.filter((d) => d.direction === "improves").length;
   const worsens = deltas.length - improves;
-  const cor = deltas.find((d) => d.key === "expectedAnnualCostOfRisk");
   const ret = deltas.find((d) => d.key === "retainedExpected");
   const res = deltas.find((d) => d.key === "residualAverage");
   const moves = (d: MetricDelta) => (d.delta < 0 ? "falls" : "rises");
 
   const parts: string[] = [];
-  if (cor) parts.push(`Annual cost of risk ${moves(cor)} ${formatUsd(Math.abs(cor.delta))}`);
-  if (ret) parts.push(`retained loss ${moves(ret)} ${formatUsd(Math.abs(ret.delta))}`);
+  if (ret) parts.push(`Retained loss ${moves(ret)} ${formatUsd(Math.abs(ret.delta))}`);
   if (res) {
     const points = Math.abs(Math.round(res.delta));
     parts.push(`average residual risk ${moves(res)} ${points} point${points === 1 ? "" : "s"}`);
@@ -632,7 +630,7 @@ function verdict(deltas: MetricDelta[]): string {
         ? "Better overall, with some tradeoffs."
         : improves < worsens
           ? "More figures get worse than better; read the notes."
-          : "Mixed: judge by annual cost of risk and residual risk, not one figure.";
+          : "Mixed: judge by retained loss and residual risk, not one figure.";
   return parts.length ? `${parts.join("; ")}. ${balance}` : balance;
 }
 
@@ -655,7 +653,7 @@ const LABELS: Record<keyof MetricSnapshot, string> = {
   transferredExpected: "Transferred to insurer",
   premiumAnnualNet: "Net annual premium",
   discountPctApplied: "Premium discount applied (%)",
-  expectedAnnualCostOfRisk: "Annual cost of risk",
+  expectedAnnualCostOfRisk: "Assumed frequency times retained loss (not a measured annual cost)",
   eventPlusPremiumExpected: "One event plus a year's premium",
   timelineP50: "Assumed days until found",
   residualAverage: "Portfolio average residual",

@@ -4,6 +4,8 @@ import { RequestError } from "@/lib/request-errors";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
 import { businessLimitMessage, MAX_BUSINESSES_PER_ACCOUNT } from "./business-lifecycle";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
+import { revokeBusinessShares } from "./share/share-store";
+import { DELETED_RETENTION_DAYS } from "./business-retention";
 
 /**
  * Revision-checked write of one business row.
@@ -55,8 +57,6 @@ type BusinessSaveResult<TProfile = unknown> =
 
 /** Versions kept per business before the oldest are dropped. */
 const MAX_HISTORY_PER_BUSINESS = 200;
-/** Days a deleted business stays restorable before the purge job removes it. */
-const DELETED_RETENTION_DAYS = 30;
 
 /** A new business past the account's limit. Saves to existing ones always go through. */
 export class BusinessLimitError extends RequestError {
@@ -135,6 +135,27 @@ async function authorizeBusinessWriter(
     where member_user_id = ${actor} and firm_user_id = ${firm} for share
   `;
   if (!member.length) throw new BusinessUnavailableError();
+}
+
+/**
+ * Delete and restore are not a preparer's save. The account that owns the
+ * row may always do both. A firm reviewer or firm owner may. A preparer may not.
+ */
+async function authorizeBusinessDestroyer(
+  sql: Sql,
+  owner: string,
+  actor: string,
+  firm: string | null,
+) {
+  if (owner === actor) return;
+  const member = await sql<{ role: string }>`
+    select role from firm_members
+    where member_user_id = ${actor} and firm_user_id = ${firm} for share
+  `;
+  const role = member[0]?.role;
+  if (role === "owner" || role === "reviewer") return;
+  if (!role) throw new BusinessUnavailableError();
+  throw new RequestError(403, "A preparer cannot delete or restore a client.");
 }
 
 export async function saveBusinessRevision<TProfile = unknown>(
@@ -526,12 +547,14 @@ export async function deleteBusinessRow(
     const rows = await tx<{ firm_user_id: string | null }>`select firm_user_id from businesses
       where user_id = ${ownerUserId} and id = ${businessId} for update`;
     if (!rows.length) return; // Repeated delete is harmless, never creates a marker for another row.
-    await authorizeBusinessWriter(tx, ownerUserId, pointerUserId, rows[0].firm_user_id);
+    await authorizeBusinessDestroyer(tx, ownerUserId, pointerUserId, rows[0].firm_user_id);
     await tx`insert into business_deletion_markers (user_id, business_id, firm_user_id)
       values (${ownerUserId}, ${businessId}, ${rows[0].firm_user_id})
       on conflict (user_id, business_id) do nothing`;
     await tx`update businesses set deleted_at = now(), revision = revision + 1, updated_at = now()
       where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is null`;
+    // Its public share links stop working now, not when the row is purged.
+    await revokeBusinessShares(tx, ownerUserId, businessId);
     // Remove exact v2 pointers, including colleagues; legacy pointers only when ownership is known.
     await tx`delete from business_profiles where coalesce(profile->>'businessId', 'biz_default') = ${businessId}
       and (profile->>'ownerUserId' = ${ownerUserId}
@@ -552,7 +575,7 @@ export async function restoreBusinessRow(
       where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is not null
         and deleted_at >= now() - make_interval(days => ${DELETED_RETENTION_DAYS}::int) for update`;
     if (!rows.length) return false;
-    await authorizeBusinessWriter(tx, ownerUserId, actorUserId, rows[0].firm_user_id);
+    await authorizeBusinessDestroyer(tx, ownerUserId, actorUserId, rows[0].firm_user_id);
     const held = await tx<{ n: number | string }>`select count(*) as n from businesses
       where user_id = ${ownerUserId} and deleted_at is null`;
     if (Number(held[0]?.n ?? 0) >= limit) throw new BusinessLimitError(limit);

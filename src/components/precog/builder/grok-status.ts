@@ -13,6 +13,8 @@ export function ruleBasedReason(source: "grok" | "local", status?: GrokAccess): 
       return "Sign in to get AI suggestions; these come from built-in rules.";
     case "rate_limited":
       return "Precog has reached its AI limit for now, so these come from built-in rules. Try again later.";
+    case "daily_limit":
+      return "Precog has reached today's AI limit, so these come from built-in rules. Try again tomorrow.";
     default:
       return "The AI service did not answer, so these come from built-in rules.";
   }

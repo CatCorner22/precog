@@ -21,6 +21,7 @@ import { listBusinesses, loadBusinessProfile, saveBusinessProfile } from "./prof
 import {
   ACTIVE_PROFILE_KEY,
   hasUserWork,
+  loadPortfolio,
   makeBusinessId,
   normalizeProfile,
   savePortfolioEntry,
@@ -37,6 +38,7 @@ import { canKeepLocalData, readLocalJson, writeLocal } from "./local-data";
 import type { ProfileAction } from "./profile-reducer";
 import { localDateKey } from "./dates";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
+import { withoutOthersVerifications } from "./procedures/lifecycle";
 
 /**
  * What the save badge says. "saving" is an edit waiting for its account
@@ -55,6 +57,8 @@ export type SaveConflictReason = "remote-edit" | "sign-in" | "other-tab";
 
 export interface SaveConflictState {
   reason: SaveConflictReason;
+  /** The business the conflict is about, which is not always the one open by the time it is raised. */
+  businessId: string;
   remote: PracticeProfile;
   /** The account copy's revision; null for another tab's copy, which has none. */
   revision: number | null;
@@ -126,11 +130,8 @@ export function useCloudSync(input: {
   const basesLoaded = useRef(false);
   if (!basesLoaded.current) {
     basesLoaded.current = true;
-    const held = readLocalJson(CLOUD_BASES_KEY, workspace.local);
-    if (held && typeof held === "object")
-      for (const [id, revision] of Object.entries(held))
-        if (typeof revision === "number" && Number.isSafeInteger(revision) && revision > 0)
-          cloudRevision.current.set(id, revision);
+    for (const [id, revision] of storedRevisions(workspace.local))
+      cloudRevision.current.set(id, revision);
   }
   const syncedStamps = useRef<Record<string, string>>({});
   const acknowledged = useRef(new Map<string, PracticeProfile>());
@@ -151,22 +152,31 @@ export function useCloudSync(input: {
       queue.current.close();
     };
   }, []);
+  // Every tab of this browser writes these two maps. Each write merges with
+  // what is stored, so one tab's write never puts back another tab's older
+  // entry for a business it did not touch.
   const rememberRevision = useCallback(
     (id: string, revision: number) => {
       cloudRevision.current.set(id, revision);
-      writeLocal(
-        CLOUD_BASES_KEY,
-        JSON.stringify(Object.fromEntries(cloudRevision.current)),
-        workspace.local,
-      );
+      const merged = new Map(storedRevisions(workspace.local));
+      for (const [key, held] of cloudRevision.current)
+        merged.set(key, Math.max(merged.get(key) ?? 0, held));
+      writeLocal(CLOUD_BASES_KEY, JSON.stringify(Object.fromEntries(merged)), workspace.local);
     },
     [workspace.local],
   );
   const rememberStamp = useCallback(
     (id: string, stamp: string) => {
+      syncedStamps.current = { ...storedStamps(workspace.local), ...syncedStamps.current };
       syncedStamps.current[id] = stamp;
       writeLocal(CLOUD_STAMPS_KEY, JSON.stringify(syncedStamps.current), workspace.local);
     },
+    [workspace.local],
+  );
+  /** Whether the account took this device's copy of the business stamped `stamp`, as far as any tab here heard. */
+  const accountTook = useCallback(
+    (id: string, stamp: string) =>
+      syncedStamps.current[id] === stamp || storedStamps(workspace.local)[id] === stamp,
     [workspace.local],
   );
   const skipNextCloudSave = useRef(false);
@@ -234,6 +244,7 @@ export function useCloudSync(input: {
         }
         raiseConflict({
           reason: "remote-edit",
+          businessId: id,
           remote: normalizeProfile(result.profile),
           revision: result.revision,
           updatedAt: result.updatedAt,
@@ -270,6 +281,7 @@ export function useCloudSync(input: {
     (theirs: PracticeProfile) => {
       raiseConflict({
         reason: "other-tab",
+        businessId: theirs.businessId ?? DEFAULT_BUSINESS_ID,
         remote: theirs,
         revision: null,
         updatedAt: theirs.updatedAt,
@@ -280,11 +292,7 @@ export function useCloudSync(input: {
 
   // Bootstrap: local first, then cloud when signed in
   useEffect(() => {
-    const stamps = readLocalJson("precog.cloud-stamps.v1", workspace.local);
-    if (stamps && typeof stamps === "object")
-      syncedStamps.current = Object.fromEntries(
-        Object.entries(stamps).filter(([, value]) => typeof value === "string"),
-      );
+    syncedStamps.current = storedStamps(workspace.local);
     const { profile: loaded, stored } = localStore.load();
     if (stored) {
       loadedFromStorage.current = loaded;
@@ -355,6 +363,7 @@ export function useCloudSync(input: {
           if (signInMeetsNewerWork(local, remoteProfile, syncedStamps.current[id])) {
             raiseConflict({
               reason: "sign-in",
+              businessId: id,
               remote: remoteProfile,
               revision: res.revision,
               updatedAt: res.updatedAt,
@@ -595,10 +604,11 @@ export function useCloudSync(input: {
     (opened: PracticeProfile, revision: number) => {
       const id = opened.businessId ?? DEFAULT_BUSINESS_ID;
       rememberRevision(id, revision);
+      rememberStamp(id, opened.updatedAt);
       acknowledged.current.set(id, opened);
       skipNextCloudSave.current = true;
     },
-    [rememberRevision],
+    [rememberRevision, rememberStamp],
   );
 
   /** Keeps a version the owner did not choose as its own business, so no work is lost. */
@@ -611,22 +621,66 @@ export function useCloudSync(input: {
           businessId: makeBusinessId(),
           practiceName: name,
           onboardingComplete: true,
+          // The copy is a new business this account saves: another account's
+          // verification in it would count as recorded now, and be refused.
+          ...(version.procedures && userId
+            ? { procedures: withoutOthersVerifications(version.procedures, userId) }
+            : {}),
         },
         workspace.local,
       );
       bumpPortfolio();
       return name;
     },
-    [bumpPortfolio, workspace.local],
+    [bumpPortfolio, userId, workspace.local],
   );
 
   const resolveSaveConflict = useCallback(
     async (choice: "reload" | "overwrite") => {
       const conflict = saveConflictRef.current;
       if (!conflict) return;
-      const id = profileRef.current.businessId ?? DEFAULT_BUSINESS_ID;
+      const id = conflict.businessId;
       saveConflictRef.current = null;
       setSaveConflict(null);
+      const cur = profileRef.current;
+      const canSaveOpen =
+        cloudUser && cloudLoadedFor.current === userId && cur.onboardingComplete !== false;
+
+      if (id !== (cur.businessId ?? DEFAULT_BUSINESS_ID)) {
+        // The account refused a save of a business the owner has since left.
+        // The choice applies to that business's copy on this device, not to
+        // the one open now.
+        if (conflict.reason === "other-tab") return;
+        if (conflict.revision !== null) cloudRevision.current.set(id, conflict.revision);
+        else cloudRevision.current.delete(id);
+        const local = loadPortfolio(workspace.local)[id];
+        if (choice === "reload") {
+          const accountCopy = { ...conflict.remote, businessId: id };
+          const kept = local ? keepAsCopy(local, "copy from this device") : null;
+          savePortfolioEntry(accountCopy, workspace.local);
+          acknowledged.current.set(id, accountCopy);
+          rememberStamp(id, accountCopy.updatedAt);
+          bumpPortfolio();
+          toast(`Precog now holds the account's copy of ${accountCopy.practiceName}.`, {
+            description: kept
+              ? `Precog keeps this device's copy as “${kept}” in your businesses.`
+              : undefined,
+          });
+        } else {
+          const kept = keepAsCopy(conflict.remote, "copy from your account");
+          toast("Precog kept this device's copy.", {
+            description: `Precog keeps the account's copy as “${kept}” in your businesses.`,
+          });
+          if (local) await saveCloud(normalizeProfile(local)).catch(reportCloudError);
+        }
+        // The open business waited behind the banner; it saves now.
+        if (saveConflictRef.current) return;
+        if (canSaveOpen) {
+          setSyncStatus("saving");
+          await saveCloud(cur).catch(reportCloudError);
+        } else setSyncStatus(localStatus(lastLocalWrite.current));
+        return;
+      }
 
       if (conflict.reason === "other-tab") {
         // Whichever version the owner picks, the other stays reachable as a
@@ -656,10 +710,17 @@ export function useCloudSync(input: {
         lastLocalWrite.current = result.kind === "saved" ? "saved" : "failed";
         if (result.kind === "saved") storedProfile.current = mine;
         savePortfolioEntry(mine, workspace.local);
-        setSyncStatus(result.kind === "saved" ? "local" : "local-error");
         toast("Kept this tab's copy.", {
           description: `Precog keeps the other tab's copy as “${kept}” in your businesses.`,
         });
+        // The other tab takes this write without saving it to the account,
+        // so this tab does: the account holds the version the owner chose.
+        if (!canSaveOpen) {
+          setSyncStatus(result.kind === "saved" ? "local" : "local-error");
+          return;
+        }
+        setSyncStatus("saving");
+        await saveCloud(mine).catch(reportCloudError);
         return;
       }
 
@@ -671,11 +732,12 @@ export function useCloudSync(input: {
       // reachable as a copy in their businesses.
       if (choice === "reload") {
         const kept = keepAsCopy(
-          profileRef.current,
+          cur,
           conflict.reason === "sign-in" ? "copy from before sign-in" : "copy from this device",
         );
         const accountCopy = { ...conflict.remote, businessId: id };
         acknowledged.current.set(id, accountCopy);
+        rememberStamp(id, accountCopy.updatedAt);
         skipNextCloudSave.current = true;
         activateProfile(accountCopy);
         setSyncStatus("synced");
@@ -687,19 +749,23 @@ export function useCloudSync(input: {
 
       const kept = keepAsCopy(conflict.remote, "copy from your account");
       setSyncStatus("saving");
-      toast("Kept this device's copy.", {
+      toast("Precog kept this device's copy.", {
         description: `Precog keeps the account's copy as “${kept}” in your businesses.`,
       });
-      await saveCloud(profileRef.current).catch(reportCloudError);
+      await saveCloud(cur).catch(reportCloudError);
     },
     [
       activateProfile,
+      bumpPortfolio,
+      cloudUser,
       saveCloud,
       localStore,
       lineage,
       keepAsCopy,
+      rememberStamp,
       reportCloudError,
       profileRef,
+      userId,
       workspace.local,
     ],
   );
@@ -741,6 +807,8 @@ export function useCloudSync(input: {
     syncStatus,
     saveConflict,
     saveConflictRef,
+    raiseConflict,
+    accountTook,
     resolveSaveConflict,
     flushLocal,
     flushActive,
@@ -757,6 +825,28 @@ export function useCloudSync(input: {
 /** What the badge says for a business kept on this device only. */
 function localStatus(lastLocalWrite: "saved" | "failed" | "none"): SyncStatus {
   return lastLocalWrite === "failed" ? "local-error" : "local";
+}
+
+/** The account revision each business was last saved or loaded at, as this browser stores it. */
+function storedRevisions(storage: Workspace["local"]): Map<string, number> {
+  const held = readLocalJson(CLOUD_BASES_KEY, storage);
+  const revisions = new Map<string, number>();
+  if (held && typeof held === "object")
+    for (const [id, revision] of Object.entries(held))
+      if (typeof revision === "number" && Number.isSafeInteger(revision) && revision > 0)
+        revisions.set(id, revision);
+  return revisions;
+}
+
+function storedStamps(storage: Workspace["local"]): Record<string, string> {
+  const held = readLocalJson(CLOUD_STAMPS_KEY, storage);
+  return held && typeof held === "object"
+    ? Object.fromEntries(
+        Object.entries(held).filter(
+          (entry): entry is [string, string] => typeof entry[1] === "string",
+        ),
+      )
+    : {};
 }
 
 /** Copies the owner can go back to, named for where they came from. */

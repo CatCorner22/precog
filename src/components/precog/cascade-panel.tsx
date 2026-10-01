@@ -72,7 +72,7 @@ export function CascadePanel() {
             </p>
           )}
           {all.rankedByCor.slice(0, 8).map((s) => {
-            const dCor = s.after.expectedAnnualCostOfRisk - s.before.expectedAnnualCostOfRisk;
+            const dRet = s.after.retainedExpected - s.before.retainedExpected;
             const active = s.lever.id === leverId;
             return (
               <button
@@ -96,10 +96,10 @@ export function CascadePanel() {
                 <span
                   className={cn(
                     "text-sm font-semibold tabular",
-                    dCor < 0 ? "text-ok" : dCor > 0 ? "text-danger" : "text-muted",
+                    dRet < 0 ? "text-ok" : dRet > 0 ? "text-danger" : "text-muted",
                   )}
                 >
-                  Cost of risk {formatUsdDelta(dCor)}
+                  Retained loss {formatUsdDelta(dRet)}
                 </span>
               </button>
             );
@@ -117,7 +117,6 @@ export function CascadePanel() {
             {selected.deltas
               .filter((d) =>
                 [
-                  "expectedAnnualCostOfRisk",
                   "retainedExpected",
                   "premiumAnnualNet",
                   "residualAverage",

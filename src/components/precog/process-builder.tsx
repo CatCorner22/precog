@@ -64,6 +64,7 @@ import {
 import type { MapReview } from "@/lib/precog/builder/review";
 import { reviewMap } from "@/lib/precog/builder/review-server";
 import { scoreMap } from "@/lib/precog/builder/scored-map";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { buildSharePayload } from "@/lib/precog/share/share-payload";
 import { healthDelta, type HealthDelta } from "@/lib/precog/builder/what-if";
 import { analyzeWorkload, LOAD_BANDS } from "@/lib/precog/builder/workload";
@@ -71,9 +72,11 @@ import { formatDayShort } from "@/lib/precog/dates";
 import { downloadText } from "@/lib/download";
 import { industryMeta } from "@/lib/precog/industry";
 import type { MapValidationIssue } from "@/lib/precog/process-validation";
-import { buildProcessMapGraph, enrichProcess } from "@/lib/precog/process-graph";
+import { buildProcessMapGraph, enrichProcess, processMapContext } from "@/lib/precog/process-graph";
+import { residualScope } from "@/lib/precog/scoring/scope";
 import { validateProcessMap } from "@/lib/precog/process-validation";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import { useTabName } from "@/lib/precog/presentation";
 import { count, slug, uniqueId } from "@/lib/precog/text";
 import type { ProcessNode } from "@/lib/precog/types";
 import { buildWeeklyActions } from "@/lib/precog/weekly-actions/build";
@@ -109,6 +112,7 @@ export function ProcessBuilder({
   initialPanel?: BuilderPanel;
 }) {
   const tpl = useTemplate();
+  const tabName = useTabName();
   const {
     profile,
     setCustomProcesses,
@@ -244,11 +248,13 @@ export function ProcessBuilder({
     setReviewing(true);
     try {
       const wl = analyzeWorkload(tpl, processes, tpl.people, profile.staff, profile.dualRelease);
+      // One reading of the residual register for every process, scoped as the Residual page is.
+      const context = processMapContext(tpl, profile.staff, residualScope(profile));
       const enriched = processes.map((p) => {
         const owners = (p.ownerPersonIds ?? [])
           .map((id) => tpl.people.find((x) => x.id === id)?.name)
           .filter((x): x is string => Boolean(x));
-        const snap = enrichProcess(tpl, p, profile.staff);
+        const snap = enrichProcess(tpl, p, profile.staff, context);
         return {
           id: p.id,
           name: p.name,
@@ -394,7 +400,7 @@ export function ProcessBuilder({
   function resetToTemplate() {
     const ownTeam = Boolean(profile.customPeople);
     const question = ownTeam
-      ? "Go back to the sample process map? This discards your process map edits. Your team, register and journal stay."
+      ? `Go back to the sample process map? Precog discards your edits to the map. Your team, register and ${tabName("journal")} stay.`
       : "Discard your custom map and team, and restore the industry template?";
     if (!window.confirm(question)) return;
     setCustomProcesses(null);
@@ -705,8 +711,14 @@ export function ProcessBuilder({
 
         {isOpen("share") && (
           <SharePanel
+            businessId={profile.businessId ?? DEFAULT_BUSINESS_ID}
             buildPayload={(note, redactNames) => {
-              const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
+              const { snapshots } = buildProcessMapGraph(
+                tpl,
+                profile.staff,
+                {},
+                residualScope(profile),
+              );
               const actions = buildWeeklyActions({
                 tpl,
                 staff: profile.staff,
@@ -719,28 +731,31 @@ export function ProcessBuilder({
           />
         )}
 
-        {evidenceSummary.total > 0 && evidenceDue > 0 && !isOpen("validate") && (
-          <button
-            type="button"
-            onClick={() => {
-              const first = evidenceSummary.overdueItems[0];
-              if (first) onSelectProcess(first.process.id);
-            }}
-            className="flex w-full items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-left text-xs text-fg hover:border-warn/60"
-          >
-            <Clock className="size-3.5 shrink-0 text-warn" />
-            <span className="min-w-0 flex-1">
-              <span className="font-medium">
-                {count(evidenceDue, "evidence item needs", "evidence items need")} attention
+        {evidenceSummary.total > 0 &&
+          evidenceDue > 0 &&
+          evidenceSummary.coverage !== null &&
+          !isOpen("validate") && (
+            <button
+              type="button"
+              onClick={() => {
+                const first = evidenceSummary.overdueItems[0];
+                if (first) onSelectProcess(first.process.id);
+              }}
+              className="flex w-full items-center gap-2 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-left text-xs text-fg hover:border-warn/60"
+            >
+              <Clock className="size-3.5 shrink-0 text-warn" />
+              <span className="min-w-0 flex-1">
+                <span className="font-medium">
+                  {count(evidenceDue, "evidence item needs", "evidence items need")} attention
+                </span>
+                <span className="text-muted">
+                  {" "}
+                  · {evidenceSummary.coverage}% of control evidence is current
+                </span>
               </span>
-              <span className="text-muted">
-                {" "}
-                · {evidenceSummary.coverage}% of control evidence is current
-              </span>
-            </span>
-            <ChevronRight className="size-3 shrink-0 text-subtle" />
-          </button>
-        )}
+              <ChevronRight className="size-3 shrink-0 text-subtle" />
+            </button>
+          )}
 
         {isOpen("review") && (
           <ReviewPanel

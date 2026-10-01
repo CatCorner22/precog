@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ControlEvidencePanel, ExecutionHistory } from "./panel";
 import { ExecutionForm } from "./forms";
-import { applyCommand, parseCommand } from "@/lib/precog/controls/executions/model";
+import {
+  applyCommand,
+  emptyLogMessage,
+  parseCommand,
+} from "@/lib/precog/controls/executions/model";
 const state = vi.hoisted(() => ({
   user: null as null | {
     id: string;
@@ -52,7 +56,7 @@ describe("control log presentation", () => {
       isDevFallback: false,
     };
     const html = renderToStaticMarkup(<ControlEvidencePanel />);
-    expect(html).toContain("Loading account log");
+    expect(html).toContain("Loading the control evidence log");
     expect(html).not.toContain("No evidence-backed checks");
   });
   it("renders reference text without executing markup or linking unknown destinations", () => {
@@ -82,6 +86,61 @@ describe("control log presentation", () => {
     expect(html).not.toContain("href=");
     expect(html).toContain("&lt;img");
     expect(html).toContain("Reported performed by Alex");
+    expect(html).toContain("Work recorded · recorded by Alex");
+    expect(html).toContain("Method: Inspection;");
+    expect(html).not.toContain("record · recorded by");
+  });
+  it("names each follow-up form in words, never the action key", () => {
+    const run = applyCommand(
+      null,
+      parseCommand({
+        action: "record",
+        commandId: "command2",
+        runId: "check2",
+        baseRevision: 0,
+        controlKey: "bank_statement",
+        period: "2026-08",
+        performedOn: "2026-09-02",
+        performedBy: "Alex",
+        method: "reperformance",
+        scope: "August reconciliation",
+        evidenceRefs: ["Restricted drive: August"],
+        result: "no_exception",
+        note: "Checked the records.",
+      }),
+      { id: "a", name: "Alex", canReview: true },
+      "2026-09-29T12:00:00Z",
+      7,
+    );
+    expect(renderToStaticMarkup(<ExecutionHistory run={run} />)).toContain(
+      "Method: Reperformance / retest;",
+    );
+    const form = (status: typeof run.status) =>
+      renderToStaticMarkup(
+        <ExecutionForm
+          storageKey="biz1"
+          today="2026-09-29"
+          period="2026-08"
+          accountName="Blair"
+          run={{ ...run, status }}
+          onSave={async () => true}
+        />,
+      );
+    expect(form("needs_correction")).toContain("Record a correction for this check");
+    expect(form("awaiting_review")).toContain("Record a review conclusion for this check");
+    expect(form("reviewed")).toContain("Reopen the conclusion for this check");
+    expect(form("reviewed")).not.toContain("reopen this check");
+  });
+  it("names the evidence period the owner chose when the log is empty", () => {
+    expect(emptyLogMessage("2026-03")).toBe(
+      "Nobody has recorded a control check for March 2026. That does not mean there are no control gaps.",
+    );
+  });
+  it("points a solo owner to the section that invites a reviewer", () => {
+    const html = renderToStaticMarkup(<ControlEvidencePanel />);
+    expect(html).toContain("invite a reviewer under People at the firm");
+    expect(html).not.toContain("Firm members");
+    expect(html).toContain("use the control evidence log");
   });
   it("labels evidence as references rather than uploaded files", () => {
     const html = renderToStaticMarkup(
@@ -93,7 +152,7 @@ describe("control log presentation", () => {
         onSave={async () => true}
       />,
     );
-    expect(html).toContain("No files are uploaded or checked here");
+    expect(html).toContain("Precog does not upload or check files here");
     expect(html).toContain("Population, period and items checked");
     expect(html).toContain("Record check");
   });

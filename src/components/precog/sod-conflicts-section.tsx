@@ -3,6 +3,7 @@ import { Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { NavFn } from "@/lib/precog/navigation";
+import { useTabName } from "@/lib/precog/presentation";
 import { worksAt } from "@/lib/precog/person-location";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
 import { count, joinWithAnd } from "@/lib/precog/text";
@@ -132,6 +133,7 @@ function ConflictCardDetails({
   onNavigate?: NavFn;
 }) {
   const stillToDo = c.compensatingControls.filter((x) => !c.controlsInPlace.includes(x));
+  const tabName = useTabName();
   return (
     <ConflictSummary conflict={c}>
       <p className="mt-1 text-xs text-subtle">Fraud path: {c.fraudPath}</p>
@@ -168,7 +170,7 @@ function ConflictCardDetails({
             className="h-7 text-xs"
             onClick={() => onNavigate?.("map", c.processIds[0])}
           >
-            Process map
+            {tabName("map")}
           </Button>
         )}
         {!c.dualReleaseMitigated && model.narrowable.has(c.ruleId) && (

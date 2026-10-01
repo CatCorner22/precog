@@ -4,7 +4,9 @@ import type { ContinuityStep } from "../decisions/follow-through";
 import { joinWithAnd, joinWithOr, firstName, quoted } from "../text";
 import { registerAssessed } from "./register-state";
 import { coverageReport, CRITICALITY_WEIGHT, dependenceFor, suggestBackups } from "./coverage";
-import { documentationState, isWritten, procedurePointer } from "./documentation";
+import { documentationState, draftPointer, isWritten, procedurePointer } from "./documentation";
+import type { DetectedConflict } from "../sod/detect";
+import { standInConflictNote, type StandInConflicts } from "./standin-conflicts";
 
 /**
  * What stops when someone is away, who picks it up, and the one action that
@@ -16,6 +18,11 @@ interface AbsenceStop {
   standIn: Person | null;
   /** Why the stand-in was chosen, or why nobody is available. */
   note: string;
+  /**
+   * Duty conflicts the stand-in would newly hold by covering this, when the
+   * caller passed a checker (see standInConflicts); empty otherwise.
+   */
+  conflicts: DetectedConflict[];
 }
 
 export interface AbsenceImpact {
@@ -87,10 +94,13 @@ export function ownerlessProcesses(tpl: IndustryTemplate): OwnerlessProcess[] {
  * gone. Reads the coverage report and names a stand-in per stopped item;
  * "stand-in" here means the best cross-training candidate, not someone who
  * can already do it (if such a person existed the item would not stop).
+ * With `conflictsFor`, a candidate whose cover would create a duty conflict
+ * is chosen only when nobody else can stand in, and the stop says so.
  */
 export function absenceImpact(
   tpl: IndustryTemplate,
   personIds: readonly string[],
+  conflictsFor?: StandInConflicts,
 ): AbsenceImpact | null {
   const requested = new Set(personIds);
   const absentPeople = tpl.people.filter((p) => requested.has(p.id));
@@ -113,23 +123,45 @@ export function absenceImpact(
         CRITICALITY_WEIGHT[b.item.criticality] - CRITICALITY_WEIGHT[a.item.criticality] ||
         a.item.name.localeCompare(b.item.name),
     )
-    .map((i) => {
-      const learner = i.learners.find((p) => p.active && !absent.has(p.id)) ?? null;
+    .map((i): AbsenceStop => {
+      const available = (p: Person) => p.active && !absent.has(p.id);
+      const conflictsOf = (p: Person) => conflictsFor?.(p.id, i.item.id) ?? [];
+      const clear = (p: Person) => conflictsOf(p).length === 0;
+      const learners = i.learners.filter(available);
+      // A covered item carries no ranked backups; when every holder is out at
+      // once it still needs a stand-in, so rank the remaining team here.
+      const candidates = () =>
+        (i.suggestedBackups.length
+          ? i.suggestedBackups
+          : suggestBackups(tpl, i.item, soleCountByPerson)
+        ).filter((s) => available(s.person));
+      // Someone whose cover would create a duty conflict comes after everyone
+      // whose would not; in a small team they may still be the only cover.
+      const cleanLearner = learners.find(clear);
+      const cleanCandidate = cleanLearner ? undefined : candidates().find((s) => clear(s.person));
+      const learner = cleanLearner ?? (cleanCandidate ? undefined : learners[0]) ?? null;
+      const withConflicts = (stop: Omit<AbsenceStop, "conflicts">): AbsenceStop => {
+        const conflicts = stop.standIn ? conflictsOf(stop.standIn) : [];
+        return conflicts.length && stop.standIn
+          ? {
+              ...stop,
+              note: `${stop.note} ${standInConflictNote(stop.standIn.name, conflicts)}`,
+              conflicts,
+            }
+          : { ...stop, conflicts };
+      };
       if (learner) {
-        return {
+        return withConflicts({
           item: i.item,
           standIn: learner,
           note: isWritten(i.item)
             ? `${learner.name} has the basics and there is a written procedure to follow${where(i.item)}.`
-            : `${learner.name} has the basics but nobody has written the steps down — expect mistakes.`,
-        };
+            : draftPointer(i.item)
+              ? `${learner.name} has the basics, and the only steps are a draft not yet fitted to this business (${draftPointer(i.item)}) — expect mistakes.`
+              : `${learner.name} has the basics but nobody has written the steps down — expect mistakes.`,
+        });
       }
-      // A covered item carries no ranked backups; when every holder is out at
-      // once it still needs a stand-in, so rank the remaining team here.
-      const ranked = i.suggestedBackups.length
-        ? i.suggestedBackups
-        : suggestBackups(tpl, i.item, soleCountByPerson);
-      const candidate = ranked.find((s) => s.person.active && !absent.has(s.person.id)) ?? null;
+      const candidate = cleanCandidate ?? candidates()[0] ?? null;
       if (!candidate) {
         return {
           item: i.item,
@@ -138,15 +170,18 @@ export function absenceImpact(
             remaining.length === 0
               ? "Nobody else is on the team."
               : "Nobody else has touched this; it waits or goes to an outside provider.",
+          conflicts: [],
         };
       }
-      return {
+      return withConflicts({
         item: i.item,
         standIn: candidate.person,
         note: isWritten(i.item)
           ? `${candidate.person.name} has never done it but could follow the written procedure${where(i.item)} (${candidate.reasons[0]}).`
-          : `${candidate.person.name} would be starting cold with nothing written down (${candidate.reasons[0]}).`,
-      };
+          : draftPointer(i.item)
+            ? `${candidate.person.name} would be starting cold with only a draft not yet fitted to this business, ${draftPointer(i.item)} (${candidate.reasons[0]}).`
+            : `${candidate.person.name} would be starting cold with nothing written down (${candidate.reasons[0]}).`,
+      });
     });
 
   const continues = report.items

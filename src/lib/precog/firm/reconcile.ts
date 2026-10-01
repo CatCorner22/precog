@@ -2,6 +2,7 @@ import { locateTable } from "../import/csv";
 import type { EntitlementId } from "../sod/conflict-rules";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import type { Person } from "../types";
+import { personDuties } from "../sod/assignments";
 import { daysBetween } from "../dates";
 import { readHireDate } from "../import/hire-date";
 import { nameKey, titleKey } from "../text";
@@ -26,6 +27,12 @@ export interface AccessUserRow {
   /** Duties the model grants that this export does not show. */
   missingFromBooks: EntitlementId[];
   status: QueueStatus;
+  /**
+   * The row names someone marked as left who still has a login: the main
+   * thing an access review exists to catch, so the row always waits in the
+   * queue.
+   */
+  leftBusiness?: true;
   /** Duty a person assigned when the role did not map. */
   assigned?: EntitlementId;
 }
@@ -132,10 +139,16 @@ export function mapRoleToDuties(role: string): {
   return { mapped: [...mapped], unmatchedTokens: unmatched };
 }
 
+/**
+ * Reads a user or vendor list exported from the books and compares each
+ * user's role with the duties the Duty map gives the team member of that
+ * name: their own list, else their role's (see personDuties).
+ */
 export function parseAccessExport(
   text: string,
   people: readonly Person[],
   asOf: string,
+  roleTemplates: Readonly<Record<string, readonly string[]>>,
 ): { source: AccessSource; users: AccessUserRow[]; vendors: AccessVendorRow[]; issues: string[] } {
   const issues: string[] = [];
   const located = locateTable(
@@ -211,13 +224,18 @@ export function parseAccessExport(
       const role = roleAt >= 0 ? (cells[roleAt] ?? "").trim() : "";
       const mappedRole = mapRoleToDuties(role);
       const person = matchPerson(name, people);
-      const held = new Set(person?.entitlements ?? []);
+      const held = new Set<string>(person ? personDuties(person, roleTemplates) : []);
       const extra = mappedRole.mapped.filter((d) => !held.has(d));
+      // Reading reports is no duty a login has to grant.
       const missingFromBooks = [...held].filter(
         (d): d is EntitlementId =>
-          ENTITLEMENT_SET.has(d) && !mappedRole.mapped.includes(d as EntitlementId),
+          ENTITLEMENT_SET.has(d) &&
+          d !== "view_reports_only" &&
+          !mappedRole.mapped.includes(d as EntitlementId),
       );
-      const needsQueue = mappedRole.unmatchedTokens.length > 0 || !person || extra.length > 0;
+      const leftBusiness = person?.active === false;
+      const needsQueue =
+        mappedRole.unmatchedTokens.length > 0 || !person || extra.length > 0 || leftBusiness;
       users.push({
         id: rowId("user", index + 2, name),
         name: name.slice(0, 120),
@@ -229,6 +247,7 @@ export function parseAccessExport(
         extra: person ? extra : mappedRole.mapped,
         missingFromBooks: person ? missingFromBooks : [],
         status: needsQueue ? "pending" : "mapped",
+        ...(leftBusiness ? { leftBusiness: true as const } : {}),
       });
     });
   }
@@ -260,7 +279,7 @@ export function parseAccessExport(
 
 /** Second file: vendors parsed on their own and merged onto an existing user import. */
 export function parseVendorExport(text: string, asOf: string): AccessVendorRow[] {
-  const parsed = parseAccessExport(text, [], asOf);
+  const parsed = parseAccessExport(text, [], asOf, {});
   if (parsed.vendors.length > 0) return parsed.vendors;
   // A user-shaped file should not be reread as vendors.
   return [];
@@ -297,6 +316,7 @@ export function normalizeAccessReconciliation(value: unknown): AccessReconciliat
         ? row.missingFromBooks.filter(isDuty)
         : [],
       status,
+      ...(row.leftBusiness === true ? { leftBusiness: true as const } : {}),
       ...(isDuty(row.assigned) ? { assigned: row.assigned } : {}),
     });
   }
@@ -378,10 +398,12 @@ function detectAccessSource(headers: readonly string[]): AccessSource {
   return "unknown";
 }
 
+/** The team member a row names, preferring a current one over a namesake who has left. */
 function matchPerson(name: string, people: readonly Person[]): Person | undefined {
   const key = nameKey(name);
   if (!key) return undefined;
-  return people.find((p) => nameKey(p.name) === key);
+  const named = people.filter((p) => nameKey(p.name) === key);
+  return named.find((p) => p.active) ?? named[0];
 }
 
 /** A vendor's created date as an ISO day, in any form the roster importer reads; "" when unreadable. */

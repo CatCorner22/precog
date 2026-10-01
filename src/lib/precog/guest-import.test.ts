@@ -8,6 +8,9 @@ import {
   savePortfolioEntry,
 } from "./practice-profile";
 import { ScopedStorage } from "./workspace-storage";
+import { readValueProof, writeValueProof } from "./value-proof-store";
+import { newProcedure, newStep, verifyProcedure } from "./procedures/lifecycle";
+import { assertVerificationsAllowed } from "./procedures/verify-guard";
 
 /** One browser's localStorage; guest and accounts are ScopedStorage views over it. */
 class MemoryStorage {
@@ -68,6 +71,56 @@ describe("guest work copied into an account", () => {
     expect(importableGuestBusinesses(guest, account)).toEqual([]);
     expect(copyGuestBusinesses(guest, account)).toBe(0);
     expect(Object.keys(loadPortfolio(account))).toHaveLength(1);
+  });
+
+  it("keeps a procedure verified while signed out as last verified, so the account's first save goes through", () => {
+    const { guest, account } = browser();
+    const verified = verifyProcedure(
+      newProcedure(
+        {
+          industry: "dental",
+          title: "Make the deposit",
+          purpose: "Gets the day's cash to the bank. Done when the bank shows the deposit.",
+          trigger: "Every day at close",
+          module: "Front-office safe",
+          steps: [newStep("Count the drawer.")],
+        },
+        "2026-09-01",
+      ),
+      "owner",
+      "2026-09-10",
+    );
+    savePortfolioEntry(business("biz_1", "Riverside Dental", { procedures: [verified] }), guest);
+
+    expect(copyGuestBusinesses(guest, account)).toBe(1);
+    const [copy] = Object.values(loadPortfolio(account));
+    expect(copy.procedures?.[0]?.verifiedAt).toBeUndefined();
+    expect(copy.procedures?.[0]?.lastVerifiedAt).toBe("2026-09-10");
+    expect(() =>
+      assertVerificationsAllowed({
+        previousProfile: null,
+        nextProfile: copy,
+        saverId: "user-a",
+        saverRole: "preparer",
+        saverNames: ["A"],
+        latestDay: "2026-09-29",
+      }),
+    ).not.toThrow();
+    // The guest original keeps its verification.
+    expect(loadPortfolio(guest).biz_1?.procedures?.[0]?.verifiedAt).toBe("2026-09-10");
+  });
+
+  it("brings the business's value case and evidence along to the copy", () => {
+    const { guest, account } = browser();
+    savePortfolioEntry(business("biz_1", "Riverside Dental"), guest);
+    writeValueProof("biz_1", { valueCase: { hourlyRate: 90 }, evidence: undefined }, guest);
+
+    expect(copyGuestBusinesses(guest, account)).toBe(1);
+    const [copy] = Object.values(loadPortfolio(account));
+    expect(readValueProof(copy.businessId as string, account, { claimLegacy: false })).toEqual({
+      valueCase: { hourlyRate: 90 },
+      evidence: undefined,
+    });
   });
 
   it("remembers the copy per account, so another account may still copy", () => {

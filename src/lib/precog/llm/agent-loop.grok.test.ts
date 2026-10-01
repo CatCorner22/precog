@@ -13,7 +13,7 @@ import type { ToolResult } from "./types";
 import type { LlmAccess } from "./guard.server";
 
 // The daily model budget lives in the database; these tests are about the brief.
-vi.mock("./daily-usage", () => ({ withinDailyBudget: async () => true }));
+vi.mock("./daily-usage", () => ({ checkDailyBudget: async () => "allowed" }));
 
 const ALLOWED: LlmAccess = { userId: "owner-1", grok: "allowed" };
 

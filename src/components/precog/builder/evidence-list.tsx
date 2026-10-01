@@ -59,12 +59,16 @@ export function EvidenceList({
         <span className={cn(labelCls, "flex items-center gap-1")}>
           <CheckCircle2 className="size-3 text-ok" />
           Evidence ({items.length})
-          {items.length > 0 && (
-            <span
-              className={cn("ml-1 normal-case", summary.coverage < 100 ? "text-warn" : "text-ok")}
-            >
-              · {summary.coverage}% current
-            </span>
+          {items.length === 0 ? (
+            <span className="ml-1 normal-case text-subtle">· not assessed</span>
+          ) : (
+            summary.coverage !== null && (
+              <span
+                className={cn("ml-1 normal-case", summary.coverage < 100 ? "text-warn" : "text-ok")}
+              >
+                · {summary.coverage}% current
+              </span>
+            )
           )}
         </span>
         <span className="flex items-center gap-2">
@@ -78,6 +82,7 @@ export function EvidenceList({
           <button
             type="button"
             onClick={form.toggle}
+            aria-label={form.adding ? "Cancel adding evidence" : "Add evidence"}
             className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
           >
             {form.adding ? <X className="size-3" /> : <Plus className="size-3" />}

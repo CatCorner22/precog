@@ -71,6 +71,11 @@ export interface Person {
    * Cleared as soon as the owner edits their duties anywhere.
    */
   dutiesFromTitle?: true;
+  /**
+   * People who share this mark share a household. Two signers with the same
+   * mark are not dual control unless the policy attests they do not share finances.
+   */
+  householdKey?: string;
 }
 
 export type KnowledgeKind = "duty" | "task" | "knowledge";
@@ -94,7 +99,7 @@ export interface KnowledgeItem {
    * The procedures written for this item on the Procedures tab. Derived when
    * the template is built (procedures/coverage-link.ts) and never stored.
    */
-  linkedProcedures?: readonly { id: string; title: string }[];
+  linkedProcedures?: readonly { id: string; title: string; draft?: true }[];
 }
 
 export interface KnowledgeRelation {

@@ -9,7 +9,12 @@
 import { executeTools, planTools, type ToolContext } from "./tools";
 import { runSpecialistAgents } from "./multi-agent";
 import { callModel, type LlmAccess } from "./guard.server";
-import type { AgentRunResult, ReasoningStep, ToolResult } from "./types";
+import {
+  DailyLimitReached,
+  type AgentRunResult,
+  type ReasoningStep,
+  type ToolResult,
+} from "./types";
 import {
   briefClaims,
   parseBriefSelection,
@@ -25,8 +30,11 @@ import {
   localSynthesize,
 } from "./agent-brief";
 
-/** Whether a model selected approved statement ids, failed, was rejected, or was not asked. */
-export type ModelStatus = "answered" | "failed" | "not-asked" | "rejected";
+/**
+ * Whether a model selected approved statement ids, failed, was rejected, was
+ * not asked, or was not called because today's model budget is used up.
+ */
+export type ModelStatus = "answered" | "failed" | "not-asked" | "rejected" | "daily-limit";
 
 /** A rules-built run and its source tools, retained unchanged by the selection path. */
 export interface LocalAgentRun extends AgentRunResult {
@@ -68,7 +76,7 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Loca
   ];
   steps.push({
     phase: "reason",
-    title: "Ordered the fixes (this app's model)",
+    title: "Ordered the fixes (Precog's model)",
     detail: advancedReasoning.join(" · "),
     toolResults: advTool ? [advTool] : undefined,
   });
@@ -82,7 +90,7 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Loca
     | undefined;
   steps.push({
     phase: "meta",
-    title: "Listed what this app can and cannot see",
+    title: "Listed what Precog can and cannot see",
     detail: metaData
       ? `${metaData.summary?.knownKnowns ?? "?"} measured · ${metaData.summary?.knownUnknowns ?? "?"} known gaps · ${metaData.summary?.unknownUnknowns ?? "?"} outside the model`
       : "Not in plan.",
@@ -114,7 +122,7 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Loca
   );
   steps.push({
     phase: "synthesize",
-    title: "Wrote the brief from this app's rules",
+    title: "Wrote the brief from Precog's rules",
     detail: `${brief.decisions.length} recommended moves · ${brief.specialistNotes.length} review lenses`,
   });
 
@@ -156,7 +164,8 @@ export async function runGrokAgentLoop<T extends LocalAgentRun>(
   });
   try {
     // callModel takes one unit of the owner's daily budget, then calls Grok;
-    // null means the budget is spent or the model gave nothing back.
+    // it throws DailyLimitReached when the budget is spent, and null means
+    // the budget could not be read or the model gave nothing back.
     const response = await callModel(access, {
       messages: buildGrokAgentMessages(local, claims),
       maxTokens: 256,
@@ -200,6 +209,7 @@ export async function runGrokAgentLoop<T extends LocalAgentRun>(
       latencyMs: local.latencyMs + Date.now() - started,
     };
   } catch (error) {
+    if (error instanceof DailyLimitReached) return { ...failed(), modelStatus: "daily-limit" };
     console.error("[pioneer] model call failed; answering with the rules brief", error);
     return failed();
   }

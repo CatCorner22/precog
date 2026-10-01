@@ -2,6 +2,7 @@ import { getIndustryTemplate } from "../templates";
 import { describe, expect, it } from "vitest";
 import { teamTemplate } from "@/test/fixtures";
 import { buildAssignments, detectSodConflicts } from "./detect";
+import { openFindings } from "./open-findings";
 import { concentrationHeadline, separatedPairs } from "./verdict";
 
 const general = getIndustryTemplate("general");
@@ -23,7 +24,9 @@ describe("concentrationHeadline", () => {
       },
       { name: "Cal", role: "Cashier", duties: ["collect_cash"] },
     ]);
-    const headline = concentrationHeadline(detectSodConflicts(tpl).conflicts);
+    const headline = concentrationHeadline(
+      openFindings(detectSodConflicts(tpl).conflicts, new Map()),
+    );
     expect(headline?.personName).toBe("Denise Holmgren");
     expect(headline?.gaps).toBe(headline?.totalGaps);
     expect(headline?.duty).toBe("bank_reconcile");
@@ -36,7 +39,9 @@ describe("concentrationHeadline", () => {
       { name: "B", role: "AP Clerk", duties: ["enter_invoices", "release_payment"] },
       { name: "C", role: "Payroll", duties: ["enter_payroll", "approve_payroll"] },
     ]);
-    expect(concentrationHeadline(detectSodConflicts(tpl).conflicts)).toBeNull();
+    expect(
+      concentrationHeadline(openFindings(detectSodConflicts(tpl).conflicts, new Map())),
+    ).toBeNull();
   });
 });
 

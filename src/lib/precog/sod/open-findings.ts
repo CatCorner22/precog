@@ -10,10 +10,12 @@ import type { DetectedConflict } from "./detect";
  * does not close it at every amount. A pair dual release covers only above a
  * threshold stays open: below the threshold one person still acts alone.
  */
-export function openFindings(
-  conflicts: readonly DetectedConflict[],
-  partial: ReadonlyMap<string, number>,
-): DetectedConflict[] {
+export function openFindings<
+  T extends Pick<
+    DetectedConflict,
+    "ruleId" | "ownerHeld" | "residualRiskAccepted" | "dualReleaseMitigated"
+  >,
+>(conflicts: readonly T[], partial: ReadonlyMap<string, number>): T[] {
   return conflicts.filter(
     (c) =>
       !c.residualRiskAccepted && !c.ownerHeld && (!c.dualReleaseMitigated || partial.has(c.ruleId)),

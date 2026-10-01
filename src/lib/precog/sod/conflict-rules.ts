@@ -766,6 +766,23 @@ export const CONFLICT_RULES: ConflictRule[] = [
     linkedControlId: "c-sod-ap",
   },
   {
+    id: "rule-vendor-create-invoice",
+    a: "create_vendor",
+    b: "enter_invoices",
+    // Supplier set-up and bill entry are the two halves a CPA separates first
+    // in payables: together they make an invented supplier's bill look real.
+    severity: "high",
+    title: "Create vendor + enter bills",
+    why: "One person can set up a supplier and then enter its bills, so an invented supplier arrives in the payment run with paperwork that looks like any real supplier's.",
+    fraudPath: "Set up a supplier that does not exist, then enter its bills for payment",
+    compensatingDefaults: [
+      "Owner approves every new supplier before anyone enters a bill from it",
+      "Owner reviews every supplier added that month",
+    ],
+    linkedScenarioId: "sc-vendor-fraud",
+    linkedControlId: "c-sod-ap",
+  },
+  {
     id: "rule-vendor-approve-pay",
     a: "approve_vendor",
     b: "release_payment",

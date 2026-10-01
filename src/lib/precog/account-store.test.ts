@@ -76,6 +76,42 @@ describe("account export", () => {
     expect(JSON.stringify(out)).not.toContain("salt");
   });
 
+  it("lists step pictures and the stored reminder and review fields", async () => {
+    await pg.query(
+      `insert into procedure_images (id, user_id, business_id, content_type, bytes, byte_size, width, height, sha256, uploaded_by)
+       values ('img_a', 'ua', 'biz_1', 'image/png', '\\x0102', 2, 10, 20, 'abc', 'ua')`,
+    );
+    await pg.query(
+      `insert into engagement_marks (user_id, business_id, owner_email) values ('ua', 'biz_1', 'client@example.test')`,
+    );
+    await pg.query(
+      `insert into review_events (user_id, business_id, period, item_key, due_on, result, recorded_by)
+       values ('ua', 'biz_1', '2026-08', 'bank_rec', '2026-09-05', 'done', 'ua')`,
+    );
+    const out = await exportAccountRows(sql, "ua");
+    expect(out.procedureImages).toEqual([
+      {
+        id: "img_a",
+        businessId: "biz_1",
+        contentType: "image/png",
+        byteSize: 2,
+        width: 10,
+        height: 20,
+        sha256: "abc",
+        uploadedBy: "ua",
+        createdAt: expect.stringMatching(/Z$/),
+        unreferencedSince: null,
+        path: "/api/procedure-image?b=biz_1&id=img_a",
+      },
+    ]);
+    expect(out.engagements[0].ownerEmail).toBe("client@example.test");
+    expect(out.reviews[0]).toMatchObject({ dueOn: "2026-09-05", recordedBy: "ua" });
+    expect(JSON.stringify(out)).not.toContain('"bytes"');
+    await pg.exec(
+      "delete from procedure_images; delete from engagement_marks; delete from review_events;",
+    );
+  });
+
   it("writes every timestamp as ISO 8601 with milliseconds", async () => {
     await pg.query("update map_shares set revoked_at = now() where user_id = 'ua'");
     const out = await exportAccountRows(sql, "ua");

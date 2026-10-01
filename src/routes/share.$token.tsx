@@ -179,7 +179,7 @@ function SharePage() {
           )}
           {redacted && (
             <p className="mt-2 text-xs text-neutral-500">
-              Names hidden by the owner; roles shown instead.
+              The owner hid people&apos;s names, so this map shows their roles instead.
             </p>
           )}
         </header>

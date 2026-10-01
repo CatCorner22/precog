@@ -20,6 +20,9 @@ vi.mock("@/lib/precog/practice-context", () => ({
 vi.mock("@/lib/auth/use-current-user", () => ({ useCurrentUser: () => null }));
 vi.mock("@/lib/use-today", () => ({ useToday: () => new Date(2026, 8, 29) }));
 vi.mock("@/lib/precog/firm/server", () => ({ recordMonthlyReview: vi.fn() }));
+vi.mock("@/lib/precog/integrations/qbo/server", () => ({
+  getQuickBooksStatus: vi.fn(async () => ({ configured: false, connection: null, drift: null })),
+}));
 
 const owner = (): Person => ({
   id: "owner",

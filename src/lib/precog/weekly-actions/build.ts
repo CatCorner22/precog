@@ -1,3 +1,8 @@
+import {
+  standInConflictChecker,
+  standInConflictNote,
+  type StandInConflicts,
+} from "@/lib/precog/continuity/standin-conflicts";
 import { portfolioSummary, tornadoSensitivity } from "@/lib/precog/scoring/residual-engine";
 import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
 import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
@@ -258,6 +263,8 @@ interface WeeklyContext {
   mapReady: boolean;
   debriefs: LeaveDebrief[];
   departing: Leaver[];
+  /** Duty conflicts a stand-in would newly hold by covering an item (see standin-conflicts). */
+  conflictsFor: StandInConflicts;
   /** Entries someone just covered during leave: asked about as a debrief, not recommended as fresh cross-training on top. */
   debriefing: Set<string>;
   /** Entries a leaver must hand off: advised as part of their hand-off, not as ordinary cross-training on top. */
@@ -268,8 +275,21 @@ function weeklyContext(input: WeeklyActionsInput): WeeklyContext {
   const { tpl } = input;
   const today = input.today ?? localDateKey(new Date());
   const decisions = input.decisions ?? [];
-  const debriefs = leaveDebriefs(tpl, input.plannedAbsences ?? [], decisions, tpl.id, today);
-  const departing = leavers(tpl, decisions, today);
+  const conflictsFor = standInConflictChecker({
+    tpl,
+    dualRelease: input.dualRelease,
+    staff: input.staff,
+    procedures: input.procedures,
+  });
+  const debriefs = leaveDebriefs(
+    tpl,
+    input.plannedAbsences ?? [],
+    decisions,
+    tpl.id,
+    today,
+    conflictsFor,
+  );
+  const departing = leavers(tpl, decisions, today, conflictsFor);
   return {
     input,
     tpl,
@@ -282,6 +302,7 @@ function weeklyContext(input: WeeklyActionsInput): WeeklyContext {
     mapReady: input.mapAssessed ?? true,
     debriefs,
     departing,
+    conflictsFor,
     debriefing: new Set(debriefs.flatMap((d) => d.items.map((e) => e.item.id))),
     handingOver: new Set(
       departing
@@ -419,8 +440,14 @@ function crossTrainingActions(ctx: WeeklyContext): WeeklyAction[] {
 }
 
 /** Known leave that stops work, soonest first; covered leave adds nothing, so it does not use up a slot. */
-function leaveActions({ tpl, input, today, committed }: WeeklyContext): WeeklyAction[] {
-  const leave = plannedAbsenceReport(tpl, input.plannedAbsences ?? [], tpl.id, today);
+function leaveActions({
+  tpl,
+  input,
+  today,
+  committed,
+  conflictsFor,
+}: WeeklyContext): WeeklyAction[] {
+  const leave = plannedAbsenceReport(tpl, input.plannedAbsences ?? [], tpl.id, today, conflictsFor);
   const worthRaising = absencesNeedingAttention(leave.windows).filter(
     (w) => w.impact.stops.length > 0 || w.impact.orphanedProcesses.length > 0,
   );
@@ -471,6 +498,9 @@ function leaveActions({ tpl, input, today, committed }: WeeklyContext): WeeklyAc
       w.status === "current" && lead.standIn
         ? ` Tell ${standInFirst} today that ${lead.item.name} is theirs while ${first} is out (${procedurePointer(lead.item)}).`
         : "";
+    const conflict = lead.standIn
+      ? ` ${standInConflictNote(lead.standIn.name, lead.conflicts)}`
+      : "";
     actions.push({
       id: `leave-${w.absence.id}`,
       title: lead.standIn
@@ -482,7 +512,7 @@ function leaveActions({ tpl, input, today, committed }: WeeklyContext): WeeklyAc
         w.status === "upcoming"
           ? ` Hand off by ${formatDayNear(handoffDeadline(w, today), today)}.`
           : coverToday
-      }${w.impact.remaining.length ? ` Still in the business: ${w.impact.remaining.map((p) => firstName(p.name)).join(", ")}.` : " Nobody else remains in the business."}`,
+      }${conflict.trim() ? conflict : ""}${w.impact.remaining.length ? ` Still in the business: ${w.impact.remaining.map((p) => firstName(p.name)).join(", ")}.` : " Nobody else remains in the business."}`,
       effort: lead.standIn ? "low" : "medium",
       tab: "knowledge",
       priority: lead.item.criticality === "critical" ? urgency : urgency - NOT_CRITICAL_DISCOUNT,
@@ -547,12 +577,13 @@ function leaverActions({ departing, today, committed }: WeeklyContext): WeeklyAc
     const unwritten = l.handover.filter((h) => !isWritten(h.item));
     const others = open.length - 1;
     const successor = top.successor ? firstName(top.successor.name) : "";
+    const conflict = top.successor ? standInConflictNote(top.successor.name, top.conflicts) : "";
     actions.push({
       id: `leaver-${l.person.id}`,
       title: top.successor
         ? `${lead}: train ${successor} on ${top.item.name}${others > 0 ? ` and ${others} more` : ""}`
         : `${lead}: ${top.item.name} has no one to take it${others > 0 ? ` (${others} more to hand off)` : ""}`,
-      why: `${l.handover.length === 1 ? `${top.item.name} is` : `${l.handover.length} register entries are`} run by ${first} alone${noOne.length ? `; ${noOne.map((h) => h.item.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody to take ${verb(noOne.length, "it", "them")}` : ""}${unwritten.length ? `; ${unwritten.length} ${verb(unwritten.length, "has", "have")} nothing written down` : ""}. Hand off by ${deadline}${l.unlogged < l.handover.length ? ` (${l.handover.length - l.unlogged} of ${l.handover.length} already in the Decisions log)` : ""}.${remaining}`,
+      why: `${l.handover.length === 1 ? `${top.item.name} is` : `${l.handover.length} register entries are`} run by ${first} alone${noOne.length ? `; ${noOne.map((h) => h.item.name).join(", ")} ${verb(noOne.length, "has", "have")} nobody to take ${verb(noOne.length, "it", "them")}` : ""}${unwritten.length ? `; ${unwritten.length} ${verb(unwritten.length, "has", "have")} nothing written down` : ""}. Hand off by ${deadline}${l.unlogged < l.handover.length ? ` (${l.handover.length - l.unlogged} of ${l.handover.length} already in the Decisions log)` : ""}.${conflict ? ` ${conflict}` : ""}${remaining}`,
       effort: top.successor ? "medium" : "high",
       tab: "knowledge",
       priority: top.item.criticality === "critical" ? urgency : urgency - NOT_CRITICAL_DISCOUNT,
@@ -592,7 +623,8 @@ function debriefActions({ debriefs }: WeeklyContext): WeeklyAction[] {
     const first = firstName(d.person.name);
     const lead = d.items[0];
     const more = d.items.length - 1;
-    const standIn = lead.standIn ? firstName(lead.standIn.name) : undefined;
+    const standIn =
+      lead.standIn && lead.standInConfirmed ? firstName(lead.standIn.name) : undefined;
     return {
       id: `debrief-${d.absence.id}`,
       title: standIn
@@ -650,7 +682,7 @@ function documentationActions({ tpl, registerReady, committed }: WeeklyContext):
 /** A critical procedure no backup has done alone, and procedures due for a check. */
 function procedureActions({ tpl, input, today }: WeeklyContext): WeeklyAction[] {
   if (!input.procedures?.length) return [];
-  const attention = procedureAttention(input.procedures, tpl.knowledge, tpl.id, today);
+  const attention = procedureAttention(input.procedures, tpl.knowledge, tpl.people, tpl.id, today);
   const nameOf = (id: string) => tpl.people.find((p) => p.id === id)?.name;
   const actions: WeeklyAction[] = [];
   for (const { procedure, backupIds } of attention.unproven.slice(0, MAX_PER_SOURCE)) {

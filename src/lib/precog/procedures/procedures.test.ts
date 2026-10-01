@@ -337,6 +337,29 @@ describe("linking procedures to the register", () => {
     expect(documentationState(linked[1])).toBe("none");
   });
 
+  it("keeps a suggested or AI-drafted procedure as a pointer but not as written down", () => {
+    const suggested = written({
+      knowledgeIds: ["k1"],
+      steps: [{ ...newStep("Open the bank feed."), suggested: true }],
+    });
+    const [item] = linkProcedures([k1], [suggested], "general");
+    expect(item.linkedProcedures).toEqual([
+      { id: suggested.id, title: suggested.title, draft: true },
+    ]);
+    expect(documentationState(item)).toBe("none");
+    expect(procedurePointer(item)).toBe('steps in Procedures: "Reconcile the checking account"');
+    // Fitting one step, or verifying it, makes it the business's own.
+    const fitted = {
+      ...suggested,
+      steps: [...suggested.steps, newStep("Match each deposit to the slip.")],
+    };
+    expect(documentationState(linkProcedures([k1], [fitted], "general")[0])).toBe("located");
+    const verified = verifyProcedure(suggested, "owner", TODAY);
+    expect(documentationState(linkProcedures([k1], [verified], "general")[0])).toBe("located");
+    const drafted = { ...suggested, steps: [{ ...newStep("Do it."), aiDrafted: true as const }] };
+    expect(documentationState(linkProcedures([k1], [drafted], "general")[0])).toBe("none");
+  });
+
   it("ignores empty procedures and other industries' procedures", () => {
     const empty = newProcedure({ industry: "general", title: "t", knowledgeIds: ["k1"] }, TODAY);
     const dental = written({ industry: "dental", knowledgeIds: ["k1"] });

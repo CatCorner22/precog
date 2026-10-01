@@ -135,7 +135,7 @@ describe("transactional business safety", () => {
   });
   it("removes colleagues' exact active pointers together with a shared business", async () => {
     await db.sql`insert into firms (user_id, name) values ('a', 'Firm')`;
-    await db.sql`insert into firm_members (firm_user_id, member_user_id) values ('a', 'b')`;
+    await db.sql`insert into firm_members (firm_user_id, member_user_id, role) values ('a', 'b', 'reviewer')`;
     await saveBusinessRevision(db.sql, { ...input("one", null), firmUserId: "a" });
     await saveBusinessRevision(db.sql, { ...input("one", 1), savedBy: "b" });
     expect((await counts()).pointers).toBe(2);

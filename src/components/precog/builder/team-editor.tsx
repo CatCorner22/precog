@@ -386,7 +386,9 @@ export function TeamEditor({
                   {p.department && (
                     <span className="text-subtle"> · {joinWithAnd(personLocations(p))}</span>
                   )}
-                  {p.employeeId && <span className="text-subtle"> · ID {p.employeeId}</span>}
+                  {p.householdKey && (
+                    <span className="text-subtle"> · household {p.householdKey}</span>
+                  )}
                   {p.active && p.lastDay && (
                     <span className="text-subtle"> · last day {p.lastDay}</span>
                   )}
@@ -417,6 +419,8 @@ export function TeamEditor({
                   type="button"
                   onClick={() => setEditingId(editing ? null : p.id)}
                   className="text-subtle hover:text-primary"
+                  aria-expanded={editing}
+                  aria-label={editing ? `Done with ${p.name}'s duties` : `Duties of ${p.name}`}
                 >
                   {editing ? "Done" : "Duties"}
                 </button>
@@ -437,6 +441,22 @@ export function TeamEditor({
                     onChange={(e) => setOwner(p.id, e.target.checked)}
                   />
                   {p.name} owns the business
+                </label>
+              )}
+              {editing && (
+                <label className="mt-2 block text-xs text-muted">
+                  Household mark
+                  <input
+                    className="mt-1 w-full rounded-md border border-border bg-bg px-2 py-1 text-xs text-fg"
+                    value={p.householdKey ?? ""}
+                    placeholder="Same mark means one household"
+                    maxLength={40}
+                    onChange={(e) =>
+                      updatePerson(p.id, {
+                        householdKey: e.target.value.trim().slice(0, 40) || undefined,
+                      })
+                    }
+                  />
                 </label>
               )}
               {editing && (

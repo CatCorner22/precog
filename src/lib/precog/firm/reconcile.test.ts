@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   mapRoleToDuties,
+  normalizeAccessReconciliation,
   parseAccessExport,
   parseVendorExport,
   pendingQueueCount,
@@ -27,7 +28,7 @@ describe("access reconciliation", () => {
   it("pairs a QuickBooks-style user with the team and queues the extra duties", () => {
     const csv =
       "Name,Email,User Role\nAda Owner,ada@example.com,Accountant\nNew Hire,new@example.com,Admin\n";
-    const parsed = parseAccessExport(csv, people, "2026-09-24");
+    const parsed = parseAccessExport(csv, people, "2026-09-24", {});
     expect(parsed.source).toBe("quickbooks");
     const ada = parsed.users.find((u) => u.name === "Ada Owner");
     expect(ada?.personId).toBe("p1");
@@ -62,6 +63,50 @@ describe("access reconciliation", () => {
   });
 });
 
+describe("people who have left and duties that come from a role", () => {
+  const ben: Person = {
+    id: "p-ben",
+    name: "Ben Cole",
+    role: "Bookkeeper",
+    active: false,
+    lastDay: "2026-05-01",
+    entitlements: ["enter_invoices", "post_payments", "bank_reconcile"],
+  };
+  const csv = "Name,Email,User Role\nBen Cole,ben@x.com,Bookkeeper\n";
+
+  it("keeps a live login for someone marked as left in the queue, flagged", () => {
+    const [row] = parseAccessExport(csv, [ben], "2026-09-24", {}).users;
+    expect(row).toMatchObject({ personId: "p-ben", status: "pending", leftBusiness: true });
+    expect(normalizeAccessReconciliation({ users: [row] })?.users[0].leftBusiness).toBe(true);
+  });
+
+  it("pairs the row with a current namesake before one who has left", () => {
+    const current: Person = { ...ben, id: "p-ben-2", active: true, lastDay: undefined };
+    const [row] = parseAccessExport(csv, [ben, current], "2026-09-24", {}).users;
+    expect(row).toMatchObject({ personId: "p-ben-2", status: "mapped" });
+    expect(row.leftBusiness).toBeUndefined();
+  });
+
+  it("compares the export with the duties a person's role gives them", () => {
+    const ana: Person = { id: "p-ana", name: "Ana Ruiz", role: "Bookkeeper", active: true };
+    const roles = { Bookkeeper: ["enter_invoices", "post_payments", "bank_reconcile"] } as const;
+    const [row] = parseAccessExport(
+      "Name,Email,User Role\nAna Ruiz,ana@x.com,Bookkeeper\n",
+      [ana],
+      "2026-09-24",
+      roles,
+    ).users;
+    expect(row).toMatchObject({ status: "mapped", extra: [], missingFromBooks: [] });
+    const [reports] = parseAccessExport(
+      "Name,Email,User Role\nAna Ruiz,ana@x.com,Reports only\n",
+      [{ ...ana, role: "Volunteer" }],
+      "2026-09-24",
+      {},
+    ).users;
+    expect(reports.missingFromBooks).toEqual([]);
+  });
+});
+
 describe("matching people whose names are spelled without accents", () => {
   it("matches an export row 'Jose Perez' to the team member 'José Pérez'", () => {
     const people = [
@@ -71,6 +116,7 @@ describe("matching people whose names are spelled without accents", () => {
       "Name,Email,Role\nJose Perez,j@example.com,Admin\n",
       people,
       "2026-09-26",
+      {},
     );
     expect(parsed.users.map((u) => u.personId)).toEqual(["p1"]);
   });

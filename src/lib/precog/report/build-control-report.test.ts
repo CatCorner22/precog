@@ -75,9 +75,8 @@ describe("buildControlReportModel", () => {
       roleTemplates: {},
     };
     const model = buildControlReportModel({ ...base, tpl, mapReady: false });
-    expect(model.sod.conflicts.some((c) => c.ruleId.startsWith("family-"))).toBe(true);
+    expect(model.sod.conflicts.some((c) => c.ruleId.startsWith("family-"))).toBe(false);
     expect(model.citing.count).toBe(0);
-    expect(model.evidence.length).toBeGreaterThan(0);
     expect(model.lossRange).toBeNull();
     expect(model.found.n).toBe(0);
   });

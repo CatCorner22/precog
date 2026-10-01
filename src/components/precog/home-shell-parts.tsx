@@ -70,7 +70,10 @@ export function TabStrip({
         aria-label="Sections"
         data-tab-count={tabCount}
         onKeyDown={onKeyDown}
-        className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6 [scrollbar-width:thin]"
+        // `relative` makes the strip the containing block of absolutely placed
+        // text inside a tab (the badges' screen-reader text), so it scrolls and
+        // clips with the tabs instead of widening the page on a phone.
+        className="relative mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6 [scrollbar-width:thin]"
       >
         {children}
       </nav>

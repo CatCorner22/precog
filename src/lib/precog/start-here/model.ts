@@ -213,6 +213,8 @@ export function buildStartHereModel({
       (a, b) =>
         Number(a.dualReleaseMitigated) - Number(b.dualReleaseMitigated) || b.score - a.score,
     );
+  // The open findings, as the report counts them.
+  const open = openFindings(sod.conflicts, partialCoverage);
   const gaps = groupGaps(openConflicts, partialCoverage);
   const topThree = gaps.slice(0, 3);
   const placesOf = locationsById(template.people);
@@ -228,7 +230,7 @@ export function buildStartHereModel({
       (g) => g.conflict.dualReleaseMitigated && !partialCoverage.has(g.conflict.ruleId),
     ).length,
     partialCoverage,
-    headline: concentrationHeadline(sod.conflicts),
+    headline: concentrationHeadline(open),
     keptApart: separatedPairs(sod.conflicts, sod.assignments),
     ownerHeld: ownerHeldPairs(sod.conflicts),
     titleDuties: isSampleTeam ? "" : titleDutiesSentence(template.people),
@@ -242,8 +244,7 @@ export function buildStartHereModel({
     tenureNote: tenureNote(topThree, template.people),
   };
 
-  // What these gaps have cost: the open findings, as the report counts them.
-  const open = openFindings(sod.conflicts, partialCoverage);
+  // What these gaps have cost: the open findings.
   const openRuleIds = ruleIdsOf(open);
   const evidence = casesForSodRules(openRuleIds);
   const citing = citingCaseStats(openRuleIds);

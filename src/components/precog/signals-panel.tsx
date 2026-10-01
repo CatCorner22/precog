@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Activity, Brain, ExternalLink, Search } from "lucide-react";
+import { residualScope } from "@/lib/precog/scoring/scope";
 
 /**
  * The Patterns tab's "Signals + guidance" view: the conditions this app
@@ -23,9 +24,24 @@ export function SignalsPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const defaultQuery = defaultRagQuery(profile.industry);
   const [ragQuery, setRagQuery] = useState(defaultQuery);
 
+  const scope = useMemo(
+    () =>
+      residualScope({
+        decisions: profile.decisions,
+        industry: profile.industry,
+        riskVariables: profile.riskVariables,
+      }),
+    [profile.decisions, profile.industry, profile.riskVariables],
+  );
   const leading = useMemo(
-    () => scoreLeadingIndicators(template, profile.staff, profile.riskVariables),
-    [template, profile.staff, profile.riskVariables],
+    () =>
+      scoreLeadingIndicators(
+        template,
+        profile.staff,
+        profile.riskVariables,
+        scope.confirmedScenarioIds,
+      ),
+    [template, profile.staff, profile.riskVariables, scope],
   );
   const rag = useMemo(
     () => retrieveKnowledge(ragQuery, { topK: 4, industry: template.id }),

@@ -7,6 +7,8 @@ const people: Person[] = [
   { id: "b", name: "Ben", role: "Bookkeeper", active: true, entitlements: ["enter_invoices"] },
 ];
 
+const none: ReadonlyMap<string, number> = new Map();
+
 describe("pilot engagement", () => {
   it("treats two people with duties as a complete map", () => {
     expect(mapIsComplete(people)).toBe(true);
@@ -45,8 +47,13 @@ describe("pilot engagement", () => {
     expect(stamp?.startedAt).toBeUndefined();
     expect(stamp?.mapCompletedAt).toBe("2026-09-04T00:00:00.000Z");
     expect(
-      pilotMetrics({ engagement: stamp, conflicts: [], decisions: [], industry: "general" })
-        .hoursToMap,
+      pilotMetrics({
+        engagement: stamp,
+        conflicts: [],
+        partialCoverage: none,
+        decisions: [],
+        industry: "general",
+      }).hoursToMap,
     ).toBeNull();
   });
 
@@ -54,6 +61,7 @@ describe("pilot engagement", () => {
     const conflict = (ruleId: string, linkedControlId?: string) => ({
       ruleId,
       linkedControlId,
+      ownerHeld: false,
       residualRiskAccepted: false,
       dualReleaseMitigated: false,
     });
@@ -64,6 +72,7 @@ describe("pilot engagement", () => {
         reportSentAt: "2026-09-03T00:00:00.000Z",
       },
       conflicts: [conflict("r1", "c1"), conflict("r2")],
+      partialCoverage: none,
       decisions: [{ kind: "remediate", linkedId: "c1" }, { kind: "accept_residual" }],
       industry: "general",
     });
@@ -77,9 +86,15 @@ describe("pilot engagement", () => {
   it("reaches 100% and zero open when every finding is answered", () => {
     const metrics = pilotMetrics({
       conflicts: [
-        { ruleId: "r1", residualRiskAccepted: false, dualReleaseMitigated: false },
-        { ruleId: "r2", residualRiskAccepted: false, dualReleaseMitigated: true },
+        {
+          ruleId: "r1",
+          ownerHeld: false,
+          residualRiskAccepted: false,
+          dualReleaseMitigated: false,
+        },
+        { ruleId: "r2", ownerHeld: false, residualRiskAccepted: false, dualReleaseMitigated: true },
       ],
+      partialCoverage: none,
       decisions: [{ kind: "accept_residual", linkedId: "r1" }],
       industry: "general",
     });
@@ -89,12 +104,64 @@ describe("pilot engagement", () => {
 
   it("does not follow a decision linked under another industry", () => {
     const metrics = pilotMetrics({
-      conflicts: [{ ruleId: "r1", residualRiskAccepted: false, dualReleaseMitigated: false }],
+      conflicts: [
+        {
+          ruleId: "r1",
+          ownerHeld: false,
+          residualRiskAccepted: false,
+          dualReleaseMitigated: false,
+        },
+      ],
+      partialCoverage: none,
       decisions: [{ kind: "monitor", linkedId: "r1", linkedIndustry: "dental" }],
       industry: "general",
     });
     expect(metrics.openFindings).toBe(1);
     expect(metrics.acceptanceRate).toBe(0);
+  });
+
+  it("leaves the owner's own pairs out, as Start here and the report do", () => {
+    const owners = [1, 2, 3].map((n) => ({
+      ruleId: `r${n}`,
+      ownerHeld: true,
+      residualRiskAccepted: false,
+      dualReleaseMitigated: false,
+    }));
+    const metrics = pilotMetrics({
+      conflicts: owners,
+      partialCoverage: none,
+      decisions: [],
+      industry: "general",
+    });
+    expect(metrics.openFindings).toBe(0);
+    expect(metrics.acceptedFindings).toBe(0);
+    expect(metrics.acceptanceRate).toBeNull();
+  });
+
+  it("counts a pair dual release covers only above a threshold as open until a decision answers it", () => {
+    const narrowed = {
+      ruleId: "rule-writeoff",
+      ownerHeld: false,
+      residualRiskAccepted: false,
+      dualReleaseMitigated: true,
+    };
+    const partialCoverage = new Map([["rule-writeoff", 150]]);
+    const unanswered = pilotMetrics({
+      conflicts: [narrowed],
+      partialCoverage,
+      decisions: [],
+      industry: "general",
+    });
+    expect(unanswered.openFindings).toBe(1);
+    expect(unanswered.acceptanceRate).toBe(0);
+    const answered = pilotMetrics({
+      conflicts: [narrowed],
+      partialCoverage,
+      decisions: [{ kind: "monitor", linkedId: "rule-writeoff" }],
+      industry: "general",
+    });
+    expect(answered.openFindings).toBe(0);
+    expect(answered.acceptanceRate).toBe(1);
   });
 
   it("does not treat a sample practice name as the owner's team", () => {

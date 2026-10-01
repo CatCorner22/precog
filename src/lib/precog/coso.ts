@@ -15,6 +15,7 @@ import { CONFLICT_RULES } from "./sod/conflict-rules";
 import { withLiveThreshold } from "./controls/dual-release-wording";
 import { formatUsd } from "../utils";
 import { count, joinWithAnd } from "./text";
+import { clamp } from "./number";
 import { tabLabel } from "./navigation";
 
 export type CosoComponentId =
@@ -122,17 +123,18 @@ export function assessCoso(
     72 - (staff.segregationScore < 50 ? 12 : 0) - (unaddressedGaps.length > 2 ? 10 : 0),
   );
 
-  const riskAssessmentScore = Math.max(
-    20,
-    78 - spofs.length * 8 - (topScenario && topScenario.result.timelineDays.p50 < 60 ? 8 : 0),
-  );
+  // No penalty for a short time until found: a detective control shortens
+  // it, and turning one on must never lower a component.
+  const riskAssessmentScore = Math.max(20, 78 - spofs.length * 8);
 
-  const controlActivitiesScore = Math.max(
-    15,
+  // On the same 0 to 100 scale as every other component.
+  const controlActivitiesScore = clamp(
     staff.segregationScore -
       (staff.dualControlPayments ? 0 : 12) -
       (staff.independentBankRec ? 0 : 10) +
       (sodGaps.length === 0 ? 15 : 0),
+    15,
+    100,
   );
 
   const infoCommScore = Math.max(
@@ -144,7 +146,9 @@ export function assessCoso(
     20,
     55 +
       (staff.independentBankRec ? 15 : 0) +
-      (residualAccepted.length > 0 && unaddressedGaps.length === 0 ? 10 : 0) -
+      // Every duty conflict answered, whether accepted or closed: closing
+      // the last one must not score below accepting it.
+      (unaddressedGaps.length === 0 ? 10 : 0) -
       unaddressedGaps.length * 6,
   );
 
@@ -194,11 +198,13 @@ export function assessCoso(
         {
           number: 5,
           name: "Accountability",
-          status: residualAccepted.length > 0 ? "adequate" : "weak",
+          status: sodGaps.length === 0 ? "adequate" : "weak",
           note:
-            residualAccepted.length > 0
-              ? "The business has recorded a residual-risk decision on at least one duty conflict."
-              : "The business has not recorded a residual-risk decision on any duty conflict.",
+            sodGaps.length === 0
+              ? "No open duty conflict needs a residual-risk decision."
+              : residualAccepted.length > 0
+                ? "A residual-risk decision is recorded. A recorded decision is not a test of the control."
+                : "The business has not recorded a residual-risk decision on any duty conflict.",
         },
       ],
       findings:
@@ -317,29 +323,26 @@ export function assessCoso(
         {
           number: 12,
           name: "Policies and procedures",
-          status: unaddressedGaps.some((g) => g.compensatingControls.length === 0)
-            ? "weak"
-            : "adequate",
-          note: (() => {
-            const bare = unaddressedGaps.filter((g) => g.compensatingControls.length === 0).length;
-            return bare
-              ? `${count(bare, "duty conflict")} with no recorded residual-risk decision and no compensating control written down.`
-              : "Every duty conflict without a recorded residual-risk decision has a compensating control written down.";
-          })(),
+          status: unaddressedGaps.length === 0 ? "adequate" : "weak",
+          note:
+            unaddressedGaps.length === 0
+              ? "No open duty conflict."
+              : "A sentence or a recorded residual-risk decision is not a tested control. Open duty conflicts remain untested.",
         },
       ],
       findings: sodGaps.map((g) => ({
         id: `ca-${g.id}`,
         label: g.name,
-        detail:
-          g.compensatingControls.length > 0
-            ? `Compensating: ${g.compensatingControls
+        detail: g.residualRiskAccepted
+          ? "Decision recorded, not tested."
+          : g.compensatingControls.length > 0
+            ? `A sentence is written down, not a tested control: ${g.compensatingControls
                 .map((c) =>
                   withLiveThreshold(c, opts.dualRelease, RULE_IDS_BY_CONTROL.get(g.id) ?? []),
                 )
                 .join("; ")}`
             : "Nobody has written down a compensating control.",
-        severity: g.residualRiskAccepted ? "adequate" : "critical",
+        severity: g.residualRiskAccepted ? "weak" : "critical",
         link: { type: "sod" as const },
       })),
       primaryActions: [

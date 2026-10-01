@@ -248,6 +248,27 @@ export interface LeaverAccessCheck {
 
 /** Most leaver checks kept per business; the oldest confirmed ones go first. */
 export const MAX_LEAVER_CHECKS = 300;
+/**
+ * The hard bound on stored leaver checks, open ones included. Open checks are
+ * never dropped to reach MAX_LEAVER_CHECKS; this only guards against an
+ * oversized stored list.
+ */
+const MAX_STORED_LEAVER_CHECKS = 2000;
+
+/**
+ * Leaver checks (newest first) trimmed to the cap: the oldest confirmed
+ * checks go first, and an open check never goes for the cap.
+ */
+export function trimLeaverChecks<T extends { confirmedOn?: string }>(checks: readonly T[]): T[] {
+  let excess = checks.length - MAX_LEAVER_CHECKS;
+  if (excess <= 0) return [...checks];
+  const kept: T[] = [];
+  for (let i = checks.length - 1; i >= 0; i--) {
+    if (excess > 0 && checks[i].confirmedOn) excess--;
+    else kept.push(checks[i]);
+  }
+  return kept.reverse().slice(0, MAX_STORED_LEAVER_CHECKS);
+}
 
 // ── Defaults and the normaliser ────────────────────────────────────────────
 
@@ -439,7 +460,7 @@ export function normalizePlannedAbsences(value: unknown): PlannedAbsence[] {
 function normalizeLeaverAccessChecks(value: unknown): LeaverAccessCheck[] {
   if (!Array.isArray(value)) return [];
   const out: LeaverAccessCheck[] = [];
-  for (const entry of value.slice(0, MAX_LEAVER_CHECKS)) {
+  for (const entry of value.slice(0, MAX_STORED_LEAVER_CHECKS)) {
     if (!entry || typeof entry !== "object") continue;
     const raw = entry as Record<string, unknown>;
     if (typeof raw.id !== "string" || typeof raw.name !== "string" || !raw.name.trim()) continue;
@@ -461,7 +482,7 @@ function normalizeLeaverAccessChecks(value: unknown): LeaverAccessCheck[] {
         : {}),
     });
   }
-  return out;
+  return trimLeaverChecks(out);
 }
 
 /** Each risk variable is bounded by its catalog definition, or falls back to the default. */
@@ -598,6 +619,8 @@ export function hasUserWork(profile: PracticeProfile): boolean {
     profile.mapVersions?.length ||
     profile.savedProcessBlocks?.length ||
     Object.keys(profile.mapLayout ?? {}).length ||
+    profile.procedures?.length ||
+    profile.places?.length ||
     !isDemoName(profile.practiceName),
   );
 }

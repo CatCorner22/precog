@@ -41,8 +41,8 @@ export interface ScenarioRunData {
 
 /**
  * A scenario's figures as assumptions: "assumed retained $5,000 · about 90
- * days until found · assumed yearly cost of risk $4,782". The cost of risk is
- * left out, never printed as $0, when the engine computed none.
+ * days until found". The assumed annual frequency is not printed. It is not
+ * a measured rate.
  */
 export function describeScenarioFigures(
   d: Pick<ScenarioRunData, "retained" | "timelineDays" | "dynamic">,
@@ -50,9 +50,6 @@ export function describeScenarioFigures(
   return [
     `assumed retained ${formatUsd(d.retained.expected)}`,
     `about ${d.timelineDays.p50} days until found`,
-    ...(d.dynamic
-      ? [`assumed yearly cost of risk ${formatUsd(d.dynamic.expectedAnnualCostOfRisk)}`]
-      : []),
   ].join(" · ");
 }
 
@@ -157,7 +154,7 @@ export function insuranceCostOfRisk({
   const policyNote = insuranceFigureNote(riskVars, ownBusiness, scenarioId);
   return {
     ok: true,
-    summary: `CoR ${formatUsd(dyn.transfer.expectedAnnualCostOfRisk)}; premium ${formatUsd(dyn.transfer.premiumAnnualNet)}${policyNote ? ` (${policyNote})` : ""}`,
+    summary: `Premium ${formatUsd(dyn.transfer.premiumAnnualNet)}${policyNote ? ` (${policyNote})` : ""}. Retained loss if this happened is not annualized.`,
     data: {
       scenarioId,
       variables: riskVars,

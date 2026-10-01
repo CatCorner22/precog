@@ -1,6 +1,6 @@
 import type { IndustryId } from "../industry";
 import {
-  MAX_LEAVER_CHECKS,
+  trimLeaverChecks,
   makeDecisionId,
   type DecisionEntry,
   type LeaverAccessCheck,
@@ -92,14 +92,7 @@ export function noteDepartures(
   }
   if (added.length === 0 && redated.size === 0) return checks as LeaverAccessCheck[];
   // Newest first; the oldest confirmed checks drop off past the cap, never an open one.
-  const all = [...added, ...checks.map((check) => redated.get(check.id) ?? check)];
-  while (all.length > MAX_LEAVER_CHECKS) {
-    let lastConfirmed = all.length - 1;
-    while (lastConfirmed >= 0 && !all[lastConfirmed].confirmedOn) lastConfirmed--;
-    if (lastConfirmed < 0) break;
-    all.splice(lastConfirmed, 1);
-  }
-  return all;
+  return trimLeaverChecks([...added, ...checks.map((check) => redated.get(check.id) ?? check)]);
 }
 
 /**

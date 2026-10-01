@@ -97,7 +97,7 @@ export function FirmMembers({
   async function remove(userId: string, name: string) {
     if (
       !window.confirm(
-        `Remove ${name} from ${firm.name}? They lose access to the firm's clients, and the businesses they own leave the firm with them.`,
+        `Remove ${name} from ${firm.name}? They lose access to the firm's clients, their share links to those clients stop working, and the businesses they own leave the firm with them.`,
       )
     )
       return;
@@ -112,7 +112,7 @@ export function FirmMembers({
   async function leave() {
     if (
       !window.confirm(
-        `Leave ${firm.name}? You lose access to the firm's clients, and the businesses you own leave the firm with you.`,
+        `Leave ${firm.name}? You lose access to the firm's clients, your share links to those clients stop working, and the businesses you own leave the firm with you.`,
       )
     )
       return;
@@ -128,8 +128,9 @@ export function FirmMembers({
     <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-lg font-semibold">People at the firm</h2>
       <p className="mt-1 text-sm text-muted">
-        A preparer maps clients, records reviews and locks reports. A reviewer does the same and
-        signs off reports prepared by someone else. Every member sees every client of the firm.
+        A preparer maps clients, records monthly review results and control checks, and locks
+        reports. A reviewer does the same, reviews control checks, and signs off reports that
+        someone else prepared. Every member sees every client of the firm.
       </p>
       <ul className="mt-3 divide-y divide-border">
         {members.map((m) => (

@@ -2,11 +2,12 @@ import { assertSameSiteRequest } from "@/lib/auth/isolation.server";
 import { assertExpectedAccount } from "@/lib/auth/expected-account";
 import { DEV_USER_ID, authConfigured, getSessionUser } from "@/lib/auth/verify.server";
 import { requestIp } from "@/lib/request-ip.server";
+import { trustedClientIpHeaders } from "@/lib/client-ip";
 import { databaseConfigured, getSql } from "@/lib/db";
-import { withinDailyBudget } from "./daily-usage";
+import { checkDailyBudget } from "./daily-usage";
 import { grokChat, type GrokChatOptions, type GrokChatResult } from "./grok-client.server";
 import { createAnonymousHeavyGate, LLM_LIMITS, SlidingWindowLimiter } from "./rate-limit";
-import type { GrokAccess } from "./types";
+import { DailyLimitReached, type GrokAccess } from "./types";
 import { RequestError } from "@/lib/request-errors";
 
 export type LlmAccess = {
@@ -85,9 +86,10 @@ export async function resolveLlmAccess(
 /**
  * The one way to call the model for a request the middleware allowed. Spends
  * one unit of the persisted daily budget first, so only an attempted model
- * call is counted. Returns null, and the caller uses its local answer, when
- * the request may not call the model, the daily budget is spent or cannot be
- * read (fails closed), or the upstream call fails.
+ * call is counted. Throws DailyLimitReached when today's budget is spent.
+ * Returns null, and the caller uses its local answer, when the request may
+ * not call the model, the budget cannot be read (fails closed), or the
+ * upstream call fails.
  */
 export async function callModel(
   access: LlmAccess,
@@ -95,8 +97,33 @@ export async function callModel(
 ): Promise<GrokChatResult | null> {
   const apiKey = process.env.XAI_API_KEY?.trim();
   if (access.grok !== "allowed" || !access.userId || !apiKey) return null;
-  if (!(await withinDailyBudget(getSql, access.userId))) return null;
+  const budget = await checkDailyBudget(
+    getSql,
+    access.userId,
+    undefined,
+    undefined,
+    callerAddress(),
+  );
+  if (budget === "spent") throw new DailyLimitReached();
+  if (budget !== "allowed") return null;
   return grokChat(apiKey, opts);
+}
+
+/** The calling address for the daily budget, or null outside a request. */
+/**
+ * The caller's address for the per-address daily ceiling, or null when no
+ * trusted header names it: behind an untrusted proxy every caller shares the
+ * proxy's address (or "unknown"), and one shared bucket would quietly become
+ * a second, smaller global ceiling.
+ */
+function callerAddress(): string | null {
+  if (trustedClientIpHeaders().length === 0) return null;
+  try {
+    const address = requestIp();
+    return address === "unknown" ? null : address;
+  } catch {
+    return null;
+  }
 }
 
 const TRY_AGAIN = "Too many requests — try again in a minute.";

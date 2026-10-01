@@ -10,6 +10,7 @@ import {
   exceptionActionLabel,
 } from "@/components/precog/dual-release-constants";
 import type { DualReleasePanelModel } from "@/components/precog/use-dual-release-panel";
+import { datesReversed } from "@/components/precog/dual-release-panel-actions";
 
 export function DualReleaseExceptionsCard({ model }: { model: DualReleasePanelModel }) {
   const {
@@ -26,6 +27,7 @@ export function DualReleaseExceptionsCard({ model }: { model: DualReleasePanelMo
     toggleException,
     removeException,
   } = model;
+  const reversed = datesReversed(exForm);
 
   return (
     <Card>
@@ -143,10 +145,23 @@ export function DualReleaseExceptionsCard({ model }: { model: DualReleasePanelMo
                 <input
                   type="date"
                   value={exForm.to}
+                  min={exForm.from || undefined}
                   onChange={(e) => updateExForm({ to: e.target.value })}
+                  aria-invalid={reversed || undefined}
+                  aria-describedby={reversed ? "exception-dates-error" : undefined}
                   className="mt-1 w-full rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-fg"
                 />
               </label>
+              {reversed && (
+                <p
+                  id="exception-dates-error"
+                  role="alert"
+                  className="text-xs text-danger sm:col-span-2"
+                >
+                  The end date is before the start date. Choose an end date on or after{" "}
+                  {formatDay(exForm.from)}.
+                </p>
+              )}
               <label className="block text-xs text-muted">
                 Amount from (optional)
                 <input
@@ -220,7 +235,7 @@ export function DualReleaseExceptionsCard({ model }: { model: DualReleasePanelMo
             <Button
               size="sm"
               onClick={addException}
-              disabled={!exForm.label.trim() || !exForm.reason.trim()}
+              disabled={!exForm.label.trim() || !exForm.reason.trim() || reversed}
             >
               Save exception
             </Button>

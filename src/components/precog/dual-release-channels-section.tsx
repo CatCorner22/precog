@@ -97,6 +97,18 @@ export function DualReleasePolicyOptionsCard({ model }: { model: DualReleasePane
           />
           Stop the payment when the second signer is missing
         </label>
+        <label className="flex items-start gap-2">
+          <input
+            type="checkbox"
+            checked={policy.unrelatedSignersAttested === true}
+            onChange={(e) => setPolicyOption({ unrelatedSignersAttested: e.target.checked })}
+            className="mt-0.5 size-4 accent-[var(--color-primary)]"
+          />
+          <span>
+            I attest the second signer does not share finances with the person who starts the
+            payment. A shared household mark is not dual control until this is checked.
+          </span>
+        </label>
         <p className="rounded-lg border border-border bg-panel p-3 text-xs text-muted">
           Every exception stays visible: the simulator shows the channel&apos;s threshold next to
           the one the exception sets, with the risk you keep. An active waiver shows here and in

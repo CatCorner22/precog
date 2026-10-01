@@ -62,6 +62,12 @@ describe("grantDuty", () => {
 });
 
 describe("rowDifferences", () => {
+  it("says first when the person has left", () => {
+    expect(rowDifferences({ ...row, leftBusiness: true })).toMatch(
+      /^Precog has this person as left: remove this sign-in from the books\./,
+    );
+  });
+
   it("names duties in words, never by their ids", () => {
     const text = rowDifferences(row);
     expect(text).not.toMatch(/release_payment|initiate_ach|bank_reconcile/);

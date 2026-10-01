@@ -93,10 +93,12 @@ describe("compensating controls in COSO findings", () => {
         .find((c) => c.id === "control_activities")!
         .findings.find((f) => f.id === "ca-c-sod-ap")!.detail;
     const off = assessCoso(tpl, p.staff, { dualRelease: { ...p.dualRelease, enabled: false } });
-    expect(detail(off)).toBe("Compensating: Dual release (off in your dual-release policy)");
+    expect(detail(off)).toBe(
+      "A sentence is written down, not a tested control: Dual release (off in your dual-release policy)",
+    );
     const on = assessCoso(tpl, p.staff, { dualRelease: { ...p.dualRelease, enabled: true } });
     expect(detail(on)).toBe(
-      "Compensating: Dual release per your policy: ACH / vendor electronic pay above $500; Paper checks above $500; New vendor master at every amount",
+      "A sentence is written down, not a tested control: Dual release per your policy: ACH / vendor electronic pay above $500; Paper checks above $500; New vendor master at every amount",
     );
     expect(detail(assessCoso(tpl, p.staff))).not.toContain("$1,000");
   });
@@ -135,6 +137,45 @@ describe("priority findings", () => {
     const fraud = a.components.flatMap((c) => c.findings).find((f) => f.id === "ra-fraud")!;
     expect(fraud.severity).toBe("adequate");
     expect(a.priorityFindings.some((f) => f.id === "ra-fraud")).toBe(false);
+  });
+});
+
+describe("COSO component scores", () => {
+  const dental = getIndustryTemplate("dental");
+  const withControls = (change: (c: (typeof dental.controls)[number]) => object) => ({
+    ...dental,
+    controls: dental.controls.map((c) => (c.segregated ? c : { ...c, ...change(c) })),
+  });
+  const score = (a: ReturnType<typeof assessCoso>, id: string) =>
+    a.components.find((c) => c.id === id)!.score;
+
+  it("stay on the 0 to 100 scale with every control in place", () => {
+    const a = assessCoso(
+      withControls(() => ({ segregated: true })),
+      {
+        ...clean,
+        dualControlPayments: true,
+      },
+    );
+    expect(score(a, "control_activities")).toBe(100);
+    for (const c of a.components) expect(c.score).toBeLessThanOrEqual(100);
+  });
+
+  it("do not score closing every duty conflict below accepting each one", () => {
+    const accepted = assessCoso(
+      withControls(() => ({ residualRiskAccepted: true })),
+      clean,
+    );
+    const closed = assessCoso(
+      withControls(() => ({ segregated: true })),
+      clean,
+    );
+    expect(score(closed, "monitoring")).toBeGreaterThanOrEqual(score(accepted, "monitoring"));
+    const p5 = closed.components
+      .find((c) => c.id === "control_environment")!
+      .principles.find((p) => p.number === 5)!;
+    expect(p5.status).toBe("adequate");
+    expect(p5.note).toBe("No open duty conflict needs a residual-risk decision.");
   });
 });
 

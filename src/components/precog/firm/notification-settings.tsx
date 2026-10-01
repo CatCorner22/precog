@@ -11,6 +11,7 @@ export function NotificationSettingsPanel({ signedIn }: { signedIn: boolean }) {
   const [state, setState] = useState<{
     settings: NotificationSettings;
     mailConfigured: boolean;
+    controlsOwnerReminders: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -27,7 +28,7 @@ export function NotificationSettingsPanel({ signedIn }: { signedIn: boolean }) {
   }, [signedIn]);
 
   if (!signedIn || !state) return null;
-  const { settings, mailConfigured } = state;
+  const { settings, mailConfigured, controlsOwnerReminders } = state;
 
   async function save(next: NotificationSettings) {
     const previous = settings;
@@ -44,9 +45,9 @@ export function NotificationSettingsPanel({ signedIn }: { signedIn: boolean }) {
     <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-lg font-semibold">Reminders</h2>
       <p className="mt-1 text-sm text-muted">
-        Once a week, what is due across your clients arrives by email: decisions past their review
-        date, people who have left whose logins are not yet confirmed removed, leave with nobody
-        named to cover, and the monthly review still open. We announce each item once.
+        Once a week, Precog emails what is due across your clients: decisions past their review
+        date, people who have left whose sign-ins nobody has yet confirmed removed, leave with
+        nobody named to cover, and the monthly review still open. Precog announces each item once.
       </p>
       {!mailConfigured && (
         <p className="mt-2 text-sm text-warn">
@@ -70,9 +71,14 @@ export function NotificationSettingsPanel({ signedIn }: { signedIn: boolean }) {
             disabled={!mailConfigured}
             onChange={(e) => void save({ ...settings, ownerReminders: e.target.checked })}
           />
-          Also remind each client's owner at the address on their card
+          Remind each client's owner at the confirmed address on their card
         </label>
       </div>
+      <p className="mt-2 text-xs text-muted">
+        {controlsOwnerReminders
+          ? "Owner reminders go out whether or not you get the weekly digest."
+          : "For the firm's clients, the firm owner's setting decides whether owners get reminders. Yours counts only for businesses you keep outside the firm."}
+      </p>
     </section>
   );
 }

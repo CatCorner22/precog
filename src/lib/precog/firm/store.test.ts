@@ -6,11 +6,14 @@ import {
   createInvite,
   FirmMembershipError,
   insertReviewEvent,
+  inviteFit,
   leaveFirm,
   listClientEngagements,
   listInvites,
   listMembers,
   loadFirmFor,
+  maskEmail,
+  MAX_OWNER_EMAIL_REQUESTS_PER_DAY,
   peekInvite,
   removeMember,
   saveFirm,
@@ -18,6 +21,12 @@ import {
   setOwnerEmail,
   upsertEngagementMark,
 } from "./store";
+import {
+  confirmOwnerEmail,
+  findOwnerConsent,
+  isOwnerConsentToken,
+  stopOwnerEmail,
+} from "../reminders/owner-consent";
 
 let db: TestDb;
 
@@ -110,20 +119,24 @@ describe("firm membership", () => {
     await saveFirm(db.sql, "ua", "North Advisors", "assessment");
     const invite = await createInvite(db.sql, {
       firmUserId: "ua",
-      email: "Bea@Example.test",
+      email: "UB@Example.test",
       role: "reviewer",
       token: "tok_1",
     });
-    expect(invite.email).toBe("bea@example.test");
+    expect(invite.email).toBe("ub@example.test");
     expect((await listInvites(db.sql, "ua")).map((i) => i.token)).toEqual(["tok_1"]);
     expect(await peekInvite(db.sql, "tok_1")).toEqual({
       firmName: "North Advisors",
       role: "reviewer",
-      email: "bea@example.test",
+      email: "u***@example.test",
     });
 
     const joined = await acceptInvite(db.sql, "tok_1", "ub");
-    expect([joined.firmUserId, joined.role]).toEqual(["ua", "reviewer"]);
+    expect([joined.firm.firmUserId, joined.firm.role, joined.unmatched]).toEqual([
+      "ua",
+      "reviewer",
+      null,
+    ]);
     expect(await listInvites(db.sql, "ua")).toEqual([]);
     await expect(acceptInvite(db.sql, "tok_1", "uc")).rejects.toBeInstanceOf(FirmMembershipError);
 
@@ -139,13 +152,13 @@ describe("firm membership", () => {
     await saveFirm(db.sql, "uc", "South", "assessment");
     await createInvite(db.sql, {
       firmUserId: "ua",
-      email: "b@x.test",
+      email: "ub@example.test",
       role: "preparer",
       token: "t1",
     });
     await createInvite(db.sql, {
       firmUserId: "uc",
-      email: "b@x.test",
+      email: "ub@example.test",
       role: "preparer",
       token: "t2",
     });
@@ -161,7 +174,7 @@ describe("firm membership", () => {
     await saveFirm(db.sql, "ua", "North", "assessment");
     await createInvite(db.sql, {
       firmUserId: "ua",
-      email: "b@x.test",
+      email: "ub@example.test",
       role: "preparer",
       token: "t1",
     });
@@ -179,7 +192,7 @@ describe("firm membership", () => {
 describe("firm membership edge cases", () => {
   async function invite(
     token: string,
-    email = "b@x.test",
+    email = "ub@example.test",
     role: "preparer" | "reviewer" = "preparer",
   ) {
     return createInvite(db.sql, { firmUserId: "ua", email, role, token });
@@ -201,7 +214,7 @@ describe("firm membership edge cases", () => {
     );
     expect(rows.rows[0].firm_user_id).toBeNull();
 
-    await invite("t2", "c@x.test");
+    await invite("t2", "uc@example.test");
     await acceptInvite(db.sql, "t2", "uc");
     await db.pg.query("update businesses set firm_user_id = 'ua' where user_id = 'uc'");
     await leaveFirm(db.sql, "ua", "uc");
@@ -245,7 +258,7 @@ describe("firm membership edge cases", () => {
     }
     await db.pg.query(
       `insert into firm_invites (token, firm_user_id, email, role, expires_at)
-       values ('late', 'ua', 'late@x.test', 'preparer', now() + interval '1 day')`,
+       values ('late', 'ua', 'ub@example.test', 'preparer', now() + interval '1 day')`,
     );
     await expect(acceptInvite(db.sql, "late", "ub")).rejects.toBeInstanceOf(FirmMembershipError);
     expect(await loadFirmFor(db.sql, "ub")).toBeNull();
@@ -262,7 +275,7 @@ describe("client engagement figures", () => {
   it("a client nobody has counted shows no conflict figure instead of zero", async () => {
     await saveFirm(db.sql, "ua", "North", "assessment");
     expect((await listClientEngagements(db.sql, "ua", "ua"))[0].openFindings).toBeNull();
-    await setOwnerEmail(db.sql, "ua", "biz_1", "owner@client.test");
+    await setOwnerEmail(db.sql, "ua", "biz_1", "owner@client.test", "ua");
     expect((await listClientEngagements(db.sql, "ua", "ua"))[0].openFindings).toBeNull();
     await upsertEngagementMark(db.sql, "ua", {
       businessId: "biz_1",
@@ -271,5 +284,135 @@ describe("client engagement figures", () => {
     });
     const [row] = await listClientEngagements(db.sql, "ua", "ua");
     expect([row.openFindings, row.ownerEmail]).toEqual([0, "owner@client.test"]);
+  });
+});
+
+describe("invitation and the accepting account's address", () => {
+  beforeEach(async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await createInvite(db.sql, {
+      firmUserId: "ua",
+      email: "alice@cpa.test",
+      role: "preparer",
+      token: "t1",
+    });
+  });
+
+  it("refuses an account whose confirmed address is another one and keeps the invitation open", async () => {
+    expect(await inviteFit(db.sql, "t1", "ub")).toEqual({
+      fit: "mismatch",
+      accountEmail: "ub@example.test",
+    });
+    await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toThrow(
+      /sent this invitation to a\*\*\*@cpa\.test/,
+    );
+    await expect(
+      acceptInvite(db.sql, "t1", "ub", { confirmOtherEmail: true }),
+    ).rejects.toBeInstanceOf(FirmMembershipError);
+    expect(await peekInvite(db.sql, "t1")).not.toBeNull();
+    expect(await loadFirmFor(db.sql, "ub")).toBeNull();
+  });
+
+  it("admits the invited address without asking", async () => {
+    await db.pg.query(`update "user" set email = 'alice@cpa.test' where id = 'ub'`);
+    expect((await inviteFit(db.sql, "t1", "ub"))?.fit).toBe("match");
+    expect((await acceptInvite(db.sql, "t1", "ub")).unmatched).toBeNull();
+  });
+
+  it("refuses an address Precog cannot vouch for, and keeps the invitation open", async () => {
+    await db.pg.query(`update "user" set "emailVerified" = false where id = 'ub'`);
+    expect((await inviteFit(db.sql, "t1", "ub"))?.fit).toBe("confirm");
+    await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toThrow(/cannot match this account/);
+    await expect(acceptInvite(db.sql, "t1", "ub", { confirmOtherEmail: true })).rejects.toThrow(
+      /cannot match this account/,
+    );
+    expect(await peekInvite(db.sql, "t1")).not.toBeNull();
+    expect(await loadFirmFor(db.sql, "ub")).toBeNull();
+  });
+
+  it("treats an X-only account's address as one Precog cannot vouch for", async () => {
+    await db.pg.query(
+      `insert into account (id, "accountId", "providerId", "userId", "createdAt", "updatedAt")
+       values ('acc_x', 'x-1', 'grok-x', 'ub', now(), now())`,
+    );
+    expect((await inviteFit(db.sql, "t1", "ub"))?.fit).toBe("confirm");
+  });
+
+  it("masks the invited address", () => {
+    expect(maskEmail("alice@cpa.test")).toBe("a***@cpa.test");
+    expect(maskEmail("nobody")).toBe("***");
+  });
+});
+
+describe("client owner address consent", () => {
+  async function status() {
+    return (await listClientEngagements(db.sql, "ua", null))[0].ownerEmailStatus;
+  }
+
+  it("waits for the owner to confirm, stops on request, and asks again for a new address", async () => {
+    const first = await setOwnerEmail(db.sql, "ua", "biz_1", "owner@client.test", "ua");
+    expect(isOwnerConsentToken(first.confirmToken)).toBe(true);
+    expect(await status()).toBe("waiting");
+    expect(await findOwnerConsent(db.sql, first.confirmToken!)).toEqual({
+      businessName: "Client UA",
+      confirmed: false,
+      stopped: false,
+    });
+
+    expect(await confirmOwnerEmail(db.sql, first.confirmToken!)).toBe(true);
+    expect(await status()).toBe("confirmed");
+    const again = await setOwnerEmail(db.sql, "ua", "biz_1", "owner@client.test", "ua");
+    expect(again.confirmToken).toBeNull();
+    expect(await status()).toBe("confirmed");
+
+    expect(await stopOwnerEmail(db.sql, first.confirmToken!)).toBe(true);
+    expect(await status()).toBe("stopped");
+
+    const other = await setOwnerEmail(db.sql, "ua", "biz_1", "new@client.test", "ua");
+    expect(other.confirmToken).not.toBe(first.confirmToken);
+    expect(await status()).toBe("waiting");
+    expect(await confirmOwnerEmail(db.sql, first.confirmToken!)).toBe(false);
+
+    await setOwnerEmail(db.sql, "ua", "biz_1", null, "ua");
+    expect(await status()).toBeNull();
+  });
+
+  it("never asks again an owner who stopped reminders, even after the address is cleared", async () => {
+    const first = await setOwnerEmail(db.sql, "ua", "biz_1", "owner@client.test", "ua");
+    expect(await stopOwnerEmail(db.sql, first.confirmToken!)).toBe(true);
+    const same = await setOwnerEmail(db.sql, "ua", "biz_1", "owner@client.test", "ua");
+    expect(same).toEqual({ confirmToken: null, stopped: true });
+    expect(await status()).toBe("stopped");
+    await setOwnerEmail(db.sql, "ua", "biz_1", null, "ua");
+    const back = await setOwnerEmail(db.sql, "ua", "biz_1", "owner@client.test", "ua");
+    expect(back).toEqual({ confirmToken: null, stopped: true });
+    expect(await status()).toBe("stopped");
+    // The owner's own link still turns the reminders back on.
+    expect(await confirmOwnerEmail(db.sql, first.confirmToken!)).toBe(true);
+    expect(await status()).toBe("confirmed");
+  });
+
+  it("says when an address saved before confirmation existed has had no link", async () => {
+    await db.pg.query(
+      `insert into engagement_marks (user_id, business_id, owner_email) values ('ua', 'biz_1', 'old@client.test')
+       on conflict (user_id, business_id) do update set owner_email = excluded.owner_email`,
+    );
+    expect(await status()).toBe("unsent");
+    const sent = await setOwnerEmail(db.sql, "ua", "biz_1", "old@client.test", "ua");
+    expect(isOwnerConsentToken(sent.confirmToken)).toBe(true);
+    expect(await status()).toBe("waiting");
+  });
+
+  it("limits the confirmation emails one account can cause in a day", async () => {
+    for (let i = 0; i < MAX_OWNER_EMAIL_REQUESTS_PER_DAY; i += 1) {
+      await setOwnerEmail(db.sql, "ua", "biz_1", `o${i}@client.test`, "ua");
+    }
+    await expect(
+      setOwnerEmail(db.sql, "ua", "biz_1", "late@client.test", "ua"),
+    ).rejects.toMatchObject({ status: 429 });
+    expect((await listClientEngagements(db.sql, "ua", null))[0].ownerEmail).toBe(
+      `o${MAX_OWNER_EMAIL_REQUESTS_PER_DAY - 1}@client.test`,
+    );
+    await setOwnerEmail(db.sql, "ub", "biz_1", "owner@client.test", "ub");
   });
 });

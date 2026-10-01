@@ -5,7 +5,7 @@ import {
   type PolicyField,
 } from "@/lib/precog/scoring/insurance-record";
 import { VARIABLE_CATALOG, type RiskVariableState } from "@/lib/precog/scoring/dynamic-variables";
-import { localDateKey } from "@/lib/precog/dates";
+import { formatDay, localDateKey } from "@/lib/precog/dates";
 import { policyFieldValue, withFieldToggled } from "./insurance-record-fields";
 
 /** No file upload or external model call: records the owner's stated basis. */
@@ -144,7 +144,7 @@ export function InsuranceRecordPanel({
           )}
           {record.reviewedOn && (
             <p className="text-xs text-subtle">
-              Last user confirmation: {record.reviewedOn}. Not a carrier review.
+              Last user confirmation: {formatDay(record.reviewedOn)}. Not a carrier review.
             </p>
           )}
         </>

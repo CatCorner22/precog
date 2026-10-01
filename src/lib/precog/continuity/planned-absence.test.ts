@@ -16,6 +16,7 @@ import {
   unplannedAbsenceToday,
 } from "./planned-absence";
 import { procedurePointer } from "./documentation";
+import { formatDayRange } from "../dates";
 
 const people: Person[] = [
   { id: "a", name: "Ana Ortiz", role: "Owner", active: true },
@@ -189,6 +190,41 @@ describe("plannedAbsenceReport", () => {
       extraStops: [knowledgeItem("payroll")],
     });
     expect(ana.impact.stops.map((s) => s.item.id)).toEqual(["payroll"]);
+  });
+
+  it("says when the named stand-in is out for part of the window", () => {
+    // Ben (only payroll expert) is out 5–10 Nov; Cy, who would stand in, is out 9–10 Nov.
+    const payroll = tpl(
+      [knowledgeItem("payroll")],
+      [
+        { personId: "b", knowledgeId: "payroll", level: "expert" },
+        { personId: "c", knowledgeId: "payroll", level: "basic" },
+      ],
+    );
+    const report = plannedAbsenceReport(
+      payroll,
+      [
+        absence("ben", "b", "2025-11-05", "2025-11-10"),
+        absence("cy", "c", "2025-11-09", "2025-11-10"),
+      ],
+      "general",
+      today,
+    );
+    const ben = report.windows.find((w) => w.absence.id === "ben")!;
+    expect(ben.impact.stops.map((s) => [s.item.id, s.standIn?.id])).toEqual([["payroll", "c"]]);
+    expect(ben.standInsAway).toEqual([
+      { item: knowledgeItem("payroll"), standIn: people[2], from: "2025-11-09", to: "2025-11-10" },
+    ]);
+    expect(ben.impact.actions.map((a) => a.text)).toContain(
+      `Cy Park is out too on ${formatDayRange("2025-11-09", "2025-11-10")}: name a second stand-in for "payroll" for those days.`,
+    );
+    const alone = plannedAbsenceReport(
+      register,
+      [absence("ben", "b", "2025-11-05", "2025-11-10")],
+      "general",
+      today,
+    );
+    expect(alone.windows[0].standInsAway).toEqual([]);
   });
 
   it("keeps the whole window as the peak when nobody overlaps", () => {

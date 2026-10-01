@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ownerText, parseJsonReply, withGrokFallback } from "./prompt-text";
 import type { LlmAccess } from "./guard.server";
+import { DailyLimitReached } from "./types";
 
 const access = (grok: LlmAccess["grok"]): LlmAccess => ({ userId: "owner-1", grok });
 
@@ -54,5 +55,14 @@ describe("withGrokFallback", () => {
         throw new Error("down");
       }),
     ).toMatchObject(local);
+  });
+
+  it("marks the local answer as a daily limit when today's model budget is spent", async () => {
+    vi.stubEnv("XAI_API_KEY", "key");
+    expect(
+      await withGrokFallback(access("allowed"), local, true, async () => {
+        throw new DailyLimitReached();
+      }),
+    ).toEqual({ source: "local", grokStatus: "daily_limit" });
   });
 });

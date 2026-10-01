@@ -6,6 +6,8 @@
 
 import type { Departure } from "../continuity/access-removal";
 import type { PeopleImportResult } from "../import/people-csv";
+import { parseRoster } from "../import/roster";
+import type { IndustryTemplate } from "../templates";
 import { industryHasOwner } from "../industry";
 import type { Person } from "../types";
 import { count, joinWithAnd, nameKey, titleKey, verb } from "../text";
@@ -38,6 +40,20 @@ interface PasteOutcome {
 
 /** Where an owner adds people once the setup table is full. */
 export const MORE_PEOPLE_PLACE = "How work flows > Build > Team";
+
+/**
+ * Reads a roster pasted into the setup grid. The industry template gives the
+ * role names and title readings, but not its people: they are a fictional
+ * sample team, and a pasted name that matches one must not take on that
+ * sample person's role, duties or years here. The grid matches its own rows.
+ */
+export function readPastedRoster(
+  text: string,
+  tpl: IndustryTemplate,
+  opts: { today?: Date } = {},
+): PeopleImportResult {
+  return parseRoster(text, { ...tpl, people: [] }, opts);
+}
 
 /**
  * Fills the grid from a pasted HR or payroll export, or a plain "Name,

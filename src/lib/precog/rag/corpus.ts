@@ -107,7 +107,7 @@ export function describeChunkBasis(chunk: KnowledgeChunk): string {
     : "";
   return b.kind === "cited"
     ? `Restates ${b.document} (${b.publisher}), ${b.url}.${cases}`
-    : `Practitioner guidance written for this app, with no single document behind it. ${b.note}${cases}`;
+    : `Practitioner guidance written for Precog, with no single document behind it. ${b.note}${cases}`;
 }
 
 export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
@@ -152,7 +152,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     tags: ["monitoring", "ongoing", "cadence", "owner review", "bank reconciliation"],
     text: `Use a risk-based monitoring schedule and retain the results. ${PAYMENT_DESTINATION_CHANGE.verification} ${PAYMENT_DESTINATION_CHANGE.monitoring} ${RECEIPT_SETTLEMENT.reconciliation} Assign a reviewer outside the activities being checked, including when the preparer is an owner. Frequencies are application suggestions, not frequencies prescribed by COSO.`,
     basis: practice(
-      "Review cadence written for this app; COSO describes ongoing and separate evaluations but sets no frequencies.",
+      "Review cadence written for Precog; COSO describes ongoing and separate evaluations but sets no frequencies.",
     ),
   },
   {
@@ -160,7 +160,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "Classic segregation of duties",
     domain: "sod",
     tags: ["sod", "custody", "authorization", "recording"],
-    text: "Classic SoD separates custody of assets, authorization of transactions, and recording in the books. In a 4–8 person office these roles often collide. Minimum viable compensating pattern: person who posts payments does not reconcile the bank; person who can write off AR does not solely control deposits; vendor setup requires second approval or owner review.",
+    text: "Classic segregation of duties separates custody of assets, authorization of transactions, and recording in the books. In a 4–8 person office these roles often collide. Minimum viable compensating pattern: person who posts payments does not reconcile the bank; person who can write off AR does not solely control deposits; vendor setup requires second approval or owner review.",
     basis: practice(
       "Standard segregation-of-duties doctrine as applied to a four-to-eight-person office.",
     ),
@@ -182,7 +182,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     tags: ["fraud", "opportunity", "pressure", "rationalization"],
     text: "The fraud triangle is pressure, opportunity, and rationalization. Controls act on opportunity (segregation of duties, dual control, monitoring); a business cannot see pressure or rationalization from the outside. Trust in a person does not shrink opportunity, because opportunity is a property of how work is divided, not of character. Benchmarks about occupational fraud describe populations, never any employee.",
     basis: practice(
-      "Summary of the fraud triangle, a concept from Donald R. Cressey, Other People's Money (1953). The application to small businesses is this app's.",
+      "Summary of the fraud triangle, a concept from Donald R. Cressey, Other People's Money (1953). Precog applies it to small businesses.",
     ),
   },
   {
@@ -208,7 +208,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "Mura and muri in staffing",
     domain: "lean",
     tags: ["mura", "muri", "unevenness", "overburden", "staffing"],
-    text: "Mura (unevenness) appears when one person owns all billing knowledge and others idle or thrash. Muri (overburden) appears when the office manager carries all SoD roles. Cross-training reduces both waste and knowledge single points of failure.",
+    text: "Mura (unevenness) appears when one person owns all billing knowledge and others idle or thrash. Muri (overburden) appears when the office manager carries every duty that segregation of duties keeps apart. Cross-training reduces both waste and knowledge single points of failure.",
     basis: practice("Lean (Toyota Production System) vocabulary applied to staffing."),
   },
   {
@@ -224,7 +224,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "Insurance transfer vs control design",
     domain: "insurance",
     tags: ["insurance", "deductible", "premium", "employee dishonesty"],
-    text: "Employee dishonesty / crime coverage transfers some residual financial risk but does not fix process design. Deductible sets retained floor; policy limit caps recovery; control credits (cameras, dual control, bank rec) may reduce premium. Annual cost of risk ≈ net premium + annualized expected retained loss. Raising deductible without improving detection often increases owner residual.",
+    text: "Employee dishonesty / crime coverage transfers some residual financial risk but does not fix process design. Deductible sets the retained floor; policy limit caps recovery; control credits (cameras, dual control, bank reconciliation) may reduce premium. Do not multiply an assumed frequency by the retained loss and call the product an annual cost. Show the loss if this happened, and the premium, separately. Precog's frequency is an assumption, not a measured rate. Raising the deductible without improving detection often increases what the owner keeps.",
     basis: practice(
       "Description of how crime-coverage terms interact with control design. Not any carrier's terms.",
     ),
@@ -243,7 +243,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     domain: "coso",
     tags: ["residual", "appetite", "accept", "remediate"],
     text: "Owners may accept residual risk deliberately when cost of further control exceeds benefit, but acceptance must be explicit, dated, and re-reviewed after staff or insurance changes. 'We trust our team' without monitoring is not residual acceptance — it is unmeasured residual.",
-    basis: practice("Risk-acceptance practice; the wording is this app's."),
+    basis: practice("Risk-acceptance practice; the wording is Precog's."),
   },
   {
     id: "dental-writeoffs",
@@ -269,7 +269,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     domain: "fraud",
     tags: ["leading indicators", "monitoring", "anomalies"],
     text: "Leading indicators include rising void/adjustment rates, delayed bank reconciliations, sole ownership of critical knowledge, overdue residual acceptance reviews, claims load factor increases, and sudden cash intensity spikes. Leading indicators beat lagging loss discovery.",
-    basis: practice("Monitoring practice; the indicator list is this app's."),
+    basis: practice("Monitoring practice; the indicator list is Precog's."),
   },
 
   // ---- Retail ----
@@ -494,7 +494,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
       "banking",
       "audit log",
     ],
-    text: "Base access control on least privilege and unique user identity. Avoid shared logins to the main business system, accounting, email, and banking; require MFA where available; review privileged access periodically; and disable access promptly when duties or employment change. Preserve audit logs and review high-risk activity such as exports, vendor edits, refunds, write-offs, and permission changes.",
+    text: "Base access control on least privilege and unique user identity. Avoid shared sign-ins to the main business system, accounting, email, and banking; require MFA where available; review privileged access periodically; and disable access promptly when duties or employment change. Preserve audit logs and review high-risk activity such as exports, vendor edits, refunds, write-offs, and permission changes.",
     basis: NIST_CSF,
   },
   {

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "../active-template";
 import { INDUSTRIES } from "../industry";
 import { defaultProfile, type DecisionEntry, type DecisionReview } from "../practice-profile";
+import { openFindings, partialDualReleaseCoverage } from "../sod/open-findings";
+import { concentrationHeadline } from "../sod/verdict";
 import { buildControlReportModel } from "./build-control-report";
 import {
   continuityFollowThrough,
@@ -105,9 +107,34 @@ describe("executive summary", () => {
     },
   );
 
+  it("counts open duty conflicts as the rest of the report does, dual release covering only above a threshold included", () => {
+    const base = defaultProfile("dental");
+    const profile = { ...base, dualRelease: { ...base.dualRelease, enabled: true } };
+    const model = buildControlReportModel({
+      tpl: resolveTemplate(profile),
+      profile,
+      mapCustomized: false,
+      today: "2026-09-26",
+      trackFreshness: false,
+      mapReady: false,
+      businessName: "Sample",
+    });
+    const partial = partialDualReleaseCoverage(profile.dualRelease, model.sod.conflicts);
+    const open = openFindings(model.sod.conflicts, partial);
+    // A pair narrowed only above a threshold stays open, and one closed at
+    // every amount does not: the summary must count both ways the same.
+    expect(open.some((c) => c.dualReleaseMitigated)).toBe(true);
+    expect(model.sod.conflicts.some((c) => c.dualReleaseMitigated && !partial.has(c.ruleId))).toBe(
+      true,
+    );
+    expect(model.summary[0]).toMatch(new RegExp(`^${open.length} open duty conflicts`));
+    const headline = concentrationHeadline(open);
+    if (headline) expect(model.summary[1]).toContain(`of the ${headline.totalGaps} open gaps`);
+  });
+
   it("says continuity is not assessed rather than printing a figure", () => {
     const lines = executiveSummary({
-      conflicts: [],
+      openConflicts: [],
       firstStep: null,
       registerReady: false,
       coverageIndex: 0,

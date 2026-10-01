@@ -14,7 +14,8 @@ import {
 import { mergeImportedEvidence } from "@/lib/precog/value-evidence-import";
 import { downloadText } from "@/lib/download";
 import { formatDay, isCalendarDate, localDateKey } from "@/lib/precog/dates";
-import { count, uid } from "@/lib/precog/text";
+import { uid } from "@/lib/precog/text";
+import { importEvidenceMessage } from "./value-evidence-register-text";
 
 /** One evidence item as typed: the amount stays text until it is saved. */
 interface EvidenceDraft {
@@ -78,15 +79,7 @@ export function ValueEvidenceRegister({
     try {
       const result = mergeImportedEvidence(items, parseValueEvidence(await file.text()));
       onChange(result.items);
-      const unchanged = items.length - result.updated;
-      setTransferMessage(
-        [
-          `Imported ${count(result.added + result.updated, "record")}: ${count(result.added, "new item")} added`,
-          result.updated > 0 ? `, ${count(result.updated, "item")} with the same id replaced` : "",
-          ".",
-          unchanged > 0 ? ` The ${count(unchanged, "other item")} stay as they were.` : "",
-        ].join(""),
-      );
+      setTransferMessage(importEvidenceMessage(result, items.length));
     } catch (error) {
       setTransferMessage(error instanceof Error ? error.message : "Import failed");
     }

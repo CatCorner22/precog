@@ -120,6 +120,31 @@ export interface TokenSet {
   refreshExpiresAt: string;
 }
 
+/**
+ * Intuit's token endpoint said no. `status` is the HTTP status and `code` the
+ * OAuth `error` code, when the answer had one.
+ */
+export class IntuitTokenError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string | null,
+  ) {
+    super(message);
+    this.name = "IntuitTokenError";
+  }
+
+  /**
+   * True when the grant itself is gone (revoked, expired or already
+   * rotated), so only connecting again helps. An outage, a 5xx or an
+   * unreadable answer is not that.
+   */
+  get grantRefused(): boolean {
+    if (this.code) return this.code === "invalid_grant";
+    return this.status === 400 || this.status === 401;
+  }
+}
+
 async function tokenRequest(params: Record<string, string>): Promise<TokenSet> {
   const res = await fetch(TOKEN_URL, {
     method: "POST",
@@ -140,7 +165,11 @@ async function tokenRequest(params: Record<string, string>): Promise<TokenSet> {
     error_description?: string;
   };
   if (!res.ok || !body.access_token || !body.refresh_token) {
-    throw new Error(body.error_description ?? body.error ?? `Intuit answered ${res.status}`);
+    throw new IntuitTokenError(
+      body.error_description ?? body.error ?? `Intuit answered ${res.status}`,
+      res.status,
+      typeof body.error === "string" && body.error ? body.error : null,
+    );
   }
   const now = Date.now();
   return {
@@ -170,7 +199,7 @@ export async function revokeToken(refreshToken: string): Promise<void> {
   }).catch(() => undefined);
 }
 
-/** Runs one QBO query (`select * from Vendor`) and returns the parsed body. */
+/** Runs one QBO query (an explicit field list, never `select *`) and returns the parsed body. */
 export async function query(
   realmId: string,
   accessToken: string,

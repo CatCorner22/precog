@@ -6,6 +6,7 @@ import { usePractice } from "@/lib/precog/practice-context";
 import { getHistoryVersion, listHistory } from "@/lib/precog/firm/server";
 import type { BusinessHistoryEntry } from "@/lib/precog/business-store";
 import { localDateKey, formatDayTime } from "@/lib/precog/dates";
+import { verificationsAsHeld } from "@/lib/precog/procedures/lifecycle";
 
 /**
  * Every saved snapshot of the open business, newest first, with who saved
@@ -50,7 +51,12 @@ export function ClientHistory({ signedIn }: { signedIn: boolean }) {
       const res = await getHistoryVersion({
         data: { businessId, revision: entry.revision, today: localDateKey(new Date()) },
       });
-      replaceProfile({ ...res.profile, businessId });
+      replaceProfile({
+        ...res.profile,
+        businessId,
+        // An older verification is not one the account holds now; see verificationsAsHeld.
+        procedures: verificationsAsHeld(res.profile.procedures ?? [], profile.procedures ?? []),
+      });
       toast.success(`Loaded the snapshot from ${formatDayTime(entry.savedAt)}.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Precog could not load that snapshot.");

@@ -1,12 +1,12 @@
 import { resolveTemplate } from "../active-template";
-import { industryMeta } from "../industry";
+import { industryMeta, industryNoun } from "../industry";
 import { buildProcessMapGraph } from "../process-graph";
+import { residualScope } from "../scoring/scope";
 import { computeMapHealth } from "../process-health";
 import { validateProcessMap } from "../process-validation";
 import type { PracticeProfile } from "../practice-profile";
 import { evidenceStatus } from "../builder/evidence";
 import type { SharedMapPayload } from "./share-schema";
-import { firstName } from "../text";
 
 /** Build the frozen share payload from the profile and its resolved template. */
 export function buildSharePayload(
@@ -17,7 +17,7 @@ export function buildSharePayload(
 ): SharedMapPayload {
   const tpl = resolveTemplate(profile);
   const meta = industryMeta(profile.industry);
-  const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
+  const { snapshots } = buildProcessMapGraph(tpl, profile.staff, {}, residualScope(profile));
   const issues = validateProcessMap(
     tpl.processes,
     tpl.people,
@@ -94,18 +94,20 @@ export function buildSharePayload(
  *
  * `team` is the whole team, people who have left included: a departed owner
  * keeps their role in the label, and a name that appears only inside a
- * sentence is still caught. The server calls this again without a team, so
- * a payload already marked `namesHidden` comes back unchanged.
+ * sentence is still caught. A client can set `namesHidden` and leave the names
+ * in the text. Trust that flag only when no roster was supplied (a second
+ * scrub of an already-redacted payload). A roster forces a real scrub.
  */
 export function redactSharePayload(
   payload: SharedMapPayload,
   team: readonly { name: string; role: string }[] = [],
 ): SharedMapPayload {
-  if (payload.namesHidden) return payload;
+  if (payload.namesHidden && team.length === 0) return payload;
   const labels = roleLabels(payload, team);
   const scrub = nameScrubber(labels);
   return {
     ...payload,
+    businessName: hiddenBusinessName(payload, scrub),
     namesHidden: true,
     health: {
       ...payload.health,
@@ -129,6 +131,17 @@ export function redactSharePayload(
     actions: payload.actions.map((a) => ({ ...a, title: scrub(a.title), why: scrub(a.why) })),
     note: payload.note === undefined ? undefined : scrub(payload.note),
   };
+}
+
+/**
+ * A business named after someone on the team ("Voss Dental") would name them
+ * on a share that hides names, so such a name gives way to the industry's
+ * word for a business ("A practice"). Any other business name stays.
+ */
+function hiddenBusinessName(payload: SharedMapPayload, scrub: (text: string) => string): string {
+  if (scrub(payload.businessName) === payload.businessName) return payload.businessName;
+  const noun = industryNoun(payload.industry);
+  return `${/^[aeiou]/i.test(noun) ? "An" : "A"} ${noun}`;
 }
 
 /**
@@ -157,29 +170,160 @@ function roleLabels(
   return labels;
 }
 
+/** Titles that can stand before a name: "Dr. Voss", "Mrs Lee". */
+const HONORIFICS = [
+  "dr",
+  "mr",
+  "mrs",
+  "ms",
+  "mx",
+  "miss",
+  "prof",
+  "professor",
+  "rev",
+  "sir",
+  "dame",
+  "fr",
+];
+const HONORIFIC_WORD = new RegExp(`^(?:${HONORIFICS.join("|")})\\.?$`, "i");
+
 /**
- * Replaces every labelled name in a sentence, whole words only and
- * case-sensitive, so "Cara" goes but "Caramel" and "cara" stay. A first name
- * two people share becomes "Team member", since it cannot say which one.
+ * Name words that are also everyday English words. In lower case they read as
+ * the word ("staff may", "the bank will"), so only their capitalised and
+ * upper-case spellings count as a name.
+ */
+const COMMON_WORDS = new Set(
+  [
+    "art bill bob buck chase dale dean faith frank gay gene grace grant guy hope iris jack jay",
+    "jewel joy june king lane mark max may miles nick pat penny price ray rich rob rose ruby sky",
+    "sue summer violet ward will win baker bank banks bell bird black brown burns bush carter case",
+    "cash check cook cross day field fisher fox gold gray green grey hill hunt knight lamb little",
+    "long love mason mills moss north page park porter read reed rice sharp short silver small",
+    "south stone waters wells west white wise wood young",
+  ]
+    .join(" ")
+    .split(" "),
+);
+
+/** Abbreviations a small business's books and processes use every day. */
+const BOOKKEEPING_ABBREVIATIONS = new Set([
+  "AP",
+  "AR",
+  "GL",
+  "PO",
+  "HR",
+  "IT",
+  "CC",
+  "PR",
+  "PL",
+  "BS",
+  "CF",
+  "QB",
+  "VP",
+  "CEO",
+  "CFO",
+  "COO",
+  "ACH",
+  "EFT",
+  "POS",
+  "PTO",
+]);
+
+/**
+ * Every way a sentence can name one person: the full name, the name without
+ * its title, each name word (both halves of "Smith-Jones" too) and the
+ * upper-case initials ("CV", "C.V."; undotted ones that spell a bookkeeping
+ * term such as "AP" are left as they are). Single letters are left out.
+ */
+function nameForms(name: string): { form: string; anyCase: boolean }[] {
+  const full = name.trim().replace(/\s+/g, " ");
+  const words = full
+    .split(" ")
+    .filter((w) => !HONORIFIC_WORD.test(w))
+    .map((w) => w.replace(/[.,]+$/, ""))
+    .filter(Boolean);
+  const parts = words.flatMap((w) => (w.includes("-") ? [w, ...w.split("-")] : [w]));
+  const forms = [full, words.join(" "), ...parts]
+    .filter((form) => [...form].length >= 2)
+    .map((form) => ({
+      form,
+      // A short or everyday word in lower case is "do", "an" or "will", not a person.
+      anyCase:
+        form.includes(" ") || ([...form].length >= 3 && !COMMON_WORDS.has(form.toLowerCase())),
+    }));
+  if (words.length >= 2) {
+    const initial = (w: string) => [...w][0].toUpperCase();
+    const sets = [words.map(initial), [initial(words[0]), initial(words[words.length - 1])]];
+    for (const letters of sets) {
+      // Undotted initials that spell a bookkeeping term ("AP", "AR", "GL")
+      // stay: in a shared map they almost always mean the term, not a person.
+      if (!BOOKKEEPING_ABBREVIATIONS.has(letters.join(""))) {
+        forms.push({ form: letters.join(""), anyCase: false });
+      }
+      forms.push({ form: `${letters.join(".")}.`, anyCase: false });
+    }
+  }
+  return forms;
+}
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** A pattern for `form` in any letter case ("voss", "VOSS"), any run of spaces between words. */
+function anyCasePattern(form: string): string {
+  return [...form]
+    .map((c) => {
+      if (/\s/.test(c)) return "\\s+";
+      const lower = c.toLowerCase();
+      const upper = c.toUpperCase();
+      return lower !== upper && [...lower].length === 1 && [...upper].length === 1
+        ? `[${lower}${upper}]`
+        : escapeRegExp(c);
+    })
+    .join("");
+}
+
+/** A pattern for `form` as written, capitalised or in upper case ("May", "MAY", not "may"). */
+function writtenCasePattern(form: string): string {
+  const capitalised = form.charAt(0).toUpperCase() + form.slice(1);
+  return [...new Set([form, capitalised, form.toUpperCase()])].map(escapeRegExp).join("|");
+}
+
+/**
+ * Replaces every labelled name in a sentence, whole words only: the full name,
+ * each name word (given name, middle name, surname) in any letter case, a
+ * title before it ("Dr. Voss") and initials ("CV", "C. Voss"). "Caramel"
+ * stays. A name word two people share becomes "Team member", since it cannot
+ * say which one. Lower-case short words and everyday words that are also
+ * names ("an", "may", "will") stay, since they read as the word.
  */
 function nameScrubber(labels: Map<string, string>): (text: string) => string {
-  const replacements = new Map<string, string>();
-  const byFirstName = new Map<string, string | null>();
+  const key = (form: string) => form.toLowerCase().replace(/\s+/g, " ");
+  const fullNames = new Map<string, string>();
+  const partLabels = new Map<string, Set<string>>();
+  const patterns = new Map<string, string>();
   for (const [name, label] of labels) {
-    replacements.set(name.trim(), label);
-    const first = firstName(name);
-    if (first.length < 2) continue;
-    const seen = byFirstName.get(first);
-    byFirstName.set(first, seen === undefined || seen === label ? label : null);
+    for (const [i, { form, anyCase }] of nameForms(name).entries()) {
+      const k = key(form);
+      if (i === 0) fullNames.set(k, label);
+      else partLabels.set(k, (partLabels.get(k) ?? new Set()).add(label));
+      const pattern = anyCase ? anyCasePattern(form) : writtenCasePattern(form);
+      if (!patterns.has(pattern)) patterns.set(pattern, form);
+    }
   }
-  for (const [first, label] of byFirstName) {
-    if (!replacements.has(first)) replacements.set(first, label ?? "Team member");
+  const replacements = new Map(fullNames);
+  for (const [k, set] of partLabels) {
+    if (!replacements.has(k)) replacements.set(k, set.size === 1 ? [...set][0] : "Team member");
   }
   if (!replacements.size) return (text) => text;
-  const alternatives = [...replacements.keys()]
-    .sort((a, b) => b.length - a.length)
-    .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  const alternatives = [...patterns]
+    .sort(([, a], [, b]) => b.length - a.length)
+    .map(([pattern]) => pattern)
     .join("|");
-  const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?:${alternatives})(?![\\p{L}\\p{N}])`, "gu");
-  return (text) => text.replace(pattern, (name) => replacements.get(name) ?? name);
+  const title = `(?:${HONORIFICS.map(anyCasePattern).join("|")})\\.?\\s+`;
+  const pattern = new RegExp(
+    `(?<![\\p{L}\\p{N}])(?:${title})?(?:\\p{Lu}\\.\\s*)*(${alternatives})(?![\\p{L}\\p{N}])`,
+    "gu",
+  );
+  return (text) =>
+    text.replace(pattern, (match, name: string) => replacements.get(key(name)) ?? match);
 }

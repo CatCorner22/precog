@@ -57,6 +57,47 @@ export function redactionRect(
   return { x, y, w: Math.ceil(x1 * width) - x, h: Math.ceil(y1 * height) - y };
 }
 
+/** A rectangle on screen, in CSS pixels. */
+export interface ScreenRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Where a picture of `width` × `height` pixels is drawn inside `box` with
+ * object-fit: contain: scaled to fit and centred, with empty bands at the
+ * sides (a tall picture) or above and below (a wide one). Pointer positions
+ * and the outlines over the picture are measured against this rectangle, not
+ * the element's, or a box drawn on a tall photo lands beside what was marked.
+ */
+export function containedRect(box: ScreenRect, width: number, height: number): ScreenRect {
+  if (width <= 0 || height <= 0 || box.width <= 0 || box.height <= 0) return box;
+  const scale = Math.min(box.width / width, box.height / height);
+  const w = width * scale;
+  const h = height * scale;
+  return {
+    left: box.left + (box.width - w) / 2,
+    top: box.top + (box.height - h) / 2,
+    width: w,
+    height: h,
+  };
+}
+
+/** A pointer position as fractions (0–1) of the drawn picture, clamped to its edges. */
+export function pointOnPicture(
+  clientX: number,
+  clientY: number,
+  picture: ScreenRect,
+): { x: number; y: number } {
+  const clamp = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
+  return {
+    x: clamp((clientX - picture.left) / picture.width),
+    y: clamp((clientY - picture.top) / picture.height),
+  };
+}
+
 /**
  * Draws the picture at its fitted size with every redaction applied. Covered
  * areas are painted solid. Pixelated areas are reduced to blocks at least

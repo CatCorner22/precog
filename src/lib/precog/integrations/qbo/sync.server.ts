@@ -3,6 +3,7 @@ import { reportServerError } from "@/lib/observability/report.server";
 import {
   decryptSecret,
   encryptSecret,
+  IntuitTokenError,
   qboConfigured,
   query,
   refreshTokens,
@@ -138,7 +139,10 @@ function isTimeout(err: unknown): boolean {
   return err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
 }
 
-/** The stored tokens cannot be read (the key changed) or Intuit refused to refresh them. */
+/**
+ * The stored tokens cannot be read (the key changed) or Intuit refused the
+ * grant itself. Only connecting again helps, so the advisor is told to.
+ */
 class ConnectionRefused extends Error {
   constructor(cause: unknown) {
     super("QuickBooks no longer accepts this connection", { cause });
@@ -155,12 +159,15 @@ async function freshAccessToken(sql: Sql, connection: ConnectionRow): Promise<st
   if (Date.parse(connection.accessExpiresAt) - Date.now() >= REFRESH_MARGIN_MS) {
     return unseal(connection.accessTokenEnc);
   }
+  const refreshToken = unseal(connection.refreshTokenEnc);
   let fresh: TokenSet;
   try {
-    fresh = await refreshTokens(unseal(connection.refreshTokenEnc));
+    fresh = await refreshTokens(refreshToken);
   } catch (err) {
-    if (err instanceof ConnectionRefused || isTimeout(err)) throw err;
-    throw new ConnectionRefused(err);
+    // An Intuit outage or a network failure is not a revoked grant: telling
+    // the advisor to disconnect would delete the readings for nothing.
+    if (err instanceof IntuitTokenError && err.grantRefused) throw new ConnectionRefused(err);
+    throw err;
   }
   const stored = await updateTokens(sql, connection, {
     accessTokenEnc: encryptSecret(fresh.accessToken),
@@ -182,10 +189,17 @@ function unseal(sealed: string): string {
   }
 }
 
+const QBO_FIELDS = {
+  // AcctNum is the vendor's account number on the bill, not the bank account a bill pays.
+  Vendor: "Id, DisplayName, CompanyName, Active, PrimaryEmailAddr, BillAddr, AcctNum",
+  Employee: "Id, DisplayName, GivenName, FamilyName, Active, ReleasedDate",
+} as const;
+
 /**
  * Every vendor or employee, active or not, page by page. QuickBooks returns
  * only active name-list rows unless the query asks for both, and a person
- * made inactive is exactly the release the drift has to see.
+ * made inactive is exactly the release the drift has to see. The field list
+ * is what Precog stores. It does not ask for SSN, birth date, or tax id.
  */
 async function readList(
   realmId: string,
@@ -197,7 +211,7 @@ async function readList(
     const body = (await query(
       realmId,
       accessToken,
-      `select * from ${entity} where Active in (true, false) startposition ${page * PAGE_SIZE + 1} maxresults ${PAGE_SIZE}`,
+      `select ${QBO_FIELDS[entity]} from ${entity} where Active in (true, false) startposition ${page * PAGE_SIZE + 1} maxresults ${PAGE_SIZE}`,
     )) as { QueryResponse?: Record<string, unknown> } | null;
     const found = body?.QueryResponse?.[entity];
     const batch = Array.isArray(found) ? found : [];

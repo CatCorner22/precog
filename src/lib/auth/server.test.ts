@@ -48,6 +48,21 @@ describe("account linking", () => {
   );
 
   it(
+    "keeps an unconfirmed sign-up made while Precog cannot send email",
+    { timeout: 60_000 },
+    async () => {
+      const { user, token } = await auth.api.signUpEmail({
+        body: { email: "nomail@dental.example", password: "long-password-1", name: "No mail" },
+      });
+      expect(token).toBeTruthy();
+      const { getSql } = await import("@/lib/db");
+      const sql = await getSql();
+      const kept = await sql`select 1 from unverified_sign_up_kept where user_id = ${user.id}`;
+      expect(kept).toHaveLength(1);
+    },
+  );
+
+  it(
     "still links a Google sign-in to a verified account with the same email",
     {
       timeout: 60_000,

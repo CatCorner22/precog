@@ -65,6 +65,34 @@ describe("parseProcessCsv", () => {
     expect(r.removed).toEqual([]);
   });
 
+  it("keeps a process's owner when two people share that owner's name", () => {
+    const maria = (id: string, active = true) => ({
+      id,
+      name: "Maria Garcia",
+      role: "Office Manager",
+      active,
+      tenureYears: 2,
+    });
+    const owned = { ...tpl.processes[0], ownerPersonIds: ["b"] };
+    const map = { ...tpl, people: [maria("a"), maria("b")], processes: [owned] };
+    const r = parseProcessCsv(processesToCsv(map.processes, map.people, map.controls), map);
+    expect(r.processes[0].ownerPersonIds).toEqual(["b"]);
+    expect(r.issues).toEqual([]);
+    expect(r.updated).toEqual([]);
+
+    // A new process names the active one of two namesakes, and asks when both are active.
+    const csv = "process,owners\nNew step,Maria Garcia";
+    const oneActive = parseProcessCsv(csv, { ...map, people: [maria("a", false), maria("b")] });
+    expect(oneActive.processes.find((p) => p.name === "New step")?.ownerPersonIds).toEqual(["b"]);
+    const both = parseProcessCsv(csv, map);
+    expect(both.processes.find((p) => p.name === "New step")?.ownerPersonIds).toEqual([]);
+    expect(both.issues).toContainEqual({
+      row: 1,
+      message:
+        'More than one person on the team is named Maria Garcia, so the importer did not make any of them an owner of "New step". Choose the owner on the map.',
+    });
+  });
+
   it("reports a process made in the map builder and re-imported from its own CSV as unchanged", () => {
     const made = {
       id: "proc-new-process",

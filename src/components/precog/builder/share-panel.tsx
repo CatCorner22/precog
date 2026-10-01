@@ -18,8 +18,11 @@ import { cn } from "@/lib/utils";
  * copy or revoke every live link. Revoked and expired links fold away.
  */
 export function SharePanel({
+  businessId,
   buildPayload,
 }: {
+  /** The business the link copies; deleting it revokes the link. */
+  businessId: string;
   buildPayload: (note?: string, redactNames?: boolean) => SharedMapPayload;
 }) {
   const { user, isPending } = useCurrentUserState();
@@ -63,6 +66,7 @@ export function SharePanel({
     try {
       const res = await createMapShare({
         data: {
+          businessId,
           payload: buildPayload(note, redactNames),
           expiresInDays: days,
           redacted: redactNames,
@@ -80,6 +84,7 @@ export function SharePanel({
           hasPasscode: res.hasPasscode,
           views: 0,
           lastViewedAt: null,
+          createdBy: null,
         },
         ...(cur ?? []),
       ]);
@@ -233,10 +238,15 @@ export function SharePanel({
       )}
       {live.length > 0 && (
         <div>
-          <p className={labelCls}>Your live links ({live.length})</p>
+          <p className={labelCls}>Live links ({live.length})</p>
           <ul className="mt-1 space-y-1">
             {live.map((l) => (
               <ShareRow key={l.token} link={l}>
+                {l.createdBy && (
+                  <span className="rounded bg-elevated px-1 text-xs text-subtle">
+                    made by {l.createdBy}
+                  </span>
+                )}
                 {l.redacted && (
                   <span className="rounded bg-elevated px-1 text-xs text-subtle">names hidden</span>
                 )}

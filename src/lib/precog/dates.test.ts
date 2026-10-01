@@ -4,6 +4,7 @@ import {
   formatDay,
   formatDayNear,
   formatDayRange,
+  formatMonth,
   formatDayShort,
   formatDayTime,
   localDateKey,
@@ -69,6 +70,8 @@ describe("formatters", () => {
 
   it("formats ranges within a month, across months and across years", () => {
     expect(formatDayRange("2025-11-03", "2025-11-10")).toBe("Nov 3–10");
+    expect(formatMonth("2026-03")).toBe("March 2026");
+    expect(formatMonth("2026-13")).toBe("2026-13");
     expect(formatDayRange("2025-10-28", "2025-11-03")).toBe("Oct 28 – Nov 3");
     expect(formatDayRange("2025-12-30", "2026-01-02")).toBe("Dec 30, 2025 – Jan 2, 2026");
     expect(formatDayRange("2025-11-03", "2025-11-03")).toBe("Nov 3");

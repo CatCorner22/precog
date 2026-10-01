@@ -62,9 +62,13 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
     });
   }
 
-  function addBusiness(next: IndustryId) {
+  async function addBusiness(next: IndustryId) {
     const kept = profile.practiceName;
-    createBusiness(next);
+    const result = await createBusiness(next);
+    if (!result.ok) {
+      toast.error("Precog could not add a business", { description: result.reason });
+      return;
+    }
     setPendingIndustry(null);
     toast.success(`Added ${industryMeta(next).demoName}`, {
       description: `Your businesses still list ${kept}. Switch back from the header any time.`,
@@ -155,7 +159,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             businessName={profile.practiceName}
             industryLabel={industryMeta(pendingIndustry).label}
             entered={hasEnteredWork(work) ? joinWithAnd(describeEnteredWork(work)) : null}
-            onKeepAndAdd={() => addBusiness(pendingIndustry)}
+            onKeepAndAdd={() => void addBusiness(pendingIndustry)}
             onReplace={() => loadSample(pendingIndustry)}
             onCancel={() => setPendingIndustry(null)}
           />
@@ -251,7 +255,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
               onClick={() => {
                 if (
                   !window.confirm(
-                    "Go back to the sample process map? This discards your process map edits. Your team, register and journal stay.",
+                    `Go back to the sample process map? Precog discards your edits to the map. Your team, register and ${tabName("journal")} stay.`,
                   )
                 )
                   return;

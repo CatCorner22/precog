@@ -543,8 +543,8 @@ function caseEvidence({ sodReport }: ToolInputs): ToolOutput {
   };
 }
 
-function leadingIndicators({ tpl, staff, riskVars }: ToolInputs): ToolOutput {
-  const report = scoreLeadingIndicators(tpl, staff, riskVars);
+function leadingIndicators({ tpl, staff, riskVars, scope }: ToolInputs): ToolOutput {
+  const report = scoreLeadingIndicators(tpl, staff, riskVars, scope.confirmedScenarioIds);
   const breached = report.indicators.filter((i) => i.status === "breach").length;
   const watch = report.indicators.filter((i) => i.status === "watch").length;
   return {
@@ -562,7 +562,7 @@ function leadingIndicators({ tpl, staff, riskVars }: ToolInputs): ToolOutput {
         why: i.why,
       })),
       topActions: report.topActions,
-      basis: "Thresholds set in this app; not benchmarks.",
+      basis: "Thresholds set in Precog; not benchmarks.",
     },
   };
 }
@@ -579,7 +579,7 @@ function advancedReasoning({ tpl, staff, riskVars }: ToolInputs): ToolOutput {
       bestSingleLever: report.counterfactual.bestIntervention,
       verifyNext: report.evoi.items,
       synthesis: report.synthesis,
-      basis: "This app's own weights, not measurements of this business.",
+      basis: "Precog's own weights, not measurements of this business.",
     },
   };
 }
@@ -593,7 +593,7 @@ function metaAnalysis({ profile }: ToolInputs): ToolOutput {
       .map((i) => ({ id: i.id, title: i.title, severity: i.severity }));
   return {
     ok: true,
-    summary: `What this app can see: ${report.summary.knownKnowns} measured, ${report.summary.knownUnknowns} known gaps, ${report.summary.unknownUnknowns} outside the model`,
+    summary: `What Precog can see: ${report.summary.knownKnowns} measured, ${report.summary.knownUnknowns} known gaps, ${report.summary.unknownUnknowns} outside the model`,
     data: {
       summary: report.summary,
       narrative: report.narrative,

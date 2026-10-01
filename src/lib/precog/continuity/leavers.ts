@@ -3,7 +3,9 @@ import { continuityCommitments, continuityStepKey } from "../decisions/follow-th
 import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeLevel, Person } from "../types";
 import { absenceImpact, type AbsenceAction } from "./absence-impact";
-import { daysBetween, isCalendarDate, formatDayRange } from "../dates";
+import type { DetectedConflict } from "../sod/detect";
+import type { StandInConflicts } from "./standin-conflicts";
+import { daysBetween, isCalendarDate, formatDay, formatDayRange } from "../dates";
 import { relationLevel, STRONG_LEVELS } from "./coverage";
 import { documentationState, isWritten } from "./documentation";
 import { firstName, joinWithAnd, quoted } from "../text";
@@ -19,6 +21,8 @@ export interface HandoverItem {
   successorLevel: KnowledgeLevel | undefined;
   /** Why this successor, or why there is none. */
   note: string;
+  /** Duty conflicts the successor would newly hold by taking this over; empty without a checker. */
+  conflicts: DetectedConflict[];
   /** Open cross-training step already logged for this item. */
   training: DecisionEntry | null;
   /** Open write-it-down or locate step already logged for this item. */
@@ -62,11 +66,16 @@ export function handoverDeadline(leaver: Pick<Leaver, "lastDay">, today: string)
  * day falls on or before it already gone: two people who share payroll and
  * both resign each get payroll on their hand-off list, pointed at someone
  * who is staying, rather than each counting the other as cover.
+ *
+ * A successor who is leaving later is passed over for someone who is staying
+ * when there is one; when there is not, they stay the successor with a note
+ * saying when they go, and the entry is on their own hand-off list too.
  */
 export function leavers(
   tpl: IndustryTemplate,
   decisions: readonly DecisionEntry[],
   today: string,
+  conflictsFor?: StandInConflicts,
 ): Leaver[] {
   if (!isCalendarDate(today)) return [];
   const committed = continuityCommitments(decisions, tpl, today);
@@ -74,15 +83,34 @@ export function leavers(
     (p): p is Person & { lastDay: string } =>
       p.active && typeof p.lastDay === "string" && isCalendarDate(p.lastDay),
   );
+  // Who would stand in with everyone who has given notice gone: the
+  // successor to prefer over one who is leaving later.
+  const allGone =
+    departing.length > 1
+      ? absenceImpact(
+          tpl,
+          departing.map((o) => o.id),
+          conflictsFor,
+        )
+      : null;
+  const leavesAfter = (successor: Person | null, lastDay: string) =>
+    successor ? departing.find((o) => o.id === successor.id && o.lastDay > lastDay) : undefined;
+  // What stops on each person's last day, with everyone gone by then.
+  const asOf = new Map(
+    departing.map((person) => [
+      person.id,
+      absenceImpact(
+        tpl,
+        departing.filter((o) => o.id === person.id || o.lastDay <= person.lastDay).map((o) => o.id),
+        conflictsFor,
+      ),
+    ]),
+  );
   const out: Leaver[] = [];
   for (const person of departing) {
     const daysLeft = daysBetween(today, person.lastDay);
     if (daysLeft === null) continue;
-    const goneByThen = departing.filter((o) => o.id === person.id || o.lastDay <= person.lastDay);
-    const impact = absenceImpact(
-      tpl,
-      goneByThen.map((o) => o.id),
-    );
+    const impact = asOf.get(person.id);
     const own = absenceImpact(tpl, [person.id]);
     if (!impact || !own) continue;
     const holdsAlone = (itemId: string) =>
@@ -90,8 +118,33 @@ export function leavers(
     const owns = new Set(
       tpl.processes.filter((p) => (p.ownerPersonIds ?? []).includes(person.id)).map((p) => p.name),
     );
+    // An entry an earlier leaver hands to this person leaves with them too,
+    // even when they only have the basics.
+    const successorTo = (itemId: string) =>
+      departing.some(
+        (o) =>
+          o.id !== person.id &&
+          o.lastDay <= person.lastDay &&
+          STRONG_LEVELS.has(relationLevel(tpl.relations, o.id, itemId) ?? "aware") &&
+          successorFor(o, itemId)?.id === person.id,
+      );
+    const successorFor = (leaver: Person & { lastDay: string }, itemId: string) => {
+      const stop = asOf.get(leaver.id)?.stops.find((s) => s.item.id === itemId);
+      return stop ? pickSuccessor(stop, leaver.lastDay).standIn : null;
+    };
+    const pickSuccessor = (stop: (typeof impact.stops)[number], lastDay: string) => {
+      const later = leavesAfter(stop.standIn, lastDay);
+      if (!later) return stop;
+      const staying = allGone?.stops.find((s) => s.item.id === stop.item.id);
+      if (staying?.standIn) return staying;
+      return {
+        ...stop,
+        note: `${stop.note} ${firstName(later.name)} leaves on ${formatDay(later.lastDay)} too; line up someone to take it on after that.`,
+      };
+    };
     const handover: HandoverItem[] = impact.stops
-      .filter((s) => holdsAlone(s.item.id))
+      .filter((s) => holdsAlone(s.item.id) || successorTo(s.item.id))
+      .map((stop) => pickSuccessor(stop, person.lastDay))
       .map((s) => ({
         item: s.item,
         successor: s.standIn,
@@ -99,6 +152,7 @@ export function leavers(
           ? relationLevel(tpl.relations, s.standIn.id, s.item.id)
           : undefined,
         note: s.note,
+        conflicts: s.conflicts,
         training: committed.get(continuityStepKey(s.item.id, "cover"))?.decision ?? null,
         documenting:
           committed.get(continuityStepKey(s.item.id, "document"))?.decision ??

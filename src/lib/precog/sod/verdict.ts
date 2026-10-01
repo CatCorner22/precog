@@ -20,20 +20,17 @@ interface ConcentrationHeadline {
   closes: number;
 }
 
-/** Open means a finding the owner still has to act on: not owner-held, not accepted. */
-function openFindings(conflicts: readonly DetectedConflict[]): DetectedConflict[] {
-  return conflicts.filter((c) => !c.ownerHeld && !c.residualRiskAccepted);
-}
-
 /**
  * The person who holds at least half of the open gaps (and at least three),
  * with the one duty whose move closes the most of them. Null when no one does:
  * the gaps are spread across the team and each is its own fix.
+ *
+ * `open` is the open findings as sod/open-findings counts them, so the
+ * headline, Start here and the printed report count the same gaps.
  */
 export function concentrationHeadline(
-  conflicts: readonly DetectedConflict[],
+  open: readonly DetectedConflict[],
 ): ConcentrationHeadline | null {
-  const open = openFindings(conflicts);
   const totalGaps = new Set(open.map(gapKey)).size;
   const byPerson = new Map<string, DetectedConflict[]>();
   for (const c of open) byPerson.set(c.personId, [...(byPerson.get(c.personId) ?? []), c]);

@@ -68,8 +68,13 @@ export function writeValueProof(
   storage: StorageLike | null = browserStorage(),
 ): boolean {
   const keys = valueProofKeys(businessId);
-  const caseKept = writeLocal(keys.valueCase, JSON.stringify(value.valueCase), storage);
-  const evidenceKept = writeLocal(keys.evidence, JSON.stringify(value.evidence), storage);
+  // A part that is absent (undefined) is left unwritten: it has no JSON.
+  const caseKept =
+    value.valueCase === undefined ||
+    writeLocal(keys.valueCase, JSON.stringify(value.valueCase), storage);
+  const evidenceKept =
+    value.evidence === undefined ||
+    writeLocal(keys.evidence, JSON.stringify(value.evidence), storage);
   return caseKept && evidenceKept;
 }
 

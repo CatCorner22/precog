@@ -331,6 +331,7 @@ describe("cascade copy", () => {
     ]);
     expect(text).not.toMatch(/\bCoR\b|\bEL\b|[↓↑→]|free lunch|Matrix layers/);
     const dual = all.simulations.find((s) => s.lever.id === "enable_dual_control")!;
-    expect(dual.overallVerdict).toMatch(/^Annual cost of risk falls \$[\d,]+;/);
+    expect(dual.overallVerdict).toMatch(/average residual risk falls \d+ point/);
+    expect(dual.overallVerdict).not.toMatch(/Annual cost of risk/);
   });
 });

@@ -157,16 +157,23 @@ export function parseRegisterCsv(
     if (fixedColumns.has(index)) return;
     const heading = cell.trim();
     if (!heading) return;
-    const person = activePeople.find((p) => nameKey(p.name) === nameKey(heading));
+    // Namesakes get one column each, in team order (the order registerToCsv
+    // writes them): the Nth column with a name is the Nth person with it.
+    const named = activePeople.filter((p) => nameKey(p.name) === nameKey(heading));
+    const person = named.find((p) => !personColumns.some((c) => c.person.id === p.id));
     if (person) {
-      if (personColumns.some((c) => c.person.id === person.id)) {
+      personColumns.push({ index, person });
+      if (named.length > 1 && person === named[0]) {
         issues.push({
           row: 0,
-          message: `Two columns name ${person.name}; the importer read the first`,
+          message: `${named.length} people on the active team are named ${person.name}; the importer read their columns in the order the team lists them`,
         });
-      } else {
-        personColumns.push({ index, person });
       }
+    } else if (named.length) {
+      issues.push({
+        row: 0,
+        message: `Two columns name ${named[0].name}; the importer read the first`,
+      });
     } else {
       unknownPeople.push(heading);
     }

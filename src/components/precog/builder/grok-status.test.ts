@@ -11,5 +11,8 @@ describe("ruleBasedReason", () => {
     expect(ruleBasedReason("local", "unauthenticated")).toMatch(/Sign in/);
     expect(ruleBasedReason("local", "no_api_key")).toMatch(/no AI suggestions set up/);
     expect(ruleBasedReason("local", "allowed")).toMatch(/did not answer/);
+    expect(ruleBasedReason("local", "daily_limit")).toBe(
+      "Precog has reached today's AI limit, so these come from built-in rules. Try again tomorrow.",
+    );
   });
 });

@@ -77,6 +77,7 @@ describe("parseCreateShareInput", () => {
 
   it("reads what the share panel sends", () => {
     const parsed = parseCreateShareInput({
+      businessId: "biz_1",
       payload,
       expiresInDays: 90,
       redacted: true,
@@ -85,22 +86,33 @@ describe("parseCreateShareInput", () => {
     expect(parsed.expiresInDays).toBe(90);
     expect(parsed.redacted).toBe(true);
     expect(parsed.passcode).toBe("correct horse");
-    expect(parseCreateShareInput({ payload, expiresInDays: 30, passcode: "" }).passcode).toBe(
-      undefined,
-    );
+    expect(
+      parseCreateShareInput({ businessId: "biz_1", payload, expiresInDays: 30, passcode: "" })
+        .passcode,
+    ).toBe(undefined);
   });
 
   it("refuses a passcode that is too short instead of dropping it", () => {
     // Regression: a 5-character passcode was silently dropped and the link
     // was created with no passcode at all.
-    expect(() => parseCreateShareInput({ payload, passcode: "12345" })).toThrow(/8 to 64/);
-    expect(() => parseCreateShareInput({ payload, passcode: "x".repeat(65) })).toThrow(/8 to 64/);
+    expect(() =>
+      parseCreateShareInput({ businessId: "biz_1", payload, passcode: "12345" }),
+    ).toThrow(/8 to 64/);
+    expect(() =>
+      parseCreateShareInput({ businessId: "biz_1", payload, passcode: "x".repeat(65) }),
+    ).toThrow(/8 to 64/);
   });
 
   it("clamps the expiry and refuses non-object input", () => {
-    expect(parseCreateShareInput({ payload, expiresInDays: 9_999 }).expiresInDays).toBe(365);
-    expect(parseCreateShareInput({ payload }).expiresInDays).toBe(30);
+    expect(
+      parseCreateShareInput({ businessId: "biz_1", payload, expiresInDays: 9_999 }).expiresInDays,
+    ).toBe(365);
+    expect(parseCreateShareInput({ businessId: "biz_1", payload }).expiresInDays).toBe(30);
     expect(() => parseCreateShareInput(null)).toThrow("Invalid request");
-    expect(() => parseCreateShareInput({ payload, passcode: 12345678 })).toThrow("Invalid request");
+    // A link always names its business, so deleting it or a member leaving revokes the link.
+    expect(() => parseCreateShareInput({ payload })).toThrow("Invalid request");
+    expect(() =>
+      parseCreateShareInput({ businessId: "biz_1", payload, passcode: 12345678 }),
+    ).toThrow("Invalid request");
   });
 });

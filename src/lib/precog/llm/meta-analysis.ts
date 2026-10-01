@@ -23,6 +23,8 @@ import {
   unknownUnknowns as unknownUnknownItems,
 } from "./meta-analysis-gaps";
 import { INVENTORY_WORDS, type InventoryWords } from "./meta-analysis-words";
+import { residualScope } from "../scoring/scope";
+import { DEFAULT_WEIGHTS } from "../scoring/weights";
 
 export type EpistemicClass = "known_known" | "known_unknown" | "unknown_unknown" | "unknown_known";
 
@@ -161,13 +163,19 @@ interface BusinessFacts {
 
 function businessFacts(profile: PracticeProfile): BusinessFacts {
   const tpl = resolveTemplate(profile);
-  const leading = scoreLeadingIndicators(tpl, profile.staff, profile.riskVariables);
+  const scope = residualScope(profile);
+  const leading = scoreLeadingIndicators(
+    tpl,
+    profile.staff,
+    profile.riskVariables,
+    scope.confirmedScenarioIds,
+  );
   return {
     profile,
     tpl,
     decisions: profile.decisions ?? [],
     sod: detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease)),
-    portfolio: portfolioSummary(tpl, profile.staff),
+    portfolio: portfolioSummary(tpl, profile.staff, DEFAULT_WEIGHTS, scope),
     breachedIndicators: leading.indicators.filter((i) => i.status === "breach").length,
     waives: (profile.dualRelease.exceptions ?? []).filter(
       (e) => e.enabled && e.action === "waive_dual",

@@ -9,6 +9,10 @@ export interface OrderedProcess {
 
 type ArrowKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown";
 
+export function isArrowKey(key: string): key is ArrowKey {
+  return key === "ArrowLeft" || key === "ArrowRight" || key === "ArrowUp" || key === "ArrowDown";
+}
+
 /**
  * Where an arrow key moves the selection in build mode: left and right to
  * the nearest process in the neighbouring stage lane (matching height where

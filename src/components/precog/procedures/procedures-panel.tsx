@@ -441,6 +441,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
             place={places.find((pl) => pl.id === selected.placeId) ?? null}
             today={today}
             nameOf={nameOf}
+            hasLeft={(id) => people.some((x) => x.id === id && !x.active)}
             knowledgeNames={selected.knowledgeIds
               .map((id) => tpl.knowledge.find((k) => k.id === id)?.name)
               .filter((n): n is string => Boolean(n))}
@@ -492,6 +493,7 @@ function ProcedureView({
   place,
   today,
   nameOf,
+  hasLeft,
   knowledgeNames,
   onEdit,
   canVerify,
@@ -506,6 +508,8 @@ function ProcedureView({
   place: Place | null;
   today: string;
   nameOf: (id?: string) => string | null;
+  /** True for someone on the team marked as left. */
+  hasLeft: (id: string) => boolean;
   knowledgeNames: string[];
   onEdit: () => void;
   /** False for a firm preparer, who cannot record a verification. */
@@ -521,6 +525,8 @@ function ProcedureView({
   const status = procedureStatus(p, today);
   const due = reviewByDate(p);
   const checker = nameOf(p.reviewerPersonId) ?? "the owner";
+  // A stand-in who has left covers nothing, so the view says so.
+  const standInName = (id: string) => (hasLeft(id) ? `${nameOf(id)} (has left)` : nameOf(id));
   const where = [place?.name, p.module].filter(Boolean).join(" › ");
   const recommendations = procedureRecommendations(p, { place, today, canAddPictures });
   // Writing errors block verification; the server refuses one too (verify-guard.ts).
@@ -615,7 +621,7 @@ function ProcedureView({
           <dt className="text-muted">Stand-ins</dt>
           <dd>
             {p.backupPersonIds.length
-              ? p.backupPersonIds.map((id) => nameOf(id)).join(", ")
+              ? p.backupPersonIds.map((id) => standInName(id)).join(", ")
               : "Nobody named yet"}
           </dd>
           <dt className="text-muted">Covers on Who knows what</dt>

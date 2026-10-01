@@ -2,8 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { resolveBusinessOwner } from "../business-store";
 import {
+  copyImagesFromReachableBusinesses,
   imageUsage,
   insertProcedureImage,
+  MAX_IMAGE_BYTES_PER_ACCOUNT,
   MAX_IMAGES_PER_BUSINESS,
   readProcedureImage,
   referencedImageIds,
@@ -129,19 +131,116 @@ describe("procedure image store", () => {
     expect(await readProcedureImage(db.sql, owner!, "biz_1", id)).not.toBeNull();
   }, 60_000);
 
-  it("sweeps only unreferenced pictures past the grace period", async () => {
+  it("sweeps only pictures no step has named for the grace period, counted from removal", async () => {
     const kept = await upload(4);
-    const young = await upload(5);
-    const old = await upload(6);
+    const removedLongAgo = await upload(5);
+    const justRemoved = await upload(6);
+    // All three were uploaded long ago; one was removed from its step long ago.
+    await db.pg.query("update procedure_images set created_at = now() - interval '40 days'");
+    await sweepUnreferencedImages(db.sql, "owner", "biz_1", [kept.id, justRemoved.id]);
     await db.pg.query(
-      "update procedure_images set created_at = now() - interval '40 days' where id = any($1)",
-      [[kept.id, old.id]],
+      "update procedure_images set unreferenced_since = now() - interval '40 days' where id = $1",
+      [removedLongAgo.id],
     );
+
+    // A save that no longer names the just-removed picture keeps it for the grace period.
     const removed = await sweepUnreferencedImages(db.sql, "owner", "biz_1", [kept.id]);
     expect(removed).toBe(1);
-    expect(await readProcedureImage(db.sql, "owner", "biz_1", old.id)).toBeNull();
-    expect(await readProcedureImage(db.sql, "owner", "biz_1", young.id)).not.toBeNull();
+    expect(await readProcedureImage(db.sql, "owner", "biz_1", removedLongAgo.id)).toBeNull();
+    expect(await readProcedureImage(db.sql, "owner", "biz_1", justRemoved.id)).not.toBeNull();
     expect(await readProcedureImage(db.sql, "owner", "biz_1", kept.id)).not.toBeNull();
+
+    // Named again (an undo): its removal clock stops.
+    await sweepUnreferencedImages(db.sql, "owner", "biz_1", [kept.id, justRemoved.id]);
+    const rows = await db.pg.query<{ unreferenced_since: unknown }>(
+      "select unreferenced_since from procedure_images where id = $1",
+      [justRemoved.id],
+    );
+    expect(rows.rows[0].unreferenced_since).toBeNull();
+  }, 60_000);
+
+  it("frees a business's room as soon as a save stops naming pictures", async () => {
+    for (let i = 0; i < MAX_IMAGES_PER_BUSINESS; i++) {
+      await db.pg.query(
+        `insert into procedure_images (id, user_id, business_id, content_type, bytes, byte_size, width, height, sha256)
+         values ($1, 'owner', 'biz_1', 'image/png', '\\x00', 1, 1, 1, $1)`,
+        [`img_seed_${i}`],
+      );
+    }
+    await expect(upload(1)).rejects.toMatchObject({ status: 409 });
+    // The owner removes thirty pictures from old steps; the autosave sweeps.
+    const still = Array.from({ length: MAX_IMAGES_PER_BUSINESS - 30 }, (_, i) => `img_seed_${i}`);
+    await sweepUnreferencedImages(db.sql, "owner", "biz_1", still);
+    await expect(upload(1)).resolves.toMatchObject({ id: expect.any(String) });
+  }, 60_000);
+
+  it("bounds the pictures one account stores across its businesses, deleted ones included", async () => {
+    await db.pg.query(
+      "update businesses set deleted_at = now() where user_id = 'owner' and id = 'biz_1'",
+    );
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision)
+       values ('biz_2', 'owner', 'Biz 2', 'general', '{}'::jsonb, 1)`,
+    );
+    // A deleted business still holds nearly the whole allowance, in pictures no step names.
+    const full = 600 * 1024;
+    const rows = Math.floor(MAX_IMAGE_BYTES_PER_ACCOUNT / full);
+    await db.pg.query(
+      `insert into procedure_images (id, user_id, business_id, content_type, bytes, byte_size, width, height, sha256, unreferenced_since)
+       select 'img_big_' || n, 'owner', 'biz_1', 'image/png', '\\x00',
+         case when n = 0 then $2::int else $1::int end, 1, 1, 'big_' || n, now()
+       from generate_series(0, $3::int) as n`,
+      [full, MAX_IMAGE_BYTES_PER_ACCOUNT - rows * full - 10, rows],
+    );
+    await expect(upload(1, "image/png", "biz_2")).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringMatching(/still count for 30 days/),
+    });
+    // Once the grace period is over, Precog deletes them and the room comes back.
+    await db.pg.query(
+      "update procedure_images set unreferenced_since = now() - interval '31 days' where business_id = 'biz_1'",
+    );
+    await expect(upload(1, "image/png", "biz_2")).resolves.toMatchObject({
+      id: expect.any(String),
+    });
+  }, 60_000);
+
+  it("copies the pictures a kept copy names from the owner's other business", async () => {
+    const { id } = await upload(9);
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision)
+       values ('biz_copy', 'owner', 'Biz (copy)', 'general', '{}'::jsonb, 1)`,
+    );
+    expect(await readProcedureImage(db.sql, "owner", "biz_copy", id)).toBeNull();
+    expect(await copyImagesFromReachableBusinesses(db.sql, "owner", "biz_copy", [id])).toBe(1);
+    expect(await readProcedureImage(db.sql, "owner", "biz_copy", id)).not.toBeNull();
+    // Already there: nothing more to copy.
+    expect(await copyImagesFromReachableBusinesses(db.sql, "owner", "biz_copy", [id])).toBe(0);
+    // Another account's pictures never move.
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision)
+       values ('biz_copy', 'stranger', 'Theirs', 'general', '{}'::jsonb, 1)`,
+    );
+    expect(await copyImagesFromReachableBusinesses(db.sql, "stranger", "biz_copy", [id])).toBe(0);
+  }, 60_000);
+
+  it("copies a firm client's pictures into a member's kept copy, and only while the member can open the client", async () => {
+    const { id } = await upload(10);
+    await db.pg.query("insert into firms (user_id, name) values ('owner', 'North Advisors')");
+    await db.pg.query(
+      "insert into firm_members (firm_user_id, member_user_id, role) values ('owner', 'colleague', 'preparer')",
+    );
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision)
+       values ('biz_kept', 'colleague', 'Biz (copy)', 'general', '{}'::jsonb, 1)`,
+    );
+    // Not yet a firm client: the member cannot open it, so nothing moves.
+    expect(await copyImagesFromReachableBusinesses(db.sql, "colleague", "biz_kept", [id])).toBe(0);
+    await db.pg.query("update businesses set firm_user_id = 'owner' where user_id = 'owner'");
+    expect(await copyImagesFromReachableBusinesses(db.sql, "colleague", "biz_kept", [id])).toBe(1);
+    expect(await readProcedureImage(db.sql, "colleague", "biz_kept", id)).not.toBeNull();
+    // A stranger with a business of the same name gets nothing.
+    expect(await copyImagesFromReachableBusinesses(db.sql, "stranger", "biz_1", [id])).toBe(0);
   }, 60_000);
 
   it("goes with the business when the business row is deleted", async () => {

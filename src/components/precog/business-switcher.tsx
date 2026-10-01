@@ -9,6 +9,7 @@ import { Building2, Check, ChevronDown, Loader2, Plus, Trash2, Users, X } from "
 import { inputCls } from "@/components/ui/field-classes";
 import type { BusinessSummary } from "@/lib/precog/practice-profile";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
+import { removeBusinessPrompt } from "./business-switcher-text";
 
 /** Header control: switch between businesses in the portfolio, or add a new one. */
 export function BusinessSwitcher() {
@@ -65,10 +66,10 @@ export function BusinessSwitcher() {
     };
   }, [open]);
 
-  function submitNew() {
+  async function submitNew() {
     // Setup opens for the new business: the owner enters its team or loads
     // the sample. The current business is saved first.
-    const result = createBusiness(industry, name);
+    const result = await createBusiness(industry, name);
     if (!result.ok) {
       toast.error("Could not add a business", { description: result.reason });
       return;
@@ -79,8 +80,8 @@ export function BusinessSwitcher() {
   }
 
   /** From the sample: set up the owner's own business, starting in the sample's line of business. */
-  function setUpOwn() {
-    const result = createBusiness(profile.industry);
+  async function setUpOwn() {
+    const result = await createBusiness(profile.industry);
     if (!result.ok) {
       toast.error("Could not start setup", { description: result.reason });
       return;
@@ -102,9 +103,9 @@ export function BusinessSwitcher() {
   }
 
   function removeBusiness(b: BusinessSummary) {
-    if (!window.confirm(`Remove "${b.name}" from your portfolio? You cannot undo this.`)) return;
+    if (!window.confirm(removeBusinessPrompt(b))) return;
     void deleteBusiness(b.id).then(
-      () => toast(`Removed ${b.name}`),
+      () => toast(b.shared ? `Deleted ${b.name} for your firm` : `Removed ${b.name}`),
       (error: unknown) =>
         toast.error(`Could not remove ${b.name}`, { description: describeError(error) }),
     );
@@ -140,7 +141,7 @@ export function BusinessSwitcher() {
             disabled={switchingBusiness}
             onClick={() => removeBusiness(b)}
             className="rounded p-1.5 text-subtle opacity-0 group-hover/row:opacity-100 hover:text-danger focus:opacity-100 disabled:opacity-40 pointer-coarse:opacity-100"
-            aria-label={`Remove ${b.name}`}
+            aria-label={b.shared ? `Delete ${b.name} for your firm` : `Remove ${b.name}`}
           >
             <Trash2 className="size-3" />
           </button>
@@ -236,7 +237,7 @@ export function BusinessSwitcher() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoFocus
-                  onKeyDown={(e) => e.key === "Enter" && submitNew()}
+                  onKeyDown={(e) => e.key === "Enter" && void submitNew()}
                 />
                 <select
                   className={inputCls}
@@ -251,7 +252,7 @@ export function BusinessSwitcher() {
                   ))}
                 </select>
                 <div className="flex gap-1.5">
-                  <Button size="sm" className="flex-1" onClick={submitNew}>
+                  <Button size="sm" className="flex-1" onClick={() => void submitNew()}>
                     <Plus className="size-3.5" /> Next: your team
                   </Button>
                   <Button
@@ -273,7 +274,7 @@ export function BusinessSwitcher() {
                 {onSample && (
                   <button
                     type="button"
-                    onClick={setUpOwn}
+                    onClick={() => void setUpOwn()}
                     className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-primary hover:bg-elevated"
                   >
                     <Users className="size-3.5" /> Set up my own business

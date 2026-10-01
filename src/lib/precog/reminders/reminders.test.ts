@@ -2,11 +2,12 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
-import { renderDigest, renderOwnerReminder } from "./email";
+import { renderDigest, renderOwnerEmailConfirm, renderOwnerReminder } from "./email";
 import { runDigest } from "./digest";
 import type { Person } from "../types";
 
 const TODAY = "2026-09-25";
+const OWNER_TOKEN = "ab".repeat(24);
 
 function ownTeam(): Person[] {
   return [
@@ -152,6 +153,7 @@ describe("email rendering", () => {
       businessName: "A <b>Shop</b>",
       firmName: null,
       items: [item],
+      unsubscribeUrl: "https://app.example/api/owner-email?do=stop&token=t",
     });
     expect(mail.html).toContain("A &lt;b&gt;Shop&lt;/b&gt;");
     expect(mail.subject).toBe("A <b>Shop</b>: 1 item to confirm");
@@ -164,10 +166,39 @@ describe("email rendering", () => {
       firmName: "North Advisors",
       items,
       advisorEmail: "adv@firm.test",
+      unsubscribeUrl: "https://app.example/api/owner-email?do=stop&token=t",
     });
     expect(mail.replyTo).toBe("adv@firm.test");
     expect(mail.text).toContain("North Advisors set these reminders up in Precog.");
     expect(mail.text).not.toContain("Owner opens the statement.");
+  });
+
+  it("carries a link that stops the owner's reminders, also as a one-click header", () => {
+    const url = "https://app.example/api/owner-email?do=stop&token=t";
+    const mail = renderOwnerReminder({
+      businessName: "Riverside Plumbing",
+      firmName: null,
+      items: forAudience(dueItemsFor(profileWithDues(), TODAY), "owner"),
+      unsubscribeUrl: url,
+    });
+    expect(mail.text).toContain(url);
+    expect(mail.html).toContain("Stop these reminders");
+    expect(mail.headers).toEqual({
+      "List-Unsubscribe": `<${url}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    });
+  });
+
+  it("asks the owner to agree before any reminder", () => {
+    const mail = renderOwnerEmailConfirm({
+      businessName: "A <b>Shop</b>",
+      firmName: "North Advisors",
+      confirmUrl: "https://app.example/api/owner-email?do=confirm&token=t",
+    });
+    expect(mail.subject).toBe("Get reminders about A <b>Shop</b>?");
+    expect(mail.text).toContain("North Advisors wants Precog to email you reminders");
+    expect(mail.html).toContain("A &lt;b&gt;Shop&lt;/b&gt;");
+    expect(mail.replyTo).toBeUndefined();
   });
 });
 
@@ -197,7 +228,9 @@ describe("digest run", () => {
       [JSON.stringify(profileWithDues())],
     );
     await db.pg.query(
-      `insert into engagement_marks (user_id, business_id, owner_email) values ('adv', 'biz_1', 'owner@shop.test')`,
+      `insert into engagement_marks (user_id, business_id, owner_email, owner_email_token, owner_email_confirmed_at)
+       values ('adv', 'biz_1', 'owner@shop.test', $1, now())`,
+      [OWNER_TOKEN],
     );
     await db.pg.query(
       `insert into businesses (id, user_id, name, industry, profile, revision)
@@ -210,12 +243,68 @@ describe("digest run", () => {
   });
 
   function recorder() {
-    const sent: { to: string; subject: string; replyTo?: string }[] = [];
-    const send = async (to: string, message: { subject: string; replyTo?: string }) => {
-      sent.push({ to, subject: message.subject, replyTo: message.replyTo });
+    const sent: { to: string; subject: string; text: string; replyTo?: string }[] = [];
+    const send = async (
+      to: string,
+      message: { subject: string; text: string; replyTo?: string },
+    ) => {
+      sent.push({ to, subject: message.subject, text: message.text, replyTo: message.replyTo });
     };
     return { sent, send };
   }
+
+  const run = (send: ReturnType<typeof recorder>["send"]) =>
+    runDigest(db.sql, { today: TODAY, appUrl: "https://app.example", send });
+
+  it("sends the owner's note with a stop link even when nobody gets a digest", async () => {
+    await db.sql`insert into notification_settings (user_id, weekly_digest) values ('adv', false)`;
+    const { sent, send } = recorder();
+    const outcome = await run(send);
+    expect(outcome).toMatchObject({ advisors: 0, owners: 1 });
+    expect(sent.map((s) => s.to)).toEqual(["owner@shop.test"]);
+    expect(sent[0].replyTo).toBe("adv@firm.test");
+    expect(sent[0].text).toContain(
+      `https://app.example/api/owner-email?do=stop&token=${OWNER_TOKEN}`,
+    );
+  });
+
+  it("follows the firm owner's switch even when a member turned theirs off", async () => {
+    await firmWithReviewer();
+    await db.sql`insert into notification_settings (user_id, weekly_digest) values ('adv', false)`;
+    await db.sql`insert into notification_settings (user_id, owner_reminders) values ('rev', false)`;
+    const { sent, send } = recorder();
+    const outcome = await run(send);
+    expect(outcome.owners).toBe(1);
+    expect(sent.filter((s) => s.to === "owner@shop.test")).toHaveLength(1);
+  });
+
+  it("emails an owner address only once confirmed and until the owner stops it", async () => {
+    await db.sql`update engagement_marks set owner_email_confirmed_at = null`;
+    const { sent, send } = recorder();
+    expect((await run(send)).owners).toBe(0);
+    await db.sql`
+      update engagement_marks set owner_email_confirmed_at = now(), owner_email_unsubscribed_at = now()
+    `;
+    expect((await run(send)).owners).toBe(0);
+    expect(sent.map((s) => s.to)).not.toContain("owner@shop.test");
+  });
+
+  it("sends the digest only to a confirmed address or a Google or X account", async () => {
+    await db.sql`update "user" set "emailVerified" = false where id = 'adv'`;
+    const first = recorder();
+    const outcome = await run(first.send);
+    expect(outcome.advisors).toBe(0);
+    expect(first.sent.map((s) => s.to)).toEqual(["owner@shop.test"]);
+    expect(first.sent[0].replyTo).toBeUndefined();
+
+    await db.sql`
+      insert into account (id, "accountId", "providerId", "userId", "createdAt", "updatedAt")
+      values ('acc_g', 'g-1', 'grok-google', 'adv', now(), now())
+    `;
+    const second = recorder();
+    expect((await run(second.send)).advisors).toBe(1);
+    expect(second.sent.map((s) => s.to)).toEqual(["adv@firm.test"]);
+  });
 
   /** 'adv' becomes the owner of North Advisors with biz_1 as a client, and 'rev' a reviewer. */
   async function firmWithReviewer() {

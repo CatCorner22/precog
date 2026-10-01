@@ -513,6 +513,8 @@ export const RULE_SCHEMES: Record<string, SchemeKind[]> = {
   "rule-claims-writeoff": ["billing-shell-vendor", "financial-statement"],
   "rule-vendor-create-pay": ["billing-shell-vendor"],
   "rule-vendor-create-approve": ["billing-shell-vendor"],
+  // Set up a supplier and enter its bills: the shell vendor's paperwork.
+  "rule-vendor-create-invoice": ["billing-shell-vendor"],
   "rule-vendor-approve-pay": ["billing-shell-vendor", "corruption"],
   "rule-payroll": ["payroll", "expense-reimbursement"],
   "rule-admin-pay": ["check-tampering", "payroll", "corruption"],

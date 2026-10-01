@@ -69,7 +69,9 @@ export function newStep(text = ""): ProcedureStep {
  * Save `next` over `prev`. When what a stand-in would follow changed, the
  * version goes up, the change is logged, and any verification is cleared
  * (kept as `lastVerifiedAt` so the screen can ask for a re-check). A save
- * with no content change keeps the version and the verification.
+ * with no content change keeps the version and the verification, unless it
+ * lengthens the review interval: a verification vouches for the steps only
+ * until the review date it was made with, so a longer one needs a new check.
  */
 export function withProcedureEdit(
   prev: Procedure | null,
@@ -78,7 +80,23 @@ export function withProcedureEdit(
 ): Procedure {
   const saved = { ...next, updatedAt: today };
   if (!prev) return saved;
-  if (contentKey(prev) === contentKey(next)) {
+  const sameContent = contentKey(prev) === contentKey(next);
+  if (sameContent && prev.verifiedAt && next.reviewEveryDays > prev.reviewEveryDays) {
+    const {
+      verifiedAt: _verifiedAt,
+      verifiedBy: _verifiedBy,
+      verifiedByAccountId: _accountId,
+      verifiedByAccountName: _accountName,
+      ...unverified
+    } = saved;
+    return {
+      ...unverified,
+      version: prev.version,
+      changelog: prev.changelog,
+      lastVerifiedAt: prev.verifiedAt,
+    };
+  }
+  if (sameContent) {
     return {
       ...saved,
       version: prev.version,
@@ -145,6 +163,68 @@ export function verifyProcedure(
   };
 }
 
+/** The procedure no longer verified; the verification stays as the last one, so the screen asks for a re-verify. */
+export function withoutVerification(p: Procedure): Procedure {
+  if (!p.verifiedAt) return p;
+  const {
+    verifiedAt,
+    verifiedBy: _verifiedBy,
+    verifiedByAccountId: _accountId,
+    verifiedByAccountName: _accountName,
+    ...rest
+  } = p;
+  return { ...rest, lastVerifiedAt: verifiedAt };
+}
+
+const VERIFICATION_FIELDS = [
+  "verifiedAt",
+  "verifiedBy",
+  "verifiedByAccountId",
+  "verifiedByAccountName",
+] as const;
+
+/**
+ * Procedures brought back from an older saved version, keeping only the
+ * verifications the account already holds: a procedure whose steps match
+ * the business's current copy, with a review interval no longer than that
+ * copy's, takes that copy's verification as it stands; any other
+ * verification goes (kept as the last one). An older stamp is no
+ * new verification, so the server would refuse to take it again, and every
+ * later save with it.
+ */
+export function verificationsAsHeld(
+  restored: readonly Procedure[],
+  current: readonly Procedure[],
+): Procedure[] {
+  const now = new Map(current.map((p) => [p.id, p]));
+  return restored.map((p) => {
+    if (!p.verifiedAt) return p;
+    const held = now.get(p.id);
+    const unverified = withoutVerification(p);
+    if (!held?.verifiedAt || contentKey(held) !== contentKey(p)) return unverified;
+    // A longer interval than the held one would push the review date out,
+    // which the server counts as a new verification (see verify-guard).
+    if (p.reviewEveryDays > held.reviewEveryDays) return unverified;
+    const stamp: Partial<Procedure> = {};
+    for (const key of VERIFICATION_FIELDS) if (held[key] !== undefined) stamp[key] = held[key];
+    return { ...unverified, ...stamp };
+  });
+}
+
+/**
+ * The procedures of a business saved as a new copy, without verifications
+ * another account recorded: the account that saves the copy would be
+ * recording them as new, under its own name, which the server refuses.
+ */
+export function withoutOthersVerifications(
+  procedures: readonly Procedure[],
+  accountId: string,
+): Procedure[] {
+  return procedures.map((p) =>
+    p.verifiedByAccountId && p.verifiedByAccountId !== accountId ? withoutVerification(p) : p,
+  );
+}
+
 /** The step without its AI-draft or suggestion mark (the same object when it has neither). */
 export function withoutDraftMarks(step: ProcedureStep): ProcedureStep {
   if (!step.aiDrafted && !step.suggested) return step;
@@ -155,6 +235,16 @@ export function withoutDraftMarks(step: ProcedureStep): ProcedureStep {
 /** Steps Grok wrote that no person has edited or verified yet. */
 export function aiDraftedSteps(p: Pick<Procedure, "steps">): number {
   return p.steps.filter((s) => s.aiDrafted && s.text.trim()).length;
+}
+
+/**
+ * True when every written step is still a suggestion from the library or an
+ * AI draft no person has edited, and nobody has verified the procedure: it is
+ * generic text, not yet this business's own steps.
+ */
+export function isDraftProcedure(p: Pick<Procedure, "steps" | "verifiedAt">): boolean {
+  const written = p.steps.filter((s) => s.text.trim());
+  return !p.verifiedAt && written.length > 0 && written.every((s) => s.suggested || s.aiDrafted);
 }
 
 /** Steps taken from a recommended procedure and not yet fitted to this business. */

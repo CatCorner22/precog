@@ -235,6 +235,19 @@ export function signInMeetsNewerWork(
   );
 }
 
+/**
+ * This device's copy of a business: the newer of its portfolio entry and
+ * another tab's open copy (written on every edit, the portfolio only a
+ * moment later), normalised as on every other load path.
+ */
+export function newestLocalCopy(
+  stored: PracticeProfile | undefined,
+  open: PracticeProfile | null,
+): PracticeProfile | null {
+  const local = stored ? normalizeProfile(stored) : null;
+  return open && (!local || open.updatedAt >= local.updatedAt) ? open : local;
+}
+
 /** The copy a switch opens, or why it opens none. */
 type SwitchCopy =
   | {
@@ -244,6 +257,12 @@ type SwitchCopy =
       accountRevision: number | null;
       /** A copy the account has never held: its next save creates it there. */
       localOnly: boolean;
+      /**
+       * The account's copy, when it moved on while this device holds edits
+       * the account never took: this device's copy opens, and the owner
+       * chooses between the two as for any refused save.
+       */
+      accountMovedOn?: { profile: PracticeProfile; revision: number };
     }
   | { ok: false; reason: string };
 
@@ -255,7 +274,9 @@ type SwitchCopy =
  * holds: clocks are not a tiebreaker. A business the account does not hold
  * opens from this device when the account never held it (a copy kept after
  * a conflict, a guest business brought in); one the account held and no
- * longer does was deleted or shared no more. Every copy is normalised, as on
+ * longer does was deleted or shared no more. When the account moved on and
+ * this device's copy holds edits the account never took, neither is dropped:
+ * the result names both and the owner chooses. Every copy is normalised, as on
  * every other load path.
  */
 export function pickSwitchCopy(input: {
@@ -263,25 +284,46 @@ export function pickSwitchCopy(input: {
   stored: PracticeProfile | undefined;
   /** Another tab's open copy of this business, already normalised. */
   open: PracticeProfile | null;
-  /** The account's answer; null when not signed in or not reachable. */
-  account: { found: true; profile: PracticeProfile; revision: number } | { found: false } | null;
+  /** The account's answer; null when not signed in, "unreachable" when the load failed. */
+  account:
+    | { found: true; profile: PracticeProfile; revision: number }
+    | { found: false }
+    | "unreachable"
+    | null;
   /** The account revision this device's copy was built on. */
   seenRevision: number | undefined;
   /** Whether the account held this business when this device last heard. */
   heldByAccount: boolean;
+  /** Whether the account took this device's copy stamped `stamp` (saved it, or this device loaded it from there). */
+  accountTook: (stamp: string) => boolean;
 }): SwitchCopy {
-  let local = input.stored ? normalizeProfile(input.stored) : null;
-  if (input.open && (!local || input.open.updatedAt >= local.updatedAt)) local = input.open;
+  const local = newestLocalCopy(input.stored, input.open);
+  if (input.account === "unreachable") {
+    // Not "no longer on this device": the account may well hold it.
+    if (!local) return { ok: false, reason: "Precog could not reach your account. Try again." };
+    return { ok: true, profile: local, accountRevision: null, localOnly: false };
+  }
   const { account } = input;
   if (account?.found) {
-    return local && input.seenRevision === account.revision
-      ? { ok: true, profile: local, accountRevision: null, localOnly: false }
-      : {
+    if (local && input.seenRevision === account.revision)
+      return { ok: true, profile: local, accountRevision: null, localOnly: false };
+    const accountCopy = normalizeProfile(account.profile);
+    const unsynced =
+      local &&
+      signInMeetsNewerWork(
+        { ...local, businessId: accountCopy.businessId },
+        accountCopy,
+        input.accountTook(local.updatedAt) ? local.updatedAt : undefined,
+      );
+    return unsynced
+      ? {
           ok: true,
-          profile: normalizeProfile(account.profile),
-          accountRevision: account.revision,
+          profile: local,
+          accountRevision: null,
           localOnly: false,
-        };
+          accountMovedOn: { profile: accountCopy, revision: account.revision },
+        }
+      : { ok: true, profile: accountCopy, accountRevision: account.revision, localOnly: false };
   }
   if (account && (input.heldByAccount || !local)) {
     return {

@@ -5,6 +5,7 @@
  */
 
 import type { EntitlementId } from "../sod/conflict-rules";
+import { formerTitleRest } from "../sod/owner-role";
 import {
   INDUSTRY_HINTS,
   INDUSTRY_SEATS,
@@ -31,10 +32,17 @@ export interface JobMatch {
  * the person served ("Owner's Assistant", "Office Manager - reports to
  * Owner") never takes the owner's seat. Returns undefined when nothing
  * matches, so the caller can leave the duties for the owner to tick rather
- * than guess.
+ * than guess. A past title ("Former Owner", "Ex-Controller") never takes the
+ * owner's seat and carries no duties, so the owner reviews that row.
  */
 export function matchJobTitle(rawTitle: string, industry?: string): JobMatch | undefined {
   const title = rawTitle.slice(0, MAX_TITLE_LENGTH);
+  const former = formerTitleRest(title);
+  if (former !== undefined) {
+    const was = matchJobTitle(former, industry);
+    if (!was || was.entry.id === "owner") return undefined;
+    return { entry: was.entry, confidence: "partial", entitlements: [] };
+  }
   const words = tokens(title);
   if (words.length === 0) return undefined;
   const bare = undecorated(words);

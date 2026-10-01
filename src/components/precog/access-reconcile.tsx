@@ -35,7 +35,7 @@ export function AccessReconcile() {
   async function onUsers(file: File) {
     const text = await readFile(file, setIssues);
     if (text === null) return;
-    const parsed = parseAccessExport(text, template.people, today);
+    const parsed = parseAccessExport(text, template.people, today, template.roleTemplates);
     setIssues(parsed.issues);
     setAccessReconciliation((current) => ({
       importedAt: new Date().toISOString(),

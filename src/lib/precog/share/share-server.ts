@@ -7,6 +7,9 @@ import { DAY_MS } from "../dates";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { SlidingWindowLimiter } from "../llm/rate-limit";
 import { parseLoadShareInput } from "../public-inputs";
+import { resolveBusinessOwner } from "../business-store";
+import { resolveTemplate } from "../active-template";
+import type { PracticeProfile } from "../practice-profile";
 import { checkPasscodeGuess, hashPasscode, purgeOldPasscodeAttempts } from "./share-attempts";
 import { redactSharePayload } from "./share-payload";
 import { parseCreateShareInput, type SharedMapPayload } from "./share-schema";
@@ -15,15 +18,39 @@ import {
   listMapShareSummaries,
   purgeOldShareViews,
   recordShareView,
+  revokeShare,
   ShareLimitError,
+  shareStillReachable,
 } from "./share-store";
 
 export type { SharedMapPayload };
+
+/** Names on the saved business, including people who have left. */
+async function rosterForShare(
+  sql: Sql,
+  ownerId: string,
+  businessId: string,
+): Promise<{ name: string; role: string }[]> {
+  const rows = await sql<{ profile: PracticeProfile }>`
+    select profile from businesses
+    where user_id = ${ownerId} and id = ${businessId} and deleted_at is null
+  `;
+  const profile = rows[0]?.profile;
+  if (!profile || typeof profile !== "object") return [];
+  try {
+    return resolveTemplate(profile)
+      .people.filter((person) => person.name.trim())
+      .map((person) => ({ name: person.name, role: person.role }));
+  } catch {
+    return [];
+  }
+}
 
 export const createMapShare = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
     (input: {
+      businessId: string;
       payload: SharedMapPayload;
       expiresInDays?: number;
       redacted?: boolean;
@@ -33,12 +60,21 @@ export const createMapShare = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { randomBytes } = await import("node:crypto");
     const sql = await getSql();
+    // The link records its business, so deleting the business or removing
+    // the member who made it revokes the link. A business with no row yet (a
+    // new one whose first save is still on its way) is the caller's own:
+    // nothing stored can be reached through it, and deleting it later still
+    // revokes the link.
+    const businessOwnerId =
+      (await resolveBusinessOwner(sql, context.userId, data.businessId)) ?? context.userId;
     const token = randomHex(18);
     const expires = new Date(Date.now() + data.expiresInDays * DAY_MS).toISOString();
-    // The browser redacts with the whole team in hand; this pass makes sure a
-    // link stored as "names hidden" never holds its people's names, whatever
-    // the client sent.
-    const payload = data.redacted ? redactSharePayload(data.payload) : data.payload;
+    const roster = await rosterForShare(sql, businessOwnerId, data.businessId);
+    const team = [...roster, ...data.payload.people];
+    // The browser may set namesHidden and keep the names. Scrub from the
+    // stored roster, including people who have left, and ignore that flag.
+    const hideNames = data.redacted || data.payload.namesHidden === true;
+    const payload = hideNames ? redactSharePayload(data.payload, team) : data.payload;
     const passcodeSalt = data.passcode ? randomBytes(16).toString("hex") : null;
     const passcodeHash =
       data.passcode && passcodeSalt ? await hashPasscode(data.passcode, passcodeSalt) : null;
@@ -52,6 +88,8 @@ export const createMapShare = createServerFn({ method: "POST" })
       redacted: data.redacted,
       passcodeSalt,
       passcodeHash,
+      businessOwnerId,
+      businessId: data.businessId,
     });
     if (!stored) throw new ShareLimitError();
     return { token, expiresAt: expires, hasPasscode: passcodeHash !== null };
@@ -76,10 +114,8 @@ export const revokeMapShare = createServerFn({ method: "POST" })
   })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    await sql`
-      update map_shares set revoked_at = now()
-      where token = ${data.token} and user_id = ${context.userId}
-    `;
+    // The maker, or the firm owner for a link to one of the firm's clients.
+    await revokeShare(sql, context.userId, data.token);
     return { ok: true as const };
   });
 
@@ -101,7 +137,8 @@ export const loadMapShare = createServerFn({ method: "POST" })
     `;
     const row = rows[0];
     if (!row) return { found: false as const, reason: "missing" as const };
-    if (row.revoked_at) return { found: false as const, reason: "revoked" as const };
+    if (row.revoked_at || !(await shareStillReachable(sql, row.token)))
+      return { found: false as const, reason: "revoked" as const };
     const expiresAt = toIsoTimestampOrNull(row.expires_at);
     if (expiresAt && new Date(expiresAt).getTime() < Date.now())
       return { found: false as const, reason: "expired" as const };

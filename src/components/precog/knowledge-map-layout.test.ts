@@ -47,4 +47,15 @@ describe("knowledgeMapLayout", () => {
     const layout = knowledgeMapLayout([person(0)], [item(0)], relations);
     expect(layout.edges.map((e) => [e.from.id, e.to.id])).toEqual([["p0", "k0"]]);
   });
+
+  it("draws no one marked as left, and no line from them to what they used to hold", () => {
+    const left = { ...person(1), active: false };
+    const relations: KnowledgeRelation[] = [
+      { personId: "p0", knowledgeId: "k0", level: "expert" },
+      { personId: "p1", knowledgeId: "k1", level: "expert" },
+    ];
+    const layout = knowledgeMapLayout([person(0), left], [item(0), item(1)], relations);
+    expect(layout.people.map((p) => p.id)).toEqual(["p0"]);
+    expect(layout.edges.map((e) => [e.from.id, e.to.id])).toEqual([["p0", "k0"]]);
+  });
 });

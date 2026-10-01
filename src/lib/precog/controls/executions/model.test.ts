@@ -46,6 +46,31 @@ describe("control execution lifecycle", () => {
       expect(() => parseCommand({ ...record(), ...edit })).toThrow();
     }
   });
+  it("names the field to fix in plain words, never zod's own text", () => {
+    const message = (edit: Record<string, unknown>) => {
+      try {
+        parseCommand({ ...record(), ...edit });
+      } catch (error) {
+        return (error as Error).message;
+      }
+      return "";
+    };
+    expect(message({ evidenceRefs: Array.from({ length: 9 }, (_, i) => `ref ${i}`) })).toBe(
+      "Enter at most 8 evidence references, one per line.",
+    );
+    expect(message({ evidenceRefs: [] })).toBe("Enter at least one evidence reference.");
+    expect(message({ scope: "   " })).toBe("Fill in the population, period and items checked.");
+    expect(message({ note: " " })).toBe("Fill in the work performed and conclusion.");
+    expect(message({ method: "" })).toBe("Choose a method.");
+    expect(message({ performedOn: "2026-02-30" })).toBe(
+      "Enter a real calendar date for the date performed.",
+    );
+    for (const edit of [{ actorId: "review" }, { runId: "bad id!" }, { baseRevision: 3 }]) {
+      expect(message(edit)).toBe(
+        "Precog could not read this check. Reload the page and try again.",
+      );
+    }
+  });
   it("rejects impossible periods, future performance and work before the period", () => {
     expect(() => parseCommand({ ...record(), period: "2026-13" })).toThrow();
     expect(() => parseCommand({ ...record(), performedOn: "2026-02-30" })).toThrow();

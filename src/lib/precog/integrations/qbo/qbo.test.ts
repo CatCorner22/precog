@@ -172,6 +172,21 @@ describe("diffSnapshots name matching", () => {
     );
     expect(drift.employeesNotOnMap).toEqual([]);
   });
+
+  it("lists someone marked as left whom payroll still pays apart, not as a new hire", () => {
+    const pat = { id: "7", name: "Pat Lee", active: true, releasedOn: null };
+    const snapshot = { takenAt: "2026-09-26T00:00:00Z", vendors: [], employees: [pat] };
+    const drift = diffSnapshots(null, snapshot, [{ name: "Pat Lee", active: false }]);
+    expect(drift.leftButStillPaid).toEqual([pat]);
+    expect(drift.employeesNotOnMap).toEqual([]);
+    expect(driftIsEmpty(drift)).toBe(false);
+    // A current namesake on the map is the one being paid.
+    const both = diffSnapshots(null, snapshot, [
+      { name: "Pat Lee", active: false },
+      { name: "Pat Lee", active: true },
+    ]);
+    expect(both.leftButStillPaid).toEqual([]);
+  });
 });
 
 describe("token sealing", () => {

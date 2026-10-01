@@ -17,6 +17,9 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { advanceEngagement, isOwnTeam, pilotMetrics, pilotMetricsCsv } from "@/lib/precog/firm/engagement";
 import { downloadText } from "@/lib/download";
+import { advanceEngagement, isOwnTeam, pilotMetrics } from "@/lib/precog/firm/engagement";
+import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
+import { commercialToolsOpen } from "@/lib/precog/firm/billing-store";
 import type { FirmPlan } from "@/lib/precog/firm/pricing";
 import {
   getFirm,
@@ -49,7 +52,7 @@ export const Route = createFileRoute("/firm")({
       {
         name: "description",
         content:
-          "Advisor workspace: firm members and roles, client list, plan and billing, reminders, change history and accounting connections.",
+          "Firm workspace: firm members and roles, client list, plan and billing, reminders, change history and accounting connections.",
       },
     ],
   }),
@@ -94,6 +97,7 @@ function FirmPage() {
     return pilotMetrics({
       engagement: profile.engagement,
       conflicts,
+      partialCoverage: partialDualReleaseCoverage(profile.dualRelease, conflicts),
       decisions: profile.decisions,
       industry: profile.industry,
     });
@@ -270,12 +274,15 @@ function FirmPage() {
 
   const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const isOwner = firm?.role === "owner";
+  const toolsOpen = commercialToolsOpen({
+    stripeConfigured: billingConfigured,
+    subscriptionStatus: billing?.subscriptionStatus ?? null,
+    assessmentPaidAt: billing?.assessmentPaidAt ?? null,
+  });
 
   return (
     <main className="mx-auto min-h-[calc(100dvh-var(--grok-banner-h,0px))] max-w-3xl px-6 py-8">
-      <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">
-        Advisor workspace
-      </p>
+      <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">Firm workspace</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">{firm?.name || "Firm"}</h1>
       <p className="mt-2 text-sm text-muted">
         One firm, its people, and each client kept apart. The open business is the one the review,
@@ -422,6 +429,14 @@ function FirmPage() {
             onClientsChange={setClients}
           />
           <NotificationSettingsPanel signedIn={signedIn} />
+          {!toolsOpen && (
+            <p className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
+              QuickBooks stays closed until the assessment is paid or the firm plan is active. A
+              past-due plan is not paid. The monthly file on this page stays open. Stripe is
+              connected on this deployment; the price is the $1,000 assessment and the $299 monthly
+              plan, not a price per client.
+            </p>
+          )}
           <QuickBooksPanel signedIn={signedIn} />
           <ClientHistory signedIn={signedIn} />
         </div>

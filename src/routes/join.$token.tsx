@@ -6,7 +6,7 @@ import { LegalFooter } from "@/components/precog/legal-footer";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
 import { emailAndPasswordEnabled } from "@/lib/auth/email-password";
-import { acceptFirmInvite, peekFirmInvite } from "@/lib/precog/firm/server";
+import { acceptFirmInvite, checkFirmInvite, peekFirmInvite } from "@/lib/precog/firm/server";
 
 export const Route = createFileRoute("/join/$token")({
   component: JoinPage,
@@ -40,10 +40,10 @@ function JoinPage() {
     };
   }, [token]);
 
-  async function join() {
+  async function join(confirmOtherEmail: boolean) {
     setBusy(true);
     try {
-      const { firm } = await acceptFirmInvite({ data: { token } });
+      const { firm } = await acceptFirmInvite({ data: { token, confirmOtherEmail } });
       toast.success(`You joined ${firm.name} as ${firm.role}.`);
       void navigate({ to: "/firm" });
     } catch (err) {
@@ -79,11 +79,13 @@ function JoinPage() {
             {isPending ? (
               <p className="mt-4 text-sm text-muted">Checking your sign-in…</p>
             ) : user ? (
-              <Button className="mt-5 w-full" onClick={() => void join()} disabled={busy}>
-                {busy
-                  ? "Joining…"
-                  : `Join as ${user.displayName ?? user.primaryEmail ?? "this account"}`}
-              </Button>
+              <JoinAs
+                token={token}
+                invitedEmail={invite.email}
+                accountLabel={user.displayName ?? user.primaryEmail ?? "this account"}
+                busy={busy}
+                onJoin={(confirmOtherEmail) => void join(confirmOtherEmail)}
+              />
             ) : (
               <SignInHere token={token} email={invite.email} />
             )}
@@ -94,6 +96,73 @@ function JoinPage() {
     </main>
   );
 }
+
+/**
+ * The join button for a signed-in visitor. Precog joins only when the
+ * account's confirmed email is the invited address. Any other account is
+ * refused, including one whose email is not confirmed.
+ */
+function JoinAs({
+  token,
+  invitedEmail,
+  accountLabel,
+  busy,
+  onJoin,
+}: {
+  token: string;
+  invitedEmail: string;
+  accountLabel: string;
+  busy: boolean;
+  onJoin: (confirmOtherEmail: boolean) => void;
+}) {
+  const [fit, setFit] = useState<InviteFitResult | "loading">("loading");
+
+  useEffect(() => {
+    let cancel = false;
+    void checkFirmInvite({ data: { token } })
+      .then((res) => {
+        if (!cancel) setFit(res.fit);
+      })
+      .catch(() => {
+        if (!cancel) setFit(null);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [token]);
+
+  if (fit === "loading") return <p className="mt-4 text-sm text-muted">Checking your sign-in…</p>;
+  if (fit?.fit !== "match") {
+    return (
+      <p className="mt-4 text-sm text-muted">
+        {fit?.fit === "mismatch" ? (
+          <>
+            The firm sent this invitation to <span className="text-fg">{invitedEmail}</span>, and
+            you are signed in as <span className="text-fg">{fit.accountEmail}</span>. Sign in with
+            the invited address, or ask the firm owner to invite {fit.accountEmail}.
+          </>
+        ) : (
+          <>
+            Precog cannot match this account to <span className="text-fg">{invitedEmail}</span>.
+            Confirm that email on this account, then open the invitation again.
+          </>
+        )}
+      </p>
+    );
+  }
+  return (
+    <>
+      <p className="mt-4 text-sm text-muted">
+        The firm sent this invitation to <span className="text-fg">{invitedEmail}</span>.
+      </p>
+      <Button className="mt-5 w-full" onClick={() => onJoin(false)} disabled={busy}>
+        {busy ? "Joining…" : `Join as ${accountLabel}`}
+      </Button>
+    </>
+  );
+}
+
+type InviteFitResult = Awaited<ReturnType<typeof checkFirmInvite>>["fit"];
 
 /**
  * Sign-in on the invitation itself, so the invitee comes back to this link
@@ -109,7 +178,7 @@ function SignInHere({ token, email }: { token: string; email: string }) {
     <>
       <p className="mt-4 text-sm text-muted">
         Sign in to join. The firm sent the invitation to <span className="text-fg">{email}</span>;
-        any account can use it.
+        sign in with that address.
       </p>
       <div className="mt-4 space-y-2">
         {GROK_PROVIDERS.map((p) => (

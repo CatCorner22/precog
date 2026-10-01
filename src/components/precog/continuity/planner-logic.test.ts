@@ -43,14 +43,14 @@ describe("register confirmations", () => {
 
   it("says what a reset throws away", () => {
     expect(resetRegisterPrompt(register, "Dental")).toBe(
-      "Replace your 2 items and 3 marks with the dental sample list? You lose your items and every mark on them, and you cannot undo this.",
+      "Replace your 2 items and 3 marks with the dental sample list? You lose your items and every mark on them. You cannot undo this.",
     );
   });
 
   it("compares the register with the file before an import replaces it", () => {
     const file = { knowledge: [item("k9")], relations: [mark("p1", "k9")] };
     expect(importRegisterPrompt(register, file)).toBe(
-      "Replace your 2 items and 3 marks with the 1 item and 1 mark in this file? You lose what the register says now, and you cannot undo this.",
+      "Replace your 2 items and 3 marks with the 1 item and 1 mark in this file? You lose what the register says now. You cannot undo this.",
     );
   });
 
@@ -100,6 +100,7 @@ describe("debrief", () => {
   const entry = (id: string, training: Partial<DecisionEntry> | null = null): DebriefItem => ({
     item: item(id),
     standIn: null,
+    standInConfirmed: false,
     standInLevel: undefined,
     handoff: null,
     training: training as DecisionEntry | null,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderFirmInvitation } from "./invite-email";
+import { renderFirmInvitation, renderUnmatchedJoin } from "./invite-email";
 
 describe("firm invitation email", () => {
   it("carries the link and escapes the firm name in the HTML", () => {
@@ -16,5 +16,22 @@ describe("firm invitation email", () => {
     );
     expect(email.html).toContain("North &lt;Advisors&gt;");
     expect(email.html).not.toContain("<Advisors>");
+  });
+
+  it("tells the owner who joined with an invitation Precog could not match", () => {
+    const email = renderUnmatchedJoin({
+      firmName: "North",
+      role: "preparer",
+      memberName: "Bob <b>",
+      accountEmail: "bob@gmail.test",
+      invitedEmail: "alice@cpa.test",
+      link: "https://app.example/firm",
+    });
+    expect(email.subject).toBe("bob@gmail.test joined North on Precog");
+    expect(email.text).toContain(
+      "Bob <b> (bob@gmail.test) joined North as a preparer with the invitation you sent to alice@cpa.test.",
+    );
+    expect(email.text).toContain("https://app.example/firm");
+    expect(email.html).toContain("Bob &lt;b&gt;");
   });
 });

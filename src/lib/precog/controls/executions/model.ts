@@ -1,24 +1,48 @@
 import { z } from "zod";
 import { RequestError } from "@/lib/request-errors";
-import { isCalendarDate } from "../../dates";
+import { formatMonth, isCalendarDate } from "../../dates";
 import { stableStringify } from "../../text";
 import type { ReviewItemKey } from "../../firm/reviews";
 
-const id = z.string().regex(/^[A-Za-z0-9_-]{1,80}$/);
-const text = (max: number) => z.string().trim().min(1).max(max);
-const day = z.string().refine(isCalendarDate, "Enter a real calendar date.");
-const period = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+/** For anything the form itself sets, which a person cannot fix by editing a field. */
+const UNREADABLE = "Precog could not read this check. Reload the page and try again.";
+const id = z.string().regex(/^[A-Za-z0-9_-]{1,80}$/, UNREADABLE);
+/** Required text the form labels `label`; each message names that field. */
+const text = (max: number, label: string) =>
+  z
+    .string(`Fill in ${label}.`)
+    .trim()
+    .min(1, `Fill in ${label}.`)
+    .max(max, `Keep ${label} to ${max.toLocaleString("en-US")} characters or fewer.`);
+const day = (label: string) =>
+  z.string(`Enter ${label}.`).refine(isCalendarDate, `Enter a real calendar date for ${label}.`);
+const period = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Choose an evidence period.");
 const references = z
-  .array(text(400))
-  .min(1)
-  .max(8)
+  .array(text(400, "each evidence reference"), "Enter at least one evidence reference.")
+  .min(1, "Enter at least one evidence reference.")
+  .max(8, "Enter at most 8 evidence references, one per line.")
   .transform((refs) => [...new Set(refs)]);
 export const METHODS = ["inquiry", "observation", "inspection", "reperformance"] as const;
-const method = z.enum(METHODS);
-const base = { commandId: id, runId: id, baseRevision: z.number().int().min(1).max(200) };
-const followUp = { followUpOwner: text(120).optional(), dueOn: day.optional() };
-const result = z.enum(["no_exception", "exception"]);
-const note = text(2000);
+/** The form's name for each method. */
+export const METHOD_LABELS: Record<(typeof METHODS)[number], string> = {
+  inquiry: "Inquiry",
+  observation: "Observation",
+  inspection: "Inspection",
+  reperformance: "Reperformance / retest",
+};
+const method = z.enum(METHODS, "Choose a method.");
+const base = {
+  commandId: id,
+  runId: id,
+  baseRevision: z.number(UNREADABLE).int(UNREADABLE).min(1, UNREADABLE).max(200, UNREADABLE),
+};
+const followUp = {
+  followUpOwner: text(120, "the follow-up owner").optional(),
+  dueOn: day("the follow-up due date").optional(),
+};
+const result = z.enum(["no_exception", "exception"], "Choose a result.");
+const note = (label: string) => text(2000, label);
+const workNote = note("the work performed and conclusion");
 
 const schema = z
   .discriminatedUnion("action", [
@@ -34,13 +58,13 @@ const schema = z
           "new_vendors",
         ]),
         period,
-        performedOn: day,
-        performedBy: text(120),
+        performedOn: day("the date performed"),
+        performedBy: text(120, "who performed the work"),
         method,
-        scope: text(1500),
+        scope: text(1500, "the population, period and items checked"),
         evidenceRefs: references,
         result,
-        note,
+        note: workNote,
         ...followUp,
       })
       .strict(),
@@ -51,8 +75,12 @@ const schema = z
         method,
         evidenceRefs: references,
         result,
-        note,
-        independenceConfirmed: z.boolean(),
+        note: workNote,
+        independenceConfirmed: z.boolean(
+          "Confirm that you did not perform this work and can review it independently.",
+        ),
+        /** One-partner firm issuing the check. The server allows this only when nobody else is on the firm. */
+        soleIssuer: z.boolean().optional(),
         ...followUp,
       })
       .strict(),
@@ -60,20 +88,20 @@ const schema = z
       .object({
         ...base,
         action: z.literal("correct"),
-        performedOn: day,
-        performedBy: text(120),
-        scope: text(1500),
+        performedOn: day("the date performed"),
+        performedBy: text(120, "who performed the work"),
+        scope: text(1500, "the correction scope"),
         evidenceRefs: references,
-        note,
+        note: note("what you corrected and how"),
       })
       .strict(),
     z
       .object({
         ...base,
         action: z.literal("reopen"),
-        note,
-        followUpOwner: text(120),
-        dueOn: day,
+        note: note("why you are reopening this conclusion"),
+        followUpOwner: text(120, "the follow-up owner"),
+        dueOn: day("the follow-up due date"),
       })
       .strict(),
   ])
@@ -118,11 +146,25 @@ export const STATUS_LABELS: Record<ExecutionStatus, string> = {
   reviewed: "Reviewed — no exception reported",
 };
 
+/** What each entry in a check's history records, in the words the form uses. */
+export const ACTION_LABELS: Record<ExecutionCommand["action"], string> = {
+  record: "Work recorded",
+  review: "Review conclusion",
+  correct: "Correction recorded",
+  reopen: "Conclusion reopened",
+};
+
+/** The empty log for the chosen evidence period, which need not be this month. */
+export function emptyLogMessage(period: string): string {
+  return `Nobody has recorded a control check for ${formatMonth(period)}. That does not mean there are no control gaps.`;
+}
+
 /** Reject rather than silently coerce or drop provenance and malformed evidence. */
 export function parseCommand(value: unknown): ExecutionCommand {
-  const parsed = schema.safeParse(value);
-  if (!parsed.success)
-    throw new RequestError(400, parsed.error.issues[0]?.message ?? "Invalid control check.");
+  // Every field a person fills in has its own message above; anything else
+  // (ids, revisions, unknown keys) gets UNREADABLE, never zod's own text.
+  const parsed = schema.safeParse(value, { error: () => UNREADABLE });
+  if (!parsed.success) throw new RequestError(400, parsed.error.issues[0]?.message ?? UNREADABLE);
   return parsed.data;
 }
 
@@ -131,7 +173,11 @@ export function latestPerformance(run: ControlExecution): ExecutionEvent {
   const event = [...run.history]
     .reverse()
     .find((e) => e.command.action === "record" || e.command.action === "correct");
-  if (!event) throw new RequestError(409, "This check has no recorded work. Contact support.");
+  if (!event)
+    throw new RequestError(
+      409,
+      "This check has no recorded work. Reload the log; if the check still shows no work, record a new check.",
+    );
   return event;
 }
 
@@ -227,17 +273,18 @@ export function applyCommand(
       if (!actor.canReview)
         throw new RequestError(403, "Ask a firm reviewer or owner to record the review.");
       const participation = reviewParticipationConflict(previous, actor);
-      if (participation === "recorder")
-        throw new RequestError(
-          403,
-          "A different account must review this work. An account that recorded any work or correction cannot review this check.",
-        );
-      if (participation === "performer")
+      if (participation && !command.soleIssuer) {
+        if (participation === "recorder")
+          throw new RequestError(
+            403,
+            "A different account must review this work. An account that recorded any work or correction cannot review this check.",
+          );
         throw new RequestError(
           403,
           "A person reported as having performed any work or correction cannot independently review this check.",
         );
-      if (!command.independenceConfirmed)
+      }
+      if (!command.soleIssuer && !command.independenceConfirmed)
         throw new RequestError(
           422,
           "Confirm that you did not perform the work and can review it independently.",
@@ -288,13 +335,21 @@ export function applyCommand(
         }
       : null);
   if (!first) throw new RequestError(404, "That check does not exist.");
+  const stored =
+    command.action === "review" && command.soleIssuer
+      ? {
+          ...command,
+          independenceConfirmed: false,
+          note: `Not an independent review. ${command.note}`.slice(0, 2000),
+        }
+      : command;
   return {
     ...first,
     revision: (previous?.revision ?? 0) + 1,
     status,
     history: [
       ...(previous?.history ?? []),
-      { actor: { id: actor.id, name: actor.name }, recordedAt: now, command },
+      { actor: { id: actor.id, name: actor.name }, recordedAt: now, command: stored },
     ],
   };
 }
