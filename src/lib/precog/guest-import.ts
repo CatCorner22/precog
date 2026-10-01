@@ -11,6 +11,7 @@ import {
 } from "./practice-profile";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
 import { readValueProof, writeValueProof } from "./value-proof-store";
+import { withoutVerification } from "./procedures/lifecycle";
 
 /**
  * Copying guest work into a signed-in account. The guest originals stay where
@@ -42,7 +43,16 @@ export function copyGuestBusinesses(guest: StorageLike, account: StorageLike): n
   let copied = 0;
   for (const p of importableGuestBusinesses(guest, account)) {
     const id = makeBusinessId();
-    savePortfolioEntry(normalizeProfile({ ...p, businessId: id }), account);
+    // A procedure verified while signed out carries no account's stamp, so
+    // the account would be recording it as a new verification on its first
+    // save, which the server refuses for a preparer or for writing with
+    // errors. The copy keeps it as the last verification; the owner
+    // verifies again under the account.
+    const procedures = p.procedures?.map(withoutVerification);
+    savePortfolioEntry(
+      normalizeProfile({ ...p, businessId: id, ...(procedures ? { procedures } : {}) }),
+      account,
+    );
     // The value case and evidence are kept per business id, so they move to
     // the new id too. The guest's old browser-wide figures stay where they are.
     const proof = readValueProof(p.businessId ?? DEFAULT_BUSINESS_ID, guest, {
