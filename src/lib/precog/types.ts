@@ -71,6 +71,11 @@ export interface Person {
    * Cleared as soon as the owner edits their duties anywhere.
    */
   dutiesFromTitle?: true;
+  /**
+   * People who share this mark share a household. Two signers with the same
+   * mark are not dual control unless the policy attests they do not share finances.
+   */
+  householdKey?: string;
 }
 
 export type KnowledgeKind = "duty" | "task" | "knowledge";

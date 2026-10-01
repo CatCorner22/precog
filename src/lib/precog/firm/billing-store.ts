@@ -16,6 +16,27 @@ export interface BillingAccount {
 
 export const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing", "past_due"]);
 
+/** Statuses that count as paid. past_due is a subscription, not a paid plan. */
+export const PAID_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
+
+/**
+ * QuickBooks and the rest of the firm tools.
+ * Stripe unconfigured: open, so the owner is not locked out of their own firm.
+ * past_due: closed. An active or trialing subscription, or a paid assessment
+ * with no subscription, is open.
+ */
+export function commercialToolsOpen(input: {
+  stripeConfigured: boolean;
+  subscriptionStatus: string | null;
+  assessmentPaidAt: string | null;
+}): boolean {
+  if (!input.stripeConfigured) return true;
+  if (input.subscriptionStatus === "past_due") return false;
+  if (input.subscriptionStatus && PAID_SUBSCRIPTION_STATUSES.has(input.subscriptionStatus))
+    return true;
+  return Boolean(input.assessmentPaidAt);
+}
+
 export async function loadBillingAccount(sql: Sql, userId: string): Promise<BillingAccount | null> {
   const rows = await sql<{
     stripe_customer_id: string | null;

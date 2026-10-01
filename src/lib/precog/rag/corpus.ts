@@ -224,7 +224,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "Insurance transfer vs control design",
     domain: "insurance",
     tags: ["insurance", "deductible", "premium", "employee dishonesty"],
-    text: "Employee dishonesty / crime coverage transfers some residual financial risk but does not fix process design. Deductible sets retained floor; policy limit caps recovery; control credits (cameras, dual control, bank reconciliation) may reduce premium. Annual cost of risk ≈ net premium + annualized expected retained loss. Raising deductible without improving detection often increases owner residual.",
+    text: "Employee dishonesty / crime coverage transfers some residual financial risk but does not fix process design. Deductible sets the retained floor; policy limit caps recovery; control credits (cameras, dual control, bank reconciliation) may reduce premium. Do not multiply an assumed frequency by the retained loss and call the product an annual cost. Show the loss if this happened, and the premium, separately. Precog's frequency is an assumption, not a measured rate. Raising the deductible without improving detection often increases what the owner keeps.",
     basis: practice(
       "Description of how crime-coverage terms interact with control design. Not any carrier's terms.",
     ),

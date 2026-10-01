@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, formatUsd } from "@/lib/utils";
 import { FigureTile } from "./figure-tile";
-import { costOfRiskHint } from "./scenario-page";
 
 /** The owner's saved settings and insurance, with one scenario's figures beside them. */
 export function ScenarioVariablesView({
@@ -96,13 +95,6 @@ export function ScenarioVariablesView({
               label="Assumed retained loss"
               value={formatUsd(result.retainedImpact.expected)}
               hint={withPolicyNote(noPolicy ? "all of it" : "after deductible and limit")}
-            />
-            <FigureTile
-              label="Annual cost of risk"
-              value={formatUsd(result.dynamic?.expectedAnnualCostOfRisk ?? 0)}
-              hint={withPolicyNote(
-                costOfRiskHint(result.dynamic?.likelihoodMultiplier ?? 1, noPolicy),
-              )}
             />
           </CardContent>
         </Card>

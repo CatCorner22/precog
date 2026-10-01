@@ -199,7 +199,7 @@ export async function revokeToken(refreshToken: string): Promise<void> {
   }).catch(() => undefined);
 }
 
-/** Runs one QBO query (`select * from Vendor`) and returns the parsed body. */
+/** Runs one QBO query (an explicit field list, never `select *`) and returns the parsed body. */
 export async function query(
   realmId: string,
   accessToken: string,

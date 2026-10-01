@@ -219,7 +219,7 @@ Residual scoring uses the inspectable, versioned tables in
 current action band first, the weight descriptions, band cutoffs, and a deterministic
 ±20% weight-sensitivity range so you can see which conclusions are stable before acting.
 A written, findable procedure lowers a know-how item's residual score; the scoring version is now
-`precog-residual-v1.1.0`, so earlier journal snapshots are not directly comparable.
+`precog-residual-v1.5.0`, so earlier journal snapshots are not directly comparable.
 
 ## Develop, operate and verify
 

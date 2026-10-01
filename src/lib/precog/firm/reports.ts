@@ -184,19 +184,50 @@ export async function reportVersionFor(
 
 export async function signOffReportVersion(
   sql: Sql,
-  input: { ownerUserId: string; id: string; reviewedBy: string; note: string },
+  input: {
+    ownerUserId: string;
+    id: string;
+    reviewedBy: string;
+    note: string;
+    /** The preparer is issuing the file alone. Refused when another firm member exists. */
+    issueWithoutIndependentReview?: boolean;
+  },
 ): Promise<ReportVersionRow> {
   const current = await loadReportVersion(sql, input.ownerUserId, input.id);
   if (!current) throw new ReportVersionError(404, "That report version does not exist");
   if (current.version.reviewedAt) {
     throw new ReportVersionError(409, "Someone has already signed off this version");
   }
-  if (current.version.preparedBy === input.reviewedBy) {
-    throw new ReportVersionError(409, "The preparer cannot sign off their own report");
+  const self = current.version.preparedBy === input.reviewedBy;
+  if (self) {
+    if (!input.issueWithoutIndependentReview) {
+      throw new ReportVersionError(409, "The preparer cannot sign off their own report");
+    }
+    const firms = await sql<{ firm_user_id: string | null }>`
+      select firm_user_id from businesses
+      where user_id = ${input.ownerUserId} and id = ${current.version.businessId}
+    `;
+    const firmId = firms[0]?.firm_user_id;
+    if (firmId) {
+      const others = await sql`
+        select 1 from firm_members
+        where firm_user_id = ${firmId} and member_user_id <> ${input.reviewedBy}
+        limit 1
+      `;
+      if (others.length) {
+        throw new ReportVersionError(
+          409,
+          "A different person at the firm must sign off this report",
+        );
+      }
+    }
   }
+  const note = self
+    ? `Not an independent review. ${input.note}`.trim().slice(0, 600)
+    : input.note;
   await sql`
     update report_versions
-    set reviewed_by = ${input.reviewedBy}, reviewed_at = now(), review_note = ${input.note}
+    set reviewed_by = ${input.reviewedBy}, reviewed_at = now(), review_note = ${note}
     where user_id = ${input.ownerUserId} and id = ${input.id} and reviewed_at is null
   `;
   const updated = await loadReportVersion(sql, input.ownerUserId, input.id);
@@ -229,8 +260,10 @@ export async function markReportVersionSent(
 /** One line of provenance for a locked version, printed in the report header. */
 export function versionProvenance(v: ReportVersionRow): string {
   const prepared = `Prepared by ${v.preparedByName ?? "a firm member"} on ${formatDay(v.preparedAt)}`;
-  const reviewed = v.reviewedAt
-    ? ` · Reviewed by ${v.reviewedByName ?? "a reviewer"} on ${formatDay(v.reviewedAt)}`
-    : " · Not yet reviewed";
+  const reviewed = !v.reviewedAt
+    ? " · Not yet reviewed"
+    : v.reviewedBy && v.preparedBy === v.reviewedBy
+      ? ` · Issued by ${v.reviewedByName ?? "the preparer"} on ${formatDay(v.reviewedAt)}. Not an independent review`
+      : ` · Reviewed by ${v.reviewedByName ?? "a reviewer"} on ${formatDay(v.reviewedAt)}`;
   return `Version ${v.versionNo} · ${prepared}${reviewed}`;
 }

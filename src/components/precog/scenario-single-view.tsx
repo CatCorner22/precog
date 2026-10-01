@@ -21,7 +21,6 @@ import { cn, formatUsd } from "@/lib/utils";
 import { count, verb } from "@/lib/precog/text";
 import { FigureTile } from "./figure-tile";
 import {
-  costOfRiskHint,
   mitigationCostPhrase,
   reductionPhrase,
   scenarioCases,
@@ -181,18 +180,14 @@ export function SingleScenarioView({
                   noPolicy ? "no premium" : `after ${dynamic?.discountPctApplied ?? 0}% of credits`,
                 )}
               />
-              <FigureTile
-                size="lg"
-                label="Annual cost of risk"
-                value={formatUsd(dynamic?.expectedAnnualCostOfRisk ?? 0)}
-                hint={withPolicyNote(costOfRiskHint(dynamic?.likelihoodMultiplier ?? 1, noPolicy))}
-              />
             </div>
 
             {dynamic && (
               <div className="flex flex-wrap gap-2">
                 <Badge variant="primary">
-                  How much likelier than the base case ×{dynamic.likelihoodMultiplier.toFixed(2)}
+                  Likelihood multiplier versus the base case ×
+                  {dynamic.likelihoodMultiplier.toFixed(2)}
+                  {dynamic.likelihoodMultiplier < 1 ? " (less likely than the base case)" : ""}
                 </Badge>
                 <Badge variant="warn">
                   Loss size ×{dynamic.grossSeverityMultiplier.toFixed(2)}

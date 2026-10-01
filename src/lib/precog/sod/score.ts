@@ -110,6 +110,7 @@ export function segregationPressure(conflicts: readonly PressureFinding[]): numb
   }
   let total = 0;
   for (const holders of gaps.values()) {
+    if (holders[0].severity === "family") continue;
     const weight = PRESSURE_WEIGHT[holders[0].severity];
     total +=
       weight *
@@ -158,7 +159,7 @@ const PRESSURE_WEIGHT: Record<FindingSeverity, number> = {
   critical: 14,
   high: 8,
   medium: 4,
-  family: 2,
+  family: 0,
 };
 
 /**

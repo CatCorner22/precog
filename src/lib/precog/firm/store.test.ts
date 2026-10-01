@@ -319,15 +319,15 @@ describe("invitation and the accepting account's address", () => {
     expect((await acceptInvite(db.sql, "t1", "ub")).unmatched).toBeNull();
   });
 
-  it("admits an address Precog cannot vouch for only once the person confirms, and reports it", async () => {
+  it("refuses an address Precog cannot vouch for, and keeps the invitation open", async () => {
     await db.pg.query(`update "user" set "emailVerified" = false where id = 'ub'`);
     expect((await inviteFit(db.sql, "t1", "ub"))?.fit).toBe("confirm");
-    await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toThrow(/Confirm that you are/);
-    const joined = await acceptInvite(db.sql, "t1", "ub", { confirmOtherEmail: true });
-    expect(joined.unmatched).toEqual({
-      invitedEmail: "alice@cpa.test",
-      accountEmail: "ub@example.test",
-    });
+    await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toThrow(/cannot match this account/);
+    await expect(acceptInvite(db.sql, "t1", "ub", { confirmOtherEmail: true })).rejects.toThrow(
+      /cannot match this account/,
+    );
+    expect(await peekInvite(db.sql, "t1")).not.toBeNull();
+    expect(await loadFirmFor(db.sql, "ub")).toBeNull();
   });
 
   it("treats an X-only account's address as one Precog cannot vouch for", async () => {
