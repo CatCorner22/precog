@@ -32,22 +32,43 @@ export async function findOwnerConsent(sql: Sql, token: string): Promise<OwnerCo
 
 /** The owner agrees; this also undoes an earlier stop. True when the token named an address. */
 export async function confirmOwnerEmail(sql: Sql, token: string): Promise<boolean> {
-  const rows = await sql<{ business_id: string }>`
+  const rows = await sql<{ user_id: string; business_id: string; owner_email: string }>`
     update engagement_marks
     set owner_email_confirmed_at = now(), owner_email_unsubscribed_at = null
     where owner_email_token = ${token} and owner_email is not null
-    returning business_id
+    returning user_id, business_id, owner_email
   `;
+  for (const r of rows) {
+    await sql`
+      delete from owner_email_stops
+      where user_id = ${r.user_id} and business_id = ${r.business_id} and email = ${r.owner_email}
+    `;
+  }
   return rows.length > 0;
 }
 
 /** The owner stops the reminders. True when the token named an address. */
 export async function stopOwnerEmail(sql: Sql, token: string): Promise<boolean> {
-  const rows = await sql<{ business_id: string }>`
+  const rows = await sql<{
+    user_id: string;
+    business_id: string;
+    owner_email: string;
+    owner_email_unsubscribed_at: string;
+  }>`
     update engagement_marks
     set owner_email_unsubscribed_at = coalesce(owner_email_unsubscribed_at, now())
     where owner_email_token = ${token} and owner_email is not null
-    returning business_id
+    returning user_id, business_id, owner_email, owner_email_unsubscribed_at
   `;
+  // Remembered by address, so clearing the address and entering it again
+  // does not ask the owner a second time.
+  for (const r of rows) {
+    await sql`
+      insert into owner_email_stops (user_id, business_id, email, token, stopped_at)
+      values (${r.user_id}, ${r.business_id}, ${r.owner_email}, ${token}, ${r.owner_email_unsubscribed_at})
+      on conflict (user_id, business_id, email) do update set
+        token = excluded.token, stopped_at = excluded.stopped_at
+    `;
+  }
   return rows.length > 0;
 }

@@ -7,7 +7,7 @@ import { DAY_MS } from "../dates";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { SlidingWindowLimiter } from "../llm/rate-limit";
 import { parseLoadShareInput } from "../public-inputs";
-import { requireBusinessOwner } from "../firm/access.server";
+import { resolveBusinessOwner } from "../business-store";
 import { checkPasscodeGuess, hashPasscode, purgeOldPasscodeAttempts } from "./share-attempts";
 import { redactSharePayload } from "./share-payload";
 import { parseCreateShareInput, type SharedMapPayload } from "./share-schema";
@@ -38,8 +38,12 @@ export const createMapShare = createServerFn({ method: "POST" })
     const { randomBytes } = await import("node:crypto");
     const sql = await getSql();
     // The link records its business, so deleting the business or removing
-    // the member who made it revokes the link.
-    const businessOwnerId = await requireBusinessOwner(sql, context.userId, data.businessId);
+    // the member who made it revokes the link. A business with no row yet (a
+    // new one whose first save is still on its way) is the caller's own:
+    // nothing stored can be reached through it, and deleting it later still
+    // revokes the link.
+    const businessOwnerId =
+      (await resolveBusinessOwner(sql, context.userId, data.businessId)) ?? context.userId;
     const token = randomHex(18);
     const expires = new Date(Date.now() + data.expiresInDays * DAY_MS).toISOString();
     // The browser redacts with the whole team in hand; this pass makes sure a

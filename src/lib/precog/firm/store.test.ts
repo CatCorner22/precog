@@ -375,6 +375,32 @@ describe("client owner address consent", () => {
     expect(await status()).toBeNull();
   });
 
+  it("never asks again an owner who stopped reminders, even after the address is cleared", async () => {
+    const first = await setOwnerEmail(db.sql, "ua", "biz_1", "owner@client.test", "ua");
+    expect(await stopOwnerEmail(db.sql, first.confirmToken!)).toBe(true);
+    const same = await setOwnerEmail(db.sql, "ua", "biz_1", "owner@client.test", "ua");
+    expect(same).toEqual({ confirmToken: null, stopped: true });
+    expect(await status()).toBe("stopped");
+    await setOwnerEmail(db.sql, "ua", "biz_1", null, "ua");
+    const back = await setOwnerEmail(db.sql, "ua", "biz_1", "owner@client.test", "ua");
+    expect(back).toEqual({ confirmToken: null, stopped: true });
+    expect(await status()).toBe("stopped");
+    // The owner's own link still turns the reminders back on.
+    expect(await confirmOwnerEmail(db.sql, first.confirmToken!)).toBe(true);
+    expect(await status()).toBe("confirmed");
+  });
+
+  it("says when an address saved before confirmation existed has had no link", async () => {
+    await db.pg.query(
+      `insert into engagement_marks (user_id, business_id, owner_email) values ('ua', 'biz_1', 'old@client.test')
+       on conflict (user_id, business_id) do update set owner_email = excluded.owner_email`,
+    );
+    expect(await status()).toBe("unsent");
+    const sent = await setOwnerEmail(db.sql, "ua", "biz_1", "old@client.test", "ua");
+    expect(isOwnerConsentToken(sent.confirmToken)).toBe(true);
+    expect(await status()).toBe("waiting");
+  });
+
   it("limits the confirmation emails one account can cause in a day", async () => {
     for (let i = 0; i < MAX_OWNER_EMAIL_REQUESTS_PER_DAY; i += 1) {
       await setOwnerEmail(db.sql, "ua", "biz_1", `o${i}@client.test`, "ua");

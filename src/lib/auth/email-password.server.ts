@@ -125,8 +125,9 @@ export async function keepUnconfirmed(sql: Sql, user: AuthUser): Promise<void> {
 
 /**
  * Removes password-only accounts that never confirmed their address within
- * the hold, except the kept ones. Such an account could never sign in, so it
- * holds no work. Returns how many went.
+ * the hold, except the kept ones and any that ever signed in or hold work
+ * (an account made before confirmation was required could do both). Returns
+ * how many went.
  */
 export async function releaseStaleSignUps(sql: Sql): Promise<number> {
   const rows = await sql<{ id: string }>`
@@ -140,6 +141,14 @@ export async function releaseStaleSignUps(sql: Sql): Promise<number> {
       and not exists (
         select 1 from account a where a."userId" = u.id and a."providerId" <> 'credential'
       )
+      -- Never an account that signed in (before confirmation was required,
+      -- or while mail was off) or holds work: deleting the user would take
+      -- its businesses, firm and links with it.
+      and not exists (select 1 from session s where s."userId" = u.id)
+      and not exists (select 1 from businesses b where b.user_id = u.id)
+      and not exists (select 1 from business_profiles p where p.user_id = u.id)
+      and not exists (select 1 from firms f where f.user_id = u.id)
+      and not exists (select 1 from firm_members m where m.member_user_id = u.id)
     returning u.id
   `;
   return rows.length;

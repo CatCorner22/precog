@@ -277,6 +277,17 @@ describe("bringing back a version that carries an older verification", () => {
     expect(save(profileWith(verifiedByRex), profileWith(restored), "preparer")).toBeNull();
   });
 
+  it("a restore with a longer review interval than the one held drops the verification", () => {
+    const shortened = { ...verifiedByRex, reviewEveryDays: 90 };
+    const older = { ...verifiedByRex, reviewEveryDays: 180 };
+    const [restored] = verificationsAsHeld([older], [shortened]);
+    expect(restored.verifiedAt).toBeUndefined();
+    expect(save(profileWith(shortened), profileWith(restored), "preparer")).toBeNull();
+    const [kept] = verificationsAsHeld([shortened], [older]);
+    expect(kept.verifiedByAccountId).toBe("user-rex");
+    expect(save(profileWith(older), profileWith(kept), "preparer")).toBeNull();
+  });
+
   it("a copy kept as a new business saves without another account's verification", () => {
     expect(save(null, profileWith(verifiedByRex), "owner")).toBe(VERIFICATION_ACCOUNT_MISMATCH);
     const [copied] = withoutOthersVerifications([verifiedByRex], ada.id);

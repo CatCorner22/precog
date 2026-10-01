@@ -44,9 +44,11 @@ export function ClientList({
                 ownerEmail: address,
                 ownerEmailStatus: !address
                   ? null
-                  : confirmation === "none"
-                    ? c.ownerEmailStatus
-                    : "waiting",
+                  : confirmation === "stopped"
+                    ? "stopped"
+                    : confirmation === "none"
+                      ? c.ownerEmailStatus
+                      : "waiting",
               }
             : c,
         ),
@@ -59,7 +61,9 @@ export function ClientList({
             ? `Precog emailed ${address} a link to confirm. Reminders start once the owner opens it.`
             : confirmation === "not-sent"
               ? "Owner address saved. Precog could not email the confirmation link, so no reminders go out yet. Save the address again to retry."
-              : "Owner address saved.",
+              : confirmation === "stopped"
+                ? `Owner address saved. The owner stopped reminders to ${address}, so Precog sends nothing to it.`
+                : "Owner address saved.",
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Precog did not save the address.");
@@ -211,6 +215,8 @@ export function ClientList({
 
 /** Whether reminders reach the owner address, after the address itself. */
 function ownerStatusText(status: ClientEngagementRow["ownerEmailStatus"]): string {
+  if (status === "unsent")
+    return " (not confirmed: save the address again to send the confirmation link)";
   if (status === "waiting") return " (not confirmed yet)";
   if (status === "stopped") return " (owner stopped reminders)";
   return "";

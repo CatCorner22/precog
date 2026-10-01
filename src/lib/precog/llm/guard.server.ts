@@ -2,6 +2,7 @@ import { assertSameSiteRequest } from "@/lib/auth/isolation.server";
 import { assertExpectedAccount } from "@/lib/auth/expected-account";
 import { DEV_USER_ID, authConfigured, getSessionUser } from "@/lib/auth/verify.server";
 import { requestIp } from "@/lib/request-ip.server";
+import { trustedClientIpHeaders } from "@/lib/client-ip";
 import { databaseConfigured, getSql } from "@/lib/db";
 import { checkDailyBudget } from "./daily-usage";
 import { grokChat, type GrokChatOptions, type GrokChatResult } from "./grok-client.server";
@@ -109,9 +110,17 @@ export async function callModel(
 }
 
 /** The calling address for the daily budget, or null outside a request. */
+/**
+ * The caller's address for the per-address daily ceiling, or null when no
+ * trusted header names it: behind an untrusted proxy every caller shares the
+ * proxy's address (or "unknown"), and one shared bucket would quietly become
+ * a second, smaller global ceiling.
+ */
 function callerAddress(): string | null {
+  if (trustedClientIpHeaders().length === 0) return null;
   try {
-    return requestIp();
+    const address = requestIp();
+    return address === "unknown" ? null : address;
   } catch {
     return null;
   }

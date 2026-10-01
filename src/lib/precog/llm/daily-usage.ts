@@ -1,5 +1,4 @@
 import type { Sql } from "@/lib/db";
-import { toHex } from "@/lib/web-crypto";
 
 /**
  * Daily ceilings on model calls. The per-minute limiter (rate-limit.ts) lives
@@ -58,7 +57,10 @@ export const UNVERIFIED_SCOPE = "pool:unverified";
 /** An address's scope key. Hashed, so the usage table holds no raw address. */
 export async function addressScope(address: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(address));
-  return `ip:${toHex(new Uint8Array(digest)).slice(0, 32)}`;
+  // Hex by hand: scripts/test-quota-postgres.mjs loads this file in plain Node,
+  // which cannot resolve the "@/" alias a shared helper would need.
+  const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  return `ip:${hex.slice(0, 32)}`;
 }
 
 /**

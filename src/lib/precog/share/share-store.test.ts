@@ -255,4 +255,12 @@ describe("revoking links with the business and the firm", () => {
     await pg.exec(`update businesses set deleted_at = now() where id = 'own_biz'`);
     expect(await shareStillReachable(sql, tok(3))).toBe(false);
   });
+
+  it("serves a link to the maker's own business before its first save reaches the account", async () => {
+    await linkTo(tok(1), "owner", "owner", "not_saved_yet");
+    expect(await shareStillReachable(sql, tok(1))).toBe(true);
+    // Another account's unsaved id gives the maker nothing: it is not theirs.
+    await linkTo(tok(2), "prep", "owner", "not_saved_yet");
+    expect(await shareStillReachable(sql, tok(2))).toBe(false);
+  });
 });

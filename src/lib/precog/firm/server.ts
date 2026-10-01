@@ -274,17 +274,18 @@ export const setClientOwnerEmail = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    const { confirmToken } = await setOwnerEmail(
+    const { confirmToken, stopped } = await setOwnerEmail(
       sql,
       owner,
       data.businessId,
       data.email,
       context.userId,
     );
-    const confirmation =
-      confirmToken && data.email
+    const confirmation = stopped
+      ? ("stopped" as const)
+      : confirmToken && data.email
         ? await emailOwnerConfirmation(sql, owner, data.businessId, data.email, confirmToken)
-        : "none";
+        : ("none" as const);
     return { ok: true as const, confirmation };
   });
 

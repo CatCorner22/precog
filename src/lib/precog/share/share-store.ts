@@ -202,6 +202,14 @@ export async function shareStillReachable(sql: Sql, token: string): Promise<bool
             where m.firm_user_id = b.firm_user_id and m.member_user_id = s.user_id
           )
         )
+    ) or (
+      -- The maker's own business, made before its first save reached the
+      -- account: no row yet. Deleting a saved one revokes its links outright.
+      s.business_owner_id = s.user_id
+      and not exists (
+        select 1 from businesses b
+        where b.user_id = s.business_owner_id and b.id = s.business_id
+      )
     ) as reachable
     from map_shares s where s.token = ${token}
   `;

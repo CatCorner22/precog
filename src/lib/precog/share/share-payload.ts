@@ -192,10 +192,35 @@ const COMMON_WORDS = new Set(
     .split(" "),
 );
 
+/** Abbreviations a small business's books and processes use every day. */
+const BOOKKEEPING_ABBREVIATIONS = new Set([
+  "AP",
+  "AR",
+  "GL",
+  "PO",
+  "HR",
+  "IT",
+  "CC",
+  "PR",
+  "PL",
+  "BS",
+  "CF",
+  "QB",
+  "VP",
+  "CEO",
+  "CFO",
+  "COO",
+  "ACH",
+  "EFT",
+  "POS",
+  "PTO",
+]);
+
 /**
  * Every way a sentence can name one person: the full name, the name without
  * its title, each name word (both halves of "Smith-Jones" too) and the
- * upper-case initials ("CV", "C.V."). Single letters are left out.
+ * upper-case initials ("CV", "C.V."; undotted ones that spell a bookkeeping
+ * term such as "AP" are left as they are). Single letters are left out.
  */
 function nameForms(name: string): { form: string; anyCase: boolean }[] {
   const full = name.trim().replace(/\s+/g, " ");
@@ -217,10 +242,12 @@ function nameForms(name: string): { form: string; anyCase: boolean }[] {
     const initial = (w: string) => [...w][0].toUpperCase();
     const sets = [words.map(initial), [initial(words[0]), initial(words[words.length - 1])]];
     for (const letters of sets) {
-      forms.push(
-        { form: letters.join(""), anyCase: false },
-        { form: `${letters.join(".")}.`, anyCase: false },
-      );
+      // Undotted initials that spell a bookkeeping term ("AP", "AR", "GL")
+      // stay: in a shared map they almost always mean the term, not a person.
+      if (!BOOKKEEPING_ABBREVIATIONS.has(letters.join(""))) {
+        forms.push({ form: letters.join(""), anyCase: false });
+      }
+      forms.push({ form: `${letters.join(".")}.`, anyCase: false });
     }
   }
   return forms;

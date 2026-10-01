@@ -178,6 +178,26 @@ describe("stale unconfirmed sign-ups", () => {
     await makeStale("linked@firm.example");
     expect(await releaseStaleSignUps(sql)).toBe(0);
   });
+
+  it(
+    "keeps an unconfirmed account that signed in or holds a business",
+    { timeout: 60_000 },
+    async () => {
+      const { releaseStaleSignUps } = await import("./email-password.server");
+      const context = await auth.$context;
+      const ids: string[] = [];
+      for (const email of ["worked@firm.example", "signed-in@firm.example"]) {
+        await auth.api.signUpEmail({ body: { email, password: "long-password-1", name: "W" } });
+        const [row] = await sql<{ id: string }>`select id from "user" where email = ${email}`;
+        ids.push(row.id);
+      }
+      await sql`insert into businesses (id, user_id) values ('biz-kept', ${ids[0]})`;
+      await context.internalAdapter.createSession(ids[1]);
+      await makeStale("worked@firm.example");
+      await makeStale("signed-in@firm.example");
+      expect(await releaseStaleSignUps(sql)).toBe(0);
+    },
+  );
 });
 
 describe("auth email limit", () => {

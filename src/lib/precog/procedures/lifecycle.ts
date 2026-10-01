@@ -186,8 +186,9 @@ const VERIFICATION_FIELDS = [
 /**
  * Procedures brought back from an older saved version, keeping only the
  * verifications the account already holds: a procedure whose steps match
- * the business's current copy takes that copy's verification as it stands;
- * any other verification goes (kept as the last one). An older stamp is no
+ * the business's current copy, with a review interval no longer than that
+ * copy's, takes that copy's verification as it stands; any other
+ * verification goes (kept as the last one). An older stamp is no
  * new verification, so the server would refuse to take it again, and every
  * later save with it.
  */
@@ -201,6 +202,9 @@ export function verificationsAsHeld(
     const held = now.get(p.id);
     const unverified = withoutVerification(p);
     if (!held?.verifiedAt || contentKey(held) !== contentKey(p)) return unverified;
+    // A longer interval than the held one would push the review date out,
+    // which the server counts as a new verification (see verify-guard).
+    if (p.reviewEveryDays > held.reviewEveryDays) return unverified;
     const stamp: Partial<Procedure> = {};
     for (const key of VERIFICATION_FIELDS) if (held[key] !== undefined) stamp[key] = held[key];
     return { ...unverified, ...stamp };

@@ -60,7 +60,8 @@ export interface ClientEngagementRow {
   ownerEmailStatus: OwnerEmailStatus | null;
 }
 
-export type OwnerEmailStatus = "waiting" | "confirmed" | "stopped";
+/** "unsent": saved before confirmation existed, so no link has gone out yet. */
+export type OwnerEmailStatus = "unsent" | "waiting" | "confirmed" | "stopped";
 
 interface ReviewEventInput {
   businessId: string;
@@ -502,7 +503,8 @@ export const MAX_OWNER_EMAIL_REQUESTS_PER_DAY = 20;
  * or one not confirmed yet, gets a fresh token, returned so the caller can
  * email the confirmation link; reminders wait until the owner opens it.
  * Each such request counts toward the daily limit of `requestedBy`. Saving
- * the confirmed address again changes nothing.
+ * the confirmed address again changes nothing, and an address whose owner
+ * stopped reminders is saved as stopped, with no email.
  */
 export async function setOwnerEmail(
   sql: Sql,
@@ -510,7 +512,7 @@ export async function setOwnerEmail(
   businessId: string,
   email: string | null,
   requestedBy: string,
-): Promise<{ confirmToken: string | null }> {
+): Promise<{ confirmToken: string | null; stopped: boolean }> {
   return inTransaction(sql, async (tx) => {
     if (!email) {
       await tx`
@@ -518,7 +520,7 @@ export async function setOwnerEmail(
           owner_email_confirmed_at = null, owner_email_unsubscribed_at = null
         where user_id = ${ownerUserId} and business_id = ${businessId}
       `;
-      return { confirmToken: null };
+      return { confirmToken: null, stopped: false };
     }
     const current = await tx<{ owner_email: string | null; confirmed: boolean }>`
       select owner_email,
@@ -527,7 +529,28 @@ export async function setOwnerEmail(
       where user_id = ${ownerUserId} and business_id = ${businessId}
       for update
     `;
-    if (current[0]?.owner_email === email && current[0].confirmed) return { confirmToken: null };
+    if (current[0]?.owner_email === email && current[0].confirmed) {
+      return { confirmToken: null, stopped: false };
+    }
+    // The owner stopped reminders to this address: record it as stopped,
+    // under the token their links carry, and send nothing.
+    const stop = await tx<{ token: string; stopped_at: string }>`
+      select token, stopped_at from owner_email_stops
+      where user_id = ${ownerUserId} and business_id = ${businessId} and email = ${email}
+    `;
+    if (stop[0]) {
+      await tx`
+        insert into engagement_marks (user_id, business_id, owner_email, owner_email_token,
+          owner_email_unsubscribed_at)
+        values (${ownerUserId}, ${businessId}, ${email}, ${stop[0].token}, ${stop[0].stopped_at})
+        on conflict (user_id, business_id) do update set
+          owner_email = excluded.owner_email,
+          owner_email_token = excluded.owner_email_token,
+          owner_email_confirmed_at = null,
+          owner_email_unsubscribed_at = excluded.owner_email_unsubscribed_at
+      `;
+      return { confirmToken: null, stopped: true };
+    }
     const recent = await tx<{ n: number | string }>`
       select count(*) as n from owner_email_requests
       where user_id = ${requestedBy} and requested_at > now() - interval '1 day'
@@ -549,7 +572,7 @@ export async function setOwnerEmail(
         owner_email_confirmed_at = null,
         owner_email_unsubscribed_at = null
     `;
-    return { confirmToken: token };
+    return { confirmToken: token, stopped: false };
   });
 }
 
@@ -569,12 +592,13 @@ export async function listClientEngagements(
     accepted_findings: number | string | null;
     last_review_at: string | null;
     owner_email: string | null;
+    owner_email_token: string | null;
     owner_email_confirmed_at: string | null;
     owner_email_unsubscribed_at: string | null;
   }>`
     select
       b.id, b.user_id, b.name, e.started_at, e.map_completed_at, e.report_sent_at,
-      e.open_findings, e.accepted_findings, e.owner_email,
+      e.open_findings, e.accepted_findings, e.owner_email, e.owner_email_token,
       e.owner_email_confirmed_at, e.owner_email_unsubscribed_at,
       (
         select max(r.recorded_at) from review_events r
@@ -605,7 +629,9 @@ export async function listClientEngagements(
         ? "stopped"
         : r.owner_email_confirmed_at
           ? "confirmed"
-          : "waiting",
+          : r.owner_email_token
+            ? "waiting"
+            : "unsent",
   }));
 }
 

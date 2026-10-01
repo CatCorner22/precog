@@ -141,6 +141,14 @@ describe("redactSharePayload", () => {
     expect(redacted.note).toBe("Ask Team member.");
   });
 
+  it("keeps bookkeeping abbreviations that match someone's initials", () => {
+    const redacted = redactSharePayload(
+      { ...payload(), note: "Ana Price posts AP invoices; A.P. signs." },
+      [{ name: "Ana Price", role: "Bookkeeper" }],
+    );
+    expect(redacted.note).toBe("Bookkeeper A posts AP invoices; Bookkeeper A signs.");
+  });
+
   it("returns a payload already marked namesHidden unchanged", () => {
     const once = redactSharePayload(payload());
     expect(redactSharePayload(once)).toBe(once);
