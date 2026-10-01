@@ -19,6 +19,11 @@
  * synchronously; loading templates per industry would take the entry back
  * down and is the change to make before a ninth. Largest-chunk budget raised
  * to 210 KB for the room; the total budget is unchanged.
+ *
+ * 2026-10-01: the fixes from the 2026-09-30 review add 8 KB gzipped across
+ * many chunks (scoped scoring on the map, email confirmation on /login and
+ * /join, stand-in duty-conflict checks, labelled snapshot changes), with no
+ * single chunk above 2 KB of it. Total budget raised from 760 KB to 770 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -27,7 +32,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 210 * 1024,
-  totalGzipBytes: 760 * 1024,
+  totalGzipBytes: 770 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
