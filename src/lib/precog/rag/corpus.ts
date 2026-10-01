@@ -160,7 +160,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "Classic segregation of duties",
     domain: "sod",
     tags: ["sod", "custody", "authorization", "recording"],
-    text: "Classic SoD separates custody of assets, authorization of transactions, and recording in the books. In a 4–8 person office these roles often collide. Minimum viable compensating pattern: person who posts payments does not reconcile the bank; person who can write off AR does not solely control deposits; vendor setup requires second approval or owner review.",
+    text: "Classic segregation of duties separates custody of assets, authorization of transactions, and recording in the books. In a 4–8 person office these roles often collide. Minimum viable compensating pattern: person who posts payments does not reconcile the bank; person who can write off AR does not solely control deposits; vendor setup requires second approval or owner review.",
     basis: practice(
       "Standard segregation-of-duties doctrine as applied to a four-to-eight-person office.",
     ),
@@ -208,7 +208,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "Mura and muri in staffing",
     domain: "lean",
     tags: ["mura", "muri", "unevenness", "overburden", "staffing"],
-    text: "Mura (unevenness) appears when one person owns all billing knowledge and others idle or thrash. Muri (overburden) appears when the office manager carries all SoD roles. Cross-training reduces both waste and knowledge single points of failure.",
+    text: "Mura (unevenness) appears when one person owns all billing knowledge and others idle or thrash. Muri (overburden) appears when the office manager carries every duty that segregation of duties keeps apart. Cross-training reduces both waste and knowledge single points of failure.",
     basis: practice("Lean (Toyota Production System) vocabulary applied to staffing."),
   },
   {
@@ -224,7 +224,7 @@ export const KNOWLEDGE_CORPUS: KnowledgeChunk[] = [
     title: "Insurance transfer vs control design",
     domain: "insurance",
     tags: ["insurance", "deductible", "premium", "employee dishonesty"],
-    text: "Employee dishonesty / crime coverage transfers some residual financial risk but does not fix process design. Deductible sets retained floor; policy limit caps recovery; control credits (cameras, dual control, bank rec) may reduce premium. Annual cost of risk ≈ net premium + annualized expected retained loss. Raising deductible without improving detection often increases owner residual.",
+    text: "Employee dishonesty / crime coverage transfers some residual financial risk but does not fix process design. Deductible sets retained floor; policy limit caps recovery; control credits (cameras, dual control, bank reconciliation) may reduce premium. Annual cost of risk ≈ net premium + annualized expected retained loss. Raising deductible without improving detection often increases owner residual.",
     basis: practice(
       "Description of how crime-coverage terms interact with control design. Not any carrier's terms.",
     ),
