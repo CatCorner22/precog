@@ -6,7 +6,7 @@ import { LegalFooter } from "@/components/precog/legal-footer";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
 import { emailAndPasswordEnabled } from "@/lib/auth/email-password";
-import { acceptFirmInvite, peekFirmInvite } from "@/lib/precog/firm/server";
+import { acceptFirmInvite, checkFirmInvite, peekFirmInvite } from "@/lib/precog/firm/server";
 
 export const Route = createFileRoute("/join/$token")({
   component: JoinPage,
@@ -40,10 +40,10 @@ function JoinPage() {
     };
   }, [token]);
 
-  async function join() {
+  async function join(confirmOtherEmail: boolean) {
     setBusy(true);
     try {
-      const { firm } = await acceptFirmInvite({ data: { token } });
+      const { firm } = await acceptFirmInvite({ data: { token, confirmOtherEmail } });
       toast.success(`You joined ${firm.name} as ${firm.role}.`);
       void navigate({ to: "/firm" });
     } catch (err) {
@@ -79,11 +79,13 @@ function JoinPage() {
             {isPending ? (
               <p className="mt-4 text-sm text-muted">Checking your sign-in…</p>
             ) : user ? (
-              <Button className="mt-5 w-full" onClick={() => void join()} disabled={busy}>
-                {busy
-                  ? "Joining…"
-                  : `Join as ${user.displayName ?? user.primaryEmail ?? "this account"}`}
-              </Button>
+              <JoinAs
+                token={token}
+                invitedEmail={invite.email}
+                accountLabel={user.displayName ?? user.primaryEmail ?? "this account"}
+                busy={busy}
+                onJoin={(confirmOtherEmail) => void join(confirmOtherEmail)}
+              />
             ) : (
               <SignInHere token={token} email={invite.email} />
             )}
@@ -94,6 +96,85 @@ function JoinPage() {
     </main>
   );
 }
+
+/**
+ * The join button for a signed-in visitor. Precog first checks the account
+ * against the invited address: a confirmed other address cannot join, and an
+ * address Precog cannot vouch for must confirm it is the person invited
+ * (the firm owner then gets an email).
+ */
+function JoinAs({
+  token,
+  invitedEmail,
+  accountLabel,
+  busy,
+  onJoin,
+}: {
+  token: string;
+  invitedEmail: string;
+  accountLabel: string;
+  busy: boolean;
+  onJoin: (confirmOtherEmail: boolean) => void;
+}) {
+  const [fit, setFit] = useState<InviteFitResult | "loading">("loading");
+  const [confirmed, setConfirmed] = useState(false);
+
+  useEffect(() => {
+    let cancel = false;
+    void checkFirmInvite({ data: { token } })
+      .then((res) => {
+        if (!cancel) setFit(res.fit);
+      })
+      .catch(() => {
+        if (!cancel) setFit(null);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [token]);
+
+  if (fit === "loading") return <p className="mt-4 text-sm text-muted">Checking your sign-in…</p>;
+  if (fit?.fit === "mismatch") {
+    return (
+      <p className="mt-4 text-sm text-muted">
+        The firm sent this invitation to <span className="text-fg">{invitedEmail}</span>, and you
+        are signed in as <span className="text-fg">{fit.accountEmail}</span>. Sign in with the
+        invited address, or ask the firm owner to invite {fit.accountEmail}.
+      </p>
+    );
+  }
+  const mustConfirm = fit?.fit !== "match";
+  return (
+    <>
+      <p className="mt-4 text-sm text-muted">
+        The firm sent this invitation to <span className="text-fg">{invitedEmail}</span>.
+      </p>
+      {mustConfirm && (
+        <label className="mt-3 flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={confirmed}
+            onChange={(e) => setConfirmed(e.target.checked)}
+          />
+          <span>
+            I am the person this invitation was sent to. Precog tells the firm owner that I joined
+            with this account.
+          </span>
+        </label>
+      )}
+      <Button
+        className="mt-5 w-full"
+        onClick={() => onJoin(mustConfirm)}
+        disabled={busy || (mustConfirm && !confirmed)}
+      >
+        {busy ? "Joining…" : `Join as ${accountLabel}`}
+      </Button>
+    </>
+  );
+}
+
+type InviteFitResult = Awaited<ReturnType<typeof checkFirmInvite>>["fit"];
 
 /**
  * Sign-in on the invitation itself, so the invitee comes back to this link
@@ -109,7 +190,7 @@ function SignInHere({ token, email }: { token: string; email: string }) {
     <>
       <p className="mt-4 text-sm text-muted">
         Sign in to join. The firm sent the invitation to <span className="text-fg">{email}</span>;
-        any account can use it.
+        sign in with that address.
       </p>
       <div className="mt-4 space-y-2">
         {GROK_PROVIDERS.map((p) => (

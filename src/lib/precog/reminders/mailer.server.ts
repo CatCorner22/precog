@@ -35,6 +35,7 @@ export async function sendEmail(to: string, message: RenderedEmail): Promise<voi
       text: message.text,
       html: message.html,
       ...(replyTo ? { reply_to: replyTo } : {}),
+      ...(message.headers ? { headers: message.headers } : {}),
     }),
   };
   let res: Response;

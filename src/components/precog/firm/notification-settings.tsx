@@ -11,6 +11,7 @@ export function NotificationSettingsPanel({ signedIn }: { signedIn: boolean }) {
   const [state, setState] = useState<{
     settings: NotificationSettings;
     mailConfigured: boolean;
+    controlsOwnerReminders: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -27,7 +28,7 @@ export function NotificationSettingsPanel({ signedIn }: { signedIn: boolean }) {
   }, [signedIn]);
 
   if (!signedIn || !state) return null;
-  const { settings, mailConfigured } = state;
+  const { settings, mailConfigured, controlsOwnerReminders } = state;
 
   async function save(next: NotificationSettings) {
     const previous = settings;
@@ -70,9 +71,14 @@ export function NotificationSettingsPanel({ signedIn }: { signedIn: boolean }) {
             disabled={!mailConfigured}
             onChange={(e) => void save({ ...settings, ownerReminders: e.target.checked })}
           />
-          Also remind each client's owner at the address on their card
+          Remind each client's owner at the confirmed address on their card
         </label>
       </div>
+      <p className="mt-2 text-xs text-muted">
+        {controlsOwnerReminders
+          ? "Owner reminders go out whether or not you get the weekly digest."
+          : "For the firm's clients, the firm owner's setting decides whether owners get reminders. Yours counts only for businesses you keep outside the firm."}
+      </p>
     </section>
   );
 }

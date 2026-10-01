@@ -18,6 +18,7 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ThreatRouteImport } from './routes/threat'
 import { Route as ApiErrorsRouteImport } from './routes/api/errors'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiOwnerEmailRouteImport } from './routes/api/owner-email'
 import { Route as ApiProcedureImageRouteImport } from './routes/api/procedure-image'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
@@ -71,6 +72,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOwnerEmailRoute = ApiOwnerEmailRouteImport.update({
+  id: '/api/owner-email',
+  path: '/api/owner-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProcedureImageRoute = ApiProcedureImageRouteImport.update({
   id: '/api/procedure-image',
   path: '/api/procedure-image',
@@ -118,6 +124,7 @@ export interface FileRoutesByFullPath {
   '/threat': typeof ThreatRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/owner-email': typeof ApiOwnerEmailRoute
   '/api/procedure-image': typeof ApiProcedureImageRoute
   '/join/$token': typeof JoinTokenRoute
   '/share/$token': typeof ShareTokenRoute
@@ -136,6 +143,7 @@ export interface FileRoutesByTo {
   '/threat': typeof ThreatRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/owner-email': typeof ApiOwnerEmailRoute
   '/api/procedure-image': typeof ApiProcedureImageRoute
   '/join/$token': typeof JoinTokenRoute
   '/share/$token': typeof ShareTokenRoute
@@ -155,6 +163,7 @@ export interface FileRoutesById {
   '/threat': typeof ThreatRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/owner-email': typeof ApiOwnerEmailRoute
   '/api/procedure-image': typeof ApiProcedureImageRoute
   '/join/$token': typeof JoinTokenRoute
   '/share/$token': typeof ShareTokenRoute
@@ -175,6 +184,7 @@ export interface FileRouteTypes {
     | '/threat'
     | '/api/errors'
     | '/api/health'
+    | '/api/owner-email'
     | '/api/procedure-image'
     | '/join/$token'
     | '/share/$token'
@@ -193,6 +203,7 @@ export interface FileRouteTypes {
     | '/threat'
     | '/api/errors'
     | '/api/health'
+    | '/api/owner-email'
     | '/api/procedure-image'
     | '/join/$token'
     | '/share/$token'
@@ -211,6 +222,7 @@ export interface FileRouteTypes {
     | '/threat'
     | '/api/errors'
     | '/api/health'
+    | '/api/owner-email'
     | '/api/procedure-image'
     | '/join/$token'
     | '/share/$token'
@@ -230,6 +242,7 @@ export interface RootRouteChildren {
   ThreatRoute: typeof ThreatRoute
   ApiErrorsRoute: typeof ApiErrorsRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiOwnerEmailRoute: typeof ApiOwnerEmailRoute
   ApiProcedureImageRoute: typeof ApiProcedureImageRoute
   JoinTokenRoute: typeof JoinTokenRoute
   ShareTokenRoute: typeof ShareTokenRoute
@@ -304,6 +317,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/owner-email': {
+      id: '/api/owner-email'
+      path: '/api/owner-email'
+      fullPath: '/api/owner-email'
+      preLoaderRoute: typeof ApiOwnerEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/procedure-image': {
       id: '/api/procedure-image'
       path: '/api/procedure-image'
@@ -366,6 +386,7 @@ const rootRouteChildren: RootRouteChildren = {
   ThreatRoute: ThreatRoute,
   ApiErrorsRoute: ApiErrorsRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiOwnerEmailRoute: ApiOwnerEmailRoute,
   ApiProcedureImageRoute: ApiProcedureImageRoute,
   JoinTokenRoute: JoinTokenRoute,
   ShareTokenRoute: ShareTokenRoute,

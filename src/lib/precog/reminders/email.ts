@@ -17,6 +17,8 @@ export interface RenderedEmail {
   html: string;
   /** Where a reply goes; the platform's EMAIL_REPLY_TO when absent. */
   replyTo?: string;
+  /** Extra mail headers, for example List-Unsubscribe. */
+  headers?: Record<string, string>;
 }
 
 /** The advisor's weekly digest across every client with something due. */
@@ -85,6 +87,8 @@ export function renderOwnerReminder(input: {
   items: ReminderItem[];
   /** The advisor a reply should reach. */
   advisorEmail?: string;
+  /** The page that stops these reminders; also sent as a one-click List-Unsubscribe. */
+  unsubscribeUrl: string;
 }): RenderedEmail {
   const advisor = input.firmName ?? "Your advisor";
   const from = input.firmName ? ` from ${input.firmName}` : "";
@@ -92,7 +96,7 @@ export function renderOwnerReminder(input: {
   const reply = input.advisorEmail
     ? `Reply to this email to reach ${input.firmName ?? "your advisor"} once you have done each, or if something has changed.`
     : `Tell ${input.firmName ?? "your advisor"} once you have done each, or if something has changed.`;
-  const setUp = `${advisor} set these reminders up in Precog. To stop them, ask ${input.firmName ?? "them"} to remove your address.`;
+  const setUp = `${advisor} set these reminders up in Precog.`;
   const text = [
     `A reminder${from} about ${input.businessName}.`,
     "",
@@ -100,7 +104,8 @@ export function renderOwnerReminder(input: {
     "",
     reply,
     "",
-    setUp,
+    `${setUp} To stop them, open this link:`,
+    input.unsubscribeUrl,
   ].join("\n");
   const html =
     `<div style="font:14px/1.5 -apple-system,Segoe UI,sans-serif;color:#111;max-width:560px">` +
@@ -112,8 +117,42 @@ export function renderOwnerReminder(input: {
       )
       .join("")}</ul>` +
     `<p>${escapeHtml(reply)}</p>` +
-    `<p style="color:#6b7280;font-size:12px">${escapeHtml(setUp)}</p></div>`;
-  return { subject, text, html, ...(input.advisorEmail ? { replyTo: input.advisorEmail } : {}) };
+    `<p style="color:#6b7280;font-size:12px">${escapeHtml(setUp)} ` +
+    `<a href="${escapeHtml(input.unsubscribeUrl)}">Stop these reminders</a></p></div>`;
+  return {
+    subject,
+    text,
+    html,
+    ...(input.advisorEmail ? { replyTo: input.advisorEmail } : {}),
+    headers: {
+      "List-Unsubscribe": `<${input.unsubscribeUrl}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
+  };
+}
+
+/**
+ * The one email an owner address gets before any reminder: it asks the
+ * owner to agree. Until they do, Precog sends that address nothing more.
+ */
+export function renderOwnerEmailConfirm(input: {
+  businessName: string;
+  firmName: string | null;
+  confirmUrl: string;
+}): RenderedEmail {
+  const who = input.firmName ?? "An advisor";
+  const intro = `${who} wants Precog to email you reminders about ${input.businessName}. Open this link to agree:`;
+  const closing =
+    "If you do not know them or do not want these emails, ignore this one. Precog sends nothing more unless you agree.";
+  return {
+    subject: `Get reminders about ${input.businessName}?`,
+    text: [intro, "", input.confirmUrl, "", closing].join("\n"),
+    html:
+      `<div style="font:14px/1.5 -apple-system,Segoe UI,sans-serif;color:#111;max-width:560px">` +
+      `<p>${escapeHtml(intro)}</p>` +
+      `<p><a href="${escapeHtml(input.confirmUrl)}">Yes, send me reminders</a></p>` +
+      `<p style="color:#6b7280;font-size:12px">${escapeHtml(closing)}</p></div>`,
+  };
 }
 
 function itemLine(item: ReminderItem): string {

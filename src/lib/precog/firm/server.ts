@@ -24,6 +24,7 @@ import {
   acceptInvite,
   createInvite,
   insertReviewEvent,
+  inviteFit,
   leaveFirm as leaveFirmRow,
   listClientEngagements,
   listInvites,
@@ -38,6 +39,8 @@ import {
   setMemberRole,
   setOwnerEmail,
   upsertEngagementMark,
+  type AcceptedInvite,
+  type FirmContext,
   type InviteRole,
 } from "./store";
 import {
@@ -145,12 +148,32 @@ export const peekFirmInvite = createServerFn({ method: "GET" })
     return { invite: await peekInvite(sql, data.token) };
   });
 
-export const acceptFirmInvite = createServerFn({ method: "POST" })
+/** How the signed-in account fits the invitation, so the page can ask before joining. */
+export const checkFirmInvite = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .validator(tokenInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    return { firm: await acceptInvite(sql, data.token, context.userId) };
+    return { fit: await inviteFit(sql, data.token, context.userId) };
+  });
+
+/**
+ * Joins the firm. When Precog could not match the account to the invited
+ * address, the person had to confirm, and the firm owner gets an email.
+ */
+export const acceptFirmInvite = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { token: string; confirmOtherEmail?: boolean }) => ({
+    ...tokenInput(input),
+    confirmOtherEmail: requireObject(input).confirmOtherEmail === true,
+  }))
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const { firm, unmatched } = await acceptInvite(sql, data.token, context.userId, {
+      confirmOtherEmail: data.confirmOtherEmail,
+    });
+    if (unmatched) await emailUnmatchedJoin(sql, firm, context.userId, unmatched);
+    return { firm };
   });
 
 export const setFirmMemberRole = createServerFn({ method: "POST" })
@@ -251,8 +274,18 @@ export const setClientOwnerEmail = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    await setOwnerEmail(sql, owner, data.businessId, data.email);
-    return { ok: true as const };
+    const { confirmToken } = await setOwnerEmail(
+      sql,
+      owner,
+      data.businessId,
+      data.email,
+      context.userId,
+    );
+    const confirmation =
+      confirmToken && data.email
+        ? await emailOwnerConfirmation(sql, owner, data.businessId, data.email, confirmToken)
+        : "none";
+    return { ok: true as const, confirmation };
   });
 
 export const recordMonthlyReview = createServerFn({ method: "POST" })
@@ -453,15 +486,24 @@ export const restoreDeletedClient = createServerFn({ method: "POST" })
 
 // ── Reminders ───────────────────────────────────────────────────────────────
 
-/** The caller's reminder switches, and whether this deployment can send email at all. */
+/**
+ * The caller's reminder switches, whether this deployment can send email at
+ * all, and whether the caller's owner-reminder switch counts: for a firm's
+ * clients only the firm owner's does.
+ */
 export const getNotificationSettings = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
     const { mailConfigured } = await import("../reminders/mailer.server");
+    const [settings, firm] = await Promise.all([
+      loadNotificationSettings(sql, context.userId),
+      loadFirmFor(sql, context.userId),
+    ]);
     return {
-      settings: await loadNotificationSettings(sql, context.userId),
+      settings,
       mailConfigured: mailConfigured(),
+      controlsOwnerReminders: !firm || firm.role === "owner",
     };
   });
 
@@ -476,6 +518,92 @@ export const updateNotificationSettings = createServerFn({ method: "POST" })
     await saveNotificationSettings(sql, context.userId, data);
     return { settings: data };
   });
+
+/**
+ * Asks a client owner to agree before any reminder reaches them. "sent" when
+ * the email went, "not-sent" when email is not connected or the send failed
+ * (saving the address again sends a new one).
+ */
+async function emailOwnerConfirmation(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  ownerUserId: string,
+  businessId: string,
+  email: string,
+  token: string,
+): Promise<"sent" | "not-sent"> {
+  const [{ mailConfigured, sendEmail }, { requestOrigin }, { renderOwnerEmailConfirm }] =
+    await Promise.all([
+      import("../reminders/mailer.server"),
+      import("@/lib/request-origin.server"),
+      import("../reminders/email"),
+    ]);
+  if (!mailConfigured()) return "not-sent";
+  const rows = await sql<{ name: string; firm_name: string | null }>`
+    select b.name, f.name as firm_name
+    from businesses b
+    left join firms f on f.user_id = coalesce(b.firm_user_id, b.user_id)
+    where b.user_id = ${ownerUserId} and b.id = ${businessId}
+  `;
+  const row = rows[0];
+  if (!row) return "not-sent";
+  try {
+    await sendEmail(
+      email,
+      renderOwnerEmailConfirm({
+        businessName: row.name,
+        firmName: row.firm_name,
+        confirmUrl: `${requestOrigin()}/api/owner-email?do=confirm&token=${token}`,
+      }),
+    );
+    return "sent";
+  } catch (err) {
+    const { reportServerError } = await import("@/lib/observability/report.server");
+    await reportServerError(err, "owner-email-confirmation");
+    return "not-sent";
+  }
+}
+
+/**
+ * Tells the firm owner that someone joined with an invitation Precog could
+ * not match to their account, so the owner can remove them. Without email
+ * the owner still sees the new member in the firm's member list.
+ */
+async function emailUnmatchedJoin(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  firm: FirmContext,
+  memberId: string,
+  unmatched: NonNullable<AcceptedInvite["unmatched"]>,
+): Promise<void> {
+  const [{ mailConfigured, sendEmail }, { requestOrigin }, { renderUnmatchedJoin }] =
+    await Promise.all([
+      import("../reminders/mailer.server"),
+      import("@/lib/request-origin.server"),
+      import("./invite-email"),
+    ]);
+  if (!mailConfigured()) return;
+  const rows = await sql<{ id: string; name: string | null; email: string }>`
+    select id, name, email from "user" where id in (${firm.firmUserId}, ${memberId})
+  `;
+  const owner = rows.find((r) => r.id === firm.firmUserId);
+  const member = rows.find((r) => r.id === memberId);
+  if (!owner?.email.includes("@")) return;
+  try {
+    await sendEmail(
+      owner.email,
+      renderUnmatchedJoin({
+        firmName: firm.name,
+        role: firm.role,
+        memberName: member?.name || null,
+        accountEmail: unmatched.accountEmail,
+        invitedEmail: unmatched.invitedEmail,
+        link: `${requestOrigin()}/firm`,
+      }),
+    );
+  } catch (err) {
+    const { reportServerError } = await import("@/lib/observability/report.server");
+    await reportServerError(err, "firm-unmatched-join-email");
+  }
+}
 
 /** Sends the invitation when email is connected; true when it went. */
 async function emailInvitation(

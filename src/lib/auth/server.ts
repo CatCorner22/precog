@@ -35,6 +35,7 @@ import { randomBytes } from "node:crypto";
 import { PostgresDialect } from "kysely";
 import { databaseConfigured, getPglite, getPgPool } from "../db";
 import { emailAndPasswordEnabled, PASSWORD_MIN_LENGTH } from "./email-password";
+import { emailPasswordExtras, emailVerificationOptions } from "./email-password.server";
 import { GROK_PROVIDERS } from "./providers";
 import { pgliteDialect } from "./pglite-dialect";
 import {
@@ -233,7 +234,14 @@ export const auth = betterAuth({
 
   // Local email/password — toggled only via `./email-password` (not a plugin).
   ...(emailAndPasswordEnabled
-    ? { emailAndPassword: { enabled: true, minPasswordLength: PASSWORD_MIN_LENGTH } }
+    ? {
+        emailAndPassword: {
+          enabled: true,
+          minPasswordLength: PASSWORD_MIN_LENGTH,
+          ...emailPasswordExtras,
+        },
+        ...emailVerificationOptions,
+      }
     : {}),
 
   // `__Host-` prefixed cookies: the browser REFUSES any same-named cookie that
