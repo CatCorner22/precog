@@ -38,8 +38,8 @@ async function rosterForShare(
   const profile = rows[0]?.profile;
   if (!profile || typeof profile !== "object") return [];
   try {
-    return resolveTemplate(profile).people
-      .filter((person) => person.name.trim())
+    return resolveTemplate(profile)
+      .people.filter((person) => person.name.trim())
       .map((person) => ({ name: person.name, role: person.role }));
   } catch {
     return [];

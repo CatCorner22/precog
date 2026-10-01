@@ -218,10 +218,7 @@ export function evaluateRelease(
     };
   }
 
-  if (
-    sharesHousehold(initiator, second) &&
-    !policy.unrelatedSignersAttested
-  ) {
+  if (sharesHousehold(initiator, second) && !policy.unrelatedSignersAttested) {
     return {
       ...base,
       status: "blocked_household",

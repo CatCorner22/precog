@@ -64,10 +64,7 @@ export function EvidenceList({
           ) : (
             summary.coverage !== null && (
               <span
-                className={cn(
-                  "ml-1 normal-case",
-                  summary.coverage < 100 ? "text-warn" : "text-ok",
-                )}
+                className={cn("ml-1 normal-case", summary.coverage < 100 ? "text-warn" : "text-ok")}
               >
                 · {summary.coverage}% current
               </span>
