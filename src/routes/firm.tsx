@@ -15,9 +15,13 @@ import { NotificationSettingsPanel } from "@/components/precog/firm/notification
 import { usePractice } from "@/lib/precog/practice-context";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { advanceEngagement, isOwnTeam, pilotMetrics, pilotMetricsCsv } from "@/lib/precog/firm/engagement";
+import {
+  advanceEngagement,
+  isOwnTeam,
+  pilotMetrics,
+  pilotMetricsCsv,
+} from "@/lib/precog/firm/engagement";
 import { downloadText } from "@/lib/download";
-import { advanceEngagement, isOwnTeam, pilotMetrics } from "@/lib/precog/firm/engagement";
 import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { commercialToolsOpen } from "@/lib/precog/firm/billing-store";
 import type { FirmPlan } from "@/lib/precog/firm/pricing";

@@ -1,6 +1,5 @@
-import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
