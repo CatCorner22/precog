@@ -149,9 +149,17 @@ describe("redactSharePayload", () => {
     expect(redacted.note).toBe("Bookkeeper A posts AP invoices; Bookkeeper A signs.");
   });
 
-  it("returns a payload already marked namesHidden unchanged", () => {
+  it("returns a payload already marked namesHidden unchanged when no roster is supplied", () => {
     const once = redactSharePayload(payload());
     expect(redactSharePayload(once)).toBe(once);
+  });
+
+  it("scrubs names a client kept after setting namesHidden, when a roster is supplied", () => {
+    const hidden = { ...payload(), namesHidden: true as const, note: "Ask Ada." };
+    const redacted = redactSharePayload(hidden, [{ name: "Ada", role: "Manager" }]);
+    expect(redacted.namesHidden).toBe(true);
+    expect(redacted.note).not.toContain("Ada");
+    expect(redacted.people.map((p) => p.name).join(" ")).not.toContain("Ada");
   });
 });
 

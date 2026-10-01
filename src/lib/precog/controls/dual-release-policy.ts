@@ -75,6 +75,12 @@ export interface DualReleasePolicy {
   enabled: boolean;
   ownerCanSecondAny: boolean;
   hardBlockWithoutSecond: boolean;
+  /**
+   * The owner attests that a second signer who shares a household mark does
+   * not share finances with the person who starts the payment. Absent, a
+   * shared household is not dual control.
+   */
+  unrelatedSignersAttested?: boolean;
   rules: DualReleaseRule[];
   /** Any order: the evaluator ranks matching exceptions by specificity and applies the most specific. */
   exceptions: ThresholdException[];
@@ -99,6 +105,7 @@ export type ReleaseStatus =
   | "approved_single"
   | "approved_exception"
   | "blocked_same_person"
+  | "blocked_household"
   | "blocked_role"
   | "blocked_missing_second"
   | "blocked_policy_off"
@@ -426,6 +433,7 @@ export function defaultDualReleasePolicy(
     enabled,
     ownerCanSecondAny: true,
     hardBlockWithoutSecond: true,
+    unrelatedSignersAttested: false,
     rules: localizeDualReleaseRules(
       tpl,
       DEFAULT_DUAL_RELEASE_RULES.map((r) => ({ ...r })),
@@ -572,6 +580,10 @@ export function mergeDualReleasePolicy(
       typeof partial.hardBlockWithoutSecond === "boolean"
         ? partial.hardBlockWithoutSecond
         : base.hardBlockWithoutSecond,
+    unrelatedSignersAttested:
+      typeof partial.unrelatedSignersAttested === "boolean"
+        ? partial.unrelatedSignersAttested
+        : base.unrelatedSignersAttested,
     rules: base.rules.map((r) => mergeRule(r, rulesByChannel.get(r.channel))),
     exceptions,
     updatedAt: typeof partial.updatedAt === "string" ? partial.updatedAt : undefined,

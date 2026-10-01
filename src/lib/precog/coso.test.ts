@@ -93,10 +93,12 @@ describe("compensating controls in COSO findings", () => {
         .find((c) => c.id === "control_activities")!
         .findings.find((f) => f.id === "ca-c-sod-ap")!.detail;
     const off = assessCoso(tpl, p.staff, { dualRelease: { ...p.dualRelease, enabled: false } });
-    expect(detail(off)).toBe("Compensating: Dual release (off in your dual-release policy)");
+    expect(detail(off)).toBe(
+      "A sentence is written down, not a tested control: Dual release (off in your dual-release policy)",
+    );
     const on = assessCoso(tpl, p.staff, { dualRelease: { ...p.dualRelease, enabled: true } });
     expect(detail(on)).toBe(
-      "Compensating: Dual release per your policy: ACH / vendor electronic pay above $500; Paper checks above $500; New vendor master at every amount",
+      "A sentence is written down, not a tested control: Dual release per your policy: ACH / vendor electronic pay above $500; Paper checks above $500; New vendor master at every amount",
     );
     expect(detail(assessCoso(tpl, p.staff))).not.toContain("$1,000");
   });

@@ -356,19 +356,18 @@ export interface AcceptedInvite {
 }
 
 /**
- * The signed-in visitor joins the firm the token names. An account whose
- * confirmed address is not the invited one is refused; one whose address
- * Precog cannot vouch for joins only with `confirmOtherEmail`, and the
- * result says so for the owner's notice. A person already in another firm is
- * refused (one account, one firm), and so is the firm's own owner, whose
- * role an invitation must never replace. A new member must fit under the
- * member limit.
+ * The signed-in visitor joins the firm the token names only when the
+ * account's confirmed email is the invited address. An unconfirmed address,
+ * or a confirmed address that is not the invited one, does not join.
+ * A person already in another firm is refused (one account, one firm), and
+ * so is the firm's own owner, whose role an invitation must never replace.
+ * A new member must fit under the member limit.
  */
 export async function acceptInvite(
   sql: Sql,
   token: string,
   userId: string,
-  options: { confirmOtherEmail?: boolean } = {},
+  _options: { confirmOtherEmail?: boolean } = {},
 ): Promise<AcceptedInvite> {
   return inTransaction(sql, async (tx) => {
     const invites = await tx<{ firm_user_id: string; role: string; email: string }>`
@@ -386,14 +385,11 @@ export async function acceptInvite(
       );
     }
     const { fit, accountEmail } = await accountFit(tx, userId, invite.email);
-    if (fit === "mismatch") {
+    if (fit !== "match") {
       throw new FirmMembershipError(
-        `The firm sent this invitation to ${maskEmail(invite.email)}, and you are signed in as ${accountEmail}. Sign in with the invited address, or ask the firm owner to invite ${accountEmail}.`,
-      );
-    }
-    if (fit === "confirm" && !options.confirmOtherEmail) {
-      throw new FirmMembershipError(
-        `Confirm that you are the person the firm sent this invitation to (${maskEmail(invite.email)}).`,
+        fit === "mismatch"
+          ? `The firm sent this invitation to ${maskEmail(invite.email)}, and you are signed in as ${accountEmail}. Sign in with the invited address, or ask the firm owner to invite ${accountEmail}.`
+          : `Precog cannot match this account to ${maskEmail(invite.email)}. Confirm that email on this account, then open the invitation again.`,
       );
     }
     const current = await loadFirmFor(tx, userId);
@@ -425,7 +421,7 @@ export async function acceptInvite(
     if (!joined) throw new Error("Unable to join the firm");
     return {
       firm: joined,
-      unmatched: fit === "match" ? null : { invitedEmail: invite.email, accountEmail },
+      unmatched: null,
     };
   });
 }

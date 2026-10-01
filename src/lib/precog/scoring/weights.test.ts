@@ -3,7 +3,7 @@ import { DEFAULT_WEIGHTS, SCORING_VERSION, bandForScore } from "./weights";
 
 describe("scoring weights", () => {
   it("versions the scenario-kind, control-guard and cross-training changes", () => {
-    expect(SCORING_VERSION).toBe("precog-residual-v1.4.0");
+    expect(SCORING_VERSION).toBe("precog-residual-v1.5.0");
   });
 
   it("keeps the inherent and control groups normalized", () => {

@@ -388,19 +388,25 @@ export const getReport = createServerFn({ method: "GET" })
 
 export const signOffReport = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { id: string; note?: string }) => ({
+  .validator((input: { id: string; note?: string; issueWithoutIndependentReview?: boolean }) => ({
     ...idInput(input),
     note: typeof input.note === "string" ? input.note.trim().slice(0, 600) : "",
+    issueWithoutIndependentReview: requireObject(input).issueWithoutIndependentReview === true,
   }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const where = await requireReportVersion(sql, context.userId, data.id);
-    await requireFirmRole(sql, context.userId, ["owner", "reviewer"]);
+    const existing = await loadReportVersion(sql, where.ownerUserId, data.id);
+    const self = existing?.version.preparedBy === context.userId;
+    if (!(self && data.issueWithoutIndependentReview)) {
+      await requireFirmRole(sql, context.userId, ["owner", "reviewer"]);
+    }
     const version = await signOffReportVersion(sql, {
       ownerUserId: where.ownerUserId,
       id: data.id,
       reviewedBy: context.userId,
       note: data.note,
+      issueWithoutIndependentReview: data.issueWithoutIndependentReview,
     });
     return { version };
   });

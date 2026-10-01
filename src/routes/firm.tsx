@@ -16,6 +16,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { advanceEngagement, isOwnTeam, pilotMetrics } from "@/lib/precog/firm/engagement";
 import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
+import { commercialToolsOpen } from "@/lib/precog/firm/billing-store";
 import type { FirmPlan } from "@/lib/precog/firm/pricing";
 import {
   getFirm,
@@ -270,6 +271,11 @@ function FirmPage() {
 
   const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const isOwner = firm?.role === "owner";
+  const toolsOpen = commercialToolsOpen({
+    stripeConfigured: billingConfigured,
+    subscriptionStatus: billing?.subscriptionStatus ?? null,
+    assessmentPaidAt: billing?.assessmentPaidAt ?? null,
+  });
 
   return (
     <main className="mx-auto min-h-[calc(100dvh-var(--grok-banner-h,0px))] max-w-3xl px-6 py-8">
@@ -403,6 +409,14 @@ function FirmPage() {
             onClientsChange={setClients}
           />
           <NotificationSettingsPanel signedIn={signedIn} />
+          {!toolsOpen && (
+            <p className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
+              QuickBooks stays closed until the assessment is paid or the firm plan is active. A
+              past-due plan is not paid. The monthly file on this page stays open. Stripe is
+              connected on this deployment; the price is the $1,000 assessment and the $299 monthly
+              plan, not a price per client.
+            </p>
+          )}
           <QuickBooksPanel signedIn={signedIn} />
           <ClientHistory signedIn={signedIn} />
         </div>

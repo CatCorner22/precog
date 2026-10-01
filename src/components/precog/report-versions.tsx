@@ -73,11 +73,13 @@ export function ReportVersionsPanel() {
     }
   }
 
-  async function signOff(id: string, versionNo: number) {
+  async function signOff(id: string, versionNo: number, sole = false) {
     try {
       const result = await signOffWithNote(versionNo, (note) => {
         setBusy(true);
-        return signOffReport({ data: { id, note } });
+        return signOffReport({
+          data: { id, note, issueWithoutIndependentReview: sole },
+        });
       });
       if (!result) return;
       const { version } = result;
@@ -131,8 +133,9 @@ export function ReportVersionsPanel() {
         </div>
         <p className="mt-2 text-xs text-neutral-500">
           Locking freezes the business as you have saved it to your account, with your name and
-          today's date. A firm reviewer who did not prepare it signs it off; Precog sets the sent
-          stamp only once.
+          today's date. A firm reviewer who did not prepare it signs it off. A one-person firm may
+          issue the file; that line says it is not an independent review. Duty ticks are starting
+          duties, not system access. Precog sets the sent stamp only once.
         </p>
         {versions && versions.length > 0 && (
           <ul className="mt-3 divide-y divide-neutral-200">
@@ -154,6 +157,17 @@ export function ReportVersionsPanel() {
                   >
                     Open
                   </Link>
+                  {!v.reviewedAt && v.preparedBy === user.id && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => void signOff(v.id, v.versionNo, true)}
+                      disabled={busy}
+                      aria-label={`Issue version ${v.versionNo} without an independent review`}
+                    >
+                      <PenLine className="size-3.5" /> Issue without an independent review
+                    </Button>
+                  )}
                   {!v.reviewedAt && canReview && v.preparedBy !== user.id && (
                     <Button
                       size="sm"

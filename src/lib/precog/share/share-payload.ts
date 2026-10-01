@@ -94,14 +94,15 @@ export function buildSharePayload(
  *
  * `team` is the whole team, people who have left included: a departed owner
  * keeps their role in the label, and a name that appears only inside a
- * sentence is still caught. The server calls this again without a team, so
- * a payload already marked `namesHidden` comes back unchanged.
+ * sentence is still caught. A client can set `namesHidden` and leave the names
+ * in the text. Trust that flag only when no roster was supplied (a second
+ * scrub of an already-redacted payload). A roster forces a real scrub.
  */
 export function redactSharePayload(
   payload: SharedMapPayload,
   team: readonly { name: string; role: string }[] = [],
 ): SharedMapPayload {
-  if (payload.namesHidden) return payload;
+  if (payload.namesHidden && team.length === 0) return payload;
   const labels = roleLabels(payload, team);
   const scrub = nameScrubber(labels);
   return {

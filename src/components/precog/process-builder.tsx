@@ -731,7 +731,10 @@ export function ProcessBuilder({
           />
         )}
 
-        {evidenceSummary.total > 0 && evidenceDue > 0 && !isOpen("validate") && (
+        {evidenceSummary.total > 0 &&
+          evidenceDue > 0 &&
+          evidenceSummary.coverage !== null &&
+          !isOpen("validate") && (
           <button
             type="button"
             onClick={() => {

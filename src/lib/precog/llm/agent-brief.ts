@@ -184,7 +184,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
         id: `ev-${++i}`,
         kind: "insurance",
         label: "Cost of risk",
-        metric: `premium ${formatUsd(d.transfer.premiumAnnualNet)} (${d.transfer.discountPctApplied}% discount) · yearly cost of risk ${formatUsd(d.transfer.expectedAnnualCostOfRisk)}`,
+        metric: `premium ${formatUsd(d.transfer.premiumAnnualNet)} (${d.transfer.discountPctApplied}% discount)`,
         link: { tab: "precog" },
       });
     }
@@ -202,7 +202,7 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
           id: `ev-${++i}`,
           kind: "cascade",
           label: row.label,
-          metric: `yearly cost of risk ${formatUsdDelta(row.deltaCor)} · risk index ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}`,
+          metric: `risk index ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}`,
           link: { tab: "precog" },
         });
       }
@@ -296,12 +296,12 @@ export function extractVariableCascades(tools: ToolResult[]): string[] {
   const lines: string[] = [];
   if (cas.baseline) {
     lines.push(
-      `Baseline: likelihood ×${cas.baseline.likelihoodMultiplier.toFixed(2)}, premium ${formatUsd(cas.baseline.premiumAnnualNet)}, assumed retained ${formatUsd(cas.baseline.retainedExpected)}, yearly cost of risk ${formatUsd(cas.baseline.expectedAnnualCostOfRisk)}, risk index ${cas.baseline.residualAverage}.`,
+      `Baseline: likelihood ×${cas.baseline.likelihoodMultiplier.toFixed(2)}, premium ${formatUsd(cas.baseline.premiumAnnualNet)}, assumed retained ${formatUsd(cas.baseline.retainedExpected)}, risk index ${cas.baseline.residualAverage}.`,
     );
   }
   for (const row of cas.topByCostOfRisk.slice(0, 4)) {
     lines.push(
-      `**If you ${row.label}**: yearly cost of risk ${formatUsdDelta(row.deltaCor)}, assumed retained ${formatUsdDelta(row.deltaRetained)}, premium ${formatUsdDelta(row.deltaPremium)}, risk index ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}, assumed days until found ${row.deltaP50 >= 0 ? "+" : ""}${Math.round(row.deltaP50)}. Also: ${row.affects.slice(0, 3).join("; ")}. ${row.secondOrderNotes[0] ?? ""}`.trim(),
+      `**If you ${row.label}**: assumed retained ${formatUsdDelta(row.deltaRetained)}, premium ${formatUsdDelta(row.deltaPremium)}, risk index ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}, assumed days until found ${row.deltaP50 >= 0 ? "+" : ""}${Math.round(row.deltaP50)}. Also: ${row.affects.slice(0, 3).join("; ")}. ${row.secondOrderNotes[0] ?? ""}`.trim(),
     );
   }
   return lines;
@@ -545,7 +545,7 @@ export function localSynthesize(
       ? `Watched conditions: **${leading.breached} breached**, ${leading.watch} at watch. ${leading.topActions[0] ?? ""}`
       : "Check the watched conditions on Patterns for what comes before a loss.",
     bestCascade
-      ? `Biggest knock-on effect: **${bestCascade.label}** (yearly cost of risk ${formatUsdDelta(bestCascade.deltaCor)}). ${bestCascade.secondOrderNotes[0] ?? ""}`
+      ? `Biggest knock-on effect: **${bestCascade.label}**. ${bestCascade.secondOrderNotes[0] ?? ""}`
       : "Run the what-else-moves check on What could happen.",
     rag?.hits?.[0]
       ? `Guidance: _${rag.hits[0].title}_: ${rag.hits[0].text.slice(0, 140)}…`
@@ -774,7 +774,7 @@ export function localSynthesize(
       rationale: beamAction
         ? "The order Precog's lever model prefers, using its own weights; read it as an ordering, not a measurement."
         : bestCascade
-          ? `The what-else-moves check puts this first: it lowers the yearly cost of risk and the risk index the most. ${bestCascade.secondOrderNotes[0] ?? ""}`.trim()
+          ? `The what-else-moves check puts this first: it moves the risk index the most. ${bestCascade.secondOrderNotes[0] ?? ""}`.trim()
           : "Default when no ranking ran: a second signer on payments and an independent bank reconciliation each remove a path one person can use alone.",
       evidenceIds: evidence
         .filter((e) => e.kind === "cascade" || e.kind === "ml" || e.kind === "reasoning")

@@ -7,7 +7,7 @@
  */
 import { RISK_SCALE } from "./bands";
 import { clamp } from "../number";
-export const SCORING_VERSION = "precog-residual-v1.4.0";
+export const SCORING_VERSION = "precog-residual-v1.5.0";
 
 /** Inherent risk factors (0–1 contribution before normalization) */
 const INHERENT_WEIGHTS = {
@@ -31,9 +31,9 @@ const CONTROL_EFFECTIVENESS_WEIGHTS = {
 /** Staff composition modifiers applied after residual */
 const STAFF_MODIFIERS = {
   smallTeamUplift: 0.12, // teamSize <= 6
-  soleOwnerUpliftPerItem: 0.06,
-  soleOwnerUpliftCap: 0.24, // the sole-owner uplift never exceeds this
-  weakSegregationUplift: 0.15, // segregationScore < 50
+  soleOwnerUpliftPerItem: 0,
+  soleOwnerUpliftCap: 0.24,
+  weakSegregationUplift: 0,
   lowTenureUplift: 0.05, // avgTenure < 3
 } as const;
 
@@ -51,7 +51,8 @@ const SCENARIO_WEIGHTS = {
   timeShare: 0.45,
   timeFloor: 0.5,
   effectivenessCredit: 0.5,
-  baseEffectiveness: 0.2,
+  // A scenario with nothing installed is not already partly controlled.
+  baseEffectiveness: 0,
   dualControlCredit: 0.15,
   independentBankRecCredit: 0.15,
   segregationCredit: 0.25,

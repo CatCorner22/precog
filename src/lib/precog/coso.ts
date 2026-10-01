@@ -198,12 +198,12 @@ export function assessCoso(
         {
           number: 5,
           name: "Accountability",
-          status: residualAccepted.length > 0 || sodGaps.length === 0 ? "adequate" : "weak",
+          status: sodGaps.length === 0 ? "adequate" : "weak",
           note:
             sodGaps.length === 0
               ? "No open duty conflict needs a residual-risk decision."
               : residualAccepted.length > 0
-                ? "The business has recorded a residual-risk decision on at least one duty conflict."
+                ? "A residual-risk decision is recorded. A recorded decision is not a test of the control."
                 : "The business has not recorded a residual-risk decision on any duty conflict.",
         },
       ],
@@ -323,29 +323,26 @@ export function assessCoso(
         {
           number: 12,
           name: "Policies and procedures",
-          status: unaddressedGaps.some((g) => g.compensatingControls.length === 0)
-            ? "weak"
-            : "adequate",
-          note: (() => {
-            const bare = unaddressedGaps.filter((g) => g.compensatingControls.length === 0).length;
-            return bare
-              ? `${count(bare, "duty conflict")} with no recorded residual-risk decision and no compensating control written down.`
-              : "Every duty conflict without a recorded residual-risk decision has a compensating control written down.";
-          })(),
+          status: unaddressedGaps.length === 0 ? "adequate" : "weak",
+          note:
+            unaddressedGaps.length === 0
+              ? "No open duty conflict."
+              : "A sentence or a recorded residual-risk decision is not a tested control. Open duty conflicts remain untested.",
         },
       ],
       findings: sodGaps.map((g) => ({
         id: `ca-${g.id}`,
         label: g.name,
-        detail:
-          g.compensatingControls.length > 0
-            ? `Compensating: ${g.compensatingControls
+        detail: g.residualRiskAccepted
+          ? "Decision recorded, not tested."
+          : g.compensatingControls.length > 0
+            ? `A sentence is written down, not a tested control: ${g.compensatingControls
                 .map((c) =>
                   withLiveThreshold(c, opts.dualRelease, RULE_IDS_BY_CONTROL.get(g.id) ?? []),
                 )
                 .join("; ")}`
             : "Nobody has written down a compensating control.",
-        severity: g.residualRiskAccepted ? "adequate" : "critical",
+        severity: g.residualRiskAccepted ? "weak" : "critical",
         link: { type: "sod" as const },
       })),
       primaryActions: [

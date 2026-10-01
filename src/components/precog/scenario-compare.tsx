@@ -328,40 +328,32 @@ function CompareResults({
   const deltaMap = new Map(report.deltas.map((d) => [d.columnId, d]));
   const retained = (c: CompareReport["columns"][number]) =>
     c.result.retainedImpact?.expected ?? c.result.financialImpact.expected;
-  const annualCor = (c: CompareReport["columns"][number]) =>
-    c.result.dynamic?.expectedAnnualCostOfRisk ?? retained(c);
   const labelOf = (id: string) => report.columns.find((c) => c.id === id)?.label;
-  // When every option retains the same amount and costs the same a year, a
-  // "lowest" title would rest only on the hidden tie-break, so none is shown.
+  // When every option retains the same amount, a "lowest" title would rest
+  // only on the hidden tie-break, so none is shown.
   const allTie =
     report.columns.length > 1 &&
     report.columns.every(
-      (c) =>
-        Math.round(retained(c)) === Math.round(retained(report.columns[0])) &&
-        Math.round(annualCor(c)) === Math.round(annualCor(report.columns[0])),
+      (c) => Math.round(retained(c)) === Math.round(retained(report.columns[0])),
     );
   const retainedWinner = allTie ? undefined : labelOf(report.winnerByRetained);
-  const corWinner = allTie ? undefined : labelOf(report.winnerByAnnualCor);
 
   return (
     <>
       {allTie ? (
         <p className="rounded-lg border border-border bg-panel p-3 text-sm text-muted">
           With {noPolicy ? "no policy" : "these insurance settings"} every option retains the same{" "}
-          {formatUsd(retained(report.columns[0]))} and costs the same{" "}
-          {formatUsd(annualCor(report.columns[0]))} a year; they differ only in assumed loss if it
-          happens.
+          {formatUsd(retained(report.columns[0]))}; they differ only in assumed loss if it happens.
         </p>
       ) : (
         <>
           <div className="flex flex-wrap gap-2">
             <WinnerChip icon label="Lowest assumed retained loss" value={retainedWinner ?? "—"} />
-            <WinnerChip label="Lowest annual cost of risk" value={corWinner ?? "—"} />
           </div>
           <p className="text-xs text-subtle">
             {report.mode === "futures"
-              ? "Do nothing is the baseline and never counts as the lowest; a tie on retained loss or cost of risk goes to the lower assumed loss if it happens."
-              : "A tie on retained loss or cost of risk goes to the lower assumed loss if it happens."}
+              ? "Do nothing is the baseline and never counts as the lowest; a tie on retained loss goes to the lower assumed loss if it happens."
+              : "A tie on retained loss goes to the lower assumed loss if it happens."}
             {policyNote ? ` Retained loss and cost of risk: ${policyNote}.` : ""}
           </p>
         </>
@@ -416,20 +408,6 @@ function CompareResults({
                 <FigureTile
                   size="sm"
                   className="border-0 bg-transparent p-0"
-                  label="Annual cost of risk"
-                  value={formatUsd(annualCor(col))}
-                  hint={withNote(
-                    noPolicy
-                      ? "no premium"
-                      : dynamic
-                        ? `premium ${formatUsd(dynamic.premiumAnnualNet)}`
-                        : "includes premium when modeled",
-                    policyNote,
-                  )}
-                />
-                <FigureTile
-                  size="sm"
-                  className="border-0 bg-transparent p-0"
                   label="Assumed days until found"
                   value={`about ${col.result.timelineDays.p50} days`}
                   hint={`assumed range ${col.result.timelineDays.p95Low}–${col.result.timelineDays.p95High} days`}
@@ -444,9 +422,6 @@ function CompareResults({
                       )}
                     >
                       Assumed retained loss {formatMoneyChange(d.vsBaseline.retainedDelta)}
-                    </p>
-                    <p className={TONE[deltaTone(d.vsBaseline.annualCorDelta)]}>
-                      Annual cost of risk {formatMoneyChange(d.vsBaseline.annualCorDelta)}
                     </p>
                     <p className={TONE[deltaTone(d.vsBaseline.p50DaysDelta)]}>
                       Assumed days until found {formatDaysChange(d.vsBaseline.p50DaysDelta)}
@@ -463,7 +438,7 @@ function CompareResults({
         <CardHeader>
           <CardTitle className="text-base">Comparison table</CardTitle>
           <CardDescription>
-            Assumed loss if it happens, assumed retained loss and annual cost of risk for{" "}
+            Assumed loss if it happens and assumed retained loss for{" "}
             {count(report.columns.length, "option")}
           </CardDescription>
         </CardHeader>
@@ -479,9 +454,6 @@ function CompareResults({
                 </th>
                 <th scope="col" className="py-2 pr-3 font-medium">
                   Assumed retained loss
-                </th>
-                <th scope="col" className="py-2 pr-3 font-medium">
-                  Annual cost of risk
                 </th>
                 <th scope="col" className="py-2 pr-3 font-medium">
                   Assumed days until found
@@ -511,7 +483,6 @@ function CompareResults({
                       {formatUsd(c.result.financialImpact.expected)}
                     </td>
                     <td className="py-2.5 pr-3 tabular">{formatUsd(retained(c))}</td>
-                    <td className="py-2.5 pr-3 tabular">{formatUsd(annualCor(c))}</td>
                     <td className="py-2.5 pr-3 tabular">about {c.result.timelineDays.p50} days</td>
                     <td
                       className={cn(

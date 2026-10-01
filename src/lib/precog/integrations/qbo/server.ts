@@ -3,6 +3,8 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { RequestError } from "@/lib/request-errors";
 import { requireBusinessOwner } from "../../firm/access.server";
+import { commercialToolsOpen, loadBillingAccount } from "../../firm/billing-store";
+import { loadFirmFor } from "../../firm/store";
 import { businessInput } from "../../firm/server-inputs";
 import { authorizeUrl, qboCallbackUrl, signState } from "./oauth";
 import { qboClientId, qboConfigured, stateSecret } from "./client.server";
@@ -20,6 +22,25 @@ interface QuickBooksStatus {
   configured: boolean;
   connection: ConnectionStatus | null;
   drift: IntegrationDrift | null;
+}
+
+/** Refuses QuickBooks when Stripe is configured and the firm is not paid. past_due is not paid. */
+async function assertQuickBooksOpen(sql: Awaited<ReturnType<typeof getSql>>, userId: string) {
+  const { stripeConfigured } = await import("../../billing/stripe.server");
+  const firm = await loadFirmFor(sql, userId);
+  const account = await loadBillingAccount(sql, firm?.firmUserId ?? userId);
+  if (
+    !commercialToolsOpen({
+      stripeConfigured: stripeConfigured(),
+      subscriptionStatus: account?.subscriptionStatus ?? null,
+      assessmentPaidAt: account?.assessmentPaidAt ?? null,
+    })
+  ) {
+    throw new RequestError(
+      402,
+      "QuickBooks opens after the assessment is paid or the firm plan is active. A past-due plan is not paid.",
+    );
+  }
 }
 
 /** The connection's state and the newest drift, for the firm workspace. */
@@ -47,6 +68,7 @@ export const startQuickBooksConnect = createServerFn({ method: "POST" })
     if (!qboConfigured())
       throw new RequestError(409, "QuickBooks is not connected on this deployment");
     const sql = await getSql();
+    await assertQuickBooksOpen(sql, context.userId);
     await requireBusinessOwner(sql, context.userId, data.businessId);
     const state = await signState(
       { userId: context.userId, businessId: data.businessId, issuedAt: Date.now() },
@@ -67,6 +89,7 @@ export const syncQuickBooksNow = createServerFn({ method: "POST" })
   .validator(businessInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
+    await assertQuickBooksOpen(sql, context.userId);
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
     const connection = await loadConnection(sql, owner, data.businessId);
     if (!connection) throw new RequestError(404, "This client is not connected to QuickBooks");

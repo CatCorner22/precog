@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
@@ -12,6 +12,8 @@ import {
   type ReviewResult,
 } from "@/lib/precog/firm/reviews";
 import { recordMonthlyReview } from "@/lib/precog/firm/server";
+import { getQuickBooksStatus } from "@/lib/precog/integrations/qbo/server";
+import { monthlyWorkpaperFacts, type WorkpaperFact } from "@/lib/precog/firm/workpaper";
 import { clientErrorStatus } from "@/lib/request-errors";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
 
@@ -24,6 +26,25 @@ export function MonthlyReview() {
   const records = profile.monthlyReviews ?? [];
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [facts, setFacts] = useState<WorkpaperFact[] | null>(null);
+
+  useEffect(() => {
+    if (!user || !profile.businessId) {
+      setFacts(monthlyWorkpaperFacts(null));
+      return;
+    }
+    let cancel = false;
+    void getQuickBooksStatus({ data: { businessId: profile.businessId } })
+      .then((status) => {
+        if (!cancel) setFacts(monthlyWorkpaperFacts(status.drift));
+      })
+      .catch(() => {
+        if (!cancel) setFacts(monthlyWorkpaperFacts(null));
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [user, profile.businessId]);
 
   async function save(
     key: (typeof tasks)[number]["key"],
@@ -66,12 +87,22 @@ export function MonthlyReview() {
 
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
-      <h2 className="text-lg font-semibold">This month’s review</h2>
+      <h2 className="text-lg font-semibold">This month’s file</h2>
       <p className="mt-1 text-sm text-muted">
-        Four checks taken from the register. Record a result with an owner and a note. Precog adds a
-        later result; the earlier one stays in the log. Recording “Done” does not establish
+        Two facts from QuickBooks, then the four checks. Duty ticks on the map are starting duties,
+        not system access. Lock the report to send this page. Recording “Done” does not establish
         independent verification.
       </p>
+      {facts && (
+        <ul className="mt-4 space-y-2">
+          {facts.map((fact) => (
+            <li key={fact.id} className="rounded-lg border border-border p-3 text-sm">
+              <p className="font-medium">{fact.label}</p>
+              <p className="mt-1 text-muted">{fact.detail}</p>
+            </li>
+          ))}
+        </ul>
+      )}
       <ul className="mt-4 space-y-4">
         {tasks.map((task) => {
           const latest = latestReview(records, task.key, task.period);
