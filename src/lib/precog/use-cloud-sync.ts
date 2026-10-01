@@ -557,7 +557,16 @@ export function useCloudSync(input: {
       window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [ready, userId, cloudUser, saveCloud, reportCloudError, profileRef, workspace.local, localStore]);
+  }, [
+    ready,
+    userId,
+    cloudUser,
+    saveCloud,
+    reportCloudError,
+    profileRef,
+    workspace.local,
+    localStore,
+  ]);
 
   /**
    * Write the open business to this browser, now. False when another tab's

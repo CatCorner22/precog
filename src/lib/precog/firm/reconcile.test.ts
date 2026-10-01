@@ -54,8 +54,7 @@ describe("access reconciliation", () => {
   });
 
   it("reads a payroll roster with employee and department columns", () => {
-    const csv =
-      "Employee Name,Department,Job Title,Status\nAda Owner,Ops,Payroll Manager,Active\n";
+    const csv = "Employee Name,Department,Job Title,Status\nAda Owner,Ops,Payroll Manager,Active\n";
     const parsed = parseAccessExport(csv, people, "2026-09-24", {});
     expect(parsed.source).toBe("payroll");
     expect(parsed.users[0]?.name).toBe("Ada Owner");

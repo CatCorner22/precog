@@ -475,9 +475,12 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const setIntegrationDriftFromQbo = useCallback((drift: import("./integrations/qbo/model").IntegrationDrift | null) => {
-    setProfile((p) => withIntegrationDriftSummary(p, drift));
-  }, []);
+  const setIntegrationDriftFromQbo = useCallback(
+    (drift: import("./integrations/qbo/model").IntegrationDrift | null) => {
+      setProfile((p) => withIntegrationDriftSummary(p, drift));
+    },
+    [],
+  );
 
   const markReportSent = useCallback(() => {
     setProfile((p) => withReportSent(p, new Date()));

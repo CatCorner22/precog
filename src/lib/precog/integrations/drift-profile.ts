@@ -17,7 +17,7 @@ export function refreshIntegrationDriftSummary(
       ? summarizeQboDrift(qboDrift)
       : profile.integrationDriftSummary?.source === "access"
         ? null
-        : profile.integrationDriftSummary ?? null;
+        : (profile.integrationDriftSummary ?? null);
   const access = summarizeAccessReconciliation(profile.accessReconciliation, qbo ?? null);
   if (qboDrift !== undefined) {
     return mergeDriftSummary(qbo, access) ?? undefined;
