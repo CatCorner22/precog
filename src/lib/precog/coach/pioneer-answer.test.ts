@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { utcDateKey } from "../dates";
 import { defaultProfile } from "../practice-profile";
 import {
+  DAILY_LIMIT_WARNING,
   MODEL_FAILED_WARNING,
   PIONEER_FAILED_MESSAGE,
   answerPioneer,
@@ -17,7 +18,8 @@ vi.mock("./pioneer-profile", async (importOriginal) => {
   return { ...actual, pioneerProfileFrom: vi.fn(actual.pioneerProfileFrom) };
 });
 // The daily model budget lives in the database; these tests are about the brief.
-vi.mock("../llm/daily-usage", () => ({ withinDailyBudget: async () => true }));
+const budget = vi.hoisted(() => ({ state: "allowed" as "allowed" | "spent" | "unavailable" }));
+vi.mock("../llm/daily-usage", () => ({ checkDailyBudget: async () => budget.state }));
 vi.mock("./local-brief", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./local-brief")>();
   return { ...actual, localBrief: vi.fn(actual.localBrief) };
@@ -100,6 +102,24 @@ describe("answerPioneer", () => {
     if (!res.ok) throw new Error(res.error);
     expect(res.modelStatus).toBe("failed");
     expect(res.warnings).toContain(MODEL_FAILED_WARNING);
+  });
+
+  it("says today's AI limit is reached, not that Grok failed, once the daily budget is spent", async () => {
+    vi.stubEnv("XAI_API_KEY", "test-key");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    budget.state = "spent";
+    try {
+      const res = await answerPioneer(request("What should I fix this week?"), access("allowed"));
+      if (!res.ok) throw new Error(res.error);
+      expect(res.modelStatus).toBe("daily-limit");
+      expect(res.source).toBe("local-agent");
+      expect(res.warnings).toContain(DAILY_LIMIT_WARNING);
+      expect(res.warnings).not.toContain(MODEL_FAILED_WARNING);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      budget.state = "allowed";
+    }
   });
 
   it("returns the plain error envelope when building the brief throws", async () => {

@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { Sql } from "@/lib/db";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import {
+  checkDailyBudget,
   createDailyUsagePurger,
   purgeOldDailyUsage,
   takeDailyBudget,
@@ -154,6 +155,20 @@ describe("withinDailyBudget", () => {
     };
     expect(await withinDailyBudget(unreachable, "a", undefined, noPurge)).toBe(false);
     quiet.mockRestore();
+  });
+
+  it("tells a spent budget apart from one that cannot be read", async () => {
+    const limits = { perUser: 1, global: 10 };
+    expect(await checkDailyBudget(async () => sql, "b", limits, noPurge)).toBe("allowed");
+    const quiet = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    expect(await checkDailyBudget(async () => sql, "b", limits, noPurge)).toBe("spent");
+    quiet.mockRestore();
+    const quietError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const unreachable = async (): Promise<Sql> => {
+      throw new Error("getaddrinfo ENOTFOUND");
+    };
+    expect(await checkDailyBudget(unreachable, "b", limits, noPurge)).toBe("unavailable");
+    quietError.mockRestore();
   });
 
   it("purges old rows on the way through", async () => {

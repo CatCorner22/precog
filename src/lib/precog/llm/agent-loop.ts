@@ -9,7 +9,12 @@
 import { executeTools, planTools, type ToolContext } from "./tools";
 import { runSpecialistAgents } from "./multi-agent";
 import { callModel, type LlmAccess } from "./guard.server";
-import type { AgentRunResult, ReasoningStep, ToolResult } from "./types";
+import {
+  DailyLimitReached,
+  type AgentRunResult,
+  type ReasoningStep,
+  type ToolResult,
+} from "./types";
 import {
   briefClaims,
   parseBriefSelection,
@@ -25,8 +30,11 @@ import {
   localSynthesize,
 } from "./agent-brief";
 
-/** Whether a model selected approved statement ids, failed, was rejected, or was not asked. */
-export type ModelStatus = "answered" | "failed" | "not-asked" | "rejected";
+/**
+ * Whether a model selected approved statement ids, failed, was rejected, was
+ * not asked, or was not called because today's model budget is used up.
+ */
+export type ModelStatus = "answered" | "failed" | "not-asked" | "rejected" | "daily-limit";
 
 /** A rules-built run and its source tools, retained unchanged by the selection path. */
 export interface LocalAgentRun extends AgentRunResult {
@@ -156,7 +164,8 @@ export async function runGrokAgentLoop<T extends LocalAgentRun>(
   });
   try {
     // callModel takes one unit of the owner's daily budget, then calls Grok;
-    // null means the budget is spent or the model gave nothing back.
+    // it throws DailyLimitReached when the budget is spent, and null means
+    // the budget could not be read or the model gave nothing back.
     const response = await callModel(access, {
       messages: buildGrokAgentMessages(local, claims),
       maxTokens: 256,
@@ -200,6 +209,7 @@ export async function runGrokAgentLoop<T extends LocalAgentRun>(
       latencyMs: local.latencyMs + Date.now() - started,
     };
   } catch (error) {
+    if (error instanceof DailyLimitReached) return { ...failed(), modelStatus: "daily-limit" };
     console.error("[pioneer] model call failed; answering with the rules brief", error);
     return failed();
   }

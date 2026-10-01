@@ -160,18 +160,20 @@ export function createDailyUsagePurger(intervalMs = DAILY_USAGE_PURGE_INTERVAL_M
 const purgeDailyUsageOccasionally = createDailyUsagePurger();
 
 /**
- * The persisted daily ceiling for one model call. Fails closed: when the
- * count cannot be read or written, the call is refused (the caller falls back
- * to the local, model-free answer), because an unreadable budget is no budget
- * and every model call spends the app owner's quota.
+ * The persisted daily ceiling for one model call: "allowed" (one unit taken),
+ * "spent" (today's per-user or instance-wide ceiling is reached) or
+ * "unavailable". Fails closed: when the count cannot be read or written, the
+ * call is refused (the caller falls back to the local, model-free answer),
+ * because an unreadable budget is no budget and every model call spends the
+ * app owner's quota.
  */
-export async function withinDailyBudget(
+export async function checkDailyBudget(
   loadSql: () => Promise<Sql>,
   userId: string,
   limits: DailyLimits = LLM_DAILY_LIMITS,
   purge: (sql: Sql) => Promise<boolean> = purgeDailyUsageOccasionally,
   address: string | null = null,
-): Promise<boolean> {
+): Promise<"allowed" | "spent" | "unavailable"> {
   try {
     const sql = await loadSql();
     const extra = await extraScopes(sql, userId, address, limits);
@@ -182,9 +184,16 @@ export async function withinDailyBudget(
       );
     }
     await purge(sql);
-    return budget.allowed;
+    return budget.allowed ? "allowed" : "spent";
   } catch (error) {
     console.error("[llm] daily usage check failed; refusing the model call", error);
-    return false;
+    return "unavailable";
   }
+}
+
+/** Whether one model call fits today's budget, taking one unit when it does; see checkDailyBudget. */
+export async function withinDailyBudget(
+  ...args: Parameters<typeof checkDailyBudget>
+): Promise<boolean> {
+  return (await checkDailyBudget(...args)) === "allowed";
 }

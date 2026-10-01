@@ -67,6 +67,10 @@ export const PIONEER_FAILED_MESSAGE =
 export const MODEL_FAILED_WARNING =
   "Grok could not answer this time, so Precog's rules built this brief.";
 
+/** The warning when today's model budget is used up; it lasts until tomorrow. */
+export const DAILY_LIMIT_WARNING =
+  "Precog has reached today's AI limit, so its rules built this brief. Try again tomorrow.";
+
 /** Validates the coach request; a profile the schema let through but the builder rejects is a 400. */
 export function readPioneerRequest(input: PioneerCoachInput): PioneerRequestData {
   const request = parsePioneerInput(input);
@@ -153,6 +157,7 @@ function modelWarning(grok: GrokAccess, status: ModelStatus): string | null {
   if (grok === "rate_limited") {
     return "Grok is busy for the moment, so Precog's rules built this brief.";
   }
+  if (status === "daily-limit") return DAILY_LIMIT_WARNING;
   if (status === "rejected") {
     return "The model's response could not be validated and was not shown. This is the unchanged brief from Precog's rules.";
   }

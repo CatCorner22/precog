@@ -82,6 +82,65 @@ describe("redactSharePayload", () => {
     expect(redacted.namesHidden).toBe(true);
   });
 
+  it("leaves no part of a name with a surname or title anywhere, in any letter case", () => {
+    const team = [
+      { name: "Dr. Cara Voss", role: "Dentist" },
+      { name: "cara lee", role: "Hygienist" },
+      { name: "Mrs Ines Smith-Jones", role: "Office Manager" },
+      { name: "Will Ortega", role: "Assistant" },
+    ];
+    const base = payload();
+    const process = base.processes[0]!;
+    const redacted = redactSharePayload(
+      {
+        ...base,
+        businessName: "Riverside Dental",
+        health: { ...base.health, summary: "Smith-Jones runs payments" },
+        processes: [
+          {
+            ...process,
+            owners: ["Dr. Cara Voss", "Mrs Ines Smith-Jones"],
+            description: "Dr. Voss counts the cash; dr voss signs. C. Voss checks.",
+            risks: [{ title: "VOSS works alone", kind: "fraud", severity: 3, likelihood: 2 }],
+            evidence: [{ label: "Voss signs the log (CV)", frequency: "daily", status: "ok" }],
+            controls: [{ name: "Mrs. Jones reviews, then ORTEGA", segregated: true }],
+          },
+        ],
+        people: team,
+        issues: ["Ask Voss or CARA LEE", "ines and LEE share the till; C.V. approves"],
+        actions: [
+          { title: "Cross-train Will", why: "Smith covers. The bank will call.", effort: "low" },
+        ],
+        note: "Mrs Smith-Jones and Professor Lee agree.",
+      },
+      team,
+    );
+    const json = JSON.stringify(redacted);
+    for (const part of ["Cara", "Voss", "Lee", "Ines", "Smith", "Jones", "Ortega", "CV"]) {
+      expect(json).not.toMatch(new RegExp(`(?<![\\p{L}])${part}(?![\\p{L}])`, "iu"));
+    }
+    expect(json).not.toMatch(/C\.V\.|\bWill\b|\bWILL\b/);
+    expect(redacted.processes[0]?.description).toBe(
+      "Dentist A counts the cash; Dentist A signs. Dentist A checks.",
+    );
+    expect(redacted.issues).toEqual([
+      "Ask Dentist A or Hygienist A",
+      "Office Manager A and Hygienist A share the till; Dentist A approves",
+    ]);
+    expect(redacted.note).toBe("Office Manager A and Hygienist A agree.");
+    expect(redacted.actions[0]?.title).toBe("Cross-train Assistant A");
+    // "will" in lower case is the everyday word, not Will Ortega.
+    expect(redacted.actions[0]?.why).toBe("Office Manager A covers. The bank will call.");
+  });
+
+  it("calls a surname two people share a team member", () => {
+    const redacted = redactSharePayload({ ...payload(), note: "Ask Lee." }, [
+      { name: "Ann Lee", role: "Nurse" },
+      { name: "Bo Lee", role: "Nurse" },
+    ]);
+    expect(redacted.note).toBe("Ask Team member.");
+  });
+
   it("returns a payload already marked namesHidden unchanged", () => {
     const once = redactSharePayload(payload());
     expect(redactSharePayload(once)).toBe(once);

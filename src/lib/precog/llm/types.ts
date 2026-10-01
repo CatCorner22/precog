@@ -24,8 +24,26 @@ export type ToolName =
   | "run_advanced_reasoning"
   | "run_meta_analysis";
 
-/** Whether a model call may be made for this request, and if not, why. */
-export type GrokAccess = "allowed" | "unauthenticated" | "rate_limited" | "no_api_key";
+/**
+ * Whether a model call may be made for this request, and if not, why.
+ * "daily_limit" marks an answer whose model call was refused because today's
+ * model budget is used up.
+ */
+export type GrokAccess =
+  "allowed" | "unauthenticated" | "rate_limited" | "no_api_key" | "daily_limit";
+
+/**
+ * Thrown by callModel when today's model budget is used up, so the caller can
+ * say the limit lasts until tomorrow instead of that the model failed.
+ */
+export class DailyLimitReached extends Error {
+  readonly grok = "daily_limit" satisfies GrokAccess;
+
+  constructor() {
+    super("Today's model budget is used up.");
+    this.name = "DailyLimitReached";
+  }
+}
 
 export interface ToolResult {
   tool: ToolName;

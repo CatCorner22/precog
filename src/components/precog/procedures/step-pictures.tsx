@@ -1,16 +1,26 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import { Camera, ImagePlus, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWorkspace } from "@/lib/precog/workspace-context";
 import { uploadProcedureImage } from "@/lib/precog/procedures/image-server";
 import {
+  containedRect,
   encodePicture,
   loadPicture,
   pictureUrl,
+  pointOnPicture,
   redactionRect,
   renderRedacted,
   toBase64,
   type Redaction,
+  type ScreenRect,
 } from "@/lib/precog/procedures/image-pipeline";
 import { PROCEDURE_LIMITS } from "@/lib/precog/procedures/normalize";
 import { cn } from "@/lib/utils";
@@ -189,6 +199,27 @@ export function StoredPicture({
 const NUDGE = 0.01;
 
 /**
+ * Where the picture is drawn on screen. The canvas letterboxes it
+ * (object-contain), so a tall photo has empty bands at its sides; drags and
+ * the outlines over the picture are measured against the picture itself,
+ * inside the canvas's border.
+ */
+function drawnPicture(el: HTMLCanvasElement): ScreenRect {
+  const r = el.getBoundingClientRect();
+  const s = getComputedStyle(el);
+  const px = (v: string) => parseFloat(v) || 0;
+  const left = px(s.borderLeftWidth) + px(s.paddingLeft);
+  const top = px(s.borderTopWidth) + px(s.paddingTop);
+  const content = {
+    left: r.left + left,
+    top: r.top + top,
+    width: r.width - left - px(s.borderRightWidth) - px(s.paddingRight),
+    height: r.height - top - px(s.borderBottomWidth) - px(s.paddingBottom),
+  };
+  return containedRect(content, el.width, el.height);
+}
+
+/**
  * Covers or pixelates parts of a picture before it leaves the device. Draw a
  * box by dragging on the picture, or add one with the button and move it with
  * the arrow keys (Shift with an arrow changes its size). What the preview
@@ -224,17 +255,35 @@ function RedactDialog({
     return () => d?.close();
   }, []);
 
-  useEffect(() => {
+  // A layout effect, so the canvas has the picture's size before it is measured below.
+  useLayoutEffect(() => {
     if (canvas.current) renderRedacted(picture, boxes, canvas.current);
   }, [picture, boxes]);
 
-  const at = (e: PointerEvent<HTMLElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    return {
-      x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
-      y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)),
+  // The outlines' frame: the drawn picture, relative to the wrapper around the canvas.
+  const [overlay, setOverlay] = useState<ScreenRect | null>(null);
+  useLayoutEffect(() => {
+    const el = canvas.current;
+    const wrapper = el?.parentElement;
+    if (!el || !wrapper) return;
+    const measure = () => {
+      const drawn = drawnPicture(el);
+      const w = wrapper.getBoundingClientRect();
+      setOverlay({
+        left: drawn.left - w.left,
+        top: drawn.top - w.top,
+        width: drawn.width,
+        height: drawn.height,
+      });
     };
-  };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [picture]);
+
+  const at = (e: PointerEvent<HTMLCanvasElement>) =>
+    pointOnPicture(e.clientX, e.clientY, drawnPicture(e.currentTarget));
   const update = (i: number, patch: Partial<Redaction>) =>
     setBoxes((list) => list.map((b, j) => (j === i ? { ...b, ...patch } : b)));
 
@@ -344,38 +393,53 @@ function RedactDialog({
               setDrag(null);
             }}
           />
-          {[
-            ...boxes.map((b, i) => ({ b, i })),
-            ...(draft ? [{ b: { ...draft, style: "cover" as const }, i: -1 }] : []),
-          ].map(({ b, i }) => {
-            const r = redactionRect(b, 1000, 1000);
-            return (
-              <button
-                key={i}
-                type="button"
-                aria-label={
-                  i < 0
-                    ? "New hidden area"
-                    : `Hidden area ${i + 1}. Arrow keys move it, Shift and an arrow resize it, Delete removes it.`
-                }
-                tabIndex={i < 0 ? -1 : 0}
-                className={cn(
-                  "absolute border-2",
-                  i === selected ? "border-primary" : "border-warn/80",
-                  i < 0 && "pointer-events-none border-dashed",
-                )}
-                style={{
-                  left: `${r.x / 10}%`,
-                  top: `${r.y / 10}%`,
-                  width: `${r.w / 10}%`,
-                  height: `${r.h / 10}%`,
-                }}
-                onFocus={() => i >= 0 && setSelected(i)}
-                onClick={() => i >= 0 && setSelected(i)}
-                onKeyDown={(e) => i >= 0 && onBoxKey(i, e)}
-              />
-            );
-          })}
+          {/* The outlines sit over the drawn picture, not the letterboxed element. */}
+          <div
+            className="pointer-events-none absolute"
+            style={
+              overlay
+                ? {
+                    left: overlay.left,
+                    top: overlay.top,
+                    width: overlay.width,
+                    height: overlay.height,
+                  }
+                : { display: "none" }
+            }
+          >
+            {[
+              ...boxes.map((b, i) => ({ b, i })),
+              ...(draft ? [{ b: { ...draft, style: "cover" as const }, i: -1 }] : []),
+            ].map(({ b, i }) => {
+              const r = redactionRect(b, 1000, 1000);
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  aria-label={
+                    i < 0
+                      ? "New hidden area"
+                      : `Hidden area ${i + 1}. Arrow keys move it, Shift and an arrow resize it, Delete removes it.`
+                  }
+                  tabIndex={i < 0 ? -1 : 0}
+                  className={cn(
+                    "absolute border-2",
+                    i === selected ? "border-primary" : "border-warn/80",
+                    i < 0 ? "border-dashed" : "pointer-events-auto",
+                  )}
+                  style={{
+                    left: `${r.x / 10}%`,
+                    top: `${r.y / 10}%`,
+                    width: `${r.w / 10}%`,
+                    height: `${r.h / 10}%`,
+                  }}
+                  onFocus={() => i >= 0 && setSelected(i)}
+                  onClick={() => i >= 0 && setSelected(i)}
+                  onKeyDown={(e) => i >= 0 && onBoxKey(i, e)}
+                />
+              );
+            })}
+          </div>
         </div>
         {boxes.length > 0 && (
           <ul className="space-y-1 text-sm">
