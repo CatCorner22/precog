@@ -96,7 +96,13 @@ export async function callModel(
 ): Promise<GrokChatResult | null> {
   const apiKey = process.env.XAI_API_KEY?.trim();
   if (access.grok !== "allowed" || !access.userId || !apiKey) return null;
-  const budget = await checkDailyBudget(getSql, access.userId, undefined, undefined, callerAddress());
+  const budget = await checkDailyBudget(
+    getSql,
+    access.userId,
+    undefined,
+    undefined,
+    callerAddress(),
+  );
   if (budget === "spent") throw new DailyLimitReached();
   if (budget !== "allowed") return null;
   return grokChat(apiKey, opts);
