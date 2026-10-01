@@ -8,9 +8,13 @@ import {
   listMapShareSummaries,
   MAX_LIVE_SHARES,
   recordShareView,
+  revokeShare,
+  shareStillReachable,
   type NewMapShare,
   purgeOldShareViews,
 } from "./share-store";
+import { deleteBusinessRow } from "../business-store";
+import { leaveFirm, removeMember } from "../firm/store";
 
 let db: TestDb;
 let pg: PGlite;
@@ -163,5 +167,92 @@ describe("recordShareView", () => {
     await pg.query("update map_share_views set viewed_at = now() - interval '2 minutes'");
     await view("ip-a");
     expect(await count()).toBe(3);
+  });
+});
+
+describe("revoking links with the business and the firm", () => {
+  // Firm "owner" with member "prep"; "own_biz" belongs to the owner and
+  // "prep_biz" to the member, both in the firm; "outsider" is in no firm.
+  beforeEach(async () => {
+    for (const id of ["owner", "prep", "outsider"]) {
+      await pg.query(
+        `insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+         values ($1, $1, $1 || '@example.test', true, now(), now())`,
+        [id],
+      );
+    }
+    await pg.exec(`
+      insert into firms (user_id, name) values ('owner', 'North');
+      insert into firm_members (firm_user_id, member_user_id, role)
+        values ('owner', 'owner', 'owner'), ('owner', 'prep', 'preparer');
+      insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id)
+        values ('own_biz', 'owner', 'Own', 'dental', '{}'::jsonb, 1, 'owner'),
+          ('prep_biz', 'prep', 'Prep', 'dental', '{}'::jsonb, 1, 'owner');
+    `);
+  });
+
+  const linkTo = (token: string, maker: string, businessOwnerId: string, businessId: string) =>
+    insertMapShare(sql, { ...newShare(token, maker), businessOwnerId, businessId });
+  const revoked = async (token: string) =>
+    (
+      await pg.query<{ r: boolean }>(
+        "select revoked_at is not null as r from map_shares where token = $1",
+        [token],
+      )
+    ).rows[0].r;
+
+  it("lets the firm owner list and revoke a colleague's link to a firm client, and nobody else", async () => {
+    await linkTo(tok(1), "prep", "owner", "own_biz");
+    const listed = await listMapShareSummaries(sql, "owner");
+    expect(listed.map((l) => [l.token, l.createdBy])).toEqual([[tok(1), "prep"]]);
+    expect(await listMapShareSummaries(sql, "outsider")).toEqual([]);
+    expect(await revokeShare(sql, "outsider", tok(1))).toBe(false);
+    expect(await revoked(tok(1))).toBe(false);
+    expect(await revokeShare(sql, "owner", tok(1))).toBe(true);
+    expect(await revoked(tok(1))).toBe(true);
+  });
+
+  it("revokes every link to a business when it is deleted", async () => {
+    await linkTo(tok(1), "prep", "owner", "own_biz");
+    await linkTo(tok(2), "owner", "owner", "own_biz");
+    await linkTo(tok(3), "owner", "prep", "prep_biz");
+    await deleteBusinessRow(sql, "owner", "own_biz");
+    expect([await revoked(tok(1)), await revoked(tok(2)), await revoked(tok(3))]).toEqual([
+      true,
+      true,
+      false,
+    ]);
+  });
+
+  it("revokes the links that cross the firm when a member is removed", async () => {
+    await linkTo(tok(1), "prep", "owner", "own_biz"); // the member's link to a firm client
+    await linkTo(tok(2), "owner", "prep", "prep_biz"); // the owner's link to the member's business
+    await linkTo(tok(3), "prep", "prep", "prep_biz"); // the member's link to their own business
+    await linkTo(tok(4), "owner", "owner", "own_biz"); // untouched
+    await insertMapShare(sql, newShare(tok(5), "prep")); // made before links named a business
+    await removeMember(sql, "owner", "prep");
+    const states = [];
+    for (const i of [1, 2, 3, 4, 5]) states.push(await revoked(tok(i)));
+    expect(states).toEqual([true, true, false, false, true]);
+  });
+
+  it("does the same when the member leaves", async () => {
+    await linkTo(tok(1), "prep", "owner", "own_biz");
+    await leaveFirm(sql, "owner", "prep");
+    expect(await revoked(tok(1))).toBe(true);
+  });
+
+  it("stops serving a link whose maker can no longer reach its business", async () => {
+    await linkTo(tok(1), "prep", "owner", "own_biz");
+    await insertMapShare(sql, newShare(tok(2), "prep"));
+    expect(await shareStillReachable(sql, tok(1))).toBe(true);
+    expect(await shareStillReachable(sql, tok(2))).toBe(true);
+    // The membership ends without detachMember running.
+    await pg.exec(`delete from firm_members where member_user_id = 'prep'`);
+    expect(await shareStillReachable(sql, tok(1))).toBe(false);
+    await linkTo(tok(3), "owner", "owner", "own_biz");
+    expect(await shareStillReachable(sql, tok(3))).toBe(true);
+    await pg.exec(`update businesses set deleted_at = now() where id = 'own_biz'`);
+    expect(await shareStillReachable(sql, tok(3))).toBe(false);
   });
 });

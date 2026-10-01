@@ -199,6 +199,30 @@ describe("QuickBooks reading", () => {
     expect(row.lastSyncedAt).toBe(connection.lastSyncedAt);
   });
 
+  it("tells the advisor to disconnect only when Intuit refuses the grant itself", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const intuit = fakeIntuit({ Vendor: [], Employee: [] });
+    const failure = async (tokenAnswer: () => Response | Promise<Response>) => {
+      await connect(db.sql, { accessExpiresAt: "2020-01-01T00:00:00.000Z" });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: string | URL | Request) =>
+          String(input).endsWith("/tokens/bearer") ? tokenAnswer() : intuit.fetchStub(input),
+        ),
+      );
+      await syncDueConnections(db.sql);
+      return (await loadConnection(db.sql, "own", "biz_1"))!.lastError;
+    };
+    const later = "QuickBooks refused the request. Try again later.";
+    const reconnect = "QuickBooks no longer accepts this connection. Disconnect and connect again.";
+
+    expect(await failure(() => new Response("Service Unavailable", { status: 503 }))).toBe(later);
+    expect(await failure(() => Promise.reject(new TypeError("fetch failed")))).toBe(later);
+    expect(await failure(() => Response.json({ error: "invalid_grant" }, { status: 400 }))).toBe(
+      reconnect,
+    );
+  });
+
   it("waits for the error report before it records a failed reading", async () => {
     const connection = await connect(db.sql);
     let deliver = () => {};

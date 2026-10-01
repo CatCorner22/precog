@@ -5,6 +5,7 @@ import type { FirmPlan } from "./pricing";
 import type { ReviewItemKey, ReviewResult } from "./reviews";
 import { RequestError } from "@/lib/request-errors";
 import { randomHex } from "@/lib/web-crypto";
+import { revokeDepartingMemberShares } from "../share/share-store";
 
 /**
  * A firm is keyed by its owner's account: `firms.user_id` is both the owner
@@ -434,9 +435,15 @@ export async function leaveFirm(sql: Sql, firmUserId: string, userId: string): P
   await detachMember(sql, firmUserId, userId);
 }
 
-/** Ends a membership and takes the member's own businesses (live and deleted) out of the firm. */
+/**
+ * Ends a membership and takes the member's own businesses (live and deleted)
+ * out of the firm. Share links that crossed the line (the member's links to
+ * the firm's clients, colleagues' links to the member's businesses) are
+ * revoked first, while the businesses still name the firm.
+ */
 async function detachMember(sql: Sql, firmUserId: string, memberUserId: string): Promise<void> {
   await inTransaction(sql, async (tx) => {
+    await revokeDepartingMemberShares(tx, firmUserId, memberUserId);
     await tx`
       delete from firm_members
       where firm_user_id = ${firmUserId} and member_user_id = ${memberUserId} and role <> 'owner'

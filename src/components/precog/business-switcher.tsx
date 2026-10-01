@@ -102,7 +102,12 @@ export function BusinessSwitcher() {
   }
 
   function removeBusiness(b: BusinessSummary) {
-    if (!window.confirm(`Remove "${b.name}" from your portfolio? You cannot undo this.`)) return;
+    if (
+      !window.confirm(
+        `Remove "${b.name}" from your portfolio? Its share links stop working. You cannot undo this.`,
+      )
+    )
+      return;
     void deleteBusiness(b.id).then(
       () => toast(`Removed ${b.name}`),
       (error: unknown) =>

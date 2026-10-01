@@ -95,8 +95,18 @@ export async function callModel(
 ): Promise<GrokChatResult | null> {
   const apiKey = process.env.XAI_API_KEY?.trim();
   if (access.grok !== "allowed" || !access.userId || !apiKey) return null;
-  if (!(await withinDailyBudget(getSql, access.userId))) return null;
+  if (!(await withinDailyBudget(getSql, access.userId, undefined, undefined, callerAddress())))
+    return null;
   return grokChat(apiKey, opts);
+}
+
+/** The calling address for the daily budget, or null outside a request. */
+function callerAddress(): string | null {
+  try {
+    return requestIp();
+  } catch {
+    return null;
+  }
 }
 
 const TRY_AGAIN = "Too many requests — try again in a minute.";

@@ -20,6 +20,8 @@ export interface PlanPrice {
 export interface StripeEvent {
   id: string;
   type: string;
+  /** When Stripe created the event, in Unix seconds; orders subscription events. */
+  created?: number;
   data: { object: Record<string, unknown> };
 }
 
@@ -34,6 +36,8 @@ type BillingChange =
       /** Null when the event knows only the ids (a completed checkout). */
       status: string | null;
       currentPeriodEnd: string | null;
+      /** When Stripe created the event (ISO), or null when it did not say. */
+      eventAt: string | null;
     }
   | { kind: "ignore" };
 
@@ -103,7 +107,12 @@ export function parseStripeEvent(payload: string): StripeEvent | null {
     ) {
       return null;
     }
-    return { id: value.id, type: value.type, data: { object: value.data.object } };
+    return {
+      id: value.id,
+      type: value.type,
+      ...(typeof value.created === "number" ? { created: value.created } : {}),
+      data: { object: value.data.object },
+    };
   } catch {
     return null;
   }
@@ -131,6 +140,8 @@ function customerIdOf(object: Record<string, unknown>): string | null {
  */
 export function billingChangeFor(event: StripeEvent): BillingChange {
   const object = event.data.object;
+  const eventAt =
+    typeof event.created === "number" ? new Date(event.created * 1000).toISOString() : null;
   if (
     event.type === "checkout.session.completed" ||
     event.type === "checkout.session.async_payment_succeeded"
@@ -149,6 +160,7 @@ export function billingChangeFor(event: StripeEvent): BillingChange {
         subscriptionId,
         status: null,
         currentPeriodEnd: null,
+        eventAt,
       };
     }
     if (object.mode === "payment" && object.payment_status === "paid") {
@@ -176,6 +188,7 @@ export function billingChangeFor(event: StripeEvent): BillingChange {
       subscriptionId,
       status: event.type === "customer.subscription.deleted" ? "canceled" : status,
       currentPeriodEnd: periodEnd,
+      eventAt,
     };
   }
   return { kind: "ignore" };

@@ -64,6 +64,7 @@ import {
 import type { MapReview } from "@/lib/precog/builder/review";
 import { reviewMap } from "@/lib/precog/builder/review-server";
 import { scoreMap } from "@/lib/precog/builder/scored-map";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { buildSharePayload } from "@/lib/precog/share/share-payload";
 import { healthDelta, type HealthDelta } from "@/lib/precog/builder/what-if";
 import { analyzeWorkload, LOAD_BANDS } from "@/lib/precog/builder/workload";
@@ -705,6 +706,7 @@ export function ProcessBuilder({
 
         {isOpen("share") && (
           <SharePanel
+            businessId={profile.businessId ?? DEFAULT_BUSINESS_ID}
             buildPayload={(note, redactNames) => {
               const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
               const actions = buildWeeklyActions({

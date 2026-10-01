@@ -163,7 +163,56 @@ describe("withinDailyBudget", () => {
     const purge = createDailyUsagePurger();
     expect(await withinDailyBudget(async () => sql, "a", undefined, purge)).toBe(true);
     const rows = await sql<{ scope: string }>`select scope from llm_daily_usage order by scope`;
-    expect(rows.map((r) => r.scope)).toEqual(["global", "user:a"]);
+    // "a" has no verified email or social sign-in, so it draws on the shared pool too.
+    expect(rows.map((r) => r.scope)).toEqual(["global", "pool:unverified", "user:a"]);
+  });
+});
+
+describe("shares of the global budget", () => {
+  const noPurge = async () => false;
+  const limits = { perUser: 5, global: 100, perAddress: 6, unverified: 4 };
+
+  beforeEach(async () => {
+    await db.clear('"user"');
+    for (const id of ["free-1", "free-2", "free-3", "google-1", "verified-1"]) {
+      await db.seedUser(id);
+    }
+    await pg.exec(`update "user" set "emailVerified" = (id = 'verified-1')`);
+    await pg.exec(`
+      insert into "account" ("id", "accountId", "providerId", "userId", "updatedAt")
+      values ('acc-g', 'g-1', 'google', 'google-1', now()),
+        ('acc-c', 'free-1', 'credential', 'free-1', now())
+    `);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+
+  it("holds every unverified account to one shared pool, not the global budget", async () => {
+    let admitted = 0;
+    for (const user of ["free-1", "free-2", "free-3"]) {
+      for (let i = 0; i < 5; i += 1) {
+        if (await withinDailyBudget(async () => sql, user, limits, noPurge)) admitted += 1;
+      }
+    }
+    expect(admitted).toBe(4);
+    // Accounts made with Google or a verified email still have their own share.
+    expect(await withinDailyBudget(async () => sql, "google-1", limits, noPurge)).toBe(true);
+    expect(await withinDailyBudget(async () => sql, "verified-1", limits, noPurge)).toBe(true);
+  });
+
+  it("caps one address across accounts, and a refusal spends nothing", async () => {
+    const calls = (user: string, address: string) =>
+      withinDailyBudget(async () => sql, user, { ...limits, unverified: 100 }, noPurge, address);
+    for (let i = 0; i < 5; i += 1) expect(await calls("google-1", "198.51.100.7")).toBe(true);
+    expect(await calls("verified-1", "198.51.100.7")).toBe(true);
+    expect(await calls("verified-1", "198.51.100.7")).toBe(false);
+    expect(await calls("verified-1", "198.51.100.8")).toBe(true);
+    const rows = await sql<{ scope: string; calls: number }>`
+      select scope, calls from llm_daily_usage order by scope
+    `;
+    expect(rows.find((r) => r.scope === "global")?.calls).toBe(7);
+    expect(rows.find((r) => r.scope === "user:verified-1")?.calls).toBe(2);
+    // The address is stored hashed.
+    expect(rows.some((r) => r.scope.includes("198.51"))).toBe(false);
   });
 });
 

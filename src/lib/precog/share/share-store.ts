@@ -4,7 +4,8 @@ import { RequestError } from "@/lib/request-errors";
 
 /**
  * Share-link rows, kept free of `createServerFn` so they run against PGLite in
- * a unit test. Every query is scoped by the owner's verified user id.
+ * a unit test. Every query is scoped by the owner's verified user id; the
+ * firm owner also reaches the links on the firm's clients.
  */
 
 /** Live (not revoked, not expired) links one account may hold at once. */
@@ -32,6 +33,9 @@ export interface NewMapShare {
   redacted: boolean;
   passcodeSalt: string | null;
   passcodeHash: string | null;
+  /** The business the link copies (its owner and id), checked by the caller. */
+  businessOwnerId?: string | null;
+  businessId?: string | null;
 }
 
 /**
@@ -48,7 +52,7 @@ export async function insertMapShare(
   const rows = await sql<{ token: string }>`
     insert into map_shares (
       token, user_id, business_name, industry, payload, expires_at,
-      redacted, passcode_salt, passcode_hash
+      redacted, passcode_salt, passcode_hash, business_owner_id, business_id
     )
     select
       ${share.token}::text,
@@ -59,7 +63,9 @@ export async function insertMapShare(
       ${share.expiresAt}::timestamptz,
       ${share.redacted}::boolean,
       ${share.passcodeSalt}::text,
-      ${share.passcodeHash}::text
+      ${share.passcodeHash}::text,
+      ${share.businessOwnerId ?? null}::text,
+      ${share.businessId ?? null}::text
     where (
       select count(*) from map_shares
       where user_id = ${share.userId}
@@ -80,6 +86,8 @@ export interface ShareSummary {
   hasPasscode: boolean;
   views: number;
   lastViewedAt: string | null;
+  /** Who made the link when a colleague did (the firm owner sees those); null for the caller's own. */
+  createdBy: string | null;
 }
 
 type ShareListRow = {
@@ -91,12 +99,15 @@ type ShareListRow = {
   has_passcode: boolean;
   views: number | string | null;
   last_viewed_at: unknown;
+  created_by: string | null;
 };
 
 /**
  * The owner's links: every live one, however many, then the newest revoked
  * or expired ones. The share panel only offers "revoke" for a listed link, so
- * a live link must never drop off the list behind newer dead ones.
+ * a live link must never drop off the list behind newer dead ones. A firm
+ * owner also sees the links colleagues made on the firm's clients, so they
+ * can revoke them.
  */
 export async function listMapShareSummaries(sql: Sql, userId: string): Promise<ShareSummary[]> {
   const live = await sql<ShareListRow>`
@@ -104,9 +115,18 @@ export async function listMapShareSummaries(sql: Sql, userId: string): Promise<S
       token, created_at, expires_at, revoked_at, redacted,
       passcode_hash is not null as has_passcode,
       (select count(*)::int from map_share_views v where v.token = s.token) as views,
-      (select max(viewed_at) from map_share_views v where v.token = s.token) as last_viewed_at
+      (select max(viewed_at) from map_share_views v where v.token = s.token) as last_viewed_at,
+      case when s.user_id = ${userId} then null
+        else (select u.name from "user" u where u.id = s.user_id) end as created_by
     from map_shares s
-    where user_id = ${userId}
+    where (
+        s.user_id = ${userId}
+        or exists (
+          select 1 from businesses b
+          where b.user_id = s.business_owner_id and b.id = s.business_id
+            and b.firm_user_id = ${userId}
+        )
+      )
       and revoked_at is null
       and (expires_at is null or expires_at > now())
     order by created_at desc
@@ -116,9 +136,11 @@ export async function listMapShareSummaries(sql: Sql, userId: string): Promise<S
       token, created_at, expires_at, revoked_at, redacted,
       passcode_hash is not null as has_passcode,
       (select count(*)::int from map_share_views v where v.token = s.token) as views,
-      (select max(viewed_at) from map_share_views v where v.token = s.token) as last_viewed_at
+      (select max(viewed_at) from map_share_views v where v.token = s.token) as last_viewed_at,
+      case when s.user_id = ${userId} then null
+        else (select u.name from "user" u where u.id = s.user_id) end as created_by
     from map_shares s
-    where user_id = ${userId}
+    where s.user_id = ${userId}
       and (revoked_at is not null or (expires_at is not null and expires_at <= now()))
     order by created_at desc
     limit ${INACTIVE_SHARES_LISTED}::int
@@ -133,8 +155,100 @@ export async function listMapShareSummaries(sql: Sql, userId: string): Promise<S
       hasPasscode: Boolean(r.has_passcode),
       views: Number(r.views ?? 0),
       lastViewedAt: toIsoTimestampOrNull(r.last_viewed_at),
+      createdBy: r.created_by ?? null,
     }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/**
+ * Revokes one link for the account that made it, or for the firm owner when
+ * the link copies one of the firm's clients. Returns false when the caller
+ * may not revoke it (or it does not exist).
+ */
+export async function revokeShare(sql: Sql, userId: string, token: string): Promise<boolean> {
+  const rows = await sql<{ token: string }>`
+    update map_shares s set revoked_at = coalesce(s.revoked_at, now())
+    where s.token = ${token}
+      and (
+        s.user_id = ${userId}
+        or exists (
+          select 1 from businesses b
+          where b.user_id = s.business_owner_id and b.id = s.business_id
+            and b.firm_user_id = ${userId}
+        )
+      )
+    returning s.token
+  `;
+  return rows.length > 0;
+}
+
+/**
+ * True while the link's maker can still reach the business it copies: the
+ * business exists and is not deleted, and the maker owns it or is in its
+ * firm. A link made before links recorded their business passes. Catches
+ * what a missed revocation would leave open (an account deleted, a business
+ * purged).
+ */
+export async function shareStillReachable(sql: Sql, token: string): Promise<boolean> {
+  const rows = await sql<{ reachable: boolean }>`
+    select s.business_id is null or exists (
+      select 1 from businesses b
+      where b.user_id = s.business_owner_id and b.id = s.business_id and b.deleted_at is null
+        and (
+          b.user_id = s.user_id
+          or b.firm_user_id = s.user_id
+          or exists (
+            select 1 from firm_members m
+            where m.firm_user_id = b.firm_user_id and m.member_user_id = s.user_id
+          )
+        )
+    ) as reachable
+    from map_shares s where s.token = ${token}
+  `;
+  return rows[0]?.reachable === true;
+}
+
+/** Revokes every link to a business, whoever made it; run when the business is deleted. */
+export async function revokeBusinessShares(
+  sql: Sql,
+  businessOwnerId: string,
+  businessId: string,
+): Promise<void> {
+  await sql`
+    update map_shares set revoked_at = now()
+    where business_owner_id = ${businessOwnerId} and business_id = ${businessId}
+      and revoked_at is null
+  `;
+}
+
+/**
+ * A member leaves the firm (or is removed): revokes the links they made on
+ * the firm's other clients, the links colleagues made on the businesses the
+ * member takes with them, and the member's links made before links recorded
+ * their business (which cannot be told apart). Run before the member's
+ * businesses leave the firm.
+ */
+export async function revokeDepartingMemberShares(
+  sql: Sql,
+  firmUserId: string,
+  memberUserId: string,
+): Promise<void> {
+  await sql`
+    update map_shares s set revoked_at = now()
+    where s.revoked_at is null
+      and (
+        (s.user_id = ${memberUserId} and s.business_id is null)
+        or exists (
+          select 1 from businesses b
+          where b.user_id = s.business_owner_id and b.id = s.business_id
+            and b.firm_user_id = ${firmUserId}
+            and (
+              (s.user_id = ${memberUserId} and b.user_id <> ${memberUserId})
+              or (b.user_id = ${memberUserId} and s.user_id <> ${memberUserId})
+            )
+        )
+      )
+  `;
 }
 
 /** Share view logs older than this are purged whenever an owner lists shares. */

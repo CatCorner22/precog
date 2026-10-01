@@ -2,6 +2,7 @@ import { z } from "zod";
 import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
 import { INDUSTRIES, type IndustryId } from "../industry";
 import { clamp } from "../number";
+import { isBusinessId } from "../profile-input";
 
 /** Largest stored share, in bytes of JSON. */
 export const MAX_SHARE_BYTES = 256 * 1024;
@@ -100,6 +101,8 @@ export const SHARE_PASSCODE_MIN = 8;
 const SHARE_PASSCODE_MAX = 64;
 
 interface CreateShareInput {
+  /** The business the payload copies; the server checks the caller may reach it. */
+  businessId: string;
   payload: SharedMapPayload;
   expiresInDays: number;
   redacted: boolean;
@@ -113,6 +116,7 @@ interface CreateShareInput {
  */
 export function parseCreateShareInput(input: unknown): CreateShareInput {
   const raw = requireObject(input);
+  if (!isBusinessId(raw.businessId)) throw invalidRequest();
   if (raw.passcode != null && typeof raw.passcode !== "string") throw invalidRequest();
   const passcode = raw.passcode?.trim() || undefined;
   if (passcode && (passcode.length < SHARE_PASSCODE_MIN || passcode.length > SHARE_PASSCODE_MAX)) {
@@ -123,6 +127,7 @@ export function parseCreateShareInput(input: unknown): CreateShareInput {
   }
   const days = typeof raw.expiresInDays === "number" ? raw.expiresInDays : 30;
   return {
+    businessId: raw.businessId,
     payload: validateSharePayload(raw.payload),
     expiresInDays: clamp(days || 30, 1, 365),
     redacted: raw.redacted === true,
