@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { RequestError } from "@/lib/request-errors";
-import { newProcedure, newStep, verifyProcedure, withProcedureEdit } from "./lifecycle";
+import {
+  newProcedure,
+  newStep,
+  verificationsAsHeld,
+  verifyProcedure,
+  withoutOthersVerifications,
+  withProcedureEdit,
+} from "./lifecycle";
 import type { Procedure } from "./types";
 import {
   assertVerificationsAllowed,
@@ -209,5 +216,41 @@ describe("the writing standards on the server", () => {
       ada,
     );
     expect(save(profileWith(loose), profileWith(loose), null)).toBeNull();
+  });
+});
+
+describe("bringing back a version that carries an older verification", () => {
+  const rex = { id: "user-rex", name: "Rex Reviewer" };
+  const verifiedByRex = verifyProcedure(written(), "owner", "2026-09-10", rex);
+  const editedSince = withProcedureEdit(
+    verifiedByRex,
+    { ...verifiedByRex, steps: [newStep("Count the drawer twice.")] },
+    TODAY,
+  );
+
+  it("a history restore saves: the old stamp goes and is kept as the last verification", () => {
+    expect(save(profileWith(editedSince), profileWith(verifiedByRex), "owner")).toBe(
+      VERIFICATION_ACCOUNT_MISMATCH,
+    );
+    const [restored] = verificationsAsHeld([verifiedByRex], [editedSince]);
+    expect(restored.verifiedAt).toBeUndefined();
+    expect(restored.lastVerifiedAt).toBe("2026-09-10");
+    expect(restored.steps[0].text).toBe("Count the drawer.");
+    expect(save(profileWith(editedSince), profileWith(restored), "owner")).toBeNull();
+    expect(save(profileWith(editedSince), profileWith(restored), "preparer")).toBeNull();
+  });
+
+  it("a restore keeps the verification the account holds for the same steps", () => {
+    const [restored] = verificationsAsHeld([verifiedByRex], [verifiedByRex]);
+    expect(restored.verifiedByAccountId).toBe("user-rex");
+    expect(save(profileWith(verifiedByRex), profileWith(restored), "preparer")).toBeNull();
+  });
+
+  it("a copy kept as a new business saves without another account's verification", () => {
+    expect(save(null, profileWith(verifiedByRex), "owner")).toBe(VERIFICATION_ACCOUNT_MISMATCH);
+    const [copied] = withoutOthersVerifications([verifiedByRex], ada.id);
+    expect(save(null, profileWith(copied), "owner")).toBeNull();
+    const own = verifyProcedure(written(), "owner", "2026-09-10", ada);
+    expect(withoutOthersVerifications([own], ada.id)[0].verifiedByAccountId).toBe(ada.id);
   });
 });

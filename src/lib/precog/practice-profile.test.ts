@@ -5,6 +5,7 @@ import { soleOwnerCriticalCount } from "./continuity/coverage";
 import { INDUSTRIES } from "./industry";
 import {
   defaultProfile,
+  hasUserWork,
   normalizeCustomKnowledge,
   normalizeProfile,
   parseStoredProfile,
@@ -170,5 +171,14 @@ describe("parseStoredProfile", () => {
   it("treats a stored copy with no setup flag as unfinished", () => {
     const raw = JSON.stringify({ practiceName: "My Shop", industry: "general" });
     expect(parseStoredProfile(raw).onboardingComplete).toBe(false);
+  });
+});
+
+describe("hasUserWork", () => {
+  it("counts written procedures and places, so sign-in and switching keep them", () => {
+    const sample = defaultProfile("dental");
+    expect(hasUserWork(sample)).toBe(false);
+    expect(hasUserWork({ ...sample, procedures: [{ id: "pr1" }] } as never)).toBe(true);
+    expect(hasUserWork({ ...sample, places: [{ id: "pl1" }] } as never)).toBe(true);
   });
 });

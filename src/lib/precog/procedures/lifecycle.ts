@@ -145,6 +145,64 @@ export function verifyProcedure(
   };
 }
 
+/** The procedure no longer verified; the verification stays as the last one, so the screen asks for a re-verify. */
+export function withoutVerification(p: Procedure): Procedure {
+  if (!p.verifiedAt) return p;
+  const {
+    verifiedAt,
+    verifiedBy: _verifiedBy,
+    verifiedByAccountId: _accountId,
+    verifiedByAccountName: _accountName,
+    ...rest
+  } = p;
+  return { ...rest, lastVerifiedAt: verifiedAt };
+}
+
+const VERIFICATION_FIELDS = [
+  "verifiedAt",
+  "verifiedBy",
+  "verifiedByAccountId",
+  "verifiedByAccountName",
+] as const;
+
+/**
+ * Procedures brought back from an older saved version, keeping only the
+ * verifications the account already holds: a procedure whose steps match
+ * the business's current copy takes that copy's verification as it stands;
+ * any other verification goes (kept as the last one). An older stamp is no
+ * new verification, so the server would refuse to take it again, and every
+ * later save with it.
+ */
+export function verificationsAsHeld(
+  restored: readonly Procedure[],
+  current: readonly Procedure[],
+): Procedure[] {
+  const now = new Map(current.map((p) => [p.id, p]));
+  return restored.map((p) => {
+    if (!p.verifiedAt) return p;
+    const held = now.get(p.id);
+    const unverified = withoutVerification(p);
+    if (!held?.verifiedAt || contentKey(held) !== contentKey(p)) return unverified;
+    const stamp: Partial<Procedure> = {};
+    for (const key of VERIFICATION_FIELDS) if (held[key] !== undefined) stamp[key] = held[key];
+    return { ...unverified, ...stamp };
+  });
+}
+
+/**
+ * The procedures of a business saved as a new copy, without verifications
+ * another account recorded: the account that saves the copy would be
+ * recording them as new, under its own name, which the server refuses.
+ */
+export function withoutOthersVerifications(
+  procedures: readonly Procedure[],
+  accountId: string,
+): Procedure[] {
+  return procedures.map((p) =>
+    p.verifiedByAccountId && p.verifiedByAccountId !== accountId ? withoutVerification(p) : p,
+  );
+}
+
 /** The step without its AI-draft or suggestion mark (the same object when it has neither). */
 export function withoutDraftMarks(step: ProcedureStep): ProcedureStep {
   if (!step.aiDrafted && !step.suggested) return step;

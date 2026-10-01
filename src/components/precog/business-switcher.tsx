@@ -65,10 +65,10 @@ export function BusinessSwitcher() {
     };
   }, [open]);
 
-  function submitNew() {
+  async function submitNew() {
     // Setup opens for the new business: the owner enters its team or loads
     // the sample. The current business is saved first.
-    const result = createBusiness(industry, name);
+    const result = await createBusiness(industry, name);
     if (!result.ok) {
       toast.error("Could not add a business", { description: result.reason });
       return;
@@ -79,8 +79,8 @@ export function BusinessSwitcher() {
   }
 
   /** From the sample: set up the owner's own business, starting in the sample's line of business. */
-  function setUpOwn() {
-    const result = createBusiness(profile.industry);
+  async function setUpOwn() {
+    const result = await createBusiness(profile.industry);
     if (!result.ok) {
       toast.error("Could not start setup", { description: result.reason });
       return;
@@ -241,7 +241,7 @@ export function BusinessSwitcher() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoFocus
-                  onKeyDown={(e) => e.key === "Enter" && submitNew()}
+                  onKeyDown={(e) => e.key === "Enter" && void submitNew()}
                 />
                 <select
                   className={inputCls}
@@ -256,7 +256,7 @@ export function BusinessSwitcher() {
                   ))}
                 </select>
                 <div className="flex gap-1.5">
-                  <Button size="sm" className="flex-1" onClick={submitNew}>
+                  <Button size="sm" className="flex-1" onClick={() => void submitNew()}>
                     <Plus className="size-3.5" /> Next: your team
                   </Button>
                   <Button
@@ -278,7 +278,7 @@ export function BusinessSwitcher() {
                 {onSample && (
                   <button
                     type="button"
-                    onClick={setUpOwn}
+                    onClick={() => void setUpOwn()}
                     className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-primary hover:bg-elevated"
                   >
                     <Users className="size-3.5" /> Set up my own business

@@ -97,7 +97,10 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       };
     }
 
-    await sweepProcedureImages(sql, owner ?? context.userId, businessId, data.profile);
+    await sweepProcedureImages(sql, owner ?? context.userId, businessId, data.profile, {
+      // Only the saver's own pictures ever move between businesses.
+      copyFromOwn: (owner ?? context.userId) === context.userId,
+    });
     return {
       ok: true as const,
       revision: saved.revision,
@@ -106,20 +109,25 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
   });
 
 /**
- * After a save, delete the business's step pictures no procedure names any
- * more (past their grace period). A failure here is reported and never fails
- * the save: the pictures wait for the next one.
+ * After a save, bring in the pictures a copy of another of the owner's
+ * businesses names (see copyImagesFromOwnBusinesses), then delete the
+ * business's step pictures no procedure has named for the grace period. A
+ * failure here is reported and never fails the save: the pictures wait for
+ * the next one.
  */
 async function sweepProcedureImages(
   sql: Awaited<ReturnType<typeof getSql>>,
   ownerId: string,
   businessId: string,
   profile: unknown,
+  options: { copyFromOwn: boolean },
 ): Promise<void> {
   try {
-    const { referencedImageIds, sweepUnreferencedImages } =
+    const { copyImagesFromOwnBusinesses, referencedImageIds, sweepUnreferencedImages } =
       await import("./procedures/image-store.server");
-    await sweepUnreferencedImages(sql, ownerId, businessId, referencedImageIds(profile));
+    const ids = referencedImageIds(profile);
+    if (options.copyFromOwn) await copyImagesFromOwnBusinesses(sql, ownerId, businessId, ids);
+    await sweepUnreferencedImages(sql, ownerId, businessId, ids);
   } catch (err) {
     const { reportServerError } = await import("@/lib/observability/report.server");
     await reportServerError(err, "procedure-image-sweep");

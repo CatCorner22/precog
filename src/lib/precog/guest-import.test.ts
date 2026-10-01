@@ -8,6 +8,7 @@ import {
   savePortfolioEntry,
 } from "./practice-profile";
 import { ScopedStorage } from "./workspace-storage";
+import { readValueProof, writeValueProof } from "./value-proof-store";
 
 /** One browser's localStorage; guest and accounts are ScopedStorage views over it. */
 class MemoryStorage {
@@ -68,6 +69,19 @@ describe("guest work copied into an account", () => {
     expect(importableGuestBusinesses(guest, account)).toEqual([]);
     expect(copyGuestBusinesses(guest, account)).toBe(0);
     expect(Object.keys(loadPortfolio(account))).toHaveLength(1);
+  });
+
+  it("brings the business's value case and evidence along to the copy", () => {
+    const { guest, account } = browser();
+    savePortfolioEntry(business("biz_1", "Riverside Dental"), guest);
+    writeValueProof("biz_1", { valueCase: { hourlyRate: 90 }, evidence: undefined }, guest);
+
+    expect(copyGuestBusinesses(guest, account)).toBe(1);
+    const [copy] = Object.values(loadPortfolio(account));
+    expect(readValueProof(copy.businessId as string, account, { claimLegacy: false })).toEqual({
+      valueCase: { hourlyRate: 90 },
+      evidence: undefined,
+    });
   });
 
   it("remembers the copy per account, so another account may still copy", () => {

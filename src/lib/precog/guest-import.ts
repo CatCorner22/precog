@@ -10,6 +10,7 @@ import {
   type PracticeProfile,
 } from "./practice-profile";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
+import { readValueProof, writeValueProof } from "./value-proof-store";
 
 /**
  * Copying guest work into a signed-in account. The guest originals stay where
@@ -42,6 +43,13 @@ export function copyGuestBusinesses(guest: StorageLike, account: StorageLike): n
   for (const p of importableGuestBusinesses(guest, account)) {
     const id = makeBusinessId();
     savePortfolioEntry(normalizeProfile({ ...p, businessId: id }), account);
+    // The value case and evidence are kept per business id, so they move to
+    // the new id too. The guest's old browser-wide figures stay where they are.
+    const proof = readValueProof(p.businessId ?? DEFAULT_BUSINESS_ID, guest, {
+      claimLegacy: false,
+    });
+    if (proof.valueCase !== undefined || proof.evidence !== undefined)
+      writeValueProof(id, proof, account);
     // Mark the original copied only once the copy is really stored.
     if (loadPortfolio(account)[id]) {
       writeLocal(copiedMarker(p.businessId), id, account);

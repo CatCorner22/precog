@@ -56,6 +56,9 @@ export function usePortfolio(input: {
   cloudUser: boolean;
   cloudRevision: MutableRefObject<Map<string, number>>;
   saveConflictRef: MutableRefObject<SaveConflictState | null>;
+  raiseConflict: (conflict: SaveConflictState) => void;
+  /** Whether the account took this device's copy of the business stamped `stamp`. */
+  accountTook: (id: string, stamp: string) => boolean;
   flushLocal: () => boolean;
   flushActive: () => Promise<boolean>;
   openedFromAccount: (opened: PracticeProfile, revision: number) => void;
@@ -76,6 +79,8 @@ export function usePortfolio(input: {
     cloudUser,
     cloudRevision,
     saveConflictRef,
+    raiseConflict,
+    accountTook,
     flushLocal,
     flushActive,
     openedFromAccount,
@@ -134,23 +139,42 @@ export function usePortfolio(input: {
           };
         if (!mounted.current) return { ok: false, reason: "The page closed before the switch." };
         const remote = cloudUser
-          ? await loadBusiness({ data: { id, today: localDateKey(new Date()) } }).catch(() => null)
+          ? await loadBusiness({ data: { id, today: localDateKey(new Date()) } }).catch(
+              () => "unreachable" as const,
+            )
           : null;
         const copy = pickSwitchCopy({
           stored: loadPortfolio(workspace.local)[id],
           open: localStore.peek(id)?.profile ?? null,
           account:
-            remote?.found && remote.profile
-              ? { found: true, profile: remote.profile, revision: remote.revision }
-              : remote?.found === false
-                ? { found: false }
-                : null,
+            remote === "unreachable" || remote === null
+              ? remote
+              : remote.found && remote.profile
+                ? { found: true, profile: remote.profile, revision: remote.revision }
+                : remote.found === false
+                  ? { found: false }
+                  : null,
           seenRevision: cloudRevision.current.get(id),
           heldByAccount: cloudRevision.current.has(id) || remoteBusinesses.some((b) => b.id === id),
+          accountTook: (stamp) => accountTook(id, stamp),
         });
         if (!copy.ok) return copy;
         if (!mounted.current) return { ok: false, reason: "The page closed before the switch." };
         const opened = { ...copy.profile, businessId: id, onboardingComplete: true };
+        if (copy.accountMovedOn) {
+          // This device's copy opens with the banner up, as when a save is
+          // refused: the owner chooses, and the other copy is kept.
+          const { profile: theirs, revision } = copy.accountMovedOn;
+          raiseConflict({
+            reason: "remote-edit",
+            businessId: id,
+            remote: { ...theirs, businessId: id },
+            revision,
+            updatedAt: theirs.updatedAt,
+          });
+          activateProfile(opened);
+          return { ok: true };
+        }
         if (copy.accountRevision !== null) openedFromAccount(opened, copy.accountRevision);
         // Its next save creates it in the account.
         if (copy.localOnly) cloudRevision.current.delete(id);
@@ -162,9 +186,11 @@ export function usePortfolio(input: {
     },
     [
       activateProfile,
+      accountTook,
       cloudUser,
       flushActive,
       openedFromAccount,
+      raiseConflict,
       localStore,
       cloudRevision,
       remoteBusinesses,
@@ -176,7 +202,7 @@ export function usePortfolio(input: {
   );
 
   const createBusiness = useCallback(
-    (industry: IndustryId, name?: string): { ok: true } | { ok: false; reason: string } => {
+    async (industry: IndustryId, name?: string): Promise<SwitchResult> => {
       // A conflict on the outgoing business must not be lost behind the new
       // one: the banner stays up and the switch waits for the user's choice.
       if (saveConflictRef.current) return { ok: false, reason: CHOOSE_A_VERSION_FIRST };
@@ -190,16 +216,30 @@ export function usePortfolio(input: {
       if (current.onboardingComplete !== false) {
         openBeforeSetup.current = current.businessId ?? DEFAULT_BUSINESS_ID;
       }
-      void flushActive();
-      // Setup opens for it: the owner's own team, or the sample under the
-      // sample's name. It never shows the sample's people under this name.
-      const next = newBusinessProfile(industry, name);
-      cloudRevision.current.delete(next.businessId as string);
-      activateProfile(next);
-      return { ok: true };
+      setSwitching(true);
+      try {
+        // The account may refuse the save of this business (another device
+        // saved it meanwhile). The banner then sits on this business, still
+        // open, rather than on the new one. A save that fails for any other
+        // reason stays on this device and does not stop the new business.
+        await flushActive();
+        if (saveConflictRef.current) return { ok: false, reason: CHOOSE_A_VERSION_FIRST };
+        if (!mounted.current) return { ok: false, reason: "The page closed before the switch." };
+        // An edit made while the account save was in flight.
+        if (!flushLocal()) return { ok: false, reason: CHOOSE_A_VERSION_FIRST };
+        // Setup opens for it: the owner's own team, or the sample under the
+        // sample's name. It never shows the sample's people under this name.
+        const next = newBusinessProfile(industry, name);
+        cloudRevision.current.delete(next.businessId as string);
+        activateProfile(next);
+        return { ok: true };
+      } finally {
+        setSwitching(false);
+      }
     },
     [
       activateProfile,
+      setSwitching,
       flushLocal,
       flushActive,
       cloudUser,

@@ -219,3 +219,19 @@ describe("one person under two spellings", () => {
     expect(noteDepartures(checks, [{ name: "Nora Diaz" }], "roster", "retail", TODAY)).toBe(checks);
   });
 });
+
+describe("more open leaver checks than the cap", () => {
+  it("keeps every open check through a reload, dropping only confirmed ones", () => {
+    const roster = Array.from({ length: 350 }, (_, i) => ({ name: `Leaver ${i}` }));
+    const first = noteDepartures([], [{ name: "Done Already" }], "roster", "retail", "2026-09-01");
+    const done = confirmAccessRemoved(first, [first[0].id], TODAY).checks;
+    const checks = noteDepartures(done, roster, "roster", "retail", TODAY);
+    expect(checks.filter((c) => !c.confirmedOn)).toHaveLength(350);
+
+    const reloaded = normalizeProfile(
+      JSON.parse(JSON.stringify({ ...defaultProfile("retail"), leaverAccessChecks: checks })),
+    ).leaverAccessChecks;
+    expect(reloaded?.filter((c) => !c.confirmedOn)).toHaveLength(350);
+    expect(reloaded?.some((c) => c.name === "Done Already")).toBe(false);
+  });
+});

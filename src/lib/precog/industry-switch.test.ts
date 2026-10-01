@@ -195,4 +195,15 @@ describe("enteredWork for an own business", () => {
       "the dates you started and sent the report",
     ]);
   });
+
+  it("counts written procedures and places, so a switch or reset warns before they go", () => {
+    const p = {
+      ...defaultProfile("dental"),
+      procedures: [{ id: "pr1" }, { id: "pr2" }],
+      places: [{ id: "pl1" }],
+    } as unknown as PracticeProfile;
+    const work = enteredWork(p);
+    expect(hasEnteredWork(work)).toBe(true);
+    expect(describeEnteredWork(work)).toEqual(["2 written procedures", "1 place"]);
+  });
 });
