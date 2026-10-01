@@ -109,8 +109,8 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
   });
 
 /**
- * After a save, bring in the pictures a copy of another of the owner's
- * businesses names (see copyImagesFromOwnBusinesses), then delete the
+ * After a save, bring in the pictures a copy of another business the owner
+ * can open names (see copyImagesFromReachableBusinesses), then delete the
  * business's step pictures no procedure has named for the grace period. A
  * failure here is reported and never fails the save: the pictures wait for
  * the next one.
@@ -123,10 +123,10 @@ async function sweepProcedureImages(
   options: { copyFromOwn: boolean },
 ): Promise<void> {
   try {
-    const { copyImagesFromOwnBusinesses, referencedImageIds, sweepUnreferencedImages } =
+    const { copyImagesFromReachableBusinesses, referencedImageIds, sweepUnreferencedImages } =
       await import("./procedures/image-store.server");
     const ids = referencedImageIds(profile);
-    if (options.copyFromOwn) await copyImagesFromOwnBusinesses(sql, ownerId, businessId, ids);
+    if (options.copyFromOwn) await copyImagesFromReachableBusinesses(sql, ownerId, businessId, ids);
     await sweepUnreferencedImages(sql, ownerId, businessId, ids);
   } catch (err) {
     const { reportServerError } = await import("@/lib/observability/report.server");

@@ -149,6 +149,19 @@ describe("redactSharePayload", () => {
     expect(redacted.note).toBe("Bookkeeper A posts AP invoices; Bookkeeper A signs.");
   });
 
+  it("replaces a business name that names someone on the team, and keeps any other", () => {
+    const named = redactSharePayload(
+      { ...payload(), industry: "dental", businessName: "Voss Dental" },
+      [{ name: "Dr. Carla Voss", role: "Dentist" }],
+    );
+    expect(named.businessName).toBe("A practice");
+    expect(JSON.stringify(named)).not.toMatch(/voss/i);
+    const plain = redactSharePayload({ ...payload(), businessName: "Riverside Dental" }, [
+      { name: "Dr. Carla Voss", role: "Dentist" },
+    ]);
+    expect(plain.businessName).toBe("Riverside Dental");
+  });
+
   it("returns a payload already marked namesHidden unchanged", () => {
     const once = redactSharePayload(payload());
     expect(redactSharePayload(once)).toBe(once);

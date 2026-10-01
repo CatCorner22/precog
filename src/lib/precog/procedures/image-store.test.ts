@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { resolveBusinessOwner } from "../business-store";
 import {
-  copyImagesFromOwnBusinesses,
+  copyImagesFromReachableBusinesses,
   imageUsage,
   insertProcedureImage,
   MAX_IMAGE_BYTES_PER_ACCOUNT,
@@ -212,16 +212,35 @@ describe("procedure image store", () => {
        values ('biz_copy', 'owner', 'Biz (copy)', 'general', '{}'::jsonb, 1)`,
     );
     expect(await readProcedureImage(db.sql, "owner", "biz_copy", id)).toBeNull();
-    expect(await copyImagesFromOwnBusinesses(db.sql, "owner", "biz_copy", [id])).toBe(1);
+    expect(await copyImagesFromReachableBusinesses(db.sql, "owner", "biz_copy", [id])).toBe(1);
     expect(await readProcedureImage(db.sql, "owner", "biz_copy", id)).not.toBeNull();
     // Already there: nothing more to copy.
-    expect(await copyImagesFromOwnBusinesses(db.sql, "owner", "biz_copy", [id])).toBe(0);
+    expect(await copyImagesFromReachableBusinesses(db.sql, "owner", "biz_copy", [id])).toBe(0);
     // Another account's pictures never move.
     await db.pg.query(
       `insert into businesses (id, user_id, name, industry, profile, revision)
        values ('biz_copy', 'stranger', 'Theirs', 'general', '{}'::jsonb, 1)`,
     );
-    expect(await copyImagesFromOwnBusinesses(db.sql, "stranger", "biz_copy", [id])).toBe(0);
+    expect(await copyImagesFromReachableBusinesses(db.sql, "stranger", "biz_copy", [id])).toBe(0);
+  }, 60_000);
+
+  it("copies a firm client's pictures into a member's kept copy, and only while the member can open the client", async () => {
+    const { id } = await upload(10);
+    await db.pg.query("insert into firms (user_id, name) values ('owner', 'North Advisors')");
+    await db.pg.query(
+      "insert into firm_members (firm_user_id, member_user_id, role) values ('owner', 'colleague', 'preparer')",
+    );
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision)
+       values ('biz_kept', 'colleague', 'Biz (copy)', 'general', '{}'::jsonb, 1)`,
+    );
+    // Not yet a firm client: the member cannot open it, so nothing moves.
+    expect(await copyImagesFromReachableBusinesses(db.sql, "colleague", "biz_kept", [id])).toBe(0);
+    await db.pg.query("update businesses set firm_user_id = 'owner' where user_id = 'owner'");
+    expect(await copyImagesFromReachableBusinesses(db.sql, "colleague", "biz_kept", [id])).toBe(1);
+    expect(await readProcedureImage(db.sql, "colleague", "biz_kept", id)).not.toBeNull();
+    // A stranger with a business of the same name gets nothing.
+    expect(await copyImagesFromReachableBusinesses(db.sql, "stranger", "biz_1", [id])).toBe(0);
   }, 60_000);
 
   it("goes with the business when the business row is deleted", async () => {

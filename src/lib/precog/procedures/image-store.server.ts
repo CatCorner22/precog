@@ -200,11 +200,14 @@ async function accountImageBytes(tx: Sql, ownerId: string): Promise<number> {
 
 /**
  * A business saved as a copy of another (a version kept after a save
- * conflict) names pictures stored under the original. Copies those of the
- * owner's pictures into this business, so its steps show them, within the
- * account's storage bound. Returns how many were copied.
+ * conflict) names pictures stored under the original. Copies them into this
+ * business, so its steps show them, within the account's storage bound.
+ * The source is any business the owner can open: their own (deleted ones
+ * too), or a live business of a firm they own or belong to, the same
+ * businesses whose pictures they can already see. Returns how many were
+ * copied.
  */
-export async function copyImagesFromOwnBusinesses(
+export async function copyImagesFromReachableBusinesses(
   sql: Sql,
   ownerId: string,
   businessId: string,
@@ -222,9 +225,25 @@ export async function copyImagesFromOwnBusinesses(
   return inTransaction(sql, async (tx) => {
     const [incoming] = await tx<{ bytes: number | null }>`
       select sum(byte_size)::bigint as bytes from (
-        select distinct on (id) byte_size from procedure_images
-        where user_id = ${ownerId} and business_id <> ${businessId} and id = any(${missing}::text[])
-        order by id
+        select distinct on (p.id) p.byte_size
+        from procedure_images p
+        join businesses b on b.user_id = p.user_id and b.id = p.business_id
+        where p.id = any(${missing}::text[])
+          and not (p.user_id = ${ownerId} and p.business_id = ${businessId})
+          and (
+            b.user_id = ${ownerId}
+            or (
+              b.deleted_at is null
+              and (
+                b.firm_user_id = ${ownerId}
+                or exists (
+                  select 1 from firm_members m
+                  where m.firm_user_id = b.firm_user_id and m.member_user_id = ${ownerId}
+                )
+              )
+            )
+          )
+        order by p.id
       ) as src
     `;
     const bytes = Number(incoming?.bytes ?? 0);
@@ -233,11 +252,27 @@ export async function copyImagesFromOwnBusinesses(
     const rows = await tx<{ id: string }>`
       insert into procedure_images
         (id, user_id, business_id, content_type, bytes, byte_size, width, height, sha256, uploaded_by, created_at)
-      select distinct on (id)
-        id, user_id, ${businessId}, content_type, bytes, byte_size, width, height, sha256, uploaded_by, created_at
-      from procedure_images
-      where user_id = ${ownerId} and business_id <> ${businessId} and id = any(${missing}::text[])
-      order by id
+      select distinct on (p.id)
+        p.id, ${ownerId}, ${businessId}, p.content_type, p.bytes, p.byte_size, p.width, p.height,
+        p.sha256, p.uploaded_by, p.created_at
+      from procedure_images p
+        join businesses b on b.user_id = p.user_id and b.id = p.business_id
+        where p.id = any(${missing}::text[])
+          and not (p.user_id = ${ownerId} and p.business_id = ${businessId})
+          and (
+            b.user_id = ${ownerId}
+            or (
+              b.deleted_at is null
+              and (
+                b.firm_user_id = ${ownerId}
+                or exists (
+                  select 1 from firm_members m
+                  where m.firm_user_id = b.firm_user_id and m.member_user_id = ${ownerId}
+                )
+              )
+            )
+          )
+        order by p.id
       on conflict do nothing
       returning id
     `;
