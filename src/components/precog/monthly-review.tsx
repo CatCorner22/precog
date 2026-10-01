@@ -1,6 +1,5 @@
-import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
@@ -112,10 +111,9 @@ export function MonthlyReview() {
         <Link to="/firm" className="underline underline-offset-2">
           control evidence log
         </Link>{" "}
-        (a firm reviewer still records review separately).
-        Two facts from QuickBooks, then the four checks. Duty ticks on the map are starting duties,
-        not system access. Lock the report to send this page. Recording “Done” does not establish
-        independent verification.
+        (a firm reviewer still records review separately). Two facts from QuickBooks, then the four
+        checks. Duty ticks on the map are starting duties, not system access. Lock the report to
+        send this page. Recording “Done” does not establish independent verification.
       </p>
       {facts && (
         <ul className="mt-4 space-y-2">

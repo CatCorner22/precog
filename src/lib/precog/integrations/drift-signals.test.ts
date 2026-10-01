@@ -13,6 +13,7 @@ describe("drift signals", () => {
       employeesReleased: [],
       employeesNotOnMap: [{ id: "1", name: "Pat", active: true, releasedOn: null }],
       peopleNotInBooks: [],
+      leftButStillPaid: [],
     });
     const actions = buildDriftActions({ summary, accessReconciliation: null });
     expect(actions.some((a) => a.id === "drift-qbo-employees")).toBe(true);

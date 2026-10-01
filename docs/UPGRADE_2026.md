@@ -22,14 +22,14 @@ Before promoting control evidence as a primary workflow:
 
 ## Phase status
 
-| Phase | Focus | Status |
-| ----- | ----- | ------ |
-| 0 | Hygiene, scale messaging, health gate, docs | Done |
-| 1 | Monthly review ↔ execution log bridge | Done |
-| 2 | Drift signals on home / weekly plan | Done |
-| 3 | Performance (debounce, bench; template lazy-load deferred) | Done |
-| 4 | Trust, report, mobile, SoD tuning | Done |
-| 5 | Payroll CSV import, pilot metrics export | Done |
+| Phase | Focus                                                      | Status |
+| ----- | ---------------------------------------------------------- | ------ |
+| 0     | Hygiene, scale messaging, health gate, docs                | Done   |
+| 1     | Monthly review ↔ execution log bridge                      | Done   |
+| 2     | Drift signals on home / weekly plan                        | Done   |
+| 3     | Performance (debounce, bench; template lazy-load deferred) | Done   |
+| 4     | Trust, report, mobile, SoD tuning                          | Done   |
+| 5     | Payroll CSV import, pilot metrics export                   | Done   |
 
 ## Bridge behavior (Phase 1)
 

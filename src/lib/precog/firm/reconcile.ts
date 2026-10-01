@@ -178,7 +178,7 @@ export function parseAccessExport(
     ]);
     const titleAt = headerIndex(headers, ["job title", "title", "position", "department", "role"]);
     located.rows.slice(1).forEach((cells, index) => {
-      const name = (nameAt >= 0 ? cells[nameAt] : cells[0] ?? "").trim();
+      const name = (nameAt >= 0 ? cells[nameAt] : (cells[0] ?? "")).trim();
       if (!name || titleKey(name) === "total") return;
       const roleText = titleAt >= 0 ? (cells[titleAt] ?? "").trim() : "payroll";
       const mappedRole = mapRoleToDuties(roleText || "payroll clerk");
@@ -207,7 +207,9 @@ export function parseAccessExport(
       source: "payroll",
       users: users.slice(0, 500),
       vendors,
-      issues: users.length ? issues : [...issues, "Precog read no employee rows from that payroll export."],
+      issues: users.length
+        ? issues
+        : [...issues, "Precog read no employee rows from that payroll export."],
     };
   }
   if (looksLikeUsers(headers)) {

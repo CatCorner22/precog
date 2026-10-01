@@ -49,7 +49,10 @@ export function summarizeAccessReconciliation(
     qboVendorsAdded: 0,
     accessPending: 0,
   };
-  if (pending === 0 && qbo.qboEmployeesNotOnMap + qbo.qboPeopleNotInBooks + qbo.qboVendorsAdded === 0) {
+  if (
+    pending === 0 &&
+    qbo.qboEmployeesNotOnMap + qbo.qboPeopleNotInBooks + qbo.qboVendorsAdded === 0
+  ) {
     return null;
   }
   const headline =
