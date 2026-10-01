@@ -69,7 +69,9 @@ export function newStep(text = ""): ProcedureStep {
  * Save `next` over `prev`. When what a stand-in would follow changed, the
  * version goes up, the change is logged, and any verification is cleared
  * (kept as `lastVerifiedAt` so the screen can ask for a re-check). A save
- * with no content change keeps the version and the verification.
+ * with no content change keeps the version and the verification, unless it
+ * lengthens the review interval: a verification vouches for the steps only
+ * until the review date it was made with, so a longer one needs a new check.
  */
 export function withProcedureEdit(
   prev: Procedure | null,
@@ -78,7 +80,23 @@ export function withProcedureEdit(
 ): Procedure {
   const saved = { ...next, updatedAt: today };
   if (!prev) return saved;
-  if (contentKey(prev) === contentKey(next)) {
+  const sameContent = contentKey(prev) === contentKey(next);
+  if (sameContent && prev.verifiedAt && next.reviewEveryDays > prev.reviewEveryDays) {
+    const {
+      verifiedAt: _verifiedAt,
+      verifiedBy: _verifiedBy,
+      verifiedByAccountId: _accountId,
+      verifiedByAccountName: _accountName,
+      ...unverified
+    } = saved;
+    return {
+      ...unverified,
+      version: prev.version,
+      changelog: prev.changelog,
+      lastVerifiedAt: prev.verifiedAt,
+    };
+  }
+  if (sameContent) {
     return {
       ...saved,
       version: prev.version,
@@ -213,6 +231,16 @@ export function withoutDraftMarks(step: ProcedureStep): ProcedureStep {
 /** Steps Grok wrote that no person has edited or verified yet. */
 export function aiDraftedSteps(p: Pick<Procedure, "steps">): number {
   return p.steps.filter((s) => s.aiDrafted && s.text.trim()).length;
+}
+
+/**
+ * True when every written step is still a suggestion from the library or an
+ * AI draft no person has edited, and nobody has verified the procedure: it is
+ * generic text, not yet this business's own steps.
+ */
+export function isDraftProcedure(p: Pick<Procedure, "steps" | "verifiedAt">): boolean {
+  const written = p.steps.filter((s) => s.text.trim());
+  return !p.verifiedAt && written.length > 0 && written.every((s) => s.suggested || s.aiDrafted);
 }
 
 /** Steps taken from a recommended procedure and not yet fitted to this business. */

@@ -41,7 +41,12 @@ import {
   rowsKeptForAdding,
   type OwnTeamRow,
 } from "@/lib/precog/onboarding/own-team";
-import { MORE_PEOPLE_PLACE, addRowsByTitle, applyPaste } from "@/lib/precog/onboarding/add-people";
+import {
+  MORE_PEOPLE_PLACE,
+  addRowsByTitle,
+  applyPaste,
+  readPastedRoster,
+} from "@/lib/precog/onboarding/add-people";
 import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import {
   JOB_CATALOG,
@@ -51,7 +56,6 @@ import {
 } from "@/lib/precog/onboarding/job-catalog";
 import { JobCatalogSheet } from "@/components/precog/job-catalog-sheet";
 import { SetupPreviewCard } from "@/components/precog/setup-preview-card";
-import { parseRoster } from "@/lib/precog/import/roster";
 import type { ImportIssue } from "@/lib/precog/import/csv";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -371,7 +375,7 @@ export function IndustryOnboarding() {
    * updated, not added twice; only new people count toward the limit.
    */
   function fillFromPaste() {
-    const result = parseRoster(paste, getIndustryTemplate(selected));
+    const result = readPastedRoster(paste, getIndustryTemplate(selected));
     const applied = applyPaste(rows, result, selected, leftOut);
     setPasteIssues(result.issues);
     setLeftOut(applied.leftOut);

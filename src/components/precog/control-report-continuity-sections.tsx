@@ -405,11 +405,11 @@ function ControlReportDebriefSection({ debriefs }: { debriefs: ControlReportMode
                     <td className="py-1 pr-2">{e.item.name}</td>
                     <td className="py-1 pr-2">
                       {e.standIn
-                        ? `${e.standIn.name}${e.standInLevel ? ` (${LEVEL_LABEL[e.standInLevel].toLowerCase()})` : ""}`
+                        ? `${e.standIn.name}${e.standInLevel ? ` (${LEVEL_LABEL[e.standInLevel].toLowerCase()})` : ""}${e.standInConfirmed ? "" : ", suggested"}`
                         : "Nobody lined up"}
                     </td>
                     <td className="py-1 text-neutral-600">
-                      {!e.standIn
+                      {!e.standIn || !e.standInConfirmed
                         ? "Who stepped in? Record them on the register."
                         : standInAlreadyStrong(e)
                           ? e.handoff

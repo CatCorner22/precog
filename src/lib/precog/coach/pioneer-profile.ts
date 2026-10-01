@@ -106,7 +106,8 @@ function sanitizeProcedureLink(value: unknown): ProcedureLinkInput | null {
         ),
       ].slice(0, PROCEDURE_LIMITS.links)
     : [];
-  return id && title && knowledgeIds.length ? { id, title, knowledgeIds } : null;
+  if (!id || !title || !knowledgeIds.length) return null;
+  return { id, title, knowledgeIds, ...(raw.draft === true ? { draft: true as const } : {}) };
 }
 
 /**

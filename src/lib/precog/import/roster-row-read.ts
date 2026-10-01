@@ -2,7 +2,7 @@ import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
 import type { IndustryTemplate } from "../templates";
 import type { Person } from "../types";
 import { readYesNo, type ImportIssue } from "./csv";
-import { readHireDate, tenureFromHireDate } from "./hire-date";
+import { otherDayOrder, readHireDate, tenureFromHireDate } from "./hire-date";
 import { entitlementsForTitle, matchJobTitle, type JobMatch } from "../onboarding/job-catalog";
 import { MAX_ROLE_LENGTH, sameDuties } from "../onboarding/own-team";
 import { ROLE_TEMPLATES } from "../sod/role-templates";
@@ -384,6 +384,18 @@ function readStatusAndLastDay(
     statusColumns || !existing ? readActive(context, cells, row) : { active: existing.active };
   let lastDay = readLastDay(context, cells, row, existing);
   if (lastDay && lastDay < localDateKey(context.today) && status.active) {
+    const raw = cellAt(cells, context.columns.lastDay);
+    const other = raw
+      ? otherDayOrder(raw, { dayFirst: context.dayFirst, today: context.today })
+      : undefined;
+    // Read the other way round, the last day is still to come: say which
+    // reading Precog took rather than guess silently.
+    if (other && other >= localDateKey(context.today)) {
+      context.issues.push({
+        row,
+        message: `"${name}" has the last day "${raw}": Precog read it ${context.dayFirst ? "day" : "month"} first as ${lastDay}, but ${context.dayFirst ? "month" : "day"} first it is ${other}. If they have not left yet, write the date as ${other} and import again`,
+      });
+    }
     if (hasStatus(context, cells)) {
       context.issues.push({
         row,

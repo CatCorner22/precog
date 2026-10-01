@@ -324,7 +324,7 @@ function buildCoverageReport(tpl: IndustryTemplate): CoverageReport {
       const priority = CRITICALITY_WEIGHT[i.item.criticality] * STATUS_URGENCY[i.status];
       // Read here rather than through documentation.ts, which imports this module.
       const doc =
-        i.item.documented || i.item.linkedProcedures?.length
+        i.item.documented || i.item.linkedProcedures?.some((l) => !l.draft)
           ? ""
           : " Write the steps down first so the stand-in has something to follow.";
       let action: string;

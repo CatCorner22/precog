@@ -77,11 +77,21 @@ describe("leaveDebriefs", () => {
     expect(debrief.items.map((e) => e.item.id)).toEqual(["pms"]);
     expect(debrief.items[0]).toMatchObject({
       standIn: { id: "chris" },
+      standInConfirmed: false,
       standInLevel: "basic",
       handoff: null,
       training: null,
     });
     expect(standInAlreadyStrong(debrief.items[0])).toBe(false);
+  });
+
+  it("asks, rather than says, who covered when no hand-off names anyone", () => {
+    const [debrief] = leaveDebriefs(register, [leave()], [], "general", today);
+    expect(describeDebriefItem(debrief, debrief.items[0])).toBe(
+      "Nobody logged who covered pms for those 8 days. Was it Chris?",
+    );
+    const [unnamed] = leaveDebriefs(register, [leave()], [handoff()], "general", today);
+    expect(unnamed.items[0]).toMatchObject({ standIn: { id: "chris" }, standInConfirmed: false });
   });
 
   it("ignores leave still under way, from another industry, for former staff, or already debriefed", () => {
@@ -130,6 +140,7 @@ describe("leaveDebriefs", () => {
     );
     expect(debrief.items[0]).toMatchObject({
       standIn: { id: "sam" },
+      standInConfirmed: true,
       standInLevel: undefined,
       handoff: { id: "d-handoff" },
       training: { id: "d-train" },
@@ -213,7 +224,10 @@ describe("leaveDebriefs", () => {
     const [debrief] = leaveDebriefs(
       register,
       [leave()],
-      [handoff({ id: "bill", linkedId: "billing", subject: "billing" })],
+      [
+        handoff({ linkedPersonId: "chris" }),
+        handoff({ id: "bill", linkedId: "billing", subject: "billing", linkedPersonId: "sam" }),
+      ],
       "general",
       today,
     );
@@ -229,7 +243,7 @@ describe("leaveDebriefs", () => {
     const [debrief] = leaveDebriefs(
       register,
       [leave({ from: "2025-11-04", to: "2025-11-04", unplanned: true })],
-      [],
+      [handoff({ linkedPersonId: "chris" })],
       "general",
       today,
     );

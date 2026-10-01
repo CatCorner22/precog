@@ -8,6 +8,7 @@ import type { IndustryId } from "../industry";
 import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, KnowledgeLevel, Person } from "../types";
 import { absenceImpact } from "./absence-impact";
+import type { StandInConflicts } from "./standin-conflicts";
 import { daysBetween, isCalendarDate } from "../dates";
 import { relationLevel, STRONG_LEVELS } from "./coverage";
 import { firstName } from "../text";
@@ -19,6 +20,12 @@ export interface DebriefItem {
   item: KnowledgeItem;
   /** Who stood in: the person the hand-off was logged to, else who the register says would have. */
   standIn: Person | null;
+  /**
+   * True when a logged hand-off names the stand-in. Otherwise `standIn` is
+   * only Precog's suggestion: nothing records that they covered, so the
+   * owner says who did before anyone moves up on the register.
+   */
+  standInConfirmed: boolean;
   /** The stand-in's level on the register today. */
   standInLevel: KnowledgeLevel | undefined;
   /** Open hand-off logged for this leave (or an older unkeyed one); closed when the debrief resolves the item. */
@@ -51,6 +58,7 @@ export function leaveDebriefs(
   decisions: readonly DecisionEntry[],
   industry: IndustryId,
   today: string,
+  conflictsFor?: StandInConflicts,
 ): LeaveDebrief[] {
   if (!isCalendarDate(today)) return [];
   const committed = continuityCommitments(decisions, tpl, today);
@@ -61,7 +69,7 @@ export function leaveDebriefs(
     if (daysSince > DEBRIEF_WINDOW_DAYS) continue;
     const person = tpl.people.find((p) => p.active && p.id === absence.personId);
     if (!person) continue;
-    const impact = absenceImpact(tpl, [person.id]);
+    const impact = absenceImpact(tpl, [person.id], conflictsFor);
     if (!impact) continue;
 
     const items: DebriefItem[] = [];
@@ -79,6 +87,7 @@ export function leaveDebriefs(
       items.push({
         item,
         standIn,
+        standInConfirmed: named !== null,
         standInLevel: standIn ? relationLevel(tpl.relations, standIn.id, item.id) : undefined,
         handoff: handoff?.decision ?? null,
         training,
@@ -125,6 +134,9 @@ export function describeDebriefItem(debrief: LeaveDebrief, entry: DebriefItem): 
     return `You lined up nobody for ${entry.item.name} for those ${days}${notice} — did someone step in?`;
   }
   const first = firstName(entry.standIn.name);
+  if (!entry.standInConfirmed) {
+    return `Nobody logged who covered ${entry.item.name} for those ${days}${notice}. Was it ${first}?`;
+  }
   if (standInAlreadyStrong(entry)) {
     return `${first} covered ${entry.item.name} for ${days}${notice} and the register already says they can run it alone.`;
   }

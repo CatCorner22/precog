@@ -109,10 +109,12 @@ export function documentationDebt(tpl: IndustryTemplate): DocumentationReport {
 
 /**
  * A procedure written on the Procedures tab is written and findable; so is a
- * procedure kept elsewhere whose location is recorded.
+ * procedure kept elsewhere whose location is recorded. A procedure that is
+ * still only suggested or AI-drafted steps does not count: the business has
+ * not written its own steps yet.
  */
 export function documentationState(item: KnowledgeItem): DocumentationState {
-  if (item.linkedProcedures?.length) return "located";
+  if (item.linkedProcedures?.some((link) => !link.draft)) return "located";
   if (!item.documented) return "none";
   return item.procedureLocation?.trim() ? "located" : "unlocated";
 }
@@ -122,9 +124,24 @@ export function documentationState(item: KnowledgeItem): DocumentationState {
  * procedure on the Procedures tab, else the recorded location, else null.
  */
 export function procedureWhere(item: KnowledgeItem): string | null {
-  const inApp = item.linkedProcedures?.[0];
+  const inApp = firstLink(item);
   if (inApp) return `Procedures tab: "${inApp.title}"`;
   return item.documented ? item.procedureLocation?.trim() || null : null;
+}
+
+/** The item's procedure on the Procedures tab: one fitted to the business first, else a draft. */
+function firstLink(item: KnowledgeItem): { title: string } | undefined {
+  return item.linkedProcedures?.find((link) => !link.draft) ?? item.linkedProcedures?.[0];
+}
+
+/**
+ * Where a stand-in finds draft steps for an item with nothing of the
+ * business's own written down, or null.
+ */
+export function draftPointer(item: KnowledgeItem): string | null {
+  if (isWritten(item)) return null;
+  const draft = item.linkedProcedures?.find((link) => link.draft);
+  return draft ? `steps in Procedures: "${draft.title}"` : null;
 }
 
 /** Something is written down for this item, in the app or elsewhere. */
@@ -137,7 +154,7 @@ export function isWritten(item: KnowledgeItem): boolean {
  * worth telling them on the morning someone calls in sick.
  */
 export function procedurePointer(item: KnowledgeItem): string {
-  const inApp = item.linkedProcedures?.[0];
+  const inApp = firstLink(item);
   if (inApp) return `steps in Procedures: "${inApp.title}"`;
   if (!item.documented) return "nothing written down";
   const where = item.procedureLocation?.trim();

@@ -11,6 +11,7 @@ import {
   handoffDeadline,
   plannedAbsenceReport,
 } from "../continuity/planned-absence";
+import { profileStandInConflicts } from "../continuity/standin-conflicts";
 import {
   describeDebrief,
   describeDebriefItem,
@@ -126,7 +127,14 @@ export function knowledgeSpofs({ profile, tpl, today }: ContinuityToolInput): To
 }
 
 export function plannedAbsences({ profile, tpl, today }: ContinuityToolInput): ToolOutput {
-  const report = plannedAbsenceReport(tpl, profile.plannedAbsences ?? [], profile.industry, today);
+  const conflictsFor = profileStandInConflicts(tpl, profile);
+  const report = plannedAbsenceReport(
+    tpl,
+    profile.plannedAbsences ?? [],
+    profile.industry,
+    today,
+    conflictsFor,
+  );
   const soon = absencesNeedingAttention(report.windows);
   const committed = continuityCommitments(profile.decisions, tpl, today);
   const windows = soon.map((w) => ({
@@ -177,6 +185,7 @@ export function plannedAbsences({ profile, tpl, today }: ContinuityToolInput): T
     profile.decisions,
     profile.industry,
     today,
+    conflictsFor,
   ).map((d) => ({
     absenceId: d.absence.id,
     person: { id: d.person.id, name: d.person.name },
@@ -190,6 +199,7 @@ export function plannedAbsences({ profile, tpl, today }: ContinuityToolInput): T
       name: e.item.name,
       criticality: e.item.criticality,
       standIn: e.standIn ? { id: e.standIn.id, name: e.standIn.name } : null,
+      standInConfirmed: e.standInConfirmed,
       standInLevel: e.standInLevel ?? null,
       canPromote: Boolean(e.standIn) && !standInAlreadyStrong(e),
       handoffOpen: Boolean(e.handoff),
@@ -198,7 +208,7 @@ export function plannedAbsences({ profile, tpl, today }: ContinuityToolInput): T
     })),
     summary: describeDebrief(d),
   }));
-  const departing = leavers(tpl, profile.decisions, today).map((l) => ({
+  const departing = leavers(tpl, profile.decisions, today, conflictsFor).map((l) => ({
     person: { id: l.person.id, name: l.person.name, role: l.person.role },
     lastDay: l.lastDay,
     daysLeft: l.daysLeft,

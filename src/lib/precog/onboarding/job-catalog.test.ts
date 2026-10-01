@@ -694,3 +694,27 @@ describe("aliases that must not capture an unrelated title", () => {
     }
   });
 });
+
+describe("past titles", () => {
+  it.each(["Former Owner", "Ex-Owner", "Retired Owner", "Owner (Retired)", "Past President"])(
+    "never reads %s as the owner",
+    (title) => {
+      expect(matchJobTitle(title, "general")?.entry.id).not.toBe("owner");
+      expect(entitlementsForTitle(title, "general")).toEqual([]);
+    },
+  );
+
+  it("keeps the seat of a former employee title but carries none of its duties", () => {
+    expect(matchJobTitle("Former Bookkeeper", "general")).toMatchObject({
+      entry: { id: "bookkeeper" },
+      confidence: "partial",
+      entitlements: [],
+    });
+    expect(entitlementsForTitle("Ex-Controller", "general")).toEqual([]);
+  });
+
+  it("still reads current titles that only look like past ones", () => {
+    expect(matchJobTitle("Executive Assistant", "general")?.entry.id).toBe("executive-assistant");
+    expect(matchJobTitle("Owner", "general")?.entry.id).toBe("owner");
+  });
+});

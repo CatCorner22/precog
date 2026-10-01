@@ -14,6 +14,7 @@ import { procedureSummary } from "../procedures/attention";
 import { plannedAbsenceReport } from "../continuity/planned-absence";
 import { leaveDebriefs } from "../continuity/leave-debrief";
 import { leavers as leaversReport } from "../continuity/leavers";
+import { profileStandInConflicts } from "../continuity/standin-conflicts";
 import { continuityCommitments, continuitySlips } from "../decisions/follow-through";
 import { assessCoso } from "../coso";
 import {
@@ -79,15 +80,24 @@ export function buildControlReportModel({
   const staleness = staleItems(tpl, today);
   const checkIns = checkInPlan(tpl, today);
   const cards = contingencyCards(tpl);
-  const leave = plannedAbsenceReport(tpl, profile.plannedAbsences ?? [], profile.industry, today);
+  // Stand-ins whose cover would create a duty conflict come last and are flagged.
+  const conflictsFor = profileStandInConflicts(tpl, profile);
+  const leave = plannedAbsenceReport(
+    tpl,
+    profile.plannedAbsences ?? [],
+    profile.industry,
+    today,
+    conflictsFor,
+  );
   const debriefs = leaveDebriefs(
     tpl,
     profile.plannedAbsences ?? [],
     profile.decisions,
     profile.industry,
     today,
+    conflictsFor,
   );
-  const leaving = leaversReport(tpl, profile.decisions, today);
+  const leaving = leaversReport(tpl, profile.decisions, today, conflictsFor);
   const slips = continuitySlips(profile.decisions, tpl);
   const committed = continuityCommitments(profile.decisions, tpl, today);
   const coso = assessCoso(tpl, profile.staff, {
@@ -190,7 +200,13 @@ export function buildControlReportModel({
     policyNote,
     healthDelta,
     registerReady,
-    procedures: procedureSummary(profile.procedures ?? [], tpl.knowledge, profile.industry, today),
+    procedures: procedureSummary(
+      profile.procedures ?? [],
+      tpl.knowledge,
+      tpl.people,
+      profile.industry,
+      today,
+    ),
     decisionLog: decisionLog(profile.decisions),
     followThrough: continuityFollowThrough(profile.decisions, profile.industry),
   };

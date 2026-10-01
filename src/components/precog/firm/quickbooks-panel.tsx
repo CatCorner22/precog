@@ -174,6 +174,13 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
   }
   const names = (rows: readonly { name: string }[]) => rows.map((r) => r.name).join(", ");
   const lines: { label: string; text: string; warn?: boolean }[] = [];
+  if (drift.leftButStillPaid.length) {
+    lines.push({
+      label: "Left but still paid",
+      text: `${names(drift.leftButStillPaid)} — Precog has them as left, but payroll still pays them. Confirm someone has stopped their pay and removed their sign-ins.`,
+      warn: true,
+    });
+  }
   if (drift.employeesReleased.length) {
     lines.push({
       label: "Released from payroll",

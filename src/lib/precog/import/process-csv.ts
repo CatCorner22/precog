@@ -124,11 +124,32 @@ export function parseProcessCsv(
     const key = nameKey(p.name);
     if (!existingByName.has(key)) existingByName.set(key, p);
   }
-  const peopleByName = new Map<string, Person>();
+  // A name can belong to more than one person (the team importer keeps
+  // namesakes apart), so each name keeps everyone who has it.
+  const peopleByName = new Map<string, Person[]>();
   for (const person of tpl.people) {
     const key = nameKey(person.name);
-    if (!peopleByName.has(key)) peopleByName.set(key, person);
+    peopleByName.set(key, [...(peopleByName.get(key) ?? []), person]);
   }
+  /**
+   * The person an owner name means: the only one with that name; else the
+   * process's current owner among the namesakes; else the only active one.
+   * Null when the name still fits more than one person.
+   */
+  const ownerNamed = (
+    token: string,
+    existing: ProcessNode | undefined,
+    taken: readonly string[],
+  ): Person | null | undefined => {
+    const all = peopleByName.get(nameKey(token)) ?? [];
+    const named = all.filter((p) => !taken.includes(p.id));
+    if (all.length <= 1 || named.length === 0) return all[0];
+    if (named.length === 1) return named[0];
+    const current = named.find((p) => existing?.ownerPersonIds?.includes(p.id));
+    if (current) return current;
+    const active = named.filter((p) => p.active);
+    return active.length === 1 ? active[0] : null;
+  };
   const controlsByKey = new Map<string, ControlItem>();
   for (const c of tpl.controls) {
     controlsByKey.set(nameKey(c.id), c);
@@ -207,9 +228,14 @@ export function parseProcessCsv(
     const owners: string[] = [];
     const unknownOwners: string[] = [];
     for (const token of splitList(cell(cells, "owners"))) {
-      const person = peopleByName.get(nameKey(token));
+      const person = ownerNamed(token, existing, owners);
       if (person) {
         if (!owners.includes(person.id)) owners.push(person.id);
+      } else if (person === null) {
+        issues.push({
+          row: rowNumber,
+          message: `More than one person on the team is named ${token}, so the importer did not make any of them an owner of "${name}". Choose the owner on the map.`,
+        });
       } else unknownOwners.push(token);
     }
     if (unknownOwners.length) {

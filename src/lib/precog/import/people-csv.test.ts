@@ -227,6 +227,39 @@ describe("parsePeopleCsv", () => {
     );
   });
 
+  it("reads the day order from the last-day column too", () => {
+    const today = new Date("2026-09-30T12:00:00Z");
+    const tpl = { ...dental, people: [] };
+    const { people } = parsePeopleCsv(
+      "Name,Job Title,Leaving Date\nAna Ruiz,Cashier,01/12/2026\nBen Cole,Cashier,15/12/2026",
+      tpl,
+      { today },
+    );
+    expect(people.map((p) => [p.name, p.active, p.lastDay])).toEqual([
+      ["Ana Ruiz", true, "2026-12-01"],
+      ["Ben Cole", true, "2026-12-15"],
+    ]);
+  });
+
+  it("flags a past last day that is still to come in the other day order", () => {
+    const today = new Date("2026-09-30T12:00:00Z");
+    const tpl = { ...dental, people: [] };
+    const result = parsePeopleCsv("Name,Job Title,Leaving Date\nAna Ruiz,Cashier,01/12/2026", tpl, {
+      today,
+    });
+    expect(result.people[0].lastDay).toBe("2026-01-12");
+    expect(result.issues).toContainEqual({
+      row: 1,
+      message:
+        '"Ana Ruiz" has the last day "01/12/2026": Precog read it month first as 2026-01-12, but day first it is 2026-12-01. If they have not left yet, write the date as 2026-12-01 and import again',
+    });
+    // Either way round, a date in the past raises nothing more.
+    const past = parsePeopleCsv("Name,Job Title,Leaving Date\nAna Ruiz,Cashier,03/04/2026", tpl, {
+      today,
+    });
+    expect(past.issues.map((i) => i.message).join(" ")).not.toContain("day first");
+  });
+
   it("gives only the first duplicate row the matched person's id and last day", () => {
     const tpl = {
       ...dental,

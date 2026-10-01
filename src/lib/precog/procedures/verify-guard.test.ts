@@ -3,6 +3,7 @@ import { RequestError } from "@/lib/request-errors";
 import {
   newProcedure,
   newStep,
+  procedureStatus,
   verificationsAsHeld,
   verifyProcedure,
   withoutOthersVerifications,
@@ -152,6 +153,36 @@ describe("who may verify, checked when the business is saved", () => {
     expect(save(profileWith(verified), profileWith(moved), "preparer", "user-pat")).toBe(
       PREPARER_CANNOT_VERIFY,
     );
+  });
+
+  it("refuses a preparer who carries a verification to a later review date, but not a sooner one", () => {
+    const verified = {
+      ...verifyProcedure(written(), "owner", "2026-01-02", ada),
+      reviewEveryDays: 30,
+    };
+    const longer = { ...verified, reviewEveryDays: 365 };
+    expect(save(profileWith(verified), profileWith(longer), "preparer", "user-pat")).toBe(
+      PREPARER_CANNOT_VERIFY,
+    );
+    const shorter = { ...verified, reviewEveryDays: 14 };
+    expect(save(profileWith(verified), profileWith(shorter), "preparer", "user-pat")).toBeNull();
+  });
+
+  it("asks for a new check when an edit lengthens the review interval of a verified procedure", () => {
+    const verified = {
+      ...verifyProcedure(written(), "owner", "2026-01-02", ada),
+      reviewEveryDays: 30,
+    };
+    expect(procedureStatus(verified, "2026-06-01")).toBe("stale");
+    const longer = withProcedureEdit(verified, { ...verified, reviewEveryDays: 365 }, "2026-06-01");
+    expect(longer.verifiedAt).toBeUndefined();
+    expect(longer.lastVerifiedAt).toBe("2026-01-02");
+    expect(longer.version).toBe(verified.version);
+    expect(procedureStatus(longer, "2026-06-01")).not.toBe("verified");
+    // The edit the app saves carries no verification for the server to refuse.
+    expect(save(profileWith(verified), profileWith(longer), "preparer", "user-pat")).toBeNull();
+    const shorter = withProcedureEdit(verified, { ...verified, reviewEveryDays: 14 }, "2026-06-01");
+    expect(shorter.verifiedAt).toBe("2026-01-02");
   });
 
   it("checks the recorded-by name: a preparer cannot rename it, and a stamp needs the saver's own name", () => {

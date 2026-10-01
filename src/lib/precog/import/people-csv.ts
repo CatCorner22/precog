@@ -138,9 +138,13 @@ export function parsePeopleRows(
     tpl,
     columns,
     today,
-    dayFirst:
-      columns.hireDate !== undefined &&
-      datesAreDayFirst(kept.map(({ cells }) => cells[columns.hireDate!] ?? "")),
+    // The hire and last-day columns are written the same way, so a date in
+    // either that only fits day first ("15/12/2026") sets the order for both.
+    dayFirst: datesAreDayFirst(
+      [columns.hireDate, columns.lastDay].flatMap((column) =>
+        column === undefined ? [] : kept.map(({ cells }) => cells[column] ?? ""),
+      ),
+    ),
     issues,
     unknownStatuses: new Set(),
     seenNames: new Map(),

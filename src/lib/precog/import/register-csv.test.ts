@@ -79,6 +79,29 @@ describe("registerToCsv", () => {
     );
   });
 
+  it("keeps both namesakes' marks through a round trip and says it read them in team order", () => {
+    const twins: IndustryTemplate = {
+      ...tpl,
+      people: [
+        { id: "a", name: "Maria Garcia", role: "Clerk", active: true },
+        { id: "b", name: "Maria Garcia", role: "Payroll", active: true },
+      ],
+      relations: [
+        { personId: "a", knowledgeId: "k-payroll", level: "basic" },
+        { personId: "b", knowledgeId: "k-payroll", level: "expert" },
+      ],
+    };
+    const result = parseRegisterCsv(registerToCsv(twins), twins);
+    expect(result.relations).toEqual(twins.relations);
+    expect(result.issues).toEqual([
+      {
+        row: 0,
+        message:
+          "2 people on the active team are named Maria Garcia; the importer read their columns in the order the team lists them",
+      },
+    ]);
+  });
+
   it("round-trips every industry template", () => {
     for (const id of ["dental", "retail"] as const) {
       const base = getIndustryTemplate(id);

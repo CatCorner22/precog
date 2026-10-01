@@ -475,6 +475,12 @@ export function ProcedureEditor({
             />
           </label>
         </fieldset>
+        {initial.verifiedAt && draft.reviewEveryDays > initial.reviewEveryDays && (
+          <p className="text-xs text-muted">
+            A longer interval needs a new check: saving clears the verification, and the reviewer
+            verifies the steps again.
+          </p>
+        )}
         {draft.reviewerPersonId && draft.reviewerPersonId === draft.ownerPersonId && (
           <p className="text-xs text-muted">
             The person who does the task is also its reviewer. A different reviewer finds the steps

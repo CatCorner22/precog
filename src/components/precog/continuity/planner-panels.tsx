@@ -280,6 +280,7 @@ export function PlannedLeaveCard({
             debrief={d}
             people={people}
             answered={(e) => leave.answered(d, e)}
+            conflictsFor={leave.conflictsFor}
             onPromote={(e, s) => leave.promoteStandIn(d, e, s)}
             onKeepTraining={(e, s) => leave.keepTraining(d, e, s)}
             onClose={(e) => leave.closeDebriefItem(d, e)}

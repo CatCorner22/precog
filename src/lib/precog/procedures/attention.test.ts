@@ -16,6 +16,10 @@ const knowledge = [
   knowledgeItem("deposit", { name: "Daily deposit" }),
   knowledgeItem("filing", { name: "Filing", criticality: "nice-to-have" }),
 ];
+const team = [
+  { id: "p1", active: true },
+  { id: "p2", active: true },
+];
 
 function written(extra: Partial<Procedure> = {}, createdOn = "2026-06-01"): Procedure {
   return newProcedure(
@@ -36,7 +40,13 @@ describe("what needs attention", () => {
     const soon = verifyProcedure(written(), "owner", "2026-04-06"); // due 2026-10-03
     const later = verifyProcedure(written({ id: "later" }), "owner", "2026-09-01");
     const lapsed = verifyProcedure(written({ id: "lapsed" }), "owner", "2025-10-01");
-    const got = procedureAttention([soon, later, lapsed], knowledge, "general", TODAY).reviewDue;
+    const got = procedureAttention(
+      [soon, later, lapsed],
+      knowledge,
+      team,
+      "general",
+      TODAY,
+    ).reviewDue;
     expect(got.map((r) => [r.procedure.id, r.overdue])).toEqual([
       ["lapsed", true],
       [soon.id, false],
@@ -61,6 +71,7 @@ describe("what needs attention", () => {
     const got = procedureAttention(
       [old, fresh, minor, nobody, proven, helped],
       knowledge,
+      team,
       "general",
       TODAY,
     ).unproven;
@@ -74,7 +85,7 @@ describe("what needs attention", () => {
       on: "2026-09-10",
       alone: true,
     });
-    expect(procedureSummary([proven], knowledge, "general", TODAY)).toEqual({
+    expect(procedureSummary([proven], knowledge, team, "general", TODAY)).toEqual({
       written: 1,
       verified: 1,
       reviewOverdue: 0,
@@ -82,7 +93,7 @@ describe("what needs attention", () => {
       criticalProven: 1,
       criticalTotal: 1,
     });
-    expect(procedureSummary([], knowledge, "general", TODAY).criticalWithout).toBe(1);
+    expect(procedureSummary([], knowledge, team, "general", TODAY).criticalWithout).toBe(1);
   });
 
   it("counts only a named backup's run as proof, in the report as in the reminders", () => {
@@ -91,10 +102,29 @@ describe("what needs attention", () => {
       on: "2026-09-01",
       alone: true,
     });
-    expect(procedureAttention([byUsualPerson], knowledge, "general", TODAY).unproven).toHaveLength(
-      1,
-    );
-    expect(procedureSummary([byUsualPerson], knowledge, "general", TODAY).criticalProven).toBe(0);
+    expect(
+      procedureAttention([byUsualPerson], knowledge, team, "general", TODAY).unproven,
+    ).toHaveLength(1);
+    expect(
+      procedureSummary([byUsualPerson], knowledge, team, "general", TODAY).criticalProven,
+    ).toBe(0);
+  });
+
+  it("counts nothing a stand-in who has left proved, and names only current stand-ins", () => {
+    const proven = withProof(written({ backupPersonIds: ["p2", "p3"] }), {
+      personId: "p2",
+      on: "2026-09-01",
+      alone: true,
+    });
+    const left = [
+      { id: "p1", active: true },
+      { id: "p2", active: false },
+      { id: "p3", active: true },
+    ];
+    expect(procedureSummary([proven], knowledge, left, "general", TODAY).criticalProven).toBe(0);
+    const unproven = procedureAttention([proven], knowledge, left, "general", TODAY).unproven;
+    expect(unproven.map((u) => u.backupIds)).toEqual([["p3"]]);
+    expect(procedureSummary([proven], knowledge, team, "general", TODAY).criticalProven).toBe(1);
   });
 });
 

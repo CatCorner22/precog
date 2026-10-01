@@ -50,6 +50,20 @@ export function datesAreDayFirst(values: readonly string[]): boolean {
   });
 }
 
+/**
+ * The date a slash or dash date names when read in the other day order, or
+ * undefined when only one order fits ("15/03/2019") or both give the same
+ * day ("05/05/2019"). "01/12/2026" is 12 January month first and 1 December
+ * day first: with nothing else in the file to tell, the importer cannot know.
+ */
+export function otherDayOrder(raw: string, opts: HireDateOptions = {}): string | undefined {
+  const parts = stripTime(raw.trim()).match(/^(\d{1,2})([/-])(\d{1,2})\2(\d{2}|\d{4})$/);
+  if (!parts) return undefined;
+  const read = readHireDate(raw, opts);
+  const other = readHireDate(raw, { ...opts, dayFirst: !opts.dayFirst });
+  return read && other && other !== read ? other : undefined;
+}
+
 /** Whole and tenth years between a hire date and today, never negative. */
 export function tenureFromHireDate(hireDate: string, today: Date = new Date()): number {
   const start = new Date(`${hireDate}T00:00:00Z`).getTime();

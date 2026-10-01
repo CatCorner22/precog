@@ -100,6 +100,7 @@ describe("debrief", () => {
   const entry = (id: string, training: Partial<DecisionEntry> | null = null): DebriefItem => ({
     item: item(id),
     standIn: null,
+    standInConfirmed: false,
     standInLevel: undefined,
     handoff: null,
     training: training as DecisionEntry | null,
