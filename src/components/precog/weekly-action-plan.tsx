@@ -55,6 +55,8 @@ export function WeeklyActionPlan({
       decisions: profile.decisions,
       plannedAbsences: profile.plannedAbsences,
       procedures: profile.procedures,
+      integrationDriftSummary: profile.integrationDriftSummary,
+      accessReconciliation: profile.accessReconciliation,
     });
   }, [
     template,
@@ -67,6 +69,8 @@ export function WeeklyActionPlan({
     profile.procedures,
     profile.riskVariables,
     industry,
+    profile.integrationDriftSummary,
+    profile.accessReconciliation,
     today,
   ]);
 

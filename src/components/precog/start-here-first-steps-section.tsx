@@ -6,7 +6,7 @@ import type { StartHereModel } from "@/lib/precog/start-here/model";
 import { effortPhrase, lossPhrase } from "@/lib/precog/evidence";
 
 export function StartHereFirstStepsSection({ model }: { model: StartHereModel["firstSteps"] }) {
-  const { steps, caseById, tips, hotlineGap, soleKnowledge } = model;
+  const { steps, caseById, tips, hotlineGap, soleKnowledge, driftActions } = model;
 
   return (
     <section className="space-y-3">
@@ -15,6 +15,24 @@ export function StartHereFirstStepsSection({ model }: { model: StartHereModel["f
         title="Do these first"
         subtitle="Ordered first by how many of your open gaps each one answers, then by how many of the real cases above it would plausibly have caught. Most of these are detective controls: they shorten how long a scheme runs, which is what decides the loss."
       />
+
+      {driftActions.length > 0 && (
+        <Card className="border-warn/30 bg-warn/5">
+          <CardContent className="space-y-2 pt-5">
+            <p className="text-sm font-medium">Books vs your duty map</p>
+            <ul className="space-y-2 text-sm text-muted">
+              {driftActions.map((d) => (
+                <li key={d.id}>
+                  <span className="text-fg">{d.title}</span> — {d.why}
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-subtle">
+              Open the Firm workspace to match payroll, vendors, and access exports to your map.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="pt-5">

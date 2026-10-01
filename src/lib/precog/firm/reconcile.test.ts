@@ -52,6 +52,15 @@ describe("access reconciliation", () => {
     expect(vendors.find((v) => v.name === "North Supply")?.recent).toBe(true);
     expect(vendors.find((v) => v.name === "Old Mill")?.recent).toBe(false);
   });
+
+  it("reads a payroll roster with employee and department columns", () => {
+    const csv =
+      "Employee Name,Department,Job Title,Status\nAda Owner,Ops,Payroll Manager,Active\n";
+    const parsed = parseAccessExport(csv, people, "2026-09-24");
+    expect(parsed.source).toBe("payroll");
+    expect(parsed.users[0]?.name).toBe("Ada Owner");
+    expect(parsed.users[0]?.mapped).toContain("enter_payroll");
+  });
 });
 
 describe("people who have left and duties that come from a role", () => {

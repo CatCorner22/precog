@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
@@ -71,6 +72,21 @@ export function MonthlyReview() {
           result,
           notes: note,
         },
+      }).then((res) => {
+        if (result === "skipped") {
+          toast.success("Skipped for this month on this business.");
+          return;
+        }
+        if (res.evidenceBridged) {
+          toast.success("Saved on this business and recorded in the control evidence log.");
+          return;
+        }
+        toast.success("Saved on this business.", {
+          description:
+            res.evidenceSkippedReason === "migration_pending"
+              ? "The evidence log is not ready on this deployment yet — your monthly note is still saved."
+              : "The account evidence log did not update; try again when signed in.",
+        });
       });
     } catch (error) {
       toast.error(
@@ -90,7 +106,12 @@ export function MonthlyReview() {
       <h2 className="text-lg font-semibold">This month’s file</h2>
       <p className="mt-1 text-sm text-muted">
         Two facts from QuickBooks, then the four checks. Duty ticks on the map are starting duties,
-        not system access. Lock the report to send this page. Recording “Done” does not establish
+        not system access. Lock the report to send this page. When you are signed in, Done and
+        Exception also create a preparer entry in the{" "}
+        <Link to="/firm" className="underline underline-offset-2">
+          control evidence log
+        </Link>{" "}
+        (a firm reviewer still records review separately). Recording Done does not establish
         independent verification.
       </p>
       {facts && (

@@ -12,6 +12,8 @@ import {
   staffFlagsFromDualRelease,
   type DualReleasePolicy,
 } from "./controls/dual-release";
+import { refreshIntegrationDriftSummary } from "./integrations/drift-profile";
+import type { IntegrationDrift } from "./integrations/qbo/model";
 import { industryHasOwner, industryMeta, isDemoName, type IndustryId } from "./industry";
 import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
@@ -514,7 +516,21 @@ export function withAccessReconciliation(
   p: PracticeProfile,
   next: AccessReconciliation,
 ): PracticeProfile {
-  return { ...p, accessReconciliation: next };
+  const draft = { ...p, accessReconciliation: next };
+  const integrationDriftSummary = refreshIntegrationDriftSummary(draft);
+  return integrationDriftSummary
+    ? { ...draft, integrationDriftSummary }
+    : { ...draft, integrationDriftSummary: undefined };
+}
+
+export function withIntegrationDriftSummary(
+  p: PracticeProfile,
+  qboDrift: IntegrationDrift | null,
+): PracticeProfile {
+  const integrationDriftSummary = refreshIntegrationDriftSummary(p, qboDrift);
+  return integrationDriftSummary
+    ? { ...p, integrationDriftSummary }
+    : { ...p, integrationDriftSummary: undefined };
 }
 
 /** Stamps the day the report first went to the owner's advisor; a later click keeps the first stamp. */

@@ -50,6 +50,9 @@ import {
   type Leaver,
 } from "@/lib/precog/continuity/leavers";
 import type { DecisionEntry, PlannedAbsence } from "@/lib/precog/practice-profile";
+import type { AccessReconciliation } from "@/lib/precog/firm/reconcile";
+import type { IntegrationDriftSummary } from "@/lib/precog/integrations/drift-summary";
+import { buildDriftActions } from "@/lib/precog/integrations/drift-signals";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
 import { type ProcessMapSnapshot } from "@/lib/precog/process-graph";
@@ -103,6 +106,9 @@ interface WeeklyActionsInput {
   plannedAbsences?: readonly PlannedAbsence[];
   /** Written procedures, so a lapsing review or an unproven backup is advised. */
   procedures?: readonly Procedure[];
+  /** Compact books-vs-map drift for owner home path. */
+  integrationDriftSummary?: IntegrationDriftSummary | null;
+  accessReconciliation?: AccessReconciliation | null;
 }
 
 /**
@@ -216,6 +222,7 @@ export function buildWeeklyActions(input: WeeklyActionsInput): WeeklyAction[] {
       crossTraining.some((a) => a.id.startsWith("spof-")),
     ),
     ...mapActions(ctx),
+    ...driftIntegrationActions(ctx),
   ];
   // Each source keys its ids by the item, absence or person it is about, so
   // the id alone says whether two actions are the same advice.
@@ -928,6 +935,21 @@ function committedAction(
     tab: "journal",
     priority: PRIORITY.inProgress,
   };
+}
+
+function driftIntegrationActions(ctx: WeeklyContext): WeeklyAction[] {
+  const drift = buildDriftActions({
+    summary: ctx.input.integrationDriftSummary,
+    accessReconciliation: ctx.input.accessReconciliation,
+  });
+  return drift.slice(0, 2).map((d) => ({
+    id: d.id,
+    title: d.title,
+    why: d.why,
+    effort: "medium" as const,
+    tab: "start",
+    priority: d.priority,
+  }));
 }
 
 function evidenceFor(cases: readonly CaseStudy[]): ActionEvidence | undefined {

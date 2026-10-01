@@ -60,6 +60,7 @@ import {
   makeMapVersion,
   resolveUpdate,
   withAccessReconciliation,
+  withIntegrationDriftSummary,
   withDecision,
   withDecisionReview,
   withDerivedSegregation,
@@ -154,6 +155,10 @@ export interface PracticeActions {
   setMonthlyReviews: (v: SetStateAction<ReviewRecord[]>) => void;
   /** The user and vendor export compared with the duty map (value or updater); keeps map undo. */
   setAccessReconciliation: (v: SetStateAction<AccessReconciliation | undefined>) => void;
+  /** After a QuickBooks reading, refresh the compact drift snapshot on the profile. */
+  setIntegrationDriftFromQbo: (
+    drift: import("./integrations/qbo/model").IntegrationDrift | null,
+  ) => void;
   /** The owner sent the report; the first stamp is kept. */
   markReportSent: () => void;
   resetProfile: () => void;
@@ -470,6 +475,10 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const setIntegrationDriftFromQbo = useCallback((drift: import("./integrations/qbo/model").IntegrationDrift | null) => {
+    setProfile((p) => withIntegrationDriftSummary(p, drift));
+  }, []);
+
   const markReportSent = useCallback(() => {
     setProfile((p) => withReportSent(p, new Date()));
   }, []);
@@ -610,6 +619,7 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       replaceProfile,
       setMonthlyReviews,
       setAccessReconciliation,
+      setIntegrationDriftFromQbo,
       markReportSent,
       resetProfile,
       completeOnboarding,
@@ -652,6 +662,7 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       replaceProfile,
       setMonthlyReviews,
       setAccessReconciliation,
+      setIntegrationDriftFromQbo,
       markReportSent,
       resetProfile,
       completeOnboarding,

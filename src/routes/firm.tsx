@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { LegalFooter } from "@/components/precog/legal-footer";
+import { Button } from "@/components/ui/button";
 import { MonthlyReview } from "@/components/precog/monthly-review";
 import { AccessReconcile } from "@/components/precog/access-reconcile";
 import { FirmMembers } from "@/components/precog/firm/firm-members";
@@ -14,9 +15,15 @@ import { NotificationSettingsPanel } from "@/components/precog/firm/notification
 import { usePractice } from "@/lib/precog/practice-context";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { advanceEngagement, isOwnTeam, pilotMetrics } from "@/lib/precog/firm/engagement";
+import {
+  advanceEngagement,
+  isOwnTeam,
+  pilotMetrics,
+  pilotMetricsCsv,
+} from "@/lib/precog/firm/engagement";
 import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { commercialToolsOpen } from "@/lib/precog/firm/billing-store";
+import { downloadText } from "@/lib/download";
 import type { FirmPlan } from "@/lib/precog/firm/pricing";
 import {
   getFirm,
@@ -391,6 +398,23 @@ function FirmPage() {
           />
           <Metric label="Report sent" value={metrics.reportSent ? "Yes" : "Not yet"} />
         </dl>
+        {own && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() =>
+              downloadText(
+                `${profile.practiceName.replace(/\s+/g, "-").slice(0, 40)}-pilot-metrics.csv`,
+                pilotMetricsCsv(profile.practiceName, metrics),
+                "text/csv",
+              )
+            }
+          >
+            Export pilot metrics (CSV)
+          </Button>
+        )}
       </section>
 
       {signedIn && (

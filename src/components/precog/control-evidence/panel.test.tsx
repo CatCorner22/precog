@@ -15,6 +15,11 @@ const state = vi.hoisted(() => ({
     isDevFallback: boolean;
   },
 }));
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
+}));
 vi.mock("@/lib/auth/use-current-user", () => ({ useCurrentUser: () => state.user }));
 vi.mock("@/lib/precog/practice-context", () => ({
   usePractice: () => ({ profile: { businessId: "biz_1" }, ready: true, switchingBusiness: false }),
@@ -28,9 +33,9 @@ beforeEach(() => {
   state.user = null;
 });
 describe("control log presentation", () => {
-  it("does not imply legacy Done results are reviewed evidence", () => {
+  it("explains the bridge from monthly review to the evidence log", () => {
     const html = renderToStaticMarkup(<ControlEvidencePanel />);
-    expect(html).toContain("not converted into evidence");
+    expect(html).toContain("matching preparer entries");
     expect(html).toContain("not an audit opinion");
   });
   it("gates account logging while signed out or using the shared dev identity", () => {

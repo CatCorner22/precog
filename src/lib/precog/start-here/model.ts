@@ -30,6 +30,7 @@ import { titleDutiesSentence } from "../sod/title-duties";
 import { locationsById } from "../person-location";
 import { industryMeta } from "../industry";
 import { localDateKey } from "../dates";
+import { buildDriftActions, type DriftAction } from "../integrations/drift-signals";
 import { joinWithAnd } from "../text";
 import { formatUsd } from "../../utils";
 
@@ -145,6 +146,8 @@ interface StartHereFirstStepsModel {
   /** Small organizations with a reporting channel, against larger ones. */
   hotlineGap: Benchmark | undefined;
   soleKnowledge: ReturnType<typeof findKnowledgeRisks>;
+  /** Books or access exports that disagree with the duty map. */
+  driftActions: DriftAction[];
 }
 
 interface StartHereFooterModel {
@@ -277,6 +280,10 @@ export function buildStartHereModel({
       tips: BENCHMARK_BY_ID["bm-tips"],
       hotlineGap: BENCHMARK_BY_ID["bm-small-org-hotline-gap"],
       soleKnowledge: findKnowledgeRisks(template).filter((r) => r.soleOwner),
+      driftActions: buildDriftActions({
+        summary: profile.integrationDriftSummary,
+        accessReconciliation: profile.accessReconciliation,
+      }).slice(0, 3),
     },
     footer: {
       cases: evidence,

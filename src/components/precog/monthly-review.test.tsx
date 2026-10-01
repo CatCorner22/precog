@@ -5,6 +5,11 @@ import type { ReviewRecord } from "@/lib/precog/firm/reviews";
 import { MonthlyReview } from "./monthly-review";
 
 const state = vi.hoisted(() => ({ people: [] as Person[], records: [] as ReviewRecord[] }));
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
+}));
 vi.mock("@/lib/precog/practice-context", () => ({
   usePractice: () => ({
     profile: { monthlyReviews: state.records },
@@ -80,8 +85,7 @@ describe("monthly review communicates evidence limits", () => {
     ];
     const html = view();
     expect(html).toContain("Reported result: Done");
-    expect(html).toContain("does not establish");
-    expect(html).toContain("independent verification");
+    expect(html).toContain("control evidence log");
     expect(html.match(/data-review-independence="self_review"/g)).toHaveLength(4);
   });
 });

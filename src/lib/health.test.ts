@@ -10,6 +10,17 @@ describe("/api/health responses", () => {
     expect(body.ok).toBe(true);
     expect(typeof body.latencyMs).toBe("number");
     expect(Object.keys(body).sort()).toEqual(["latencyMs", "ok"]);
+  });
+
+  it("merges optional health extras when the database check succeeds", async () => {
+    const res = await healthResponse(
+      async () => undefined,
+      async () => ({ controlEvidenceLog: true }),
+    );
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.ok).toBe(true);
+    expect(body.controlEvidenceLog).toBe(true);
+    expect(Object.keys(body).sort()).toEqual(["controlEvidenceLog", "latencyMs", "ok"]);
     expect(JSON.stringify(body)).not.toMatch(/pglite|neon|postgres/i);
   });
 
