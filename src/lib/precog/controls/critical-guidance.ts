@@ -25,7 +25,7 @@ export const PAYMENT_DESTINATION_CHANGE = {
     url: "https://www.fbi.gov/how-we-can-help-you/common-frauds-and-scams/business-email-compromise",
     reviewedOn: "2026-09-29",
     scope:
-      "Independent payment-change verification is the cited principle. The approval, evidence and monitoring workflow is this application's suggested design.",
+      "Independent payment-change verification is the cited principle. The approval, evidence and monitoring workflow is Precog's suggested design.",
   },
 } as const;
 

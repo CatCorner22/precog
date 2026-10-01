@@ -56,14 +56,14 @@ export function ClientList({
       setEditing(null);
       toast.success(
         !address
-          ? "Owner address removed."
+          ? "Precog removed the owner address."
           : confirmation === "sent"
             ? `Precog emailed ${address} a link to confirm. Reminders start once the owner opens it.`
             : confirmation === "not-sent"
-              ? "Owner address saved. Precog could not email the confirmation link, so no reminders go out yet. Save the address again to retry."
+              ? "Precog saved the owner address but could not email the confirmation link, so no reminders go out yet. Save the address again to retry."
               : confirmation === "stopped"
-                ? `Owner address saved. The owner stopped reminders to ${address}, so Precog sends nothing to it.`
-                : "Owner address saved.",
+                ? `Precog saved the owner address. The owner stopped reminders to ${address}, so Precog sends nothing to it.`
+                : "Precog saved the owner address.",
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Precog did not save the address.");
@@ -84,9 +84,9 @@ export function ClientList({
     <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-lg font-semibold">Clients</h2>
       <p className="mt-1 text-sm text-muted">
-        Last review is the newest monthly result stored for that client. An owner address receives
-        the reminders about their own business once its owner confirms it from an email; Precog
-        sends nothing else to it.
+        Last review is the newest monthly result Precog holds for that client. An owner address
+        receives the reminders about their own business once its owner confirms it from an email;
+        Precog sends nothing else to it.
       </p>
       {clients.length === 0 ? (
         <p className="mt-3 text-sm text-muted">

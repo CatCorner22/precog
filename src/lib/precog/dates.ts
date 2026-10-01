@@ -120,6 +120,12 @@ export function formatDayNear(value: string, today: string): string {
   return value.slice(0, 4) === today.slice(0, 4) ? formatDayShort(value) : formatDay(value);
 }
 
+/** "March 2026" for a "YYYY-MM" month; anything else prints as given. */
+export function formatMonth(value: string): string {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value);
+  return match ? MONTH.format(new Date(Number(match[1]), Number(match[2]) - 1, 1)) : value;
+}
+
 /** "Nov 3, 2026, 4:05 PM". */
 export function formatDayTime(value: string | Date): string {
   const date = toDate(value);
@@ -173,6 +179,7 @@ function toDate(value: string | Date): Date | null {
 }
 
 const DAY = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+const MONTH = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
 const DAY_SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 const DAY_TIME = new Intl.DateTimeFormat("en-US", {
   month: "short",

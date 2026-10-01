@@ -85,7 +85,8 @@ export function WeeklyActionPlan({
         {actions.length === 0 ? (
           <p className="flex items-center gap-2 text-sm text-ok">
             <CheckCircle2 className="size-4" />
-            Core controls look solid. Monitor leading indicators and journal reviews.
+            Core controls look solid. Keep watching the leading indicators and the decisions due for
+            review.
           </p>
         ) : (
           actions.map((a, i) => (

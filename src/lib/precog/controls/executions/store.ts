@@ -23,7 +23,10 @@ async function access(
 ): Promise<Access> {
   // Reserved by auth/verify.server.ts; the shared preview user is never evidence of identity.
   if (actorId === "dev-user")
-    throw new RequestError(401, "Use an individual signed-in account for the control log.");
+    throw new RequestError(
+      401,
+      "Use an individual signed-in account for the control evidence log.",
+    );
   if (!isBusinessId(businessId)) throw new RequestError(400, "Unknown business id.");
   const rows = await sql<Access>`
     select b.user_id, b.revision, b.firm_user_id, m.role, coalesce(nullif(u.name,''),u.email) as name
@@ -104,7 +107,7 @@ export async function executeControlCommand(
       if (Number(usage.n) >= MAX_CHECKS)
         throw new RequestError(
           409,
-          "The control log is full. Export it and contact support; no earlier entries were removed.",
+          `This business has ${MAX_CHECKS.toLocaleString("en-US")} recorded checks, the most Precog holds, and Precog removed no earlier entries. The business owner can export them with Export data in the account menu.`,
         );
     }
     const next = applyCommand(

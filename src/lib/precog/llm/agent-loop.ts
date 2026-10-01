@@ -76,7 +76,7 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Loca
   ];
   steps.push({
     phase: "reason",
-    title: "Ordered the fixes (this app's model)",
+    title: "Ordered the fixes (Precog's model)",
     detail: advancedReasoning.join(" · "),
     toolResults: advTool ? [advTool] : undefined,
   });
@@ -90,7 +90,7 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Loca
     | undefined;
   steps.push({
     phase: "meta",
-    title: "Listed what this app can and cannot see",
+    title: "Listed what Precog can and cannot see",
     detail: metaData
       ? `${metaData.summary?.knownKnowns ?? "?"} measured · ${metaData.summary?.knownUnknowns ?? "?"} known gaps · ${metaData.summary?.unknownUnknowns ?? "?"} outside the model`
       : "Not in plan.",
@@ -122,7 +122,7 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Loca
   );
   steps.push({
     phase: "synthesize",
-    title: "Wrote the brief from this app's rules",
+    title: "Wrote the brief from Precog's rules",
     detail: `${brief.decisions.length} recommended moves · ${brief.specialistNotes.length} review lenses`,
   });
 

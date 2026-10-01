@@ -158,8 +158,8 @@ function JoinAs({
             onChange={(e) => setConfirmed(e.target.checked)}
           />
           <span>
-            I am the person this invitation was sent to. Precog tells the firm owner that I joined
-            with this account.
+            I am the person the firm sent this invitation to. Precog tells the firm owner that I
+            joined with this account.
           </span>
         </label>
       )}

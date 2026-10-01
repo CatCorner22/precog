@@ -3,6 +3,7 @@ import { useWorkspace } from "@/lib/precog/workspace-context";
 import { readDraft, writeDraft } from "@/lib/precog/controls/executions/draft";
 import {
   METHODS,
+  METHOD_LABELS,
   parseCommand,
   type ControlExecution,
   type ExecutionCommand,
@@ -53,7 +54,7 @@ export function ExecutionForm({ storageKey, today, period, accountName, run, onS
     ...readDraft(session, storageKey),
   }));
   const [draftState, setDraftState] = useState(
-    "Not submitted. Draft edits are kept in this tab when browser storage is available.",
+    "Not submitted. Precog keeps your draft in this tab when the browser allows storage.",
   );
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -70,8 +71,8 @@ export function ExecutionForm({ storageKey, today, period, accountName, run, onS
     setDraft(next);
     setDraftState(
       writeDraft(session, storageKey, next)
-        ? "Draft saved in this tab. Not yet in the account log."
-        : "Draft is in memory only. Browser storage refused it; keep this page open.",
+        ? "Precog saved the draft in this tab. It is not yet in the control evidence log."
+        : "The browser refused to store the draft, so Precog holds it only while this page is open. Keep this page open.",
     );
   }
   const input = (key: string, label: string, type = "text", maxLength = 120) => (
@@ -155,11 +156,13 @@ export function ExecutionForm({ storageKey, today, period, accountName, run, onS
         writeDraft(session, storageKey, null);
         setDraft(fresh());
         setConfirmed(false);
-        setDraftState("Recorded in the account log. Draft cleared.");
+        setDraftState("Precog recorded this in the control evidence log and cleared the draft.");
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "The check was not recorded. Your draft is retained.",
+        err instanceof Error
+          ? err.message
+          : "Precog did not record the check. Your draft is still here.",
       );
     } finally {
       setBusy(false);
@@ -168,9 +171,7 @@ export function ExecutionForm({ storageKey, today, period, accountName, run, onS
   return (
     <form onSubmit={(e) => void submit(e)} className="mt-3 space-y-3">
       <fieldset disabled={busy} className="space-y-3">
-        <legend className="sr-only">
-          {action === "record" ? "Record a control check" : `${action} this check`}
-        </legend>
+        <legend className="sr-only">{FORM_LEGENDS[action]}</legend>
         {action === "record" && (
           <Field label="Control check">
             <select
@@ -205,13 +206,11 @@ export function ExecutionForm({ storageKey, today, period, accountName, run, onS
                 onChange={(e) => change("method", e.target.value)}
               >
                 <option value="" disabled>
-                  Choose how the work was checked
+                  Choose how you checked the work
                 </option>
                 {METHODS.map((m) => (
                   <option key={m} value={m}>
-                    {m === "reperformance"
-                      ? "Reperformance / retest"
-                      : m[0].toUpperCase() + m.slice(1)}
+                    {METHOD_LABELS[m]}
                   </option>
                 ))}
               </select>
@@ -236,17 +235,18 @@ export function ExecutionForm({ storageKey, today, period, accountName, run, onS
           <>
             {textarea("references", "Evidence references (one per line, up to 8)", 3300)}
             <p className="text-xs text-muted">
-              Use restricted document locations and version references. No files are uploaded or
-              checked here. Never paste passwords, signed access links or account/patient numbers.
+              Use restricted document locations and version references. Precog does not upload or
+              check files here. Never paste passwords, signed access links or account/patient
+              numbers.
             </p>
           </>
         )}
         {textarea(
           "note",
           action === "correct"
-            ? "What was corrected and how"
+            ? "What you corrected and how"
             : action === "reopen"
-              ? "Why this conclusion needs to be reopened"
+              ? "Why you are reopening this conclusion"
               : "Work performed and conclusion",
           2000,
         )}
@@ -300,3 +300,11 @@ export function ExecutionForm({ storageKey, today, period, accountName, run, onS
     </form>
   );
 }
+
+/** The form's screen-reader name for each action. */
+const FORM_LEGENDS: Record<ExecutionCommand["action"], string> = {
+  record: "Record a control check",
+  review: "Record a review conclusion for this check",
+  correct: "Record a correction for this check",
+  reopen: "Reopen the conclusion for this check",
+};

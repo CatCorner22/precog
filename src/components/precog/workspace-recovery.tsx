@@ -89,7 +89,7 @@ export function WorkspaceRecovery() {
       <summary className="cursor-pointer">Local recovery and guest work</summary>
       {legacy && (
         <p className="mt-2">
-          This browser holds older records that belong to no account. The app did not load them.{" "}
+          This browser holds older records that belong to no account. Precog did not load them.{" "}
           <button type="button" className="underline" onClick={exportLegacy}>
             Export older browser records
           </button>

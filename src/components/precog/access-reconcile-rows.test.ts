@@ -64,7 +64,7 @@ describe("grantDuty", () => {
 describe("rowDifferences", () => {
   it("says first when the person has left", () => {
     expect(rowDifferences({ ...row, leftBusiness: true })).toMatch(
-      /^Precog has this person as left: remove this login from the books\./,
+      /^Precog has this person as left: remove this sign-in from the books\./,
     );
   });
 

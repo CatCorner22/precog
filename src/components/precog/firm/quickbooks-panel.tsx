@@ -93,7 +93,9 @@ export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
   async function disconnect() {
     if (!businessId) return;
     if (
-      !window.confirm("Disconnect QuickBooks for this client? Precog also removes past readings.")
+      !window.confirm(
+        "Disconnect QuickBooks for this client? Precog also deletes past readings. You cannot undo this.",
+      )
     )
       return;
     setBusy(true);
@@ -115,7 +117,7 @@ export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
       <p className="mt-1 text-sm text-muted">
         A read-only connection. Precog reads the vendor and employee lists once a month and says
         what changed: new or altered vendors, people paid who are not on the Duty map, and people
-        released from payroll whose logins still need confirming.
+        released from payroll whose sign-ins still need confirming.
       </p>
       {status === null ? (
         <p className="mt-3 text-sm text-muted">Checking the connection…</p>

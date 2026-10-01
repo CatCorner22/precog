@@ -76,6 +76,7 @@ import { buildProcessMapGraph, enrichProcess, processMapContext } from "@/lib/pr
 import { residualScope } from "@/lib/precog/scoring/scope";
 import { validateProcessMap } from "@/lib/precog/process-validation";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import { useTabName } from "@/lib/precog/presentation";
 import { count, slug, uniqueId } from "@/lib/precog/text";
 import type { ProcessNode } from "@/lib/precog/types";
 import { buildWeeklyActions } from "@/lib/precog/weekly-actions/build";
@@ -111,6 +112,7 @@ export function ProcessBuilder({
   initialPanel?: BuilderPanel;
 }) {
   const tpl = useTemplate();
+  const tabName = useTabName();
   const {
     profile,
     setCustomProcesses,
@@ -398,7 +400,7 @@ export function ProcessBuilder({
   function resetToTemplate() {
     const ownTeam = Boolean(profile.customPeople);
     const question = ownTeam
-      ? "Go back to the sample process map? This discards your process map edits. Your team, register and journal stay."
+      ? `Go back to the sample process map? Precog discards your edits to the map. Your team, register and ${tabName("journal")} stay.`
       : "Discard your custom map and team, and restore the industry template?";
     if (!window.confirm(question)) return;
     setCustomProcesses(null);

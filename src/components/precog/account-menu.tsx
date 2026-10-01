@@ -29,7 +29,7 @@ export function AccountDataControls() {
 
   async function deleteAccountAndSignOut() {
     const typed = window.prompt(
-      "This deletes your account and everything in it: every business and its history, report versions, snapshots, shared links, your firm workspace and its members' access, reminders, the billing record and the QuickBooks link. You cannot undo it. Export first if you want a copy. Type DELETE to confirm.",
+      "This deletes your account and everything in it: every business and its history, report versions, snapshots, shared links, your firm workspace and its members' access, reminders, the billing record and the QuickBooks link. You cannot undo this. Export first if you want a copy. Type DELETE to confirm.",
     );
     if (typed !== "DELETE") return;
     setBusy("delete");
@@ -43,7 +43,7 @@ export function AccountDataControls() {
       toast.error(
         clientErrorStatus(error) === 409 && error instanceof Error
           ? error.message
-          : "The deletion or the sign-out did not finish. Reload to check the account; you cannot undo a finished deletion.",
+          : "Precog could not finish the deletion or the sign-out. Reload to check the account. If the deletion finished, you cannot undo this.",
       );
       setBusy(null);
     }

@@ -111,14 +111,16 @@ describe("signInErrorMessage", () => {
   it("explains an expired confirmation or password link", async () => {
     const { client } = await load("precog.example.com");
     for (const code of ["TOKEN_EXPIRED", "INVALID_TOKEN", "USER_NOT_FOUND"]) {
-      expect(client.signInErrorMessage(code)).toMatch(/^That link has expired or was already used/);
+      expect(client.signInErrorMessage(code)).toMatch(
+        /^That link has expired, or someone already used it/,
+      );
     }
   });
 
   it("names the code for anything else", async () => {
     const { client } = await load("precog.example.com");
     expect(client.signInErrorMessage("state_mismatch")).toBe(
-      'Sign-in did not finish. Try again; if it keeps failing, tell support the code "state_mismatch".',
+      'Precog could not finish the sign-in (code "state_mismatch"). Try again in a moment.',
     );
   });
 });

@@ -164,8 +164,8 @@ export function signInErrorMessage(code: string): string {
   if (normalized === "account_not_linked")
     return "This email already has an account that signs in with email and password. Sign in with your password instead, or use Forgot password to set a new one.";
   if (EXPIRED_LINK_CODES.has(normalized))
-    return "That link has expired or was already used. Sign in to get a new confirmation link, or use Forgot password for a new password link.";
-  return `Sign-in did not finish. Try again; if it keeps failing, tell support the code "${code.trim().slice(0, 80) || "sign_in_failed"}".`;
+    return "That link has expired, or someone already used it. Sign in to get a new confirmation link, or use Forgot password for a new password link.";
+  return `Precog could not finish the sign-in (code "${code.trim().slice(0, 80) || "sign_in_failed"}"). Try again in a moment.`;
 }
 
 /** Codes a confirmation or password link returns with when it has expired or was used. */

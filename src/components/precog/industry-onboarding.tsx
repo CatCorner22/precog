@@ -687,7 +687,9 @@ export function IndustryOnboarding() {
                 <span className="text-muted">Business name</span>
                 <input
                   className={cn(fieldCls, "max-w-md")}
-                  placeholder={industry?.demoName ? `e.g. ${industry.demoName}` : "Business name"}
+                  placeholder={
+                    industry?.demoName ? `For example, ${industry.demoName}` : "Business name"
+                  }
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
                   maxLength={80}
@@ -865,7 +867,7 @@ export function IndustryOnboarding() {
                           <td className="border-b border-border p-1.5" data-role-cell={rowKey}>
                             <input
                               className={cn(fieldCls, "w-44 sm:w-52")}
-                              placeholder="e.g. Bookkeeper"
+                              placeholder="For example, Bookkeeper"
                               aria-label={`${who} job title`}
                               list="job-title-options"
                               value={row.role}

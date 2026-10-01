@@ -28,6 +28,6 @@ describe("critical controls agree across planning, retrieval and procedures", ()
   it("states the limits of the independent-contact control in the procedure", () => {
     const procedure = RECOMMENDED_PROCEDURES.find((p) => p.id === "lib-vendor-bank-change")!;
     expect(procedure.steps.map((s) => s.text).join(" ")).toMatch(/authorized.*contact/i);
-    expect(procedure.source).toMatch(/application.*design/i);
+    expect(procedure.source).toMatch(/Precog.s suggested design/i);
   });
 });

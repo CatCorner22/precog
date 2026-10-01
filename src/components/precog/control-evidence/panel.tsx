@@ -2,13 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useToday } from "@/lib/use-today";
-import { localDateKey, formatDay } from "@/lib/precog/dates";
+import { localDateKey, formatDay, formatMonth } from "@/lib/precog/dates";
 import { REVIEW_ITEMS } from "@/lib/precog/firm/reviews";
 import {
   getControlExecutionLog,
   recordControlExecution,
 } from "@/lib/precog/controls/executions/server";
 import {
+  ACTION_LABELS,
+  emptyLogMessage,
+  METHOD_LABELS,
   reviewParticipationConflict,
   STATUS_LABELS,
   type ControlExecution,
@@ -34,13 +37,14 @@ export function ControlEvidencePanel() {
         converted into evidence.
       </p>
       <p className="mt-2 text-xs text-muted">
-        Use Firm members to invite a reviewer. One account can record work, but cannot independently
-        approve its own entries. A reviewer must examine the referenced records, not just this log.
+        To get a check reviewed, create a firm and invite a reviewer under People at the firm. One
+        account can record work, but cannot independently approve its own entries. A reviewer must
+        examine the referenced records, not just this log.
       </p>
       {!user || user.isDevFallback || !ready || !profile.businessId || switchingBusiness ? (
         <p className="mt-3 text-sm">
-          Sign in and open a saved business to use the account log. Local monthly notes remain
-          separate.
+          Sign in and open a saved business to use the control evidence log. Results you mark in
+          This month’s review stay a separate record.
         </p>
       ) : (
         <ExecutionWorkspace
@@ -108,7 +112,7 @@ function ExecutionWorkspace({
           setError(
             clientErrorStatus(err)
               ? err.message
-              : "The account log could not be loaded. Check your connection and retry.",
+              : "Precog could not load the control evidence log. Check your connection and try again.",
           );
         }
       });
@@ -126,7 +130,7 @@ function ExecutionWorkspace({
           }),
         );
         if (!active.current) return false;
-        setNotice("Recorded in the account log.");
+        setNotice("Precog recorded this in the control evidence log.");
         setRefresh((n) => n + 1);
         return true;
       } catch (err) {
@@ -134,7 +138,7 @@ function ExecutionWorkspace({
         throw new Error(
           clientErrorStatus(err)
             ? (err as Error).message
-            : "The account did not confirm this action. Your draft is retained. Retry the same action or reload the log before editing it.",
+            : "Precog could not confirm that your account recorded this. Your draft is still here. Try the same action again, or reload the log before you edit it.",
         );
       }
     },
@@ -169,7 +173,7 @@ function ExecutionWorkspace({
         </button>
       </div>
       <p role="status" className="text-sm">
-        {loading ? "Loading account log…" : notice}
+        {loading ? "Loading the control evidence log…" : notice}
       </p>
       {error && (
         <p role="alert" className="text-sm">
@@ -190,10 +194,7 @@ function ExecutionWorkspace({
             />
           </details>
           {!data.entries.length && !loading && (
-            <p className="text-sm text-muted">
-              No control checks recorded for this month. This does not mean there are no control
-              gaps.
-            </p>
+            <p className="text-sm text-muted">{emptyLogMessage(period)}</p>
           )}
           {!loading &&
             data.entries.map((run) => {
@@ -203,15 +204,15 @@ function ExecutionWorkspace({
               });
               const needsReview =
                 run.status === "awaiting_review" || run.status === "awaiting_retest";
+              const title =
+                REVIEW_ITEMS.find((i) => i.key === run.controlKey)?.title ?? run.controlKey;
               return (
                 <article
                   key={run.id}
                   className="rounded-lg border border-border p-3"
-                  aria-label={`Check ${run.id}`}
+                  aria-label={`${title} for ${formatMonth(run.period)}`}
                 >
-                  <h3 className="font-medium">
-                    {REVIEW_ITEMS.find((i) => i.key === run.controlKey)?.title ?? run.controlKey}
-                  </h3>
+                  <h3 className="font-medium">{title}</h3>
                   <p className="mt-1 text-sm font-medium">{STATUS_LABELS[run.status]}</p>
                   <p className="mt-1 text-xs text-muted">
                     {run.period} · saved business revision {run.sourceBusinessRevision} · log
@@ -292,7 +293,8 @@ export function ExecutionHistory({ run }: { run: ControlExecution }) {
           return (
             <li key={command.commandId} className="border-l-2 border-border pl-3 text-sm">
               <p className="font-medium">
-                {command.action} · recorded by {event.actor.name} · {formatDay(event.recordedAt)}
+                {ACTION_LABELS[command.action]} · recorded by {event.actor.name} ·{" "}
+                {formatDay(event.recordedAt)}
               </p>
               {"performedBy" in command && (
                 <p>
@@ -302,7 +304,7 @@ export function ExecutionHistory({ run }: { run: ControlExecution }) {
               {"scope" in command && <p className="whitespace-pre-wrap">Scope: {command.scope}</p>}
               {"method" in command && (
                 <p>
-                  Method: {command.method}; result:{" "}
+                  Method: {METHOD_LABELS[command.method]}; result:{" "}
                   {command.result === "exception" ? "exception found" : "no exception reported"}
                 </p>
               )}

@@ -1,6 +1,7 @@
 import { healthTone } from "@/lib/precog/scoring/bands";
 import { useEffect } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
+import { useTabName } from "@/lib/precog/presentation";
 import { mapNotAssessedNote, mapSource, starterMapFacts } from "@/lib/precog/builder/map-state";
 import type { ScoredMap } from "@/lib/precog/builder/scored-map";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,7 @@ export function MapHealthCard({
   onFixIssues: () => void;
 }) {
   const { profile, mapCustomized, recordMapHealth } = usePractice();
+  const tabName = useTabName();
   // The starter map with nobody assigned, or an empty map, has no health to
   // report; the card says what to do instead and records no history point.
   const notAssessed = mapNotAssessedNote(profile);
@@ -88,7 +90,7 @@ export function MapHealthCard({
             </Button>
             <Button size="sm" variant="secondary" onClick={() => onOpenMap()}>
               <Map className="size-3.5" />
-              Open process map
+              Open {tabName("map")}
             </Button>
           </div>
           <p className="mt-3 text-xs text-subtle">
@@ -222,7 +224,7 @@ export function MapHealthCard({
         <div className="mt-4 flex flex-wrap gap-2">
           <Button size="sm" onClick={() => onOpenMap()}>
             <Map className="size-3.5" />
-            Open process map
+            Open {tabName("map")}
           </Button>
           <Button size="sm" variant="secondary" onClick={onBuildMap}>
             <Hammer className="size-3.5" />
