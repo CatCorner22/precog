@@ -16,6 +16,7 @@ import {
   REGISTER_RESPONSIVE_PEOPLE,
   registerOverResponsiveLimit,
 } from "@/lib/precog/continuity/register-window";
+import { registerScaleWarning } from "@/lib/precog/continuity/scale-message";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import type { Criticality, KnowledgeKind, KnowledgeLevel } from "@/lib/precog/types";
 import { ItemButton } from "@/components/precog/continuity/parts";
@@ -132,6 +133,11 @@ export function RegisterGrid({
         </p>
       ) : (
         <div className="space-y-2">
+          {registerScaleWarning(people.length, report.items.length) && (
+            <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-muted">
+              {registerScaleWarning(people.length, report.items.length)}
+            </p>
+          )}
           {registerOverResponsiveLimit(people.length, report.items.length) && (
             <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-muted">
               This register has {people.length} people and {report.items.length} items. The grid

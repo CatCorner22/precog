@@ -1,4 +1,5 @@
 import { useWorkspace } from "@/lib/precog/workspace-context";
+import { toast } from "sonner";
 import {
   useCallback,
   useEffect,
@@ -81,6 +82,7 @@ import {
 } from "./industry-onboarding-helpers";
 import { AddDutyControl, DutyHeading, SeatNote, YearsHereInput } from "./industry-onboarding-parts";
 import { localDateKey } from "@/lib/precog/dates";
+import { teamSizeScaleWarning } from "@/lib/precog/continuity/scale-message";
 import { clamp } from "@/lib/precog/number";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { count } from "@/lib/precog/text";
@@ -469,9 +471,11 @@ export function IndustryOnboarding() {
     }
     const people = buildOwnTeam(rows, selected);
     if (people.length === 0) return;
+    const scaleNote = teamSizeScaleWarning(people.length);
     const onLeave = onLeavePersonIds(rows);
     clearDraft();
     startOwnBusiness({ industry: selected, practiceName: businessName, people, leftOut });
+    if (scaleNote) toast.warning(scaleNote, { duration: 8000 });
     if (onLeave.length > 0) {
       // The roster gives no return date, so the absence covers today; the
       // continuity planner's "Still out tomorrow" extends it.

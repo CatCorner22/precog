@@ -19,6 +19,7 @@ import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
 import { tabLabel } from "@/lib/precog/navigation";
 import { count } from "@/lib/precog/text";
+import { buildDriftActions } from "@/lib/precog/integrations/drift-signals";
 import { formatUsd } from "@/lib/utils";
 import { IndexBasis } from "@/components/precog/index-basis";
 import { MapHealthCard } from "@/components/precog/map-health-card";
@@ -115,9 +116,17 @@ export function Dashboard({
   const mapHealth = scoredMap.health;
   // A starter map nobody has assigned, or an empty map, has no health to show.
   const mapReady = mapAssessed(profile);
+  const driftActions = useMemo(
+    () =>
+      buildDriftActions({
+        summary: profile.integrationDriftSummary,
+        accessReconciliation: profile.accessReconciliation,
+      }),
+    [profile.integrationDriftSummary, profile.accessReconciliation],
+  );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <Badge variant="accent">{industry.label} · internal controls</Badge>
         <h1 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -181,6 +190,28 @@ export function Dashboard({
         onBuildMap={() => onOpen("map", null, true)}
         onFixIssues={() => onOpen("map", null, "validate")}
       />
+
+      {driftActions.length > 0 && (
+        <Card className="border-warn/40 bg-warn/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Books vs map</CardTitle>
+            <CardDescription>
+              QuickBooks or an access export disagrees with your duty map — resolve it before you
+              rely on segregation checks.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {driftActions.slice(0, 3).map((d) => (
+              <p key={d.id}>
+                <span className="font-medium text-fg">{d.title}.</span> {d.why}
+              </p>
+            ))}
+            <Link to="/firm" className={buttonClass({ variant: "secondary", size: "sm" })}>
+              Open firm workspace
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       <IndexBasis />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">

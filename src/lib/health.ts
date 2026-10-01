@@ -10,11 +10,18 @@ export const HEALTH_ALLOWED_METHODS = "GET, HEAD";
 
 const NO_STORE = { "cache-control": "no-store" } as const;
 
-export async function healthResponse(checkDatabase: () => Promise<void>): Promise<Response> {
+export async function healthResponse(
+  checkDatabase: () => Promise<void>,
+  extras?: () => Promise<Record<string, boolean>>,
+): Promise<Response> {
   const startedAt = Date.now();
   try {
     await checkDatabase();
-    return Response.json({ ok: true, latencyMs: Date.now() - startedAt }, { headers: NO_STORE });
+    const extra = extras ? await extras() : {};
+    return Response.json(
+      { ok: true, latencyMs: Date.now() - startedAt, ...extra },
+      { headers: NO_STORE },
+    );
   } catch (error) {
     console.error("[health] database check failed", error);
     return Response.json(

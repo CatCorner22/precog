@@ -363,6 +363,7 @@ function namedFinding(
  * noise, not risk.
  */
 function familyFindings(person: RoleAssignment, staff?: StaffComposition): ScoredFinding[] {
+  if (staff && staff.teamSize <= 3) return [];
   const ents = person.entitlements;
   const namedDuties = new Set<EntitlementId>();
   for (let i = 0; i < ents.length; i++) {
