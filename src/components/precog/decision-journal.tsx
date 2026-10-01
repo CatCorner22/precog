@@ -36,6 +36,8 @@ import {
   reviewDelta,
   STANDING_SUBJECTS,
 } from "@/components/precog/decision-journal-text";
+import { residualScope } from "@/lib/precog/scoring/scope";
+import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
 
 const KINDS: DecisionKind[] = ["remediate", "accept_residual", "monitor", "insure"];
 
@@ -66,9 +68,18 @@ export function DecisionJournal({
     setCustomKnowledge,
     setCustomRelations,
   } = usePractice();
+  const scope = useMemo(
+    () =>
+      residualScope({
+        decisions: profile.decisions,
+        industry: profile.industry,
+        riskVariables: profile.riskVariables,
+      }),
+    [profile.decisions, profile.industry, profile.riskVariables],
+  );
   const portfolio = useMemo(
-    () => portfolioSummary(template, profile.staff),
-    [template, profile.staff],
+    () => portfolioSummary(template, profile.staff, DEFAULT_WEIGHTS, scope),
+    [template, profile.staff, scope],
   );
 
   const [picked, setSubject] = useState("");

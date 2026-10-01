@@ -1,3 +1,4 @@
+import type { IndustryId } from "../industry";
 import { type DutyFamily, entitlementById, isOperatingDuty } from "./conflict-rules";
 import { detectAssignments, OVERSIGHT_DUTIES, type RoleAssignment } from "./detect";
 import { teamOwnerId } from "./owner-role";
@@ -18,11 +19,17 @@ interface PersonPowerIndex {
  *
  * A sole owner's signing, approving and reconciling are the oversight the
  * index looks for, not concentration, so they do not count toward the owner's
- * index; what the owner handles or records still does.
+ * index; what the owner handles or records still does. Pass the line of
+ * business, as the duty-conflict screen does, so both read the same owner.
  */
-export function calculatePowerIndex(assignments: RoleAssignment[]): PersonPowerIndex[] {
-  const conflicts = detectAssignments({ assignments }).conflicts;
-  const ownerId = teamOwnerId(assignments);
+export function calculatePowerIndex(
+  assignments: RoleAssignment[],
+  industry?: IndustryId,
+): PersonPowerIndex[] {
+  // The line of business decides whether anyone is the owner at all: a
+  // nonprofit's chief executive is no owner, whatever the title says.
+  const conflicts = detectAssignments({ assignments, industry }).conflicts;
+  const ownerId = teamOwnerId(assignments, industry);
   const raws = new Map<string, number>();
   return assignments
     .map((person) => {

@@ -47,8 +47,13 @@ export function sodRecommendations(
   const mitigated = conflicts.filter((c) => c.dualReleaseMitigated).length;
   const ownerHeld = conflicts.filter((c) => c.ownerHeld).length;
   // With one owner, the owner is the reader outside the duties; partners
-  // each hold part of the business, so the reader is one who holds none.
-  const reader = overseer.soleOwnerId ? "the owner" : "an owner or partner who holds none of them";
+  // each hold part of the business, so the reader is one who holds none. A
+  // nonprofit has neither: its board treasurer reads.
+  const reader = !overseer.hasOwner
+    ? "the board treasurer"
+    : overseer.soleOwnerId
+      ? "the owner"
+      : "an owner or partner who holds none of them";
 
   const recommendations: string[] = [];
   if (critical > 0) {
@@ -83,6 +88,10 @@ export function sodRecommendations(
   if (openOf("rule-vendor-create-pay")) {
     recommendations.push(
       `Turn on dual release for electronic payments above the amount you set, and have ${reader} sign off on every new supplier.`,
+    );
+  } else if (openOf("rule-vendor-create-invoice")) {
+    recommendations.push(
+      `Have ${reader} approve every new supplier before anyone enters a bill from it, and read the list of suppliers added each month.`,
     );
   }
   if (openOf("rule-card-review", "rule-card-approve")) {

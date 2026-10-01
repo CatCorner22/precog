@@ -1,6 +1,7 @@
 import { resolveTemplate } from "../active-template";
 import { industryMeta } from "../industry";
 import { buildProcessMapGraph } from "../process-graph";
+import { residualScope } from "../scoring/scope";
 import { computeMapHealth } from "../process-health";
 import { validateProcessMap } from "../process-validation";
 import type { PracticeProfile } from "../practice-profile";
@@ -16,7 +17,7 @@ export function buildSharePayload(
 ): SharedMapPayload {
   const tpl = resolveTemplate(profile);
   const meta = industryMeta(profile.industry);
-  const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
+  const { snapshots } = buildProcessMapGraph(tpl, profile.staff, {}, residualScope(profile));
   const issues = validateProcessMap(
     tpl.processes,
     tpl.people,

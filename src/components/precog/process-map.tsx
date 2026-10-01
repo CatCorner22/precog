@@ -33,7 +33,9 @@ import {
   graphNodeIdForPriority,
   priorityKeyForNode,
   type ProcessMapSnapshot,
+  processMapContext,
 } from "@/lib/precog/process-graph";
+import { residualScope } from "@/lib/precog/scoring/scope";
 import { validateProcessMap } from "@/lib/precog/process-validation";
 import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
 import { layoutProcessMap, stageLanes } from "@/lib/precog/process-layout";
@@ -169,7 +171,20 @@ export function ProcessMap({
 
   // Every card is built; the layer toggles only hide cards (visibleNodes), so
   // a toggle never rebuilds or re-scores the map.
-  const graph = useMemo(() => buildProcessMapGraph(tpl, profile.staff), [tpl, profile.staff]);
+  // Scoped as the Residual page scopes it; not the whole profile, so moving a card does not re-score the map.
+  const scope = useMemo(
+    () =>
+      residualScope({
+        decisions: profile.decisions,
+        industry: profile.industry,
+        riskVariables: profile.riskVariables,
+      }),
+    [profile.decisions, profile.industry, profile.riskVariables],
+  );
+  const graph = useMemo(
+    () => buildProcessMapGraph(tpl, profile.staff, {}, scope),
+    [tpl, profile.staff, scope],
+  );
   // Heat, hot counts and ranks describe only processes the owner has worked
   // on: nothing while the map is not assessed, and never a starter process
   // the owner has not touched yet.
@@ -616,8 +631,10 @@ export function ProcessMap({
   // Scored once per selection or map change, not on every drag frame.
   const snapshot: ProcessMapSnapshot | null = useMemo(() => {
     const shown = shownProcess(processes, processId);
-    return shown ? enrichProcess(tpl, shown, profile.staff) : null;
-  }, [tpl, processes, processId, profile.staff]);
+    return shown
+      ? enrichProcess(tpl, shown, profile.staff, processMapContext(tpl, profile.staff, scope))
+      : null;
+  }, [tpl, processes, processId, profile.staff, scope]);
 
   const onNodeClick = useCallback(
     (_: unknown, node: ProcessFlowNode) => selectNode(node.id),

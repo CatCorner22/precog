@@ -7,7 +7,12 @@
 import { findKnowledgeRisks } from "./engine";
 import { HEAT_BANDS } from "./scoring/bands";
 import type { IndustryTemplate } from "./templates";
-import { portfolioSummary, type ResidualRiskScore } from "./scoring/residual-engine";
+import {
+  portfolioSummary,
+  type ResidualRiskScore,
+  type ResidualScope,
+} from "./scoring/residual-engine";
+import { DEFAULT_WEIGHTS } from "./scoring/weights";
 import type { KnowledgeRisk, StaffComposition } from "./types";
 import type { ProcessIdea, ProcessNode, ProcessRisk, ProcessWaste } from "./types";
 
@@ -146,10 +151,18 @@ interface ProcessMapContext {
   residualRows: ResidualRiskScore[];
 }
 
-function processMapContext(tpl: IndustryTemplate, staff?: StaffComposition): ProcessMapContext {
+/**
+ * Pass the profile's `residualScope` so the map's residual rows are the
+ * Residual page's: the scenarios the owner confirmed, priced at their settings.
+ */
+export function processMapContext(
+  tpl: IndustryTemplate,
+  staff?: StaffComposition,
+  scope: ResidualScope = {},
+): ProcessMapContext {
   return {
     knowledgeRisks: findKnowledgeRisks(tpl),
-    residualRows: portfolioSummary(tpl, staff).all,
+    residualRows: portfolioSummary(tpl, staff, DEFAULT_WEIGHTS, scope).all,
   };
 }
 
@@ -250,6 +263,7 @@ export function buildProcessMapGraph(
     showWaste?: boolean;
     showKnowledge?: boolean;
   } = {},
+  scope: ResidualScope = {},
 ): { nodes: MapGraphNode[]; edges: MapGraphEdge[]; snapshots: ProcessMapSnapshot[] } {
   const showRisks = opts.showRisks ?? true;
   const showIdeas = opts.showIdeas ?? true;
@@ -257,7 +271,7 @@ export function buildProcessMapGraph(
   const showKnowledge = opts.showKnowledge ?? true;
 
   const { processes, knowledge, relations } = tpl;
-  const context = processMapContext(tpl, staff);
+  const context = processMapContext(tpl, staff, scope);
   const snapshots = processes.map((p) => enrichProcess(tpl, p, staff, context));
   const nodes: MapGraphNode[] = [];
   const edges: MapGraphEdge[] = [];

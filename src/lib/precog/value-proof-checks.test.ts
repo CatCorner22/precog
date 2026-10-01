@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyVerifiedAnnualHours, DEFAULT_VALUE_CASE } from "./value-case";
-import type { ValueEvidence } from "./value-evidence";
+import { summarizeValueEvidence, type ValueEvidence } from "./value-evidence";
 import {
   evidenceChecklist,
   hoursCheck,
@@ -57,6 +57,15 @@ describe("recoveryCheck", () => {
   it("offers the verified total when verified recoveries differ", () => {
     expect(recoveryCheck(2400, 5000)).toEqual({ kind: "differs" });
     expect(recoveryCheck(5000, 5000)).toEqual({ kind: "match" });
+  });
+
+  it("matches verified items that add up to the typed total to the cent", () => {
+    const items = [
+      { ...evidence("recovery"), id: "r1", amount: 100.1 },
+      { ...evidence("recovery"), id: "r2", amount: 200.2 },
+    ];
+    const { recoveries } = summarizeValueEvidence(items, AS_OF);
+    expect(recoveryCheck(recoveries, 300.3)).toEqual({ kind: "match" });
   });
 });
 

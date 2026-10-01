@@ -213,7 +213,11 @@ const DEFAULT_DUAL_RELEASE_RULES: DualReleaseRule[] = [
     requireDistinctPeople: true,
     firstApproverRoles: ["Office Manager", "Billing Specialist"],
     secondApproverRoles: ["Owner / Dentist"],
-    mitigatesRuleIds: ["rule-vendor-create-approve", "rule-vendor-create-pay"],
+    mitigatesRuleIds: [
+      "rule-vendor-create-approve",
+      "rule-vendor-create-pay",
+      "rule-vendor-create-invoice",
+    ],
     processIds: ["proc-ap"],
     description: "Owner signs every new vendor before first payment.",
   },

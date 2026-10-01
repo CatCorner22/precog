@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EntitlementId } from "./conflict-rules";
-import type { RoleAssignment } from "./detect";
+import { detectAssignments, type RoleAssignment } from "./detect";
 import { calculatePowerIndex } from "./power-index";
 
 const seat = (personId: string, role: string, entitlements: EntitlementId[]): RoleAssignment => ({
@@ -42,6 +42,29 @@ describe("calculatePowerIndex", () => {
       seat("b", "Partner", ["approve_payroll"]),
     ]);
     expect(index.find((p) => p.personId === "a")!.riskWeight).toBeGreaterThan(0);
+  });
+
+  it("treats a nonprofit's chief executive as no owner, as the duty-conflict screen does", () => {
+    const team = [
+      seat("pat", "President & CEO", [
+        "sign_checks",
+        "bank_reconcile",
+        "approve_invoices",
+        "approve_payroll",
+        "approve_vendor",
+      ]),
+      seat("bo", "Bookkeeper", ["enter_invoices", "post_payments"]),
+    ];
+    const index = calculatePowerIndex(team, "nonprofit");
+    const pat = index.find((p) => p.personId === "pat")!;
+    expect(pat.riskWeight).toBeGreaterThan(0);
+    expect(pat.conflictCount).toBe(
+      detectAssignments({ assignments: team, industry: "nonprofit" }).conflicts.filter(
+        (c) => c.personId === "pat",
+      ).length,
+    );
+    expect(pat.conflictCount).toBeGreaterThan(0);
+    expect(index[0].personId).toBe("pat");
   });
 
   it("ranks two people who both show 100 by the full value, not by name", () => {

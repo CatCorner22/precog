@@ -15,6 +15,7 @@ import { CONFLICT_RULES } from "./sod/conflict-rules";
 import { withLiveThreshold } from "./controls/dual-release-wording";
 import { formatUsd } from "../utils";
 import { count, joinWithAnd } from "./text";
+import { clamp } from "./number";
 import { tabLabel } from "./navigation";
 
 export type CosoComponentId =
@@ -122,17 +123,18 @@ export function assessCoso(
     72 - (staff.segregationScore < 50 ? 12 : 0) - (unaddressedGaps.length > 2 ? 10 : 0),
   );
 
-  const riskAssessmentScore = Math.max(
-    20,
-    78 - spofs.length * 8 - (topScenario && topScenario.result.timelineDays.p50 < 60 ? 8 : 0),
-  );
+  // No penalty for a short time until found: a detective control shortens
+  // it, and turning one on must never lower a component.
+  const riskAssessmentScore = Math.max(20, 78 - spofs.length * 8);
 
-  const controlActivitiesScore = Math.max(
-    15,
+  // On the same 0 to 100 scale as every other component.
+  const controlActivitiesScore = clamp(
     staff.segregationScore -
       (staff.dualControlPayments ? 0 : 12) -
       (staff.independentBankRec ? 0 : 10) +
       (sodGaps.length === 0 ? 15 : 0),
+    15,
+    100,
   );
 
   const infoCommScore = Math.max(
@@ -144,7 +146,9 @@ export function assessCoso(
     20,
     55 +
       (staff.independentBankRec ? 15 : 0) +
-      (residualAccepted.length > 0 && unaddressedGaps.length === 0 ? 10 : 0) -
+      // Every duty conflict answered, whether accepted or closed: closing
+      // the last one must not score below accepting it.
+      (unaddressedGaps.length === 0 ? 10 : 0) -
       unaddressedGaps.length * 6,
   );
 
@@ -194,11 +198,13 @@ export function assessCoso(
         {
           number: 5,
           name: "Accountability",
-          status: residualAccepted.length > 0 ? "adequate" : "weak",
+          status: residualAccepted.length > 0 || sodGaps.length === 0 ? "adequate" : "weak",
           note:
-            residualAccepted.length > 0
-              ? "The business has recorded a residual-risk decision on at least one duty conflict."
-              : "The business has not recorded a residual-risk decision on any duty conflict.",
+            sodGaps.length === 0
+              ? "No open duty conflict needs a residual-risk decision."
+              : residualAccepted.length > 0
+                ? "The business has recorded a residual-risk decision on at least one duty conflict."
+                : "The business has not recorded a residual-risk decision on any duty conflict.",
         },
       ],
       findings:

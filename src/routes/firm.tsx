@@ -15,6 +15,7 @@ import { usePractice } from "@/lib/precog/practice-context";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { advanceEngagement, isOwnTeam, pilotMetrics } from "@/lib/precog/firm/engagement";
+import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import type { FirmPlan } from "@/lib/precog/firm/pricing";
 import {
   getFirm,
@@ -92,6 +93,7 @@ function FirmPage() {
     return pilotMetrics({
       engagement: profile.engagement,
       conflicts,
+      partialCoverage: partialDualReleaseCoverage(profile.dualRelease, conflicts),
       decisions: profile.decisions,
       industry: profile.industry,
     });

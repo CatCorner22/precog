@@ -2,6 +2,8 @@ import { getIndustryTemplate, type IndustryTemplate } from "../templates";
 import { industryMeta, type IndustryId } from "../industry";
 import type { ScenarioTemplate } from "../types";
 import { firstName } from "../text";
+import type { RiskVariableState } from "./dynamic-variables";
+import type { ResidualScope } from "./residual-engine";
 
 /**
  * What the scores may count for this business.
@@ -47,6 +49,23 @@ export function confirmedScenarioIds(
     ids.add(d.linkedId);
   }
   return ids;
+}
+
+/**
+ * What the residual register counts for a profile: the scenarios the owner
+ * confirmed and the risk settings they entered. Every surface that prints the
+ * average residual (Dashboard, early-warning checks, process map, Residual
+ * page, report) builds its scope here, so they all quote one figure.
+ */
+export function residualScope(profile: {
+  decisions?: readonly ScenarioDecision[] | null;
+  industry: IndustryId;
+  riskVariables?: RiskVariableState;
+}): ResidualScope {
+  return {
+    confirmedScenarioIds: confirmedScenarioIds(profile.decisions, profile.industry),
+    riskVariables: profile.riskVariables,
+  };
 }
 
 /**

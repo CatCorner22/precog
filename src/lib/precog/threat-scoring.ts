@@ -14,6 +14,7 @@ import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
 import type { IndustryTemplate } from "./templates";
 import { industryNoun } from "./industry";
 import { controlOptions, detectSodConflicts, sodDetectionOptions } from "./sod/detect";
+import { openFindings, partialDualReleaseCoverage } from "./sod/open-findings";
 import { portfolioSummary } from "./scoring/residual-engine";
 import { DEFAULT_WEIGHTS } from "./scoring/weights";
 import { registerAssessed } from "./continuity/register-state";
@@ -104,10 +105,12 @@ export function buildThreatAssessment(input: {
     { ...DEFAULT_RISK_VARIABLES, ...(riskVariables ?? {}) },
     isOwnBusiness(tpl),
   );
-  const leading = scoreLeadingIndicators(tpl, staff, {
-    ...DEFAULT_RISK_VARIABLES,
-    ...(riskVariables ?? {}),
-  });
+  const leading = scoreLeadingIndicators(
+    tpl,
+    staff,
+    { ...DEFAULT_RISK_VARIABLES, ...(riskVariables ?? {}) },
+    confirmedScenarioIds,
+  );
   // One basis for every loss figure in the deck: the ranked scenario's
   // retained loss under the owner's settings.
   const rankedById = new Map(ranked.map((row) => [row.scenario.id, row]));
@@ -155,11 +158,14 @@ export function buildThreatAssessment(input: {
     });
   }
 
-  // An owner's own pair is error and tax exposure, not a theft target, and
-  // one card per gap: two people holding the same pair are one target.
-  const sodTargets = sod.conflicts
-    .filter((c) => !c.ownerHeld)
-    .filter((c, i, all) => all.findIndex((o) => o.ruleId === c.ruleId) === i);
+  // Open findings only, as Start here and the report count them: an owner's
+  // own pair is error and tax exposure, not a theft target, and a pair the
+  // owner accepted or dual release closes at every amount needs no card. One
+  // card per gap: two people holding the same pair are one target.
+  const sodTargets = openFindings(
+    sod.conflicts,
+    dualRelease ? partialDualReleaseCoverage(dualRelease, sod.conflicts) : new Map(),
+  ).filter((c, i, all) => all.findIndex((o) => o.ruleId === c.ruleId) === i);
   for (const c of sodTargets.slice(0, 4)) {
     const heat =
       SOD_HEAT[c.severity === "critical" || c.severity === "high" ? c.severity : "other"];

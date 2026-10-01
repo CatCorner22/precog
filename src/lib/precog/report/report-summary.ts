@@ -24,7 +24,8 @@ interface ContinuityFollowThrough {
 
 /** Figures the executive summary is written from; all come from the report model. */
 interface SummaryInput {
-  conflicts: readonly DetectedConflict[];
+  /** The open findings, as sod/open-findings counts them for the rest of the report. */
+  openConflicts: readonly DetectedConflict[];
   firstStep: string | null;
   registerReady: boolean;
   coverageIndex: number;
@@ -49,9 +50,7 @@ export const REPORT_CAVEATS =
  */
 export function executiveSummary(input: SummaryInput): string[] {
   const lines: string[] = [];
-  const open = input.conflicts.filter(
-    (c) => !c.ownerHeld && !c.residualRiskAccepted && !c.dualReleaseMitigated,
-  );
+  const open = input.openConflicts;
   if (open.length === 0) {
     lines.push("No open duty conflicts: no one person holds two conflicting duties.");
   } else {
@@ -60,7 +59,7 @@ export function executiveSummary(input: SummaryInput): string[] {
     lines.push(
       `${count(open.length, "open duty conflict")}${critical > 0 ? `, ${critical} of them critical,` : ""} held by ${count(people, "person", "people")}.`,
     );
-    const headline = concentrationHeadline(input.conflicts);
+    const headline = concentrationHeadline(open);
     if (headline) {
       lines.push(
         `One person holds ${headline.gaps} of the ${headline.totalGaps} open gaps; moving one duty, ${midSentence(headline.dutyLabel)}, to someone who holds none of the others closes ${headline.closes} of them.`,

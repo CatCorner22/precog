@@ -4,6 +4,9 @@ import { processNode } from "@/test/fixtures";
 import { buildProcessMapGraph } from "./process-graph";
 import { computeMapHealth, integrityHint } from "./process-health";
 import { portfolioSummary } from "./scoring/residual-engine";
+import { DEFAULT_RISK_VARIABLES } from "./scoring/dynamic-variables";
+import { DEFAULT_WEIGHTS } from "./scoring/weights";
+import { resolveTemplate } from "./active-template";
 import { validateProcessMap } from "./process-validation";
 import type { Person } from "./types";
 
@@ -94,6 +97,39 @@ describe("a process's residual", () => {
     const { snapshots } = buildProcessMapGraph(tpl, tpl.staffComposition);
     const ap = snapshots.find((s) => s.process.controlIds.includes("c-sod-ap"))!;
     expect(ap.residualScore).toBeGreaterThanOrEqual(rows.get("ctrl-c-sod-ap")!);
+  });
+
+  it("reads the Residual page's rows when given the profile's scope", () => {
+    // An owner's own team: a starter scenario counts once confirmed.
+    const tpl = resolveTemplate({ industry: "dental", customPeople: people });
+    const scope = {
+      confirmedScenarioIds: new Set(tpl.scenarios.map((s) => s.id)),
+      riskVariables: {
+        ...DEFAULT_RISK_VARIABLES,
+        dailyCashExposure: 7500,
+        hasSecurityCameras: true,
+        deductible: 25000,
+      },
+    };
+    const rows = new Map(
+      portfolioSummary(tpl, tpl.staffComposition, DEFAULT_WEIGHTS, scope).all.map((r) => [
+        r.id,
+        r.residual,
+      ]),
+    );
+    const scoped = buildProcessMapGraph(tpl, tpl.staffComposition, {}, scope).snapshots;
+    const unscoped = buildProcessMapGraph(tpl, tpl.staffComposition).snapshots;
+    for (const snap of scoped) {
+      const linked = [
+        ...snap.process.controlIds.map((id) => `ctrl-${id}`),
+        ...snap.knowledgeItems.map((k) => `know-${k.id}`),
+        ...snap.linkedScenarios.map((s) => `scen-${s.id}`),
+      ]
+        .map((id) => rows.get(id))
+        .filter((r): r is number => r !== undefined);
+      expect(snap.residualScore).toBe(linked.length ? Math.max(...linked) : null);
+    }
+    expect(scoped.map((s) => s.residualScore)).not.toEqual(unscoped.map((s) => s.residualScore));
   });
 });
 

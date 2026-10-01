@@ -89,7 +89,9 @@ export function summarizeValueEvidence(
   return {
     total: items.length,
     verified: verified.length,
-    recoveries: sum("recovery"),
+    // Dollars to the cent, so $100.10 and $200.20 add up to the $300.30 an
+    // owner types, not to a float a hair below it.
+    recoveries: Math.round(sum("recovery") * 100) / 100,
     hours: sum("time"),
     unsourced: items.filter((item) => !item.source).length,
     stale: items.filter((item) => !item.observedAt || item.observedAt < cutoffDate).length,

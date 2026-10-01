@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CheckCircle2, CircleAlert, ListChecks } from "lucide-react";
 import { buildWeeklyActions } from "@/lib/precog/weekly-actions/build";
 import { buildProcessMapGraph } from "@/lib/precog/process-graph";
+import { residualScope } from "@/lib/precog/scoring/scope";
 import { useToday } from "@/lib/use-today";
 import { localDateKey } from "@/lib/precog/dates";
 import { lossPhrase } from "@/lib/precog/evidence";
@@ -33,7 +34,16 @@ export function WeeklyActionPlan({
     [industry, customPeople, customProcesses],
   );
   const actions = useMemo(() => {
-    const { snapshots } = buildProcessMapGraph(template, profile.staff);
+    const { snapshots } = buildProcessMapGraph(
+      template,
+      profile.staff,
+      {},
+      residualScope({
+        decisions: profile.decisions,
+        industry,
+        riskVariables: profile.riskVariables,
+      }),
+    );
     return buildWeeklyActions({
       tpl: template,
       staff: profile.staff,
@@ -55,6 +65,8 @@ export function WeeklyActionPlan({
     profile.decisions,
     profile.plannedAbsences,
     profile.procedures,
+    profile.riskVariables,
+    industry,
     today,
   ]);
 

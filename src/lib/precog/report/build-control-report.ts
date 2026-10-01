@@ -3,7 +3,7 @@ import type { PracticeProfile } from "../practice-profile";
 import { buildThreatAssessment } from "../threat-scoring";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { DEFAULT_WEIGHTS } from "../scoring/weights";
-import { confirmedScenarioIds, isOwnBusiness } from "../scoring/scope";
+import { confirmedScenarioIds, isOwnBusiness, residualScope } from "../scoring/scope";
 import { insuranceFigureNote } from "../scoring/dynamic-variables";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { coverageReport } from "../continuity/coverage";
@@ -96,7 +96,7 @@ export function buildControlReportModel({
     dualRelease: profile.dualRelease,
   });
   const policyNote = insuranceFigureNote(profile.riskVariables, isOwnBusiness(tpl));
-  const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
+  const { snapshots } = buildProcessMapGraph(tpl, profile.staff, {}, residualScope(profile));
   const actions = buildWeeklyActions({
     tpl,
     staff: profile.staff,
@@ -154,7 +154,7 @@ export function buildControlReportModel({
       : null;
   const registerReady = registerAssessed(tpl);
   const summary = executiveSummary({
-    conflicts: sod.conflicts,
+    openConflicts: open,
     firstStep: steps[0]?.control.label ?? null,
     registerReady,
     coverageIndex: continuity.coverageIndex,

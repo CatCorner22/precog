@@ -120,7 +120,7 @@ export function usePowerMapBuilder() {
     () => diffAssignments(baseline, assignments),
     [assignments, baseline],
   );
-  const powerIndex = useMemo(() => calculatePowerIndex(assignments), [assignments]);
+  const powerIndex = useMemo(() => calculatePowerIndex(assignments, tpl.id), [assignments, tpl.id]);
   const absenceImpact = useMemo(
     () => (absentPersonId ? analyzeAbsenceImpact(assignments, absentPersonId) : undefined),
     [absentPersonId, assignments],
