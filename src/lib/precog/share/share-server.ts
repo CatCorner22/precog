@@ -7,6 +7,7 @@ import { DAY_MS } from "../dates";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { SlidingWindowLimiter } from "../llm/rate-limit";
 import { parseLoadShareInput } from "../public-inputs";
+import { resolveBusinessOwner } from "../business-store";
 import { checkPasscodeGuess, hashPasscode, purgeOldPasscodeAttempts } from "./share-attempts";
 import { redactSharePayload } from "./share-payload";
 import { parseCreateShareInput, type SharedMapPayload } from "./share-schema";
@@ -15,7 +16,9 @@ import {
   listMapShareSummaries,
   purgeOldShareViews,
   recordShareView,
+  revokeShare,
   ShareLimitError,
+  shareStillReachable,
 } from "./share-store";
 
 export type { SharedMapPayload };
@@ -24,6 +27,7 @@ export const createMapShare = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
     (input: {
+      businessId: string;
       payload: SharedMapPayload;
       expiresInDays?: number;
       redacted?: boolean;
@@ -33,6 +37,13 @@ export const createMapShare = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { randomBytes } = await import("node:crypto");
     const sql = await getSql();
+    // The link records its business, so deleting the business or removing
+    // the member who made it revokes the link. A business with no row yet (a
+    // new one whose first save is still on its way) is the caller's own:
+    // nothing stored can be reached through it, and deleting it later still
+    // revokes the link.
+    const businessOwnerId =
+      (await resolveBusinessOwner(sql, context.userId, data.businessId)) ?? context.userId;
     const token = randomHex(18);
     const expires = new Date(Date.now() + data.expiresInDays * DAY_MS).toISOString();
     // The browser redacts with the whole team in hand; this pass makes sure a
@@ -52,6 +63,8 @@ export const createMapShare = createServerFn({ method: "POST" })
       redacted: data.redacted,
       passcodeSalt,
       passcodeHash,
+      businessOwnerId,
+      businessId: data.businessId,
     });
     if (!stored) throw new ShareLimitError();
     return { token, expiresAt: expires, hasPasscode: passcodeHash !== null };
@@ -76,10 +89,8 @@ export const revokeMapShare = createServerFn({ method: "POST" })
   })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    await sql`
-      update map_shares set revoked_at = now()
-      where token = ${data.token} and user_id = ${context.userId}
-    `;
+    // The maker, or the firm owner for a link to one of the firm's clients.
+    await revokeShare(sql, context.userId, data.token);
     return { ok: true as const };
   });
 
@@ -101,7 +112,8 @@ export const loadMapShare = createServerFn({ method: "POST" })
     `;
     const row = rows[0];
     if (!row) return { found: false as const, reason: "missing" as const };
-    if (row.revoked_at) return { found: false as const, reason: "revoked" as const };
+    if (row.revoked_at || !(await shareStillReachable(sql, row.token)))
+      return { found: false as const, reason: "revoked" as const };
     const expiresAt = toIsoTimestampOrNull(row.expires_at);
     if (expiresAt && new Date(expiresAt).getTime() < Date.now())
       return { found: false as const, reason: "expired" as const };

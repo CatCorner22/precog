@@ -93,6 +93,6 @@ const READ_ONLY_ACTIONS: PracticeActions = {
   deleteMapVersion: noop,
   restoreMapVersion: noop,
   switchBusiness: async () => ({ ok: false, reason: "This view is read-only" }),
-  createBusiness: () => ({ ok: false, reason: "This view is read-only" }),
+  createBusiness: async () => ({ ok: false, reason: "This view is read-only" }),
   deleteBusiness: asyncNoop,
 };

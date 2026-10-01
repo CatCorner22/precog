@@ -543,8 +543,8 @@ function caseEvidence({ sodReport }: ToolInputs): ToolOutput {
   };
 }
 
-function leadingIndicators({ tpl, staff, riskVars }: ToolInputs): ToolOutput {
-  const report = scoreLeadingIndicators(tpl, staff, riskVars);
+function leadingIndicators({ tpl, staff, riskVars, scope }: ToolInputs): ToolOutput {
+  const report = scoreLeadingIndicators(tpl, staff, riskVars, scope.confirmedScenarioIds);
   const breached = report.indicators.filter((i) => i.status === "breach").length;
   const watch = report.indicators.filter((i) => i.status === "watch").length;
   return {

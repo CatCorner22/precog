@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { RequestError } from "@/lib/request-errors";
-import { newProcedure, newStep, verifyProcedure, withProcedureEdit } from "./lifecycle";
+import {
+  newProcedure,
+  newStep,
+  procedureStatus,
+  verificationsAsHeld,
+  verifyProcedure,
+  withoutOthersVerifications,
+  withProcedureEdit,
+} from "./lifecycle";
 import type { Procedure } from "./types";
 import {
   assertVerificationsAllowed,
@@ -147,6 +155,36 @@ describe("who may verify, checked when the business is saved", () => {
     );
   });
 
+  it("refuses a preparer who carries a verification to a later review date, but not a sooner one", () => {
+    const verified = {
+      ...verifyProcedure(written(), "owner", "2026-01-02", ada),
+      reviewEveryDays: 30,
+    };
+    const longer = { ...verified, reviewEveryDays: 365 };
+    expect(save(profileWith(verified), profileWith(longer), "preparer", "user-pat")).toBe(
+      PREPARER_CANNOT_VERIFY,
+    );
+    const shorter = { ...verified, reviewEveryDays: 14 };
+    expect(save(profileWith(verified), profileWith(shorter), "preparer", "user-pat")).toBeNull();
+  });
+
+  it("asks for a new check when an edit lengthens the review interval of a verified procedure", () => {
+    const verified = {
+      ...verifyProcedure(written(), "owner", "2026-01-02", ada),
+      reviewEveryDays: 30,
+    };
+    expect(procedureStatus(verified, "2026-06-01")).toBe("stale");
+    const longer = withProcedureEdit(verified, { ...verified, reviewEveryDays: 365 }, "2026-06-01");
+    expect(longer.verifiedAt).toBeUndefined();
+    expect(longer.lastVerifiedAt).toBe("2026-01-02");
+    expect(longer.version).toBe(verified.version);
+    expect(procedureStatus(longer, "2026-06-01")).not.toBe("verified");
+    // The edit the app saves carries no verification for the server to refuse.
+    expect(save(profileWith(verified), profileWith(longer), "preparer", "user-pat")).toBeNull();
+    const shorter = withProcedureEdit(verified, { ...verified, reviewEveryDays: 14 }, "2026-06-01");
+    expect(shorter.verifiedAt).toBe("2026-01-02");
+  });
+
   it("checks the recorded-by name: a preparer cannot rename it, and a stamp needs the saver's own name", () => {
     const verified = verifyProcedure(written(), "owner", TODAY, ada);
     const renamed = { ...verified, verifiedByAccountName: "Olga Owner, CPA" };
@@ -209,5 +247,52 @@ describe("the writing standards on the server", () => {
       ada,
     );
     expect(save(profileWith(loose), profileWith(loose), null)).toBeNull();
+  });
+});
+
+describe("bringing back a version that carries an older verification", () => {
+  const rex = { id: "user-rex", name: "Rex Reviewer" };
+  const verifiedByRex = verifyProcedure(written(), "owner", "2026-09-10", rex);
+  const editedSince = withProcedureEdit(
+    verifiedByRex,
+    { ...verifiedByRex, steps: [newStep("Count the drawer twice.")] },
+    TODAY,
+  );
+
+  it("a history restore saves: the old stamp goes and is kept as the last verification", () => {
+    expect(save(profileWith(editedSince), profileWith(verifiedByRex), "owner")).toBe(
+      VERIFICATION_ACCOUNT_MISMATCH,
+    );
+    const [restored] = verificationsAsHeld([verifiedByRex], [editedSince]);
+    expect(restored.verifiedAt).toBeUndefined();
+    expect(restored.lastVerifiedAt).toBe("2026-09-10");
+    expect(restored.steps[0].text).toBe("Count the drawer.");
+    expect(save(profileWith(editedSince), profileWith(restored), "owner")).toBeNull();
+    expect(save(profileWith(editedSince), profileWith(restored), "preparer")).toBeNull();
+  });
+
+  it("a restore keeps the verification the account holds for the same steps", () => {
+    const [restored] = verificationsAsHeld([verifiedByRex], [verifiedByRex]);
+    expect(restored.verifiedByAccountId).toBe("user-rex");
+    expect(save(profileWith(verifiedByRex), profileWith(restored), "preparer")).toBeNull();
+  });
+
+  it("a restore with a longer review interval than the one held drops the verification", () => {
+    const shortened = { ...verifiedByRex, reviewEveryDays: 90 };
+    const older = { ...verifiedByRex, reviewEveryDays: 180 };
+    const [restored] = verificationsAsHeld([older], [shortened]);
+    expect(restored.verifiedAt).toBeUndefined();
+    expect(save(profileWith(shortened), profileWith(restored), "preparer")).toBeNull();
+    const [kept] = verificationsAsHeld([shortened], [older]);
+    expect(kept.verifiedByAccountId).toBe("user-rex");
+    expect(save(profileWith(older), profileWith(kept), "preparer")).toBeNull();
+  });
+
+  it("a copy kept as a new business saves without another account's verification", () => {
+    expect(save(null, profileWith(verifiedByRex), "owner")).toBe(VERIFICATION_ACCOUNT_MISMATCH);
+    const [copied] = withoutOthersVerifications([verifiedByRex], ada.id);
+    expect(save(null, profileWith(copied), "owner")).toBeNull();
+    const own = verifyProcedure(written(), "owner", "2026-09-10", ada);
+    expect(withoutOthersVerifications([own], ada.id)[0].verifiedByAccountId).toBe(ada.id);
   });
 });

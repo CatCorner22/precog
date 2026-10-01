@@ -4,6 +4,8 @@ import { RequestError } from "@/lib/request-errors";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
 import { businessLimitMessage, MAX_BUSINESSES_PER_ACCOUNT } from "./business-lifecycle";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
+import { revokeBusinessShares } from "./share/share-store";
+import { DELETED_RETENTION_DAYS } from "./business-retention";
 
 /**
  * Revision-checked write of one business row.
@@ -55,8 +57,6 @@ type BusinessSaveResult<TProfile = unknown> =
 
 /** Versions kept per business before the oldest are dropped. */
 const MAX_HISTORY_PER_BUSINESS = 200;
-/** Days a deleted business stays restorable before the purge job removes it. */
-const DELETED_RETENTION_DAYS = 30;
 
 /** A new business past the account's limit. Saves to existing ones always go through. */
 export class BusinessLimitError extends RequestError {
@@ -532,6 +532,8 @@ export async function deleteBusinessRow(
       on conflict (user_id, business_id) do nothing`;
     await tx`update businesses set deleted_at = now(), revision = revision + 1, updated_at = now()
       where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is null`;
+    // Its public share links stop working now, not when the row is purged.
+    await revokeBusinessShares(tx, ownerUserId, businessId);
     // Remove exact v2 pointers, including colleagues; legacy pointers only when ownership is known.
     await tx`delete from business_profiles where coalesce(profile->>'businessId', 'biz_default') = ${businessId}
       and (profile->>'ownerUserId' = ${ownerUserId}

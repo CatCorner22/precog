@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Sql } from "@/lib/db";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import {
@@ -11,7 +11,8 @@ import {
   verifyStripeSignature,
 } from "./stripe";
 import { applyBillingEvent } from "./webhook";
-import { loadBillingAccount } from "../firm/billing-store";
+import { createCheckoutSession } from "./stripe.server";
+import { checkoutRefusal, loadBillingAccount, type BillingAccount } from "../firm/billing-store";
 import { loadFirmFor, saveFirm } from "../firm/store";
 
 describe("stripe signatures", () => {
@@ -215,6 +216,178 @@ describe("applying events", () => {
     expect(await applyBillingEvent(db.sql, checkout)).toBe("applied");
     expect((await loadBillingAccount(db.sql, "owner"))?.subscriptionStatus).toBe("incomplete");
     expect((await loadFirmFor(db.sql, "owner"))?.plan).toBe("assessment");
+  });
+});
+
+describe("event order", () => {
+  let db: TestDb;
+  beforeAll(async () => {
+    db = await openTestDb();
+  }, 60_000);
+  afterAll(async () => {
+    await db.close();
+  });
+  beforeEach(async () => {
+    await db.clear("billing_events", "billing_accounts", "firm_members", "firms", '"user"');
+    await db.seedUser("owner");
+    await saveFirm(db.sql, "owner", "North", "assessment");
+  });
+
+  const subEvent = (id: string, type: string, sub: string, status: string, created: number) =>
+    parseStripeEvent(
+      JSON.stringify({
+        id,
+        type,
+        created,
+        data: { object: { id: sub, status, customer: "cus_1", metadata: { userId: "owner" } } },
+      }),
+    )!;
+
+  it("ignores a retried update that Stripe created before the cancellation", async () => {
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e1", "customer.subscription.created", "sub_1", "active", 100),
+    );
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e3", "customer.subscription.deleted", "sub_1", "canceled", 300),
+    );
+    expect((await loadFirmFor(db.sql, "owner"))?.plan).toBe("assessment");
+    // The update that failed earlier comes back after the cancellation.
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e2", "customer.subscription.updated", "sub_1", "active", 200),
+    );
+    expect((await loadBillingAccount(db.sql, "owner"))?.subscriptionStatus).toBe("canceled");
+    expect((await loadFirmFor(db.sql, "owner"))?.plan).toBe("assessment");
+  });
+
+  it("does not let a cancelled duplicate subscription end the one the firm pays for", async () => {
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e1", "customer.subscription.created", "sub_old", "active", 100),
+    );
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e2", "customer.subscription.deleted", "sub_old", "canceled", 150),
+    );
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e3", "customer.subscription.created", "sub_new", "active", 200),
+    );
+    // A late event for the old subscription, and then another duplicate being cancelled.
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e4", "customer.subscription.updated", "sub_old", "active", 120),
+    );
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e5", "customer.subscription.deleted", "sub_dup", "canceled", 400),
+    );
+    const account = await loadBillingAccount(db.sql, "owner");
+    expect(account).toMatchObject({ subscriptionId: "sub_new", subscriptionStatus: "active" });
+    expect((await loadFirmFor(db.sql, "owner"))?.plan).toBe("monthly");
+  });
+
+  it("applies a newer event for the same subscription and a new one after a cancellation", async () => {
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e1", "customer.subscription.created", "sub_1", "active", 100),
+    );
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e2", "customer.subscription.updated", "sub_1", "past_due", 200),
+    );
+    expect((await loadBillingAccount(db.sql, "owner"))?.subscriptionStatus).toBe("past_due");
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e3", "customer.subscription.deleted", "sub_1", "canceled", 300),
+    );
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e4", "customer.subscription.created", "sub_2", "active", 400),
+    );
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      subscriptionId: "sub_2",
+      subscriptionStatus: "active",
+    });
+  });
+});
+
+describe("starting checkout", () => {
+  const account = (over: Partial<BillingAccount>): BillingAccount => ({
+    stripeCustomerId: "cus_1",
+    subscriptionId: null,
+    subscriptionStatus: null,
+    assessmentPaidAt: null,
+    currentPeriodEnd: null,
+    updatedAt: "2026-10-01T00:00:00.000Z",
+    ...over,
+  });
+
+  it("refuses a second Firm plan or a second assessment payment", () => {
+    expect(checkoutRefusal(null, "monthly")).toBeNull();
+    expect(checkoutRefusal(account({ subscriptionStatus: "active" }), "monthly")).toMatch(
+      /already active/,
+    );
+    expect(checkoutRefusal(account({ subscriptionStatus: "past_due" }), "monthly")).not.toBeNull();
+    expect(checkoutRefusal(account({ subscriptionStatus: "canceled" }), "monthly")).toBeNull();
+    expect(checkoutRefusal(account({ subscriptionStatus: "active" }), "assessment")).toBeNull();
+    expect(
+      checkoutRefusal(account({ assessmentPaidAt: "2026-09-01T00:00:00.000Z" }), "assessment"),
+    ).toMatch(/already paid/);
+  });
+
+  describe("the Stripe request", () => {
+    const calls: { body: string; headers: Record<string, string> }[] = [];
+    beforeEach(() => {
+      calls.length = 0;
+      vi.stubEnv("STRIPE_SECRET_KEY", "sk_test");
+      vi.stubEnv("STRIPE_PRICE_ASSESSMENT", "price_a");
+      vi.stubEnv("STRIPE_PRICE_MONTHLY", "price_m");
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (_url: string, init: RequestInit) => {
+          calls.push({
+            body: String(init.body),
+            headers: init.headers as Record<string, string>,
+          });
+          return new Response(JSON.stringify({ url: "https://checkout.example/s" }));
+        }),
+      );
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    });
+
+    const input = {
+      userId: "owner",
+      email: "o@example.com",
+      customerId: null as string | null,
+      billingVersion: "v1" as string | null,
+      plan: "monthly" as const,
+      origin: "https://precog.example",
+    };
+
+    it("reuses the stored Stripe customer instead of the email", async () => {
+      await createCheckoutSession({ ...input, customerId: "cus_1" });
+      await createCheckoutSession(input);
+      expect(calls[0].body).toContain("customer=cus_1");
+      expect(calls[0].body).not.toContain("customer_email");
+      expect(calls[1].body).toContain("customer_email=o%40example.com");
+    });
+
+    it("sends the same idempotency key until the stored billing state moves", async () => {
+      await createCheckoutSession(input);
+      await createCheckoutSession(input);
+      await createCheckoutSession({ ...input, billingVersion: "v2" });
+      await createCheckoutSession({ ...input, plan: "assessment" });
+      const keys = calls.map((c) => c.headers["idempotency-key"]);
+      expect(keys[0]).toMatch(/^checkout-[0-9a-f]{64}$/);
+      expect(keys[1]).toBe(keys[0]);
+      expect(new Set(keys).size).toBe(3);
+    });
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { latestReview, monthlyReviewTasks, recordReview } from "./reviews";
+import { latestReview, monthlyReviewTasks, recordReview, reviewResultLine } from "./reviews";
 import type { Person } from "../types";
 import { getIndustryTemplate } from "../templates";
 import { INDUSTRIES } from "../industry";
@@ -132,5 +132,24 @@ describe("monthly review", () => {
     expect(second).toHaveLength(2);
     expect(latestReview(second, "new_vendors", "2026-09")?.result).toBe("done");
     expect(second[1].result).toBe("exception");
+  });
+});
+
+describe("reviewResultLine", () => {
+  it("prints the result as the screen names it, with who reported it and the note", () => {
+    expect(
+      reviewResultLine({
+        result: "exception",
+        ownerName: "Dana",
+        notes: "Check 1043 payable to cash",
+      }),
+    ).toBe("Exception — Dana: Check 1043 payable to cash");
+  });
+
+  it("leaves out an empty name or note", () => {
+    expect(reviewResultLine({ result: "done", ownerName: "", notes: "" })).toBe("Done");
+    expect(reviewResultLine({ result: "skipped", ownerName: "Dana", notes: " " })).toBe(
+      "Skipped — Dana",
+    );
   });
 });

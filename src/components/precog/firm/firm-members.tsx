@@ -97,7 +97,7 @@ export function FirmMembers({
   async function remove(userId: string, name: string) {
     if (
       !window.confirm(
-        `Remove ${name} from ${firm.name}? They lose access to the firm's clients, and the businesses they own leave the firm with them.`,
+        `Remove ${name} from ${firm.name}? They lose access to the firm's clients, their share links to those clients stop working, and the businesses they own leave the firm with them.`,
       )
     )
       return;
@@ -112,7 +112,7 @@ export function FirmMembers({
   async function leave() {
     if (
       !window.confirm(
-        `Leave ${firm.name}? You lose access to the firm's clients, and the businesses you own leave the firm with you.`,
+        `Leave ${firm.name}? You lose access to the firm's clients, your share links to those clients stop working, and the businesses you own leave the firm with you.`,
       )
     )
       return;

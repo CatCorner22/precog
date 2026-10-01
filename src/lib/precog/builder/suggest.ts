@@ -16,7 +16,12 @@ export interface SuggestionInput {
   ownerRoles: string[];
 }
 
-export type SuggestedRisk = Omit<ProcessRisk, "id">;
+/**
+ * A suggested risk. `ruleBased` marks a built-in rule's risk added to pad
+ * Grok's list, so the panel can say where it came from; it is not part of
+ * the risk saved to the register.
+ */
+export type SuggestedRisk = Omit<ProcessRisk, "id"> & { ruleBased?: true };
 export type SuggestedIdea = Omit<ProcessIdea, "id">;
 
 export interface SuggestionResult {
@@ -343,4 +348,22 @@ export function suggestLocally(input: SuggestionInput): SuggestionResult {
     controlIds: [...controlIds].slice(0, 3),
     rationale: `${matched} for a ${input.industryLabel.toLowerCase()} process.`,
   };
+}
+
+/**
+ * Grok's suggestions, with built-in rule risks added (marked `ruleBased`)
+ * until there are four, so the panel is never sparse. Grok's control choice
+ * stands as it is, an empty one included: the prompt allows none, and rule
+ * controls under Grok's name would misstate where they came from.
+ */
+export function padWithRules(ai: SuggestionResult, local: SuggestionResult): SuggestionResult {
+  const risks = [...ai.risks];
+  const seen = new Set(risks.map((r) => r.title.toLowerCase()));
+  for (const r of local.risks) {
+    if (risks.length >= 4) break;
+    if (seen.has(r.title.toLowerCase())) continue;
+    seen.add(r.title.toLowerCase());
+    risks.push({ ...r, ruleBased: true });
+  }
+  return { ...ai, risks };
 }

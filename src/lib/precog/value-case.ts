@@ -19,7 +19,7 @@ const MODELED_RANGE = { low: 0.5, high: 1.5 } as const;
 
 /** The sentence that says where Low and High come from, for the memo and the card. */
 export const MODELED_RANGE_NOTE =
-  "Low and High assume the control reduction is half, or one and a half times, the base figure (Precog's assumption).";
+  "Low and High assume the control reduction is half, or one and a half times, the base figure (Precog's assumption). High never exceeds the expected loss.";
 
 export type ValueCaseInputs = {
   reviewHoursBefore: number;
@@ -280,7 +280,8 @@ export function calculateValueCase(raw: ValueCaseInputs) {
       expectedLossBefore,
       low: modeledAvoidedLoss * MODELED_RANGE.low,
       base: modeledAvoidedLoss,
-      high: modeledAvoidedLoss * MODELED_RANGE.high,
+      // No control avoids more loss than was expected in the first place.
+      high: Math.min(expectedLossBefore, modeledAvoidedLoss * MODELED_RANGE.high),
     },
   };
 }
@@ -361,7 +362,7 @@ export function createValueCaseMemo(
     `- Annual exposure (${assumption("annualExposure")}): ${formatUsd(value.inputs.annualExposure)}`,
     `- Baseline event probability (${assumption("eventProbability")}): ${formatPct(value.inputs.eventProbability, 1)}`,
     `- Estimated control effectiveness (${assumption("controlEffectiveness")}): ${formatPct(value.inputs.controlEffectiveness, 1)}`,
-    `- Low / base / high: ${formatUsd(value.modeled.low)} / ${formatUsd(value.modeled.base)} / ${formatUsd(value.modeled.high)} (base ×${MODELED_RANGE.low} and ×${MODELED_RANGE.high}, Precog's assumption)`,
+    `- Low / base / high: ${formatUsd(value.modeled.low)} / ${formatUsd(value.modeled.base)} / ${formatUsd(value.modeled.high)} (base ×${MODELED_RANGE.low} and ×${MODELED_RANGE.high}, Precog's assumption${value.modeled.high < value.modeled.base * MODELED_RANGE.high ? "; High is capped at the expected loss" : ""})`,
     "",
     "> Modeled avoided loss is a decision scenario, not booked savings. Validate assumptions independently and report it separately from observed value.",
     "",

@@ -120,15 +120,18 @@ export function usePowerMapBuilder() {
     () => diffAssignments(baseline, assignments),
     [assignments, baseline],
   );
-  const powerIndex = useMemo(() => calculatePowerIndex(assignments), [assignments]);
+  const powerIndex = useMemo(() => calculatePowerIndex(assignments, tpl.id), [assignments, tpl.id]);
   const absenceImpact = useMemo(
     () => (absentPersonId ? analyzeAbsenceImpact(assignments, absentPersonId) : undefined),
     [absentPersonId, assignments],
   );
-  const selected = assignments.find((item) => item.personId === selectedId) ?? assignments[0];
+  const selected = shownAssignment(assignments, selectedId);
+  // The person on screen, which differs from `selectedId` once that person is
+  // gone (an undone hire, an import, a removal).
+  const shownId = selected?.personId ?? "";
   const selectedConflicts = useMemo(
-    () => report.conflicts.filter((item) => item.personId === selectedId),
-    [report.conflicts, selectedId],
+    () => report.conflicts.filter((item) => item.personId === shownId),
+    [report.conflicts, shownId],
   );
   const conflictEntitlements = useMemo(
     () => new Set(selectedConflicts.flatMap((item) => [item.entitlementA, item.entitlementB])),
@@ -328,7 +331,7 @@ export function usePowerMapBuilder() {
     profile,
     assignments,
     guidanceByDuty,
-    selectedId,
+    selectedId: shownId,
     setSelectedId,
     search,
     setSearch,
@@ -386,3 +389,15 @@ export type PowerMapBuilderModel = ReturnType<typeof usePowerMapBuilder>;
 
 /** The largest power-map file an import reads. */
 const MAX_IMPORT_BYTES = 256_000;
+
+/**
+ * The person the editor shows: the one picked, else the first. The picked id
+ * can name someone no longer on the map, and every figure beside the select
+ * (conflicts, held duties, the resolution planner) follows this person.
+ */
+export function shownAssignment(
+  assignments: readonly RoleAssignment[],
+  selectedId: string,
+): RoleAssignment | undefined {
+  return assignments.find((item) => item.personId === selectedId) ?? assignments[0];
+}

@@ -374,7 +374,9 @@ describe("get_planned_absences", () => {
         trainingLogged: false,
       }),
     ]);
-    expect(d.items[0].question).toContain("can they run it alone now?");
+    // No hand-off names the stand-in, so the question asks rather than asserts.
+    expect(d.items[0]).toMatchObject({ standInConfirmed: false });
+    expect(d.items[0].question).toContain(`Was it ${firstName(backup.name)}?`);
     expect(result.summary).toContain(`Debrief due: ${firstName(holder.name)}'s back`);
   });
 

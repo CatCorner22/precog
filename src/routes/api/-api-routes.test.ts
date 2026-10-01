@@ -7,6 +7,7 @@ import { Route as QboCallback } from "./integrations/qbo/callback";
 import { Route as Cron } from "./cron/digest";
 import { Route as StripeWebhook } from "./stripe/webhook";
 import { Route as ProcedureImage } from "./procedure-image";
+import { Route as OwnerEmail } from "./owner-email";
 
 // The leading "-" keeps this file out of the generated route tree.
 
@@ -194,6 +195,67 @@ describe("Stripe webhook", () => {
     const res = await deliver(payload, { "stripe-signature": `t=${t},v1=${v1}` });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ received: true });
+  });
+});
+
+describe("owner email links", () => {
+  const token = "cd".repeat(24);
+  const url = (action: string, t = token) =>
+    `https://app.example/api/owner-email?do=${action}&token=${t}`;
+  const state = async () =>
+    (
+      await db.current!.pg.query<{ confirmed: boolean; stopped: boolean }>(
+        `select owner_email_confirmed_at is not null as confirmed,
+          owner_email_unsubscribed_at is not null as stopped from engagement_marks`,
+      )
+    ).rows[0];
+
+  beforeEach(async () => {
+    const t = db.current!;
+    await t.clear("engagement_marks", "businesses", '"user"');
+    await t.seedUser("owner");
+    await t.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision)
+       values ('biz_1', 'owner', 'Riverside <Plumbing>', 'general', '{}'::jsonb, 1)`,
+    );
+    await t.pg.query(
+      `insert into engagement_marks (user_id, business_id, owner_email, owner_email_token)
+       values ('owner', 'biz_1', 'o@shop.test', $1)`,
+      [token],
+    );
+  });
+
+  it("shows a button on open and changes nothing until it is pressed", async () => {
+    const res = await handlers(OwnerEmail).GET({ request: new Request(url("confirm")) });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Riverside &lt;Plumbing&gt;");
+    expect(html).toContain('<form method="post">');
+    expect(await state()).toEqual({ confirmed: false, stopped: false });
+  });
+
+  it("confirms, then stops with a one-click POST", async () => {
+    const ok = await handlers(OwnerEmail).POST({
+      request: new Request(url("confirm"), { method: "POST" }),
+    });
+    expect(ok.status).toBe(200);
+    expect(await state()).toEqual({ confirmed: true, stopped: false });
+    const stop = await handlers(OwnerEmail).POST({
+      request: new Request(url("stop"), { method: "POST", body: "List-Unsubscribe=One-Click" }),
+    });
+    expect(stop.status).toBe(200);
+    expect(await state()).toEqual({ confirmed: true, stopped: true });
+  });
+
+  it("answers 404 for an unknown or malformed token", async () => {
+    for (const request of [
+      new Request(url("stop", "ef".repeat(24)), { method: "POST" }),
+      new Request(url("stop", "nope"), { method: "POST" }),
+      new Request(url("delete"), { method: "POST" }),
+    ]) {
+      expect((await handlers(OwnerEmail).POST({ request })).status).toBe(404);
+    }
+    expect(await state()).toEqual({ confirmed: false, stopped: false });
   });
 });
 

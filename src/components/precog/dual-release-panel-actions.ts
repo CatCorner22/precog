@@ -54,8 +54,17 @@ export function withMasterSwitch(policy: DualReleasePolicy, enabled: boolean): D
 }
 
 /**
+ * True when the form's end date is before its start date. Such an exception
+ * would never be in force on any day, and the date is more likely a typo
+ * than an intent, so the form asks for a fix instead of saving it.
+ */
+export function datesReversed(form: Pick<ExceptionForm, "from" | "to">): boolean {
+  return Boolean(form.from && form.to && form.to < form.from);
+}
+
+/**
  * The exception the form describes, or null while the label or the reason is
- * missing. `approvedByPersonId` is the business's sole owner when there is
+ * missing or the dates are reversed. `approvedByPersonId` is the business's sole owner when there is
  * one; with no single owner the field is left out rather than naming anyone.
  */
 export function exceptionFromForm(
@@ -64,7 +73,7 @@ export function exceptionFromForm(
 ): ThresholdException | null {
   const label = form.label.trim();
   const reason = form.reason.trim();
-  if (!label || !reason) return null;
+  if (!label || !reason || datesReversed(form)) return null;
   const setsThreshold = form.action === "raise_threshold" || form.action === "lower_threshold";
   const [amountMinUsd, amountMaxUsd] = amountBand(form.amountMin, form.amountMax);
   return {

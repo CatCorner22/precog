@@ -7,7 +7,7 @@ const seams = vi.hoisted(() => ({
   user: null as { id: string } | null,
   sameSite: vi.fn(),
   getSessionUser: vi.fn(),
-  withinDailyBudget: vi.fn(),
+  checkDailyBudget: vi.fn(),
   grokChat: vi.fn(),
 }));
 
@@ -28,7 +28,7 @@ vi.mock("@/lib/db", () => ({
     return Boolean(process.env.DATABASE_URL?.trim());
   },
 }));
-vi.mock("./daily-usage", () => ({ withinDailyBudget: seams.withinDailyBudget }));
+vi.mock("./daily-usage", () => ({ checkDailyBudget: seams.checkDailyBudget }));
 vi.mock("./grok-client.server", () => ({ grokChat: seams.grokChat }));
 
 /** A fresh module per test, so the in-memory limiters start empty. */
@@ -49,7 +49,7 @@ beforeEach(() => {
   seams.user = null;
   seams.sameSite.mockReset();
   seams.getSessionUser.mockReset().mockImplementation(async () => seams.user);
-  seams.withinDailyBudget.mockReset().mockResolvedValue(true);
+  seams.checkDailyBudget.mockReset().mockResolvedValue("allowed");
   seams.grokChat.mockReset().mockResolvedValue({ text: "brief", model: "grok" });
   vi.stubEnv("XAI_API_KEY", "key");
   vi.stubEnv("DATABASE_URL", "postgres://db");
@@ -107,7 +107,7 @@ describe("resolveLlmAccess", () => {
     const { resolveLlmAccess } = await guard();
     seams.user = { id: "u1" };
     await expect(resolveLlmAccess()).resolves.toEqual({ userId: "u1", grok: "allowed" });
-    expect(seams.withinDailyBudget).not.toHaveBeenCalled();
+    expect(seams.checkDailyBudget).not.toHaveBeenCalled();
   });
 
   it("rate-limits a signed-in caller per minute, and refuses heavy work outright", async () => {
@@ -150,7 +150,7 @@ describe("callModel", () => {
       text: "brief",
       model: "grok",
     });
-    expect(seams.withinDailyBudget).toHaveBeenCalledTimes(1);
+    expect(seams.checkDailyBudget).toHaveBeenCalledTimes(1);
     expect(seams.grokChat).toHaveBeenCalledWith("key", CHAT);
   });
 
@@ -159,14 +159,24 @@ describe("callModel", () => {
     for (const grok of ["unauthenticated", "rate_limited", "no_api_key"] as const) {
       await expect(callModel({ userId: "u1", grok }, CHAT)).resolves.toBeNull();
     }
-    expect(seams.withinDailyBudget).not.toHaveBeenCalled();
+    expect(seams.checkDailyBudget).not.toHaveBeenCalled();
     expect(seams.grokChat).not.toHaveBeenCalled();
   });
 
-  it("does not call the model once the daily budget refuses", async () => {
+  it("does not call the model when the daily budget cannot be read", async () => {
     const { callModel } = await guard();
-    seams.withinDailyBudget.mockResolvedValue(false);
+    seams.checkDailyBudget.mockResolvedValue("unavailable");
     await expect(callModel({ userId: "u1", grok: "allowed" }, CHAT)).resolves.toBeNull();
+    expect(seams.grokChat).not.toHaveBeenCalled();
+  });
+
+  it("says the daily limit is reached, without calling the model, once the budget is spent", async () => {
+    const { callModel } = await guard();
+    const { DailyLimitReached } = await import("./types");
+    seams.checkDailyBudget.mockResolvedValue("spent");
+    await expect(callModel({ userId: "u1", grok: "allowed" }, CHAT)).rejects.toBeInstanceOf(
+      DailyLimitReached,
+    );
     expect(seams.grokChat).not.toHaveBeenCalled();
   });
 });

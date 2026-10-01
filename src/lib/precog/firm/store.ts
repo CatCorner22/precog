@@ -4,6 +4,8 @@ import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import type { FirmPlan } from "./pricing";
 import type { ReviewItemKey, ReviewResult } from "./reviews";
 import { RequestError } from "@/lib/request-errors";
+import { randomHex } from "@/lib/web-crypto";
+import { revokeDepartingMemberShares } from "../share/share-store";
 
 /**
  * A firm is keyed by its owner's account: `firms.user_id` is both the owner
@@ -54,7 +56,12 @@ export interface ClientEngagementRow {
   acceptedFindings: number;
   lastReviewAt: string | null;
   ownerEmail: string | null;
+  /** Whether reminders reach `ownerEmail`: only after its owner confirms, until they stop them. */
+  ownerEmailStatus: OwnerEmailStatus | null;
 }
+
+/** "unsent": saved before confirmation existed, so no link has gone out yet. */
+export type OwnerEmailStatus = "unsent" | "waiting" | "confirmed" | "stopped";
 
 interface ReviewEventInput {
   businessId: string;
@@ -267,7 +274,10 @@ export async function revokeInvite(sql: Sql, firmUserId: string, token: string):
   await sql`delete from firm_invites where firm_user_id = ${firmUserId} and token = ${token}`;
 }
 
-/** What an invitation link shows before the visitor accepts it. */
+/**
+ * What an invitation link shows before the visitor accepts it. Anyone holding
+ * the link sees it, so the invited address comes back masked.
+ */
 export async function peekInvite(
   sql: Sql,
   token: string,
@@ -278,19 +288,91 @@ export async function peekInvite(
     where i.token = ${token} and i.accepted_at is null and i.expires_at > now()
   `;
   const row = rows[0];
-  return row ? { firmName: row.name, role: asInviteRole(row.role), email: row.email } : null;
+  return row
+    ? { firmName: row.name, role: asInviteRole(row.role), email: maskEmail(row.email) }
+    : null;
+}
+
+/** "alice@cpa.com" -> "a***@cpa.com". */
+export function maskEmail(email: string): string {
+  const at = email.lastIndexOf("@");
+  if (at < 1) return "***";
+  return `${email[0]}***${email.slice(at)}`;
 }
 
 /**
- * The signed-in visitor joins the firm the token names. A person already in
- * another firm is refused (one account, one firm), and so is the firm's own
- * owner, whose role an invitation must never replace. A new member must fit
- * under the member limit.
+ * How the signed-in account fits an invitation:
+ *   - "match": its address is confirmed and is the invited one;
+ *   - "mismatch": its address is confirmed and real but another one, so the
+ *     invitation is not for it;
+ *   - "confirm": Precog cannot vouch for its address (an unconfirmed password
+ *     sign-up, or X, whose sign-in carries a made-up address), so the person
+ *     must say they are the one invited, and the firm owner hears of it.
  */
-export async function acceptInvite(sql: Sql, token: string, userId: string): Promise<FirmContext> {
+export type InviteFit = "match" | "mismatch" | "confirm";
+
+async function accountFit(
+  sql: Sql,
+  userId: string,
+  invitedEmail: string,
+): Promise<{ fit: InviteFit; accountEmail: string }> {
+  const rows = await sql<{ email: string; real: boolean }>`
+    select u.email,
+      (u."emailVerified" and (
+        exists (
+          select 1 from account a
+          where a."userId" = u.id and a."providerId" in ('credential', 'grok-google')
+        )
+        or not exists (
+          select 1 from account a where a."userId" = u.id and a."providerId" = 'grok-x'
+        )
+      )) as real
+    from "user" u where u.id = ${userId}
+  `;
+  const account = rows[0];
+  if (!account) throw new FirmMembershipError("Sign in to join the firm.");
+  const same = account.email.toLowerCase() === invitedEmail.toLowerCase();
+  const fit: InviteFit = !account.real ? "confirm" : same ? "match" : "mismatch";
+  return { fit, accountEmail: account.email };
+}
+
+/** How the signed-in account fits an open invitation; null when the invitation is not open. */
+export async function inviteFit(
+  sql: Sql,
+  token: string,
+  userId: string,
+): Promise<{ fit: InviteFit; accountEmail: string } | null> {
+  const rows = await sql<{ email: string }>`
+    select email from firm_invites
+    where token = ${token} and accepted_at is null and expires_at > now()
+  `;
+  return rows[0] ? accountFit(sql, userId, rows[0].email) : null;
+}
+
+export interface AcceptedInvite {
+  firm: FirmContext;
+  /** Set when Precog could not match the account to the invited address; the firm owner is told. */
+  unmatched: { invitedEmail: string; accountEmail: string } | null;
+}
+
+/**
+ * The signed-in visitor joins the firm the token names. An account whose
+ * confirmed address is not the invited one is refused; one whose address
+ * Precog cannot vouch for joins only with `confirmOtherEmail`, and the
+ * result says so for the owner's notice. A person already in another firm is
+ * refused (one account, one firm), and so is the firm's own owner, whose
+ * role an invitation must never replace. A new member must fit under the
+ * member limit.
+ */
+export async function acceptInvite(
+  sql: Sql,
+  token: string,
+  userId: string,
+  options: { confirmOtherEmail?: boolean } = {},
+): Promise<AcceptedInvite> {
   return inTransaction(sql, async (tx) => {
-    const invites = await tx<{ firm_user_id: string; role: string }>`
-      select firm_user_id, role from firm_invites
+    const invites = await tx<{ firm_user_id: string; role: string; email: string }>`
+      select firm_user_id, role, email from firm_invites
       where token = ${token} and accepted_at is null and expires_at > now()
       for update
     `;
@@ -301,6 +383,17 @@ export async function acceptInvite(sql: Sql, token: string, userId: string): Pro
     if (invite.firm_user_id === userId) {
       throw new FirmMembershipError(
         "You own this firm, so this invitation is not for you. Send the link to the firm member it names.",
+      );
+    }
+    const { fit, accountEmail } = await accountFit(tx, userId, invite.email);
+    if (fit === "mismatch") {
+      throw new FirmMembershipError(
+        `This invitation was sent to ${maskEmail(invite.email)}, and you are signed in as ${accountEmail}. Sign in with the invited address, or ask the firm owner to invite ${accountEmail}.`,
+      );
+    }
+    if (fit === "confirm" && !options.confirmOtherEmail) {
+      throw new FirmMembershipError(
+        `Confirm that you are the person this invitation was sent to (${maskEmail(invite.email)}).`,
       );
     }
     const current = await loadFirmFor(tx, userId);
@@ -330,7 +423,10 @@ export async function acceptInvite(sql: Sql, token: string, userId: string): Pro
     `;
     const joined = await loadFirmFor(tx, userId);
     if (!joined) throw new Error("Unable to join the firm");
-    return joined;
+    return {
+      firm: joined,
+      unmatched: fit === "match" ? null : { invitedEmail: invite.email, accountEmail },
+    };
   });
 }
 
@@ -340,9 +436,15 @@ export async function leaveFirm(sql: Sql, firmUserId: string, userId: string): P
   await detachMember(sql, firmUserId, userId);
 }
 
-/** Ends a membership and takes the member's own businesses (live and deleted) out of the firm. */
+/**
+ * Ends a membership and takes the member's own businesses (live and deleted)
+ * out of the firm. Share links that crossed the line (the member's links to
+ * the firm's clients, colleagues' links to the member's businesses) are
+ * revoked first, while the businesses still name the firm.
+ */
 async function detachMember(sql: Sql, firmUserId: string, memberUserId: string): Promise<void> {
   await inTransaction(sql, async (tx) => {
+    await revokeDepartingMemberShares(tx, firmUserId, memberUserId);
     await tx`
       delete from firm_members
       where firm_user_id = ${firmUserId} and member_user_id = ${memberUserId} and role <> 'owner'
@@ -393,18 +495,85 @@ export async function upsertEngagementMark(
   `;
 }
 
-/** The client owner's address for reminders; empty clears it. */
+/** Confirmation emails one account may cause in a day by setting owner addresses. */
+export const MAX_OWNER_EMAIL_REQUESTS_PER_DAY = 20;
+
+/**
+ * The client owner's address for reminders; null clears it. A new address,
+ * or one not confirmed yet, gets a fresh token, returned so the caller can
+ * email the confirmation link; reminders wait until the owner opens it.
+ * Each such request counts toward the daily limit of `requestedBy`. Saving
+ * the confirmed address again changes nothing, and an address whose owner
+ * stopped reminders is saved as stopped, with no email.
+ */
 export async function setOwnerEmail(
   sql: Sql,
   ownerUserId: string,
   businessId: string,
   email: string | null,
-): Promise<void> {
-  await sql`
-    insert into engagement_marks (user_id, business_id, owner_email)
-    values (${ownerUserId}, ${businessId}, ${email})
-    on conflict (user_id, business_id) do update set owner_email = excluded.owner_email
-  `;
+  requestedBy: string,
+): Promise<{ confirmToken: string | null; stopped: boolean }> {
+  return inTransaction(sql, async (tx) => {
+    if (!email) {
+      await tx`
+        update engagement_marks set owner_email = null, owner_email_token = null,
+          owner_email_confirmed_at = null, owner_email_unsubscribed_at = null
+        where user_id = ${ownerUserId} and business_id = ${businessId}
+      `;
+      return { confirmToken: null, stopped: false };
+    }
+    const current = await tx<{ owner_email: string | null; confirmed: boolean }>`
+      select owner_email,
+        (owner_email_confirmed_at is not null and owner_email_unsubscribed_at is null) as confirmed
+      from engagement_marks
+      where user_id = ${ownerUserId} and business_id = ${businessId}
+      for update
+    `;
+    if (current[0]?.owner_email === email && current[0].confirmed) {
+      return { confirmToken: null, stopped: false };
+    }
+    // The owner stopped reminders to this address: record it as stopped,
+    // under the token their links carry, and send nothing.
+    const stop = await tx<{ token: string; stopped_at: string }>`
+      select token, stopped_at from owner_email_stops
+      where user_id = ${ownerUserId} and business_id = ${businessId} and email = ${email}
+    `;
+    if (stop[0]) {
+      await tx`
+        insert into engagement_marks (user_id, business_id, owner_email, owner_email_token,
+          owner_email_unsubscribed_at)
+        values (${ownerUserId}, ${businessId}, ${email}, ${stop[0].token}, ${stop[0].stopped_at})
+        on conflict (user_id, business_id) do update set
+          owner_email = excluded.owner_email,
+          owner_email_token = excluded.owner_email_token,
+          owner_email_confirmed_at = null,
+          owner_email_unsubscribed_at = excluded.owner_email_unsubscribed_at
+      `;
+      return { confirmToken: null, stopped: true };
+    }
+    const recent = await tx<{ n: number | string }>`
+      select count(*) as n from owner_email_requests
+      where user_id = ${requestedBy} and requested_at > now() - interval '1 day'
+    `;
+    if (Number(recent[0]?.n ?? 0) >= MAX_OWNER_EMAIL_REQUESTS_PER_DAY) {
+      throw new RequestError(
+        429,
+        `Precog sends at most ${MAX_OWNER_EMAIL_REQUESTS_PER_DAY} owner confirmation emails a day for one account. Try again tomorrow.`,
+      );
+    }
+    await tx`insert into owner_email_requests (user_id) values (${requestedBy})`;
+    const token = randomHex(24);
+    await tx`
+      insert into engagement_marks (user_id, business_id, owner_email, owner_email_token)
+      values (${ownerUserId}, ${businessId}, ${email}, ${token})
+      on conflict (user_id, business_id) do update set
+        owner_email = excluded.owner_email,
+        owner_email_token = excluded.owner_email_token,
+        owner_email_confirmed_at = null,
+        owner_email_unsubscribed_at = null
+    `;
+    return { confirmToken: token, stopped: false };
+  });
 }
 
 export async function listClientEngagements(
@@ -423,10 +592,14 @@ export async function listClientEngagements(
     accepted_findings: number | string | null;
     last_review_at: string | null;
     owner_email: string | null;
+    owner_email_token: string | null;
+    owner_email_confirmed_at: string | null;
+    owner_email_unsubscribed_at: string | null;
   }>`
     select
       b.id, b.user_id, b.name, e.started_at, e.map_completed_at, e.report_sent_at,
-      e.open_findings, e.accepted_findings, e.owner_email,
+      e.open_findings, e.accepted_findings, e.owner_email, e.owner_email_token,
+      e.owner_email_confirmed_at, e.owner_email_unsubscribed_at,
       (
         select max(r.recorded_at) from review_events r
         where r.user_id = b.user_id and r.business_id = b.id
@@ -450,6 +623,15 @@ export async function listClientEngagements(
     acceptedFindings: Number(r.accepted_findings ?? 0),
     lastReviewAt: toIsoTimestampOrNull(r.last_review_at),
     ownerEmail: r.owner_email,
+    ownerEmailStatus: !r.owner_email
+      ? null
+      : r.owner_email_unsubscribed_at
+        ? "stopped"
+        : r.owner_email_confirmed_at
+          ? "confirmed"
+          : r.owner_email_token
+            ? "waiting"
+            : "unsent",
   }));
 }
 

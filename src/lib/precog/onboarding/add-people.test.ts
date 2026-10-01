@@ -1,7 +1,7 @@
 import { getIndustryTemplate } from "../templates";
 import { describe, expect, it } from "vitest";
 import { parseRoster } from "../import/roster";
-import { applyPaste, rowsForJobTitle } from "./add-people";
+import { applyPaste, readPastedRoster, rowsForJobTitle } from "./add-people";
 import { jobCatalogEntry } from "./job-catalog";
 import { firstRowForIndustry, ownerRow, type OwnTeamRow } from "./own-team";
 
@@ -62,6 +62,25 @@ describe("applyPaste", () => {
       "The paste marks all 2 people as having left, so the table adds none of them: Bo Chen and Al Wu.",
     );
     expect(applied.leftOut.map((who) => who.name)).toEqual(["Bo Chen", "Al Wu"]);
+  });
+});
+
+describe("readPastedRoster", () => {
+  it("does not copy a sample person's role, duties or years onto a pasted namesake", () => {
+    const tpl = getIndustryTemplate("general");
+    expect(tpl.people.find((p) => p.name === "Chris Patel")?.tenureYears).toBe(3);
+    const bare = applyPaste(
+      [ownerRow()],
+      readPastedRoster("Chris Patel", tpl, { today }),
+      "general",
+    );
+    const chris = bare.rows?.find((r) => r.name === "Chris Patel");
+    expect(chris?.role).not.toBe("Bookkeeper");
+    expect(chris?.duties).toEqual([]);
+    expect(chris?.tenureYears).toBeUndefined();
+    const titled = readPastedRoster("Chris Patel, Cashier", tpl, { today });
+    expect(titled.people[0]?.tenureYears).toBeUndefined();
+    expect(titled.people[0]?.id).not.toBe("p6");
   });
 });
 

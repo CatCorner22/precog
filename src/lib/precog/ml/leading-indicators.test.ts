@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "../active-template";
 import { DEFAULT_RISK_VARIABLES } from "../scoring/dynamic-variables";
 import type { StaffComposition } from "../types";
+import { defaultProfile } from "../practice-profile";
+import { portfolioSummary } from "../scoring/residual-engine";
+import { residualScope } from "../scoring/scope";
+import { DEFAULT_WEIGHTS } from "../scoring/weights";
 import { scoreLeadingIndicators, statusRank } from "./leading-indicators";
 
 const calmStaff: StaffComposition = {
@@ -95,5 +99,32 @@ describe("statusRank", () => {
   it("orders breach before watch before clear", () => {
     expect(statusRank("breach")).toBeGreaterThan(statusRank("watch"));
     expect(statusRank("watch")).toBeGreaterThan(statusRank("ok"));
+  });
+});
+
+describe("the average residual check", () => {
+  it("reads the Residual page's scoped figure: the owner's risk settings and confirmed scenarios", () => {
+    const base = defaultProfile("dental");
+    const profile = {
+      ...base,
+      riskVariables: {
+        ...base.riskVariables,
+        dailyCashExposure: 7500,
+        hasSecurityCameras: true,
+        deductible: 25000,
+      },
+    };
+    const tpl = resolveTemplate(profile);
+    const scope = residualScope(profile);
+    const scoped = portfolioSummary(tpl, profile.staff, DEFAULT_WEIGHTS, scope).averageResidual;
+    // The settings move the figure, so the check below can tell the two apart.
+    expect(scoped).not.toBe(portfolioSummary(tpl, profile.staff).averageResidual);
+    const report = scoreLeadingIndicators(
+      tpl,
+      profile.staff,
+      profile.riskVariables,
+      scope.confirmedScenarioIds,
+    );
+    expect(report.indicators.find((i) => i.id === "li_residual")?.value).toBe(scoped);
   });
 });

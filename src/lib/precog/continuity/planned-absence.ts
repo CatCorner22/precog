@@ -3,6 +3,7 @@ import type { PlannedAbsence } from "../practice-profile";
 import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, Person } from "../types";
 import { absenceImpact, type AbsenceImpact } from "./absence-impact";
+import type { StandInConflicts } from "./standin-conflicts";
 import { procedurePointer } from "./documentation";
 import { daysBetween, isCalendarDate, shiftDay, formatDayRange } from "../dates";
 import { joinWithAnd, joinWithOr, firstName } from "../text";
@@ -28,6 +29,15 @@ interface AbsencePeak {
   extraStops: KnowledgeItem[];
 }
 
+/** A stand-in the window names who is away themselves for part of it. */
+interface StandInAway {
+  item: KnowledgeItem;
+  standIn: Person;
+  /** The days of the window they are out, inclusive. */
+  from: string;
+  to: string;
+}
+
 export interface AbsenceWindow {
   absence: PlannedAbsence;
   person: Person;
@@ -46,6 +56,12 @@ export interface AbsenceWindow {
   impact: AbsenceImpact;
   /** The stretch `impact` describes. Spans the whole window when nobody's leave overlaps. */
   peak: AbsencePeak;
+  /**
+   * Stand-ins `impact` names who are out on some days of the window: the
+   * peak stretch alone does not show them, so `impact.actions` asks for a
+   * second stand-in for those days.
+   */
+  standInsAway: StandInAway[];
   /**
    * What stops today, counting only the people away today. Null for an
    * upcoming window. Differs from `impact` when the worst stretch is still
@@ -124,6 +140,7 @@ function peakImpact(
   person: Person,
   absence: PlannedAbsence,
   overlaps: readonly AbsenceOverlap[],
+  conflictsFor?: StandInConflicts,
 ): { impact: AbsenceImpact; peak: AbsencePeak } | null {
   const cuts = new Set<string>([absence.from]);
   for (const o of overlaps) {
@@ -131,7 +148,7 @@ function peakImpact(
     if (o.to < absence.to) cuts.add(shiftDay(o.to, 1));
   }
   const starts = [...cuts].sort();
-  const solo = absenceImpact(tpl, [person.id]);
+  const solo = absenceImpact(tpl, [person.id], conflictsFor);
   if (!solo) return null;
   const soloStops = new Set(solo.stops.map((s) => s.item.id));
   let best: { impact: AbsenceImpact; peak: AbsencePeak } | null = null;
@@ -150,6 +167,7 @@ function peakImpact(
       const computed = absenceImpact(
         tpl,
         away.map((p) => p.id),
+        conflictsFor,
       );
       if (!computed) continue;
       impact = computed;
@@ -163,16 +181,36 @@ function peakImpact(
   return best;
 }
 
+/** The impact with an action, after the hand-offs, for each stand-in who is out part of the window. */
+function withStandInsAway(impact: AbsenceImpact, away: readonly StandInAway[]): AbsenceImpact {
+  if (away.length === 0) return impact;
+  const added = away.map((a) => ({
+    text: `${a.standIn.name} is out too on ${formatDayRange(a.from, a.to)}: name a second stand-in for "${a.item.name}" for those days.`,
+    step: "handoff" as const,
+    knowledgeIds: [a.item.id],
+  }));
+  const at = impact.actions.filter((a) => a.step === "handoff").length
+    ? impact.actions.map((a) => a.step).lastIndexOf("handoff") + 1
+    : 0;
+  return {
+    ...impact,
+    actions: [...impact.actions.slice(0, at), ...added, ...impact.actions.slice(at)],
+  };
+}
+
 /**
  * Known leave laid over the register: for each absence that has not ended,
  * what stops while that person — and anyone whose leave overlaps — is away,
- * and how many days the owner has left to hand things off.
+ * and how many days the owner has left to hand things off. With
+ * `conflictsFor`, stand-ins whose cover creates a duty conflict come last
+ * and are flagged (see absenceImpact).
  */
 export function plannedAbsenceReport(
   tpl: IndustryTemplate,
   absences: readonly PlannedAbsence[],
   industry: IndustryId,
   today: string,
+  conflictsFor?: StandInConflicts,
 ): PlannedAbsenceReport {
   const scoped = absences.filter((a) => a.industry === industry);
   const unmatched = scoped.filter((a) => !activePerson(tpl, a.personId));
@@ -201,8 +239,13 @@ export function plannedAbsenceReport(
     overlaps.sort(
       (a, b) => a.from.localeCompare(b.from) || a.person.name.localeCompare(b.person.name),
     );
-    const peak = peakImpact(tpl, person, absence, overlaps);
+    const peak = peakImpact(tpl, person, absence, overlaps, conflictsFor);
     if (!peak) continue;
+    const standInsAway = peak.impact.stops.flatMap((stop) =>
+      overlaps
+        .filter((o) => o.person.id === stop.standIn?.id)
+        .map((o) => ({ item: stop.item, standIn: o.person, from: o.from, to: o.to })),
+    );
     const daysUntil = Math.max(0, daysBetween(today, absence.from) ?? 0);
     const current = absence.from <= today;
     const awayToday = current
@@ -218,9 +261,10 @@ export function plannedAbsenceReport(
       lengthDays: (daysBetween(absence.from, absence.to) ?? 0) + 1,
       status: current ? "current" : "upcoming",
       overlaps,
-      impact: peak.impact,
+      impact: withStandInsAway(peak.impact, standInsAway),
       peak: peak.peak,
-      todayImpact: current ? absenceImpact(tpl, awayToday) : null,
+      standInsAway,
+      todayImpact: current ? absenceImpact(tpl, awayToday, conflictsFor) : null,
     });
   }
   windows.sort(

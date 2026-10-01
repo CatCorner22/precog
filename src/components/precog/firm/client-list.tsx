@@ -32,12 +32,39 @@ export function ClientList({
 
   async function saveEmail(client: ClientEngagementRow) {
     try {
-      await setClientOwnerEmail({ data: { businessId: client.id, email: draft } });
+      const address = draft.trim().toLowerCase() || null;
+      const { confirmation } = await setClientOwnerEmail({
+        data: { businessId: client.id, email: draft },
+      });
       onClientsChange(
-        clients.map((c) => (c.id === client.id ? { ...c, ownerEmail: draft.trim() || null } : c)),
+        clients.map((c) =>
+          c.id === client.id
+            ? {
+                ...c,
+                ownerEmail: address,
+                ownerEmailStatus: !address
+                  ? null
+                  : confirmation === "stopped"
+                    ? "stopped"
+                    : confirmation === "none"
+                      ? c.ownerEmailStatus
+                      : "waiting",
+              }
+            : c,
+        ),
       );
       setEditing(null);
-      toast.success(draft.trim() ? "Owner address saved." : "Owner address removed.");
+      toast.success(
+        !address
+          ? "Owner address removed."
+          : confirmation === "sent"
+            ? `Precog emailed ${address} a link to confirm. Reminders start once the owner opens it.`
+            : confirmation === "not-sent"
+              ? "Owner address saved. Precog could not email the confirmation link, so no reminders go out yet. Save the address again to retry."
+              : confirmation === "stopped"
+                ? `Owner address saved. The owner stopped reminders to ${address}, so Precog sends nothing to it.`
+                : "Owner address saved.",
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Precog did not save the address.");
     }
@@ -58,7 +85,8 @@ export function ClientList({
       <h2 className="text-lg font-semibold">Clients</h2>
       <p className="mt-1 text-sm text-muted">
         Last review is the newest monthly result stored for that client. An owner address receives
-        the reminders about their own business; Precog sends nothing else to it.
+        the reminders about their own business once its owner confirms it from an email; Precog
+        sends nothing else to it.
       </p>
       {clients.length === 0 ? (
         <p className="mt-3 text-sm text-muted">
@@ -131,7 +159,9 @@ export function ClientList({
                         setDraft(client.ownerEmail ?? "");
                       }}
                     >
-                      {client.ownerEmail ? `Owner: ${client.ownerEmail}` : "Add owner email"}
+                      {client.ownerEmail
+                        ? `Owner: ${client.ownerEmail}${ownerStatusText(client.ownerEmailStatus)}`
+                        : "Add owner email"}
                     </button>
                   )}
                   {client.id !== activeId && (
@@ -181,6 +211,15 @@ export function ClientList({
       )}
     </section>
   );
+}
+
+/** Whether reminders reach the owner address, after the address itself. */
+function ownerStatusText(status: ClientEngagementRow["ownerEmailStatus"]): string {
+  if (status === "unsent")
+    return " (not confirmed: save the address again to send the confirmation link)";
+  if (status === "waiting") return " (not confirmed yet)";
+  if (status === "stopped") return " (owner stopped reminders)";
+  return "";
 }
 
 /** The open-conflict count, or a plain statement that nobody has counted them yet. */

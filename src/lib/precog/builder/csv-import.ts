@@ -30,6 +30,16 @@ export function withReplace(current: CsvImport, replace: boolean, tpl: ImportTem
   };
 }
 
+/**
+ * The same file previewed against the map as it is now. The map can change
+ * while the preview is open (the form below stays editable), and Apply
+ * replaces the whole process list, so the preview must not be the one taken
+ * when the file was picked.
+ */
+export function previewAgainst(current: CsvImport, tpl: ImportTemplate): CsvImport {
+  return withReplace(current, current.replace, tpl);
+}
+
 /** How many processes the import adds, updates and (when chosen) removes. */
 export function csvImportChangeCount({ preview, replace }: CsvImport): number {
   return preview.added.length + preview.updated.length + (replace ? preview.removed.length : 0);

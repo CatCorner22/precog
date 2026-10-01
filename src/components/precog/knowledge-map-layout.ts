@@ -17,17 +17,23 @@ export interface MapLayout<P extends Person, K extends KnowledgeItem> {
   height: number;
 }
 
-/** Node positions, the edges between drawn nodes, and a canvas height that fits every row. */
+/**
+ * Node positions, the edges between drawn nodes, and a canvas height that fits
+ * every row. People marked as left are not drawn, so no line suggests they
+ * still hold an item; the register and coverage count active people only.
+ */
 export function knowledgeMapLayout<P extends Person, K extends KnowledgeItem>(
   people: readonly P[],
   items: readonly K[],
   relations: readonly KnowledgeRelation[],
 ): MapLayout<P, K> {
-  const personNodes = people.map((p, i) => ({
-    ...p,
-    x: PERSON_NODE.x,
-    y: PERSON_NODE.top + i * PERSON_NODE.pitch,
-  }));
+  const personNodes = people
+    .filter((p) => p.active)
+    .map((p, i) => ({
+      ...p,
+      x: PERSON_NODE.x,
+      y: PERSON_NODE.top + i * PERSON_NODE.pitch,
+    }));
   const itemNodes = items.map((k, i) => ({
     ...k,
     x: ITEM_NODE.x,

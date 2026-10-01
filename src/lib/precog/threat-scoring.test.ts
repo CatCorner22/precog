@@ -4,6 +4,8 @@ import { getIndustryTemplate } from "./templates";
 import { defaultProfile } from "./practice-profile";
 import { rankDangerousScenarios } from "./engine";
 import { buildThreatAssessment } from "./threat-scoring";
+import { detectSodConflicts, sodDetectionOptions } from "./sod/detect";
+import { openFindings, partialDualReleaseCoverage } from "./sod/open-findings";
 import type { Person } from "./types";
 
 const people: Person[] = [
@@ -94,6 +96,27 @@ describe("buildThreatAssessment for the sample", () => {
     const sod = report.targetDeck.filter((t) => t.domain === "sod");
     expect(sod.length).toBeGreaterThan(0);
     for (const t of sod) expect(t.reasons[0]).toMatch(/[.!?]$/);
+  });
+
+  it("leaves out a duty conflict dual release closes at every amount", () => {
+    const tpl = getIndustryTemplate("dental");
+    const p = defaultProfile("dental");
+    const dualRelease = { ...p.dualRelease, enabled: true };
+    const sod = detectSodConflicts(tpl, p.staff, sodDetectionOptions(tpl, dualRelease));
+    const open = new Set(
+      openFindings(sod.conflicts, partialDualReleaseCoverage(dualRelease, sod.conflicts)).map(
+        (c) => `sod-${c.ruleId}`,
+      ),
+    );
+    // New suppliers need the owner's signature at any amount: that pair is closed.
+    expect(
+      sod.conflicts.some((c) => c.ruleId === "rule-vendor-create-pay" && c.dualReleaseMitigated),
+    ).toBe(true);
+    const report = buildThreatAssessment({ tpl, practiceName: "x", staff: p.staff, dualRelease });
+    const cards = report.targetDeck.filter((t) => t.domain === "sod").map((t) => t.id);
+    expect(cards.length).toBeGreaterThan(0);
+    expect(cards).not.toContain("sod-rule-vendor-create-pay");
+    for (const id of cards) expect(open.has(id), id).toBe(true);
   });
 
   it("carries the loss after insurance on every row that has a loss", () => {

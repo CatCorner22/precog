@@ -417,6 +417,8 @@ export function TeamEditor({
                   type="button"
                   onClick={() => setEditingId(editing ? null : p.id)}
                   className="text-subtle hover:text-primary"
+                  aria-expanded={editing}
+                  aria-label={editing ? `Done with ${p.name}'s duties` : `Duties of ${p.name}`}
                 >
                   {editing ? "Done" : "Duties"}
                 </button>

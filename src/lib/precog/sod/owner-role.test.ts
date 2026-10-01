@@ -128,3 +128,16 @@ describe("the owner's own mark from setup", () => {
     expect(soleOwnerId(team)).toBe("a");
   });
 });
+
+describe("past owner titles", () => {
+  it.each(["Former Owner", "Ex-Owner", "Retired Owner", "Owner (Retired)", "Founder Emeritus"])(
+    "%s does not own the business",
+    (title) => {
+      expect(isOwnerRole(title)).toBe(false);
+    },
+  );
+
+  it("still reads an ex officio title as it is written", () => {
+    expect(isOwnerRole("President (ex officio)")).toBe(true);
+  });
+});

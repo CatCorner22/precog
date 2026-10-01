@@ -6,11 +6,14 @@ import { ACTIVE_SUBSCRIPTION_STATUSES } from "./firm/billing-store";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
 import { userScope } from "./llm/daily-usage";
 import { count } from "./text";
+import { pictureUrl } from "./procedures/image-pipeline";
 
 /**
  * Everything the app holds for one account, in one JSON document the owner can
  * keep. Left out on purpose: share passcode hashes and salts, invite link
- * tokens, and the encrypted QuickBooks tokens.
+ * tokens, and the encrypted QuickBooks tokens. Step pictures are listed with
+ * everything stored about them and the address that serves each one, not
+ * their bytes: hundreds of them, inline, would make one very large response.
  */
 interface AccountExport {
   exportedAt: string;
@@ -91,15 +94,34 @@ interface AccountExport {
     /** Null when the count was never recorded (migration 0024), not zero. */
     openFindings: number | null;
     acceptedFindings: number;
+    /** The client owner's email, kept for reminders. */
+    ownerEmail: string | null;
   }>;
   reviews: Array<{
     businessId: string;
     period: string;
     itemKey: string;
     ownerName: string;
+    dueOn: string | null;
     result: string;
     notes: string;
     recordedAt: string;
+    recordedBy: string | null;
+  }>;
+  /** Pictures attached to procedure steps; `path` serves the picture while the account exists. */
+  procedureImages: Array<{
+    id: string;
+    businessId: string;
+    contentType: string;
+    byteSize: number;
+    width: number;
+    height: number;
+    sha256: string;
+    uploadedBy: string | null;
+    createdAt: string;
+    /** When no step named it any more; it is deleted 30 days after. */
+    unreferencedSince: string | null;
+    path: string;
   }>;
   reminderSettings: { weeklyDigest: boolean; ownerReminders: boolean } | null;
   remindersSent: Array<{
@@ -164,6 +186,7 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
       billing,
       quickBooksConnections,
       quickBooksSnapshots,
+      procedureImages,
       controlExecutions,
     ] = await Promise.all([
       readUser(tx, userId),
@@ -184,6 +207,7 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
       readBilling(tx, userId),
       readQuickBooksConnections(tx, userId),
       readQuickBooksSnapshots(tx, userId),
+      readProcedureImages(tx, userId),
       tx<{
         businessId: string;
         record: ControlExecution;
@@ -210,6 +234,7 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
       billing,
       quickBooksConnections,
       quickBooksSnapshots,
+      procedureImages,
     };
   });
 }
@@ -507,8 +532,10 @@ async function readEngagements(tx: Sql, userId: string): Promise<AccountExport["
     report_sent_at: string | null;
     open_findings: number | string | null;
     accepted_findings: number | string;
+    owner_email: string | null;
   }>`
-    select business_id, started_at, map_completed_at, report_sent_at, open_findings, accepted_findings
+    select business_id, started_at, map_completed_at, report_sent_at, open_findings,
+      accepted_findings, owner_email
     from engagement_marks where user_id = ${userId}
   `;
   return rows.map((e) => ({
@@ -518,6 +545,7 @@ async function readEngagements(tx: Sql, userId: string): Promise<AccountExport["
     reportSentAt: toIsoTimestampOrNull(e.report_sent_at),
     openFindings: e.open_findings === null ? null : Number(e.open_findings),
     acceptedFindings: Number(e.accepted_findings),
+    ownerEmail: e.owner_email ?? null,
   }));
 }
 
@@ -527,11 +555,14 @@ async function readReviews(tx: Sql, userId: string): Promise<AccountExport["revi
     period: string;
     item_key: string;
     owner_name: string;
+    due_on: string | null;
     result: string;
     notes: string;
     recorded_at: string;
+    recorded_by: string | null;
   }>`
-    select business_id, period, item_key, owner_name, result, notes, recorded_at
+    select business_id, period, item_key, owner_name, due_on, result, notes, recorded_at,
+      recorded_by
     from review_events where user_id = ${userId} order by recorded_at desc
   `;
   return rows.map((r) => ({
@@ -539,9 +570,46 @@ async function readReviews(tx: Sql, userId: string): Promise<AccountExport["revi
     period: r.period,
     itemKey: r.item_key,
     ownerName: r.owner_name,
+    dueOn: r.due_on ?? null,
     result: r.result,
     notes: r.notes,
     recordedAt: toIsoTimestamp(r.recorded_at),
+    recordedBy: r.recorded_by ?? null,
+  }));
+}
+
+async function readProcedureImages(
+  tx: Sql,
+  userId: string,
+): Promise<AccountExport["procedureImages"]> {
+  const rows = await tx<{
+    id: string;
+    business_id: string;
+    content_type: string;
+    byte_size: number | string;
+    width: number;
+    height: number;
+    sha256: string;
+    uploaded_by: string | null;
+    created_at: string;
+    unreferenced_since: string | null;
+  }>`
+    select id, business_id, content_type, byte_size, width, height, sha256, uploaded_by,
+      created_at, unreferenced_since
+    from procedure_images where user_id = ${userId} order by business_id, created_at, id
+  `;
+  return rows.map((i) => ({
+    id: i.id,
+    businessId: i.business_id,
+    contentType: i.content_type,
+    byteSize: Number(i.byte_size),
+    width: Number(i.width),
+    height: Number(i.height),
+    sha256: i.sha256,
+    uploadedBy: i.uploaded_by ?? null,
+    createdAt: toIsoTimestamp(i.created_at),
+    unreferencedSince: toIsoTimestampOrNull(i.unreferenced_since),
+    path: pictureUrl(i.business_id, i.id),
   }));
 }
 

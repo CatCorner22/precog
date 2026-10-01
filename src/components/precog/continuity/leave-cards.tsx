@@ -45,6 +45,10 @@ import {
   NOT_ASSESSED_ABSENCE,
 } from "@/lib/precog/continuity/planner-copy";
 import { inputClass } from "./styles";
+import {
+  standInConflictNote,
+  type StandInConflicts,
+} from "@/lib/precog/continuity/standin-conflicts";
 import { formatDay, formatDayRange } from "@/lib/precog/dates";
 import { joinWithAnd, verb, firstName } from "@/lib/precog/text";
 
@@ -412,6 +416,7 @@ export function LeaveDebriefCard({
   debrief,
   people,
   answered,
+  conflictsFor,
   onPromote,
   onKeepTraining,
   onClose,
@@ -420,6 +425,8 @@ export function LeaveDebriefCard({
   debrief: LeaveDebrief;
   people: Person[];
   answered: (entry: DebriefItem) => boolean;
+  /** Duty conflicts a stand-in would hold by keeping this work: a warning, never a block. */
+  conflictsFor?: StandInConflicts;
   onPromote: (entry: DebriefItem, standIn: Person) => void;
   onKeepTraining: (entry: DebriefItem, standIn: Person) => void;
   onClose: (entry: DebriefItem) => void;
@@ -427,7 +434,10 @@ export function LeaveDebriefCard({
 }) {
   const tabName = useTabName();
   const first = firstName(debrief.person.name);
-  /** Who the owner says actually stepped in, when the register had nobody lined up. */
+  /**
+   * Who the owner says actually stepped in, when no logged hand-off names
+   * anyone: the register's suggestion is only preselected.
+   */
   const [pickedStandIn, setPickedStandIn] = useState<Record<string, string>>({});
   const candidates = people.filter((p) => p.id !== debrief.person.id);
   const open = debrief.items.filter((e) => !answered(e));
@@ -454,9 +464,16 @@ export function LeaveDebriefCard({
       </p>
       <ul className="mt-2 space-y-2">
         {open.map((e) => {
-          const standIn =
-            e.standIn ?? candidates.find((p) => p.id === pickedStandIn[e.item.id]) ?? null;
+          const pickedId = pickedStandIn[e.item.id] ?? e.standIn?.id ?? "";
+          const standIn = e.standInConfirmed
+            ? e.standIn
+            : (candidates.find((p) => p.id === pickedId) ?? null);
           const standInFirst = standIn ? firstName(standIn.name) : undefined;
+          // The register level read for the suggestion holds only while it is the one picked.
+          const suggestedPicked = Boolean(standIn) && standIn?.id === e.standIn?.id;
+          const conflictNote = standIn
+            ? standInConflictNote(standIn.name, conflictsFor?.(standIn.id, e.item.id) ?? [])
+            : "";
           return (
             <li key={e.item.id} className="rounded-md border border-border bg-surface px-2.5 py-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -464,7 +481,7 @@ export function LeaveDebriefCard({
                 <Badge variant={e.item.criticality === "critical" ? "danger" : "default"}>
                   {CRITICALITY_LABEL[e.item.criticality]}
                 </Badge>
-                {e.standIn && e.standInLevel && (
+                {suggestedPicked && e.standInLevel && (
                   <span className="text-xs text-muted">
                     {standInFirst} today: {LEVEL_SHORT[e.standInLevel]}
                   </span>
@@ -474,12 +491,13 @@ export function LeaveDebriefCard({
                 )}
               </div>
               <p className="mt-0.5 text-xs text-muted">{describeDebriefItem(debrief, e)}</p>
+              {conflictNote && <p className="mt-0.5 text-xs text-warn">{conflictNote}</p>}
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                {!e.standIn && (
+                {!e.standInConfirmed && (
                   <select
                     className={cn(inputClass, "h-7 py-0 text-xs")}
                     aria-label={`Who stepped in for ${e.item.name}`}
-                    value={pickedStandIn[e.item.id] ?? ""}
+                    value={pickedId}
                     onChange={(ev) =>
                       setPickedStandIn((cur) => ({ ...cur, [e.item.id]: ev.target.value }))
                     }
@@ -492,7 +510,7 @@ export function LeaveDebriefCard({
                     ))}
                   </select>
                 )}
-                {standIn && !standInAlreadyStrong(e) ? (
+                {standIn && !(suggestedPicked && standInAlreadyStrong(e)) ? (
                   <>
                     <Button size="sm" className="h-7 text-xs" onClick={() => onPromote(e, standIn)}>
                       <UserCheck className="size-3.5" /> {standInFirst} can do it alone now

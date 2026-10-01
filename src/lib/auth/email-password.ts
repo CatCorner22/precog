@@ -3,6 +3,7 @@
  *
  * On, so a firm that does not standardize on Google or X can still sign in.
  * The forms live on /login (`authClient.signUp.email` / `signIn.email`).
+ * Address confirmation and password reset by email: `./email-password.server`.
  *
  * Do NOT edit `server.ts` for this — that file is frozen pre-wired config.
  */

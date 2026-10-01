@@ -17,8 +17,8 @@ export function StartHerePreamble({
   const { createBusiness } = usePracticeActions();
 
   /** Opens setup for the owner's own business, as the business menu's "Set up my own business" does. */
-  function enterOwnTeam() {
-    const result = createBusiness(model.industryId);
+  async function enterOwnTeam() {
+    const result = await createBusiness(model.industryId);
     if (!result.ok) toast.error("Could not start setup", { description: result.reason });
   }
 
@@ -67,7 +67,7 @@ export function StartHerePreamble({
           </p>
           <button
             type="button"
-            onClick={enterOwnTeam}
+            onClick={() => void enterOwnTeam()}
             className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
           >
             Enter your own team

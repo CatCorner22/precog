@@ -137,4 +137,10 @@ export type ProcedureStatus = "empty" | "draft" | "verified" | "stale" | "needs_
 export interface ProcedureLink {
   id: string;
   title: string;
+  /**
+   * Every step is still a suggestion or an AI draft nobody has fitted to this
+   * business, and nobody has verified it: a stand-in can read it, but the
+   * item does not count as written down (see isDraftProcedure).
+   */
+  draft?: true;
 }

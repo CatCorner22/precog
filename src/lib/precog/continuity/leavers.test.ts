@@ -220,6 +220,45 @@ describe("leavers", () => {
     expect(maya.orphanedProcesses).toEqual(["Month-end close"]);
   });
 
+  it("passes over a successor who is leaving later for someone who is staying", () => {
+    const team: Person[] = [
+      { ...people[0], lastDay: "2026-10-14" },
+      { ...people[1], lastDay: "2026-10-20" },
+      people[2],
+    ];
+    const later = tpl(
+      [
+        { personId: "maya", knowledgeId: "pms", level: "expert" },
+        { personId: "chris", knowledgeId: "pms", level: "basic" },
+        { personId: "sam", knowledgeId: "pms", level: "aware" },
+      ],
+      team,
+    );
+    const [maya] = leavers(later, [], "2026-10-01");
+    expect(maya.handover.map((h) => [h.item.id, h.successor?.id])).toEqual([["pms", "sam"]]);
+  });
+
+  it("keeps a leaving successor when nobody else is left, says so, and lists the entry on their card", () => {
+    const team: Person[] = [
+      { ...people[0], lastDay: "2026-10-14" },
+      { ...people[1], lastDay: "2026-10-20" },
+    ];
+    const pair = tpl(
+      [
+        { personId: "maya", knowledgeId: "pms", level: "expert" },
+        { personId: "chris", knowledgeId: "pms", level: "basic" },
+      ],
+      team,
+    );
+    const [maya, chris] = leavers(pair, [], "2026-10-01");
+    expect(maya.handover.map((h) => [h.item.id, h.successor?.id])).toEqual([["pms", "chris"]]);
+    expect(maya.handover[0].note).toContain(
+      "Chris leaves on Oct 20, 2026 too; line up someone to take it on after that.",
+    );
+    expect(chris.handover.map((h) => h.item.id)).toEqual(["pms"]);
+    expect(chris.actions.map((a) => a.text).join(" ")).not.toContain("Nothing on the register");
+  });
+
   it("puts shared work on both lists when two people leave the same day", () => {
     const team: Person[] = [
       {

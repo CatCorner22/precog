@@ -4,12 +4,29 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
 import { isBusinessId } from "../profile-input";
+import { SlidingWindowLimiter } from "../llm/rate-limit";
 
 /** Upload types the app accepts; the server checks the bytes match. */
 const TYPES = new Set(["image/webp", "image/jpeg", "image/png"]);
 /** Base64 of the largest image the store accepts (600 KB), with room for padding. */
 const MAX_BASE64_CHARS = Math.ceil((600 * 1024) / 3) * 4 + 4;
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
+/**
+ * Uploads one account may make a minute. Per server instance, like the model
+ * limits; the account's storage bound (image-store.server.ts) is what caps
+ * the bytes it can keep.
+ */
+export const UPLOADS_PER_MINUTE = 30;
+const uploadLimiter = new SlidingWindowLimiter({ limit: UPLOADS_PER_MINUTE, windowMs: 60_000 });
+
+/** Refuses (429) an account past its per-minute upload allowance. */
+export function takeUploadAllowance(userId: string, limiter = uploadLimiter): void {
+  if (limiter.take(userId).allowed) return;
+  throw new RequestError(
+    429,
+    `Precog takes at most ${UPLOADS_PER_MINUTE} pictures a minute from one account. Wait a minute, then add the picture again.`,
+  );
+}
 
 export interface UploadImageInput {
   expectedAccountId: string;
@@ -29,6 +46,7 @@ export const uploadProcedureImage = createServerFn({ method: "POST" })
   .validator((input: UploadImageInput) => parseUploadInput(input))
   .handler(async ({ context, data }) => {
     assertExpectedAccount(data.expectedAccountId, context.userId);
+    takeUploadAllowance(context.userId);
     const [{ resolveBusinessOwner }, { insertProcedureImage }] = await Promise.all([
       import("../business-store"),
       import("./image-store.server"),

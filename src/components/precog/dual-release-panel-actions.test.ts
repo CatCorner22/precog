@@ -7,6 +7,7 @@ import {
   type DualReleasePolicy,
 } from "@/lib/precog/controls/dual-release";
 import {
+  datesReversed,
   EMPTY_EXCEPTION_FORM,
   exceptionDecision,
   exceptionFromForm,
@@ -49,6 +50,21 @@ describe("exceptionFromForm", () => {
   it("waits for a label and a reason", () => {
     expect(exceptionFromForm({ ...EMPTY_EXCEPTION_FORM, label: "Lab" }, stamp)).toBeNull();
     expect(exceptionFromForm({ ...EMPTY_EXCEPTION_FORM, reason: "Why" }, stamp)).toBeNull();
+  });
+
+  it("saves no exception whose end date is before its start date", () => {
+    const form = { ...EMPTY_EXCEPTION_FORM, label: "Lab", reason: "Monthly invoice" };
+    const reversed = { ...form, from: "2026-11-01", to: "2026-10-01" };
+    expect(datesReversed(reversed)).toBe(true);
+    expect(exceptionFromForm(reversed, stamp)).toBeNull();
+    for (const ok of [
+      { ...form, from: "2026-10-01", to: "2026-10-01" },
+      { ...form, from: "2026-10-01", to: "" },
+      { ...form, from: "", to: "2026-10-01" },
+    ]) {
+      expect(datesReversed(ok)).toBe(false);
+      expect(exceptionFromForm(ok, stamp)).not.toBeNull();
+    }
   });
 
   it("names the sole owner as approver, and nobody when there is none, never the sample's p1", () => {

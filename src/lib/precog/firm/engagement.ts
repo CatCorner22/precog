@@ -2,6 +2,7 @@ import { isDemoName } from "../industry";
 import { linkedToIndustry } from "../decisions/follow-through";
 import type { DecisionEntry } from "../practice-profile";
 import type { DetectedConflict } from "../sod/detect";
+import { openFindings as sharedOpenFindings } from "../sod/open-findings";
 import type { IndustryId } from "../industry";
 import type { Person } from "../types";
 
@@ -61,29 +62,33 @@ export function mapIsComplete(people: readonly Person[] | null | undefined): boo
 /** What the pilot metrics read from a detected conflict. */
 type MetricConflict = Pick<
   DetectedConflict,
-  "ruleId" | "linkedControlId" | "residualRiskAccepted" | "dualReleaseMitigated"
+  "ruleId" | "linkedControlId" | "ownerHeld" | "residualRiskAccepted" | "dualReleaseMitigated"
 >;
 
 /** What the pilot metrics read from a logged decision. */
 type MetricDecision = Pick<DecisionEntry, "kind" | "linkedId" | "linkedIndustry">;
 
 /**
- * Findings are the detected conflicts. One counts as accepted once the owner
- * has responded to it: residual risk accepted, dual release covering it, or
- * an accept, remediate, monitor or insure decision logged against its rule
- * or control. Open conflicts are the rest, so accepted plus open is every
- * finding and the rate can reach 100%.
+ * Findings are the detected conflicts other than the owner's own pairs, which
+ * are no theft risk to judge. A finding is open as Start here and the report
+ * count it (sod/open-findings: not accepted, and not closed by dual release at
+ * every amount) until an accept, remediate, monitor or insure decision is
+ * logged against its rule or control; the others are accepted. Accepted plus
+ * open is every finding, so the rate can reach 100%.
  */
 export function pilotMetrics(input: {
   engagement?: EngagementStamp;
   conflicts: readonly MetricConflict[];
+  /** Rules dual release covers only above a threshold (`partialDualReleaseCoverage`). */
+  partialCoverage: ReadonlyMap<string, number>;
   decisions: readonly MetricDecision[];
   industry: IndustryId;
 }): PilotMetrics {
-  const acceptedFindings = input.conflicts.filter((c) =>
-    findingAnswered(c, input.decisions, input.industry),
+  const findings = input.conflicts.filter((c) => !c.ownerHeld).length;
+  const openFindings = sharedOpenFindings(input.conflicts, input.partialCoverage).filter(
+    (c) => !answeredByDecision(c, input.decisions, input.industry),
   ).length;
-  const openFindings = input.conflicts.length - acceptedFindings;
+  const acceptedFindings = findings - openFindings;
   const started = input.engagement?.startedAt ? Date.parse(input.engagement.startedAt) : NaN;
   const completed = input.engagement?.mapCompletedAt
     ? Date.parse(input.engagement.mapCompletedAt)
@@ -100,18 +105,17 @@ export function pilotMetrics(input: {
     reportSentAt: input.engagement?.reportSentAt ?? null,
     openFindings,
     acceptedFindings,
-    acceptanceRate: input.conflicts.length === 0 ? null : acceptedFindings / input.conflicts.length,
+    acceptanceRate: findings === 0 ? null : acceptedFindings / findings,
   };
 }
 
 const ACCEPTED_KINDS = new Set<string>(["accept_residual", "remediate", "monitor", "insure"]);
 
-function findingAnswered(
+function answeredByDecision(
   conflict: MetricConflict,
   decisions: readonly MetricDecision[],
   industry: IndustryId,
 ): boolean {
-  if (conflict.residualRiskAccepted || conflict.dualReleaseMitigated) return true;
   return decisions.some(
     (d) =>
       ACCEPTED_KINDS.has(d.kind) &&

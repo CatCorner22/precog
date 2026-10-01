@@ -5,6 +5,7 @@ import { ownerText, parseJsonReply, withGrokFallback } from "../llm/prompt-text"
 import { OWN_TEAM_MAX } from "../onboarding/own-team";
 import { parseSuggestionInput } from "../public-inputs";
 import {
+  padWithRules,
   suggestLocally,
   type SuggestedIdea,
   type SuggestedRisk,
@@ -25,15 +26,7 @@ export const suggestForProcess = createServerFn({ method: "POST" })
       Boolean(data.processName.trim()),
       async (access) => {
         const ai = await suggestWithGrok(data, access);
-        if (!ai) return null;
-        // Pad thin AI output with local suggestions so the panel is never sparse.
-        const seen = new Set(ai.risks.map((r) => r.title.toLowerCase()));
-        for (const r of local.risks) {
-          if (ai.risks.length >= 4) break;
-          if (!seen.has(r.title.toLowerCase())) ai.risks.push(r);
-        }
-        if (!ai.controlIds.length) ai.controlIds = local.controlIds;
-        return ai;
+        return ai && padWithRules(ai, local);
       },
     );
   });

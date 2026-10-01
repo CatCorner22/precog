@@ -39,12 +39,17 @@ import {
   coverageDrops,
   coverageReport,
   criticalSinglePoints,
+  relationLevel,
   setRelationLevel,
   type CoverageReport,
   type CrossTrainingMove,
   type ItemCoverage,
 } from "@/lib/precog/continuity/coverage";
 import { documentationDebt, type DocumentationGap } from "@/lib/precog/continuity/documentation";
+import {
+  standInConflictChecker,
+  type StandInConflicts,
+} from "@/lib/precog/continuity/standin-conflicts";
 import { defaultCategory } from "@/lib/precog/continuity/knowledge-category";
 import {
   dateAfter,
@@ -121,6 +126,17 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
   const report = useMemo(() => coverageReport(tpl), [tpl]);
   const docs = useMemo(() => documentationDebt(tpl), [tpl]);
   const people = useMemo(() => tpl.people.filter((p) => p.active), [tpl.people]);
+  // Stand-ins whose cover would create a duty conflict come last and are flagged.
+  const conflictsFor = useMemo(
+    () =>
+      standInConflictChecker({
+        tpl,
+        dualRelease: profile.dualRelease,
+        staff: profile.staff,
+        procedures: profile.procedures,
+      }),
+    [tpl, profile.dualRelease, profile.staff, profile.procedures],
+  );
 
   const figures = usePlannerFigures(tpl, report);
   const writes = useRegisterWrites(actions, today);
@@ -132,9 +148,18 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
     writes,
     checkIn,
   });
-  const whatIf = useWhatIf(tpl, report, people);
-  const leave = useLeave(actions, profile, tpl, people, today, journal, writes.setLevel);
-  const leaving = useLeaving(actions, profile, tpl, people, today);
+  const whatIf = useWhatIf(tpl, report, people, conflictsFor);
+  const leave = useLeave(
+    actions,
+    profile,
+    tpl,
+    people,
+    today,
+    journal,
+    writes.setLevel,
+    conflictsFor,
+  );
+  const leaving = useLeaving(actions, profile, tpl, people, today, conflictsFor);
 
   return {
     tpl,
@@ -445,14 +470,22 @@ function useRegisterEditor(
 }
 
 /** "If someone is out tomorrow": who is ticked and what stops. */
-function useWhatIf(tpl: IndustryTemplate, report: CoverageReport, people: Person[]) {
+function useWhatIf(
+  tpl: IndustryTemplate,
+  report: CoverageReport,
+  people: Person[],
+  conflictsFor: StandInConflicts,
+) {
   /** Null until the owner ticks or unticks someone; the card then starts with the most depended-on person. */
   const [ticked, setTicked] = useState<string[] | null>(null);
   const { ids, startedWith } = useMemo(
     () => whatIfAbsentIds(ticked, people, report),
     [ticked, people, report],
   );
-  const absence = useMemo(() => (ids.length > 0 ? absenceImpact(tpl, ids) : null), [tpl, ids]);
+  const absence = useMemo(
+    () => (ids.length > 0 ? absenceImpact(tpl, ids, conflictsFor) : null),
+    [tpl, ids, conflictsFor],
+  );
   const toggle = (personId: string) =>
     setTicked(ids.includes(personId) ? ids.filter((id) => id !== personId) : [...ids, personId]);
   return { absentIds: ids, startedWith, toggle, absence };
@@ -467,11 +500,19 @@ function useLeave(
   today: string,
   journal: ReturnType<typeof useJournalSteps>,
   setLevel: (personId: string, knowledgeId: string, level: KnowledgeLevel | undefined) => void,
+  conflictsFor: StandInConflicts,
 ) {
   const { setPlannedAbsences, reviewDecision } = actions;
   const report = useMemo(
-    () => plannedAbsenceReport(tpl, profile.plannedAbsences ?? [], profile.industry, today),
-    [tpl, profile.plannedAbsences, profile.industry, today],
+    () =>
+      plannedAbsenceReport(
+        tpl,
+        profile.plannedAbsences ?? [],
+        profile.industry,
+        today,
+        conflictsFor,
+      ),
+    [tpl, profile.plannedAbsences, profile.industry, today, conflictsFor],
   );
 
   const [personId, setPersonId] = useState("");
@@ -530,8 +571,15 @@ function useLeave(
 
   const debriefs = useMemo(
     () =>
-      leaveDebriefs(tpl, profile.plannedAbsences ?? [], profile.decisions, profile.industry, today),
-    [tpl, profile.plannedAbsences, profile.decisions, profile.industry, today],
+      leaveDebriefs(
+        tpl,
+        profile.plannedAbsences ?? [],
+        profile.decisions,
+        profile.industry,
+        today,
+        conflictsFor,
+      ),
+    [tpl, profile.plannedAbsences, profile.decisions, profile.industry, today, conflictsFor],
   );
   /** Debrief entries answered this session, so the card only asks about what is left. */
   const [debriefed, setDebriefed] = useState<Set<string>>(() => new Set());
@@ -566,8 +614,12 @@ function useLeave(
   /** Stand-in got through it but not alone yet: keep them as a learner and make the training a tracked step. */
   const keepTraining = (debrief: LeaveDebrief, entry: DebriefItem, standIn: Person) => {
     const first = firstName(standIn.name);
-    if (!entry.standInLevel || entry.standInLevel === "aware")
-      setLevel(standIn.id, entry.item.id, "basic");
+    // The level read for the suggested stand-in, or the register's for whoever the owner picked.
+    const level =
+      standIn.id === entry.standIn?.id
+        ? entry.standInLevel
+        : relationLevel(tpl.relations, standIn.id, entry.item.id);
+    if (!level || level === "aware") setLevel(standIn.id, entry.item.id, "basic");
     closeHandoff(
       entry,
       `${first} covered ${entry.item.name} ${during(debrief)}; not yet able to run it alone.`,
@@ -619,6 +671,7 @@ function useLeave(
     stillOutTomorrow,
     backAtWork,
     debriefs,
+    conflictsFor,
     answered: (debrief: LeaveDebrief, entry: DebriefItem) =>
       debriefed.has(debriefKey(debrief.absence.id, entry.item.id)),
     promoteStandIn,
@@ -635,11 +688,12 @@ function useLeaving(
   tpl: IndustryTemplate,
   people: Person[],
   today: string,
+  conflictsFor: StandInConflicts,
 ) {
   const { setCustomPeople } = actions;
   const list = useMemo(
-    () => leavers(tpl, profile.decisions, today),
-    [tpl, profile.decisions, today],
+    () => leavers(tpl, profile.decisions, today, conflictsFor),
+    [tpl, profile.decisions, today, conflictsFor],
   );
   /** People still on the team with no last day recorded yet. */
   const staying = useMemo(() => people.filter((p) => !p.lastDay), [people]);

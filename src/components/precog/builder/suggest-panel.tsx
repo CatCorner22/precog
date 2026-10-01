@@ -96,7 +96,7 @@ export function SuggestPanel({
           )}
           {result.risks.length > 0 && (
             <ul className="space-y-1">
-              {result.risks.map((r, index) => {
+              {result.risks.map(({ ruleBased, ...r }, index) => {
                 const added = existingRisk.has(r.title.toLowerCase());
                 return (
                   <li
@@ -106,7 +106,13 @@ export function SuggestPanel({
                   >
                     <AlertTriangle className="mt-0.5 size-3 shrink-0 text-danger" />
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-fg">{r.title}</p>
+                      <p className="font-medium text-fg">
+                        {r.title}
+                        {/* A built-in rule's risk added to Grok's list, not Grok's own. */}
+                        {ruleBased && result.source === "grok" && (
+                          <Badge className="ml-1.5 align-middle">Rule-based</Badge>
+                        )}
+                      </p>
                       <p className="text-subtle">
                         {riskSummary(r)}
                         {r.note ? ` · ${r.note}` : ""}

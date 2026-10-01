@@ -1,5 +1,5 @@
 import { RequestError } from "@/lib/request-errors";
-import { contentKey } from "./lifecycle";
+import { contentKey, reviewByDate } from "./lifecycle";
 import { normalizeProcedures } from "./normalize";
 import { verificationBlockers } from "./writing";
 
@@ -9,7 +9,8 @@ import { verificationBlockers } from "./writing";
  * firm preparer cannot record one (a firm reviewer or owner, or the owner of
  * an account outside any firm, can), and one stamped with an account records
  * only the account that saved it, under that account's own name. A stored
- * verification kept on steps that changed counts as a new one. A new
+ * verification kept on steps that changed, or carried to a later review date
+ * by a longer review interval, counts as a new one. A new
  * verification of a procedure whose writing has errors (procedures/writing.ts)
  * is refused too, so the writing standards hold for every client. Verifications
  * already stored on unchanged steps are never re-checked, so an older one
@@ -36,6 +37,8 @@ interface Verification {
   accountName: string;
   /** What the verification vouches for: the steps and where they are done. */
   content: string;
+  /** The day the verification runs out. */
+  reviewBy: string;
   /** Writing errors in the procedure it vouches for. */
   blockers: number;
 }
@@ -59,6 +62,7 @@ function verificationsIn(profile: unknown, latestDay: string): Map<string, Verif
       accountId: p.verifiedByAccountId ?? "",
       accountName: p.verifiedByAccountName ?? "",
       content: contentKey(p),
+      reviewBy: reviewByDate(p) ?? "",
       blockers: verificationBlockers(p).length,
     });
   }
@@ -68,8 +72,9 @@ function verificationsIn(profile: unknown, latestDay: string): Map<string, Verif
 /**
  * The verifications in `nextProfile` that are not in `previousProfile` (the
  * stored profile, or null for a new business): made now, made again, by
- * someone else, under another account or name, or kept on steps that
- * changed. Both are whole business profiles, read as untrusted JSON, with no
+ * someone else, under another account or name, kept on steps that changed,
+ * or made to run out later. A shorter review interval is no new
+ * verification, so anyone may tighten it. Both are whole business profiles, read as untrusted JSON, with no
  * date later than `latestDay`.
  */
 export function newVerifications(
@@ -86,7 +91,8 @@ export function newVerifications(
       old.verifiedBy === v.verifiedBy &&
       old.accountId === v.accountId &&
       old.accountName === v.accountName &&
-      old.content === v.content;
+      old.content === v.content &&
+      v.reviewBy <= old.reviewBy;
     return same ? [] : [v];
   });
 }

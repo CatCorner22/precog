@@ -38,6 +38,7 @@ export async function applyBillingEvent(
       subscriptionId: change.subscriptionId,
       status: change.status,
       currentPeriodEnd: change.currentPeriodEnd,
+      eventAt: change.eventAt,
     });
     // The plan on the firm row follows the subscription status as stored,
     // which a late checkout event does not overwrite.

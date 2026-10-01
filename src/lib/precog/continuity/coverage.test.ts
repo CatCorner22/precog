@@ -492,6 +492,25 @@ describe("absenceImpact", () => {
     };
     const c = absenceImpact(undocumentedWithLocation, ["a"])!;
     expect(c.stops.find((s) => s.item.id === "bank-rec")!.note).not.toMatch(/procedure:/);
+
+    const draftOnly = {
+      ...t,
+      knowledge: t.knowledge.map((k) =>
+        k.id === "bank-rec"
+          ? {
+              ...k,
+              documented: false,
+              linkedProcedures: [{ id: "proc-1", title: "Bank rec", draft: true as const }],
+            }
+          : k,
+      ),
+    };
+    const d = absenceImpact(draftOnly, ["a"])!;
+    const note = d.stops.find((s) => s.item.id === "bank-rec")!.note;
+    expect(note).toContain(
+      'a draft not yet fitted to this business, steps in Procedures: "Bank rec"',
+    );
+    expect(note).not.toMatch(/written procedure/);
   });
 
   it("handles overlapping absences, shared holders, and natural group wording", () => {

@@ -138,6 +138,45 @@ describe("priority findings", () => {
   });
 });
 
+describe("COSO component scores", () => {
+  const dental = getIndustryTemplate("dental");
+  const withControls = (change: (c: (typeof dental.controls)[number]) => object) => ({
+    ...dental,
+    controls: dental.controls.map((c) => (c.segregated ? c : { ...c, ...change(c) })),
+  });
+  const score = (a: ReturnType<typeof assessCoso>, id: string) =>
+    a.components.find((c) => c.id === id)!.score;
+
+  it("stay on the 0 to 100 scale with every control in place", () => {
+    const a = assessCoso(
+      withControls(() => ({ segregated: true })),
+      {
+        ...clean,
+        dualControlPayments: true,
+      },
+    );
+    expect(score(a, "control_activities")).toBe(100);
+    for (const c of a.components) expect(c.score).toBeLessThanOrEqual(100);
+  });
+
+  it("do not score closing every duty conflict below accepting each one", () => {
+    const accepted = assessCoso(
+      withControls(() => ({ residualRiskAccepted: true })),
+      clean,
+    );
+    const closed = assessCoso(
+      withControls(() => ({ segregated: true })),
+      clean,
+    );
+    expect(score(closed, "monitoring")).toBeGreaterThanOrEqual(score(accepted, "monitoring"));
+    const p5 = closed.components
+      .find((c) => c.id === "control_environment")!
+      .principles.find((p) => p.number === 5)!;
+    expect(p5.status).toBe("adequate");
+    expect(p5.note).toBe("No open duty conflict needs a residual-risk decision.");
+  });
+});
+
 describe("sample controls in COSO", () => {
   it("does not count a sample control the owner has not confirmed as a duty conflict", () => {
     const tpl = resolveTemplate({ industry: "dental", customPeople: people });

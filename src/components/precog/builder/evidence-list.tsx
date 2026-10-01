@@ -78,6 +78,7 @@ export function EvidenceList({
           <button
             type="button"
             onClick={form.toggle}
+            aria-label={form.adding ? "Cancel adding evidence" : "Add evidence"}
             className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
           >
             {form.adding ? <X className="size-3" /> : <Plus className="size-3" />}

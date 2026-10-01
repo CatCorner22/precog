@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { RequestError, requireObject } from "@/lib/request-errors";
-import { loadBillingAccount } from "../firm/billing-store";
+import { checkoutRefusal, loadBillingAccount } from "../firm/billing-store";
 import { requireFirmRole } from "../firm/access.server";
 import type { CheckoutPlan } from "./stripe";
 import {
@@ -42,6 +42,9 @@ export const startCheckout = createServerFn({ method: "POST" })
       throw new RequestError(409, "Billing is not connected on this deployment");
     const sql = await getSql();
     await requireFirmRole(sql, context.userId, ["owner"]);
+    const account = await loadBillingAccount(sql, context.userId);
+    const refusal = checkoutRefusal(account, data.plan);
+    if (refusal) throw new RequestError(409, refusal);
     const users = await sql<{ email: string | null }>`
       select email from "user" where id = ${context.userId}
     `;
@@ -49,6 +52,8 @@ export const startCheckout = createServerFn({ method: "POST" })
     return createCheckoutSession({
       userId: context.userId,
       email: users[0]?.email ?? null,
+      customerId: account?.stripeCustomerId ?? null,
+      billingVersion: account?.updatedAt ?? null,
       plan: data.plan,
       origin: requestOrigin(),
     });

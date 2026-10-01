@@ -43,6 +43,11 @@ export interface IntegrationDrift {
   employeesReleased: QboEmployee[];
   /** Employees in the books who are not on the duty map, by name. */
   employeesNotOnMap: QboEmployee[];
+  /**
+   * Employees payroll still pays whose name matches only people marked as
+   * left on the map: the ghost-employee signal, shown first.
+   */
+  leftButStillPaid: QboEmployee[];
   /** People on the duty map with no employee record in the books. */
   peopleNotInBooks: string[];
 }
@@ -137,9 +142,14 @@ export function diffSnapshots(
   const bookNames = new Set(
     current.employees.filter((e) => e.active && !e.releasedOn).map((e) => nameKey(e.name)),
   );
-  const employeesNotOnMap = current.employees.filter(
+  const leftNames = new Set(
+    mapPeople.filter((p) => p.active === false).map((p) => nameKey(p.name)),
+  );
+  const paidOffMap = current.employees.filter(
     (e) => e.active && !e.releasedOn && !mapNames.has(nameKey(e.name)),
   );
+  const leftButStillPaid = paidOffMap.filter((e) => leftNames.has(nameKey(e.name)));
+  const employeesNotOnMap = paidOffMap.filter((e) => !leftNames.has(nameKey(e.name)));
   const peopleNotInBooks = mapPeople
     .filter((p) => p.active !== false && !bookNames.has(nameKey(p.name)))
     .map((p) => p.name);
@@ -152,6 +162,7 @@ export function diffSnapshots(
     employeesAdded,
     employeesReleased,
     employeesNotOnMap,
+    leftButStillPaid,
     peopleNotInBooks,
   };
 }
@@ -164,6 +175,7 @@ export function driftIsEmpty(drift: IntegrationDrift): boolean {
     drift.employeesAdded.length === 0 &&
     drift.employeesReleased.length === 0 &&
     drift.employeesNotOnMap.length === 0 &&
+    drift.leftButStillPaid.length === 0 &&
     drift.peopleNotInBooks.length === 0
   );
 }

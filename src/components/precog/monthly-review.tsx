@@ -7,18 +7,13 @@ import {
   latestReview,
   monthlyReviewTasks,
   recordReview,
+  RESULT_LABEL,
   reviewIndependenceMessage,
   type ReviewResult,
 } from "@/lib/precog/firm/reviews";
 import { recordMonthlyReview } from "@/lib/precog/firm/server";
 import { clientErrorStatus } from "@/lib/request-errors";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
-
-const RESULT_LABEL: Record<ReviewResult, string> = {
-  done: "Done",
-  exception: "Exception",
-  skipped: "Skipped",
-};
 
 /** The four monthly checks, with an append-only result on the business and, when signed in, on the server. */
 export function MonthlyReview() {

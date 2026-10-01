@@ -105,6 +105,14 @@ describe("signInErrorMessage", () => {
     const { client } = await load("precog.example.com");
     expect(client.signInErrorMessage("account_not_linked")).toMatch(/password/);
     expect(client.signInErrorMessage("account not linked")).toMatch(/password/);
+    expect(client.signInErrorMessage("account_not_linked")).toMatch(/Forgot password/);
+  });
+
+  it("explains an expired confirmation or password link", async () => {
+    const { client } = await load("precog.example.com");
+    for (const code of ["TOKEN_EXPIRED", "INVALID_TOKEN", "USER_NOT_FOUND"]) {
+      expect(client.signInErrorMessage(code)).toMatch(/^That link has expired or was already used/);
+    }
   });
 
   it("names the code for anything else", async () => {

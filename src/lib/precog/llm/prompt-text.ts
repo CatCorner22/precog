@@ -5,13 +5,15 @@
  * tells the model it is data, never instructions.
  */
 import type { LlmAccess } from "./guard.server";
-import type { GrokAccess } from "./types";
+import { DailyLimitReached, type GrokAccess } from "./types";
 
 /**
  * Owner-typed text for inside an <owner_text> block, with any opening or
- * closing owner_text or owner_data tag removed (any case, any spacing) so the
- * text cannot end the block early or open a second one. Run it over the whole
- * block's content, not field by field, so no field is missed.
+ * closing owner_text or owner_data tag removed (any case, any spacing,
+ * attributes or a slash before ">", "owner-text" too) so the text cannot end
+ * the block early or open a second one. A "<" still left in front of "owner"
+ * (a tag with no ">") becomes "‹". Run it over the whole block's content,
+ * not field by field, so no field is missed.
  */
 export function ownerText(value: string): string {
   // Repeated until nothing changes: removing one tag must not join the text
@@ -20,7 +22,7 @@ export function ownerText(value: string): string {
   for (let next = text.replace(OWNER_TAG, ""); next !== text; next = text.replace(OWNER_TAG, "")) {
     text = next;
   }
-  return text;
+  return text.replace(OWNER_TAG_START, "‹");
 }
 
 /**
@@ -53,7 +55,7 @@ export function parseJsonReply(text: string): Record<string, unknown> | null {
  * holds; otherwise Grok's answer, or the local one when Grok returns nothing
  * usable or fails. `ask` must call the model through callModel(access, ...),
  * which spends the daily budget. Either way the result carries the caller's
- * Grok status.
+ * Grok status, or "daily_limit" when today's model budget was used up.
  */
 export async function withGrokFallback<T extends object>(
   access: LlmAccess,
@@ -68,10 +70,16 @@ export async function withGrokFallback<T extends object>(
   try {
     const answer = await ask(access);
     return { ...(answer ?? local), grokStatus: grok };
-  } catch {
-    return { ...local, grokStatus: grok };
+  } catch (error) {
+    return { ...local, grokStatus: error instanceof DailyLimitReached ? error.grok : grok };
   }
 }
 
-/** Any opening or closing owner tag, in any case and with stray spaces ("</OWNER_TEXT >"). */
-const OWNER_TAG = /<\s*\/?\s*owner_(?:text|data)\s*>/gi;
+/**
+ * Any opening or closing owner tag, in any case, with stray spaces, slashes,
+ * invisible format characters or attributes ("</OWNER_TEXT >",
+ * "</owner_text data=1>", "</owner_text/>", "<owner-data>").
+ */
+const OWNER_TAG = /<[\s/\p{Cf}]*owner[\s_\-\p{Cf}]*(?:text|data)(?![\p{L}\p{N}_])[^<>]*>/giu;
+/** A "<" that opens something reading as an owner tag, with or without its ">". */
+const OWNER_TAG_START = /<(?=[\s/\p{Cf}]*owner)/giu;

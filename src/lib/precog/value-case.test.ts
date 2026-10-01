@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_VALUE_CASE,
+  calculateValueCase,
   createValueCaseMemo,
   normalizeEnteredInputs,
   MODELED_RANGE_NOTE,
@@ -83,6 +84,21 @@ describe("createValueCaseMemo", () => {
     const memo = createValueCaseMemo(DEFAULT_VALUE_CASE, at);
     expect(memo).toContain("(base ×0.5 and ×1.5, Precog's assumption)");
     expect(MODELED_RANGE_NOTE).toMatch(/half, or one and a half times/);
+  });
+
+  it("never models more avoided loss than the expected loss", () => {
+    const inputs = {
+      ...DEFAULT_VALUE_CASE,
+      annualExposure: 250_000,
+      eventProbability: 0.04,
+      controlEffectiveness: 0.8,
+    };
+    const { modeled } = calculateValueCase(inputs);
+    expect(modeled.expectedLossBefore).toBeCloseTo(10_000);
+    expect(modeled.base).toBeCloseTo(8_000);
+    expect(modeled.high).toBeCloseTo(10_000);
+    expect(createValueCaseMemo(inputs, at)).toContain("High is capped at the expected loss");
+    expect(createValueCaseMemo(DEFAULT_VALUE_CASE, at)).not.toContain("capped");
   });
 
   it("lists each evidence item's amount and date, and the verified register totals", () => {

@@ -9,7 +9,8 @@ import type { StaffComposition } from "../types";
 import type { IndustryTemplate } from "../templates";
 import type { RiskVariableState } from "../scoring/dynamic-variables";
 import { findKnowledgeRisks } from "../engine";
-import { portfolioSummary } from "../scoring/residual-engine";
+import { portfolioSummary, type ResidualScope } from "../scoring/residual-engine";
+import { DEFAULT_WEIGHTS } from "../scoring/weights";
 import { assessCoso } from "../coso";
 import { RISK_SCALE } from "../scoring/bands";
 import { formatUsd } from "../../utils";
@@ -37,14 +38,23 @@ interface LeadingIndicatorReport {
   assumptions: string[];
 }
 
+/**
+ * `confirmedScenarioIds` is the owner's confirmed scenarios (see
+ * scoring/scope `residualScope`), so the average residual here is the one the
+ * Residual page shows.
+ */
 export function scoreLeadingIndicators(
   tpl: IndustryTemplate,
   staff: StaffComposition,
   riskVars: RiskVariableState,
+  confirmedScenarioIds?: ResidualScope["confirmedScenarioIds"],
 ): LeadingIndicatorReport {
   const { controls } = tpl;
-  const portfolio = portfolioSummary(tpl, staff);
-  const coso = assessCoso(tpl, staff, { riskVariables: riskVars });
+  const portfolio = portfolioSummary(tpl, staff, DEFAULT_WEIGHTS, {
+    confirmedScenarioIds,
+    riskVariables: riskVars,
+  });
+  const coso = assessCoso(tpl, staff, { riskVariables: riskVars, confirmedScenarioIds });
   const spofs = findKnowledgeRisks(tpl).filter(
     (r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow,
   );

@@ -1,12 +1,13 @@
 import type { IndustryId } from "../industry";
 import type { KnowledgeItem } from "../types";
-import { isWrittenProcedure } from "./lifecycle";
+import { isDraftProcedure, isWrittenProcedure } from "./lifecycle";
 import { DEFAULT_REVIEW_DAYS } from "./normalize";
 import type { Procedure, ProcedureLink } from "./types";
 
 /**
  * Each register item with the procedures written for it (at least one step)
- * in this industry, on `linkedProcedures`. Derived every time the template is
+ * in this industry, on `linkedProcedures`; a procedure that is still only
+ * suggested or AI-drafted steps is linked with `draft` set. Derived every time the template is
  * built and never stored: an item whose procedures are all removed loses the
  * field, and `stripProcedureLinks` takes it off anything about to be saved.
  */
@@ -20,7 +21,7 @@ export function linkProcedures<T extends readonly KnowledgeItem[]>(
     if (p.industry !== industry || !isWrittenProcedure(p)) continue;
     for (const id of p.knowledgeIds) {
       const list = byItem.get(id) ?? [];
-      list.push({ id: p.id, title: p.title });
+      list.push({ id: p.id, title: p.title, ...(isDraftProcedure(p) ? { draft: true } : {}) });
       byItem.set(id, list);
     }
   }
@@ -49,6 +50,8 @@ export interface ProcedureLinkInput {
   id: string;
   title: string;
   knowledgeIds: string[];
+  /** The procedure is still only suggested or AI-drafted steps (see isDraftProcedure). */
+  draft?: true;
 }
 
 /** The links for this industry's written procedures, as the Pioneer coach is sent them. */
@@ -58,7 +61,12 @@ export function writtenProcedureLinks(
 ): ProcedureLinkInput[] {
   return (procedures ?? [])
     .filter((p) => p.industry === industry && isWrittenProcedure(p) && p.knowledgeIds.length > 0)
-    .map((p) => ({ id: p.id, title: p.title, knowledgeIds: [...p.knowledgeIds] }));
+    .map((p) => ({
+      id: p.id,
+      title: p.title,
+      knowledgeIds: [...p.knowledgeIds],
+      ...(isDraftProcedure(p) ? { draft: true as const } : {}),
+    }));
 }
 
 /** The step text a link-only procedure carries, so it counts as written. */
@@ -80,7 +88,9 @@ export function linkOnlyProcedure(
     industry,
     title: link.title,
     prerequisites: [],
-    steps: [{ id: `${link.id}-linked`, text: LINK_ONLY_STEP }],
+    steps: [
+      { id: `${link.id}-linked`, text: LINK_ONLY_STEP, ...(link.draft ? { suggested: true } : {}) },
+    ],
     knowledgeIds: link.knowledgeIds,
     processIds: [],
     backupPersonIds: [],

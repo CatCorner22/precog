@@ -64,6 +64,7 @@ import {
 import type { MapReview } from "@/lib/precog/builder/review";
 import { reviewMap } from "@/lib/precog/builder/review-server";
 import { scoreMap } from "@/lib/precog/builder/scored-map";
+import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { buildSharePayload } from "@/lib/precog/share/share-payload";
 import { healthDelta, type HealthDelta } from "@/lib/precog/builder/what-if";
 import { analyzeWorkload, LOAD_BANDS } from "@/lib/precog/builder/workload";
@@ -71,7 +72,8 @@ import { formatDayShort } from "@/lib/precog/dates";
 import { downloadText } from "@/lib/download";
 import { industryMeta } from "@/lib/precog/industry";
 import type { MapValidationIssue } from "@/lib/precog/process-validation";
-import { buildProcessMapGraph, enrichProcess } from "@/lib/precog/process-graph";
+import { buildProcessMapGraph, enrichProcess, processMapContext } from "@/lib/precog/process-graph";
+import { residualScope } from "@/lib/precog/scoring/scope";
 import { validateProcessMap } from "@/lib/precog/process-validation";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { count, slug, uniqueId } from "@/lib/precog/text";
@@ -244,11 +246,13 @@ export function ProcessBuilder({
     setReviewing(true);
     try {
       const wl = analyzeWorkload(tpl, processes, tpl.people, profile.staff, profile.dualRelease);
+      // One reading of the residual register for every process, scoped as the Residual page is.
+      const context = processMapContext(tpl, profile.staff, residualScope(profile));
       const enriched = processes.map((p) => {
         const owners = (p.ownerPersonIds ?? [])
           .map((id) => tpl.people.find((x) => x.id === id)?.name)
           .filter((x): x is string => Boolean(x));
-        const snap = enrichProcess(tpl, p, profile.staff);
+        const snap = enrichProcess(tpl, p, profile.staff, context);
         return {
           id: p.id,
           name: p.name,
@@ -705,8 +709,14 @@ export function ProcessBuilder({
 
         {isOpen("share") && (
           <SharePanel
+            businessId={profile.businessId ?? DEFAULT_BUSINESS_ID}
             buildPayload={(note, redactNames) => {
-              const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
+              const { snapshots } = buildProcessMapGraph(
+                tpl,
+                profile.staff,
+                {},
+                residualScope(profile),
+              );
               const actions = buildWeeklyActions({
                 tpl,
                 staff: profile.staff,

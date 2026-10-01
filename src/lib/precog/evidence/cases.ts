@@ -1469,6 +1469,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
     sodRuleIds: [
       "rule-vendor-create-pay",
       "rule-vendor-create-approve",
+      "rule-vendor-create-invoice",
       "rule-invoice-pay",
       "rule-vendor-approve-pay",
     ],

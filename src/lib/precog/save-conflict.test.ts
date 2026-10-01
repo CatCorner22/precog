@@ -309,6 +309,7 @@ describe("switching to another business", () => {
       account: { found: false },
       seenRevision: undefined,
       heldByAccount: false,
+      accountTook: () => false,
     });
     expect(copy).toMatchObject({ ok: true, localOnly: true, accountRevision: null });
     if (copy.ok) expect(copy.profile.practiceName).toBe("Two Tab Co (copy)");
@@ -321,6 +322,7 @@ describe("switching to another business", () => {
       account: { found: false },
       seenRevision: 4,
       heldByAccount: true,
+      accountTook: () => false,
     });
     expect(copy.ok).toBe(false);
     if (!copy.ok) expect(copy.reason).toMatch(/Precog kept its copy on this device/);
@@ -334,6 +336,7 @@ describe("switching to another business", () => {
       account: null,
       seenRevision: undefined,
       heldByAccount: false,
+      accountTook: () => false,
     });
     expect(copy.ok && copy.profile.staff.teamSize).toBeGreaterThanOrEqual(1);
   });
@@ -346,7 +349,10 @@ describe("switching to another business", () => {
       account: { found: true, profile: account, revision: 5 },
       seenRevision: 4,
       heldByAccount: true,
+      // The account took this device's copy before it moved on: nothing here is unsynced.
+      accountTook: (stamp) => stamp === kept.updatedAt,
     });
+    expect(newer).not.toHaveProperty("accountMovedOn");
     expect(newer).toMatchObject({ ok: true, accountRevision: 5 });
     if (newer.ok) expect(newer.profile.practiceName).toBe("Renamed elsewhere");
     const current = pickSwitchCopy({
@@ -355,9 +361,50 @@ describe("switching to another business", () => {
       account: { found: true, profile: account, revision: 5 },
       seenRevision: 5,
       heldByAccount: true,
+      accountTook: () => false,
     });
     expect(current).toMatchObject({ ok: true, accountRevision: null });
     if (current.ok) expect(current.profile.practiceName).toBe("Two Tab Co (copy)");
+  });
+
+  it("keeps this device's unsynced edits when the account moved on, and names both copies", () => {
+    // Edited here while offline on base revision 5; another device then saved revision 6.
+    const offline = edit(kept, { customKnowledge: [item("Offline item")] });
+    const account = edit(kept, { practiceName: "Renamed elsewhere" });
+    const copy = pickSwitchCopy({
+      stored: offline,
+      open: null,
+      account: { found: true, profile: account, revision: 6 },
+      seenRevision: 5,
+      heldByAccount: true,
+      accountTook: (stamp) => stamp === kept.updatedAt,
+    });
+    expect(copy).toMatchObject({ ok: true, accountRevision: null, localOnly: false });
+    if (!copy.ok) return;
+    expect(copy.profile.customKnowledge?.[0]?.name).toBe("Offline item");
+    expect(copy.accountMovedOn?.revision).toBe(6);
+    expect(copy.accountMovedOn?.profile.practiceName).toBe("Renamed elsewhere");
+  });
+
+  it("says the account could not be reached, not that the business is gone, when the load fails", () => {
+    const none = pickSwitchCopy({
+      stored: undefined,
+      open: null,
+      account: "unreachable",
+      seenRevision: 4,
+      heldByAccount: true,
+      accountTook: () => false,
+    });
+    expect(none).toEqual({ ok: false, reason: "Precog could not reach your account. Try again." });
+    const here = pickSwitchCopy({
+      stored: kept,
+      open: null,
+      account: "unreachable",
+      seenRevision: 4,
+      heldByAccount: true,
+      accountTook: () => false,
+    });
+    expect(here).toMatchObject({ ok: true, accountRevision: null, localOnly: false });
   });
 
   it("takes another tab's newer open copy over the portfolio entry", () => {
@@ -368,6 +415,7 @@ describe("switching to another business", () => {
       account: null,
       seenRevision: undefined,
       heldByAccount: false,
+      accountTook: () => false,
     });
     expect(copy.ok && copy.profile.practiceName).toBe("Open in another tab");
   });

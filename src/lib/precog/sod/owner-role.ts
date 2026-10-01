@@ -39,8 +39,28 @@ function titleParts(role: string): string[] {
     .filter(Boolean);
 }
 
-/** True when the title names the business's owner (one of possibly several). */
+/**
+ * A word that makes a title a past one: "Former Owner", "Ex-Controller",
+ * "Owner (Retired)", "Partner Emeritus". Not "Ex Officio", which is a seat
+ * held by virtue of another office.
+ */
+const FORMER_WORD = "(?:former|retired|emeritus|past|ex(?![- ]?officio\\b))";
+const FORMER_LEAD = new RegExp(`^\\s*${FORMER_WORD}\\b[\\s-]*`, "i");
+const FORMER_TAIL = new RegExp(`[\\s,(/-]+${FORMER_WORD}\\)?\\s*$`, "i");
+
+/**
+ * The seat a past title names without its "former" word ("Former Owner" is
+ * "Owner"), or undefined when the title is a current one. Someone with a
+ * past title no longer holds that seat.
+ */
+export function formerTitleRest(role: string): string | undefined {
+  const rest = role.replace(FORMER_LEAD, "").replace(FORMER_TAIL, "").trim();
+  return rest === role.trim() ? undefined : rest;
+}
+
+/** True when the title names the business's owner (one of possibly several), but not a former one. */
 export function isOwnerRole(role: string): boolean {
+  if (formerTitleRest(role) !== undefined) return false;
   return titleParts(role).some((part) => OWNER_PART.test(part));
 }
 

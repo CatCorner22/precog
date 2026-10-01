@@ -76,6 +76,10 @@ export function SectionHeader({
       <button
         type="button"
         onClick={onAdd}
+        // Several lists share the form: the name says which one this adds to.
+        aria-label={
+          adding ? `Cancel adding to ${title.toLowerCase()}` : `Add to ${title.toLowerCase()}`
+        }
         className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
       >
         {adding ? <X className="size-3" /> : <Plus className="size-3" />}

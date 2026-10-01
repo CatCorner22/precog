@@ -299,6 +299,10 @@ export function runPrecogScenario(
  * and for an owner's own people only the starter scenarios they confirmed
  * (`confirmedScenarioIds`, see scoring/scope). With none confirmed the list is
  * empty rather than the industry example's.
+ *
+ * The index reads the loss left after controls, not how soon a scheme is
+ * found: a detective control shortens the days until found, and dividing by
+ * them would rank a scenario more dangerous for being caught sooner.
  */
 export function rankDangerousScenarios(
   tpl: IndustryTemplate,
@@ -320,7 +324,6 @@ export function rankDangerousScenarios(
       const annualCor = result.dynamic?.expectedAnnualCostOfRisk ?? retained;
       const score =
         (retained * 0.65 + annualCor * 0.35) *
-        (1 / Math.max(14, result.timelineDays.p50)) *
         ((options?.staff ?? staffComposition).segregationScore < 50 ? 1.3 : 1);
       return { scenario, score, result };
     })

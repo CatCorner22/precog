@@ -3,7 +3,7 @@ import type { PracticeProfile } from "../practice-profile";
 import { buildThreatAssessment } from "../threat-scoring";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { DEFAULT_WEIGHTS } from "../scoring/weights";
-import { confirmedScenarioIds, isOwnBusiness } from "../scoring/scope";
+import { confirmedScenarioIds, isOwnBusiness, residualScope } from "../scoring/scope";
 import { insuranceFigureNote } from "../scoring/dynamic-variables";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { coverageReport } from "../continuity/coverage";
@@ -14,6 +14,7 @@ import { procedureSummary } from "../procedures/attention";
 import { plannedAbsenceReport } from "../continuity/planned-absence";
 import { leaveDebriefs } from "../continuity/leave-debrief";
 import { leavers as leaversReport } from "../continuity/leavers";
+import { profileStandInConflicts } from "../continuity/standin-conflicts";
 import { continuityCommitments, continuitySlips } from "../decisions/follow-through";
 import { assessCoso } from "../coso";
 import {
@@ -79,15 +80,24 @@ export function buildControlReportModel({
   const staleness = staleItems(tpl, today);
   const checkIns = checkInPlan(tpl, today);
   const cards = contingencyCards(tpl);
-  const leave = plannedAbsenceReport(tpl, profile.plannedAbsences ?? [], profile.industry, today);
+  // Stand-ins whose cover would create a duty conflict come last and are flagged.
+  const conflictsFor = profileStandInConflicts(tpl, profile);
+  const leave = plannedAbsenceReport(
+    tpl,
+    profile.plannedAbsences ?? [],
+    profile.industry,
+    today,
+    conflictsFor,
+  );
   const debriefs = leaveDebriefs(
     tpl,
     profile.plannedAbsences ?? [],
     profile.decisions,
     profile.industry,
     today,
+    conflictsFor,
   );
-  const leaving = leaversReport(tpl, profile.decisions, today);
+  const leaving = leaversReport(tpl, profile.decisions, today, conflictsFor);
   const slips = continuitySlips(profile.decisions, tpl);
   const committed = continuityCommitments(profile.decisions, tpl, today);
   const coso = assessCoso(tpl, profile.staff, {
@@ -96,7 +106,7 @@ export function buildControlReportModel({
     dualRelease: profile.dualRelease,
   });
   const policyNote = insuranceFigureNote(profile.riskVariables, isOwnBusiness(tpl));
-  const { snapshots } = buildProcessMapGraph(tpl, profile.staff);
+  const { snapshots } = buildProcessMapGraph(tpl, profile.staff, {}, residualScope(profile));
   const actions = buildWeeklyActions({
     tpl,
     staff: profile.staff,
@@ -154,7 +164,7 @@ export function buildControlReportModel({
       : null;
   const registerReady = registerAssessed(tpl);
   const summary = executiveSummary({
-    conflicts: sod.conflicts,
+    openConflicts: open,
     firstStep: steps[0]?.control.label ?? null,
     registerReady,
     coverageIndex: continuity.coverageIndex,
@@ -190,7 +200,13 @@ export function buildControlReportModel({
     policyNote,
     healthDelta,
     registerReady,
-    procedures: procedureSummary(profile.procedures ?? [], tpl.knowledge, profile.industry, today),
+    procedures: procedureSummary(
+      profile.procedures ?? [],
+      tpl.knowledge,
+      tpl.people,
+      profile.industry,
+      today,
+    ),
     decisionLog: decisionLog(profile.decisions),
     followThrough: continuityFollowThrough(profile.decisions, profile.industry),
   };

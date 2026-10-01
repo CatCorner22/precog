@@ -13,6 +13,8 @@ import {
 import type { RoleAssignment } from "./assignments";
 import { segregationHealthIndex } from "./score";
 import { ROLE_TEMPLATES } from "./role-templates";
+import { sodMatrix } from "./rule-match";
+import { defaultDualReleasePolicy, mitigatedSodRuleIds } from "../controls/dual-release";
 
 const dental = getIndustryTemplate("dental");
 
@@ -874,6 +876,69 @@ describe("owner logic by line of business", () => {
   it("still reads the founder of a business as its owner", () => {
     const report = detectAssignments({ assignments: founder(), industry: "general" });
     expect(report.summary.ownerHeld).toBe(2);
+  });
+
+  it("names the board treasurer as the reader in a nonprofit's advice, never a partner", () => {
+    const report = detectAssignments({
+      assignments: [
+        {
+          personId: "bk",
+          personName: "Bo",
+          role: "Bookkeeper",
+          entitlements: ["post_payments", "bank_reconcile", "create_vendor", "release_payment"],
+        },
+      ],
+      industry: "nonprofit",
+    });
+    const advice = report.recommendations.join("\n");
+    expect(advice).toMatch(/have the board treasurer/);
+    expect(advice).not.toMatch(/\ban board\b|partner/);
+  });
+});
+
+describe("supplier set-up and bill entry", () => {
+  const apClerk = (): RoleAssignment[] => [
+    {
+      personId: "own",
+      personName: "Olive",
+      role: "Owner",
+      entitlements: ["release_payment", "approve_invoices"],
+    },
+    {
+      personId: "ap",
+      personName: "Avery",
+      role: "Accounts Payable Specialist",
+      entitlements: ["enter_invoices", "create_vendor", "view_reports_only"],
+    },
+  ];
+
+  it("flags a clerk who can set up a supplier and enter its bills", () => {
+    const report = detectAssignments({ assignments: apClerk() });
+    const found = report.conflicts.find((c) => c.ruleId === "rule-vendor-create-invoice");
+    expect(found).toMatchObject({ personId: "ap", severity: "high", ownerHeld: false });
+    expect(found?.linkedControlId).toBe("c-sod-ap");
+    expect(report.summary.segregationHealth).toBeLessThan(100);
+    expect(report.recommendations.join("\n")).toMatch(
+      /approve every new supplier before anyone enters a bill from it/,
+    );
+  });
+
+  it("marks the pair as a conflict in the matrix", () => {
+    const cell = sodMatrix().find((c) => c.row === "create_vendor" && c.col === "enter_invoices");
+    expect(cell?.status).toBe("conflict");
+    expect(cell?.ruleIds).toEqual(["rule-vendor-create-invoice"]);
+  });
+
+  it("is narrowed by the owner signing every new supplier", () => {
+    const report = detectAssignments({
+      assignments: apClerk(),
+      dualReleaseMitigatedRuleIds: mitigatedSodRuleIds({
+        ...defaultDualReleasePolicy(dental),
+        enabled: true,
+      }),
+    });
+    const found = report.conflicts.find((c) => c.ruleId === "rule-vendor-create-invoice");
+    expect(found?.dualReleaseMitigated).toBe(true);
   });
 });
 

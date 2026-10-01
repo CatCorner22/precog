@@ -1,5 +1,6 @@
 import { encodeStripeParams, type CheckoutPlan, type PlanPrice } from "./stripe";
 import { env } from "@/lib/env.server";
+import { toHex } from "@/lib/web-crypto";
 
 /**
  * Stripe calls that need the secret key. Configured when STRIPE_SECRET_KEY
@@ -42,22 +43,31 @@ export async function loadPlanPrices(): Promise<Record<CheckoutPlan, PlanPrice> 
 /**
  * A Checkout Session for the fixed assessment (one payment) or the firm plan
  * (a subscription). The account id rides along so the webhook can attribute
- * the payment without a customer lookup.
+ * the payment without a customer lookup. An account Stripe already knows
+ * reuses its customer, so every subscription stays in one billing portal.
+ * The idempotency key covers the request and the stored billing state
+ * (`billingVersion`, which the webhook moves): a second click or tab before
+ * the webhook lands gets the same session back instead of a second charge.
  */
 export async function createCheckoutSession(input: {
   userId: string;
   email: string | null;
+  customerId: string | null;
+  billingVersion: string | null;
   plan: CheckoutPlan;
   origin: string;
 }): Promise<{ url: string }> {
   const price =
     input.plan === "monthly" ? env("STRIPE_PRICE_MONTHLY") : env("STRIPE_PRICE_ASSESSMENT");
   if (!price) throw new Error("Stripe is not configured");
-  const session = await stripeRequest<{ url: string | null }>("POST", "/checkout/sessions", {
+  const params = {
     mode: input.plan === "monthly" ? "subscription" : "payment",
     line_items: [{ price, quantity: 1 }],
     client_reference_id: input.userId,
-    customer_email: input.email ?? undefined,
+    // Stripe refuses a request that names both.
+    ...(input.customerId
+      ? { customer: input.customerId }
+      : { customer_email: input.email ?? undefined }),
     metadata: { userId: input.userId, plan: input.plan },
     ...(input.plan === "monthly"
       ? { subscription_data: { metadata: { userId: input.userId } } }
@@ -65,7 +75,17 @@ export async function createCheckoutSession(input: {
     success_url: `${input.origin}/firm?billing=success`,
     cancel_url: `${input.origin}/firm?billing=cancelled`,
     allow_promotion_codes: true,
-  });
+  };
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`${input.billingVersion ?? "none"}\n${encodeStripeParams(params)}`),
+  );
+  const session = await stripeRequest<{ url: string | null }>(
+    "POST",
+    "/checkout/sessions",
+    params,
+    `checkout-${toHex(new Uint8Array(digest))}`,
+  );
   if (!session.url) throw new Error("Stripe returned no checkout link");
   return { url: session.url };
 }
@@ -100,6 +120,7 @@ async function stripeRequest<T>(
   method: "GET" | "POST",
   path: string,
   params?: Record<string, unknown>,
+  idempotencyKey?: string,
 ): Promise<T> {
   const key = env("STRIPE_SECRET_KEY");
   if (!key) throw new Error("Stripe is not configured");
@@ -109,6 +130,7 @@ async function stripeRequest<T>(
       authorization: `Bearer ${key}`,
       "stripe-version": "2024-06-20",
       ...(params ? { "content-type": "application/x-www-form-urlencoded" } : {}),
+      ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
     },
     body: params ? encodeStripeParams(params) : undefined,
     signal: AbortSignal.timeout(10_000),

@@ -7,7 +7,8 @@ import { criticalSinglePoints } from "@/lib/precog/continuity/coverage";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
 import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-team";
 import { assessCoso } from "@/lib/precog/coso";
-import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
+import { confirmedScenarioIds, residualScope } from "@/lib/precog/scoring/scope";
+import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
 import type { detectSodConflicts } from "@/lib/precog/sod/detect";
@@ -80,10 +81,24 @@ export function Dashboard({
       profile.dualRelease,
     ],
   );
-  const portfolio = useMemo(() => portfolioSummary(tpl, profile.staff), [tpl, profile.staff]);
+  // Scoped as the Residual page scopes it, so the tile matches the page it links to.
+  const scope = useMemo(
+    () =>
+      residualScope({
+        decisions: profile.decisions,
+        industry: profile.industry,
+        riskVariables: profile.riskVariables,
+      }),
+    [profile.decisions, profile.industry, profile.riskVariables],
+  );
+  const portfolio = useMemo(
+    () => portfolioSummary(tpl, profile.staff, DEFAULT_WEIGHTS, scope),
+    [tpl, profile.staff, scope],
+  );
   const leading = useMemo(
-    () => scoreLeadingIndicators(tpl, profile.staff, profile.riskVariables),
-    [tpl, profile.staff, profile.riskVariables],
+    () =>
+      scoreLeadingIndicators(tpl, profile.staff, profile.riskVariables, scope.confirmedScenarioIds),
+    [tpl, profile.staff, profile.riskVariables, scope],
   );
   // One sole-owner figure on the whole Dashboard: the card shows the value the
   // business profile shows and the residual index uses, which for an owner's

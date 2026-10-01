@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deleteDecisionPrompt, reviewDelta } from "./decision-journal-text";
+import { deleteDecisionPrompt, effectiveSubject, reviewDelta } from "./decision-journal-text";
 import type { DecisionEntry, DecisionSnapshot } from "@/lib/precog/practice-profile";
 
 const then: DecisionSnapshot = {
@@ -63,5 +63,24 @@ describe("deleteDecisionPrompt", () => {
     expect(deleteDecisionPrompt({ subject: "Payroll" })).toBe(
       'Delete "Payroll" from the Decisions log? You cannot undo this.',
     );
+  });
+});
+
+describe("effectiveSubject", () => {
+  it("saves the subject the select shows when no row is scored yet", () => {
+    expect(effectiveSubject("", [])).toBe("Business-wide monitoring");
+  });
+
+  it("starts at the first scored row and keeps a pick that is still offered", () => {
+    const top = [{ name: "Payroll" }, { name: "Deposits" }];
+    expect(effectiveSubject("", top)).toBe("Payroll");
+    expect(effectiveSubject("Deposits", top)).toBe("Deposits");
+    expect(effectiveSubject("Insurance and transfer terms", top)).toBe(
+      "Insurance and transfer terms",
+    );
+  });
+
+  it("falls back to the first option when the picked row is no longer scored", () => {
+    expect(effectiveSubject("Deposits", [{ name: "Payroll" }])).toBe("Payroll");
   });
 });

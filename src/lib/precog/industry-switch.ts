@@ -24,6 +24,9 @@ interface EnteredWork {
   openLeaverChecks: number;
   /** A user and vendor export compared with the duty map. */
   accessReconciliation: boolean;
+  /** Written step-by-step procedures, and the places they are done in. */
+  procedures: number;
+  places: number;
   /** The engagement stamps set: started, map finished, report sent. */
   engagementStamps: EngagementMilestone[];
   /** An override that exists but is empty: the team, map or register was cleared on purpose. */
@@ -54,6 +57,8 @@ export function enteredWork(p: PracticeProfile): EnteredWork {
     monthlyReviews: p.monthlyReviews?.length ?? 0,
     openLeaverChecks: (p.leaverAccessChecks ?? []).filter((check) => !check.confirmedOn).length,
     accessReconciliation: Boolean(p.accessReconciliation),
+    procedures: p.procedures?.length ?? 0,
+    places: p.places?.length ?? 0,
     engagementStamps: [
       ...(stamps.startedAt ? (["started"] as const) : []),
       ...(stamps.mapCompletedAt ? (["finished the map"] as const) : []),
@@ -97,6 +102,8 @@ export function describeEnteredWork(work: EnteredWork): string[] {
   if (work.monthlyReviews) parts.push(count(work.monthlyReviews, "monthly close result"));
   if (work.openLeaverChecks) parts.push(count(work.openLeaverChecks, "open leaver check"));
   if (work.accessReconciliation) parts.push("an access reconciliation");
+  if (work.procedures) parts.push(count(work.procedures, "written procedure"));
+  if (work.places) parts.push(count(work.places, "place"));
   if (work.absences) parts.push(count(work.absences, "absence"));
   if (work.processes) parts.push(count(work.processes, "process", "processes"));
   else if (work.emptiedProcesses) parts.push("a cleared process map");

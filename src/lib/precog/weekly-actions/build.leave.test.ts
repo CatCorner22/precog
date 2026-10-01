@@ -222,10 +222,9 @@ describe("buildWeeklyActions planned leave", () => {
   it("asks the debrief once the leave is over", () => {
     const actions = build([leave], [], "2025-04-22");
     const debrief = actions.find((a) => a.id === "debrief-abs-1");
-    expect(debrief?.title).toBe(
-      `${firstName(maya.name)}'s back: can ${firstName(chris.name)} run ${item.name} alone now?`,
-    );
-    expect(debrief?.why).toContain("covered");
+    // No hand-off names the stand-in, so the action asks who covered rather than assuming it.
+    expect(debrief?.title).toBe(`${firstName(maya.name)}'s back: who covered ${item.name}?`);
+    expect(debrief?.why).toContain(`Was it ${firstName(chris.name)}?`);
     expect(debrief?.why).toContain("8 days");
     expect(debrief?.tab).toBe("knowledge");
     expect(debrief?.priority).toBe(78);

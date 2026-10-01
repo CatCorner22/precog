@@ -3,7 +3,14 @@ import {
   edgesWithinNodes,
   removeProcessDependencies,
 } from "@/lib/precog/builder/map-editing";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import {
   Background,
   Controls,
@@ -26,7 +33,9 @@ import {
   graphNodeIdForPriority,
   priorityKeyForNode,
   type ProcessMapSnapshot,
+  processMapContext,
 } from "@/lib/precog/process-graph";
+import { residualScope } from "@/lib/precog/scoring/scope";
 import { validateProcessMap } from "@/lib/precog/process-validation";
 import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
 import { layoutProcessMap, stageLanes } from "@/lib/precog/process-layout";
@@ -86,7 +95,8 @@ import {
   TerminatorLegend,
   VisionChip,
 } from "@/components/precog/process-map/detail";
-import { processAfterArrow } from "@/components/precog/process-map/keyboard";
+import { isArrowKey, processAfterArrow } from "@/components/precog/process-map/keyboard";
+import { shownProcess } from "@/components/precog/process-map/selection";
 import { IndexBasis } from "@/components/precog/index-basis";
 import { count, slug } from "@/lib/precog/text";
 
@@ -161,7 +171,20 @@ export function ProcessMap({
 
   // Every card is built; the layer toggles only hide cards (visibleNodes), so
   // a toggle never rebuilds or re-scores the map.
-  const graph = useMemo(() => buildProcessMapGraph(tpl, profile.staff), [tpl, profile.staff]);
+  // Scoped as the Residual page scopes it; not the whole profile, so moving a card does not re-score the map.
+  const scope = useMemo(
+    () =>
+      residualScope({
+        decisions: profile.decisions,
+        industry: profile.industry,
+        riskVariables: profile.riskVariables,
+      }),
+    [profile.decisions, profile.industry, profile.riskVariables],
+  );
+  const graph = useMemo(
+    () => buildProcessMapGraph(tpl, profile.staff, {}, scope),
+    [tpl, profile.staff, scope],
+  );
   // Heat, hot counts and ranks describe only processes the owner has worked
   // on: nothing while the map is not assessed, and never a starter process
   // the owner has not touched yet.
@@ -266,6 +289,19 @@ export function ProcessMap({
     [visibleNodes, positions],
   );
 
+  /** Moves the selection one step for an arrow key; the id selected, or undefined on an empty map. */
+  const stepSelection = useCallback(
+    (key: Parameters<typeof processAfterArrow>[2]) => {
+      const next = processAfterArrow(processOrder, focusProcessId, key);
+      if (!next) return undefined;
+      setSelectedId(next.id);
+      setFocusProcessId(next.id);
+      focusOn(next.id);
+      return next.id;
+    },
+    [processOrder, focusProcessId, focusOn],
+  );
+
   // Build-mode keyboard: Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl+Y redo; arrows step between
   // processes (left/right = stage, up/down = within a stage); F frames the selection; Enter edits
   // the name. Never fires inside inputs.
@@ -297,18 +333,8 @@ export function ProcessMap({
         return;
       }
       if (e.altKey) return;
-      if (
-        e.key === "ArrowRight" ||
-        e.key === "ArrowLeft" ||
-        e.key === "ArrowDown" ||
-        e.key === "ArrowUp"
-      ) {
-        const next = processAfterArrow(processOrder, focusProcessId, e.key);
-        if (!next) return;
-        e.preventDefault();
-        setSelectedId(next.id);
-        setFocusProcessId(next.id);
-        focusOn(next.id);
+      if (isArrowKey(e.key)) {
+        if (stepSelection(e.key)) e.preventDefault();
         return;
       }
       if (k === "f" && focusProcessId) {
@@ -333,7 +359,31 @@ export function ProcessMap({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [build, undoMap, redoMap, processOrder, focusProcessId, focusOn, autoArrange]);
+  }, [build, undoMap, redoMap, stepSelection, focusProcessId, focusOn, autoArrange]);
+
+  /**
+   * Arrows on a focused card. React Flow would nudge a selected card 5 px,
+   * a move Precog never saves, while the map also stepped the selection, so
+   * the event stops here and only the selection moves, taking the focus along.
+   */
+  const onCardArrowCapture = useCallback(
+    (e: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (!build || !isArrowKey(e.key) || e.altKey || e.ctrlKey || e.metaKey) return;
+      const card = (e.target as HTMLElement).closest<HTMLElement>(".react-flow__node");
+      if (!card) return;
+      e.stopPropagation();
+      const next = stepSelection(e.key);
+      if (!next) return;
+      e.preventDefault();
+      window.requestAnimationFrame(() =>
+        card
+          .closest(".react-flow")
+          ?.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(next)}"]`)
+          ?.focus({ preventScroll: true }),
+      );
+    },
+    [build, stepSelection],
+  );
 
   /** The priority stack, and the Heat and Priority views' colours. */
   const priorities: PriorityTarget[] = useMemo(
@@ -579,17 +629,12 @@ export function ProcessMap({
     selectedNode?.processId ??
     (selectedNode?.kind === "process" ? selectedNode.id : focusProcessId);
   // Scored once per selection or map change, not on every drag frame.
-  const snapshot: ProcessMapSnapshot | null = useMemo(
-    () =>
-      processId
-        ? enrichProcess(
-            tpl,
-            processes.find((p) => p.id === processId) ?? processes[0],
-            profile.staff,
-          )
-        : null,
-    [tpl, processes, processId, profile.staff],
-  );
+  const snapshot: ProcessMapSnapshot | null = useMemo(() => {
+    const shown = shownProcess(processes, processId);
+    return shown
+      ? enrichProcess(tpl, shown, profile.staff, processMapContext(tpl, profile.staff, scope))
+      : null;
+  }, [tpl, processes, processId, profile.staff, scope]);
 
   const onNodeClick = useCallback(
     (_: unknown, node: ProcessFlowNode) => selectNode(node.id),
@@ -843,6 +888,7 @@ export function ProcessMap({
                 <div className="terminator-scan-sweep absolute inset-x-0 top-0 z-10 h-1/3" />
               )}
               <ReactFlow
+                onKeyDownCapture={onCardArrowCapture}
                 nodes={rfNodes}
                 edges={rfEdges}
                 nodeTypes={nodeTypes}
@@ -900,7 +946,9 @@ export function ProcessMap({
                   }
                 />
                 <Controls showInteractive={false} />
+                {/* Below sm the bottom-centre legend would sit on top of the minimap. */}
                 <MiniMap
+                  className="hidden sm:block"
                   nodeStrokeWidth={2}
                   pannable
                   zoomable

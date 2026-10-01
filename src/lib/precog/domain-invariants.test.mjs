@@ -30,6 +30,8 @@ import * as powerIndex from "./sod/power-index";
 import * as valueCase from "./value-case";
 import * as valueEvidence from "./value-evidence";
 import * as snapshotComparison from "./snapshot-comparison";
+import * as engine from "./engine";
+import * as coso from "./coso";
 
 /**
  * Cross-module invariants: every duty has control alternatives, every
@@ -332,7 +334,7 @@ describe("domain invariants", () => {
     assert.match(comparisonReport, /# Assessment comparison — Quarterly review/);
     assert.match(comparisonReport, /duty granted:/);
     assert.match(comparisonReport, /Report generated: 2026-09-22T00:00:00.000Z/);
-    assert.match(comparisonReport, /deductible:/);
+    assert.match(comparisonReport, /- Deductible: \$5,000 → \$6,000/);
   });
 
   it("priority bands preserve their documented boundaries", () => {
@@ -413,6 +415,60 @@ describe("domain invariants", () => {
     assert.ok(Number.isFinite(report.overallThreatIndex));
     assert.ok(report.targetDeck.length > 0);
     assert.ok(report.targetDeck.every((target) => Number.isFinite(target.priority)));
+  });
+
+  it("turning on a control never raises a danger score or lowers a COSO component", () => {
+    // Each control the owner can switch on, as a change to staff or to the risk variables.
+    const controls = [
+      ["dualControlPayments", (staff, vars) => [{ ...staff, dualControlPayments: true }, vars]],
+      ["independentBankRec", (staff, vars) => [{ ...staff, independentBankRec: true }, vars]],
+      ["hasSecurityCameras", (staff, vars) => [staff, { ...vars, hasSecurityCameras: true }]],
+    ];
+    const allOff = (staff, vars) => [
+      { ...staff, dualControlPayments: false, independentBankRec: false },
+      { ...vars, hasSecurityCameras: false },
+    ];
+    const measure = (tpl, staff, riskVariables) => ({
+      danger: new Map(
+        engine
+          .rankDangerousScenarios(tpl, { staff, riskVariables })
+          .map((r) => [r.scenario.id, r.score]),
+      ),
+      coso: new Map(
+        coso.assessCoso(tpl, staff, { riskVariables }).components.map((c) => [c.id, c.score]),
+      ),
+    });
+    for (const industry of industryModule.INDUSTRIES) {
+      const defaults = profile.defaultProfile(industry.id);
+      const tpl = templatesIndex.getIndustryTemplate(industry.id);
+      // From every control off, and from every other control already on.
+      for (const [name, turnOn] of controls) {
+        const others = controls.filter(([other]) => other !== name);
+        const starts = [
+          allOff(defaults.staff, defaults.riskVariables),
+          others.reduce(
+            ([staff, vars], [, on]) => on(staff, vars),
+            allOff(defaults.staff, defaults.riskVariables),
+          ),
+        ];
+        for (const [staff, vars] of starts) {
+          const before = measure(tpl, staff, vars);
+          const after = measure(tpl, ...turnOn(staff, vars));
+          for (const [id, score] of after.danger) {
+            assert.ok(
+              score <= before.danger.get(id) + 1e-9,
+              `${industry.id}: ${name} raises the danger score of ${id}`,
+            );
+          }
+          for (const [id, score] of after.coso) {
+            assert.ok(
+              score >= before.coso.get(id),
+              `${industry.id}: ${name} lowers COSO ${id} from ${before.coso.get(id)} to ${score}`,
+            );
+          }
+        }
+      }
+    }
   });
 
   it("restored profiles merge current model defaults", () => {

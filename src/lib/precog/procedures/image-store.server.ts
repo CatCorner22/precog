@@ -14,12 +14,21 @@ import { readImageInfo, stripImageMetadata, type ImageType } from "./image-bytes
 
 /** Largest image stored, in bytes, after the browser has downscaled and re-encoded it. */
 export const MAX_IMAGE_BYTES = 600 * 1024;
-/** Most images, and most bytes of images, one business keeps. */
+/**
+ * Most images, and most bytes of images, one business's procedures name.
+ * Pictures removed from every step do not count (see `unreferenced_since`).
+ */
 export const MAX_IMAGES_PER_BUSINESS = 200;
 export const MAX_IMAGE_BYTES_PER_BUSINESS = 50 * 1024 * 1024;
+/**
+ * Most bytes of images one account stores across all its businesses, deleted
+ * ones and removed pictures included: the bound on what one account can put
+ * in the database, however many businesses it creates and deletes.
+ */
+export const MAX_IMAGE_BYTES_PER_ACCOUNT = 250 * 1024 * 1024;
 /** Largest width or height, in pixels. */
 export const MAX_IMAGE_SIDE = 4096;
-/** Unreferenced images are kept this long, so an undo or a history restore still finds them. */
+/** Images are kept this long after no step names them, so an undo or a history restore still finds them. */
 export const UNREFERENCED_GRACE_DAYS = 30;
 
 export interface StoredImage {
@@ -58,15 +67,19 @@ export async function insertProcedureImage(
   if (!stripped) throw new RequestError(415, "Precog could not read the picture.");
   const sha256 = createHash("sha256").update(stripped).digest("hex");
 
+  await purgeExpiredImages(sql, input.ownerId);
   return inTransaction(sql, async (tx) => {
+    // The same picture again: a step names it once more.
     const same = await tx<{ id: string }>`
-      select id from procedure_images
+      update procedure_images set unreferenced_since = null
       where user_id = ${input.ownerId} and business_id = ${input.businessId} and sha256 = ${sha256}
+      returning id
     `;
     if (same[0]) return { id: same[0].id };
     const [usage] = await tx<{ count: number; bytes: number | null }>`
       select count(*) as count, sum(byte_size)::bigint as bytes from procedure_images
       where user_id = ${input.ownerId} and business_id = ${input.businessId}
+        and unreferenced_since is null
     `;
     if (Number(usage?.count ?? 0) >= MAX_IMAGES_PER_BUSINESS) {
       throw new RequestError(
@@ -78,6 +91,15 @@ export async function insertProcedureImage(
       throw new RequestError(
         409,
         "This business has no room for more pictures. Remove some from old steps first.",
+      );
+    }
+    if (
+      (await accountImageBytes(tx, input.ownerId)) + stripped.length >
+      MAX_IMAGE_BYTES_PER_ACCOUNT
+    ) {
+      throw new RequestError(
+        409,
+        `This account already stores ${MAX_IMAGE_BYTES_PER_ACCOUNT / 1024 / 1024} MB of pictures, the most Precog keeps. Pictures you remove from steps, and those of deleted businesses, still count for ${UNREFERENCED_GRACE_DAYS} days.`,
       );
     }
     const id = uid("img");
@@ -121,8 +143,9 @@ export async function imageUsage(
 }
 
 /**
- * Deletes the business's images that no procedure step names any more and
- * that are older than the grace period. Returns how many went.
+ * After a save: notes when each of the business's images stopped being named
+ * by a procedure step (and clears that for one named again), then deletes
+ * those no step has named for the grace period. Returns how many went.
  */
 export async function sweepUnreferencedImages(
   sql: Sql,
@@ -131,14 +154,95 @@ export async function sweepUnreferencedImages(
   keepIds: readonly string[],
   graceDays = UNREFERENCED_GRACE_DAYS,
 ): Promise<number> {
-  const rows = await sql<{ id: string }>`
+  const keep = [...keepIds];
+  return inTransaction(sql, async (tx) => {
+    await tx`
+      update procedure_images set unreferenced_since = null
+      where user_id = ${ownerId} and business_id = ${businessId}
+        and unreferenced_since is not null and id = any(${keep}::text[])
+    `;
+    await tx`
+      update procedure_images set unreferenced_since = now()
+      where user_id = ${ownerId} and business_id = ${businessId}
+        and unreferenced_since is null and not (id = any(${keep}::text[]))
+    `;
+    const rows = await tx<{ id: string }>`
+      delete from procedure_images
+      where user_id = ${ownerId} and business_id = ${businessId}
+        and unreferenced_since < now() - make_interval(days => ${graceDays})
+      returning id
+    `;
+    return rows.length;
+  });
+}
+
+/**
+ * Deletes the account's images no step has named for the grace period, in
+ * every business: the sweep after a save reaches only the business saved.
+ * Run before the storage bound is checked, outside a transaction a refusal
+ * would roll back.
+ */
+async function purgeExpiredImages(sql: Sql, ownerId: string): Promise<void> {
+  await sql`
     delete from procedure_images
-    where user_id = ${ownerId} and business_id = ${businessId}
-      and not (id = any(${[...keepIds]}::text[]))
-      and created_at < now() - make_interval(days => ${graceDays})
-    returning id
+    where user_id = ${ownerId}
+      and unreferenced_since < now() - make_interval(days => ${UNREFERENCED_GRACE_DAYS})
   `;
-  return rows.length;
+}
+
+/** Bytes of images the account stores across all its businesses. */
+async function accountImageBytes(tx: Sql, ownerId: string): Promise<number> {
+  const [row] = await tx<{ bytes: number | null }>`
+    select sum(byte_size)::bigint as bytes from procedure_images where user_id = ${ownerId}
+  `;
+  return Number(row?.bytes ?? 0);
+}
+
+/**
+ * A business saved as a copy of another (a version kept after a save
+ * conflict) names pictures stored under the original. Copies those of the
+ * owner's pictures into this business, so its steps show them, within the
+ * account's storage bound. Returns how many were copied.
+ */
+export async function copyImagesFromOwnBusinesses(
+  sql: Sql,
+  ownerId: string,
+  businessId: string,
+  ids: readonly string[],
+): Promise<number> {
+  if (!ids.length) return 0;
+  const held = await sql<{ id: string }>`
+    select id from procedure_images
+    where user_id = ${ownerId} and business_id = ${businessId} and id = any(${[...ids]}::text[])
+  `;
+  const heldIds = new Set(held.map((r) => r.id));
+  const missing = ids.filter((id) => !heldIds.has(id)).slice(0, MAX_IMAGES_PER_BUSINESS);
+  if (!missing.length) return 0;
+  await purgeExpiredImages(sql, ownerId);
+  return inTransaction(sql, async (tx) => {
+    const [incoming] = await tx<{ bytes: number | null }>`
+      select sum(byte_size)::bigint as bytes from (
+        select distinct on (id) byte_size from procedure_images
+        where user_id = ${ownerId} and business_id <> ${businessId} and id = any(${missing}::text[])
+        order by id
+      ) as src
+    `;
+    const bytes = Number(incoming?.bytes ?? 0);
+    if (!bytes || (await accountImageBytes(tx, ownerId)) + bytes > MAX_IMAGE_BYTES_PER_ACCOUNT)
+      return 0;
+    const rows = await tx<{ id: string }>`
+      insert into procedure_images
+        (id, user_id, business_id, content_type, bytes, byte_size, width, height, sha256, uploaded_by, created_at)
+      select distinct on (id)
+        id, user_id, ${businessId}, content_type, bytes, byte_size, width, height, sha256, uploaded_by, created_at
+      from procedure_images
+      where user_id = ${ownerId} and business_id <> ${businessId} and id = any(${missing}::text[])
+      order by id
+      on conflict do nothing
+      returning id
+    `;
+    return rows.length;
+  });
 }
 
 /** Every image id the procedures of a stored business profile name. */

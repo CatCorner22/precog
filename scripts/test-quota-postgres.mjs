@@ -18,7 +18,11 @@ try {
     max: 8,
     options: `-c search_path=${schema}`,
   });
-  for (const file of ["0012_llm_daily_usage.sql", "0022_atomic_llm_budget.sql"]) {
+  for (const file of [
+    "0012_llm_daily_usage.sql",
+    "0022_atomic_llm_budget.sql",
+    "0031_llm_budget_scopes.sql",
+  ]) {
     await pool.query(await readFile(new URL(`../migrations/${file}`, import.meta.url), "utf8"));
   }
   const sql = async (strings, ...values) => {

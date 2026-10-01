@@ -226,10 +226,7 @@ export interface PracticeActions {
    * in). Refused, with the reason to show, while a save conflict waits for
    * the owner or when a signed-in account already holds its limit.
    */
-  createBusiness: (
-    industry: IndustryId,
-    name?: string,
-  ) => { ok: true } | { ok: false; reason: string };
+  createBusiness: (industry: IndustryId, name?: string) => Promise<SwitchResult>;
   deleteBusiness: (id: string) => Promise<void>;
 }
 
@@ -387,6 +384,8 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     cloudUser: cloud.cloudUser,
     cloudRevision: cloud.cloudRevision,
     saveConflictRef: cloud.saveConflictRef,
+    raiseConflict: cloud.raiseConflict,
+    accountTook: cloud.accountTook,
     flushLocal: cloud.flushLocal,
     flushActive: cloud.flushActive,
     openedFromAccount: cloud.openedFromAccount,
