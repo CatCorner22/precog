@@ -52,6 +52,19 @@ export function deleteDecisionPrompt(d: Pick<DecisionEntry, "subject" | "reviews
   } You cannot undo this.`;
 }
 
+/** Subjects the log offers after the scored rows, so the list is never empty. */
+export const STANDING_SUBJECTS = ["Business-wide monitoring", "Insurance and transfer terms"];
+
+/**
+ * The subject the form shows and saves: the one picked when it is still on
+ * offer, else the first option, so the select and the saved entry agree even
+ * when the scored rows are empty or change after the form opened.
+ */
+export function effectiveSubject(picked: string, top: readonly { name: string }[]): string {
+  const offered = [...top.map((t) => t.name), ...STANDING_SUBJECTS];
+  return offered.includes(picked) ? picked : offered[0];
+}
+
 /** "down 7, better", "up 5, worse" or "no change", given which direction is better. */
 function change(delta: number, better: "higher" | "lower"): string {
   if (delta === 0) return "no change";

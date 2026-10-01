@@ -333,6 +333,7 @@ function DueRow({
           onClick={onDone}
           className="shrink-0 rounded border border-border px-1.5 py-0.5 text-xs text-fg hover:border-ok/50 hover:text-ok"
           title="Record this review as completed today"
+          aria-label={`Done: ${item.title}`}
         >
           Done
         </button>

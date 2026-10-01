@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { csvImportChangeCount, openCsvImport, withReplace } from "./csv-import";
+import { csvImportChangeCount, openCsvImport, previewAgainst, withReplace } from "./csv-import";
 import { processesToCsv } from "../import/process-csv";
 import { resolveTemplate } from "../active-template";
 import { defaultProfile } from "../practice-profile";
@@ -27,5 +27,19 @@ describe("spreadsheet import", () => {
     const next = openCsvImport("again.csv", fewer, tpl);
     expect(next.replace).toBe(false);
     expect(next.preview.processes).toHaveLength(tpl.processes.length);
+  });
+
+  it("keeps an edit made while the preview was open when the import is applied", () => {
+    const opened = openCsvImport("fewer.csv", fewer, tpl);
+    // The owner renames the process the file leaves out, after picking the file.
+    const last = tpl.processes.at(-1)!;
+    const edited = {
+      ...tpl,
+      processes: tpl.processes.map((p) => (p.id === last.id ? { ...p, name: "Renamed" } : p)),
+    };
+    expect(opened.preview.processes.find((p) => p.id === last.id)?.name).toBe(last.name);
+    const current = previewAgainst(opened, edited);
+    expect(current.preview.processes.find((p) => p.id === last.id)?.name).toBe("Renamed");
+    expect(current.replace).toBe(opened.replace);
   });
 });

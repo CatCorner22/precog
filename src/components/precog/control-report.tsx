@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Printer } from "lucide-react";
 import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
-import { latestReview, REVIEW_ITEMS } from "@/lib/precog/firm/reviews";
+import { latestReview, REVIEW_ITEMS, reviewResultLine } from "@/lib/precog/firm/reviews";
 import { industryMeta } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
@@ -255,10 +255,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
             <ul className="space-y-1 text-sm">
               {reviews.map(({ item, latest }) => (
                 <li key={item.key}>
-                  {item.title}:{" "}
-                  {latest
-                    ? `${latest.result}${latest.ownerName ? ` — ${latest.ownerName}` : ""}`
-                    : "not recorded"}
+                  {item.title}: {latest ? reviewResultLine(latest) : "not recorded"}
                 </li>
               ))}
             </ul>

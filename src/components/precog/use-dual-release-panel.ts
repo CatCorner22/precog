@@ -54,7 +54,9 @@ export function useDualReleasePanel() {
     }
   }, [people, initiatorId, secondId]);
 
-  const [lastEval, setLastEval] = useState<ReleaseEvaluation | null>(null);
+  // Once the owner has checked a payment, the verdict follows the policy and
+  // the form, so it never describes settings that are no longer on screen.
+  const [checked, setChecked] = useState(false);
   const [showExForm, setShowExForm] = useState(false);
   const [exForm, setExForm] = useState<ExceptionForm>(EMPTY_EXCEPTION_FORM);
 
@@ -90,18 +92,24 @@ export function useDualReleasePanel() {
     });
   }
 
+  const lastEval: ReleaseEvaluation | null = useMemo(
+    () =>
+      checked
+        ? evaluateRelease(tpl, policy, {
+            channel,
+            amountUsd: amount,
+            initiatorPersonId: initiatorId,
+            secondPersonId: secondId || undefined,
+            payee,
+            memo: "Simulator release",
+            asOfDate: today,
+          })
+        : null,
+    [checked, tpl, policy, channel, amount, initiatorId, secondId, payee, today],
+  );
+
   function runEval() {
-    setLastEval(
-      evaluateRelease(tpl, policy, {
-        channel,
-        amountUsd: amount,
-        initiatorPersonId: initiatorId,
-        secondPersonId: secondId || undefined,
-        payee,
-        memo: "Simulator release",
-        asOfDate: today,
-      }),
-    );
+    setChecked(true);
   }
 
   function removeException(id: string) {

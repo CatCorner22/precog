@@ -153,6 +153,20 @@ export function normalizeReviewRecords(value: unknown): ReviewRecord[] {
   return out;
 }
 
+/** A result as the screen and the printed report name it. */
+export const RESULT_LABEL: Record<ReviewResult, string> = {
+  done: "Done",
+  exception: "Exception",
+  skipped: "Skipped",
+};
+
+/** "Exception — Dana: Check 1043 payable to cash": the result, who reported it and their note. */
+export function reviewResultLine(record: Pick<ReviewRecord, "result" | "ownerName" | "notes">) {
+  const owner = record.ownerName.trim();
+  const notes = record.notes.trim();
+  return `${RESULT_LABEL[record.result]}${owner ? ` — ${owner}` : ""}${notes ? `: ${notes}` : ""}`;
+}
+
 /** Latest record for one item in one month, if any. */
 export function latestReview(
   records: readonly ReviewRecord[],

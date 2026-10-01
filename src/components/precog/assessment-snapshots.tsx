@@ -418,9 +418,9 @@ export function AssessmentSnapshots() {
                             key={change.key}
                             className="flex items-center justify-between gap-3 text-xs"
                           >
-                            <span className="text-muted">{humanize(change.key)}</span>
+                            <span className="text-muted">{change.label}</span>
                             <span className="tabular text-fg">
-                              {displayValue(change.before)} → {displayValue(change.after)}
+                              {change.beforeText} → {change.afterText}
                             </span>
                           </div>
                         ))}
@@ -476,6 +476,7 @@ export function AssessmentSnapshots() {
                         variant="ghost"
                         onClick={() => void compare(item.id)}
                         disabled={busy}
+                        aria-label={`Compare with ${item.title}`}
                       >
                         Compare
                       </Button>
@@ -484,6 +485,7 @@ export function AssessmentSnapshots() {
                         variant="secondary"
                         onClick={() => void restore(item)}
                         disabled={busy}
+                        aria-label={`Restore ${item.title}`}
                       >
                         Restore
                       </Button>
@@ -534,19 +536,4 @@ function CompareMetric({ label, value }: { label: string; value: string }) {
       <p className="mt-1 font-semibold tabular text-fg">{value}</p>
     </div>
   );
-}
-function humanize(value: string) {
-  return value
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replaceAll("_", " ")
-    .replace(/^./, (letter) => letter.toUpperCase());
-}
-function displayValue(value: unknown) {
-  return typeof value === "boolean"
-    ? value
-      ? "Yes"
-      : "No"
-    : typeof value === "number"
-      ? value.toLocaleString()
-      : String(value);
 }

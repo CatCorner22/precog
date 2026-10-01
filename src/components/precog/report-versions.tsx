@@ -16,6 +16,7 @@ import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/repo
 import type { FirmRole } from "@/lib/precog/firm/store";
 import { isOwnTeam } from "@/lib/precog/firm/engagement";
 import { formatDay } from "@/lib/precog/dates";
+import { signOffWithNote } from "./report-versions-actions";
 
 /**
  * Locking, listing and signing off report versions. A version freezes the
@@ -72,11 +73,14 @@ export function ReportVersionsPanel() {
     }
   }
 
-  async function signOff(id: string) {
-    const note = window.prompt("A note for the sign-off (optional):") ?? "";
-    setBusy(true);
+  async function signOff(id: string, versionNo: number) {
     try {
-      const { version } = await signOffReport({ data: { id, note } });
+      const result = await signOffWithNote(versionNo, (note) => {
+        setBusy(true);
+        return signOffReport({ data: { id, note } });
+      });
+      if (!result) return;
+      const { version } = result;
       setVersions((cur) => (cur ?? []).map((v) => (v.id === id ? version : v)));
       toast.success("Signed off.");
     } catch (err) {
@@ -154,7 +158,7 @@ export function ReportVersionsPanel() {
                     <Button
                       size="sm"
                       variant="secondary"
-                      onClick={() => void signOff(v.id)}
+                      onClick={() => void signOff(v.id, v.versionNo)}
                       disabled={busy}
                       aria-label={`Sign off version ${v.versionNo}`}
                     >

@@ -332,7 +332,7 @@ describe("domain invariants", () => {
     assert.match(comparisonReport, /# Assessment comparison — Quarterly review/);
     assert.match(comparisonReport, /duty granted:/);
     assert.match(comparisonReport, /Report generated: 2026-09-22T00:00:00.000Z/);
-    assert.match(comparisonReport, /deductible:/);
+    assert.match(comparisonReport, /- Deductible: \$5,000 → \$6,000/);
   });
 
   it("priority bands preserve their documented boundaries", () => {

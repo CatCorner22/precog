@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Download, FileSpreadsheet, Upload } from "lucide-react";
 
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   csvImportChangeCount,
   openCsvImport,
+  previewAgainst,
   withReplace,
   type CsvImport,
 } from "@/lib/precog/builder/csv-import";
@@ -33,7 +34,10 @@ export function SpreadsheetPanel({
   const tpl = useTemplate();
   const fileRef = useRef<HTMLInputElement>(null);
   // The import waiting for Apply or Cancel; closing it drops its choices too.
-  const [pending, setPending] = useState<CsvImport | null>(null);
+  const [opened, setPending] = useState<CsvImport | null>(null);
+  // Previewed against the current map, so Apply never brings back a process
+  // as it was before an edit made while the preview was open.
+  const pending = useMemo(() => opened && previewAgainst(opened, tpl), [opened, tpl]);
 
   async function pick(file: File) {
     try {

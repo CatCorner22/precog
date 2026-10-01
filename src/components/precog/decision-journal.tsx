@@ -30,7 +30,12 @@ import { BookOpen, Plus, Trash2 } from "lucide-react";
 import { dateAfter, localDateKey, formatDay } from "@/lib/precog/dates";
 import { firstName } from "@/lib/precog/text";
 import { inputClass } from "@/components/precog/continuity/styles";
-import { deleteDecisionPrompt, reviewDelta } from "@/components/precog/decision-journal-text";
+import {
+  deleteDecisionPrompt,
+  effectiveSubject,
+  reviewDelta,
+  STANDING_SUBJECTS,
+} from "@/components/precog/decision-journal-text";
 
 const KINDS: DecisionKind[] = ["remediate", "accept_residual", "monitor", "insure"];
 
@@ -66,7 +71,8 @@ export function DecisionJournal({
     [template, profile.staff],
   );
 
-  const [subject, setSubject] = useState(portfolio.top[0]?.name ?? "");
+  const [picked, setSubject] = useState("");
+  const subject = effectiveSubject(picked, portfolio.top);
   const [kind, setKind] = useState<DecisionKind>("remediate");
   const [note, setNote] = useState("");
   const [reviewDays, setReviewDays] = useState(30);
@@ -160,7 +166,6 @@ export function DecisionJournal({
   );
 
   function submit() {
-    if (!subject.trim()) return;
     const match = portfolio.top.find((t) => t.name === subject);
     addDecision({
       subject: subject.trim(),
@@ -228,6 +233,7 @@ export function DecisionJournal({
                         <Button
                           size="sm"
                           variant="ghost"
+                          aria-label={`Reopen +30d: ${d.subject}`}
                           onClick={() =>
                             reviewDecision(
                               d.id,
@@ -245,6 +251,7 @@ export function DecisionJournal({
                           <Button
                             size="sm"
                             variant="ghost"
+                            aria-label={`Open: ${d.subject}`}
                             onClick={() => onOpenLinked(d.linkedTab!, d.linkedId)}
                           >
                             Open
@@ -253,6 +260,7 @@ export function DecisionJournal({
                         <Button
                           size="sm"
                           variant="ghost"
+                          aria-label={`Not relevant: ${d.subject}`}
                           onClick={() => reviewDecision(d.id, "no_longer_relevant")}
                         >
                           Not relevant
@@ -304,6 +312,7 @@ export function DecisionJournal({
                         <Button
                           size="sm"
                           variant="ghost"
+                          aria-label={`Done: ${d.subject}`}
                           onClick={() => reviewDecision(d.id, "done")}
                         >
                           Done
@@ -312,6 +321,7 @@ export function DecisionJournal({
                       <Button
                         size="sm"
                         variant="ghost"
+                        aria-label={`Still open +90d: ${d.subject}`}
                         onClick={() => reviewDecision(d.id, "still_open", undefined, 90)}
                       >
                         Still open +90d
@@ -319,6 +329,7 @@ export function DecisionJournal({
                       <Button
                         size="sm"
                         variant="ghost"
+                        aria-label={`Not relevant: ${d.subject}`}
                         onClick={() => reviewDecision(d.id, "no_longer_relevant")}
                       >
                         Not relevant
@@ -349,8 +360,11 @@ export function DecisionJournal({
                       {t.name} ({t.residual})
                     </option>
                   ))}
-                  <option value="Business-wide monitoring">Business-wide monitoring</option>
-                  <option value="Insurance and transfer terms">Insurance and transfer terms</option>
+                  {STANDING_SUBJECTS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
                 </select>
               </label>
               <div className="flex flex-wrap gap-2">
@@ -471,6 +485,7 @@ export function DecisionJournal({
                         <Button
                           size="sm"
                           variant="ghost"
+                          aria-label={`Open: ${d.subject}`}
                           onClick={() => onOpenLinked(d.linkedTab!, d.linkedId)}
                         >
                           Open
@@ -482,7 +497,7 @@ export function DecisionJournal({
                         onClick={() => {
                           if (window.confirm(deleteDecisionPrompt(d))) removeDecision(d.id);
                         }}
-                        aria-label="Delete decision"
+                        aria-label={`Delete decision: ${d.subject}`}
                       >
                         <Trash2 className="size-3.5" />
                       </Button>

@@ -136,7 +136,8 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
               <FileText className="size-3.5" />
               Download report
             </Button>
-            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-muted hover:bg-elevated hover:text-fg">
+            {/* The file input is visually hidden, so the label shows its keyboard focus. */}
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-muted hover:bg-elevated hover:text-fg has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--color-primary)]">
               <Upload className="size-3.5" />
               Import
               <input

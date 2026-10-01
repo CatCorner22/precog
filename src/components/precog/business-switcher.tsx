@@ -9,6 +9,7 @@ import { Building2, Check, ChevronDown, Loader2, Plus, Trash2, Users, X } from "
 import { inputCls } from "@/components/ui/field-classes";
 import type { BusinessSummary } from "@/lib/precog/practice-profile";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
+import { removeBusinessPrompt } from "./business-switcher-text";
 
 /** Header control: switch between businesses in the portfolio, or add a new one. */
 export function BusinessSwitcher() {
@@ -102,14 +103,9 @@ export function BusinessSwitcher() {
   }
 
   function removeBusiness(b: BusinessSummary) {
-    if (
-      !window.confirm(
-        `Remove "${b.name}" from your portfolio? Its share links stop working. You cannot undo this.`,
-      )
-    )
-      return;
+    if (!window.confirm(removeBusinessPrompt(b))) return;
     void deleteBusiness(b.id).then(
-      () => toast(`Removed ${b.name}`),
+      () => toast(b.shared ? `Deleted ${b.name} for your firm` : `Removed ${b.name}`),
       (error: unknown) =>
         toast.error(`Could not remove ${b.name}`, { description: describeError(error) }),
     );
@@ -145,7 +141,7 @@ export function BusinessSwitcher() {
             disabled={switchingBusiness}
             onClick={() => removeBusiness(b)}
             className="rounded p-1.5 text-subtle opacity-0 group-hover/row:opacity-100 hover:text-danger focus:opacity-100 disabled:opacity-40 pointer-coarse:opacity-100"
-            aria-label={`Remove ${b.name}`}
+            aria-label={b.shared ? `Delete ${b.name} for your firm` : `Remove ${b.name}`}
           >
             <Trash2 className="size-3" />
           </button>

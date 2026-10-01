@@ -5,6 +5,7 @@ import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
 import { businessLimitMessage, MAX_BUSINESSES_PER_ACCOUNT } from "./business-lifecycle";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
 import { revokeBusinessShares } from "./share/share-store";
+import { DELETED_RETENTION_DAYS } from "./business-retention";
 
 /**
  * Revision-checked write of one business row.
@@ -56,8 +57,6 @@ type BusinessSaveResult<TProfile = unknown> =
 
 /** Versions kept per business before the oldest are dropped. */
 const MAX_HISTORY_PER_BUSINESS = 200;
-/** Days a deleted business stays restorable before the purge job removes it. */
-const DELETED_RETENTION_DAYS = 30;
 
 /** A new business past the account's limit. Saves to existing ones always go through. */
 export class BusinessLimitError extends RequestError {
