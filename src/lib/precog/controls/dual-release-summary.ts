@@ -5,7 +5,7 @@ import type {
   ReleaseChannel,
   ThresholdException,
 } from "./dual-release-policy";
-import { isDateActive, listEligibleApprovers } from "./dual-release-evaluate";
+import { isDateActive, listEligibleApprovers, sharesHousehold } from "./dual-release-evaluate";
 import { localDateKey, shiftDay } from "../dates";
 
 /**
@@ -142,5 +142,13 @@ function hasDistinctSecond(
   const eligible = listEligibleApprovers(tpl as IndustryTemplate, policy, channel);
   const initiators = eligible.filter((p) => p.canInitiate);
   const seconds = eligible.filter((p) => p.canSecond);
-  return initiators.some((a) => seconds.some((b) => b.id !== a.id));
+  return initiators.some((a) =>
+    seconds.some((b) => {
+      if (b.id === a.id) return false;
+      if (policy.unrelatedSignersAttested) return true;
+      const left = tpl.people.find((p) => p.id === a.id);
+      const right = tpl.people.find((p) => p.id === b.id);
+      return !(left && right && sharesHousehold(left, right));
+    }),
+  );
 }

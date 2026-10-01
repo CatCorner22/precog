@@ -98,10 +98,9 @@ function JoinPage() {
 }
 
 /**
- * The join button for a signed-in visitor. Precog first checks the account
- * against the invited address: a confirmed other address cannot join, and an
- * address Precog cannot vouch for must confirm it is the person invited
- * (the firm owner then gets an email).
+ * The join button for a signed-in visitor. Precog joins only when the
+ * account's confirmed email is the invited address. Any other account is
+ * refused, including one whose email is not confirmed.
  */
 function JoinAs({
   token,
@@ -117,7 +116,6 @@ function JoinAs({
   onJoin: (confirmOtherEmail: boolean) => void;
 }) {
   const [fit, setFit] = useState<InviteFitResult | "loading">("loading");
-  const [confirmed, setConfirmed] = useState(false);
 
   useEffect(() => {
     let cancel = false;
@@ -134,40 +132,30 @@ function JoinAs({
   }, [token]);
 
   if (fit === "loading") return <p className="mt-4 text-sm text-muted">Checking your sign-in…</p>;
-  if (fit?.fit === "mismatch") {
+  if (fit?.fit !== "match") {
     return (
       <p className="mt-4 text-sm text-muted">
-        The firm sent this invitation to <span className="text-fg">{invitedEmail}</span>, and you
-        are signed in as <span className="text-fg">{fit.accountEmail}</span>. Sign in with the
-        invited address, or ask the firm owner to invite {fit.accountEmail}.
+        {fit?.fit === "mismatch" ? (
+          <>
+            The firm sent this invitation to <span className="text-fg">{invitedEmail}</span>, and
+            you are signed in as <span className="text-fg">{fit.accountEmail}</span>. Sign in with
+            the invited address, or ask the firm owner to invite {fit.accountEmail}.
+          </>
+        ) : (
+          <>
+            Precog cannot match this account to <span className="text-fg">{invitedEmail}</span>.
+            Confirm that email on this account, then open the invitation again.
+          </>
+        )}
       </p>
     );
   }
-  const mustConfirm = fit?.fit !== "match";
   return (
     <>
       <p className="mt-4 text-sm text-muted">
         The firm sent this invitation to <span className="text-fg">{invitedEmail}</span>.
       </p>
-      {mustConfirm && (
-        <label className="mt-3 flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={confirmed}
-            onChange={(e) => setConfirmed(e.target.checked)}
-          />
-          <span>
-            I am the person the firm sent this invitation to. Precog tells the firm owner that I
-            joined with this account.
-          </span>
-        </label>
-      )}
-      <Button
-        className="mt-5 w-full"
-        onClick={() => onJoin(mustConfirm)}
-        disabled={busy || (mustConfirm && !confirmed)}
-      >
+      <Button className="mt-5 w-full" onClick={() => onJoin(false)} disabled={busy}>
         {busy ? "Joining…" : `Join as ${accountLabel}`}
       </Button>
     </>

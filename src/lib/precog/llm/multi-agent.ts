@@ -6,7 +6,6 @@ import type { ToolResult } from "./types";
 import { readSpofData } from "./spof-data";
 import { describeScenarioFigures, type ScenarioRunData } from "./scenario-tools";
 import { NO_ALERT_WARNING, WARNING_RULES } from "./agent-brief";
-import { formatUsdDelta } from "@/lib/utils";
 import { count } from "../text";
 
 type SpecialistId = "operator" | "shield" | "precog" | "critic";
@@ -83,9 +82,9 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
         ? `${scenario.title}: ${describeScenarioFigures(scenario)}.`
         : "No scenario applies to this business yet.",
       cascade?.topByCostOfRisk?.[0]
-        ? `Biggest knock-on effect: ${cascade.topByCostOfRisk[0].label} (yearly cost of risk ${formatUsdDelta(cascade.topByCostOfRisk[0].deltaCor)}). ${cascade.topByCostOfRisk[0].secondOrderNotes[0] ?? ""}`.trim()
+        ? `Biggest knock-on effect: ${cascade.topByCostOfRisk[0].label}. ${cascade.topByCostOfRisk[0].secondOrderNotes[0] ?? ""}`.trim()
         : "Run the what-else-moves check before changing the deductible.",
-      "The premium, the deductible and the controls move together; check the yearly cost of risk again after each change.",
+      "The premium, the deductible and the controls move together. Do not turn an assumed frequency into a yearly cost.",
     ],
   });
 

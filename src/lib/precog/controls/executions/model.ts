@@ -79,6 +79,8 @@ const schema = z
         independenceConfirmed: z.boolean(
           "Confirm that you did not perform this work and can review it independently.",
         ),
+        /** One-partner firm issuing the check. The server allows this only when nobody else is on the firm. */
+        soleIssuer: z.boolean().optional(),
         ...followUp,
       })
       .strict(),
@@ -271,17 +273,18 @@ export function applyCommand(
       if (!actor.canReview)
         throw new RequestError(403, "Ask a firm reviewer or owner to record the review.");
       const participation = reviewParticipationConflict(previous, actor);
-      if (participation === "recorder")
-        throw new RequestError(
-          403,
-          "A different account must review this work. An account that recorded any work or correction cannot review this check.",
-        );
-      if (participation === "performer")
+      if (participation && !command.soleIssuer) {
+        if (participation === "recorder")
+          throw new RequestError(
+            403,
+            "A different account must review this work. An account that recorded any work or correction cannot review this check.",
+          );
         throw new RequestError(
           403,
           "A person reported as having performed any work or correction cannot independently review this check.",
         );
-      if (!command.independenceConfirmed)
+      }
+      if (!command.soleIssuer && !command.independenceConfirmed)
         throw new RequestError(
           422,
           "Confirm that you did not perform the work and can review it independently.",
@@ -332,13 +335,21 @@ export function applyCommand(
         }
       : null);
   if (!first) throw new RequestError(404, "That check does not exist.");
+  const stored =
+    command.action === "review" && command.soleIssuer
+      ? {
+          ...command,
+          independenceConfirmed: false,
+          note: `Not an independent review. ${command.note}`.slice(0, 2000),
+        }
+      : command;
   return {
     ...first,
     revision: (previous?.revision ?? 0) + 1,
     status,
     history: [
       ...(previous?.history ?? []),
-      { actor: { id: actor.id, name: actor.name }, recordedAt: now, command },
+      { actor: { id: actor.id, name: actor.name }, recordedAt: now, command: stored },
     ],
   };
 }

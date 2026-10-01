@@ -37,6 +37,7 @@ export const RELEASE_STATUS_LABEL: Record<ReleaseStatus, string> = {
   approved_single: "Released by one person",
   approved_exception: "Released by one person under an exception",
   blocked_same_person: "Blocked: the same person signed twice",
+  blocked_household: "Blocked: the two signers share a household",
   blocked_role: "Blocked: this person may not sign this payment",
   blocked_missing_second: "Blocked: no second signer",
   blocked_policy_off: "Not checked: dual release is off for this business",

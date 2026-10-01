@@ -8,6 +8,8 @@ import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { SlidingWindowLimiter } from "../llm/rate-limit";
 import { parseLoadShareInput } from "../public-inputs";
 import { resolveBusinessOwner } from "../business-store";
+import { resolveTemplate } from "../active-template";
+import type { PracticeProfile } from "../practice-profile";
 import { checkPasscodeGuess, hashPasscode, purgeOldPasscodeAttempts } from "./share-attempts";
 import { redactSharePayload } from "./share-payload";
 import { parseCreateShareInput, type SharedMapPayload } from "./share-schema";
@@ -22,6 +24,27 @@ import {
 } from "./share-store";
 
 export type { SharedMapPayload };
+
+/** Names on the saved business, including people who have left. */
+async function rosterForShare(
+  sql: Sql,
+  ownerId: string,
+  businessId: string,
+): Promise<{ name: string; role: string }[]> {
+  const rows = await sql<{ profile: PracticeProfile }>`
+    select profile from businesses
+    where user_id = ${ownerId} and id = ${businessId} and deleted_at is null
+  `;
+  const profile = rows[0]?.profile;
+  if (!profile || typeof profile !== "object") return [];
+  try {
+    return resolveTemplate(profile).people
+      .filter((person) => person.name.trim())
+      .map((person) => ({ name: person.name, role: person.role }));
+  } catch {
+    return [];
+  }
+}
 
 export const createMapShare = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -46,10 +69,12 @@ export const createMapShare = createServerFn({ method: "POST" })
       (await resolveBusinessOwner(sql, context.userId, data.businessId)) ?? context.userId;
     const token = randomHex(18);
     const expires = new Date(Date.now() + data.expiresInDays * DAY_MS).toISOString();
-    // The browser redacts with the whole team in hand; this pass makes sure a
-    // link stored as "names hidden" never holds its people's names, whatever
-    // the client sent.
-    const payload = data.redacted ? redactSharePayload(data.payload) : data.payload;
+    const roster = await rosterForShare(sql, businessOwnerId, data.businessId);
+    const team = [...roster, ...data.payload.people];
+    // The browser may set namesHidden and keep the names. Scrub from the
+    // stored roster, including people who have left, and ignore that flag.
+    const hideNames = data.redacted || data.payload.namesHidden === true;
+    const payload = hideNames ? redactSharePayload(data.payload, team) : data.payload;
     const passcodeSalt = data.passcode ? randomBytes(16).toString("hex") : null;
     const passcodeHash =
       data.passcode && passcodeSalt ? await hashPasscode(data.passcode, passcodeSalt) : null;

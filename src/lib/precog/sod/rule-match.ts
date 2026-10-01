@@ -232,14 +232,11 @@ function isCardPurchase(a: EntitlementId, b: EntitlementId): boolean {
 }
 
 function familiesConflict(fa: DutyFamily, fb: DutyFamily): boolean {
-  if (fa === fb) {
-    // Two custody duties are one custody chain: the person who takes the
-    // payment also bags the deposit in every small office, and the control is
-    // that someone else posts and reconciles it (named rules cover that).
-    // Two master-data duties still conflict: one person shaping both the
-    // payee list and the price list is the shell-vendor setup.
-    return fa === "master_data";
-  }
+  if (fa === fb) return false;
+  // A fee list and a customer list, or a master-data duty next to an
+  // approval, are one office manager's job. Named rules cover the pairs
+  // that are actually two sides of a transaction.
+  if (fa === "master_data" || fb === "master_data") return false;
   return Boolean(FAMILY_CONFLICT_MATRIX[fa]?.[fb]);
 }
 

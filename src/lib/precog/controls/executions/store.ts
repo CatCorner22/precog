@@ -110,6 +110,20 @@ export async function executeControlCommand(
           `This business has ${MAX_CHECKS.toLocaleString("en-US")} recorded checks, the most Precog holds, and Precog removed no earlier entries. The business owner can export them with Export data in the account menu.`,
         );
     }
+    if (command.action === "review" && command.soleIssuer) {
+      if (owner.firm_user_id) {
+        const others = await tx`
+          select 1 from firm_members
+          where firm_user_id = ${owner.firm_user_id} and member_user_id <> ${actorId}
+          limit 1
+        `;
+        if (others.length)
+          throw new RequestError(
+            403,
+            "A different person at the firm must review this check.",
+          );
+      }
+    }
     const next = applyCommand(
       previous,
       command,

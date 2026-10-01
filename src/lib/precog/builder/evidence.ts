@@ -53,7 +53,8 @@ export interface EvidenceSummary {
   overdue: number;
   never: number;
   /** 0–100 share of evidence items that are current or due soon. */
-  coverage: number;
+  /** Null when nothing is listed. An empty list is not full coverage. */
+  coverage: number | null;
   overdueItems: { process: ProcessNode; item: EvidenceItem; daysLeft: number | null }[];
 }
 
@@ -64,7 +65,7 @@ export function summarizeEvidence(processes: ProcessNode[], now = Date.now()): E
     dueSoon: 0,
     overdue: 0,
     never: 0,
-    coverage: 100,
+    coverage: null,
     overdueItems: [],
   };
   for (const p of processes) {
@@ -82,7 +83,7 @@ export function summarizeEvidence(processes: ProcessNode[], now = Date.now()): E
       }
     }
   }
-  s.coverage = s.total ? Math.round(((s.current + s.dueSoon) / s.total) * 100) : 100;
+  s.coverage = s.total ? Math.round(((s.current + s.dueSoon) / s.total) * 100) : null;
   s.overdueItems.sort((a, b) => (a.daysLeft ?? -9999) - (b.daysLeft ?? -9999));
   return s;
 }

@@ -601,10 +601,9 @@ describe("family catch-all", () => {
     expect(cell?.status).toBe("safe");
   });
 
-  it("names two master-record duties as such, not as payee-list duties", () => {
+  it("does not flag two master-record duties as a conflict", () => {
     const report = detectSodConflicts(oneClerk(["change_fee_schedule", "edit_patient_master"]));
-    const family = report.conflicts.find((c) => c.ruleId.startsWith("family-"));
-    expect(family?.title).toBe("One person holds two master-record duties");
+    expect(report.conflicts.filter((c) => c.ruleId.startsWith("family-"))).toEqual([]);
   });
 });
 
@@ -798,11 +797,9 @@ describe("segregation health counts distinct gaps", () => {
 });
 
 describe("catch-all wording for master records", () => {
-  it("does not describe a price or customer record as deciding who may be paid", () => {
+  it("does not treat a price or customer record beside an approval as a family conflict", () => {
     const report = detectSodConflicts(oneClerk(["approve_writeoffs", "edit_patient_master"]));
-    const family = report.conflicts.find((c) => c.ruleId.startsWith("family-"));
-    expect(family?.why).toMatch(/master record/);
-    expect(family?.why).not.toMatch(/who may be paid/);
+    expect(report.conflicts.filter((c) => c.ruleId.startsWith("family-"))).toEqual([]);
   });
 });
 

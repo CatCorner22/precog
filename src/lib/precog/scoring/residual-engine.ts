@@ -329,7 +329,7 @@ function scoreScenario(
   tpl: IndustryTemplate,
   s: ScenarioTemplate,
   staff: StaffComposition,
-  uplift: StaffUplift,
+  _uplift: StaffUplift,
   weights: ScoringWeights,
   riskVariables: RiskVariableState | undefined,
 ): ResidualRiskScore {
@@ -339,11 +339,11 @@ function scoreScenario(
     0,
     1,
   );
-  const timeNorm = clamp(1 - result.timelineDays.p50 / weights.scenario.daysSaturation, 0, 1);
+  const concealment = clamp(result.timelineDays.p50 / weights.scenario.daysSaturation, 0, 1);
   const { timeFloor } = weights.scenario;
   const inherent = clamp(
     weights.scenario.lossShare * lossNorm +
-      weights.scenario.timeShare * (timeFloor + timeNorm * (1 - timeFloor)),
+      weights.scenario.timeShare * (timeFloor + concealment * (1 - timeFloor)),
     0,
     1,
   );
@@ -362,7 +362,9 @@ function scoreScenario(
     1,
   );
   const beforeUplift = inherent * (1 - effectiveness * weights.scenario.effectivenessCredit);
-  const residual = wholePercent(beforeUplift * 100 * uplift.factor);
+  // The scenario engine already scaled these dollars for team size, segregation,
+  // dual release and bank reconciliation. Do not multiply the row by that again.
+  const residual = wholePercent(beforeUplift * 100);
   const band = bandForScore(residual);
 
   return {
@@ -389,10 +391,9 @@ function scoreScenario(
         id: `${s.id}-time`,
         label: "Assumed days until found",
         direction: "increases" as const,
-        weight: timeNorm,
-        detail: `about ${result.timelineDays.p50} days, assumed range ${result.timelineDays.p95Low}–${result.timelineDays.p95High}, Precog's scenario assumption; this index weighs a scenario that comes to light sooner as nearer at hand`,
+        weight: concealment,
+        detail: `about ${result.timelineDays.p50} days, assumed range ${result.timelineDays.p95Low}–${result.timelineDays.p95High}. Longer until found raises this index. A control that shortens that time does not, by itself, make the scenario more severe.`,
       },
-      ...uplift.drivers,
     ].slice(0, 6),
     linkedScenarioId: s.id,
     expectedLoss: result.financialImpact.expected,
@@ -416,7 +417,7 @@ function staffUplift(staff: StaffComposition, weights: ScoringWeights): StaffUpl
       detail: `A team of ${staff.teamSize} has fewer people to keep duties apart.`,
     });
   }
-  if (staff.soleOwnerKnowledgeCount > 0) {
+  if (staff.soleOwnerKnowledgeCount > 0 && weights.staff.soleOwnerUpliftPerItem > 0) {
     const u = Math.min(
       weights.staff.soleOwnerUpliftCap,
       staff.soleOwnerKnowledgeCount * weights.staff.soleOwnerUpliftPerItem,
@@ -430,7 +431,7 @@ function staffUplift(staff: StaffComposition, weights: ScoringWeights): StaffUpl
       detail: `${count(staff.soleOwnerKnowledgeCount, "critical item")} with one strong holder.`,
     });
   }
-  if (staff.segregationScore < 50) {
+  if (staff.segregationScore < 50 && weights.staff.weakSegregationUplift > 0) {
     factor += weights.staff.weakSegregationUplift;
     drivers.push({
       id: "staff-seg",
@@ -517,9 +518,7 @@ function controlEffectiveness(
   const dual =
     staff.dualControlPayments && (CASH_CONTROLS.has(c.id) || PAYMENT_CONTROLS.has(c.id))
       ? 0.85
-      : staff.dualControlPayments
-        ? 0.5
-        : 0.15;
+      : 0.15;
   const indRec =
     staff.independentBankRec && CASH_CONTROLS.has(c.id)
       ? 0.9
@@ -530,7 +529,9 @@ function controlEffectiveness(
   // controls. Structured operating evidence must exist before this factor
   // can receive credit; note count, wording and duplication are irrelevant.
   const comp = 0;
-  const mon = staff.independentBankRec ? 0.55 : 0.25;
+  // Bank reconciliation is already the independentReconciliation term.
+  // Do not also treat it as the monitoring cadence.
+  const mon = 0.25;
 
   const scoredWithoutKnowledge =
     weights.control.segregationQuality * seg +

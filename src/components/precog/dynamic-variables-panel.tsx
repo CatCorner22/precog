@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd, cn } from "@/lib/utils";
-import { costOfRiskHint } from "./scenario-page";
 import { RefreshCw } from "lucide-react";
 import { ExactAmount } from "./exact-amount";
 import { FieldSection, FigureTile } from "./figure-tile";
@@ -72,9 +71,9 @@ export function DynamicVariablesPanel({
           {d && (
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <FigureTile
-                label="How much likelier than the base case (×)"
+                label="Likelihood multiplier versus the base case (×)"
                 value={d.likelihoodMultiplier.toFixed(2)}
-                hint="1.00 is the scenario as written"
+                hint="1.00 is the scenario as written. Below 1.00 is less likely, not likelier."
               />
               <FigureTile
                 label="Loss size (×)"
@@ -108,11 +107,6 @@ export function DynamicVariablesPanel({
                     ? "all of it"
                     : `paid by insurance ${formatUsd(d.transferredExpected)}`,
                 )}
-              />
-              <FigureTile
-                label="Annual cost of risk"
-                value={formatUsd(d.expectedAnnualCostOfRisk)}
-                hint={hint(costOfRiskHint(d.likelihoodMultiplier, basis === "none"))}
               />
               <FigureTile
                 label="One loss plus a year of premium"

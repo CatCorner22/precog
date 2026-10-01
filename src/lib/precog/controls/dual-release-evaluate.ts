@@ -218,6 +218,22 @@ export function evaluateRelease(
     };
   }
 
+  if (
+    sharesHousehold(initiator, second) &&
+    !policy.unrelatedSignersAttested
+  ) {
+    return {
+      ...base,
+      status: "blocked_household",
+      ok: false,
+      reasons: [
+        `${personLabel(initiator.name, initiator.role)} and ${personLabel(second.name, second.role)} share a household. Two people who share finances are not dual control.`,
+        "Attest on the policy that the second signer does not share finances with the person who starts the payment, or choose a second signer outside that household.",
+      ],
+      nextSteps: ["Pick a second signer who does not share that household mark."],
+    };
+  }
+
   if (!eligibleSeconds.some((p) => p.id === second.id)) {
     return {
       ...base,
@@ -289,6 +305,14 @@ export function listEligibleApprovers(
 
 function personById(tpl: IndustryTemplate, id: string) {
   return tpl.people.find((p) => p.id === id);
+}
+
+export function sharesHousehold(
+  a: { householdKey?: string },
+  b: { householdKey?: string },
+): boolean {
+  const key = a.householdKey?.trim();
+  return Boolean(key && key === b.householdKey?.trim());
 }
 
 function personMeta(p: { id: string; name: string; role: string }) {
