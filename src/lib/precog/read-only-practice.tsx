@@ -64,6 +64,7 @@ const READ_ONLY_ACTIONS: PracticeActions = {
   replaceProfile: noop,
   setMonthlyReviews: noop,
   setAccessReconciliation: noop,
+  setIntegrationDriftFromQbo: noop,
   markReportSent: noop,
   resetProfile: noop,
   completeOnboarding: noop,

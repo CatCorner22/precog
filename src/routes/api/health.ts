@@ -11,10 +11,17 @@ export const Route = createFileRoute("/api/health")({
   server: {
     handlers: {
       GET: () =>
-        healthResponse(async () => {
-          const sql = await getSql();
-          await sql`select 1 as ok`;
-        }),
+        healthResponse(
+          async () => {
+            const sql = await getSql();
+            await sql`select 1 as ok`;
+          },
+          async () => {
+            const sql = await getSql();
+            const { controlExecutionLogReady } = await import("@/lib/migration-status.server");
+            return { controlEvidenceLog: await controlExecutionLogReady(sql) };
+          },
+        ),
       ANY: () => healthMethodNotAllowed(),
     },
   },

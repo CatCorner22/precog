@@ -29,6 +29,7 @@ import { isNavTarget, parseHomeSearch, TAB_WORDS, type TabId } from "@/lib/preco
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
+import { latestReview, monthKey, monthlyReviewTasks } from "@/lib/precog/firm/reviews";
 import { count, verb } from "@/lib/precog/text";
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { AccountDataControls } from "@/components/precog/account-menu";
@@ -138,6 +139,13 @@ function Home() {
     [profile.decisions, tpl],
   );
   const critical = sodReport.summary.critical;
+  const openMonthlyChecks = useMemo(() => {
+    const day = localDateKey(today);
+    const period = monthKey(day);
+    const tasks = monthlyReviewTasks(day, tpl.people, tpl.roleTemplates);
+    return tasks.filter((task) => !latestReview(profile.monthlyReviews ?? [], task.key, period))
+      .length;
+  }, [today, tpl.people, tpl.roleTemplates, profile.monthlyReviews]);
 
   /** Roving focus for the tab strip: arrow keys, Home, and End move between tabs. */
   function onTabKeyDown(event: KeyboardEvent<HTMLElement>) {
@@ -205,6 +213,11 @@ function Home() {
                   className={buttonClass({ variant: "secondary", size: "sm" })}
                 >
                   Firm workspace
+                  {openMonthlyChecks > 0 && (
+                    <span className="ml-1.5 rounded-full bg-warn px-1.5 py-0.5 text-[10px] font-semibold text-warn-fg">
+                      {openMonthlyChecks}
+                    </span>
+                  )}
                 </Link>
               </SignedIn>
             </div>

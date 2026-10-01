@@ -20,7 +20,7 @@ export interface EngagementStamp {
   reportSentAt?: string;
 }
 
-interface PilotMetrics {
+export interface PilotMetrics {
   startedAt: string | null;
   mapCompletedAt: string | null;
   /** Whole hours from start to a complete map; null until both stamps exist. */
@@ -47,6 +47,28 @@ export function normalizeEngagement(value: unknown): EngagementStamp | undefined
   const reportSentAt = stamp(raw.reportSentAt);
   if (!startedAt && !mapCompletedAt && !reportSentAt) return undefined;
   return { startedAt, mapCompletedAt, reportSentAt };
+}
+
+/** CSV export for design-partner pilot reviews. */
+export function pilotMetricsCsv(businessName: string, metrics: PilotMetrics): string {
+  const row = (label: string, value: string | number | null) =>
+    `${csvCell(label)},${csvCell(value === null ? "" : String(value))}`;
+  return [
+    row("business", businessName),
+    row("startedAt", metrics.startedAt),
+    row("mapCompletedAt", metrics.mapCompletedAt),
+    row("hoursToMap", metrics.hoursToMap),
+    row("reportSent", metrics.reportSent ? "yes" : "no"),
+    row("reportSentAt", metrics.reportSentAt),
+    row("openFindings", metrics.openFindings),
+    row("acceptedFindings", metrics.acceptedFindings),
+    row("acceptanceRate", metrics.acceptanceRate === null ? "" : metrics.acceptanceRate.toFixed(3)),
+  ].join("\n");
+}
+
+function csvCell(value: string): string {
+  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
 }
 
 /** A map is complete once two named, active people each hold at least one duty. */

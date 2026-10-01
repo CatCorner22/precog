@@ -288,7 +288,45 @@ export const recordMonthlyReview = createServerFn({ method: "POST" })
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
     await insertReviewEvent(sql, owner, data, context.userId);
-    return { ok: true as const };
+
+    let evidenceBridged = false;
+    let evidenceSkippedReason: string | null = null;
+    if (data.result !== "skipped") {
+      const { bridgeEnabled, bridgeRecordCommand } = await import("../controls/review-bridge");
+      const { executeControlCommand } = await import("../controls/executions/store");
+      const { controlExecutionLogReady } = await import("@/lib/migration-status.server");
+      if (!bridgeEnabled()) {
+        evidenceSkippedReason = "bridge_disabled";
+      } else if (!(await controlExecutionLogReady(sql))) {
+        evidenceSkippedReason = "migration_pending";
+      } else {
+        const performedOn = data.dueOn?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+        const command = bridgeRecordCommand({
+          businessId: data.businessId,
+          period: data.period,
+          itemKey: data.itemKey,
+          ownerName: data.ownerName,
+          dueOn: data.dueOn ?? performedOn,
+          result: data.result,
+          notes: data.notes,
+          performedOn,
+          baseRevision: 0,
+          followUpOwner: data.ownerName,
+          followUpDueOn: data.dueOn ?? performedOn,
+        });
+        if (command) {
+          try {
+            await executeControlCommand(sql, context.userId, data.businessId, command);
+            evidenceBridged = true;
+          } catch (error) {
+            console.error("[monthly-review] evidence bridge failed", error);
+            evidenceSkippedReason =
+              error instanceof Error ? error.message.slice(0, 200) : "bridge_failed";
+          }
+        }
+      }
+    }
+    return { ok: true as const, evidenceBridged, evidenceSkippedReason };
   });
 
 // ── Locked report versions ──────────────────────────────────────────────────

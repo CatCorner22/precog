@@ -29,7 +29,7 @@ type Status = {
  * the duty map. The scheduled run re-reads every month.
  */
 export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
-  const { profile } = usePractice();
+  const { profile, setIntegrationDriftFromQbo } = usePractice();
   const businessId = profile.businessId ?? null;
   const own = isOwnTeam(profile);
   const [status, setStatus] = useState<Status | null>(null);
@@ -40,7 +40,10 @@ export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
     let cancel = false;
     void getQuickBooksStatus({ data: { businessId } })
       .then((res) => {
-        if (!cancel) setStatus(res);
+        if (!cancel) {
+          setStatus(res);
+          if (res.drift) setIntegrationDriftFromQbo(res.drift);
+        }
       })
       .catch(() => {
         if (!cancel) setStatus({ configured: false, connection: null, drift: null });
@@ -48,7 +51,7 @@ export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
     return () => {
       cancel = true;
     };
-  }, [signedIn, businessId, own]);
+  }, [signedIn, businessId, own, setIntegrationDriftFromQbo]);
 
   if (!signedIn || !businessId || !own) return null;
 
@@ -69,6 +72,7 @@ export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
     setBusy(true);
     try {
       const { drift } = await syncQuickBooksNow({ data: { businessId } });
+      setIntegrationDriftFromQbo(drift);
       setStatus((cur) =>
         cur
           ? {
@@ -99,6 +103,7 @@ export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
     setBusy(true);
     try {
       await disconnectQuickBooks({ data: { businessId } });
+      setIntegrationDriftFromQbo(null);
       setStatus((cur) => (cur ? { ...cur, connection: null, drift: null } : cur));
     } catch {
       toast.error("Precog did not disconnect QuickBooks.");

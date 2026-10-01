@@ -28,6 +28,10 @@ import { isBusinessId } from "./profile-input";
 import { normalizeEngagement, type EngagementStamp } from "./firm/engagement";
 import { normalizeReviewRecords, type ReviewRecord } from "./firm/reviews";
 import { normalizeAccessReconciliation, type AccessReconciliation } from "./firm/reconcile";
+import {
+  normalizeIntegrationDriftSummary,
+  type IntegrationDriftSummary,
+} from "./integrations/drift-summary";
 import { browserStorage, readLocal, writeLocal, type StorageLike } from "./local-data";
 import { uid } from "./text";
 import { boundedNumber } from "./number";
@@ -90,6 +94,8 @@ export interface PracticeProfile {
   monthlyReviews?: ReviewRecord[];
   /** Read-only user and vendor export compared with the duty map. */
   accessReconciliation?: AccessReconciliation;
+  /** Compact books-vs-map drift for home and the weekly plan (full detail stays on Firm). */
+  integrationDriftSummary?: IntegrationDriftSummary;
   /** Software platforms and physical places procedures are done in. */
   places?: Place[];
   /** Written step-by-step procedures (the Procedures tab). */
@@ -341,6 +347,7 @@ export function normalizeProfile(
     engagement: normalizeEngagement(parsed.engagement),
     monthlyReviews: normalizeReviewRecords(parsed.monthlyReviews),
     accessReconciliation: normalizeAccessReconciliation(parsed.accessReconciliation),
+    integrationDriftSummary: normalizeIntegrationDriftSummary(parsed.integrationDriftSummary),
     places: normalizePlaces(parsed.places),
     procedures: normalizeProcedures(parsed.procedures, today),
     updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : new Date().toISOString(),

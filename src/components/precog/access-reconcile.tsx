@@ -266,6 +266,7 @@ export function AccessReconcile() {
 const SOURCE_LABEL = {
   quickbooks: "QuickBooks-style export",
   xero: "Xero-style export",
+  payroll: "Payroll roster export",
   unknown: "Spreadsheet",
 } as const;
 

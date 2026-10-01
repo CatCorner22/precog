@@ -665,10 +665,10 @@ const LABELS: Record<keyof MetricSnapshot, string> = {
 /** How one lever moves another, for the cascade panel and the agent's tool output. */
 const CASCADE_DEPENDENCIES = [
   { from: "dual_control", to: "likelihood", effect: "lowers fraud opportunity" },
-  { from: "dual_control", to: "premium", effect: "earns a carrier credit" },
+  { from: "dual_control", to: "premium", effect: "may reduce modeled premium when a policy is entered" },
   { from: "dual_control", to: "severity", effect: "shrinks scheme size" },
   { from: "bank_rec", to: "detection_lag", effect: "shrinks the loss over several periods" },
-  { from: "bank_rec", to: "premium", effect: "earns a carrier credit" },
+  { from: "bank_rec", to: "premium", effect: "may reduce modeled premium when a policy is entered" },
   { from: "bank_rec", to: "days_until_found", effect: "fewer assumed days until found" },
   {
     from: "cameras",

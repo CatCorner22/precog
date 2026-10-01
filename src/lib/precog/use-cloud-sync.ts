@@ -62,6 +62,7 @@ export interface SaveConflictState {
 }
 
 const SAVE_DEBOUNCE_MS = 1200;
+const LOCAL_PROFILE_DEBOUNCE_MS = 400;
 /** The account revision each business was last saved or loaded at, on this device. */
 const CLOUD_BASES_KEY = "precog.cloud-bases.v1";
 /** The `updatedAt` stamp of each business's copy the account last acknowledged. */
@@ -119,6 +120,8 @@ export function useCloudSync(input: {
   }, [bumpPortfolio]);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localWriteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingLocalWrite = useRef<PracticeProfile | null>(null);
   const cloudRevision = useRef<Map<string, number>>(new Map());
   const basesLoaded = useRef(false);
   if (!basesLoaded.current) {
@@ -421,13 +424,21 @@ export function useCloudSync(input: {
       loadedFromStorage.current = null;
       storedProfile.current = profile;
     } else {
-      const result = localStore.write(profile);
-      if (result.kind === "conflict") {
-        raiseTabConflict(result.theirs);
-        return;
-      }
-      lastLocalWrite.current = result.kind;
-      if (result.kind === "saved") storedProfile.current = profile;
+      pendingLocalWrite.current = profile;
+      if (localWriteTimer.current) clearTimeout(localWriteTimer.current);
+      localWriteTimer.current = setTimeout(() => {
+        localWriteTimer.current = null;
+        const cur = pendingLocalWrite.current;
+        if (!cur) return;
+        pendingLocalWrite.current = null;
+        const result = localStore.write(cur);
+        if (result.kind === "conflict") {
+          raiseTabConflict(result.theirs);
+          return;
+        }
+        lastLocalWrite.current = result.kind;
+        if (result.kind === "saved") storedProfile.current = cur;
+      }, LOCAL_PROFILE_DEBOUNCE_MS);
     }
     if (!cloudUser) setSyncStatus(localStatus(lastLocalWrite.current));
     // A business whose setup is not finished is the sample behind the setup
@@ -455,6 +466,7 @@ export function useCloudSync(input: {
 
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (localWriteTimer.current) clearTimeout(localWriteTimer.current);
     };
   }, [
     profile,
@@ -505,6 +517,17 @@ export function useCloudSync(input: {
   useEffect(() => {
     if (!ready) return;
     const flush = () => {
+      if (localWriteTimer.current) {
+        clearTimeout(localWriteTimer.current);
+        localWriteTimer.current = null;
+        const pending = pendingLocalWrite.current ?? profileRef.current;
+        pendingLocalWrite.current = null;
+        const result = localStore.write(pending);
+        if (result.kind !== "conflict") {
+          lastLocalWrite.current = result.kind;
+          if (result.kind === "saved") storedProfile.current = pending;
+        }
+      }
       if (!saveTimer.current) return;
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
@@ -525,7 +548,7 @@ export function useCloudSync(input: {
       window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [ready, userId, cloudUser, saveCloud, reportCloudError, profileRef, workspace.local]);
+  }, [ready, userId, cloudUser, saveCloud, reportCloudError, profileRef, workspace.local, localStore]);
 
   /**
    * Write the open business to this browser, now. False when another tab's

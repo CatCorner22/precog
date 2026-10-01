@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useToday } from "@/lib/use-today";
@@ -30,8 +31,11 @@ export function ControlEvidencePanel() {
       <h2 className="text-lg font-semibold">Control evidence log</h2>
       <p className="mt-1 text-sm text-muted">
         Record the work, evidence references and review for a stated period. A recorded result is
-        not an audit opinion, a guarantee or a risk-score reduction. Earlier “Done” entries are not
-        converted into evidence.
+        not an audit opinion, a guarantee or a risk-score reduction. Results recorded in{" "}
+        <Link to="/firm" className="underline underline-offset-2">
+          This month’s review
+        </Link>{" "}
+        create matching preparer entries here when you are signed in.
       </p>
       <p className="mt-2 text-xs text-muted">
         Use Firm members to invite a reviewer. One account can record work, but cannot independently

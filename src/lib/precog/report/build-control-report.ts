@@ -108,6 +108,8 @@ export function buildControlReportModel({
     decisions: profile.decisions,
     plannedAbsences: profile.plannedAbsences,
     procedures: profile.procedures,
+    integrationDriftSummary: profile.integrationDriftSummary,
+    accessReconciliation: profile.accessReconciliation,
   });
   const issues = validateProcessMap(
     tpl.processes,

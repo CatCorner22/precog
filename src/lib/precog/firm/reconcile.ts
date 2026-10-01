@@ -6,7 +6,7 @@ import { daysBetween } from "../dates";
 import { readHireDate } from "../import/hire-date";
 import { nameKey, titleKey } from "../text";
 
-type AccessSource = "quickbooks" | "xero" | "unknown";
+type AccessSource = "quickbooks" | "xero" | "payroll" | "unknown";
 
 export type QueueStatus = "pending" | "mapped" | "dismissed";
 
@@ -138,7 +138,11 @@ export function parseAccessExport(
   asOf: string,
 ): { source: AccessSource; users: AccessUserRow[]; vendors: AccessVendorRow[]; issues: string[] } {
   const issues: string[] = [];
-  const located = locateTable(text, (cells) => looksLikeUsers(cells) || looksLikeVendors(cells), 8);
+  const located = locateTable(
+    text,
+    (cells) => looksLikeUsers(cells) || looksLikeVendors(cells) || looksLikePayrollRoster(cells),
+    8,
+  );
   if (!located) {
     return {
       source: "unknown",
@@ -151,6 +155,48 @@ export function parseAccessExport(
   const source = detectAccessSource(headers);
   const users: AccessUserRow[] = [];
   const vendors: AccessVendorRow[] = [];
+  if (looksLikePayrollRoster(headers)) {
+    const nameAt = headerIndex(headers, [
+      "employee name",
+      "employee",
+      "name",
+      "worker",
+      "full name",
+    ]);
+    const titleAt = headerIndex(headers, ["job title", "title", "position", "department", "role"]);
+    located.rows.slice(1).forEach((cells, index) => {
+      const name = (nameAt >= 0 ? cells[nameAt] : cells[0] ?? "").trim();
+      if (!name || titleKey(name) === "total") return;
+      const roleText = titleAt >= 0 ? (cells[titleAt] ?? "").trim() : "payroll";
+      const mappedRole = mapRoleToDuties(roleText || "payroll clerk");
+      const person = matchPerson(name, people);
+      const held = new Set(person?.entitlements ?? []);
+      const extra = mappedRole.mapped.filter((d) => !held.has(d));
+      const missingFromBooks = [...held].filter(
+        (d): d is EntitlementId =>
+          ENTITLEMENT_SET.has(d) && !mappedRole.mapped.includes(d as EntitlementId),
+      );
+      const needsQueue = mappedRole.unmatchedTokens.length > 0 || !person || extra.length > 0;
+      users.push({
+        id: rowId("payroll", index + 2, name),
+        name: name.slice(0, 120),
+        email: "",
+        role: roleText.slice(0, 160) || "Payroll roster",
+        mapped: mappedRole.mapped.length ? mappedRole.mapped : ["enter_payroll"],
+        unmatchedTokens: mappedRole.unmatchedTokens,
+        ...(person ? { personId: person.id } : {}),
+        extra: person ? extra : mappedRole.mapped.length ? mappedRole.mapped : ["enter_payroll"],
+        missingFromBooks: person ? missingFromBooks : [],
+        status: needsQueue ? "pending" : "mapped",
+      });
+    });
+    return {
+      source: "payroll",
+      users: users.slice(0, 500),
+      vendors,
+      issues: users.length ? issues : [...issues, "Precog read no employee rows from that payroll export."],
+    };
+  }
   if (looksLikeUsers(headers)) {
     const nameAt = headerIndex(headers, ["name", "user", "display name"]);
     const emailAt = headerIndex(headers, ["email", "email address"]);
@@ -271,7 +317,9 @@ export function normalizeAccessReconciliation(value: unknown): AccessReconciliat
   }
   if (users.length === 0 && vendors.length === 0) return undefined;
   const source: AccessSource =
-    raw.source === "quickbooks" || raw.source === "xero" ? raw.source : "unknown";
+    raw.source === "quickbooks" || raw.source === "xero" || raw.source === "payroll"
+      ? raw.source
+      : "unknown";
   return {
     importedAt: typeof raw.importedAt === "string" ? raw.importedAt.slice(0, 40) : "",
     source,
@@ -295,6 +343,22 @@ function headerIndex(headers: readonly string[], names: readonly string[]): numb
   return lowered.findIndex((h) => names.includes(h));
 }
 
+function looksLikePayrollRoster(headers: readonly string[]): boolean {
+  const lowered = headers.map(titleKey);
+  const hasEmployee = lowered.some(
+    (h) => h.includes("employee") || h === "worker" || h === "full name",
+  );
+  const hasRoleHint = lowered.some(
+    (h) =>
+      h.includes("department") ||
+      h.includes("job title") ||
+      h === "position" ||
+      h === "status" ||
+      h === "pay group",
+  );
+  return hasEmployee && hasRoleHint && !looksLikeVendors(headers);
+}
+
 function looksLikeUsers(headers: readonly string[]): boolean {
   const lowered = headers.map(titleKey);
   if (lowered.some((h) => VENDOR_HEADERS.includes(h))) return false;
@@ -308,6 +372,7 @@ function looksLikeVendors(headers: readonly string[]): boolean {
 
 function detectAccessSource(headers: readonly string[]): AccessSource {
   const joined = headers.map(titleKey).join(" ");
+  if (looksLikePayrollRoster(headers)) return "payroll";
   if (joined.includes("billable") || joined.includes("user role")) return "quickbooks";
   if (joined.includes("contact name") || joined.includes("account number")) return "xero";
   return "unknown";
