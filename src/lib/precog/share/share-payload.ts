@@ -1,5 +1,5 @@
 import { resolveTemplate } from "../active-template";
-import { industryMeta } from "../industry";
+import { industryMeta, industryNoun } from "../industry";
 import { buildProcessMapGraph } from "../process-graph";
 import { residualScope } from "../scoring/scope";
 import { computeMapHealth } from "../process-health";
@@ -107,6 +107,7 @@ export function redactSharePayload(
   const scrub = nameScrubber(labels);
   return {
     ...payload,
+    businessName: hiddenBusinessName(payload, scrub),
     namesHidden: true,
     health: {
       ...payload.health,
@@ -130,6 +131,17 @@ export function redactSharePayload(
     actions: payload.actions.map((a) => ({ ...a, title: scrub(a.title), why: scrub(a.why) })),
     note: payload.note === undefined ? undefined : scrub(payload.note),
   };
+}
+
+/**
+ * A business named after someone on the team ("Voss Dental") would name them
+ * on a share that hides names, so such a name gives way to the industry's
+ * word for a business ("A practice"). Any other business name stays.
+ */
+function hiddenBusinessName(payload: SharedMapPayload, scrub: (text: string) => string): string {
+  if (scrub(payload.businessName) === payload.businessName) return payload.businessName;
+  const noun = industryNoun(payload.industry);
+  return `${/^[aeiou]/i.test(noun) ? "An" : "A"} ${noun}`;
 }
 
 /**
