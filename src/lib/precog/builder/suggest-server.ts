@@ -67,6 +67,7 @@ async function suggestWithGrok(
   const response = await callModel(access, {
     messages: [{ role: "user", content: suggestionPrompt(input) }],
     maxTokens: 1200,
+    feature: "suggest",
     temperature: 0.4,
     jsonObject: true,
   });

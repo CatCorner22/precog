@@ -60,6 +60,7 @@ async function reviewWithGrok(input: ReviewInput, access: LlmAccess): Promise<Ma
   const response = await callModel(access, {
     messages: [{ role: "user", content: reviewPrompt(input) }],
     maxTokens: 1400,
+    feature: "review",
     temperature: 0.5,
     jsonObject: true,
   });
