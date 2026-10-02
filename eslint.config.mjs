@@ -39,6 +39,12 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "off",
     },
   },
+  // Route files export `Route` beside the page's components by design, and the
+  // TanStack Router plugin handles their hot reload, so this rule does not apply.
+  {
+    files: ["src/routes/**/*.{ts,tsx}"],
+    rules: { "react-refresh/only-export-components": "off" },
+  },
   // Disable rules that conflict with Prettier formatting.
   prettier,
 );

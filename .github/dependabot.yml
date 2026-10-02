@@ -21,6 +21,10 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: nitro
       - dependency-name: nf3
+      # Better Auth 1.7 changed the OAuth plugin the Grok sign-in relies on;
+      # minor versions move only with a deliberate sign-in upgrade.
+      - dependency-name: better-auth
+        update-types: ["version-update:semver-minor"]
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]

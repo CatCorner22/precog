@@ -46,7 +46,7 @@
     "@tanstack/react-router": "^1.170.40",
     "@tanstack/react-start": "^1.168.59",
     "@xyflow/react": "^12.12.0",
-    "better-auth": "^1.7.6",
+    "better-auth": "~1.6.25",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "html-to-image": "^1.11.13",
