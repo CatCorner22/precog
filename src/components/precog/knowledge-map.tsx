@@ -23,6 +23,11 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
     () => new Map(coverageReport(tpl).items.map((i) => [i.item.id, i])),
     [tpl],
   );
+  // People who are the only one able to run some item, looked up per node.
+  const soleOwnerIds = useMemo(
+    () => new Set(risks.filter((r) => r.soleOwner).flatMap((r) => r.owners.map((o) => o.id))),
+    [risks],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(
     initialKnowledgeId ?? risks[0]?.knowledgeId ?? null,
   );
@@ -73,7 +78,7 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
           })}
 
           {layout.people.map((p) => {
-            const sole = risks.some((r) => r.soleOwner && r.owners.some((o) => o.id === p.id));
+            const sole = soleOwnerIds.has(p.id);
             return (
               <g key={p.id}>
                 <rect

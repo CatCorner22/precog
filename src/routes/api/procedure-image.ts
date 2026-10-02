@@ -9,7 +9,11 @@ import { IMAGE_ID } from "@/lib/precog/procedures/normalize";
  * Anything else, including a signed-out viewer, gets the same 404, so an
  * outsider cannot tell a foreign picture from a missing one. The type served
  * is the stored one (always JPEG, PNG or WebP), never sniffed by the browser,
- * and the response may only sit in the viewer's own cache.
+ * and the response may only sit in the viewer's own cache. An id names one
+ * upload and its bytes never change, so a found picture keeps for a day. A
+ * miss keeps for a minute, so a step drawn again does not ask again, yet a
+ * picture copied to this business on the next save, or one the viewer can
+ * reach after signing in, shows up soon after.
  */
 export const Route = createFileRoute("/api/procedure-image")({
   server: {
@@ -50,7 +54,7 @@ export const Route = createFileRoute("/api/procedure-image")({
 });
 
 function notFound(): Response {
-  return new Response(null, { status: 404, headers: NO_STORE });
+  return new Response(null, { status: 404, headers: { "cache-control": "private, max-age=60" } });
 }
 
 const NO_STORE = { "cache-control": "no-store" } as const;

@@ -8,10 +8,13 @@
  * is production: preview deploys, CI and local builds never write to it (a
  * preview build often carries the production DATABASE_URL).
  *
- * On a production deploy it refuses to continue without DATABASE_URL and
- * BETTER_AUTH_SECRET, and warns about each optional feature that is only half
- * configured (see .env.example) and when no error tracker is set. Elsewhere, no DATABASE_URL means skip: the
- * PGLite fallback applies the same files at startup (src/lib/db.ts).
+ * On a production deploy it refuses to continue without DATABASE_URL, a
+ * BETTER_AUTH_SECRET of 32 or more characters and an https BETTER_AUTH_URL,
+ * or with sign-in turned off, printing one line per problem. It warns about
+ * sign-in without its broker client, each optional feature that is only half
+ * configured (see .env.example) and when no error tracker is set. Elsewhere,
+ * no DATABASE_URL means skip: the PGLite fallback applies the same files at
+ * startup (src/lib/db.ts).
  */
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -30,16 +33,10 @@ if (onlyOnProduction && !isProduction) {
   process.exit(0);
 }
 if (isProduction) {
-  // A production deploy without these runs on an in-memory database with a
-  // random signing secret: every cold start loses all data and signs everyone
-  // out. Refuse to build rather than ship that.
-  const missing = ["DATABASE_URL", "BETTER_AUTH_SECRET"].filter((key) => !env(key));
-  if (missing.length > 0) {
-    console.error(
-      `[migrate] Refusing a production build: ${missing.join(" and ")} ${missing.length === 1 ? "is" : "are"} not set. Set ${missing.length === 1 ? "it" : "them"} in the project's environment variables and redeploy.`,
-    );
-    process.exit(1);
-  }
+  const problems = productionProblems();
+  for (const problem of problems)
+    console.error(`[migrate] Refusing a production build: ${problem}`);
+  if (problems.length > 0) process.exit(1);
   for (const warning of featureWarnings()) console.warn(`[migrate] warning: ${warning}`);
 }
 if (!databaseUrl) {
@@ -79,12 +76,60 @@ async function main() {
 }
 
 /**
+ * One line per setting that leaves a production deploy broken or unsafe. A
+ * line names the variable, never its value.
+ */
+function productionProblems() {
+  const problems = [];
+  // Without these it runs on an in-memory database with a random signing
+  // secret: every cold start loses all data and signs everyone out.
+  const missing = ["DATABASE_URL", "BETTER_AUTH_SECRET"].filter((key) => !env(key));
+  if (missing.length > 0)
+    problems.push(
+      `${missing.join(" and ")} ${missing.length === 1 ? "is" : "are"} not set. Set ${missing.length === 1 ? "it" : "them"} in the project's environment variables and redeploy.`,
+    );
+  const secret = env("BETTER_AUTH_SECRET");
+  if (secret && secret.length < 32)
+    problems.push(
+      "BETTER_AUTH_SECRET has fewer than 32 characters. Set a random one of 32 or more, for example from openssl rand -base64 32, and redeploy.",
+    );
+  // Sign-in and every link Precog sends out start from this address; without
+  // it, sign-in looks for the live-preview hosts and fails.
+  const authUrl = env("BETTER_AUTH_URL");
+  if (!authUrl)
+    problems.push(
+      "BETTER_AUTH_URL is not set. Set it to this deployment's public address, for example https://precog.example.com, and redeploy.",
+    );
+  else if (!isHttps(authUrl))
+    problems.push(
+      "BETTER_AUTH_URL is not an https address. Set it to this deployment's public https address and redeploy.",
+    );
+  if (env("VITE_AUTH_ENABLED") === "false")
+    problems.push('VITE_AUTH_ENABLED is "false", which turns sign-in off. Remove it and redeploy.');
+  return problems;
+}
+
+function isHttps(value) {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * One line per optional feature that will not work as deployed: the
  * scheduled job without its secret, or a feature with some of its settings
  * but not all. A feature with none of its settings is simply off.
  */
 function featureWarnings() {
   const warnings = [];
+  // Email and password sign-in works without the broker client; Google and X
+  // sign-in fall back to the preview client, which the broker refuses here.
+  if (!env("GROK_AUTH_CLIENT_ID") || !env("GROK_AUTH_CLIENT_SECRET"))
+    warnings.push(
+      "GROK_AUTH_CLIENT_ID and GROK_AUTH_CLIENT_SECRET are not both set, so Google and X sign-in fail; only email and password sign-in works.",
+    );
   if (!env("CRON_SECRET"))
     warnings.push(
       "CRON_SECRET is not set, so the weekly job is refused: no reminder email, no purge of deleted businesses, no QuickBooks refresh.",

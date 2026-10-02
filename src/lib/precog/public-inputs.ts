@@ -6,6 +6,7 @@ import type { SuggestionInput } from "./builder/suggest";
 import type { PioneerProfileInput } from "./coach/pioneer-profile";
 import { DRAFT_NOTES_MAX, type ProcedureDraftInput } from "./procedures/draft";
 import { clamp } from "./number";
+import { PIONEER_LIST_CAPS } from "./coach/pioneer-caps";
 
 /**
  * Input checks for the server functions anyone can call signed out
@@ -187,13 +188,7 @@ export function parseReviewInput(input: unknown): ReviewInput {
 // ------------------------------------------------------------- runPioneerCoach
 
 /** Largest lists Pioneer reads; pioneerProfileFrom applies the same caps. */
-export const PIONEER_LIST_CAPS = {
-  nodes: 250,
-  relations: 2_500,
-  decisions: 500,
-  absences: 200,
-  procedures: 120,
-} as const;
+export { PIONEER_LIST_CAPS };
 
 const optString = z.string().nullish();
 const stringList = z.array(z.unknown()).nullish();
@@ -289,7 +284,9 @@ const pioneerProfileSchema = z.looseObject({
   customProcesses: list(processSchema, PIONEER_LIST_CAPS.nodes).nullish(),
   customPeople: list(personSchema, PIONEER_LIST_CAPS.nodes).nullish(),
   customKnowledge: list(knowledgeSchema, PIONEER_LIST_CAPS.nodes).nullish(),
-  customRelations: list(relationSchema, PIONEER_LIST_CAPS.relations, 100_000).nullish(),
+  // Refused past 5,000 (the list default) before any entry is parsed; Precog
+  // sends at most the 2,500 Pioneer keeps.
+  customRelations: list(relationSchema, PIONEER_LIST_CAPS.relations).nullish(),
   // Journal entries and absences are rebuilt field by field downstream.
   decisions: list(z.unknown(), PIONEER_LIST_CAPS.decisions).nullish(),
   plannedAbsences: list(z.unknown(), PIONEER_LIST_CAPS.absences).nullish(),
