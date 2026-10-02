@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
-import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
+import {
+  detectSodConflicts,
+  sodDetectionOptions,
+  type SodDetectionReport,
+} from "@/lib/precog/sod/detect";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import {
@@ -12,8 +16,12 @@ import { rulesDualReleaseCanNarrow, type ConflictSeverity } from "./sod-conflict
 
 export type SodView = "conflicts" | "matrix" | "roles" | "dual" | "power";
 
-/** The duty-conflict tab's state and the report every view reads. */
-export function useSodPanel() {
+/**
+ * The duty-conflict tab's state and the report every view reads. The shell
+ * passes the report it already computed from the same template, staff and
+ * dual release, so one edit runs the check once, not twice.
+ */
+export function useSodPanel(shellReport?: SodDetectionReport) {
   const tpl = useTemplate();
   const { profile, setCustomPeople } = usePractice();
   // People and their duty pairs first; the dual-release policy is one step away.
@@ -23,8 +31,10 @@ export function useSodPanel() {
   const [location, setLocation] = useState<string | null | "all">("all");
 
   const report = useMemo(
-    () => detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease)),
-    [tpl, profile.staff, profile.dualRelease],
+    () =>
+      shellReport ??
+      detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease)),
+    [shellReport, tpl, profile.staff, profile.dualRelease],
   );
   const narrowable = useMemo(
     () => rulesDualReleaseCanNarrow(profile.dualRelease),

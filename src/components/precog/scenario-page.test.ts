@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getIndustryTemplate, scenarioCases as casesBehindScenario } from "@/lib/precog/templates";
+import { getIndustryTemplate } from "@/lib/precog/templates";
+import { casesBehindScenario } from "@/lib/precog/evidence/scenario-cases";
 import { defaultProfile } from "@/lib/precog/practice-profile";
 import { withDecision, withStaff } from "@/lib/precog/profile-actions";
 import { resolveTemplate } from "@/lib/precog/active-template";

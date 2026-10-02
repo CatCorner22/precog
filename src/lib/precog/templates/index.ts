@@ -1,8 +1,6 @@
 import { DEFAULT_INDUSTRY, industryMeta, type IndustryId } from "../industry";
-import type { ControlItem, ScenarioTemplate } from "../types";
+import type { ControlItem } from "../types";
 import type { IndustrySample, IndustryTemplate } from "./types";
-import { CASE_LIBRARY, casesForSodRules } from "../evidence";
-import type { CaseStudy } from "../evidence/types";
 import { CONFLICT_RULES } from "../sod/conflict-rules";
 import { detectSodConflicts } from "../sod/detect";
 import { deriveStaffFromTeam } from "../sod/derive-staff";
@@ -21,22 +19,6 @@ export type { IndustryTemplate } from "./types";
 export function getIndustryTemplate(id: IndustryId): IndustryTemplate {
   const key = id in REGISTRY ? id : DEFAULT_INDUSTRY;
   return (BUILT[key] ??= sampleTemplate(REGISTRY[key]));
-}
-
-/**
- * The prosecuted cases behind a scenario: any case it names, then the cases
- * that show a duty pair it plays out, whether the conflict rule links to the
- * scenario or the scenario names the rule.
- */
-export function scenarioCases(
-  scenario: Pick<ScenarioTemplate, "id" | "sodRuleIds" | "caseIds">,
-): CaseStudy[] {
-  const ruleIds = new Set(scenario.sodRuleIds ?? []);
-  for (const rule of CONFLICT_RULES)
-    if (rule.linkedScenarioId === scenario.id) ruleIds.add(rule.id);
-  const named = (scenario.caseIds ?? []).flatMap((id) => CASE_LIBRARY.filter((c) => c.id === id));
-  const byRule = ruleIds.size ? casesForSodRules([...ruleIds]) : [];
-  return [...named, ...byRule.filter((c) => !named.includes(c))];
 }
 
 const REGISTRY: Record<IndustryId, IndustrySample> = {

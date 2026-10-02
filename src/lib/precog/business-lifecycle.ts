@@ -1,6 +1,6 @@
 import { resolveTemplate, type TemplateSource } from "./active-template";
 import { isDemoName, type IndustryId } from "./industry";
-import { OWN_BUSINESS_FALLBACK_NAME, ownBusinessProfile } from "./onboarding/own-team";
+import { OWN_BUSINESS_FALLBACK_NAME, ownBusinessProfile } from "./onboarding/own-business";
 import { defaultDualReleasePolicy } from "./controls/dual-release";
 import { defaultProfile, hasUserWork, type PracticeProfile } from "./practice-profile";
 import { getIndustryTemplate } from "./templates";

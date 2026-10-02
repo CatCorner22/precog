@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { History } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePractice, usePracticeSync } from "@/lib/precog/practice-context";
 import { getHistoryVersion, listHistory } from "@/lib/precog/firm/server";
 import type { BusinessHistoryEntry } from "@/lib/precog/business-store";
 import { MAX_HISTORY_PER_BUSINESS } from "@/lib/precog/business-retention";
@@ -16,7 +16,8 @@ import { verificationsAsHeld } from "@/lib/precog/procedures/lifecycle";
  * itself kept, so a restore loses nothing.
  */
 export function ClientHistory({ signedIn }: { signedIn: boolean }) {
-  const { profile, replaceProfile, syncStatus } = usePractice();
+  const { profile, replaceProfile } = usePractice();
+  const { syncStatus } = usePracticeSync();
   const businessId = profile.businessId ?? null;
   const [entries, setEntries] = useState<BusinessHistoryEntry[] | null>(null);
   const [open, setOpen] = useState(false);

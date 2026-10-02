@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { callModel, type LlmAccess } from "../llm/guard.server";
 import { llmMiddleware } from "../llm/middleware";
 import { ownerText, parseJsonReply, withGrokFallback } from "../llm/prompt-text";
-import { OWN_TEAM_MAX } from "../onboarding/own-team";
+import { OWN_TEAM_MAX } from "../onboarding/own-business";
 import { parseSuggestionInput } from "../public-inputs";
 import {
   padWithRules,

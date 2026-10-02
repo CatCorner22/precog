@@ -25,7 +25,7 @@ import {
   jobCatalogEntry,
   seatDuties,
 } from "@/lib/precog/onboarding/job-catalog";
-import { MAX_ROLE_LENGTH } from "@/lib/precog/onboarding/own-team";
+import { MAX_ROLE_LENGTH } from "@/lib/precog/onboarding/own-business";
 import { placeholderNames } from "@/lib/precog/onboarding/add-people";
 import { personLocations } from "@/lib/precog/person-location";
 import { usePracticeActions, useTemplate } from "@/lib/precog/practice-context";

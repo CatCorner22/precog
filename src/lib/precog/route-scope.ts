@@ -10,3 +10,13 @@ export function needsPractice(routeIds: Iterable<string>): boolean {
   for (const id of routeIds) if (PRACTICE_ROUTE_IDS.has(id)) return true;
   return false;
 }
+
+/**
+ * Whether an address opens one of those pages. Each of them has a fixed path
+ * equal to its route id, so the address alone answers before the router has
+ * matched it.
+ */
+export function isPracticePath(pathname: string): boolean {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  return PRACTICE_ROUTE_IDS.has(path || "/");
+}

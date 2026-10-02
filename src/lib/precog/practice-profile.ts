@@ -47,6 +47,7 @@ import {
   savedBlockEntries,
 } from "./profile-entries";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
+import { ACTIVE_PROFILE_KEY, LEGACY_PROFILE_KEY, PORTFOLIO_KEY } from "./storage-keys";
 import { stripProcedureLinks } from "./procedures/coverage-link";
 import { normalizePlaces, normalizeProcedures } from "./procedures/normalize";
 import type { Place, Procedure } from "./procedures/types";
@@ -619,11 +620,8 @@ export function makePlannedAbsenceId(): string {
 
 // ── This browser's portfolio ───────────────────────────────────────────────
 
-/** Every business this device knows about, in full, keyed by id. */
-export const PORTFOLIO_KEY = "precog.portfolio.v1";
-/** The business open in this browser: what a reload comes back to. */
-export const ACTIVE_PROFILE_KEY = "precog.practiceProfile.v2";
-const LEGACY_PROFILE_KEY = "precog.practiceProfile.v1";
+// The keys live in a leaf module (./storage-keys); re-exported for existing importers.
+export { ACTIVE_PROFILE_KEY, PORTFOLIO_KEY };
 
 /**
  * True when this profile holds something the user made, as opposed to an

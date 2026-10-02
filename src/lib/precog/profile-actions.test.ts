@@ -164,6 +164,14 @@ describe("undo, redo and restoring a saved version", () => {
 });
 
 describe("small edits", () => {
+  it("renames only the business a late name commit was typed for", () => {
+    const a = { ...defaultProfile("general"), businessId: "biz-a" };
+    const b = { ...defaultProfile("general"), businessId: "biz-b" };
+    expect(withPracticeName(a, "Corner Bistro", "biz-a").practiceName).toBe("Corner Bistro");
+    expect(withPracticeName(b, "Corner Bistro", "biz-a")).toBe(b);
+    expect(withPracticeName(b, "x".repeat(90)).practiceName).toHaveLength(80);
+  });
+
   it("writes leaverAccessChecks only when a departure added one", () => {
     const p = defaultProfile("general");
     delete p.leaverAccessChecks;

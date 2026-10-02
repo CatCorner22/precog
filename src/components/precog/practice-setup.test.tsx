@@ -26,6 +26,11 @@ describe("Business profile card", () => {
     expect(html).not.toContain("demo");
   });
 
+  it("shows the business name as saved and caps typing at the 80 characters a save keeps", () => {
+    const html = render({ ...defaultProfile("general"), practiceName: "Corner Bistro" });
+    expect(html).toMatch(/<input maxLength="80"[^>]*value="Corner Bistro"/);
+  });
+
   it("shows the figures an own team decides instead of offering sliders that would be put back", () => {
     const html = render(withPeople(defaultProfile("general"), team, "2026-09-25"));
     // Only the segregation score stays a slider.

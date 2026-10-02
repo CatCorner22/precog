@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   createRootRoute,
   HeadContent,
@@ -9,10 +9,8 @@ import {
 } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { installGlobalErrorReporting } from "@/lib/observability/report-browser";
-import { PracticeProvider } from "@/lib/precog/practice-context";
-import { WorkspaceRecovery } from "@/components/precog/workspace-recovery";
 import { PresentationProvider } from "@/lib/precog/presentation";
-import { needsPractice } from "@/lib/precog/route-scope";
+import { isPracticePath, needsPractice } from "@/lib/precog/route-scope";
 import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
@@ -53,6 +51,7 @@ export const Route = createRootRoute({
       },
     ],
   }),
+  beforeLoad: ({ location }) => preloadPracticeShell(location.pathname),
   component: RootDocument,
   notFoundComponent: NotFound,
 });
@@ -78,11 +77,41 @@ function NotFound() {
   );
 }
 
+/** The business engine, loaded only by a tab that opens a business page. */
+const loadPracticeShell = () => import("@/components/precog/practice-shell");
+const PracticeShell = lazy(() =>
+  loadPracticeShell().then((module) => ({ default: module.PracticeShell })),
+);
+
+/**
+ * Start downloading the engine alongside the page's own code when the tab
+ * opens on a business page or heads to one, so hydration does not wait for a
+ * second round trip once it reaches the shell.
+ */
+function preloadPracticeShell(pathname: string) {
+  if (typeof window !== "undefined" && isPracticePath(pathname)) void loadPracticeShell();
+}
+if (typeof window !== "undefined") preloadPracticeShell(window.location.pathname);
+
+/** The provider's own first screen, shown while its code loads. */
+function CheckingAccount() {
+  return (
+    <main className="p-6">
+      <p role="status">Checking your account…</p>
+    </main>
+  );
+}
+
 function RootDocument() {
   useEffect(() => installGlobalErrorReporting(), []);
   const practicePage = useMatches({
     select: (matches) => needsPractice(matches.map((m) => m.routeId)),
   });
+  // Sticky: once a business page opens in this tab, the workspace stays
+  // mounted (hidden on public pages), so a save still pending there completes.
+  // A tab that only ever shows public pages never loads it.
+  const [practiceOpened, setPracticeOpened] = useState(practicePage);
+  if (practicePage && !practiceOpened) setPracticeOpened(true);
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -93,19 +122,17 @@ function RootDocument() {
         <AuthProvider>
           <PresentationProvider>
             {!practicePage && <Outlet />}
-            {/* Always mounted, so a save still pending when the owner opens a
-                public page completes; hidden there, so its account check never
-                stands in for that page. */}
-            <div hidden={!practicePage}>
-              <PracticeProvider>
-                {practicePage && (
-                  <>
-                    <WorkspaceRecovery />
+            {/* Hidden on a public page, so its account check never stands in
+                for that page. */}
+            {practiceOpened && (
+              <div hidden={!practicePage}>
+                <Suspense fallback={<CheckingAccount />}>
+                  <PracticeShell open={practicePage}>
                     <Outlet />
-                  </>
-                )}
-              </PracticeProvider>
-            </div>
+                  </PracticeShell>
+                </Suspense>
+              </div>
+            )}
           </PresentationProvider>
         </AuthProvider>
         <Toaster richColors position="bottom-right" />

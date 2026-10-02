@@ -104,9 +104,10 @@ export type { SyncStatus };
  * The context is published in three parts so a component subscribes only to
  * what it reads: the working state (changes on every edit), the actions
  * (stable), and the sync state (changes as saves land). `usePractice()`
- * merges them for callers that read across all three.
+ * merges the first two; the few panels that show save state also call
+ * `usePracticeSync()`, so a save landing re-renders only them.
  */
-type PracticeContextValue = PracticeState & PracticeActions & PracticeSync;
+type PracticeContextValue = PracticeState & PracticeActions;
 
 /** The working state of the open business and what derives from it. */
 export interface PracticeState {
@@ -136,7 +137,12 @@ export interface PracticeSync {
 
 /** Every way of changing the business. */
 export interface PracticeActions {
-  setPracticeName: (name: string) => void;
+  /**
+   * Rename the open business. With `businessId`, only while that business is
+   * still the open one, so a late commit never renames the business opened
+   * after it.
+   */
+  setPracticeName: (name: string, businessId?: string) => void;
   setIndustry: (industry: IndustryId) => void;
   setStaff: (staff: SetStateAction<StaffComposition>) => void;
   setRiskVariables: (v: SetStateAction<RiskVariableState>) => void;
@@ -315,12 +321,11 @@ export function usePracticeSync(): PracticeSync {
   return required(useContext(PracticeSyncContext), "usePracticeSync");
 }
 
-/** All three parts in one object, for components that read across them. */
+/** The state and the actions in one object; save state is `usePracticeSync()`. */
 export function usePractice(): PracticeContextValue {
   const state = usePracticeState();
   const actions = usePracticeActions();
-  const sync = usePracticeSync();
-  return useMemo(() => ({ ...state, ...actions, ...sync }), [state, actions, sync]);
+  return useMemo(() => ({ ...state, ...actions }), [state, actions]);
 }
 
 const PracticeStateContext = createContext<PracticeState | null>(null);
@@ -414,8 +419,8 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
 
   // ── Edits: each is the matching pure function wrapped in a state update ──
 
-  const setPracticeName = useCallback((name: string) => {
-    setProfile((p) => withPracticeName(p, name));
+  const setPracticeName = useCallback((name: string, businessId?: string) => {
+    setProfile((p) => withPracticeName(p, name, businessId));
   }, []);
 
   const setIndustry = useCallback(

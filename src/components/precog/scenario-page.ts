@@ -7,7 +7,7 @@ import type { DecisionInput } from "@/lib/precog/profile-actions";
 import type { ScenarioTemplate, StaffComposition } from "@/lib/precog/types";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { citingCaseStats, isOwnSector, type CaseStudy } from "@/lib/precog/evidence";
-import { scenarioCases as casesBehindScenario } from "@/lib/precog/templates";
+import { casesBehindScenario } from "@/lib/precog/evidence/scenario-cases";
 import { dateAfter } from "@/lib/precog/dates";
 import { count } from "@/lib/precog/text";
 import { assumedAnnualFrequency } from "@/lib/precog/scoring/dynamic-variables";
@@ -46,7 +46,7 @@ export function scenarioConfirmation(scenario: ScenarioTemplate, now: Date): Dec
 /**
  * The prosecuted cases behind a scenario, or null when it has none (a key
  * person leaving gets no case list rather than a loosely related one). The
- * list is the templates' own (`scenarioCases` there: cases the scenario
+ * list is `casesBehindScenario` (evidence/scenario-cases: cases the scenario
  * names, then cases showing a duty pair it plays out, whether the rule links
  * to the scenario or the scenario names the rule). Counts and medians use
  * only the cases that cite one of those rules; named cases show first, then

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { needsPractice } from "./route-scope";
+import { isPracticePath, needsPractice } from "./route-scope";
 
 describe("needsPractice", () => {
   it.each(["/", "/report", "/threat", "/firm"])("%s waits for the business", (id) => {
@@ -15,5 +15,15 @@ describe("needsPractice", () => {
 
   it("renders the not-found page without it", () => {
     expect(needsPractice(["__root__"])).toBe(false);
+  });
+});
+
+describe("isPracticePath", () => {
+  it.each(["/", "/report", "/threat/", "/firm"])("%s opens the business", (path) => {
+    expect(isPracticePath(path)).toBe(true);
+  });
+
+  it.each(["/login", "/privacy", "/share/abc", "/join/abc", "/reports"])("%s does not", (path) => {
+    expect(isPracticePath(path)).toBe(false);
   });
 });

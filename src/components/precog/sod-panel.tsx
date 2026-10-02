@@ -3,6 +3,7 @@ import { segregationLevel } from "@/lib/precog/scoring/bands";
 import { CONFLICT_RULES, entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import { belowThresholdNote, openSeverityCounts } from "@/lib/precog/sod/open-findings";
 import type { NavFn } from "@/lib/precog/navigation";
+import type { SodDetectionReport } from "@/lib/precog/sod/detect";
 import { DualReleasePanel } from "@/components/precog/dual-release-panel";
 import { PowerMapBuilder } from "@/components/precog/power-map-builder";
 import { Badge } from "@/components/ui/badge";
@@ -15,8 +16,15 @@ import { SodMatrixSection } from "./sod-matrix-section";
 import { SodRolesSection } from "./sod-roles-section";
 import { useSodPanel, type SodPanelModel, type SodView } from "./use-sod-panel";
 
-export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
-  const model = useSodPanel();
+export function SodPanel({
+  onNavigate,
+  report: shellReport,
+}: {
+  onNavigate?: NavFn;
+  /** The shell's report for this business, so the tab does not run the check again. */
+  report?: SodDetectionReport;
+}) {
+  const model = useSodPanel(shellReport);
   const { profile, report, sodExamples, titleDuties, titleDutyNames, view, setView } = model;
   const health = report.summary.segregationHealth;
   // Never "strong" or "adequate" while a critical or high finding is open.

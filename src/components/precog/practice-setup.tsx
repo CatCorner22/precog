@@ -1,12 +1,12 @@
 import { toast } from "sonner";
-import { useId, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { useTabName } from "@/lib/precog/presentation";
 import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { describeEnteredWork, enteredWork, hasEnteredWork } from "@/lib/precog/industry-switch";
 import { getIndustryTemplate } from "@/lib/precog/templates";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
-import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-team";
+import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-business";
 import { SyncStatusBadge } from "@/components/precog/sync-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -164,14 +164,11 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
             onCancel={() => setPendingIndustry(null)}
           />
         )}
-        <label className="block text-sm">
-          <span className="text-muted">Business name</span>
-          <input
-            value={profile.practiceName}
-            onChange={(e) => setPracticeName(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
-          />
-        </label>
+        <BusinessNameField
+          value={profile.practiceName}
+          businessId={profile.businessId ?? DEFAULT_BUSINESS_ID}
+          onCommit={setPracticeName}
+        />
         <div className="grid gap-3 sm:grid-cols-2">
           {ownTeam ? (
             <Figure
@@ -274,6 +271,58 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The business name, shown as typed at once and committed 350 ms after the
+ * last keystroke, on blur, or as the field unmounts. Each commit is an edit
+ * that saves the business and refreshes the list of businesses, so a commit
+ * per keystroke made typing lag. A commit names the business the draft was
+ * typed for, so one that lands after a switch leaves the next business alone.
+ */
+export function BusinessNameField({
+  value,
+  businessId,
+  onCommit,
+}: {
+  value: string;
+  businessId: string;
+  onCommit: (name: string, businessId?: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [shown, setShown] = useState(value);
+  // A change made elsewhere (undo, another tab, a restore) replaces the draft.
+  if (value !== shown) {
+    setShown(value);
+    setDraft(value);
+  }
+  // The latest draft, value, business and callback, for the timer and the
+  // unmount commit.
+  const latest = useRef({ draft, value, businessId, onCommit });
+  useEffect(() => {
+    latest.current = { draft, value, businessId, onCommit };
+  });
+  const commit = useCallback(() => {
+    const { draft: typed, value: saved, businessId: id, onCommit: write } = latest.current;
+    if (typed !== saved) write(typed, id);
+  }, []);
+  useEffect(() => {
+    const t = setTimeout(commit, 350);
+    return () => clearTimeout(t);
+  }, [draft, commit]);
+  useEffect(() => commit, [commit]);
+  return (
+    <label className="block text-sm">
+      <span className="text-muted">Business name</span>
+      <input
+        value={draft}
+        maxLength={80}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
+      />
+    </label>
   );
 }
 
