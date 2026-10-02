@@ -5,6 +5,7 @@ import {
   createValueCaseMemo,
   normalizeEnteredInputs,
   MODELED_RANGE_NOTE,
+  modeledRangeRows,
   modeledTileValues,
   observedValueStatus,
 } from "./value-case";
@@ -67,6 +68,34 @@ describe("modeled tiles and cash apart from time", () => {
     expect(
       modeledTileValues({ ...DEFAULT_VALUE_CASE, controlEffectiveness: 0.5 }).riskReduction,
     ).toBe("Not entered");
+  });
+
+  it("reads Not entered on every Modeled range row while exposure and probability are defaults", () => {
+    expect(modeledRangeRows(DEFAULT_VALUE_CASE)).toEqual([
+      { label: "Low", amount: null, display: "Not entered" },
+      { label: "Base", amount: null, display: "Not entered" },
+      { label: "High", amount: null, display: "Not entered" },
+    ]);
+    expect(
+      modeledRangeRows({ ...DEFAULT_VALUE_CASE, controlEffectiveness: 0.5 }).map((r) => r.display),
+    ).toEqual(["Not entered", "Not entered", "Not entered"]);
+  });
+
+  it("shows the Modeled range once the owner enters exposure or probability", () => {
+    const inputs = { ...DEFAULT_VALUE_CASE, annualExposure: 400_000 };
+    const { modeled } = calculateValueCase(inputs);
+    const rows = modeledRangeRows(inputs);
+    expect(rows.map((r) => r.amount)).toEqual([modeled.low, modeled.base, modeled.high]);
+    expect(rows.map((r) => r.display)).toEqual([
+      formatUsd(modeled.low),
+      formatUsd(modeled.base),
+      formatUsd(modeled.high),
+    ]);
+    // Base matches the "Modeled risk reduction" tile.
+    expect(rows[1].display).toBe(modeledTileValues(inputs).riskReduction);
+    expect(modeledRangeRows(DEFAULT_VALUE_CASE, ["eventProbability"])[1].amount).toBe(
+      calculateValueCase(DEFAULT_VALUE_CASE).modeled.base,
+    );
   });
 
   it("shows the modeled figures once the owner enters exposure or probability", () => {

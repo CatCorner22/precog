@@ -307,6 +307,32 @@ export function modeledTileValues(
   };
 }
 
+/**
+ * The Low, Base and High rows of the "Modeled range" card. Like the modeled
+ * tiles, they read "Not entered" (with no bar) until the owner enters the
+ * annual exposure or the event probability, so a loss built only from Precog
+ * defaults never reads as this business's own.
+ */
+export function modeledRangeRows(
+  raw: ValueCaseInputs,
+  typed: Iterable<ValueInputKey> = [],
+): Array<{ label: "Low" | "Base" | "High"; amount: number | null; display: string }> {
+  const inputs = normalizeValueCase(raw);
+  const { entered } = modeledTileValues(inputs, typed);
+  const { modeled } = calculateValueCase(inputs);
+  return (
+    [
+      ["Low", modeled.low],
+      ["Base", modeled.base],
+      ["High", modeled.high],
+    ] as const
+  ).map(([label, amount]) =>
+    entered
+      ? { label, amount, display: formatUsd(amount) }
+      : { label, amount: null, display: NOT_ENTERED },
+  );
+}
+
 /** "reviews per year" / "reviews per year and loaded hourly cost" */
 export function inputList(keys: readonly ValueInputKey[]): string {
   return joinWithAnd(keys.map((k) => VALUE_INPUT_LABEL[k]));

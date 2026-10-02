@@ -27,6 +27,7 @@ import {
   normalizeEnteredInputs,
   observedValueStatus,
   inputList,
+  modeledRangeRows,
   modeledTileValues,
 } from "@/lib/precog/value-case";
 import {
@@ -113,6 +114,7 @@ export function ValueProofCenter() {
   const status = useMemo(() => observedValueStatus(inputs, typed), [inputs, typed]);
   const isDefault = (key: ValueInputKey) => !status.entered.has(key);
   const modeledTiles = useMemo(() => modeledTileValues(inputs, typed), [inputs, typed]);
+  const modeledRows = useMemo(() => modeledRangeRows(inputs, typed), [inputs, typed]);
   const evidenceSummary = useMemo(() => summarizeValueEvidence(evidence), [evidence]);
   const hours = hoursCheck(evidenceSummary.hours, inputs);
   const recoveries = recoveryCheck(evidenceSummary.recoveries, inputs.directRecoveries);
@@ -449,26 +451,34 @@ export function ValueProofCenter() {
               <CardDescription>{MODELED_RANGE_NOTE}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {(
-                [
-                  ["Low", value.modeled.low],
-                  ["Base", value.modeled.base],
-                  ["High", value.modeled.high],
-                ] as const
-              ).map(([label, amount]) => (
+              {modeledRows.map(({ label, amount, display }) => (
                 <div key={label}>
                   <div className="mb-1 flex justify-between text-xs">
                     <span className="text-muted">{label}</span>
-                    <span className="font-semibold tabular">{formatUsd(amount)}</span>
+                    <span
+                      className={
+                        amount === null ? "font-medium text-muted" : "font-semibold tabular"
+                      }
+                    >
+                      {display}
+                    </span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-elevated" aria-hidden>
-                    <div
-                      className="h-full rounded-full bg-warn"
-                      style={{ width: `${(amount / modeledTop) * 100}%` }}
-                    />
-                  </div>
+                  {amount !== null && (
+                    <div className="h-2 overflow-hidden rounded-full bg-elevated" aria-hidden>
+                      <div
+                        className="h-full rounded-full bg-warn"
+                        style={{ width: `${(amount / modeledTop) * 100}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
+              {!modeledTiles.entered && (
+                <p className="text-xs text-muted">
+                  Enter the money at risk or the event probability in Value assumptions to see this
+                  range.
+                </p>
+              )}
               <div className="flex gap-2 rounded-xl border border-warn/30 bg-warn/5 p-3 text-xs leading-relaxed text-muted">
                 <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
                 <p>
