@@ -1,5 +1,5 @@
 import { ControlEvidencePanel } from "@/components/precog/control-evidence/panel";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { LegalFooter } from "@/components/precog/legal-footer";
@@ -62,6 +62,19 @@ export const Route = createFileRoute("/firm")({
     ],
   }),
 });
+
+// Loaded after the page itself, as the home screen loads them, so the firm
+// workspace's first load does not carry the value proof and snapshot screens.
+const ValueProofCenter = lazy(() =>
+  import("@/components/precog/value-proof-center").then((module) => ({
+    default: module.ValueProofCenter,
+  })),
+);
+const AssessmentSnapshots = lazy(() =>
+  import("@/components/precog/assessment-snapshots").then((module) => ({
+    default: module.AssessmentSnapshots,
+  })),
+);
 
 const QUICKBOOKS_MESSAGE: Record<string, string> = {
   connected: "QuickBooks is connected. Read the books now to take the first reading.",
@@ -457,7 +470,6 @@ function FirmPage() {
             </p>
           )}
           <QuickBooksPanel signedIn={signedIn} />
-          <ClientHistory signedIn={signedIn} />
         </div>
       )}
 
@@ -466,6 +478,32 @@ function FirmPage() {
         <ControlEvidencePanel />
         <AccessReconcile />
       </div>
+
+      {/* Outside the signed-in blocks: value proof is kept on this device, so a
+          signed-out owner still sees and exports it here. */}
+      <section id="value-proof" className="mt-8 scroll-mt-16" aria-labelledby="value-proof-title">
+        <h2 id="value-proof-title" className="mb-3 text-lg font-semibold">
+          Value proof (this business)
+        </h2>
+        <Suspense fallback={<p className="text-sm text-muted">Loading value proof…</p>}>
+          <ValueProofCenter />
+        </Suspense>
+      </section>
+
+      <section id="history" className="mt-8 scroll-mt-16" aria-labelledby="history-title">
+        <h2 id="history-title" className="mb-3 text-lg font-semibold">
+          History
+        </h2>
+        <div className="space-y-4">
+          {signedIn && <ClientHistory signedIn={signedIn} />}
+          <section aria-label="Assessment snapshots">
+            <h3 className="mb-2 text-base font-medium">Assessment snapshots</h3>
+            <Suspense fallback={<p className="text-sm text-muted">Loading snapshots…</p>}>
+              <AssessmentSnapshots />
+            </Suspense>
+          </section>
+        </div>
+      </section>
 
       <p className="mt-8 text-sm">
         <Link to="/" className="underline-offset-4 hover:underline">

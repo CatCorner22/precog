@@ -202,6 +202,38 @@ export function AssessmentSnapshots() {
     }
   }
 
+  /** Every snapshot the account holds, in full, as one JSON file the owner keeps. */
+  async function downloadAll() {
+    setBusy(true);
+    setError(null);
+    try {
+      const summaries = await listAssessmentSnapshots();
+      const snapshots = [];
+      for (const summary of summaries) {
+        const snapshot = await getAssessmentSnapshot({ data: { id: summary.id } });
+        if (snapshot) snapshots.push(snapshot);
+      }
+      downloadText(
+        `precog-snapshots-${localDateKey(new Date())}.json`,
+        `${JSON.stringify(
+          {
+            format: "precog-assessment-snapshots",
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            snapshots,
+          },
+          null,
+          2,
+        )}\n`,
+        "application/json",
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not download snapshots");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function exportComparison() {
     if (!comparison) return;
     const report = createSnapshotComparisonReport(
@@ -226,8 +258,9 @@ export function AssessmentSnapshots() {
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Save a dated copy of this business: its team, process map, register, controls, risk
-          inputs, decisions, Duty map and value proof. Snapshots are private to your account.
-          Restore replaces those parts of the open business and keeps its saved maps and logs.
+          inputs, decisions, Duty assignments and value proof. Snapshots are private to your
+          account. Restore replaces those parts of the open business and keeps its saved maps and
+          logs.
         </p>
       </section>
 
@@ -256,7 +289,7 @@ export function AssessmentSnapshots() {
               <CardTitle className="text-base">Create snapshot</CardTitle>
               <CardDescription>
                 Includes this business's team, process map, register, controls, risk inputs,
-                decisions, Duty map and value proof.
+                decisions, Duty assignments and value proof.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -291,15 +324,27 @@ export function AssessmentSnapshots() {
                   Newest first · up to 50 snapshots across your businesses
                 </CardDescription>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => void refresh()}
-                disabled={busy || listing}
-                aria-label="Refresh snapshots"
-              >
-                <RefreshCw className={`size-3.5 ${listing ? "animate-spin" : ""}`} />
-              </Button>
+              <div className="flex shrink-0 items-center gap-1">
+                {items.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void downloadAll()}
+                    disabled={busy || listing}
+                  >
+                    <Download className="size-3.5" /> Download my snapshots
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void refresh()}
+                  disabled={busy || listing}
+                  aria-label="Refresh snapshots"
+                >
+                  <RefreshCw className={`size-3.5 ${listing ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-2">
               {comparison && (
@@ -465,7 +510,9 @@ export function AssessmentSnapshots() {
                         <Clock3 className="size-3" /> {item.practiceName} ·{" "}
                         {formatDayTime(item.createdAt)}
                       </p>
-                      {item.includesPowerMap && <Badge className="mt-2">Duty map included</Badge>}
+                      {item.includesPowerMap && (
+                        <Badge className="mt-2">Duty assignments included</Badge>
+                      )}
                       {item.includesValueProof && (
                         <Badge className="mt-2 ml-1">Value proof included</Badge>
                       )}
