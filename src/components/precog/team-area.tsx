@@ -47,7 +47,7 @@ export function TeamArea() {
             Pick a title from the role list below to add people with that job&rsquo;s usual duties,
             then change the duties to match what each person really does.
           </p>
-          <JobCatalogSheet />
+          <JobCatalogSheet defaultOpen />
         </div>
       )}
       <Card>
