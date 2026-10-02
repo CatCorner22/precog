@@ -1,6 +1,8 @@
 {
   "src/lib/precog/account-server.ts#deleteAccount": "1ef1d1b2af7c79a25443d7717538dfe8aa1ec87efe36909bfcc028e9fbe3098f",
   "src/lib/precog/account-server.ts#exportAccountData": "fe39da5e7f5591ff5a5912c2ad71714098fd72973553278b00912ba6eae0608c",
+  "src/lib/precog/account-server.ts#exportBusinessHistory": "b54a7720b096eb36dd05d2d6523019eaa25207b1321a874408850c11b3111b1a",
+  "src/lib/precog/account-server.ts#listHistoryDownloads": "4b941498187632b29eb0bd09f5ac83c855263ba20881409f7521dec2b5375f33",
   "src/lib/precog/billing/server.ts#getBillingStatus": "53dce1f23e05a2f4344df1e5f4c52a984e513cc0148d4c0b32e265dccf049ae0",
   "src/lib/precog/billing/server.ts#getPlanPrices": "34f4604269570ff563c846f296e4b9da0b62a011f44b809694750513da505917",
   "src/lib/precog/billing/server.ts#openBillingPortal": "3bec34dbe3544d2f3696313492f8b706a2c152dd633623c726edc8f06185afe3",
