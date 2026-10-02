@@ -5,13 +5,15 @@ import { Button } from "@/components/ui/button";
 import { usePractice } from "@/lib/precog/practice-context";
 import { getHistoryVersion, listHistory } from "@/lib/precog/firm/server";
 import type { BusinessHistoryEntry } from "@/lib/precog/business-store";
+import { MAX_HISTORY_PER_BUSINESS } from "@/lib/precog/business-retention";
 import { localDateKey, formatDayTime } from "@/lib/precog/dates";
 import { verificationsAsHeld } from "@/lib/precog/procedures/lifecycle";
 
 /**
- * Every saved snapshot of the open business, newest first, with who saved
- * it. Restoring loads that snapshot as the working copy; the one it replaces
- * is itself kept, so nothing is lost either way.
+ * The saved snapshots of the open business the store keeps (the last
+ * MAX_HISTORY_PER_BUSINESS), newest first, with who saved each one.
+ * Restoring loads that snapshot as the working copy; the one it replaces is
+ * itself kept, so a restore loses nothing.
  */
 export function ClientHistory({ signedIn }: { signedIn: boolean }) {
   const { profile, replaceProfile, syncStatus } = usePractice();
@@ -71,8 +73,8 @@ export function ClientHistory({ signedIn }: { signedIn: boolean }) {
         <div>
           <h2 className="text-lg font-semibold">Change history</h2>
           <p className="mt-1 text-sm text-muted">
-            Precog keeps every save of {profile.practiceName} with who made it, so you can bring
-            back the map as it stood on a given day.
+            Precog keeps the last {MAX_HISTORY_PER_BUSINESS} saves of {profile.practiceName}, with
+            who made each one.
           </p>
         </div>
         <Button size="sm" variant="secondary" onClick={() => setOpen((v) => !v)}>

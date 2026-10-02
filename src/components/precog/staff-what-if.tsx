@@ -3,7 +3,7 @@ import type { StaffComposition } from "@/lib/precog/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LabelledRange } from "./labelled-range";
-import { whatIfDiffers } from "./scenario-page";
+import { whatIfApplies, whatIfDiffers } from "./scenario-page";
 
 /** The what-if staffing and what the card may do with it. */
 export interface StaffWhatIf {
@@ -11,7 +11,8 @@ export interface StaffWhatIf {
   saved: StaffComposition;
   /**
    * An owner's own team derives its sole-owner count from the knowledge
-   * register, so the count is not offered as a what-if there.
+   * register, so the count is not offered as a what-if there, and its
+   * segregation score from the team's duties, so applying keeps the saved one.
    */
   ownBusiness: boolean;
   onChange: (next: StaffComposition) => void;
@@ -35,6 +36,8 @@ export function StaffWhatIfCard({
   className,
 }: StaffWhatIf & { className?: string }) {
   const changed = whatIfDiffers(saved, staff);
+  // A tried segregation score alone on an own team leaves nothing to apply.
+  const appliable = whatIfApplies(saved, staff, { ownBusiness });
   return (
     <Card className={className}>
       <CardHeader>
@@ -67,6 +70,11 @@ export function StaffWhatIfCard({
           min={0}
           max={100}
           onChange={(v) => onChange({ ...staff, segregationScore: v })}
+          note={
+            ownBusiness
+              ? "For trying only: applying keeps your saved score. Change who holds which duties to move it."
+              : undefined
+          }
         />
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -91,9 +99,11 @@ export function StaffWhatIfCard({
             <p className="w-full text-xs text-warn">
               Trying staffing that differs from your saved settings.
             </p>
-            <Button size="sm" onClick={onApply}>
-              Apply to my business
-            </Button>
+            {appliable && (
+              <Button size="sm" onClick={onApply}>
+                Apply to my business
+              </Button>
+            )}
             <Button size="sm" variant="secondary" onClick={onReset}>
               Back to my saved staffing
             </Button>

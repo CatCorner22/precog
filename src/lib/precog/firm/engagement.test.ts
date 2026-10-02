@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { advanceEngagement, isOwnTeam, mapIsComplete, pilotMetrics } from "./engagement";
+import {
+  advanceEngagement,
+  isOwnTeam,
+  mapIsComplete,
+  pilotMetrics,
+  pilotMetricsCsv,
+  type PilotMetrics,
+} from "./engagement";
 import type { Person } from "../types";
 
 const people: Person[] = [
@@ -169,5 +176,39 @@ describe("pilot engagement", () => {
       false,
     );
     expect(isOwnTeam({ practiceName: "Own Plumbing", customPeople: people })).toBe(true);
+  });
+});
+
+describe("pilot metrics CSV", () => {
+  const metrics: PilotMetrics = {
+    startedAt: "2026-09-01T00:00:00.000Z",
+    mapCompletedAt: "2026-09-01T05:00:00.000Z",
+    hoursToMap: 5,
+    reportSent: true,
+    reportSentAt: "2026-09-03T00:00:00.000Z",
+    openFindings: 1,
+    acceptedFindings: 1,
+    acceptanceRate: 0.5,
+  };
+
+  it("guards a business name that a spreadsheet would run as a formula", () => {
+    const [business] = pilotMetricsCsv('=HYPERLINK("x")', metrics).split("\n");
+    expect(business).toBe(`business,"'=HYPERLINK(""x"")"`);
+  });
+
+  it("writes a plain business name and the metrics as before", () => {
+    expect(pilotMetricsCsv("Ruiz Dental", metrics)).toBe(
+      [
+        "business,Ruiz Dental",
+        "startedAt,2026-09-01T00:00:00.000Z",
+        "mapCompletedAt,2026-09-01T05:00:00.000Z",
+        "hoursToMap,5",
+        "reportSent,yes",
+        "reportSentAt,2026-09-03T00:00:00.000Z",
+        "openFindings,1",
+        "acceptedFindings,1",
+        "acceptanceRate,0.500",
+      ].join("\n"),
+    );
   });
 });

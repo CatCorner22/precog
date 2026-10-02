@@ -1,6 +1,7 @@
 import type { DecisionEntry } from "../practice-profile";
 import type { IndustryId } from "../industry";
 import type { DetectedConflict } from "../sod/detect";
+import type { HandSetFigures } from "../sod/derive-staff";
 import { concentrationHeadline } from "../sod/verdict";
 import { isDecisionOpen, linkedKnowledgeId } from "../decisions/follow-through";
 import { count, midSentence } from "../text";
@@ -78,6 +79,44 @@ export function executiveSummary(input: SummaryInput): string[] {
     );
   }
   if (input.topPriority) lines.push(`Highest item on the priority list: ${input.topPriority}.`);
+  return lines;
+}
+
+/**
+ * Lines disclosing a staff figure the owner set by hand, printed beside the
+ * KPIs. The priority and residual figures read the hand-set segregation
+ * score while the duty separation index reads the duties, so a reader sees
+ * both numbers and which figures follow which.
+ */
+export function handSetNotes(handSet: HandSetFigures): string[] {
+  const lines: string[] = [];
+  const score = handSet.segregation;
+  if (score) {
+    const duties =
+      score.fromDuties === null
+        ? ""
+        : score.fromDuties === score.set
+          ? " Your team's duties give the same."
+          : ` Your team's duties give ${score.fromDuties}.`;
+    lines.push(
+      `Segregation score set by hand: ${score.set}.${duties} The priority index and residual risk scores in this report use the score set by hand; the duty separation index reads the duties.`,
+    );
+  }
+  const bank = handSet.bankRec;
+  if (bank) {
+    const answer = bank.set
+      ? "someone independent reconciles the bank account"
+      : "nobody independent reconciles the bank account";
+    const duties =
+      bank.fromDuties === null
+        ? ""
+        : bank.fromDuties === bank.set
+          ? " Your team's duties show the same."
+          : bank.fromDuties
+            ? " Your team's duties show someone who reconciles it without handling or recording money."
+            : " Your team's duties show nobody who reconciles it without also handling or recording money.";
+    lines.push(`Bank reconciliation answer set by hand: ${answer}.${duties}`);
+  }
   return lines;
 }
 

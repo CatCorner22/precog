@@ -1,4 +1,5 @@
 import { isDemoName } from "../industry";
+import { csvCell } from "../import/csv";
 import { linkedToIndustry } from "../decisions/follow-through";
 import type { DecisionEntry } from "../practice-profile";
 import type { DetectedConflict } from "../sod/detect";
@@ -65,11 +66,6 @@ export function pilotMetricsCsv(businessName: string, metrics: PilotMetrics): st
     row("acceptedFindings", metrics.acceptedFindings),
     row("acceptanceRate", metrics.acceptanceRate === null ? "" : metrics.acceptanceRate.toFixed(3)),
   ].join("\n");
-}
-
-function csvCell(value: string): string {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
 }
 
 /** A map is complete once two named, active people each hold at least one duty. */

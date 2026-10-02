@@ -6,6 +6,8 @@ import { DEFAULT_WEIGHTS } from "../scoring/weights";
 import { confirmedScenarioIds, isOwnBusiness, residualScope } from "../scoring/scope";
 import { insuranceFigureNote } from "../scoring/dynamic-variables";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
+import { handSetFigures } from "../sod/derive-staff";
+import { segregationLevel } from "../scoring/bands";
 import { coverageReport } from "../continuity/coverage";
 import { checkInPlan, staleItems } from "../continuity/staleness";
 import { contingencyCards } from "../continuity/absence-impact";
@@ -16,21 +18,30 @@ import { leaveDebriefs } from "../continuity/leave-debrief";
 import { leavers as leaversReport } from "../continuity/leavers";
 import { profileStandInConflicts } from "../continuity/standin-conflicts";
 import { continuityCommitments, continuitySlips } from "../decisions/follow-through";
-import { assessCoso } from "../coso";
 import {
   casesForSodRules,
   citingCaseStats,
   isOwnSector,
   recommendedStepsForRules,
 } from "../evidence";
-import { openFindings, partialDualReleaseCoverage, ruleIdsOf } from "../sod/open-findings";
+import {
+  openFindings,
+  openSeverityCounts,
+  partialDualReleaseCoverage,
+  ruleIdsOf,
+} from "../sod/open-findings";
 import { rankFirstSteps } from "../coach/first-steps";
 import { buildWeeklyActions } from "../weekly-actions/build";
 import { buildProcessMapGraph } from "../process-graph";
 import { computeMapHealth } from "../process-health";
 import { validateProcessMap } from "../process-validation";
 import { registerAssessed } from "../continuity/register-state";
-import { continuityFollowThrough, decisionLog, executiveSummary } from "./report-summary";
+import {
+  continuityFollowThrough,
+  decisionLog,
+  executiveSummary,
+  handSetNotes,
+} from "./report-summary";
 
 /**
  * Everything the printed report shows, computed once from the template and
@@ -75,7 +86,23 @@ export function buildControlReportModel({
     confirmedScenarioIds: confirmed,
     riskVariables: profile.riskVariables,
   });
-  const sod = detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease));
+  const sodOptions = sodDetectionOptions(tpl, profile.dualRelease);
+  const sod = detectSodConflicts(tpl, profile.staff, sodOptions);
+  // The band word beside the duty separation index, capped while a critical
+  // or high finding is open, as on the duty-conflict screen; the hint counts
+  // the open findings by the same rule.
+  const sodOpen = openSeverityCounts(sod.conflicts, profile.dualRelease);
+  const sodLevel = segregationLevel(sod.summary.segregationHealth, sodOpen);
+  // A segregation score or bank-reconciliation answer the owner set by hand
+  // moves the priority and residual figures without any change in who does
+  // what, so the report says so beside what the duties give, read with the
+  // dual release the duty separation index reads.
+  const handSet = handSetNotes(
+    handSetFigures(tpl, profile.staff, {
+      ownTeam: Boolean(profile.customPeople),
+      dualReleaseMitigatedRuleIds: sodOptions.dualReleaseMitigatedRuleIds,
+    }),
+  );
   const continuity = coverageReport(tpl);
   const staleness = staleItems(tpl, today);
   const checkIns = checkInPlan(tpl, today);
@@ -100,11 +127,6 @@ export function buildControlReportModel({
   const leaving = leaversReport(tpl, profile.decisions, today, conflictsFor);
   const slips = continuitySlips(profile.decisions, tpl);
   const committed = continuityCommitments(profile.decisions, tpl, today);
-  const coso = assessCoso(tpl, profile.staff, {
-    riskVariables: profile.riskVariables,
-    confirmedScenarioIds: confirmed,
-    dualRelease: profile.dualRelease,
-  });
   const policyNote = insuranceFigureNote(profile.riskVariables, isOwnBusiness(tpl));
   const { snapshots } = buildProcessMapGraph(tpl, profile.staff, {}, residualScope(profile));
   const actions = buildWeeklyActions({
@@ -179,6 +201,9 @@ export function buildControlReportModel({
     threat,
     portfolio,
     sod,
+    sodOpen,
+    sodLevel,
+    handSet,
     continuity,
     staleness,
     checkIns,
@@ -189,7 +214,6 @@ export function buildControlReportModel({
     leaving,
     slips,
     committed,
-    coso,
     actions,
     mapHealth,
     issues,

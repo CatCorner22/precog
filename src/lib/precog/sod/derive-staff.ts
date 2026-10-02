@@ -68,6 +68,49 @@ export function deriveStaffFromTeam(
   return next;
 }
 
+/** A staff figure the owner set by hand, beside what the team's duties give (null with no own team to read). */
+interface HandSetFigure<T> {
+  set: T;
+  fromDuties: T | null;
+}
+
+/** The two staff figures an owner can set by hand; null for one that follows the team. */
+export interface HandSetFigures {
+  segregation: HandSetFigure<number> | null;
+  bankRec: HandSetFigure<boolean> | null;
+}
+
+/**
+ * The segregation score and bank-reconciliation answer when the owner set
+ * them by hand, each beside the figure `deriveStaffFromTeam` reads from the
+ * team's duties, so a report can disclose both. A sample team carries no
+ * duties of the owner's to read.
+ */
+export function handSetFigures(
+  tpl: IndustryTemplate,
+  staff: StaffComposition,
+  opts: { ownTeam: boolean; dualReleaseMitigatedRuleIds?: Set<string> },
+): HandSetFigures {
+  const segregation = staff.segregationSource === "manual";
+  const bankRec = staff.bankRecSource === "manual";
+  const fromDuties =
+    opts.ownTeam && (segregation || bankRec)
+      ? deriveStaffFromTeam(
+          tpl,
+          { ...staff, segregationSource: "derived", bankRecSource: "derived" },
+          { dualReleaseMitigatedRuleIds: opts.dualReleaseMitigatedRuleIds },
+        )
+      : null;
+  return {
+    segregation: segregation
+      ? { set: staff.segregationScore, fromDuties: fromDuties?.segregationScore ?? null }
+      : null,
+    bankRec: bankRec
+      ? { set: staff.independentBankRec, fromDuties: fromDuties?.independentBankRec ?? null }
+      : null,
+  };
+}
+
 /**
  * Duties that handle or record money: a reconciler who holds any of them is
  * checking their own work. This is wider than the money cycle the

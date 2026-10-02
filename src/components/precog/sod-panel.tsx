@@ -1,6 +1,7 @@
 import { AlertTriangle, Grid3x3, Network, ShieldCheck, Users, type LucideIcon } from "lucide-react";
-import { HEALTH_SCALE, healthLevel } from "@/lib/precog/scoring/bands";
+import { segregationLevel } from "@/lib/precog/scoring/bands";
 import { CONFLICT_RULES, entitlementLabel } from "@/lib/precog/sod/conflict-rules";
+import { belowThresholdNote, openSeverityCounts } from "@/lib/precog/sod/open-findings";
 import type { NavFn } from "@/lib/precog/navigation";
 import { DualReleasePanel } from "@/components/precog/dual-release-panel";
 import { PowerMapBuilder } from "@/components/precog/power-map-builder";
@@ -18,6 +19,11 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
   const model = useSodPanel();
   const { profile, report, sodExamples, titleDuties, titleDutyNames, view, setView } = model;
   const health = report.summary.segregationHealth;
+  // Never "strong" or "adequate" while a critical or high finding is open.
+  const open = openSeverityCounts(report.conflicts, profile.dualRelease);
+  const level = segregationLevel(health, open);
+  // The open tiles leave out what dual release narrows; say why the word still counts it.
+  const belowNote = belowThresholdNote(open);
 
   return (
     <div className="space-y-4">
@@ -43,10 +49,8 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
         <StatTile
           label="Segregation health"
           value={String(health)}
-          hint={`0 to 100 · ${healthLevel(health)} · Precog's index`}
-          tone={
-            health < HEALTH_SCALE.weak ? "danger" : health < HEALTH_SCALE.adequate ? "warn" : "ok"
-          }
+          hint={`0 to 100 · ${level} · Precog's index`}
+          tone={level === "critical" ? "danger" : level === "weak" ? "warn" : "ok"}
         />
         <StatTile
           label="Critical open"
@@ -79,6 +83,11 @@ export function SodPanel({ onNavigate }: { onNavigate?: NavFn }) {
           tone="warn"
         />
       </div>
+      {belowNote && (
+        <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-muted">
+          Segregation health reads {level}. {belowNote}
+        </p>
+      )}
       {report.summary.unheldDuties.length > 0 && (
         <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-muted">
           You have marked nobody still working here for:{" "}

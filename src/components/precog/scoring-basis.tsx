@@ -63,6 +63,11 @@ export function ScoringBasis({ sensitivity }: { sensitivity: SensitivityReport }
                   {HEALTH_SCALE.adequate - 1} · Adequate {HEALTH_SCALE.adequate}–
                   {HEALTH_SCALE.strong - 1} · Strong {HEALTH_SCALE.strong}+
                 </p>
+                <p className="mt-1 text-muted">
+                  Segregation health reads at best Weak while a critical duty conflict is open, and
+                  at best Adequate while a high one is. A conflict dual release covers only above a
+                  threshold still counts as open.
+                </p>
               </div>
             </div>
           </div>

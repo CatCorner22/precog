@@ -60,7 +60,7 @@ export const REVIEW_ITEMS: readonly {
   {
     key: "payroll_headcount",
     title: "Compare payroll to who still works here",
-    why: "A name on the payroll register who is not on the team is the usual payroll scheme.",
+    why: "A name on the payroll register who no longer works here is one way money leaves through payroll; this check does not catch a raised pay rate.",
     checkedDuties: ["approve_payroll", "enter_payroll", "edit_payroll_master"],
   },
   {
