@@ -101,7 +101,7 @@ export function SignalsPanel({ onNavigate }: { onNavigate?: NavFn }) {
                   >
                     {i.status === "ok" ? "clear" : i.status}
                   </Badge>
-                  <span className="font-medium">{i.label}</span>
+                  <span className="font-medium">{say(i.label, i.tacticalLabel ?? i.label)}</span>
                 </div>
                 <p className="mt-1 text-xs text-muted">{i.why}</p>
               </div>

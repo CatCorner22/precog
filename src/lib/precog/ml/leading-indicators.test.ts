@@ -93,6 +93,17 @@ describe("scoreLeadingIndicators", () => {
     const text = report.indicators.map((i) => `${i.label} ${i.why}`).join(" ");
     expect(text).not.toMatch(/SPOF|SoD|recon\b|signals elevated/);
   });
+
+  it("names the segregation figure in plain and tactical words", () => {
+    const report = scoreLeadingIndicators(
+      getIndustryTemplate("general"),
+      calmStaff,
+      DEFAULT_RISK_VARIABLES,
+    );
+    const seg = report.indicators.find((i) => i.id === "li_seg");
+    expect(seg?.label).toBe("Duties kept apart");
+    expect(seg?.tacticalLabel).toBe("Duty separation");
+  });
 });
 
 describe("statusRank", () => {

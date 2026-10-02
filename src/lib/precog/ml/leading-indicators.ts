@@ -20,7 +20,10 @@ type IndicatorStatus = "ok" | "watch" | "breach";
 
 interface LeadingIndicator {
   id: string;
+  /** The plain-mode label. */
   label: string;
+  /** The tactical-mode label, when it differs; screens show it through say(). */
+  tacticalLabel?: string;
   value: number;
   threshold: number;
   status: IndicatorStatus;
@@ -135,6 +138,7 @@ export function scoreLeadingIndicators(
     {
       id: "li_seg",
       label: "Duties kept apart",
+      tacticalLabel: "Duty separation",
       value: staff.segregationScore,
       threshold: lines.segregation.watchBelow,
       status:
