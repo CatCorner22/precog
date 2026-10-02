@@ -1,7 +1,12 @@
 import { Clock, Eye, ExternalLink, TrendingDown } from "lucide-react";
 import { SectionHeading, StatTile } from "./start-here-parts";
 import { caseMedianComparison, joinClauses, ROUTE_CLAUSE } from "./start-here-copy";
-import { CASE_LIBRARY, durationPhrase, DETECTION_LABEL } from "@/lib/precog/evidence";
+import {
+  benchmarkCitation,
+  CASE_LIBRARY,
+  durationPhrase,
+  DETECTION_LABEL,
+} from "@/lib/precog/evidence";
 import { count } from "@/lib/precog/text";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
@@ -61,7 +66,7 @@ export function StartHereCostSection({ model }: { model: StartHereModel["cost"] 
                 : "Median loss in the fraud study, given an investigated fraud"
             }
             value={medianLossValue ?? medianLoss.value}
-            detail={medianLoss.study}
+            detail={benchmarkCitation(medianLoss)}
             href={medianLoss.source.url}
             caveat={medianLoss.caveat}
           />
@@ -70,7 +75,7 @@ export function StartHereCostSection({ model }: { model: StartHereModel["cost"] 
           <StatTile
             label="Median time to detection"
             value={medianDuration.value}
-            detail={medianDuration.study}
+            detail={benchmarkCitation(medianDuration)}
             href={medianDuration.source.url}
           />
         )}
@@ -137,7 +142,7 @@ export function StartHereCostSection({ model }: { model: StartHereModel["cost"] 
                 rel="noreferrer noopener"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
               >
-                {delayCurve.study}
+                {benchmarkCitation(delayCurve)}
                 <ExternalLink className="size-3" aria-hidden />
               </a>
             </div>

@@ -15,7 +15,7 @@ import { formatUsd } from "@/lib/utils";
 import { BENCHMARK_BY_ID, METHOD_CAVEATS } from "./benchmarks";
 import { CASE_LIBRARY } from "./cases";
 import { CONTROL_CATALOG, type ControlDefinition, type ControlId } from "./controls";
-import type { CaseStudy, DetectionRoute, IndustrySector, SchemeKind } from "./types";
+import type { Benchmark, CaseStudy, DetectionRoute, IndustrySector, SchemeKind } from "./types";
 
 export * from "./types";
 export * from "./controls";
@@ -317,6 +317,50 @@ export function sectorPhrase(sector: IndustrySector): string {
   return SECTOR_PHRASE[sector];
 }
 
+/**
+ * Whether a named person has read this record against its source. Until one
+ * has, every screen that shows the case marks it "Unverified".
+ */
+export function caseIsVerified(study: Pick<CaseStudy, "verifiedOn" | "verifiedBy">): boolean {
+  return Boolean(study.verifiedOn && study.verifiedBy);
+}
+
+/** The marker and its explanation for a record nobody has checked yet. */
+export const UNVERIFIED_CASE = {
+  label: "Unverified",
+  title: "Nobody has checked this record against its source yet.",
+} as const;
+
+/** What a duty-conflict card says when no case in the library cites its rule. */
+export const NO_CASE_FOR_RULE = "No prosecuted case in the library shows this pair yet.";
+
+/**
+ * Where a benchmark comes from, for the line under the figure: the study, then
+ * its page and figure once someone has read them in the published report.
+ * Nothing is added while those are empty.
+ */
+export function benchmarkCitation(b: Pick<Benchmark, "study" | "page" | "figure">): string {
+  return [b.study, b.page ? `page ${b.page}` : "", b.figure ? `figure ${b.figure}` : ""]
+    .filter(Boolean)
+    .join(", ");
+}
+
+/**
+ * How many case records come from this line of business, and how many the
+ * library holds in all. A template that maps to every sector ("general")
+ * has no line of its own, so `own` is null.
+ */
+export function caseCountsForIndustry(
+  industryId: string,
+  library: readonly CaseStudy[] = CASE_LIBRARY,
+): { own: number | null; total: number; sectors: IndustrySector[] } {
+  const sectors = sectorsForIndustry(industryId);
+  const own = sectors.includes("any")
+    ? null
+    : library.filter((c) => sectors.includes(c.sector)).length;
+  return { own, total: library.length, sectors };
+}
+
 /** The badge label for a case's sector. */
 export const SECTOR_LABEL: Record<IndustrySector, string> = {
   dental: "Dental practice",
@@ -356,8 +400,8 @@ export const DETECTION_LABEL: Record<DetectionRoute, string> = {
  * vocabularies — a template describes a product vertical, a case describes the
  * trade the victim was in — so the join is explicit rather than assumed.
  *
- * The "Dental / medical / veterinary office" template serves all three, and
- * a medical or veterinary case reads as "in your line of business" to a
+ * The dental template ("Dental office") also counts medical and veterinary
+ * cases: a medical or veterinary case reads as "in your line of business" to a
  * dentist exactly as a dental one does: same front desk, same payments at
  * the counter, same refund and write-off authority. The construction template
  * likewise counts both construction and trades cases. Other templates map to

@@ -3,7 +3,7 @@ import { SectionHeading } from "./start-here-parts";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { StartHereModel } from "@/lib/precog/start-here/model";
-import { effortPhrase, lossPhrase } from "@/lib/precog/evidence";
+import { benchmarkCitation, effortPhrase, lossPhrase } from "@/lib/precog/evidence";
 
 export function StartHereFirstStepsSection({ model }: { model: StartHereModel["firstSteps"] }) {
   const { steps, caseById, tips, hotlineGap, soleKnowledge, driftActions } = model;
@@ -104,7 +104,7 @@ export function StartHereFirstStepsSection({ model }: { model: StartHereModel["f
               rel="noreferrer noopener"
               className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
             >
-              {tips.study}
+              {benchmarkCitation(tips)}
               <ExternalLink className="size-3" aria-hidden />
             </a>
           </CardContent>

@@ -350,7 +350,10 @@ export const CONFLICT_RULES: ConflictRule[] = [
     title: "Refund custody + account adjustment",
     why: "One person can create a false credit and release the resulting refund.",
     fraudPath: "Post unsupported credit, then refund to a controlled payment method",
-    compensatingDefaults: ["Independent refund approval", "Refund to original payment method"],
+    compensatingDefaults: [
+      "A second person who issues no refunds approves each refund before it goes out",
+      "Every refund goes only to the card or account that paid, and the owner reads each month's refunds by employee",
+    ],
     linkedControlId: "c-sod-billing",
   },
   {
@@ -363,7 +366,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     fraudPath: "Enter fictitious invoice and release payment",
     compensatingDefaults: [
       "Someone who enters no bills approves each one before anyone pays it (record them as approving bills for payment)",
-      "Dual release above threshold",
+      "A second person releases each payment above a set amount, using their own sign-in",
     ],
     linkedControlId: "c-sod-ap",
   },
@@ -390,7 +393,10 @@ export const CONFLICT_RULES: ConflictRule[] = [
     title: "Ordering + receipt confirmation",
     why: "The requester can conceal missing, diverted, or never-delivered goods.",
     fraudPath: "Order for personal use and self-confirm receipt",
-    compensatingDefaults: ["Independent receiving evidence", "Periodic inventory review"],
+    compensatingDefaults: [
+      "Someone who places no orders signs for each delivery against the packing slip",
+      "Each month, someone who neither orders nor receives stock counts it against the purchase records",
+    ],
   },
   {
     id: "rule-ach-release",
@@ -414,7 +420,10 @@ export const CONFLICT_RULES: ConflictRule[] = [
     title: "Access administration + audit-log review",
     why: "An administrator can grant access and suppress independent detection.",
     fraudPath: "Create privileged account and self-clear or ignore evidence",
-    compensatingDefaults: ["Independent quarterly access review", "Immutable vendor-hosted logs"],
+    compensatingDefaults: [
+      "Each quarter, the owner reviews who holds which system permissions and removes any nobody needs",
+      "The activity log stays with the software provider, where no employee sign-in can edit it, and the owner reads it each month",
+    ],
   },
   {
     id: "rule-access-export",
@@ -424,7 +433,10 @@ export const CONFLICT_RULES: ConflictRule[] = [
     title: "Access administration + bulk export",
     why: "The same person can grant themselves access and export sensitive data.",
     fraudPath: "Elevate access, export PHI or financial data, then remove account",
-    compensatingDefaults: ["Export alerts to owner", "Independent access-change report"],
+    compensatingDefaults: [
+      "The system emails the owner each time anyone exports customer or patient records in bulk",
+      "Owner reads the system's report of new users and permission changes each month",
+    ],
   },
   {
     id: "rule-backup-access",
@@ -435,8 +447,8 @@ export const CONFLICT_RULES: ConflictRule[] = [
     why: "Concentrated administrative power can disable recovery and conceal destructive activity.",
     fraudPath: "Alter access and delete or weaken recovery copies",
     compensatingDefaults: [
-      "Separate backup console credentials",
-      "Immutable/offline recovery copy",
+      "Only the owner holds the sign-in to the backup service, and each quarter the owner confirms nobody else has one",
+      "Owner keeps one backup copy no employee sign-in can delete, offline or under the owner's own account, and checks each month that it is current",
     ],
   },
   {
@@ -566,7 +578,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     fraudPath: "Take the money, then post an entry that makes the reconciliation tie",
     compensatingDefaults: [
       "Owner or outside accountant reviews every manual journal entry each month with its support",
-      "Owner opens the bank statement first",
+      "Owner opens the bank statement first each month, before anyone else handles it",
     ],
     linkedControlId: "c-sod-cash",
   },
@@ -581,7 +593,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
       "Reactivate someone who has left, point the deposit at your own account, enter the hours",
     compensatingDefaults: [
       "Owner reads the new-hire, rate-change, and bank-change report every payroll",
-      "Owner compares the people paid against the people scheduled",
+      "Owner compares the people paid against the people scheduled each payroll",
     ],
     linkedControlId: "c-payroll",
   },
@@ -594,8 +606,8 @@ export const CONFLICT_RULES: ConflictRule[] = [
     why: "Holding the cash and checking the bank account leaves nobody to notice a shortfall, because the only person who could compare the two is the person who caused it.",
     fraudPath: "Keep cash, then clear the discrepancy yourself",
     compensatingDefaults: [
-      "The owner or an outside bookkeeper checks the bank account instead",
-      "Camera covering the till at close",
+      "The owner or an outside bookkeeper reconciles the bank account each month instead",
+      "A camera covers the till at close, and the owner checks the footage whenever the count is short",
     ],
     linkedScenarioId: "sc-cash-sod-failure",
     linkedControlId: "c-cash",
@@ -610,7 +622,7 @@ export const CONFLICT_RULES: ConflictRule[] = [
     fraudPath: "Take the payment, record less, or void it later",
     compensatingDefaults: [
       "Owner compares the till total against recorded payments daily",
-      "Every void and adjustment must carry a stated reason",
+      "Whoever enters a void or adjustment records the reason each time, and the owner reads them weekly",
     ],
     linkedControlId: "c-cash",
   },
@@ -709,7 +721,10 @@ export const CONFLICT_RULES: ConflictRule[] = [
     title: "Deposit prep + payment posting",
     why: "Whoever prepares the deposit can also change what the books say came in, so the two will always agree no matter what went in the bag.",
     fraudPath: "Bank less than came in, then adjust the books to match",
-    compensatingDefaults: ["Independent deposit review", "Dual signature on deposit log"],
+    compensatingDefaults: [
+      "Each week, someone who neither prepares deposits nor posts payments matches each deposit slip to the payments posted",
+      "Two people count each deposit and both sign the deposit log before it leaves",
+    ],
     linkedControlId: "c-sod-cash",
   },
   {
@@ -735,7 +750,10 @@ export const CONFLICT_RULES: ConflictRule[] = [
     title: "Claims submission + write-off authority",
     why: "The same person can write off unpaid invoices and claims rather than chase them, which hides lost revenue as though it were a routine adjustment.",
     fraudPath: "Write off unpaid claims instead of pursuing them, hiding the loss",
-    compensatingDefaults: ["Denial aging review by office manager", "Write-off threshold"],
+    compensatingDefaults: [
+      "Each month, an office manager who submits no claims reads the list of denied and unpaid claims and follows up each one",
+      "Owner approves each write-off above the amount you set before it posts",
+    ],
     linkedScenarioId: "sc-writeoff-abuse",
     linkedControlId: "c-sod-billing",
   },
@@ -762,7 +780,10 @@ export const CONFLICT_RULES: ConflictRule[] = [
     title: "Create + approve vendor",
     why: "Adding a supplier and approving it are the same step, so nothing stands between an invented payee and the payment run.",
     fraudPath: "Approve a supplier you set up yourself",
-    compensatingDefaults: ["Owner signs new vendor form", "Bank dual release"],
+    compensatingDefaults: [
+      "Owner signs off each new supplier, against a W-9 and a real address, before its first payment",
+      "The bank requires a second person's approval to release each electronic payment",
+    ],
     linkedControlId: "c-sod-ap",
   },
   {
@@ -793,7 +814,10 @@ export const CONFLICT_RULES: ConflictRule[] = [
     title: "Approve vendor + release payment",
     why: "The person releasing the money also gives the approval that confirms a supplier is real, which removes the only check on where it goes.",
     fraudPath: "Approve and pay in one motion, with no one else looking",
-    compensatingDefaults: ["Separate payment batch review", "Dollar thresholds"],
+    compensatingDefaults: [
+      "Before each payment run, someone who approves no suppliers reads the list of payees and amounts",
+      "A second person approves each payment above the amount you set before it goes out",
+    ],
     linkedControlId: "c-sod-ap",
   },
   {
@@ -804,7 +828,10 @@ export const CONFLICT_RULES: ConflictRule[] = [
     title: "Enter + approve payroll",
     why: "Whoever runs payroll can change what payroll says, including their own pay. A Florida construction office manager raised her own weekly pay by $1,000, then $2,000; an Idaho district manager paid $685,376 to employees who had left and whose records he reactivated.",
     fraudPath: "Add hours, a raise, or a reimbursement to your own pay",
-    compensatingDefaults: ["Owner always approves final file", "Exception report"],
+    compensatingDefaults: [
+      "Owner approves the final payroll file each pay run, after the person who entered it",
+      "Owner reads the payroll changes report each pay run: new hires, rate changes, bank changes and unusual hours",
+    ],
     linkedControlId: "c-payroll",
   },
   {
@@ -815,7 +842,10 @@ export const CONFLICT_RULES: ConflictRule[] = [
     title: "System administration + post payments",
     why: "Whoever administers the system can give themselves any permission they lack, which makes every other restriction optional.",
     fraudPath: "Grant yourself the access you need, then clear the record of it",
-    compensatingDefaults: ["Owner-only admin role", "Access change log review"],
+    compensatingDefaults: [
+      "Only the owner or an outside IT provider holds administrator rights, and the owner checks that list each quarter",
+      "Owner reads the system's log of permission changes each month",
+    ],
   },
   {
     id: "rule-admin-writeoff",
@@ -825,7 +855,9 @@ export const CONFLICT_RULES: ConflictRule[] = [
     title: "System administration + post adjustments",
     why: "System administration plus write-off authority means one person can switch off the approval requirement itself before anyone uses it.",
     fraudPath: "Turn off the approval requirement, then write the balance off",
-    compensatingDefaults: ["Separate admin account from daily billing sign-in"],
+    compensatingDefaults: [
+      "Anyone with administrator rights uses a separate administrator sign-in, never their daily billing one, and the owner reads its change log each month",
+    ],
     linkedControlId: "c-sod-billing",
   },
   {

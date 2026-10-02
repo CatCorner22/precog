@@ -1,4 +1,10 @@
-import { METHOD_CAVEATS, lossPhrase, DETECTION_LABEL } from "@/lib/precog/evidence";
+import {
+  METHOD_CAVEATS,
+  lossPhrase,
+  DETECTION_LABEL,
+  UNVERIFIED_CASE,
+  caseIsVerified,
+} from "@/lib/precog/evidence";
 import type { ControlReportModel } from "@/lib/precog/report/build-control-report";
 import { formatUsd } from "@/lib/utils";
 import { count } from "@/lib/precog/text";
@@ -101,13 +107,15 @@ export function ControlReportCaseAppendix({ evidence }: Pick<ControlReportModel,
       </h2>
       <p className="text-xs text-neutral-500">
         Matched to the open gaps in our reading of the record; the business&apos;s own line of
-        business first.
+        business first. A case marked {UNVERIFIED_CASE.label} is one nobody has yet checked against
+        its source.
       </p>
       <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-neutral-600">
         {evidence.map((c) => (
           <li key={c.id}>
             {c.title}
-            {c.resolvedYear ? ` (${c.resolvedYear})` : ""} — {c.source.publisher},{" "}
+            {c.resolvedYear ? ` (${c.resolvedYear})` : ""}
+            {caseIsVerified(c) ? "" : ` [${UNVERIFIED_CASE.label}]`} — {c.source.publisher},{" "}
             <span className="break-all">{c.source.url}</span>
           </li>
         ))}

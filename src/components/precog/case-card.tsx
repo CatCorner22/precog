@@ -2,10 +2,13 @@ import { useState } from "react";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import {
   caseForRule,
+  caseIsVerified,
   DETECTION_LABEL,
   durationPhrase,
   lossPhrase,
+  NO_CASE_FOR_RULE,
   SECTOR_LABEL,
+  UNVERIFIED_CASE,
   type CaseStudy,
 } from "@/lib/precog/evidence";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +41,7 @@ export function CaseCard({ study }: { study: CaseStudy }) {
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex flex-wrap items-center gap-2">
             <Badge variant="default">{SECTOR_LABEL[study.sector]}</Badge>
+            {!caseIsVerified(study) && <UnverifiedMarker />}
             {hasLoss && (
               <span className="font-mono text-sm font-semibold text-danger">
                 {lossPhrase(study)}
@@ -131,16 +135,29 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+/** The small "Unverified" marker on a case nobody has checked against its source. */
+export function UnverifiedMarker() {
+  return (
+    <span
+      title={UNVERIFIED_CASE.title}
+      className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-subtle"
+    >
+      {UNVERIFIED_CASE.label}
+      <span className="sr-only">. {UNVERIFIED_CASE.title}</span>
+    </span>
+  );
+}
+
 /**
  * The case beside one duty conflict, under a heading that says what it is.
  *
- * A case that cites the rule shows the very pair of duties the finding names,
- * so it sits under "This arrangement"; given the owner's line of business, a
- * citing case from that line leads (a dentist reads a dental case differently
- * from a construction one) and the heading says so. When no case cites the
- * rule the most relevant case that shares a scheme is shown instead, and the
- * heading says it is a related scheme, so the page never claims more than the
- * record shows. Renders nothing when the library holds no match at all.
+ * Only a case that cites the rule is shown: it shows the very pair of duties
+ * the finding names, so it sits under "This arrangement". Given the owner's
+ * line of business, a citing case from that line leads (a dentist reads a
+ * dental case differently from a construction one) and the heading says so.
+ * When no case cites the rule, the card says so in one line instead of
+ * showing a case that only shares a scheme, so the page never claims more
+ * than the record shows.
  */
 export function RuleCaseCard({
   ruleId,
@@ -152,15 +169,15 @@ export function RuleCaseCard({
   className?: string;
 }) {
   const pick = caseForRule(ruleId, industryId);
-  if (!pick) return null;
+  if (!pick?.citesRule) {
+    return <p className={cn("text-xs text-subtle", className)}>{NO_CASE_FOR_RULE}</p>;
+  }
   return (
     <div className={className}>
       <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-subtle">
-        {!pick.citesRule
-          ? "A related scheme, somewhere real"
-          : pick.ownSector
-            ? "This arrangement, in your line of business"
-            : "This arrangement, somewhere real"}
+        {pick.ownSector
+          ? "This arrangement, in your line of business"
+          : "This arrangement, somewhere real"}
       </p>
       <CaseCard study={pick.study} />
     </div>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "../active-template";
+import { CONFLICT_RULES } from "../sod/conflict-rules";
 import { defaultDualReleasePolicy } from "./dual-release";
 import { closingSteps, dualReleaseLine, withLiveThreshold } from "./dual-release-wording";
 
@@ -48,6 +49,14 @@ describe("dualReleaseLine and closingSteps", () => {
       "rule-invoice-pay",
     );
     expect(steps).toEqual(["Someone who enters no bills approves each one"]);
+  });
+
+  it("drops the rule's own dual-release default in favour of the live policy", () => {
+    const fix = CONFLICT_RULES.find((r) => r.id === "rule-invoice-pay")?.compensatingDefaults.find(
+      (c) => /second person releases each payment above a set amount/i.test(c),
+    );
+    expect(fix).toBeDefined();
+    expect(closingSteps([fix ?? ""], on, "rule-invoice-pay")).toEqual([]);
   });
 });
 

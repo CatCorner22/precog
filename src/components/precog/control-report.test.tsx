@@ -118,6 +118,28 @@ describe("printed control report", () => {
     expect(plain).toContain("1 open critical duty conflict");
     expect(plain).not.toContain("only above a threshold");
   });
+
+  it("states the scope of the duty-conflict findings when the books show people the map lacks", () => {
+    const scope =
+      "At the reading on Sep 26, 2026, your books showed 3 people the duty map does not list; their duties are not assessed.";
+    const profile = defaultProfile("dental");
+    expect(render(profile)).not.toContain("the duty map does not list");
+    const drifted: PracticeProfile = {
+      ...profile,
+      integrationDriftSummary: {
+        updatedAt: "2026-09-26T12:00:00.000Z",
+        source: "quickbooks",
+        headline: "3 employee(s) in the books but not on your map",
+        qboEmployeesNotOnMap: 3,
+        qboPeopleNotInBooks: 0,
+        qboVendorsAdded: 0,
+        accessPending: 0,
+      },
+    };
+    const html = render(drifted);
+    const section = html.slice(html.indexOf("Segregation of duties"));
+    expect(section).toContain(scope);
+  });
 });
 
 describe("locked version figures", () => {

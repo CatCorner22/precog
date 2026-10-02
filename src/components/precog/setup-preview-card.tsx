@@ -3,7 +3,8 @@ import { ShieldAlert } from "lucide-react";
 import type { IndustryId } from "@/lib/precog/industry";
 import type { OwnTeamRow } from "@/lib/precog/onboarding/own-team";
 import { previewSetup, type SetupPreview } from "@/lib/precog/onboarding/setup-preview";
-import { sectorPhrase } from "@/lib/precog/evidence";
+import { caseIsVerified, NO_CASE_FOR_RULE, sectorPhrase } from "@/lib/precog/evidence";
+import { UnverifiedMarker } from "@/components/precog/case-card";
 import { cn } from "@/lib/utils";
 
 /**
@@ -54,7 +55,7 @@ function PreviewBody({ preview, updating }: { preview: SetupPreview; updating: b
     );
   }
 
-  const { conflict, study, citesRule, lossPhrase, durationPhrase } = preview.first;
+  const { conflict, study, lossPhrase, durationPhrase } = preview.first;
   const more = preview.conflictCount - 1;
   return (
     <div {...busy}>
@@ -71,16 +72,21 @@ function PreviewBody({ preview, updating }: { preview: SetupPreview; updating: b
           <span className="text-fg">{conflict.labelB.toLowerCase()}</span>.
         </p>
         <p className="mt-1 text-xs leading-relaxed text-muted">{conflict.fraudPath}</p>
-        {study && (
+        {study ? (
           <p className="mt-2 text-xs leading-relaxed text-muted">
-            <span className="font-medium text-fg">
-              {citesRule ? "The same arrangement" : "A related arrangement"}
-            </span>{" "}
+            <span className="font-medium text-fg">The same arrangement</span>{" "}
             {sectorPhrase(study.sector)}: {study.title}
             {lossPhrase ? ` — ${lossPhrase} taken` : ""}
-            {durationPhrase ? ` over ${durationPhrase}` : ""}. Every figure links to its record
-            after setup.
+            {durationPhrase ? ` over ${durationPhrase}` : ""}.{" "}
+            {!caseIsVerified(study) && (
+              <>
+                <UnverifiedMarker />{" "}
+              </>
+            )}
+            Every figure links to its record after setup.
           </p>
+        ) : (
+          <p className="mt-2 text-xs text-subtle">{NO_CASE_FOR_RULE}</p>
         )}
       </div>
     </div>

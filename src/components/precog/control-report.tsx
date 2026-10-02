@@ -13,6 +13,7 @@ import {
   dualReleaseSplit,
   openSodHint,
 } from "@/lib/precog/sod/open-findings";
+import { sodScopeLine } from "@/lib/precog/integrations/drift-signals";
 import { trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
 import { DECISION_KIND_LABEL } from "@/lib/precog/practice-profile";
@@ -98,6 +99,8 @@ export function ControlReport({
     .slice()
     .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || b.score - a.score);
   const unheld = sod.summary.unheldDuties.map((d) => entitlementLabel(d));
+  // People the books show and the map lacks fall outside the findings; say so beside them.
+  const sodScope = sodScopeLine(profile.integrationDriftSummary);
   const reviews = reviewItemsFor(month).map((item) => ({
     item,
     latest: latestReview(profile.monthlyReviews ?? [], item.key, month),
@@ -377,6 +380,7 @@ export function ControlReport({
               {verb(unheld.length, "that duty", "those duties")}.
             </p>
           )}
+          {sodScope && <p className="mt-2 text-sm text-neutral-700">{sodScope}</p>}
           {sodRows.length > 0 && (
             <>
               <table className="mt-3 w-full border-collapse text-sm">

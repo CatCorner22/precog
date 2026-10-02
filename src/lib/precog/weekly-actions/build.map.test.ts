@@ -37,7 +37,7 @@ describe("weekly plan on a sample process map nobody has assigned", () => {
     expect(start.tab).toBe("map");
     expect(start.effort).toBe("low");
     expect(start.priority).toBe(84);
-    expect(start.why).toContain("dental / medical / veterinary office sample");
+    expect(start.why).toContain("dental office sample");
     // Just below the register's own start action, so the two read in order.
     const register = actions.find((a) => a.id === "register-start")!;
     expect(register.priority).toBeGreaterThan(start.priority);

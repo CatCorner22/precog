@@ -87,10 +87,10 @@ describe("mapNotAssessedNote", () => {
     const profile = ruiz();
     expect(starterMapFacts(profile)).toEqual({
       count: 8,
-      example: "dental / medical / veterinary office sample",
+      example: "dental office sample",
     });
     expect(mapNotAssessedNote(profile)).toBe(
-      "Your map holds 8 sample processes from the dental / medical / veterinary office sample and none has an owner yet. Assign an owner to each, or build your own map, and these figures fill in.",
+      "Your map holds 8 sample processes from the dental office sample and none has an owner yet. Assign an owner to each, or build your own map, and these figures fill in.",
     );
   });
 

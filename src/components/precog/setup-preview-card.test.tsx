@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OwnTeamRow } from "@/lib/precog/onboarding/own-team";
+import { NO_CASE_FOR_RULE, UNVERIFIED_CASE } from "@/lib/precog/evidence";
 import { SetupPreviewCard } from "./setup-preview-card";
 
 const rows: OwnTeamRow[] = [
@@ -30,5 +31,29 @@ describe("SetupPreviewCard", () => {
       <SetupPreviewCard rows={[{ name: "", role: "", duties: [] }]} industry="dental" />,
     );
     expect(html).toBe('<p class="sr-only" role="status"></p>');
+  });
+});
+
+describe("SetupPreviewCard's case", () => {
+  it("marks a citing case Unverified and calls it the same arrangement", () => {
+    const html = renderToStaticMarkup(<SetupPreviewCard rows={rows} industry="dental" />);
+    expect(html).toContain("The same arrangement");
+    expect(html).toContain(UNVERIFIED_CASE.label);
+    expect(html).toContain(UNVERIFIED_CASE.title);
+    expect(html).not.toContain("A related arrangement");
+  });
+
+  it("says no prosecuted case shows the pair when no record cites the rule", () => {
+    const html = renderToStaticMarkup(
+      <SetupPreviewCard
+        rows={[
+          { name: "Bea", role: "IT lead", duties: ["manage_user_access", "export_bulk_data"] },
+        ]}
+        industry="dental"
+      />,
+    );
+    expect(html).toContain(NO_CASE_FOR_RULE);
+    expect(html).not.toContain("A related arrangement");
+    expect(html).not.toContain(UNVERIFIED_CASE.label);
   });
 });

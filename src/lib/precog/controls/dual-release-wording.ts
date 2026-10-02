@@ -68,10 +68,14 @@ export function withLiveThreshold(
   return `Dual release per your policy: ${channelWords(on)}`;
 }
 
-/** Suggestion wording that carries its own dual-release threshold, or a bare "above threshold". */
+/**
+ * Suggestion wording that carries its own dual-release threshold, or none: the
+ * old bare "above threshold" and the rule default that replaced it.
+ */
 const OWN_THRESHOLD = [
   /dual release on payments\s*>\s*\$[\d,]+/i,
   /^dual release above threshold$/i,
+  /^a second person releases each payment above a set amount, using their own sign-in$/i,
 ];
 /** The detector's note when a policy channel touches the rule. */
 const GENERIC_POLICY_NOTE = /^dual-release policy active on related channel$/i;
