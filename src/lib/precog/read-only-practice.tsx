@@ -50,6 +50,7 @@ const READ_ONLY_SYNC: PracticeSync = {
   syncStatus: "local",
   saveConflict: null,
   resolveSaveConflict: asyncNoop,
+  downloadRecovery: noop,
 };
 
 const READ_ONLY_ACTIONS: PracticeActions = {

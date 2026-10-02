@@ -130,6 +130,8 @@ export interface PracticeSync {
   syncStatus: SyncStatus;
   saveConflict: { remoteUpdatedAt: string; reason: SaveConflictReason } | null;
   resolveSaveConflict: (choice: "reload" | "overwrite") => Promise<void>;
+  /** Save the open business and this browser's copies as a recovery file. */
+  downloadRecovery: () => void;
 }
 
 /** Every way of changing the business. */
@@ -734,7 +736,7 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  const { saveConflict, resolveSaveConflict, syncStatus } = cloud;
+  const { saveConflict, resolveSaveConflict, syncStatus, downloadRecovery } = cloud;
   const sync = useMemo<PracticeSync>(
     () => ({
       syncStatus,
@@ -742,8 +744,9 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
         ? { remoteUpdatedAt: saveConflict.updatedAt, reason: saveConflict.reason }
         : null,
       resolveSaveConflict,
+      downloadRecovery,
     }),
-    [syncStatus, saveConflict, resolveSaveConflict],
+    [syncStatus, saveConflict, resolveSaveConflict, downloadRecovery],
   );
 
   return (

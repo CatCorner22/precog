@@ -26,6 +26,7 @@
     "e2e:procedures": "node scripts/e2e-procedures.mjs",
     "e2e:warmup": "node scripts/e2e-warmup.mjs",
     "e2e:safety": "node scripts/e2e-account-safety.mjs",
+    "e2e:save-safety": "node scripts/e2e-save-safety.mjs",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
