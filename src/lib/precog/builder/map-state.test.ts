@@ -8,6 +8,7 @@ import {
   untouchedStarterProcessIds,
 } from "./map-state";
 import { diffMaps } from "./diff";
+import { scoreMap } from "./scored-map";
 import { resolveTemplate } from "../active-template";
 import { getIndustryTemplate } from "../templates";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
@@ -15,6 +16,7 @@ import { defaultProfile } from "../practice-profile";
 import { buildProcessMapGraph } from "../process-graph";
 import { computeMapHealth } from "../process-health";
 import { validateProcessMap } from "../process-validation";
+import type { ProcessNode } from "../types";
 
 const people = buildOwnTeam([
   { name: "Ana Ruiz", role: "Owner", duties: ["bank_reconcile"] },
@@ -187,6 +189,38 @@ describe("untouchedStarterProcessIds", () => {
 
   it("is empty for the sample business", () => {
     expect(untouchedStarterProcessIds({ industry: "dental" }).size).toBe(0);
+  });
+
+  it("keeps processes saved with the sample's old Lean waste as starter processes", () => {
+    const profile = ruiz();
+    const processes = resolveTemplate(profile).processes;
+    const assignOne = (list: ProcessNode[]) =>
+      list.map((p, i) => (i === 0 ? { ...p, ownerPersonIds: [people[0].id] } : p));
+    const now = { ...profile, customProcesses: assignOne(processes) };
+    const savedEarlier = {
+      ...profile,
+      customProcesses: assignOne(
+        processes.map((p) => ({
+          ...p,
+          wastes: [
+            { id: `w-${p.id}-1`, kind: "muda_waiting" as const, label: "Waiting", note: "" },
+          ],
+        })),
+      ),
+    };
+    expect([...untouchedStarterProcessIds(savedEarlier)]).toEqual([
+      ...untouchedStarterProcessIds(now),
+    ]);
+    expect(untouchedStarterProcessIds(savedEarlier).size).toBe(processes.length - 1);
+
+    const tpl = getIndustryTemplate(profile.industry);
+    const score = (p: typeof now) =>
+      scoreMap(tpl, p.customProcesses, p.staff, { profile: p, people, customized: true });
+    const before = score(now);
+    const after = score(savedEarlier);
+    expect(after.unscoredCount).toBe(before.unscoredCount);
+    expect(after.health).toEqual(before.health);
+    expect(after.issues.length).toBe(before.issues.length);
   });
 });
 

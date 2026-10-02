@@ -56,9 +56,14 @@ export function mapAssessed(profile: MapProfile): boolean {
   return mapSource(profile) !== "starter";
 }
 
-/** A process with its owners left out, keys sorted, for comparing content alone. */
+/**
+ * A process with its owners and Lean waste left out, keys sorted, for
+ * comparing content alone. The samples no longer carry Lean waste, but a map
+ * saved earlier keeps the waste the sample had then, so waste cannot decide
+ * whether the owner touched a process.
+ */
 function contentKey(process: ProcessNode): string {
-  const { ownerPersonIds: _owners, ...rest } = process;
+  const { ownerPersonIds: _owners, wastes: _wastes, ...rest } = process;
   return stableStringify(rest);
 }
 
