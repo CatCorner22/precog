@@ -7,7 +7,7 @@ import { detectSodConflicts, sodDetectionOptions, type DetectedConflict } from "
 import type { DualReleasePolicy } from "../controls/dual-release";
 import { findKnowledgeRisks } from "../engine";
 import { enrichProcess } from "../process-graph";
-import { HEAT_BANDS } from "../scoring/bands";
+import { HEAT_BANDS, PRIORITY_SCALE } from "../scoring/bands";
 import type { Person, ProcessNode, StaffComposition } from "../types";
 import { formatPct } from "../../utils";
 import { isOperatingDuty } from "../sod/conflict-rules";
@@ -33,10 +33,14 @@ export interface PersonWorkload {
  * Bands for the composite load index that analyzeWorkload computes (ownership
  * share, entitlement count, critical duty conflicts, sole-owner knowledge, and
  * a hot-process bonus, weighted by this app). They order attention; no study
- * sets them. "Overburdened" in the UI means the index is at or above the top
- * band, nothing more.
+ * sets them, and they read the map's PRIORITY_SCALE (scoring/bands), as
+ * process heat does. "Overburdened" in the UI means the index is at or above
+ * the top band, nothing more.
  */
-export const LOAD_BANDS = { overburdened: 70, elevated: 45 } as const;
+export const LOAD_BANDS = {
+  overburdened: PRIORITY_SCALE.high,
+  elevated: PRIORITY_SCALE.medium,
+} as const;
 
 export function analyzeWorkload(
   tpl: IndustryTemplate,

@@ -7,7 +7,12 @@ import { latestReview, reviewItemsFor, reviewResultLine } from "@/lib/precog/fir
 import { industryMeta } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
-import { belowThresholdNote, openSodHint } from "@/lib/precog/sod/open-findings";
+import {
+  belowThresholdNote,
+  conflictStatus,
+  dualReleaseSplit,
+  openSodHint,
+} from "@/lib/precog/sod/open-findings";
 import { trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
 import { DECISION_KIND_LABEL } from "@/lib/precog/practice-profile";
@@ -86,6 +91,8 @@ export function ControlReport({
       : null;
   const { threat, portfolio, sod, sodOpen, sodLevel, mapHealth, healthDelta, decisionLog } = data;
   const sodNote = belowThresholdNote(sodOpen);
+  // Pairs dual release reduces stay among the open conflicts; count them once.
+  const dual = dualReleaseSplit(sod.conflicts, data.partialCoverage);
   const mapIssues = data.issues.filter((i) => i.severity !== "info");
   const sodRows = sod.conflicts
     .slice()
@@ -357,8 +364,10 @@ export function ControlReport({
         <Section title="Segregation of duties">
           <p className="text-sm text-neutral-700">
             {sod.summary.critical} critical, {sod.summary.high} high, {sod.summary.medium} medium
-            conflicts across {sod.summary.peopleWithConflicts} of {sod.assignments.length} people.{" "}
-            {sod.summary.dualReleaseMitigated} mitigated by dual release.
+            open conflicts across {sod.summary.peopleWithConflicts} of {sod.assignments.length}{" "}
+            people. {dual.closed} covered by dual release at every amount.
+            {dual.reduced > 0 &&
+              ` ${dual.reduced} more reduced by dual release but not closed, counted open above.`}
           </p>
           {unheld.length > 0 && (
             <p className="mt-2 text-sm text-neutral-700">
@@ -387,7 +396,9 @@ export function ControlReport({
                         {c.labelA} + {midSentence(c.labelB)}
                       </td>
                       <td className="py-1.5 pr-2">{SEVERITY_LABEL[c.severity]}</td>
-                      <td className="py-1.5 text-neutral-700">{conflictStatus(c)}</td>
+                      <td className="py-1.5 text-neutral-700">
+                        {conflictStatus(c, data.partialCoverage)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -520,16 +531,6 @@ const SEVERITY_LABEL: Record<DetectedConflict["severity"], string> = {
 };
 
 const MONTH = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
-
-/** Where a conflict stands: open, or why the business has set it aside. */
-function conflictStatus(
-  c: Pick<DetectedConflict, "ownerHeld" | "residualRiskAccepted" | "dualReleaseMitigated">,
-): string {
-  if (c.ownerHeld) return "Owner's own duties";
-  if (c.residualRiskAccepted) return "Risk accepted by the owner";
-  if (c.dualReleaseMitigated) return "Covered by dual release";
-  return "Open";
-}
 
 /** "2026-09" as "September 2026". */
 function monthLabel(period: string): string {

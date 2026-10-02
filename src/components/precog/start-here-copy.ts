@@ -4,9 +4,10 @@ import { CRITICALITY_WEIGHT } from "@/lib/precog/continuity/coverage";
 import { count, verb } from "@/lib/precog/text";
 
 export const BADGE_VARIANT: Record<GapBadge, "danger" | "warn" | "default" | "primary" | "ok"> = {
-  "Fix first": "danger",
-  "Fix soon": "warn",
-  "Worth doing": "default",
+  Critical: "danger",
+  High: "warn",
+  Medium: "default",
+  "Related duties": "default",
   "Reduced, not closed": "primary",
   "Covered by dual release": "ok",
 };

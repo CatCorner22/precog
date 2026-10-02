@@ -89,8 +89,8 @@ type MetricDecision = Pick<DecisionEntry, "kind" | "linkedId" | "linkedIndustry"
 /**
  * Findings are the detected conflicts other than the owner's own pairs, which
  * are no theft risk to judge. A finding is open as Start here and the report
- * count it (sod/open-findings: not accepted, and not closed by dual release at
- * every amount) until an accept, remediate, monitor or insure decision is
+ * count it (sod/open-findings: not the owner's own and not closed by dual
+ * release at every amount; accepting the risk does not close it) until an accept, remediate, monitor or insure decision is
  * logged against its rule or control; the others are accepted. Accepted plus
  * open is every finding, so the rate can reach 100%.
  */

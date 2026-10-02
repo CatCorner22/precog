@@ -1,4 +1,4 @@
-import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
+import { HEAT_BANDS, PRIORITY_SCALE } from "@/lib/precog/scoring/bands";
 import { type MapGraphNode } from "@/lib/precog/process-graph";
 import type { MapLayerId, MapVisionMode } from "@/lib/precog/map-vision";
 
@@ -26,7 +26,7 @@ export function heatColorStandard(sev?: number) {
   const s = sev ?? 0;
   if (s >= HEAT_BANDS.hot) return "var(--color-danger)";
   if (s >= HEAT_BANDS.warm) return "var(--color-warn)";
-  if (s >= 25) return "var(--color-primary)";
+  if (s >= PRIORITY_SCALE.low) return "var(--color-primary)";
   return "var(--color-border-strong)";
 }
 

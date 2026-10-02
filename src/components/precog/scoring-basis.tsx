@@ -3,7 +3,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IndexBasis } from "@/components/precog/index-basis";
-import { HEALTH_SCALE, RISK_SCALE } from "@/lib/precog/scoring/bands";
+import {
+  HEALTH_SCALE,
+  PRIORITY_BAND_LABEL,
+  PRIORITY_SCALE,
+  RISK_SCALE,
+} from "@/lib/precog/scoring/bands";
 import {
   DEFAULT_WEIGHTS,
   SCORING_VERSION,
@@ -55,6 +60,10 @@ export function ScoringBasis({ sensitivity }: { sensitivity: SensitivityReport }
                   {RISK_SCALE.actNow - 1} · Fix soon {RISK_SCALE.actNow}–{RISK_SCALE.critical - 1} ·
                   Fix first {RISK_SCALE.critical}+
                 </p>
+                <p className="mt-1 text-muted">
+                  The share of must-do work that stops when someone is out reads amber above{" "}
+                  {100 - HEALTH_SCALE.strong}% and red from {RISK_SCALE.mitigate}%.
+                </p>
               </div>
               <div className="rounded-lg border border-border bg-elevated p-3">
                 <p className="font-medium">Health scale · higher is better</p>
@@ -67,6 +76,19 @@ export function ScoringBasis({ sensitivity }: { sensitivity: SensitivityReport }
                   Segregation health reads at best Weak while a critical duty conflict is open, and
                   at best Adequate while a high one is. A conflict dual release covers only above a
                   threshold still counts as open.
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-elevated p-3">
+                <p className="font-medium">Priority scale · higher is worse</p>
+                <p className="mt-1 text-muted">
+                  {PRIORITY_BAND_LABEL.cold} under {PRIORITY_SCALE.low} ·{" "}
+                  {PRIORITY_BAND_LABEL.watch} {PRIORITY_SCALE.low}–{PRIORITY_SCALE.medium - 1} ·{" "}
+                  {PRIORITY_BAND_LABEL.elevated} {PRIORITY_SCALE.medium}–{PRIORITY_SCALE.high - 1} ·{" "}
+                  {PRIORITY_BAND_LABEL.critical} {PRIORITY_SCALE.high}–{PRIORITY_SCALE.top - 1} ·{" "}
+                  {PRIORITY_BAND_LABEL.white_hot} {PRIORITY_SCALE.top}+
+                </p>
+                <p className="mt-1 text-muted">
+                  The process map&apos;s heat, the priority list and workload read this scale.
                 </p>
               </div>
             </div>

@@ -103,7 +103,7 @@ interface StartHereContinuityModel {
 interface StartHereExposureModel {
   industryId: PracticeProfile["industry"];
   dualRelease: PracticeProfile["dualRelease"];
-  /** Conflicts not accepted and not the owner's own, unmitigated first. */
+  /** Open conflicts (sod/open-findings, accepted ones included), unmitigated first. */
   openConflicts: DetectedConflict[];
   /** One entry per rule, worst first: unmitigated, then narrowed, then covered. */
   gaps: StartHereGap[];
@@ -207,8 +207,10 @@ export function buildStartHereModel({
 
   // Exposure.
   const partialCoverage = partialDualReleaseCoverage(profile.dualRelease, sod.conflicts);
+  // Every employee's finding, dual release or not; accepting the risk never
+  // closes one (sod/open-findings).
   const openConflicts = sod.conflicts
-    .filter((c) => !c.residualRiskAccepted && !c.ownerHeld)
+    .filter((c) => !c.ownerHeld)
     .sort(
       (a, b) =>
         Number(a.dualReleaseMitigated) - Number(b.dualReleaseMitigated) || b.score - a.score,

@@ -6,6 +6,7 @@ import { Handle, Position, useStore, type Node, type NodeProps } from "@xyflow/r
 import "@xyflow/react/dist/style.css";
 import { type MapGraphNode } from "@/lib/precog/process-graph";
 import { predatorGlow, type MapVisionMode } from "@/lib/precog/map-vision";
+import { PRIORITY_SCALE } from "@/lib/precog/scoring/bands";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
@@ -57,7 +58,7 @@ function ProcessNodeView({ data: d, selected }: NodeProps<ProcessFlowNode>) {
   const priority = d.priority ?? heat;
   const accent = d.unscored ? UNSCORED_ACCENT : nodeAccent(vision, heat, priority);
   const interactive = d.interactive !== false;
-  const hot = !d.unscored && vision === "predator" && priority >= 72;
+  const hot = !d.unscored && vision === "predator" && priority >= PRIORITY_SCALE.high;
   const locked = targetLocked(vision, d);
   const titlePx = useCompactTitlePx();
   const compact = titlePx !== null;
@@ -160,6 +161,7 @@ function SatelliteNode({
       ? accentDefault
       : nodeAccent(vision, heat, priority);
   const interactive = d.interactive !== false;
+  const hot = !d.unscored && vision === "predator" && priority >= PRIORITY_SCALE.high;
   const locked = targetLocked(vision, d);
   const compact = useCompact();
 
@@ -172,7 +174,7 @@ function SatelliteNode({
         selected && "ring-2 ring-primary/40",
         // Greyed and dashed while its layer is not interactive; the text stays readable.
         !interactive && "border-dashed grayscale",
-        !d.unscored && priority >= 72 && vision === "predator" && "predator-node-hot",
+        hot && "predator-node-hot",
         locked && "terminator-target",
       )}
       style={{

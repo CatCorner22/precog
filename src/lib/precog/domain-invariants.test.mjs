@@ -340,8 +340,8 @@ describe("domain invariants", () => {
   it("priority bands preserve their documented boundaries", () => {
     assert.equal(vision.priorityBand(34), "cold");
     assert.equal(vision.priorityBand(35), "watch");
-    assert.equal(vision.priorityBand(55), "elevated");
-    assert.equal(vision.priorityBand(72), "critical");
+    assert.equal(vision.priorityBand(45), "elevated");
+    assert.equal(vision.priorityBand(70), "critical");
     assert.equal(vision.priorityBand(88), "white_hot");
   });
 

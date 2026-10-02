@@ -159,9 +159,9 @@ export function buildThreatAssessment(input: {
   }
 
   // Open findings only, as Start here and the report count them: an owner's
-  // own pair is error and tax exposure, not a theft target, and a pair the
-  // owner accepted or dual release closes at every amount needs no card. One
-  // card per gap: two people holding the same pair are one target.
+  // own pair is error and tax exposure, not a theft target, and a pair dual
+  // release closes at every amount needs no card; an accepted pair stays open.
+  // One card per gap: two people holding the same pair are one target.
   const sodTargets = openFindings(
     sod.conflicts,
     dualRelease ? partialDualReleaseCoverage(dualRelease, sod.conflicts) : new Map(),

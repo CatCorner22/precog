@@ -4,6 +4,7 @@ import { INDUSTRIES } from "../industry";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import type { IndustryTemplate } from "../templates";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
+import { conflictStatus } from "../sod/open-findings";
 import { healthLevel } from "../scoring/bands";
 import { coverageReport } from "../continuity/coverage";
 import { isOwnSector } from "../evidence";
@@ -126,8 +127,11 @@ describe("buildControlReportModel", () => {
     const health = model.sod.summary.segregationHealth;
     expect(healthLevel(health)).toBe("strong");
     expect(model.sodLevel).toBe("weak");
-    // The detector's summary lists the pair as narrowed; the band word counts it open.
-    expect(model.sod.summary.critical).toBe(0);
+    // The detector's summary counts it open too, as the band word does, and
+    // the status column says dual release only reduces it.
+    expect(model.sod.summary.critical).toBe(1);
+    const pair = model.sod.conflicts.find((c) => c.severity === "critical")!;
+    expect(conflictStatus(pair, model.partialCoverage)).toBe("Reduced, not closed");
     expect(model.sodOpen).toEqual({
       openCritical: 1,
       openHigh: 0,

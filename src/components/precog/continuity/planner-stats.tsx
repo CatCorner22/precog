@@ -7,6 +7,7 @@ import { NOT_ASSESSED_HINT } from "@/lib/precog/continuity/planner-copy";
 import type { CoverageReport } from "@/lib/precog/continuity/coverage";
 import type { DocumentationReport } from "@/lib/precog/continuity/documentation";
 import { industryMeta, type IndustryId } from "@/lib/precog/industry";
+import { healthTone, dependenceTone } from "@/lib/precog/scoring/bands";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { cn } from "@/lib/utils";
 
@@ -32,15 +33,7 @@ export function PlannerStats({
             ? "Share of work two or more people can run alone (weighted by criticality)."
             : NOT_ASSESSED_HINT
         }
-        tone={
-          !registerAssessed
-            ? "default"
-            : report.coverageIndex >= 70
-              ? "ok"
-              : report.coverageIndex >= 40
-                ? "warn"
-                : "danger"
-        }
+        tone={registerAssessed ? healthTone(report.coverageIndex) : "default"}
       />
       <Stat
         label="Single points"
@@ -74,15 +67,7 @@ export function PlannerStats({
             ? `${docs.counts.none} with nothing written, ${docs.counts.unlocated} written but location not recorded.`
             : NOT_ASSESSED_HINT
         }
-        tone={
-          !registerAssessed
-            ? "default"
-            : docs.documentedIndex >= 70
-              ? "ok"
-              : docs.documentedIndex >= 40
-                ? "warn"
-                : "danger"
-        }
+        tone={registerAssessed ? healthTone(docs.documentedIndex) : "default"}
       />
       <Stat
         label="Most depended on"
@@ -95,7 +80,9 @@ export function PlannerStats({
               : NOT_ASSESSED_HINT
         }
         tone={
-          registerAssessed && mostDepended && mostDepended.dependence >= 50 ? "danger" : "default"
+          registerAssessed && mostDepended && dependenceTone(mostDepended.dependence) === "danger"
+            ? "danger"
+            : "default"
         }
       />
     </div>
@@ -149,7 +136,7 @@ function Stat({
   label: string;
   value: string;
   hint: string;
-  tone: "ok" | "warn" | "danger" | "default";
+  tone: "ok" | "primary" | "warn" | "danger" | "default";
 }) {
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
@@ -158,6 +145,7 @@ function Stat({
         className={cn(
           "mt-1 truncate text-2xl font-semibold",
           tone === "ok" && "text-ok",
+          tone === "primary" && "text-primary",
           tone === "warn" && "text-warn",
           tone === "danger" && "text-danger",
         )}

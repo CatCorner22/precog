@@ -36,13 +36,13 @@ describe("buildPriorityTargets", () => {
 });
 
 describe("priorityBand", () => {
-  it("bands at 88, 72, 55 and 35", () => {
+  it("bands at 88, 70, 45 and 35, the cutoffs process heat reads", () => {
     expect(priorityBand(88)).toBe("white_hot");
     expect(priorityBand(87)).toBe("critical");
-    expect(priorityBand(72)).toBe("critical");
-    expect(priorityBand(71)).toBe("elevated");
-    expect(priorityBand(55)).toBe("elevated");
-    expect(priorityBand(54)).toBe("watch");
+    expect(priorityBand(70)).toBe("critical");
+    expect(priorityBand(69)).toBe("elevated");
+    expect(priorityBand(45)).toBe("elevated");
+    expect(priorityBand(44)).toBe("watch");
     expect(priorityBand(35)).toBe("watch");
     expect(priorityBand(34)).toBe("cold");
   });

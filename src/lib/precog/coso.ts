@@ -1,4 +1,4 @@
-import { healthLevel, RISK_SCALE, type HealthLevel } from "./scoring/bands";
+import { HEALTH_SCALE, healthLevel, RISK_SCALE, type HealthLevel } from "./scoring/bands";
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
 import { registerAssessed } from "./continuity/register-state";
 import type { RiskVariableState } from "./scoring/dynamic-variables";
@@ -164,7 +164,7 @@ export function assessCoso(
         {
           number: 1,
           name: "Integrity and ethical values",
-          status: controlEnvScore >= 60 ? "adequate" : "weak",
+          status: controlEnvScore >= HEALTH_SCALE.adequate ? "adequate" : "weak",
           note: "Precog reads this from segregation and open duty conflicts; it does not record a written code of conduct.",
         },
         {

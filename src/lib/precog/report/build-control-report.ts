@@ -150,12 +150,11 @@ export function buildControlReportModel({
     profile.mapLayout ?? {},
   );
   const mapHealth = computeMapHealth(snapshots, issues, { customized: mapCustomized });
-  // Open as Start here counts it: not accepted, not the owner's own pair, and
-  // not closed by dual release at every amount.
-  const open = openFindings(
-    sod.conflicts,
-    partialDualReleaseCoverage(profile.dualRelease, sod.conflicts),
-  );
+  // Open as every screen counts it: not the owner's own pair and not closed by
+  // dual release at every amount. The KPI hint, the duty-conflict section and
+  // this summary give the same count; the status column reads the same map.
+  const partialCoverage = partialDualReleaseCoverage(profile.dualRelease, sod.conflicts);
+  const open = openFindings(sod.conflicts, partialCoverage);
   const openRuleIds = ruleIdsOf(open);
   const matched = casesForSodRules(openRuleIds);
   // Same line of business first; the reader's own sector is the part they
@@ -203,6 +202,8 @@ export function buildControlReportModel({
     sod,
     sodOpen,
     sodLevel,
+    /** Rules dual release covers only above a threshold, for the status column. */
+    partialCoverage,
     handSet,
     continuity,
     staleness,

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { riskTone } from "@/lib/precog/scoring/bands";
 import type { PowerMapBuilderModel } from "./use-power-map-builder";
 
 export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel }) {
@@ -47,9 +48,9 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
         />
         <StatTile
           icon={AlertTriangle}
-          label="Open duty conflicts"
+          label="All pairs found, including the owner's own"
           value={String(report.conflicts.length)}
-          hint={`${report.summary.peopleWithConflicts} people affected`}
+          hint={`${report.summary.peopleWithConflicts} people with an open one`}
           tone={report.conflicts.length > 0 ? "danger" : "primary"}
         />
         <StatTile
@@ -175,11 +176,7 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
                 <span
                   className={cn(
                     "text-lg font-semibold tabular",
-                    person.authorityIndex >= 75
-                      ? "text-danger"
-                      : person.authorityIndex >= 50
-                        ? "text-warn"
-                        : "text-primary",
+                    AUTHORITY_TEXT[riskTone(person.authorityIndex)],
                   )}
                 >
                   {person.authorityIndex}
@@ -189,11 +186,7 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
                 <div
                   className={cn(
                     "h-full rounded-full",
-                    person.authorityIndex >= 75
-                      ? "bg-danger"
-                      : person.authorityIndex >= 50
-                        ? "bg-warn"
-                        : "bg-primary",
+                    AUTHORITY_BAR[riskTone(person.authorityIndex)],
                   )}
                   style={{ width: `${person.authorityIndex}%` }}
                 />
@@ -368,4 +361,17 @@ const CHANGE_LABEL: Record<AssignmentChange["kind"], string> = {
   duty_revoked: "Removes",
   person_added: "New person:",
   person_removed: "Removed:",
+};
+
+/** A person's authority on RISK_SCALE; below "Worth doing" it stays the plain accent. */
+const AUTHORITY_TEXT: Record<ReturnType<typeof riskTone>, string> = {
+  danger: "text-danger",
+  warn: "text-warn",
+  ok: "text-primary",
+};
+
+const AUTHORITY_BAR: Record<ReturnType<typeof riskTone>, string> = {
+  danger: "bg-danger",
+  warn: "bg-warn",
+  ok: "bg-primary",
 };

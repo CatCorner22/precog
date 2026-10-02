@@ -115,7 +115,7 @@ export function ThreatAssessmentPanel() {
           />
           <FigureTile
             size="lg"
-            label="Fix first or fix soon"
+            label="Top or high priority"
             value={String(urgent)}
             hint="Look at these first"
           />

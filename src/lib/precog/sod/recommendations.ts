@@ -34,13 +34,16 @@ export function inOverseerWords(text: string, hasOwner: boolean): string {
   return text.replace(/\bOwner\b/g, "Board treasurer").replace(/\bowner\b/g, "board treasurer");
 }
 
-/** The recommendations for a team's findings, most urgent first. */
+/**
+ * The recommendations for a team's findings, most urgent first. `open` is the
+ * open findings among `conflicts`, counted by sod/open-findings `openFindings`.
+ */
 export function sodRecommendations(
   assignments: readonly RoleAssignment[],
   conflicts: readonly RecommendationFinding[],
+  open: readonly RecommendationFinding[],
   overseer: Overseer,
 ): string[] {
-  const open = conflicts.filter((c) => !c.dualReleaseMitigated && !c.ownerHeld);
   const openOf = (...ruleIds: string[]) => open.some((c) => ruleIds.includes(c.ruleId));
   const critical = open.filter((c) => c.severity === "critical").length;
   const otherOpen = open.length - critical;

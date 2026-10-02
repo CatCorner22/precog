@@ -45,28 +45,29 @@ describe("buildStartHereModel on the dental sample", () => {
   const model = buildStartHereModel({ profile, template, today: TODAY });
 
   it("groups the findings into one gap per rule, unmitigated and worst first", () => {
-    expect(model.exposure.openConflicts).toHaveLength(14);
-    expect(model.exposure.gaps).toHaveLength(11);
+    // The sample's accepted pairs (payments vs reconciliation) stay open.
+    expect(model.exposure.openConflicts).toHaveLength(20);
+    expect(model.exposure.gaps).toHaveLength(14);
     expect(model.exposure.topThree.map((g) => g.conflict.ruleId)).toEqual([
+      "rule-cash-rec",
       "rule-vendor-create-pay",
       "rule-writeoff",
-      "rule-cash-void",
     ]);
     expect(
       model.exposure.topThree.map((g) =>
         gapBadge(g.conflict, model.exposure.partialCoverage.get(g.conflict.ruleId)),
       ),
-    ).toEqual(["Fix first", "Fix first", "Fix soon"]);
+    ).toEqual(["Critical", "Critical", "Critical"]);
     expect(model.exposure.narrowedCount).toBe(0);
     expect(model.exposure.coveredCount).toBe(0);
   });
 
   it("counts only the cases that show the open gaps, and quotes their median", () => {
-    expect(model.cost.citing.count).toBe(20);
-    expect(model.cost.citing.loss?.median).toBe(400_000);
+    expect(model.cost.citing.count).toBe(33);
+    expect(model.cost.citing.loss?.median).toBe(449_938.5);
     expect(model.cost.evidenceCount).toBeGreaterThan(model.cost.citing.count);
-    expect(model.footer.citingIds.size).toBe(20);
-    expect(model.footer.cases.filter((c) => model.footer.citingIds.has(c.id))).toHaveLength(20);
+    expect(model.footer.citingIds.size).toBe(33);
+    expect(model.footer.cases.filter((c) => model.footer.citingIds.has(c.id))).toHaveLength(33);
   });
 
   it("uses the small-organization benchmark for a team under 100", () => {

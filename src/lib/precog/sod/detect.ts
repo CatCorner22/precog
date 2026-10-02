@@ -19,6 +19,7 @@ import {
   type EntitlementId,
   entitlementLabel,
 } from "./conflict-rules";
+import { openFindings, thresholdCoverage } from "./open-findings";
 import { teamOwnerId } from "./owner-role";
 import { inOverseerWords, sodRecommendations } from "./recommendations";
 import {
@@ -84,7 +85,11 @@ export interface SodDetectionReport {
   matrix: readonly SodMatrixCell[];
   entitlementOrder: readonly EntitlementId[];
   summary: {
-    /** Open findings (not owner-held, not narrowed by dual release) by severity. */
+    /**
+     * Open findings by severity, counted by sod/open-findings `openFindings`:
+     * not owner-held and not closed by dual release at every amount. Accepted
+     * findings stay open.
+     */
     critical: number;
     high: number;
     medium: number;
@@ -108,6 +113,12 @@ export interface SodDetectionOptions {
   compensatingByControlId?: Record<string, string[]>;
   /** SoD rule IDs mitigated by dual-release policy */
   dualReleaseMitigatedRuleIds?: Set<string>;
+  /**
+   * Rules dual release covers only above a threshold (open-findings
+   * `thresholdCoverage`): a pair it narrows stays open in the summary counts.
+   * Omitted, a pair dual release narrows counts as closed.
+   */
+  dualReleaseThresholds?: ReadonlyMap<string, number>;
   /**
    * The person who owns the business alone, when the caller scans part of a
    * team (one person at a time) and already knows it from the whole team.
@@ -169,6 +180,7 @@ export function sodDetectionOptions(
   return {
     ...controlOptions(tpl),
     dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(dualRelease, tpl),
+    dualReleaseThresholds: thresholdCoverage(dualRelease),
   };
 }
 
@@ -233,14 +245,15 @@ export function detectSodConflicts(
       a.finding.id.localeCompare(b.finding.id),
   );
   const conflicts = scored.map((s) => s.finding);
+  const open = openFindings(conflicts, options?.dualReleaseThresholds ?? new Map());
 
   return {
     assignments,
     conflicts,
     matrix: sodMatrix(),
     entitlementOrder: ENTITLEMENT_ORDER,
-    summary: summarize(assignments, conflicts),
-    recommendations: sodRecommendations(assignments, conflicts, {
+    summary: summarize(assignments, conflicts, open),
+    recommendations: sodRecommendations(assignments, conflicts, open, {
       hasOwner: context.hasOwner,
       soleOwnerId: ownerId,
     }),
@@ -439,8 +452,8 @@ function familyFinding(
 function summarize(
   assignments: readonly RoleAssignment[],
   conflicts: readonly DetectedConflict[],
+  open: readonly DetectedConflict[],
 ): SodDetectionReport["summary"] {
-  const open = conflicts.filter((c) => !c.dualReleaseMitigated && !c.ownerHeld);
   const bySeverity = (severity: FindingSeverity) =>
     open.filter((c) => c.severity === severity).length;
   const held = teamHeldDuties(assignments);

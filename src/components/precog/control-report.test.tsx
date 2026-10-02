@@ -106,6 +106,9 @@ describe("printed control report", () => {
     const covered = { ...profile, dualRelease: { ...profile.dualRelease, enabled: true } };
     const html = render(covered);
     expect(html).toContain("Weak · 1 open critical duty conflict");
+    // The reduced pair is counted once: among the open conflicts, not again as covered.
+    expect(html).toContain("0 covered by dual release at every amount.");
+    expect(html).toContain("1 more reduced by dual release but not closed, counted open above.");
     expect(html).not.toContain("0 critical duty conflicts");
     expect(html).toContain(
       "Dual release covers 1 critical duty conflict only above a threshold. Below the threshold one person still acts alone, so it counts as open.",
@@ -150,6 +153,50 @@ describe("locked version figures", () => {
     expect(html).toContain("Precog did not store this version&#x27;s figures when it was locked.");
     expect(html).not.toContain("locked before Precog stored");
     expect(html).toContain(atLock.summary[0]);
+  });
+
+  it("prints a model stored before partial coverage was stored with its locked counts", () => {
+    // Dual release covers Ana's write-off pair only above $150. A model locked
+    // before the report stored partial coverage counted that pair closed.
+    const reyes: PracticeProfile = {
+      ...defaultProfile("dental"),
+      practiceName: "Reyes Dental",
+      customPeople: [
+        {
+          id: "o",
+          name: "Olga Reyes",
+          role: "Owner",
+          active: true,
+          owner: true,
+          entitlements: ["release_payment"],
+        },
+        {
+          id: "a",
+          name: "Ana Diaz",
+          role: "Bookkeeper",
+          active: true,
+          entitlements: ["approve_writeoffs", "post_adjustments"],
+        },
+      ],
+    };
+    reyes.dualRelease = { ...reyes.dualRelease, enabled: true };
+    const today = serializeReportModel(buildReportModelForProfile(reyes, "2026-09-26"));
+    expect(today.partialCoverage?.length).toBeGreaterThan(0);
+    const { partialCoverage: _dropped, ...rest } = today;
+    const old: typeof stored = {
+      ...rest,
+      sod: { ...rest.sod, summary: { ...rest.sod.summary, critical: 0 } },
+    };
+    const html = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={reyes}>
+        <ControlReport locked={locked} frozen={{ layoutVersion: 1, model: old }} />
+      </ReadOnlyPracticeProvider>,
+    );
+    expect(REPORT_LAYOUT_VERSION).toBe(1);
+    expect(html).not.toContain("Figures recalculated");
+    expect(html).toContain("0 critical, 0 high, 0 medium");
+    expect(html).toContain("Covered by dual release");
+    expect(html).not.toContain("Reduced, not closed");
   });
 
   it("recalculates stored figures from another report layout", () => {

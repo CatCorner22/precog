@@ -9,8 +9,7 @@ import { pioneerProfileFrom } from "../coach/pioneer-profile";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import type { PracticeProfile } from "../practice-profile";
 import { firstName } from "../text";
-import { citingCaseStats } from "../evidence";
-import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
+import { buildStartHereModel } from "../start-here/model";
 import { formatUsd } from "@/lib/utils";
 
 const dental = getIndustryTemplate("dental");
@@ -552,18 +551,9 @@ describe("get_case_evidence", () => {
     it(`states the same case count and median as Start here (${industry})`, () => {
       const profile = defaultProfile(industry);
       const tpl = resolveTemplate(profile);
-      const sod = detectSodConflicts(
-        tpl,
-        profile.staff,
-        sodDetectionOptions(tpl, profile.dualRelease),
-      );
-      // Start here's rule set: open, not accepted, not held by the owner.
-      const startHereRules = [
-        ...new Set(
-          sod.conflicts.filter((c) => !c.residualRiskAccepted && !c.ownerHeld).map((c) => c.ruleId),
-        ),
-      ];
-      const startHere = citingCaseStats(startHereRules);
+      // Start here's own figures, accepted findings counted as open.
+      const startHere = buildStartHereModel({ profile, template: tpl, today: new Date() }).cost
+        .citing;
       const result = executeTool("get_case_evidence", { profile });
       expect(startHere.count).toBeGreaterThan(0);
       expect(result.summary).toBe(
