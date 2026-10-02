@@ -306,7 +306,9 @@ export function decisionsDue(
   const overdue: DecisionEntry[] = [];
   const dueSoon: DecisionEntry[] = [];
   for (const decision of decisions) {
-    if (!isDecisionOpen(decision) || !decision.reviewBy) continue;
+    // An entry judging a finding not valid has no review date; skipping it
+    // here keeps it off the due list even if one is added by hand.
+    if (!isDecisionOpen(decision) || !decision.reviewBy || decision.disposition) continue;
     if (decision.reviewBy < today) overdue.push(decision);
     else if (decision.reviewBy <= soonThrough) dueSoon.push(decision);
   }

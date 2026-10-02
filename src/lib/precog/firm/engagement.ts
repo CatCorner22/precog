@@ -1,6 +1,6 @@
 import { isDemoName } from "../industry";
 import { csvCell } from "../import/csv";
-import { linkedToIndustry } from "../decisions/follow-through";
+import { decidedOn } from "../decisions/decided-on";
 import type { DecisionEntry } from "../practice-profile";
 import type { DetectedConflict } from "../sod/detect";
 import { openFindings as sharedOpenFindings } from "../sod/open-findings";
@@ -92,7 +92,7 @@ type MetricConflict = Pick<
 >;
 
 /** What the pilot metrics read from a logged decision. */
-type MetricDecision = Pick<DecisionEntry, "kind" | "linkedId" | "linkedIndustry">;
+type MetricDecision = Pick<DecisionEntry, "kind" | "linkedId" | "linkedIndustry" | "disposition">;
 
 /**
  * Findings are the detected conflicts other than the owner's own pairs, which
@@ -147,22 +147,6 @@ export function pilotMetrics(input: {
 
 const ACCEPT_KINDS: ReadonlySet<string> = new Set(["accept_residual"]);
 const ACTED_ON_KINDS: ReadonlySet<string> = new Set(["remediate", "monitor", "insure"]);
-
-/** A decision of one of `kinds` is logged against the finding's rule or control, under this industry. */
-function decidedOn(
-  conflict: MetricConflict,
-  kinds: ReadonlySet<string>,
-  decisions: readonly MetricDecision[],
-  industry: IndustryId,
-): boolean {
-  return decisions.some(
-    (d) =>
-      kinds.has(d.kind) &&
-      Boolean(d.linkedId) &&
-      linkedToIndustry(d, industry) &&
-      (d.linkedId === conflict.ruleId || d.linkedId === conflict.linkedControlId),
-  );
-}
 
 /**
  * Fill a missing start or map-complete stamp. Existing stamps stay. Setup
