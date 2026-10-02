@@ -13,6 +13,7 @@ import { industryNoun } from "@/lib/precog/industry";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useTabName } from "@/lib/precog/presentation";
 import { DEFAULT_FRAUD_STATS } from "@/lib/precog/templates/shared-controls";
+import { ILLUSTRATIVE_LABEL, ILLUSTRATIVE_RANK_NOTE } from "@/lib/precog/scoring/scenario-level";
 import { CaseCard } from "@/components/precog/case-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -82,7 +83,7 @@ export function SingleScenarioView({
           <p className="mt-1 text-sm leading-relaxed text-muted">
             These scenarios come with the sample business. Their losses and timelines are the
             example&rsquo;s assumptions, not facts about your business, so they stay out of the
-            threat index and your totals until you pick one and choose &ldquo;This could happen
+            priority list and your totals until you pick one and choose &ldquo;This could happen
             here&rdquo;.
           </p>
         </div>
@@ -117,7 +118,7 @@ export function SingleScenarioView({
           <p className="max-w-2xl text-muted">
             &ldquo;{scenario.title}&rdquo; is a sample scenario. If it could happen in your
             business, make it yours: Precog logs it in your {tabName("journal")} with a review date
-            and starts counting in the threat index and your totals.
+            and starts counting in the priority list and your totals.
           </p>
           <Button size="sm" onClick={() => addDecision(scenarioConfirmation(scenario, new Date()))}>
             <CheckCircle2 className="size-3.5" />
@@ -139,6 +140,7 @@ export function SingleScenarioView({
           </CardHeader>
           <CardContent className="space-y-5">
             <p className="rounded-lg border border-border bg-panel p-3 text-xs leading-relaxed text-muted">
+              <strong className="text-fg">{ILLUSTRATIVE_LABEL}.</strong> {ILLUSTRATIVE_RANK_NOTE}{" "}
               These figures are assumptions written into this scenario, scaled by your settings.
               They are not predictions, and nobody measured them at any business. For what failures
               like this one actually cost, see the prosecuted cases on Start here.

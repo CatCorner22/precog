@@ -1,4 +1,5 @@
-import { bandForScore, DEFAULT_WEIGHTS, type ActionBand } from "@/lib/precog/scoring/weights";
+import { DEFAULT_WEIGHTS, type ActionBand } from "@/lib/precog/scoring/weights";
+import { ILLUSTRATIVE_LABEL } from "@/lib/precog/scoring/scenario-level";
 import {
   REGISTER_NOT_ASSESSED,
   confirmedScenarioIds,
@@ -24,6 +25,9 @@ import { FigureTile } from "./figure-tile";
 
 /** Rows shown before "Show all". */
 const REGISTER_PREVIEW = 8;
+
+/** How a scenario row blends its two levels. */
+const SCENARIO_SHARES = DEFAULT_WEIGHTS.scenario;
 
 export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTarget) => void }) {
   const { profile, template } = usePractice();
@@ -51,7 +55,6 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
     () => starterScenarioNote(template, confirmed),
     [template, confirmed],
   );
-  const scenarioCredit = DEFAULT_WEIGHTS.scenario.effectivenessCredit;
   const [selected, setSelected] = useState<ResidualRiskScore | null>(null);
   const [showAll, setShowAll] = useState(false);
   const active = selected ?? summary.all[0] ?? null;
@@ -81,13 +84,6 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
         />
         <FigureTile
           className="bg-surface p-4"
-          label="Average residual risk score"
-          value={bandForScore(summary.averageResidual).label}
-          detail={`${summary.averageResidual} (${sensitivity.averageLow}–${sensitivity.averageHigh} across weight trials of ±20%)`}
-          hint="Precog's index, from your profile"
-        />
-        <FigureTile
-          className="bg-surface p-4"
           label="Fix first"
           value={String(summary.criticalPath)}
           hint={`Index ${RISK_SCALE.critical} or more`}
@@ -98,6 +94,12 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
           value={String(summary.actNow)}
           hint={`Index ${RISK_SCALE.actNow}–${RISK_SCALE.critical - 1}`}
         />
+        <FigureTile
+          className="bg-surface p-4"
+          label="Worth doing"
+          value={String(summary.mitigate)}
+          hint={`Index ${RISK_SCALE.mitigate}–${RISK_SCALE.actNow - 1}; ${summary.watch} more to watch`}
+        />
       </div>
       <IndexBasis />
 
@@ -107,9 +109,10 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
             <CardTitle>Residual risk register</CardTitle>
             <CardDescription>
               Inherent × (1 − control effectiveness) × staff modifiers, each a weight Precog chose,
-              sorted by the resulting index. Scenario rows credit control effectiveness at{" "}
-              {formatPct(scenarioCredit)}: Inherent × (1 − effectiveness × {scenarioCredit}) × staff
-              modifiers.
+              sorted by the resulting index. Scenario rows blend a likelihood level and a severity
+              level that already include your controls and staffing, so they take no further credit.
+              A scenario&rsquo;s dollar and day figures are an illustrative example, not sized to
+              your business, and never set its rank.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -168,10 +171,9 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                         />
                       </span>
                       <span className="mt-1 block text-xs text-muted">
-                        Inherent {item.inherent} · Effectiveness {item.controlEffectiveness}
-                        {item.creditedEffectiveness != null
-                          ? ` (counts ${item.creditedEffectiveness})`
-                          : ""}
+                        {item.likelihoodLevel != null && item.severityLevel != null
+                          ? `Likelihood ${item.likelihoodLevel} · Severity ${item.severityLevel}`
+                          : `Inherent ${item.inherent} · Effectiveness ${item.controlEffectiveness}`}
                       </span>
                     </span>
                   </span>
@@ -203,21 +205,29 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                   <p className="font-medium">{active.name}</p>
                   <p className="text-sm text-muted">{active.bandGuidance}</p>
                   <div className="grid grid-cols-3 gap-2 text-center">
-                    <FigureTile size="sm" label="Inherent" value={active.inherent} />
-                    <FigureTile
-                      size="sm"
-                      label="Effectiveness"
-                      value={active.controlEffectiveness}
-                    />
+                    {active.likelihoodLevel != null && active.severityLevel != null ? (
+                      <>
+                        <FigureTile size="sm" label="Likelihood" value={active.likelihoodLevel} />
+                        <FigureTile size="sm" label="Severity" value={active.severityLevel} />
+                      </>
+                    ) : (
+                      <>
+                        <FigureTile size="sm" label="Inherent" value={active.inherent} />
+                        <FigureTile
+                          size="sm"
+                          label="Effectiveness"
+                          value={active.controlEffectiveness}
+                        />
+                      </>
+                    )}
                     <FigureTile size="sm" label="Residual risk" value={active.residual} />
                   </div>
-                  {active.creditedEffectiveness != null && active.effectivenessCredit != null && (
+                  {active.likelihoodLevel != null && active.severityLevel != null && (
                     <p className="text-xs text-subtle">
-                      Scenario rows credit control effectiveness at{" "}
-                      {formatPct(active.effectivenessCredit)}, so effectiveness{" "}
-                      {active.controlEffectiveness} counts as {active.creditedEffectiveness}:{" "}
-                      {active.inherent} × (1 − {active.creditedEffectiveness}/100) × staff
-                      modifiers.
+                      Likelihood level {active.likelihoodLevel} and severity level{" "}
+                      {active.severityLevel}, blended {formatPct(SCENARIO_SHARES.severityShare)}{" "}
+                      severity and {formatPct(SCENARIO_SHARES.likelihoodShare)} likelihood. Your
+                      controls are already in both levels, so the row takes no further credit.
                     </p>
                   )}
                   <ul className="space-y-2">
@@ -243,10 +253,11 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                   )}
                   {active.expectedLoss != null && (
                     <p className="text-xs text-subtle">
-                      Scenario assumes a loss of {formatUsd(active.expectedLoss)}
+                      {ILLUSTRATIVE_LABEL}: a loss of {formatUsd(active.expectedLoss)}
                       {active.p50Days != null
-                        ? ` and about ${active.p50Days} assumed days until found`
+                        ? ` and about ${active.p50Days} days until found`
                         : ""}
+                      .
                     </p>
                   )}
                 </div>

@@ -4,24 +4,63 @@ import { count, verb } from "../text";
 import type { DetectedConflict } from "./detect";
 
 /**
- * One definition of an open duty-conflict finding, shared by Start here and
- * the printed report so both count the same cases and quote the same median.
+ * The one definition of an open duty-conflict finding. The detector's summary
+ * counts, the duty-conflict tiles, Start here, the printed report, the coach
+ * and the AI's case evidence all count through it, so every screen gives the
+ * same number.
  *
- * A finding is open when the owner has not accepted the risk, the pair is not
- * the owner's own (an owner cannot steal from themselves), and dual release
- * does not close it at every amount. A pair dual release covers only above a
- * threshold stays open: below the threshold one person still acts alone.
+ * A finding is open when the pair is not the owner's own (an owner cannot
+ * steal from themselves) and dual release does not close it at every amount.
+ * A pair dual release covers only above a threshold stays open: below the
+ * threshold one person still acts alone. Accepting the risk records a
+ * decision; it never closes a finding, so an accepted finding stays open.
  */
 export function openFindings<
-  T extends Pick<
+  T extends Pick<DetectedConflict, "ruleId" | "ownerHeld" | "dualReleaseMitigated">,
+>(conflicts: readonly T[], partial: ReadonlyMap<string, number>): T[] {
+  return conflicts.filter(
+    (c) => !c.ownerHeld && (!c.dualReleaseMitigated || partial.has(c.ruleId)),
+  );
+}
+
+/**
+ * Where a finding stands, in the words the report's status column prints. A
+ * pair dual release covers only above a threshold reads "Reduced, not
+ * closed", as its Start here badge does, and an accepted finding stays open
+ * and says so. The data holds no date for an acceptance yet, so the status
+ * names none.
+ */
+export function conflictStatus(
+  c: Pick<
     DetectedConflict,
     "ruleId" | "ownerHeld" | "residualRiskAccepted" | "dualReleaseMitigated"
   >,
->(conflicts: readonly T[], partial: ReadonlyMap<string, number>): T[] {
-  return conflicts.filter(
-    (c) =>
-      !c.residualRiskAccepted && !c.ownerHeld && (!c.dualReleaseMitigated || partial.has(c.ruleId)),
-  );
+  partial: ReadonlyMap<string, number>,
+): string {
+  if (c.ownerHeld) return "Owner's own duties";
+  if (c.dualReleaseMitigated && !partial.has(c.ruleId)) return "Covered by dual release";
+  if (c.dualReleaseMitigated) {
+    return c.residualRiskAccepted ? "Reduced, not closed; risk accepted" : "Reduced, not closed";
+  }
+  return c.residualRiskAccepted ? "Open, risk accepted" : "Open";
+}
+
+/**
+ * The findings dual release touches, split as the status column reads them:
+ * covered at every amount ("Covered by dual release"), or reduced but still
+ * open because one person acts alone below the threshold ("Reduced, not
+ * closed"). `reduced` is part of the open count; `closed` is not. An owner's
+ * own pair dual release covers only above a threshold is in neither.
+ */
+export function dualReleaseSplit(
+  conflicts: readonly Pick<DetectedConflict, "ruleId" | "ownerHeld" | "dualReleaseMitigated">[],
+  partial: ReadonlyMap<string, number>,
+): { closed: number; reduced: number } {
+  const touched = conflicts.filter((c) => c.dualReleaseMitigated);
+  return {
+    closed: touched.filter((c) => !partial.has(c.ruleId)).length,
+    reduced: touched.filter((c) => !c.ownerHeld && partial.has(c.ruleId)).length,
+  };
 }
 
 /** Open critical and high findings, with how many of each dual release covers only above a threshold. */
@@ -33,9 +72,9 @@ export interface OpenSodCounts extends OpenSeverityCounts {
 /**
  * The open critical and high findings among a team's conflicts, counted by
  * the rule above with the policy's partial dual-release coverage: what caps
- * the segregation band word (scoring/bands `segregationLevel`). The
- * detector's summary counts a pair dual release narrows as narrowed at any
- * threshold, so the below-threshold counts say why the two differ.
+ * the segregation band word (scoring/bands `segregationLevel`). They equal
+ * the detector's summary counts; the below-threshold counts say how many of
+ * them the duty-conflict screen also lists as narrowed by dual release.
  */
 export function openSeverityCounts(
   conflicts: readonly DetectedConflict[],
@@ -89,8 +128,18 @@ export function ruleIdsOf(findings: readonly DetectedConflict[]): string[] {
  */
 export function partialDualReleaseCoverage(
   policy: DualReleasePolicy,
-  conflicts: readonly DetectedConflict[],
+  conflicts: readonly Pick<DetectedConflict, "ruleId" | "dualReleaseMitigated">[],
 ): Map<string, number> {
+  const mitigated = new Set(conflicts.filter((c) => c.dualReleaseMitigated).map((c) => c.ruleId));
+  return new Map([...thresholdCoverage(policy)].filter(([ruleId]) => mitigated.has(ruleId)));
+}
+
+/**
+ * The same rules read from the policy alone, before any conflict is found:
+ * what the detector's summary counts with. `openFindings` asks about a rule
+ * only for a pair dual release narrows, so both maps give the same findings.
+ */
+export function thresholdCoverage(policy: DualReleasePolicy): Map<string, number> {
   const partial = new Map<string, number>();
   if (!policy.enabled) return partial;
   const thresholdsByRule = new Map<string, number[]>();
@@ -100,9 +149,8 @@ export function partialDualReleaseCoverage(
       thresholdsByRule.set(id, [...(thresholdsByRule.get(id) ?? []), rule.thresholdUsd]);
     }
   }
-  const mitigated = new Set(conflicts.filter((c) => c.dualReleaseMitigated).map((c) => c.ruleId));
   for (const [ruleId, thresholds] of thresholdsByRule) {
-    if (mitigated.has(ruleId) && thresholds.length > 0 && thresholds.every((t) => t > 0)) {
+    if (thresholds.length > 0 && thresholds.every((t) => t > 0)) {
       partial.set(ruleId, Math.min(...thresholds));
     }
   }

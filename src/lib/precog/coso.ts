@@ -1,4 +1,4 @@
-import { healthLevel, RISK_SCALE, type HealthLevel } from "./scoring/bands";
+import { RISK_SCALE, type HealthLevel } from "./scoring/bands";
 import { findKnowledgeRisks, rankDangerousScenarios } from "./engine";
 import { registerAssessed } from "./continuity/register-state";
 import type { RiskVariableState } from "./scoring/dynamic-variables";
@@ -12,10 +12,13 @@ import type { IndustryTemplate } from "./templates";
 import type { StaffComposition } from "./types";
 import type { DualReleasePolicy } from "./controls/dual-release";
 import { CONFLICT_RULES } from "./sod/conflict-rules";
+import { controlOptions, detectSodConflicts, sodDetectionOptions } from "./sod/detect";
+import { openFindings, partialDualReleaseCoverage } from "./sod/open-findings";
+import type { AccessReconciliation } from "./firm/reconcile";
+import { formatDay } from "./dates";
 import { withLiveThreshold } from "./controls/dual-release-wording";
 import { formatUsd } from "../utils";
 import { count, joinWithAnd } from "./text";
-import { clamp } from "./number";
 import { tabLabel } from "./navigation";
 
 export type CosoComponentId =
@@ -39,12 +42,19 @@ interface CosoFinding {
   link: DeepLinkTarget;
 }
 
+/**
+ * What Precog can say about a principle or a component: a record shows a gap,
+ * the records it reads show none, or it reads no record at all. There is no
+ * score: COSO does not let a strong component offset a weak one.
+ */
+export type CosoStatus = "gap" | "in_place" | "not_assessed";
+
 interface CosoPrincipleScore {
   number: number;
   name: string;
-  status: HealthLevel;
+  status: CosoStatus;
   note: string;
-  /** The inputs this principle reads are not in yet; show "not assessed" instead of a status. */
+  /** The inputs this principle reads are not in yet; the status is "not_assessed". */
   notAssessed?: boolean;
 }
 
@@ -53,15 +63,19 @@ export interface CosoComponentAssessment {
   name: string;
   shortName: string;
   description: string;
-  score: number; // 0-100
-  status: HealthLevel;
+  /** "gap" when any principle has a gap; "in_place" when every assessed one is fine. */
+  status: CosoStatus;
   principles: CosoPrincipleScore[];
   findings: CosoFinding[];
   primaryActions: { label: string; link: DeepLinkTarget }[];
 }
 
+/** COSO 2013 has 17 principles. */
+export const COSO_PRINCIPLE_COUNT = 17;
+
 /**
- * The COSO index for this business.
+ * The COSO checklist for this business: each of the 17 principles as a gap,
+ * in place, or not assessed, with the record behind it. No overall number.
  *
  * `staff` is the profile's staff composition (the owner's team, derived or
  * edited). It is required: the template's own staff composition describes
@@ -79,10 +93,14 @@ export function assessCoso(
     confirmedScenarioIds?: ReadonlySet<string>;
     /** The live dual-release policy, so a recorded control never quotes its own threshold. */
     dualRelease?: DualReleasePolicy;
+    /** The imported user access export, which principle 11 reads when there is one. */
+    accessReconciliation?: AccessReconciliation;
   } = {},
 ): {
-  overall: number;
-  overallStatus: HealthLevel;
+  /** Principles with a gap, of COSO_PRINCIPLE_COUNT. */
+  gaps: number;
+  /** Principles Precog has no record for, of COSO_PRINCIPLE_COUNT. */
+  notAssessed: number;
   components: CosoComponentAssessment[];
   priorityFindings: CosoFinding[];
 } {
@@ -110,6 +128,17 @@ export function assessCoso(
     ...(staff.dualControlPayments ? [] : ["no dual payment control"]),
     ...(staff.independentBankRec ? [] : ["no independent bank reconciliation"]),
   ];
+  // Open duty conflicts on the duty map, read as every other screen reads them.
+  const sod = detectSodConflicts(
+    tpl,
+    staff,
+    opts.dualRelease ? sodDetectionOptions(tpl, opts.dualRelease) : controlOptions(tpl),
+  );
+  const openSevere = openFindings(
+    sod.conflicts,
+    opts.dualRelease ? partialDualReleaseCoverage(opts.dualRelease, sod.conflicts) : new Map(),
+  ).filter((c) => c.severity === "critical" || c.severity === "high");
+  const access = accessReading(opts.accessReconciliation);
   const fraudSeverity: HealthLevel =
     sodGaps.length > 0 && fraudDrivers.length >= 2
       ? "critical"
@@ -117,60 +146,24 @@ export function assessCoso(
         ? "weak"
         : "adequate";
 
-  // --- Component scores derived from live demo state ---
-  const controlEnvScore = Math.max(
-    25,
-    72 - (staff.segregationScore < 50 ? 12 : 0) - (unaddressedGaps.length > 2 ? 10 : 0),
-  );
-
-  // No penalty for a short time until found: a detective control shortens
-  // it, and turning one on must never lower a component.
-  const riskAssessmentScore = Math.max(20, 78 - spofs.length * 8);
-
-  // On the same 0 to 100 scale as every other component.
-  const controlActivitiesScore = clamp(
-    staff.segregationScore -
-      (staff.dualControlPayments ? 0 : 12) -
-      (staff.independentBankRec ? 0 : 10) +
-      (sodGaps.length === 0 ? 15 : 0),
-    15,
-    100,
-  );
-
-  const infoCommScore = Math.max(
-    25,
-    70 - spofs.length * 10 - risks.filter((r) => r.ownerCount === 0).length * 15,
-  );
-
-  const monitoringScore = Math.max(
-    20,
-    55 +
-      (staff.independentBankRec ? 15 : 0) +
-      // Every duty conflict answered, whether accepted or closed: closing
-      // the last one must not score below accepting it.
-      (unaddressedGaps.length === 0 ? 10 : 0) -
-      unaddressedGaps.length * 6,
-  );
-
-  const components: CosoComponentAssessment[] = [
+  const drafts: Omit<CosoComponentAssessment, "status">[] = [
     {
       id: "control_environment",
       name: "Control Environment",
       shortName: "Environment",
       description: "Tone at the top, integrity, structure, competence, and accountability.",
-      score: controlEnvScore,
-      status: healthLevel(controlEnvScore),
       principles: [
         {
           number: 1,
           name: "Integrity and ethical values",
-          status: controlEnvScore >= 60 ? "adequate" : "weak",
-          note: "Precog reads this from segregation and open duty conflicts; it does not record a written code of conduct.",
+          status: "not_assessed",
+          note: "Not assessed: Precog does not record a written code of conduct or how the owner sets expectations.",
+          notAssessed: true,
         },
         {
           number: 2,
           name: "Oversight responsibility",
-          status: staff.independentBankRec ? "adequate" : "weak",
+          status: staff.independentBankRec ? "in_place" : "gap",
           note: staff.independentBankRec
             ? "Independent bank oversight in place."
             : "Oversight of the cash path by the owner or manager is incomplete.",
@@ -178,7 +171,7 @@ export function assessCoso(
         {
           number: 3,
           name: "Structure, authority, responsibility",
-          status: unaddressedGaps.length > 2 ? "weak" : "adequate",
+          status: unaddressedGaps.length > 0 ? "gap" : "in_place",
           note:
             unaddressedGaps.length > 0
               ? `${count(unaddressedGaps.length, "duty conflict")} without a recorded residual-risk decision.`
@@ -187,7 +180,7 @@ export function assessCoso(
         {
           number: 4,
           name: "Competence",
-          status: spofs.length > 0 ? "weak" : "strong",
+          status: !knowledgeAssessed ? "not_assessed" : spofs.length > 0 ? "gap" : "in_place",
           note: !knowledgeAssessed
             ? REGISTER_NOT_ASSESSED
             : spofs.length > 0
@@ -198,7 +191,7 @@ export function assessCoso(
         {
           number: 5,
           name: "Accountability",
-          status: sodGaps.length === 0 ? "adequate" : "weak",
+          status: sodGaps.length === 0 ? "in_place" : "gap",
           note:
             sodGaps.length === 0
               ? "No open duty conflict needs a residual-risk decision."
@@ -229,20 +222,18 @@ export function assessCoso(
       name: "Risk Assessment",
       shortName: "Risk",
       description: "Objectives, risk analysis, fraud risk, and response to change.",
-      score: riskAssessmentScore,
-      status: healthLevel(riskAssessmentScore),
       principles: [
         {
           number: 6,
           name: "Suitable objectives",
-          status: "adequate",
+          status: "not_assessed",
           note: "Not assessed: Precog does not record the business's objectives.",
           notAssessed: true,
         },
         {
           number: 7,
           name: "Identify and analyze risks",
-          status: ranked.length > 0 ? "adequate" : "weak",
+          status: ranked.length > 0 ? "in_place" : scenariosLeftOut > 0 ? "not_assessed" : "gap",
           note:
             ranked.length > 0
               ? `Precog ranks the scenarios on ${tabLabel("precog")} that describe this business, by operational and control risk.`
@@ -254,7 +245,7 @@ export function assessCoso(
         {
           number: 8,
           name: "Fraud risk",
-          status: !staff.dualControlPayments || !staff.independentBankRec ? "weak" : "adequate",
+          status: fraudDrivers.length > 0 ? "gap" : "in_place",
           note: fraudDrivers.length
             ? `Fraud opportunity from ${joinWithAnd(fraudDrivers)}.`
             : "No open duty conflict; dual payment control and independent bank reconciliation are on.",
@@ -262,7 +253,7 @@ export function assessCoso(
         {
           number: 9,
           name: "Assess change",
-          status: "weak",
+          status: "not_assessed",
           note: `Not assessed: this check does not score changes to the business. Record anyone leaving the team on ${tabLabel("knowledge")}.`,
           notAssessed: true,
         },
@@ -304,28 +295,25 @@ export function assessCoso(
       shortName: "Activities",
       description:
         "Authorizations, segregation of duties, reconciliations, access, and technology controls.",
-      score: controlActivitiesScore,
-      status: healthLevel(controlActivitiesScore),
       principles: [
         {
           number: 10,
           name: "Select control activities",
-          status: healthLevel(controlActivitiesScore),
-          note: `Segregation score ${staff.segregationScore}/100 with ${count(sodGaps.length, "open duty conflict")}.${startersLeftOut ? ` Precog leaves out ${count(startersLeftOut, "sample control")} until you confirm ${startersLeftOut === 1 ? "it runs" : "they run"} here.` : ""}`,
+          status: sodGaps.length > 0 || openSevere.length > 0 ? "gap" : "in_place",
+          note: `Segregation score ${staff.segregationScore}/100 with ${count(sodGaps.length, "open duty conflict")}; ${count(openSevere.length, "open critical or high duty conflict")} on the duty map.${startersLeftOut ? ` Precog leaves out ${count(startersLeftOut, "sample control")} until you confirm ${startersLeftOut === 1 ? "it runs" : "they run"} here.` : ""}`,
         },
         {
           number: 11,
           name: "Technology general controls",
-          status: "adequate",
-          note: "Not assessed: Precog does not record who has which system access. Re-check access when someone joins or leaves.",
-          notAssessed: true,
+          ...access,
         },
         {
           number: 12,
           name: "Policies and procedures",
-          status: unaddressedGaps.length === 0 ? "adequate" : "weak",
+          // A recorded decision does not close a gap: an accepted conflict is still open.
+          status: sodGaps.length === 0 ? "in_place" : "gap",
           note:
-            unaddressedGaps.length === 0
+            sodGaps.length === 0
               ? "No open duty conflict."
               : "A sentence or a recorded residual-risk decision is not a tested control. Open duty conflicts remain untested.",
         },
@@ -358,20 +346,18 @@ export function assessCoso(
       name: "Information and Communication",
       shortName: "Info & Comm",
       description: "Quality information and clear communication of control responsibilities.",
-      score: infoCommScore,
-      status: healthLevel(infoCommScore),
       principles: [
         {
           number: 13,
           name: "Relevant quality information",
-          status: "adequate",
+          status: "not_assessed",
           note: "Not assessed: Precog does not record which reports the owner reviews (aging, adjustments, deposits).",
           notAssessed: true,
         },
         {
           number: 14,
           name: "Internal communication",
-          status: spofs.length > 0 ? "weak" : "adequate",
+          status: !knowledgeAssessed ? "not_assessed" : spofs.length > 0 ? "gap" : "in_place",
           note: knowledgeAssessed
             ? "Tribal knowledge without cross-training blocks reliable internal communication of how controls work."
             : REGISTER_NOT_ASSESSED,
@@ -380,7 +366,7 @@ export function assessCoso(
         {
           number: 15,
           name: "External communication",
-          status: "adequate",
+          status: "not_assessed",
           note: "Not assessed: Precog does not record how customers and vendors raise problems.",
           notAssessed: true,
         },
@@ -425,19 +411,17 @@ export function assessCoso(
       name: "Monitoring Activities",
       shortName: "Monitoring",
       description: "Ongoing evaluations and timely remediation of deficiencies.",
-      score: monitoringScore,
-      status: healthLevel(monitoringScore),
       principles: [
         {
           number: 16,
           name: "Ongoing and separate evaluations",
-          status: staff.independentBankRec ? "adequate" : "weak",
+          status: staff.independentBankRec ? "in_place" : "gap",
           note: "Bank and adjustment reviews are the main detective check in a small business.",
         },
         {
           number: 17,
           name: "Communicate deficiencies",
-          status: unaddressedGaps.length > 0 ? "weak" : "adequate",
+          status: unaddressedGaps.length > 0 ? "gap" : "in_place",
           note:
             unaddressedGaps.length > 0
               ? `${count(unaddressedGaps.length, "duty conflict")} without a recorded residual-risk decision.`
@@ -475,7 +459,11 @@ export function assessCoso(
     },
   ];
 
-  const overall = Math.round(components.reduce((s, c) => s + c.score, 0) / components.length);
+  const components: CosoComponentAssessment[] = drafts.map((c) => ({
+    ...c,
+    status: componentStatus(c.principles),
+  }));
+  const principles = components.flatMap((c) => c.principles);
 
   // Most severe first; within a severity, component order.
   const priorityFindings = components
@@ -485,11 +473,54 @@ export function assessCoso(
     .slice(0, 8);
 
   return {
-    overall,
-    overallStatus: healthLevel(overall),
+    gaps: principles.filter((p) => p.status === "gap").length,
+    notAssessed: principles.filter((p) => p.status === "not_assessed").length,
     components,
     priorityFindings,
   };
+}
+
+/** A gap anywhere is a gap: COSO does not let other principles offset it. */
+export function componentStatus(principles: readonly { status: CosoStatus }[]): CosoStatus {
+  if (principles.some((p) => p.status === "gap")) return "gap";
+  return principles.some((p) => p.status === "in_place") ? "in_place" : "not_assessed";
+}
+
+/**
+ * Principle 11 from the imported user access export: a gap while a row still
+ * waits for a person and duty, someone who left still has a sign-in, or the
+ * books grant a duty the duty map does not show. Not assessed without an import.
+ */
+function accessReading(
+  rec: AccessReconciliation | undefined,
+): Pick<CosoPrincipleScore, "status" | "note" | "notAssessed"> {
+  if (!rec) {
+    return {
+      status: "not_assessed",
+      note: "Not assessed: Precog has no user access export for this business. Import one, and re-check access when someone joins or leaves.",
+      notAssessed: true,
+    };
+  }
+  const live = rec.users.filter((u) => u.status !== "dismissed");
+  const pending =
+    live.filter((u) => u.status === "pending").length +
+    rec.vendors.filter((v) => v.status === "pending").length;
+  const left = live.filter((u) => u.leftBusiness).length;
+  const extra = live.filter((u) => u.extra.length > 0).length;
+  const imported = rec.importedAt ? ` on ${formatDay(rec.importedAt.slice(0, 10))}` : "";
+  const issues = [
+    ...(pending ? [`${count(pending, "row")} still to map`] : []),
+    ...(left ? [`${count(left, "person", "people")} who left still with a sign-in`] : []),
+    ...(extra
+      ? [`${count(extra, "person", "people")} with access the duty map does not show`]
+      : []),
+  ];
+  return issues.length
+    ? { status: "gap", note: `Access export imported${imported}: ${joinWithAnd(issues)}.` }
+    : {
+        status: "in_place",
+        note: `Access export imported${imported}: every row matches the duty map.`,
+      };
 }
 
 const PRIORITY_RANK: Record<HealthLevel, number> = {

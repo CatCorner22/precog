@@ -75,7 +75,7 @@ export function executiveSummary(input: SummaryInput): string[] {
   );
   if (input.mapHealth) {
     lines.push(
-      `Map health score ${input.mapHealth.score} of 100 (${input.mapHealth.bandLabel.toLowerCase()}).`,
+      `Map completeness ${input.mapHealth.score}% (${input.mapHealth.bandLabel.toLowerCase()}).`,
     );
   }
   if (input.topPriority) lines.push(`Highest item on the priority list: ${input.topPriority}.`);
@@ -99,7 +99,7 @@ export function handSetNotes(handSet: HandSetFigures): string[] {
           ? " Your team's duties give the same."
           : ` Your team's duties give ${score.fromDuties}.`;
     lines.push(
-      `Segregation score set by hand: ${score.set}.${duties} The priority index and residual risk scores in this report use the score set by hand; the duty separation index reads the duties.`,
+      `Segregation score set by hand: ${score.set}.${duties} The priority list and residual risk scores in this report use the score set by hand; the duty separation index reads the duties.`,
     );
   }
   const bank = handSet.bankRec;

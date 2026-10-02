@@ -29,6 +29,7 @@ import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import { joinWithAnd, firstName } from "@/lib/precog/text";
 import type { Person } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";
+import { dependenceTone } from "@/lib/precog/scoring/bands";
 import { formatDayRange } from "@/lib/precog/dates";
 
 /** What-if: tick who is out and see what stops, who picks it up, and what to do first. */
@@ -93,11 +94,7 @@ export function OutTomorrowCard({
               </p>
             )}
             <div className="flex flex-wrap items-center gap-2">
-              <Badge
-                variant={
-                  absence.dependence >= 50 ? "danger" : absence.dependence >= 25 ? "warn" : "ok"
-                }
-              >
+              <Badge variant={dependenceTone(absence.dependence)}>
                 {absence.dependence}% of must-do work stops
               </Badge>
               <span className="text-xs text-muted">
@@ -462,10 +459,7 @@ export function DependenceCard({
                 </div>
                 <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-elevated">
                   <div
-                    className={cn(
-                      "h-full rounded",
-                      l.dependence >= 50 ? "bg-danger" : l.dependence >= 25 ? "bg-warn" : "bg-ok",
-                    )}
+                    className={cn("h-full rounded", BAR_TONE[dependenceTone(l.dependence)])}
                     style={{ width: `${Math.max(2, l.dependence)}%` }}
                   />
                 </div>
@@ -480,3 +474,9 @@ export function DependenceCard({
     </Card>
   );
 }
+
+const BAR_TONE: Record<ReturnType<typeof dependenceTone>, string> = {
+  danger: "bg-danger",
+  warn: "bg-warn",
+  ok: "bg-ok",
+};

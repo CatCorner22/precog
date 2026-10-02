@@ -12,7 +12,8 @@ export interface StaffWhatIf {
   /**
    * An owner's own team derives its sole-owner count from the knowledge
    * register, so the count is not offered as a what-if there, and its
-   * segregation score from the team's duties, so applying keeps the saved one.
+   * segregation score and bank reconciliation answer from the team's duties,
+   * so applying keeps the saved ones.
    */
   ownBusiness: boolean;
   onChange: (next: StaffComposition) => void;
@@ -36,7 +37,8 @@ export function StaffWhatIfCard({
   className,
 }: StaffWhatIf & { className?: string }) {
   const changed = whatIfDiffers(saved, staff);
-  // A tried segregation score alone on an own team leaves nothing to apply.
+  // A tried segregation score or bank reconciliation answer alone on an own
+  // team leaves nothing to apply.
   const appliable = whatIfApplies(saved, staff, { ownBusiness });
   return (
     <Card className={className}>
@@ -72,7 +74,7 @@ export function StaffWhatIfCard({
           onChange={(v) => onChange({ ...staff, segregationScore: v })}
           note={
             ownBusiness
-              ? "For trying only: applying keeps your saved score. Change who holds which duties to move it."
+              ? "For trying only: applying keeps the score from your team's duties. Change who holds which duties to move it."
               : undefined
           }
         />
@@ -94,6 +96,12 @@ export function StaffWhatIfCard({
           />
           Independent bank reconciliation
         </label>
+        {ownBusiness && (
+          <p className="text-xs text-subtle">
+            For trying only: applying keeps the bank reconciliation answer from your team&rsquo;s
+            duties.
+          </p>
+        )}
         {changed ? (
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
             <p className="w-full text-xs text-warn">

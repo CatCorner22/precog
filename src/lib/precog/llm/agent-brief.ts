@@ -130,12 +130,12 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
     }
 
     if (t.tool === "get_coso_assessment") {
-      const d = t.data as { overall: number; status: string };
+      const d = t.data as { gaps: number; notAssessed: number; principles: number };
       evidence.push({
         id: `ev-${++i}`,
         kind: "coso",
         label: "Coverage check",
-        metric: `${d.overall}/100 · ${d.status}`,
+        metric: `${d.gaps} of ${d.principles} with a gap · ${d.notAssessed} not assessed`,
         link: { tab: "coso" },
       });
     }
@@ -397,8 +397,8 @@ export function localSynthesize(
   } | null;
 
   const coso = tools.find((t) => t.tool === "get_coso_assessment")?.data as {
-    overall: number;
-    status: string;
+    gaps: number;
+    principles: number;
   } | null;
 
   const leading = tools.find((t) => t.tool === "get_leading_indicators")?.data as {
@@ -860,7 +860,7 @@ export function localSynthesize(
     ? `This week: **${bestCascade.label}**, then re-check the watched conditions and What is still exposed.`
     : "This week: turn on a second signer for payments and an independent bank reconciliation, then ask again and re-check the watched conditions.";
 
-  const situation = `**${snap?.practice ?? "This business"}**: coverage check **${coso?.overall ?? "?"}/100**, average risk index **${residual?.averageResidual ?? "?"}/100**, **${leading?.breached ?? "?"}** watched conditions breached. Second signer on payments: ${snap?.staff.dualControlPayments ? "on" : "off"}; independent bank reconciliation: ${snap?.staff.independentBankRec ? "on" : "off"}. Question: _${question}_`;
+  const situation = `**${snap?.practice ?? "This business"}**: coverage check **${coso ? `${coso.gaps} of ${coso.principles}` : "?"}** with a gap, average risk index **${residual?.averageResidual ?? "?"}/100**, **${leading?.breached ?? "?"}** watched conditions breached. Second signer on payments: ${snap?.staff.dualControlPayments ? "on" : "off"}; independent bank reconciliation: ${snap?.staff.independentBankRec ? "on" : "off"}. Question: _${question}_`;
 
   const specialistMd = specialistNotes
     .map((n) => `### ${n.title}\n${n.bullets.map((b) => `- ${b}`).join("\n")}`)

@@ -546,7 +546,7 @@ export function ProcessMap({
       );
       if (loop) {
         toast.warning("Dependency linked, but it closes a loop", {
-          description: `${linked} ${loop.message}. Map health counts a loop as an error; Ctrl+Z removes the link.`,
+          description: `${linked} ${loop.message}. Map completeness counts a loop as an error; Ctrl+Z removes the link.`,
         });
       } else {
         toast.success("Dependency linked", { description: linked });
@@ -798,7 +798,9 @@ export function ProcessMap({
                 <>
                   <span>{whiteHot} white-hot</span>
                   <span className="text-white/50">·</span>
-                  <span>{priorities.filter((p) => p.band === "critical").length} critical</span>
+                  <span>
+                    {priorities.filter((p) => p.band === "critical").length} high priority
+                  </span>
                 </>
               ) : (
                 <span>Not assessed yet</span>
@@ -808,7 +810,7 @@ export function ProcessMap({
             <div className="mt-1 flex justify-between text-xs text-white/55">
               <span>Blue · low</span>
               <span>Priority</span>
-              <span>White-hot · fix first</span>
+              <span>White-hot · top priority</span>
             </div>
           </div>
         )}

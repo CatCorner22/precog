@@ -24,8 +24,11 @@ export interface SetupPreview {
   conflictCount: number;
   first: {
     conflict: DetectedConflict;
+    /**
+     * A case that cites the finding's rule, or null. A case that only shares
+     * a scheme is left out, as on the duty-conflict card after setup.
+     */
     study: CaseStudy | null;
-    citesRule: boolean;
     lossPhrase: string | null;
     durationPhrase: string | null;
   } | null;
@@ -47,14 +50,14 @@ export function previewSetup(rows: readonly OwnTeamRow[], industry: IndustryId):
   );
   const conflict = ranked[0];
   if (!conflict) return { peopleWithDuties, conflictCount: 0, first: null };
-  const matched = caseForRule(conflict.ruleId, industry);
+  const pick = caseForRule(conflict.ruleId, industry);
+  const matched = pick?.citesRule ? pick : null;
   return {
     peopleWithDuties,
     conflictCount: ranked.filter((c) => c.ownerHeld === conflict.ownerHeld).length,
     first: {
       conflict,
       study: matched?.study ?? null,
-      citesRule: matched?.citesRule ?? false,
       // A record with no stated loss has no amount to print.
       lossPhrase: matched && matched.study.lossUsd > 0 ? lossPhrase(matched.study) : null,
       durationPhrase: matched ? caseDurationPhrase(matched.study) : null,

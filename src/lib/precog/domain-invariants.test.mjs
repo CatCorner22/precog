@@ -32,6 +32,8 @@ import * as valueEvidence from "./value-evidence";
 import * as snapshotComparison from "./snapshot-comparison";
 import * as engine from "./engine";
 import * as coso from "./coso";
+import * as residualEngine from "./scoring/residual-engine";
+import * as mapWhatIf from "./builder/what-if";
 
 /**
  * Cross-module invariants: every duty has control alternatives, every
@@ -340,8 +342,8 @@ describe("domain invariants", () => {
   it("priority bands preserve their documented boundaries", () => {
     assert.equal(vision.priorityBand(34), "cold");
     assert.equal(vision.priorityBand(35), "watch");
-    assert.equal(vision.priorityBand(55), "elevated");
-    assert.equal(vision.priorityBand(72), "critical");
+    assert.equal(vision.priorityBand(45), "elevated");
+    assert.equal(vision.priorityBand(70), "critical");
     assert.equal(vision.priorityBand(88), "white_hot");
   });
 
@@ -412,12 +414,12 @@ describe("domain invariants", () => {
       staff: defaults.staff,
       dualRelease: defaults.dualRelease,
     });
-    assert.ok(Number.isFinite(report.overallThreatIndex));
+    assert.ok(Number.isFinite(scoring.fixFirstCount(report.targetDeck)));
     assert.ok(report.targetDeck.length > 0);
     assert.ok(report.targetDeck.every((target) => Number.isFinite(target.priority)));
   });
 
-  it("turning on a control never raises a danger score or lowers a COSO component", () => {
+  it("turning on a control never raises a danger score, a residual row or the average, never lowers a COSO component, and leaves map completeness alone", () => {
     // Each control the owner can switch on, as a change to staff or to the risk variables.
     const controls = [
       ["dualControlPayments", (staff, vars) => [{ ...staff, dualControlPayments: true }, vars]],
@@ -434,9 +436,14 @@ describe("domain invariants", () => {
           .rankDangerousScenarios(tpl, { staff, riskVariables })
           .map((r) => [r.scenario.id, r.score]),
       ),
+      // A component has no score: a gap is worse than not assessed, which is worse than in place.
       coso: new Map(
-        coso.assessCoso(tpl, staff, { riskVariables }).components.map((c) => [c.id, c.score]),
+        coso
+          .assessCoso(tpl, staff, { riskVariables })
+          .components.map((c) => [c.id, { gap: 0, not_assessed: 1, in_place: 2 }[c.status]]),
       ),
+      residual: residualEngine.portfolioSummary(tpl, staff, undefined, { riskVariables }),
+      completeness: mapWhatIf.previewMapHealth(tpl, tpl.processes, staff).score,
     });
     for (const industry of industryModule.INDUSTRIES) {
       const defaults = profile.defaultProfile(industry.id);
@@ -466,6 +473,22 @@ describe("domain invariants", () => {
               `${industry.id}: ${name} lowers COSO ${id} from ${before.coso.get(id)} to ${score}`,
             );
           }
+          const beforeRows = new Map(before.residual.all.map((r) => [r.id, r.residual]));
+          for (const row of after.residual.all) {
+            assert.ok(
+              row.residual <= beforeRows.get(row.id),
+              `${industry.id}: ${name} raises residual ${row.id}`,
+            );
+          }
+          assert.ok(
+            after.residual.averageResidual <= before.residual.averageResidual,
+            `${industry.id}: ${name} raises the average residual`,
+          );
+          assert.equal(
+            after.completeness,
+            before.completeness,
+            `${industry.id}: ${name} moves map completeness, which counts no risk`,
+          );
         }
       }
     }
@@ -667,7 +690,9 @@ describe("domain invariants", () => {
     const empty = coverageAnalysis.analyzeDutyCoverage([]);
     // Optional control steps nobody holds are a choice, not a gap.
     const optional = sodRules.ENTITLEMENTS.filter((item) => item.optional).length;
-    assert.equal(empty.unassigned.length, sodRules.ENTITLEMENTS.length - 1 - optional);
+    // Keep-few duties (bulk export, access, admin, backups, log review) need no stand-in.
+    const keepFew = coverageAnalysis.KEEP_FEW_DUTIES.size;
+    assert.equal(empty.unassigned.length, sodRules.ENTITLEMENTS.length - 1 - optional - keepFew);
     assert.equal(empty.resilienceScore, 0);
     assert.ok(
       baseline.duties.every((duty) =>

@@ -38,6 +38,7 @@ import type { Person } from "@/lib/precog/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { dependenceTone } from "@/lib/precog/scoring/bands";
 import { useTabName } from "@/lib/precog/presentation";
 import {
   CRITICALITY_LABEL,
@@ -155,9 +156,7 @@ export function LeaveWindow({
             </p>
           )}
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Badge
-              variant={impact.dependence >= 50 ? "danger" : impact.dependence >= 25 ? "warn" : "ok"}
-            >
+            <Badge variant={dependenceTone(impact.dependence)}>
               {impact.dependence}% of must-do work stops
             </Badge>
             <span className="text-xs text-muted">
@@ -287,9 +286,7 @@ export function LeaverCard({
             {leaverLead(l.daysLeft)}
           </Badge>
           {assessed && (
-            <Badge variant={l.dependence >= 50 ? "danger" : l.dependence >= 25 ? "warn" : "ok"}>
-              {l.dependence}% of must-do work
-            </Badge>
+            <Badge variant={dependenceTone(l.dependence)}>{l.dependence}% of must-do work</Badge>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-1">

@@ -25,13 +25,7 @@ import {
   starterScenarioLabel,
   starterScenariosLeftOut,
 } from "./scoring/scope";
-import { scoreLeadingIndicators } from "./ml/leading-indicators";
-import {
-  PRIORITY_BAND_LABEL,
-  priorityBand,
-  scorePriority,
-  type PriorityTarget,
-} from "./map-vision";
+import { priorityBand, scorePriority, type PriorityTarget } from "./map-vision";
 import type { StaffComposition } from "./types";
 import {
   DEFAULT_RISK_VARIABLES,
@@ -40,18 +34,15 @@ import {
 } from "./scoring/dynamic-variables";
 import type { DualReleasePolicy } from "./controls/dual-release";
 import { formatUsd } from "../utils";
-import { clamp } from "./number";
 import { count } from "./text";
 
-type ThreatDomain = "control" | "sod" | "knowledge" | "scenario" | "leading" | "portfolio";
+type ThreatDomain = "control" | "sod" | "knowledge" | "scenario" | "portfolio";
 
 interface ThreatAssessmentReport {
   ao: string;
-  overallThreatIndex: number;
-  classificationLabel: string;
-  leadingPressure: number;
-  leadingBand: string;
   targetDeck: ThreatTarget[];
+  /** Items in the top band across every target, not only the ten the list shows. */
+  fixFirst: number;
   missionBrief: string[];
   roeSummary: string[];
   caveats: string[];
@@ -105,12 +96,6 @@ export function buildThreatAssessment(input: {
     { ...DEFAULT_RISK_VARIABLES, ...(riskVariables ?? {}) },
     isOwnBusiness(tpl),
   );
-  const leading = scoreLeadingIndicators(
-    tpl,
-    staff,
-    { ...DEFAULT_RISK_VARIABLES, ...(riskVariables ?? {}) },
-    confirmedScenarioIds,
-  );
   // One basis for every loss figure in the deck: the ranked scenario's
   // retained loss under the owner's settings.
   const rankedById = new Map(ranked.map((row) => [row.scenario.id, row]));
@@ -159,9 +144,9 @@ export function buildThreatAssessment(input: {
   }
 
   // Open findings only, as Start here and the report count them: an owner's
-  // own pair is error and tax exposure, not a theft target, and a pair the
-  // owner accepted or dual release closes at every amount needs no card. One
-  // card per gap: two people holding the same pair are one target.
+  // own pair is error and tax exposure, not a theft target, and a pair dual
+  // release closes at every amount needs no card; an accepted pair stays open.
+  // One card per gap: two people holding the same pair are one target.
   const sodTargets = openFindings(
     sod.conflicts,
     dualRelease ? partialDualReleaseCoverage(dualRelease, sod.conflicts) : new Map(),
@@ -264,38 +249,20 @@ export function buildThreatAssessment(input: {
     });
   }
 
-  const seen = new Set<string>();
-  const deck = targets
-    .filter((t) => {
-      const key = t.label.toLowerCase().slice(0, 40);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => b.priority - a.priority)
-    .slice(0, 10);
-
-  const overallThreatIndex = Math.round(
-    deck.slice(0, 5).reduce((s, t) => s + t.priority, 0) / clamp(deck.length, 1, 5),
-  );
-  const classificationLabel = PRIORITY_BAND_LABEL[priorityBand(overallThreatIndex)];
+  const allTargets = uniqueTargets(targets);
+  const deck = allTargets.slice(0, LIST_SIZE);
 
   const openSod = tpl.controls.filter((c) => !c.segregated).length;
   const soleHeld = knowledgeRisks.filter((r) => r.soleOwner).length;
   const unheld = knowledgeRisks.filter((r) => r.ownerCount === 0).length;
-  const breached = leading.indicators.filter((i) => i.status === "breach").length;
-  const watched = leading.indicators.filter((i) => i.status === "watch").length;
 
   return {
     ao: practiceName,
-    overallThreatIndex,
-    classificationLabel,
-    leadingPressure: leading.pressureIndex,
-    leadingBand: leading.band,
     targetDeck: deck,
+    fixFirst: fixFirstCount(allTargets),
     missionBrief: [
       `${practiceName}: where money can move without a second person in this ${industryNoun(tpl.id)}, and what to fix first.`,
-      `Average residual risk ${portfolio.averageResidual} of 100 (this app's index); ${count(portfolio.criticalPath, "item")} to act on before anything else and ${portfolio.actNow} more to act on now.`,
+      `Residual risks by band on Precog's index: ${count(portfolio.criticalPath, "item")} to fix first, ${portfolio.actNow} to fix soon and ${portfolio.mitigate} worth doing.`,
       `Duties: ${count(sod.summary.critical, "critical duty conflict")}; ${count(openSod, "control")} the template lists as not yet separated.`,
       registerAssessed(tpl)
         ? `Know-how: ${count(soleHeld, "item")} only one person can do; ${unheld} nobody can.`
@@ -305,7 +272,6 @@ export function buildThreatAssessment(input: {
             `Scenarios: ${starterScenarioLabel(tpl.id)} (${scenariosLeftOut}): Precog leaves them out. ${MAKE_SCENARIO_YOURS}`,
           ]
         : []),
-      `Early-warning checks: ${breached} breached, ${watched} to watch.`,
       "This is an educational internal-control screen — not an accusation against any person.",
     ],
     roeSummary: [
@@ -321,6 +287,52 @@ export function buildThreatAssessment(input: {
     ],
   };
 }
+
+/** Rows shown on the list: one per label (first one wins), highest priority first, at most ten. */
+export function rankTargets<T extends Pick<PriorityTarget, "label" | "priority">>(
+  targets: readonly T[],
+): T[] {
+  return uniqueTargets(targets).slice(0, LIST_SIZE);
+}
+
+/** Every target once per label (first one wins), highest priority first. */
+function uniqueTargets<T extends Pick<PriorityTarget, "label" | "priority">>(
+  targets: readonly T[],
+): T[] {
+  const seen = new Set<string>();
+  return targets
+    .filter((t) => {
+      const key = t.label.toLowerCase().slice(0, 40);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => b.priority - a.priority);
+}
+
+/**
+ * The list's headline: how many items sit in its top band ("Top priority", priority 88 or more).
+ * A count, not an average, so a new item can raise it and never lowers it.
+ * Count over every target, not the ten-row list, or a business with more
+ * than ten top-band items would read as ten.
+ */
+export function fixFirstCount(targets: readonly Pick<PriorityTarget, "band">[]): number {
+  return targets.filter((t) => t.band === "white_hot").length;
+}
+
+/**
+ * The headline of a built report. A report version locked before the count
+ * was stored has only its ten-row list, so it counts there.
+ */
+export function fixFirstOf(report: {
+  targetDeck: readonly Pick<PriorityTarget, "band">[];
+  fixFirst?: number;
+}): number {
+  return report.fixFirst ?? fixFirstCount(report.targetDeck);
+}
+
+/** The most items the list shows. */
+const LIST_SIZE = 10;
 
 /** The retained loss (after insurance) of an engine run. */
 function retainedLoss(result: { retainedImpact: { expected: number } }): number {
@@ -370,7 +382,7 @@ function deriveRoe(category: string, name: string, residual: number): string[] {
     ];
   }
   return [
-    "Monitor leading indicators weekly",
+    "Check the early-warning list each week",
     "Confirm someone has documented the compensating control",
     "Revisit at next residual acceptance review",
   ];

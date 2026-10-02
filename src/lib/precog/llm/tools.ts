@@ -7,7 +7,7 @@
 import { describeChunkBasis } from "../rag/corpus";
 import { mapAssessed } from "../builder/map-state";
 import { industryMeta } from "../industry";
-import { assessCoso } from "../coso";
+import { assessCoso, COSO_PRINCIPLE_COUNT } from "../coso";
 import { resolveTemplate } from "../active-template";
 import { rankDangerousScenarios } from "../engine";
 import { STRONG_LEVELS } from "../continuity/coverage";
@@ -24,6 +24,7 @@ import { retrieveKnowledge } from "../rag/retrieve";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
 import { casesForSodRules, citingCaseStats } from "../evidence";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
+import { openFindings, partialDualReleaseCoverage, ruleIdsOf } from "../sod/open-findings";
 import { runAdvancedReasoning } from "./reasoning/engine";
 import { runMetaAnalysis } from "./meta-analysis";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
@@ -309,17 +310,19 @@ function cosoAssessment({ profile, tpl, staff, riskVars, scope }: ToolInputs): T
     riskVariables: riskVars,
     confirmedScenarioIds: scope.confirmedScenarioIds,
     dualRelease: profile.dualRelease,
+    accessReconciliation: profile.accessReconciliation,
   });
   return {
     ok: true,
-    summary: `COSO ${coso.overall}/100 (${coso.overallStatus})`,
+    summary: `COSO checklist: ${coso.gaps} of ${COSO_PRINCIPLE_COUNT} principles with a gap, ${coso.notAssessed} not assessed`,
+    // No overall score: a gap in one component is not offset by another.
     data: {
-      overall: coso.overall,
-      status: coso.overallStatus,
+      gaps: coso.gaps,
+      notAssessed: coso.notAssessed,
+      principles: COSO_PRINCIPLE_COUNT,
       components: coso.components.map((c) => ({
         id: c.id,
         name: c.name,
-        score: c.score,
         status: c.status,
       })),
       priorityFindings: coso.priorityFindings.slice(0, 6),
@@ -354,8 +357,11 @@ function residualPortfolio({ tpl, staff, scope }: ToolInputs): ToolOutput {
         category: t.category,
         residual: t.residual,
         band: t.bandLabel,
-        inherent: t.inherent,
-        controlEffectiveness: t.controlEffectiveness,
+        // A scenario row ranks on its likelihood and severity levels, with its
+        // controls already inside them; the other rows on inherent less effectiveness.
+        ...(t.category === "scenario"
+          ? { likelihoodLevel: t.likelihoodLevel, severityLevel: t.severityLevel }
+          : { inherent: t.inherent, controlEffectiveness: t.controlEffectiveness }),
         drivers: t.drivers.slice(0, 4),
         linkedScenarioId: t.linkedScenarioId,
         linkedKnowledgeId: t.linkedKnowledgeId,
@@ -363,7 +369,7 @@ function residualPortfolio({ tpl, staff, scope }: ToolInputs): ToolOutput {
         assumedDaysUntilFound: t.p50Days,
       })),
       basis:
-        "assumedLoss and assumedDaysUntilFound are scenario assumptions scaled by this business's settings; not measurements or expected values.",
+        "assumedLoss and assumedDaysUntilFound are illustrative examples, not sized to this business, and do not set a row's rank; not measurements or expected values. A scenario row ranks on likelihoodLevel and severityLevel, which already include its controls.",
     },
   };
 }
@@ -442,11 +448,13 @@ function processRecords({ profile, tpl }: ToolInputs): ToolOutput {
 /** The team's own duty conflicts, by person, scored the way Who controls what scores them; owner-held pairs are counted apart. */
 function sodConflicts({ sodReport }: ToolInputs): ToolOutput {
   const report = sodReport();
-  const open = report.conflicts.filter((c) => !c.ownerHeld);
+  // Every finding but the owner's own, open or not; each row says whether
+  // dual release narrows it and whether the owner accepted the risk.
+  const findings = report.conflicts.filter((c) => !c.ownerHeld);
   return {
     ok: true,
-    summary: `${report.summary.critical} critical, ${report.summary.high} high open duty conflict(s) across ${new Set(open.map((c) => c.personId)).size} people; ${report.summary.ownerHeld} held by the owner; segregation health ${report.summary.segregationHealth}/100`,
-    data: open.map((c) => ({
+    summary: `${report.summary.critical} critical, ${report.summary.high} high open duty conflict(s) across ${report.summary.peopleWithConflicts} people; ${report.summary.ownerHeld} held by the owner; segregation health ${report.summary.segregationHealth}/100`,
+    data: findings.map((c) => ({
       id: c.id,
       name: `${c.personName} (${c.role}): ${c.title}`,
       person: c.personName,
@@ -483,14 +491,12 @@ function retrieveGuidance({ tpl, question }: ToolInputs): ToolOutput {
   };
 }
 
-function caseEvidence({ sodReport }: ToolInputs): ToolOutput {
-  const openRuleIds = [
-    ...new Set(
-      sodReport()
-        .conflicts.filter((c) => !c.residualRiskAccepted && !c.dualReleaseMitigated)
-        .map((c) => c.ruleId),
-    ),
-  ];
+function caseEvidence({ sodReport, profile }: ToolInputs): ToolOutput {
+  // The open findings by the rule every screen counts with (sod/open-findings).
+  const { conflicts } = sodReport();
+  const openRuleIds = ruleIdsOf(
+    openFindings(conflicts, partialDualReleaseCoverage(profile.dualRelease, conflicts)),
+  );
   // The count and the median describe only the cases whose own record shows
   // one of these duty pairs, as Start here and the printed report do; cases
   // that merely share a scheme are listed, not counted.

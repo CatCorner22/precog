@@ -7,17 +7,25 @@ import { latestReview, reviewItemsFor, reviewResultLine } from "@/lib/precog/fir
 import { industryMeta } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
-import { belowThresholdNote, openSodHint } from "@/lib/precog/sod/open-findings";
+import {
+  belowThresholdNote,
+  conflictStatus,
+  dualReleaseSplit,
+  openSodHint,
+} from "@/lib/precog/sod/open-findings";
+import { sodScopeLine } from "@/lib/precog/integrations/drift-signals";
 import { trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
 import { DECISION_KIND_LABEL } from "@/lib/precog/practice-profile";
-import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
+import { PRIORITY_BAND_LABEL, PRIORITY_TOP } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
 import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
 import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/reports";
 import { ReportVersionsPanel } from "@/components/precog/report-versions";
 import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
+import { fixFirstOf } from "@/lib/precog/threat-scoring";
+import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import {
   lockedFigures,
   recalculationNote,
@@ -65,6 +73,9 @@ export function ControlReport({
 
   const figures = locked ? lockedFigures(frozen) : null;
   const storedModel = figures && "model" in figures ? figures.model : null;
+  // A version stored under layout 1 keeps that layout's labels: its map score
+  // still counts heat, and it carries the average residual, not band counts.
+  const layoutOne = figures !== null && "model" in figures && figures.layoutVersion === 1;
   const data = useMemo(
     () =>
       storedModel
@@ -86,11 +97,15 @@ export function ControlReport({
       : null;
   const { threat, portfolio, sod, sodOpen, sodLevel, mapHealth, healthDelta, decisionLog } = data;
   const sodNote = belowThresholdNote(sodOpen);
+  // Pairs dual release reduces stay among the open conflicts; count them once.
+  const dual = dualReleaseSplit(sod.conflicts, data.partialCoverage);
   const mapIssues = data.issues.filter((i) => i.severity !== "info");
   const sodRows = sod.conflicts
     .slice()
     .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || b.score - a.score);
   const unheld = sod.summary.unheldDuties.map((d) => entitlementLabel(d));
+  // People the books show and the map lacks fall outside the findings; say so beside them.
+  const sodScope = sodScopeLine(profile.integrationDriftSummary);
   const reviews = reviewItemsFor(month).map((item) => ({
     item,
     latest: latestReview(profile.monthlyReviews ?? [], item.key, month),
@@ -197,20 +212,28 @@ export function ControlReport({
 
         <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Kpi
-            label="Map health score"
-            value={mapReady ? String(mapHealth.score) : "—"}
+            label={layoutOne ? "Map health score" : "Map completeness"}
+            value={mapReady ? (layoutOne ? String(mapHealth.score) : `${mapHealth.score}%`) : "—"}
             hint={mapReady ? mapHealth.bandLabel : "Not assessed yet"}
           />
           <Kpi
-            label="Priority index"
-            value={String(threat.overallThreatIndex)}
-            hint={threat.classificationLabel}
+            label="Top-priority items"
+            value={String(fixFirstOf(threat))}
+            hint={`Priority ${PRIORITY_TOP} or more`}
           />
-          <Kpi
-            label="Average residual risk score"
-            value={String(portfolio.averageResidual)}
-            hint={`${portfolio.criticalPath} to fix first`}
-          />
+          {layoutOne ? (
+            <Kpi
+              label="Average residual risk score"
+              value={String(portfolio.averageResidual)}
+              hint={`${portfolio.criticalPath} to fix first`}
+            />
+          ) : (
+            <Kpi
+              label="Residual risks by band"
+              value={`${portfolio.criticalPath} fix first`}
+              hint={`Fix first at ${RISK_SCALE.critical} or more · ${portfolio.actNow} fix soon · ${portfolio.mitigate} worth doing`}
+            />
+          )}
           <Kpi
             label="Duty separation index"
             value={String(sod.summary.segregationHealth)}
@@ -231,7 +254,7 @@ export function ControlReport({
         )}
         <p className="mt-2 text-xs leading-relaxed text-neutral-500">{INDEX_BASIS}</p>
 
-        <Section title="Map health">
+        <Section title={layoutOne ? "Map health" : "Map completeness"}>
           {mapNote ? (
             <p className="text-sm text-neutral-700">Not assessed yet. {mapNote}</p>
           ) : (
@@ -357,8 +380,10 @@ export function ControlReport({
         <Section title="Segregation of duties">
           <p className="text-sm text-neutral-700">
             {sod.summary.critical} critical, {sod.summary.high} high, {sod.summary.medium} medium
-            conflicts across {sod.summary.peopleWithConflicts} of {sod.assignments.length} people.{" "}
-            {sod.summary.dualReleaseMitigated} mitigated by dual release.
+            open conflicts across {sod.summary.peopleWithConflicts} of {sod.assignments.length}{" "}
+            people. {dual.closed} covered by dual release at every amount.
+            {dual.reduced > 0 &&
+              ` ${dual.reduced} more reduced by dual release but not closed, counted open above.`}
           </p>
           {unheld.length > 0 && (
             <p className="mt-2 text-sm text-neutral-700">
@@ -368,6 +393,7 @@ export function ControlReport({
               {verb(unheld.length, "that duty", "those duties")}.
             </p>
           )}
+          {sodScope && <p className="mt-2 text-sm text-neutral-700">{sodScope}</p>}
           {sodRows.length > 0 && (
             <>
               <table className="mt-3 w-full border-collapse text-sm">
@@ -387,7 +413,9 @@ export function ControlReport({
                         {c.labelA} + {midSentence(c.labelB)}
                       </td>
                       <td className="py-1.5 pr-2">{SEVERITY_LABEL[c.severity]}</td>
-                      <td className="py-1.5 text-neutral-700">{conflictStatus(c)}</td>
+                      <td className="py-1.5 text-neutral-700">
+                        {conflictStatus(c, data.partialCoverage)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -520,16 +548,6 @@ const SEVERITY_LABEL: Record<DetectedConflict["severity"], string> = {
 };
 
 const MONTH = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
-
-/** Where a conflict stands: open, or why the business has set it aside. */
-function conflictStatus(
-  c: Pick<DetectedConflict, "ownerHeld" | "residualRiskAccepted" | "dualReleaseMitigated">,
-): string {
-  if (c.ownerHeld) return "Owner's own duties";
-  if (c.residualRiskAccepted) return "Risk accepted by the owner";
-  if (c.dualReleaseMitigated) return "Covered by dual release";
-  return "Open";
-}
 
 /** "2026-09" as "September 2026". */
 function monthLabel(period: string): string {

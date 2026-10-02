@@ -81,33 +81,26 @@ export interface HandSetFigures {
 }
 
 /**
- * The segregation score and bank-reconciliation answer when the owner set
- * them by hand, each beside the figure `deriveStaffFromTeam` reads from the
- * team's duties, so a report can disclose both. A sample team carries no
- * duties of the owner's to read.
+ * The segregation score and bank-reconciliation answer when someone set them
+ * by hand, each beside the figure `deriveStaffFromTeam` reads from the team's
+ * duties, so a report can disclose both. Only a sample business can carry a
+ * figure set by hand: an own team's come from its duties alone (see withStaff
+ * and normalizeProfile), so for an own team this is never a disclosure, even
+ * on a profile saved before that rule. A sample team carries no duties of the
+ * owner's to read.
  */
 export function handSetFigures(
-  tpl: IndustryTemplate,
   staff: StaffComposition,
-  opts: { ownTeam: boolean; dualReleaseMitigatedRuleIds?: Set<string> },
+  opts: { ownTeam: boolean },
 ): HandSetFigures {
-  const segregation = staff.segregationSource === "manual";
-  const bankRec = staff.bankRecSource === "manual";
-  const fromDuties =
-    opts.ownTeam && (segregation || bankRec)
-      ? deriveStaffFromTeam(
-          tpl,
-          { ...staff, segregationSource: "derived", bankRecSource: "derived" },
-          { dualReleaseMitigatedRuleIds: opts.dualReleaseMitigatedRuleIds },
-        )
-      : null;
+  if (opts.ownTeam) return { segregation: null, bankRec: null };
   return {
-    segregation: segregation
-      ? { set: staff.segregationScore, fromDuties: fromDuties?.segregationScore ?? null }
-      : null,
-    bankRec: bankRec
-      ? { set: staff.independentBankRec, fromDuties: fromDuties?.independentBankRec ?? null }
-      : null,
+    segregation:
+      staff.segregationSource === "manual"
+        ? { set: staff.segregationScore, fromDuties: null }
+        : null,
+    bankRec:
+      staff.bankRecSource === "manual" ? { set: staff.independentBankRec, fromDuties: null } : null,
   };
 }
 

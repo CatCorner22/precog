@@ -11,11 +11,17 @@ import { buildControlReportModel, type ControlReportModel } from "./build-contro
 
 /**
  * The report model as a locked version stores it: plain JSON, so it reads
- * back from the database exactly as it was built. The one non-JSON value in
- * the model, the `committed` map, is stored as its entries.
+ * back from the database exactly as it was built. The non-JSON values in the
+ * model, the `committed` and `partialCoverage` maps, are stored as entries.
  */
-export type StoredReportModel = Omit<ControlReportModel, "committed"> & {
+export type StoredReportModel = Omit<ControlReportModel, "committed" | "partialCoverage"> & {
   committed: Array<[string, ContinuityCommitment]>;
+  /**
+   * Absent in a model stored before the report read partial dual-release
+   * coverage. Such a model revives with an empty map, so it prints the
+   * counts and statuses it was locked with.
+   */
+  partialCoverage?: Array<[string, number]>;
 };
 
 /**
@@ -32,9 +38,16 @@ export interface FrozenReport {
 /**
  * The shape of `ControlReportModel` that `ControlReport` prints today. Raise
  * it whenever a field of the model is added, renamed or changes meaning: a
- * stored model with another layout version recalculates instead of printing.
+ * stored model with another layout version recalculates instead of printing,
+ * unless `ControlReport` still prints that layout with its own labels.
+ *
+ * Layout 2: map completeness (no heat part) and residual rows counted by band.
+ * Layout 1: map health score (with heat) and the average residual score.
  */
-export const REPORT_LAYOUT_VERSION = 1;
+export const REPORT_LAYOUT_VERSION = 2;
+
+/** The layouts `ControlReport` prints from stored figures, each with its own labels. */
+export const PRINTED_LAYOUT_VERSIONS: readonly number[] = [1, REPORT_LAYOUT_VERSION];
 
 /**
  * The largest stored model, in characters of JSON. The samples build about
@@ -44,11 +57,19 @@ export const REPORT_LAYOUT_VERSION = 1;
 export const REPORT_MODEL_MAX_CHARS = 1_000_000;
 
 export function serializeReportModel(model: ControlReportModel): StoredReportModel {
-  return { ...model, committed: [...model.committed.entries()] };
+  return {
+    ...model,
+    committed: [...model.committed.entries()],
+    partialCoverage: [...model.partialCoverage.entries()],
+  };
 }
 
 export function reviveReportModel(stored: StoredReportModel): ControlReportModel {
-  return { ...stored, committed: new Map(stored.committed) };
+  return {
+    ...stored,
+    committed: new Map(stored.committed),
+    partialCoverage: new Map(stored.partialCoverage ?? []),
+  };
 }
 
 /**
@@ -111,11 +132,11 @@ export type RecalculationReason = "before-stored" | "not-stored" | "other-layout
  */
 export function lockedFigures(
   frozen: Pick<FrozenReport, "layoutVersion" | "model"> | null,
-): { model: StoredReportModel } | { reason: RecalculationReason } {
+): { model: StoredReportModel; layoutVersion: number } | { reason: RecalculationReason } {
   if (!frozen) return { reason: "before-stored" };
   if (!frozen.model) return { reason: "not-stored" };
-  if (frozen.layoutVersion !== REPORT_LAYOUT_VERSION) return { reason: "other-layout" };
-  return { model: frozen.model };
+  if (!PRINTED_LAYOUT_VERSIONS.includes(frozen.layoutVersion)) return { reason: "other-layout" };
+  return { model: frozen.model, layoutVersion: frozen.layoutVersion };
 }
 
 const RECALCULATION_REASON: Record<RecalculationReason, string> = {

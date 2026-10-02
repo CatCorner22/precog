@@ -24,7 +24,7 @@ interface IndustryMeta {
 export const INDUSTRIES: IndustryMeta[] = [
   {
     id: "dental",
-    label: "Dental / medical / veterinary office",
+    label: "Dental office",
     tagline: "Patient revenue, billing, cash, and controlled-drug controls",
     demoName: "Ridgeview Family Dental",
     teamLabel: "practice",

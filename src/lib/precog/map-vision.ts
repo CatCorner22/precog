@@ -4,7 +4,14 @@
  * the priority scoring for process, risk, control and knowledge cards.
  */
 import { type MapGraphNode, type ProcessMapSnapshot } from "./process-graph";
-import { HEAT_BANDS } from "./scoring/bands";
+import {
+  HEAT_BANDS,
+  PRIORITY_BAND_LABEL,
+  PRIORITY_SCALE,
+  RISK_SCALE,
+  priorityBand,
+  type PriorityBand,
+} from "./scoring/bands";
 import { clamp } from "./number";
 
 export type MapVisionMode = "standard" | "predator" | "terminator";
@@ -109,38 +116,39 @@ export function predatorThermalColor(heat: number): string {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
+/** The glow around a process card in the Heat view, one step per priority band. */
 export function predatorGlow(heat: number): string {
   const c = predatorThermalColor(heat);
-  const intensity = heat >= 80 ? 28 : heat >= 60 ? 18 : heat >= 40 ? 12 : 6;
+  const intensity = GLOW[priorityBand(heat)];
   return `0 0 ${intensity}px ${c}, 0 0 ${intensity * 2}px ${c}`;
 }
 
-/** Terminator HUD red-scale. */
-export function terminatorThreatColor(priority: number): string {
-  if (priority >= 85) return "rgb(255, 40, 40)";
-  if (priority >= 70) return "rgb(220, 60, 40)";
-  if (priority >= 50) return "rgb(180, 70, 50)";
-  if (priority >= 30) return "rgb(120, 50, 45)";
-  return "rgb(60, 30, 30)";
-}
-
-export type PriorityBand = "white_hot" | "critical" | "elevated" | "watch" | "cold";
-
-export function priorityBand(score: number): PriorityBand {
-  if (score >= 88) return "white_hot";
-  if (score >= 72) return "critical";
-  if (score >= 55) return "elevated";
-  if (score >= 35) return "watch";
-  return "cold";
-}
-
-export const PRIORITY_BAND_LABEL: Record<PriorityBand, string> = {
-  white_hot: "Fix first",
-  critical: "Fix soon",
-  elevated: "Worth doing",
-  watch: "Watch",
-  cold: "Fine for now",
+const GLOW: Record<PriorityBand, number> = {
+  white_hot: 28,
+  critical: 18,
+  elevated: 12,
+  watch: 6,
+  cold: 6,
 };
+
+/** Terminator HUD red-scale, one shade per priority band. */
+export function terminatorThreatColor(priority: number): string {
+  return THREAT_COLOR[priorityBand(priority)];
+}
+
+const THREAT_COLOR: Record<PriorityBand, string> = {
+  white_hot: "rgb(255, 40, 40)",
+  critical: "rgb(220, 60, 40)",
+  elevated: "rgb(180, 70, 50)",
+  watch: "rgb(120, 50, 45)",
+  cold: "rgb(60, 30, 30)",
+};
+
+// The priority bands live with every other band cutoff (scoring/bands).
+export { PRIORITY_BAND_LABEL, priorityBand, type PriorityBand };
+
+/** The lowest priority in the top band ("Top priority"). */
+export const PRIORITY_TOP = PRIORITY_SCALE.top;
 
 export interface PriorityTarget {
   id: string;
@@ -176,7 +184,7 @@ export function scorePriority(input: {
 
   if (input.kind === "process") {
     impact = 0.55 + Math.min(0.25, (input.dependencyCount ?? 0) * 0.06);
-    if ((input.residualScore ?? 0) >= 60) {
+    if ((input.residualScore ?? 0) >= RISK_SCALE.actNow) {
       impact += 0.12;
       reasons.push("High residual on process path");
     }

@@ -376,7 +376,7 @@ function FirmPage() {
             team.
           </p>
         )}
-        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
           <Metric
             label="Hours to a complete map"
             value={metrics.hoursToMap === null ? "—" : String(metrics.hoursToMap)}
@@ -389,12 +389,17 @@ function FirmPage() {
           <Metric
             label="Findings accepted"
             value={metrics.acceptanceRate === null ? "—" : formatPct(metrics.acceptanceRate)}
-            hint="Duty conflicts answered (risk accepted, covered by dual release, or a logged decision), out of all duty conflicts found."
+            hint="Duty conflicts with an accept-residual decision logged, out of all duty conflicts found. An accepted conflict stays open."
+          />
+          <Metric
+            label="Findings acted on"
+            value={own ? String(metrics.actedOnFindings) : "—"}
+            hint="Duty conflicts closed by dual release, or with a remediate, monitor or insure decision logged. Not counted as accepted."
           />
           <Metric
             label="Open duty conflicts"
             value={own ? String(metrics.openFindings) : "—"}
-            hint="Conflicts found with no answer yet."
+            hint="Open as Start here and the report count them. A logged decision does not close a conflict."
           />
           <Metric label="Report sent" value={metrics.reportSent ? "Yes" : "Not yet"} />
         </dl>

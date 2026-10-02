@@ -19,7 +19,40 @@ import {
   ShoppingBag,
   Stethoscope,
 } from "lucide-react";
-import { titleKey, uid } from "@/lib/precog/text";
+import { caseCountsForIndustry, type IndustrySector } from "@/lib/precog/evidence";
+import { count, joinWithAnd, titleKey, uid } from "@/lib/precog/text";
+
+/**
+ * The words for a sector inside "N in …". The dental template's three sectors
+ * join to "dental, medical and veterinary practices", so only the last
+ * carries the noun.
+ */
+const SECTOR_WORDS: Record<Exclude<IndustrySector, "any">, string> = {
+  dental: "dental",
+  medical: "medical",
+  veterinary: "veterinary practices",
+  restaurant: "restaurants",
+  construction: "construction",
+  trades: "the trades",
+  automotive: "auto dealerships and repair shops",
+  "professional-services": "professional services",
+  retail: "retail",
+  nonprofit: "nonprofits",
+};
+
+/**
+ * How many prosecuted cases the library holds for a line of business, beside
+ * the whole library's count, so a thin line of business is not mistaken for
+ * the evidence as a whole: "3 prosecuted cases in retail, 53 across all lines
+ * of business". The general template counts the whole library. Both counts
+ * come from the library, never from a typed number.
+ */
+export function caseCoveragePhrase(industryId: IndustryId): string {
+  const { own, total, sectors } = caseCountsForIndustry(industryId);
+  if (own === null) return `${count(total, "prosecuted case")} across all lines of business`;
+  const words = joinWithAnd(sectors.map((s) => (s === "any" ? "" : SECTOR_WORDS[s])));
+  return `${count(own, "prosecuted case")} in ${words}, ${total} across all lines of business`;
+}
 
 export const ICONS: Record<IndustryId, typeof Stethoscope> = {
   dental: Stethoscope,

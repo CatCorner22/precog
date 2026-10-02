@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
+import { DEFAULT_WEIGHTS, WEIGHT_DESCRIPTIONS } from "@/lib/precog/scoring/weights";
 import { formatWeight, weightLabel } from "./scoring-basis-copy";
 
 describe("scoring disclosure", () => {
@@ -11,9 +11,23 @@ describe("scoring disclosure", () => {
     }
   });
 
-  it("prints the saturation points with units and shares as percentages", () => {
-    expect(formatWeight("lossSaturationUsd", 125_000)).toBe("$125,000");
-    expect(formatWeight("daysSaturation", 240)).toBe("240 days");
+  it("prints dollars, multipliers and index values with units and shares as percentages", () => {
+    expect(formatWeight("cashReferenceUsd", 2500)).toBe("$2,500");
+    expect(formatWeight("weakSegregationFactor", 1.25)).toBe("×1.25");
+    expect(formatWeight("soleCriticalIndex", 85)).toBe("85 of 100");
     expect(formatWeight("assetExposure", 0.28)).toBe("28%");
+  });
+
+  it("describes every published weight, and none that is not published", () => {
+    const published = Object.entries(DEFAULT_WEIGHTS).flatMap(([group, values]) =>
+      Object.keys(values).map((key) => `${group}.${key}`),
+    );
+    expect(Object.keys(WEIGHT_DESCRIPTIONS).sort()).toEqual([...published].sort());
+  });
+
+  it("claims no effect for a weight of zero", () => {
+    for (const values of Object.values(DEFAULT_WEIGHTS)) {
+      for (const [key, value] of Object.entries(values)) expect(value, key).not.toBe(0);
+    }
   });
 });

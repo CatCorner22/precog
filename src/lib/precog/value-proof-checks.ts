@@ -78,7 +78,10 @@ export function evidenceChecklist({
   /** The owner entered their own review hours on the value case. */
   hoursObserved: boolean;
   evidence: ValueEvidence[];
-  profile: Pick<PracticeProfile, "mapHealthHistory" | "accessReconciliation">;
+  profile: Pick<
+    PracticeProfile,
+    "mapHealthHistory" | "mapCompletenessHistory" | "accessReconciliation"
+  >;
   asOf?: Date;
 }): ChecklistItem[] {
   const verifiedOf = (kinds: ValueEvidence["kind"][]) =>
@@ -97,7 +100,10 @@ export function evidenceChecklist({
     },
     {
       label: "Control coverage tracked over time",
-      done: (profile.mapHealthHistory?.length ?? 0) >= 2,
+      // Either series shows tracking over time: the retired map health one or completeness.
+      done:
+        (profile.mapCompletenessHistory?.length ?? 0) >= 2 ||
+        (profile.mapHealthHistory?.length ?? 0) >= 2,
     },
     {
       label: "Actual access reconciled to approved access",

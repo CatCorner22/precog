@@ -11,7 +11,6 @@ import {
 } from "react";
 import { INDUSTRIES, industryHasOwner, type IndustryId } from "@/lib/precog/industry";
 import { getIndustryTemplate } from "@/lib/precog/templates";
-import { CASE_LIBRARY, sectorsForIndustry } from "@/lib/precog/evidence";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useTabName } from "@/lib/precog/presentation";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
@@ -68,6 +67,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { fieldCls } from "@/components/ui/field-classes";
 
 import {
+  caseCoveragePhrase,
   dutiesHeldByTitle,
   EMPTY_ROW,
   freshRows,
@@ -1186,14 +1186,7 @@ export function IndustryOnboarding() {
 /** How long the draft waits after the last edit before it is written to this tab. */
 const DRAFT_WRITE_DELAY_MS = 250;
 
-/** How many prosecuted cases the library holds for each line of business; the general template counts the whole library. */
+/** How many prosecuted cases the library holds for each line of business, beside the whole library's count. */
 const CASE_PHRASE = Object.fromEntries(
-  INDUSTRIES.map((ind) => {
-    const sectors = sectorsForIndustry(ind.id);
-    if (sectors.includes("any")) {
-      return [ind.id, `${CASE_LIBRARY.length} prosecuted cases across every line of business`];
-    }
-    const cases = CASE_LIBRARY.filter((c) => sectors.includes(c.sector)).length;
-    return [ind.id, `${count(cases, "prosecuted case")} in this line of business`];
-  }),
+  INDUSTRIES.map((ind) => [ind.id, caseCoveragePhrase(ind.id)]),
 ) as Record<IndustryId, string>;

@@ -17,8 +17,8 @@ import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 /**
  * Business profile editor — feeds staff into residual scores, scenarios, and
  * Pioneer. On an own business the figures the team decides (team size, years
- * of service when hire dates are known, items only one person knows) are
- * shown, not set: the next team or register edit would put them back.
+ * of service when hire dates are known, items only one person knows, the
+ * segregation score and the bank reconciliation answer) are shown, not set.
  */
 export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () => void }) {
   const tabName = useTabName();
@@ -27,7 +27,6 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
     setPracticeName,
     setIndustry,
     setStaff,
-    resetSegregationToDerived,
     resetProfile,
     createBusiness,
     setCustomProcesses,
@@ -101,24 +100,8 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
       ? "From the hire dates on your team."
       : "You have not entered hire dates for your team, so this is the sample business's figure."
     : undefined;
-  const segregationNote = ownTeam ? (
-    s.segregationSource === "manual" ? (
-      <>
-        You set this by hand.{" "}
-        <button
-          type="button"
-          onClick={resetSegregationToDerived}
-          className="text-primary underline hover:text-fg"
-        >
-          Use the score from your team's duties
-        </button>
-      </>
-    ) : (
-      `From your team's duties (${s.segregationScore}/100). Moving the slider sets it by hand.`
-    )
-  ) : (
-    "An estimate for the sample team. Import or edit your team in the map builder to work it out from their duties."
-  );
+  const segregationNote =
+    "An estimate for the sample team. Import or edit your team in the map builder to work it out from their duties.";
 
   return (
     <Card>
@@ -185,14 +168,19 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
               onChange={(v) => setStaff({ ...s, teamSize: v })}
             />
           )}
-          <Slider
-            label="Segregation score"
-            value={s.segregationScore}
-            min={0}
-            max={100}
-            onChange={(v) => setStaff({ ...s, segregationScore: v })}
-            note={segregationNote}
-          />
+          {ownTeam ? (
+            // An own team's score comes only from who holds which duties.
+            <Figure label="Segregation score" value={s.segregationScore} note={FROM_DUTIES} />
+          ) : (
+            <Slider
+              label="Segregation score"
+              value={s.segregationScore}
+              min={0}
+              max={100}
+              onChange={(v) => setStaff({ ...s, segregationScore: v })}
+              note={segregationNote}
+            />
+          )}
           <Figure
             label="Items only one person knows"
             value={s.soleOwnerKnowledgeCount}
@@ -225,15 +213,25 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
           />
           Two people approve every payment (dual release)
         </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={s.independentBankRec}
-            onChange={(e) => setStaff({ ...s, independentBankRec: e.target.checked })}
-            className="size-4 accent-[var(--color-primary)]"
-          />
-          Independent bank reconciliation
-        </label>
+        {ownTeam ? (
+          <div className="text-sm">
+            <p>
+              Independent bank reconciliation:{" "}
+              <span className="font-medium">{s.independentBankRec ? "Yes" : "No"}</span>
+            </p>
+            <p className="mt-0.5 text-xs text-subtle">{FROM_DUTIES}</p>
+          </div>
+        ) : (
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={s.independentBankRec}
+              onChange={(e) => setStaff({ ...s, independentBankRec: e.target.checked })}
+              className="size-4 accent-[var(--color-primary)]"
+            />
+            Independent bank reconciliation
+          </label>
+        )}
         {onOpenDualRelease && (
           <Button size="sm" variant="secondary" onClick={onOpenDualRelease}>
             <ShieldCheck className="size-3.5" />
@@ -452,6 +450,9 @@ function Slider({
     </div>
   );
 }
+
+/** The line under a figure an own team's duties decide. */
+const FROM_DUTIES = "From your team's duties";
 
 /** A figure the business's own data decides, shown rather than set. */
 function Figure({ label, value, note }: { label: string; value: number; note?: ReactNode }) {

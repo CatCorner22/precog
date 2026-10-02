@@ -1,13 +1,4 @@
-import { priorityBand, type PriorityBand } from "@/lib/precog/map-vision";
-
-/**
- * The priority page's one band scale. The overall index reads against the
- * same priorityBand cutoffs as every item, so the header badge, its colour
- * and the items below can never disagree.
- */
-export function overallBand(index: number): PriorityBand {
-  return priorityBand(index);
-}
+import type { PriorityBand } from "@/lib/precog/map-vision";
 
 export function isUrgent(band: PriorityBand): boolean {
   return band === "white_hot" || band === "critical";
@@ -26,14 +17,5 @@ export const DOMAIN_LABEL: Record<string, string> = {
   sod: "Duty conflict",
   knowledge: "Know-how",
   scenario: "Scenario",
-  leading: "Early warning",
   portfolio: "Residual risk",
-};
-
-/** The early-warning bands (ml/leading-indicators) in words. */
-export const LEADING_BAND_LABEL: Record<string, string> = {
-  calm: "Calm",
-  watch: "Worth watching",
-  heat: "Rising",
-  red: "High",
 };

@@ -38,8 +38,8 @@ describe("scoreLeadingIndicators", () => {
       dailyCashExposure: 1000,
     });
     const notClear = report.indicators.filter((i) => i.status !== "ok");
-    // The residual and COSO indices are not driven to zero by staff alone.
-    expect(notClear.every((i) => i.id === "li_residual" || i.id === "li_coso_monitor")).toBe(true);
+    // The residual index is not driven to zero by staff alone; COSO is no longer watched.
+    expect(notClear.every((i) => i.id === "li_residual")).toBe(true);
     if (notClear.length === 0) {
       expect(report.pressureIndex).toBe(0);
       expect(report.band).toBe("calm");

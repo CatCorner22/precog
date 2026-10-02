@@ -1,7 +1,7 @@
 import { ArrowRight, ShieldAlert } from "lucide-react";
 import { SectionHeading } from "./start-here-parts";
 import { BADGE_VARIANT } from "./start-here-copy";
-import { caseForRule, lossPhrase } from "@/lib/precog/evidence";
+import { caseForRule, lossPhrase, NO_CASE_FOR_RULE } from "@/lib/precog/evidence";
 import { gapBadge } from "@/lib/precog/coach/first-steps";
 import { closingSteps } from "@/lib/precog/controls/dual-release-wording";
 import { personLabel } from "@/lib/precog/person-label";
@@ -172,17 +172,17 @@ export function StartHereExposureSection({
                     </div>
                   )}
 
-                  {pick && (
+                  {pick?.citesRule ? (
                     <div>
                       <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-subtle">
-                        {!pick.citesRule
-                          ? "A related scheme, somewhere real"
-                          : pick.ownSector
-                            ? "This exact gap, in your line of business"
-                            : "This exact gap, somewhere real"}
+                        {pick.ownSector
+                          ? "This exact gap, in your line of business"
+                          : "This exact gap, somewhere real"}
                       </p>
                       <CaseCard study={pick.study} />
                     </div>
+                  ) : (
+                    <p className="text-xs text-subtle">{NO_CASE_FOR_RULE}</p>
                   )}
                 </CardContent>
               </Card>

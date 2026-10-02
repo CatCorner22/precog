@@ -2,6 +2,9 @@ import { CONFLICT_RULES, entitlementLabel } from "@/lib/precog/sod/conflict-rule
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
 import type { DualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import { midSentence } from "@/lib/precog/text";
+import { isPaymentDuty } from "@/lib/precog/sod/score";
+import type { StaffComposition } from "@/lib/precog/types";
+import { formatUsd } from "@/lib/utils";
 
 export type ConflictSeverity = DetectedConflict["severity"];
 
@@ -42,6 +45,43 @@ export function conflictTone(conflict: DetectedConflict): ConflictTone {
 export function conflictBadge(conflict: DetectedConflict): string {
   if (conflict.ownerHeld) return "Owner-held";
   return SEVERITY_FILTERS.find((item) => item.id === conflict.severity)?.label ?? "Conflict";
+}
+
+/**
+ * The plain reasons a conflict ranks where it does, in place of a number:
+ * who holds the pair, whether dual release covers it, and the staffing that
+ * leaves it open (no second approver on payments, nobody independent on the
+ * bank reconciliation). When dual release covers the rule only above a
+ * threshold (`partialDualReleaseCoverage`), pass that threshold: payments
+ * below it still go out on one person's say-so, so the line names it. The
+ * severity is the card's badge. Cards still sort by the score behind these;
+ * the number itself saturates and is not a rank.
+ */
+export function conflictFactors(
+  conflict: Pick<
+    DetectedConflict,
+    "personName" | "ownerHeld" | "dualReleaseMitigated" | "entitlementA" | "entitlementB"
+  >,
+  staff?: Pick<StaffComposition, "dualControlPayments" | "independentBankRec">,
+  partialThresholdUsd?: number,
+): string[] {
+  const pair = [conflict.entitlementA, conflict.entitlementB];
+  return [
+    conflict.ownerHeld
+      ? `Held by ${conflict.personName}, the owner`
+      : `Held by ${conflict.personName}`,
+    !conflict.dualReleaseMitigated
+      ? "No dual release covers it"
+      : partialThresholdUsd && partialThresholdUsd > 0
+        ? `Dual release covers payments over ${formatUsd(partialThresholdUsd)} only`
+        : "Dual release covers it",
+    ...(staff && !staff.dualControlPayments && pair.some(isPaymentDuty)
+      ? ["No second approver on payments"]
+      : []),
+    ...(staff && !staff.independentBankRec && pair.includes("bank_reconcile")
+      ? ["Nobody independent reconciles the bank"]
+      : []),
+  ];
 }
 
 /**

@@ -132,9 +132,18 @@ export function rankFirstSteps<
     );
 }
 
-/** How a gap card is badged: severity until dual release covers it. */
+/**
+ * How a gap card is badged: severity until dual release covers it. Severity
+ * words, not the residual action bands ("Fix first" means a residual index
+ * of 80 or more, scoring/bands), so one word never means two scales.
+ */
 export type GapBadge =
-  "Fix first" | "Fix soon" | "Worth doing" | "Reduced, not closed" | "Covered by dual release";
+  | "Critical"
+  | "High"
+  | "Medium"
+  | "Related duties"
+  | "Reduced, not closed"
+  | "Covered by dual release";
 
 /**
  * A gap the policy covers at every amount carries "Covered by dual release",
@@ -147,12 +156,15 @@ export function gapBadge(
 ): GapBadge {
   if (partialThreshold !== undefined) return "Reduced, not closed";
   if (conflict.dualReleaseMitigated) return "Covered by dual release";
-  return conflict.severity === "critical"
-    ? "Fix first"
-    : conflict.severity === "high"
-      ? "Fix soon"
-      : "Worth doing";
+  return SEVERITY_BADGE[conflict.severity];
 }
+
+const SEVERITY_BADGE: Record<DetectedConflict["severity"], GapBadge> = {
+  critical: "Critical",
+  high: "High",
+  medium: "Medium",
+  family: "Related duties",
+};
 
 /** One owner-held pair for the "Duties you hold yourself" note. */
 interface OwnerHeldPair {

@@ -1,6 +1,8 @@
 import type { IntegrationDriftSummary } from "./drift-summary";
 import type { AccessReconciliation } from "../firm/reconcile";
 import { pendingQueueCount } from "../firm/reconcile";
+import { count, verb } from "../text";
+import { formatDay } from "../dates";
 
 export interface DriftAction {
   id: string;
@@ -11,6 +13,20 @@ export interface DriftAction {
 }
 
 const PRIORITY = 88;
+
+/**
+ * The scope limit beside the duty-conflict findings when the books show
+ * people the duty map does not list: the findings cover only the people on
+ * the map. Dated, because the stored reading does not refresh when people
+ * are added to the map. Pending access-import rows stay out: they mix
+ * sign-ins with supplier rows, and the drift actions already ask for them.
+ * Null when no drift reading shows anyone missing.
+ */
+export function sodScopeLine(summary: IntegrationDriftSummary | null | undefined): string | null {
+  const n = summary?.qboEmployeesNotOnMap ?? 0;
+  if (!summary || n <= 0) return null;
+  return `At the reading on ${formatDay(summary.updatedAt)}, your books showed ${count(n, "person", "people")} the duty map does not list; ${verb(n, "that person's", "their")} duties are not assessed.`;
+}
 
 /** Ranked owner actions when books or access exports disagree with the duty map. */
 export function buildDriftActions(input: {

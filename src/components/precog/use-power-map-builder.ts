@@ -249,9 +249,8 @@ export function usePowerMapBuilder() {
     );
   }
 
-  const criticalCount = report.conflicts.filter(
-    (item) => item.severity === "critical" && !item.dualReleaseMitigated,
-  ).length;
+  // Counted by the one open rule (sod/open-findings), as every other screen counts it.
+  const criticalCount = report.summary.critical;
 
   function write(next: RoleAssignment[]) {
     setCustomPeople((people) => applyAssignmentsToPeople(people, next));

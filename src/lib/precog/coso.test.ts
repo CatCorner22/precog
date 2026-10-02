@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate } from "./templates";
-import { assessCoso } from "./coso";
+import { assessCoso, componentStatus, COSO_PRINCIPLE_COUNT } from "./coso";
+import type { AccessReconciliation } from "./firm/reconcile";
 import { defaultProfile } from "./practice-profile";
 import type { Person, StaffComposition } from "./types";
 
@@ -32,7 +33,7 @@ describe("assessCoso", () => {
     expect(note(fromTemplate)).toMatch(
       new RegExp(`^Segregation score ${own.staffComposition.segregationScore}/100`),
     );
-    expect(fromProfile.overall).toBeGreaterThan(fromTemplate.overall);
+    expect(fromProfile.gaps).toBeLessThan(fromTemplate.gaps);
   });
 
   it("never lists a key-person finding with a zero count", () => {
@@ -140,25 +141,27 @@ describe("priority findings", () => {
   });
 });
 
-describe("COSO component scores", () => {
+describe("COSO component statuses", () => {
   const dental = getIndustryTemplate("dental");
   const withControls = (change: (c: (typeof dental.controls)[number]) => object) => ({
     ...dental,
     controls: dental.controls.map((c) => (c.segregated ? c : { ...c, ...change(c) })),
   });
-  const score = (a: ReturnType<typeof assessCoso>, id: string) =>
-    a.components.find((c) => c.id === id)!.score;
+  const status = (a: ReturnType<typeof assessCoso>, id: string) =>
+    a.components.find((c) => c.id === id)!.status;
+  const principle = (a: ReturnType<typeof assessCoso>, n: number) =>
+    a.components.flatMap((c) => c.principles).find((p) => p.number === n)!;
 
-  it("stay on the 0 to 100 scale with every control in place", () => {
-    const a = assessCoso(
-      withControls(() => ({ segregated: true })),
-      {
-        ...clean,
-        dualControlPayments: true,
-      },
-    );
-    expect(score(a, "control_activities")).toBe(100);
-    for (const c of a.components) expect(c.score).toBeLessThanOrEqual(100);
+  it("read a gap when any principle has one, with no score to average it away", () => {
+    expect(componentStatus([{ status: "in_place" }, { status: "gap" }])).toBe("gap");
+    expect(componentStatus([{ status: "in_place" }, { status: "not_assessed" }])).toBe("in_place");
+    expect(componentStatus([{ status: "not_assessed" }])).toBe("not_assessed");
+    const a = assessCoso(dental, dental.staffComposition);
+    for (const c of a.components) {
+      expect(c).not.toHaveProperty("score");
+      expect(c.status).toBe(componentStatus(c.principles));
+    }
+    expect(a).not.toHaveProperty("overall");
   });
 
   it("do not score closing every duty conflict below accepting each one", () => {
@@ -170,12 +173,98 @@ describe("COSO component scores", () => {
       withControls(() => ({ segregated: true })),
       clean,
     );
-    expect(score(closed, "monitoring")).toBeGreaterThanOrEqual(score(accepted, "monitoring"));
-    const p5 = closed.components
-      .find((c) => c.id === "control_environment")!
-      .principles.find((p) => p.number === 5)!;
-    expect(p5.status).toBe("adequate");
+    expect(closed.gaps).toBeLessThanOrEqual(accepted.gaps);
+    const p5 = principle(closed, 5);
+    expect(p5.status).toBe("in_place");
     expect(p5.note).toBe("No open duty conflict needs a residual-risk decision.");
+    // Accepting the risk records a decision; it does not close the gap.
+    expect(principle(accepted, 12).status).toBe("gap");
+    expect(principle(accepted, 17).status).toBe("in_place");
+  });
+
+  it("mark Control Activities as a gap for one critical duty conflict", () => {
+    // Every control split and nobody holding a pair, then Ben holding one critical pair.
+    const team = (ben: Person["entitlements"]) => {
+      const tpl = resolveTemplate({
+        industry: "general",
+        customPeople: [
+          { ...people[0], entitlements: ["view_reports_only"] },
+          { ...people[1], entitlements: ben },
+        ],
+        customRelations: [],
+      });
+      return { ...tpl, controls: tpl.controls.map((c) => ({ ...c, segregated: true })) };
+    };
+    const none = assessCoso(team(["view_reports_only"]), clean);
+    expect(principle(none, 10).status).toBe("in_place");
+    expect(status(none, "control_activities")).toBe("in_place");
+    const a = assessCoso(team(["create_vendor", "release_payment"]), clean);
+    expect(principle(a, 10).status).toBe("gap");
+    expect(principle(a, 10).note).toContain(
+      "1 open critical or high duty conflict on the duty map",
+    );
+    expect(status(a, "control_activities")).toBe("gap");
+  });
+});
+
+describe("a business with nothing assessed", () => {
+  it("shows no adequate or strong label and says how many principles are not assessed", () => {
+    const a = assessCoso(own, clean);
+    const principles = a.components.flatMap((c) => c.principles);
+    expect(principles).toHaveLength(COSO_PRINCIPLE_COUNT);
+    const statuses = [...principles.map((p) => p.status), ...a.components.map((c) => c.status)];
+    expect(statuses.every((s) => s === "gap" || s === "in_place" || s === "not_assessed")).toBe(
+      true,
+    );
+    // P1, 4, 6, 7, 9, 11, 13, 14 and 15: no record behind them yet.
+    expect(a.notAssessed).toBe(9);
+    expect(principles.filter((p) => p.notAssessed).length).toBe(a.notAssessed);
+    for (const p of principles) expect(p.notAssessed === true).toBe(p.status === "not_assessed");
+  });
+});
+
+describe("principle 11", () => {
+  const rec = (users: AccessReconciliation["users"]): AccessReconciliation => ({
+    importedAt: "2026-09-01T10:00:00.000Z",
+    source: "quickbooks",
+    users,
+    vendors: [],
+  });
+  const row = (over: Partial<AccessReconciliation["users"][number]>) => ({
+    id: "u1",
+    name: "Ben Ochoa",
+    email: "",
+    role: "Standard",
+    mapped: [],
+    unmatchedTokens: [],
+    extra: [],
+    missingFromBooks: [],
+    status: "mapped" as const,
+    ...over,
+  });
+  const p11 = (a: ReturnType<typeof assessCoso>) =>
+    a.components.flatMap((c) => c.principles).find((p) => p.number === 11)!;
+
+  it("reads the access import when there is one", () => {
+    expect(p11(assessCoso(own, clean)).status).toBe("not_assessed");
+    const fine = p11(assessCoso(own, clean, { accessReconciliation: rec([row({})]) }));
+    expect(fine.status).toBe("in_place");
+    expect(fine.notAssessed).toBeUndefined();
+    expect(fine.note).toBe(
+      "Access export imported on Sep 1, 2026: every row matches the duty map.",
+    );
+    const left = p11(
+      assessCoso(own, clean, {
+        accessReconciliation: rec([
+          row({ status: "pending", leftBusiness: true }),
+          row({ id: "u2", extra: ["export_bulk_data"] }),
+        ]),
+      }),
+    );
+    expect(left.status).toBe("gap");
+    expect(left.note).toBe(
+      "Access export imported on Sep 1, 2026: 1 row still to map, 1 person who left still with a sign-in and 1 person with access the duty map does not show.",
+    );
   });
 });
 
@@ -200,9 +289,10 @@ describe("principles the app cannot read", () => {
   it("say so instead of asserting facts about the business", () => {
     const a = assessCoso(own, clean);
     const principles = a.components.flatMap((c) => c.principles);
-    for (const n of [6, 9, 11, 13, 15]) {
+    for (const n of [1, 6, 9, 11, 13, 15]) {
       const p = principles.find((x) => x.number === n)!;
       expect(p.notAssessed, `P${n}`).toBe(true);
+      expect(p.status, `P${n}`).toBe("not_assessed");
       expect(p.note).toMatch(/^Not assessed/);
     }
     expect(principles.map((p) => p.note).join(" ")).not.toMatch(/\bPMS\b|practice/);

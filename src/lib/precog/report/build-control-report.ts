@@ -93,15 +93,11 @@ export function buildControlReportModel({
   // the open findings by the same rule.
   const sodOpen = openSeverityCounts(sod.conflicts, profile.dualRelease);
   const sodLevel = segregationLevel(sod.summary.segregationHealth, sodOpen);
-  // A segregation score or bank-reconciliation answer the owner set by hand
-  // moves the priority and residual figures without any change in who does
-  // what, so the report says so beside what the duties give, read with the
-  // dual release the duty separation index reads.
+  // A segregation score or bank-reconciliation answer set by hand on a
+  // sample moves the priority and residual figures without any change in
+  // who does what, so the report says so. An own team's come from its duties.
   const handSet = handSetNotes(
-    handSetFigures(tpl, profile.staff, {
-      ownTeam: Boolean(profile.customPeople),
-      dualReleaseMitigatedRuleIds: sodOptions.dualReleaseMitigatedRuleIds,
-    }),
+    handSetFigures(profile.staff, { ownTeam: Boolean(profile.customPeople) }),
   );
   const continuity = coverageReport(tpl);
   const staleness = staleItems(tpl, today);
@@ -150,12 +146,11 @@ export function buildControlReportModel({
     profile.mapLayout ?? {},
   );
   const mapHealth = computeMapHealth(snapshots, issues, { customized: mapCustomized });
-  // Open as Start here counts it: not accepted, not the owner's own pair, and
-  // not closed by dual release at every amount.
-  const open = openFindings(
-    sod.conflicts,
-    partialDualReleaseCoverage(profile.dualRelease, sod.conflicts),
-  );
+  // Open as every screen counts it: not the owner's own pair and not closed by
+  // dual release at every amount. The KPI hint, the duty-conflict section and
+  // this summary give the same count; the status column reads the same map.
+  const partialCoverage = partialDualReleaseCoverage(profile.dualRelease, sod.conflicts);
+  const open = openFindings(sod.conflicts, partialCoverage);
   const openRuleIds = ruleIdsOf(open);
   const matched = casesForSodRules(openRuleIds);
   // Same line of business first; the reader's own sector is the part they
@@ -181,7 +176,7 @@ export function buildControlReportModel({
     floors: citing.cases.filter((c) => c.lossUsd > 0 && c.lossIsFloor).length,
   };
   const docs = documentationDebt(tpl);
-  const firstPoint = profile.mapHealthHistory?.[0];
+  const firstPoint = profile.mapCompletenessHistory?.[0];
   const healthDelta =
     mapReady && firstPoint && mapHealth.score !== firstPoint.score
       ? { points: mapHealth.score - firstPoint.score, since: firstPoint.at }
@@ -203,6 +198,8 @@ export function buildControlReportModel({
     sod,
     sodOpen,
     sodLevel,
+    /** Rules dual release covers only above a threshold, for the status column. */
+    partialCoverage,
     handSet,
     continuity,
     staleness,

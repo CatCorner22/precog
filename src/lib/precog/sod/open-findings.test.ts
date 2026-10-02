@@ -1,5 +1,174 @@
 import { describe, expect, it } from "vitest";
-import { belowThresholdNote, openSodHint, type OpenSodCounts } from "./open-findings";
+import { resolveTemplate } from "../active-template";
+import { openConflictsByPerson } from "../coach/local-brief";
+import { INDUSTRIES } from "../industry";
+import { executeTool } from "../llm/tools";
+import { defaultProfile, type PracticeProfile } from "../practice-profile";
+import { buildControlReportModel } from "../report/build-control-report";
+import { buildStartHereModel } from "../start-here/model";
+import { detectSodConflicts, sodDetectionOptions, type DetectedConflict } from "./detect";
+import {
+  belowThresholdNote,
+  conflictStatus,
+  dualReleaseSplit,
+  openFindings,
+  openSodHint,
+  partialDualReleaseCoverage,
+  ruleIdsOf,
+  type OpenSodCounts,
+} from "./open-findings";
+
+const finding = (over: Partial<DetectedConflict>) =>
+  ({
+    ruleId: "rule-vendor-create-pay",
+    ownerHeld: false,
+    residualRiskAccepted: false,
+    dualReleaseMitigated: false,
+    ...over,
+  }) as DetectedConflict;
+
+describe("openFindings", () => {
+  it("keeps an accepted finding open: acceptance never closes one", () => {
+    const accepted = finding({ residualRiskAccepted: true });
+    expect(openFindings([accepted], new Map())).toEqual([accepted]);
+  });
+
+  it("closes a pair dual release covers at every amount, not one it covers above a threshold", () => {
+    const narrowed = finding({ dualReleaseMitigated: true });
+    expect(openFindings([narrowed], new Map())).toEqual([]);
+    expect(openFindings([narrowed], new Map([["rule-vendor-create-pay", 500]]))).toEqual([
+      narrowed,
+    ]);
+  });
+
+  it("leaves out the owner's own pairs", () => {
+    expect(openFindings([finding({ ownerHeld: true })], new Map())).toEqual([]);
+  });
+});
+
+describe("conflictStatus", () => {
+  const partial = new Map([["rule-vendor-create-pay", 500]]);
+
+  it("reads a pair dual release covers only above a threshold as reduced, not closed", () => {
+    expect(conflictStatus(finding({ dualReleaseMitigated: true }), partial)).toBe(
+      "Reduced, not closed",
+    );
+    expect(conflictStatus(finding({ dualReleaseMitigated: true }), new Map())).toBe(
+      "Covered by dual release",
+    );
+  });
+
+  it("keeps an accepted finding open and says the risk was accepted", () => {
+    const accepted = finding({ residualRiskAccepted: true });
+    expect(conflictStatus(accepted, new Map())).toBe("Open, risk accepted");
+    const reduced = finding({ residualRiskAccepted: true, dualReleaseMitigated: true });
+    expect(conflictStatus(reduced, partial)).toBe("Reduced, not closed; risk accepted");
+  });
+
+  it("reads open and the owner's own pairs", () => {
+    expect(conflictStatus(finding({}), new Map())).toBe("Open");
+    expect(conflictStatus(finding({ ownerHeld: true }), new Map())).toBe("Owner's own duties");
+  });
+});
+
+describe("dualReleaseSplit", () => {
+  it("counts a reduced pair once, apart from those covered at every amount", () => {
+    const covered = finding({ ruleId: "rule-a", dualReleaseMitigated: true });
+    const reduced = finding({ ruleId: "rule-b", dualReleaseMitigated: true });
+    const partial = new Map([["rule-b", 150]]);
+    expect(dualReleaseSplit([covered, reduced, finding({})], partial)).toEqual({
+      closed: 1,
+      reduced: 1,
+    });
+    expect(openFindings([covered, reduced], partial)).toEqual([reduced]);
+  });
+});
+
+describe("one open count on every screen", () => {
+  const variants = INDUSTRIES.flatMap(({ id }) => {
+    const base = defaultProfile(id);
+    const on: PracticeProfile = { ...base, dualRelease: { ...base.dualRelease, enabled: true } };
+    return [
+      { name: `${id}`, profile: base },
+      { name: `${id} with dual release`, profile: on },
+    ];
+  });
+
+  for (const { name, profile } of variants) {
+    it(`gives the same open critical and high counts for the ${name} sample`, () => {
+      const tpl = resolveTemplate(profile);
+      const report = buildControlReportModel({
+        tpl,
+        profile,
+        mapCustomized: false,
+        today: "2026-09-26",
+        trackFreshness: false,
+        mapReady: true,
+        businessName: "Sample",
+      });
+      // The duty-conflict tiles read the detector's summary.
+      const panel = detectSodConflicts(
+        tpl,
+        profile.staff,
+        sodDetectionOptions(tpl, profile.dualRelease),
+      ).summary;
+      const start = buildStartHereModel({ profile, template: tpl, today: new Date(2026, 8, 26) });
+      const startOpen = openFindings(start.exposure.openConflicts, start.exposure.partialCoverage);
+      const bySeverity = (open: readonly DetectedConflict[]) => [
+        open.filter((c) => c.severity === "critical").length,
+        open.filter((c) => c.severity === "high").length,
+      ];
+      const counts = [panel.critical, panel.high];
+      expect(bySeverity(startOpen)).toEqual(counts);
+      expect([report.sodOpen.openCritical, report.sodOpen.openHigh]).toEqual(counts);
+      expect([report.sod.summary.critical, report.sod.summary.high]).toEqual(counts);
+      // The executive summary's total and critical count read the same findings.
+      const total = panel.critical + panel.high + panel.medium + panel.family;
+      expect(report.summary[0]).toMatch(
+        total === 0
+          ? /^No open duty conflicts/
+          : new RegExp(
+              `^${total} open duty conflicts?${panel.critical ? `, ${panel.critical} of them critical,` : ""}`,
+            ),
+      );
+
+      // The coach and the AI's case evidence name the same rules.
+      const partial = partialDualReleaseCoverage(profile.dualRelease, report.sod.conflicts);
+      const rules = ruleIdsOf(openFindings(report.sod.conflicts, partial)).sort();
+      const coach = openConflictsByPerson(profile, tpl).flatMap((p) => p.conflicts);
+      expect(ruleIdsOf(coach).sort()).toEqual(rules);
+      const evidence = executeTool("get_case_evidence", { profile });
+      expect([...(evidence.data as { openRuleIds: string[] }).openRuleIds].sort()).toEqual(rules);
+    });
+  }
+
+  it("counts an accepted finding as open on the duty-conflict tiles and the report", () => {
+    const profile = defaultProfile("dental");
+    const tpl = resolveTemplate(profile);
+    const report = buildControlReportModel({
+      tpl,
+      profile,
+      mapCustomized: false,
+      today: "2026-09-26",
+      trackFreshness: false,
+      mapReady: true,
+      businessName: "Sample",
+    });
+    const accepted = report.sod.conflicts.filter(
+      (c) => c.residualRiskAccepted && !c.ownerHeld && !c.dualReleaseMitigated,
+    );
+    expect(accepted.filter((c) => c.severity === "critical").length).toBeGreaterThan(0);
+    // Every accepted finding is in the open set, and the counts are that set's.
+    const open = openFindings(report.sod.conflicts, report.partialCoverage);
+    for (const c of accepted) expect(open).toContain(c);
+    const bySeverity = (s: DetectedConflict["severity"]) =>
+      open.filter((c) => c.severity === s).length;
+    expect(report.sod.summary.critical).toBe(bySeverity("critical"));
+    expect(report.sod.summary.high).toBe(bySeverity("high"));
+    expect(report.sodOpen.openCritical).toBe(report.sod.summary.critical);
+    expect(conflictStatus(accepted[0], report.partialCoverage)).toBe("Open, risk accepted");
+  });
+});
 
 const counts = (over: Partial<OpenSodCounts>): OpenSodCounts => ({
   openCritical: 0,

@@ -3,7 +3,8 @@ import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate } from "./templates";
 import { defaultProfile } from "./practice-profile";
 import { rankDangerousScenarios } from "./engine";
-import { buildThreatAssessment } from "./threat-scoring";
+import { buildThreatAssessment, fixFirstCount, fixFirstOf, rankTargets } from "./threat-scoring";
+import { PRIORITY_BAND_LABEL, priorityBand } from "./map-vision";
 import { detectSodConflicts, sodDetectionOptions } from "./sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "./sod/open-findings";
 import type { Person } from "./types";
@@ -166,5 +167,78 @@ describe("next steps for a residual row", () => {
       expect(roe.join(" ")).not.toMatch(/vendor|write-offs/i);
     }
     expect(seen).toBeGreaterThan(0);
+  });
+});
+
+describe("the priority list's headline", () => {
+  /** A small seeded generator, so a failure replays. */
+  const random = (seed: number) => () => {
+    seed = (seed * 1103515245 + 12345) % 2 ** 31;
+    return seed / 2 ** 31;
+  };
+
+  it("counts the top band and never falls when an item is added", () => {
+    const next = random(7);
+    const target = () => {
+      const priority = Math.round(next() * 100);
+      // Labels repeat now and then, so the one-per-label rule is exercised too.
+      return { label: `item ${Math.floor(next() * 30)}`, priority, band: priorityBand(priority) };
+    };
+    for (let run = 0; run < 200; run++) {
+      const targets = Array.from({ length: Math.floor(next() * 20) }, target);
+      const before = fixFirstCount(rankTargets(targets));
+      expect(before).toBe(
+        rankTargets(targets).filter(
+          (t) => t.priority >= 88 && PRIORITY_BAND_LABEL[t.band] === "Top priority",
+        ).length,
+      );
+      expect(fixFirstCount(rankTargets([...targets, target()]))).toBeGreaterThanOrEqual(before);
+    }
+  });
+
+  it("counts every top-band item, not only the ten the list shows", () => {
+    const targets = Array.from({ length: 12 }, (_, i) => ({
+      label: `item ${i}`,
+      priority: 90 + (i % 5),
+      band: priorityBand(90),
+    }));
+    expect(rankTargets(targets)).toHaveLength(10);
+    expect(fixFirstCount(targets)).toBe(12);
+    // A version locked before the count was stored has only its list to count.
+    expect(fixFirstOf({ targetDeck: rankTargets(targets) })).toBe(10);
+    expect(fixFirstOf({ targetDeck: rankTargets(targets), fixFirst: 12 })).toBe(12);
+  });
+
+  it("stores the headline over every target the report built", () => {
+    const tpl = getIndustryTemplate("dental");
+    const report = buildThreatAssessment({ tpl, practiceName: "x", staff: tpl.staffComposition });
+    expect(report.fixFirst).toBeGreaterThanOrEqual(fixFirstCount(report.targetDeck));
+    expect(fixFirstOf(report)).toBe(report.fixFirst);
+  });
+
+  it("does not fall when the owner confirms a scenario", () => {
+    const own = resolveTemplate({
+      industry: "restaurant",
+      customPeople: people,
+      customRelations: [],
+    });
+    const p = defaultProfile("restaurant");
+    const headline = (confirmed: string[]) =>
+      buildThreatAssessment({
+        tpl: own,
+        practiceName: "Tavern",
+        staff: p.staff,
+        riskVariables: p.riskVariables,
+        confirmedScenarioIds: new Set(confirmed),
+      }).fixFirst;
+    expect(headline(["sc-vendor-fraud"])).toBeGreaterThanOrEqual(headline([]));
+  });
+
+  it("carries no averaged index and no early-warning pressure", () => {
+    const tpl = getIndustryTemplate("dental");
+    const report = buildThreatAssessment({ tpl, practiceName: "x", staff: tpl.staffComposition });
+    expect(Object.keys(report)).not.toContain("overallThreatIndex");
+    expect(Object.keys(report)).not.toContain("leadingPressure");
+    expect(report.missionBrief.join(" ")).not.toMatch(/Early-warning/);
   });
 });

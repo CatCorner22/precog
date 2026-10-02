@@ -105,7 +105,7 @@ describe("staffing what-if", () => {
     expect(applied.avgTenureYears).toBe(4);
   });
 
-  it("keeps an own team's segregation score on Apply and applies the other fields", () => {
+  it("keeps an own team's segregation score and bank reconciliation answer on Apply and applies the other fields", () => {
     const people: Person[] = [
       { id: "a", name: "Ada", role: "Owner", active: true, entitlements: ["approve_payroll"] },
       { id: "b", name: "Ben", role: "Bookkeeper", active: true, entitlements: ["enter_invoices"] },
@@ -125,11 +125,23 @@ describe("staffing what-if", () => {
     expect(applied.segregationScore).toBe(saved.segregationScore);
     expect(applied.teamSize).toBe(whatIf.teamSize);
     expect(applied.dualControlPayments).toBe(whatIf.dualControlPayments);
-    expect(applied.independentBankRec).toBe(whatIf.independentBankRec);
-    // Saving it does not mark the score as set by hand.
+    expect(applied.independentBankRec).toBe(saved.independentBankRec);
+    // Saving it does not mark either figure as set by hand.
     const next = withStaff(profile, applied);
     expect(next.staff.segregationScore).toBe(saved.segregationScore);
     expect(next.staff.segregationSource).not.toBe("manual");
+    expect(next.staff.bankRecSource).not.toBe("manual");
+    // A sample business applies both.
+    const sample = applyWhatIf(saved, whatIf, { ownBusiness: false });
+    expect(sample.segregationScore).toBe(whatIf.segregationScore);
+    expect(sample.independentBankRec).toBe(whatIf.independentBankRec);
+  });
+
+  it("offers nothing to apply on an own team when only the bank reconciliation answer was tried", () => {
+    const saved = defaultProfile("dental").staff;
+    const bankOnly = { ...saved, independentBankRec: !saved.independentBankRec };
+    expect(whatIfApplies(saved, bankOnly, { ownBusiness: true })).toBe(false);
+    expect(whatIfApplies(saved, bankOnly, { ownBusiness: false })).toBe(true);
   });
 
   it("offers nothing to apply on an own team when only the segregation score was tried", () => {

@@ -143,7 +143,20 @@ export interface CaseStudy {
   source: EvidenceSource;
   /** Anything a careful reader should know about the figures. */
   caveat?: string;
+  /**
+   * Day (YYYY-MM-DD) a named person read the record against its source.
+   * Absent until then; the case card shows "Unverified" while it is absent.
+   * Never filled by a tool or from memory.
+   */
+  verifiedOn?: string;
+  /** The person who checked the record, under the same rule as `verifiedOn`. */
+  verifiedBy?: string;
+  /** What that person checked against the source. */
+  checkedFields?: CaseCheckedField[];
 }
+
+/** The parts of a case record a reviewer confirms against its source. */
+export type CaseCheckedField = "amount" | "dates" | "plea-or-sentence" | "mechanism";
 
 /** A published statistic, with its exact provenance. */
 export interface Benchmark {

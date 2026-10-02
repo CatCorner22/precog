@@ -35,16 +35,26 @@ export interface SensitivityReport {
 
 type WeightGroup = keyof ScoringWeights;
 
-const WEIGHT_GROUPS: WeightGroup[] = ["inherent", "control", "staff", "scenario", "knowledge"];
+/**
+ * The groups the residual index reads through its weights argument. The
+ * likelihood model and the know-how index read the defaults directly, so
+ * trying them here would move nothing.
+ */
+const WEIGHT_GROUPS: WeightGroup[] = [
+  "inherent",
+  "control",
+  "controlLevels",
+  "staff",
+  "scenario",
+  "scenarioStaff",
+  "knowledge",
+  "knowledgeLevels",
+];
 
 function cloneDefaultWeights(): ScoringWeights {
-  return {
-    inherent: { ...DEFAULT_WEIGHTS.inherent },
-    control: { ...DEFAULT_WEIGHTS.control },
-    staff: { ...DEFAULT_WEIGHTS.staff },
-    scenario: { ...DEFAULT_WEIGHTS.scenario },
-    knowledge: { ...DEFAULT_WEIGHTS.knowledge },
-  };
+  return Object.fromEntries(
+    Object.entries(DEFAULT_WEIGHTS).map(([group, values]) => [group, { ...values }]),
+  ) as unknown as ScoringWeights;
 }
 
 function averageResidual(scores: ReturnType<typeof scoreAllResidualRisks>): number {
@@ -74,8 +84,8 @@ function trialWeights(
 
   if (group === "inherent" || group === "control") {
     normalize(values, Object.keys(values));
-  } else if (group === "scenario" && (key === "lossShare" || key === "timeShare")) {
-    normalize(values, ["lossShare", "timeShare"]);
+  } else if (group === "scenario" && (key === "severityShare" || key === "likelihoodShare")) {
+    normalize(values, ["severityShare", "likelihoodShare"]);
   }
   return trial;
 }

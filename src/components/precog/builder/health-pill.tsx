@@ -4,7 +4,7 @@ import type { HealthDelta } from "@/lib/precog/builder/what-if";
 import { healthTone } from "@/lib/precog/scoring/bands";
 import { cn } from "@/lib/utils";
 
-/** The builder's map health pill: score, band and this session's change. */
+/** The builder's map completeness pill: score, band and this session's change. */
 export function HealthPill({
   score,
   band,
@@ -24,9 +24,9 @@ export function HealthPill({
         )}
       >
         <Gauge className="size-3" />
-        {score}
+        {score}%
       </span>
-      <span className="text-muted">Map health · {band}</span>
+      <span className="text-muted">Map completeness · {band}</span>
       {sessionDelta !== 0 && (
         <span className={cn("font-medium tabular", sessionDelta > 0 ? "text-ok" : "text-danger")}>
           {sessionDelta > 0 ? "+" : ""}
@@ -54,7 +54,7 @@ export function DeltaBadge({ delta }: { delta: HealthDelta | null }) {
       )}
     >
       <Activity className="size-2.5" aria-hidden />
-      <span className="sr-only">Map health change </span>
+      <span className="sr-only">Map completeness change </span>
       {up ? "+" : ""}
       {delta.delta}
     </span>

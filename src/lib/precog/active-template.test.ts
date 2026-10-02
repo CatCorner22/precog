@@ -154,6 +154,27 @@ describe("resolveTemplate", () => {
     expect(elsewhere.controls.find((c) => c.id === "c-ap")?.starter).toBe(true);
   });
 
+  it("reads a confirmed sample control's separation from who holds its duties, not the sample's flag", () => {
+    expect(
+      getIndustryTemplate("general").controls.find((c) => c.id === "c-sod-ar")?.segregated,
+    ).toBe(true);
+    const confirm = (entitlements: string[]) =>
+      resolveTemplate({
+        industry: "general",
+        customPeople: [
+          { id: "a", name: "Ana", role: "Owner", active: true, entitlements: ["approve_payroll"] },
+          { id: "b", name: "Ben", role: "Bookkeeper", active: true, entitlements },
+        ],
+        confirmedControlIds: ["c-sod-ar", "c-ar"],
+      }).controls;
+    const together = confirm(["approve_writeoffs", "post_adjustments"]);
+    expect(together.find((c) => c.id === "c-sod-ar")?.segregated).toBe(false);
+    const apart = confirm(["post_adjustments"]);
+    expect(apart.find((c) => c.id === "c-sod-ar")?.segregated).toBe(true);
+    // A confirmed control with no duty pair Precog can read earns no separation credit.
+    expect(apart.find((c) => c.id === "c-ar")?.segregated).toBe(false);
+  });
+
   it("does not leak overrides into later calls", () => {
     const base = getIndustryTemplate("dental");
     resolveTemplate({ industry: "dental", customPeople: base.people.slice(0, 1) });

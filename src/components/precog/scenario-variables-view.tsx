@@ -9,6 +9,7 @@ import { DynamicVariablesPanel } from "@/components/precog/dynamic-variables-pan
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, formatUsd } from "@/lib/utils";
+import { ILLUSTRATIVE_LABEL } from "@/lib/precog/scoring/scenario-level";
 import { FigureTile } from "./figure-tile";
 
 /** The owner's saved settings and insurance, with one scenario's figures beside them. */
@@ -78,7 +79,9 @@ export function ScenarioVariablesView({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Figures with these settings</CardTitle>
-            <CardDescription>{scenario.title}</CardDescription>
+            <CardDescription>
+              {scenario.title} · {ILLUSTRATIVE_LABEL}
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <FigureTile

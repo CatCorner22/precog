@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, formatUsd } from "@/lib/utils";
 import { count, verb } from "@/lib/precog/text";
+import { ILLUSTRATIVE_LABEL } from "@/lib/precog/scoring/scenario-level";
 import { deltaTone, formatDaysChange, formatMoneyChange, pickScenario } from "./scenario-page";
 import { FigureTile } from "./figure-tile";
 import { StaffWhatIfCard, type StaffWhatIf } from "./staff-what-if";
@@ -193,7 +194,7 @@ function FuturesPicker({
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Scenario to test</CardTitle>
         <CardDescription>
-          Each option runs with your current settings and insurance.
+          Each option runs with your current settings and insurance. {ILLUSTRATIVE_LABEL}.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -258,7 +259,7 @@ function CrossPicker({
         <CardTitle className="text-base">Scenarios to compare (up to {MAX_CROSS})</CardTitle>
         <CardDescription>
           Every column uses the same staffing and insurance; add controls to any scenario.
-          {full ? ` Untick one to compare another.` : ""}
+          {full ? ` Untick one to compare another.` : ""} {ILLUSTRATIVE_LABEL}.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

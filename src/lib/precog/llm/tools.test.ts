@@ -9,8 +9,7 @@ import { pioneerProfileFrom } from "../coach/pioneer-profile";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import type { PracticeProfile } from "../practice-profile";
 import { firstName } from "../text";
-import { citingCaseStats } from "../evidence";
-import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
+import { buildStartHereModel } from "../start-here/model";
 import { formatUsd } from "@/lib/utils";
 
 const dental = getIndustryTemplate("dental");
@@ -526,7 +525,7 @@ describe("get_process_records on a map that is not assessed", () => {
     expect(data.processes).toHaveLength(8);
     expect(data.processes.every((p) => p.owners.length === 0)).toBe(true);
     expect(r.summary).toBe(
-      "The process map is not assessed: it holds 8 sample processes from the dental / medical / veterinary office sample with no owner assigned. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.",
+      "The process map is not assessed: it holds 8 sample processes from the dental office sample with no owner assigned. Do not quote map figures; advise the owner to assign an owner to each process on How work flows, or to build their own map.",
     );
     expect(JSON.stringify(r.data)).not.toContain("documentedIndex");
   });
@@ -552,18 +551,9 @@ describe("get_case_evidence", () => {
     it(`states the same case count and median as Start here (${industry})`, () => {
       const profile = defaultProfile(industry);
       const tpl = resolveTemplate(profile);
-      const sod = detectSodConflicts(
-        tpl,
-        profile.staff,
-        sodDetectionOptions(tpl, profile.dualRelease),
-      );
-      // Start here's rule set: open, not accepted, not held by the owner.
-      const startHereRules = [
-        ...new Set(
-          sod.conflicts.filter((c) => !c.residualRiskAccepted && !c.ownerHeld).map((c) => c.ruleId),
-        ),
-      ];
-      const startHere = citingCaseStats(startHereRules);
+      // Start here's own figures, accepted findings counted as open.
+      const startHere = buildStartHereModel({ profile, template: tpl, today: new Date() }).cost
+        .citing;
       const result = executeTool("get_case_evidence", { profile });
       expect(startHere.count).toBeGreaterThan(0);
       expect(result.summary).toBe(

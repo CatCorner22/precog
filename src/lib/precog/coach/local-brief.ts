@@ -16,6 +16,7 @@ import {
   starterScenariosLeftOut,
 } from "../scoring/scope";
 import { detectSodConflicts, sodDetectionOptions, type DetectedConflict } from "../sod/detect";
+import { openFindings, partialDualReleaseCoverage } from "../sod/open-findings";
 import type { IndustryTemplate } from "../templates/types";
 import { closingSteps } from "../controls/dual-release-wording";
 import { personLabel } from "../person-label";
@@ -96,9 +97,10 @@ export function localBrief(
 }
 
 /**
- * The business's open duty conflicts grouped by person: employees only (an
- * owner-held pair is not a theft path), not accepted, not covered by dual
- * release at every amount. People with the worst pair come first.
+ * The business's open duty conflicts grouped by person, counted as every
+ * screen counts them (sod/open-findings `openFindings`): employees only (an
+ * owner-held pair is not a theft path), and not covered by dual release at
+ * every amount. People with the worst pair come first.
  */
 export function openConflictsByPerson(
   profile: Pick<
@@ -115,8 +117,8 @@ export function openConflictsByPerson(
 ): PersonConflicts[] {
   const sod = detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease));
   const byPerson = new Map<string, PersonConflicts>();
-  for (const c of sod.conflicts) {
-    if (c.ownerHeld || c.residualRiskAccepted || c.dualReleaseMitigated) continue;
+  const partial = partialDualReleaseCoverage(profile.dualRelease, sod.conflicts);
+  for (const c of openFindings(sod.conflicts, partial)) {
     const entry = byPerson.get(c.personId) ?? {
       personId: c.personId,
       personName: c.personName,
@@ -215,19 +217,22 @@ const SEVERITY_ORDER: Record<DetectedConflict["severity"], number> = {
   family: 3,
 };
 
-/** Severity in the words the Start here badges use ("Fix first", "Fix soon", "Worth doing"). */
+/**
+ * Severity in the words the Start here badges use ("Critical", "High",
+ * "Medium"); "fix first" is kept for the residual band it names.
+ */
 const SEVERITY_WORDS: Record<DetectedConflict["severity"], string> = {
-  critical: "a conflict to fix first",
-  high: "a conflict to fix soon",
-  medium: "a conflict worth fixing",
+  critical: "a critical duty conflict",
+  high: "a high-severity duty conflict",
+  medium: "a medium-severity duty conflict",
   family: "a duty conflict",
 };
 
-/** Short form for the conflict list: "fix first", "fix soon", "worth fixing", "duty conflict". */
+/** Short form for the conflict list: "critical", "high", "medium", "duty conflict". */
 const SEVERITY_SHORT: Record<DetectedConflict["severity"], string> = {
-  critical: "fix first",
-  high: "fix soon",
-  medium: "worth fixing",
+  critical: "critical",
+  high: "high",
+  medium: "medium",
   family: "duty conflict",
 };
 
@@ -329,7 +334,7 @@ function dayWording(line: string): string {
   return line.replace(/\bp50 ([+-]?\d+)d\b/g, "assumed days until found $1");
 }
 
-/** "- **Grace Kim** (Bookkeeper): set up suppliers and release payments (fix first)" */
+/** "- **Grace Kim** (Bookkeeper): set up suppliers and release payments (critical)" */
 function conflictLine(p: PersonConflicts): string {
   const pairs = p.conflicts
     .slice(0, 3)

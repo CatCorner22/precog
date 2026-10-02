@@ -21,8 +21,10 @@ import {
 import {
   defaultDualReleasePolicy,
   mergeDualReleasePolicy,
+  mitigatedSodRuleIds,
   type DualReleasePolicy,
 } from "./controls/dual-release";
+import { deriveStaffFromTeam } from "./sod/derive-staff";
 import { isDemoName, isIndustryId, type IndustryId } from "./industry";
 import { isBusinessId } from "./profile-input";
 import { normalizeEngagement, type EngagementStamp } from "./firm/engagement";
@@ -83,8 +85,14 @@ export interface PracticeProfile {
   mapLayout?: Record<string, { x: number; y: number }>;
   /** User-saved process blocks for reuse in the map builder. */
   savedProcessBlocks?: SavedProcessBlock[];
-  /** Map health score snapshots over time (newest last). */
+  /**
+   * Retired: the map health score over time, before Map completeness replaced
+   * it. Kept as saved so no history is lost; nothing adds to it or reads it as
+   * completeness, because it also counted risk (heat).
+   */
   mapHealthHistory?: MapHealthPoint[];
+  /** Map completeness snapshots over time (newest last). */
+  mapCompletenessHistory?: MapHealthPoint[];
   /** Named snapshots of the map for restore/compare (newest first). */
   mapVersions?: MapVersion[];
   /** Stable id of this business within the user's portfolio. */
@@ -295,6 +303,7 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
     mapLayout: {},
     savedProcessBlocks: [],
     mapHealthHistory: [],
+    mapCompletenessHistory: [],
     mapVersions: [],
     businessId: makeBusinessId(),
     updatedAt: new Date().toISOString(),
@@ -338,7 +347,7 @@ export function normalizeProfile(
   } else {
     staff.dualControlPayments = dualRelease.enabled;
   }
-  return {
+  return withStaffFromDuties({
     industry,
     practiceName:
       typeof parsed.practiceName === "string"
@@ -364,6 +373,7 @@ export function normalizeProfile(
     mapLayout: mapLayoutEntries(parsed.mapLayout),
     savedProcessBlocks: savedBlockEntries(parsed.savedProcessBlocks),
     mapHealthHistory: healthPointEntries(parsed.mapHealthHistory),
+    mapCompletenessHistory: healthPointEntries(parsed.mapCompletenessHistory),
     mapVersions: mapVersionEntries(parsed.mapVersions),
     businessId: isBusinessId(parsed.businessId) ? parsed.businessId : base.businessId,
     engagement: normalizeEngagement(parsed.engagement),
@@ -373,7 +383,33 @@ export function normalizeProfile(
     places: normalizePlaces(parsed.places),
     procedures: normalizeProcedures(parsed.procedures, today),
     updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : new Date().toISOString(),
+  });
+}
+
+/**
+ * A business with its own team takes its segregation score and bank
+ * reconciliation answer from its duties alone. A profile saved before that
+ * rule can carry either figure set by hand ("manual"); it is read from the
+ * team again here, so no figure on any screen or report rests on it. A
+ * sample business keeps a figure set by hand.
+ */
+function withStaffFromDuties(p: PracticeProfile): PracticeProfile {
+  if (!p.customPeople) return p;
+  if (p.staff.segregationSource !== "manual" && p.staff.bankRecSource !== "manual") return p;
+  const tpl = resolveTemplate(p);
+  const derived = deriveStaffFromTeam(
+    tpl,
+    { ...p.staff, segregationSource: "derived", bankRecSource: "derived" },
+    { dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, tpl) },
+  );
+  const staff: StaffComposition = {
+    ...p.staff,
+    segregationScore: derived.segregationScore,
+    segregationSource: "derived",
+    independentBankRec: derived.independentBankRec,
+    bankRecSource: "derived",
   };
+  return { ...p, staff, riskVariables: withRiskFlags(p.riskVariables, staff) };
 }
 
 /**
@@ -646,7 +682,7 @@ export function hasUserWork(profile: PracticeProfile): boolean {
 
 export function summarizeBusiness(p: PracticeProfile): BusinessSummary {
   const tpl = getIndustryTemplate(p.industry);
-  const history = p.mapHealthHistory ?? [];
+  const history = p.mapCompletenessHistory ?? [];
   return {
     id: p.businessId ?? DEFAULT_BUSINESS_ID,
     name: p.practiceName,

@@ -19,14 +19,15 @@ export function SodMatrixSection({ report }: { report: SodDetectionReport }) {
       <CardHeader>
         <CardTitle>Duty conflict matrix</CardTitle>
         <CardDescription>
-          A red cell marks two duties that conflict when one person holds both.
+          A red cell marks two duties that conflict when one person holds both. A grey cell is a
+          pair no rule covers: Precog has not assessed it, which is not the same as safe.
         </CardDescription>
       </CardHeader>
       <CardContent className="overflow-x-auto">
         <table className="border-collapse text-xs">
           <caption className="sr-only">
             Duty conflict matrix. Rows and columns are duties; each cell says whether one person may
-            hold both.
+            hold both, or that no rule covers the pair.
           </caption>
           <thead>
             <tr>
@@ -69,7 +70,7 @@ export function SodMatrixSection({ report }: { report: SodDetectionReport }) {
                         className={cn(
                           "flex size-6 items-center justify-center rounded",
                           status === "self" && "bg-elevated text-subtle",
-                          status === "safe" && "bg-ok/15 text-ok",
+                          status === "safe" && "bg-elevated/60 text-subtle",
                           status === "conflict" &&
                             cell?.severity === "critical" &&
                             "bg-danger/40 text-danger",
@@ -82,7 +83,7 @@ export function SodMatrixSection({ report }: { report: SodDetectionReport }) {
                         )}
                       >
                         <span aria-hidden>
-                          {status === "conflict" ? "×" : status === "self" ? "·" : "✓"}
+                          {status === "conflict" ? "×" : status === "self" ? "·" : "–"}
                         </span>
                       </span>
                     </td>
@@ -97,6 +98,9 @@ export function SodMatrixSection({ report }: { report: SodDetectionReport }) {
   );
 }
 
+/** What a cell says when no rule assesses the pair: not assessed, never "compatible". */
+export const NO_RULE_CELL = "No rule covers this pair";
+
 /** What one cell says, for the hover title and for screen readers. */
 function cellDescription(
   row: string,
@@ -106,7 +110,7 @@ function cellDescription(
 ): string {
   if (status === "self") return `${entitlementLabel(row)}: the same duty`;
   if (status !== "conflict")
-    return `${entitlementLabel(row)} and ${entitlementLabel(col)}: compatible`;
+    return `${entitlementLabel(row)} and ${entitlementLabel(col)}: ${NO_RULE_CELL.toLowerCase()}`;
   const level = SEVERITY_FILTERS.find((item) => item.id === severity)?.label ?? "Conflict";
   return `${entitlementLabel(row)} and ${entitlementLabel(col)}: duty conflict, ${level.toLowerCase()}`;
 }

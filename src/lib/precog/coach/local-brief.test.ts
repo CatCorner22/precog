@@ -80,15 +80,16 @@ describe("local advisor brief", () => {
       "Mark who can do each item on Who knows what",
     );
     expect(brief.markdown).toContain(
-      "**Grace Kim** (Bookkeeper): set up suppliers and release payments (fix first)",
+      "**Grace Kim** (Bookkeeper): set up suppliers and release payments (critical)",
     );
   });
 
-  it("names a conflict's severity in the Start here words, not the severity id", () => {
+  it("names a conflict's severity in the Start here badge words, not a residual band", () => {
     const profile = clinic();
     const { brief } = localBrief(EMBEZZLEMENT, { profile, question: EMBEZZLEMENT }, profile);
-    expect(brief.decisions[0].rationale).toContain("a conflict to fix first");
-    expect(brief.markdown).not.toMatch(/a (critical|high|medium) conflict/);
+    expect(brief.decisions[0].rationale).toContain("a critical duty conflict");
+    // "Fix first" names the residual band (index 80 or more), not a severity.
+    expect(brief.markdown).not.toMatch(/conflict to fix first|\(fix first\)/);
   });
 
   it("answers a question about someone leaving with what stops, not the generic brief", () => {

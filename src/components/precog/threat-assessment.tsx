@@ -1,7 +1,11 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, ListOrdered, ListChecks, Target } from "lucide-react";
+import { ArrowLeft, BellRing, ListOrdered, ListChecks, Target } from "lucide-react";
 import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
+import { earlyWarning, NO_EARLY_WARNING_SOURCES } from "@/lib/precog/early-warning";
+import { formatDay, localDateKey } from "@/lib/precog/dates";
+import { useToday } from "@/lib/use-today";
+import { count } from "@/lib/precog/text";
 import { usePractice } from "@/lib/precog/practice-context";
 import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
 import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
@@ -13,18 +17,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IndexBasis } from "@/components/precog/index-basis";
 import { FigureTile } from "./figure-tile";
-import {
-  BAND_VARIANT,
-  DOMAIN_LABEL,
-  LEADING_BAND_LABEL,
-  isUrgent,
-  overallBand,
-} from "./threat-bands";
+import { BAND_VARIANT, DOMAIN_LABEL, isUrgent } from "./threat-bands";
 
 /**
- * The priority list: every exposure the app ranks, most urgent first, with
+ * The priority list: every exposure Precog ranks, most urgent first, with
  * why each one ranks where it does and what to do first. One band scale
- * (priorityBand) labels the overall index and every item.
+ * (priorityBand) labels every item; the headline counts the top band, so
+ * adding an item never lowers it.
  */
 export function ThreatAssessmentPanel() {
   const { profile, template } = usePractice();
@@ -56,10 +55,13 @@ export function ThreatAssessmentPanel() {
     ],
   );
 
+  const today = localDateKey(useToday());
+  const warning = useMemo(() => earlyWarning(profile, today), [profile, today]);
+
   const selected =
     report.targetDeck.find((t) => t.id === selectedId) ?? report.targetDeck[0] ?? null;
   const urgent = report.targetDeck.filter((t) => isUrgent(t.band)).length;
-  const overall = overallBand(report.overallThreatIndex);
+  const fixFirst = report.fixFirst;
   const scenarioNote = insuranceFigureNote(profile.riskVariables, isOwnBusiness(template));
 
   return (
@@ -81,8 +83,8 @@ export function ThreatAssessmentPanel() {
               </p>
             </div>
           </div>
-          <Badge variant={BAND_VARIANT[overall]}>
-            Priority index {report.overallThreatIndex} · {PRIORITY_BAND_LABEL[overall]}
+          <Badge variant={fixFirst > 0 ? "danger" : "ok"}>
+            {count(fixFirst, "top-priority item")}
           </Badge>
         </div>
         {sample && (
@@ -103,19 +105,23 @@ export function ThreatAssessmentPanel() {
         <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <FigureTile
             size="lg"
-            label="Priority index"
-            value={String(report.overallThreatIndex)}
-            hint={`${PRIORITY_BAND_LABEL[overall]}: the average of the five highest items`}
+            label="Top-priority items"
+            value={String(fixFirst)}
+            hint={`Items in the top band, "${PRIORITY_BAND_LABEL.white_hot}"`}
           />
           <FigureTile
             size="lg"
-            label="Early-warning pressure"
-            value={String(report.leadingPressure)}
-            hint={LEADING_BAND_LABEL[report.leadingBand] ?? report.leadingBand}
+            label="Early warning"
+            value={warning.sources.length ? String(warning.items.length) : "—"}
+            hint={
+              warning.sources.length
+                ? `From records: ${warning.sources.join("; ")}`
+                : NO_EARLY_WARNING_SOURCES
+            }
           />
           <FigureTile
             size="lg"
-            label="Fix first or fix soon"
+            label="Top or high priority"
             value={String(urgent)}
             hint="Look at these first"
           />
@@ -221,6 +227,51 @@ export function ThreatAssessmentPanel() {
                 </CardContent>
               </Card>
             )}
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <BellRing className="size-4 text-primary" />
+                  Early warning
+                </CardTitle>
+                <CardDescription>
+                  Records that changed or fell due. Precog adds no score to them.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {warning.items.length > 0 ? (
+                  <ul className="space-y-2 text-sm" aria-label="Early warning">
+                    {warning.items.map((item) => (
+                      <li key={item.id}>
+                        <p className="font-medium">
+                          {item.title}
+                          <span
+                            className={cn(
+                              "ml-2 text-xs font-normal",
+                              item.overdue ? "text-danger" : "text-subtle",
+                            )}
+                          >
+                            {item.overdue
+                              ? "Overdue since"
+                              : item.kind === "due"
+                                ? "Due"
+                                : "Read on"}{" "}
+                            {formatDay(item.on)}
+                          </span>
+                        </p>
+                        <p className="text-xs text-muted">{item.detail}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted">
+                    {warning.sources.length
+                      ? `Nothing due or changed in: ${warning.sources.join("; ")}.`
+                      : `${NO_EARLY_WARNING_SOURCES}. Import a user access export or connect your books to add some.`}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader className="pb-2">

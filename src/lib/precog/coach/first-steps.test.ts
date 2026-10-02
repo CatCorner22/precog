@@ -94,7 +94,7 @@ describe("rankFirstSteps", () => {
 describe("gapBadge", () => {
   it("drops the severity badge once dual release covers the gap", () => {
     expect(gapBadge({ severity: "critical", dualReleaseMitigated: false }, undefined)).toBe(
-      "Fix first",
+      "Critical",
     );
     expect(gapBadge({ severity: "critical", dualReleaseMitigated: true }, undefined)).toBe(
       "Covered by dual release",

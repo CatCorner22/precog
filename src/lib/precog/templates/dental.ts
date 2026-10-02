@@ -655,10 +655,7 @@ export const dentalTemplate: IndustrySample = {
         "The front desk lead (sole expert on insurance denial appeals) resigns with two weeks' notice. Nobody else has trained for the work.",
       knowledgeId: "k1",
       controlId: "c-claims",
-      baseTimelineDays: SCENARIO_FIGURES.keyPerson.baseTimelineDays,
-      // An illustrative input like SCENARIO_FIGURES, set above the shared
-      // key-person loss because a denial backlog holds up insurance revenue.
-      baseFinancialImpact: { expected: 18500, low: 8000, high: 42000 },
+      ...SCENARIO_FIGURES.frontDesk,
       cascadeLayers: ["knowledge", "process", "surface", "continuity"],
       mitigations: [
         {

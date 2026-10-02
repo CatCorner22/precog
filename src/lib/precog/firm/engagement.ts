@@ -29,8 +29,15 @@ export interface PilotMetrics {
   hoursToMap: number | null;
   reportSent: boolean;
   reportSentAt: string | null;
+  /** Findings open as Start here and the report count them. A decision of any kind does not close one. */
   openFindings: number;
+  /** Findings with an explicit "accept residual" decision logged against them. They stay open. */
   acceptedFindings: number;
+  /**
+   * Findings acted on without an acceptance: closed by dual release at every
+   * amount, or carrying a remediate, monitor or insure decision.
+   */
+  actedOnFindings: number;
   /** Accepted findings divided by every finding. Null when there is nothing to judge. */
   acceptanceRate: number | null;
 }
@@ -64,6 +71,7 @@ export function pilotMetricsCsv(businessName: string, metrics: PilotMetrics): st
     row("reportSentAt", metrics.reportSentAt),
     row("openFindings", metrics.openFindings),
     row("acceptedFindings", metrics.acceptedFindings),
+    row("actedOnFindings", metrics.actedOnFindings),
     row("acceptanceRate", metrics.acceptanceRate === null ? "" : metrics.acceptanceRate.toFixed(3)),
   ].join("\n");
 }
@@ -88,11 +96,13 @@ type MetricDecision = Pick<DecisionEntry, "kind" | "linkedId" | "linkedIndustry"
 
 /**
  * Findings are the detected conflicts other than the owner's own pairs, which
- * are no theft risk to judge. A finding is open as Start here and the report
- * count it (sod/open-findings: not accepted, and not closed by dual release at
- * every amount) until an accept, remediate, monitor or insure decision is
- * logged against its rule or control; the others are accepted. Accepted plus
- * open is every finding, so the rate can reach 100%.
+ * are no theft risk to judge. Open is the count Start here and the report
+ * show (sod/open-findings); no decision closes a finding, an acceptance
+ * included. Accepted counts only findings with an explicit "accept residual"
+ * decision logged against their rule or control. Acted on counts the others
+ * that something answered: dual release closes them at every amount, or a
+ * remediate, monitor or insure decision is logged against them. A finding is
+ * in at most one of accepted and acted on.
  */
 export function pilotMetrics(input: {
   engagement?: EngagementStamp;
@@ -102,11 +112,18 @@ export function pilotMetrics(input: {
   decisions: readonly MetricDecision[];
   industry: IndustryId;
 }): PilotMetrics {
-  const findings = input.conflicts.filter((c) => !c.ownerHeld).length;
-  const openFindings = sharedOpenFindings(input.conflicts, input.partialCoverage).filter(
-    (c) => !answeredByDecision(c, input.decisions, input.industry),
-  ).length;
-  const acceptedFindings = findings - openFindings;
+  const all = input.conflicts.filter((c) => !c.ownerHeld);
+  const findings = all.length;
+  const decided = (c: MetricConflict, kinds: ReadonlySet<string>) =>
+    decidedOn(c, kinds, input.decisions, input.industry);
+  const accepted = all.filter((c) => decided(c, ACCEPT_KINDS));
+  const dualReleaseCloses = (c: MetricConflict) =>
+    c.dualReleaseMitigated && !input.partialCoverage.has(c.ruleId);
+  const actedOn = all.filter(
+    (c) => !decided(c, ACCEPT_KINDS) && (dualReleaseCloses(c) || decided(c, ACTED_ON_KINDS)),
+  );
+  const openFindings = sharedOpenFindings(input.conflicts, input.partialCoverage).length;
+  const acceptedFindings = accepted.length;
   const started = input.engagement?.startedAt ? Date.parse(input.engagement.startedAt) : NaN;
   const completed = input.engagement?.mapCompletedAt
     ? Date.parse(input.engagement.mapCompletedAt)
@@ -123,20 +140,24 @@ export function pilotMetrics(input: {
     reportSentAt: input.engagement?.reportSentAt ?? null,
     openFindings,
     acceptedFindings,
+    actedOnFindings: actedOn.length,
     acceptanceRate: findings === 0 ? null : acceptedFindings / findings,
   };
 }
 
-const ACCEPTED_KINDS = new Set<string>(["accept_residual", "remediate", "monitor", "insure"]);
+const ACCEPT_KINDS: ReadonlySet<string> = new Set(["accept_residual"]);
+const ACTED_ON_KINDS: ReadonlySet<string> = new Set(["remediate", "monitor", "insure"]);
 
-function answeredByDecision(
+/** A decision of one of `kinds` is logged against the finding's rule or control, under this industry. */
+function decidedOn(
   conflict: MetricConflict,
+  kinds: ReadonlySet<string>,
   decisions: readonly MetricDecision[],
   industry: IndustryId,
 ): boolean {
   return decisions.some(
     (d) =>
-      ACCEPTED_KINDS.has(d.kind) &&
+      kinds.has(d.kind) &&
       Boolean(d.linkedId) &&
       linkedToIndustry(d, industry) &&
       (d.linkedId === conflict.ruleId || d.linkedId === conflict.linkedControlId),

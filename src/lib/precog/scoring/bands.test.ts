@@ -4,7 +4,14 @@ import { defaultProfile } from "../practice-profile";
 import { getIndustryTemplate } from "../templates";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { openSeverityCounts } from "../sod/open-findings";
-import { HEALTH_SCALE, healthLevel, healthTone, segregationLevel } from "./bands";
+import {
+  dependenceTone,
+  HEALTH_SCALE,
+  healthLevel,
+  healthTone,
+  RISK_SCALE,
+  segregationLevel,
+} from "./bands";
 
 describe("healthTone", () => {
   it("draws one health score in one colour whatever the surface", () => {
@@ -12,6 +19,18 @@ describe("healthTone", () => {
     expect(healthTone(65)).toBe("primary");
     expect(healthTone(HEALTH_SCALE.weak)).toBe("warn");
     expect(healthTone(HEALTH_SCALE.weak - 1)).toBe("danger");
+  });
+});
+
+describe("dependenceTone", () => {
+  it("never shows green above 20% of must-do work, and is red by 40%", () => {
+    expect(dependenceTone(0)).toBe("ok");
+    expect(dependenceTone(100 - HEALTH_SCALE.strong)).toBe("ok");
+    expect(dependenceTone(100 - HEALTH_SCALE.strong + 1)).toBe("warn");
+    expect(dependenceTone(25)).toBe("warn");
+    expect(dependenceTone(RISK_SCALE.mitigate - 1)).toBe("warn");
+    expect(dependenceTone(RISK_SCALE.mitigate)).toBe("danger");
+    expect(dependenceTone(50)).toBe("danger");
   });
 });
 

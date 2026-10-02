@@ -27,6 +27,7 @@ const KEPT_ON_RESTORE = [
   "mapVersions",
   "savedProcessBlocks",
   "mapHealthHistory",
+  "mapCompletenessHistory",
   "leaverAccessChecks",
   "monthlyReviews",
   "engagement",

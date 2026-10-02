@@ -1,6 +1,11 @@
 import type { ControlItem, ScenarioTemplate } from "../types";
 import type { IndustrySample } from "./types";
-import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
+import {
+  baseFinancialControls,
+  baseFraudScenarios,
+  SAMPLE_SAFEGUARDS,
+  SCENARIO_FIGURES,
+} from "./shared-controls";
 
 /**
  * An independent dealership with a service department, or a repair shop, of
@@ -106,8 +111,7 @@ const automotiveScenarios: ScenarioTemplate[] = [
       "The person who takes cash at the service counter can also edit the repair order and the payment record in the DMS, so they can keep a cash payment and close the ticket with a void, a discount or a card payment that never happened.",
     controlId: "c-ro-cash",
     sodRuleIds: ["rule-collect-post", "rule-collect-adjust"],
-    baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
-    baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
+    ...SCENARIO_FIGURES.cash,
     cascadeLayers: ["control", "process", "surface", "continuity"],
     mitigations: [
       {
@@ -133,8 +137,7 @@ const automotiveScenarios: ScenarioTemplate[] = [
       "The person who releases payments also posts manual journal entries in the DMS, so they can book a wire to their own account to a vehicle, an expense or a schedule, and the month still closes.",
     controlId: "c-je-review",
     sodRuleIds: ["rule-release-je", "rule-je-rec"],
-    baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
-    baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
+    ...SCENARIO_FIGURES.vendor,
     cascadeLayers: ["control", "source", "process", "continuity"],
     mitigations: [
       {
@@ -161,8 +164,7 @@ const automotiveScenarios: ScenarioTemplate[] = [
     controlId: "c-parts-count",
     sodRuleIds: ["rule-order-receive"],
     knowledgeId: "k2",
-    baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
-    baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
+    ...SCENARIO_FIGURES.writeoff,
     cascadeLayers: ["control", "process", "surface", "continuity"],
     mitigations: [
       {
@@ -189,8 +191,7 @@ const automotiveScenarios: ScenarioTemplate[] = [
     controlId: "c-deal-audit",
     sodRuleIds: ["rule-cash-void"],
     knowledgeId: "k3",
-    baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
-    baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
+    ...SCENARIO_FIGURES.vendor,
     cascadeLayers: ["control", "process", "surface", "continuity"],
     mitigations: [
       {

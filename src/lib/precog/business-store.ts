@@ -468,8 +468,8 @@ export async function listBusinessSummaries(
       id, user_id, name, industry, updated_at,
       case when jsonb_typeof(profile->'customProcesses') = 'array'
         then jsonb_array_length(profile->'customProcesses') else 0 end as process_count,
-      case when jsonb_typeof(profile->'mapHealthHistory') = 'array'
-        then profile->'mapHealthHistory'->-1->'score' end as health_score
+      case when jsonb_typeof(profile->'mapCompletenessHistory') = 'array'
+        then profile->'mapCompletenessHistory'->-1->'score' end as health_score
     from businesses
     where deleted_at is null
       and (user_id = ${userId} or (${firmUserId}::text is not null and firm_user_id = ${firmUserId}))

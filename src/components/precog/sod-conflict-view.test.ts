@@ -5,9 +5,11 @@ import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import type { Person } from "@/lib/precog/types";
 import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
 import { detectSodConflicts, type DetectedConflict } from "@/lib/precog/sod/detect";
+import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import {
   conflictBadge,
   conflictBridge,
+  conflictFactors,
   conflictsByPerson,
   conflictTone,
   rulesDualReleaseCanNarrow,
@@ -81,5 +83,71 @@ describe("conflictsByPerson", () => {
     expect(groups.flatMap((g) => g.conflicts)).toHaveLength(conflicts.length);
     expect(groups[0].personId).toBe(conflicts[0].personId);
     expect(new Set(groups.map((g) => g.personId)).size).toBe(groups.length);
+  });
+});
+
+describe("conflictFactors", () => {
+  const staff = { dualControlPayments: false, independentBankRec: false };
+
+  it("names the holder, dual release and the staffing that leaves a pair open", () => {
+    const found = conflictsOf(oneClerk(["release_payment", "bank_reconcile"])).find(
+      (c) => c.entitlementA === "release_payment" || c.entitlementB === "release_payment",
+    )!;
+    expect(conflictFactors(found, staff)).toEqual([
+      "Held by Solo Clerk",
+      "No dual release covers it",
+      "No second approver on payments",
+      "Nobody independent reconciles the bank",
+    ]);
+    expect(conflictFactors(found, { dualControlPayments: true, independentBankRec: true })).toEqual(
+      ["Held by Solo Clerk", "No dual release covers it"],
+    );
+  });
+
+  it("says when the owner holds the pair and when dual release covers it", () => {
+    expect(
+      conflictFactors({
+        personName: "Ana Ruiz",
+        ownerHeld: true,
+        dualReleaseMitigated: true,
+        entitlementA: "create_vendor",
+        entitlementB: "approve_vendor",
+      }),
+    ).toEqual(["Held by Ana Ruiz, the owner", "Dual release covers it"]);
+  });
+
+  it("names the threshold when dual release covers a rule only above it", () => {
+    const policy = defaultProfile("dental").dualRelease;
+    const rule = policy.rules.find((r) => r.mitigatesRuleIds.includes("rule-vendor-create-pay"))!;
+    const limited = {
+      ...policy,
+      enabled: true,
+      rules: [{ ...rule, enabled: true, thresholdUsd: 2500 }],
+    };
+    const covered = {
+      personName: "Solo Clerk",
+      ownerHeld: false,
+      dualReleaseMitigated: true,
+      entitlementA: "create_vendor",
+      entitlementB: "release_payment",
+      ruleId: "rule-vendor-create-pay",
+    } as DetectedConflict;
+    const threshold = partialDualReleaseCoverage(limited, [covered]).get(covered.ruleId);
+    expect(threshold).toBe(2500);
+    expect(conflictFactors(covered, undefined, threshold)).toEqual([
+      "Held by Solo Clerk",
+      "Dual release covers payments over $2,500 only",
+    ]);
+    // At a zero threshold every amount needs two people, so the rule is covered.
+    const everyAmount = { ...limited, rules: [{ ...limited.rules[0], thresholdUsd: 0 }] };
+    expect(partialDualReleaseCoverage(everyAmount, [covered]).has(covered.ruleId)).toBe(false);
+    expect(conflictFactors(covered, undefined, undefined)[1]).toBe("Dual release covers it");
+  });
+
+  it("replaces the saturating score: no card prints 'Rank N of 100'", async () => {
+    const { readFileSync } = await import("node:fs");
+    const card = readFileSync(new URL("./sod-conflict-summary.tsx", import.meta.url), "utf8");
+    expect(card).not.toMatch(/Rank \{/);
+    expect(card).toContain("conflictFactors(conflict, staff, partialThresholdUsd)");
   });
 });

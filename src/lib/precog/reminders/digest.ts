@@ -234,6 +234,7 @@ export const DIGEST_OMITTED_PROFILE_KEYS = [
   "mapVersions",
   "savedProcessBlocks",
   "mapHealthHistory",
+  "mapCompletenessHistory",
   "mapLayout",
 ] as const satisfies readonly (keyof PracticeProfile)[];
 

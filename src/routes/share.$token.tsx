@@ -16,7 +16,7 @@ export const Route = createFileRoute("/share/$token")({
       {
         name: "description",
         content:
-          "Read-only view of a small business process map, control coverage, and map health.",
+          "Read-only view of a small business process map, control coverage, and map completeness.",
       },
     ],
   }),
@@ -142,6 +142,9 @@ function SharePage() {
   const stages = [...new Set(payload.processes.map((p) => p.stage))].sort((a, b) => a - b);
   // The payload comes from the owner's browser; a malformed stamp is left out, not printed.
   const generated = Number.isNaN(Date.parse(payload.generatedAt)) ? null : payload.generatedAt;
+  // A link shared before map completeness replaced map health still scores
+  // heat ("calm"), so it keeps its own label and form.
+  const mapHealthLink = payload.health.dimensions.some((d) => d.id === "calm");
 
   return (
     <div className="report min-h-dvh bg-white text-neutral-900">
@@ -187,9 +190,12 @@ function SharePage() {
         <section className="mt-6 grid gap-4 sm:grid-cols-[auto_1fr]">
           <div className="flex flex-col items-center justify-center rounded-lg border border-neutral-300 px-6 py-4">
             <p className="text-xs font-semibold tracking-wide text-neutral-500 uppercase">
-              Map health score
+              {mapHealthLink ? "Map health score" : "Map completeness"}
             </p>
-            <p className="text-5xl font-bold tabular">{payload.health.score}</p>
+            <p className="text-5xl font-bold tabular">
+              {payload.health.score}
+              {mapHealthLink ? "" : "%"}
+            </p>
             <p className="text-sm font-medium text-neutral-700">{payload.health.bandLabel}</p>
           </div>
           <div>

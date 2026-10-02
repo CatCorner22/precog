@@ -20,68 +20,45 @@ import { scenarioFlags } from "./scoring/scenario-kind";
 import { registerAssessed } from "./continuity/register-state";
 import { isOwnBusiness, scenariosInScope } from "./scoring/scope";
 import { STRONG_LEVELS } from "./continuity/coverage";
+import { scenarioLevels, STAFF_CONDITIONS } from "./scoring/scenario-level";
+import { DEFAULT_WEIGHTS } from "./scoring/weights";
 import { formatUsd } from "../utils";
 import { count } from "./text";
 
 /**
- * Index values for knowledge held by too few people. This app's own scale:
- * the numbers order attention on the same 0–100 scale as the residual index
- * and were not derived from any data.
+ * Index values for knowledge held by too few people. This app's own scale
+ * (weights.knowledgeIndex): the numbers order attention on the same 0–100
+ * scale as the residual index and were not derived from any data.
  */
-const KNOWLEDGE_RISK_INDEX = { unowned: 100, soleCritical: 85, soleImportant: 65, shared: 20 };
+const KNOWLEDGE_RISK_INDEX = DEFAULT_WEIGHTS.knowledgeIndex;
 
 /**
- * Multipliers applied to a scenario's assumed loss and timeline for staffing
- * conditions, each with the sentence the owner reads when it applies. The
- * multiplier and its sentence come from one row, so the owner reads exactly
- * the uplifts that were applied. Every factor is an assumption this app makes
- * about direction and rough size; none is measured.
+ * The sentence the owner reads for each staffing uplift on a scenario's
+ * assumed loss and timeline. The conditions and factors are the ones the
+ * residual index reads (scoring/scenario-level, weights.scenarioStaff), so
+ * the owner reads exactly the uplifts that were applied. Every factor is an
+ * assumption this app makes about direction and rough size; none is measured.
  */
-const ASSUMED_STAFF_UPLIFT: readonly {
-  applies: (staff: StaffComposition) => boolean;
-  factor: number;
-  sentence: (staff: StaffComposition) => string;
-}[] = [
-  {
-    applies: (s) => s.teamSize <= 6,
-    factor: 1.15,
-    sentence: (s) => `Assumed uplift: with ${s.teamSize} people, duties are harder to separate.`,
-  },
-  {
-    applies: (s) => s.soleOwnerKnowledgeCount >= 2,
-    factor: 1.2,
-    sentence: (s) =>
-      `Assumed uplift: ${count(s.soleOwnerKnowledgeCount, "critical knowledge item")} that only one person holds.`,
-  },
-  {
-    applies: (s) => s.segregationScore < 50,
-    factor: 1.25,
-    sentence: (s) =>
-      `Assumed uplift: segregation index ${s.segregationScore}/100 is below Precog's weak line.`,
-  },
-  {
-    // Dual control also flows through the risk variables; mild here.
-    applies: (s) => !s.dualControlPayments,
-    factor: 1.08,
-    sentence: () =>
-      "Assumed uplift: no dual release on payments, so one person can release money alone.",
-  },
-  {
-    applies: (s) => !s.independentBankRec,
-    factor: 1.06,
-    sentence: () =>
-      "Assumed uplift: the person who posts also reconciles the bank, so detection takes longer.",
-  },
-  {
-    applies: (s) => s.avgTenureYears < 3,
-    factor: 1.05,
-    sentence: (s) =>
-      `Assumed uplift: average tenure of ${s.avgTenureYears} years is under three, so habits and checks are newer.`,
-  },
-];
+const UPLIFT_SENTENCE: Record<
+  (typeof STAFF_CONDITIONS)[number]["key"],
+  (staff: StaffComposition) => string
+> = {
+  smallTeamFactor: (s) =>
+    `Assumed uplift: with ${s.teamSize} people, duties are harder to separate.`,
+  soleHolderFactor: (s) =>
+    `Assumed uplift: ${count(s.soleOwnerKnowledgeCount, "critical knowledge item")} that only one person holds.`,
+  weakSegregationFactor: (s) =>
+    `Assumed uplift: segregation index ${s.segregationScore}/100 is below Precog's weak line.`,
+  noDualReleaseFactor: () =>
+    "Assumed uplift: no dual release on payments, so one person can release money alone.",
+  noBankRecFactor: () =>
+    "Assumed uplift: the person who posts also reconciles the bank, so detection takes longer.",
+  lowTenureFactor: (s) =>
+    `Assumed uplift: average tenure of ${s.avgTenureYears} years is under three, so habits and checks are newer.`,
+};
 
 /** Share of an assumed impact reduction that this app also credits to the timeline. An assumption. */
-const ASSUMED_TIMELINE_RELIEF_SHARE = 0.4;
+const ASSUMED_TIMELINE_RELIEF_SHARE = DEFAULT_WEIGHTS.scenarioStaff.timelineReliefShare;
 
 /**
  * Knowledge held by too few people, from the business's register.
@@ -114,12 +91,12 @@ export function findKnowledgeRisks(tpl: IndustryTemplate): KnowledgeRisk[] {
       const soleOwner = ownerCount === 1;
       const riskScore =
         ownerCount === 0
-          ? KNOWLEDGE_RISK_INDEX.unowned
+          ? KNOWLEDGE_RISK_INDEX.unheldIndex
           : soleOwner
             ? k.criticality === "critical"
-              ? KNOWLEDGE_RISK_INDEX.soleCritical
-              : KNOWLEDGE_RISK_INDEX.soleImportant
-            : KNOWLEDGE_RISK_INDEX.shared;
+              ? KNOWLEDGE_RISK_INDEX.soleCriticalIndex
+              : KNOWLEDGE_RISK_INDEX.soleImportantIndex
+            : KNOWLEDGE_RISK_INDEX.sharedIndex;
       return {
         knowledgeId: k.id,
         name: k.name,
@@ -303,9 +280,10 @@ export function runPrecogScenario(
  * (`confirmedScenarioIds`, see scoring/scope). With none confirmed the list is
  * empty rather than the industry example's.
  *
- * The index reads the loss left after controls, not how soon a scheme is
- * found: a detective control shortens the days until found, and dividing by
- * them would rank a scenario more dangerous for being caught sooner.
+ * The index is the scenario's likelihood and severity levels (see
+ * scoring/scenario-level), the figure its residual row shows, never its
+ * dollars or days: those are illustrative examples, not sized to the
+ * business. Scenarios on equal levels keep the template's order.
  */
 export function rankDangerousScenarios(
   tpl: IndustryTemplate,
@@ -319,25 +297,37 @@ export function rankDangerousScenarios(
   score: number;
   result: PrecogResult;
 }[] {
-  const { staffComposition } = tpl;
+  const staff = options?.staff ?? tpl.staffComposition;
   return scenariosInScope(tpl, options?.confirmedScenarioIds)
     .map((scenario) => {
       const result = runPrecogScenario(tpl, scenario.id, options)!;
-      const retained = result.retainedImpact?.expected ?? result.financialImpact.expected;
-      const annualCor = result.dynamic?.expectedAnnualCostOfRisk ?? retained;
-      const score =
-        (retained * 0.65 + annualCor * 0.35) *
-        ((options?.staff ?? staffComposition).segregationScore < 50 ? 1.3 : 1);
+      const score = scenarioLevels(scenario.id, scenarioMultipliers(result), staff).index;
       return { scenario, score, result };
     })
     .sort((a, b) => b.score - a.score);
 }
 
+/**
+ * The likelihood model's multipliers a scenario run applied (1 when the run
+ * carries none), and whether they include dual release.
+ */
+export function scenarioMultipliers(result: PrecogResult): {
+  likelihoodMultiplier: number;
+  grossSeverityMultiplier: number;
+  dualReleaseApplied: boolean;
+} {
+  return {
+    likelihoodMultiplier: result.dynamic?.likelihoodMultiplier ?? 1,
+    grossSeverityMultiplier: result.dynamic?.grossSeverityMultiplier ?? 1,
+    dualReleaseApplied: result.dynamic?.drivers.some((d) => d.id === "dual-l") ?? false,
+  };
+}
+
 /** The staffing uplifts that apply to `staff`: their product and the sentence for each. */
 function staffUplifts(staff: StaffComposition): { multiplier: number; sentences: string[] } {
-  const applied = ASSUMED_STAFF_UPLIFT.filter((u) => u.applies(staff));
+  const applied = STAFF_CONDITIONS.filter((u) => u.applies(staff));
   return {
-    multiplier: applied.reduce((m, u) => m * u.factor, 1),
-    sentences: applied.map((u) => u.sentence(staff)),
+    multiplier: applied.reduce((m, u) => m * DEFAULT_WEIGHTS.scenarioStaff[u.key], 1),
+    sentences: applied.map((u) => UPLIFT_SENTENCE[u.key](staff)),
   };
 }

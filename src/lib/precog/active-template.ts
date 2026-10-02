@@ -134,6 +134,19 @@ const RULE_LINKED_CONTROLS = new Set(
 );
 
 /**
+ * The duty pairs a starter control separates when no conflict rule links to
+ * it, named by the rule for each pair: writing off receivables is approving
+ * and entering write-offs, and invoice matching is entering and approving
+ * bills. A confirmed control listed here is segregated exactly when no
+ * employee holds one of its pairs; a confirmed control not listed has no
+ * pair Precog can read from the team, so it earns no separation credit.
+ */
+const STARTER_CONTROL_PAIRS: Readonly<Record<string, readonly string[]>> = {
+  "c-sod-ar": ["rule-writeoff"],
+  "c-ap": ["rule-invoice-approve"],
+};
+
+/**
  * The sample business's control records describe the sample team: one
  * accepted residual risk, compensating controls its people perform,
  * "segregated" flags written by hand and descriptions of the sample's gaps.
@@ -142,7 +155,9 @@ const RULE_LINKED_CONTROLS = new Set(
  * - a control a conflict rule links to is segregated exactly when no employee
  *   holds one of its pairs, and its description names the pairs that are open;
  * - every other control is marked as a starter until the owner confirms it
- *   runs here (a journal entry linked to it);
+ *   runs here (a journal entry linked to it); once confirmed it is segregated
+ *   only when different people hold its duties (STARTER_CONTROL_PAIRS), never
+ *   because the sample's flag says so;
  * - nothing is accepted, and nothing is credited as in place until the owner
  *   records it (see controlsInPlace).
  */
@@ -154,7 +169,9 @@ function ownControls(
 ): ControlItem[] {
   const openByControl = new Map<string, DetectedConflict[]>();
   const ownerHolds = new Set<string>();
-  for (const conflict of detectSodConflicts(tpl).conflicts) {
+  const conflicts = detectSodConflicts(tpl).conflicts;
+  const heldByEmployee = new Set(conflicts.filter((c) => !c.ownerHeld).map((c) => c.ruleId));
+  for (const conflict of conflicts) {
     const controlId = conflict.linkedControlId;
     if (!controlId) continue;
     if (conflict.ownerHeld) {
@@ -170,9 +187,16 @@ function ownControls(
       compensatingControls: [...(inPlace[c.id] ?? [])],
     };
     // A control no conflict rule covers is the example's until the owner says
-    // it runs here; once confirmed it counts as the example describes it.
-    if (!RULE_LINKED_CONTROLS.has(c.id))
-      return confirmed.has(c.id) ? own : { ...own, starter: true };
+    // it runs here. Once confirmed, its separation comes from who holds its
+    // duties on this team, not from the example's flag.
+    if (!RULE_LINKED_CONTROLS.has(c.id)) {
+      if (!confirmed.has(c.id)) return { ...own, starter: true };
+      const pairs = STARTER_CONTROL_PAIRS[c.id] ?? [];
+      return {
+        ...own,
+        segregated: pairs.length > 0 && pairs.every((ruleId) => !heldByEmployee.has(ruleId)),
+      };
+    }
     const open = openByControl.get(c.id) ?? [];
     return {
       ...own,

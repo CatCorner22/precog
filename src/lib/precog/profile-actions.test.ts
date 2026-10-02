@@ -50,14 +50,21 @@ describe("profile actions", () => {
     expect(p.decisions[0].id).toBe(`d${MAX_DECISIONS + 4}`);
   });
 
-  it("collapses health points within a minute and ignores an unchanged score", () => {
+  it("collapses completeness points within a minute and ignores an unchanged score", () => {
     let p = withMapHealth(defaultProfile("general"), 50, NOW);
     p = withMapHealth(p, 60, new Date(NOW.getTime() + 30_000));
-    expect(p.mapHealthHistory?.map((h) => h.score)).toEqual([60]);
+    expect(p.mapCompletenessHistory?.map((h) => h.score)).toEqual([60]);
     const same = withMapHealth(p, 60, new Date(NOW.getTime() + 120_000));
     expect(same).toBe(p);
     p = withMapHealth(p, 70, new Date(NOW.getTime() + 120_000));
-    expect(p.mapHealthHistory?.map((h) => h.score)).toEqual([60, 70]);
+    expect(p.mapCompletenessHistory?.map((h) => h.score)).toEqual([60, 70]);
+  });
+
+  it("starts a new completeness series and keeps the retired map health series as saved", () => {
+    const old = [{ at: "2026-08-01T00:00:00.000Z", score: 41 }];
+    const p = withMapHealth({ ...defaultProfile("general"), mapHealthHistory: old }, 75, NOW);
+    expect(p.mapHealthHistory).toEqual(old);
+    expect(p.mapCompletenessHistory?.map((h) => h.score)).toEqual([75]);
   });
 
   it("notes a leaver when someone on the owner's team is marked as left", () => {
@@ -79,13 +86,14 @@ describe("profile actions", () => {
     expect(isMapCustomized(left)).toBe(true);
   });
 
-  it("marks a hand-set bank reconciliation flag as manual only for a real team", () => {
+  it("sets the bank reconciliation answer by hand on a sample only; a real team's follows its duties", () => {
     const sample = defaultProfile("general");
     const flipped = withStaff(sample, {
       ...sample.staff,
       independentBankRec: !sample.staff.independentBankRec,
     });
-    expect(flipped.staff.bankRecSource).toBe(sample.staff.bankRecSource);
+    expect(flipped.staff.independentBankRec).toBe(!sample.staff.independentBankRec);
+    expect(flipped.staff.bankRecSource).toBe("manual");
     const own = withPeople(
       sample,
       [{ id: "a", name: "Ada", role: "Owner", active: true, owner: true, entitlements: [] }],
@@ -95,7 +103,36 @@ describe("profile actions", () => {
       ...own.staff,
       independentBankRec: !own.staff.independentBankRec,
     });
-    expect(ownFlipped.staff.bankRecSource).toBe("manual");
+    expect(ownFlipped.staff.independentBankRec).toBe(own.staff.independentBankRec);
+    expect(ownFlipped.staff.bankRecSource).not.toBe("manual");
+    // Nor from the scenario settings.
+    const fromSettings = withRiskVariables(own, {
+      ...own.riskVariables,
+      hasIndependentBankRec: !own.staff.independentBankRec,
+    });
+    expect(fromSettings.staff.independentBankRec).toBe(own.staff.independentBankRec);
+    expect(fromSettings.riskVariables.hasIndependentBankRec).toBe(own.staff.independentBankRec);
+  });
+
+  it("re-reads a sample's hand-set figures from the duties once the owner's team replaces it", () => {
+    const sample = defaultProfile("general");
+    const manual = withStaff(sample, { ...sample.staff, segregationScore: 99 });
+    const own = withPeople(
+      manual,
+      [
+        { id: "a", name: "Ada", role: "Owner", active: true, owner: true, entitlements: [] },
+        {
+          id: "b",
+          name: "Ben",
+          role: "Bookkeeper",
+          active: true,
+          entitlements: ["post_payments", "bank_reconcile"],
+        },
+      ],
+      "2026-09-25",
+    );
+    expect(own.staff.segregationSource).toBe("derived");
+    expect(own.staff.segregationScore).not.toBe(99);
   });
 });
 

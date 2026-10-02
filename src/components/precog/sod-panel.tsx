@@ -1,7 +1,13 @@
 import { AlertTriangle, Grid3x3, Network, ShieldCheck, Users, type LucideIcon } from "lucide-react";
 import { segregationLevel } from "@/lib/precog/scoring/bands";
 import { CONFLICT_RULES, entitlementLabel } from "@/lib/precog/sod/conflict-rules";
-import { belowThresholdNote, openSeverityCounts } from "@/lib/precog/sod/open-findings";
+import {
+  belowThresholdNote,
+  dualReleaseSplit,
+  openSeverityCounts,
+  partialDualReleaseCoverage,
+} from "@/lib/precog/sod/open-findings";
+import { sodScopeLine } from "@/lib/precog/integrations/drift-signals";
 import type { NavFn } from "@/lib/precog/navigation";
 import type { SodDetectionReport } from "@/lib/precog/sod/detect";
 import { DualReleasePanel } from "@/components/precog/dual-release-panel";
@@ -30,8 +36,14 @@ export function SodPanel({
   // Never "strong" or "adequate" while a critical or high finding is open.
   const open = openSeverityCounts(report.conflicts, profile.dualRelease);
   const level = segregationLevel(health, open);
-  // The open tiles leave out what dual release narrows; say why the word still counts it.
+  // The open tiles count what dual release covers only above a threshold; say why.
   const belowNote = belowThresholdNote(open);
+  const { reduced } = dualReleaseSplit(
+    report.conflicts,
+    partialDualReleaseCoverage(profile.dualRelease, report.conflicts),
+  );
+  // The findings cover only the people on the map; say so when the books show more.
+  const scope = sodScopeLine(profile.integrationDriftSummary);
 
   return (
     <div className="space-y-4">
@@ -63,19 +75,23 @@ export function SodPanel({
         <StatTile
           label="Critical open"
           value={String(report.summary.critical)}
-          hint="Not narrowed"
+          hint="Not closed by dual release"
           tone="danger"
         />
         <StatTile
           label="High open"
           value={String(report.summary.high)}
-          hint="Not narrowed"
+          hint="Not closed by dual release"
           tone="warn"
         />
         <StatTile
           label="Narrowed by dual release"
           value={String(report.summary.dualReleaseMitigated)}
-          hint="Two people needed above the threshold"
+          hint={
+            reduced > 0
+              ? `${reduced} still open below the threshold`
+              : "Two people needed above the threshold"
+          }
           tone="ok"
         />
         <StatTile
@@ -87,7 +103,7 @@ export function SodPanel({
         <StatTile
           label="Open, no decision"
           value={String(report.summary.openWithoutAcceptance)}
-          hint="Not accepted or narrowed"
+          hint="Not accepted; not closed by dual release"
           tone="warn"
         />
       </div>
@@ -101,6 +117,11 @@ export function SodPanel({
           You have marked nobody still working here for:{" "}
           {report.summary.unheldDuties.map(entitlementLabel).join(", ")}. Somebody does each of
           these in every business that handles money; mark who, or the map cannot see that seat.
+        </p>
+      )}
+      {scope && (
+        <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-muted">
+          {scope}
         </p>
       )}
 

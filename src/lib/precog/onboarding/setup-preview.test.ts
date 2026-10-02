@@ -101,3 +101,17 @@ describe("the preview's count of findings", () => {
     expect(preview.first?.lossPhrase ?? "").not.toMatch(/more than/);
   });
 });
+
+describe("the preview's case", () => {
+  it("shows only a case that cites the finding's rule, never a related one", () => {
+    // No record cites rule-access-export; a related scheme exists and stays out.
+    const preview = previewSetup(
+      [{ name: "Bea", role: "IT lead", duties: ["manage_user_access", "export_bulk_data"] }],
+      "dental",
+    );
+    expect(preview.first?.conflict.ruleId).toBe("rule-access-export");
+    expect(preview.first?.study).toBeNull();
+    expect(preview.first?.lossPhrase).toBeNull();
+    expect(preview.first?.durationPhrase).toBeNull();
+  });
+});

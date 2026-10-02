@@ -652,10 +652,11 @@ describe("listBusinessSummaries", () => {
     expect(list[0].updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   });
 
-  it("reads the process count and the latest health score from the profile", async () => {
+  it("reads the process count and the latest map completeness from the profile", async () => {
     const profile = {
       customProcesses: [{ id: "a" }, { id: "b" }],
-      mapHealthHistory: [{ score: 40 }, { score: 72 }],
+      mapHealthHistory: [{ score: 40 }, { score: 61 }],
+      mapCompletenessHistory: [{ score: 40 }, { score: 72 }],
     };
     await saveBusinessRevision(sql, {
       ...input("user-a", "biz_1", null),
@@ -663,7 +664,12 @@ describe("listBusinessSummaries", () => {
     });
     await saveBusinessRevision(sql, {
       ...input("user-a", "biz_2", null),
-      profileJson: JSON.stringify({ customProcesses: "x", mapHealthHistory: [null] }),
+      profileJson: JSON.stringify({ customProcesses: "x", mapCompletenessHistory: [null] }),
+    });
+    // The retired map health series is never read as completeness.
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_3", null),
+      profileJson: JSON.stringify({ mapHealthHistory: [{ score: 55 }] }),
     });
     const byId = new Map((await listBusinessSummaries(sql, "user-a")).map((b) => [b.id, b]));
     expect(byId.get("biz_1")).toMatchObject({
@@ -672,6 +678,7 @@ describe("listBusinessSummaries", () => {
       industry: "dental",
     });
     expect(byId.get("biz_2")).toMatchObject({ processCount: 0, healthScore: null });
+    expect(byId.get("biz_3")).toMatchObject({ healthScore: null });
   });
 
   it("never lists another user's businesses", async () => {

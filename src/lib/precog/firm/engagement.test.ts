@@ -64,7 +64,7 @@ describe("pilot engagement", () => {
     ).toBeNull();
   });
 
-  it("counts answered findings against every finding and hours to the map", () => {
+  it("counts only explicit acceptances as accepted, keeps them open, and hours to the map", () => {
     const conflict = (ruleId: string, linkedControlId?: string) => ({
       ruleId,
       linkedControlId,
@@ -78,35 +78,46 @@ describe("pilot engagement", () => {
         mapCompletedAt: "2026-09-01T05:00:00.000Z",
         reportSentAt: "2026-09-03T00:00:00.000Z",
       },
-      conflicts: [conflict("r1", "c1"), conflict("r2")],
+      conflicts: [conflict("r1", "c1"), conflict("r2"), conflict("r3")],
       partialCoverage: none,
-      decisions: [{ kind: "remediate", linkedId: "c1" }, { kind: "accept_residual" }],
+      decisions: [
+        { kind: "remediate", linkedId: "c1" },
+        { kind: "accept_residual", linkedId: "r2" },
+        { kind: "accept_residual" },
+      ],
       industry: "general",
     });
     expect(metrics.hoursToMap).toBe(5);
     expect(metrics.reportSent).toBe(true);
-    expect(metrics.openFindings).toBe(1);
+    // No decision closes a finding, an acceptance included.
+    expect(metrics.openFindings).toBe(3);
     expect(metrics.acceptedFindings).toBe(1);
-    expect(metrics.acceptanceRate).toBe(0.5);
+    expect(metrics.actedOnFindings).toBe(1);
+    expect(metrics.acceptanceRate).toBeCloseTo(1 / 3, 9);
   });
 
-  it("reaches 100% and zero open when every finding is answered", () => {
+  it("counts a dual-release closure and a remediate, monitor or insure decision as acted on, never accepted", () => {
+    const finding = (ruleId: string, dualReleaseMitigated = false) => ({
+      ruleId,
+      ownerHeld: false,
+      residualRiskAccepted: false,
+      dualReleaseMitigated,
+    });
     const metrics = pilotMetrics({
-      conflicts: [
-        {
-          ruleId: "r1",
-          ownerHeld: false,
-          residualRiskAccepted: false,
-          dualReleaseMitigated: false,
-        },
-        { ruleId: "r2", ownerHeld: false, residualRiskAccepted: false, dualReleaseMitigated: true },
-      ],
+      conflicts: [finding("r1"), finding("r2", true), finding("r3"), finding("r4")],
       partialCoverage: none,
-      decisions: [{ kind: "accept_residual", linkedId: "r1" }],
+      decisions: [
+        { kind: "monitor", linkedId: "r1" },
+        { kind: "insure", linkedId: "r3" },
+        { kind: "accept_residual", linkedId: "r4" },
+        { kind: "remediate", linkedId: "r4" },
+      ],
       industry: "general",
     });
-    expect(metrics.openFindings).toBe(0);
-    expect(metrics.acceptanceRate).toBe(1);
+    expect(metrics.openFindings).toBe(3);
+    expect(metrics.actedOnFindings).toBe(3);
+    expect(metrics.acceptedFindings).toBe(1);
+    expect(metrics.acceptanceRate).toBe(0.25);
   });
 
   it("does not follow a decision linked under another industry", () => {
@@ -120,10 +131,14 @@ describe("pilot engagement", () => {
         },
       ],
       partialCoverage: none,
-      decisions: [{ kind: "monitor", linkedId: "r1", linkedIndustry: "dental" }],
+      decisions: [
+        { kind: "monitor", linkedId: "r1", linkedIndustry: "dental" },
+        { kind: "accept_residual", linkedId: "r1", linkedIndustry: "dental" },
+      ],
       industry: "general",
     });
     expect(metrics.openFindings).toBe(1);
+    expect(metrics.actedOnFindings).toBe(0);
     expect(metrics.acceptanceRate).toBe(0);
   });
 
@@ -142,10 +157,11 @@ describe("pilot engagement", () => {
     });
     expect(metrics.openFindings).toBe(0);
     expect(metrics.acceptedFindings).toBe(0);
+    expect(metrics.actedOnFindings).toBe(0);
     expect(metrics.acceptanceRate).toBeNull();
   });
 
-  it("counts a pair dual release covers only above a threshold as open until a decision answers it", () => {
+  it("counts a pair dual release covers only above a threshold as open, and acted on only once a decision answers it", () => {
     const narrowed = {
       ruleId: "rule-writeoff",
       ownerHeld: false,
@@ -160,15 +176,16 @@ describe("pilot engagement", () => {
       industry: "general",
     });
     expect(unanswered.openFindings).toBe(1);
-    expect(unanswered.acceptanceRate).toBe(0);
+    expect(unanswered.actedOnFindings).toBe(0);
     const answered = pilotMetrics({
       conflicts: [narrowed],
       partialCoverage,
       decisions: [{ kind: "monitor", linkedId: "rule-writeoff" }],
       industry: "general",
     });
-    expect(answered.openFindings).toBe(0);
-    expect(answered.acceptanceRate).toBe(1);
+    expect(answered.openFindings).toBe(1);
+    expect(answered.actedOnFindings).toBe(1);
+    expect(answered.acceptanceRate).toBe(0);
   });
 
   it("does not treat a sample practice name as the owner's team", () => {
@@ -188,6 +205,7 @@ describe("pilot metrics CSV", () => {
     reportSentAt: "2026-09-03T00:00:00.000Z",
     openFindings: 1,
     acceptedFindings: 1,
+    actedOnFindings: 2,
     acceptanceRate: 0.5,
   };
 
@@ -207,6 +225,7 @@ describe("pilot metrics CSV", () => {
         "reportSentAt,2026-09-03T00:00:00.000Z",
         "openFindings,1",
         "acceptedFindings,1",
+        "actedOnFindings,2",
         "acceptanceRate,0.500",
       ].join("\n"),
     );

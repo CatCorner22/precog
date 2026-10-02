@@ -150,3 +150,23 @@ describe("map health with no processes", () => {
     expect(h.summary).toContain(`Lowest: ${lowest.label.toLowerCase()}`);
   });
 });
+
+describe("map completeness", () => {
+  it("counts how far the map is filled in, never how risky it is", () => {
+    const tpl = getIndustryTemplate("dental");
+    const { snapshots } = buildProcessMapGraph(tpl, tpl.staffComposition);
+    const base = computeMapHealth(snapshots, []);
+    const hot = computeMapHealth(
+      snapshots.map((s) => ({ ...s, heat: 100 })),
+      [],
+    );
+    expect(hot.score).toBe(base.score);
+    expect(hot.dimensions.map((d) => d.id)).toEqual([
+      "integrity",
+      "ownership",
+      "controls",
+      "documentation",
+    ]);
+    expect(base.dimensions.reduce((sum, d) => sum + d.weight, 0)).toBeCloseTo(1, 9);
+  });
+});
