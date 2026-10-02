@@ -70,19 +70,20 @@ describe("recoveryCheck", () => {
 });
 
 describe("observedValueParts", () => {
-  it("names only what the observed value contains", () => {
+  it("names only what the observed value contains, cash and time apart", () => {
+    // (36 - 14) hours × 4 reviews × $95.
     expect(observedValueParts(DEFAULT_VALUE_CASE, ["reviewHoursBefore", "hourlyCost"])).toBe(
-      "Labor",
+      "Time returned (valued at your hourly cost) $8,360",
     );
     expect(observedValueParts({ ...DEFAULT_VALUE_CASE, directRecoveries: 900 }, [])).toBe(
-      "Documented recoveries",
+      "Cash recovered $900",
     );
     expect(
       observedValueParts({ ...DEFAULT_VALUE_CASE, directRecoveries: 900 }, [
         "reviewHoursBefore",
         "hourlyCost",
       ]),
-    ).toBe("Labor + documented recoveries");
+    ).toBe("Cash recovered $900 + Time returned (valued at your hourly cost) $8,360");
   });
 });
 

@@ -24,6 +24,7 @@ import {
   normalizeEnteredInputs,
   observedValueStatus,
   inputList,
+  modeledTileValues,
 } from "@/lib/precog/value-case";
 import {
   evidenceChecklist,
@@ -107,6 +108,7 @@ export function ValueProofCenter() {
   const value = useMemo(() => calculateValueCase(inputs), [inputs]);
   const status = useMemo(() => observedValueStatus(inputs, typed), [inputs, typed]);
   const isDefault = (key: ValueInputKey) => !status.entered.has(key);
+  const modeledTiles = useMemo(() => modeledTileValues(inputs, typed), [inputs, typed]);
   const evidenceSummary = useMemo(() => summarizeValueEvidence(evidence), [evidence]);
   const hours = hoursCheck(evidenceSummary.hours, inputs);
   const recoveries = recoveryCheck(evidenceSummary.recoveries, inputs.directRecoveries);
@@ -177,33 +179,35 @@ export function ValueProofCenter() {
           note={
             status.value.observed
               ? usesDefaults(status.value, observedValueParts(inputs, typed))
-              : `Precog default assumption: ${formatUsd(value.observed.total)} of labor. Enter your review hours and hourly cost, or money recovered.`
+              : `Precog default assumption: ${formatUsd(value.observed.total)} of time returned. Enter your review hours and hourly cost, or cash recovered.`
           }
         />
         <Metric
           icon={ShieldCheck}
           label="Modeled risk reduction"
-          value={formatUsd(value.modeled.base)}
+          value={modeledTiles.riskReduction}
           note={
-            isDefault("annualExposure") &&
-            isDefault("eventProbability") &&
-            isDefault("controlEffectiveness")
-              ? "Scenario, not realized savings; every input is a Precog default"
-              : "Scenario, not realized savings"
+            modeledTiles.entered
+              ? "Scenario, not realized savings"
+              : "Scenario, not realized savings. Enter the money at risk or the event probability below."
           }
           warning
         />
         <Metric
           icon={Calculator}
           label="Assumed loss baseline"
-          value={formatUsd(value.modeled.expectedLossBefore)}
-          note={`${isDefault("annualExposure") ? "Precog default exposure" : "Your exposure"} × ${isDefault("eventProbability") ? "Precog default probability" : "your probability assumption"}`}
+          value={modeledTiles.lossBaseline}
+          note={
+            modeledTiles.entered
+              ? `${isDefault("annualExposure") ? "Precog default exposure" : "Your exposure"} × ${isDefault("eventProbability") ? "Precog default probability" : "your probability assumption"}`
+              : "Your exposure × your probability, once you enter either"
+          }
           warning
         />
       </div>
 
       <Card>
-        <CardContent className="grid gap-4 pt-5 sm:grid-cols-3">
+        <CardContent className="grid gap-4 pt-5 sm:grid-cols-2 lg:grid-cols-4">
           {status.anyObservation || evidence.length > 0 ? (
             <>
               <ObservedInline
@@ -211,7 +215,16 @@ export function ValueProofCenter() {
                 figure={status.net}
                 show={(v) => formatUsd(v)}
               />
-              <ObservedInline label="Observed ROI" figure={status.roi} show={(v) => formatPct(v)} />
+              <ObservedInline
+                label="Cash-only ROI"
+                figure={status.cashRoi}
+                show={(v) => formatPct(v)}
+              />
+              <ObservedInline
+                label="ROI including time"
+                figure={status.roi}
+                show={(v) => formatPct(v)}
+              />
               <ObservedInline
                 label="Observed payback"
                 figure={status.payback}
@@ -219,7 +232,7 @@ export function ValueProofCenter() {
               />
             </>
           ) : (
-            <p className="text-sm text-muted sm:col-span-3">
+            <p className="text-sm text-muted sm:col-span-2 lg:col-span-4">
               Not yet observed. Every figure on this tab starts as a Precog default; enter your own
               review hours, costs and money recovered below, or add an item to the evidence
               register, and the net value, return and payback appear here once the figures behind

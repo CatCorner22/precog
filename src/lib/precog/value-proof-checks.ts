@@ -1,6 +1,7 @@
 import type { PracticeProfile } from "./practice-profile";
 import { calculateValueCase, observedValueStatus, type ValueCaseInputs } from "./value-case";
 import { summarizeValueEvidence, type ValueEvidence } from "./value-evidence";
+import { formatUsd } from "../utils";
 
 /**
  * How the verified hours in the evidence register compare with the hours the
@@ -52,17 +53,19 @@ export function recoveryCheck(verifiedRecoveries: number, typedRecoveries: numbe
 
 /**
  * What the "Observed value" figure is made of, for the note under it:
- * "Labor", "Documented recoveries", or both.
+ * cash recovered, time returned (valued at the hourly cost), or both, with
+ * the amount of each so the two are never read as one kind of money.
  */
 export function observedValueParts(
   inputs: ValueCaseInputs,
   typed: Parameters<typeof observedValueStatus>[1],
 ): string {
   const status = observedValueStatus(inputs, typed);
-  const labor = status.hours.observed && status.entered.has("hourlyCost");
-  const recoveries = status.entered.has("directRecoveries");
-  if (labor && recoveries) return "Labor + documented recoveries";
-  return labor ? "Labor" : "Documented recoveries";
+  const parts: string[] = [];
+  if (status.cash.observed) parts.push(`Cash recovered ${formatUsd(status.cash.value ?? 0)}`);
+  if (status.time.observed)
+    parts.push(`Time returned (valued at your hourly cost) ${formatUsd(status.time.value ?? 0)}`);
+  return parts.join(" + ");
 }
 
 /**
