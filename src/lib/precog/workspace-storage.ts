@@ -1,6 +1,6 @@
 import type { KeyedStorage } from "./local-data";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
-import { ACTIVE_PROFILE_KEY, PORTFOLIO_KEY } from "./practice-profile";
+import { ACTIVE_PROFILE_KEY, PORTFOLIO_KEY } from "./storage-keys";
 import { stableStringify } from "./text";
 
 export const WORKSPACE_PREFIX = "precog.workspace.v2:";

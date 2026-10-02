@@ -191,4 +191,17 @@ describe("parsePioneerInput", () => {
     const parsed = parsePioneerInput({ profile: { customPeople: [...people, null] } });
     expect(parsed.profile.customPeople).toHaveLength(250);
   });
+
+  it("keeps 2,500 relations and refuses more than 5,000 before reading them", () => {
+    const relation = { personId: "p1", knowledgeId: "k1", level: "expert" };
+    const parsed = parsePioneerInput({
+      profile: { customRelations: Array.from({ length: 5_000 }, () => relation) },
+    });
+    expect(parsed.profile.customRelations).toHaveLength(2_500);
+    expectInvalid(() =>
+      parsePioneerInput({
+        profile: { customRelations: Array.from({ length: 5_001 }, () => relation) },
+      }),
+    );
+  });
 });

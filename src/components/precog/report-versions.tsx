@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Lock, PenLine, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { usePractice } from "@/lib/precog/practice-context";
+import { usePractice, usePracticeSync } from "@/lib/precog/practice-context";
 import {
   getFirm,
   listReports,
@@ -24,7 +24,8 @@ import { signOffWithNote } from "./report-versions-actions";
  * firm who did not prepare it signs it off; "sent" is stamped once.
  */
 export function ReportVersionsPanel() {
-  const { profile, syncStatus, replaceProfile } = usePractice();
+  const { profile, replaceProfile } = usePractice();
+  const { syncStatus } = usePracticeSync();
   const { user, isPending } = useCurrentUserState();
   const [versions, setVersions] = useState<ReportVersionRow[] | null>(null);
   const [role, setRole] = useState<FirmRole | null>(null);

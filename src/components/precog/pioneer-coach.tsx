@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { writtenProcedureLinks } from "@/lib/precog/procedures/coverage-link";
 import { runPioneerCoach } from "@/lib/precog/coach/pioneer-server";
+import { PIONEER_LIST_CAPS } from "@/lib/precog/coach/pioneer-caps";
 import { CONTROL_CONFIRM_TAB, CONTROL_IN_PLACE_TAB } from "@/lib/precog/active-template";
 import { usePractice } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
@@ -70,7 +71,8 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
             customProcesses: profile.customProcesses ?? null,
             customPeople: profile.customPeople ?? null,
             customKnowledge: profile.customKnowledge ?? null,
-            customRelations: profile.customRelations ?? null,
+            // Pioneer reads the first 2,500 and refuses more than 5,000.
+            customRelations: profile.customRelations?.slice(0, PIONEER_LIST_CAPS.relations) ?? null,
             // The journal entries the server reads: continuity commitments,
             // the scenarios the owner confirmed apply, the starter controls
             // they confirmed run here, and the controls they already have,

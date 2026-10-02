@@ -106,6 +106,10 @@ import { count, slug } from "@/lib/precog/text";
  */
 const FIT_ALL_OPTIONS = { padding: 0.15 } as const;
 
+/** Same reason: constant props, so a render of the map writes nothing new to React Flow's store. */
+const PRO_OPTIONS = { hideAttribution: true } as const;
+const DEFAULT_EDGE_OPTIONS = { type: "smoothstep" } as const;
+
 /** How many priority targets the stack lists before "Show all". */
 const PRIORITY_LIST_LENGTH = 12;
 
@@ -641,6 +645,23 @@ export function ProcessMap({
     [selectNode],
   );
 
+  const onEdgeClick = useCallback(
+    (_: unknown, edge: Edge) => {
+      if (!build) return;
+      if (edge.deletable) {
+        setSelectedEdgeId(edge.id);
+        return;
+      }
+      if (graph.edges.some((e) => e.id === edge.id && e.kind === "feeds")) {
+        toast("Precog inferred this link", {
+          description:
+            "An output of one process matches an input of the next. Edit those Inputs or Outputs to remove it.",
+        });
+      }
+    },
+    [build, graph.edges],
+  );
+
   const whiteHot = priorities.filter((p) => p.band === "white_hot").length;
   const immediate = priorities.filter((p) => p.immediate).length;
   const hotCount = graph.snapshots.filter(
@@ -897,19 +918,7 @@ export function ProcessMap({
                 onNodeDragStop={onNodeDragStop}
                 onConnect={onConnect}
                 onEdgesChange={onEdgesChange}
-                onEdgeClick={(_, edge) => {
-                  if (!build) return;
-                  if (edge.deletable) {
-                    setSelectedEdgeId(edge.id);
-                    return;
-                  }
-                  if (graph.edges.some((e) => e.id === edge.id && e.kind === "feeds")) {
-                    toast("Precog inferred this link", {
-                      description:
-                        "An output of one process matches an input of the next. Edit those Inputs or Outputs to remove it.",
-                    });
-                  }
-                }}
+                onEdgeClick={onEdgeClick}
                 onPaneClick={() => setSelectedEdgeId(null)}
                 onEdgesDelete={onEdgesDelete}
                 isValidConnection={isValidConnection}
@@ -930,8 +939,8 @@ export function ProcessMap({
                 fitViewOptions={FIT_ALL_OPTIONS}
                 minZoom={0.2}
                 maxZoom={1.6}
-                proOptions={{ hideAttribution: true }}
-                defaultEdgeOptions={{ type: "smoothstep" }}
+                proOptions={PRO_OPTIONS}
+                defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
               >
                 {vision === "standard" && <LaneHeaders lanes={lanes} />}
                 <Background

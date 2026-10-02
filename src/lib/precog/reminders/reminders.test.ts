@@ -1,10 +1,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { openTestDb, type TestDb } from "@/test/pglite";
-import { defaultProfile, type PracticeProfile } from "../practice-profile";
+import { defaultProfile, normalizeProfile, type PracticeProfile } from "../practice-profile";
 import { reportServerError } from "@/lib/observability/report.server";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
 import { renderDigest, renderOwnerEmailConfirm, renderOwnerReminder } from "./email";
-import { runDigest } from "./digest";
+import { DIGEST_OMITTED_PROFILE_KEYS, runDigest } from "./digest";
 import type { Person } from "../types";
 
 // A normaliser bug for one business, by name: the rest pass through unchanged.
@@ -100,6 +100,33 @@ describe("due items", () => {
     expect(items[0].overdue).toBe(true);
     expect(forAudience(items, "owner").map((i) => i.key)).not.toContain("monthly:2026-09");
     expect(dueItemsFor(defaultProfile("general"), TODAY)).toEqual([]);
+  });
+
+  it("finds the same items in the profile the digest reads, without the map's history fields", () => {
+    const full: PracticeProfile = {
+      ...profileWithDues(),
+      mapLayout: { proc_1: { x: 10, y: 20 } },
+      mapHealthHistory: [{ at: "2026-09-01T00:00:00Z", score: 40 }],
+      mapVersions: [
+        {
+          id: "v1",
+          name: "Before the change",
+          createdAt: "2026-09-01T00:00:00Z",
+          healthScore: 40,
+          processes: [],
+          people: ownTeam(),
+          layout: {},
+        },
+      ],
+      plannedAbsences: [
+        { id: "a1", personId: "p2", industry: "general", from: "2026-09-28", to: "2026-10-02" },
+      ],
+    };
+    const stripped: Record<string, unknown> = { ...full };
+    for (const key of DIGEST_OMITTED_PROFILE_KEYS) delete stripped[key];
+    const items = dueItemsFor(normalizeProfile(full), TODAY);
+    expect(items.length).toBeGreaterThan(0);
+    expect(dueItemsFor(normalizeProfile(stripped), TODAY)).toEqual(items);
   });
 
   it("is quiet in the first days of a month about the monthly review", () => {

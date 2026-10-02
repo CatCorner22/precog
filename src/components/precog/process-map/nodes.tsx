@@ -34,13 +34,21 @@ export type ProcessFlowNode = Node<
 /** Below this zoom the canvas is an overview: cards drop detail and scale their title up so names stay legible. */
 const COMPACT_ZOOM = 0.6;
 
-function useCanvasZoom(): number {
-  return useStore((s) => s.transform[2]);
-}
-
 /** Title size that reads at any zoom: grows as the viewport zooms out, capped so cards do not explode. */
 function compactTitlePx(zoom: number): number {
   return clamp(Math.round(14 / Math.max(zoom, 0.25)), 14, 30);
+}
+
+/**
+ * What a card reads from the zoom: whether the canvas is an overview, and the
+ * title size there. Selecting these, not the zoom itself, re-renders a card
+ * only when one of them changes, not on every zoom step.
+ */
+function useCompactTitlePx(): number | null {
+  return useStore((s) => (s.transform[2] < COMPACT_ZOOM ? compactTitlePx(s.transform[2]) : null));
+}
+function useCompact(): boolean {
+  return useStore((s) => s.transform[2] < COMPACT_ZOOM);
 }
 
 function ProcessNodeView({ data: d, selected }: NodeProps<ProcessFlowNode>) {
@@ -51,8 +59,8 @@ function ProcessNodeView({ data: d, selected }: NodeProps<ProcessFlowNode>) {
   const interactive = d.interactive !== false;
   const hot = !d.unscored && vision === "predator" && priority >= 72;
   const locked = targetLocked(vision, d);
-  const zoom = useCanvasZoom();
-  const compact = zoom < COMPACT_ZOOM;
+  const titlePx = useCompactTitlePx();
+  const compact = titlePx !== null;
 
   return (
     <div
@@ -98,7 +106,7 @@ function ProcessNodeView({ data: d, selected }: NodeProps<ProcessFlowNode>) {
           vision === "terminator" ? "text-red-300" : "text-fg",
           vision === "predator" && "text-white",
         )}
-        style={compact ? { fontSize: compactTitlePx(zoom) } : undefined}
+        style={titlePx !== null ? { fontSize: titlePx } : undefined}
       >
         {d.label}
       </p>
@@ -153,7 +161,7 @@ function SatelliteNode({
       : nodeAccent(vision, heat, priority);
   const interactive = d.interactive !== false;
   const locked = targetLocked(vision, d);
-  const compact = useCanvasZoom() < COMPACT_ZOOM;
+  const compact = useCompact();
 
   return (
     <div

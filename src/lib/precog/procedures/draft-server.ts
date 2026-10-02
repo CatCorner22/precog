@@ -61,6 +61,7 @@ async function draftWithGrok(
   const response = await callModel(access, {
     messages: [{ role: "user", content: procedureDraftPrompt(input) }],
     maxTokens: 1500,
+    feature: "procedure-draft",
     temperature: 0.2,
     jsonObject: true,
   });

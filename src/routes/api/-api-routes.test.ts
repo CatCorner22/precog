@@ -357,6 +357,16 @@ describe("procedure image", () => {
     expect((await get("id=img_one")).status).toBe(404);
   });
 
+  it("lets the viewer's browser keep a miss for a minute, the same for every 404", async () => {
+    const misses = [await get("b=biz_1&id=img_one")];
+    session.userId = "owner";
+    misses.push(await get("b=biz_1&id=img_missing"), await get("b=biz_1&id=../../etc"));
+    for (const res of misses) {
+      expect(res.status).toBe(404);
+      expect(res.headers.get("cache-control")).toBe("private, max-age=60");
+    }
+  });
+
   it("refuses other methods", async () => {
     const res = await handlers(ProcedureImage).ANY({
       request: new Request("https://app.example/api/procedure-image", { method: "POST" }),

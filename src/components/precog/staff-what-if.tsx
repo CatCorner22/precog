@@ -1,4 +1,4 @@
-import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-team";
+import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-business";
 import type { StaffComposition } from "@/lib/precog/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

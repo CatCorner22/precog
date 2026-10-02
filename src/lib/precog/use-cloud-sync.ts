@@ -27,7 +27,9 @@ import {
   loadPortfolio,
   makeBusinessId,
   normalizeProfile,
+  PORTFOLIO_KEY,
   savePortfolioEntry,
+  summarizeBusiness,
   type BusinessSummary,
   type PracticeProfile,
 } from "./practice-profile";
@@ -129,10 +131,22 @@ export function useCloudSync(input: {
   const [remoteBusinesses, setRemoteBusinesses] = useState<BusinessSummary[]>([]);
   const [portfolioVersion, setPortfolioVersion] = useState(0);
   const bumpPortfolio = useCallback(() => setPortfolioVersion((v) => v + 1), []);
+  // The list re-reads storage when this tab or another changes it.
   useEffect(() => {
+    const portfolioKey = workspace.local?.physicalKey(PORTFOLIO_KEY);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === null || event.key === portfolioKey) bumpPortfolio();
+    };
     window.addEventListener("precog:portfolio-change", bumpPortfolio);
-    return () => window.removeEventListener("precog:portfolio-change", bumpPortfolio);
-  }, [bumpPortfolio]);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("precog:portfolio-change", bumpPortfolio);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [bumpPortfolio, workspace.local]);
+  // The open business's row as last listed, without its save time: a save
+  // that changes nothing the list shows does not re-render every reader.
+  const listedRow = useRef<string | null>(null);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localWriteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -693,7 +707,12 @@ export function useCloudSync(input: {
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
       keepInList(profile);
-      setPortfolioVersion((v) => v + 1);
+      const { updatedAt: _savedAt, ...row } = summarizeBusiness(profile);
+      const listed = JSON.stringify(row);
+      if (listed !== listedRow.current) {
+        listedRow.current = listed;
+        setPortfolioVersion((v) => v + 1);
+      }
       if (skipCloud || saveConflictRef.current) return;
       void saveCloud(profile).catch(reportCloudError);
     }, SAVE_DEBOUNCE_MS);

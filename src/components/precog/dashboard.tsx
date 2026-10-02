@@ -5,7 +5,7 @@ import { HEALTH_SCALE, RISK_SCALE, segregationLevel } from "@/lib/precog/scoring
 import { rankDangerousScenarios } from "@/lib/precog/engine";
 import { criticalSinglePoints } from "@/lib/precog/continuity/coverage";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
-import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-team";
+import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-business";
 import { assessCoso } from "@/lib/precog/coso";
 import { confirmedScenarioIds, residualScope } from "@/lib/precog/scoring/scope";
 import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";

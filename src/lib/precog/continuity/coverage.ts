@@ -247,10 +247,17 @@ export function coverageReport(tpl: IndustryTemplate): CoverageReport {
 function buildCoverageReport(tpl: IndustryTemplate): CoverageReport {
   const { knowledge, people, relations } = tpl;
   const byId = new Map(people.map((p) => [p.id, p]));
+  // Each item's relations in register order, grouped once rather than
+  // rescanning every relation for every item.
+  const relationsByItem = new Map<string, KnowledgeRelation[]>();
+  for (const r of relations) {
+    const list = relationsByItem.get(r.knowledgeId);
+    if (list) list.push(r);
+    else relationsByItem.set(r.knowledgeId, [r]);
+  }
 
   const holders = (knowledgeId: string) =>
-    relations
-      .filter((r) => r.knowledgeId === knowledgeId)
+    (relationsByItem.get(knowledgeId) ?? [])
       .map((r) => ({ person: byId.get(r.personId), level: r.level }))
       .filter((h): h is { person: Person; level: KnowledgeLevel } => Boolean(h.person?.active));
 
@@ -287,21 +294,34 @@ function buildCoverageReport(tpl: IndustryTemplate): CoverageReport {
     .reduce((s, i) => s + CRITICALITY_WEIGHT[i.item.criticality], 0);
   const coverageIndex = totalWeight === 0 ? 100 : Math.round((coveredWeight / totalWeight) * 100);
 
+  // Every person's sole, shared and learning items, in register order, from
+  // one pass over the items instead of three passes per person.
+  const loadById = new Map<
+    string,
+    Pick<PersonLoad, "soleItems" | "sharedItems" | "learningItems">
+  >();
+  const loadFor = (id: string) => {
+    let load = loadById.get(id);
+    if (!load) {
+      load = { soleItems: [], sharedItems: [], learningItems: [] };
+      loadById.set(id, load);
+    }
+    return load;
+  };
+  for (const i of items) {
+    if (i.primaries.length === 1) loadFor(i.primaries[0].id).soleItems.push(i.item);
+    else if (i.primaries.length >= 2)
+      for (const id of new Set(i.primaries.map((p) => p.id))) loadFor(id).sharedItems.push(i.item);
+    for (const id of new Set(i.learners.map((p) => p.id))) loadFor(id).learningItems.push(i.item);
+  }
+  const allItems = items.map((i) => i.item);
   const peopleLoad: PersonLoad[] = people
     .map((person) => {
-      const soleItems = items
-        .filter((i) => i.primaries.length === 1 && i.primaries[0].id === person.id)
-        .map((i) => i.item);
-      const sharedItems = items
-        .filter((i) => i.primaries.length >= 2 && i.primaries.some((p) => p.id === person.id))
-        .map((i) => i.item);
-      const learningItems = items
-        .filter((i) => i.learners.some((p) => p.id === person.id))
-        .map((i) => i.item);
-      const dependence = dependenceFor(
-        items.map((i) => i.item),
-        soleItems,
-      );
+      const load = loadById.get(person.id);
+      const soleItems = load ? [...load.soleItems] : [];
+      const sharedItems = load ? [...load.sharedItems] : [];
+      const learningItems = load ? [...load.learningItems] : [];
+      const dependence = dependenceFor(allItems, soleItems);
       return { person, soleItems, sharedItems, learningItems, dependence };
     })
     .sort((a, b) => b.dependence - a.dependence || b.soleItems.length - a.soleItems.length);

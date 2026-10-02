@@ -32,6 +32,8 @@
     "format:check": "prettier --check .",
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "check:bundle": "node scripts/check-bundle-size.mjs",
+    "perf:first-load": "node scripts/perf-first-load.mjs",
+    "bench": "node scripts/bench-register.mjs",
     "check:headers": "node scripts/check-build-headers.mjs",
     "check:migrations": "node scripts/check-migrations-unchanged.mjs",
     "update:server-fn-ids": "node scripts/update-server-fn-ids.mjs",

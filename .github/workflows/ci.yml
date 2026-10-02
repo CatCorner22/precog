@@ -227,6 +227,8 @@ jobs:
           exit 1
       - name: Signed sessions and account boundaries
         run: npm run e2e:safety
+      - name: First-load JavaScript per page, against each page's budget
+        run: npm run perf:first-load -- http://localhost:8080
       - name: Control evidence workflow in the browser (isolated embedded database)
         run: npm run e2e:evidence
         env:

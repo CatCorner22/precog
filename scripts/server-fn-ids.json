@@ -19,6 +19,7 @@
   "src/lib/precog/firm/server.ts#getNotificationSettings": "000b5fda7b24a4b45e59e288ec3de92e9843ba2bcd239145866a50a1ee3adafe",
   "src/lib/precog/firm/server.ts#getReport": "2e8f6499505f49997e76b7646e6a96f82f134b86712b6091e64462d6c95fd3fc",
   "src/lib/precog/firm/server.ts#inviteFirmMember": "9749095cd6075bacb358a9120c8fb1f180eaa0608d532c46cabc57dba8e03e35",
+  "src/lib/precog/firm/server.ts#keepHistoryBeforeRestore": "d3029c98f3f93ff9067ee1a3370e1118057839ac5f8fd8c0714bde6b9622bd8a",
   "src/lib/precog/firm/server.ts#leaveFirm": "73cd85c307ed74c63d4fdfa9170c0a9c093cefc04f2516d87ba65437a8cee949",
   "src/lib/precog/firm/server.ts#listDeletedClients": "a3a9d76277f7a14c2a30b137fa62d4bc0500342f56497652f1d2d49cede62f3e",
   "src/lib/precog/firm/server.ts#listFirmClients": "128f593a748f3caff2394c0efbd1b5b62cbdebe89cfb0c07ed7bcd32d09e45ce",

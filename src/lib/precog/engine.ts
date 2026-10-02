@@ -99,13 +99,16 @@ export function findKnowledgeRisks(tpl: IndustryTemplate): KnowledgeRisk[] {
     if (!byK.has(r.knowledgeId)) byK.set(r.knowledgeId, []);
     byK.get(r.knowledgeId)!.push(r);
   }
+  // The first person with each id, as people.find returns, without a scan per holder.
+  const personById = new Map<string, Person>();
+  for (const p of people) if (!personById.has(p.id)) personById.set(p.id, p);
 
   return knowledge
     .filter((k) => k.criticality === "critical" || k.criticality === "important")
     .map((k) => {
       const holders = (byK.get(k.id) || []).filter((r) => STRONG_LEVELS.has(r.level));
       const owners = holders
-        .map((h) => people.find((p) => p.id === h.personId))
+        .map((h) => personById.get(h.personId))
         .filter((p): p is Person => Boolean(p?.active));
       const ownerCount = owners.length;
       const soleOwner = ownerCount === 1;

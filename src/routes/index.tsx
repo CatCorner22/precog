@@ -26,7 +26,7 @@ import { continuitySlips, decisionsDue } from "@/lib/precog/decisions/follow-thr
 import { useToday } from "@/lib/use-today";
 import { localDateKey } from "@/lib/precog/dates";
 import { isNavTarget, parseHomeSearch, TAB_WORDS, type TabId } from "@/lib/precog/navigation";
-import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import { usePracticeState, useTemplate } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { latestReview, monthKey, monthlyReviewTasks } from "@/lib/precog/firm/reviews";
@@ -34,7 +34,6 @@ import { count, verb } from "@/lib/precog/text";
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { AccountDataControls } from "@/components/precog/account-menu";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
-import { Dashboard } from "@/components/precog/dashboard";
 import {
   CountBadge,
   MoreTabsMenu,
@@ -42,7 +41,6 @@ import {
   TabStrip,
   type ShellTab,
 } from "@/components/precog/home-shell-parts";
-import { IndustryOnboarding } from "@/components/precog/industry-onboarding";
 import { LeaverAccessPrompt } from "@/components/precog/leaver-access";
 import { PresentationToggle } from "@/components/precog/presentation-toggle";
 import { SaveConflictBanner } from "@/components/precog/save-conflict-banner";
@@ -69,7 +67,7 @@ function Home() {
   const activeAdvanced = ADVANCED_TABS.find((t) => t.id === tab) ?? null;
 
   const tpl = useTemplate();
-  const { profile, ready } = usePractice();
+  const { profile, ready } = usePracticeState();
   const { say } = usePresentation();
   const today = useToday();
 
@@ -108,6 +106,12 @@ function Home() {
   // While setup is open, the page behind it is inert: no keyboard or screen
   // reader can reach it. When setup closes, focus lands on the view's heading.
   const showOnboarding = ready && profile.onboardingComplete === false;
+  // Setup loads on demand; start fetching it as soon as the business says
+  // setup is unfinished, before the account check finishes.
+  const setupUnfinished = profile.onboardingComplete === false;
+  useEffect(() => {
+    if (setupUnfinished) void loadIndustryOnboarding();
+  }, [setupUnfinished]);
   const onboardingWasOpen = useRef(showOnboarding);
   useEffect(() => {
     if (onboardingWasOpen.current && !showOnboarding) {
@@ -166,7 +170,11 @@ function Home() {
 
   return (
     <div className="min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-bg">
-      {showOnboarding && <IndustryOnboarding />}
+      {showOnboarding && (
+        <Suspense fallback={<SetupLoading />}>
+          <IndustryOnboarding />
+        </Suspense>
+      )}
       <div inert={showOnboarding}>
         <a
           href="#main-content"
@@ -350,7 +358,7 @@ function Home() {
                     <ScenarioRunner initialScenarioId={item} />
                   </div>
                 )}
-                {tab === "sod" && <SodPanel onNavigate={openTab} />}
+                {tab === "sod" && <SodPanel onNavigate={openTab} report={sodReport} />}
                 {tab === "journal" && <DecisionJournal onOpenLinked={openTab} />}
                 {tab === "snapshots" && <AssessmentSnapshots />}
                 {tab === "blueprint" && <OperatingBlueprint />}
@@ -487,6 +495,24 @@ const MATRIX_LAYERS: Record<MatrixLayerId, true> = {
   continuity: true,
 };
 
+/** Covers the page from the first frame while the setup dialog's code loads. */
+function SetupLoading() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/90 p-4 backdrop-blur-sm">
+      <p role="status" className="text-sm text-muted">
+        Opening setup…
+      </p>
+    </div>
+  );
+}
+
+const loadIndustryOnboarding = () => import("@/components/precog/industry-onboarding");
+const IndustryOnboarding = lazy(() =>
+  loadIndustryOnboarding().then((module) => ({ default: module.IndustryOnboarding })),
+);
+const Dashboard = lazy(() =>
+  import("@/components/precog/dashboard").then((module) => ({ default: module.Dashboard })),
+);
 const ProcessMap = lazy(() =>
   import("@/components/precog/process-map").then((module) => ({ default: module.ProcessMap })),
 );

@@ -273,8 +273,11 @@ when the code reads a variable the file does not name.
 `migrations/*.sql` is the only schema source. `npm run build` runs
 `scripts/migrate.mjs --only-on-production`: preview deploys, CI and local
 builds leave the database alone, and a production deploy applies pending
-files, refuses to finish without `DATABASE_URL` and `BETTER_AUTH_SECRET`, and
-warns in the build log about each optional feature that is half configured.
+files, refuses to finish without `DATABASE_URL`, a `BETTER_AUTH_SECRET` of 32
+or more characters and an https `BETTER_AUTH_URL`, or with
+`VITE_AUTH_ENABLED=false`, and warns in the build log when Google and X
+sign-in lack their client and about each optional feature that is half
+configured.
 `npm run db:migrate` applies pending files on demand. The ledger
 (`scripts/migrate-core.mjs`) applies each file once under an advisory lock;
 `migrations/renamed.json` maps renumbered files to their old names so an older

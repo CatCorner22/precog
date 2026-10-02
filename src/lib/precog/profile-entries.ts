@@ -11,8 +11,8 @@ import type { KnowledgeItem, KnowledgeRelation, Person, ProcessNode } from "./ty
  * lists would lose an entry here (`malformedList`).
  */
 
-/** Most entries each list keeps. */
-const LIST_LIMITS = {
+/** Most entries each list keeps (scripts/bench-register.mjs times the engines at these sizes). */
+export const LIST_LIMITS = {
   people: 1_000,
   processes: 500,
   knowledge: 2_000,

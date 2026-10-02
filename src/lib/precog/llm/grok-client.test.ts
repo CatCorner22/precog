@@ -87,6 +87,81 @@ describe("grokChat", () => {
     log.mockRestore();
   });
 
+  it("logs one usage line per call with tokens, feature, model and latency, never the prompt or key", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "answer" } }],
+          model: "grok-test",
+          usage: { prompt_tokens: 120, completion_tokens: 45, total_tokens: 165 },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await grokChat("xai-secretkey", {
+      messages: [{ role: "user", content: "private owner text" }],
+      maxTokens: 10,
+      temperature: 0.2,
+      feature: "review",
+    });
+
+    expect(info).toHaveBeenCalledTimes(1);
+    const line = String(info.mock.calls[0][0]);
+    expect(line.startsWith("[grok] usage ")).toBe(true);
+    const parsed = JSON.parse(line.slice("[grok] usage ".length));
+    expect(parsed).toMatchObject({
+      feature: "review",
+      model: "grok-test",
+      promptTokens: 120,
+      completionTokens: 45,
+      totalTokens: 165,
+      outcome: "ok",
+    });
+    expect(parsed.latencyMs).toBeGreaterThanOrEqual(0);
+    expect(line).not.toContain("private owner text");
+    expect(line).not.toContain("secretkey");
+    // The feature label stays local; the request body carries no extra field.
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(init.body))).not.toHaveProperty("feature");
+    info.mockRestore();
+  });
+
+  it("logs the failure outcome with null tokens when the call fails", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const options = {
+      messages: [{ role: "user" as const, content: "hi" }],
+      maxTokens: 10,
+      temperature: 0.2,
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("busy", { status: 503 })));
+    await grokChat("test-key", options);
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("slow", "TimeoutError")));
+    await grokChat("test-key", options);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ choices: [{ message: { content: "" } }] }), {
+          status: 200,
+        }),
+      ),
+    );
+    await grokChat("test-key", options);
+
+    const lines = info.mock.calls.map((call) =>
+      JSON.parse(String(call[0]).slice("[grok] usage ".length)),
+    );
+    expect(lines.map((l) => l.outcome)).toEqual(["http_503", "timeout", "empty"]);
+    for (const l of lines) {
+      expect(l).toMatchObject({ feature: "unknown", promptTokens: null, totalTokens: null });
+    }
+    info.mockRestore();
+    error.mockRestore();
+  });
+
   it("only sends response_format for JSON requests", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {

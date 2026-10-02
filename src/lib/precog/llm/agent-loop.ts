@@ -170,6 +170,7 @@ export async function runGrokAgentLoop<T extends LocalAgentRun>(
       messages: buildGrokAgentMessages(local, claims),
       maxTokens: 256,
       temperature: 0.3,
+      feature: "pioneer",
     });
     if (!response) {
       await reportModelFallback(new Error("The model returned no brief"));

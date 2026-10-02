@@ -5,6 +5,7 @@ import { RequestError, requireObject } from "@/lib/request-errors";
 import { randomHex } from "@/lib/web-crypto";
 import { isBusinessId } from "../profile-input";
 import {
+  keepVersionBeforeRestore,
   listBusinessHistory,
   listDeletedBusinesses,
   loadBusinessHistoryVersion,
@@ -444,6 +445,21 @@ export const listHistory = createServerFn({ method: "GET" })
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
     return { history: await listBusinessHistory(sql, owner, data.businessId) };
+  });
+
+/**
+ * Before a restore loads a snapshot: keep the current state, even when a
+ * version from the last few minutes is kept already, so the restore's save
+ * loses nothing. A POST, as it writes.
+ */
+export const keepHistoryBeforeRestore = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(businessInput)
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    await keepVersionBeforeRestore(sql, owner, data.businessId);
+    return { ok: true as const };
   });
 
 export const getHistoryVersion = createServerFn({ method: "GET" })

@@ -280,6 +280,43 @@ export async function copyImagesFromReachableBusinesses(
   });
 }
 
+/**
+ * Whether the sweep after a save has anything to do. It has nothing when
+ * neither the replaced nor the new procedures name a picture and the
+ * business held none still counted as named: nothing to copy in, mark or
+ * clear. Pictures already marked wait for the purge before the owner's next
+ * upload, as those of every other business do.
+ */
+export function imageSweepNeeded(
+  saved: { previousProcedures: unknown; heldNamedImages: boolean },
+  profile: unknown,
+): boolean {
+  return (
+    saved.heldNamedImages ||
+    referencedImageIds(profile).length > 0 ||
+    referencedImageIds({ procedures: saved.previousProcedures }).length > 0
+  );
+}
+
+/**
+ * The sweep after a save: bring in the pictures a copy of another business
+ * the owner can open names (see copyImagesFromReachableBusinesses), then
+ * delete the business's step pictures no procedure has named for the grace
+ * period. Does nothing when imageSweepNeeded says so.
+ */
+export async function sweepImagesAfterSave(
+  sql: Sql,
+  ownerId: string,
+  businessId: string,
+  profile: unknown,
+  options: { copyFromOwn: boolean; previousProcedures: unknown; heldNamedImages: boolean },
+): Promise<void> {
+  if (!imageSweepNeeded(options, profile)) return;
+  const ids = referencedImageIds(profile);
+  if (options.copyFromOwn) await copyImagesFromReachableBusinesses(sql, ownerId, businessId, ids);
+  await sweepUnreferencedImages(sql, ownerId, businessId, ids);
+}
+
 /** Every image id the procedures of a stored business profile name. */
 export function referencedImageIds(profile: unknown): string[] {
   const procedures = (profile as { procedures?: unknown } | null)?.procedures;

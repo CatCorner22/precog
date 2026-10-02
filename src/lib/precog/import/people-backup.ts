@@ -1,7 +1,7 @@
 import { ENTITLEMENTS } from "../sod/conflict-rules";
 import { isCalendarDate } from "../dates";
 import type { Person } from "../types";
-import { MAX_ROLE_LENGTH } from "../onboarding/own-team";
+import { MAX_ROLE_LENGTH } from "../onboarding/own-business";
 import { stripInvisibleControls } from "../text";
 import { clamp } from "../number";
 

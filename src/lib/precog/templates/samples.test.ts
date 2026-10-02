@@ -8,7 +8,7 @@ import { deriveStaffFromTeam } from "../sod/derive-staff";
 import { detectSodConflicts } from "../sod/detect";
 import { soleOwnerId } from "../sod/owner-role";
 import { CONFLICT_RULES } from "../sod/conflict-rules";
-import { scenarioCases } from "./index";
+import { casesBehindScenario as scenarioCases } from "../evidence/scenario-cases";
 
 const findings = (id: Parameters<typeof getIndustryTemplate>[0]) =>
   detectSodConflicts(getIndustryTemplate(id)).conflicts.map((c) => `${c.role}: ${c.ruleId}`);
