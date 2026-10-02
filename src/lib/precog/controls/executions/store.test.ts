@@ -201,6 +201,28 @@ describe("account-scoped control execution log", () => {
     await expect(db.sql`update control_execution_log set record=${JSON.stringify({ ...first, status: null })}::jsonb
       where user_id='owner' and business_id='biz_1'`).rejects.toThrow();
   });
+  it("stores the card statement check and still loads the four earlier keys", async () => {
+    const keys = [
+      "bank_statement",
+      "cleared_checks",
+      "payroll_headcount",
+      "new_vendors",
+      "card_statement",
+    ];
+    for (const controlKey of keys)
+      await run("prep", { ...record(`check_${controlKey}`), controlKey });
+    const listed = await listControlExecutions(db.sql, "owner", "biz_1", "2026-08", null);
+    expect(listed.entries.map((r) => r.controlKey).sort()).toEqual([...keys].sort());
+  });
+  it("replaces the unnamed controlKey check with one named check that still refuses other keys", async () => {
+    const saved = await run("prep", { ...record(), controlKey: "card_statement" });
+    const checks = await db.sql<{ conname: string }>`select conname from pg_constraint
+      where conrelid = 'control_execution_log'::regclass and contype = 'c'
+        and pg_get_constraintdef(oid) like '%new_vendors%'`;
+    expect(checks.map((c) => c.conname)).toEqual(["control_execution_log_control_key_check"]);
+    await expect(db.sql`update control_execution_log set record=${JSON.stringify({ ...saved, controlKey: "petty_cash" })}::jsonb
+      where user_id='owner' and business_id='biz_1'`).rejects.toThrow();
+  });
   it("does not use membership of a different firm to authorize this business", async () => {
     await db.sql`insert into firms(user_id,name) values ('outsider','Other firm')`;
     await db.sql`insert into firm_members(firm_user_id,member_user_id,role) values ('outsider','outsider','owner')`;

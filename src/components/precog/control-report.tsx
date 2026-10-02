@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Printer } from "lucide-react";
 import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
-import { latestReview, REVIEW_ITEMS, reviewResultLine } from "@/lib/precog/firm/reviews";
+import { latestReview, reviewItemsFor, reviewResultLine } from "@/lib/precog/firm/reviews";
 import { industryMeta } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
@@ -91,7 +91,7 @@ export function ControlReport({
     .slice()
     .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || b.score - a.score);
   const unheld = sod.summary.unheldDuties.map((d) => entitlementLabel(d));
-  const reviews = REVIEW_ITEMS.map((item) => ({
+  const reviews = reviewItemsFor(month).map((item) => ({
     item,
     latest: latestReview(profile.monthlyReviews ?? [], item.key, month),
   }));

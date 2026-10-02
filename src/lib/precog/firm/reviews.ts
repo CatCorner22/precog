@@ -6,7 +6,7 @@ import type { Person } from "../types";
 import { utcDateKey } from "../dates";
 
 export type ReviewItemKey =
-  "bank_statement" | "cleared_checks" | "payroll_headcount" | "new_vendors";
+  "bank_statement" | "cleared_checks" | "payroll_headcount" | "new_vendors" | "card_statement";
 
 export type ReviewResult = "done" | "exception" | "skipped";
 
@@ -38,12 +38,17 @@ export interface ReviewRecord {
   recordedAt: string;
 }
 
-/** The four checks. `checkedDuties` are the duties whose work each check looks at. */
+/**
+ * The monthly checks. `checkedDuties` are the duties whose work each check
+ * looks at. `since` is the first period a check applies to, so an earlier
+ * month keeps the checks it had then.
+ */
 export const REVIEW_ITEMS: readonly {
   key: ReviewItemKey;
   title: string;
   why: string;
   checkedDuties: readonly EntitlementId[];
+  since?: string;
 }[] = [
   {
     key: "bank_statement",
@@ -69,7 +74,19 @@ export const REVIEW_ITEMS: readonly {
     why: "A new supplier, or a new bank account on an old one, is how shell-vendor payments start.",
     checkedDuties: ["create_vendor", "approve_vendor"],
   },
+  {
+    key: "card_statement",
+    title: "Read the company card statement line by line",
+    why: "Personal charges and cash advances on a company card are among the commonest schemes in Precog's case library, and once someone codes a charge it reads as supplies.",
+    checkedDuties: ["hold_company_card", "review_card_statement", "approve_expenses"],
+    since: "2026-10",
+  },
 ];
+
+/** The checks that apply to one period, YYYY-MM. */
+export function reviewItemsFor(period: string): typeof REVIEW_ITEMS {
+  return REVIEW_ITEMS.filter((item) => !item.since || period >= item.since);
+}
 
 const KEYS = new Set<string>(REVIEW_ITEMS.map((item) => item.key));
 const RESULTS = new Set<string>(["done", "exception", "skipped"]);
@@ -102,7 +119,7 @@ export function reviewDueOn(period: string): string {
 }
 
 /**
- * The four monthly checks, each with a suggested owner who does not hold the
+ * The monthly checks for the period, each with a suggested owner who does not hold the
  * duties it checks. Ownership never turns self-review into independent
  * review. Recorded separate duties rank before provisional title suggestions;
  * an overlapping fallback is explicitly marked. Actual permissions and
@@ -116,7 +133,7 @@ export function monthlyReviewTasks(
   const period = monthKey(today);
   const dueOn = reviewDueOn(period);
   const team = people.filter((p) => p.active !== false);
-  return REVIEW_ITEMS.map((item) => {
+  return reviewItemsFor(period).map((item) => {
     const reviewer = reviewerFor(team, item.checkedDuties, roleDuties);
     return {
       key: item.key,

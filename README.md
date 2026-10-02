@@ -186,10 +186,11 @@ for several client businesses.
   members see the firm's clients and their saves reach the same records.
 - **Clients**: each client carries its engagement marks (started, map
   completed, report sent, open and accepted findings).
-- **Monthly review log**: four checks per client per month (open the bank
+- **Monthly review log**: five checks per client per month (open the bank
   statement, read the cleared-check images, compare payroll to who still
-  works there, review new vendors), each recorded as done, exception or
-  skipped. The log is append-only: a later result is a new row.
+  works there, review new vendors, read the company card statement line by
+  line), each recorded as done, exception or skipped. The card statement
+  check applies from October 2026; earlier months keep their four results. The log is append-only: a later result is a new row.
 - **Report versions**: a sent report is a locked version with the profile as
   it was, the preparer, and the reviewer who signed it off.
 - **Billing**: the fixed assessment and the monthly firm plan through Stripe

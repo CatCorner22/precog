@@ -41,6 +41,19 @@ describe("control execution lifecycle", () => {
     expect(run.history[0].recordedAt).toBe(now);
     expect(run.revision).toBe(1);
   });
+  it("accepts the card statement check and keeps the four earlier keys", () => {
+    for (const controlKey of [
+      "bank_statement",
+      "cleared_checks",
+      "payroll_headcount",
+      "new_vendors",
+      "card_statement",
+    ]) {
+      const run = applyCommand(null, parseCommand({ ...record(), controlKey }), preparer, now, 7);
+      expect(run.controlKey).toBe(controlKey);
+    }
+    expect(() => parseCommand({ ...record(), controlKey: "petty_cash" })).toThrow();
+  });
   it("requires specific scope and evidence references", () => {
     for (const edit of [{ evidenceRefs: [] }, { scope: " " }, { note: "" }]) {
       expect(() => parseCommand({ ...record(), ...edit })).toThrow();
