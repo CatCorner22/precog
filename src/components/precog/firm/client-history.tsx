@@ -3,15 +3,16 @@ import { toast } from "sonner";
 import { History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePractice, usePracticeSync } from "@/lib/precog/practice-context";
-import { getHistoryVersion, listHistory } from "@/lib/precog/firm/server";
+import { getHistoryVersion, keepHistoryBeforeRestore, listHistory } from "@/lib/precog/firm/server";
 import type { BusinessHistoryEntry } from "@/lib/precog/business-store";
-import { MAX_HISTORY_PER_BUSINESS } from "@/lib/precog/business-retention";
+import { historyRuleText } from "@/lib/precog/business-retention";
 import { localDateKey, formatDayTime } from "@/lib/precog/dates";
 import { verificationsAsHeld } from "@/lib/precog/procedures/lifecycle";
 
 /**
- * The saved snapshots of the open business the store keeps (the last
- * MAX_HISTORY_PER_BUSINESS), newest first, with who saved each one.
+ * The saved snapshots of the open business the store keeps (one per window
+ * of each person's editing, see business-retention.ts), newest first, with
+ * who saved each one.
  * Restoring loads that snapshot as the working copy; the one it replaces is
  * itself kept, so a restore loses nothing.
  */
@@ -54,6 +55,7 @@ export function ClientHistory({ signedIn }: { signedIn: boolean }) {
       const res = await getHistoryVersion({
         data: { businessId, revision: entry.revision, today: localDateKey(new Date()) },
       });
+      await keepHistoryBeforeRestore({ data: { businessId } });
       replaceProfile({
         ...res.profile,
         businessId,
@@ -73,10 +75,7 @@ export function ClientHistory({ signedIn }: { signedIn: boolean }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold">Change history</h2>
-          <p className="mt-1 text-sm text-muted">
-            Precog keeps the last {MAX_HISTORY_PER_BUSINESS} saves of {profile.practiceName}, with
-            who made each one.
-          </p>
+          <p className="mt-1 text-sm text-muted">{historyRuleText(profile.practiceName)}</p>
         </div>
         <Button size="sm" variant="secondary" onClick={() => setOpen((v) => !v)}>
           <History className="size-3.5" /> {open ? "Hide" : "Show history"}

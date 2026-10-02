@@ -4,6 +4,7 @@ import { openTestDb, type TestDb } from "@/test/pglite";
 import {
   BusinessLimitError,
   deleteBusinessRow,
+  keepVersionBeforeRestore,
   listBusinessHistory,
   listBusinessSummaries,
   listDeletedBusinesses,
@@ -16,6 +17,12 @@ import {
   setActiveBusiness,
 } from "./business-store";
 import { MAX_BUSINESSES_PER_ACCOUNT } from "./business-lifecycle";
+import {
+  HISTORY_RETENTION_DAYS,
+  HISTORY_VERSION_WINDOW_MINUTES,
+  MAX_HISTORY_PER_BUSINESS,
+} from "./business-retention";
+import { imageSweepNeeded } from "./procedures/image-store.server";
 
 /**
  * Runs against an embedded Postgres with every file in migrations/ applied, so
@@ -248,7 +255,7 @@ describe("loadActiveBusiness", () => {
 });
 
 describe("history", () => {
-  it("keeps the replaced version of every save, with who saved it", async () => {
+  it("keeps the replaced version when another account saves, with who saved it", async () => {
     await sql`insert into firms (user_id, name) values ('user-a', 'Firm')`;
     await sql`insert into firm_members (firm_user_id, member_user_id) values ('user-a', 'user-b')`;
     await saveBusinessRevision(sql, {
@@ -288,6 +295,191 @@ describe("history", () => {
     const stale = await saveBusinessRevision(sql, input("user-a", "biz_1", 7, "stale"));
     expect(stale.ok).toBe(false);
     expect(await listBusinessHistory(sql, "user-a", "biz_1")).toEqual([]);
+  });
+});
+
+describe("history kept by time", () => {
+  /** Kept revisions of biz_1, newest first. */
+  async function kept(): Promise<number[]> {
+    return (await listBusinessHistory(sql, "user-a", "biz_1", 1000)).map((h) => h.revision);
+  }
+
+  /** Moves every kept version of biz_1, and the row itself, `minutes` into the past. */
+  async function age(minutes: number) {
+    await sql`update business_history set saved_at = saved_at - make_interval(mins => ${minutes})
+      where user_id = 'user-a' and business_id = 'biz_1'`;
+    await sql`update businesses set updated_at = updated_at - make_interval(mins => ${minutes})
+      where user_id = 'user-a' and id = 'biz_1'`;
+  }
+
+  /** Saves biz_1 `count` times in a row, each with a new name; returns the last revision. */
+  async function saveRepeatedly(from: number, count: number, savedBy = "user-a") {
+    let revision = from;
+    for (let i = 0; i < count; i += 1) {
+      const saved = await saveBusinessRevision(sql, {
+        ...input("user-a", "biz_1", revision, `v${revision + 1}`),
+        savedBy,
+      });
+      if (!saved.ok) throw new Error("conflict");
+      revision = saved.revision;
+    }
+    return revision;
+  }
+
+  beforeEach(async () => {
+    await sql`insert into firms (user_id, name) values ('user-a', 'Firm')`;
+    await sql`insert into firm_members (firm_user_id, member_user_id) values ('user-a', 'user-b')`;
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_1", null, "v1"),
+      firmUserId: "user-a",
+    });
+  });
+
+  it("keeps one version for ten saves inside a minute by one account", async () => {
+    await saveRepeatedly(1, 10);
+    expect(await revisionOf("user-a", "biz_1")).toBe(11);
+    // The version from before the burst.
+    expect(await kept()).toEqual([1]);
+  });
+
+  it("keeps another version when a second account saves", async () => {
+    const last = await saveRepeatedly(1, 10);
+    await saveRepeatedly(last, 1, "user-b");
+    // The first account's last state, as the second account found it.
+    expect(await kept()).toEqual([11, 1]);
+    const handedOver = await loadBusinessHistoryVersion<{ practiceName: string }>(
+      sql,
+      "user-a",
+      "biz_1",
+      11,
+    );
+    expect(handedOver?.profile.practiceName).toBe("v11");
+  });
+
+  it("keeps another version once the newest kept one is older than the window", async () => {
+    const last = await saveRepeatedly(1, 10);
+    await age(HISTORY_VERSION_WINDOW_MINUTES - 1);
+    await saveRepeatedly(last, 1);
+    expect(await kept()).toEqual([1]);
+    await age(2);
+    await saveRepeatedly(last + 1, 1);
+    expect(await kept()).toEqual([12, 1]);
+  });
+
+  it("drops versions older than the retention period", async () => {
+    let last = await saveRepeatedly(1, 1);
+    await age(HISTORY_VERSION_WINDOW_MINUTES + 1);
+    last = await saveRepeatedly(last, 1);
+    expect(await kept()).toEqual([2, 1]);
+    // Revision 1 was replaced no later than revision 2 was saved, past the period.
+    await sql`update business_history set saved_at = now() - make_interval(days => ${HISTORY_RETENTION_DAYS + 2})
+      where user_id = 'user-a' and business_id = 'biz_1' and revision = 1`;
+    await sql`update business_history set saved_at = now() - make_interval(days => ${HISTORY_RETENTION_DAYS + 1})
+      where user_id = 'user-a' and business_id = 'biz_1' and revision = 2`;
+    await saveRepeatedly(last, 1);
+    // Revision 3 is kept too, and revision 2 stays: revision 3 replaced it just now.
+    expect(await kept()).toEqual([3, 2]);
+  });
+
+  it("keeps the state from before a session that follows months without edits", async () => {
+    await age(100 * 24 * 60);
+    await saveRepeatedly(1, 2);
+    // Revision 1 was saved 100 days ago but replaced only now.
+    expect(await kept()).toEqual([2, 1]);
+    await saveRepeatedly(3, 1);
+    expect(await kept()).toEqual([2, 1]);
+  });
+
+  it("counts a version's age from when the next kept version was saved", async () => {
+    let last = await saveRepeatedly(1, 1);
+    await age(HISTORY_VERSION_WINDOW_MINUTES + 1);
+    last = await saveRepeatedly(last, 1);
+    await age(HISTORY_VERSION_WINDOW_MINUTES + 1);
+    last = await saveRepeatedly(last, 1);
+    expect(await kept()).toEqual([3, 2, 1]);
+    // Revision 2 was saved, so revision 1 replaced, past the period; revision 3 is recent.
+    await sql`update business_history set saved_at = now() - make_interval(days => ${HISTORY_RETENTION_DAYS + 1})
+      where user_id = 'user-a' and business_id = 'biz_1' and revision in (1, 2)`;
+    await saveRepeatedly(last, 1);
+    expect(await kept()).toEqual([4, 3, 2]);
+  });
+
+  it("keeps the newest version however old it is", async () => {
+    await age(HISTORY_RETENTION_DAYS * 24 * 60 + 60);
+    // A restore keeps the current state first, saved long before the retention period.
+    await keepVersionBeforeRestore(sql, "user-a", "biz_1");
+    await saveRepeatedly(1, 1);
+    expect(await kept()).toEqual([1]);
+  });
+
+  it("never keeps more than the ceiling", async () => {
+    await sql`update businesses set revision = 1000 where user_id = 'user-a' and id = 'biz_1'`;
+    await sql`insert into business_history (user_id, business_id, revision, name, industry, profile, saved_by)
+      select 'user-a', 'biz_1', g, 'old', 'dental', '{}'::jsonb, 'user-a'
+      from generate_series(1, ${MAX_HISTORY_PER_BUSINESS + 5}) g`;
+    await saveRepeatedly(1000, 1);
+    const revisions = await kept();
+    expect(revisions).toHaveLength(MAX_HISTORY_PER_BUSINESS);
+    expect(revisions.at(-1)).toBe(6);
+  });
+
+  it("keeps the state a restore replaces, even inside the window", async () => {
+    const last = await saveRepeatedly(1, 3);
+    expect(await kept()).toEqual([1]);
+    await keepVersionBeforeRestore(sql, "user-a", "biz_1");
+    await saveRepeatedly(last, 1);
+    expect(await kept()).toEqual([4, 1]);
+  });
+});
+
+describe("skipping the picture sweep", () => {
+  const picture = { procedures: [{ id: "p1", steps: [{ imageIds: ["img_1"] }] }] };
+  const noPicture = { procedures: [{ id: "p1", steps: [{ text: "Count the till" }] }] };
+
+  async function save(baseRevision: number | null, profile: object) {
+    const saved = await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_img", baseRevision),
+      profileJson: JSON.stringify(profile),
+    });
+    if (!saved.ok) throw new Error("conflict");
+    return saved;
+  }
+
+  it("skips it when neither the old nor the new procedures name a picture", async () => {
+    await save(null, noPicture);
+    const saved = await save(1, { ...noPicture, practiceName: "Renamed" });
+    expect(imageSweepNeeded(saved, { ...noPicture, practiceName: "Renamed" })).toBe(false);
+  });
+
+  it("runs it when the new procedures name a picture", async () => {
+    await save(null, noPicture);
+    const saved = await save(1, picture);
+    expect(imageSweepNeeded(saved, picture)).toBe(true);
+  });
+
+  it("runs it when the replaced procedures named a picture the new ones drop", async () => {
+    await save(null, picture);
+    const saved = await save(1, noPicture);
+    expect(saved.previousProcedures).toEqual(picture.procedures);
+    expect(imageSweepNeeded(saved, noPicture)).toBe(true);
+  });
+
+  it("runs it when the business holds a picture still counted as named", async () => {
+    await save(null, noPicture);
+    await sql`insert into procedure_images
+      (id, user_id, business_id, content_type, bytes, byte_size, width, height, sha256)
+      values ('img_1', 'user-a', 'biz_img', 'image/png', '\\x00'::bytea, 1, 1, 1, 'x')`;
+    const saved = await save(1, { ...noPicture, practiceName: "Renamed" });
+    expect(saved.heldNamedImages).toBe(true);
+    expect(imageSweepNeeded(saved, noPicture)).toBe(true);
+  });
+});
+
+describe("migrations", () => {
+  it("index businesses by id for the owner lookup", async () => {
+    const rows = await sql<{ indexdef: string }>`
+      select indexdef from pg_indexes where indexname = 'businesses_id_idx'`;
+    expect(rows[0]?.indexdef).toMatch(/ON public\.businesses USING btree \(id\)/);
   });
 });
 
@@ -489,14 +681,30 @@ describe("listBusinessSummaries", () => {
 });
 
 describe("checking a write against the stored profile", () => {
-  it("hands the check the stored profile, or null for a new business", async () => {
+  it("hands the check the stored procedures, or null for a new business", async () => {
     const seen: unknown[] = [];
     const checkWrite = (previous: unknown) => {
       seen.push(previous);
     };
-    await saveBusinessRevision(sql, { ...input("user-a", "biz_check", null, "First"), checkWrite });
+    const procedures = [{ id: "proc_1", steps: [{ text: "Count the till" }] }];
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_check", null, "First"),
+      profileJson: JSON.stringify({ practiceName: "First", procedures }),
+      checkWrite,
+    });
     await saveBusinessRevision(sql, { ...input("user-a", "biz_check", 1, "Second"), checkWrite });
-    expect(seen).toEqual([null, { practiceName: "First", businessId: "biz_check" }]);
+    await saveBusinessRevision(sql, { ...input("user-a", "biz_check", 2, "Third"), checkWrite });
+    // A stored profile without procedures reads as one with none.
+    expect(seen).toEqual([null, { procedures }, {}]);
+  });
+
+  it("still returns the whole stored profile on a conflict", async () => {
+    await saveBusinessRevision(sql, input("user-a", "biz_check", null, "First"));
+    const stale = await saveBusinessRevision(sql, input("user-a", "biz_check", 5, "Stale"));
+    expect(stale).toMatchObject({
+      ok: false,
+      existing: { profile: { practiceName: "First", businessId: "biz_check" } },
+    });
   });
 
   it("writes nothing, and keeps no history, when the check refuses", async () => {

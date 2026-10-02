@@ -41,14 +41,17 @@ export async function runDigest(
   },
 ): Promise<DigestOutcome> {
   const outcome: DigestOutcome = { advisors: 0, owners: 0, skipped: 0, errors: [] };
-  // Null for a business that could not be read: reported once, then skipped.
+  // Each business's profile is read once per run, however many recipients
+  // share it. Null for a business that could not be read: reported once, then skipped.
   const itemsByBusiness = new Map<string, ReminderItem[] | null>();
   const itemsFor = async (row: BusinessRow): Promise<ReminderItem[]> => {
     const businessKey = `${row.user_id}/${row.id}`;
     let items = itemsByBusiness.get(businessKey);
     if (items === undefined) {
       try {
-        items = dueItemsFor(normalizeProfile(row.profile), input.today);
+        const profile = await profileFor(sql, row);
+        // Deleted since the run listed it: nothing to announce.
+        items = profile ? dueItemsFor(normalizeProfile(profile), input.today) : [];
       } catch (err) {
         items = null;
         outcome.errors.push(`business ${row.id}: ${errorText(err)}`);
@@ -126,7 +129,6 @@ interface BusinessRow {
   user_id: string;
   id: string;
   name: string;
-  profile: PracticeProfile;
 }
 
 interface OwnerNoteRow extends BusinessRow {
@@ -188,7 +190,7 @@ async function recipients(sql: Sql): Promise<Recipient[]> {
 
 async function businessesFor(sql: Sql, recipient: Recipient): Promise<BusinessRow[]> {
   return sql<BusinessRow>`
-    select b.user_id, b.id, b.name, b.profile
+    select b.user_id, b.id, b.name
     from businesses b
     where b.deleted_at is null
       and (b.user_id = ${recipient.userId}
@@ -204,7 +206,7 @@ async function businessesFor(sql: Sql, recipient: Recipient): Promise<BusinessRo
  */
 async function ownerNoteTargets(sql: Sql): Promise<OwnerNoteRow[]> {
   return sql.query<OwnerNoteRow>(`
-    select b.user_id, b.id, b.name, b.profile, e.owner_email, e.owner_email_token,
+    select b.user_id, b.id, b.name, e.owner_email, e.owner_email_token,
       f.name as firm_name,
       case when ${TRUSTED_EMAIL("cu")} then cu.email end as reply_to
     from businesses b
@@ -220,6 +222,37 @@ async function ownerNoteTargets(sql: Sql): Promise<OwnerNoteRow[]> {
       and coalesce(ns.owner_reminders, true)
     order by b.user_id, b.id
   `);
+}
+
+/**
+ * The profile fields the digest leaves out: the map's saved versions, saved
+ * blocks, health history and layout. What is due (dueItemsFor) never reads
+ * them, and they are most of a large profile. A due item that needs one of
+ * them must come off this list; reminders.test.ts compares the items.
+ */
+export const DIGEST_OMITTED_PROFILE_KEYS = [
+  "mapVersions",
+  "savedProcessBlocks",
+  "mapHealthHistory",
+  "mapLayout",
+] as const satisfies readonly (keyof PracticeProfile)[];
+
+/**
+ * One live business's profile without DIGEST_OMITTED_PROFILE_KEYS. Null when
+ * the business is gone.
+ */
+async function profileFor(
+  sql: Sql,
+  business: Pick<BusinessRow, "user_id" | "id">,
+): Promise<Partial<PracticeProfile> | null> {
+  const rows = await sql<{ profile: Partial<PracticeProfile> }>`
+    select case when jsonb_typeof(profile) = 'object'
+        then profile - ${[...DIGEST_OMITTED_PROFILE_KEYS]}::text[]
+        else profile end as profile
+    from businesses
+    where user_id = ${business.user_id} and id = ${business.id} and deleted_at is null
+  `;
+  return rows[0]?.profile ?? null;
 }
 
 /** Items not yet logged for this recipient at this due date and announcement. */

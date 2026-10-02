@@ -9,6 +9,7 @@ import {
   MAX_IMAGES_PER_BUSINESS,
   readProcedureImage,
   referencedImageIds,
+  sweepImagesAfterSave,
   sweepUnreferencedImages,
 } from "./image-store.server";
 
@@ -241,6 +242,31 @@ describe("procedure image store", () => {
     expect(await readProcedureImage(db.sql, "colleague", "biz_kept", id)).not.toBeNull();
     // A stranger with a business of the same name gets nothing.
     expect(await copyImagesFromReachableBusinesses(db.sql, "stranger", "biz_1", [id])).toBe(0);
+  }, 60_000);
+
+  it("skips the sweep after a save that names no picture, and runs it when one is named", async () => {
+    const old = await upload(9);
+    const named = await upload(10);
+    await db.pg.query(
+      "update procedure_images set unreferenced_since = now() - interval '40 days' where id = $1",
+      [old.id],
+    );
+    await db.pg.query("update procedure_images set unreferenced_since = now() where id = $1", [
+      named.id,
+    ]);
+    const nothingHeld = {
+      copyFromOwn: true,
+      previousProcedures: undefined,
+      heldNamedImages: false,
+    };
+    await sweepImagesAfterSave(db.sql, "owner", "biz_1", { procedures: [] }, nothingHeld);
+    // Skipped: the picture past the grace period waits for the purge before the next upload.
+    expect(await readProcedureImage(db.sql, "owner", "biz_1", old.id)).not.toBeNull();
+
+    const naming = { procedures: [{ steps: [{ imageIds: [named.id] }] }] };
+    await sweepImagesAfterSave(db.sql, "owner", "biz_1", naming, nothingHeld);
+    expect(await readProcedureImage(db.sql, "owner", "biz_1", old.id)).toBeNull();
+    expect(await readProcedureImage(db.sql, "owner", "biz_1", named.id)).not.toBeNull();
   }, 60_000);
 
   it("goes with the business when the business row is deleted", async () => {

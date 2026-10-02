@@ -100,6 +100,8 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
     await sweepProcedureImages(sql, owner ?? context.userId, businessId, data.profile, {
       // Only the saver's own pictures ever move between businesses.
       copyFromOwn: (owner ?? context.userId) === context.userId,
+      previousProcedures: saved.previousProcedures,
+      heldNamedImages: saved.heldNamedImages,
     });
     return {
       ok: true as const,
@@ -109,25 +111,20 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
   });
 
 /**
- * After a save, bring in the pictures a copy of another business the owner
- * can open names (see copyImagesFromReachableBusinesses), then delete the
- * business's step pictures no procedure has named for the grace period. A
- * failure here is reported and never fails the save: the pictures wait for
- * the next one.
+ * After a save, sweep the business's step pictures (see sweepImagesAfterSave,
+ * which skips the sweep when there is nothing to do). A failure here is
+ * reported and never fails the save: the pictures wait for the next one.
  */
 async function sweepProcedureImages(
   sql: Awaited<ReturnType<typeof getSql>>,
   ownerId: string,
   businessId: string,
   profile: unknown,
-  options: { copyFromOwn: boolean },
+  options: { copyFromOwn: boolean; previousProcedures: unknown; heldNamedImages: boolean },
 ): Promise<void> {
   try {
-    const { copyImagesFromReachableBusinesses, referencedImageIds, sweepUnreferencedImages } =
-      await import("./procedures/image-store.server");
-    const ids = referencedImageIds(profile);
-    if (options.copyFromOwn) await copyImagesFromReachableBusinesses(sql, ownerId, businessId, ids);
-    await sweepUnreferencedImages(sql, ownerId, businessId, ids);
+    const { sweepImagesAfterSave } = await import("./procedures/image-store.server");
+    await sweepImagesAfterSave(sql, ownerId, businessId, profile, options);
   } catch (err) {
     const { reportServerError } = await import("@/lib/observability/report.server");
     await reportServerError(err, "procedure-image-sweep");

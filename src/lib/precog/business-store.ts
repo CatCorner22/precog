@@ -5,7 +5,12 @@ import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
 import { businessLimitMessage, MAX_BUSINESSES_PER_ACCOUNT } from "./business-lifecycle";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
 import { revokeBusinessShares } from "./share/share-store";
-import { DELETED_RETENTION_DAYS, MAX_HISTORY_PER_BUSINESS } from "./business-retention";
+import {
+  DELETED_RETENTION_DAYS,
+  HISTORY_RETENTION_DAYS,
+  HISTORY_VERSION_WINDOW_MINUTES,
+  MAX_HISTORY_PER_BUSINESS,
+} from "./business-retention";
 
 /**
  * Revision-checked write of one business row.
@@ -39,6 +44,8 @@ interface BusinessSaveInput {
   /**
    * Checks the write against the stored profile (null for a new business)
    * while the row is locked, before anything is written; throws to refuse it.
+   * The save reads only the stored procedures, so the check receives
+   * `{ procedures }` (an empty object when the profile has none).
    */
   checkWrite?: (previous: unknown) => void;
 }
@@ -52,7 +59,15 @@ interface BusinessRowSnapshot<TProfile = unknown> {
 }
 
 type BusinessSaveResult<TProfile = unknown> =
-  | { ok: true; revision: number; updatedAt: string }
+  | {
+      ok: true;
+      revision: number;
+      updatedAt: string;
+      /** The procedures the save replaced; undefined for a new business or none stored. */
+      previousProcedures: unknown;
+      /** Before this save, the business held a step picture still counted as named. */
+      heldNamedImages: boolean;
+    }
   | { ok: false; conflict: true; existing: BusinessRowSnapshot<TProfile> };
 
 /** A new business past the account's limit. Saves to existing ones always go through. */
@@ -170,19 +185,36 @@ export async function saveBusinessRevision<TProfile = unknown>(
   return inTransaction(sql, async (tx) => {
     await lockBusinessOwner(tx, input.userId);
     const savedBy = input.savedBy ?? input.userId;
+    // Only the procedures travel back: the write check reads nothing else, and
+    // a conflict reads the whole profile separately. `kept_recent` says the
+    // newest kept version is inside the window and shares its saver with the
+    // row being replaced and with this save.
     const rows = await tx<{
       revision: number | string;
-      profile: TProfile;
+      procedures: unknown;
       name: string;
       industry: string;
       updated_at: string;
       deleted_at: string | null;
       firm_user_id: string | null;
       unchanged: boolean;
-    }>`select revision, profile, name, industry, updated_at, deleted_at, firm_user_id,
-         (profile = ${input.profileJson}::jsonb and name = ${input.name}
-           and industry = ${input.industry}) as unchanged
-       from businesses where user_id = ${input.userId} and id = ${input.businessId} for update`;
+      kept_recent: boolean | null;
+      held_named_images: boolean;
+    }>`select b.revision, b.profile->'procedures' as procedures, b.name, b.industry,
+         b.updated_at, b.deleted_at, b.firm_user_id,
+         (b.profile = ${input.profileJson}::jsonb and b.name = ${input.name}
+           and b.industry = ${input.industry}) as unchanged,
+         (select h.saved_at > now() - make_interval(mins => ${HISTORY_VERSION_WINDOW_MINUTES})
+             and h.saved_by is not distinct from b.saved_by
+             and h.saved_by is not distinct from ${savedBy}::text
+           from business_history h
+           where h.user_id = b.user_id and h.business_id = b.id
+           order by h.revision desc limit 1) as kept_recent,
+         exists (select 1 from procedure_images p
+           where p.user_id = b.user_id and p.business_id = b.id
+             and p.unreferenced_since is null) as held_named_images
+       from businesses b where b.user_id = ${input.userId} and b.id = ${input.businessId}
+       for update of b`;
     const current = rows[0];
     const deleted = await tx`select 1 from business_deletion_markers
       where user_id = ${input.userId} and business_id = ${input.businessId}`;
@@ -192,12 +224,14 @@ export async function saveBusinessRevision<TProfile = unknown>(
     if (current) {
       await authorizeBusinessWriter(tx, input.userId, savedBy, current.firm_user_id);
       if (input.baseRevision === null || Number(current.revision) !== input.baseRevision) {
+        const stored = await tx<{ profile: TProfile }>`select profile from businesses
+          where user_id = ${input.userId} and id = ${input.businessId}`;
         return {
           ok: false,
           conflict: true,
           existing: {
             revision: Number(current.revision),
-            profile: current.profile,
+            profile: stored[0].profile,
             name: current.name,
             industry: current.industry,
             updated_at: toIsoTimestamp(current.updated_at),
@@ -212,15 +246,14 @@ export async function saveBusinessRevision<TProfile = unknown>(
           ok: true,
           revision: Number(current.revision),
           updatedAt: toIsoTimestamp(current.updated_at),
+          previousProcedures: current.procedures ?? undefined,
+          heldNamedImages: current.held_named_images,
         };
       }
-      input.checkWrite?.(current.profile);
-      // Only a successful replacement archives the old row, in the same transaction.
-      await tx`insert into business_history
-        (user_id, business_id, revision, name, industry, profile, saved_by, saved_at)
-        select user_id, id, revision, name, industry, profile, saved_by, updated_at
-        from businesses where user_id = ${input.userId} and id = ${input.businessId}
-        on conflict (user_id, business_id, revision) do nothing`;
+      input.checkWrite?.(current.procedures == null ? {} : { procedures: current.procedures });
+      // Only a successful replacement archives the old row, in the same
+      // transaction, and only once per window of one person's editing.
+      if (!current.kept_recent) await keepCurrentVersion(tx, input.userId, input.businessId);
     } else {
       if (input.firmUserId && input.firmUserId !== input.userId) {
         const membership = await tx`select member_user_id from firm_members
@@ -249,7 +282,41 @@ export async function saveBusinessRevision<TProfile = unknown>(
     if (!row) throw new BusinessUnavailableError();
     if (current) await pruneHistory(tx, input.userId, input.businessId);
     if (input.activate) await setActiveBusiness(tx, activePointer(input, savedBy));
-    return { ok: true, revision: Number(row.revision), updatedAt: toIsoTimestamp(row.updated_at) };
+    return {
+      ok: true,
+      revision: Number(row.revision),
+      updatedAt: toIsoTimestamp(row.updated_at),
+      previousProcedures: current?.procedures ?? undefined,
+      heldNamedImages: current?.held_named_images ?? false,
+    };
+  });
+}
+
+/** Copies the business as it stands now into its history, once per revision. */
+async function keepCurrentVersion(
+  sql: Sql,
+  ownerUserId: string,
+  businessId: string,
+): Promise<void> {
+  await sql`insert into business_history
+    (user_id, business_id, revision, name, industry, profile, saved_by, saved_at)
+    select user_id, id, revision, name, industry, profile, saved_by, updated_at
+    from businesses where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is null
+    on conflict (user_id, business_id, revision) do nothing`;
+}
+
+/**
+ * Keeps the state a restore is about to replace, however recently a version
+ * was kept, so a restore loses nothing. The caller has checked access.
+ */
+export async function keepVersionBeforeRestore(
+  sql: Sql,
+  ownerUserId: string,
+  businessId: string,
+): Promise<void> {
+  await inTransaction(sql, async (tx) => {
+    await keepCurrentVersion(tx, ownerUserId, businessId);
+    await pruneHistory(tx, ownerUserId, businessId);
   });
 }
 
@@ -258,14 +325,32 @@ function activePointer(input: BusinessSaveInput, savedBy: string): ActivePointer
   return { userId: savedBy, businessId: input.businessId, ownerUserId: input.userId };
 }
 
+/**
+ * Drops versions replaced more than the retention period ago, and any past
+ * the newest MAX_HISTORY_PER_BUSINESS. A version counts as replaced no later
+ * than the next kept version was saved, so the age runs from that, not from
+ * its own save: after months without edits, the state from before a new
+ * session stays. The newest kept version has no later one and always stays.
+ * Revisions skip numbers now that versions are kept by time, so the ceiling
+ * counts rows.
+ */
 async function pruneHistory(sql: Sql, userId: string, businessId: string): Promise<void> {
   await sql`
-    delete from business_history
-    where user_id = ${userId} and business_id = ${businessId}
-      and revision <= (
-        select coalesce(max(revision), 0) from business_history
-        where user_id = ${userId} and business_id = ${businessId}
-      ) - ${MAX_HISTORY_PER_BUSINESS}::bigint
+    delete from business_history h
+    where h.user_id = ${userId} and h.business_id = ${businessId}
+      and (
+        exists (
+          select 1 from business_history n
+          where n.user_id = h.user_id and n.business_id = h.business_id
+            and n.revision > h.revision
+            and n.saved_at < now() - make_interval(days => ${HISTORY_RETENTION_DAYS})
+        )
+        or h.revision < coalesce((
+          select revision from business_history
+          where user_id = ${userId} and business_id = ${businessId}
+          order by revision desc offset ${MAX_HISTORY_PER_BUSINESS - 1}::int limit 1
+        ), 0)
+      )
   `;
 }
 

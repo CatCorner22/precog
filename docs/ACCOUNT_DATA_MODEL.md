@@ -64,6 +64,20 @@ introduced this model is in
   the deletion time, no profile. It stops a client with no revision from
   recreating a deleted id. Restoring removes the marker; deleting the account
   removes its markers through a foreign-key cascade.
+- History keeps one version per 15 minutes of each person's editing, for 90
+  days and at most 200 versions per business; the newest kept version stays
+  however old it is (`src/lib/precog/business-retention.ts`). A save copies
+  the row it replaces into `business_history` only when the newest kept
+  version is older than the window or another account saved either one.
+  The 90 days count from when the next kept version was saved (no earlier
+  than the version was replaced), not from the version's own save, so the
+  state from before a session that follows months without edits stays.
+  Before a restore loads a past version, a separate POST
+  (`keepHistoryBeforeRestore`) keeps the current state.
+- `business_history_business_idx` (0016) duplicates the columns of the
+  `business_history_revision_unique` constraint. Drop it in a new migration
+  only after `EXPLAIN` on production shows that `listBusinessHistory` and the
+  history prune use the unique index.
 - An active pointer names both the business and the account that owns it.
   The store reads a legacy full-profile pointer only for a profile that was
   never migrated, never for a modern id-only pointer or a known deletion.
