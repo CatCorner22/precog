@@ -7,7 +7,7 @@
 import { describeChunkBasis } from "../rag/corpus";
 import { mapAssessed } from "../builder/map-state";
 import { industryMeta } from "../industry";
-import { assessCoso } from "../coso";
+import { assessCoso, COSO_PRINCIPLE_COUNT } from "../coso";
 import { resolveTemplate } from "../active-template";
 import { rankDangerousScenarios } from "../engine";
 import { STRONG_LEVELS } from "../continuity/coverage";
@@ -310,17 +310,19 @@ function cosoAssessment({ profile, tpl, staff, riskVars, scope }: ToolInputs): T
     riskVariables: riskVars,
     confirmedScenarioIds: scope.confirmedScenarioIds,
     dualRelease: profile.dualRelease,
+    accessReconciliation: profile.accessReconciliation,
   });
   return {
     ok: true,
-    summary: `COSO ${coso.overall}/100 (${coso.overallStatus})`,
+    summary: `COSO checklist: ${coso.gaps} of ${COSO_PRINCIPLE_COUNT} principles with a gap, ${coso.notAssessed} not assessed`,
+    // No overall score: a gap in one component is not offset by another.
     data: {
-      overall: coso.overall,
-      status: coso.overallStatus,
+      gaps: coso.gaps,
+      notAssessed: coso.notAssessed,
+      principles: COSO_PRINCIPLE_COUNT,
       components: coso.components.map((c) => ({
         id: c.id,
         name: c.name,
-        score: c.score,
         status: c.status,
       })),
       priorityFindings: coso.priorityFindings.slice(0, 6),

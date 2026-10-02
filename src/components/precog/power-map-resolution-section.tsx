@@ -29,7 +29,11 @@ export function PowerMapResolutionSection({ model }: { model: PowerMapBuilderMod
                 key={conflict.id}
                 className="grid gap-2 rounded-xl border border-border bg-elevated p-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]"
               >
-                <ConflictSummary conflict={conflict}>
+                <ConflictSummary
+                  conflict={conflict}
+                  staff={model.profile.staff}
+                  dualRelease={model.profile.dualRelease}
+                >
                   <p className="mt-2 text-xs text-muted">
                     Until different people hold the duties:{" "}
                     {conflict.compensatingControls.slice(0, 2).join("; ")}

@@ -7,6 +7,7 @@ import { type MapGraphNode, type ProcessMapSnapshot } from "./process-graph";
 import {
   HEAT_BANDS,
   PRIORITY_BAND_LABEL,
+  PRIORITY_SCALE,
   RISK_SCALE,
   priorityBand,
   type PriorityBand,
@@ -145,6 +146,9 @@ const THREAT_COLOR: Record<PriorityBand, string> = {
 
 // The priority bands live with every other band cutoff (scoring/bands).
 export { PRIORITY_BAND_LABEL, priorityBand, type PriorityBand };
+
+/** The lowest priority in the top band ("Top priority"). */
+export const PRIORITY_TOP = PRIORITY_SCALE.top;
 
 export interface PriorityTarget {
   id: string;

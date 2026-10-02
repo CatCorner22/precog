@@ -1,6 +1,8 @@
 /**
- * Leading indicators — early signals before loss materializes.
- * Weighted composite used by forecast drift and coach critique.
+ * Watched conditions: the profile settings and indices past a line Precog
+ * chose, read by the Signals list and the coach. These are not early-warning
+ * signals (those come from records, see early-warning.ts), and the COSO
+ * checklist is not among them: it has no score to cross a line.
  *
  * Every threshold, weight and band here is this app's assumption, listed in
  * the report's `assumptions`; none is measured or taken from a study.
@@ -11,7 +13,6 @@ import type { RiskVariableState } from "../scoring/dynamic-variables";
 import { findKnowledgeRisks } from "../engine";
 import { portfolioSummary, type ResidualScope } from "../scoring/residual-engine";
 import { DEFAULT_WEIGHTS } from "../scoring/weights";
-import { assessCoso } from "../coso";
 import { RISK_SCALE } from "../scoring/bands";
 import { formatUsd } from "../../utils";
 
@@ -54,7 +55,6 @@ export function scoreLeadingIndicators(
     confirmedScenarioIds,
     riskVariables: riskVars,
   });
-  const coso = assessCoso(tpl, staff, { riskVariables: riskVars, confirmedScenarioIds });
   const spofs = findKnowledgeRisks(tpl).filter(
     (r) => r.soleOwner && r.riskScore >= RISK_SCALE.actNow,
   );
@@ -111,21 +111,6 @@ export function scoreLeadingIndicators(
       weight: weights.averageResidual,
       why: "The average residual risk is already high",
       linkedTab: "residual",
-    },
-    {
-      id: "li_coso_monitor",
-      label: "COSO overall",
-      value: coso.overall,
-      threshold: lines.coso.watchBelow,
-      status:
-        coso.overall < lines.coso.breachBelow
-          ? "breach"
-          : coso.overall < lines.coso.watchBelow
-            ? "watch"
-            : "ok",
-      weight: weights.coso,
-      why: "A weak control system makes other failures harder to notice",
-      linkedTab: "coso",
     },
     {
       id: "li_claims",
@@ -213,7 +198,6 @@ const INDICATOR_ASSUMPTIONS = {
     soleHeld: { watch: 1, breach: 2 },
     openConflicts: { watch: 1, breach: 2 },
     averageResidual: { watch: 50, breach: 65 },
-    coso: { watchBelow: 65, breachBelow: 50 },
     claimsLoad: { watch: 1.15, breach: 1.3 },
     dailyCash: { watch: 4000, breach: 6000 },
     segregation: { watchBelow: 55, breachBelow: 40 },
@@ -224,7 +208,6 @@ const INDICATOR_ASSUMPTIONS = {
     bankRec: 1.4,
     dualControl: 1.2,
     averageResidual: 1.1,
-    coso: 0.9,
     claimsLoad: 0.7,
     dailyCash: 0.6,
     segregation: 1.0,
@@ -245,7 +228,6 @@ const ASSUMPTION_LINES: string[] = [
   `Open duty conflicts not accepted: watch at ${L.openConflicts.watch}, breach at ${L.openConflicts.breach}; weight ${W.openConflicts}.`,
   `No independent bank reconciliation is a breach; weight ${W.bankRec}. No dual control on payments is a breach; weight ${W.dualControl}.`,
   `Average residual risk: watch at ${L.averageResidual.watch}, breach at ${L.averageResidual.breach}; weight ${W.averageResidual}.`,
-  `COSO overall: watch below ${L.coso.watchBelow}, breach below ${L.coso.breachBelow}; weight ${W.coso}.`,
   `Claims load factor: watch at ${L.claimsLoad.watch}, breach at ${L.claimsLoad.breach}; weight ${W.claimsLoad}.`,
   `Daily cash exposure: watch at ${formatUsd(L.dailyCash.watch)}, breach at ${formatUsd(L.dailyCash.breach)}; weight ${W.dailyCash}.`,
   `Segregation score: watch below ${L.segregation.watchBelow}, breach below ${L.segregation.breachBelow}; weight ${W.segregation}.`,

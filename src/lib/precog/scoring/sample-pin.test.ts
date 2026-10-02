@@ -4,7 +4,7 @@ import { assessCoso } from "../coso";
 import { rankDangerousScenarios } from "../engine";
 import { INDUSTRIES, type IndustryId } from "../industry";
 import { defaultProfile } from "../practice-profile";
-import { buildThreatAssessment } from "../threat-scoring";
+import { buildThreatAssessment, fixFirstCount } from "../threat-scoring";
 import { portfolioSummary, tornadoSensitivity } from "./residual-engine";
 
 /**
@@ -134,15 +134,25 @@ import { portfolioSummary, tornadoSensitivity } from "./residual-engine";
  *   take duty-conflict cards at the top of every deck again and the lowest
  *   cards drop off. Every sample's deck moves; the threat index rises by 1
  *   to 2 everywhere but the nonprofit, whose index stays at 89.
+ * - The priority list's headline is a count, not an average: the number of
+ *   items in its top band (priority 88 or more, "Top priority"), counted
+ *   over every target. COSO principles read Gap, In place or Not assessed,
+ *   with no averaged overall or component score. With the accepted pairs
+ *   open again (above), each sample's top band holds every 91-point
+ *   duty-conflict card: dental, restaurant and general 3; retail,
+ *   professional services, construction and automotive 4; nonprofit 4
+ *   (its four 91-point cards were already open).
  */
 const PINNED: Record<
   string,
   {
     averageResidual: number;
     rows: string[];
-    threatIndex: number;
+    /** Items in the priority list's top band: its headline, a count that adding an item never lowers. */
+    fixFirst: number;
     threatDeck: string[];
-    coso: number;
+    /** COSO principles with a gap and with no record: no overall score. */
+    coso: string;
     cosoComponents: string[];
     ranked: string[];
     tornado: string[];
@@ -177,7 +187,7 @@ const PINNED: Record<
       "know-k5:65/70/22",
       "know-k7:65/70/22",
     ],
-    threatIndex: 89,
+    fixFirst: 3,
     threatDeck: [
       "sod-rule-cash-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
@@ -190,13 +200,13 @@ const PINNED: Record<
       "spof-k8:76:85",
       "know-k1:70:74",
     ],
-    coso: 31,
+    coso: "10 gaps, 6 not assessed",
     cosoComponents: [
-      "control_environment:50",
-      "risk_assessment:38",
-      "control_activities:15",
-      "information_communication:25",
-      "monitoring:25",
+      "control_environment:gap",
+      "risk_assessment:gap",
+      "control_activities:gap",
+      "information_communication:gap",
+      "monitoring:gap",
     ],
     ranked: [
       "sc-vendor-fraud:110588:10588:197:5703",
@@ -229,7 +239,7 @@ const PINNED: Record<
       "scen-sc-key-person-leaves:45/2/45",
       "know-k2:65/70/22",
     ],
-    threatIndex: 90,
+    fixFirst: 4,
     threatDeck: [
       "sod-rule-release-rec:91:92",
       "sod-rule-cash-rec:91:92",
@@ -242,13 +252,13 @@ const PINNED: Record<
       "scen-sc-vendor-fraud:79:89",
       "spof-k3:76:85",
     ],
-    coso: 30,
+    coso: "10 gaps, 6 not assessed",
     cosoComponents: [
-      "control_environment:50",
-      "risk_assessment:38",
-      "control_activities:15",
-      "information_communication:25",
-      "monitoring:20",
+      "control_environment:gap",
+      "risk_assessment:gap",
+      "control_activities:gap",
+      "information_communication:gap",
+      "monitoring:gap",
     ],
     ranked: [
       "sc-vendor-fraud:110588:10588:197:5703",
@@ -284,7 +294,7 @@ const PINNED: Record<
       "scen-sc-key-person-leaves:45/2/45",
       "know-k5:65/70/22",
     ],
-    threatIndex: 90,
+    fixFirst: 4,
     threatDeck: [
       "sod-rule-custody-rec:91:92",
       "sod-rule-release-rec:91:92",
@@ -297,13 +307,13 @@ const PINNED: Record<
       "ctrl-c-trust-disb:84:80",
       "scen-sc-vendor-fraud:79:89",
     ],
-    coso: 28,
+    coso: "10 gaps, 6 not assessed",
     cosoComponents: [
-      "control_environment:50",
-      "risk_assessment:30",
-      "control_activities:15",
-      "information_communication:25",
-      "monitoring:20",
+      "control_environment:gap",
+      "risk_assessment:gap",
+      "control_activities:gap",
+      "information_communication:gap",
+      "monitoring:gap",
     ],
     ranked: [
       "sc-vendor-fraud:110588:10588:197:5703",
@@ -339,7 +349,7 @@ const PINNED: Record<
       "scen-sc-key-person-leaves:45/4/44",
       "know-k2:65/70/22",
     ],
-    threatIndex: 89,
+    fixFirst: 3,
     threatDeck: [
       "sod-rule-cash-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
@@ -352,13 +362,13 @@ const PINNED: Record<
       "spof-k7:76:85",
       "know-k1:70:74",
     ],
-    coso: 28,
+    coso: "10 gaps, 6 not assessed",
     cosoComponents: [
-      "control_environment:50",
-      "risk_assessment:30",
-      "control_activities:15",
-      "information_communication:25",
-      "monitoring:20",
+      "control_environment:gap",
+      "risk_assessment:gap",
+      "control_activities:gap",
+      "information_communication:gap",
+      "monitoring:gap",
     ],
     ranked: [
       "sc-vendor-fraud:110588:10588:197:5703",
@@ -402,7 +412,7 @@ const PINNED: Record<
       "know-k2:65/70/20",
       "know-k6:49/70/15",
     ],
-    threatIndex: 89,
+    fixFirst: 4,
     threatDeck: [
       "sod-rule-custody-rec:91:92",
       "sod-rule-release-rec:91:92",
@@ -415,13 +425,13 @@ const PINNED: Record<
       "spof-k5:76:85",
       "scen-sc-vendor-fraud:74:80",
     ],
-    coso: 32,
+    coso: "10 gaps, 6 not assessed",
     cosoComponents: [
-      "control_environment:50",
-      "risk_assessment:46",
-      "control_activities:15",
-      "information_communication:30",
-      "monitoring:20",
+      "control_environment:gap",
+      "risk_assessment:gap",
+      "control_activities:gap",
+      "information_communication:gap",
+      "monitoring:gap",
     ],
     ranked: [
       "sc-cash-sod-failure:67314:5000:155:4910",
@@ -469,7 +479,7 @@ const PINNED: Record<
       "know-k6:49/70/15",
       "know-k7:49/70/15",
     ],
-    threatIndex: 89,
+    fixFirst: 4,
     threatDeck: [
       "sod-rule-custody-rec:91:92",
       "sod-rule-release-rec:91:92",
@@ -482,13 +492,13 @@ const PINNED: Record<
       "spof-k5:76:85",
       "scen-sc-vendor-fraud:75:81",
     ],
-    coso: 36,
+    coso: "10 gaps, 6 not assessed",
     cosoComponents: [
-      "control_environment:50",
-      "risk_assessment:54",
-      "control_activities:15",
-      "information_communication:40",
-      "monitoring:20",
+      "control_environment:gap",
+      "risk_assessment:gap",
+      "control_activities:gap",
+      "information_communication:gap",
+      "monitoring:gap",
     ],
     ranked: [
       "sc-cash-sod-failure:67314:5000:155:4910",
@@ -531,7 +541,7 @@ const PINNED: Record<
       "know-k4:49/70/15",
       "know-k7:49/70/15",
     ],
-    threatIndex: 89,
+    fixFirst: 4,
     threatDeck: [
       "sod-rule-custody-rec:91:92",
       "sod-rule-release-rec:91:92",
@@ -544,13 +554,13 @@ const PINNED: Record<
       "spof-k2:76:85",
       "spof-k3:76:85",
     ],
-    coso: 32,
+    coso: "10 gaps, 6 not assessed",
     cosoComponents: [
-      "control_environment:50",
-      "risk_assessment:46",
-      "control_activities:15",
-      "information_communication:30",
-      "monitoring:20",
+      "control_environment:gap",
+      "risk_assessment:gap",
+      "control_activities:gap",
+      "information_communication:gap",
+      "monitoring:gap",
     ],
     ranked: [
       "sc-cash-sod-failure:67314:5000:155:4910",
@@ -585,7 +595,7 @@ const PINNED: Record<
       "know-k2:65/70/22",
       "know-k6:65/70/22",
     ],
-    threatIndex: 89,
+    fixFirst: 3,
     threatDeck: [
       "sod-rule-cash-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
@@ -598,13 +608,13 @@ const PINNED: Record<
       "know-k1:70:74",
       "know-k3:70:74",
     ],
-    coso: 34,
+    coso: "10 gaps, 6 not assessed",
     cosoComponents: [
-      "control_environment:50",
-      "risk_assessment:46",
-      "control_activities:15",
-      "information_communication:30",
-      "monitoring:31",
+      "control_environment:gap",
+      "risk_assessment:gap",
+      "control_activities:gap",
+      "information_communication:gap",
+      "monitoring:gap",
     ],
     ranked: [
       "sc-vendor-fraud:110588:10588:197:5703",
@@ -638,13 +648,14 @@ describe("sample business numbers", () => {
         riskVariables: p.riskVariables,
         dualRelease: p.dualRelease,
       });
-      expect(threat.overallThreatIndex).toBe(pinned.threatIndex);
+      expect(threat.fixFirst).toBe(pinned.fixFirst);
+      expect(fixFirstCount(threat.targetDeck)).toBe(pinned.fixFirst);
       expect(threat.targetDeck.map((t) => `${t.id}:${t.priority}:${t.heat}`)).toEqual(
         pinned.threatDeck,
       );
       const coso = assessCoso(tpl, p.staff, { riskVariables: p.riskVariables });
-      expect(coso.overall).toBe(pinned.coso);
-      expect(coso.components.map((c) => `${c.id}:${c.score}`)).toEqual(pinned.cosoComponents);
+      expect(`${coso.gaps} gaps, ${coso.notAssessed} not assessed`).toBe(pinned.coso);
+      expect(coso.components.map((c) => `${c.id}:${c.status}`)).toEqual(pinned.cosoComponents);
       expect(
         rankDangerousScenarios(tpl, { staff: p.staff, riskVariables: p.riskVariables }).map(
           (r) =>

@@ -36,8 +36,8 @@ export function SodConflictsSection({
         </CardTitle>
         <CardDescription>
           Each pair of duties one person holds, whether dual release narrows it, and whether you
-          have accepted the risk. The rank on each card orders them from 12 to 100 by severity, duty
-          weight and staffing.
+          have accepted the risk. Precog lists the most severe first; each card names who holds the
+          pair and the staffing that leaves it open.
         </CardDescription>
         <IndexBasis />
         <div
@@ -135,7 +135,11 @@ function ConflictCardDetails({
   const stillToDo = c.compensatingControls.filter((x) => !c.controlsInPlace.includes(x));
   const tabName = useTabName();
   return (
-    <ConflictSummary conflict={c}>
+    <ConflictSummary
+      conflict={c}
+      staff={model.profile.staff}
+      dualRelease={model.profile.dualRelease}
+    >
       <p className="mt-1 text-xs text-subtle">Fraud path: {c.fraudPath}</p>
       {c.controlsInPlace.length > 0 && (
         <p className="mt-2 text-xs text-ok">Already in place: {c.controlsInPlace.join("; ")}</p>

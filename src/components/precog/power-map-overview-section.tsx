@@ -43,7 +43,7 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
           icon={UserRoundCheck}
           label="Stand-in cover (Precog's index, 0 to 100)"
           value={String(coverage.resilienceScore)}
-          hint={`${coverage.singlePoints.length} high-risk duties with one holder · ${coverage.unassigned.length} duties nobody holds. Assumes your own staff do every duty.`}
+          hint={`${coverage.singlePoints.length} high-risk duties with one holder · ${coverage.unassigned.length} duties nobody holds. Counts only duties that need a stand-in, and assumes your own staff do every duty.`}
           tone={coverage.unassigned.length > 0 ? "danger" : "primary"}
         />
         <StatTile
@@ -208,7 +208,7 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
             each duty has a trained stand-in. Fix both before you change anyone&apos;s access.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 lg:grid-cols-3">
+        <CardContent className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
           <CoverageList
             title="Unassigned duties"
             empty="Every duty has an owner."
@@ -236,6 +236,19 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
               label: item.personName,
               detail: `${item.count} duties of weight 4 or 5 · review what they do and who checks it`,
             }))}
+          />
+          <CoverageList
+            title="Keep to as few people as possible"
+            empty="Nobody holds bulk export, access, admin, backup or log duties."
+            items={coverage.keepFew.map((item) => ({
+              id: item.entitlementId,
+              label: item.label,
+              detail:
+                item.assignees.length > 1
+                  ? `Held by ${item.assignees.length}: ${item.assignees.map((a) => a.personName).join(", ")} · check each one needs it`
+                  : `Held by 1: ${item.assignees[0]?.personName}`,
+            }))}
+            danger={coverage.keepFew.some((item) => item.assignees.length > 1)}
           />
         </CardContent>
       </Card>

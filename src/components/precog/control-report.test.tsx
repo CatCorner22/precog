@@ -142,6 +142,29 @@ describe("printed control report", () => {
   });
 });
 
+describe("report cover headlines", () => {
+  it("names the scale of each count, so the top-priority count and the residual count never share words", () => {
+    for (const industry of ["dental", "restaurant"] as const) {
+      const text = render(defaultProfile(industry)).replace(/<[^>]+>/g, "|");
+      const between = (from: string, to: string) => {
+        const start = text.indexOf(from);
+        expect(start, from).toBeGreaterThanOrEqual(0);
+        return text.slice(start, text.indexOf(to, start));
+      };
+      // The priority list's headline: items at priority 88 or more.
+      const top = between("Top-priority items", "Average residual risk score");
+      expect(top).toContain("Priority 88 or more");
+      expect(top).not.toMatch(/fix first|80 or more|risks?\b/i);
+      // The residual "Fix first" band: risks at 80 or more on the residual index.
+      const residual = between("Average residual risk score", "Duty separation index");
+      expect(residual).toMatch(/\|\d+ risks? at 80 or more\|/);
+      expect(residual).not.toMatch(/top|priority|88/i);
+      // No other count on the cover borrows "to fix first" for either scale.
+      expect(text).not.toMatch(/\d+ (?:items? )?to fix first/i);
+    }
+  });
+});
+
 describe("locked version figures", () => {
   const profile = defaultProfile("dental");
   const atLock = buildReportModelForProfile(profile, "2026-09-26");

@@ -17,13 +17,15 @@ import { sodScopeLine } from "@/lib/precog/integrations/drift-signals";
 import { trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
 import { DECISION_KIND_LABEL } from "@/lib/precog/practice-profile";
-import { PRIORITY_BAND_LABEL } from "@/lib/precog/map-vision";
+import { PRIORITY_BAND_LABEL, PRIORITY_TOP } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
 import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
 import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/reports";
 import { ReportVersionsPanel } from "@/components/precog/report-versions";
 import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
+import { fixFirstOf } from "@/lib/precog/threat-scoring";
+import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import {
   lockedFigures,
   recalculationNote,
@@ -212,14 +214,14 @@ export function ControlReport({
             hint={mapReady ? mapHealth.bandLabel : "Not assessed yet"}
           />
           <Kpi
-            label="Priority index"
-            value={String(threat.overallThreatIndex)}
-            hint={threat.classificationLabel}
+            label="Top-priority items"
+            value={String(fixFirstOf(threat))}
+            hint={`Priority ${PRIORITY_TOP} or more`}
           />
           <Kpi
             label="Average residual risk score"
             value={String(portfolio.averageResidual)}
-            hint={`${portfolio.criticalPath} to fix first`}
+            hint={`${count(portfolio.criticalPath, "risk")} at ${RISK_SCALE.critical} or more`}
           />
           <Kpi
             label="Duty separation index"

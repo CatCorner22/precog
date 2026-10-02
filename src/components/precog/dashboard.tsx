@@ -6,11 +6,10 @@ import { rankDangerousScenarios } from "@/lib/precog/engine";
 import { criticalSinglePoints } from "@/lib/precog/continuity/coverage";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
 import { OWN_TEAM_MAX } from "@/lib/precog/onboarding/own-business";
-import { assessCoso } from "@/lib/precog/coso";
+import { assessCoso, COSO_PRINCIPLE_COUNT } from "@/lib/precog/coso";
 import { confirmedScenarioIds, residualScope } from "@/lib/precog/scoring/scope";
 import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
-import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
 import type { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { openSeverityCounts, openSodHint } from "@/lib/precog/sod/open-findings";
 import { useScoredMap } from "@/lib/precog/builder/use-scored-map";
@@ -73,6 +72,7 @@ export function Dashboard({
         riskVariables: profile.riskVariables,
         confirmedScenarioIds: confirmedScenarioIds(profile.decisions, profile.industry),
         dualRelease: profile.dualRelease,
+        accessReconciliation: profile.accessReconciliation,
       }),
     [
       tpl,
@@ -81,6 +81,7 @@ export function Dashboard({
       profile.decisions,
       profile.industry,
       profile.dualRelease,
+      profile.accessReconciliation,
     ],
   );
   // Scoped as the Residual page scopes it, so the tile matches the page it links to.
@@ -96,11 +97,6 @@ export function Dashboard({
   const portfolio = useMemo(
     () => portfolioSummary(tpl, profile.staff, DEFAULT_WEIGHTS, scope),
     [tpl, profile.staff, scope],
-  );
-  const leading = useMemo(
-    () =>
-      scoreLeadingIndicators(tpl, profile.staff, profile.riskVariables, scope.confirmedScenarioIds),
-    [tpl, profile.staff, profile.riskVariables, scope],
   );
   // One sole-owner figure on the whole Dashboard: the card shows the value the
   // business profile shows and the residual index uses, which for an owner's
@@ -255,9 +251,9 @@ export function Dashboard({
         />
         <MetricCard
           label={say("Coverage check", "COSO")}
-          value={String(coso.overall)}
-          hint={coso.overallStatus}
-          tone="primary"
+          value={`${coso.gaps} of ${COSO_PRINCIPLE_COUNT}`}
+          hint={`${say("checks", "principles")} with a gap · ${coso.notAssessed} not assessed`}
+          tone={coso.gaps > 0 ? "danger" : "primary"}
           onClick={() => onOpen("coso")}
         />
         <MetricCard
@@ -311,8 +307,8 @@ export function Dashboard({
             <CardTitle>{say("Biggest risks left", "Top residual risks")}</CardTitle>
             <CardDescription>
               {say(
-                `Based on your business profile: ${count(sodGaps, "control")} not split between two people, ${count(conflicts, "duty conflict")} found, team pressure ${leading.band}.`,
-                `Profile-driven · ${sodGaps} static gaps · ${conflicts} detected conflicts · pressure ${leading.band}`,
+                `Based on your business profile: ${count(sodGaps, "control")} not split between two people, ${count(conflicts, "duty conflict")} found.`,
+                `Profile-driven · ${sodGaps} static gaps · ${conflicts} detected conflicts`,
               )}
             </CardDescription>
           </CardHeader>

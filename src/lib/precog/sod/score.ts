@@ -144,6 +144,11 @@ function spread(factors: number[]): number {
   return top + 0.25 * Math.log2(1 + rest);
 }
 
+/** True for a duty that moves customer or supplier money: the ones dual control on payments protects. */
+export function isPaymentDuty(id: EntitlementId): boolean {
+  return PAYMENT_DUTIES.has(id);
+}
+
 function dutyWeight(id: EntitlementId): number {
   return entitlementById(id)?.riskWeight ?? 3;
 }

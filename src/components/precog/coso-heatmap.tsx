@@ -3,11 +3,15 @@ import { useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import {
   assessCoso,
+  COSO_PRINCIPLE_COUNT,
   type CosoComponentAssessment,
   type CosoComponentId,
+  type CosoStatus,
   type DeepLinkTarget,
 } from "@/lib/precog/coso";
 import type { HealthLevel } from "@/lib/precog/scoring/bands";
+import { usePresentation } from "@/lib/precog/presentation";
+import { count } from "@/lib/precog/text";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,44 +19,44 @@ import { cn } from "@/lib/utils";
 import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
 import { ArrowRight, CheckCircle2, CircleAlert, TriangleAlert } from "lucide-react";
 
+/** Gap, in place, or not assessed: no score, so nothing averages a gap away. */
 const STATUS_META: Record<
-  HealthLevel,
-  { label: string; badge: "ok" | "primary" | "warn" | "danger"; bar: string; cell: string }
+  CosoStatus,
+  { label: string; badge: "ok" | "danger" | "default"; dot: string; cell: string }
 > = {
-  strong: {
-    label: "Strong",
+  gap: {
+    label: "Gap",
+    badge: "danger",
+    dot: "bg-danger",
+    cell: "border-danger/40 bg-danger/10",
+  },
+  in_place: {
+    label: "In place",
     badge: "ok",
-    bar: "bg-ok",
+    dot: "bg-ok",
     cell: "border-ok/40 bg-ok/10",
   },
-  adequate: {
-    label: "Adequate",
-    badge: "primary",
-    bar: "bg-primary",
-    cell: "border-primary/35 bg-primary/10",
-  },
-  weak: {
-    label: "Weak",
-    badge: "warn",
-    bar: "bg-warn",
-    cell: "border-warn/40 bg-warn/10",
-  },
-  critical: {
-    label: "Critical",
-    badge: "danger",
-    bar: "bg-danger",
-    cell: "border-danger/40 bg-danger/10",
+  not_assessed: {
+    label: "Not assessed",
+    badge: "default",
+    dot: "bg-subtle",
+    cell: "border-border bg-elevated",
   },
 };
 
+/** Gaps first, then what Precog cannot see, then what is in place. */
+const STATUS_ORDER: Record<CosoStatus, number> = { gap: 0, not_assessed: 1, in_place: 2 };
+
 export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarget) => void }) {
   const { template, profile } = usePractice();
+  const { say } = usePresentation();
   const assessment = useMemo(
     () =>
       assessCoso(template, profile.staff, {
         riskVariables: profile.riskVariables,
         confirmedScenarioIds: confirmedScenarioIds(profile.decisions, profile.industry),
         dualRelease: profile.dualRelease,
+        accessReconciliation: profile.accessReconciliation,
       }),
     [
       template,
@@ -61,12 +65,15 @@ export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarge
       profile.decisions,
       profile.industry,
       profile.dualRelease,
+      profile.accessReconciliation,
     ],
   );
-  // Opens on the weakest component, picked once.
+  // Opens on the first component with a gap, picked once.
   const [activeId, setActiveId] = useState<CosoComponentId>(
     () =>
-      assessment.components.slice().sort((a, b) => a.score - b.score)[0]?.id ??
+      assessment.components
+        .slice()
+        .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status])[0]?.id ??
       "control_activities",
   );
 
@@ -79,23 +86,24 @@ export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarge
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <CardTitle>COSO internal control heat map</CardTitle>
+                <CardTitle>
+                  {say("Coverage check", `COSO checklist (${COSO_PRINCIPLE_COUNT} principles)`)}
+                </CardTitle>
                 <CardDescription>
-                  Five components · 17 principles · an index Precog derives from your controls,
-                  register, team profile and scenarios; it leaves out a register nobody has marked
-                  and sample scenarios you have not confirmed
+                  {say(
+                    `Five parts · ${COSO_PRINCIPLE_COUNT} checks, each read from your controls, register, team and scenarios. A part shows a gap when any of its checks has one.`,
+                    `Five components · ${COSO_PRINCIPLE_COUNT} principles, each read from your controls, register, team profile and confirmed scenarios. A component is a gap when any principle is; no score offsets it.`,
+                  )}
                 </CardDescription>
                 <IndexBasis className="mt-1" />
               </div>
               <div className="text-right">
-                <p className="text-xs tracking-wide text-subtle uppercase">Overall</p>
-                <p className="text-2xl font-semibold tabular tracking-tight">
-                  {assessment.overall}
-                  <span className="text-sm font-normal text-muted">/100</span>
+                <p className="text-sm font-semibold tabular">
+                  {assessment.notAssessed} of {COSO_PRINCIPLE_COUNT} not assessed
                 </p>
-                <Badge variant={STATUS_META[assessment.overallStatus].badge} className="mt-1">
-                  {STATUS_META[assessment.overallStatus].label}
-                </Badge>
+                <p className="mt-1 text-xs text-muted tabular">
+                  {count(assessment.gaps, say("check", "principle"))} with a gap
+                </p>
               </div>
             </div>
           </CardHeader>
@@ -124,15 +132,13 @@ export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarge
                     <span className="block text-xs font-medium tracking-wide text-subtle uppercase">
                       {c.shortName}
                     </span>
-                    <span className="mt-2 block text-2xl font-semibold tabular">{c.score}</span>
-                    <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-bg/50">
-                      <span
-                        className={cn("block h-full rounded-full", meta.bar)}
-                        style={{ width: `${c.score}%` }}
-                      />
+                    <span className="mt-2 block text-sm font-semibold">{meta.label}</span>
+                    <span className="mt-1 block text-xs text-muted tabular">
+                      {c.principles.filter((p) => p.status === "gap").length} of{" "}
+                      {c.principles.length} with a gap
                     </span>
                     <span className="mt-2 block text-xs font-medium">
-                      {selected ? `${meta.label} · shown` : meta.label}
+                      {selected ? "Shown below" : "Show"}
                     </span>
                   </button>
                 );
@@ -140,9 +146,9 @@ export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarge
             </div>
 
             <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted">
-              {(Object.keys(STATUS_META) as HealthLevel[]).map((s) => (
+              {(Object.keys(STATUS_META) as CosoStatus[]).map((s) => (
                 <span key={s} className="inline-flex items-center gap-1.5">
-                  <span className={cn("size-2 rounded-full", STATUS_META[s].bar)} />
+                  <span className={cn("size-2 rounded-full", STATUS_META[s].dot)} />
                   {STATUS_META[s].label}
                 </span>
               ))}
@@ -195,7 +201,6 @@ function ComponentDetail({
         <div className="flex flex-wrap items-center gap-2">
           <CardTitle>{component.name}</CardTitle>
           <Badge variant={meta.badge}>{meta.label}</Badge>
-          <span className="text-sm tabular text-muted">{component.score}/100</span>
         </div>
         <CardDescription>{component.description}</CardDescription>
       </CardHeader>
@@ -207,15 +212,9 @@ function ComponentDetail({
               <li key={p.number} className="rounded-lg border border-border bg-elevated px-3 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs text-subtle">P{p.number}</span>
-                  {p.notAssessed ? (
-                    <Badge variant="default" className="text-xs">
-                      Not assessed
-                    </Badge>
-                  ) : (
-                    <Badge variant={STATUS_META[p.status].badge} className="text-xs">
-                      {STATUS_META[p.status].label}
-                    </Badge>
-                  )}
+                  <Badge variant={STATUS_META[p.status].badge} className="text-xs">
+                    {STATUS_META[p.status].label}
+                  </Badge>
                 </div>
                 <p className="mt-1 text-sm font-medium">{p.name}</p>
                 <p className="mt-1 text-xs text-muted">{p.note}</p>

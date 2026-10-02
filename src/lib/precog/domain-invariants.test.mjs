@@ -412,12 +412,12 @@ describe("domain invariants", () => {
       staff: defaults.staff,
       dualRelease: defaults.dualRelease,
     });
-    assert.ok(Number.isFinite(report.overallThreatIndex));
+    assert.ok(Number.isFinite(scoring.fixFirstCount(report.targetDeck)));
     assert.ok(report.targetDeck.length > 0);
     assert.ok(report.targetDeck.every((target) => Number.isFinite(target.priority)));
   });
 
-  it("turning on a control never raises a danger score or lowers a COSO component", () => {
+  it("turning on a control never raises a danger score or worsens a COSO component", () => {
     // Each control the owner can switch on, as a change to staff or to the risk variables.
     const controls = [
       ["dualControlPayments", (staff, vars) => [{ ...staff, dualControlPayments: true }, vars]],
@@ -434,8 +434,11 @@ describe("domain invariants", () => {
           .rankDangerousScenarios(tpl, { staff, riskVariables })
           .map((r) => [r.scenario.id, r.score]),
       ),
+      // A component has no score: a gap is worse than not assessed, which is worse than in place.
       coso: new Map(
-        coso.assessCoso(tpl, staff, { riskVariables }).components.map((c) => [c.id, c.score]),
+        coso
+          .assessCoso(tpl, staff, { riskVariables })
+          .components.map((c) => [c.id, { gap: 0, not_assessed: 1, in_place: 2 }[c.status]]),
       ),
     });
     for (const industry of industryModule.INDUSTRIES) {
@@ -667,7 +670,9 @@ describe("domain invariants", () => {
     const empty = coverageAnalysis.analyzeDutyCoverage([]);
     // Optional control steps nobody holds are a choice, not a gap.
     const optional = sodRules.ENTITLEMENTS.filter((item) => item.optional).length;
-    assert.equal(empty.unassigned.length, sodRules.ENTITLEMENTS.length - 1 - optional);
+    // Keep-few duties (bulk export, access, admin, backups, log review) need no stand-in.
+    const keepFew = coverageAnalysis.KEEP_FEW_DUTIES.size;
+    assert.equal(empty.unassigned.length, sodRules.ENTITLEMENTS.length - 1 - optional - keepFew);
     assert.equal(empty.resilienceScore, 0);
     assert.ok(
       baseline.duties.every((duty) =>

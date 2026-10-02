@@ -210,14 +210,15 @@ function randomTeams(seed: number, count: number, size: number): RoleAssignment[
 describe("coverage planner", () => {
   it("gives a 26-person restaurant the same backup program as the whole-team scan", () => {
     // Pinned from the whole-team reference scan under the current rulebook
-    // (refund, void and journal-entry rules; check signing read as release).
+    // (refund, void and journal-entry rules; check signing read as release),
+    // with keep-few duties such as user access left out of stand-in cover.
     expect(buildCoverageProgram(restaurant26())).toEqual(referenceProgram(restaurant26()));
     const program = buildCoverageProgram(restaurant26());
     expect(program.steps.map((s) => `${s.id}:${s.continuityGain}`)).toEqual([
-      "prepare_deposit:own-13:2",
+      "prepare_deposit:own-13:3",
     ]);
     expect([program.startingScore, program.projectedScore, program.unresolvedGaps]).toEqual([
-      45, 47, 5,
+      49, 52, 5,
     ]);
     expect(program.nextAssignments.map((p) => `${p.personId}=${p.entitlements.join("+")}`)).toEqual(
       [
@@ -255,9 +256,9 @@ describe("coverage planner", () => {
     expect(buildCoveragePlans(restaurant26())).toEqual(referencePlans(restaurant26()));
     const plans = buildCoveragePlans(restaurant26());
     expect(plans.map((p) => `${p.id}:${p.continuityGain}:${p.currentWorkload}`)).toEqual([
-      "prepare_deposit:own-13:2:1",
-      "prepare_deposit:own-14:2:1",
-      "prepare_deposit:own-8:2:1",
+      "prepare_deposit:own-13:3:1",
+      "prepare_deposit:own-14:3:1",
+      "prepare_deposit:own-8:3:1",
     ]);
   }, 120_000);
 
