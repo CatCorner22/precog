@@ -1,38 +1,24 @@
 import { ArrowRight, ExternalLink } from "lucide-react";
 import { SectionHeading } from "./start-here-parts";
+import { TeamLink } from "./team-link";
+import { doNextDrift, doNextSteps } from "@/lib/precog/actions/do-next";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { StartHereModel } from "@/lib/precog/start-here/model";
 import { benchmarkCitation, effortPhrase, lossPhrase } from "@/lib/precog/evidence";
 
 export function StartHereFirstStepsSection({ model }: { model: StartHereModel["firstSteps"] }) {
-  const { steps, caseById, tips, hotlineGap, soleKnowledge, driftActions } = model;
+  const { items, caseById, tips, hotlineGap, soleKnowledge } = model;
+  const steps = doNextSteps(items);
+  const driftActions = doNextDrift(items);
 
   return (
     <section className="space-y-3">
       <SectionHeading
         icon={<ArrowRight className="size-4" aria-hidden />}
         title="Do these first"
-        subtitle="Ordered first by how many of your open gaps each one answers, then by how many of the real cases above it would plausibly have caught. Most of these are detective controls: they shorten how long a scheme runs, which is what decides the loss."
+        subtitle="Ordered first by how many of your open gaps each one answers, then by how many of the real cases below it would plausibly have caught. Most of these are detective controls: they shorten how long a scheme runs, which is what decides the loss."
       />
-
-      {driftActions.length > 0 && (
-        <Card className="border-warn/30 bg-warn/5">
-          <CardContent className="space-y-2 pt-5">
-            <p className="text-sm font-medium">Books vs your duty map</p>
-            <ul className="space-y-2 text-sm text-muted">
-              {driftActions.map((d) => (
-                <li key={d.id}>
-                  <span className="text-fg">{d.title}</span> — {d.why}
-                </li>
-              ))}
-            </ul>
-            <p className="text-xs text-subtle">
-              Open the Firm workspace to match payroll, vendors, and access exports to your map.
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardContent className="pt-5">
@@ -42,7 +28,7 @@ export function StartHereFirstStepsSection({ model }: { model: StartHereModel["f
             </p>
           ) : (
             <ol className="space-y-3">
-              {steps.slice(0, 6).map((s, i) => (
+              {steps.map((s, i) => (
                 <li key={s.control.id} className="flex gap-3">
                   <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-xs text-muted">
                     {i + 1}
@@ -56,7 +42,7 @@ export function StartHereFirstStepsSection({ model }: { model: StartHereModel["f
                         ? `answers ${s.answers} of your open ${s.answers === 1 ? "gap" : "gaps"} · `
                         : ""}
                       would plausibly have caught {s.supportingCaseIds.length}{" "}
-                      {s.supportingCaseIds.length === 1 ? "case" : "cases"} above
+                      {s.supportingCaseIds.length === 1 ? "case" : "cases"} below
                     </p>
                     {s.supportingCaseIds.length > 0 && (
                       <details className="mt-1">
@@ -83,6 +69,26 @@ export function StartHereFirstStepsSection({ model }: { model: StartHereModel["f
           )}
         </CardContent>
       </Card>
+
+      {driftActions.length > 0 && (
+        <Card className="border-warn/30 bg-warn/5">
+          <CardContent className="space-y-2 pt-5">
+            <p className="text-sm font-medium">Books vs your duty assignments</p>
+            <ul className="space-y-2 text-sm text-muted">
+              {driftActions.map((d) => (
+                <li key={d.id}>
+                  <span className="text-fg">{d.title}</span> — {d.why}
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-subtle">
+              <TeamLink>
+                Match payroll and access exports to your duty assignments under Team
+              </TeamLink>
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {tips && (
         <Card>

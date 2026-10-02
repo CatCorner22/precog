@@ -6,7 +6,6 @@ import {
   CASE_LIBRARY,
   casesForSodRules,
   citingCaseStats,
-  recommendedStepsForRules,
   tenureExamples,
 } from "../evidence";
 import {
@@ -15,10 +14,15 @@ import {
   type DetectedConflict,
   type SodDetectionReport,
 } from "../sod/detect";
-import { openFindings, partialDualReleaseCoverage, ruleIdsOf } from "../sod/open-findings";
+import {
+  openFindings,
+  openSeverityCounts,
+  partialDualReleaseCoverage,
+  ruleIdsOf,
+} from "../sod/open-findings";
 import { concentrationHeadline, separatedPairs } from "../sod/verdict";
 import { entitlementLabel } from "../sod/conflict-rules";
-import { ownerHeldPairs, rankFirstSteps } from "../coach/first-steps";
+import { ownerHeldPairs } from "../coach/first-steps";
 import { continuitySlips, decisionsDue } from "../decisions/follow-through";
 import { checkInPlan, staleItems } from "../continuity/staleness";
 import { coverageReport } from "../continuity/coverage";
@@ -30,16 +34,17 @@ import { titleDutiesSentence } from "../sod/title-duties";
 import { locationsById } from "../person-location";
 import { industryMeta } from "../industry";
 import { localDateKey } from "../dates";
-import { buildDriftActions, type DriftAction } from "../integrations/drift-signals";
+import { doNextList, doNextSteps, type DoNextItem, type DoNextStep } from "../actions/do-next";
 import { joinWithAnd } from "../text";
 import { formatUsd } from "../../utils";
 
 /**
- * What Start here shows, one part per section in page order. Each section
- * component reads only its own part.
+ * What Home shows, one part per section. Each section component reads only
+ * its own part.
  */
 export interface StartHereModel {
   preamble: StartHerePreambleModel;
+  figures: StartHereFiguresModel;
   continuity: StartHereContinuityModel;
   exposure: StartHereExposureModel;
   cost: StartHereCostModel;
@@ -80,6 +85,18 @@ interface StartHerePreambleModel {
   industryId: PracticeProfile["industry"];
   /** The line of business in lower case, for "the loaded dental example". */
   industryLabel: string;
+}
+
+/** Home's headline figures: at most two, each one a figure another screen explains. */
+interface StartHereFiguresModel {
+  /** Open critical duty conflicts, counted as the band word counts them (sod/open-findings). */
+  openCritical: number;
+  /** Open high duty conflicts. */
+  openHigh: number;
+  /** Whether anyone is marked on the register yet; the stand-in figure waits for it. */
+  registerReady: boolean;
+  /** Share of must-do work two or more people can run (continuity/coverage). */
+  coverageIndex: number;
 }
 
 interface StartHereContinuityModel {
@@ -140,14 +157,15 @@ interface StartHereCostModel {
 }
 
 interface StartHereFirstStepsModel {
-  steps: ReturnType<typeof rankFirstSteps<ReturnType<typeof recommendedStepsForRules>[number]>>;
+  /** The "Do these first" list (actions/do-next): ranked controls, then drift items. */
+  items: DoNextItem[];
+  /** The ranked controls on that list, in order. */
+  steps: DoNextStep[];
   caseById: Map<string, CaseStudy>;
   tips: Benchmark | undefined;
   /** Small organizations with a reporting channel, against larger ones. */
   hotlineGap: Benchmark | undefined;
   soleKnowledge: ReturnType<typeof findKnowledgeRisks>;
-  /** Books or access exports that disagree with the duty map. */
-  driftActions: DriftAction[];
 }
 
 interface StartHereFooterModel {
@@ -165,7 +183,7 @@ const SMALL_ORG_EMPLOYEES = 100;
 
 const TENURE_CASES = tenureExamples(CASE_LIBRARY);
 
-/** Start here's figures for one business on one day. Pure: no React, no storage. */
+/** Home's figures for one business on one day. Pure: no React, no storage. */
 export function buildStartHereModel({
   profile,
   template,
@@ -265,6 +283,13 @@ export function buildStartHereModel({
     delayCurve: BENCHMARK_BY_ID["bm-duration-cost-curve"],
   };
 
+  const sodOpen = openSeverityCounts(sod.conflicts, profile.dualRelease);
+  const doNext = doNextList({
+    open,
+    integrationDriftSummary: profile.integrationDriftSummary,
+    accessReconciliation: profile.accessReconciliation,
+  });
+
   return {
     preamble: {
       overdue: decisionsDue(profile.decisions, localDateKey(today)).overdue,
@@ -273,19 +298,22 @@ export function buildStartHereModel({
       industryId: profile.industry,
       industryLabel,
     },
+    figures: {
+      openCritical: sodOpen.openCritical,
+      openHigh: sodOpen.openHigh,
+      registerReady: continuity.registerReady,
+      coverageIndex: coverage.coverageIndex,
+    },
     continuity,
     exposure,
     cost,
     firstSteps: {
-      steps: rankFirstSteps(recommendedStepsForRules(openRuleIds), open),
+      items: doNext,
+      steps: doNextSteps(doNext),
       caseById: new Map(evidence.map((c) => [c.id, c])),
       tips: BENCHMARK_BY_ID["bm-tips"],
       hotlineGap: BENCHMARK_BY_ID["bm-small-org-hotline-gap"],
       soleKnowledge: findKnowledgeRisks(template).filter((r) => r.soleOwner),
-      driftActions: buildDriftActions({
-        summary: profile.integrationDriftSummary,
-        accessReconciliation: profile.accessReconciliation,
-      }).slice(0, 3),
     },
     footer: {
       cases: evidence,
