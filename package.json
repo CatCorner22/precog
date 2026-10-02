@@ -32,6 +32,8 @@
     "audit:prod": "npm audit --omit=dev --audit-level=high",
     "check:bundle": "node scripts/check-bundle-size.mjs",
     "check:headers": "node scripts/check-build-headers.mjs",
+    "check:migrations": "node scripts/check-migrations-unchanged.mjs",
+    "update:server-fn-ids": "node scripts/update-server-fn-ids.mjs",
     "verify": "npm run format:check && npm run typecheck && npm run lint && npm test && npm run build && npm run check:bundle",
     "test:evidence:http": "node scripts/test-control-evidence-http.mjs",
     "e2e:evidence": "node scripts/e2e-control-evidence.mjs",
