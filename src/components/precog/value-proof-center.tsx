@@ -53,7 +53,13 @@ import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 
 const NOT_YET = "Not yet observed";
 
-export function ValueProofCenter() {
+/**
+ * `headingLevel` sets the view's own heading; card headings sit one level
+ * under it. The Value proof tab uses 1; /firm mounts it under an h2 and passes 3.
+ */
+export function ValueProofCenter({ headingLevel = 1 }: { headingLevel?: 1 | 2 | 3 } = {}) {
+  const Heading = `h${headingLevel}` as const;
+  const cardHeading = `h${headingLevel + 1}` as "h2" | "h3" | "h4";
   const workspace = useWorkspace();
   const { profile } = usePracticeState();
   const businessId = profile.businessId ?? DEFAULT_BUSINESS_ID;
@@ -170,9 +176,9 @@ export function ValueProofCenter() {
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <Badge variant="accent">Value proof</Badge>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
-          <h1 className="text-xl font-semibold">
+          <Heading className="text-xl font-semibold">
             What Precog has returned so far, and what it might prevent
-          </h1>
+          </Heading>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -312,6 +318,7 @@ export function ValueProofCenter() {
       </Card>
 
       <ValueEvidenceRegister
+        headingAs={cardHeading}
         items={evidence}
         onChange={(items) => {
           setEvidence(normalizeValueEvidence(items));
@@ -371,7 +378,7 @@ export function ValueProofCenter() {
       <div className="grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Value assumptions</CardTitle>
+            <CardTitle as={cardHeading}>Value assumptions</CardTitle>
             <CardDescription>
               Figures marked Precog default are Precog&apos;s starting figures, not measured
               results; replace each one with your own where you have it. Values save in this
@@ -447,7 +454,7 @@ export function ValueProofCenter() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Modeled range</CardTitle>
+              <CardTitle as={cardHeading}>Modeled range</CardTitle>
               <CardDescription>{MODELED_RANGE_NOTE}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -490,7 +497,7 @@ export function ValueProofCenter() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Evidence checklist</CardTitle>
+              <CardTitle as={cardHeading}>Evidence checklist</CardTitle>
               <CardDescription>
                 Each line turns green once your own records show it.
               </CardDescription>

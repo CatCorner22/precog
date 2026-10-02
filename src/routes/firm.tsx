@@ -486,7 +486,7 @@ function FirmPage() {
           Value proof (this business)
         </h2>
         <Suspense fallback={<p className="text-sm text-muted">Loading value proof…</p>}>
-          <ValueProofCenter />
+          <ValueProofCenter headingLevel={3} />
         </Suspense>
       </section>
 
@@ -496,10 +496,11 @@ function FirmPage() {
         </h2>
         <div className="space-y-4">
           {signedIn && <ClientHistory signedIn={signedIn} />}
+          {/* The component's own heading ("Preserve the decision record") is
+              this part's h3, so the outline stays h1 > h2 > h3. */}
           <section aria-label="Assessment snapshots">
-            <h3 className="mb-2 text-base font-medium">Assessment snapshots</h3>
             <Suspense fallback={<p className="text-sm text-muted">Loading snapshots…</p>}>
-              <AssessmentSnapshots />
+              <AssessmentSnapshots headingLevel={3} />
             </Suspense>
           </section>
         </div>

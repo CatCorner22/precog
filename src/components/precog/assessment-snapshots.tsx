@@ -35,7 +35,13 @@ import { localDateKey, formatDay, formatDayTime } from "@/lib/precog/dates";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { buttonClass } from "@/components/ui/button-variants";
 
-export function AssessmentSnapshots() {
+/**
+ * `headingLevel` sets the view's own heading; card headings sit one level
+ * under it. The Snapshots tab uses 1; /firm mounts it under an h2 and passes 3.
+ */
+export function AssessmentSnapshots({ headingLevel = 1 }: { headingLevel?: 1 | 2 | 3 } = {}) {
+  const Heading = `h${headingLevel}` as const;
+  const cardHeading = `h${headingLevel + 1}` as "h2" | "h3" | "h4";
   const workspace = useWorkspace();
   const { profile, replaceProfile } = usePractice();
   const businessId = profile.businessId ?? DEFAULT_BUSINESS_ID;
@@ -252,10 +258,10 @@ export function AssessmentSnapshots() {
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <Badge variant="accent">Versioned assessments</Badge>
-        <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
+        <Heading className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <Archive className="size-5 text-primary" />
           Preserve the decision record
-        </h1>
+        </Heading>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Save a dated copy of this business: its team, process map, register, controls, risk
           inputs, decisions, Duty assignments and value proof. Snapshots are private to your
@@ -271,7 +277,9 @@ export function AssessmentSnapshots() {
       ) : !user ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Sign in to preserve assessments</CardTitle>
+            <CardTitle as={cardHeading} className="text-base">
+              Sign in to preserve assessments
+            </CardTitle>
             <CardDescription>
               Your local working profile remains available without an account.
             </CardDescription>
@@ -286,7 +294,9 @@ export function AssessmentSnapshots() {
         <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Create snapshot</CardTitle>
+              <CardTitle as={cardHeading} className="text-base">
+                Create snapshot
+              </CardTitle>
               <CardDescription>
                 Includes this business's team, process map, register, controls, risk inputs,
                 decisions, Duty assignments and value proof.
@@ -319,7 +329,9 @@ export function AssessmentSnapshots() {
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-3">
               <div>
-                <CardTitle className="text-base">Snapshot history</CardTitle>
+                <CardTitle as={cardHeading} className="text-base">
+                  Snapshot history
+                </CardTitle>
                 <CardDescription>
                   Newest first · up to 50 snapshots across your businesses
                 </CardDescription>
