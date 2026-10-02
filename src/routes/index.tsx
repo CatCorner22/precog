@@ -9,7 +9,6 @@ import {
   Gauge,
   House,
   LibraryBig,
-  Layers,
   Map,
   MessageSquare,
   Network,
@@ -26,7 +25,6 @@ import { usePracticeState, useTemplate } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { count } from "@/lib/precog/text";
-import type { MatrixLayerId } from "@/lib/precog/types";
 import { AccountDataControls } from "@/components/precog/account-menu";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
 import {
@@ -59,7 +57,6 @@ function Home() {
   const tab: TabId = search.tab ?? "start";
   const item = search.item ?? null;
   const build = search.build ?? false;
-  const layer: MatrixLayerId = item && item in MATRIX_LAYERS ? (item as MatrixLayerId) : "control";
   const activeAdvanced = ADVANCED_TABS.find((t) => t.id === tab) ?? null;
 
   const tpl = useTemplate();
@@ -98,7 +95,11 @@ function Home() {
     [navigate],
   );
   const openDeepLink = useCallback(
-    (target: DeepLinkTarget) => openTab(target.type, deepLinkItem(target)),
+    (target: DeepLinkTarget) =>
+      // The control list is a view of Who controls what.
+      target.type === "controls"
+        ? openTab("sod", "controls")
+        : openTab(target.type, deepLinkItem(target)),
     [openTab],
   );
 
@@ -277,14 +278,6 @@ function Home() {
                   <ScoresArea view={item} openTab={openTab} onNavigate={openDeepLink} />
                 )}
                 {tab === "monthly" && <MonthlyArea item={item} openTab={openTab} />}
-                {tab === "layers" && (
-                  <div className="space-y-4">
-                    <TabIntro id="layers" />
-                    {/* A layer card shows its list below; the list links to its full tab. */}
-                    <LayersPanel active={layer} onSelect={(id) => openTab("layers", id)} />
-                    <LayerDetail layer={layer} onOpenTab={openTab} />
-                  </div>
-                )}
                 {tab === "knowledge" && (
                   <div className="space-y-4">
                     <TabIntro id="knowledge" />
@@ -310,7 +303,14 @@ function Home() {
                     <ScenarioRunner initialScenarioId={item} />
                   </div>
                 )}
-                {tab === "sod" && <SodPanel onNavigate={openTab} report={sodReport} />}
+                {tab === "sod" && (
+                  <SodPanel
+                    key={item ?? "conflicts"}
+                    onNavigate={openTab}
+                    report={sodReport}
+                    initialView={item}
+                  />
+                )}
                 {tab === "snapshots" && <AssessmentSnapshots />}
                 {tab === "blueprint" && <OperatingBlueprint />}
                 {tab === "value" && <ValueProofCenter />}
@@ -350,8 +350,6 @@ function deepLinkItem(target: DeepLinkTarget): string | undefined {
       return target.knowledgeId;
     case "precog":
       return target.scenarioId;
-    case "layers":
-      return target.layer;
     default:
       return undefined;
   }
@@ -368,7 +366,6 @@ const TAB_ICONS: Record<TabId, ShellTab["icon"]> = {
   precog: Sparkles,
   pioneer: MessageSquare,
   scores: Gauge,
-  layers: Layers,
   command: Activity,
   value: TrendingUp,
   blueprint: LibraryBig,
@@ -397,12 +394,6 @@ const ADVANCED_TABS = TABS.filter((t) => !PRIMARY_TAB_IDS.includes(t.id));
 
 /** Heading (tactical) and one-line purpose, in both wordings, for the tabs that open on a heading. */
 const TAB_INTROS = {
-  layers: {
-    heading: "Six layers of your business",
-    plain:
-      "Look at one layer of the business at a time: customers, work, know-how, controls, systems and continuity.",
-    tactical: "Peel layers independently.",
-  },
   knowledge: {
     heading: "Continuity of operations",
     plain:
@@ -424,16 +415,6 @@ const TAB_INTROS = {
     tactical: "Timelines, insurance cost of risk, multi-scenario compare, cascades.",
   },
 } satisfies Partial<Record<TabId, { heading: string; plain: string; tactical: string }>>;
-
-/** Every layer Where risk sits can open on; `item` names one of them. */
-const MATRIX_LAYERS: Record<MatrixLayerId, true> = {
-  surface: true,
-  process: true,
-  knowledge: true,
-  control: true,
-  source: true,
-  continuity: true,
-};
 
 /** Covers the page from the first frame while the setup dialog's code loads. */
 function SetupLoading() {
@@ -479,12 +460,6 @@ const ProceduresPanel = lazy(() =>
   import("@/components/precog/procedures/procedures-panel").then((module) => ({
     default: module.ProceduresPanel,
   })),
-);
-const LayersPanel = lazy(() =>
-  import("@/components/precog/layers-panel").then((module) => ({ default: module.LayersPanel })),
-);
-const LayerDetail = lazy(() =>
-  import("@/components/precog/layers-panel").then((module) => ({ default: module.LayerDetail })),
 );
 const TeamArea = lazy(() =>
   import("@/components/precog/team-area").then((module) => ({ default: module.TeamArea })),

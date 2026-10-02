@@ -38,7 +38,7 @@ export const CONTROL_CONFIRM_TAB = "control";
 
 /**
  * Starter controls the owner has confirmed by logging a journal entry on them
- * ("This runs here" on Where risk sits). Template ids repeat across
+ * ("This runs here" under Controls on Who controls what). Template ids repeat across
  * industries, so an entry counts only under the industry it was logged for.
  */
 export function confirmedControlIds(
@@ -61,9 +61,10 @@ export const CONTROL_IN_PLACE_TAB = "control-in-place";
 const MAX_IN_PLACE_TEXT = 200;
 
 /**
- * Controls the owner already has, recorded on Where risk sits ("We already
- * do this"), by the control they narrow: for example "The CFO reviews each
- * bank reconciliation" against the cash duty-separation control. Each is a
+ * Controls the owner already has, recorded under Controls on Who controls
+ * what ("We already do something here"), by the control they narrow: for
+ * example "The CFO reviews each bank reconciliation" against the cash
+ * duty-separation control. Each is a
  * journal entry, so it carries a date and a review date, and removing the
  * entry removes the credit. Only entries logged under this industry count.
  */

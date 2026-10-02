@@ -7,8 +7,8 @@
  * console error. This is the check that would have caught the /threat
  * hydration mismatch and any tab that throws on a template it was not written for.
  * Once, signed out, it also checks the header (Report, Needs attention), the
- * Monthly review tab, an old tab id in the address (?tab=journal), and the
- * home footer's Privacy link.
+ * Monthly review tab, old tab ids in the address (?tab=journal, ?tab=layers),
+ * the tab count, and the home footer's Privacy link.
  *
  * Usage: node scripts/e2e-tabs.mjs [baseUrl]   (default http://127.0.0.1:8080/)
  * Env:   E2E_TIMEOUT_MS (default 45000), E2E_SCREENSHOT (PNG path on failure)
@@ -125,6 +125,11 @@ await withPage(options, async (page, errors) => {
       await drain(`${industry}: How Precog scores, view "${view}"`);
     }
 
+    // Who controls what opens on its Controls view from the address.
+    await page.goto(`${baseUrl}/?tab=sod&item=controls`, { waitUntil: "networkidle", timeout });
+    await settle();
+    await drain(`${industry}: Who controls what, view "controls"`);
+
     for (const path of ["/threat", "/report"]) {
       await page.goto(`${baseUrl}${path}`, { waitUntil: "networkidle", timeout });
       await drain(`${industry}: ${path}`);
@@ -159,8 +164,12 @@ async function shellChecks(page) {
     await page.locator("nav[data-tab-count]").waitFor();
   };
 
-  // The header's Report link is there for everyone.
+  // Fourteen tabs: six in the strip, the rest under Advanced.
   await home();
+  const tabCount = await page.locator("nav[data-tab-count]").getAttribute("data-tab-count");
+  if (tabCount !== "14") throw new Error(`expected 14 tabs, data-tab-count is ${tabCount}`);
+
+  // The header's Report link is there for everyone.
   await page.getByRole("link", { name: "Report", exact: true }).click();
   await page.waitForURL(/\/report/, { timeout });
 
@@ -179,6 +188,18 @@ async function shellChecks(page) {
     throw new Error(`?tab=journal did not open the Decisions log section: ${page.url()}`);
   }
   await page.locator("#decisions").waitFor();
+
+  // The retired Where risk sits tab lands on Who controls what, on Controls.
+  await home("?tab=layers");
+  const sod = await page.locator('nav [role="tab"][aria-selected="true"]').first().innerText();
+  if (!sod.trim().startsWith("Who controls what")) {
+    throw new Error(`?tab=layers opened "${sod}", not Who controls what`);
+  }
+  if (!/[?&]item=controls/.test(page.url())) {
+    throw new Error(`?tab=layers did not open the Controls view: ${page.url()}`);
+  }
+  await page.locator('#sod-tab-controls[aria-selected="true"]').waitFor({ timeout });
+  await page.locator("#sod-view-controls").getByRole("heading", { name: "Controls" }).waitFor();
 
   // Needs attention lists its own items, and they never count as Advanced views.
   await home();

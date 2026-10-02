@@ -14,18 +14,25 @@ import {
 import { businessLocations, locationsById, worksAt } from "@/lib/precog/person-location";
 import { rulesDualReleaseCanNarrow, type ConflictSeverity } from "./sod-conflict-view";
 
-export type SodView = "conflicts" | "matrix" | "roles" | "dual" | "power";
+export type SodView = "conflicts" | "matrix" | "roles" | "dual" | "power" | "controls";
+
+const SOD_VIEWS: readonly SodView[] = ["conflicts", "matrix", "roles", "dual", "power", "controls"];
+
+/** The view an address names (`?tab=sod&item=controls`), or null for any other item. */
+export function sodViewFrom(item: string | null | undefined): SodView | null {
+  return item && (SOD_VIEWS as readonly string[]).includes(item) ? (item as SodView) : null;
+}
 
 /**
  * The duty-conflict tab's state and the report every view reads. The shell
  * passes the report it already computed from the same template, staff and
  * dual release, so one edit runs the check once, not twice.
  */
-export function useSodPanel(shellReport?: SodDetectionReport) {
+export function useSodPanel(shellReport?: SodDetectionReport, initialView?: string | null) {
   const tpl = useTemplate();
   const { profile, setCustomPeople } = usePractice();
   // People and their duty pairs first; the dual-release policy is one step away.
-  const [view, setView] = useState<SodView>("conflicts");
+  const [view, setView] = useState<SodView>(() => sodViewFrom(initialView) ?? "conflicts");
   const [filterSeverity, setFilterSeverity] = useState<ConflictSeverity | "all">("all");
   // null: people with no location on record.
   const [location, setLocation] = useState<string | null | "all">("all");

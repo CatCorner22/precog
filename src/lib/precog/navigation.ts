@@ -17,7 +17,6 @@ export const TAB_WORDS = [
   { id: "precog", label: "What could happen", tactical: "Scenarios" },
   { id: "pioneer", label: "Ask Pioneer", tactical: "Pioneer" },
   { id: "scores", label: "How Precog scores", tactical: "Scoring" },
-  { id: "layers", label: "Where risk sits", tactical: "Layers" },
   { id: "command", label: "Dashboard", tactical: "Command" },
   { id: "value", label: "Value proof", tactical: "Value" },
   { id: "blueprint", label: "Operating blueprint", tactical: "Blueprint" },
@@ -34,6 +33,12 @@ export type TabId = (typeof TAB_WORDS)[number]["id"];
  * the place the owner lands on, not the tab around it.
  */
 export const TAB_ALIASES = {
+  // A starter control confirmed "This runs here", a control recorded as
+  // already in place, and the retired "Where risk sits" tab all open the
+  // Controls view of Who controls what.
+  control: { tab: "sod", item: "controls", label: "Controls", tactical: "Controls" },
+  "control-in-place": { tab: "sod", item: "controls", label: "Controls", tactical: "Controls" },
+  layers: { tab: "sod", item: "controls", label: "Controls", tactical: "Controls" },
   residual: {
     tab: "scores",
     item: "residual",
@@ -47,11 +52,8 @@ export const TAB_ALIASES = {
 
 export type AliasId = keyof typeof TAB_ALIASES;
 
-/**
- * Where a panel can send the owner: a tab, an alias, or "control", the
- * control list on Where risk sits.
- */
-export type NavTarget = TabId | AliasId | "control";
+/** Where a panel can send the owner: a tab, or an alias that opens one. */
+export type NavTarget = TabId | AliasId;
 
 /**
  * How a panel asks the shell to open another tab, optionally focused on one
@@ -86,7 +88,7 @@ export function isAliasId(value: unknown): value is AliasId {
 }
 
 export function isNavTarget(value: unknown): value is NavTarget {
-  return value === "control" || isTabId(value) || isAliasId(value);
+  return isTabId(value) || isAliasId(value);
 }
 
 /**
@@ -100,8 +102,6 @@ export function resolveNavTarget(
   target: string,
   item?: string | null,
 ): { tab: TabId; item?: string } | { href: string } | null {
-  // A confirmed starter control opens the control list on Where risk sits.
-  if (target === "control") return { tab: "layers", item: "control" };
   if (isAliasId(target)) {
     const alias: { tab: TabId; item?: string } = TAB_ALIASES[target];
     return alias.item ? { tab: alias.tab, item: alias.item } : withItem(alias.tab, item);
@@ -159,8 +159,8 @@ export function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
 }
 
 /**
- * The tabs that open on one item: a scenario, a register entry, a procedure,
- * a process, or a layer. On Who controls what, How Precog scores and Monthly
+ * The tabs that open on one item: a scenario, a register entry, a procedure
+ * or a process. On Who controls what, How Precog scores and Monthly
  * review, the item names a view or a section.
  */
 const ITEM_TABS: ReadonlySet<TabId> = new Set([
@@ -171,7 +171,6 @@ const ITEM_TABS: ReadonlySet<TabId> = new Set([
   "sod",
   "scores",
   "monthly",
-  "layers",
 ]);
 
 const ITEM_MAX = 120;

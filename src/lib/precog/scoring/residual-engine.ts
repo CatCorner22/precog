@@ -94,7 +94,7 @@ export function scoreAllResidualRisks(
     risks.length > 0 ? risks.filter((r) => r.ownerCount >= 2).length / risks.length : null;
 
   // A starter control nobody has confirmed runs here says nothing about this
-  // business; it is scored once the owner confirms it (Where risk sits).
+  // business; it is scored once the owner confirms it (Controls, on Who controls what).
   const controlScores = tpl.controls
     .filter((c) => !c.starter)
     .map((c) => scoreControl(tpl, c, staffResolved, knowledgeRedundancy, uplift, weights));

@@ -34,9 +34,9 @@ describe("parseHomeSearch", () => {
       tab: "knowledge",
       item: "k1",
     });
-    expect(parseHomeSearch({ tab: "layers", item: "source" })).toEqual({
-      tab: "layers",
-      item: "source",
+    expect(parseHomeSearch({ tab: "sod", item: "controls" })).toEqual({
+      tab: "sod",
+      item: "controls",
     });
     expect(parseHomeSearch({ tab: "scores", item: "coverage" })).toEqual({
       tab: "scores",
@@ -76,6 +76,14 @@ describe("parseHomeSearch", () => {
     expect(parseHomeSearch({ tab: "intel" })).toEqual({ tab: "scores", item: "patterns" });
   });
 
+  it("opens Controls on Who controls what for a Where risk sits link", () => {
+    expect(parseHomeSearch({ tab: "layers", item: "source" })).toEqual({
+      tab: "sod",
+      item: "controls",
+    });
+    expect(parseHomeSearch({ tab: "layers" })).toEqual({ tab: "sod", item: "controls" });
+  });
+
   it("keeps a known QuickBooks outcome and drops anything else", () => {
     expect(parseHomeSearch({ quickbooks: "connected" })).toEqual({ quickbooks: "connected" });
     expect(parseHomeSearch({ tab: "monthly", quickbooks: "wrong-account" })).toEqual({
@@ -110,8 +118,10 @@ describe("resolveNavTarget", () => {
     });
   });
 
-  it("keeps a confirmed starter control on the control list", () => {
-    expect(resolveNavTarget("control")).toEqual({ tab: "layers", item: "control" });
+  it("opens a confirmed or in-place control on the Controls view", () => {
+    expect(resolveNavTarget("control")).toEqual({ tab: "sod", item: "controls" });
+    expect(resolveNavTarget("control-in-place", "c1")).toEqual({ tab: "sod", item: "controls" });
+    expect(resolveNavTarget("layers", "source")).toEqual({ tab: "sod", item: "controls" });
   });
 
   it("returns nothing for an unknown name, so the address falls back to Home", () => {
@@ -124,7 +134,8 @@ describe("resolveNavTarget", () => {
 describe("tab vocabulary", () => {
   it("lists each tab once, with a plain and a tactical name", () => {
     expect(new Set(TAB_IDS).size).toBe(TAB_WORDS.length);
-    expect(TAB_WORDS).toHaveLength(15);
+    expect(TAB_WORDS).toHaveLength(14);
+    expect(isTabId("layers")).toBe(false);
     for (const t of TAB_WORDS) {
       expect(t.label.trim()).not.toBe("");
       expect(t.tactical.trim()).not.toBe("");
@@ -135,8 +146,10 @@ describe("tab vocabulary", () => {
     for (const id of Object.keys(TAB_ALIASES)) expect(isTabId(id)).toBe(false);
   });
 
-  it("accepts 'control' as a place to go but not as a tab", () => {
+  it("accepts 'control' and 'control-in-place' as places to go but not as tabs", () => {
     expect(isNavTarget("control")).toBe(true);
+    expect(isNavTarget("control-in-place")).toBe(true);
+    expect(isTabId("control-in-place")).toBe(false);
     expect(isTabId("control")).toBe(false);
     expect(isNavTarget("journal ")).toBe(false);
     expect(isNavTarget("knowlege")).toBe(false);
@@ -148,6 +161,8 @@ describe("tab vocabulary", () => {
     expect(tabLabel("coso")).toBe("Coverage check");
     expect(tabLabel("residual")).toBe("What is still exposed");
     expect(tabLabel("intel")).toBe("Patterns");
+    expect(tabLabel("control")).toBe("Controls");
+    expect(tabLabel("layers", tactical)).toBe("Controls");
   });
 
   it("names the new tabs", () => {
