@@ -79,9 +79,23 @@ function toRow(r: RawVersion): ReportVersionRow {
 }
 
 /**
+ * The figures a version printed when it was locked, with the scoring and
+ * layout versions that produced them. The model is JSON the caller shapes;
+ * this store only keeps it. A null model means the lock ran with these
+ * versions but did not store the figures.
+ */
+export interface FrozenReportRow<TModel = unknown> {
+  scoringVersion: string;
+  layoutVersion: number;
+  model: TModel | null;
+}
+
+/**
  * Freezes the saved business as the next version. The business row is locked
  * while the number is chosen, so two simultaneous locks get consecutive
- * numbers instead of one failing on the unique constraint.
+ * numbers instead of one failing on the unique constraint. `freeze` builds
+ * the report's figures from the profile being locked; a null result locks the
+ * version without them.
  */
 export async function lockReportVersion(
   sql: Sql,
@@ -91,18 +105,21 @@ export async function lockReportVersion(
     preparedBy: string;
     scopeNote: string;
     id: string;
+    freeze?: (profile: unknown) => FrozenReportRow | null;
   },
 ): Promise<ReportVersionRow> {
   const row = await inTransaction(sql, async (tx) => {
-    const business = await tx<{ id: string }>`
-      select id from businesses
+    const business = await tx<{ id: string; profile: unknown }>`
+      select id, profile from businesses
       where user_id = ${input.ownerUserId} and id = ${input.businessId} and deleted_at is null
       for update
     `;
     if (!business[0]) throw new ReportVersionError(404, "That client is not on this account");
+    const frozen = input.freeze?.(business[0].profile) ?? null;
     await tx`
       insert into report_versions
-        (id, user_id, business_id, version_no, revision, profile, scope_note, prepared_by)
+        (id, user_id, business_id, version_no, revision, profile, scope_note, prepared_by,
+         scoring_version, layout_version, report_model)
       select
         ${input.id},
         b.user_id,
@@ -114,7 +131,10 @@ export async function lockReportVersion(
         b.revision,
         b.profile,
         ${input.scopeNote},
-        ${input.preparedBy}
+        ${input.preparedBy},
+        ${frozen?.scoringVersion ?? null},
+        ${frozen?.layoutVersion ?? null},
+        ${frozen?.model ? JSON.stringify(frozen.model) : null}::jsonb
       from businesses b
       where b.user_id = ${input.ownerUserId} and b.id = ${input.businessId}
     `;
@@ -151,6 +171,33 @@ export async function loadReportVersion<TProfile = unknown>(
   );
   const row = rows[0];
   return row ? { version: toRow(row), profile: row.profile } : null;
+}
+
+/**
+ * The figures stored with a version, or null for a version locked before
+ * Precog stored them. A version locked since then whose figures were not
+ * stored (past the size cap) comes back with a null model.
+ */
+export async function loadFrozenReport<TModel = unknown>(
+  sql: Sql,
+  ownerUserId: string,
+  id: string,
+): Promise<FrozenReportRow<TModel> | null> {
+  const rows = await sql<{
+    scoring_version: string | null;
+    layout_version: number | string | null;
+    report_model: TModel | null;
+  }>`
+    select scoring_version, layout_version, report_model from report_versions
+    where user_id = ${ownerUserId} and id = ${id}
+  `;
+  const row = rows[0];
+  if (!row || row.scoring_version === null) return null;
+  return {
+    scoringVersion: row.scoring_version,
+    layoutVersion: Number(row.layout_version ?? 1),
+    model: row.report_model ?? null,
+  };
 }
 
 /**

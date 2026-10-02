@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ControlReport } from "@/components/precog/control-report";
 import { getReport } from "@/lib/precog/firm/server";
 import type { ReportVersionRow } from "@/lib/precog/firm/reports";
+import type { FrozenReport } from "@/lib/precog/report/stored-model";
 import type { PracticeProfile } from "@/lib/precog/practice-profile";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
 import { localDateKey } from "@/lib/precog/dates";
@@ -31,12 +32,20 @@ function ReportPage() {
   return <ControlReport />;
 }
 
-/** A locked version: the frozen profile under a read-only provider. */
+/**
+ * A locked version: the frozen profile under a read-only provider, printed
+ * from the figures stored when it was locked (null for an older version).
+ */
 function LockedReport({ id }: { id: string }) {
   const [state, setState] = useState<
     | { kind: "loading" }
     | { kind: "error"; message: string }
-    | { kind: "ready"; version: ReportVersionRow; profile: PracticeProfile }
+    | {
+        kind: "ready";
+        version: ReportVersionRow;
+        profile: PracticeProfile;
+        frozen: FrozenReport | null;
+      }
   >({ kind: "loading" });
 
   useEffect(() => {
@@ -44,7 +53,14 @@ function LockedReport({ id }: { id: string }) {
     setState({ kind: "loading" });
     void getReport({ data: { id, today: localDateKey(new Date()) } })
       .then((res) => {
-        if (!cancel) setState({ kind: "ready", version: res.version, profile: res.profile });
+        if (!cancel) {
+          setState({
+            kind: "ready",
+            version: res.version,
+            profile: res.profile,
+            frozen: res.frozen,
+          });
+        }
       })
       .catch((err: unknown) => {
         if (!cancel) {
@@ -84,7 +100,7 @@ function LockedReport({ id }: { id: string }) {
   }
   return (
     <ReadOnlyPracticeProvider profile={state.profile}>
-      <ControlReport locked={state.version} />
+      <ControlReport locked={state.version} frozen={state.frozen} />
     </ReadOnlyPracticeProvider>
   );
 }

@@ -5,6 +5,12 @@ import { withStaff } from "@/lib/precog/profile-actions";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
 import type { ReportVersionRow } from "@/lib/precog/firm/reports";
 import type { Person } from "@/lib/precog/types";
+import {
+  buildReportModelForProfile,
+  REPORT_LAYOUT_VERSION,
+  serializeReportModel,
+} from "@/lib/precog/report/stored-model";
+import { SCORING_VERSION } from "@/lib/precog/scoring/weights";
 import { ControlReport } from "./control-report";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -108,5 +114,50 @@ describe("printed control report", () => {
     const plain = render({ ...profile, dualRelease: { ...profile.dualRelease, enabled: false } });
     expect(plain).toContain("1 open critical duty conflict");
     expect(plain).not.toContain("only above a threshold");
+  });
+});
+
+describe("locked version figures", () => {
+  const profile = defaultProfile("dental");
+  const atLock = buildReportModelForProfile(profile, "2026-09-26");
+
+  // A stored model whose summary today's scoring would never produce.
+  const stored = serializeReportModel({ ...atLock, summary: ["Figures as locked."] });
+  const renderFrozen = (layoutVersion: number, model: typeof stored | null) =>
+    renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={profile}>
+        <ControlReport locked={locked} frozen={{ layoutVersion, model }} />
+      </ReadOnlyPracticeProvider>,
+    );
+
+  it("prints the stored figures, not today's, and no recalculation note", () => {
+    const html = renderFrozen(REPORT_LAYOUT_VERSION, stored);
+    expect(html).toContain("Figures as locked.");
+    expect(html).not.toContain(atLock.summary[0]);
+    expect(html).not.toContain("Figures recalculated");
+  });
+
+  it("says a version locked before figures were stored is recalculated", () => {
+    const html = render(profile);
+    expect(html).toContain(`Figures recalculated with scoring ${SCORING_VERSION} on `);
+    expect(html).toContain("This version was locked before Precog stored its figures.");
+    expect(html).toContain(atLock.summary[0]);
+  });
+
+  it("says a version whose figures were not stored at lock is recalculated", () => {
+    const html = renderFrozen(REPORT_LAYOUT_VERSION, null);
+    expect(html).toContain(`Figures recalculated with scoring ${SCORING_VERSION} on `);
+    expect(html).toContain("Precog did not store this version&#x27;s figures when it was locked.");
+    expect(html).not.toContain("locked before Precog stored");
+    expect(html).toContain(atLock.summary[0]);
+  });
+
+  it("recalculates stored figures from another report layout", () => {
+    const html = renderFrozen(REPORT_LAYOUT_VERSION + 1, stored);
+    expect(html).not.toContain("Figures as locked.");
+    expect(html).toContain(
+      "Precog stored this version&#x27;s figures for an earlier report layout.",
+    );
+    expect(html).toContain(atLock.summary[0]);
   });
 });
