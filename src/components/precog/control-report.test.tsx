@@ -146,6 +146,25 @@ describe("printed control report", () => {
     const section = html.slice(html.indexOf("Segregation of duties"));
     expect(section).toContain(scope);
   });
+  it("prints the layout 1 and 2 decision labels, not the screen's plain ones", () => {
+    const kinds = ["accept_residual", "remediate", "monitor", "insure"] as const;
+    const html = render({
+      ...defaultProfile("dental"),
+      decisions: kinds.map((kind, i) => ({
+        id: `d${i}`,
+        createdAt: "2026-09-20T12:00:00.000Z",
+        subject: `Decision ${i}`,
+        kind,
+        note: "",
+      })),
+    });
+    for (const label of ["Accept residual", "Remediate", "Monitor", "Transfer / insure"]) {
+      expect(html).toContain(`<span class="font-medium">${label}</span>`);
+    }
+    for (const label of ["Accept the risk", "Fix it", "Watch it", "Insure it"]) {
+      expect(html).not.toContain(label);
+    }
+  });
 });
 
 describe("report cover headlines", () => {
