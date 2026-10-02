@@ -79,6 +79,21 @@ describe("value proof file", () => {
       "newer version",
     ],
     [
+      "version 0",
+      JSON.stringify({ format: VALUE_PROOF_FILE_FORMAT, version: 0, valueEvidence: [] }),
+      "not a Precog value proof file",
+    ],
+    [
+      "no version",
+      JSON.stringify({ format: VALUE_PROOF_FILE_FORMAT, valueEvidence: [] }),
+      "not a Precog value proof file",
+    ],
+    [
+      "a text version",
+      JSON.stringify({ format: VALUE_PROOF_FILE_FORMAT, version: "1", valueEvidence: [] }),
+      "not a Precog value proof file",
+    ],
+    [
       "no register",
       JSON.stringify({ format: VALUE_PROOF_FILE_FORMAT, version: 1, valueCase: null }),
       "no evidence register",

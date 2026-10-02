@@ -93,9 +93,14 @@ export function parseValueProofFile(text: string): ValueProofFile {
     throw new Error("That file is not a Precog value proof file. Precog loaded nothing.");
   }
   if (envelope.version !== VALUE_PROOF_FILE_VERSION) {
-    throw new Error(
-      "That value proof file comes from a newer version of Precog. Precog loaded nothing.",
-    );
+    // Only a whole-number version above this one is a newer file; a missing,
+    // zero or text version is not a value proof file Precog ever wrote.
+    if (typeof envelope.version === "number" && envelope.version > VALUE_PROOF_FILE_VERSION) {
+      throw new Error(
+        "That value proof file comes from a newer version of Precog. Precog loaded nothing.",
+      );
+    }
+    throw new Error("That file is not a Precog value proof file. Precog loaded nothing.");
   }
   const rawCase = envelope.valueCase;
   if (rawCase !== null && (typeof rawCase !== "object" || Array.isArray(rawCase))) {
