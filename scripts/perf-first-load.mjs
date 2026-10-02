@@ -22,19 +22,20 @@ import { gzipSync } from "node:zlib";
 /**
  * Gzipped kilobytes each page may download on first load. Each budget is the
  * measured size plus 10 percent, rounded up to the next KB. Set on 2026-10-02
- * from the reference measurement on main (c679abc): / 406.0 KB, /login
- * 321.2 KB, /privacy 321.7 KB. /terms and /share/<token> share the public-page
- * budget of /privacy until a measurement of their own replaces it. Lower a
+ * from this script against the compiled build once public pages stopped
+ * loading the business engine: / 381.9 KB, /login 150.9 KB, /privacy
+ * 140.0 KB, /terms 138.1 KB, /share/x 145.5 KB (main before: / 406.0 KB,
+ * /login 321.2 KB, /privacy 321.7 KB). Lower a
  * budget when a change makes a page lighter; raise one only on purpose, with
  * the reason and date here.
  */
 export const PAGE_BUDGETS_KB = {
-  "/": 447,
-  "/login": 354,
-  "/privacy": 354,
-  "/terms": 354,
+  "/": 421,
+  "/login": 167,
+  "/privacy": 154,
+  "/terms": 152,
   // An invalid share token renders the public share page's error state.
-  "/share/x": 354,
+  "/share/x": 161,
 };
 
 /** The gzipped size of one file's bytes, as check-bundle-size.mjs counts it. */

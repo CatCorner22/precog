@@ -36,25 +36,23 @@ Digest and integration jobs are documented in route handlers under `src/routes/a
 
 ## Performance baseline (2 October 2026)
 
-Measured on `main` at c679abc. Compare a later measurement against these numbers before and after a speed change.
+Measured on 2 October 2026 against the compiled build, before (`main` at c679abc) and after public pages stopped loading the business engine. Compare a later measurement against these numbers before and after a speed change.
 
 ### JavaScript each page downloads on first load
 
-Gzipped, signed out, from `npm run perf:first-load`. The budget is the measured size plus 10 percent, rounded up to the next KB; `PAGE_BUDGETS_KB` in `scripts/perf-first-load.mjs` holds the budgets.
+Gzipped, signed out, from `npm run perf:first-load`. The budget is the measured size after the change plus 10 percent, rounded up to the next KB; `PAGE_BUDGETS_KB` in `scripts/perf-first-load.mjs` holds the budgets.
 
-| Page       | Measured (KB) | Budget (KB) |
-| ---------- | ------------- | ----------- |
-| `/`        | 406.0         | 447         |
-| `/login`   | 321.2         | 354         |
-| `/privacy` | 321.7         | 354         |
-| `/terms`   | not measured  | 354         |
-| `/share/x` | not measured  | 354         |
-
-`/terms` and `/share/<token>` share the `/privacy` budget until their first measurement replaces it.
+| Page       | Before (KB)  | After (KB) | Budget (KB) |
+| ---------- | ------------ | ---------- | ----------- |
+| `/`        | 406.0        | 381.9      | 421         |
+| `/login`   | 321.2        | 150.9      | 167         |
+| `/privacy` | 321.7        | 140.0      | 154         |
+| `/terms`   | not measured | 138.1      | 152         |
+| `/share/x` | not measured | 145.5      | 161         |
 
 ### Whole bundle
 
-From `npm run check:bundle` after `npm run build`: 80 chunks, 774.3 KB gzipped in total (budget 775 KB); the largest chunk is the 261.6 KB entry (budget 265 KB).
+From `npm run check:bundle` after `npm run build`: 99 chunks, 782.9 KB gzipped in total (budget 790 KB); the largest chunk is the 107.3 KB entry (budget 118 KB). Before the change: 80 chunks, 774.3 KB, with a 261.6 KB entry. The total rose because the same code sits in more, smaller chunks; what each page downloads fell.
 
 ### Register engines
 

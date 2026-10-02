@@ -44,17 +44,19 @@
  * 2026-10-02: pages that need no business stop loading the business engine
  * (plan Phase 3, steps 3.1 and 3.2). The workspace loads lazily once a
  * business page opens, and setup, the Command center and the job-title
- * catalog load when used. First-load JavaScript, summed from the build's
- * route preloads: /privacy 321.6 to 139.9 KB, /login 321.1 to 150.8 KB,
- * /share 324.3 to 145.5 KB, / 405.8 to 337.8 KB. The largest chunk falls from
- * 261.6 KB to 107.3 KB; its budget drops from 265 KB to 118 KB. The total
- * rises from 774.3 KB to 782.5 KB: the same code in 99 chunks instead of 80
- * pays about 8 KB in import lists and in smaller files compressing less well.
- * No module is duplicated, and the modules' own code shrinks. Merging chunks
- * did not win it back: one chunk for every icon reached 775.7 KB but added
- * 8.6 KB to each public page, and Rolldown's entries-aware merging stayed at
- * 779 KB or above. Total budget raised from 775 KB to 790 KB pending the
- * owner's decision; the plan expected the total to fall.
+ * catalog load when used. First-load JavaScript measured in a browser
+ * against the compiled build (scripts/perf-first-load.mjs): / 406.0 to
+ * 381.9 KB, /login 321.2 to 150.9 KB, /privacy 321.7 to 140.0 KB, /terms
+ * 138.1 KB, /share 145.5 KB. The largest chunk falls from 261.6 KB to
+ * 107.3 KB; its budget drops from 265 KB to 118 KB. The total rises from
+ * 774.3 KB to 782.9 KB: the same code in 99 chunks instead of 80 pays about
+ * 8 KB in import lists and in smaller files compressing less well. No module
+ * is duplicated, and the modules' own code shrinks. Merging chunks did not win
+ * it back: one chunk for every icon reached 775.7 KB but added 8.6 KB to each
+ * public page, and Rolldown's entries-aware merging stayed at 779 KB or above.
+ * Total budget raised from 775 KB to 790 KB, because every page downloads
+ * less; the per-page budgets in scripts/perf-first-load.mjs now guard what a
+ * visitor actually loads.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
