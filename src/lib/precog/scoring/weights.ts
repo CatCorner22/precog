@@ -9,7 +9,12 @@
  */
 import { RISK_SCALE } from "./bands";
 import { clamp } from "../number";
-export const SCORING_VERSION = "precog-residual-v1.5.0";
+/**
+ * 1.6.0 (2 October 2026): one rule for open duty conflicts, one band table,
+ * each control answer read once, placeholder scenario dollars out of the
+ * ranking, map completeness in place of map health. See docs/SCORING_1.6.md.
+ */
+export const SCORING_VERSION = "precog-residual-v1.6.0";
 
 /** Inherent risk factors (0–1 contribution before normalization) */
 const INHERENT_WEIGHTS = {
