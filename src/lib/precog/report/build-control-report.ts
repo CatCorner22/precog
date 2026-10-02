@@ -93,15 +93,11 @@ export function buildControlReportModel({
   // the open findings by the same rule.
   const sodOpen = openSeverityCounts(sod.conflicts, profile.dualRelease);
   const sodLevel = segregationLevel(sod.summary.segregationHealth, sodOpen);
-  // A segregation score or bank-reconciliation answer the owner set by hand
-  // moves the priority and residual figures without any change in who does
-  // what, so the report says so beside what the duties give, read with the
-  // dual release the duty separation index reads.
+  // A segregation score or bank-reconciliation answer set by hand on a
+  // sample moves the priority and residual figures without any change in
+  // who does what, so the report says so. An own team's come from its duties.
   const handSet = handSetNotes(
-    handSetFigures(tpl, profile.staff, {
-      ownTeam: Boolean(profile.customPeople),
-      dualReleaseMitigatedRuleIds: sodOptions.dualReleaseMitigatedRuleIds,
-    }),
+    handSetFigures(profile.staff, { ownTeam: Boolean(profile.customPeople) }),
   );
   const continuity = coverageReport(tpl);
   const staleness = staleItems(tpl, today);
@@ -180,7 +176,7 @@ export function buildControlReportModel({
     floors: citing.cases.filter((c) => c.lossUsd > 0 && c.lossIsFloor).length,
   };
   const docs = documentationDebt(tpl);
-  const firstPoint = profile.mapHealthHistory?.[0];
+  const firstPoint = profile.mapCompletenessHistory?.[0];
   const healthDelta =
     mapReady && firstPoint && mapHealth.score !== firstPoint.score
       ? { points: mapHealth.score - firstPoint.score, since: firstPoint.at }

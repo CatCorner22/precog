@@ -154,9 +154,15 @@ describe("enteredWork for an own business", () => {
     const own = withPeople(defaultProfile("general"), team, "2026-09-25");
     const tuned = withStaff(own, {
       ...own.staff,
-      segregationScore: own.staff.segregationScore - 10,
+      dualControlPayments: !own.staff.dualControlPayments,
     });
     expect(enteredWork(tuned).settings).toBe(true);
+    // A segregation score comes from the team's duties and is never saved by hand.
+    const tried = withStaff(own, {
+      ...own.staff,
+      segregationScore: own.staff.segregationScore - 10,
+    });
+    expect(enteredWork(tried).settings).toBe(false);
   });
 
   it("names the monthly closes, open leaver checks, reconciliation and dates an industry switch drops", () => {

@@ -85,17 +85,27 @@ export function sharedFraudScenarios(
 }
 
 /**
- * Timeline and loss inputs for each kind of scenario. They are illustrative
- * model inputs, not measurements, and every sample reuses the set for the
- * closest scheme so one change moves them all: the cash scenario for
- * skimming, card abuse, payroll padding, trust money and sales tax; the
- * write-off scenario for non-cash theft, restricted funds and the tip pool;
- * vendor fraud for invented vendors, subcontractors and kickbacks.
+ * Timeline and loss inputs for each kind of scenario, the only place a
+ * template's scenario dollars and days are written. They are illustrative
+ * examples, not sized to any business and not measurements, and they never
+ * set a scenario's rank (see scoring/scenario-level). Every sample reuses
+ * the set for the closest scheme so one change moves them all: the cash
+ * scenario for skimming, card abuse, payroll padding, trust money, sales
+ * tax, repair-order cash and padded field time; the write-off scenario for
+ * non-cash theft, parts and materials, restricted funds and the tip pool;
+ * vendor fraud for invented vendors, subcontractors, kickbacks, deal fees
+ * and wires covered by journal entries.
  */
 export const SCENARIO_FIGURES = {
   keyPerson: {
     baseTimelineDays: { p50: 45, p95Low: 28, p95High: 75 },
     baseFinancialImpact: { expected: 16500, low: 7000, high: 38000 },
+  },
+  // The key-person days, with a larger loss because a denial backlog holds
+  // up insurance revenue (the dental front desk).
+  frontDesk: {
+    baseTimelineDays: { p50: 45, p95Low: 28, p95High: 75 },
+    baseFinancialImpact: { expected: 18500, low: 8000, high: 42000 },
   },
   cash: {
     baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },

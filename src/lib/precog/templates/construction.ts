@@ -1,6 +1,11 @@
 import type { ControlItem, ScenarioTemplate } from "../types";
 import type { IndustrySample } from "./types";
-import { baseFinancialControls, baseFraudScenarios, SAMPLE_SAFEGUARDS } from "./shared-controls";
+import {
+  baseFinancialControls,
+  baseFraudScenarios,
+  SAMPLE_SAFEGUARDS,
+  SCENARIO_FIGURES,
+} from "./shared-controls";
 
 /**
  * A general contractor or specialty trade of 5 to 40 people: office staff, a
@@ -80,8 +85,7 @@ const constructionScenarios: ScenarioTemplate[] = [
       "Someone who sets up vendors and releases payments adds a subcontractor with a real-sounding name and a bank account they control, then codes its invoices to a busy job where the extra cost reads as an overrun.",
     controlId: "c-sub-verify",
     sodRuleIds: ["rule-vendor-create-pay", "rule-invoice-pay"],
-    baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
-    baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
+    ...SCENARIO_FIGURES.vendor,
     cascadeLayers: ["control", "source", "process", "continuity"],
     mitigations: [
       {
@@ -108,8 +112,7 @@ const constructionScenarios: ScenarioTemplate[] = [
     controlId: "c-change-orders",
     sodRuleIds: ["rule-invoice-approve"],
     knowledgeId: "k2",
-    baseTimelineDays: { p50: 100, p95Low: 50, p95High: 200 },
-    baseFinancialImpact: { expected: 40000, low: 8000, high: 125000 },
+    ...SCENARIO_FIGURES.vendor,
     cascadeLayers: ["control", "process", "surface", "continuity"],
     mitigations: [
       {
@@ -135,8 +138,7 @@ const constructionScenarios: ScenarioTemplate[] = [
       "The person who orders materials also signs for them. They can charge lumber, wire, fixtures or equipment to an open job and deliver it to a side job or resell it, and the cost reads as job cost.",
     controlId: "c-materials",
     sodRuleIds: ["rule-order-receive"],
-    baseTimelineDays: { p50: 120, p95Low: 60, p95High: 240 },
-    baseFinancialImpact: { expected: 22000, low: 4000, high: 70000 },
+    ...SCENARIO_FIGURES.writeoff,
     cascadeLayers: ["control", "process", "surface", "continuity"],
     mitigations: [
       {
@@ -163,8 +165,7 @@ const constructionScenarios: ScenarioTemplate[] = [
     controlId: "c-field-time",
     sodRuleIds: ["rule-payroll-master-run", "rule-payroll"],
     knowledgeId: "k5",
-    baseTimelineDays: { p50: 90, p95Low: 45, p95High: 210 },
-    baseFinancialImpact: { expected: 28000, low: 5000, high: 95000 },
+    ...SCENARIO_FIGURES.cash,
     cascadeLayers: ["control", "process", "surface", "continuity"],
     mitigations: [
       {

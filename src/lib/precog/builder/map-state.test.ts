@@ -117,7 +117,11 @@ describe("the sample business's map figures do not change", () => {
   // process runs hot (six), calm moves to 28 and the score to 68. Residual
   // scoring v1.5.0 (#150) stops applying sole-owner knowledge and a weak
   // segregation score a second time as a staff uplift: two processes stop
-  // running hot (four), calm moves to 33 and the score to 70.
+  // running hot (four), calm moves to 33 and the score to 70. Scoring
+  // v1.6.0 renames it map completeness and drops heat (calm) from the score:
+  // it counts how far the map is filled in, in four equal parts, so the
+  // score moves from 70 to 75. Hot processes are still reported for the
+  // map's colours.
   it("scores the dental demo exactly as before", () => {
     const profile = defaultProfile();
     const tpl = resolveTemplate(profile);
@@ -130,14 +134,13 @@ describe("the sample business's map figures do not change", () => {
     const health = computeMapHealth(snapshots, issues);
     expect(mapSource(profile)).toBe("sample");
     expect(mapAssessed(profile)).toBe(true);
-    expect(health.score).toBe(70);
+    expect(health.score).toBe(75);
     expect(health.band).toBe("fair");
     expect(health.dimensions.map((d) => [d.id, d.score])).toEqual([
       ["integrity", 100],
       ["ownership", 100],
       ["controls", 100],
       ["documentation", 0],
-      ["calm", 33],
     ]);
     expect(health.issueCount).toEqual({ errors: 0, warns: 0, infos: 8 });
     expect(health.hotProcesses).toBe(4);

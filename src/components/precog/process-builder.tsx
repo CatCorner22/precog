@@ -521,7 +521,7 @@ export function ProcessBuilder({
             </CardTitle>
             <CardDescription>
               Build your real value stream. Every change re-scores residual risk, duty conflicts and
-              map health at once.
+              map completeness at once.
               <span className="mt-1 block text-xs text-subtle">
                 Keyboard: arrows move between processes · F frames the selection · Enter edits the
                 name · Shift+A arranges by stage · Ctrl+Z undo
@@ -541,7 +541,7 @@ export function ProcessBuilder({
                   <Gauge className="size-3" />
                   {"—"}
                 </span>
-                <span className="text-muted">Map health · not assessed yet</span>
+                <span className="text-muted">Map completeness · not assessed yet</span>
               </div>
             )}
           </div>

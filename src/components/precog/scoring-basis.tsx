@@ -169,9 +169,18 @@ function signed(value: number) {
 const GROUPS = [
   { key: "inherent", label: "Inherent risk", values: DEFAULT_WEIGHTS.inherent },
   { key: "control", label: "Control effectiveness", values: DEFAULT_WEIGHTS.control },
+  { key: "controlLevels", label: "Control levels", values: DEFAULT_WEIGHTS.controlLevels },
   { key: "staff", label: "Staff modifiers", values: DEFAULT_WEIGHTS.staff },
-  { key: "scenario", label: "Scenario model", values: DEFAULT_WEIGHTS.scenario },
+  { key: "scenario", label: "Scenario levels", values: DEFAULT_WEIGHTS.scenario },
+  {
+    key: "scenarioStaff",
+    label: "Scenario staffing multipliers",
+    values: DEFAULT_WEIGHTS.scenarioStaff,
+  },
+  { key: "likelihood", label: "Likelihood model", values: DEFAULT_WEIGHTS.likelihood },
   { key: "knowledge", label: "Written procedures", values: DEFAULT_WEIGHTS.knowledge },
+  { key: "knowledgeLevels", label: "Know-how levels", values: DEFAULT_WEIGHTS.knowledgeLevels },
+  { key: "knowledgeIndex", label: "Know-how index", values: DEFAULT_WEIGHTS.knowledgeIndex },
 ] as const;
 
 const GROUP_LABEL: Record<string, string> = Object.fromEntries(GROUPS.map((g) => [g.key, g.label]));

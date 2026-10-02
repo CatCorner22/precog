@@ -27,11 +27,11 @@ describe("profileReducer", () => {
     expect(profileReducer(state, (p) => p)).toBe(state);
   });
 
-  it("records a derived map-health point without stamping updatedAt", () => {
+  it("records a derived map completeness point without stamping updatedAt", () => {
     const state = start();
     const now = new Date("2026-09-26T10:00:00Z");
     const next = profileReducer(state, { derive: (p) => withMapHealth(p, 74, now) });
-    expect(next.mapHealthHistory?.map((point) => point.score)).toEqual([74]);
+    expect(next.mapCompletenessHistory?.map((point) => point.score)).toEqual([74]);
     expect(next.updatedAt).toBe(STAMP);
   });
 });

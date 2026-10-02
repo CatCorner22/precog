@@ -114,12 +114,12 @@ const STEPS: TourStep[] = [
   {
     icon: Hammer,
     title: "Welcome to the map builder",
-    body: "This is your business as a value stream. Every edit saves at once and re-scores residual risk, duty conflicts and the map health score. Ctrl+Z undoes any edit.",
+    body: "This is your business as a value stream. Every edit saves at once and re-scores residual risk, duty conflicts and map completeness. Ctrl+Z undoes any edit.",
   },
   {
     icon: Plus,
     title: "Add or insert a process",
-    body: "Add a blank process and name it, or open Blocks for pre-built control patterns like dual-release payments and owner bank reconciliation. Each block previews how it moves your map health.",
+    body: "Add a blank process and name it, or open Blocks for pre-built control patterns like dual-release payments and owner bank reconciliation. Each block previews how it moves your map completeness.",
     cta: { label: "Open Blocks", action: "blocks" },
   },
   {
@@ -135,7 +135,7 @@ const STEPS: TourStep[] = [
   },
   {
     icon: Activity,
-    title: "Watch map health",
-    body: "The pill at the top of this panel tracks map health while you build. Back on the Dashboard the full card shows dimension bars, a trend line, and links straight to the weak spots.",
+    title: "Watch map completeness",
+    body: "The pill at the top of this panel tracks map completeness while you build. Back on the Dashboard the full card shows dimension bars, a trend line, and links straight to the weak spots.",
   },
 ];

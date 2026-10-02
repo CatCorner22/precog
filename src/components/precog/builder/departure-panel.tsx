@@ -122,4 +122,4 @@ function signed(n: number): string {
 }
 
 const IMPACT_BASIS =
-  "Impact index, 0–100: Precog's weighting of how far map health falls without this person, the processes left with no owner, the knowledge nobody else holds (critical items count double), and their years here. It orders attention; it is not a measurement.";
+  "Impact index, 0–100: Precog's weighting of how far map completeness falls without this person, the processes left with no owner, the knowledge nobody else holds (critical items count double), and their years here. It orders attention; it is not a measurement.";

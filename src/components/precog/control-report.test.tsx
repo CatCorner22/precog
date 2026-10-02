@@ -7,6 +7,7 @@ import type { ReportVersionRow } from "@/lib/precog/firm/reports";
 import type { Person } from "@/lib/precog/types";
 import {
   buildReportModelForProfile,
+  PRINTED_LAYOUT_VERSIONS,
   REPORT_LAYOUT_VERSION,
   serializeReportModel,
 } from "@/lib/precog/report/stored-model";
@@ -68,16 +69,21 @@ describe("printed control report", () => {
     expect(html).not.toContain("Coverage check");
   });
 
-  it("discloses a segregation score set by hand, and only then", () => {
+  it("discloses a segregation score set by hand on a sample, and only then", () => {
     const own: PracticeProfile = {
       ...defaultProfile("dental"),
       practiceName: "Ortiz Dental Studio",
       customPeople: team,
     };
-    const manual = withStaff(own, { ...own.staff, segregationScore: 95 });
+    const sample = defaultProfile("dental");
+    const manual = withStaff(sample, { ...sample.staff, segregationScore: 95 });
     expect(render(manual)).toContain("Segregation score set by hand: 95.");
+    // An own team's score comes from its duties: a value passed in is not saved.
+    expect(render(withStaff(own, { ...own.staff, segregationScore: 95 }))).not.toContain(
+      "set by hand",
+    );
     expect(render(own)).not.toContain("set by hand");
-    expect(render(defaultProfile("dental"))).not.toContain("set by hand");
+    expect(render(sample)).not.toContain("set by hand");
   });
 
   it("counts the duty separation hint as the band word does, and says why a narrowed pair is open", () => {
@@ -152,15 +158,16 @@ describe("report cover headlines", () => {
         return text.slice(start, text.indexOf(to, start));
       };
       // The priority list's headline: items at priority 88 or more.
-      const top = between("Top-priority items", "Average residual risk score");
+      const top = between("Top-priority items", "Residual risks by band");
       expect(top).toContain("Priority 88 or more");
-      expect(top).not.toMatch(/fix first|80 or more|risks?\b/i);
+      expect(top).not.toMatch(/fix first|80 or more|residual/i);
       // The residual "Fix first" band: risks at 80 or more on the residual index.
-      const residual = between("Average residual risk score", "Duty separation index");
-      expect(residual).toMatch(/\|\d+ risks? at 80 or more\|/);
+      const residual = between("Residual risks by band", "Duty separation index");
+      expect(residual).toMatch(/\|\d+ fix first\|/);
+      expect(residual).toContain("Fix first at 80 or more");
       expect(residual).not.toMatch(/top|priority|88/i);
-      // No other count on the cover borrows "to fix first" for either scale.
-      expect(text).not.toMatch(/\d+ (?:items? )?to fix first/i);
+      // "Fix first" names the residual band only: nowhere else on the cover.
+      expect(text.replace(residual, "")).not.toMatch(/fix first/i);
     }
   });
 });
@@ -237,11 +244,38 @@ describe("locked version figures", () => {
         <ControlReport locked={locked} frozen={{ layoutVersion: 1, model: old }} />
       </ReadOnlyPracticeProvider>,
     );
-    expect(REPORT_LAYOUT_VERSION).toBe(1);
+    // Models locked before step 4.4 carry layout 1, which still prints from stored figures.
+    expect(PRINTED_LAYOUT_VERSIONS).toContain(1);
     expect(html).not.toContain("Figures recalculated");
     expect(html).toContain("0 critical, 0 high, 0 medium");
     expect(html).toContain("Covered by dual release");
     expect(html).not.toContain("Reduced, not closed");
+  });
+
+  it("prints figures stored under layout 1 with that layout's labels", () => {
+    // A model locked before map completeness and band counts: no `mitigate`
+    // or `watch` counts, and a map health score that still counts heat.
+    const { mitigate: _m, watch: _w, ...oldPortfolio } = stored.portfolio;
+    const layoutOne = {
+      ...stored,
+      portfolio: oldPortfolio,
+      mapHealth: {
+        ...stored.mapHealth,
+        bandLabel: "Fair",
+        dimensions: [
+          ...stored.mapHealth.dimensions,
+          { id: "calm", label: "Heat", score: 40, weight: 0.3, hint: "Average heat 60" },
+        ],
+      },
+    } as unknown as typeof stored;
+    const html = renderFrozen(1, layoutOne);
+    expect(html).toContain("Figures as locked.");
+    expect(html).not.toContain("Figures recalculated");
+    expect(html).not.toContain("undefined");
+    expect(html).not.toContain("Map completeness");
+    expect(html).toContain("Map health score");
+    expect(html).toContain("Average residual risk score");
+    expect(html).toContain(`${stored.portfolio.criticalPath} to fix first`);
   });
 
   it("recalculates stored figures from another report layout", () => {

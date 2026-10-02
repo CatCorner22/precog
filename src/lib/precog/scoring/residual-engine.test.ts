@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "../active-template";
 import { getIndustryTemplate, type IndustryTemplate } from "../templates";
-import { findKnowledgeRisks, runPrecogScenario } from "../engine";
+import {
+  findKnowledgeRisks,
+  rankDangerousScenarios,
+  runPrecogScenario,
+  scenarioMultipliers,
+} from "../engine";
 import { INDUSTRIES, type IndustryId } from "../industry";
 import type { StaffComposition } from "../types";
 import { DEFAULT_RISK_VARIABLES } from "./dynamic-variables";
 import { scenarioFlags } from "./scenario-kind";
+import { scenarioLevels } from "./scenario-level";
+import { DEFAULT_WEIGHTS } from "./weights";
 import { portfolioSummary, scoreAllResidualRisks, tornadoSensitivity } from "./residual-engine";
 
 const dental = getIndustryTemplate("dental");
@@ -271,29 +278,138 @@ describe("own business scope", () => {
 });
 
 describe("scenario row formula", () => {
-  it("shows the credited effectiveness that reproduces the residual", () => {
+  it("blends the shown likelihood and severity levels into the residual, with no further credit", () => {
+    const { severityShare, likelihoodShare } = DEFAULT_WEIGHTS.scenario;
     for (const row of scoreAllResidualRisks(dental).filter((s) => s.category === "scenario")) {
-      expect(row.effectivenessCredit).toBe(0.5);
-      // Both figures are rounded from the same unrounded effectiveness.
-      expect(
-        Math.abs(row.creditedEffectiveness! - row.controlEffectiveness * 0.5),
-      ).toBeLessThanOrEqual(1);
-      // The staffing uplift drivers sum to the factor the row is multiplied by.
-      const uplift =
-        1 +
-        row.drivers.filter((d) => d.id.startsWith("staff-")).reduce((sum, d) => sum + d.weight, 0);
+      expect(row.controlEffectiveness).toBe(0);
+      expect(row.inherent).toBe(row.residual);
       const recomputed =
-        (row.inherent / 100) * (1 - row.creditedEffectiveness! / 100) * 100 * uplift;
-      // Within rounding of the displayed integers, I × (1 − credited E) × uplift gives the residual.
-      expect(Math.abs(recomputed - row.residual), row.id).toBeLessThanOrEqual(2);
+        severityShare * row.severityLevel! + likelihoodShare * row.likelihoodLevel!;
+      // Within rounding of the displayed integers.
+      expect(Math.abs(recomputed - row.residual), row.id).toBeLessThanOrEqual(1);
     }
   });
 
-  it("names the day figure as assumed days until found", () => {
-    const row = scoreAllResidualRisks(dental).find((s) => s.category === "scenario")!;
-    const days = row.drivers.find((d) => d.id.endsWith("-time"))!;
-    expect(days.label).toBe("Assumed days until found");
-    expect(days.detail).not.toMatch(/p50/);
+  it("keeps the illustrative dollar and day figures out of the drivers", () => {
+    for (const row of scoreAllResidualRisks(dental).filter((s) => s.category === "scenario")) {
+      // Only the two levels drive the row; the example loss and days ride
+      // along for the panel, which prints them under ILLUSTRATIVE_LABEL.
+      expect(row.drivers.map((d) => d.id)).toEqual([
+        `${row.linkedScenarioId}-severity`,
+        `${row.linkedScenarioId}-likelihood`,
+      ]);
+      expect(row.drivers.some((d) => d.detail.includes("$"))).toBe(false);
+      expect(row.expectedLoss).toBeGreaterThan(0);
+      expect(row.p50Days).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("scenario dollar figures", () => {
+  /** The template with one scenario's example dollars (and days) multiplied. */
+  const resized = (tpl: IndustryTemplate, id: string, factor: number): IndustryTemplate => ({
+    ...tpl,
+    scenarios: tpl.scenarios.map((s) =>
+      s.id !== id
+        ? s
+        : {
+            ...s,
+            baseFinancialImpact: {
+              expected: s.baseFinancialImpact.expected * factor,
+              low: s.baseFinancialImpact.low * factor,
+              high: s.baseFinancialImpact.high * factor,
+            },
+            baseTimelineDays: {
+              p50: s.baseTimelineDays.p50 * factor,
+              p95Low: s.baseTimelineDays.p95Low * factor,
+              p95High: s.baseTimelineDays.p95High * factor,
+            },
+          },
+    ),
+  });
+
+  it("never change the residual rank order or any residual figure", () => {
+    for (const { id } of INDUSTRIES) {
+      const tpl = getIndustryTemplate(id);
+      const order = (t: IndustryTemplate) =>
+        scoreAllResidualRisks(t, t.staffComposition).map((r) => `${r.id}:${r.residual}`);
+      const ranked = (t: IndustryTemplate) =>
+        rankDangerousScenarios(t, { staff: t.staffComposition }).map((r) => r.scenario.id);
+      for (const s of tpl.scenarios) {
+        for (const factor of [0.1, 10]) {
+          const changed = resized(tpl, s.id, factor);
+          expect(order(changed), `${id}/${s.id}×${factor}`).toEqual(order(tpl));
+          expect(ranked(changed), `${id}/${s.id}×${factor}`).toEqual(ranked(tpl));
+        }
+      }
+    }
+  });
+});
+
+describe("each control answer applies once", () => {
+  const staff = {
+    ...dental.staffComposition,
+    dualControlPayments: false,
+    independentBankRec: false,
+  };
+  const levels = (s: StaffComposition, id: string) => {
+    const result = runPrecogScenario(dental, id, { staff: s })!;
+    return { result, levels: scenarioLevels(id, scenarioMultipliers(result), s) };
+  };
+  const w = DEFAULT_WEIGHTS;
+
+  it("reads dual release once on a fraud scenario's index; the page reads it through the likelihood model and the staffing uplift", () => {
+    const off = levels(staff, "sc-vendor-fraud");
+    const on = levels({ ...staff, dualControlPayments: true }, "sc-vendor-fraud");
+    expect(on.levels.likelihood / off.levels.likelihood).toBeCloseTo(
+      w.likelihood.dualFraudLikelihood,
+      9,
+    );
+    expect(on.levels.severity / off.levels.severity).toBeCloseTo(w.likelihood.dualSeverity, 9);
+    // The page's illustrative loss: the likelihood model's severity once, the
+    // staffing uplift for no dual release lifted once.
+    expect(on.result.dynamic!.grossExpected / off.result.dynamic!.grossExpected).toBeCloseTo(
+      w.likelihood.dualSeverity / w.scenarioStaff.noDualReleaseFactor,
+      4,
+    );
+  });
+
+  it("applies bank reconciliation once on the index", () => {
+    const off = levels(staff, "sc-cash-sod-failure");
+    const on = levels({ ...staff, independentBankRec: true }, "sc-cash-sod-failure");
+    expect(on.levels.likelihood / off.levels.likelihood).toBeCloseTo(
+      w.likelihood.bankRecLikelihood,
+      9,
+    );
+    expect(on.levels.severity / off.levels.severity).toBeCloseTo(w.likelihood.bankRecSeverity, 9);
+  });
+
+  it("applies a weak segregation score once on the index, as a staffing condition", () => {
+    const strongSeg = levels({ ...staff, segregationScore: 80 }, "sc-vendor-fraud");
+    const weakSeg = levels({ ...staff, segregationScore: 20 }, "sc-vendor-fraud");
+    expect(weakSeg.levels.likelihood / strongSeg.levels.likelihood).toBeCloseTo(
+      w.scenarioStaff.weakSegregationFactor,
+      9,
+    );
+    expect(weakSeg.levels.severity).toBe(strongSeg.levels.severity);
+  });
+
+  it("moves a control row's effectiveness by its own weight alone", () => {
+    const row = (s: StaffComposition) =>
+      scoreAllResidualRisks(dental, s).find((r) => r.id === "ctrl-c-sod-ap")!;
+    const delta =
+      row({ ...staff, dualControlPayments: true }).controlEffectiveness -
+      row(staff).controlEffectiveness;
+    // The dental register is assessed, so the weights are not rescaled.
+    const expected =
+      w.control.dualAuthorization *
+      (w.controlLevels.dualReleaseOnLevel - w.controlLevels.dualReleaseOffLevel);
+    expect(Math.abs(delta - expected * 100)).toBeLessThanOrEqual(1);
+  });
+
+  it("reads a know-how item's holders once, as its control", () => {
+    const sole = scoreAllResidualRisks(dental).find((r) => r.id === "know-k1")!;
+    expect(sole.inherent).toBe(w.knowledgeLevels.criticalItemLevel * 100);
   });
 });
 
@@ -386,16 +502,30 @@ describe("what a control guards", () => {
 });
 
 describe("dual payment control in scenario rows", () => {
-  it("credits fraud scenarios and leaves a departure where it was", () => {
+  it("lowers fraud scenarios and leaves a departure where it was", () => {
     const off = { ...dental.staffComposition, dualControlPayments: false };
     const on = { ...off, dualControlPayments: true };
     const row = (staff: StaffComposition, id: string) =>
       scoreAllResidualRisks(dental, staff).find((r) => r.id === id)!;
-    expect(row(on, "scen-sc-vendor-fraud").controlEffectiveness).toBeGreaterThan(
-      row(off, "scen-sc-vendor-fraud").controlEffectiveness,
+    expect(row(on, "scen-sc-vendor-fraud").residual).toBeLessThan(
+      row(off, "scen-sc-vendor-fraud").residual,
     );
-    expect(row(on, "scen-sc-front-desk-leaves").controlEffectiveness).toBe(
-      row(off, "scen-sc-front-desk-leaves").controlEffectiveness,
+    expect(row(on, "scen-sc-front-desk-leaves").residual).toBe(
+      row(off, "scen-sc-front-desk-leaves").residual,
+    );
+  });
+
+  it("still applies dual release to a departure's illustrative loss on the scenario page", () => {
+    const off = { ...dental.staffComposition, dualControlPayments: false };
+    const on = { ...off, dualControlPayments: true };
+    const page = (staff: StaffComposition) =>
+      runPrecogScenario(dental, "sc-front-desk-leaves", { staff })!.dynamic!.grossExpected;
+    // The likelihood model's scheme size once, and the staffing uplift for no
+    // dual release lifted once: the page figure as it was before the index
+    // stopped reading dual release on departures.
+    expect(page(on) / page(off)).toBeCloseTo(
+      DEFAULT_WEIGHTS.likelihood.dualSeverity / DEFAULT_WEIGHTS.scenarioStaff.noDualReleaseFactor,
+      4,
     );
   });
 });

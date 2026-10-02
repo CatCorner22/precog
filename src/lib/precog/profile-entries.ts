@@ -124,6 +124,7 @@ export function malformedList(profile: Record<string, unknown>): string | null {
     ["mapVersions", mapVersionEntries],
     ["savedProcessBlocks", savedBlockEntries],
     ["mapHealthHistory", healthPointEntries],
+    ["mapCompletenessHistory", healthPointEntries],
   ];
   for (const [field, check] of lists) {
     const value = profile[field];

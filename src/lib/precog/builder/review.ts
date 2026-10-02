@@ -165,12 +165,12 @@ export function reviewLocally(input: ReviewInput): MapReview {
 
   const headline =
     grade === "A"
-      ? `Strong map — ${input.health.score}/100. Keep it current.`
+      ? `Strong map — ${input.health.score}% complete. Keep it current.`
       : grade === "B"
-        ? `Solid foundation at ${input.health.score}/100; ${weakest?.label.toLowerCase() ?? "a few areas"} needs attention.`
+        ? `Solid foundation at ${input.health.score}% complete; ${weakest?.label.toLowerCase() ?? "a few areas"} needs attention.`
         : grade === "C"
-          ? `Workable but exposed — ${input.health.score}/100. Ownership and controls need tightening.`
-          : `Significant gaps at ${input.health.score}/100 — act on the next move before adding detail.`;
+          ? `Workable but exposed — ${input.health.score}% complete. Ownership and controls need tightening.`
+          : `Significant gaps at ${input.health.score}% complete — act on the next move before adding detail.`;
 
   return {
     source: "local",

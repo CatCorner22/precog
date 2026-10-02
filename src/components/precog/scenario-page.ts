@@ -110,11 +110,18 @@ export function whatIfDiffers(saved: StaffComposition, whatIf: StaffComposition)
   return WHAT_IF_FIELDS.some((field) => saved[field] !== whatIf[field]);
 }
 
+/** Figures an own team's duties decide: tried in the what-if, never applied. */
+const DUTY_FIELDS: ReadonlySet<(typeof WHAT_IF_FIELDS)[number]> = new Set([
+  "segregationScore",
+  "independentBankRec",
+]);
+
 /**
  * The saved staffing with the what-if's edited fields laid over it; nothing
- * else changes. On the owner's own team the segregation score stays as saved:
- * it comes from the team's duties, and a tried figure saved over it would
- * move the priority and residual figures with no change in who does what.
+ * else changes. On the owner's own team the segregation score and the bank
+ * reconciliation answer stay as saved: both come from the team's duties, and
+ * a tried figure saved over either would move the priority and residual
+ * figures with no change in who does what.
  */
 export function applyWhatIf(
   saved: StaffComposition,
@@ -123,13 +130,13 @@ export function applyWhatIf(
 ): StaffComposition {
   const next = { ...saved };
   for (const field of WHAT_IF_FIELDS) {
-    if (opts.ownBusiness && field === "segregationScore") continue;
+    if (opts.ownBusiness && DUTY_FIELDS.has(field)) continue;
     Object.assign(next, { [field]: whatIf[field] });
   }
   return next;
 }
 
-/** True when applying the what-if would change the saved staffing (not only a tried segregation score). */
+/** True when applying the what-if would change the saved staffing (not only a figure the duties decide). */
 export function whatIfApplies(
   saved: StaffComposition,
   whatIf: StaffComposition,

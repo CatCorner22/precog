@@ -21,7 +21,7 @@ import { formatDayShort } from "@/lib/precog/dates";
 import { count } from "@/lib/precog/text";
 
 /**
- * The dashboard's map health card. `map` is scored as the map page scores it
+ * The dashboard's map completeness card. `map` is scored as the map page scores it
  * (untouched starter processes left out), computed once by the dashboard.
  */
 export function MapHealthCard({
@@ -49,7 +49,7 @@ export function MapHealthCard({
     if (!notAssessed) recordMapHealth(health.score);
   }, [health.score, notAssessed, recordMapHealth]);
 
-  const history = profile.mapHealthHistory ?? [];
+  const history = profile.mapCompletenessHistory ?? [];
   const trendPoints = history.map((h) => h.score);
   const previous = history.length >= 2 ? history[history.length - 2].score : null;
   const delta = previous === null ? null : health.score - previous;
@@ -71,11 +71,11 @@ export function MapHealthCard({
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Activity className="size-4 text-primary" />
-                Map health score
+                Map completeness
               </CardTitle>
               <CardDescription>
-                How complete and calm your value stream is: integrity, ownership, controls, written
-                procedures and heat.
+                How far your map is filled in: integrity, owners, controls linked and procedures
+                written down. Heat colours the map but does not count here.
               </CardDescription>
             </div>
             <Badge variant="default">Not assessed yet</Badge>
@@ -110,11 +110,11 @@ export function MapHealthCard({
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               <Activity className="size-4 text-primary" />
-              Map health score
+              Map completeness
             </CardTitle>
             <CardDescription>
-              How complete and calm your value stream is: integrity, ownership, controls, written
-              procedures and heat.
+              How far your map is filled in: integrity, owners, controls linked and procedures
+              written down. Heat colours the map but does not count here.
             </CardDescription>
           </div>
           <Badge variant={healthTone(health.score)}>{health.bandLabel}</Badge>
@@ -145,8 +145,8 @@ export function MapHealthCard({
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-3xl font-semibold tabular tracking-tight">{health.score}</span>
-              <span className="text-xs uppercase tracking-wide text-subtle">/ 100</span>
+              <span className="text-3xl font-semibold tabular tracking-tight">{health.score}%</span>
+              <span className="text-xs uppercase tracking-wide text-subtle">complete</span>
             </div>
           </div>
 

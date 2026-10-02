@@ -161,18 +161,20 @@ export function withRosterLeavers(
 // ── Settings ───────────────────────────────────────────────────────────────
 
 /**
- * The owner's figures. On an own team, a segregation score or bank
- * reconciliation flag set by hand is marked manual, so later team edits no
- * longer re-read it from the duties.
+ * The owner's figures. On an own team the segregation score and the bank
+ * reconciliation answer come from the team's duties alone, so a value passed
+ * here for either is not saved: change who holds which duties to move them.
+ * A sample business keeps both as set, marked manual so the report says
+ * they were set by hand.
  */
 export function withStaff(p: PracticeProfile, raw: StaffComposition): PracticeProfile {
-  const own = Boolean(p.customPeople);
+  if (p.customPeople) return withStaffFigures(p, { ...raw, ...dutyFigures(p.staff) });
   return withStaffFigures(p, {
     ...raw,
-    ...(own && raw.segregationScore !== p.staff.segregationScore
+    ...(raw.segregationScore !== p.staff.segregationScore
       ? { segregationSource: "manual" as const }
       : {}),
-    ...(own && raw.independentBankRec !== p.staff.independentBankRec
+    ...(raw.independentBankRec !== p.staff.independentBankRec
       ? { bankRecSource: "manual" as const }
       : {}),
   });
@@ -182,12 +184,24 @@ export function withRiskVariables(p: PracticeProfile, next: RiskVariableState): 
   const staff: StaffComposition = {
     ...p.staff,
     dualControlPayments: next.hasDualControl,
-    independentBankRec: next.hasIndependentBankRec,
-    ...(p.customPeople && next.hasIndependentBankRec !== p.staff.independentBankRec
-      ? { bankRecSource: "manual" as const }
-      : {}),
+    independentBankRec: p.customPeople ? p.staff.independentBankRec : next.hasIndependentBankRec,
   };
   return withStaffFigures({ ...p, riskVariables: next }, staff);
+}
+
+/** The two staff figures an own team's duties decide, as they stand. */
+function dutyFigures(
+  staff: StaffComposition,
+): Pick<
+  StaffComposition,
+  "segregationScore" | "segregationSource" | "independentBankRec" | "bankRecSource"
+> {
+  return {
+    segregationScore: staff.segregationScore,
+    segregationSource: staff.segregationSource,
+    independentBankRec: staff.independentBankRec,
+    bankRecSource: staff.bankRecSource,
+  };
 }
 
 /** The dual-release policy; dual control on payments follows its master switch and payment rules. */
@@ -448,16 +462,22 @@ export function withSavedBlocks(p: PracticeProfile, next: SavedProcessBlock[]): 
   return { ...p, savedProcessBlocks: next.slice(0, MAX_SAVED_BLOCKS) };
 }
 
-/** Append a health point when the score changes; rapid edits within a minute collapse into one. */
+/**
+ * Append a map completeness point when the score changes; rapid edits within
+ * a minute collapse into one. Points go to the completeness series; the
+ * retired map health series stays as saved.
+ */
 export function withMapHealth(p: PracticeProfile, score: number, now: Date): PracticeProfile {
-  const history = p.mapHealthHistory ?? [];
+  const history = p.mapCompletenessHistory ?? [];
   const last = history[history.length - 1];
   if (last && last.score === score) return p;
   const trimmed =
     last && now.getTime() - new Date(last.at).getTime() < 60_000 ? history.slice(0, -1) : history;
   return {
     ...p,
-    mapHealthHistory: [...trimmed, { at: now.toISOString(), score }].slice(-MAX_HEALTH_POINTS),
+    mapCompletenessHistory: [...trimmed, { at: now.toISOString(), score }].slice(
+      -MAX_HEALTH_POINTS,
+    ),
   };
 }
 
@@ -569,13 +589,18 @@ function withStaffFigures(p: PracticeProfile, staff: StaffComposition): Practice
   };
 }
 
-/** The staff figures re-read from a real team: everything derivable is derived. */
+/**
+ * The staff figures re-read from a real team: everything derivable is
+ * derived, including a figure the sample it replaced had set by hand.
+ */
 function withStaffFromTeam(p: PracticeProfile, tpl: IndustryTemplate): PracticeProfile {
   return withStaffFigures(
     p,
-    deriveStaffFromTeam(tpl, p.staff, {
-      dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, tpl),
-    }),
+    deriveStaffFromTeam(
+      tpl,
+      { ...p.staff, segregationSource: "derived", bankRecSource: "derived" },
+      { dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, tpl) },
+    ),
   );
 }
 

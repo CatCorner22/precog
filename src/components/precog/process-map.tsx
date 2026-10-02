@@ -546,7 +546,7 @@ export function ProcessMap({
       );
       if (loop) {
         toast.warning("Dependency linked, but it closes a loop", {
-          description: `${linked} ${loop.message}. Map health counts a loop as an error; Ctrl+Z removes the link.`,
+          description: `${linked} ${loop.message}. Map completeness counts a loop as an error; Ctrl+Z removes the link.`,
         });
       } else {
         toast.success("Dependency linked", { description: linked });

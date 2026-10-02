@@ -213,7 +213,12 @@ export function DynamicVariablesPanel({
               label="Independent bank reconciliation"
               checked={value.hasIndependentBankRec}
               onChange={(b) => setBool("hasIndependentBankRec", b)}
-              effect="↓ detection lag · ↓ cumulative severity · premium credit"
+              disabled={ownBusiness}
+              effect={
+                ownBusiness
+                  ? "From your team's duties: someone who neither handles nor records the money reconciles the bank. Change who holds which duties to move it."
+                  : "↓ detection lag · ↓ cumulative severity · premium credit"
+              }
             />
             <PercentField
               label="Insurer discount for independent bank reconciliation"
@@ -457,17 +462,26 @@ function BoolRow({
   checked,
   onChange,
   effect,
+  disabled = false,
 }: {
   label: string;
   checked: boolean;
   onChange: (b: boolean) => void;
   effect: string;
+  /** Shown, not set: the figure comes from somewhere else (the effect line says where). */
+  disabled?: boolean;
 }) {
   return (
-    <label className="col-span-full flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-elevated px-3 py-2.5 sm:col-span-2">
+    <label
+      className={cn(
+        "col-span-full flex items-start gap-3 rounded-xl border border-border bg-elevated px-3 py-2.5 sm:col-span-2",
+        disabled ? "cursor-default" : "cursor-pointer",
+      )}
+    >
       <input
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
         className="mt-1 size-4 accent-[var(--color-primary)]"
       />

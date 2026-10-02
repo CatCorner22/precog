@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { Crosshair, FileText, Hammer } from "lucide-react";
-import { HEALTH_SCALE, RISK_SCALE, segregationLevel } from "@/lib/precog/scoring/bands";
+import { HEALTH_SCALE, segregationLevel } from "@/lib/precog/scoring/bands";
 import { rankDangerousScenarios } from "@/lib/precog/engine";
 import { criticalSinglePoints } from "@/lib/precog/continuity/coverage";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
@@ -217,8 +217,8 @@ export function Dashboard({
       <IndexBasis />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <MetricCard
-          label="Map health score"
-          value={mapReady ? String(mapHealth.score) : "—"}
+          label="Map completeness"
+          value={mapReady ? `${mapHealth.score}%` : "—"}
           hint={mapReady ? mapHealth.bandLabel : "Not assessed yet"}
           tone={
             !mapReady || mapHealth.score >= HEALTH_SCALE.adequate
@@ -230,16 +230,10 @@ export function Dashboard({
           onClick={() => onOpen("map", null, true)}
         />
         <MetricCard
-          label={say("Risk left after controls", "Avg residual")}
-          value={String(portfolio.averageResidual)}
-          hint={`${portfolio.criticalPath} critical`}
-          tone={
-            portfolio.averageResidual >= RISK_SCALE.actNow
-              ? "danger"
-              : portfolio.averageResidual >= RISK_SCALE.mitigate
-                ? "warn"
-                : "primary"
-          }
+          label={say("Risk left after controls", "Residual by band")}
+          value={`${portfolio.criticalPath} fix first`}
+          hint={`${portfolio.actNow} fix soon · ${portfolio.mitigate} worth doing`}
+          tone={portfolio.criticalPath > 0 ? "danger" : portfolio.actNow > 0 ? "warn" : "primary"}
           onClick={() => onOpen("residual")}
         />
         <MetricCard

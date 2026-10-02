@@ -75,7 +75,7 @@ export function executiveSummary(input: SummaryInput): string[] {
   );
   if (input.mapHealth) {
     lines.push(
-      `Map health score ${input.mapHealth.score} of 100 (${input.mapHealth.bandLabel.toLowerCase()}).`,
+      `Map completeness ${input.mapHealth.score}% (${input.mapHealth.bandLabel.toLowerCase()}).`,
     );
   }
   if (input.topPriority) lines.push(`Highest item on the priority list: ${input.topPriority}.`);

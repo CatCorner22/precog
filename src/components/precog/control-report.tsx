@@ -73,6 +73,9 @@ export function ControlReport({
 
   const figures = locked ? lockedFigures(frozen) : null;
   const storedModel = figures && "model" in figures ? figures.model : null;
+  // A version stored under layout 1 keeps that layout's labels: its map score
+  // still counts heat, and it carries the average residual, not band counts.
+  const layoutOne = figures !== null && "model" in figures && figures.layoutVersion === 1;
   const data = useMemo(
     () =>
       storedModel
@@ -209,8 +212,8 @@ export function ControlReport({
 
         <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Kpi
-            label="Map health score"
-            value={mapReady ? String(mapHealth.score) : "—"}
+            label={layoutOne ? "Map health score" : "Map completeness"}
+            value={mapReady ? (layoutOne ? String(mapHealth.score) : `${mapHealth.score}%`) : "—"}
             hint={mapReady ? mapHealth.bandLabel : "Not assessed yet"}
           />
           <Kpi
@@ -218,11 +221,19 @@ export function ControlReport({
             value={String(fixFirstOf(threat))}
             hint={`Priority ${PRIORITY_TOP} or more`}
           />
-          <Kpi
-            label="Average residual risk score"
-            value={String(portfolio.averageResidual)}
-            hint={`${count(portfolio.criticalPath, "risk")} at ${RISK_SCALE.critical} or more`}
-          />
+          {layoutOne ? (
+            <Kpi
+              label="Average residual risk score"
+              value={String(portfolio.averageResidual)}
+              hint={`${portfolio.criticalPath} to fix first`}
+            />
+          ) : (
+            <Kpi
+              label="Residual risks by band"
+              value={`${portfolio.criticalPath} fix first`}
+              hint={`Fix first at ${RISK_SCALE.critical} or more · ${portfolio.actNow} fix soon · ${portfolio.mitigate} worth doing`}
+            />
+          )}
           <Kpi
             label="Duty separation index"
             value={String(sod.summary.segregationHealth)}
@@ -243,7 +254,7 @@ export function ControlReport({
         )}
         <p className="mt-2 text-xs leading-relaxed text-neutral-500">{INDEX_BASIS}</p>
 
-        <Section title="Map health">
+        <Section title={layoutOne ? "Map health" : "Map completeness"}>
           {mapNote ? (
             <p className="text-sm text-neutral-700">Not assessed yet. {mapNote}</p>
           ) : (

@@ -32,6 +32,8 @@ import * as valueEvidence from "./value-evidence";
 import * as snapshotComparison from "./snapshot-comparison";
 import * as engine from "./engine";
 import * as coso from "./coso";
+import * as residualEngine from "./scoring/residual-engine";
+import * as mapWhatIf from "./builder/what-if";
 
 /**
  * Cross-module invariants: every duty has control alternatives, every
@@ -417,7 +419,7 @@ describe("domain invariants", () => {
     assert.ok(report.targetDeck.every((target) => Number.isFinite(target.priority)));
   });
 
-  it("turning on a control never raises a danger score or worsens a COSO component", () => {
+  it("turning on a control never raises a danger score, a residual row or the average, never lowers a COSO component, and leaves map completeness alone", () => {
     // Each control the owner can switch on, as a change to staff or to the risk variables.
     const controls = [
       ["dualControlPayments", (staff, vars) => [{ ...staff, dualControlPayments: true }, vars]],
@@ -440,6 +442,8 @@ describe("domain invariants", () => {
           .assessCoso(tpl, staff, { riskVariables })
           .components.map((c) => [c.id, { gap: 0, not_assessed: 1, in_place: 2 }[c.status]]),
       ),
+      residual: residualEngine.portfolioSummary(tpl, staff, undefined, { riskVariables }),
+      completeness: mapWhatIf.previewMapHealth(tpl, tpl.processes, staff).score,
     });
     for (const industry of industryModule.INDUSTRIES) {
       const defaults = profile.defaultProfile(industry.id);
@@ -469,6 +473,22 @@ describe("domain invariants", () => {
               `${industry.id}: ${name} lowers COSO ${id} from ${before.coso.get(id)} to ${score}`,
             );
           }
+          const beforeRows = new Map(before.residual.all.map((r) => [r.id, r.residual]));
+          for (const row of after.residual.all) {
+            assert.ok(
+              row.residual <= beforeRows.get(row.id),
+              `${industry.id}: ${name} raises residual ${row.id}`,
+            );
+          }
+          assert.ok(
+            after.residual.averageResidual <= before.residual.averageResidual,
+            `${industry.id}: ${name} raises the average residual`,
+          );
+          assert.equal(
+            after.completeness,
+            before.completeness,
+            `${industry.id}: ${name} moves map completeness, which counts no risk`,
+          );
         }
       }
     }

@@ -33,7 +33,7 @@ export function reviewPrompt(input: ReviewInput): string {
     )
     .join("\n");
   const block = `Business: "${input.businessName}", a ${input.teamSize}-person ${input.industryLabel} business
-Map health: ${input.health.score}/100 (${input.health.band})
+Map completeness: ${input.health.score}% (${input.health.band})
 Dimensions: ${input.health.dimensions.map((d) => `${d.label} ${d.score} (${d.hint})`).join("; ")}
 Processes:
 ${procLines}

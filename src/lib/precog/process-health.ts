@@ -29,11 +29,13 @@ export interface MapHealthReport {
 }
 
 /**
- * Composite 0–100 map health score from graph snapshots and validation
- * issues. Higher is better. It bands on the shared HEALTH_SCALE, so the map,
- * COSO and segregation indices use the same cutoffs, and the summary names
- * the dimension that scored lowest. A map with no processes has nothing to
- * score and says so.
+ * Map completeness, 0–100: how far the map is filled in, from graph
+ * snapshots and validation issues. Higher is better. It reads four equal
+ * parts (integrity, owners, controls linked, written down) and no risk: heat
+ * colours the map, and risk lives in the duty-conflict and residual figures,
+ * so a hot process never moves this score. It bands on the shared
+ * HEALTH_SCALE, and the summary names the part that scored lowest. A map with
+ * no processes has nothing to score and says so.
  */
 export function computeMapHealth(
   snapshots: ProcessMapSnapshot[],
@@ -49,7 +51,7 @@ export function computeMapHealth(
     id: "integrity",
     label: "Integrity",
     score: Math.max(0, 100 - errors * 35 - warns * 8),
-    weight: 0.2,
+    weight: PART_WEIGHT,
     hint: integrityHint(validationIssues),
   };
   if (snapshots.length === 0) return emptyMapHealth(integrity, issueCount, customized);
@@ -59,8 +61,8 @@ export function computeMapHealth(
   const ownership = Math.round((owned / total) * 100);
   const withControls = snapshots.filter((s) => s.process.controlIds.length > 0).length;
   const controls = Math.round((withControls / total) * 100);
+  // Heat is reported for the map's colours, never scored here.
   const avgHeat = Math.round(snapshots.reduce((sum, s) => sum + s.heat, 0) / total);
-  const calm = Math.max(0, 100 - avgHeat);
   const hotProcesses = snapshots.filter((s) => s.heat >= HEAT_BANDS.hot).length;
   const unownedProcesses = total - owned;
   const record = processRecordReport(snapshots.map((s) => s.process));
@@ -71,16 +73,16 @@ export function computeMapHealth(
       id: "ownership",
       label: "Ownership",
       score: ownership,
-      weight: 0.2,
+      weight: PART_WEIGHT,
       hint: unownedProcesses
         ? `${count(unownedProcesses, "process", "processes")} without an owner`
         : "Every process has an owner",
     },
     {
       id: "controls",
-      label: "Controls",
+      label: "Controls linked",
       score: controls,
-      weight: 0.2,
+      weight: PART_WEIGHT,
       hint:
         withControls < total
           ? `${count(total - withControls, "process", "processes")} without controls`
@@ -92,22 +94,13 @@ export function computeMapHealth(
       id: "documentation",
       label: "Written down",
       score: record.documentedIndex,
-      weight: 0.1,
+      weight: PART_WEIGHT,
       hint:
         record.counts.none > 0
           ? `${record.counts.none} with nothing written down${record.counts.unlocated ? `, ${record.counts.unlocated} written but unlocated` : ""}`
           : record.counts.unlocated > 0
             ? `${record.counts.unlocated} written but location not recorded`
             : "Every process has a findable procedure",
-    },
-    {
-      id: "calm",
-      label: "Heat",
-      score: calm,
-      weight: 0.3,
-      hint: hotProcesses
-        ? `${count(hotProcesses, "hot process", "hot processes")} · average heat ${avgHeat}`
-        : `Average heat ${avgHeat}`,
     },
   ];
 
@@ -187,13 +180,13 @@ function emptyMapHealth(
     score: 0,
     band: "critical",
     bandLabel: "Nothing to score",
-    summary: "The map has no processes yet. Add the work the business runs to score its health.",
+    summary:
+      "The map has no processes yet. Add the work the business runs to see how complete it is.",
     dimensions: [
       integrity,
-      nothing("ownership", "Ownership", 0.2),
-      nothing("controls", "Controls", 0.2),
-      nothing("documentation", "Written down", 0.1),
-      nothing("calm", "Heat", 0.3),
+      nothing("ownership", "Ownership", PART_WEIGHT),
+      nothing("controls", "Controls linked", PART_WEIGHT),
+      nothing("documentation", "Written down", PART_WEIGHT),
     ],
     issueCount,
     hotProcesses: 0,
@@ -204,13 +197,24 @@ function emptyMapHealth(
   };
 }
 
+/** Each of the four parts counts the same. */
+const PART_WEIGHT = 0.25;
+
 /** The map's name, label and opening sentence for each shared health level. */
 const MAP_HEALTH_BANDS: Record<
   HealthLevel,
   { band: MapHealthBand; label: string; opening: string }
 > = {
-  strong: { band: "healthy", label: "Healthy", opening: "Well owned and controlled." },
-  adequate: { band: "fair", label: "Fair", opening: "Fixable gaps." },
-  weak: { band: "at_risk", label: "At risk", opening: "Several processes need attention." },
-  critical: { band: "critical", label: "Critical", opening: "Act this week." },
+  strong: { band: "healthy", label: "Complete", opening: "The map is filled in." },
+  adequate: { band: "fair", label: "Mostly complete", opening: "A few gaps to fill in." },
+  weak: {
+    band: "at_risk",
+    label: "Gaps",
+    opening: "Several processes are missing an owner, a control or a procedure.",
+  },
+  critical: {
+    band: "critical",
+    label: "Largely empty",
+    opening: "Most of the map is not filled in yet.",
+  },
 };

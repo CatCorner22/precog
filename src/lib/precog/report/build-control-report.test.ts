@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "../active-template";
 import { INDUSTRIES } from "../industry";
-import { defaultProfile, type PracticeProfile } from "../practice-profile";
+import { defaultProfile, normalizeProfile, type PracticeProfile } from "../practice-profile";
+import { assessCoso } from "../coso";
+import { portfolioSummary } from "../scoring/residual-engine";
 import type { IndustryTemplate } from "../templates";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { conflictStatus } from "../sod/open-findings";
@@ -167,37 +169,57 @@ describe("figures set by hand", () => {
   const report = (profile: PracticeProfile) =>
     buildControlReportModel({ ...input("dental"), profile, tpl: resolveTemplate(profile) });
 
-  it("discloses a segregation score set by hand beside what the duties give", () => {
-    const manual = withStaff(own(), { ...own().staff, segregationScore: 95 });
-    expect(manual.staff.segregationSource).toBe("manual");
-    // What "Use the score from your team's duties" would restore.
-    const fromDuties = withDerivedSegregation(manual).staff.segregationScore;
-    expect(fromDuties).not.toBe(95);
-    const model = report(manual);
-    // The figure the disclosure quotes is the duty separation index printed beside it.
-    expect(model.sod.summary.segregationHealth).toBe(fromDuties);
-    expect(model.handSet).toEqual([
-      `Segregation score set by hand: 95. Your team's duties give ${fromDuties}. The priority index and residual risk scores in this report use the score set by hand; the duty separation index reads the duties.`,
-    ]);
-  });
-
-  it("says the duties give the same when a score set by hand matches them", () => {
+  it("never sets an own team's segregation score or bank reconciliation answer by hand", () => {
     const derived = withDerivedSegregation(own());
-    const fromDuties = derived.staff.segregationScore;
-    const manual: PracticeProfile = {
-      ...derived,
-      staff: { ...derived.staff, segregationSource: "manual" },
-    };
-    expect(report(manual).handSet).toEqual([
-      `Segregation score set by hand: ${fromDuties}. Your team's duties give the same. The priority index and residual risk scores in this report use the score set by hand; the duty separation index reads the duties.`,
-    ]);
+    const tried = withStaff(derived, {
+      ...derived.staff,
+      segregationScore: 95,
+      independentBankRec: !derived.staff.independentBankRec,
+    });
+    expect(tried.staff.segregationScore).toBe(derived.staff.segregationScore);
+    expect(tried.staff.independentBankRec).toBe(derived.staff.independentBankRec);
+    expect(tried.staff.segregationSource).not.toBe("manual");
+    expect(tried.staff.bankRecSource).not.toBe("manual");
+    expect(report(tried).handSet).toEqual([]);
   });
 
-  it("discloses a bank reconciliation answer set by hand with what the duties show", () => {
-    const manual = withStaff(own(), { ...own().staff, independentBankRec: true });
+  it("scores an own team saved with hand-set figures from its duties, and discloses nothing", () => {
+    const derived = withDerivedSegregation(own());
+    const saved: PracticeProfile = {
+      ...derived,
+      staff: {
+        ...derived.staff,
+        segregationScore: 95,
+        segregationSource: "manual",
+        independentBankRec: true,
+        bankRecSource: "manual",
+      },
+    };
+    const loaded = normalizeProfile(saved);
+    expect(loaded.staff.segregationScore).toBe(derived.staff.segregationScore);
+    expect(loaded.staff.independentBankRec).toBe(derived.staff.independentBankRec);
+    expect(loaded.riskVariables.hasIndependentBankRec).toBe(derived.staff.independentBankRec);
+    // Residual, COSO and the priority figures are those the duties give.
+    const tpl = resolveTemplate(derived);
+    expect(portfolioSummary(tpl, loaded.staff)).toEqual(portfolioSummary(tpl, derived.staff));
+    expect(assessCoso(tpl, loaded.staff)).toEqual(assessCoso(tpl, derived.staff));
+    expect(report(loaded).handSet).toEqual([]);
+    expect(report(loaded).threat).toEqual(report(derived).threat);
+  });
+
+  it("discloses a segregation score and bank reconciliation answer set by hand on a sample", () => {
+    const sample = defaultProfile("dental");
+    const manual = withStaff(sample, {
+      ...sample.staff,
+      segregationScore: 95,
+      independentBankRec: !sample.staff.independentBankRec,
+    });
+    expect(manual.staff.segregationScore).toBe(95);
+    expect(manual.staff.segregationSource).toBe("manual");
     expect(manual.staff.bankRecSource).toBe("manual");
-    expect(report(manual).handSet).toEqual([
-      "Bank reconciliation answer set by hand: someone independent reconciles the bank account. Your team's duties show nobody who reconciles it without also handling or recording money.",
+    expect(buildControlReportModel({ ...input("dental"), profile: manual }).handSet).toEqual([
+      "Segregation score set by hand: 95. The priority index and residual risk scores in this report use the score set by hand; the duty separation index reads the duties.",
+      `Bank reconciliation answer set by hand: ${manual.staff.independentBankRec ? "someone" : "nobody"} independent reconciles the bank account.`,
     ]);
   });
 

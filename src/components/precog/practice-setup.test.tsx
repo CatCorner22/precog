@@ -32,20 +32,25 @@ describe("Business profile card", () => {
   });
 
   it("shows the figures an own team decides instead of offering sliders that would be put back", () => {
-    const html = render(withPeople(defaultProfile("general"), team, "2026-09-25"));
-    // Only the segregation score stays a slider.
-    expect(html.match(/type="range"/g)).toHaveLength(1);
+    const own = withPeople(defaultProfile("general"), team, "2026-09-25");
+    const html = render(own);
+    // No sliders: the segregation score and the bank reconciliation answer
+    // come from the team's duties too, shown read-only.
+    expect(html.match(/type="range"/g)).toBeNull();
     expect(html).toContain("From your team: the people marked as working here.");
     expect(html).toContain("From the hire dates on your team.");
+    expect(html.match(/From your team&#x27;s duties/g)).toHaveLength(2);
+    expect(html).not.toContain("Use the score from your team");
+    // Even a profile carrying a score passed in by hand shows the duties' figure.
+    const tried = render(withStaff(own, { ...own.staff, segregationScore: 3 }));
+    expect(tried).toContain(`<span class="tabular text-fg">${own.staff.segregationScore}</span>`);
   });
 
-  it("keeps the note and its button outside the slider's label", () => {
-    const own = withPeople(defaultProfile("general"), team, "2026-09-25");
-    const manual = withStaff(own, { ...own.staff, segregationScore: 10 });
-    const html = render(manual);
+  it("keeps the sample's note outside the segregation slider's label", () => {
+    const html = render(defaultProfile("general"));
     const label = html.match(/<label for="[^"]+">([^<]*)<\/label>/);
-    expect(label?.[1]).toBe("Segregation score");
+    expect(label?.[1]).toBe("Team size");
     expect(html).toMatch(/aria-describedby="[^"]+-note"/);
-    expect(html).toContain("Use the score from your team&#x27;s duties");
+    expect(html).toContain("An estimate for the sample team.");
   });
 });

@@ -1,4 +1,4 @@
-import { findKnowledgeRisks, runPrecogScenario } from "../engine";
+import { findKnowledgeRisks, runPrecogScenario, scenarioMultipliers } from "../engine";
 import { documentationState } from "../continuity/documentation";
 import { registerAssessed } from "../continuity/register-state";
 import { scenariosInScope, starterScenariosLeftOut } from "./scope";
@@ -12,6 +12,7 @@ import type {
 } from "../types";
 import type { RiskVariableState } from "./dynamic-variables";
 import { scenarioFlags } from "./scenario-kind";
+import { scenarioLevels } from "./scenario-level";
 import {
   bandForScore,
   DEFAULT_WEIGHTS,
@@ -19,7 +20,6 @@ import {
   SCORING_VERSION,
   type ActionBand,
 } from "./weights";
-import { formatUsd } from "../../utils";
 import { clamp, wholePercent } from "../number";
 import { count } from "../text";
 
@@ -30,12 +30,12 @@ export interface ResidualRiskScore {
   inherent: number;
   controlEffectiveness: number;
   /**
-   * Scenario rows only: the share of control effectiveness the formula
-   * credits (weights.scenario.effectivenessCredit) and the effectiveness it
-   * therefore counts, so the shown figures reproduce the residual.
+   * Scenario rows only: the likelihood and severity levels (0–100) the row
+   * ranks on (scoring/scenario-level). A scenario row takes no effectiveness
+   * credit, because its controls are already in these levels.
    */
-  effectivenessCredit?: number;
-  creditedEffectiveness?: number;
+  likelihoodLevel?: number;
+  severityLevel?: number;
   residual: number; // 0-100 after staff modifiers
   band: ActionBand;
   bandLabel: string;
@@ -102,7 +102,7 @@ export function scoreAllResidualRisks(
   const knowledgeScores = risks.map((r) => scoreKnowledge(tpl, r, uplift, weights));
 
   const scenarioScores = scenariosInScope(tpl, scope.confirmedScenarioIds).map((s) =>
-    scoreScenario(tpl, s, staffResolved, uplift, weights, scope.riskVariables),
+    scoreScenario(tpl, s, staffResolved, weights, scope.riskVariables),
   );
 
   return [...controlScores, ...knowledgeScores, ...scenarioScores].sort(
@@ -120,14 +120,16 @@ export function portfolioSummary(
   const scores = scoreAllResidualRisks(tpl, staff ?? tpl.staffComposition, weights, scope);
   const top = scores.slice(0, 8);
   const avg = scores.reduce((s, x) => s + x.residual, 0) / Math.max(1, scores.length);
-  const criticalPath = scores.filter((s) => s.band === "critical_path").length;
-  const actNow = scores.filter((s) => s.band === "act_now").length;
+  const inBand = (band: ActionBand) => scores.filter((s) => s.band === band).length;
 
   return {
     scoringVersion: SCORING_VERSION,
     averageResidual: wholePercent(avg),
-    criticalPath,
-    actNow,
+    /** Rows in each band, the counts the KPI tiles show in place of the average. */
+    criticalPath: inBand("critical_path"),
+    actNow: inBand("act_now"),
+    mitigate: inBand("mitigate"),
+    watch: inBand("accept_monitor"),
     top,
     all: scores,
     /** False while the register is not assessed: no knowledge rows are scored. */
@@ -248,11 +250,18 @@ function scoreKnowledge(
   const { knowledgeId, name, soleOwner, ownerCount } = risk;
   const item = tpl.knowledge.find((x) => x.id === knowledgeId);
   const criticality = item?.criticality ?? "important";
-  const crit = criticality === "critical" ? 0.9 : 0.6;
-  const ownership = ownerCount === 0 ? 1 : soleOwner ? 0.85 : ownerCount === 2 ? 0.35 : 0.15;
-  const inherent = clamp(0.55 * crit + 0.45 * ownership, 0, 1);
+  const levels = weights.knowledgeLevels;
+  // How critical the item is sets the inherent risk; how many people hold it
+  // is the control, read once here and not again in the inherent risk.
+  const crit = criticality === "critical" ? levels.criticalItemLevel : levels.importantItemLevel;
+  const inherent = clamp(crit, 0, 1);
   const docState = item ? documentationState(item) : "none";
-  const base = ownerCount >= 2 ? 0.7 : ownerCount === 1 ? 0.25 : 0.05;
+  const base =
+    ownerCount >= 2
+      ? levels.twoHoldersLevel
+      : ownerCount === 1
+        ? levels.oneHolderLevel
+        : levels.noHolderLevel;
   const docCredit =
     docState === "located"
       ? weights.knowledge.documentedLocatedCredit
@@ -273,7 +282,7 @@ function scoreKnowledge(
           ? "No strong owner"
           : "Redundant ownership",
       direction: soleOwner || ownerCount === 0 ? "increases" : "decreases",
-      weight: ownership,
+      weight: soleOwner || ownerCount === 0 ? 1 - base : base,
       detail: `${count(ownerCount, "proficient or expert holder")}.`,
     },
     {
@@ -321,80 +330,53 @@ function scoreKnowledge(
 }
 
 /**
- * A scenario's row: its assumed loss and days until found (from the scenario
- * engine, priced with the owner's risk variables) folded onto the index, less
- * the credited control effectiveness, times the staffing uplift.
+ * A scenario's row: its likelihood and severity levels (scoring/scenario-level),
+ * never its dollars or days. Each control answer reaches the row once, through
+ * the likelihood model the scenario engine ran with the owner's settings; no
+ * effectiveness credit or staffing uplift is laid on top.
  */
 function scoreScenario(
   tpl: IndustryTemplate,
   s: ScenarioTemplate,
   staff: StaffComposition,
-  _uplift: StaffUplift,
   weights: ScoringWeights,
   riskVariables: RiskVariableState | undefined,
 ): ResidualRiskScore {
   const result = runPrecogScenario(tpl, s.id, { staff, riskVariables })!;
-  const lossNorm = clamp(
-    result.financialImpact.expected / weights.scenario.lossSaturationUsd,
-    0,
-    1,
-  );
-  const concealment = clamp(result.timelineDays.p50 / weights.scenario.daysSaturation, 0, 1);
-  const { timeFloor } = weights.scenario;
-  const inherent = clamp(
-    weights.scenario.lossShare * lossNorm +
-      weights.scenario.timeShare * (timeFloor + concealment * (1 - timeFloor)),
-    0,
-    1,
-  );
-  // Dual payment control guards against someone moving money, so it is
-  // credited to fraud scenarios only; a departure is not slowed by it.
-  const dualCredit =
-    staff.dualControlPayments && scenarioFlags(s.id).fraudRelated
-      ? weights.scenario.dualControlCredit
-      : 0;
-  const effectiveness = clamp(
-    weights.scenario.baseEffectiveness +
-      dualCredit +
-      (staff.independentBankRec ? weights.scenario.independentBankRecCredit : 0) +
-      (staff.segregationScore / 100) * weights.scenario.segregationCredit,
-    0,
-    1,
-  );
-  const beforeUplift = inherent * (1 - effectiveness * weights.scenario.effectivenessCredit);
-  // The scenario engine already scaled these dollars for team size, segregation,
-  // dual release and bank reconciliation. Do not multiply the row by that again.
-  const residual = wholePercent(beforeUplift * 100);
+  const levels = scenarioLevels(s.id, scenarioMultipliers(result), staff, weights);
+  const residual = wholePercent(levels.index);
   const band = bandForScore(residual);
 
   return {
     id: `scen-${s.id}`,
     name: s.title,
     category: "scenario",
-    inherent: wholePercent(inherent * 100),
-    controlEffectiveness: wholePercent(effectiveness * 100),
-    effectivenessCredit: weights.scenario.effectivenessCredit,
-    creditedEffectiveness: wholePercent(effectiveness * weights.scenario.effectivenessCredit * 100),
+    inherent: residual,
+    controlEffectiveness: 0,
+    likelihoodLevel: wholePercent(levels.likelihood * 100),
+    severityLevel: wholePercent(levels.severity * 100),
     residual,
     band: band.band,
     bandLabel: band.label,
     bandGuidance: band.guidance,
     drivers: [
       {
-        id: `${s.id}-loss`,
-        label: "Assumed loss if this happened",
+        id: `${s.id}-severity`,
+        label: "Severity level",
         direction: "increases" as const,
-        weight: lossNorm,
-        detail: `~${formatUsd(result.financialImpact.expected)} — Precog's scenario assumption, not a measured figure`,
+        weight: levels.severity,
+        detail: `${wholePercent(levels.severity * 100)} of 100: the kind of scheme, scaled by your controls and cash figures.`,
       },
       {
-        id: `${s.id}-time`,
-        label: "Assumed days until found",
+        id: `${s.id}-likelihood`,
+        label: "Likelihood level",
         direction: "increases" as const,
-        weight: concealment,
-        detail: `about ${result.timelineDays.p50} days, assumed range ${result.timelineDays.p95Low}–${result.timelineDays.p95High}. Longer until found raises this index. A control that shortens that time does not, by itself, make the scenario more severe.`,
+        weight: levels.likelihood,
+        detail: `${wholePercent(levels.likelihood * 100)} of 100: the kind of scheme, scaled by your controls and staffing.`,
       },
-    ].slice(0, 6),
+    ],
+    // The illustrative loss and days are no driver: they set no rank, and the
+    // panel prints them under their own label.
     linkedScenarioId: s.id,
     expectedLoss: result.financialImpact.expected,
     p50Days: result.timelineDays.p50,
@@ -417,30 +399,9 @@ function staffUplift(staff: StaffComposition, weights: ScoringWeights): StaffUpl
       detail: `A team of ${staff.teamSize} has fewer people to keep duties apart.`,
     });
   }
-  if (staff.soleOwnerKnowledgeCount > 0 && weights.staff.soleOwnerUpliftPerItem > 0) {
-    const u = Math.min(
-      weights.staff.soleOwnerUpliftCap,
-      staff.soleOwnerKnowledgeCount * weights.staff.soleOwnerUpliftPerItem,
-    );
-    factor += u;
-    drivers.push({
-      id: "staff-spof",
-      label: "Sole-owner knowledge",
-      direction: "increases",
-      weight: u,
-      detail: `${count(staff.soleOwnerKnowledgeCount, "critical item")} with one strong holder.`,
-    });
-  }
-  if (staff.segregationScore < 50 && weights.staff.weakSegregationUplift > 0) {
-    factor += weights.staff.weakSegregationUplift;
-    drivers.push({
-      id: "staff-seg",
-      label: "Weak segregation score",
-      direction: "increases",
-      weight: weights.staff.weakSegregationUplift,
-      detail: `Segregation score ${staff.segregationScore}/100.`,
-    });
-  }
+  // Items one person holds and the segregation score are not uplifts here:
+  // each already enters its own rows once (the register rows, and each
+  // control's separation credit).
   if (staff.avgTenureYears < 3) {
     factor += weights.staff.lowTenureUplift;
     drivers.push({
@@ -460,18 +421,21 @@ function controlInherent(
   c: ControlItem,
   weights: ScoringWeights,
 ): { score: number; drivers: RiskDriver[] } {
+  const levels = weights.controlLevels;
   const duties = c.duties.length;
   const guarded = tpl.scenarios.filter((s) => s.controlId === c.id).map((s) => scenarioFlags(s.id));
   const fraudClass =
-    FRAUD_OPPORTUNITY_CONTROLS.has(c.id) || guarded.some((f) => f.fraudRelated) ? 0.85 : 0.45;
-  const criticality = duties >= 2 ? 0.8 : 0.5;
+    FRAUD_OPPORTUNITY_CONTROLS.has(c.id) || guarded.some((f) => f.fraudRelated)
+      ? levels.fraudOpportunityHigh
+      : levels.fraudOpportunityLow;
+  const criticality = duties >= 2 ? levels.criticalityMultiDuty : levels.criticalitySingleDuty;
   const exposure =
     MONEY_EXPOSURE_CONTROLS.has(c.id) || guarded.some((f) => f.fraudRelated && f.cashRelated)
-      ? 0.9
-      : 0.55;
+      ? levels.exposureMoney
+      : levels.exposureOther;
   // Inherent exposure is evaluated before crediting the control design.
-  const detectHard = 0.75;
-  const cascade = c.id.startsWith("c-sod-") ? 0.7 : 0.4;
+  const detectHard = levels.detectionDifficultyLevel;
+  const cascade = c.id.startsWith("c-sod-") ? levels.cascadeDutySplit : levels.cascadeOther;
 
   const score =
     weights.inherent.assetExposure * exposure +
@@ -514,24 +478,27 @@ function controlEffectiveness(
   knowledgeRedundancy: number | null,
   weights: ScoringWeights,
 ): { score: number; drivers: RiskDriver[] } {
-  const seg = c.segregated ? 0.9 : (staff.segregationScore / 100) * 0.45;
+  const levels = weights.controlLevels;
+  const seg = c.segregated
+    ? levels.segregatedLevel
+    : (staff.segregationScore / 100) * levels.segregationScoreLevel;
   const dual =
     staff.dualControlPayments && (CASH_CONTROLS.has(c.id) || PAYMENT_CONTROLS.has(c.id))
-      ? 0.85
-      : 0.15;
+      ? levels.dualReleaseOnLevel
+      : levels.dualReleaseOffLevel;
   const indRec =
     staff.independentBankRec && CASH_CONTROLS.has(c.id)
-      ? 0.9
+      ? levels.bankRecCashLevel
       : staff.independentBankRec
-        ? 0.45
-        : 0.1;
+        ? levels.bankRecOtherLevel
+        : levels.bankRecOffLevel;
   // Free-text descriptions are retained for review, not treated as tested
   // controls. Structured operating evidence must exist before this factor
   // can receive credit; note count, wording and duplication are irrelevant.
   const comp = 0;
   // Bank reconciliation is already the independentReconciliation term.
   // Do not also treat it as the monitoring cadence.
-  const mon = 0.25;
+  const mon = levels.monitoringLevel;
 
   const scoredWithoutKnowledge =
     weights.control.segregationQuality * seg +
@@ -574,15 +541,8 @@ function controlEffectiveness(
         "No tested compensating measure is established by this record. Check design, operation and evidence before relying on one.",
     });
   }
-  if (c.residualRiskAccepted) {
-    drivers.push({
-      id: `${c.id}-eff-accept`,
-      label: "Residual risk accepted",
-      direction: "increases",
-      weight: 0.2,
-      detail: "Documented acceptance still leaves residual risk elevated for monitoring.",
-    });
-  }
+  // A recorded acceptance never closes a gap or moves this row, so it is not
+  // a driver: the duty-conflict list shows it as "Open, risk accepted".
 
   return { score: clamp(score, 0, 1), drivers };
 }

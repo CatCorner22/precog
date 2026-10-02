@@ -262,7 +262,7 @@ export function buildThreatAssessment(input: {
     fixFirst: fixFirstCount(allTargets),
     missionBrief: [
       `${practiceName}: where money can move without a second person in this ${industryNoun(tpl.id)}, and what to fix first.`,
-      `Average residual risk ${portfolio.averageResidual} of 100 (this app's index); ${count(portfolio.criticalPath, "item")} to act on before anything else and ${portfolio.actNow} more to act on now.`,
+      `Residual risks by band on Precog's index: ${count(portfolio.criticalPath, "item")} to fix first, ${portfolio.actNow} to fix soon and ${portfolio.mitigate} worth doing.`,
       `Duties: ${count(sod.summary.critical, "critical duty conflict")}; ${count(openSod, "control")} the template lists as not yet separated.`,
       registerAssessed(tpl)
         ? `Know-how: ${count(soleHeld, "item")} only one person can do; ${unheld} nobody can.`

@@ -13,6 +13,7 @@ import { industryNoun } from "@/lib/precog/industry";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useTabName } from "@/lib/precog/presentation";
 import { DEFAULT_FRAUD_STATS } from "@/lib/precog/templates/shared-controls";
+import { ILLUSTRATIVE_LABEL, ILLUSTRATIVE_RANK_NOTE } from "@/lib/precog/scoring/scenario-level";
 import { CaseCard } from "@/components/precog/case-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -139,6 +140,7 @@ export function SingleScenarioView({
           </CardHeader>
           <CardContent className="space-y-5">
             <p className="rounded-lg border border-border bg-panel p-3 text-xs leading-relaxed text-muted">
+              <strong className="text-fg">{ILLUSTRATIVE_LABEL}.</strong> {ILLUSTRATIVE_RANK_NOTE}{" "}
               These figures are assumptions written into this scenario, scaled by your settings.
               They are not predictions, and nobody measured them at any business. For what failures
               like this one actually cost, see the prosecuted cases on Start here.

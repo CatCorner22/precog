@@ -130,7 +130,7 @@ export function BusinessSwitcher() {
             <span className="block truncate font-medium">{b.name}</span>
             <span className="block truncate text-xs text-subtle">
               {industryMeta(b.industry).label}
-              {b.healthScore !== null ? ` · health ${b.healthScore}` : ""}
+              {b.healthScore !== null ? ` · map ${b.healthScore}% complete` : ""}
             </span>
           </span>
           {active && <Check className="size-3.5 shrink-0 text-primary" />}

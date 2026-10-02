@@ -357,8 +357,11 @@ function residualPortfolio({ tpl, staff, scope }: ToolInputs): ToolOutput {
         category: t.category,
         residual: t.residual,
         band: t.bandLabel,
-        inherent: t.inherent,
-        controlEffectiveness: t.controlEffectiveness,
+        // A scenario row ranks on its likelihood and severity levels, with its
+        // controls already inside them; the other rows on inherent less effectiveness.
+        ...(t.category === "scenario"
+          ? { likelihoodLevel: t.likelihoodLevel, severityLevel: t.severityLevel }
+          : { inherent: t.inherent, controlEffectiveness: t.controlEffectiveness }),
         drivers: t.drivers.slice(0, 4),
         linkedScenarioId: t.linkedScenarioId,
         linkedKnowledgeId: t.linkedKnowledgeId,
@@ -366,7 +369,7 @@ function residualPortfolio({ tpl, staff, scope }: ToolInputs): ToolOutput {
         assumedDaysUntilFound: t.p50Days,
       })),
       basis:
-        "assumedLoss and assumedDaysUntilFound are scenario assumptions scaled by this business's settings; not measurements or expected values.",
+        "assumedLoss and assumedDaysUntilFound are illustrative examples, not sized to this business, and do not set a row's rank; not measurements or expected values. A scenario row ranks on likelihoodLevel and severityLevel, which already include its controls.",
     },
   };
 }
