@@ -9,10 +9,21 @@ interface MapDiff {
   total: number;
 }
 
+/**
+ * How to compare. `baseIsTemplate` says the base is the industry sample or
+ * the starter map, which carries no Lean waste: a map saved when the sample
+ * still had waste would otherwise read "+N waste" against it, so waste is
+ * not compared. Between two saved versions waste is always compared.
+ */
+interface DiffOptions {
+  baseIsTemplate?: boolean;
+}
+
 /** Structural diff of two maps: `current` vs `base`. */
 export function diffMaps(
   base: { processes: ProcessNode[]; people: Person[] },
   current: { processes: ProcessNode[]; people: Person[] },
+  options: DiffOptions = {},
 ): MapDiff {
   const baseById = new Map(base.processes.map((p) => [p.id, p]));
   const curById = new Map(current.processes.map((p) => [p.id, p]));
@@ -21,7 +32,7 @@ export function diffMaps(
   const removed = base.processes.filter((p) => !curById.has(p.id));
   const modified = current.processes
     .filter((p) => baseById.has(p.id))
-    .map((p) => ({ p, changes: processChanges(baseById.get(p.id)!, p) }))
+    .map((p) => ({ p, changes: processChanges(baseById.get(p.id)!, p, options) }))
     .filter((x) => x.changes.length);
 
   const basePeople = new Set(base.people.map((p) => p.id));
@@ -41,7 +52,11 @@ export function diffMaps(
 }
 
 /** Human-readable list of what differs between two versions of one process. */
-export function processChanges(before: ProcessNode, after: ProcessNode): string[] {
+export function processChanges(
+  before: ProcessNode,
+  after: ProcessNode,
+  options: DiffOptions = {},
+): string[] {
   const changes: string[] = [];
   if (after.name !== before.name) changes.push("renamed");
   if (after.description !== before.description) changes.push("description");
@@ -62,10 +77,7 @@ export function processChanges(before: ProcessNode, after: ProcessNode): string[
   const d = (a?: unknown[], c?: unknown[]) => (a?.length ?? 0) - (c?.length ?? 0);
   const dr = d(after.risks, before.risks);
   const di = d(after.ideas, before.ideas);
-  // The samples no longer carry Lean waste, so a map saved from an older
-  // sample would otherwise read "+N waste" against a baseline with none.
-  // Waste changes count only when the earlier version had waste to change.
-  const dw = before.wastes?.length ? d(after.wastes, before.wastes) : 0;
+  const dw = options.baseIsTemplate ? 0 : d(after.wastes, before.wastes);
   if (dr) changes.push(`${dr > 0 ? "+" : ""}${dr} risk${Math.abs(dr) === 1 ? "" : "s"}`);
   if (di) changes.push(`${di > 0 ? "+" : ""}${di} idea${Math.abs(di) === 1 ? "" : "s"}`);
   if (dw) changes.push(`${dw > 0 ? "+" : ""}${dw} waste`);

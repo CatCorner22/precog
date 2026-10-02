@@ -21,10 +21,13 @@ describe("processChanges and Lean waste", () => {
     const diff = diffMaps(
       { processes: template.processes, people: template.people },
       { processes: savedEarlier, people: template.people },
+      { baseIsTemplate: true },
     );
     expect(diff.total).toBe(0);
     for (const p of savedEarlier) {
-      expect(processChanges(template.processes[0], p).join(" ")).not.toMatch(/waste/);
+      expect(
+        processChanges(template.processes[0], p, { baseIsTemplate: true }).join(" "),
+      ).not.toMatch(/waste/);
     }
   });
 
@@ -32,6 +35,19 @@ describe("processChanges and Lean waste", () => {
     const before: ProcessNode = { ...template.processes[0], wastes: [waste("a"), waste("b")] };
     const after: ProcessNode = { ...before, wastes: [waste("a")] };
     expect(processChanges(before, after)).toEqual(["-1 waste"]);
+  });
+
+  it("counts waste added to a saved version that had none", () => {
+    const saved = { processes: template.processes, people: template.people };
+    const current = {
+      processes: template.processes.map((p, i) =>
+        i === 0 ? { ...p, wastes: [waste("a"), waste("b")] } : p,
+      ),
+      people: template.people,
+    };
+    const diff = diffMaps(saved, current);
+    expect(diff.total).toBe(1);
+    expect(diff.modified[0].changes).toEqual(["+2 waste"]);
   });
 
   it("leaves every sample without Lean waste", () => {
