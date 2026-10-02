@@ -37,7 +37,8 @@ export function monthlyBridgeCommandId(period: string, itemKey: ReviewItemKey): 
 
 /**
  * Build a control execution **record** command from a monthly review result.
- * Returns null when the result should not create evidence (skipped).
+ * Returns null for a skipped result, which creates no evidence. The method is
+ * inquiry: a monthly note is the owner saying the check was done.
  */
 export function bridgeRecordCommand(input: MonthlyBridgeInput): ExecutionCommand | null {
   if (input.result === "skipped") return null;
@@ -68,7 +69,7 @@ export function bridgeRecordCommand(input: MonthlyBridgeInput): ExecutionCommand
       period: input.period,
       performedOn: input.performedOn,
       performedBy: input.ownerName.trim().slice(0, 120) || "Unknown",
-      method: "inspection",
+      method: "inquiry",
       scope,
       evidenceRefs: refs,
       result: "exception",
@@ -87,7 +88,7 @@ export function bridgeRecordCommand(input: MonthlyBridgeInput): ExecutionCommand
     period: input.period,
     performedOn: input.performedOn,
     performedBy: input.ownerName.trim().slice(0, 120) || "Unknown",
-    method: "inspection",
+    method: "inquiry",
     scope,
     evidenceRefs: refs,
     result: "no_exception",

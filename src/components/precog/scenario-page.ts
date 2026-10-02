@@ -110,11 +110,32 @@ export function whatIfDiffers(saved: StaffComposition, whatIf: StaffComposition)
   return WHAT_IF_FIELDS.some((field) => saved[field] !== whatIf[field]);
 }
 
-/** The saved staffing with the what-if's edited fields laid over it; nothing else changes. */
-export function applyWhatIf(saved: StaffComposition, whatIf: StaffComposition): StaffComposition {
+/**
+ * The saved staffing with the what-if's edited fields laid over it; nothing
+ * else changes. On the owner's own team the segregation score stays as saved:
+ * it comes from the team's duties, and a tried figure saved over it would
+ * move the priority and residual figures with no change in who does what.
+ */
+export function applyWhatIf(
+  saved: StaffComposition,
+  whatIf: StaffComposition,
+  opts: { ownBusiness: boolean },
+): StaffComposition {
   const next = { ...saved };
-  for (const field of WHAT_IF_FIELDS) Object.assign(next, { [field]: whatIf[field] });
+  for (const field of WHAT_IF_FIELDS) {
+    if (opts.ownBusiness && field === "segregationScore") continue;
+    Object.assign(next, { [field]: whatIf[field] });
+  }
   return next;
+}
+
+/** True when applying the what-if would change the saved staffing (not only a tried segregation score). */
+export function whatIfApplies(
+  saved: StaffComposition,
+  whatIf: StaffComposition,
+  opts: { ownBusiness: boolean },
+): boolean {
+  return whatIfDiffers(saved, applyWhatIf(saved, whatIf, opts));
 }
 
 /** How the annual cost-of-risk figure is built, with the assumed yearly chance named. */

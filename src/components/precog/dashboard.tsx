@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { Crosshair, FileText, Hammer } from "lucide-react";
-import { HEALTH_SCALE, RISK_SCALE } from "@/lib/precog/scoring/bands";
+import { HEALTH_SCALE, RISK_SCALE, segregationLevel } from "@/lib/precog/scoring/bands";
 import { rankDangerousScenarios } from "@/lib/precog/engine";
 import { criticalSinglePoints } from "@/lib/precog/continuity/coverage";
 import { registerAssessed } from "@/lib/precog/continuity/register-state";
@@ -12,6 +12,7 @@ import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
 import { portfolioSummary } from "@/lib/precog/scoring/residual-engine";
 import { scoreLeadingIndicators } from "@/lib/precog/ml/leading-indicators";
 import type { detectSodConflicts } from "@/lib/precog/sod/detect";
+import { openSeverityCounts, openSodHint } from "@/lib/precog/sod/open-findings";
 import { useScoredMap } from "@/lib/precog/builder/use-scored-map";
 import { industryMeta, pluralTeamLabel } from "@/lib/precog/industry";
 import { mapAssessed } from "@/lib/precog/builder/map-state";
@@ -110,6 +111,10 @@ export function Dashboard({
   const sodGaps = tpl.controls.filter((c) => !c.segregated).length;
   const top = ranked[0];
   const conflicts = sodReport.conflicts.length;
+  // Coloured by the capped band word, as on the duty-conflict screen, and
+  // hinted with the open findings that cap it.
+  const sodOpen = openSeverityCounts(sodReport.conflicts, profile.dualRelease);
+  const sodLevel = segregationLevel(sodReport.summary.segregationHealth, sodOpen);
 
   // Scored as the map page scores it: untouched starter processes are left out.
   const scoredMap = useScoredMap();
@@ -244,14 +249,8 @@ export function Dashboard({
         <MetricCard
           label={say("Duties kept apart", "SoD health")}
           value={String(sodReport.summary.segregationHealth)}
-          hint={count(sodReport.summary.critical, "critical duty conflict")}
-          tone={
-            sodReport.summary.segregationHealth < HEALTH_SCALE.weak
-              ? "danger"
-              : sodReport.summary.segregationHealth < HEALTH_SCALE.adequate
-                ? "warn"
-                : "primary"
-          }
+          hint={openSodHint(sodOpen)}
+          tone={sodLevel === "critical" ? "danger" : sodLevel === "weak" ? "warn" : "primary"}
           onClick={() => onOpen("sod")}
         />
         <MetricCard

@@ -32,6 +32,28 @@ export function healthLevel(score: number): HealthLevel {
   return "critical";
 }
 
+/** Open duty-conflict findings by severity, counted by sod/open-findings `openSeverityCounts`. */
+export interface OpenSeverityCounts {
+  openCritical: number;
+  openHigh: number;
+}
+
+/**
+ * The band word for segregation health. The number stays as computed, but one
+ * open critical conflict costs only about 15 points, so on the number alone a
+ * team with one would read "strong". While any critical finding is open the
+ * word is at best "weak"; while any high one is open, at best "adequate".
+ * Other indices band on `healthLevel` alone.
+ */
+export function segregationLevel(health: number, open: OpenSeverityCounts): HealthLevel {
+  const level = healthLevel(health);
+  const cap: HealthLevel | null =
+    open.openCritical > 0 ? "weak" : open.openHigh > 0 ? "adequate" : null;
+  return cap && LEVEL_RANK[level] > LEVEL_RANK[cap] ? cap : level;
+}
+
+const LEVEL_RANK: Record<HealthLevel, number> = { critical: 0, weak: 1, adequate: 2, strong: 3 };
+
 /** The colour every health index is drawn in, by level: one scale for the badge, ring, bars and pill. */
 type HealthTone = "ok" | "primary" | "warn" | "danger";
 

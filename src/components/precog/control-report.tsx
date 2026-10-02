@@ -7,6 +7,7 @@ import { latestReview, REVIEW_ITEMS, reviewResultLine } from "@/lib/precog/firm/
 import { industryMeta } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
+import { belowThresholdNote, openSodHint } from "@/lib/precog/sod/open-findings";
 import { trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
 import { DECISION_KIND_LABEL } from "@/lib/precog/practice-profile";
@@ -60,7 +61,8 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
       }),
     [tpl, profile, mapCustomized, today, trackFreshness, mapReady, businessName],
   );
-  const { threat, portfolio, sod, coso, mapHealth, healthDelta, decisionLog } = data;
+  const { threat, portfolio, sod, sodOpen, sodLevel, mapHealth, healthDelta, decisionLog } = data;
+  const sodNote = belowThresholdNote(sodOpen);
   const mapIssues = data.issues.filter((i) => i.severity !== "info");
   const sodRows = sod.conflicts
     .slice()
@@ -165,7 +167,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
           </ul>
         </Section>
 
-        <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Kpi
             label="Map health score"
             value={mapReady ? String(mapHealth.score) : "—"}
@@ -184,10 +186,21 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
           <Kpi
             label="Duty separation index"
             value={String(sod.summary.segregationHealth)}
-            hint={count(sod.summary.critical, "critical duty conflict")}
+            hint={`${sodLevel} · ${openSodHint(sodOpen)}`}
           />
-          <Kpi label="Coverage check" value={String(coso.overall)} hint={coso.overallStatus} />
         </section>
+        {sodNote && <p className="mt-2 text-xs leading-relaxed text-neutral-600">{sodNote}</p>}
+        {data.handSet.length > 0 && (
+          <div
+            className="mt-2 rounded-lg border border-amber-500 bg-amber-50 p-3 text-sm text-amber-950"
+            role="note"
+            aria-label="Figures set by hand"
+          >
+            {data.handSet.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </div>
+        )}
         <p className="mt-2 text-xs leading-relaxed text-neutral-500">{INDEX_BASIS}</p>
 
         <Section title="Map health">

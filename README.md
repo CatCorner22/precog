@@ -154,8 +154,14 @@ On the Firm page, signed-in users can record a monthly check with its scope,
 reported performer, method, evidence references and conclusion. The first
 release covers bank-statement review, cleared-check images, payroll headcount,
 and vendor changes. References are pointers to restricted records, not uploaded
-or automatically verified documents. The existing monthly “Done” notes remain
-separate and receive no automatic evidence credit.
+or automatically verified documents. When you are signed in, a Done or Exception
+on the monthly review also adds one entry per check per month to this log: dated
+the day you record the result, method “inquiry”, with your note (or the month,
+when the note is empty) as the reference. A Done entry awaits review; an Exception
+entry needs correction by the monthly due date. The log takes the first Done or
+Exception for each check and month and refuses a later one; the monthly review
+keeps every result. Monthly notes recorded before this release are not copied
+into the log.
 
 The recording account cannot approve its own work. Firm preparers can record
 work and corrections; a separate firm owner or reviewer records review
@@ -245,6 +251,10 @@ npm run e2e:tabs          # every tab of every industry demo, plus /threat, /rep
 npm run e2e:safety        # signed sessions against the compiled build (see "Continuous integration")
 ```
 
+Before asking for a merge, run `npm run verify`. It runs the format check,
+typecheck, lint, unit tests, build and bundle budget in that order, and stops
+at the first failure. `AGENTS.project.md` holds the repository rules.
+
 `scripts/README.md` lists every script and the CI job that runs it.
 
 ### Environment
@@ -283,9 +293,10 @@ this happens; a production build warns about it.
 `.github/workflows/ci.yml` runs five jobs on every pull request and every push
 to `main`; the release gate passes only when the other four pass.
 
-- **Typecheck, lint, test, build**: typecheck, lint, formatting, the
-  production dependency audit, `npm test`, the build, its bundle budget
-  (`check:bundle`) and its security headers (`check:headers`).
+- **Typecheck, lint, test, build**: typecheck, lint, `npm test`, formatting,
+  the production dependency audit, the build, its bundle budget
+  (`check:bundle`) and its security headers (`check:headers`). Each check runs
+  even when an earlier one fails, so one run reports every problem.
 - **Migrations against real Postgres**: applies every migration twice, then
   `test:postgres:migrations` (two simultaneous runners, lock timeout, rollback
   and retry), `test:postgres:quota` (the daily model budget under 64 parallel
@@ -305,12 +316,12 @@ to `main`; the release gate passes only when the other four pass.
 - **Release gate**: requires the four jobs above.
 
 A newer push to a pull request cancels its older run; pushes to `main` never
-cancel each other. Actions are pinned to commits and `.github/dependabot.yml`
-keeps them current.
+cancel each other. Actions are pinned to commits, and `.github/dependabot.yml`
+keeps them and the npm packages current (minor and patch versions only).
 
 ### Pinned dependencies
 
-The project runs on Node 22 (`engines` in `package.json`; CI uses 22, and the
+The project runs on Node 22 (`engines` in `package.json`; CI reads `.nvmrc`, and the
 quota check needs `--experimental-strip-types`, Node 22.6 or later). Both
 version pins came with the app template: `nitro` is pinned to a beta because
 Nitro 3 has no stable release yet, and `overrides` holds `nf3` (Nitro's file

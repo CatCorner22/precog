@@ -6,6 +6,9 @@ import type { ReviewItemKey } from "../../firm/reviews";
 
 /** For anything the form itself sets, which a person cannot fix by editing a field. */
 const UNREADABLE = "Precog could not read this check. Reload the page and try again.";
+/** The refusal of a command id that is already in the history with other content. */
+export const DIFFERENT_CONTENT =
+  "This command was already recorded with different content. Reload the log.";
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,80}$/, UNREADABLE);
 /** Required text the form labels `label`; each message names that field. */
 const text = (max: number, label: string) =>
@@ -228,10 +231,7 @@ export function applyCommand(
       duplicate.actor.id !== actor.id ||
       stableStringify(duplicate.command) !== stableStringify(command)
     ) {
-      throw new RequestError(
-        409,
-        "This command was already recorded with different content. Reload the log.",
-      );
+      throw new RequestError(409, DIFFERENT_CONTENT);
     }
     return previous!;
   }

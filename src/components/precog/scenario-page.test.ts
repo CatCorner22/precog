@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { getIndustryTemplate, scenarioCases as casesBehindScenario } from "@/lib/precog/templates";
 import { defaultProfile } from "@/lib/precog/practice-profile";
-import { withDecision } from "@/lib/precog/profile-actions";
-import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
+import { withDecision, withStaff } from "@/lib/precog/profile-actions";
+import { resolveTemplate } from "@/lib/precog/active-template";
+import { confirmedScenarioIds, isOwnBusiness } from "@/lib/precog/scoring/scope";
+import type { Person } from "@/lib/precog/types";
 import { isOwnSector } from "@/lib/precog/evidence";
 import {
   applyWhatIf,
@@ -14,6 +16,7 @@ import {
   scenarioCases,
   scenarioConfirmation,
   scenarioRuleIds,
+  whatIfApplies,
   whatIfDiffers,
 } from "./scenario-page";
 
@@ -96,8 +99,45 @@ describe("staffing what-if", () => {
     const whatIf = { ...saved, segregationScore: 75, avgTenureYears: 9 };
     expect(whatIfDiffers(saved, saved)).toBe(false);
     expect(whatIfDiffers(saved, whatIf)).toBe(true);
-    const applied = applyWhatIf(saved, whatIf);
+    const applied = applyWhatIf(saved, whatIf, { ownBusiness: false });
     expect(applied.segregationScore).toBe(75);
     expect(applied.avgTenureYears).toBe(4);
+  });
+
+  it("keeps an own team's segregation score on Apply and applies the other fields", () => {
+    const people: Person[] = [
+      { id: "a", name: "Ada", role: "Owner", active: true, entitlements: ["approve_payroll"] },
+      { id: "b", name: "Ben", role: "Bookkeeper", active: true, entitlements: ["enter_invoices"] },
+    ];
+    const profile = { ...defaultProfile("dental"), customPeople: people };
+    const ownBusiness = isOwnBusiness(resolveTemplate(profile));
+    expect(ownBusiness).toBe(true);
+    const saved = profile.staff;
+    const whatIf = {
+      ...saved,
+      teamSize: saved.teamSize + 3,
+      segregationScore: saved.segregationScore === 95 ? 40 : 95,
+      dualControlPayments: !saved.dualControlPayments,
+      independentBankRec: !saved.independentBankRec,
+    };
+    const applied = applyWhatIf(saved, whatIf, { ownBusiness });
+    expect(applied.segregationScore).toBe(saved.segregationScore);
+    expect(applied.teamSize).toBe(whatIf.teamSize);
+    expect(applied.dualControlPayments).toBe(whatIf.dualControlPayments);
+    expect(applied.independentBankRec).toBe(whatIf.independentBankRec);
+    // Saving it does not mark the score as set by hand.
+    const next = withStaff(profile, applied);
+    expect(next.staff.segregationScore).toBe(saved.segregationScore);
+    expect(next.staff.segregationSource).not.toBe("manual");
+  });
+
+  it("offers nothing to apply on an own team when only the segregation score was tried", () => {
+    const saved = defaultProfile("dental").staff;
+    const scoreOnly = { ...saved, segregationScore: saved.segregationScore === 95 ? 40 : 95 };
+    expect(whatIfDiffers(saved, scoreOnly)).toBe(true);
+    expect(whatIfApplies(saved, scoreOnly, { ownBusiness: true })).toBe(false);
+    expect(whatIfApplies(saved, scoreOnly, { ownBusiness: false })).toBe(true);
+    const withTeam = { ...scoreOnly, teamSize: saved.teamSize + 1 };
+    expect(whatIfApplies(saved, withTeam, { ownBusiness: true })).toBe(true);
   });
 });

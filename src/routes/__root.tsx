@@ -33,7 +33,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "Precog Pioneer shows a small-business owner who can move money alone, what one absence would stop, and which fix to make this week, with the prosecuted case behind each finding.",
+          "Precog Pioneer shows a small-business owner who can move money alone, what one absence would stop, and which fix to make this week, with prosecuted cases behind the findings where the record shows them.",
       },
       ...(ogImage
         ? [

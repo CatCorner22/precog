@@ -110,7 +110,7 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
     ownBusiness,
     onChange: setWhatIf,
     onApply: () => {
-      if (whatIf) setStaff((saved) => applyWhatIf(saved, whatIf));
+      if (whatIf) setStaff((saved) => applyWhatIf(saved, whatIf, { ownBusiness }));
       setWhatIf(null);
     },
     onReset: () => setWhatIf(null),

@@ -26,20 +26,33 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
-      - run: npm ci
+      - id: install
+        run: npm ci
 
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run format:check
-      - run: npm run audit:prod
-      - run: npm test
-      - run: npm run build
-      - run: npm run check:bundle
-      - run: npm run check:headers
+      # Each check runs even when an earlier one fails, so one run reports
+      # every problem (a formatting slip no longer hides the test results).
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run typecheck
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run lint
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm test
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run format:check
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run audit:prod
+      - id: build
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run build
+      - if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: npm run check:bundle
+      - if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: npm run check:headers
       - name: Signed control evidence lifecycle on compiled HTTP handlers
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: npm run test:evidence:http
         env:
           DATABASE_URL: ""
@@ -70,7 +83,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - run: npm ci
@@ -110,7 +123,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - run: npm ci
@@ -189,7 +202,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: npm run db:migrate

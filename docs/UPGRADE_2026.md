@@ -10,8 +10,8 @@ Before promoting control evidence as a primary workflow:
 
 1. Run `npm run db:migrate` against production (or rely on `npm run build` with
    `VERCEL_ENV=production`, which applies pending migrations).
-2. Confirm migration `0026_control_execution_log.sql` is in the ledger table
-   (`schema_migrations` / migrate-core ledger — see [scripts/migrate-core.mjs](scripts/migrate-core.mjs)).
+2. Confirm migration `0026_control_execution_log.sql` is in the `_migrations`
+   ledger table (see [scripts/migrate-core.mjs](scripts/migrate-core.mjs)).
 3. Hit `/api/health` on the deployment: when the database is healthy, the JSON
    body includes `controlEvidenceLog: true` once the `control_execution_log` table
    exists (false when the table is missing).
