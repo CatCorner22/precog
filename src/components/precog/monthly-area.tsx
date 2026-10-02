@@ -55,7 +55,7 @@ export function MonthlyArea({
         />
       </section>
       <section id="decisions" aria-label={tabLabel("journal", say)} className="scroll-mt-40">
-        <DecisionJournal onOpenLinked={openTab} />
+        <DecisionJournal onOpenLinked={openTab} headingLevel={2} />
       </section>
     </div>
   );

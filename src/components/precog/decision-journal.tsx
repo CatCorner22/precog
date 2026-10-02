@@ -56,9 +56,13 @@ type RegisterWrite =
 
 export function DecisionJournal({
   onOpenLinked,
+  headingLevel = 1,
 }: {
   onOpenLinked?: (tab: string, id?: string) => void;
+  /** 2 when the journal sits as a section inside another screen, such as Monthly review. */
+  headingLevel?: 1 | 2;
 }) {
+  const Heading = headingLevel === 2 ? "h2" : "h1";
   const tabName = useTabName();
   const { say } = usePresentation();
   const {
@@ -203,10 +207,10 @@ export function DecisionJournal({
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <Badge variant="accent">{tabName("journal")}</Badge>
-        <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
+        <Heading className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <BookOpen className="size-5 text-primary" />
           Write it down or it did not happen
-        </h1>
+        </Heading>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           {say(
             "Checking that controls still work needs a paper trail.",
