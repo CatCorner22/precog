@@ -154,11 +154,12 @@ function PrivacyPage() {
         <p>
           Signed in, <strong>Export data</strong> in the header downloads one JSON file of the
           account: businesses, snapshots, shares, the firm record, engagement stamps, and the review
-          log. For step pictures, the file lists each picture’s details and the link that shows it
-          while the account exists, not the picture itself. The file leaves out passcode hashes.{" "}
-          <strong>Delete account</strong> removes the account and those rows. It asks you to type
-          DELETE first. Clearing saved data on this device, from the error screen or after deletion,
-          removes only the browser copy.
+          log. <strong>Download history</strong>, beside it, downloads each business’s past versions
+          separately, one JSON file per business. For step pictures, the account file lists each
+          picture’s details and the link that shows it while the account exists, not the picture
+          itself. The file leaves out passcode hashes. <strong>Delete account</strong> removes the
+          account and those rows. It asks you to type DELETE first. Clearing saved data on this
+          device, from the error screen or after deletion, removes only the browser copy.
         </p>
       </section>
 

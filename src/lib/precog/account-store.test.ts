@@ -1,8 +1,28 @@
 import type { PGlite } from "@electric-sql/pglite";
+import { toCrossJSON } from "seroval";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Sql } from "@/lib/db";
 import { openTestDb, type TestDb } from "@/test/pglite";
-import { deleteAccountRows, exportAccountRows } from "./account-store";
+import {
+  deleteAccountRows,
+  encodeHistoryPage,
+  exportAccountRows,
+  exportBusinessHistoryPage,
+  HISTORY_PAGE_BYTES,
+  listAccountHistoryBusinesses,
+} from "./account-store";
+
+/** Vercel's response body limit. */
+const VERCEL_RESPONSE_BYTES = 4.5 * 1024 * 1024;
+
+/** Bytes of the response body TanStack Start sends for a server function's result. */
+function wireBytes(result: unknown): number {
+  return Buffer.byteLength(JSON.stringify(toCrossJSON(result, { refs: new Map() })));
+}
+
+function decodeHistoryPage(base64: string): unknown[] {
+  return JSON.parse(Buffer.from(base64, "base64").toString("utf8")) as unknown[];
+}
 
 let db: TestDb;
 let pg: PGlite;
@@ -207,7 +227,9 @@ describe("account export covers every table the account owns", () => {
     );
 
     const out = await exportAccountRows(sql, "ua");
-    expect(out.businessHistory.map((h) => h.name)).toEqual(["Biz before"]);
+    expect(out).not.toHaveProperty("businessHistory");
+    const history = await exportBusinessHistoryPage(sql, "ua", "biz_1", null);
+    expect(history.rows.map((h) => h.name)).toEqual(["Biz before"]);
     expect(out.reportVersions.map((r) => r.scopeNote)).toEqual(["Year-end review"]);
     expect(out.firm?.name).toBe("Alpha CPA");
     expect(out.firmMemberships).toEqual([
@@ -306,5 +328,101 @@ describe("account deletion safeguards", () => {
     const deleted = await deleteAccountRows(sql, "ua");
     expect(deleted.quickBooksRefreshTokens).toEqual(["sealed_refresh"]);
     expect(await count("integration_connections", "where user_id = $1", ["ua"])).toBe(0);
+  });
+});
+
+describe("past versions download apart from the account export", () => {
+  it("keeps a large account's export small and pages its history under the limit", async () => {
+    // 200 past versions of about 50-150 KB each: about 20 MB in all.
+    await pg.exec(`
+      insert into business_history (user_id, business_id, revision, name, industry, profile)
+      select 'ua', 'biz_1', g, 'Biz', 'dental',
+        jsonb_build_object('notes', repeat('x', 50000 + g * 500))
+      from generate_series(1, 200) as g
+    `);
+
+    const json = JSON.stringify(await exportAccountRows(sql, "ua"), null, 2);
+    expect(Buffer.byteLength(json)).toBeLessThan(1024 * 1024);
+    expect(JSON.parse(json)).not.toHaveProperty("businessHistory");
+
+    const revisions: number[] = [];
+    let before: number | null = null;
+    let pages = 0;
+    do {
+      const page = await exportBusinessHistoryPage(sql, "ua", "biz_1", before);
+      const body = JSON.stringify(page.rows);
+      expect(Buffer.byteLength(body)).toBeLessThanOrEqual(HISTORY_PAGE_BYTES);
+      const base64 = encodeHistoryPage(page.rows);
+      expect(wireBytes({ base64, nextBeforeRevision: page.nextBeforeRevision })).toBeLessThan(
+        VERCEL_RESPONSE_BYTES,
+      );
+      expect(decodeHistoryPage(base64)).toHaveLength(page.rows.length);
+      revisions.push(...page.rows.map((r) => r.revision));
+      before = page.nextBeforeRevision;
+      pages += 1;
+    } while (before !== null && pages < 50);
+    expect(pages).toBeGreaterThan(1);
+    expect(revisions).toEqual(Array.from({ length: 200 }, (_, i) => 200 - i));
+
+    expect(await listAccountHistoryBusinesses(sql, "ua")).toEqual([
+      { businessId: "biz_1", name: "Biz", versions: 200 },
+    ]);
+  }, 60_000);
+
+  it("keeps pages of quote-heavy profiles under the response limit on the wire", async () => {
+    // Quotes, backslashes and `<` grow four to five times when a JSON string
+    // travels inside the transport's JSON; base64 keeps them at 4/3.
+    await pg.exec(`
+      insert into business_history (user_id, business_id, revision, name, industry, profile)
+      select 'ua', 'biz_1', g, 'Biz', 'dental',
+        (select jsonb_agg(jsonb_build_object('k', '"<\\', 'v', '"q"')) from generate_series(1, 9000))
+      from generate_series(1, 12) as g
+    `);
+    const revisions: number[] = [];
+    let before: number | null = null;
+    let pages = 0;
+    do {
+      const page = await exportBusinessHistoryPage(sql, "ua", "biz_1", before);
+      const raw = { json: JSON.stringify(page.rows), nextBeforeRevision: page.nextBeforeRevision };
+      const sent = {
+        base64: encodeHistoryPage(page.rows),
+        nextBeforeRevision: page.nextBeforeRevision,
+      };
+      if (page.rows.length > 1) expect(wireBytes(raw)).toBeGreaterThan(VERCEL_RESPONSE_BYTES);
+      expect(wireBytes(sent)).toBeLessThan(VERCEL_RESPONSE_BYTES);
+      expect(decodeHistoryPage(sent.base64)).toEqual(JSON.parse(raw.json));
+      revisions.push(...page.rows.map((r) => r.revision));
+      before = page.nextBeforeRevision;
+      pages += 1;
+    } while (before !== null && pages < 20);
+    expect(pages).toBeGreaterThan(1);
+    expect(revisions).toEqual(Array.from({ length: 12 }, (_, i) => 12 - i));
+  }, 60_000);
+
+  it("returns history only to the account that owns it", async () => {
+    await pg.exec(`
+      insert into business_history (user_id, business_id, revision, name, industry, profile)
+      values ('ua', 'biz_1', 1, 'Biz', 'dental', '{"notes":"ua only"}'::jsonb)
+    `);
+    const own = await exportBusinessHistoryPage(sql, "ua", "biz_1", null);
+    expect(own.rows.map((r) => r.profile)).toEqual([{ notes: "ua only" }]);
+    expect(own.nextBeforeRevision).toBeNull();
+    const other = await exportBusinessHistoryPage(sql, "ub", "biz_1", null);
+    expect(other).toEqual({ rows: [], nextBeforeRevision: null });
+    expect(await listAccountHistoryBusinesses(sql, "ub")).toEqual([]);
+  });
+
+  it("puts a version larger than the page budget on a page of its own", async () => {
+    await pg.exec(`
+      insert into business_history (user_id, business_id, revision, name, industry, profile)
+      select 'ua', 'biz_1', g, 'Biz', 'dental', jsonb_build_object('notes', repeat('y', 2000))
+      from generate_series(1, 3) as g
+    `);
+    const first = await exportBusinessHistoryPage(sql, "ua", "biz_1", null, 100);
+    expect(first.rows.map((r) => r.revision)).toEqual([3]);
+    expect(first.nextBeforeRevision).toBe(3);
+    const rest = await exportBusinessHistoryPage(sql, "ua", "biz_1", 3, 10_000);
+    expect(rest.rows.map((r) => r.revision)).toEqual([2, 1]);
+    expect(rest.nextBeforeRevision).toBeNull();
   });
 });
