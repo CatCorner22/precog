@@ -1,4 +1,5 @@
 import type { Sql } from "@/lib/db";
+import { reportServerError } from "@/lib/observability/report.server";
 import { normalizeProfile, type PracticeProfile } from "../practice-profile";
 import { loadFirmFor } from "../firm/store";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
@@ -25,6 +26,9 @@ interface DigestOutcome {
  * switch cannot override the firm's, and turning one's own digest off does
  * not stop the owners' notes.
  *
+ * A business the normaliser throws on is reported, named in `errors` and
+ * left out; every other business and recipient still gets its email.
+ *
  * `send` is injected so the job runs against PGLite in a test with no
  * network; the cron route passes the real mailer.
  */
@@ -37,21 +41,28 @@ export async function runDigest(
   },
 ): Promise<DigestOutcome> {
   const outcome: DigestOutcome = { advisors: 0, owners: 0, skipped: 0, errors: [] };
-  const itemsByBusiness = new Map<string, ReminderItem[]>();
-  const itemsFor = (row: BusinessRow): ReminderItem[] => {
+  // Null for a business that could not be read: reported once, then skipped.
+  const itemsByBusiness = new Map<string, ReminderItem[] | null>();
+  const itemsFor = async (row: BusinessRow): Promise<ReminderItem[]> => {
     const businessKey = `${row.user_id}/${row.id}`;
     let items = itemsByBusiness.get(businessKey);
-    if (!items) {
-      items = dueItemsFor(normalizeProfile(row.profile), input.today);
+    if (items === undefined) {
+      try {
+        items = dueItemsFor(normalizeProfile(row.profile), input.today);
+      } catch (err) {
+        items = null;
+        outcome.errors.push(`business ${row.id}: ${errorText(err)}`);
+        await reportServerError(err, "digest-normalize");
+      }
       itemsByBusiness.set(businessKey, items);
     }
-    return items;
+    return items ?? [];
   };
 
   for (const recipient of await recipients(sql)) {
     const clients: { row: BusinessRow; items: ReminderItem[] }[] = [];
     for (const row of await businessesFor(sql, recipient)) {
-      const items = forAudience(itemsFor(row), "advisor");
+      const items = forAudience(await itemsFor(row), "advisor");
       const fresh = await unannounced(sql, row, recipient.email, items);
       if (fresh.length > 0) clients.push({ row, items: fresh });
     }
@@ -81,7 +92,7 @@ export async function runDigest(
       sql,
       row,
       row.owner_email,
-      forAudience(itemsFor(row), "owner"),
+      forAudience(await itemsFor(row), "owner"),
     );
     if (ownerItems.length === 0) continue;
     try {

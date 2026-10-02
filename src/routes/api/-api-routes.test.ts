@@ -13,7 +13,7 @@ import { Route as OwnerEmail } from "./owner-email";
 
 const db = vi.hoisted(() => ({ current: null as TestDb | null }));
 const session = vi.hoisted(() => ({ userId: null as string | null }));
-const digestStage = vi.hoisted(() => ({ fail: false }));
+const digestStage = vi.hoisted(() => ({ fail: false, sendsFail: false }));
 
 vi.mock("@/lib/db", () => ({
   getSql: async () => {
@@ -27,6 +27,8 @@ vi.mock("@/lib/precog/reminders/digest", async (importOriginal) => {
     ...actual,
     runDigest: (...args: Parameters<typeof actual.runDigest>) => {
       if (digestStage.fail) throw new Error("digest failed");
+      if (digestStage.sendsFail)
+        return Promise.resolve({ advisors: 0, owners: 0, skipped: 0, errors: ["owner b1: down"] });
       return actual.runDigest(...args);
     },
   };
@@ -62,6 +64,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   session.userId = null;
   digestStage.fail = false;
+  digestStage.sendsFail = false;
 });
 
 describe("QuickBooks callback", () => {
@@ -165,6 +168,16 @@ describe("scheduled run", () => {
     expect(res.status).toBe(500);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body).toMatchObject({ ok: false, failures: ["digest"], digest: null, purged: 0 });
+    expect(body.synced).toEqual({ synced: 0, failed: 0 });
+  });
+
+  it("counts a digest that sent nothing and had errors as a failed stage", async () => {
+    digestStage.sendsFail = true;
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const res = await run("Bearer cron-secret-value");
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ ok: false, failures: ["digest"] });
     expect(body.synced).toEqual({ synced: 0, failed: 0 });
   });
 });

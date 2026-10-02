@@ -381,15 +381,36 @@ export function normalizeProfile(
  * sample business standing in for the owner's.
  */
 export function parseStoredProfile(raw: string | null): PracticeProfile {
+  return readStoredProfile(raw).profile;
+}
+
+/**
+ * A stored profile read as `parseStoredProfile` reads it, except that a
+ * profile the normaliser throws on comes back as `unreadable` with the error.
+ * That is a bug in Precog, not damage to the copy, so the caller keeps the
+ * stored text and never writes the setup sample over it. `unreadable` is
+ * null for every other outcome.
+ */
+export function readStoredProfile(raw: string | null): {
+  profile: PracticeProfile;
+  unreadable: unknown;
+} {
   const setup = () => ({ ...defaultProfile(), onboardingComplete: false });
-  if (!raw) return setup();
+  if (!raw) return { profile: setup(), unreadable: null };
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(raw);
-    return isRecord(parsed)
-      ? normalizeProfile(parsed, { onboardingCompleteFallback: false })
-      : setup();
+    parsed = JSON.parse(raw);
   } catch {
-    return setup();
+    return { profile: setup(), unreadable: null };
+  }
+  if (!isRecord(parsed)) return { profile: setup(), unreadable: null };
+  try {
+    return {
+      profile: normalizeProfile(parsed, { onboardingCompleteFallback: false }),
+      unreadable: null,
+    };
+  } catch (error) {
+    return { profile: setup(), unreadable: error ?? new Error("The normaliser failed.") };
   }
 }
 

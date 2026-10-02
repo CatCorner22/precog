@@ -4,12 +4,14 @@ import { serverUtcDay } from "@/lib/precog/dates";
 const NO_STORE = { "cache-control": "no-store" } as const;
 
 /**
- * The scheduled run (see vercel.json `crons`). Housekeeping first: deleted
- * businesses past their grace period are purged and connected accounting
- * systems are re-read. Then the reminders go out by email. Each stage runs on
- * its own, so a failure in one is reported in the answer and does not stop
- * the others. Vercel calls it with `Authorization: Bearer $CRON_SECRET`;
- * anything else is refused.
+ * The scheduled run (see vercel.json `crons`). Deleted businesses past their
+ * grace period are purged, then the reminders go out by email, then connected
+ * accounting systems are re-read: the emails run before QuickBooks, so a slow
+ * or failing QuickBooks pass cannot stop them. Each stage runs on its own, so
+ * a failure in one is reported in the answer and does not stop the others.
+ * Emails that fail inside the digest are reported; the digest counts as a
+ * failed stage when it had errors and sent nothing. Vercel calls it with
+ * `Authorization: Bearer $CRON_SECRET`; anything else is refused.
  */
 export const Route = createFileRoute("/api/cron/digest")({
   server: {
@@ -38,14 +40,24 @@ export const Route = createFileRoute("/api/cron/digest")({
           if (count > 0) await firmStore.deleteOrphanedClientAudit(sql);
           return count;
         });
-        const synced = await stage("quickbooks", failures, () => qbo.syncDueConnections(sql));
-        const digest = await stage("digest", failures, () =>
-          runDigest(sql, {
+        const digest = await stage("digest", failures, async () => {
+          const outcome = await runDigest(sql, {
             today,
             appUrl,
             send: configured ? mailer.sendEmail : async () => undefined,
-          }),
-        );
+          });
+          if (outcome.errors.length > 0) {
+            // runDigest already reported each business it could not read.
+            const unreported = outcome.errors.filter((e) => !e.startsWith("business "));
+            if (unreported.length > 0) {
+              const { reportServerError } = await import("@/lib/observability/report.server");
+              await reportServerError(new Error(unreported.join("; ")), "cron-digest-errors");
+            }
+            if (outcome.advisors + outcome.owners === 0) failures.push("digest");
+          }
+          return outcome;
+        });
+        const synced = await stage("quickbooks", failures, () => qbo.syncDueConnections(sql));
 
         return Response.json(
           {
