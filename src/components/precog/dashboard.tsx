@@ -24,7 +24,7 @@ import { formatUsd } from "@/lib/utils";
 import { IndexBasis } from "@/components/precog/index-basis";
 import { MapHealthCard } from "@/components/precog/map-health-card";
 import { ControlCalendarCard } from "@/components/precog/control-calendar";
-import { BooksVsMapCard } from "@/components/precog/start-here-figures-section";
+import { BooksVsDutiesCard } from "@/components/precog/start-here-figures-section";
 import { WeeklyActionPlan } from "@/components/precog/weekly-action-plan";
 import { MetricCard } from "@/components/precog/home-shell-parts";
 import { Badge } from "@/components/ui/badge";
@@ -192,7 +192,7 @@ export function Dashboard({
         onFixIssues={() => onOpen("map", null, "validate")}
       />
 
-      <BooksVsMapCard driftActions={driftActions} />
+      <BooksVsDutiesCard driftActions={driftActions} />
 
       <IndexBasis />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -238,7 +238,7 @@ export function Dashboard({
               ? "Not assessed yet"
               : soleOwnerFigure === singlePoints.count
                 ? `${singlePoints.nobody} with nobody, ${singlePoints.onePerson} with one person`
-                : `${soleOwnerFigure} from your business profile; the Who knows what register counts ${singlePoints.count}. Open it to reconcile.`
+                : `${soleOwnerFigure} in Business settings; the Who knows what register counts ${singlePoints.count}. Open it to reconcile.`
           }
           tone={!registerReady || soleOwnerFigure === 0 ? "primary" : "danger"}
           onClick={() => onOpen("knowledge")}
@@ -280,7 +280,7 @@ export function Dashboard({
             <CardTitle>{say("Biggest risks left", "Top residual risks")}</CardTitle>
             <CardDescription>
               {say(
-                `Based on your business profile: ${count(sodGaps, "control")} not split between two people, ${count(conflicts, "duty conflict")} found.`,
+                `Based on your Business settings and team: ${count(sodGaps, "control")} not split between two people, ${count(conflicts, "duty conflict")} found.`,
                 `Profile-driven · ${sodGaps} static gaps · ${conflicts} detected conflicts`,
               )}
             </CardDescription>

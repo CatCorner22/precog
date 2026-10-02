@@ -43,12 +43,12 @@ export function StartHereFiguresSection({
  * Home lists these items last on "Do these first"; the Dashboard shows them
  * in this card until it is retired.
  */
-export function BooksVsMapCard({ driftActions }: { driftActions: readonly DriftAction[] }) {
+export function BooksVsDutiesCard({ driftActions }: { driftActions: readonly DriftAction[] }) {
   if (driftActions.length === 0) return null;
   return (
     <Card className="border-warn/40 bg-warn/5">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Books vs map</CardTitle>
+        <CardTitle className="text-base">Books vs your duty assignments</CardTitle>
         <CardDescription>
           QuickBooks or an access export disagrees with your duty assignments — resolve it before
           you rely on segregation checks.

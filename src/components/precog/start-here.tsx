@@ -58,11 +58,11 @@ export function StartHere({
           )}
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          This page starts with what to do first, then shows where a business like yours carries
-          exposure, what that same exposure has cost real businesses, and whether the work goes on
-          when someone is out. Every dollar figure and duration on this page links to the case or
-          study it came from. The continuity percentages are Precog&rsquo;s own indices; Who knows
-          what explains how Precog counts each.
+          This page opens with two headline figures, then says what to do first, then shows where a
+          business like yours carries exposure, what that same exposure has cost real businesses,
+          and whether the work goes on when someone is out. Every dollar figure and duration on this
+          page links to the case or study it came from. The continuity percentages are
+          Precog&rsquo;s own indices; Who knows what explains how Precog counts each.
         </p>
       </header>
 
