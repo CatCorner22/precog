@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ClientList, openClientReport } from "./client-list";
+import { ClientList } from "./client-list";
+import { openClientReport } from "./open-client-report";
 import type { ClientEngagementRow } from "@/lib/precog/firm/store";
 
 vi.mock("@/lib/precog/firm/server", () => ({
