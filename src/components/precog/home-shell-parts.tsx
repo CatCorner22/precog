@@ -34,7 +34,7 @@ export function TabStrip({
   activeId: string;
   children: ReactNode;
   onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
-  /** Every tab, including the ones behind "More"; the tab walk (scripts/e2e-tabs.mjs) checks it. */
+  /** Every tab, including the ones behind "Advanced"; the tab walk (scripts/e2e-tabs.mjs) checks it. */
   tabCount: number;
 }) {
   const ref = useRef<HTMLElement | null>(null);
@@ -109,16 +109,11 @@ export function MoreTabsMenu({
   tabs,
   activeId,
   label,
-  badge,
-  badgeText,
   onPick,
 }: {
   tabs: readonly ShellTab[];
   activeId: TabId;
   label: (tab: ShellTab) => string;
-  badge: (tab: ShellTab) => number;
-  /** What a badge count means, for screen readers: n => "2 decisions to review". */
-  badgeText: (n: number) => string;
   onPick: (id: TabId) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -179,7 +174,6 @@ export function MoreTabsMenu({
     items[next]?.focus();
   }
 
-  const totalBadge = tabs.reduce((n, t) => n + badge(t), 0);
   return (
     <div ref={ref} className="relative shrink-0">
       <button
@@ -202,23 +196,21 @@ export function MoreTabsMenu({
             : "text-muted hover:bg-elevated/60 hover:text-fg",
         )}
       >
-        More
+        Advanced
         <ChevronDown
           className={cn("size-3.5 transition-transform", open && "rotate-180")}
           aria-hidden
         />
-        {totalBadge > 0 && <CountBadge n={totalBadge} tone="warn" text={badgeText(totalBadge)} />}
       </button>
       {open && (
         <div
           role="menu"
-          aria-label="More views"
+          aria-label="Advanced views"
           onKeyDown={onMenuKeyDown}
           className="absolute right-0 z-30 mt-1 w-64 rounded-lg border border-border bg-surface p-1 shadow-xl"
         >
           {tabs.map((t, i) => {
             const Icon = t.icon;
-            const n = badge(t);
             return (
               <button
                 key={t.id}
@@ -237,7 +229,6 @@ export function MoreTabsMenu({
               >
                 <Icon className="size-4" aria-hidden />
                 <span className="flex-1">{label(t)}</span>
-                {n > 0 && <CountBadge n={n} tone="warn" text={badgeText(n)} />}
               </button>
             );
           })}

@@ -3,13 +3,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
   Archive,
-  BookOpen,
   BookOpenCheck,
-  Brain,
-  Compass,
+  CalendarCheck,
   Eye,
   Gauge,
-  Grid3x3,
+  House,
   LibraryBig,
   Layers,
   Map,
@@ -18,19 +16,16 @@ import {
   Shield,
   Sparkles,
   TrendingUp,
+  Users,
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import type { DeepLinkTarget } from "@/lib/precog/coso";
-import { continuitySlips, decisionsDue } from "@/lib/precog/decisions/follow-through";
-import { useToday } from "@/lib/use-today";
-import { localDateKey } from "@/lib/precog/dates";
-import { isNavTarget, parseHomeSearch, TAB_WORDS, type TabId } from "@/lib/precog/navigation";
+import { parseHomeSearch, resolveNavTarget, TAB_WORDS, type TabId } from "@/lib/precog/navigation";
 import { usePracticeState, useTemplate } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { latestReview, monthKey, monthlyReviewTasks } from "@/lib/precog/firm/reviews";
-import { count, verb } from "@/lib/precog/text";
+import { count } from "@/lib/precog/text";
 import type { MatrixLayerId } from "@/lib/precog/types";
 import { AccountDataControls } from "@/components/precog/account-menu";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
@@ -41,7 +36,8 @@ import {
   TabStrip,
   type ShellTab,
 } from "@/components/precog/home-shell-parts";
-import { LeaverAccessPrompt } from "@/components/precog/leaver-access";
+import { LegalFooter } from "@/components/precog/legal-footer";
+import { NeedsAttentionMenu } from "@/components/precog/needs-attention-menu";
 import { PresentationToggle } from "@/components/precog/presentation-toggle";
 import { SaveConflictBanner } from "@/components/precog/save-conflict-banner";
 import { StartHere } from "@/components/precog/start-here";
@@ -69,7 +65,6 @@ function Home() {
   const tpl = useTemplate();
   const { profile, ready } = usePracticeState();
   const { say } = usePresentation();
-  const today = useToday();
 
   /**
    * The one way to change the view: a tab, optionally one item on it, and
@@ -78,13 +73,17 @@ function Home() {
    */
   const openTab = useCallback(
     (target: string, nextItem?: string | null, nextBuild?: boolean | "validate") => {
-      if (!isNavTarget(target)) {
+      // An alias ("journal", "residual", "control") opens the tab and view it became.
+      const landing = resolveNavTarget(target, nextItem);
+      if (!landing) {
         if (import.meta.env.DEV) console.warn(`No tab named "${target}"`);
         return;
       }
-      // A confirmed starter control opens the control list on Where risk sits.
-      const next: TabId = target === "control" ? "layers" : target;
-      const id = target === "control" ? "control" : nextItem;
+      if ("href" in landing) {
+        void navigate({ href: landing.href });
+        return;
+      }
+      const { tab: next, item: id } = landing;
       void navigate({
         search: {
           ...(next !== "start" ? { tab: next } : {}),
@@ -128,28 +127,13 @@ function Home() {
     onboardingWasOpen.current = showOnboarding;
   }, [showOnboarding]);
 
-  // The shell computes only what it shows on every tab: the conflict badge and
-  // the two decision notices. Each tab runs its own engines.
+  // The shell computes only what it shows on every tab: the conflict badge.
+  // "Needs attention" counts its own items; each tab runs its own engines.
   const sodReport = useMemo(
     () => detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease)),
     [tpl, profile.staff, profile.dualRelease],
   );
-  const overdueDecisions = useMemo(
-    () => decisionsDue(profile.decisions, localDateKey(today)).overdue.length,
-    [profile.decisions, today],
-  );
-  const slippedDecisions = useMemo(
-    () => continuitySlips(profile.decisions, tpl).length,
-    [profile.decisions, tpl],
-  );
   const critical = sodReport.summary.critical;
-  const openMonthlyChecks = useMemo(() => {
-    const day = localDateKey(today);
-    const period = monthKey(day);
-    const tasks = monthlyReviewTasks(day, tpl.people, tpl.roleTemplates);
-    return tasks.filter((task) => !latestReview(profile.monthlyReviews ?? [], task.key, period))
-      .length;
-  }, [today, tpl.people, tpl.roleTemplates, profile.monthlyReviews]);
 
   /** Roving focus for the tab strip: arrow keys, Home, and End move between tabs. */
   function onTabKeyDown(event: KeyboardEvent<HTMLElement>) {
@@ -183,8 +167,8 @@ function Home() {
           Skip to content
         </a>
         <header className="sticky top-[var(--grok-banner-h,0px)] z-20 border-b border-border bg-bg/90 backdrop-blur">
-          {/* On a phone the wording, save state, notices and Firm workspace wrap
-              to a second row instead of disappearing. */}
+          {/* On a phone the wording, save state, Report, Needs attention and Firm
+              workspace wrap to a second row instead of disappearing. */}
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
             <div className="order-1 flex min-w-0 items-center gap-2">
               <span className="inline-flex size-8 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
@@ -195,25 +179,10 @@ function Home() {
             <div className="order-3 flex w-full flex-wrap items-center gap-2 sm:order-2 sm:ml-auto sm:w-auto">
               <PresentationToggle />
               <SyncStatusBadge compactOnPhone />
-              {overdueDecisions > 0 && (
-                <button
-                  type="button"
-                  onClick={() => openTab("journal")}
-                  className="rounded-md border border-warn/40 bg-warn/10 px-2 py-1 text-xs text-warn"
-                >
-                  {count(overdueDecisions, "decision")} to review
-                </button>
-              )}
-              {slippedDecisions > 0 && (
-                <button
-                  type="button"
-                  onClick={() => openTab("journal")}
-                  className="rounded-md border border-danger/40 bg-danger/10 px-2 py-1 text-xs text-danger"
-                >
-                  {count(slippedDecisions, "decision")} undone since you marked{" "}
-                  {verb(slippedDecisions, "it", "them")} done
-                </button>
-              )}
+              <Link to="/report" className={buttonClass({ variant: "secondary", size: "sm" })}>
+                Report
+              </Link>
+              <NeedsAttentionMenu onOpen={(target) => openTab(target)} />
               <SignedIn>
                 <Link
                   to="/firm"
@@ -221,11 +190,6 @@ function Home() {
                   className={buttonClass({ variant: "secondary", size: "sm" })}
                 >
                   Firm workspace
-                  {openMonthlyChecks > 0 && (
-                    <span className="ml-1.5 rounded-full bg-warn px-1.5 py-0.5 text-[10px] font-semibold text-warn-fg">
-                      {openMonthlyChecks}
-                    </span>
-                  )}
                 </Link>
               </SignedIn>
             </div>
@@ -279,15 +243,11 @@ function Home() {
               tabs={ADVANCED_TABS}
               activeId={tab}
               label={(t) => say(t.label, t.tactical)}
-              badge={(t) => (t.id === "journal" ? overdueDecisions : 0)}
-              badgeText={(n) => `${count(n, "decision")} to review`}
               onPick={(id) => openTab(id)}
             />
           </TabStrip>
         </header>
         <SaveConflictBanner />
-        {/* On Start here the leaver check is part of the page; elsewhere it asks once at the top. */}
-        {tab !== "start" && <LeaverAccessPrompt />}
 
         <main id="main-content" tabIndex={-1} className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
           <div id="tab-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
@@ -301,6 +261,7 @@ function Home() {
             >
               <Suspense fallback={<TabLoading />}>
                 {tab === "start" && <StartHere onOpenDetail={openTab} sod={sodReport} />}
+                {tab === "team" && <TeamArea />}
                 {tab === "command" && <Dashboard sodReport={sodReport} onOpen={openTab} />}
                 {tab === "map" && (
                   <ProcessMap
@@ -312,19 +273,10 @@ function Home() {
                   />
                 )}
                 {tab === "pioneer" && <PioneerCoach onNavigate={openTab} />}
-                {tab === "intel" && <IntelligencePanel onNavigate={openTab} />}
-                {tab === "residual" && (
-                  <div className="space-y-4">
-                    <TabIntro id="residual" />
-                    <ResidualRadar onNavigate={openDeepLink} />
-                  </div>
+                {tab === "scores" && (
+                  <ScoresArea view={item} openTab={openTab} onNavigate={openDeepLink} />
                 )}
-                {tab === "coso" && (
-                  <div className="space-y-4">
-                    <TabIntro id="coso" />
-                    <CosoHeatmap onNavigate={openDeepLink} />
-                  </div>
-                )}
+                {tab === "monthly" && <MonthlyArea item={item} openTab={openTab} />}
                 {tab === "layers" && (
                   <div className="space-y-4">
                     <TabIntro id="layers" />
@@ -359,7 +311,6 @@ function Home() {
                   </div>
                 )}
                 {tab === "sod" && <SodPanel onNavigate={openTab} report={sodReport} />}
-                {tab === "journal" && <DecisionJournal onOpenLinked={openTab} />}
                 {tab === "snapshots" && <AssessmentSnapshots />}
                 {tab === "blueprint" && <OperatingBlueprint />}
                 {tab === "value" && <ValueProofCenter />}
@@ -367,6 +318,9 @@ function Home() {
             </TabErrorBoundary>
           </div>
         </main>
+        <footer className="mx-auto max-w-7xl px-4 pb-8 sm:px-6">
+          <LegalFooter />
+        </footer>
       </div>
     </div>
   );
@@ -404,19 +358,18 @@ function deepLinkItem(target: DeepLinkTarget): string | undefined {
 }
 
 const TAB_ICONS: Record<TabId, ShellTab["icon"]> = {
-  start: Compass,
-  command: Activity,
-  map: Map,
-  pioneer: MessageSquare,
-  intel: Brain,
-  residual: Gauge,
-  coso: Grid3x3,
-  layers: Layers,
+  start: House,
+  team: Users,
+  sod: Shield,
   knowledge: Network,
   procedures: BookOpenCheck,
+  monthly: CalendarCheck,
+  map: Map,
   precog: Sparkles,
-  sod: Shield,
-  journal: BookOpen,
+  pioneer: MessageSquare,
+  scores: Gauge,
+  layers: Layers,
+  command: Activity,
   value: TrendingUp,
   blueprint: LibraryBig,
   snapshots: Archive,
@@ -425,38 +378,25 @@ const TAB_ICONS: Record<TabId, ShellTab["icon"]> = {
 const TABS: readonly ShellTab[] = TAB_WORDS.map((t) => ({ ...t, icon: TAB_ICONS[t.id] }));
 
 /**
- * Seven tabs carry the product: where you stand, how work flows, who controls
- * what, who knows what, how to do it when they are out, what could happen,
- * and the advisor. The rest are other views of the same inputs and sit
- * behind "More", so a first visit meets seven choices, not sixteen. Every
- * tab keeps its id and deep link.
+ * Six tabs carry the product: where you stand, who works here, who controls
+ * what, who knows what, how to do it when they are out, and what to check
+ * each month. The rest are deeper views of the same inputs and sit behind
+ * "Advanced". Every tab keeps its id and deep link, and older ids open the
+ * view they became (TAB_ALIASES).
  */
 const PRIMARY_TAB_IDS: readonly TabId[] = [
   "start",
-  "map",
+  "team",
   "sod",
   "knowledge",
   "procedures",
-  "precog",
-  "pioneer",
+  "monthly",
 ];
 const PRIMARY_TABS = PRIMARY_TAB_IDS.map((id) => TABS.find((t) => t.id === id)!);
 const ADVANCED_TABS = TABS.filter((t) => !PRIMARY_TAB_IDS.includes(t.id));
 
 /** Heading (tactical) and one-line purpose, in both wordings, for the tabs that open on a heading. */
 const TAB_INTROS = {
-  residual: {
-    heading: "Residual risk radar",
-    plain:
-      "Which risks remain after the controls you have today, scored from your business profile.",
-    tactical: "Transparent scoring from the business profile.",
-  },
-  coso: {
-    heading: "COSO control system",
-    plain:
-      "How well your controls cover each part of a sound control system, with a link to each gap.",
-    tactical: "Component health with deep links.",
-  },
   layers: {
     heading: "Six layers of your business",
     plain:
@@ -478,7 +418,7 @@ const TAB_INTROS = {
       "Step-by-step desk procedures by platform and module, linked to the register, with review dates.",
   },
   precog: {
-    heading: "Precog scenario engine",
+    heading: "Scenario engine",
     plain:
       "Pick a scenario to see the assumed loss and how long it would run undetected, then test what dual release, an independent bank reconciliation, or your insurance would change.",
     tactical: "Timelines, insurance cost of risk, multi-scenario compare, cascades.",
@@ -519,11 +459,6 @@ const ProcessMap = lazy(() =>
 const PioneerCoach = lazy(() =>
   import("@/components/precog/pioneer-coach").then((module) => ({ default: module.PioneerCoach })),
 );
-const ResidualRadar = lazy(() =>
-  import("@/components/precog/residual-radar").then((module) => ({
-    default: module.ResidualRadar,
-  })),
-);
 const ScenarioRunner = lazy(() =>
   import("@/components/precog/scenario-runner").then((module) => ({
     default: module.ScenarioRunner,
@@ -531,11 +466,6 @@ const ScenarioRunner = lazy(() =>
 );
 const SodPanel = lazy(() =>
   import("@/components/precog/sod-panel").then((module) => ({ default: module.SodPanel })),
-);
-const IntelligencePanel = lazy(() =>
-  import("@/components/precog/intelligence-panel").then((module) => ({
-    default: module.IntelligencePanel,
-  })),
 );
 const KnowledgeMap = lazy(() =>
   import("@/components/precog/knowledge-map").then((module) => ({ default: module.KnowledgeMap })),
@@ -556,13 +486,14 @@ const LayersPanel = lazy(() =>
 const LayerDetail = lazy(() =>
   import("@/components/precog/layers-panel").then((module) => ({ default: module.LayerDetail })),
 );
-const CosoHeatmap = lazy(() =>
-  import("@/components/precog/coso-heatmap").then((module) => ({ default: module.CosoHeatmap })),
+const TeamArea = lazy(() =>
+  import("@/components/precog/team-area").then((module) => ({ default: module.TeamArea })),
 );
-const DecisionJournal = lazy(() =>
-  import("@/components/precog/decision-journal").then((module) => ({
-    default: module.DecisionJournal,
-  })),
+const MonthlyArea = lazy(() =>
+  import("@/components/precog/monthly-area").then((module) => ({ default: module.MonthlyArea })),
+);
+const ScoresArea = lazy(() =>
+  import("@/components/precog/scores-area").then((module) => ({ default: module.ScoresArea })),
 );
 const AssessmentSnapshots = lazy(() =>
   import("@/components/precog/assessment-snapshots").then((module) => ({

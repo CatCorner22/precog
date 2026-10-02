@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-import { tabLabel, type TabId } from "./navigation";
+import { tabLabel, type NavTarget } from "./navigation";
 
 /**
  * Presentation mode.
@@ -85,7 +85,7 @@ export function usePresentation(): PresentationValue {
  * ("Logged in the Decisions log" in plain mode, "Logged in the Journal" in
  * tactical), so a sentence never disagrees with the tab strip.
  */
-export function useTabName(): (tab: TabId) => string {
+export function useTabName(): (tab: NavTarget) => string {
   const { say } = usePresentation();
   return (tab) => tabLabel(tab, say);
 }

@@ -194,7 +194,7 @@ async function exceptionFirstSetup(page, errors) {
   ]);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload({ waitUntil: "networkidle" });
-  await page.locator("nav").waitFor();
+  await page.locator("nav[data-tab-count]").waitFor();
   noErrors(errors);
 }
 

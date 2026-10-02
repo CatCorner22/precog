@@ -3,7 +3,7 @@
  * Headless end-to-end smoke for the map builder. Drives the real UI against a
  * running dev/preview server and exits non-zero when any step fails:
  *
- *   1. load the dental demo and open "How work flows"
+ *   1. load the dental demo and open "How work flows" (?tab=map)
  *   2. enter Build mode, add a process, rename it
  *   3. keyboard: F frames the selection, ArrowLeft moves to the previous stage
  *   4. Spreadsheet: import a CSV that updates one process and adds another
@@ -33,10 +33,11 @@ await withPage(options, async (p, errors) => {
   step("load the dental sample");
   await page.getByRole("radio", { name: /^Dental/ }).click();
   await page.getByRole("button", { name: "Explore the sample instead" }).click();
-  await page
-    .getByText(/How work flows/i)
-    .first()
-    .click();
+  // How work flows sits under Advanced; its address opens it directly, and
+  // the sample chosen above stays the open business.
+  await page.locator("nav[data-tab-count]").waitFor();
+  await page.waitForLoadState("networkidle");
+  await page.goto(`${baseUrl}/?tab=map`, { waitUntil: "networkidle", timeout });
   await page.locator(".react-flow__node").first().waitFor();
 
   step("enter Build mode");

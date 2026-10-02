@@ -65,6 +65,19 @@
  * weight, the layout-1 report labels and the case-record markings. Each step
  * fit alone; together they pass 790 KB by 0.1 KB. The largest chunk does not
  * move (107.3 KB). Total budget raised from 790 KB to 795 KB.
+ *
+ * 2026-10-02: Phase 5 slice S1a (the Team, Monthly review and How Precog
+ * scores tabs, the alias map, the header's Report link and Needs attention
+ * menu, the home footer) measures 799.0 KB in 113 chunks against 790.1 KB in
+ * 100. The three new tabs load lazily, so the entry chunk does not take them,
+ * but each shows panels that still also show in their old places until wave 2
+ * (the team editor in the map builder, the Monthly review, evidence log and
+ * access import on /firm, the control calendar on the Dashboard, the job
+ * catalog in setup). A module two lazy screens share becomes its own chunk,
+ * and those 13 extra chunks cost about 4 KB in import lists and in smaller
+ * files compressing less well; the new code is about 5 KB. No eager import
+ * was left to make lazy. Total budget raised from 795 KB to 800 KB; wave 2
+ * removes the old places and then lowers it to the measured total.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -73,7 +86,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 795 * 1024,
+  totalGzipBytes: 800 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

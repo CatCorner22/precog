@@ -1,19 +1,22 @@
 import { ArrowRight } from "lucide-react";
 import { toast } from "sonner";
-import { LeaverAccessList } from "@/components/precog/leaver-access";
 import { usePracticeActions } from "@/lib/precog/practice-context";
 import type { NavFn } from "@/lib/precog/navigation";
 import type { StartHereModel } from "@/lib/precog/start-here/model";
-import { count, verb } from "@/lib/precog/text";
 
+/**
+ * The top of Home: on the sample team, the note that the gaps are the
+ * sample's. Decisions to review and leavers to check are in the header's
+ * "Needs attention" menu, on every tab.
+ */
 export function StartHerePreamble({
   model,
-  onOpenDetail,
 }: {
   model: StartHereModel["preamble"];
-  onOpenDetail: NavFn;
+  /** Unused since the decision and leaver notices moved to "Needs attention"; kept for the caller. */
+  onOpenDetail?: NavFn;
 }) {
-  const { overdue, slipped, isSampleTeam, industryLabel } = model;
+  const { isSampleTeam, industryLabel } = model;
   const { createBusiness } = usePracticeActions();
 
   /** Opens setup for the owner's own business, as the business menu's "Set up my own business" does. */
@@ -24,36 +27,6 @@ export function StartHerePreamble({
 
   return (
     <>
-      {overdue.length > 0 && (
-        <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">
-          {count(overdue.length, "decision")} past {verb(overdue.length, "its", "their")} review
-          date —{" "}
-          <button
-            type="button"
-            onClick={() => onOpenDetail("journal")}
-            className="font-medium underline hover:text-fg"
-          >
-            review now
-          </button>
-        </div>
-      )}
-
-      {slipped.length > 0 && (
-        <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
-          Continuity slipped on {count(slipped.length, "item")} you had closed as done (
-          {slipped.map((s) => s.decision.subject).join(", ")}) —{" "}
-          <button
-            type="button"
-            onClick={() => onOpenDetail("journal")}
-            className="font-medium underline hover:text-fg"
-          >
-            reopen
-          </button>
-        </div>
-      )}
-
-      <LeaverAccessList />
-
       {isSampleTeam && (
         <div className="rounded-lg border border-warn/40 bg-warn/5 p-4">
           <p className="text-sm font-medium text-warn">

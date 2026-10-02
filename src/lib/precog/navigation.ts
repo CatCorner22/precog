@@ -7,19 +7,18 @@
  * better off knowing both words for the same thing.
  */
 export const TAB_WORDS = [
-  { id: "start", label: "Start here", tactical: "Start here" },
-  { id: "command", label: "Dashboard", tactical: "Command" },
-  { id: "map", label: "How work flows", tactical: "Process map" },
-  { id: "pioneer", label: "Ask Pioneer", tactical: "Pioneer" },
-  { id: "intel", label: "Patterns", tactical: "Intel" },
-  { id: "residual", label: "What is still exposed", tactical: "Residual" },
-  { id: "coso", label: "Coverage check", tactical: "COSO" },
-  { id: "layers", label: "Where risk sits", tactical: "Layers" },
+  { id: "start", label: "Home", tactical: "Home" },
+  { id: "team", label: "Team", tactical: "Team" },
+  { id: "sod", label: "Who controls what", tactical: "SoD" },
   { id: "knowledge", label: "Who knows what", tactical: "Knowledge" },
   { id: "procedures", label: "Procedures", tactical: "Procedures" },
-  { id: "precog", label: "What could happen", tactical: "Precog" },
-  { id: "sod", label: "Who controls what", tactical: "SoD" },
-  { id: "journal", label: "Decisions log", tactical: "Journal" },
+  { id: "monthly", label: "Monthly review", tactical: "Monthly review" },
+  { id: "map", label: "How work flows", tactical: "Process map" },
+  { id: "precog", label: "What could happen", tactical: "Scenarios" },
+  { id: "pioneer", label: "Ask Pioneer", tactical: "Pioneer" },
+  { id: "scores", label: "How Precog scores", tactical: "Scoring" },
+  { id: "layers", label: "Where risk sits", tactical: "Layers" },
+  { id: "command", label: "Dashboard", tactical: "Command" },
   { id: "value", label: "Value proof", tactical: "Value" },
   { id: "blueprint", label: "Operating blueprint", tactical: "Blueprint" },
   { id: "snapshots", label: "Assessment snapshots", tactical: "Snapshots" },
@@ -28,10 +27,31 @@ export const TAB_WORDS = [
 export type TabId = (typeof TAB_WORDS)[number]["id"];
 
 /**
- * Where a panel can send the owner: a tab, or "control", the control list on
- * Where risk sits.
+ * Names that are not tabs but still open one: older tab ids that now live
+ * inside a tab (saved links, decisions logged with that `linkedTab`, advisor
+ * answers), each opening the view or section it became. Each alias keeps its
+ * own wording, so a sentence such as "Dated in the Decisions log" still names
+ * the place the owner lands on, not the tab around it.
  */
-export type NavTarget = TabId | "control";
+export const TAB_ALIASES = {
+  residual: {
+    tab: "scores",
+    item: "residual",
+    label: "What is still exposed",
+    tactical: "Residual",
+  },
+  coso: { tab: "scores", item: "coverage", label: "Coverage check", tactical: "COSO" },
+  intel: { tab: "scores", item: "patterns", label: "Patterns", tactical: "Intel" },
+  journal: { tab: "monthly", item: "decisions", label: "Decisions log", tactical: "Journal" },
+} as const satisfies Record<string, { tab: TabId; item?: string; label: string; tactical: string }>;
+
+export type AliasId = keyof typeof TAB_ALIASES;
+
+/**
+ * Where a panel can send the owner: a tab, an alias, or "control", the
+ * control list on Where risk sits.
+ */
+export type NavTarget = TabId | AliasId | "control";
 
 /**
  * How a panel asks the shell to open another tab, optionally focused on one
@@ -43,13 +63,16 @@ export type NavFn = (tab: string, id?: string) => void;
 /**
  * The home page's address: `?tab=precog&item=<scenario id>` opens that
  * scenario, and `&build=1` opens How work flows in build mode, so a reload or
- * a pasted link lands on the same view and the same item.
+ * a pasted link lands on the same view and the same item. An alias in the
+ * address (`?tab=journal`) opens the tab and the view it became.
  */
 interface HomeSearch {
   tab?: TabId;
   item?: string;
   /** Build mode on How work flows; "validate" also opens the builder's Validate panel. */
   build?: true | "validate";
+  /** A QuickBooks connection outcome, kept only when it is one of the known codes. */
+  quickbooks?: string;
 }
 
 export const TAB_IDS: readonly TabId[] = TAB_WORDS.map((t) => t.id);
@@ -58,23 +81,63 @@ export function isTabId(value: unknown): value is TabId {
   return typeof value === "string" && (TAB_IDS as readonly string[]).includes(value);
 }
 
+export function isAliasId(value: unknown): value is AliasId {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(TAB_ALIASES, value);
+}
+
 export function isNavTarget(value: unknown): value is NavTarget {
-  return value === "control" || isTabId(value);
+  return value === "control" || isTabId(value) || isAliasId(value);
 }
 
 /**
- * Reads the home page's search params. Start here is the default tab, so it
- * never appears in the address; an unknown tab falls back to it; an item
- * outlives only a tab that can show one.
+ * Where a target lands: its tab and, when it has one, the item on it. An
+ * alias's own item (a view or a section) wins; otherwise the item passes
+ * through only to a tab that opens on one. A route alias (a whole other page)
+ * comes back as `{ href }`. A name that is neither a tab nor an alias comes
+ * back as null.
+ */
+export function resolveNavTarget(
+  target: string,
+  item?: string | null,
+): { tab: TabId; item?: string } | { href: string } | null {
+  // A confirmed starter control opens the control list on Where risk sits.
+  if (target === "control") return { tab: "layers", item: "control" };
+  if (isAliasId(target)) {
+    const alias: { tab: TabId; item?: string } = TAB_ALIASES[target];
+    return alias.item ? { tab: alias.tab, item: alias.item } : withItem(alias.tab, item);
+  }
+  if (isTabId(target)) return withItem(target, item);
+  return null;
+}
+
+function withItem(tab: TabId, item?: string | null): { tab: TabId; item?: string } {
+  return item && ITEM_TABS.has(tab) ? { tab, item } : { tab };
+}
+
+/** The outcomes the QuickBooks connection reports back in the address. */
+const QUICKBOOKS_STATUSES: ReadonlySet<string> = new Set([
+  "connected",
+  "declined",
+  "invalid",
+  "signed-out",
+  "wrong-account",
+  "failed",
+  "not-configured",
+]);
+
+/**
+ * Reads the home page's search params. Home is the default tab, so it never
+ * appears in the address; an alias opens the tab it became; an unknown tab
+ * falls back to Home; an item outlives only a tab that can show one.
  */
 export function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
-  const tab = isTabId(search.tab) && search.tab !== "start" ? search.tab : undefined;
   // The router reads `item=42` as a number; an id is always text.
   const raw = typeof search.item === "number" ? String(search.item) : search.item;
-  const item =
-    tab && ITEM_TABS.has(tab) && typeof raw === "string" && raw.length <= ITEM_MAX
-      ? raw.trim() || undefined
-      : undefined;
+  const given = typeof raw === "string" && raw.length <= ITEM_MAX ? raw.trim() : undefined;
+  const target = typeof search.tab === "string" ? resolveNavTarget(search.tab, given) : null;
+  const landing = target && "tab" in target && target.tab !== "start" ? target : null;
+  const tab = landing?.tab;
+  const item = landing?.item || undefined;
   const build =
     tab !== "map"
       ? undefined
@@ -83,19 +146,31 @@ export function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
         : search.build === true || search.build === "1" || search.build === 1
           ? (true as const)
           : undefined;
+  const quickbooks =
+    typeof search.quickbooks === "string" && QUICKBOOKS_STATUSES.has(search.quickbooks)
+      ? search.quickbooks
+      : undefined;
   return {
     ...(tab ? { tab } : {}),
     ...(item ? { item } : {}),
     ...(build ? { build } : {}),
+    ...(quickbooks ? { quickbooks } : {}),
   };
 }
 
-/** The tabs that open on one item: a scenario, a register entry, a procedure, a process, or a layer. */
+/**
+ * The tabs that open on one item: a scenario, a register entry, a procedure,
+ * a process, or a layer. On Who controls what, How Precog scores and Monthly
+ * review, the item names a view or a section.
+ */
 const ITEM_TABS: ReadonlySet<TabId> = new Set([
   "precog",
   "knowledge",
   "procedures",
   "map",
+  "sod",
+  "scores",
+  "monthly",
   "layers",
 ]);
 
@@ -103,14 +178,17 @@ const ITEM_MAX = 120;
 
 /**
  * A tab's name in the active wording ("Who controls what" for "sod" in plain
- * wording; pass `say` from usePresentation for the toggle). Every "Open …"
- * button reads it from TAB_WORDS, so a button never prints a tab's internal
- * id; an unknown id is returned as given.
+ * wording; pass `say` from usePresentation for the toggle). An alias reads
+ * its own wording ("Decisions log" for "journal"), not its tab's. Every
+ * "Open …" button reads it from here, so a button never prints a tab's
+ * internal id; an unknown id is returned as given.
  */
 export function tabLabel(
-  tab: string,
+  tab: NavTarget | (string & {}),
   say: (plain: string, tactical: string) => string = (plain) => plain,
 ): string {
-  const wording = TAB_WORDS.find((t) => t.id === tab);
+  const wording: { label: string; tactical: string } | undefined = isAliasId(tab)
+    ? TAB_ALIASES[tab]
+    : TAB_WORDS.find((t) => t.id === tab);
   return wording ? say(wording.label, wording.tactical) : tab;
 }
