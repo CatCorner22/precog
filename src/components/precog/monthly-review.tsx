@@ -71,6 +71,7 @@ export function MonthlyReview() {
           dueOn,
           result,
           notes: note,
+          today: localDateKey(new Date()),
         },
       }).then((res) => {
         if (result === "skipped") {
@@ -81,11 +82,33 @@ export function MonthlyReview() {
           toast.success("Saved on this business and recorded in the control evidence log.");
           return;
         }
-        toast.success("Saved on this business.", {
+        if (res.evidenceSkippedReason === "bridge_disabled") {
+          toast.success("Saved on this business.", {
+            description:
+              "Precog does not add monthly notes to the evidence log on this deployment.",
+          });
+          return;
+        }
+        if (res.evidenceSkippedReason === "migration_pending") {
+          toast.success("Saved on this business.", {
+            description:
+              "The evidence log is not ready on this deployment yet — your monthly note is still saved.",
+          });
+          return;
+        }
+        if (res.evidenceSkippedReason === "already_recorded") {
+          toast.success("Saved on this business.", {
+            description:
+              "The evidence log keeps the first result for this check and month. The monthly log keeps this one.",
+          });
+          return;
+        }
+        // Anything else is a failure of ours or the evidence log's reason for refusing the entry.
+        toast.warning("Saved on this business, but not in the evidence log.", {
           description:
-            res.evidenceSkippedReason === "migration_pending"
-              ? "The evidence log is not ready on this deployment yet — your monthly note is still saved."
-              : "The account evidence log did not update; try again when signed in.",
+            res.evidenceSkippedReason === "bridge_failed"
+              ? "Precog could not add the entry. Press the result again later."
+              : (res.evidenceSkippedReason ?? undefined),
         });
       });
     } catch (error) {
@@ -105,15 +128,16 @@ export function MonthlyReview() {
     <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-lg font-semibold">This month’s file</h2>
       <p className="mt-1 text-sm text-muted">
-        Four checks taken from the register. Record a result with an owner and a note. Precog adds a
-        later result; the earlier one stays in the log. When you are signed in, Done and Exception
-        also create a preparer entry in the{" "}
+        Four checks taken from the register. Record a result with an owner and a note. The monthly
+        log keeps every result. When you are signed in, the first Done or Exception for each check
+        and month also goes into the{" "}
         <Link to="/firm" className="underline underline-offset-2">
           control evidence log
         </Link>{" "}
-        (a firm reviewer still records review separately). Two facts from QuickBooks, then the four
-        checks. Duty ticks on the map are starting duties, not system access. Lock the report to
-        send this page. Recording “Done” does not establish independent verification.
+        as a preparer entry dated the day you record it (a firm reviewer still records review
+        separately). Two facts from QuickBooks, then the four checks. Duty ticks on the map are
+        starting duties, not system access. Lock the report to send this page. Recording “Done” does
+        not establish independent verification.
       </p>
       {facts && (
         <ul className="mt-4 space-y-2">

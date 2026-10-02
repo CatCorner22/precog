@@ -154,8 +154,14 @@ On the Firm page, signed-in users can record a monthly check with its scope,
 reported performer, method, evidence references and conclusion. The first
 release covers bank-statement review, cleared-check images, payroll headcount,
 and vendor changes. References are pointers to restricted records, not uploaded
-or automatically verified documents. The existing monthly “Done” notes remain
-separate and receive no automatic evidence credit.
+or automatically verified documents. When you are signed in, a Done or Exception
+on the monthly review also adds one entry per check per month to this log: dated
+the day you record the result, method “inquiry”, with your note (or the month,
+when the note is empty) as the reference. A Done entry awaits review; an Exception
+entry needs correction by the monthly due date. The log takes the first Done or
+Exception for each check and month and refuses a later one; the monthly review
+keeps every result. Monthly notes recorded before this release are not copied
+into the log.
 
 The recording account cannot approve its own work. Firm preparers can record
 work and corrections; a separate firm owner or reviewer records review

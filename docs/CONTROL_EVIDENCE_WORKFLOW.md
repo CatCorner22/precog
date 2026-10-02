@@ -29,10 +29,17 @@ an explicit attestation constrain self-review; they do not establish that two
 accounts are controlled by different humans or verify actual permissions and
 competence. The screen explains the limitation.
 
-Existing monthly-review results are neither imported nor relabeled. No score,
-control-effectiveness calculation, insurance assumption or AI answer is improved
-merely by recording an event. The UI uses “no exception reported,” never a
-blanket “control effective” badge.
+When a signed-in user records Done or Exception on the monthly review, Precog
+adds one **record** entry for that check and month, recorded by that account. The
+entry is dated the day the result is recorded, uses method inquiry, names the
+monthly review's suggested owner as performer and cites the note (or the month
+when the note is empty). Done awaits review; Exception needs correction, with
+the monthly due date as the follow-up due date. A later result for the same
+check and month is refused here and kept only in the monthly review log.
+Monthly-review results recorded before this release are neither imported nor
+relabeled. No score, control-effectiveness calculation, insurance assumption or
+AI answer is improved merely by recording an event. The UI uses “no exception
+reported,” never a blanket “control effective” badge.
 
 ## Evidence and data handling
 

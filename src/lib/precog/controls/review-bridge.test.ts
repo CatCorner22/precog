@@ -25,6 +25,7 @@ describe("review-bridge", () => {
     expect(done.result).toBe("no_exception");
     expect(done.controlKey).toBe("bank_statement");
     expect(done.evidenceRefs).toEqual(["Opened April statement."]);
+    expect(done.method).toBe("inquiry");
   });
 
   it("skips bridging skipped reviews", () => {
@@ -61,6 +62,7 @@ describe("review-bridge", () => {
     if (cmd?.action !== "record") return;
     expect(cmd.result).toBe("exception");
     expect(cmd.followUpOwner).toBe("Owner");
+    expect(cmd.method).toBe("inquiry");
   });
 
   it("uses stable run and command ids per period and key", () => {
