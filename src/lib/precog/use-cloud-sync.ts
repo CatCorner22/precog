@@ -8,12 +8,15 @@ import {
 } from "react";
 import { toast } from "sonner";
 import {
+  identityLockReason,
   identitySnapshot,
   identityUnchanged,
   registerExitCheck,
   registerExitCleanup,
 } from "@/lib/auth/identity-change";
-import { downloadText } from "@/lib/download";
+import { reportClientError } from "@/lib/observability/report-browser";
+import { downloadRecoveryCopy } from "./recovery-copy";
+import { isStaleDeployError, PRECOG_UPDATED_MESSAGE } from "./stale-deploy";
 import { BusinessSaveQueue, removeAcknowledgedCopies } from "./workspace-storage";
 import type { Workspace } from "./workspace-context";
 import { authEnabled } from "@/lib/auth/client";
@@ -50,10 +53,11 @@ export type SyncStatus =
 
 /**
  * Why the conflict banner is up: another writer beat us to the account copy,
- * a sign-in met local work, or another tab in this browser saved this
- * business since this tab last did.
+ * a sign-in met local work, the account's copy, read late after it could not
+ * be reached, met edits made in the meantime, or another tab in this browser
+ * saved this business since this tab last did.
  */
-export type SaveConflictReason = "remote-edit" | "sign-in" | "other-tab";
+export type SaveConflictReason = "remote-edit" | "sign-in" | "unreachable" | "other-tab";
 
 export interface SaveConflictState {
   reason: SaveConflictReason;
@@ -67,6 +71,13 @@ export interface SaveConflictState {
 
 const SAVE_DEBOUNCE_MS = 1200;
 const LOCAL_PROFILE_DEBOUNCE_MS = 400;
+/** Waits before each retry of a failed account load; after the last, one a minute. */
+const LOAD_RETRY_MS = [2000, 5000, 15000];
+const LOAD_RETRY_EVERY_MS = 60_000;
+/** Failed loads in a row that go to the error tracker: more than a passing hiccup. */
+const LOAD_FAILURES_REPORTED = 4;
+/** The one "could not reach your account" notice, replaced on each retry the owner asks for and closed once the account is read. */
+const LOAD_FAILED_TOAST = "account-unreachable";
 /** The account revision each business was last saved or loaded at, on this device. */
 const CLOUD_BASES_KEY = "precog.cloud-bases.v1";
 /** The `updatedAt` stamp of each business's copy the account last acknowledged. */
@@ -126,6 +137,20 @@ export function useCloudSync(input: {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localWriteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingLocalWrite = useRef<PracticeProfile | null>(null);
+  // The workspace unmounts while another tab signs in or out. The edit still
+  // waiting for its local write is written now, to this browser only: the
+  // identity lock refuses an account save, as it has to.
+  useEffect(
+    () => () => {
+      const pending = pendingLocalWrite.current;
+      if (!pending || saveConflictRef.current?.reason === "other-tab") return;
+      pendingLocalWrite.current = null;
+      if (localWriteTimer.current) clearTimeout(localWriteTimer.current);
+      localWriteTimer.current = null;
+      localStore.write(pending);
+    },
+    [localStore],
+  );
   const cloudRevision = useRef<Map<string, number>>(new Map());
   const basesLoaded = useRef(false);
   if (!basesLoaded.current) {
@@ -192,6 +217,12 @@ export function useCloudSync(input: {
   const adopted = useRef<{ profile: PracticeProfile; rev: string | null } | null>(null);
   // The last account-save failure shown to the owner, so a retry does not repeat it.
   const lastCloudError = useRef<string | null>(null);
+  // A new release moved code this page points at: saving waits for a reload.
+  const staleDeploy = useRef(false);
+  // Whether the owner has heard that this browser refused the list of businesses.
+  const listRefusedShown = useRef(false);
+  // flushLocal, defined further down, for the update notice.
+  const flushLocalRef = useRef<() => boolean>(() => false);
 
   const cloudUser = Boolean(authEnabled && userId && !userIsDevFallback);
 
@@ -256,25 +287,99 @@ export function useCloudSync(input: {
   );
 
   /**
+   * A new release moved code this page points at, so every account save
+   * fails until a reload. The work goes to this browser first; then a notice
+   * that stays until the owner reloads says so.
+   */
+  const showUpdated = useCallback(() => {
+    if (!mounted.current) return;
+    staleDeploy.current = true;
+    const kept = flushLocalRef.current() && lastLocalWrite.current !== "failed";
+    setSyncStatus(kept ? "error" : "local-error");
+    const reload = { label: "Reload", onClick: () => window.location.reload() };
+    const lasting = { id: "precog-updated", duration: Infinity, dismissible: false };
+    if (kept) {
+      toast.error(PRECOG_UPDATED_MESSAGE, { ...lasting, action: reload });
+      return;
+    }
+    toast.error("Precog was updated. Download a recovery copy, then reload to keep saving.", {
+      ...lasting,
+      description: "This device did not keep your latest work.",
+      action: {
+        label: "Download a recovery copy",
+        onClick: () => downloadRecoveryCopy(workspace, profileRef.current),
+      },
+      cancel: reload,
+    });
+  }, [profileRef, workspace]);
+
+  /**
    * A save to the account failed. The badge says so; the reason (the
    * account's business limit, a lost connection) is shown once, not on
    * every retry.
    */
-  const reportCloudError = useCallback((error: unknown) => {
-    if (!mounted.current) return;
-    const keptHere = lastLocalWrite.current === "saved";
-    setSyncStatus(keptHere ? "error" : "local-error");
-    const raw = error instanceof Error ? error.message.trim() : "";
-    const message =
-      !raw || /fetch|network|load failed/i.test(raw)
-        ? keptHere
-          ? "Could not reach the server. Precog saved your work on this device; your next change tries your account again."
-          : "Could not reach the server or save on this device. Export a recovery copy before closing this page."
-        : raw;
-    if (message === lastCloudError.current) return;
-    lastCloudError.current = message;
-    toast.error("Not saved to your account", { description: message });
-  }, []);
+  const reportCloudError = useCallback(
+    (error: unknown) => {
+      if (!mounted.current) return;
+      if (isStaleDeployError(error)) {
+        showUpdated();
+        return;
+      }
+      const keptHere = lastLocalWrite.current === "saved";
+      setSyncStatus(keptHere ? "error" : "local-error");
+      const raw = error instanceof Error ? error.message.trim() : "";
+      const message =
+        !raw || /fetch|network|load failed/i.test(raw)
+          ? keptHere
+            ? "Could not reach the server. Precog saved your work on this device; your next change tries your account again."
+            : "Could not reach the server or save on this device. Download a recovery copy from the save badge before closing this page."
+          : raw;
+      if (message === lastCloudError.current) return;
+      lastCloudError.current = message;
+      toast.error("Not saved to your account", { description: message });
+    },
+    [showUpdated],
+  );
+
+  /**
+   * Keep a business in this browser's list of businesses. A refused write
+   * (storage full or blocked) is said once, with the recovery download,
+   * rather than read as a copy this device keeps.
+   */
+  const keepInList = useCallback(
+    (version: PracticeProfile) => {
+      if (savePortfolioEntry(version, workspace.local)) return true;
+      if (mounted.current && !listRefusedShown.current) {
+        listRefusedShown.current = true;
+        toast.error("This browser did not keep your list of businesses", {
+          description:
+            "Storage on this device is full or blocked. Download a recovery copy to keep your work.",
+          action: {
+            label: "Download a recovery copy",
+            onClick: () => downloadRecoveryCopy(workspace, profileRef.current),
+          },
+        });
+      }
+      return false;
+    },
+    [profileRef, workspace],
+  );
+
+  /** A copy this browser refused to keep: never claimed, offered as a file instead. */
+  const offerCopyDownload = useCallback(
+    (version: PracticeProfile, title: string) => {
+      if (!mounted.current) return;
+      toast.error(title, {
+        description: "Storage on this device is full or blocked. Download this copy to keep it.",
+        duration: Infinity,
+        action: {
+          label: "Download this copy",
+          onClick: () => downloadRecoveryCopy(workspace, version),
+        },
+      });
+    },
+    [workspace],
+  );
 
   /** Stop writing and ask the owner: another tab saved this business since this tab did. */
   const raiseTabConflict = useCallback(
@@ -339,30 +444,37 @@ export function useCloudSync(input: {
     if (cloudLoadedFor.current === userId) return;
 
     let cancelled = false;
-    setSyncStatus("loading");
-    void refreshBusinessList();
-    void loadBusinessProfile({ data: { today: localDateKey(new Date()) } })
-      .then((res) => {
-        if (cancelled) return;
-        cloudLoadedFor.current = userId;
-        const local = profileRef.current;
-        const localId = local.businessId ?? DEFAULT_BUSINESS_ID;
-        if (res.found && res.profile) {
-          // Cloud rows skip the client normaliser on the way in unless we run it here.
-          const remoteProfile = normalizeProfile(res.profile);
-          const id = remoteProfile.businessId ?? DEFAULT_BUSINESS_ID;
-          if (res.revision !== null) rememberRevision(id, res.revision);
+    let failures = 0;
+    let inFlight = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-          // This is only the verified account's namespace. Guest or legacy work is
-          // never silently attached to the account during sign-in.
-          if (id !== localId && hasUserWork(local)) savePortfolioEntry(local, workspace.local);
+    /** The account's copy has been read: the one place that marks it so. */
+    const loaded = (res: Awaited<ReturnType<typeof loadBusinessProfile>>) => {
+      cloudLoadedFor.current = userId;
+      if (failures > 0) toast.dismiss(LOAD_FAILED_TOAST);
+      const local = profileRef.current;
+      const localId = local.businessId ?? DEFAULT_BUSINESS_ID;
+      if (res.found && res.profile) {
+        // Cloud rows skip the client normaliser on the way in unless we run it here.
+        const remoteProfile = normalizeProfile(res.profile);
+        const id = remoteProfile.businessId ?? DEFAULT_BUSINESS_ID;
+        if (res.revision !== null) rememberRevision(id, res.revision);
 
-          // Same business, edited here before signing in (also over a legacy
-          // account copy with no revision yet): let the owner choose instead
-          // of silently replacing their work.
+        if (failures > 0) {
+          // Read late, after the owner worked on (and may have switched to)
+          // the open business: it stays open. The account's copy is the very
+          // version this tab built on, so the edits made meanwhile save over it.
+          const fastForward =
+            local.updatedAt !== remoteProfile.updatedAt &&
+            res.revision !== null &&
+            lineage.buildsOn(id, remoteProfile.updatedAt);
+          if (id !== localId || fastForward) {
+            saveOpenBusiness(local);
+            return;
+          }
           if (signInMeetsNewerWork(local, remoteProfile, syncedStamps.current[id])) {
             raiseConflict({
-              reason: "sign-in",
+              reason: "unreachable",
               businessId: id,
               remote: remoteProfile,
               revision: res.revision,
@@ -370,28 +482,135 @@ export function useCloudSync(input: {
             });
             return;
           }
+        }
 
-          // The save effect writes it to this browser as the open business.
-          rememberStamp(id, remoteProfile.updatedAt);
-          acknowledged.current.set(id, remoteProfile);
-          skipNextCloudSave.current = true;
-          activateProfile(remoteProfile);
-          savePortfolioEntry(remoteProfile, workspace.local);
-          setSyncStatus("synced");
+        // This is only the verified account's namespace. Guest or legacy work is
+        // never silently attached to the account during sign-in.
+        if (id !== localId && hasUserWork(local) && !savePortfolioEntry(local, workspace.local))
+          offerCopyDownload(local, `This browser did not keep a copy of ${local.practiceName}`);
+
+        // Same business, edited here before signing in (also over a legacy
+        // account copy with no revision yet): let the owner choose instead of
+        // silently replacing their work.
+        if (signInMeetsNewerWork(local, remoteProfile, syncedStamps.current[id])) {
+          raiseConflict({
+            reason: "sign-in",
+            businessId: id,
+            remote: remoteProfile,
+            revision: res.revision,
+            updatedAt: res.updatedAt,
+          });
           return;
         }
-        // Nothing in the account to open. The business here is on this device
-        // only until its next change is saved; a previously known base revision
-        // is kept, since missing is not permission to recreate.
+
+        // The save effect writes it to this browser as the open business.
+        rememberStamp(id, remoteProfile.updatedAt);
+        acknowledged.current.set(id, remoteProfile);
+        skipNextCloudSave.current = true;
+        activateProfile(remoteProfile);
+        // The account holds this copy, so a refused write here loses nothing.
+        keepInList(remoteProfile);
+        setSyncStatus("synced");
+        return;
+      }
+      // Nothing in the account to open. The business here is on this device
+      // only until its next change is saved; a previously known base revision
+      // is kept, since missing is not permission to recreate.
+      if (failures > 0) {
+        saveOpenBusiness(local);
+        return;
+      }
+      setSyncStatus(localStatus(lastLocalWrite.current));
+    };
+
+    /**
+     * Edits made while the account could not be reached were not saved to
+     * it; they go now rather than waiting for the next change.
+     */
+    const saveOpenBusiness = (local: PracticeProfile) => {
+      if (local.onboardingComplete === false || !hasUserWork(local)) {
         setSyncStatus(localStatus(lastLocalWrite.current));
-      })
-      .catch(() => {
-        if (!cancelled)
-          setSyncStatus(lastLocalWrite.current === "failed" ? "local-error" : "error");
-      });
+        return;
+      }
+      setSyncStatus("saving");
+      void saveCloud(local).catch(reportCloudError);
+    };
+
+    /**
+     * Read the account's copy. A failure retries after 2 s, 5 s and 15 s,
+     * then once a minute, and also when the connection returns, when the tab
+     * comes back into view, or when the owner asks; until then no edit is
+     * saved to the account, which is never written before it is read.
+     */
+    const attempt = (asked = false) => {
+      if (cancelled || inFlight || cloudLoadedFor.current === userId || staleDeploy.current) return;
+      // A sign-in or sign-out under way: its account change remounts this workspace.
+      if (failures > 0 && identityLockReason() !== null) return;
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = null;
+      inFlight = true;
+      void loadBusinessProfile({ data: { today: localDateKey(new Date()) } })
+        .then((res) => {
+          inFlight = false;
+          if (!cancelled) loaded(res);
+        })
+        .catch((error: unknown) => {
+          inFlight = false;
+          if (cancelled) return;
+          failures += 1;
+          const keptHere = lastLocalWrite.current !== "failed";
+          setSyncStatus(keptHere ? "error" : "local-error");
+          if (isStaleDeployError(error)) {
+            showUpdated();
+            return;
+          }
+          if (failures === LOAD_FAILURES_REPORTED) reportClientError(error);
+          const tryAgain = { label: "Try again", onClick: () => attempt(true) };
+          if (failures === 1 || asked)
+            toast.error(
+              "Could not reach your account",
+              keptHere
+                ? {
+                    id: LOAD_FAILED_TOAST,
+                    duration: Infinity,
+                    description:
+                      "Precog keeps your edits on this device and tries your account again in a moment.",
+                    action: tryAgain,
+                  }
+                : {
+                    id: LOAD_FAILED_TOAST,
+                    duration: Infinity,
+                    description:
+                      "This browser is not keeping your edits either. Download a recovery copy before closing this page; Precog tries your account again in a moment.",
+                    action: {
+                      label: "Download a recovery copy",
+                      onClick: () => downloadRecoveryCopy(workspace, profileRef.current),
+                    },
+                    cancel: tryAgain,
+                  },
+            );
+          retryTimer = setTimeout(
+            () => attempt(),
+            LOAD_RETRY_MS[failures - 1] ?? LOAD_RETRY_EVERY_MS,
+          );
+        });
+    };
+    const onOnline = () => attempt();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") attempt();
+    };
+
+    setSyncStatus("loading");
+    void refreshBusinessList();
+    attempt();
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [
     ready,
@@ -402,9 +621,15 @@ export function useCloudSync(input: {
     profileRef,
     raiseConflict,
     refreshBusinessList,
-    workspace.local,
+    workspace,
+    lineage,
     rememberRevision,
     rememberStamp,
+    keepInList,
+    offerCopyDownload,
+    saveCloud,
+    reportCloudError,
+    showUpdated,
   ]);
 
   // The active profile is written locally on every change, so a cleared
@@ -467,7 +692,7 @@ export function useCloudSync(input: {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
-      savePortfolioEntry(profile, workspace.local);
+      keepInList(profile);
       setPortfolioVersion((v) => v + 1);
       if (skipCloud || saveConflictRef.current) return;
       void saveCloud(profile).catch(reportCloudError);
@@ -487,7 +712,7 @@ export function useCloudSync(input: {
     lineage,
     raiseTabConflict,
     reportCloudError,
-    workspace.local,
+    keepInList,
   ]);
 
   // Another tab saved the open business. When it built on this tab's copy
@@ -543,7 +768,7 @@ export function useCloudSync(input: {
       if (saveConflictRef.current?.reason === "other-tab") return;
       const cur = profileRef.current;
       if (cur.onboardingComplete === false) return;
-      savePortfolioEntry(cur, workspace.local);
+      keepInList(cur);
       if (cloudUser && cloudLoadedFor.current === userId && !saveConflictRef.current) {
         void saveCloud(cur).catch(reportCloudError);
       }
@@ -557,21 +782,14 @@ export function useCloudSync(input: {
       window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [
-    ready,
-    userId,
-    cloudUser,
-    saveCloud,
-    reportCloudError,
-    profileRef,
-    workspace.local,
-    localStore,
-  ]);
+  }, [ready, userId, cloudUser, saveCloud, reportCloudError, profileRef, keepInList, localStore]);
 
   /**
    * Write the open business to this browser, now. False when another tab's
-   * save stops it: the banner asks the owner first, and leaving now would
-   * save the stale version over the newer.
+   * save stops it (the banner asks the owner first, and leaving now would
+   * save the stale version over the newer), or when this browser refused the
+   * write and the account does not hold this very copy either: another
+   * business taking its place would leave it nowhere.
    */
   const flushLocal = useCallback(() => {
     if (saveConflictRef.current?.reason === "other-tab") return false;
@@ -585,11 +803,28 @@ export function useCloudSync(input: {
       lastLocalWrite.current = result.kind;
       if (result.kind === "saved") storedProfile.current = cur;
     }
-    savePortfolioEntry(cur, workspace.local);
-    return true;
-  }, [localStore, raiseTabConflict, profileRef, workspace.local]);
+    if (keepInList(cur)) return true;
+    return acknowledged.current.get(cur.businessId ?? DEFAULT_BUSINESS_ID) === cur;
+  }, [localStore, raiseTabConflict, profileRef, keepInList]);
+  flushLocalRef.current = flushLocal;
 
-  /** Write the open business everywhere it goes, now. False when a conflict or a failed save stops it. */
+  /**
+   * Whether a signed-in owner's open business waits for the account's copy
+   * to be read: nothing reaches the account before then.
+   */
+  const accountUnread = useCallback(
+    () =>
+      cloudUser &&
+      profileRef.current.onboardingComplete !== false &&
+      cloudLoadedFor.current !== userId,
+    [cloudUser, profileRef, userId],
+  );
+
+  /**
+   * Write the open business everywhere it goes, now. False when a conflict
+   * or a failed save stops it. While the account's copy is unread, this
+   * device's copy is all there is to write: a switch goes ahead on it.
+   */
   const flushActive = useCallback(async () => {
     if (!flushLocal()) return false;
     const cur = profileRef.current;
@@ -620,11 +855,15 @@ export function useCloudSync(input: {
     [rememberRevision, rememberStamp],
   );
 
-  /** Keeps a version the owner did not choose as its own business, so no work is lost. */
+  /**
+   * Keeps a version the owner did not choose as its own business, so no work
+   * is lost. Null when this browser refused the write: the caller then offers
+   * the copy as a download and never says it is kept.
+   */
   const keepAsCopy = useCallback(
-    (version: PracticeProfile, from: string) => {
+    (version: PracticeProfile, from: string): string | null => {
       const name = copyName(version.practiceName, from);
-      savePortfolioEntry(
+      const kept = savePortfolioEntry(
         {
           ...version,
           businessId: makeBusinessId(),
@@ -638,10 +877,21 @@ export function useCloudSync(input: {
         },
         workspace.local,
       );
+      if (!kept) return null;
       bumpPortfolio();
       return name;
     },
     [bumpPortfolio, userId, workspace.local],
+  );
+
+  /** What a conflict choice's toast says about the version kept as a copy, offering it as a file when it was not kept. */
+  const copyNote = useCallback(
+    (kept: string | null, version: PracticeProfile, whose: string) => {
+      if (kept) return `Precog keeps ${whose} copy as “${kept}” in your businesses.`;
+      offerCopyDownload(version, `This browser did not keep ${whose} copy`);
+      return undefined;
+    },
+    [offerCopyDownload],
   );
 
   const resolveSaveConflict = useCallback(
@@ -666,19 +916,17 @@ export function useCloudSync(input: {
         if (choice === "reload") {
           const accountCopy = { ...conflict.remote, businessId: id };
           const kept = local ? keepAsCopy(local, "copy from this device") : null;
-          savePortfolioEntry(accountCopy, workspace.local);
+          keepInList(accountCopy);
           acknowledged.current.set(id, accountCopy);
           rememberStamp(id, accountCopy.updatedAt);
           bumpPortfolio();
           toast(`Precog now holds the account's copy of ${accountCopy.practiceName}.`, {
-            description: kept
-              ? `Precog keeps this device's copy as “${kept}” in your businesses.`
-              : undefined,
+            description: local ? copyNote(kept, local, "this device's") : undefined,
           });
         } else {
           const kept = keepAsCopy(conflict.remote, "copy from your account");
           toast("Precog kept this device's copy.", {
-            description: `Precog keeps the account's copy as “${kept}” in your businesses.`,
+            description: copyNote(kept, conflict.remote, "the account's"),
           });
           if (local) await saveCloud(normalizeProfile(local)).catch(reportCloudError);
         }
@@ -708,7 +956,7 @@ export function useCloudSync(input: {
           }
           activateProfile(theirs);
           toast("Loaded the copy saved in the other tab.", {
-            description: `Precog keeps this tab's copy as “${kept}” in your businesses.`,
+            description: copyNote(kept, mine, "this tab's"),
           });
           return;
         }
@@ -718,9 +966,9 @@ export function useCloudSync(input: {
         const result = localStore.write(mine, { force: true });
         lastLocalWrite.current = result.kind === "saved" ? "saved" : "failed";
         if (result.kind === "saved") storedProfile.current = mine;
-        savePortfolioEntry(mine, workspace.local);
+        keepInList(mine);
         toast("Kept this tab's copy.", {
-          description: `Precog keeps the other tab's copy as “${kept}” in your businesses.`,
+          description: copyNote(kept, theirs, "the other tab's"),
         });
         // The other tab takes this write without saving it to the account,
         // so this tab does: the account holds the version the owner chose.
@@ -751,7 +999,7 @@ export function useCloudSync(input: {
         activateProfile(accountCopy);
         setSyncStatus("synced");
         toast("Loaded the copy saved in your account.", {
-          description: `Precog keeps this device's copy as “${kept}” in your businesses.`,
+          description: copyNote(kept, cur, "this device's"),
         });
         return;
       }
@@ -759,7 +1007,7 @@ export function useCloudSync(input: {
       const kept = keepAsCopy(conflict.remote, "copy from your account");
       setSyncStatus("saving");
       toast("Precog kept this device's copy.", {
-        description: `Precog keeps the account's copy as “${kept}” in your businesses.`,
+        description: copyNote(kept, conflict.remote, "the account's"),
       });
       await saveCloud(cur).catch(reportCloudError);
     },
@@ -771,6 +1019,8 @@ export function useCloudSync(input: {
       localStore,
       lineage,
       keepAsCopy,
+      keepInList,
+      copyNote,
       rememberStamp,
       reportCloudError,
       profileRef,
@@ -783,36 +1033,31 @@ export function useCloudSync(input: {
     () =>
       registerExitCheck(async (transition) => {
         if (!mounted.current) return true;
-        const saved = await flushActive();
+        // Leaving the account before its copy was read leaves this device's
+        // edits unsaved there, so the recovery download is offered too.
+        const saved = (await flushActive()) && !accountUnread();
         if (saved) return true;
         const next = transition === "sign-in" ? "continue signing in" : "sign out";
         if (
           !window.confirm(
-            `Some work has not synced. Export a local recovery copy and ${next}? Cancel keeps this workspace open.`,
+            `Some work has not synced. Download a recovery copy and ${next}? Cancel keeps this workspace open.`,
           )
         )
           return false;
-        downloadText(
-          "precog-unsynced-recovery.json",
-          JSON.stringify(
-            {
-              version: 1,
-              accountId: workspace.accountId,
-              profile: profileRef.current,
-              local: workspace.local?.entries() ?? {},
-              session: workspace.session?.entries() ?? {},
-            },
-            null,
-            2,
-          ),
-          "application/json",
-        );
+        downloadRecoveryCopy(workspace, profileRef.current);
         return true;
       }),
-    [flushActive, profileRef, workspace],
+    [accountUnread, flushActive, profileRef, workspace],
+  );
+
+  /** The recovery copy of the open business, for the save badge when work is not saved. */
+  const downloadRecovery = useCallback(
+    () => downloadRecoveryCopy(workspace, profileRef.current),
+    [profileRef, workspace],
   );
 
   return {
+    downloadRecovery,
     syncStatus,
     saveConflict,
     saveConflictRef,

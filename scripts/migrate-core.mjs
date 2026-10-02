@@ -8,6 +8,7 @@
  */
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { changedMigrationError, migrationChecksum } from "./lib/migration-checksum.mjs";
 import { validateMigrationManifest } from "./migration-manifest.mjs";
 
 const LOCK_NAMESPACE = 1347568455; // PRCG, fixed across all releases/runners.
@@ -34,6 +35,11 @@ export async function runMigrations({
   const sources = new Map(
     await Promise.all(
       files.map(async (name) => [name, await readFile(join(migrationsDir, name), "utf8")]),
+    ),
+  );
+  const checksums = new Map(
+    await Promise.all(
+      files.map(async (name) => [name, await migrationChecksum(sources.get(name))]),
     ),
   );
 
@@ -68,14 +74,30 @@ export async function runMigrations({
     await exec(
       "CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())",
     );
-    const applied = new Set((await exec("SELECT name FROM _migrations")).map((r) => r.name));
+    // Each applied file's checksum; a ledger from before this column has NULL.
+    await exec("ALTER TABLE _migrations ADD COLUMN IF NOT EXISTS checksum TEXT");
+    const applied = new Map(
+      (await exec("SELECT name, checksum FROM _migrations")).map((r) => [r.name, r.checksum]),
+    );
     const changes = [];
     for (const [current, previous] of renames) {
       if (applied.has(current) || !applied.has(previous)) continue;
       await exec("UPDATE _migrations SET name = $1 WHERE name = $2", [current, previous]);
+      applied.set(current, applied.get(previous));
       applied.delete(previous);
-      applied.add(current);
       changes.push([previous, current]);
+    }
+    // An applied file must stay as it was applied: a deployed database never
+    // runs the edit. Rows recorded before checksums existed take today's text.
+    for (const name of files) {
+      if (!applied.has(name)) continue;
+      const stored = applied.get(name);
+      if (stored == null)
+        await exec("UPDATE _migrations SET checksum = $1 WHERE name = $2", [
+          checksums.get(name),
+          name,
+        ]);
+      else if (stored !== checksums.get(name)) throw changedMigrationError(name);
     }
     return changes;
   });
@@ -88,7 +110,10 @@ export async function runMigrations({
         const applied = await exec("SELECT name FROM _migrations WHERE name = $1", [name]);
         if (applied.length) return false;
         await exec(sources.get(name));
-        await exec("INSERT INTO _migrations (name) VALUES ($1)", [name]);
+        await exec("INSERT INTO _migrations (name, checksum) VALUES ($1, $2)", [
+          name,
+          checksums.get(name),
+        ]);
         return true;
       });
       if (!written) continue;

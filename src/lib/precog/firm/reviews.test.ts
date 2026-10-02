@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { latestReview, monthlyReviewTasks, recordReview, reviewResultLine } from "./reviews";
+import {
+  latestReview,
+  monthlyReviewTasks,
+  normalizeReviewRecords,
+  recordReview,
+  reviewResultLine,
+} from "./reviews";
 import type { Person } from "../types";
 import { getIndustryTemplate } from "../templates";
 import { INDUSTRIES } from "../industry";
+import { personDuties } from "../sod/assignments";
 
 const people: Person[] = [
   {
@@ -110,6 +117,64 @@ describe("monthly review", () => {
         "bank_statement",
       ),
     ).toBe("Sam Ortiz");
+  });
+
+  it("adds the card statement as a fifth check from October 2026 with a reviewer who holds no card duty", () => {
+    const team: Person[] = [
+      ...people,
+      {
+        id: "c",
+        name: "Cara Office",
+        role: "Office manager",
+        active: true,
+        owner: false,
+        entitlements: ["hold_company_card", "review_card_statement", "approve_expenses"],
+      },
+    ];
+    expect(monthlyReviewTasks("2026-09-24", team).map((t) => t.key)).not.toContain(
+      "card_statement",
+    );
+    const tasks = monthlyReviewTasks("2026-10-05", team);
+    expect(tasks.map((t) => t.key)).toEqual([
+      "bank_statement",
+      "cleared_checks",
+      "payroll_headcount",
+      "new_vendors",
+      "card_statement",
+    ]);
+    const card = tasks.find((t) => t.key === "card_statement");
+    expect(card?.title).toBe("Read the company card statement line by line");
+    expect([card?.suggestedOwner, card?.reviewerIndependence]).toEqual([
+      "Ada Owner",
+      "separate_duties",
+    ]);
+    const cardDuties = ["hold_company_card", "review_card_statement", "approve_expenses"];
+    for (const { id } of INDUSTRIES) {
+      const tpl = getIndustryTemplate(id);
+      const sample = monthlyReviewTasks("2026-10-05", tpl.people, tpl.roleTemplates);
+      expect(sample).toHaveLength(5);
+      const reviewer = tpl.people.find(
+        (p) => p.name === sample.find((t) => t.key === "card_statement")?.suggestedOwner,
+      );
+      expect(reviewer).toBeDefined();
+      expect(personDuties(reviewer!, tpl.roleTemplates).some((d) => cardDuties.includes(d))).toBe(
+        false,
+      );
+    }
+  });
+
+  it("still loads saved results for the four earlier checks", () => {
+    const saved = ["bank_statement", "cleared_checks", "payroll_headcount", "new_vendors"].map(
+      (key) => ({
+        key,
+        period: "2026-08",
+        result: "done",
+        ownerName: "Ada",
+        notes: "",
+        recordedAt: "2026-09-02T00:00:00.000Z",
+      }),
+    );
+    expect(normalizeReviewRecords(saved).map((r) => r.key)).toEqual(saved.map((r) => r.key));
   });
 
   it("keeps the earlier result when a later one is recorded", () => {

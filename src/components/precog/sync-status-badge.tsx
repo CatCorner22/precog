@@ -1,5 +1,5 @@
 import { usePracticeSync, type SyncStatus } from "@/lib/precog/practice-context";
-import { Cloud, CloudAlert, CloudOff, Loader2 } from "lucide-react";
+import { Cloud, CloudAlert, CloudOff, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,7 +14,7 @@ export function SyncStatusBadge({
   className?: string;
   compactOnPhone?: boolean;
 }) {
-  const { syncStatus } = usePracticeSync();
+  const { syncStatus, downloadRecovery } = usePracticeSync();
   const label = LABEL[syncStatus];
   if (!label) return null;
 
@@ -42,6 +42,20 @@ export function SyncStatusBadge({
     >
       <Icon className={cn("size-3", busy && "animate-spin")} aria-hidden />
       <span className={cn(compactOnPhone && "sr-only sm:not-sr-only")}>{label}</span>
+      {/* Work that is not saved everywhere can always leave as a file. */}
+      {ANNOUNCED.has(syncStatus) && (
+        <button
+          type="button"
+          onClick={downloadRecovery}
+          title="Download a recovery copy"
+          className="ml-1 inline-flex items-center gap-1 underline underline-offset-2"
+        >
+          <Download className="size-3" aria-hidden />
+          <span className={cn(compactOnPhone && "sr-only sm:not-sr-only")}>
+            Download a recovery copy
+          </span>
+        </button>
+      )}
       {/* Announced only when work is not saved, not on every save. */}
       <span role="status" className="sr-only">
         {ANNOUNCED.has(syncStatus) ? label : ""}

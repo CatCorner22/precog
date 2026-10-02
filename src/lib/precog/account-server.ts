@@ -1,8 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
-import { RequestError } from "@/lib/request-errors";
-import { deleteAccountRows, exportAccountRows } from "./account-store";
+import { RequestError, requireObject } from "@/lib/request-errors";
+import {
+  deleteAccountRows,
+  encodeHistoryPage,
+  exportAccountRows,
+  exportBusinessHistoryPage,
+  listAccountHistoryBusinesses,
+} from "./account-store";
+import { isBusinessId } from "./profile-input";
 import { decryptSecret, qboConfigured, revokeToken } from "./integrations/qbo/client.server";
 
 /**
@@ -14,6 +21,42 @@ export const exportAccountData = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const sql = await getSql();
     return { json: JSON.stringify(await exportAccountRows(sql, context.userId), null, 2) };
+  });
+
+/** The account's businesses with past versions, for the Download history list. */
+export const listHistoryDownloads = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    return { businesses: await listAccountHistoryBusinesses(sql, context.userId) };
+  });
+
+/**
+ * One page of a business's past versions (see exportBusinessHistoryPage). The
+ * client asks again with `nextBeforeRevision` until it is null and joins the
+ * pages into one file. Sent as base64 JSON (see encodeHistoryPage) so a page's
+ * size on the wire stays bounded whatever the profiles hold.
+ */
+export const exportBusinessHistory = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .validator((input: { businessId: string; beforeRevision?: number | null }) => {
+    const raw = requireObject(input);
+    if (!isBusinessId(raw.businessId)) throw new RequestError(400, "Unknown business");
+    const before = raw.beforeRevision ?? null;
+    if (before !== null && (!Number.isInteger(before) || Number(before) < 1)) {
+      throw new RequestError(400, "Unknown revision");
+    }
+    return { businessId: raw.businessId, beforeRevision: before === null ? null : Number(before) };
+  })
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const page = await exportBusinessHistoryPage(
+      sql,
+      context.userId,
+      data.businessId,
+      data.beforeRevision,
+    );
+    return { base64: encodeHistoryPage(page.rows), nextBeforeRevision: page.nextBeforeRevision };
   });
 
 /**

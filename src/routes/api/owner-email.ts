@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { withReporting } from "@/lib/observability/with-reporting";
 import { escapeHtml } from "@/lib/precog/reminders/email";
 import { isOwnerConsentToken } from "@/lib/precog/reminders/owner-consent";
 
@@ -13,7 +14,7 @@ import { isOwnerConsentToken } from "@/lib/precog/reminders/owner-consent";
 export const Route = createFileRoute("/api/owner-email")({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: withReporting(async ({ request }) => {
         const link = parse(request.url);
         if (!link) return gone();
         const { getSql } = await import("@/lib/db");
@@ -36,8 +37,8 @@ export const Route = createFileRoute("/api/owner-email")({
               [`Precog will stop emailing you reminders about ${name}.`],
               "Stop reminders",
             );
-      },
-      POST: async ({ request }) => {
+      }, "owner-email"),
+      POST: withReporting(async ({ request }) => {
         const link = parse(request.url);
         if (!link) return gone();
         const { getSql } = await import("@/lib/db");
@@ -56,7 +57,7 @@ export const Route = createFileRoute("/api/owner-email")({
         return page(200, "Done", [
           `Precog will not email you reminders about ${name} again unless you agree to them again.`,
         ]);
-      },
+      }, "owner-email"),
       ANY: () => new Response(null, { status: 405, headers: { ...HEADERS, allow: "GET, POST" } }),
     },
   },

@@ -1,6 +1,7 @@
 import { DB_TYPE_PARSERS, toSql, postgresTransaction } from "./sql-transaction";
 import { pgliteSql } from "./pglite-sql";
 import { validateMigrationManifest } from "../../scripts/migration-manifest.mjs";
+import { changedMigrationError, migrationChecksum } from "../../scripts/lib/migration-checksum.mjs";
 
 /**
  * The app's one database, **server-only**. A real Postgres (node-postgres,
@@ -242,15 +243,27 @@ async function applyMigrations(pg: import("@electric-sql/pglite").PGlite): Promi
   const names = [...sources.keys()].sort();
   validateMigrationManifest(names, Object.values(renamed)[0] ?? {});
 
-  const doneRows = await pg.query<{ name: string }>("select name from _migrations");
-  const done = new Set(doneRows.rows.map((r) => r.name));
+  // Checksums as in scripts/migrate-core.mjs: an applied file edited while
+  // the dev server keeps this database fails loudly instead of being skipped.
+  await pg.exec("alter table _migrations add column if not exists checksum text");
+  const doneRows = await pg.query<{ name: string; checksum: string | null }>(
+    "select name, checksum from _migrations",
+  );
+  const done = new Map(doneRows.rows.map((r) => [r.name, r.checksum]));
   for (const name of names) {
-    if (done.has(name)) continue;
+    const checksum = await migrationChecksum(sources.get(name) as string);
+    if (done.has(name)) {
+      const stored = done.get(name);
+      if (stored == null)
+        await pg.query("update _migrations set checksum = $1 where name = $2", [checksum, name]);
+      else if (stored !== checksum) throw changedMigrationError(name);
+      continue;
+    }
     // Apply + record atomically (parity with scripts/migrate-core.mjs) so a
     // failed statement can't leave a file half-applied but untracked.
     await pg.transaction(async (tx) => {
       await tx.exec(sources.get(name) as string);
-      await tx.query("insert into _migrations (name) values ($1)", [name]);
+      await tx.query("insert into _migrations (name, checksum) values ($1, $2)", [name, checksum]);
     });
   }
 }

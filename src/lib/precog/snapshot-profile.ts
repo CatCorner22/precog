@@ -184,6 +184,7 @@ function sameAssignments(a: readonly RoleAssignment[], b: readonly RoleAssignmen
  * cannot make the server normalise something absurd.
  */
 const MAX_SNAPSHOT_PROFILE_BYTES = MAX_PROFILE_BYTES;
-const MAX_SNAPSHOT_INPUT_BYTES = 4 * MAX_PROFILE_BYTES;
+/** Vercel refuses request bodies over 4.5 MB, so a larger bound would never be reached. */
+const MAX_SNAPSHOT_INPUT_BYTES = 4 * 1024 * 1024;
 
 const bytes = (json: string) => new TextEncoder().encode(json).byteLength;

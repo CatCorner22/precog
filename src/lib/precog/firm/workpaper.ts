@@ -1,7 +1,7 @@
 import type { IntegrationDrift } from "../integrations/qbo/model";
 
 /**
- * The two QuickBooks facts that sit next to the four monthly checks.
+ * The two QuickBooks facts that sit next to the monthly checks.
  * AcctNum on a vendor is the account number stored on the vendor record.
  * It is not the bank account a bill pays. This is not a review of who can sign in.
  */
@@ -20,7 +20,7 @@ export function monthlyWorkpaperFacts(drift: IntegrationDrift | null): Workpaper
       {
         id: "qbo-unread",
         label: "QuickBooks reading",
-        detail: `No QuickBooks reading is stored. The four checks are the file until a reading is connected. ${ACCT_NOTE}`,
+        detail: `No QuickBooks reading is stored. The monthly checks are the file until a reading is connected. ${ACCT_NOTE}`,
       },
     ];
   }

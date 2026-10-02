@@ -46,7 +46,8 @@ import {
 } from "./practice-profile";
 import type { SavedProcessBlock } from "./builder/process-blocks";
 import { processesToEdit, replacesSampleTeam } from "./business-lifecycle";
-import { AccountLineage, LocalProfileStore } from "./save-conflict";
+import { AccountLineage, LocalProfileStore, type UnreadableCopy } from "./save-conflict";
+import { downloadText } from "@/lib/download";
 import type { Departure } from "./continuity/access-removal";
 import type { ReviewRecord } from "./firm/reviews";
 import { profileReducer } from "./profile-reducer";
@@ -129,6 +130,8 @@ export interface PracticeSync {
   syncStatus: SyncStatus;
   saveConflict: { remoteUpdatedAt: string; reason: SaveConflictReason } | null;
   resolveSaveConflict: (choice: "reload" | "overwrite") => Promise<void>;
+  /** Save the open business and this browser's copies as a recovery file. */
+  downloadRecovery: () => void;
 }
 
 /** Every way of changing the business. */
@@ -335,7 +338,15 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
   const profileRef = useRef(profile);
   profileRef.current = profile;
   // This browser's copy of the open business, shared by every tab.
-  const [localStore] = useState(() => new LocalProfileStore(() => workspace.local));
+  const [localStore] = useState(
+    () =>
+      new LocalProfileStore(
+        () => workspace.local,
+        undefined,
+        // After this commit: a <Toaster> mounted in the same commit misses a toast fired now.
+        (copy) => void setTimeout(() => offerUnreadableCopy(copy), 0),
+      ),
+  );
   // The versions this tab builds on, so an account save made from another
   // tab of the same version is not mistaken for a change on another device.
   const [lineage] = useState(() => new AccountLineage());
@@ -725,7 +736,7 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  const { saveConflict, resolveSaveConflict, syncStatus } = cloud;
+  const { saveConflict, resolveSaveConflict, syncStatus, downloadRecovery } = cloud;
   const sync = useMemo<PracticeSync>(
     () => ({
       syncStatus,
@@ -733,8 +744,9 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
         ? { remoteUpdatedAt: saveConflict.updatedAt, reason: saveConflict.reason }
         : null,
       resolveSaveConflict,
+      downloadRecovery,
     }),
-    [syncStatus, saveConflict, resolveSaveConflict],
+    [syncStatus, saveConflict, resolveSaveConflict, downloadRecovery],
   );
 
   return (
@@ -742,6 +754,28 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       {children}
     </PracticeContextPublisher>
   );
+}
+
+/**
+ * The business stored on this device is one this build could not read: say
+ * so, and offer its text as a file. Precog keeps the copy and does not save
+ * over it, so the offer stays until the owner closes it.
+ */
+function offerUnreadableCopy(copy: UnreadableCopy): void {
+  toast.error("Precog could not open the business saved on this device", {
+    id: copy.key,
+    duration: Infinity,
+    description: "Precog kept the saved copy and does not save over it on this device.",
+    action: {
+      label: "Download the unreadable copy",
+      onClick: () =>
+        downloadText(
+          `precog-unreadable-copy-${localDateKey(new Date())}.json`,
+          copy.raw,
+          "application/json",
+        ),
+    },
+  });
 }
 
 /**

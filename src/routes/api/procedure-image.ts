@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { withReporting } from "@/lib/observability/with-reporting";
 import { isBusinessId } from "@/lib/precog/profile-input";
 import { IMAGE_ID } from "@/lib/precog/procedures/normalize";
 
@@ -13,7 +14,7 @@ import { IMAGE_ID } from "@/lib/precog/procedures/normalize";
 export const Route = createFileRoute("/api/procedure-image")({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: withReporting(async ({ request }) => {
         const url = new URL(request.url);
         const businessId = url.searchParams.get("b");
         const id = url.searchParams.get("id");
@@ -42,7 +43,7 @@ export const Route = createFileRoute("/api/procedure-image")({
             "content-disposition": "inline",
           },
         });
-      },
+      }, "procedure-image"),
       ANY: () => new Response(null, { status: 405, headers: { ...NO_STORE, allow: "GET" } }),
     },
   },

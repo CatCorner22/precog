@@ -59,6 +59,7 @@ const schema = z
           "cleared_checks",
           "payroll_headcount",
           "new_vendors",
+          "card_statement",
         ]),
         period,
         performedOn: day("the date performed"),

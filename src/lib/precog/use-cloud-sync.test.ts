@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { memoryStorage } from "@/test/memory-storage";
+import { PRECOG_UPDATED_MESSAGE } from "./stale-deploy";
 import { ScopedStorage } from "./workspace-storage";
 import { AccountLineage, LocalProfileStore } from "./save-conflict";
 import {
@@ -15,13 +17,22 @@ import type { KnowledgeItem } from "./types";
 // The hooks run as plain functions: refs are plain objects, callbacks are
 // themselves, and effects run once, in order, when `effects.run()` is called.
 // There is no DOM renderer here, so this drives the callbacks the provider
-// hands out, which is where saving and conflict handling live.
+// hands out, which is where saving and conflict handling live. `unmount()`
+// runs the cleanups the effects returned.
 const effects = vi.hoisted(() => {
   const queue: (() => unknown)[] = [];
+  const cleanups: (() => void)[] = [];
   return {
     queue,
+    cleanups,
     run() {
-      for (const effect of queue.splice(0)) effect();
+      for (const effect of queue.splice(0)) {
+        const cleanup = effect();
+        if (typeof cleanup === "function") cleanups.push(cleanup as () => void);
+      }
+    },
+    unmount() {
+      for (const cleanup of cleanups.splice(0)) cleanup();
     },
   };
 });
@@ -38,13 +49,21 @@ vi.mock("react", async (importOriginal) => ({
   useEffect: (effect: () => unknown) => void effects.queue.push(effect),
 }));
 vi.mock("sonner", () => ({
-  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }),
+  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), dismiss: vi.fn() }),
 }));
 vi.mock("@/lib/auth/client", () => ({ authEnabled: true }));
+// The exit check the last tab registered, run as a sign-out would.
+const exit = vi.hoisted(() => ({
+  check: null as ((transition: "sign-in" | "sign-out") => Promise<boolean>) | null,
+}));
 vi.mock("@/lib/auth/identity-change", () => ({
   identitySnapshot: () => ({ accountId: "user_1", generation: 0, locked: false }),
   identityUnchanged: () => true,
-  registerExitCheck: () => () => undefined,
+  identityLockReason: () => null,
+  registerExitCheck: (check: typeof exit.check) => {
+    exit.check = check;
+    return () => undefined;
+  },
   registerExitCleanup: () => () => undefined,
 }));
 const server = vi.hoisted(() => ({
@@ -55,6 +74,8 @@ const server = vi.hoisted(() => ({
   deleteBusiness: vi.fn(),
 }));
 vi.mock("./profile-server", () => server);
+const recovery = vi.hoisted(() => ({ downloadRecoveryCopy: vi.fn() }));
+vi.mock("./recovery-copy", () => recovery);
 
 // Renamed: here they run as plain functions, not inside a component.
 const { useCloudSync: runCloudSync } = await import("./use-cloud-sync");
@@ -80,21 +101,42 @@ function business(id: string, name: string): PracticeProfile {
   return edit({ ...defaultProfile("general"), businessId: id, practiceName: name }, {});
 }
 
-/** One browser: every tab of it shares this storage. */
-function browser(): Workspace {
+/** One browser: every tab of it shares this storage. `refuse` makes writes of keys ending so throw, as a full store does ("" refuses every write). */
+function browser(refuse?: string): Workspace {
   const raw = memoryStorage();
+  const write = raw.setItem;
+  raw.setItem = (key, value) => {
+    if (refuse !== undefined && key.endsWith(refuse))
+      throw new DOMException("Test quota", "QuotaExceededError");
+    write(key, value);
+  };
   return { accountId: USER, local: new ScopedStorage(raw, USER), session: null };
 }
 
-/** One tab's useCloudSync, signed in, with the account's open-business load answered. */
-async function syncTab(workspace: Workspace, open: PracticeProfile) {
+/**
+ * One tab's useCloudSync, signed in, with the account's open-business load
+ * answered (or failing once, with `loadFails`). `stored` is the copy this
+ * browser holds at start-up, when it is not `open` itself.
+ */
+async function syncTab(
+  workspace: Workspace,
+  open: PracticeProfile,
+  options: { loadFails?: boolean; stored?: PracticeProfile } = {},
+) {
   const profileRef = { current: open };
   const activated: PracticeProfile[] = [];
   const lineage = new AccountLineage();
   lineage.start(open.businessId as string, open.updatedAt);
   const localStore = new LocalProfileStore(() => workspace.local);
-  localStore.write(open);
-  server.loadBusinessProfile.mockResolvedValueOnce({ found: false, profile: null, revision: null });
+  localStore.write(options.stored ?? open);
+  if (options.loadFails)
+    server.loadBusinessProfile.mockRejectedValueOnce(new Error("Failed to fetch"));
+  else
+    server.loadBusinessProfile.mockResolvedValueOnce({
+      found: false,
+      profile: null,
+      revision: null,
+    });
   server.listBusinesses.mockResolvedValueOnce([]);
   const sync = runCloudSync({
     workspace,
@@ -126,11 +168,13 @@ async function syncTab(workspace: Workspace, open: PracticeProfile) {
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-  const target = new EventTarget();
+  const target = Object.assign(new EventTarget(), { confirm: vi.fn(() => true) });
   vi.stubGlobal("window", target);
+  exit.check = null;
   vi.stubGlobal("document", Object.assign(new EventTarget(), { visibilityState: "visible" }));
   setters.calls.length = 0;
   effects.queue.length = 0;
+  effects.cleanups.length = 0;
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -333,5 +377,200 @@ describe("switching to a business the account moved on from", () => {
       ok: false,
       reason: "Precog could not reach your account. Try again.",
     });
+  });
+});
+
+/** The options of the first toast.error with this title. */
+function errorToast(title: string) {
+  const call = vi.mocked(toast.error).mock.calls.find(([said]) => said === title);
+  return call?.[1] as
+    { description?: string; action?: { label: string; onClick: () => void } } | undefined;
+}
+
+describe("an account load that fails at page open", () => {
+  it("retries, then saves the work kept on this device to the account", async () => {
+    const tab = await syncTab(browser(), business("biz_a", "A Co"), { loadFails: true });
+    expect(setters.calls).toContain("error");
+    // Nothing reaches the account before its copy is read, so sign-out offers the recovery download.
+    vi.mocked(window.confirm).mockReturnValueOnce(false);
+    expect(await exit.check?.("sign-out")).toBe(false);
+    expect(window.confirm).toHaveBeenCalledWith(
+      expect.stringContaining("Download a recovery copy and sign out?"),
+    );
+    expect(server.saveBusinessProfile).not.toHaveBeenCalled();
+    server.loadBusinessProfile.mockResolvedValueOnce({
+      found: false,
+      profile: null,
+      revision: null,
+    });
+    server.saveBusinessProfile.mockResolvedValue({ ok: true, revision: 1 });
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(server.loadBusinessProfile).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(server.saveBusinessProfile).toHaveBeenCalledTimes(1));
+    expect(server.saveBusinessProfile.mock.calls[0][0].data.profile.practiceName).toBe("A Co");
+    expect(await tab.sync.flushActive()).toBe(true);
+    expect(await exit.check?.("sign-out")).toBe(true);
+    // The notice with "Try again" closes once the account is read.
+    expect(toast.dismiss).toHaveBeenCalledWith("account-unreachable");
+  });
+
+  it("lets the owner switch businesses on this device's copy meanwhile", async () => {
+    const workspace = browser();
+    savePortfolioEntry(business("biz_b", "B Co"), workspace.local);
+    const tab = await syncTab(workspace, business("biz_a", "A Co"), { loadFails: true });
+    server.loadBusiness.mockRejectedValueOnce(new Error("Failed to fetch"));
+
+    const result = await portfolioTab(workspace, tab).switchBusiness("biz_b");
+
+    expect(result).toEqual({ ok: true });
+    expect(tab.activated.at(-1)?.practiceName).toBe("B Co");
+  });
+
+  it("saves the edits made meanwhile over the account's copy when that copy is the one this tab built on", async () => {
+    const base = business("biz_a", "A Co");
+    const mine = edit(base, { customKnowledge: [item("Edited offline")] });
+    const tab = await syncTab(browser(), base, { loadFails: true });
+    tab.profileRef.current = mine;
+    server.loadBusinessProfile.mockResolvedValueOnce({
+      found: true,
+      profile: base,
+      revision: 4,
+      updatedAt: base.updatedAt,
+    });
+    server.saveBusinessProfile.mockResolvedValue({ ok: true, revision: 5 });
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    await vi.waitFor(() => expect(server.saveBusinessProfile).toHaveBeenCalledTimes(1));
+    const sent = server.saveBusinessProfile.mock.calls[0][0].data;
+    expect(sent.baseRevision).toBe(4);
+    expect(sent.profile.customKnowledge?.[0]?.name).toBe("Edited offline");
+    expect(tab.sync.saveConflictRef.current).toBeNull();
+    expect(tab.activated).toEqual([]);
+  });
+
+  it("asks which copy to keep, in words about the outage, when the account holds another version", async () => {
+    const base = business("biz_a", "A Co");
+    const mine = edit(base, { customKnowledge: [item("Edited offline")] });
+    const tab = await syncTab(browser(), mine, { loadFails: true });
+    server.loadBusinessProfile.mockResolvedValueOnce({
+      found: true,
+      profile: base,
+      revision: 4,
+      updatedAt: base.updatedAt,
+    });
+
+    // The connection returning retries at once, before the 2 s wait.
+    window.dispatchEvent(new Event("online"));
+    await vi.waitFor(() => expect(tab.sync.saveConflictRef.current).not.toBeNull());
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(server.loadBusinessProfile).toHaveBeenCalledTimes(2);
+    expect(tab.sync.saveConflictRef.current).toMatchObject({
+      reason: "unreachable",
+      businessId: "biz_a",
+      revision: 4,
+    });
+    const raised = setters.calls.filter(
+      (value) => (value as SaveConflictState | null)?.reason === "unreachable",
+    );
+    expect(raised).toHaveLength(1);
+    expect(tab.activated).toEqual([]);
+  });
+
+  it("offers the recovery download, not a claim that the edits are kept, when this browser refuses them", async () => {
+    // Every write refused, as with blocked site data.
+    await syncTab(browser(""), business("biz_a", "A Co"), { loadFails: true });
+    const offered = errorToast("Could not reach your account");
+    expect(offered?.description).not.toContain("keeps your edits");
+    expect(offered?.action?.label).toBe("Download a recovery copy");
+    offered?.action?.onClick();
+    expect(recovery.downloadRecoveryCopy).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers Try again, which loads the account's copy at once", async () => {
+    await syncTab(browser(), business("biz_a", "A Co"), { loadFails: true });
+    const offered = errorToast("Could not reach your account");
+    expect(offered?.action?.label).toBe("Try again");
+    server.loadBusinessProfile.mockResolvedValueOnce({
+      found: false,
+      profile: null,
+      revision: null,
+    });
+    server.saveBusinessProfile.mockResolvedValue({ ok: true, revision: 1 });
+
+    offered?.action?.onClick();
+
+    expect(server.loadBusinessProfile).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops retrying once the workspace closes", async () => {
+    await syncTab(browser(), business("biz_a", "A Co"), { loadFails: true });
+    effects.unmount();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(server.loadBusinessProfile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a save that meets a newer release of Precog", () => {
+  it("keeps the work on this device and asks for a reload, instead of a raw 'Not found'", async () => {
+    const tab = await syncTab(browser(), business("biz_a", "A Co"));
+    server.saveBusinessProfile.mockRejectedValue(new Error("Not found"));
+
+    expect(await tab.sync.flushActive()).toBe(false);
+
+    expect(errorToast(PRECOG_UPDATED_MESSAGE)?.action?.label).toBe("Reload");
+    expect(errorToast("Not saved to your account")).toBeUndefined();
+    expect(tab.localStore.peek("biz_a")?.profile.practiceName).toBe("A Co");
+  });
+});
+
+describe("a browser that refuses the list of businesses", () => {
+  it("never says the version not chosen is kept, and offers it as a download", async () => {
+    const a = business("biz_a", "A Co");
+    const tab = await syncTab(browser("precog.portfolio.v1"), a);
+    const remote = edit(a, { practiceName: "A Co elsewhere" });
+    tab.sync.raiseConflict({
+      reason: "remote-edit",
+      businessId: "biz_a",
+      remote,
+      revision: 8,
+      updatedAt: remote.updatedAt,
+    });
+
+    await tab.sync.resolveSaveConflict("reload");
+
+    expect(errorToast("This browser did not keep this device's copy")?.action?.label).toBe(
+      "Download this copy",
+    );
+    const said = [...vi.mocked(toast).mock.calls, ...vi.mocked(toast.error).mock.calls].map(
+      ([title, options]) => `${String(title)} ${String(options?.description ?? "")}`,
+    );
+    expect(said.some((text) => text.includes("keeps this device's copy"))).toBe(false);
+  });
+
+  it("does not report the open business written when only this device holds it", async () => {
+    const tab = await syncTab(browser("precog.portfolio.v1"), business("biz_a", "A Co"));
+
+    expect(tab.sync.flushLocal()).toBe(false);
+    expect(errorToast("This browser did not keep your list of businesses")?.action?.label).toBe(
+      "Download a recovery copy",
+    );
+  });
+});
+
+describe("the workspace closing while an edit waits for its local write", () => {
+  it("writes the edit to this browser", async () => {
+    const before = business("biz_a", "A Co");
+    const typed = edit(before, { practiceName: "A Co typed" });
+    const tab = await syncTab(browser(), typed, { stored: before });
+    expect(tab.localStore.peek("biz_a")?.profile.practiceName).toBe("A Co");
+
+    effects.unmount();
+
+    expect(tab.localStore.peek("biz_a")?.profile.practiceName).toBe("A Co typed");
   });
 });

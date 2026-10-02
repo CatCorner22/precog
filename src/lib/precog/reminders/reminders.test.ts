@@ -1,10 +1,28 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
+import { reportServerError } from "@/lib/observability/report.server";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
 import { renderDigest, renderOwnerEmailConfirm, renderOwnerReminder } from "./email";
 import { runDigest } from "./digest";
 import type { Person } from "../types";
+
+// A normaliser bug for one business, by name: the rest pass through unchanged.
+const brokenName = vi.hoisted(() => ({ value: null as string | null }));
+vi.mock("../practice-profile", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../practice-profile")>();
+  return {
+    ...actual,
+    normalizeProfile: (...args: Parameters<typeof actual.normalizeProfile>) => {
+      if (brokenName.value && args[0]?.practiceName === brokenName.value)
+        throw new Error("normaliser bug");
+      return actual.normalizeProfile(...args);
+    },
+  };
+});
+vi.mock("@/lib/observability/report.server", () => ({
+  reportServerError: vi.fn(async () => undefined),
+}));
 
 const TODAY = "2026-09-25";
 const OWNER_TOKEN = "ab".repeat(24);
@@ -240,6 +258,8 @@ describe("digest run", () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+    brokenName.value = null;
+    vi.mocked(reportServerError).mockClear();
   });
 
   function recorder() {
@@ -381,6 +401,29 @@ describe("digest run", () => {
     const { sent, send } = recorder();
     await runDigest(db.sql, { today: TODAY, appUrl: "https://app.example", send });
     expect(sent.map((s) => s.to).sort()).toEqual(["adv@firm.test", "owner@shop.test"]);
+  });
+
+  it("sends every other digest when one business cannot be normalised, and names it", async () => {
+    await db.seedUser("adv2", "adv2@firm.test");
+    await db.seedUser("adv3", "adv3@firm.test");
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision)
+       values ('biz_3', 'adv2', 'Hill Dental', 'general', $1::jsonb, 1),
+              ('biz_4', 'adv3', 'Broken Books', 'general', $2::jsonb, 1)`,
+      [
+        JSON.stringify({ ...profileWithDues(), practiceName: "Hill Dental" }),
+        JSON.stringify({ ...profileWithDues(), practiceName: "Broken Books" }),
+      ],
+    );
+    await db.sql`update engagement_marks set owner_email_confirmed_at = null`;
+    brokenName.value = "Broken Books";
+    const { sent, send } = recorder();
+    const outcome = await run(send);
+    expect(sent.map((s) => s.to).sort()).toEqual(["adv2@firm.test", "adv@firm.test"]);
+    expect(outcome.advisors).toBe(2);
+    expect(outcome.errors).toEqual(["business biz_4: normaliser bug"]);
+    expect(reportServerError).toHaveBeenCalledTimes(1);
+    expect(reportServerError).toHaveBeenCalledWith(expect.any(Error), "digest-normalize");
   });
 
   it("reminds the owner again about a leaver still open four weeks later", async () => {

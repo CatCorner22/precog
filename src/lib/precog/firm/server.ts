@@ -13,6 +13,7 @@ import {
 import { mergeProfile } from "../profile-merge";
 import { isCalendarDate, resolveClientDate } from "../dates";
 import type { PracticeProfile } from "../practice-profile";
+import type { StoredReportModel } from "../report/stored-model";
 import type { FirmPlan } from "./pricing";
 import {
   requireBusinessOwner,
@@ -45,6 +46,7 @@ import {
 } from "./store";
 import {
   listReportVersions,
+  loadFrozenReport,
   loadReportVersion,
   lockReportVersion,
   markReportVersionSent,
@@ -333,23 +335,28 @@ export const recordMonthlyReview = createServerFn({ method: "POST" })
 
 export const lockReport = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { businessId: string; scopeNote?: string }) => {
+  .validator((input: { businessId: string; scopeNote?: string; today?: string }) => {
     const raw = requireObject(input);
     if (!isBusinessId(raw.businessId)) throw new RequestError(400, "Unknown business id");
     return {
       businessId: raw.businessId,
       scopeNote: typeof raw.scopeNote === "string" ? raw.scopeNote.trim().slice(0, 600) : "",
+      today: resolveClientDate(raw.today),
     };
   })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    // The figures are built on the preparer's calendar day, the day the
+    // locked report prints, and stored so later scoring changes leave them.
+    const { freezeReport } = await import("../report/stored-model");
     const version = await lockReportVersion(sql, {
       ownerUserId: owner,
       businessId: data.businessId,
       preparedBy: context.userId,
       scopeNote: data.scopeNote,
       id: `rv_${randomHex(12)}`,
+      freeze: (profile) => freezeReport(profile, data.today),
     });
     return { version };
   });
@@ -374,8 +381,10 @@ export const getReport = createServerFn({ method: "GET" })
     const where = await requireReportVersion(sql, context.userId, data.id);
     const loaded = await loadReportVersion<PracticeProfile>(sql, where.ownerUserId, data.id);
     if (!loaded) throw new RequestError(404, "That report version does not exist");
+    const frozen = await loadFrozenReport<StoredReportModel>(sql, where.ownerUserId, data.id);
     return {
       version: loaded.version,
+      frozen,
       profile: {
         ...mergeProfile(
           {

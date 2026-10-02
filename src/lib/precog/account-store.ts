@@ -14,6 +14,8 @@ import { pictureUrl } from "./procedures/image-pipeline";
  * tokens, and the encrypted QuickBooks tokens. Step pictures are listed with
  * everything stored about them and the address that serves each one, not
  * their bytes: hundreds of them, inline, would make one very large response.
+ * Past versions of each business download separately (exportBusinessHistoryPage):
+ * up to 200 versions of up to 2 MB each would pass Vercel's 4.5 MB response limit.
  */
 interface AccountExport {
   exportedAt: string;
@@ -27,16 +29,6 @@ interface AccountExport {
     revision: number;
     updatedAt: string;
     deletedAt: string | null;
-    profile: unknown;
-  }>;
-  /** Every earlier saved version of each business, newest first. */
-  businessHistory: Array<{
-    businessId: string;
-    revision: number;
-    name: string;
-    industry: string;
-    savedBy: string | null;
-    savedAt: string;
     profile: unknown;
   }>;
   /** Businesses deleted for good; only the id and the day are kept. */
@@ -170,7 +162,6 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
     const [
       user,
       businesses,
-      businessHistory,
       deletedBusinesses,
       reportVersions,
       snapshots,
@@ -191,7 +182,6 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
     ] = await Promise.all([
       readUser(tx, userId),
       readBusinesses(tx, userId),
-      readBusinessHistory(tx, userId),
       readDeletedBusinesses(tx, userId),
       readReportVersions(tx, userId),
       readSnapshots(tx, userId),
@@ -218,7 +208,6 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
       controlExecutions,
       user,
       businesses,
-      businessHistory,
       deletedBusinesses,
       reportVersions,
       snapshots,
@@ -237,6 +226,127 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
       procedureImages,
     };
   });
+}
+
+/** One earlier saved version of a business, as the history download writes it. */
+export interface BusinessHistoryExportRow {
+  businessId: string;
+  revision: number;
+  name: string;
+  industry: string;
+  savedBy: string | null;
+  savedAt: string;
+  profile: unknown;
+}
+
+/** The account's businesses that have past versions, deleted ones included, by name. */
+export async function listAccountHistoryBusinesses(
+  sql: Sql,
+  userId: string,
+): Promise<Array<{ businessId: string; name: string; versions: number }>> {
+  const rows = await sql<{ business_id: string; name: string; versions: number | string }>`
+    select h.business_id, coalesce(max(b.name), max(h.name)) as name, count(*) as versions
+    from business_history h
+    left join businesses b on b.user_id = h.user_id and b.id = h.business_id
+    where h.user_id = ${userId}
+    group by h.business_id
+    order by 2, 1
+  `;
+  return rows.map((r) => ({
+    businessId: r.business_id,
+    name: r.name,
+    versions: Number(r.versions),
+  }));
+}
+
+/**
+ * What one history page may hold, measured as Postgres prints each profile.
+ * The page travels base64-encoded (see encodeHistoryPage), 4/3 of this, so a
+ * full page reaches the browser at about 4 MB, under Vercel's 4.5 MB response
+ * limit, whatever characters the profiles hold.
+ */
+export const HISTORY_PAGE_BYTES = 3 * 1024 * 1024;
+
+/**
+ * One page of a business's past versions, newest first, below `beforeRevision`
+ * when given. A page holds versions until their profiles reach `budgetBytes`,
+ * and always at least one (a profile is at most 2 MB, under 2.7 MB encoded).
+ * `nextBeforeRevision` is null on the last page. Only the caller's own rows:
+ * another account's id returns an empty page.
+ *
+ * The walk prints one version at a time and stops at the first one past the
+ * budget, so a request measures only its own page and that one extra version,
+ * which also tells it whether another page follows.
+ */
+export async function exportBusinessHistoryPage(
+  sql: Sql,
+  userId: string,
+  businessId: string,
+  beforeRevision: number | null,
+  budgetBytes = HISTORY_PAGE_BYTES,
+): Promise<{ rows: BusinessHistoryExportRow[]; nextBeforeRevision: number | null }> {
+  const rows = await sql<{
+    business_id: string;
+    revision: number | string;
+    name: string;
+    industry: string;
+    saved_by: string | null;
+    saved_at: string;
+    profile: unknown;
+    on_page: boolean;
+  }>`
+    with recursive walk as (
+      (
+        select revision, octet_length(profile::text)::bigint as running, 1 as n
+        from business_history
+        where user_id = ${userId} and business_id = ${businessId}
+          and (${beforeRevision}::bigint is null or revision < ${beforeRevision}::bigint)
+        order by revision desc
+        limit 1
+      )
+      union all
+      select h.revision, w.running + octet_length(h.profile::text), w.n + 1
+      from walk w
+      cross join lateral (
+        select revision, profile from business_history
+        where user_id = ${userId} and business_id = ${businessId} and revision < w.revision
+        order by revision desc
+        limit 1
+      ) h
+      where w.n = 1 or w.running <= ${budgetBytes}::bigint
+    ),
+    sized as (
+      select revision, (n = 1 or running <= ${budgetBytes}::bigint) as on_page from walk
+    )
+    select h.business_id, h.revision, h.name, h.industry, h.saved_by, h.saved_at,
+      case when s.on_page then h.profile end as profile, s.on_page
+    from business_history h join sized s on s.revision = h.revision
+    where h.user_id = ${userId} and h.business_id = ${businessId}
+    order by h.revision desc
+  `;
+  const page = rows
+    .filter((h) => h.on_page)
+    .map((h) => ({
+      businessId: h.business_id,
+      revision: Number(h.revision),
+      name: h.name,
+      industry: h.industry,
+      savedBy: h.saved_by,
+      savedAt: toIsoTimestamp(h.saved_at),
+      profile: h.profile,
+    }));
+  const more = rows.length > page.length;
+  return { rows: page, nextBeforeRevision: more ? (page.at(-1)?.revision ?? null) : null };
+}
+
+/**
+ * A history page as the server function sends it: the rows' JSON in base64.
+ * A JSON string inside the transport's own JSON is escaped twice, so quotes,
+ * backslashes and `<` grow four to five times on the wire; base64 holds every
+ * page at 4/3 of its JSON, which HISTORY_PAGE_BYTES relies on.
+ */
+export function encodeHistoryPage(rows: BusinessHistoryExportRow[]): string {
+  return Buffer.from(JSON.stringify(rows), "utf8").toString("base64");
 }
 
 /**
@@ -333,34 +443,6 @@ async function readBusinesses(tx: Sql, userId: string): Promise<AccountExport["b
     updatedAt: toIsoTimestamp(b.updated_at),
     deletedAt: toIsoTimestampOrNull(b.deleted_at),
     profile: b.profile,
-  }));
-}
-
-async function readBusinessHistory(
-  tx: Sql,
-  userId: string,
-): Promise<AccountExport["businessHistory"]> {
-  const rows = await tx<{
-    business_id: string;
-    revision: number | string;
-    name: string;
-    industry: string;
-    saved_by: string | null;
-    saved_at: string;
-    profile: unknown;
-  }>`
-    select business_id, revision, name, industry, saved_by, saved_at, profile
-    from business_history where user_id = ${userId}
-    order by business_id, revision desc
-  `;
-  return rows.map((h) => ({
-    businessId: h.business_id,
-    revision: Number(h.revision),
-    name: h.name,
-    industry: h.industry,
-    savedBy: h.saved_by,
-    savedAt: toIsoTimestamp(h.saved_at),
-    profile: h.profile,
   }));
 }
 

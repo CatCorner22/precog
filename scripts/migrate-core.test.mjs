@@ -2,6 +2,7 @@
  * The deploy migrator (./migrate-core.mjs) against an embedded Postgres: the
  * real migrations apply once and a second run applies nothing, a ledger
  * written before the files were renumbered is moved rather than re-applied,
+ * an applied file that changed is refused by its checksum,
  * every ledger access happens under the advisory lock, and a failed file,
  * ledger write or rename rolls back cleanly and retries safely.
  *
@@ -14,6 +15,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { migrationChecksum } from "./lib/migration-checksum.mjs";
 import { runMigrations } from "./migrate-core.mjs";
 
 const MIGRATIONS_DIR = fileURLToPath(new URL("../migrations", import.meta.url));
@@ -58,6 +60,58 @@ describe("migration ledger", () => {
     expect(second.applied).toEqual([]);
     expect(second.moved).toHaveLength(renames.length);
     expect(await ledger()).toEqual(first.applied);
+  });
+});
+
+describe("migration checksums", () => {
+  it("stores the checksum of each applied file", async () => {
+    const dir = await directory({ "0001_one.sql": "select 1" });
+    await migrate(dir);
+    expect(await exec("select name, checksum from _migrations")).toEqual([
+      { name: "0001_one.sql", checksum: await migrationChecksum("select 1") },
+    ]);
+  });
+
+  it("fills in the checksum of a row applied before checksums existed", async () => {
+    const dir = await directory({ "0001_one.sql": "select 1" });
+    await exec(
+      "create table _migrations(name text primary key); insert into _migrations values ('0001_one.sql')",
+    );
+    expect(await migrate(dir)).toMatchObject({ applied: [] });
+    expect(await exec("select checksum from _migrations")).toEqual([
+      { checksum: await migrationChecksum("select 1") },
+    ]);
+  });
+
+  it("refuses an applied file that changed, naming it, before applying anything", async () => {
+    const dir = await directory({ "0001_one.sql": "select 1" });
+    await migrate(dir);
+    await writeFile(join(dir, "0001_one.sql"), "select 2");
+    await writeFile(join(dir, "0002_two.sql"), "create table two(id integer)");
+    await expect(migrate(dir)).rejects.toThrow(
+      "migrations/0001_one.sql changed after it was applied; add a new migration instead",
+    );
+    expect(await ledger()).toEqual(["0001_one.sql"]);
+  });
+
+  it("reads CRLF and LF line endings as the same file", async () => {
+    const dir = await directory({ "0001_one.sql": "select 1;\nselect 2;\n" });
+    await migrate(dir);
+    await writeFile(join(dir, "0001_one.sql"), "select 1;\r\nselect 2;\r\n");
+    expect(await migrate(dir)).toMatchObject({ applied: [] });
+  });
+
+  it("keeps a renamed file's checksum and checks it under the new name", async () => {
+    const dir = await directory({ "0001_one.sql": "select 1" });
+    await migrate(dir);
+    await exec("update _migrations set name = '0011_old.sql'");
+    await writeFile(join(dir, "renamed.json"), JSON.stringify({ "0001_one.sql": "0011_old.sql" }));
+    expect(await migrate(dir)).toMatchObject({
+      applied: [],
+      moved: [["0011_old.sql", "0001_one.sql"]],
+    });
+    await writeFile(join(dir, "0001_one.sql"), "select 2");
+    await expect(migrate(dir)).rejects.toThrow("migrations/0001_one.sql changed");
   });
 });
 

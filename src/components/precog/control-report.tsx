@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Printer } from "lucide-react";
 import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
-import { latestReview, REVIEW_ITEMS, reviewResultLine } from "@/lib/precog/firm/reviews";
+import { latestReview, reviewItemsFor, reviewResultLine } from "@/lib/precog/firm/reviews";
 import { industryMeta } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
@@ -18,6 +18,12 @@ import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lif
 import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/reports";
 import { ReportVersionsPanel } from "@/components/precog/report-versions";
 import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
+import {
+  lockedFigures,
+  recalculationNote,
+  reviveReportModel,
+  type FrozenReport,
+} from "@/lib/precog/report/stored-model";
 import { REPORT_CAVEATS } from "@/lib/precog/report/report-summary";
 import { ControlReportContinuitySections } from "@/components/precog/control-report-continuity-sections";
 import {
@@ -32,8 +38,17 @@ import { count, firstName, midSentence, verb } from "@/lib/precog/text";
  * Print-friendly control priorities report — File → Print → Save as PDF.
  * With `locked`, it prints a frozen version (rendered under a read-only
  * provider) and names the preparer and reviewer instead of today's date.
+ * With `frozen`, it prints the figures stored when the version was locked,
+ * so later scoring changes leave them as they were; a locked version without
+ * usable stored figures recalculates them and says why.
  */
-export function ControlReport({ locked = null }: { locked?: ReportVersionRow | null }) {
+export function ControlReport({
+  locked = null,
+  frozen = null,
+}: {
+  locked?: ReportVersionRow | null;
+  frozen?: Pick<FrozenReport, "layoutVersion" | "model"> | null;
+}) {
   const { profile, mapCustomized, markReportSent } = usePractice();
   const tpl = useTemplate();
   const industry = industryMeta(profile.industry);
@@ -48,19 +63,27 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
   const businessName = printedBusinessName(profile);
   const sentAt = profile.engagement?.reportSentAt;
 
+  const figures = locked ? lockedFigures(frozen) : null;
+  const storedModel = figures && "model" in figures ? figures.model : null;
   const data = useMemo(
     () =>
-      buildControlReportModel({
-        tpl,
-        profile,
-        mapCustomized,
-        today,
-        trackFreshness,
-        mapReady,
-        businessName,
-      }),
-    [tpl, profile, mapCustomized, today, trackFreshness, mapReady, businessName],
+      storedModel
+        ? reviveReportModel(storedModel)
+        : buildControlReportModel({
+            tpl,
+            profile,
+            mapCustomized,
+            today,
+            trackFreshness,
+            mapReady,
+            businessName,
+          }),
+    [storedModel, tpl, profile, mapCustomized, today, trackFreshness, mapReady, businessName],
   );
+  const recalculated =
+    figures && "reason" in figures
+      ? recalculationNote(figures.reason, formatDay(localDateKey(new Date())))
+      : null;
   const { threat, portfolio, sod, sodOpen, sodLevel, mapHealth, healthDelta, decisionLog } = data;
   const sodNote = belowThresholdNote(sodOpen);
   const mapIssues = data.issues.filter((i) => i.severity !== "info");
@@ -68,7 +91,7 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
     .slice()
     .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || b.score - a.score);
   const unheld = sod.summary.unheldDuties.map((d) => entitlementLabel(d));
-  const reviews = REVIEW_ITEMS.map((item) => ({
+  const reviews = reviewItemsFor(month).map((item) => ({
     item,
     latest: latestReview(profile.monthlyReviews ?? [], item.key, month),
   }));
@@ -126,6 +149,11 @@ export function ControlReport({ locked = null }: { locked?: ReportVersionRow | n
             <p className="mt-1 text-sm font-medium text-neutral-800">
               {versionProvenance(locked)}
               {locked.scopeNote ? ` · Scope: ${locked.scopeNote}` : ""}
+            </p>
+          )}
+          {recalculated && (
+            <p role="note" className="mt-1 text-sm text-neutral-700">
+              {recalculated}
             </p>
           )}
           <p className="mt-1 text-sm text-neutral-600">

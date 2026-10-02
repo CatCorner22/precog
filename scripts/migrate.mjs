@@ -10,7 +10,7 @@
  *
  * On a production deploy it refuses to continue without DATABASE_URL and
  * BETTER_AUTH_SECRET, and warns about each optional feature that is only half
- * configured (see .env.example). Elsewhere, no DATABASE_URL means skip: the
+ * configured (see .env.example) and when no error tracker is set. Elsewhere, no DATABASE_URL means skip: the
  * PGLite fallback applies the same files at startup (src/lib/db.ts).
  */
 import { fileURLToPath } from "node:url";
@@ -88,6 +88,11 @@ function featureWarnings() {
   if (!env("CRON_SECRET"))
     warnings.push(
       "CRON_SECRET is not set, so the weekly job is refused: no reminder email, no purge of deleted businesses, no QuickBooks refresh.",
+    );
+  // The names src/lib/observability/report.server.ts reads.
+  if (!env("SENTRY_DSN") && !env("ERROR_REPORT_URL"))
+    warnings.push(
+      "Neither SENTRY_DSN nor ERROR_REPORT_URL is set, so server errors go only to the server log and nobody is alerted. Set one of them (see docs/OPERATIONS.md, Monitoring).",
     );
   // Features that need every one of their variables (see .env.example).
   const features = [

@@ -1,18 +1,175 @@
 import { useWorkspace } from "@/lib/precog/workspace-context";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Download, Trash2 } from "lucide-react";
-import { deleteAccount, exportAccountData } from "@/lib/precog/account-server";
+import { Download, History, Trash2 } from "lucide-react";
+import {
+  deleteAccount,
+  exportAccountData,
+  exportBusinessHistory,
+  listHistoryDownloads,
+} from "@/lib/precog/account-server";
 import { signOut } from "@/lib/auth/client";
 import { clearLocalCopies } from "@/lib/precog/local-data";
 import { downloadText } from "@/lib/download";
 import { localDateKey } from "@/lib/precog/dates";
 import { clientErrorStatus } from "@/lib/request-errors";
+import { slug } from "@/lib/precog/text";
+
+interface HistoryBusiness {
+  businessId: string;
+  name: string;
+  versions: number;
+}
+
+/** One page as the server sends it: the rows' JSON in base64 (see encodeHistoryPage). */
+function decodeHistoryPage(base64: string): unknown[] {
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes)) as unknown[];
+}
+
+/** Fetches every page of one business's past versions and saves them as one file. */
+async function downloadBusinessHistory(business: HistoryBusiness): Promise<void> {
+  const versions: unknown[] = [];
+  let before: number | null = null;
+  do {
+    const page: { base64: string; nextBeforeRevision: number | null } = await exportBusinessHistory(
+      {
+        data: { businessId: business.businessId, beforeRevision: before },
+      },
+    );
+    versions.push(...decodeHistoryPage(page.base64));
+    before = page.nextBeforeRevision;
+  } while (before !== null);
+  const file = {
+    exportedAt: new Date().toISOString(),
+    businessId: business.businessId,
+    name: business.name,
+    versions,
+  };
+  downloadText(
+    `precog-history-${slug(business.name) || business.businessId}-${localDateKey(new Date())}.json`,
+    JSON.stringify(file, null, 2),
+    "application/json",
+  );
+}
+
+/**
+ * Lists the account's businesses that have past versions; each one downloads
+ * on its own. Reports a running download through `onBusy` so the other
+ * account controls wait for it.
+ */
+function HistoryDownloads({
+  disabled,
+  onBusy,
+}: {
+  disabled: boolean;
+  onBusy: (busy: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [businesses, setBusinesses] = useState<HistoryBusiness[] | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function closeOutside(event: Event) {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("focusin", closeOutside);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("focusin", closeOutside);
+    };
+  }, [open]);
+
+  async function toggle() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    setOpen(true);
+    try {
+      setBusinesses((await listHistoryDownloads()).businesses);
+    } catch {
+      setOpen(false);
+      toast.error("Precog could not list past versions. Try again in a moment.");
+    }
+  }
+
+  async function download(business: HistoryBusiness) {
+    setBusyId(business.businessId);
+    onBusy(true);
+    try {
+      await downloadBusinessHistory(business);
+      toast.success(`Past versions of ${business.name} are downloading as one JSON file.`);
+    } catch {
+      toast.error("The history download failed. Try again in a moment.");
+    } finally {
+      setBusyId(null);
+      onBusy(false);
+    }
+  }
+
+  return (
+    <div ref={root} className="relative">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => void toggle()}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setOpen(false);
+        }}
+        disabled={disabled}
+        title="Download each business's past versions, one file per business"
+        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-fg disabled:opacity-50"
+      >
+        <History className="size-3.5" aria-hidden />
+        Download history
+      </button>
+      {open && (
+        <div
+          role="group"
+          aria-label="Download history"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setOpen(false);
+          }}
+          className="absolute right-0 z-30 mt-1 w-64 rounded-lg border border-border bg-surface p-1 shadow-xl"
+        >
+          {businesses === null ? (
+            <p className="px-2.5 py-2 text-xs text-muted">Loading…</p>
+          ) : businesses.length === 0 ? (
+            <p className="px-2.5 py-2 text-xs text-muted">No business has past versions yet.</p>
+          ) : (
+            businesses.map((b) => (
+              <button
+                key={b.businessId}
+                type="button"
+                onClick={() => void download(b)}
+                disabled={busyId !== null}
+                title={`Download history for ${b.name}`}
+                className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-muted hover:bg-elevated hover:text-fg disabled:opacity-50"
+              >
+                <Download className="size-3.5" aria-hidden />
+                <span className="flex-1 truncate">{b.name}</span>
+                <span>
+                  {busyId === b.businessId
+                    ? "Downloading…"
+                    : `${b.versions} ${b.versions === 1 ? "version" : "versions"}`}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Export and delete controls for the signed-in account. */
 export function AccountDataControls() {
   const workspace = useWorkspace();
-  const [busy, setBusy] = useState<"export" | "delete" | null>(null);
+  const [busy, setBusy] = useState<"export" | "history" | "delete" | null>(null);
 
   async function exportAll() {
     setBusy("export");
@@ -29,7 +186,7 @@ export function AccountDataControls() {
 
   async function deleteAccountAndSignOut() {
     const typed = window.prompt(
-      "This deletes your account and everything in it: every business and its history, report versions, snapshots, shared links, your firm workspace and its members' access, reminders, the billing record and the QuickBooks link. You cannot undo this. Export first if you want a copy. Type DELETE to confirm.",
+      "This deletes your account and everything in it: every business and its history, report versions, snapshots, shared links, your firm workspace and its members' access, reminders, the billing record and the QuickBooks link. You cannot undo this. Export data and Download history first if you want a copy. Type DELETE to confirm.",
     );
     if (typed !== "DELETE") return;
     setBusy("delete");
@@ -55,12 +212,16 @@ export function AccountDataControls() {
         type="button"
         onClick={() => void exportAll()}
         disabled={busy !== null}
-        title="Download this account's data as one JSON file"
+        title="Download this account's data as one JSON file; past versions download with Download history"
         className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-fg disabled:opacity-50"
       >
         <Download className="size-3.5" aria-hidden />
         Export data
       </button>
+      <HistoryDownloads
+        disabled={busy !== null}
+        onBusy={(running) => setBusy(running ? "history" : null)}
+      />
       <button
         type="button"
         onClick={() => void deleteAccountAndSignOut()}

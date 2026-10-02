@@ -60,6 +60,25 @@ describe("migrate.mjs", () => {
     expect(run.stderr).not.toContain("QuickBooks link is half set up");
     expect(run.stderr).not.toContain("Reminder email is half set up");
   });
+
+  it("warns on production when no error tracker is set, and builds on", () => {
+    const base = {
+      VERCEL_ENV: "production",
+      BETTER_AUTH_SECRET: "s".repeat(32),
+      DATABASE_URL: "postgresql://nobody@127.0.0.1:9/none",
+    };
+    const bare = migrate(base);
+    expect(bare.stderr).toContain(
+      "warning: Neither SENTRY_DSN nor ERROR_REPORT_URL is set, so server errors go only to the server log",
+    );
+    expect(bare.stderr).not.toContain("Refusing a production build");
+    expect(
+      migrate({ ...base, SENTRY_DSN: "https://key@o1.ingest.sentry.io/2" }).stderr,
+    ).not.toContain("Neither SENTRY_DSN");
+    expect(
+      migrate({ ...base, ERROR_REPORT_URL: "https://hooks.example/errors" }).stderr,
+    ).not.toContain("Neither SENTRY_DSN");
+  });
 });
 
 /** Runs the script with only PATH and `vars` in its environment. */

@@ -18,7 +18,7 @@ import { monthlyWorkpaperFacts, type WorkpaperFact } from "@/lib/precog/firm/wor
 import { clientErrorStatus } from "@/lib/request-errors";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
 
-/** The four monthly checks, with an append-only result on the business and, when signed in, on the server. */
+/** The monthly checks, with an append-only result on the business and, when signed in, on the server. */
 export function MonthlyReview() {
   const { profile, template, setMonthlyReviews } = usePractice();
   const user = useCurrentUser();
@@ -128,16 +128,16 @@ export function MonthlyReview() {
     <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-lg font-semibold">This month’s file</h2>
       <p className="mt-1 text-sm text-muted">
-        Four checks taken from the register. Record a result with an owner and a note. The monthly
-        log keeps every result. When you are signed in, the first Done or Exception for each check
-        and month also goes into the{" "}
+        The checks below come from the register. Record a result with an owner and a note. The
+        monthly log keeps every result. When you are signed in, the first Done or Exception for each
+        check and month also goes into the{" "}
         <Link to="/firm" className="underline underline-offset-2">
           control evidence log
         </Link>{" "}
         as a preparer entry dated the day you record it (a firm reviewer still records review
-        separately). Two facts from QuickBooks, then the four checks. Duty ticks on the map are
-        starting duties, not system access. Lock the report to send this page. Recording “Done” does
-        not establish independent verification.
+        separately). Two facts from QuickBooks, then the checks. Duty ticks on the map are starting
+        duties, not system access. Lock the report to send this page. Recording “Done” does not
+        establish independent verification.
       </p>
       {facts && (
         <ul className="mt-4 space-y-2">

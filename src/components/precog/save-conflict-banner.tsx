@@ -14,7 +14,9 @@ export function SaveConflictBanner() {
     ? `Another tab in this browser saved changes to this business ${when}. This tab has stopped saving so neither copy is overwritten.`
     : saveConflict.reason === "sign-in"
       ? `This device has work on this business from before you signed in, and your account holds a different copy (saved ${when}). Nothing has been overwritten yet.`
-      : `Someone changed this business on another device or tab (saved ${when}). Precog has not saved your latest edits here to your account yet.`;
+      : saveConflict.reason === "unreachable"
+        ? `This device has edits made while your account could not be reached, and your account holds a different copy (saved ${when}). Nothing has been overwritten yet.`
+        : `Someone changed this business on another device or tab (saved ${when}). Precog has not saved your latest edits here to your account yet.`;
 
   return (
     <Card

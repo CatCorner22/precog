@@ -102,6 +102,10 @@ try {
     "Restricted archive / reconciliation / v1",
   );
   step("Account-scoped draft survives reload");
+  // Record the fifth monthly check, so the database accepts its key end to end.
+  await form
+    .getByRole("combobox", { name: "Control check", exact: true })
+    .selectOption("card_statement");
   // Simulate a transport failure. It must neither invent a saved result nor erase the draft.
   await context.setOffline(true);
   await form.getByRole("button", { name: "Record check", exact: true }).click();
@@ -114,6 +118,7 @@ try {
   const first = (await pg.query("select record from control_execution_log")).rows[0].record;
   assert.equal(first.history[0].actor.id, actor.prep);
   assert.equal(first.revision, 1);
+  assert.equal(first.controlKey, "card_statement");
   step("Offline failure retains draft; retry writes exactly one event with server identity");
   assert.equal(await panel.getByText("Review this check", { exact: true }).count(), 0);
   await page.screenshot({ path: output + "/01-preparer.png", fullPage: true });

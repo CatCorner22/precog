@@ -15,7 +15,7 @@ import {
 import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/reports";
 import type { FirmRole } from "@/lib/precog/firm/store";
 import { isOwnTeam } from "@/lib/precog/firm/engagement";
-import { formatDay } from "@/lib/precog/dates";
+import { formatDay, localDateKey } from "@/lib/precog/dates";
 import { signOffWithNote } from "./report-versions-actions";
 
 /**
@@ -62,7 +62,9 @@ export function ReportVersionsPanel() {
     }
     setBusy(true);
     try {
-      const { version } = await lockReport({ data: { businessId, scopeNote: scope } });
+      const { version } = await lockReport({
+        data: { businessId, scopeNote: scope, today: localDateKey(new Date()) },
+      });
       setVersions((cur) => [version, ...(cur ?? [])]);
       setScope("");
       toast.success(`Version ${version.versionNo} locked.`);

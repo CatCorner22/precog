@@ -5,7 +5,7 @@
 A signed-in preparer records what was checked, for what period, how, and where
 supporting records are held. A separate authorized account records a review.
 Exceptions stay open through correction and retest. The earlier result remains
-visible in the history. This is a bounded execution log for the four existing
+visible in the history. This is a bounded execution log for the five
 monthly checks, not a full control-design catalog or an audit opinion.
 
 This implementation starts from main `efb358b4e345ff7c7314760666d5f80acb9b5361`,
@@ -99,7 +99,7 @@ https://pcaobus.org/oversight/standards/auditing-standards/details/AS2201
 
 The required second account and reperformance after a correction are this
 application's conservative workflow rules. They are not universal legal mandates
-or a guarantee of independent assurance. The four checks are the existing app
+or a guarantee of independent assurance. The five checks are Precog's existing
 catalog; additional controls and implementation-state evidence remain later work.
 
 The transaction uses PostgreSQL row locks, described in the current official

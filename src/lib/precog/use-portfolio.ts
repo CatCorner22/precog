@@ -18,6 +18,7 @@ import {
   type PracticeProfile,
 } from "./practice-profile";
 import { removeValueProof } from "./value-proof-store";
+import { downloadRecoveryCopy } from "./recovery-copy";
 import {
   atBusinessLimit,
   businessLimitMessage,
@@ -211,7 +212,11 @@ export function usePortfolio(input: {
       }
       // Written here first: another tab's newer save raises the banner now,
       // before the new business takes this one's place.
-      if (!flushLocal()) return { ok: false, reason: CHOOSE_A_VERSION_FIRST };
+      if (!flushLocal())
+        return {
+          ok: false,
+          reason: saveConflictRef.current ? CHOOSE_A_VERSION_FIRST : NOT_KEPT_HERE,
+        };
       const current = profileRef.current;
       if (current.onboardingComplete !== false) {
         openBeforeSetup.current = current.businessId ?? DEFAULT_BUSINESS_ID;
@@ -226,7 +231,11 @@ export function usePortfolio(input: {
         if (saveConflictRef.current) return { ok: false, reason: CHOOSE_A_VERSION_FIRST };
         if (!mounted.current) return { ok: false, reason: "The page closed before the switch." };
         // An edit made while the account save was in flight.
-        if (!flushLocal()) return { ok: false, reason: CHOOSE_A_VERSION_FIRST };
+        if (!flushLocal())
+          return {
+            ok: false,
+            reason: saveConflictRef.current ? CHOOSE_A_VERSION_FIRST : NOT_KEPT_HERE,
+          };
         // Setup opens for it: the owner's own team, or the sample under the
         // sample's name. It never shows the sample's people under this name.
         const next = newBusinessProfile(industry, name);
@@ -280,14 +289,27 @@ export function usePortfolio(input: {
     (previous: PracticeProfile) => {
       const keep = unfinishedBusinessToKeep(previous);
       const id = previous.businessId ?? DEFAULT_BUSINESS_ID;
-      if (keep) savePortfolioEntry(keep, workspace.local);
+      if (keep) {
+        // The setup about to open takes its place, so a copy this browser
+        // refused leaves as a file rather than nowhere.
+        if (!savePortfolioEntry(keep, workspace.local))
+          toast.error(`This browser did not keep ${keep.practiceName}`, {
+            description:
+              "Storage on this device is full or blocked. Download this copy to keep it.",
+            duration: Infinity,
+            action: {
+              label: "Download this copy",
+              onClick: () => downloadRecoveryCopy(workspace, keep),
+            },
+          });
+      }
       // Older versions listed the unfinished sample in the portfolio; a finished
       // business under the same id (another tab's) is left alone.
       else if (loadPortfolio(workspace.local)[id]?.onboardingComplete === false)
         removePortfolioEntry(id, workspace.local);
       bumpPortfolio();
     },
-    [bumpPortfolio, workspace.local],
+    [bumpPortfolio, workspace],
   );
 
   const completeOnboarding = useCallback(
@@ -347,3 +369,6 @@ export function usePortfolio(input: {
 }
 
 const CHOOSE_A_VERSION_FIRST = "Choose a copy in the banner at the top first, so you lose no work.";
+/** This browser refused the open business, which exists nowhere else yet. */
+const NOT_KEPT_HERE =
+  "This browser did not keep the open business, so it stays open until storage on this device frees up.";

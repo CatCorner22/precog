@@ -172,7 +172,7 @@ export async function runGrokAgentLoop<T extends LocalAgentRun>(
       temperature: 0.3,
     });
     if (!response) {
-      console.error("[pioneer] the model returned no brief; answering with the rules brief");
+      await reportModelFallback(new Error("The model returned no brief"));
       return failed();
     }
 
@@ -210,9 +210,19 @@ export async function runGrokAgentLoop<T extends LocalAgentRun>(
     };
   } catch (error) {
     if (error instanceof DailyLimitReached) return { ...failed(), modelStatus: "daily-limit" };
-    console.error("[pioneer] model call failed; answering with the rules brief", error);
+    await reportModelFallback(error);
     return failed();
   }
+}
+
+/**
+ * A model failure answers with the rules brief, so the owner sees no error;
+ * the report is how the team learns that every brief is falling back.
+ */
+async function reportModelFallback(error: unknown): Promise<void> {
+  console.error("[pioneer] model call failed; answering with the rules brief");
+  const { reportServerError } = await import("@/lib/observability/report.server");
+  await reportServerError(error, "pioneer-model");
 }
 
 /**

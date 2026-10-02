@@ -1,10 +1,12 @@
-import { browserStorage, type StorageLike } from "./local-data";
+import { reportClientError } from "@/lib/observability/report-browser";
+import { browserStorage, readLocal, writeLocal, type StorageLike } from "./local-data";
 import {
   ACTIVE_PROFILE_KEY,
   hasUserWork,
   normalizeProfile,
   parseStoredProfile,
   readStoredActiveProfile,
+  readStoredProfile,
   type PracticeProfile,
 } from "./practice-profile";
 import { uid } from "./text";
@@ -27,6 +29,25 @@ function makeLocalRevision(): string {
 }
 
 const businessKey = (p: Pick<PracticeProfile, "businessId">) => p.businessId ?? DEFAULT_BUSINESS_ID;
+
+/** Where a stored business the normaliser could not read is kept, one key per distinct text. */
+export const QUARANTINE_PREFIX = "precog.quarantine.";
+
+/** The quarantine key for `raw`: the same text read on every reload lands in one key, not one per load. */
+export function quarantineKey(raw: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < raw.length; i += 1) {
+    hash ^= raw.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `${QUARANTINE_PREFIX}${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+/** A stored business this build could not read, kept under `key`. */
+export interface UnreadableCopy {
+  key: string;
+  raw: string;
+}
 
 type LocalWriteResult =
   | { kind: "saved" }
@@ -56,21 +77,39 @@ export class LocalProfileStore {
   /** `updatedAt` of that copy: the same version reached another way (two tabs loading one account copy) is not a conflict. */
   private seenStamp: string | null = null;
 
+  /** True while the stored copy this tab loaded is one the normaliser could not read. */
+  private keepsUnreadable = false;
+
   constructor(
     private readonly storage: () => StorageLike | null = browserStorage,
     private readonly makeRev: () => string = makeLocalRevision,
+    /** Told when a load meets a stored business this build could not read. */
+    private readonly onUnreadable?: (copy: UnreadableCopy) => void,
   ) {}
 
   /**
    * Reads the open business, remembering which stored copy this tab now
    * builds on. `stored` is false on a first visit or when storage is blocked.
+   * A stored business the normaliser throws on is kept under a quarantine
+   * key, reported, and left in place: the setup sample opens, but no write
+   * replaces the stored copy while it stays unreadable.
    */
-  load(): { profile: PracticeProfile; stored: boolean } {
-    const raw = readStoredActiveProfile(this.storage());
-    const profile = parseStoredProfile(raw);
+  load(): { profile: PracticeProfile; stored: boolean; unreadable: UnreadableCopy | null } {
+    const storage = this.storage();
+    const raw = readStoredActiveProfile(storage);
+    const read = readStoredProfile(raw);
+    const { profile } = read;
     this.seenRev = storedRevision(raw).rev;
     this.seenStamp = raw ? profile.updatedAt : null;
-    return { profile, stored: raw !== null };
+    this.keepsUnreadable = raw !== null && read.unreadable !== null;
+    let unreadable: UnreadableCopy | null = null;
+    if (raw !== null && read.unreadable !== null) {
+      unreadable = { key: quarantineKey(raw), raw };
+      if (readLocal(unreadable.key, storage) === null) writeLocal(unreadable.key, raw, storage);
+      reportClientError(read.unreadable, "normalize-local");
+      this.onUnreadable?.(unreadable);
+    }
+    return { profile, stored: raw !== null, unreadable };
   }
 
   /** The stored copy of `businessId`, when the open business in storage is that one. */
@@ -102,9 +141,24 @@ export class LocalProfileStore {
     // or when the owner chose to replace it.
     let base = this.seenRev;
     const currentRev = storedRevision(current).rev;
-    if (current !== null && currentRev !== this.seenRev) {
-      const theirs = parseStoredProfile(current);
-      if (businessKey(theirs) === businessKey(profile)) {
+    const foreign = current !== null && currentRev !== this.seenRev;
+    // An unreadable copy under the legacy key, with the active key empty: a
+    // write here would hide that copy from every later load.
+    if (this.keepsUnreadable && current === null) {
+      const legacy = readStoredActiveProfile(storage);
+      if (legacy !== null && readStoredProfile(legacy).unreadable !== null) {
+        return { kind: "failed" };
+      }
+      this.keepsUnreadable = false;
+    }
+    if (current !== null && (foreign || this.keepsUnreadable)) {
+      const read = readStoredProfile(current);
+      // A copy this build could not read stays until a build that reads it
+      // opens it: neither the setup sample nor anything else replaces it.
+      if (read.unreadable !== null) return { kind: "failed" };
+      this.keepsUnreadable = false;
+      const theirs = read.profile;
+      if (foreign && businessKey(theirs) === businessKey(profile)) {
         const sameVersion =
           theirs.updatedAt === this.seenStamp || theirs.updatedAt === profile.updatedAt;
         if (!sameVersion && !options.force) return { kind: "conflict", theirs, rev: currentRev };
