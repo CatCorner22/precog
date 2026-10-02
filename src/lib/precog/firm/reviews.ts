@@ -83,6 +83,10 @@ export const REVIEW_ITEMS: readonly {
   },
 ];
 
+/** Which record a reviewer relies on, said the same way on the Monthly review and the evidence log. */
+export const EVIDENCE_RECORD_NOTE =
+  "The control evidence log is the record a reviewer relies on. Process Done marks, Decisions log entries and procedure proofs stay on this business and do not enter it.";
+
 /** The checks that apply to one period, YYYY-MM. */
 export function reviewItemsFor(period: string): typeof REVIEW_ITEMS {
   return REVIEW_ITEMS.filter((item) => !item.since || period >= item.since);
