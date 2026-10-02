@@ -16,16 +16,16 @@ interface ReviewTask {
   why: string;
   /** Calendar month the work covers, YYYY-MM. */
   period: string;
-  /** Who should do the check: someone who does not hold the duties it checks. */
+  /** Who Precog suggests for the check: someone who does not hold the duties it checks. */
   suggestedOwner: string;
   /**
    * True when everyone on the team holds one of the checked duties, so the
-   * suggested owner checks their own work. The screen should say so.
+   * suggested owner checks their own work. The screen says so.
    */
   reviewerHoldsDuty: boolean;
   /** A check of recorded responsibilities, not proof of actual access or performance. */
   reviewerIndependence: "separate_duties" | "self_review" | "not_established";
-  /** Calendar day the result should be recorded by, YYYY-MM-DD. */
+  /** Calendar day the result is due, YYYY-MM-DD. */
   dueOn: string;
 }
 
@@ -64,8 +64,8 @@ export const REVIEW_ITEMS: readonly {
   },
   {
     key: "payroll_headcount",
-    title: "Compare payroll to who still works here",
-    why: "A name on the payroll register who no longer works here is one way money leaves through payroll; this check does not catch a raised pay rate.",
+    title: "Compare the payroll register with who still works here, and with last run's rates",
+    why: "A name on the payroll register who no longer works here, or a pay rate that changed since the last run without a reason, is one way money leaves through payroll.",
     checkedDuties: ["approve_payroll", "enter_payroll", "edit_payroll_master"],
   },
   {
