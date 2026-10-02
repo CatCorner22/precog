@@ -1,6 +1,6 @@
 import { ControlEvidencePanel } from "@/components/precog/control-evidence/panel";
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { MonthlyReview } from "@/components/precog/monthly-review";
 import { AccessReconcile } from "@/components/precog/access-reconcile";
 import { FirmMembers } from "@/components/precog/firm/firm-members";
 import { FirmBilling } from "@/components/precog/firm/firm-billing";
-import { ClientList } from "@/components/precog/firm/client-list";
+import { ClientList, openClientReport } from "@/components/precog/firm/client-list";
 import { ClientHistory } from "@/components/precog/firm/client-history";
 import { QuickBooksPanel } from "@/components/precog/firm/quickbooks-panel";
 import { NotificationSettingsPanel } from "@/components/precog/firm/notification-settings";
@@ -77,6 +77,7 @@ function FirmPage() {
   const { user, isPending } = useCurrentUserState();
   const { profile, template, replaceProfile, switchBusiness } = usePractice();
   const search = Route.useSearch();
+  const navigate = useNavigate();
   const [firm, setFirm] = useState<FirmContext | null>(null);
   const [members, setMembers] = useState<FirmMember[]>([]);
   const [invites, setInvites] = useState<FirmInvite[]>([]);
@@ -429,6 +430,14 @@ function FirmPage() {
             deleted={deleted}
             activeId={activeId}
             onOpen={(id) => void switchBusiness(id)}
+            onOpenReport={(id) =>
+              void openClientReport(
+                id,
+                switchBusiness,
+                () => void navigate({ to: "/report" }),
+                (reason) => toast.error(reason),
+              )
+            }
             onRestored={(id) => {
               setDeleted((cur) => cur.filter((d) => d.id !== id));
               void listFirmClients()
@@ -441,9 +450,9 @@ function FirmPage() {
           {!toolsOpen && (
             <p className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
               QuickBooks stays closed until the assessment is paid or the firm plan is active. A
-              past-due plan is not paid. The monthly file on this page stays open. Stripe is
-              connected on this deployment; the price is the $1,000 assessment and the $299 monthly
-              plan, not a price per client.
+              past-due plan is not paid. The Monthly review stays open. Stripe is connected on this
+              deployment; the price is the $1,000 assessment and the $299 monthly plan, not a price
+              per client.
             </p>
           )}
           <QuickBooksPanel signedIn={signedIn} />
@@ -462,7 +471,7 @@ function FirmPage() {
           Back to the business
         </Link>
       </p>
-      <LegalFooter className="mt-6" />
+      <LegalFooter className="mt-6" hideFirmLink />
     </main>
   );
 }
