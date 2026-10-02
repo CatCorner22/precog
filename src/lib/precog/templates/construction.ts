@@ -325,14 +325,7 @@ export const constructionTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-est-1",
-          kind: "muda_overprocessing",
-          label: "Takeoffs redone for every revision",
-          note: "Plan revisions trigger a full recount because the estimator does not keep quantities by area.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-jobcost",
@@ -386,14 +379,7 @@ export const constructionTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-job-1",
-          kind: "muda_waiting",
-          label: "Costs coded weeks after the money goes out",
-          note: "Receipts and invoices wait for the project manager to assign cost codes, so overruns show up late.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-materials",
@@ -447,14 +433,7 @@ export const constructionTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-mat-1",
-          kind: "muda_motion",
-          label: "Trips to the supply house for missing items",
-          note: "Material lists are short on small items, so crews stop and drive for parts.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-claims",
@@ -508,14 +487,7 @@ export const constructionTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-bill-1",
-          kind: "muda_rework",
-          label: "Pay applications returned for missing backup",
-          note: "Clients send them back for lien waivers or change-order signatures, which delays payment a month.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ar",
@@ -568,14 +540,7 @@ export const constructionTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-ar-1",
-          kind: "muda_waiting",
-          label: "Waiting on final lien waivers to release retainage",
-          note: "The office chases subcontractor waivers one at a time at the end of the job.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-cash",
@@ -628,14 +593,7 @@ export const constructionTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-cash-1",
-          kind: "muda_waiting",
-          label: "Checks held in the office until someone goes to the bank",
-          note: "Client checks sit for days, which delays both cash and the record of payment.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ap",
@@ -691,14 +649,7 @@ export const constructionTemplate: IndustrySample = {
           status: "planned",
         },
       ],
-      wastes: [
-        {
-          id: "w-ap-1",
-          kind: "muda_overprocessing",
-          label: "Insurance certificates checked by hand each payment",
-          note: "The office looks up expiry dates in email instead of a tracked list.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-payroll",
@@ -753,14 +704,7 @@ export const constructionTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-pay-1",
-          kind: "muda_rework",
-          label: "Paper timesheets re-keyed and re-coded",
-          note: "The office types hours from paper and corrects cost codes after payroll has run.",
-        },
-      ],
+      wastes: [],
     },
   ],
   controls: [...baseFinancialControls(), ...constructionControls],

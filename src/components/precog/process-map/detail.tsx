@@ -227,7 +227,7 @@ export function ProcessDetail({
         {snapshot.ideas.length > 0 && (
           <div>
             <p className="mb-1 text-xs font-medium text-subtle uppercase">
-              Ideas ({snapshot.ideas.length})
+              Fixes to consider ({snapshot.ideas.length})
             </p>
             <ul className="space-y-1 text-xs text-muted">
               {snapshot.ideas.map((i) => (

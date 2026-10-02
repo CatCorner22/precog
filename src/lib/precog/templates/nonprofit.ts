@@ -218,14 +218,7 @@ export const nonprofitTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-gift-1",
-          kind: "muda_overprocessing",
-          label: "Gifts keyed twice",
-          note: "Staff type every gift into the donor database and again into the accounting system.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-grants",
@@ -289,14 +282,7 @@ export const nonprofitTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-grant-1",
-          kind: "muda_rework",
-          label: "Time sheets reallocated to grants after the fact",
-          note: "Finance moves staff time between grants at report time instead of recording it when staff work it.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-programs",
@@ -348,14 +334,7 @@ export const nonprofitTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-prog-1",
-          kind: "muda_motion",
-          label: "Store runs for single items",
-          note: "Program staff buy supplies one trip at a time on a card instead of from a standing order.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ar",
@@ -409,14 +388,7 @@ export const nonprofitTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-ar-1",
-          kind: "mura",
-          label: "Pledge reminders sent in a year-end rush",
-          note: "Reminders go out once in December instead of on each pledge's schedule.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ap",
@@ -471,14 +443,7 @@ export const nonprofitTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-ap-1",
-          kind: "muda_waiting",
-          label: "Checks wait for the executive director's signature",
-          note: "Payments sit until the executive director is in the office to sign, and vendors call about late payments.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-payroll",
@@ -530,14 +495,7 @@ export const nonprofitTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-pay-1",
-          kind: "muda_rework",
-          label: "Grant time allocations fixed after payroll",
-          note: "Finance splits payroll across grants from memory, then corrects it when funders ask.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-board",
@@ -591,14 +549,7 @@ export const nonprofitTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-board-1",
-          kind: "muda_waiting",
-          label: "Board packet assembled the night before",
-          note: "Financials arrive too late for the treasurer to ask questions before the meeting.",
-        },
-      ],
+      wastes: [],
     },
   ],
   controls: [

@@ -195,14 +195,7 @@ export const professionalServicesTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-eng-1",
-          kind: "muda_waiting",
-          label: "Consultants idle waiting on client data",
-          note: "The firm sends kickoff checklists too late, so billable weeks slip.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-billing",
@@ -255,14 +248,7 @@ export const professionalServicesTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-bill-1",
-          kind: "muda_rework",
-          label: "Invoices re-issued after client pushback",
-          note: "Late or vague time narratives cause edits and re-sends every month.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-trust",
@@ -315,14 +301,7 @@ export const professionalServicesTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-trust-1",
-          kind: "muda_overprocessing",
-          label: "Trust ledger kept in spreadsheet and accounting system",
-          note: "Staff key every retainer movement twice and reconcile it by hand.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-trust-rec",
@@ -377,14 +356,7 @@ export const professionalServicesTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-trec-1",
-          kind: "muda_rework",
-          label: "Reconciliation rebuilt at year end",
-          note: "The firm reconciles the months together at year end, so differences are old and hard to trace.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-cash",
@@ -437,14 +409,7 @@ export const professionalServicesTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-cash-1",
-          kind: "muda_waiting",
-          label: "Cash position unknown until someone finishes the reconciliation",
-          note: "Partners cannot plan draws or hiring until the bookkeeper closes the month.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ap",
@@ -499,14 +464,7 @@ export const professionalServicesTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-ap-1",
-          kind: "muda_motion",
-          label: "Chasing paper receipts across the office",
-          note: "Office manager walks desks each month collecting receipts and signatures.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ar",
@@ -559,14 +517,7 @@ export const professionalServicesTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-ar-1",
-          kind: "mura",
-          label: "Collections done in a quarter-end scramble",
-          note: "No weekly cadence; effort spikes when cash is short and then drops to zero.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-payroll",
@@ -619,14 +570,7 @@ export const professionalServicesTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-pay-1",
-          kind: "muda_rework",
-          label: "Manual bonus recalculation each cycle",
-          note: "Spreadsheet rebuilt from scratch every quarter instead of a saved template.",
-        },
-      ],
+      wastes: [],
     },
   ],
   controls: [

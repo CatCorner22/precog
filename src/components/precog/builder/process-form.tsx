@@ -7,6 +7,7 @@ import { ChipPicker, SectionHeader } from "@/components/precog/builder/chips";
 import { EvidenceList } from "@/components/precog/builder/evidence-list";
 import { SuggestPanel } from "@/components/precog/builder/suggest-panel";
 import { useAddForm } from "@/components/precog/builder/use-add-form";
+import { usePresentation } from "@/lib/precog/presentation";
 import type { ProcessTextFields } from "@/lib/precog/builder/process-text";
 import {
   commitFormText,
@@ -68,6 +69,7 @@ export function ProcessForm({
   onSaveAsBlock: () => void;
 }) {
   const tpl = useTemplate();
+  const { isPlain } = usePresentation();
   // The form's own copy of the text fields. An undo, import or restore that
   // changes the process text replaces the copy, so a stale copy is never
   // committed back over the change.
@@ -292,7 +294,11 @@ export function ProcessForm({
         scenarioOptions={tpl.scenarios.map((s) => ({ id: s.id, label: s.title }))}
       />
       <IdeaList ideas={process.ideas ?? []} onChange={(ideas) => onChange({ ideas })} />
-      <WasteList wastes={process.wastes ?? []} onChange={(wastes) => onChange({ wastes })} />
+      {/* Lean waste is a tactical-mode method view. It shows only where a process
+          already carries wastes, so older maps keep a way to edit them. */}
+      {!isPlain && (process.wastes?.length ?? 0) > 0 && (
+        <WasteList wastes={process.wastes ?? []} onChange={(wastes) => onChange({ wastes })} />
+      )}
       <EvidenceList
         process={process}
         people={tpl.people}
@@ -548,7 +554,7 @@ function IdeaList({
     <div className="space-y-1.5">
       <SectionHeader
         icon={<Lightbulb className="size-3 text-warn" />}
-        title="Improvement ideas"
+        title="Fixes to consider"
         count={ideas.length}
         adding={form.adding}
         onAdd={form.toggle}

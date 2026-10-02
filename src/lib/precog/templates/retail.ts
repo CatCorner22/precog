@@ -165,14 +165,7 @@ export const retailTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-pos-1",
-          kind: "muda_waiting",
-          label: "Line stalls waiting for manager override",
-          note: "Customers wait while the cashier pages a manager for any price change or return.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-inventory",
@@ -225,14 +218,7 @@ export const retailTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-inv-1",
-          kind: "muda_motion",
-          label: "Backroom hunt for stock",
-          note: "Unlabeled bins mean staff walk the back twice to find sizes for the floor.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ecom",
@@ -284,14 +270,7 @@ export const retailTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-ecom-1",
-          kind: "muda_rework",
-          label: "Cancel-and-refund on oversells",
-          note: "Each oversell means an apology email, a refund, and an inventory fix.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-cash",
@@ -345,14 +324,7 @@ export const retailTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-cash-1",
-          kind: "muda_overprocessing",
-          label: "Recount the same drawer three times",
-          note: "Cashier, manager, and bookkeeper each recount from scratch with no shared tally sheet.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ap",
@@ -405,14 +377,7 @@ export const retailTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-ap-1",
-          kind: "muri",
-          label: "Store manager owns vendors and payments alone",
-          note: "Often only the store manager knows vendor terms; bills go unpaid when they are off.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ar",
@@ -465,14 +430,7 @@ export const retailTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-ar-1",
-          kind: "mura",
-          label: "Month-end markdown pile-up",
-          note: "The bookkeeper batches adjustments at month end instead of posting them as they happen.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-payroll",
@@ -523,14 +481,7 @@ export const retailTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-pay-1",
-          kind: "muda_rework",
-          label: "Manual commission spreadsheet",
-          note: "Someone re-keys sales from the register into a spreadsheet every pay period.",
-        },
-      ],
+      wastes: [],
     },
   ],
   controls: [

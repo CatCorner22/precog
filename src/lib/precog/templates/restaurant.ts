@@ -194,14 +194,7 @@ export const restaurantTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-svc-1",
-          kind: "muda_motion",
-          label: "Servers run to the bar for every drink",
-          note: "No runner or service well means long walks and slow table turns.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-bar",
@@ -253,14 +246,7 @@ export const restaurantTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-bar-1",
-          kind: "muda_overprocessing",
-          label: "Free-pouring instead of jiggers",
-          note: "Inconsistent pours mean the bar gives away over-pours and remakes drinks to taste.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-inventory",
@@ -312,14 +298,7 @@ export const restaurantTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-inv-1",
-          kind: "mura",
-          label: "Over-prep on slow nights, short on busy ones",
-          note: "Prep lists do not use the reservation forecast, so food spoils on slow nights and dishes run out on busy ones.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-cash",
@@ -375,14 +354,7 @@ export const restaurantTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-cash-1",
-          kind: "muda_overprocessing",
-          label: "Tip pool recalculated by hand nightly",
-          note: "Hours and sales are re-keyed from POS into a spreadsheet after every shift.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ap",
@@ -435,14 +407,7 @@ export const restaurantTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-ap-1",
-          kind: "muda_waiting",
-          label: "Invoices pile up in the office drawer",
-          note: "Paper invoices wait a week or more before entry; late fees and lost credits.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ar",
@@ -494,14 +459,7 @@ export const restaurantTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-ar-1",
-          kind: "muda_rework",
-          label: "Re-ringing tickets to fix mistakes",
-          note: "Servers void and re-ring order errors instead of modifying them, which inflates void counts.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-tips",
@@ -556,14 +514,7 @@ export const restaurantTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-tip-1",
-          kind: "muda_rework",
-          label: "Shares recalculated after every dispute",
-          note: "Without a written split, each complaint means rebuilding the week's pool by hand.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-salestax",
@@ -618,14 +569,7 @@ export const restaurantTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-tax-1",
-          kind: "muda_overprocessing",
-          label: "Taxable sales rebuilt from several reports",
-          note: "The bookkeeper pulls delivery, catering and dine-in sales from separate systems and adds them by hand each period.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-payroll",
@@ -677,14 +621,7 @@ export const restaurantTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-pay-1",
-          kind: "muda_rework",
-          label: "Fixing missed punches after the fact",
-          note: "Servers forget to clock out; the general manager rebuilds hours from the POS every period.",
-        },
-      ],
+      wastes: [],
     },
   ],
   // A restaurant keeps no receivables, so the receivables controls stay out;

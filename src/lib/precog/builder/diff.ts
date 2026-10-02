@@ -62,7 +62,10 @@ export function processChanges(before: ProcessNode, after: ProcessNode): string[
   const d = (a?: unknown[], c?: unknown[]) => (a?.length ?? 0) - (c?.length ?? 0);
   const dr = d(after.risks, before.risks);
   const di = d(after.ideas, before.ideas);
-  const dw = d(after.wastes, before.wastes);
+  // The samples no longer carry Lean waste, so a map saved from an older
+  // sample would otherwise read "+N waste" against a baseline with none.
+  // Waste changes count only when the earlier version had waste to change.
+  const dw = before.wastes?.length ? d(after.wastes, before.wastes) : 0;
   if (dr) changes.push(`${dr > 0 ? "+" : ""}${dr} risk${Math.abs(dr) === 1 ? "" : "s"}`);
   if (di) changes.push(`${di > 0 ? "+" : ""}${di} idea${Math.abs(di) === 1 ? "" : "s"}`);
   if (dw) changes.push(`${dw > 0 ? "+" : ""}${dw} waste`);

@@ -202,14 +202,7 @@ export const dentalTemplate: IndustrySample = {
           status: "planned",
         },
       ],
-      wastes: [
-        {
-          id: "w-sched-1",
-          kind: "muda_waiting",
-          label: "Chair idle after late cancel",
-          note: "Average 40 min unrecovered hygiene slots/week.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-clinical",
@@ -243,14 +236,7 @@ export const dentalTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-clin-1",
-          kind: "muda_motion",
-          label: "Instrument hunt mid-procedure",
-          note: "Tray setup variance between assistants.",
-        },
-      ],
+      wastes: [],
     },
     {
       // DEA registrants keep records of every controlled substance received,
@@ -312,14 +298,7 @@ export const dentalTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-cs-1",
-          kind: "muda_overprocessing",
-          label: "Paper log totalled by hand at every count",
-          note: "Staff re-add the running balance from the first page because the log keeps none.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-claims",
@@ -374,20 +353,7 @@ export const dentalTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-claims-1",
-          kind: "muda_rework",
-          label: "Denial rework loops",
-          note: "Resubmitting without root-cause codes wastes six or more hours a week.",
-        },
-        {
-          id: "w-claims-2",
-          kind: "mura",
-          label: "Uneven denial ownership",
-          note: "One person batch-dumps; others idle.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-cash",
@@ -441,14 +407,7 @@ export const dentalTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-cash-1",
-          kind: "muda_overprocessing",
-          label: "Triple entry of payments",
-          note: "The practice software, a spreadsheet and sticky notes for the same payment.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ar",
@@ -493,14 +452,7 @@ export const dentalTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-ar-1",
-          kind: "muda_waiting",
-          label: "Balances age past 90 days",
-          note: "No cadence on patient payment plans.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ap",
@@ -545,14 +497,7 @@ export const dentalTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-ap-1",
-          kind: "muri",
-          label: "The office manager handles every vendor bill alone",
-          note: "Too much for one person, and nobody covers when the office manager is out.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-payroll",
@@ -587,14 +532,7 @@ export const dentalTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-pay-1",
-          kind: "muda_rework",
-          label: "Overtime recalculated by hand",
-          note: "Spreadsheet after export every pay period.",
-        },
-      ],
+      wastes: [],
     },
   ],
   controls: [
