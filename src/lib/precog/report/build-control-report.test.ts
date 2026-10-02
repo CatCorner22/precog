@@ -218,7 +218,7 @@ describe("figures set by hand", () => {
     expect(manual.staff.segregationSource).toBe("manual");
     expect(manual.staff.bankRecSource).toBe("manual");
     expect(buildControlReportModel({ ...input("dental"), profile: manual }).handSet).toEqual([
-      "Segregation score set by hand: 95. The priority index and residual risk scores in this report use the score set by hand; the duty separation index reads the duties.",
+      "Segregation score set by hand: 95. The priority list and residual risk scores in this report use the score set by hand; the duty separation index reads the duties.",
       `Bank reconciliation answer set by hand: ${manual.staff.independentBankRec ? "someone" : "nobody"} independent reconciles the bank account.`,
     ]);
   });

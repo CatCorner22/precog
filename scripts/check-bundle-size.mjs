@@ -57,6 +57,14 @@
  * Total budget raised from 775 KB to 790 KB, because every page downloads
  * less; the per-page budgets in scripts/perf-first-load.mjs now guard what a
  * visitor actually loads.
+ *
+ * 2026-10-02: Phase 4 (one set of figures a CPA can sign, steps 4.1 to 4.6)
+ * adds 7.2 KB gzipped, 782.9 KB to 790.1 KB in 100 chunks against 99: the
+ * open-findings counts, the early-warning list, the duty-conflict card
+ * factors, the scenario levels, the published description of every scoring
+ * weight, the layout-1 report labels and the case-record markings. Each step
+ * fit alone; together they pass 790 KB by 0.1 KB. The largest chunk does not
+ * move (107.3 KB). Total budget raised from 790 KB to 795 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -65,7 +73,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 790 * 1024,
+  totalGzipBytes: 795 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

@@ -253,12 +253,16 @@ describe("locked version figures", () => {
   });
 
   it("prints figures stored under layout 1 with that layout's labels", () => {
-    // A model locked before map completeness and band counts: no `mitigate`
-    // or `watch` counts, and a map health score that still counts heat.
+    // A model locked on main before Phase 4: no `mitigate` or `watch` counts,
+    // a map health score that still counts heat, no stored top-priority count
+    // (an averaged priority index instead) and no partial coverage.
     const { mitigate: _m, watch: _w, ...oldPortfolio } = stored.portfolio;
+    const { fixFirst: _f, ...oldThreat } = stored.threat;
+    const { partialCoverage: _p, ...oldModel } = stored;
     const layoutOne = {
-      ...stored,
+      ...oldModel,
       portfolio: oldPortfolio,
+      threat: { ...oldThreat, overallThreatIndex: 89, classificationLabel: "Top priority" },
       mapHealth: {
         ...stored.mapHealth,
         bandLabel: "Fair",
@@ -276,6 +280,12 @@ describe("locked version figures", () => {
     expect(html).toContain("Map health score");
     expect(html).toContain("Average residual risk score");
     expect(html).toContain(`${stored.portfolio.criticalPath} to fix first`);
+    // The top-priority count comes from the stored ten-row list.
+    const top = stored.threat.targetDeck.filter((t) => t.priority >= 88).length;
+    expect(top).toBeGreaterThan(0);
+    expect(html.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|")).toContain(
+      `|Top-priority items|${top}|Priority 88 or more|`,
+    );
   });
 
   it("recalculates stored figures from another report layout", () => {

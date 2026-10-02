@@ -100,7 +100,7 @@ export function starterScenarioLabel(industry: IndustryId): string {
 
 /** The plain sentence that says how a starter scenario becomes the owner's own. */
 export const MAKE_SCENARIO_YOURS =
-  'To make one your own, open it on What could happen and choose "This could happen here"; it then counts in the threat index and your totals.';
+  'To make one your own, open it on What could happen and choose "This could happen here"; it then counts in the priority list and your totals.';
 
 /**
  * The note shown where starter scenarios would have counted, or null when none
