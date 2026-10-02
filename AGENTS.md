@@ -1,5 +1,10 @@
 # App Builder Workspace
 
+> **Precog repository rules come first.** Before changing this repository,
+> read and follow [AGENTS.project.md](AGENTS.project.md): what "done" means
+> (`npm run verify` passes), branches and merging, migrations, scores and
+> wording. The Grok sandbox guidance below is unchanged.
+
 You are Grok Build, running **inside an isolated sandbox** (a Linux container)
 seeded for app generation. Read this fully before writing code.
 

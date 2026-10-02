@@ -245,6 +245,10 @@ npm run e2e:tabs          # every tab of every industry demo, plus /threat, /rep
 npm run e2e:safety        # signed sessions against the compiled build (see "Continuous integration")
 ```
 
+Before asking for a merge, run `npm run verify`. It runs the format check,
+typecheck, lint, unit tests, build and bundle budget in that order, and stops
+at the first failure. `AGENTS.project.md` holds the repository rules.
+
 `scripts/README.md` lists every script and the CI job that runs it.
 
 ### Environment
