@@ -16,7 +16,7 @@ import {
 import { sodScopeLine } from "@/lib/precog/integrations/drift-signals";
 import { trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
-import { DECISION_KIND_LABEL } from "@/lib/precog/practice-profile";
+import { DECISION_KIND_LABEL_PRINTED_V1 } from "@/lib/precog/practice-profile";
 import { PRIORITY_BAND_LABEL, PRIORITY_TOP } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
@@ -119,7 +119,7 @@ export function ControlReport({
             to="/"
             className="inline-flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900"
           >
-            <ArrowLeft className="size-4" /> Back to dashboard
+            <ArrowLeft className="size-4" /> Back to Precog
           </Link>
           <div className="flex flex-wrap items-center gap-2">
             {locked ? (
@@ -493,7 +493,8 @@ export function ControlReport({
               {decisionLog.shown.map(({ decision: d, status }) => (
                 <li key={d.id} className="border-b border-neutral-200 pb-1.5">
                   <p>
-                    <span className="font-medium">{DECISION_KIND_LABEL[d.kind]}</span> · {d.subject}
+                    <span className="font-medium">{DECISION_KIND_LABEL_PRINTED_V1[d.kind]}</span> ·{" "}
+                    {d.subject}
                     <span className="text-neutral-500">
                       {" "}
                       · {status} · logged {formatDay(d.createdAt)}

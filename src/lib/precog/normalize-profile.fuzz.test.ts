@@ -30,6 +30,24 @@ function samples(): Record<string, unknown>[] {
         customPeople: tpl.people,
         customKnowledge: tpl.knowledge,
         customRelations: tpl.relations,
+        // One judged "Not valid", so the disposition field is corrupted too.
+        decisions: [
+          {
+            id: "d1",
+            createdAt: "2026-10-01T12:00:00.000Z",
+            subject: "A duty conflict",
+            kind: "monitor",
+            note: "",
+            linkedTab: "sod",
+            disposition: {
+              verdict: "not_valid",
+              reason: "other",
+              note: "The owner signs every check",
+              by: { userId: "u1", name: "Ada" },
+              at: "2026-10-01T12:00:00.000Z",
+            },
+          },
+        ],
       }),
     ) as Record<string, unknown>;
   });
@@ -118,6 +136,17 @@ describe("normalizeProfile never throws", () => {
         () => normalizeProfile(input as Record<string, unknown>),
         `seed ${seed}`,
       ).not.toThrow();
+    }
+  });
+
+  it("keeps a decision whose judgement is corrupted, dropping only the judgement", () => {
+    const sample = samples()[0];
+    const [entry] = sample.decisions as Record<string, unknown>[];
+    for (const junk of JUNK) {
+      const decisions: unknown[] = [{ ...entry, disposition: junk }];
+      const loaded = normalizeProfile({ ...sample, decisions } as Record<string, unknown>);
+      expect(loaded.decisions.map((d) => d.id)).toEqual(["d1"]);
+      expect(loaded.decisions[0].disposition).toBeUndefined();
     }
   });
 

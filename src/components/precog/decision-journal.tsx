@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
-import { useTabName } from "@/lib/precog/presentation";
+import { usePresentation, useTabName } from "@/lib/precog/presentation";
 import {
   DECISION_KIND_LABEL,
+  DECISION_KIND_LABEL_PRINTED_V1,
   type DecisionEntry,
   type DecisionKind,
 } from "@/lib/precog/practice-profile";
@@ -59,6 +60,7 @@ export function DecisionJournal({
   onOpenLinked?: (tab: string, id?: string) => void;
 }) {
   const tabName = useTabName();
+  const { say } = usePresentation();
   const {
     profile,
     template,
@@ -206,9 +208,12 @@ export function DecisionJournal({
           Write it down or it did not happen
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Checking that controls still work (what the COSO framework calls monitoring) needs a paper
-          trail. Record remediate, accept residual risk, monitor, or insure decisions with a review
-          date. When you sign in, Precog syncs the log to your account.
+          {say(
+            "Checking that controls still work needs a paper trail.",
+            "Checking that controls still work (what the COSO framework calls monitoring) needs a paper trail.",
+          )}{" "}
+          Record each decision ({KINDS.map((k) => DECISION_KIND_LABEL[k].toLowerCase()).join(", ")})
+          with a review date. When you sign in, Precog syncs the log to your account.
         </p>
       </section>
 
@@ -482,9 +487,11 @@ export function DecisionJournal({
                         )}
                       </div>
                       <p className="mt-1 font-medium">{d.subject}</p>
-                      {d.note && d.note !== DECISION_KIND_LABEL[d.kind] && (
-                        <p className="mt-0.5 text-sm text-muted">{d.note}</p>
-                      )}
+                      {d.note &&
+                        d.note !== DECISION_KIND_LABEL[d.kind] &&
+                        d.note !== DECISION_KIND_LABEL_PRINTED_V1[d.kind] && (
+                          <p className="mt-0.5 text-sm text-muted">{d.note}</p>
+                        )}
                       <p className="mt-1 text-xs text-subtle">
                         {formatDay(d.createdAt)}
                         {d.reviewBy ? ` · review by ${formatDay(d.reviewBy)}` : ""}

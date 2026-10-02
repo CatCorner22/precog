@@ -143,12 +143,52 @@ export interface MapHealthPoint {
 
 export type DecisionKind = "accept_residual" | "remediate" | "monitor" | "insure";
 
+/** What each kind of decision is called on screen. The keys are stored and never change. */
 export const DECISION_KIND_LABEL: Record<DecisionKind, string> = {
+  accept_residual: "Accept the risk",
+  remediate: "Fix it",
+  monitor: "Watch it",
+  insure: "Insure it",
+};
+
+/**
+ * The labels report layouts 1 and 2 printed. Locked versions of those layouts
+ * keep them, so a report printed before the rename reads the same today.
+ */
+export const DECISION_KIND_LABEL_PRINTED_V1: Record<DecisionKind, string> = {
   accept_residual: "Accept residual",
   remediate: "Remediate",
   monitor: "Monitor",
   insure: "Transfer / insure",
 };
+
+/** Why a finding was judged not valid. The keys are stored and never change. */
+export type DispositionReason =
+  "duty_not_held" | "controlled_elsewhere" | "rule_does_not_fit" | "other";
+
+export const DISPOSITION_REASON_LABEL: Record<DispositionReason, string> = {
+  duty_not_held: "This person does not hold that duty",
+  controlled_elsewhere: "Someone outside this map checks it",
+  rule_does_not_fit: "The rule does not fit this business",
+  other: "Other (say why)",
+};
+
+/** Longest note on a "Not valid" judgement, in characters. */
+export const MAX_DISPOSITION_NOTE = 500;
+
+/**
+ * A finding judged not valid. It rides on an ordinary decision entry (written
+ * with kind "monitor" and no review date) rather than being a kind of its own,
+ * so an older copy of Precog keeps the entry and shows it as an undated
+ * "Watch it" decision.
+ */
+export interface DecisionDisposition {
+  verdict: "not_valid";
+  reason: DispositionReason;
+  note?: string;
+  by?: { userId: string; name: string };
+  at: string;
+}
 
 /** Most journal entries kept, newest first. */
 export const MAX_DECISIONS = 100;
@@ -178,6 +218,8 @@ export interface DecisionEntry {
   snapshot?: DecisionSnapshot;
   reviews?: DecisionReview[];
   status?: "open" | "closed";
+  /** Set when the finding this entry answers was judged not valid. */
+  disposition?: DecisionDisposition;
 }
 
 export type DecisionReviewOutcome = "done" | "still_open" | "no_longer_relevant";
@@ -615,9 +657,12 @@ function normalizeDecisions(value: unknown): DecisionEntry[] {
   return (value as Partial<DecisionEntry>[]).slice(0, MAX_DECISIONS).flatMap((entry) => {
     const known = typeof entry?.kind === "string" && Object.hasOwn(DECISION_KIND_LABEL, entry.kind);
     if (!isRecord(entry) || !known || !entry.kind) return [];
+    // A malformed disposition is dropped on its own; the entry stays.
+    const { disposition: rawDisposition, ...rest } = entry;
+    const disposition = normalizeDisposition(rawDisposition);
     return [
       {
-        ...entry,
+        ...rest,
         id: String(entry.id ?? "").slice(0, 80),
         createdAt: String(entry.createdAt ?? "").slice(0, 40),
         subject: String(entry.subject ?? "").slice(0, MAX_DECISION_SUBJECT),
@@ -631,9 +676,33 @@ function normalizeDecisions(value: unknown): DecisionEntry[] {
         linkedId: entry.linkedId ? String(entry.linkedId).slice(0, 80) : undefined,
         reviews: Array.isArray(entry.reviews) ? entry.reviews.slice(0, 100) : undefined,
         status: entry.status === "open" || entry.status === "closed" ? entry.status : undefined,
+        ...(disposition ? { disposition } : {}),
       },
     ];
   });
+}
+
+/** A "Not valid" judgement with a known reason and a date, capped; anything else is dropped. */
+function normalizeDisposition(value: unknown): DecisionDisposition | undefined {
+  if (!isRecord(value) || value.verdict !== "not_valid") return undefined;
+  const reason = value.reason;
+  if (typeof reason !== "string" || !Object.hasOwn(DISPOSITION_REASON_LABEL, reason)) {
+    return undefined;
+  }
+  if (typeof value.at !== "string" || !value.at) return undefined;
+  const by = value.by;
+  const validBy =
+    isRecord(by) && typeof by.userId === "string" && by.userId && typeof by.name === "string"
+      ? { userId: by.userId.slice(0, 80), name: by.name.slice(0, 120) }
+      : undefined;
+  const note = typeof value.note === "string" ? value.note.slice(0, MAX_DISPOSITION_NOTE) : "";
+  return {
+    verdict: "not_valid",
+    reason: reason as DispositionReason,
+    ...(note ? { note } : {}),
+    ...(validBy ? { by: validBy } : {}),
+    at: value.at.slice(0, 40),
+  };
 }
 
 function record(value: unknown): Record<string, unknown> {

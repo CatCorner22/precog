@@ -4,6 +4,10 @@ import { getIndustryTemplate } from "./templates";
 import { soleOwnerCriticalCount } from "./continuity/coverage";
 import { INDUSTRIES } from "./industry";
 import {
+  DECISION_KIND_LABEL,
+  DECISION_KIND_LABEL_PRINTED_V1,
+  DISPOSITION_REASON_LABEL,
+  MAX_DISPOSITION_NOTE,
   defaultProfile,
   hasUserWork,
   normalizeCustomKnowledge,
@@ -140,6 +144,60 @@ describe("normalizeProfile treats a stored copy as untrusted input", () => {
     expect(loaded.onboardingComplete).toBe(true);
   });
 
+  it("keeps a valid Not valid judgement and caps its note", () => {
+    const disposition = {
+      verdict: "not_valid",
+      reason: "controlled_elsewhere",
+      note: "x".repeat(900),
+      by: { userId: "u1", name: "Ada" },
+      at: "2026-10-01T12:00:00.000Z",
+    };
+    const loaded = normalizeProfile(
+      own({ decisions: [{ id: "d1", kind: "monitor", subject: "s", note: "", disposition }] }),
+    );
+    expect(loaded.decisions[0].disposition).toEqual({
+      ...disposition,
+      note: "x".repeat(MAX_DISPOSITION_NOTE),
+    });
+    // A round trip through storage reads the same.
+    const again = normalizeProfile(
+      own({ decisions: JSON.parse(JSON.stringify(loaded.decisions)) }),
+    );
+    expect(again.decisions).toEqual(loaded.decisions);
+  });
+
+  it("drops a malformed judgement but keeps the entry", () => {
+    for (const disposition of [
+      { verdict: "valid", reason: "other", at: "2026-10-01" },
+      { verdict: "not_valid", reason: "made_up", at: "2026-10-01" },
+      { verdict: "not_valid", reason: "other" },
+      "not valid",
+      null,
+    ]) {
+      const loaded = normalizeProfile(
+        own({ decisions: [{ id: "d1", kind: "monitor", subject: "s", note: "", disposition }] }),
+      );
+      expect(loaded.decisions.map((d) => d.id)).toEqual(["d1"]);
+      expect(loaded.decisions[0]).not.toHaveProperty("disposition");
+    }
+  });
+
+  it("keeps a judged entry as an ordinary undated Watch it entry for a reader that ignores the field", () => {
+    const stored = {
+      id: "d1",
+      kind: "monitor",
+      subject: "Ana: Write checks and Reconcile bank",
+      note: "",
+      linkedTab: "sod",
+      disposition: { verdict: "not_valid", reason: "other", note: "Owner signs", at: "2026-10-01" },
+    };
+    const { disposition: _ignored, ...olderCopy } = stored;
+    const loaded = normalizeProfile(own({ decisions: [olderCopy] }));
+    expect(loaded.decisions).toHaveLength(1);
+    expect(loaded.decisions[0].reviewBy).toBeUndefined();
+    expect(DECISION_KIND_LABEL[loaded.decisions[0].kind]).toBe("Watch it");
+  });
+
   it("opens a non-object as the industry sample", () => {
     expect(
       normalizeProfile(null as unknown as Parameters<typeof normalizeProfile>[0]).industry,
@@ -180,5 +238,28 @@ describe("hasUserWork", () => {
     expect(hasUserWork(sample)).toBe(false);
     expect(hasUserWork({ ...sample, procedures: [{ id: "pr1" }] } as never)).toBe(true);
     expect(hasUserWork({ ...sample, places: [{ id: "pl1" }] } as never)).toBe(true);
+  });
+});
+
+describe("decision labels", () => {
+  it("names each kind in plain words and keeps the printed layout 1 and 2 labels", () => {
+    expect(DECISION_KIND_LABEL).toEqual({
+      accept_residual: "Accept the risk",
+      remediate: "Fix it",
+      monitor: "Watch it",
+      insure: "Insure it",
+    });
+    expect(DECISION_KIND_LABEL_PRINTED_V1).toEqual({
+      accept_residual: "Accept residual",
+      remediate: "Remediate",
+      monitor: "Monitor",
+      insure: "Transfer / insure",
+    });
+    expect(Object.keys(DISPOSITION_REASON_LABEL)).toEqual([
+      "duty_not_held",
+      "controlled_elsewhere",
+      "rule_does_not_fit",
+      "other",
+    ]);
   });
 });
