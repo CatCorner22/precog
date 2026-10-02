@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import {
   Calculator,
   CheckCircle2,
@@ -8,6 +9,8 @@ import {
   ShieldCheck,
   TriangleAlert,
   Download,
+  FileText,
+  Upload,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +43,7 @@ import {
   type ValueEvidence,
 } from "@/lib/precog/value-evidence";
 import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store";
+import { buildValueProofFile, loadValueProofFile } from "@/lib/precog/value-proof-file";
 import { useWorkspace } from "@/lib/precog/workspace-context";
 import { usePracticeState } from "@/lib/precog/practice-context";
 import { downloadText } from "@/lib/download";
@@ -122,6 +126,35 @@ export function ValueProofCenter() {
     setDirty(true);
     return result;
   };
+  const fileInput = useRef<HTMLInputElement>(null);
+  const downloadFile = () => {
+    const out = buildValueProofFile(businessId, profile.practiceName, new Date(), workspace.local);
+    downloadText(out.fileName, out.content, "application/json");
+  };
+  const loadFile = async (file: File) => {
+    if (
+      (status.anyObservation || evidence.length > 0) &&
+      !window.confirm(
+        "Replace this business's value figures and evidence register with the file? You cannot undo this.",
+      )
+    )
+      return;
+    const loaded = loadValueProofFile(businessId, await file.text(), workspace.local);
+    if (!loaded.ok) {
+      toast.error(loaded.reason);
+      return;
+    }
+    setInputs(
+      loaded.file.valueCase ? normalizeValueCase(loaded.file.valueCase) : DEFAULT_VALUE_CASE,
+    );
+    setTyped(normalizeEnteredInputs(loaded.file.valueCase?.entered));
+    setEvidence(loaded.file.valueEvidence);
+    setDirty(false);
+    setKept(true);
+    toast.success(
+      `Loaded the value proof${loaded.file.businessName ? ` of ${loaded.file.businessName}` : ""} into this business.`,
+    );
+  };
   const exportMemo = () => {
     downloadText(
       `precog-value-case-${localDateKey(new Date())}.md`,
@@ -138,15 +171,49 @@ export function ValueProofCenter() {
           <h1 className="text-xl font-semibold">
             What Precog has returned so far, and what it might prevent
           </h1>
-          <button
-            type="button"
-            onClick={exportMemo}
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium hover:border-border-strong"
-          >
-            <Download className="size-4" aria-hidden />
-            Export executive memo
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={downloadFile}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium hover:border-border-strong"
+            >
+              <Download className="size-4" aria-hidden />
+              Download value proof
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium hover:border-border-strong"
+            >
+              <Upload className="size-4" aria-hidden />
+              Load a value proof file
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              aria-label="Value proof file to load"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void loadFile(file);
+              }}
+            />
+            <button
+              type="button"
+              onClick={exportMemo}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium hover:border-border-strong"
+            >
+              <FileText className="size-4" aria-hidden />
+              Export executive memo
+            </button>
+          </div>
         </div>
+        <p className="mt-2 max-w-3xl text-xs text-muted">
+          Download value proof saves this business&apos;s figures and evidence register as a file.
+          Loading a file replaces both for this business on this device.
+        </p>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted">
           Two kinds of figure. What you observed: hours returned and money recovered. What the model
           estimates: loss avoided. Report the second as a scenario, never as savings.
