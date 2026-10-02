@@ -287,9 +287,10 @@ this happens; a production build warns about it.
 `.github/workflows/ci.yml` runs five jobs on every pull request and every push
 to `main`; the release gate passes only when the other four pass.
 
-- **Typecheck, lint, test, build**: typecheck, lint, formatting, the
-  production dependency audit, `npm test`, the build, its bundle budget
-  (`check:bundle`) and its security headers (`check:headers`).
+- **Typecheck, lint, test, build**: typecheck, lint, `npm test`, formatting,
+  the production dependency audit, the build, its bundle budget
+  (`check:bundle`) and its security headers (`check:headers`). Each check runs
+  even when an earlier one fails, so one run reports every problem.
 - **Migrations against real Postgres**: applies every migration twice, then
   `test:postgres:migrations` (two simultaneous runners, lock timeout, rollback
   and retry), `test:postgres:quota` (the daily model budget under 64 parallel
@@ -309,12 +310,12 @@ to `main`; the release gate passes only when the other four pass.
 - **Release gate**: requires the four jobs above.
 
 A newer push to a pull request cancels its older run; pushes to `main` never
-cancel each other. Actions are pinned to commits and `.github/dependabot.yml`
-keeps them current.
+cancel each other. Actions are pinned to commits, and `.github/dependabot.yml`
+keeps them and the npm packages current (minor and patch versions only).
 
 ### Pinned dependencies
 
-The project runs on Node 22 (`engines` in `package.json`; CI uses 22, and the
+The project runs on Node 22 (`engines` in `package.json`; CI reads `.nvmrc`, and the
 quota check needs `--experimental-strip-types`, Node 22.6 or later). Both
 version pins came with the app template: `nitro` is pinned to a beta because
 Nitro 3 has no stable release yet, and `overrides` holds `nf3` (Nitro's file
