@@ -24,7 +24,7 @@ import { formatUsd } from "@/lib/utils";
 import { IndexBasis } from "@/components/precog/index-basis";
 import { MapHealthCard } from "@/components/precog/map-health-card";
 import { ControlCalendarCard } from "@/components/precog/control-calendar";
-import { PracticeSetup } from "@/components/precog/practice-setup";
+import { BooksVsMapCard } from "@/components/precog/start-here-figures-section";
 import { WeeklyActionPlan } from "@/components/precog/weekly-action-plan";
 import { MetricCard } from "@/components/precog/home-shell-parts";
 import { Badge } from "@/components/ui/badge";
@@ -192,27 +192,7 @@ export function Dashboard({
         onFixIssues={() => onOpen("map", null, "validate")}
       />
 
-      {driftActions.length > 0 && (
-        <Card className="border-warn/40 bg-warn/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Books vs map</CardTitle>
-            <CardDescription>
-              QuickBooks or an access export disagrees with your duty map — resolve it before you
-              rely on segregation checks.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {driftActions.slice(0, 3).map((d) => (
-              <p key={d.id}>
-                <span className="font-medium text-fg">{d.title}.</span> {d.why}
-              </p>
-            ))}
-            <Link to="/firm" className={buttonClass({ variant: "secondary", size: "sm" })}>
-              Open firm workspace
-            </Link>
-          </CardContent>
-        </Card>
-      )}
+      <BooksVsMapCard driftActions={driftActions} />
 
       <IndexBasis />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -237,7 +217,7 @@ export function Dashboard({
           onClick={() => onOpen("residual")}
         />
         <MetricCard
-          label={say("Duties kept apart", "SoD health")}
+          label={say("Duties kept apart", "Duty separation")}
           value={String(sodReport.summary.segregationHealth)}
           hint={openSodHint(sodOpen)}
           tone={sodLevel === "critical" ? "danger" : sodLevel === "weak" ? "warn" : "primary"}
@@ -294,8 +274,7 @@ export function Dashboard({
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
-        <PracticeSetup onOpenDualRelease={() => onOpen("sod")} />
+      <div className="grid grid-cols-1 gap-4 [&>*]:min-w-0">
         <Card>
           <CardHeader>
             <CardTitle>{say("Biggest risks left", "Top residual risks")}</CardTitle>
@@ -321,8 +300,8 @@ export function Dashboard({
                 <span className="text-lg font-semibold tabular">{item.residual}</span>
               </button>
             ))}
-            <Button className="w-full" variant="secondary" onClick={() => onOpen("sod")}>
-              {say("Open Who controls what", "Open SoD detector")}
+            <Button className="w-full" variant="secondary" onClick={() => onOpen("residual")}>
+              Open {tabLabel("residual", say)}
             </Button>
           </CardContent>
         </Card>

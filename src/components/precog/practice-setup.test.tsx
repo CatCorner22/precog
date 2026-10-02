@@ -1,10 +1,25 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { defaultProfile } from "@/lib/precog/practice-profile";
 import { withPeople, withStaff } from "@/lib/precog/profile-actions";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
 import type { Person } from "@/lib/precog/types";
 import { PracticeSetup } from "./practice-setup";
+
+// Links render as plain anchors outside a router; the search is written out
+// so a test can see where a link goes.
+vi.mock("@tanstack/react-router", async (original) => ({
+  ...(await original<typeof import("@tanstack/react-router")>()),
+  Link: ({
+    children,
+    to,
+    search,
+  }: {
+    children: React.ReactNode;
+    to: string;
+    search?: Record<string, string>;
+  }) => <a href={search ? `${to}?${new URLSearchParams(search)}` : to}>{children}</a>,
+}));
 
 const render = (profile: ReturnType<typeof defaultProfile>) =>
   renderToStaticMarkup(
@@ -18,7 +33,22 @@ const team: Person[] = [
   { id: "b", name: "Ben", role: "Clerk", active: true, tenureYears: 2 },
 ];
 
-describe("Business profile card", () => {
+describe("Business settings card", () => {
+  it("is titled Business settings and names the segregation figure in plain words", () => {
+    const html = render(defaultProfile("general"));
+    expect(html).toContain("Business settings");
+    expect(html).not.toContain("Business profile");
+    expect(html).toContain("Duties kept apart");
+    expect(html).not.toContain("Segregation score");
+  });
+
+  it("sends the sample's segregation note to Team, not the map builder", () => {
+    const html = render(defaultProfile("general"));
+    expect(html).toContain("Import or edit your team under Team to work it out from their duties.");
+    expect(html).toContain('<a href="/?tab=team">Edit the team</a>');
+    expect(html).not.toContain("map builder");
+  });
+
   it("lets the sample's team size be set and offers a reset to the sample business", () => {
     const html = render(defaultProfile("general"));
     expect(html.match(/type="range"/g)).toHaveLength(3);

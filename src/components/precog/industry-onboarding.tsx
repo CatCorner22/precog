@@ -56,6 +56,7 @@ import {
 } from "@/lib/precog/onboarding/job-catalog";
 import { JobCatalogSheet } from "@/components/precog/job-catalog-sheet";
 import { SetupPreviewCard } from "@/components/precog/setup-preview-card";
+import { LegalFooter } from "@/components/precog/legal-footer";
 import type { ImportIssue } from "@/lib/precog/import/csv";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -585,7 +586,8 @@ export function IndustryOnboarding() {
               </h2>
               <CardDescription>
                 Pick the closest line of business. Next, enter your own team or explore a sample
-                first. You can change the line of business later in Business profile.
+                first. You can change the line of business later in Business settings, from the
+                business menu.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -656,6 +658,7 @@ export function IndustryOnboarding() {
               <p className="text-center text-xs text-subtle">
                 The sample team is fictional; every gap on it says so until you enter your own.
               </p>
+              <LegalFooter className="justify-center" />
               {cancelLink}
             </CardContent>
           </>
