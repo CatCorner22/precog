@@ -14,6 +14,10 @@ import type { LlmAccess } from "./guard.server";
 
 // The daily model budget lives in the database; these tests are about the brief.
 vi.mock("./daily-usage", () => ({ checkDailyBudget: async () => "allowed" }));
+const report = vi.hoisted(() => ({
+  error: vi.fn(async (_err: unknown, _at?: string | null) => {}),
+}));
+vi.mock("@/lib/observability/report.server", () => ({ reportServerError: report.error }));
 
 const ALLOWED: LlmAccess = { userId: "owner-1", grok: "allowed" };
 
@@ -113,6 +117,7 @@ describe("runGrokAgentLoop", () => {
     expect(result.source).toBe("local-agent");
     expect(result.modelStatus).toBe("failed");
     expect(result.brief).toEqual(local.brief);
+    expect(report.error).toHaveBeenCalledWith(expect.any(Error), "pioneer-model");
   });
 
   it("does not call the model without a key", async () => {

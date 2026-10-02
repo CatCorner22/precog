@@ -14,6 +14,10 @@ import { Route as OwnerEmail } from "./owner-email";
 const db = vi.hoisted(() => ({ current: null as TestDb | null }));
 const session = vi.hoisted(() => ({ userId: null as string | null }));
 const digestStage = vi.hoisted(() => ({ fail: false, sendsFail: false }));
+const billing = vi.hoisted(() => ({ failure: null as Error | null }));
+const report = vi.hoisted(() => ({
+  error: vi.fn(async (_err: unknown, _at?: string | null) => {}),
+}));
 
 vi.mock("@/lib/db", () => ({
   getSql: async () => {
@@ -33,6 +37,17 @@ vi.mock("@/lib/precog/reminders/digest", async (importOriginal) => {
     },
   };
 });
+vi.mock("@/lib/precog/billing/webhook", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/precog/billing/webhook")>();
+  return {
+    ...actual,
+    applyBillingEvent: (...args: Parameters<typeof actual.applyBillingEvent>) => {
+      if (billing.failure) throw billing.failure;
+      return actual.applyBillingEvent(...args);
+    },
+  };
+});
+vi.mock("@/lib/observability/report.server", () => ({ reportServerError: report.error }));
 vi.mock("@/lib/auth/verify.server", () => ({
   requireUserId: async () => {
     if (!session.userId) throw new Error("Unauthorized");
@@ -65,6 +80,8 @@ afterEach(() => {
   session.userId = null;
   digestStage.fail = false;
   digestStage.sendsFail = false;
+  billing.failure = null;
+  report.error.mockClear();
 });
 
 describe("QuickBooks callback", () => {
@@ -208,6 +225,28 @@ describe("Stripe webhook", () => {
     const res = await deliver(payload, { "stripe-signature": `t=${t},v1=${v1}` });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ received: true });
+  });
+
+  it("reports a failure to apply the event and answers 500 without its details", async () => {
+    billing.failure = new Error("relation billing_accounts does not exist");
+    const payload = JSON.stringify({ id: "evt_2", type: "ping", data: { object: {} } });
+    const t = Math.floor(Date.now() / 1000);
+    const v1 = await signPayload("whsec_test", t, payload);
+    const res = await deliver(payload, { "stripe-signature": `t=${t},v1=${v1}` });
+    expect(res.status).toBe(500);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.text()).not.toContain("billing_accounts");
+    expect(report.error).toHaveBeenCalledWith(billing.failure, "stripe-webhook");
+  });
+
+  it("does not report a refusal that names a 4xx status", async () => {
+    billing.failure = Object.assign(new Error("Conflict"), { status: 409 });
+    const payload = JSON.stringify({ id: "evt_3", type: "ping", data: { object: {} } });
+    const t = Math.floor(Date.now() / 1000);
+    const v1 = await signPayload("whsec_test", t, payload);
+    const res = await deliver(payload, { "stripe-signature": `t=${t},v1=${v1}` });
+    expect(res.status).toBe(409);
+    expect(report.error).not.toHaveBeenCalled();
   });
 });
 

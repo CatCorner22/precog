@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { withReporting } from "@/lib/observability/with-reporting";
 
 const NO_STORE = { "cache-control": "no-store" } as const;
 const MAX_BODY_BYTES = 256 * 1024;
@@ -6,13 +7,13 @@ const MAX_BODY_BYTES = 256 * 1024;
 /**
  * Stripe's webhook endpoint. The raw body is verified against the endpoint
  * secret before it is parsed; an unverified or oversized delivery is
- * refused. Stripe retries on anything but 2xx, so a database failure answers
- * 500 and the event comes back later.
+ * refused. Stripe retries on anything but 2xx, so a database failure is
+ * reported and answers 500, and the event comes back later.
  */
 export const Route = createFileRoute("/api/stripe/webhook")({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      POST: withReporting(async ({ request }) => {
         const { stripeWebhookSecret } = await import("@/lib/precog/billing/stripe.server");
         const secret = stripeWebhookSecret();
         if (!secret)
@@ -39,7 +40,7 @@ export const Route = createFileRoute("/api/stripe/webhook")({
         const sql = await getSql();
         const outcome = await applyBillingEvent(sql, event);
         return Response.json({ received: true, outcome }, { headers: NO_STORE });
-      },
+      }, "stripe-webhook"),
       ANY: () => new Response(null, { status: 405, headers: { ...NO_STORE, allow: "POST" } }),
     },
   },

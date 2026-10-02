@@ -16,6 +16,11 @@ vi.mock("@/lib/precog/reminders/mailer.server", () => ({
   },
 }));
 
+const report = vi.hoisted(() => ({
+  error: vi.fn(async (_err: unknown, _at?: string | null) => {}),
+}));
+vi.mock("@/lib/observability/report.server", () => ({ reportServerError: report.error }));
+
 type Auth = (typeof import("./server"))["auth"];
 let auth: Auth;
 let sql: import("@/lib/db").Sql;
@@ -219,5 +224,26 @@ describe("auth email limit", () => {
     }
     expect(results).toEqual([true, true, true, false]);
     expect(send).toHaveBeenCalledTimes(3);
+  });
+
+  it("reports a failed send and answers false", { timeout: 60_000 }, async () => {
+    const { sendAuthEmail } = await import("./email-password.server");
+    const context = await auth.$context;
+    const user = await context.internalAdapter.createUser({
+      email: "bounce@firm.example",
+      name: "Bounce",
+      emailVerified: false,
+    });
+    const failure = new Error("Resend refused the request");
+    const send = vi.fn(async () => {
+      throw failure;
+    });
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const message = { subject: "s", text: "t", html: "h" };
+    expect(
+      await sendAuthEmail(sql, send, { userId: user.id, kind: "verify", to: "x", message }),
+    ).toBe(false);
+    expect(report.error).toHaveBeenCalledWith(failure, "auth-verify-email");
+    quiet.mockRestore();
   });
 });

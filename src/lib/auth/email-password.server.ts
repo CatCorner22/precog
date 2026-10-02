@@ -16,6 +16,7 @@
 import type { BetterAuthOptions } from "better-auth";
 import { createAuthMiddleware } from "better-auth/api";
 import { getSql, type Sql } from "../db";
+import { reportServerError } from "@/lib/observability/report.server";
 import { mailConfigured, sendEmail } from "@/lib/precog/reminders/mailer.server";
 import type { RenderedEmail } from "@/lib/precog/reminders/email";
 import { renderPasswordReset, renderVerifyEmail } from "./auth-email";
@@ -157,7 +158,7 @@ export async function releaseStaleSignUps(sql: Sql): Promise<number> {
 /**
  * Sends one confirmation or password email, at most a few per account an
  * hour, so a stranger who knows an address cannot flood it. A refused or
- * failed send is logged, not thrown: the person sees the same answer either
+ * failed send is reported, not thrown: the person sees the same answer either
  * way, which also keeps Precog from saying which addresses have accounts.
  */
 export async function sendAuthEmail(
@@ -177,7 +178,8 @@ export async function sendAuthEmail(
   try {
     await send(input.to, input.message);
   } catch (err) {
-    console.error(`[auth] ${input.kind} email to ${input.userId} failed`, err);
+    console.error(`[auth] ${input.kind} email to ${input.userId} failed`);
+    await reportServerError(err, `auth-${input.kind}-email`);
     return false;
   }
   await sql`
