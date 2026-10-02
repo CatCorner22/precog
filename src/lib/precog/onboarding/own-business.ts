@@ -50,7 +50,7 @@ export function ownBusinessProfile(
     dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(dualRelease, ownTemplate),
   });
   // Whether someone independent reconciles is read off the duties the owner
-  // ticked; the toggle in Business profile can still overrule it later.
+  // ticked; the toggle in Business settings can still overrule it later.
   return {
     ...withTeam,
     staff: { ...staff, independentBankRec: independentReconciliationFromTeam(input.people) },

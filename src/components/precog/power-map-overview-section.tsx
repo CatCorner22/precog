@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { riskTone } from "@/lib/precog/scoring/bands";
+import { usePresentation } from "@/lib/precog/presentation";
 import type { PowerMapBuilderModel } from "./use-power-map-builder";
 
 export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel }) {
+  const { say } = usePresentation();
   const {
     assignments,
     coverage,
@@ -57,7 +59,7 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
           icon={ShieldCheck}
           label="Critical open"
           value={String(criticalCount)}
-          hint={`Segregation health ${report.summary.segregationHealth}/100`}
+          hint={`${say("Duties kept apart", "Duty separation")} ${report.summary.segregationHealth}/100`}
           tone={criticalCount > 0 ? "danger" : "primary"}
         />
       </div>

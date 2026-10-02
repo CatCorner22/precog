@@ -134,7 +134,7 @@ export function scoreLeadingIndicators(
     },
     {
       id: "li_seg",
-      label: "Segregation score",
+      label: "Duties kept apart",
       value: staff.segregationScore,
       threshold: lines.segregation.watchBelow,
       status:

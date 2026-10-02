@@ -735,7 +735,7 @@ export function ProcessMap({
           />
           <Button size="sm" variant="secondary" onClick={() => setShowLayerPanel((v) => !v)}>
             <Layers className="size-3.5" />
-            Layers
+            Show on map
           </Button>
           <Button
             size="sm"
@@ -853,11 +853,11 @@ export function ProcessMap({
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <Layers className="size-4" />
-                  Layers
+                  Show on map
                 </CardTitle>
                 <CardDescription>
                   Show draws a layer&apos;s cards on the map; clickable lets you select them and
-                  ranks them in the priority stack.
+                  ranks them in Most urgent processes.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1032,7 +1032,7 @@ export function ProcessMap({
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <ListOrdered className="size-4" />
-                Priority stack
+                Most urgent processes
               </CardTitle>
               <CardDescription>
                 Heat × realistic impact · white-hot needs both high

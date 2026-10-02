@@ -349,7 +349,7 @@ function realtimeCapabilitiesFor(words: InventoryWords): RealtimeCapability[] {
   return [
     {
       id: "rt-profile",
-      label: "Business profile → residual re-score",
+      label: "Business settings → residual re-score",
       ready: true,
       latencyClass: "instant",
       description: "Team and variable sliders recompute the residual index and leading indicators.",
