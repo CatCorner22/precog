@@ -121,8 +121,8 @@ export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
       <h2 className="text-lg font-semibold">QuickBooks Online</h2>
       <p className="mt-1 text-sm text-muted">
         A read-only connection. Precog reads the vendor and employee lists once a month and says
-        what changed: new or altered vendors, people paid who are not on the Duty map, and people
-        released from payroll whose sign-ins still need confirming.
+        what changed: new or altered vendors, people paid who are not in Duty assignments, and
+        people released from payroll whose sign-ins still need confirming.
       </p>
       {status === null ? (
         <p className="mt-3 text-sm text-muted">Checking the connection…</p>
@@ -175,7 +175,7 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
     return (
       <p className="mt-3 text-sm text-muted">
         Nothing changed{drift.since ? ` since ${drift.since.slice(0, 10)}` : ""}, and the books
-        match the Duty map.
+        match Duty assignments.
       </p>
     );
   }
@@ -213,7 +213,7 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
     lines.push({ label: "New employees", text: names(drift.employeesAdded) });
   if (drift.employeesNotOnMap.length) {
     lines.push({
-      label: "Paid but not on the Duty map",
+      label: "Paid but not in Duty assignments",
       text: `${names(drift.employeesNotOnMap)} — add them, or confirm they hold no money duties.`,
       warn: true,
     });

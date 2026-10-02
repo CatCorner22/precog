@@ -41,7 +41,11 @@ export function readRoleAssignments(value: unknown): PowerMapImport {
   }
   const rows = file ? (file as { assignments?: unknown }).assignments : value;
   if (!Array.isArray(rows)) {
-    return { assignments: [], issues: [], problem: "That file is not a Precog Duty map." };
+    return {
+      assignments: [],
+      issues: [],
+      problem: "That file is not a Precog duty assignments file.",
+    };
   }
   if (rows.length === 0) return { assignments: [], issues: [], problem: "The map lists nobody." };
   if (rows.length > MAX_PEOPLE) {

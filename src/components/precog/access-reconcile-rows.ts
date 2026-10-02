@@ -44,10 +44,10 @@ export function rowDifferences(row: AccessUserRow): string {
       ? `Role words we could not match to a duty: ${row.unmatchedTokens.join(", ")}.`
       : "",
     row.extra.length
-      ? `The books let them ${midSentence(duties(row.extra))}, which the Duty map does not show.`
+      ? `The books let them ${midSentence(duties(row.extra))}, which Duty assignments do not show.`
       : "",
     row.missingFromBooks.length
-      ? `The Duty map gives them ${midSentence(duties(row.missingFromBooks))}, which this export does not show.`
+      ? `Duty assignments give them ${midSentence(duties(row.missingFromBooks))}, which this export does not show.`
       : "",
   ]
     .filter(Boolean)

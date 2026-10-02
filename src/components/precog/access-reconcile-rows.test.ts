@@ -71,7 +71,7 @@ describe("rowDifferences", () => {
   it("names duties in words, never by their ids", () => {
     const text = rowDifferences(row);
     expect(text).not.toMatch(/release_payment|initiate_ach|bank_reconcile/);
-    expect(text).toContain("which the Duty map does not show");
+    expect(text).toContain("which Duty assignments do not show");
     expect(text).toContain("which this export does not show");
   });
 
