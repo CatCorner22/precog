@@ -20,6 +20,7 @@ import { inputCls } from "@/components/ui/field-classes";
 import type { BusinessSummary } from "@/lib/precog/practice-profile";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { removeBusinessPrompt } from "./business-switcher-text";
+import { OPEN_BUSINESS_SETTINGS_EVENT } from "@/lib/precog/business-settings-event";
 
 // Loaded on open, so the settings editor stays out of the code the header
 // loads on every page.
@@ -64,6 +65,16 @@ export function BusinessSwitcher() {
     if (!open || needsName) return;
     panel.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
   }, [open, needsName]);
+
+  // A panel elsewhere (for example a known-known figure) asks for Business settings.
+  useEffect(() => {
+    function openSettings() {
+      setOpen(false);
+      setSettingsOpen(true);
+    }
+    window.addEventListener(OPEN_BUSINESS_SETTINGS_EVENT, openSettings);
+    return () => window.removeEventListener(OPEN_BUSINESS_SETTINGS_EVENT, openSettings);
+  }, []);
 
   useEffect(() => {
     if (!open) return;

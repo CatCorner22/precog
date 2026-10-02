@@ -26,7 +26,11 @@ export function PracticeSetup({
   onLeave,
 }: {
   onOpenDualRelease?: () => void;
-  /** Runs when a link leaves for another screen, for example to close the dialog this sits in. */
+  /**
+   * Runs when a link leaves for another screen, or after a change that
+   * replaces the business and confirms it with a message, for example to
+   * close the dialog this sits in so the message is readable.
+   */
   onLeave?: () => void;
 }) {
   const tabName = useTabName();
@@ -64,6 +68,7 @@ export function PracticeSetup({
   function loadSample(next: IndustryId) {
     setIndustry(next);
     setPendingIndustry(null);
+    onLeave?.();
     const tpl = getIndustryTemplate(next);
     toast.success(`Loaded the ${industryMeta(next).label} sample business`, {
       description: `${tpl.processes.length} processes · ${tpl.people.length} people · ${tpl.scenarios.length} scenarios`,
@@ -73,6 +78,7 @@ export function PracticeSetup({
   async function addBusiness(next: IndustryId) {
     const kept = profile.practiceName;
     const result = await createBusiness(next);
+    onLeave?.();
     if (!result.ok) {
       toast.error("Precog could not add a business", { description: result.reason });
       return;
@@ -96,6 +102,7 @@ export function PracticeSetup({
     )
       return;
     resetProfile();
+    onLeave?.();
   }
 
   // Figures that are not facts about this business yet say so.
@@ -270,6 +277,7 @@ export function PracticeSetup({
                   return;
                 setCustomProcesses(null);
                 setMapLayout({});
+                onLeave?.();
                 toast.success("Back to the sample process map");
               }}
             >

@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { AlertTriangle, Eye, EyeOff, HelpCircle, Radar, Search, Sparkles, Zap } from "lucide-react";
 import { tabLabel, type NavFn } from "@/lib/precog/navigation";
+import { openBusinessSettings } from "@/lib/precog/business-settings-event";
 
 const CLASS_META: Record<
   EpistemicClass,
@@ -348,6 +349,16 @@ function ItemCard({ item, onNavigate }: { item: EpistemicItem; onNavigate?: NavF
           onClick={() => onNavigate?.(item.link!.tab, item.link!.id)}
         >
           Open {tabLabel(item.link.tab, say)}
+        </Button>
+      )}
+      {item.opensBusinessSettings && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="mt-2 h-7 px-2 text-xs"
+          onClick={openBusinessSettings}
+        >
+          Open Business settings
         </Button>
       )}
     </div>
