@@ -46,7 +46,7 @@ export function SodPanel({
   initialView?: string | null;
 }) {
   const { say } = usePresentation();
-  const model = useSodPanel(shellReport, initialView);
+  const model = useSodPanel(shellReport, initialView, onNavigate);
   const { profile, report, sodExamples, titleDuties, titleDutyNames, view, setView } = model;
   const health = report.summary.segregationHealth;
   // Never "strong" or "adequate" while a critical or high finding is open.

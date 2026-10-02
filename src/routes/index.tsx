@@ -304,12 +304,7 @@ function Home() {
                   </div>
                 )}
                 {tab === "sod" && (
-                  <SodPanel
-                    key={item ?? "conflicts"}
-                    onNavigate={openTab}
-                    report={sodReport}
-                    initialView={item}
-                  />
+                  <SodPanel onNavigate={openTab} report={sodReport} initialView={item} />
                 )}
                 {tab === "snapshots" && <AssessmentSnapshots />}
                 {tab === "blueprint" && <OperatingBlueprint />}

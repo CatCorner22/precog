@@ -174,7 +174,7 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
         effort: "hours",
         expectedLift: "Opens a new residual domain Pioneer can score",
       },
-      link: { tab: "sod" },
+      link: { tab: "sod", id: "controls" },
     },
     {
       id: "uu-regulatory-hipaa-ocr",

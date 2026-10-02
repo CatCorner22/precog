@@ -201,6 +201,15 @@ async function shellChecks(page) {
   await page.locator('#sod-tab-controls[aria-selected="true"]').waitFor({ timeout });
   await page.locator("#sod-view-controls").getByRole("heading", { name: "Controls" }).waitFor();
 
+  // Choosing a view puts it in the address, so a reload opens the view on screen.
+  await page.locator("#sod-tab-matrix").click();
+  await page.waitForURL(/[?&]item=matrix/, { timeout });
+  await page.reload({ waitUntil: "networkidle", timeout });
+  await page.locator('#sod-tab-matrix[aria-selected="true"]').waitFor({ timeout });
+  // A later link to Controls still switches the view in place.
+  await page.goBack({ waitUntil: "networkidle", timeout });
+  await page.locator('#sod-tab-controls[aria-selected="true"]').waitFor({ timeout });
+
   // Needs attention lists its own items, and they never count as Advanced views.
   await home();
   const attention = page.locator("[data-needs-attention]");

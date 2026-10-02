@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import type { NavFn } from "@/lib/precog/navigation";
 import {
   detectSodConflicts,
   sodDetectionOptions,
@@ -28,11 +29,31 @@ export function sodViewFrom(item: string | null | undefined): SodView | null {
  * passes the report it already computed from the same template, staff and
  * dual release, so one edit runs the check once, not twice.
  */
-export function useSodPanel(shellReport?: SodDetectionReport, initialView?: string | null) {
+export function useSodPanel(
+  shellReport?: SodDetectionReport,
+  initialView?: string | null,
+  onNavigate?: NavFn,
+) {
   const tpl = useTemplate();
   const { profile, setCustomPeople } = usePractice();
   // People and their duty pairs first; the dual-release policy is one step away.
-  const [view, setView] = useState<SodView>(() => sodViewFrom(initialView) ?? "conflicts");
+  const [view, setShownView] = useState<SodView>(() => sodViewFrom(initialView) ?? "conflicts");
+  // A later link (?tab=sod&item=controls) switches the view in place, so the
+  // severity and location filters stay as the owner left them.
+  const [viewFor, setViewFor] = useState(initialView ?? null);
+  if ((initialView ?? null) !== viewFor) {
+    setViewFor(initialView ?? null);
+    setShownView(sodViewFrom(initialView) ?? "conflicts");
+  }
+  // Every view change also goes into the address, so a reload or a copied
+  // link opens the view on screen.
+  const setView = useCallback(
+    (next: SodView) => {
+      setShownView(next);
+      onNavigate?.("sod", next);
+    },
+    [onNavigate],
+  );
   const [filterSeverity, setFilterSeverity] = useState<ConflictSeverity | "all">("all");
   // null: people with no location on record.
   const [location, setLocation] = useState<string | null | "all">("all");

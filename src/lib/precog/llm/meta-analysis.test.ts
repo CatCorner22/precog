@@ -113,4 +113,11 @@ describe("runMetaAnalysis follows the business's own facts", () => {
       ]),
     ).toBe("2 Decisions log entries, 1 with a review recorded.");
   });
+
+  it("opens the control list from the cyber gap, where the old control layer opened", () => {
+    const cyber = runMetaAnalysis(defaultProfile("general")).items.find(
+      (i) => i.id === "uu-cyber-ransomware-ops",
+    );
+    expect(cyber?.link).toEqual({ tab: "sod", id: "controls" });
+  });
 });
