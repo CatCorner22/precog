@@ -47,7 +47,8 @@ export function AppErrorComponent({ error }: ErrorComponentProps) {
       </span>
       <h1 className="text-lg font-semibold">Something went wrong</h1>
       <p className="max-w-md text-sm break-words text-muted">
-        {error.message || "An unexpected error occurred. Try reloading the page."}
+        {(error instanceof Error && error.message) ||
+          "An unexpected error occurred. Try reloading the page."}
       </p>
       <div className="mt-2 flex flex-wrap justify-center gap-2">
         <Button variant="secondary" size="sm" onClick={reload}>

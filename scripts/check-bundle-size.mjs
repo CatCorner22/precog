@@ -32,6 +32,14 @@
  * lasting fix is to stop loading the business engine and the case library on
  * pages that never use them (plan Phase 3, step 3.1); moving one import alone
  * folded two chunks into a 241 KB entry, so it waits for that step.
+ *
+ * 2026-10-02: the grouped dependency update (React 19.3, TanStack Router and
+ * Start, Vite 8.3 with Rolldown 1.2.11) makes Rolldown fold the entry and the
+ * practice-context chunk into one 261.6 KB entry (120 chunks became 80). The
+ * home page downloads no more than before: measured in a browser, 406.0 KB
+ * gzipped in 21 scripts against 407.3 KB in 61 on main; /login and /privacy
+ * grow by 7.5 KB, the cost of the React and router updates. Largest-chunk
+ * budget raised from 210 KB to 265 KB; the total budget is unchanged.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -39,7 +47,7 @@ import { gzipSync } from "node:zlib";
 
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
-  largestChunkGzipBytes: 210 * 1024,
+  largestChunkGzipBytes: 265 * 1024,
   totalGzipBytes: 775 * 1024,
 };
 
