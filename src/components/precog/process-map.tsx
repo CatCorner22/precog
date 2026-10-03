@@ -99,6 +99,7 @@ import { isArrowKey, processAfterArrow } from "@/components/precog/process-map/k
 import { shownProcess } from "@/components/precog/process-map/selection";
 import { IndexBasis } from "@/components/precog/index-basis";
 import { count, slug } from "@/lib/precog/text";
+import { usePresentation } from "@/lib/precog/presentation";
 
 /**
  * Stable identity matters: React Flow syncs this prop into its store on every
@@ -140,6 +141,7 @@ export function ProcessMap({
     canUndoMap,
     canRedoMap,
   } = usePractice();
+  const { say } = usePresentation();
   const [vision, setVision] = useState<MapVisionMode>("standard");
   const [build, setBuild] = useState(initialBuild);
   const [showLayerPanel, setShowLayerPanel] = useState(!initialBuild);
@@ -868,8 +870,12 @@ export function ProcessMap({
                       className="flex items-center justify-between gap-2 rounded-lg border border-border bg-elevated px-2.5 py-2 text-xs"
                     >
                       <div className="min-w-0">
-                        <p className="font-medium text-fg">{l.label}</p>
-                        <p className="truncate text-xs text-subtle">{l.description}</p>
+                        <p className="font-medium text-fg">
+                          {say(l.plain?.label ?? l.label, l.label)}
+                        </p>
+                        <p className="truncate text-xs text-subtle">
+                          {say(l.plain?.description ?? l.description, l.description)}
+                        </p>
                       </div>
                       <div className="flex shrink-0 gap-2">
                         <label className="flex items-center gap-1 text-xs text-muted">
