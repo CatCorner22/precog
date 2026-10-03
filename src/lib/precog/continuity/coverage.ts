@@ -162,7 +162,7 @@ export function setRelationLevel(
 /**
  * Whether anyone is marked on the item at any level. Until then every backup
  * candidate ties on generic reasons and the pick would come down to the
- * alphabet, so the app names nobody to train.
+ * alphabet, so Precog names nobody to train.
  */
 export function isMarked(row: Pick<ItemCoverage, "primaries" | "learners" | "aware">): boolean {
   return row.primaries.length + row.learners.length + row.aware.length > 0;
@@ -230,7 +230,7 @@ const coverageCache = new WeakMap<IndustryTemplate, CoverageReport>();
 /**
  * Who can run each register entry, who carries what alone, and the
  * cross-training plan. Every continuity report (absence impact, leave
- * windows, leavers, documentation, staleness, the weekly plan) starts from
+ * windows, leavers, documentation, staleness, the weekly actions) starts from
  * this one, so it is worked out once per template object: a register change
  * resolves a new template rather than editing one in place. Treat the
  * report as read-only.
@@ -421,8 +421,8 @@ interface CriticalSinglePoints {
  * that nobody, or only one person, can run alone. A learner does not count as
  * cover (they cannot run it alone yet), and an item nobody can run is at
  * least as exposed as one that rests on one person, so marking the first
- * person on it never raises the count. Who knows what, the Dashboard and the
- * sole-owner figure in the business profile all read this one count.
+ * person on it never raises the count. Who knows what and the sole-owner
+ * figure in the business profile both read this one count.
  */
 export function criticalSinglePoints(tpl: IndustryTemplate): CriticalSinglePoints {
   const critical = coverageReport(tpl).items.filter(

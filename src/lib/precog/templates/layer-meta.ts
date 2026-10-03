@@ -1,6 +1,6 @@
 import type { MatrixLayerId } from "../types";
 
-/** The name and one-line summary of each layer, as the Layers tab shows them. */
+/** The name and one-line summary of each layer, as the Controls view of Who controls what shows them. */
 export const LAYER_META: Record<MatrixLayerId, { name: string; blurb: string }> = {
   surface: {
     name: "Day to day",

@@ -7,7 +7,7 @@ import type { Procedure } from "./types";
 
 /**
  * What needs the owner's attention on the Procedures tab, worked out once
- * for the reminders, the weekly plan and the report so the three never
+ * for the reminders, the weekly actions and the report so the three never
  * disagree: a verification about to run out, and a critical task whose named
  * backups have not yet shown they can do it alone.
  */

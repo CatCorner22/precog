@@ -1,8 +1,8 @@
 /**
  * Shared application control designs. These are suggested practices, not
  * universal legal requirements or evidence that a business operates them.
- * Keep the preventive action identical in the blueprint, SOP and retrieval
- * guidance. A periodic review is complementary, never a substitute.
+ * Keep the preventive action identical in the procedure library, SOP and
+ * retrieval guidance. A periodic review is complementary, never a substitute.
  */
 export const PAYMENT_DESTINATION_CHANGE = {
   id: "payment-destination-change",

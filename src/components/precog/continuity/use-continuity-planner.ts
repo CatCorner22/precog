@@ -188,7 +188,7 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
 
 /** The tiles at the top of the planner. */
 function usePlannerFigures(tpl: IndustryTemplate, report: CoverageReport) {
-  // The same count the Dashboard and the business profile's sole-owner figure use.
+  // The same count the business profile's sole-owner figure (soleOwnerKnowledgeCount) uses.
   const singlePoints = useMemo(() => criticalSinglePoints(tpl), [tpl]);
   const importantSinglePoints = report.items.filter(
     (i) => i.item.criticality === "important" && i.primaries.length <= 1,

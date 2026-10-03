@@ -3,7 +3,7 @@ import type { AccessReconciliation } from "../firm/reconcile";
 import { pendingQueueCount } from "../firm/reconcile";
 import { driftIsEmpty } from "./qbo/model";
 
-/** Compact drift snapshot stored on the business profile for home/weekly plan. */
+/** Compact drift snapshot stored on the business profile for Home and the weekly actions. */
 export interface IntegrationDriftSummary {
   updatedAt: string;
   source: "quickbooks" | "access" | "both";

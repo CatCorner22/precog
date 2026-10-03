@@ -79,8 +79,8 @@ export type BuilderPanel =
 
 /**
  * The map builder beside the canvas: the toolbar, its panels, and the
- * selected process's form. `initialPanel` opens one panel on arrival (the
- * dashboard's "Fix N issues" opens Validate).
+ * selected process's form. `initialPanel` opens one panel on arrival (a link
+ * with `build=validate` opens Validate).
  */
 export function ProcessBuilder({
   selectedProcessId,
@@ -134,8 +134,8 @@ export function ProcessBuilder({
   const notAssessed = mapNotAssessedNote(profile);
   const starterMap = mapSource(profile) === "starter";
 
-  // Scored as the map page and the dashboard card score it: untouched
-  // starter processes are left out (see scoreMap).
+  // Scored as the map page scores it: untouched starter processes are left
+  // out (see scoreMap).
   const { industry, customPeople, staff, mapLayout } = profile;
   const scoreList = useCallback(
     (list: ProcessNode[], customized: boolean) =>

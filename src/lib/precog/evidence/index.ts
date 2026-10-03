@@ -1,8 +1,8 @@
 /**
- * Evidence lookup — the join between what the app recommends and what actually
+ * Evidence lookup — the join between what Precog recommends and what actually
  * happened to real organizations.
  *
- * The product claim this supports: when the app tells an owner to split a duty
+ * The product claim this supports: when Precog tells an owner to split a duty
  * or add an approval, it can name the cases that control would have stopped,
  * with the amount and the time it ran undetected. That is a different kind of
  * argument from a risk rating.
@@ -139,8 +139,8 @@ export function caseForRule(
 
 /**
  * Cases that a given control would plausibly have caught, largest loss first.
- * Backs the dashboard's weekly priorities, so an action such as "start the
- * owner bank review" carries the prosecutions it rests on.
+ * Backs the weekly actions (weekly-actions/build.ts), so an action such as
+ * "start the owner bank review" carries the prosecutions it rests on.
  */
 export function casesForControl(controlId: ControlId): CaseStudy[] {
   return CASE_LIBRARY.filter((c) => c.wouldHaveCaughtIt.some((w) => w.control === controlId)).sort(
@@ -158,7 +158,7 @@ export function casesForControl(controlId: ControlId): CaseStudy[] {
  * not the administrator" are the same control — so counting the strings gave
  * every control a count of one and made the ordering meaningless.
  *
- * This is the app's answer to "what do I actually do on Monday", and it is
+ * This is Precog's answer to "what do I actually do on Monday", and it is
  * derived from the case library rather than from a framework checklist, so
  * every item on it has already failed somewhere for real.
  */

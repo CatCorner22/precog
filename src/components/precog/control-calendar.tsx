@@ -22,7 +22,7 @@ import { count, verb } from "@/lib/precog/text";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /**
- * Dashboard card: what control work is due this week, with a 6-week calendar toggle.
+ * Monthly review card: what control work is due this week, with a 6-week calendar toggle.
  * Evidence "Done" marks the item complete straight from here.
  */
 export function ControlCalendarCard({

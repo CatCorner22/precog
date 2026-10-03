@@ -8,7 +8,7 @@ import { procedurePointer } from "./documentation";
 import { daysBetween, isCalendarDate, shiftDay, formatDayRange } from "../dates";
 import { joinWithAnd, joinWithOr, firstName } from "../text";
 
-/** How far ahead the weekly plan, report and Pioneer start warning about known leave. */
+/** How far ahead the weekly actions, the report and Pioneer start warning about known leave. */
 const ABSENCE_LEAD_DAYS = 30;
 
 interface AbsenceOverlap {
