@@ -1,8 +1,9 @@
 /**
  * The three band scales every 0–100 figure in Precog reads against, and the
  * only place a band cutoff is written (scoring/bands-lint.test.ts checks).
- * One exception remains: the early-warning pressure bands in
- * ml/leading-indicators.ts, which step 4.3 replaces with a list.
+ * One exception remains: the pressure-index bands (PRESSURE_BANDS) in
+ * ml/leading-indicators.ts, which that module computes but no screen reads
+ * (the Signals list reads the conditions and the first move only).
  *
  * - HEALTH_SCALE, higher is better: COSO, map health, segregation health,
  *   the "Has a stand-in" and "Written down" shares.

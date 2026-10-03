@@ -4,6 +4,7 @@ import { INDUSTRIES } from "../industry";
 import { defaultProfile } from "../practice-profile";
 import { buildStartHereModel } from "../start-here/model";
 import { buildControlReportModel } from "./build-control-report";
+import { nonprofitLeaderPeople } from "@/test/nonprofit-leader-team";
 
 function reportFor(industry: (typeof INDUSTRIES)[number]["id"]) {
   const profile = defaultProfile(industry);
@@ -38,5 +39,41 @@ describe("control report 'Do these first'", () => {
   it("dental sample leads with splitting one duty out, not the owner bank-statement review", () => {
     const { model } = reportFor("dental");
     expect(model.steps[0]?.control.id).toBe("split-one-duty-out");
+  });
+});
+
+describe("the bank-statement step on a nonprofit report", () => {
+  const BOARD = "A board member opens the bank statement first, before anyone else handles it";
+  const OWNER = "Owner opens the bank statement first, before anyone else handles it";
+
+  it("names a board member on the nonprofit sample and the owner on the retail sample", () => {
+    const nonprofit = reportFor("nonprofit").model;
+    const step = nonprofit.steps.find((s) => s.control.id === "owner-opens-bank-statement");
+    expect(step?.control.label).toBe(BOARD);
+    expect(nonprofit.steps.some((s) => s.control.label.startsWith("Owner opens"))).toBe(false);
+    const retail = reportFor("retail").model;
+    expect(
+      retail.steps.find((s) => s.control.id === "owner-opens-bank-statement")?.control.label,
+    ).toBe(OWNER);
+  });
+
+  it("leads the summary with the board member when that step comes first", () => {
+    const profile = { ...defaultProfile("nonprofit"), customPeople: nonprofitLeaderPeople() };
+    const tpl = resolveTemplate(profile);
+    const model = buildControlReportModel({
+      tpl,
+      profile,
+      mapCustomized: false,
+      today: "2026-09-26",
+      trackFreshness: false,
+      mapReady: true,
+      businessName: "Leader-led nonprofit",
+    });
+    expect(model.steps[0]?.control.id).toBe("owner-opens-bank-statement");
+    expect(model.steps[0]?.control.label).toBe(BOARD);
+    expect(model.summary.join(" ")).toContain(
+      "First step: a board member opens the bank statement first, before anyone else handles it.",
+    );
+    expect(model.summary.join(" ")).not.toContain("owner opens the bank statement");
   });
 });

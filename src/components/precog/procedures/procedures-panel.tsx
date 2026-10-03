@@ -357,6 +357,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
 
         <RecommendedCard
           rows={recommended}
+          industry={industry}
           itemName={itemName}
           nameOf={nameOf}
           disabled={procedures.length >= PROCEDURE_LIMITS.procedures}

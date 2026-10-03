@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { LibraryRow } from "@/lib/precog/procedures/library";
+import type { IndustryId } from "@/lib/precog/industry";
+import { ifYouCannotSeparateFor, type LibraryRow } from "@/lib/precog/procedures/library";
 
 /** How many recommendations that fit this business show before "Show all". */
 const SHOWN = 6;
@@ -10,18 +11,20 @@ const SHOWN = 6;
  * Recommended procedures for this line of business (procedures/library.ts):
  * those that fit the team and the register first, each with why it matters,
  * what it would cover, its suggested steps, the evidence to keep, what to
- * do when one person has to do both halves of the work, and the guidance it
- * follows.
+ * do when one person has to do both halves of the work (in this line of
+ * business's own words where it has them), and the guidance it follows.
  * Starting one opens the editor with the steps marked as suggestions.
  */
 export function RecommendedCard({
   rows,
+  industry,
   itemName,
   nameOf,
   disabled,
   onStart,
 }: {
   rows: readonly LibraryRow[];
+  industry: IndustryId;
   itemName: (id: string) => string | undefined;
   nameOf: (id: string) => string | null;
   disabled: boolean;
@@ -51,6 +54,7 @@ export function RecommendedCard({
             const r = row.recommendation;
             const covers = row.knowledgeIds.map(itemName).filter(Boolean);
             const holders = row.heldBy.map(nameOf).filter(Boolean);
+            const fallback = ifYouCannotSeparateFor(r, industry);
             return (
               <li key={r.id} className="rounded-lg border border-border p-3">
                 <div className="flex items-start justify-between gap-2">
@@ -102,10 +106,10 @@ export function RecommendedCard({
                       </ul>
                     </>
                   )}
-                  {r.ifYouCannotSeparate && (
+                  {fallback && (
                     <>
                       <p className="mt-2 font-medium">If you cannot separate this duty</p>
-                      <p className="mt-0.5">{r.ifYouCannotSeparate}</p>
+                      <p className="mt-0.5">{fallback}</p>
                     </>
                   )}
                   <p className="mt-1 text-muted">Source: {r.source}</p>

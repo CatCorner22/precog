@@ -13,6 +13,7 @@ Scoring 1.6.0 (`precog-residual-v1.6.0`) gives one set of figures a CPA can sign
 - **Duty-conflict cards show their factors.** A card lists who holds the pair, dual release (with its threshold) and staffing, instead of "Rank N of 100".
 - **Stand-in cover leaves out keep-few duties.** Bulk export, granting access, system administration, backups and reading access logs belong with as few people as possible, so a second holder no longer raises stand-in cover.
 - **Early warning is a list of dated records.** It lists overdue items, readings from the books or the access export, and items falling due, each with its date, or "No early-warning sources connected". The early-warning pressure index is gone.
+  - _3 October 2026:_ the list was removed. No screen showed it after the Phase 5 streamline (the Dashboard that held it was retired), and the owner chose to delete it rather than give it a new home. The pressure index stays gone. The table below keeps the 1.6.0 figures as recorded.
 - **Each control answer counts once.** Dual release, bank reconciliation and the segregation score no longer add a second credit to a residual row.
 - **An own team's figures come from its duties.** An own team's segregation score and bank reconciliation answer come only from who does what. Confirmed sample controls no longer copy the sample's "segregated" flag.
 - **Placeholder scenario dollars stay out of the ranking.** Scenario rows and the danger list rank on likelihood and severity levels. The sample dollars and days are illustrative and no longer move a row up or down.

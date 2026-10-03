@@ -321,28 +321,39 @@ function bankRecActions({ tpl, input }: WeeklyContext): WeeklyAction[] {
   const ownerReconciles = activePeople.some(
     (p) => p.id === ownerId && (p.entitlements ?? []).includes("bank_reconcile"),
   );
+  if (ownerReconciles) {
+    return [
+      {
+        id: "bank-rec",
+        title: "Have someone outside the books read the bank statement each month",
+        why: "You reconcile the bank yourself, but you also take or record the money, so nobody else ever compares the books with the bank. An outside bookkeeper or accountant reading the statement and the payroll register each month closes that.",
+        effort: "low",
+        tab: "sod",
+        priority: PRIORITY.bankRec,
+        evidence: evidenceFor(casesForControls(["independent-bank-reconciliation"])),
+      },
+    ];
+  }
+  // A nonprofit belongs to no one (see industryHasOwner), so the reader
+  // outside the books is a board member, not an owner. The same action at
+  // the same rank with the same evidence; only the words change.
+  const board = tpl.id === "nonprofit";
   return [
-    ownerReconciles
-      ? {
-          id: "bank-rec",
-          title: "Have someone outside the books read the bank statement each month",
-          why: "You reconcile the bank yourself, but you also take or record the money, so nobody else ever compares the books with the bank. An outside bookkeeper or accountant reading the statement and the payroll register each month closes that.",
-          effort: "low",
-          tab: "sod",
-          priority: PRIORITY.bankRec,
-          evidence: evidenceFor(casesForControls(["independent-bank-reconciliation"])),
-        }
-      : {
-          id: "bank-rec",
-          title: "Start owner weekly bank reconciliation",
-          why: "Owner sees the bank's record without going through the person who posts payments — catches errors and diverted payments early.",
-          effort: "low",
-          tab: "sod",
-          priority: PRIORITY.bankRec,
-          evidence: evidenceFor(
-            casesForControls(["owner-opens-bank-statement", "independent-bank-reconciliation"]),
-          ),
-        },
+    {
+      id: "bank-rec",
+      title: board
+        ? "Have a board member read the bank statement each month"
+        : "Start owner weekly bank reconciliation",
+      why: board
+        ? "A board member sees the bank's record without going through the person who posts payments — catches errors and diverted payments early."
+        : "Owner sees the bank's record without going through the person who posts payments — catches errors and diverted payments early.",
+      effort: "low",
+      tab: "sod",
+      priority: PRIORITY.bankRec,
+      evidence: evidenceFor(
+        casesForControls(["owner-opens-bank-statement", "independent-bank-reconciliation"]),
+      ),
+    },
   ];
 }
 

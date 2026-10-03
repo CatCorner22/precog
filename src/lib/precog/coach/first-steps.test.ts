@@ -30,7 +30,10 @@ const clinic: OpenFinding[] = [
 
 describe("rankFirstSteps", () => {
   it("puts the controls that answer this business's findings ahead of pool-wide counts", () => {
-    const steps = recommendedStepsForRules(clinic.map((f) => f.ruleId));
+    const steps = recommendedStepsForRules(
+      clinic.map((f) => f.ruleId),
+      "dental",
+    );
     const answers = (id: (typeof steps)[number]["control"]["id"]) => findingsAnswered(id, clinic);
     // Across the whole case pool, a control that answers none of this
     // clinic's findings sits above one that answers some (case count only).
@@ -57,7 +60,13 @@ describe("rankFirstSteps", () => {
 
   it("lets splitting one duty out answer every open finding, so it leads the ranking", () => {
     expect(findingsAnswered(UNIVERSAL_FIX, clinic)).toBe(clinic.length);
-    const ranked = rankFirstSteps(recommendedStepsForRules(clinic.map((f) => f.ruleId)), clinic);
+    const ranked = rankFirstSteps(
+      recommendedStepsForRules(
+        clinic.map((f) => f.ruleId),
+        "dental",
+      ),
+      clinic,
+    );
     expect(ranked[0].answers).toBe(clinic.length);
   });
 
@@ -86,7 +95,7 @@ describe("rankFirstSteps", () => {
     expect(findingsAnswered("gift-card-purchases-controlled", card)).toBe(2);
     expect(findingsAnswered("no-self-approval", card)).toBe(1);
     expect(findingsAnswered("positive-pay", card)).toBe(0);
-    const ranked = rankFirstSteps(recommendedStepsForRules(["rule-card-review"]), card);
+    const ranked = rankFirstSteps(recommendedStepsForRules(["rule-card-review"], "dental"), card);
     expect(ranked[0].control.id).toBe("card-statement-line-review");
   });
 });

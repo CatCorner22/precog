@@ -26,7 +26,8 @@ const BANDS_FILE = "src/lib/precog/scoring/bands.ts";
  * short: an entry is a scale bands.ts does not list yet.
  */
 const KNOWN: Record<string, string> = {
-  // Early-warning pressure bands; step 4.3 replaces the pressure index with a list.
+  // The pressure-index bands, computed but read by no screen; the one scale
+  // bands.ts does not list.
   "src/lib/precog/ml/leading-indicators.ts": "PRESSURE_BANDS",
 };
 

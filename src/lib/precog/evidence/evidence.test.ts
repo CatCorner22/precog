@@ -250,7 +250,10 @@ describe("casesForControl", () => {
 
 describe("recommendedStepsForRules", () => {
   it("counts a case once per control even when the case phrases the control twice", () => {
-    const steps = recommendedStepsForRules(CONFLICT_RULES.map((r) => r.id));
+    const steps = recommendedStepsForRules(
+      CONFLICT_RULES.map((r) => r.id),
+      "dental",
+    );
     expect(steps.length).toBeGreaterThan(0);
     for (const s of steps) {
       expect(new Set(s.supportingCaseIds).size).toBe(s.supportingCaseIds.length);
@@ -264,7 +267,7 @@ describe("recommendedStepsForRules", () => {
   });
 
   it("returns nothing for a rule id nothing cites", () => {
-    expect(recommendedStepsForRules(["rule-does-not-exist"])).toEqual([]);
+    expect(recommendedStepsForRules(["rule-does-not-exist"], "dental")).toEqual([]);
   });
 });
 
@@ -681,6 +684,42 @@ describe("shared evidence wording", () => {
     for (const study of CASE_LIBRARY) {
       expect(DETECTION_LABEL[study.detection]).toBeTruthy();
       expect(SECTOR_LABEL[study.sector]).toBeTruthy();
+    }
+  });
+});
+
+describe("a control's wording for a business with no owner", () => {
+  const steps = (industry: Parameters<typeof recommendedStepsForRules>[1]) =>
+    recommendedStepsForRules(
+      CONFLICT_RULES.map((r) => r.id),
+      industry,
+    );
+  const statement = (industry: Parameters<typeof recommendedStepsForRules>[1]) =>
+    steps(industry).find((s) => s.control.id === "owner-opens-bank-statement")?.control;
+
+  it("tells a nonprofit that a board member opens the bank statement", () => {
+    expect(statement("nonprofit")?.label).toBe(
+      "A board member opens the bank statement first, before anyone else handles it",
+    );
+  });
+
+  it("keeps the owner wording, and every other field, for every other line of business", () => {
+    const owner = statement("dental");
+    expect(owner?.label).toBe(
+      "Owner opens the bank statement first, before anyone else handles it",
+    );
+    for (const industry of ["retail", "restaurant", "general", undefined] as const) {
+      expect(statement(industry)).toEqual(owner);
+    }
+    const nonprofit = statement("nonprofit");
+    expect({ ...nonprofit, label: owner?.label }).toEqual(owner);
+  });
+
+  it("changes no other control's wording for a nonprofit", () => {
+    const owner = new Map(steps("dental").map((s) => [s.control.id, s.control.label]));
+    for (const s of steps("nonprofit")) {
+      if (s.control.id === "owner-opens-bank-statement") continue;
+      expect(s.control.label).toBe(owner.get(s.control.id));
     }
   });
 });

@@ -1,8 +1,9 @@
 /**
  * Watched conditions: the profile settings and indices past a line Precog
- * chose, read by the Signals list and the coach. These are not early-warning
- * signals (those come from records, see early-warning.ts), and the COSO
- * checklist is not among them: it has no score to cross a line.
+ * chose, read by the Signals list and the coach. None of them is a record:
+ * what the books, an access export or a due date say comes from
+ * integrations/drift-signals.ts and reminders/due-items.ts. The COSO
+ * checklist is not among them either: it has no score to cross a line.
  *
  * Every threshold, weight and band here is this app's assumption, listed in
  * the report's `assumptions`; none is measured or taken from a study.

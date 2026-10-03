@@ -164,7 +164,10 @@ export function buildControlReportModel({
   // Ranked as Start here ranks its "Do these first" list, so the screen and
   // the printed report lead with the same step: first by how many of the
   // open findings each control answers.
-  const steps = rankFirstSteps(recommendedStepsForRules(openRuleIds), open).slice(0, 6);
+  const steps = rankFirstSteps(recommendedStepsForRules(openRuleIds, profile.industry), open).slice(
+    0,
+    6,
+  );
   // Count, median and detection routes describe only the cases whose records
   // show these gaps. Cases that merely share a scheme are listed but never
   // counted, so when no case shows the gaps the report gives no loss figure.
