@@ -62,7 +62,7 @@ export function ConflictDecision({
           )}
         </p>
       )}
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap items-end gap-1">
         {showInPlace && control && (
           <InPlaceForm onRecord={(text) => addDecision(inPlaceEntry(control, text))} />
         )}
@@ -71,7 +71,7 @@ export function ConflictDecision({
             <Button
               size="sm"
               variant="ghost"
-              className="mt-2 h-7 text-xs"
+              className="h-7 text-xs"
               onClick={() => setOpen("decide")}
             >
               Log a decision
@@ -79,7 +79,7 @@ export function ConflictDecision({
             <Button
               size="sm"
               variant="ghost"
-              className="mt-2 h-7 text-xs"
+              className="h-7 text-xs"
               onClick={() => setOpen("not_valid")}
             >
               Not valid
