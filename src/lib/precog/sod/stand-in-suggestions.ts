@@ -15,5 +15,3 @@ export function dutyStandInSuggestions(assignments: RoleAssignment[]) {
     program: buildCoverageProgram(assignments),
   };
 }
-
-export type DutyStandInSuggestions = ReturnType<typeof dutyStandInSuggestions>;
