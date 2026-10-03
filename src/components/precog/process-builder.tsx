@@ -63,6 +63,7 @@ import { buildProcessMapGraph, enrichProcess, processMapContext } from "@/lib/pr
 import { residualScope } from "@/lib/precog/scoring/scope";
 import { validateProcessMap } from "@/lib/precog/process-validation";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import { teamSource } from "@/lib/precog/team-source";
 import { useTabName } from "@/lib/precog/presentation";
 import { count, slug, uniqueId } from "@/lib/precog/text";
 import type { ProcessNode } from "@/lib/precog/types";
@@ -366,7 +367,7 @@ export function ProcessBuilder({
    * register and journal are the owner's and stay.
    */
   function resetToTemplate() {
-    const ownTeam = Boolean(profile.customPeople);
+    const ownTeam = teamSource(profile) === "own";
     const question = ownTeam
       ? `Go back to the sample process map? Precog discards your edits to the map. Your team, register and ${tabName("journal")} stay.`
       : "Discard your custom map and team, and restore the industry template?";

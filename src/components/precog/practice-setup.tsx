@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import { teamSource } from "@/lib/precog/team-source";
 import { usePresentation, useTabName } from "@/lib/precog/presentation";
 import { TeamLink } from "@/components/precog/team-link";
 import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
@@ -47,7 +48,7 @@ export function PracticeSetup({
   } = usePractice();
   const template = useTemplate();
   const s = profile.staff;
-  const ownTeam = Boolean(profile.customPeople);
+  const ownTeam = teamSource(profile) === "own";
   /** Keyed to the business it was made for, so switching businesses never carries a pending change across. */
   const businessKey = `${profile.businessId ?? DEFAULT_BUSINESS_ID}:${profile.industry}`;
   const [pendingChoice, setPendingChoice] = useState<{

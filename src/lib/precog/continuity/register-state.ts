@@ -1,6 +1,7 @@
 import { industrySample } from "../templates/registry";
 import type { IndustryTemplate } from "../templates/types";
 import type { PracticeProfile } from "../practice-profile";
+import { teamSource } from "../team-source";
 import type { IndustryId } from "../industry";
 import type { KnowledgeItem } from "../types";
 
@@ -52,7 +53,7 @@ export function registerSource(
   if (profile.customKnowledge && !isStarterList(profile.customKnowledge, profile.industry)) {
     return "own";
   }
-  return profile.customPeople ? "starter" : "sample";
+  return teamSource(profile) === "own" ? "starter" : "sample";
 }
 
 /**

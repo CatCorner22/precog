@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
-import { needsOwnName } from "@/lib/precog/business-lifecycle";
+import { needsOwnName, teamSource } from "@/lib/precog/business-lifecycle";
 import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -116,7 +116,7 @@ export function BusinessSwitcher() {
     }
     setOpen(false);
   }
-  const onSample = !profile.customPeople;
+  const onSample = teamSource(profile) === "sample";
 
   function openBusiness(b: BusinessSummary) {
     setOpen(false);

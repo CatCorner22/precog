@@ -3,6 +3,7 @@ import { KeyRound, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { usePractice } from "@/lib/precog/practice-context";
+import { teamSource } from "@/lib/precog/team-source";
 import { useTabName } from "@/lib/precog/presentation";
 import {
   LEAVER_ACCESS_ITEMS,
@@ -86,7 +87,7 @@ export function LeaverAccessList({ explainOnSample = false }: { explainOnSample?
   );
   const [expanded, setExpanded] = useState<string | null>(null);
   if (open.length === 0) {
-    return explainOnSample && !profile.customPeople ? (
+    return explainOnSample && teamSource(profile) === "sample" ? (
       <p className="flex items-center gap-2 text-sm text-muted">
         <KeyRound className="size-4 shrink-0" aria-hidden />
         On your own business, marking someone as left also asks you to confirm that you have stopped

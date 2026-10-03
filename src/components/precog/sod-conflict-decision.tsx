@@ -9,6 +9,7 @@ import {
 } from "@/lib/precog/decisions/conflict-entries";
 import { cardDecision, notValidCounts, notValidReasonText } from "@/lib/precog/decisions/not-valid";
 import { useTemplate } from "@/lib/precog/practice-context";
+import { teamSource } from "@/lib/precog/team-source";
 import { useTabName } from "@/lib/precog/presentation";
 import {
   DECISION_KIND_LABEL,
@@ -44,7 +45,7 @@ export function ConflictDecision({
   const [open, setOpen] = useState<null | "decide" | "not_valid">(null);
   const logged = cardDecision(c, profile.decisions, profile.industry);
   const control = c.linkedControlId ? controls.find((x) => x.id === c.linkedControlId) : undefined;
-  const showInPlace = Boolean(control && profile.customPeople && !c.ownerHeld);
+  const showInPlace = Boolean(control && teamSource(profile) === "own" && !c.ownerHeld);
 
   return (
     <div className="mt-2 space-y-2">

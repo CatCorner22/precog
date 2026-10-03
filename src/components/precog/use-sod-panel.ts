@@ -6,6 +6,7 @@ import {
   type SodDetectionReport,
 } from "@/lib/precog/sod/detect";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import { teamSource } from "@/lib/precog/team-source";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import {
   confirmTitleDuties,
@@ -84,7 +85,7 @@ export function useSodPanel(
   );
 
   // Duties still guessed from job titles: the findings rest on them.
-  const titleDuties = profile.customPeople ? titleDutiesSentence(tpl.people) : "";
+  const titleDuties = teamSource(profile) === "own" ? titleDutiesSentence(tpl.people) : "";
   const titleDutyNames = peopleWithTitleDuties(tpl.people).map((person) => person.name);
 
   // A business with two or more locations: say where each person works, and

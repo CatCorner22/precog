@@ -1,5 +1,6 @@
 import type { IndustryTemplate } from "../templates";
 import type { PracticeProfile } from "../practice-profile";
+import { teamSource } from "../team-source";
 import type { Benchmark, CaseStudy } from "../evidence";
 import {
   BENCHMARK_BY_ID,
@@ -191,7 +192,7 @@ export function buildStartHereModel({
   sod: given,
 }: StartHereInput): StartHereModel {
   const day = localDateKey(today);
-  const isSampleTeam = !profile.customPeople;
+  const isSampleTeam = teamSource(profile) === "sample";
   const industryLabel = industryMeta(profile.industry).label.toLowerCase();
   const sod =
     given ??

@@ -1,5 +1,6 @@
 import type { IndustryTemplate } from "../templates";
 import type { PracticeProfile } from "../practice-profile";
+import { teamSource } from "../team-source";
 import { buildThreatAssessment } from "../threat-scoring";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { DEFAULT_WEIGHTS } from "../scoring/weights";
@@ -98,7 +99,7 @@ export function buildControlReportModel({
   // sample moves the priority and residual figures without any change in
   // who does what, so the report says so. An own team's come from its duties.
   const handSet = handSetNotes(
-    handSetFigures(profile.staff, { ownTeam: Boolean(profile.customPeople) }),
+    handSetFigures(profile.staff, { ownTeam: teamSource(profile) === "own" }),
   );
   const continuity = coverageReport(tpl);
   const staleness = staleItems(tpl, today);
