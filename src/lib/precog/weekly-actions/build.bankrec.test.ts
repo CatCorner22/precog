@@ -1,16 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "@/lib/precog/active-template";
 import { buildOwnTeam, ownBusinessProfile } from "@/lib/precog/onboarding/own-team";
-import { defaultProfile } from "@/lib/precog/practice-profile";
+import { defaultProfile, type PracticeProfile } from "@/lib/precog/practice-profile";
 import { buildWeeklyActions } from "./build";
 import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
 import { nonprofitLeaderPeople } from "@/test/nonprofit-leader-team";
 
-function bankRecAction(rows: Parameters<typeof buildOwnTeam>[0]) {
-  const profile = ownBusinessProfile(defaultProfile("retail"), {
-    practiceName: "Test Store",
-    people: buildOwnTeam(rows),
-  });
+function bankRecActionOf(profile: PracticeProfile) {
   const tpl = resolveTemplate(profile);
   const actions = buildWeeklyActions({
     tpl,
@@ -18,8 +14,20 @@ function bankRecAction(rows: Parameters<typeof buildOwnTeam>[0]) {
     dualRelease: profile.dualRelease,
     today: "2026-09-23",
   });
-  return { profile, action: actions.find((a) => a.id === "bank-rec") };
+  return actions.find((a) => a.id === "bank-rec");
 }
+
+function bankRecAction(rows: Parameters<typeof buildOwnTeam>[0]) {
+  const profile = ownBusinessProfile(defaultProfile("retail"), {
+    practiceName: "Test Store",
+    people: buildOwnTeam(rows),
+  });
+  return { profile, action: bankRecActionOf(profile) };
+}
+
+const BOARD_TITLE = "Have a board member read the bank statement each month";
+const BOARD_WHY =
+  "A board member sees the bank's record without going through the person who posts payments — catches errors and diverted payments early.";
 
 describe("the bank-reconciliation action", () => {
   it("asks for a separate reader when the owner signs checks and reconciles", () => {
@@ -51,22 +59,39 @@ describe("the bank-reconciliation action", () => {
     expect(action?.title).toBe("Start owner weekly bank reconciliation");
   });
 
-  it("asks a nonprofit to start, because its reconciling leader is not an owner", () => {
+  it("asks a nonprofit for a board member, because its reconciling leader is not an owner", () => {
     // The leader carries no owner mark and reads as the owner by title alone;
-    // the line of business says the nonprofit has none.
+    // the line of business says the nonprofit has none, so the reader outside
+    // the books is a board member, not an owner who starts reconciling.
     const profile = ownBusinessProfile(defaultProfile("nonprofit"), {
       practiceName: "Riverbend Food Bank",
       people: nonprofitLeaderPeople(),
     });
     expect(profile.staff.independentBankRec).toBe(false);
-    const tpl = resolveTemplate(profile);
-    const action = buildWeeklyActions({
-      tpl,
-      staff: profile.staff,
-      dualRelease: profile.dualRelease,
-      today: "2026-09-23",
-    }).find((a) => a.id === "bank-rec");
-    expect(action?.title).toBe("Start owner weekly bank reconciliation");
+    const action = bankRecActionOf(profile);
+    expect(action?.title).toBe(BOARD_TITLE);
+    expect(action?.why).toBe(BOARD_WHY);
+  });
+
+  it("asks the nonprofit sample for a board member, at the owner action's rank and evidence", () => {
+    const sample = defaultProfile("nonprofit");
+    expect(sample.staff.independentBankRec).toBe(false);
+    const action = bankRecActionOf(sample);
+    expect(action?.title).toBe(BOARD_TITLE);
+    expect(action?.why).toBe(BOARD_WHY);
+    // Only the words change: id, effort, tab, priority and the cases behind
+    // it are the owner action's, so no count or ranking moves.
+    const owner = bankRecActionOf(defaultProfile("retail"));
+    expect(owner?.title).toBe("Start owner weekly bank reconciliation");
+    expect({ ...action, title: owner?.title, why: owner?.why }).toEqual(owner);
+  });
+
+  it("keeps the owner wording on every other sample", () => {
+    for (const industry of ["retail", "dental", "restaurant", "general"] as const) {
+      expect(bankRecActionOf(defaultProfile(industry))?.title).toBe(
+        "Start owner weekly bank reconciliation",
+      );
+    }
   });
 });
 
