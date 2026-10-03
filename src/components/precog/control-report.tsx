@@ -4,7 +4,7 @@ import { ArrowLeft, Printer } from "lucide-react";
 import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { latestReview, reviewItemsFor, reviewResultLine } from "@/lib/precog/firm/reviews";
-import { industryMeta } from "@/lib/precog/industry";
+import { industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
 import {
@@ -20,6 +20,7 @@ import {
   DECISION_KIND_LABEL,
   DECISION_KIND_LABEL_PRINTED_V1,
   DISPOSITION_REASON_LABEL,
+  type DecisionEntry,
 } from "@/lib/precog/practice-profile";
 import { PRIORITY_BAND_LABEL, PRIORITY_TOP } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ import {
 } from "@/components/precog/control-report-evidence-section";
 import { Kpi, Section } from "@/components/precog/control-report-parts";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
+import { decidedOn } from "@/lib/precog/decisions/decided-on";
 import { count, firstName, midSentence, verb } from "@/lib/precog/text";
 
 /**
@@ -569,7 +571,12 @@ export function ControlReport({
                       {layoutThree && d.disposition
                         ? `Judged not valid: ${DISPOSITION_REASON_LABEL[d.disposition.reason]}`
                         : kindLabel[d.kind]}
-                    </span>{" "}
+                    </span>
+                    {layoutThree &&
+                      d.disposition &&
+                      judgesCritical(d, sod.conflicts, profile.industry) && (
+                        <span className="font-medium"> · Awaiting a second person</span>
+                      )}{" "}
                     · {d.subject}
                     <span className="text-neutral-500">
                       {" "}
@@ -615,6 +622,21 @@ function responseLine(
   const judged = notValid.find((n) => n.conflictId === conflictId);
   if (judged) return judged.critical ? "Awaiting a second person" : "Judged not valid";
   return "No decision yet";
+}
+
+/**
+ * Whether a not-valid entry in the log judges a critical finding, which waits
+ * for a second person before it counts as not valid.
+ */
+function judgesCritical(
+  entry: DecisionEntry,
+  conflicts: readonly DetectedConflict[],
+  industry: IndustryId,
+): boolean {
+  const asDecision = [{ ...entry, disposition: undefined }];
+  return conflicts.some(
+    (c) => c.severity === "critical" && decidedOn(c, new Set([entry.kind]), asDecision, industry),
+  );
 }
 
 /** The Review by column of layout 3: the open decision's review date, if it has one. */

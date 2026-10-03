@@ -461,6 +461,11 @@ describe("report layout 3", () => {
     const log = text.slice(text.indexOf("Decisions log"));
     expect(log).toContain("|Judged not valid: Someone outside this map checks it|");
     expect(log).not.toContain("Watch it");
+    // The critical finding's entry waits for a second person, as its row does.
+    expect(log).toContain(
+      "|Judged not valid: The rule does not fit this business| · Awaiting a second person| · Vendor set-up and payment|",
+    );
+    expect(log).not.toContain("Someone outside this map checks it| · Awaiting");
   });
 
   it("prints no responses or not-valid list under layout 2", () => {
