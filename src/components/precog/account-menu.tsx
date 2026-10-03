@@ -207,7 +207,9 @@ export function AccountDataControls() {
   }
 
   return (
-    <div className="flex items-center gap-1">
+    // On a phone the three controls wrap under one another instead of
+    // pushing the header wider than the screen.
+    <div className="flex min-w-0 flex-wrap items-center gap-1">
       <button
         type="button"
         onClick={() => void exportAll()}
