@@ -167,14 +167,7 @@ export const generalTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-sales-1",
-          kind: "muda_rework",
-          label: "Quotes re-done after order intake",
-          note: "Staff re-key handwritten or emailed quotes into the order system and often correct them.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-billing",
@@ -227,14 +220,7 @@ export const generalTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-bill-1",
-          kind: "muda_waiting",
-          label: "Invoices batched at month end",
-          note: "Cash arrives weeks later than it would with invoicing at delivery.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-cash",
@@ -288,14 +274,7 @@ export const generalTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-cash-1",
-          kind: "muda_overprocessing",
-          label: "Payments logged in three places",
-          note: "Deposit slip, spreadsheet, and accounting system all keyed by hand for the same check.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ap",
@@ -349,14 +328,7 @@ export const generalTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-ap-1",
-          kind: "muri",
-          label: "The payables clerk carries every vendor payment alone",
-          note: "Nobody covers when the payables clerk is out; payments pile up and late fees follow.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ar",
@@ -409,14 +381,7 @@ export const generalTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-ar-1",
-          kind: "mura",
-          label: "Collections only happen when cash is tight",
-          note: "Effort spikes at quarter end and then stops; customers learn to pay late.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-payroll",
@@ -468,14 +433,7 @@ export const generalTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-pay-1",
-          kind: "muda_rework",
-          label: "Staff correct timesheets after submission",
-          note: "Someone fixes missing punches by hand every pay period instead of catching them at the source.",
-        },
-      ],
+      wastes: [],
     },
   ],
   controls: baseFinancialControls(),

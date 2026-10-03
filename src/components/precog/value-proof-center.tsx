@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import {
   Calculator,
   CheckCircle2,
@@ -8,6 +9,8 @@ import {
   ShieldCheck,
   TriangleAlert,
   Download,
+  FileText,
+  Upload,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +27,8 @@ import {
   normalizeEnteredInputs,
   observedValueStatus,
   inputList,
+  modeledRangeRows,
+  modeledTileValues,
 } from "@/lib/precog/value-case";
 import {
   evidenceChecklist,
@@ -39,6 +44,7 @@ import {
   type ValueEvidence,
 } from "@/lib/precog/value-evidence";
 import { readValueProof, writeValueProof } from "@/lib/precog/value-proof-store";
+import { buildValueProofFile, loadValueProofFile } from "@/lib/precog/value-proof-file";
 import { useWorkspace } from "@/lib/precog/workspace-context";
 import { usePracticeState } from "@/lib/precog/practice-context";
 import { downloadText } from "@/lib/download";
@@ -47,7 +53,13 @@ import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 
 const NOT_YET = "Not yet observed";
 
-export function ValueProofCenter() {
+/**
+ * `headingLevel` sets the view's own heading; card headings sit one level
+ * under it. The Value proof tab uses 1; /firm mounts it under an h2 and passes 3.
+ */
+export function ValueProofCenter({ headingLevel = 1 }: { headingLevel?: 1 | 2 | 3 } = {}) {
+  const Heading = `h${headingLevel}` as const;
+  const cardHeading = `h${headingLevel + 1}` as "h2" | "h3" | "h4";
   const workspace = useWorkspace();
   const { profile } = usePracticeState();
   const businessId = profile.businessId ?? DEFAULT_BUSINESS_ID;
@@ -107,6 +119,8 @@ export function ValueProofCenter() {
   const value = useMemo(() => calculateValueCase(inputs), [inputs]);
   const status = useMemo(() => observedValueStatus(inputs, typed), [inputs, typed]);
   const isDefault = (key: ValueInputKey) => !status.entered.has(key);
+  const modeledTiles = useMemo(() => modeledTileValues(inputs, typed), [inputs, typed]);
+  const modeledRows = useMemo(() => modeledRangeRows(inputs, typed), [inputs, typed]);
   const evidenceSummary = useMemo(() => summarizeValueEvidence(evidence), [evidence]);
   const hours = hoursCheck(evidenceSummary.hours, inputs);
   const recoveries = recoveryCheck(evidenceSummary.recoveries, inputs.directRecoveries);
@@ -119,6 +133,35 @@ export function ValueProofCenter() {
     setInputs((current) => normalizeValueCase({ ...current, [key]: next }));
     setDirty(true);
     return result;
+  };
+  const fileInput = useRef<HTMLInputElement>(null);
+  const downloadFile = () => {
+    const out = buildValueProofFile(businessId, profile.practiceName, new Date(), workspace.local);
+    downloadText(out.fileName, out.content, "application/json");
+  };
+  const loadFile = async (file: File) => {
+    if (
+      (status.anyObservation || evidence.length > 0) &&
+      !window.confirm(
+        "Replace this business's value figures and evidence register with the file? You cannot undo this.",
+      )
+    )
+      return;
+    const loaded = loadValueProofFile(businessId, await file.text(), workspace.local);
+    if (!loaded.ok) {
+      toast.error(loaded.reason);
+      return;
+    }
+    setInputs(
+      loaded.file.valueCase ? normalizeValueCase(loaded.file.valueCase) : DEFAULT_VALUE_CASE,
+    );
+    setTyped(normalizeEnteredInputs(loaded.file.valueCase?.entered));
+    setEvidence(loaded.file.valueEvidence);
+    setDirty(false);
+    setKept(true);
+    toast.success(
+      `Loaded the value proof${loaded.file.businessName ? ` of ${loaded.file.businessName}` : ""} into this business.`,
+    );
   };
   const exportMemo = () => {
     downloadText(
@@ -133,18 +176,52 @@ export function ValueProofCenter() {
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <Badge variant="accent">Value proof</Badge>
         <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
-          <h1 className="text-xl font-semibold">
+          <Heading className="text-xl font-semibold">
             What Precog has returned so far, and what it might prevent
-          </h1>
-          <button
-            type="button"
-            onClick={exportMemo}
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium hover:border-border-strong"
-          >
-            <Download className="size-4" aria-hidden />
-            Export executive memo
-          </button>
+          </Heading>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={downloadFile}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium hover:border-border-strong"
+            >
+              <Download className="size-4" aria-hidden />
+              Download value proof
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium hover:border-border-strong"
+            >
+              <Upload className="size-4" aria-hidden />
+              Load a value proof file
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              aria-label="Value proof file to load"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void loadFile(file);
+              }}
+            />
+            <button
+              type="button"
+              onClick={exportMemo}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-elevated px-3 py-2 text-xs font-medium hover:border-border-strong"
+            >
+              <FileText className="size-4" aria-hidden />
+              Export executive memo
+            </button>
+          </div>
         </div>
+        <p className="mt-2 max-w-3xl text-xs text-muted">
+          Download value proof saves this business&apos;s figures and evidence register as a file.
+          Loading a file replaces both for this business on this device.
+        </p>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted">
           Two kinds of figure. What you observed: hours returned and money recovered. What the model
           estimates: loss avoided. Report the second as a scenario, never as savings.
@@ -177,33 +254,35 @@ export function ValueProofCenter() {
           note={
             status.value.observed
               ? usesDefaults(status.value, observedValueParts(inputs, typed))
-              : `Precog default assumption: ${formatUsd(value.observed.total)} of labor. Enter your review hours and hourly cost, or money recovered.`
+              : `Precog default assumption: ${formatUsd(value.observed.total)} of time returned. Enter your review hours and hourly cost, or cash recovered.`
           }
         />
         <Metric
           icon={ShieldCheck}
           label="Modeled risk reduction"
-          value={formatUsd(value.modeled.base)}
+          value={modeledTiles.riskReduction}
           note={
-            isDefault("annualExposure") &&
-            isDefault("eventProbability") &&
-            isDefault("controlEffectiveness")
-              ? "Scenario, not realized savings; every input is a Precog default"
-              : "Scenario, not realized savings"
+            modeledTiles.entered
+              ? "Scenario, not realized savings"
+              : "Scenario, not realized savings. Enter the money at risk or the event probability below."
           }
           warning
         />
         <Metric
           icon={Calculator}
           label="Assumed loss baseline"
-          value={formatUsd(value.modeled.expectedLossBefore)}
-          note={`${isDefault("annualExposure") ? "Precog default exposure" : "Your exposure"} × ${isDefault("eventProbability") ? "Precog default probability" : "your probability assumption"}`}
+          value={modeledTiles.lossBaseline}
+          note={
+            modeledTiles.entered
+              ? `${isDefault("annualExposure") ? "Precog default exposure" : "Your exposure"} × ${isDefault("eventProbability") ? "Precog default probability" : "your probability assumption"}`
+              : "Your exposure × your probability, once you enter either"
+          }
           warning
         />
       </div>
 
       <Card>
-        <CardContent className="grid gap-4 pt-5 sm:grid-cols-3">
+        <CardContent className="grid gap-4 pt-5 sm:grid-cols-2 lg:grid-cols-4">
           {status.anyObservation || evidence.length > 0 ? (
             <>
               <ObservedInline
@@ -211,7 +290,16 @@ export function ValueProofCenter() {
                 figure={status.net}
                 show={(v) => formatUsd(v)}
               />
-              <ObservedInline label="Observed ROI" figure={status.roi} show={(v) => formatPct(v)} />
+              <ObservedInline
+                label="Cash-only ROI"
+                figure={status.cashRoi}
+                show={(v) => formatPct(v)}
+              />
+              <ObservedInline
+                label="ROI including time"
+                figure={status.roi}
+                show={(v) => formatPct(v)}
+              />
               <ObservedInline
                 label="Observed payback"
                 figure={status.payback}
@@ -219,7 +307,7 @@ export function ValueProofCenter() {
               />
             </>
           ) : (
-            <p className="text-sm text-muted sm:col-span-3">
+            <p className="text-sm text-muted sm:col-span-2 lg:col-span-4">
               Not yet observed. Every figure on this tab starts as a Precog default; enter your own
               review hours, costs and money recovered below, or add an item to the evidence
               register, and the net value, return and payback appear here once the figures behind
@@ -230,6 +318,7 @@ export function ValueProofCenter() {
       </Card>
 
       <ValueEvidenceRegister
+        headingAs={cardHeading}
         items={evidence}
         onChange={(items) => {
           setEvidence(normalizeValueEvidence(items));
@@ -289,7 +378,7 @@ export function ValueProofCenter() {
       <div className="grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Value assumptions</CardTitle>
+            <CardTitle as={cardHeading}>Value assumptions</CardTitle>
             <CardDescription>
               Figures marked Precog default are Precog&apos;s starting figures, not measured
               results; replace each one with your own where you have it. Values save in this
@@ -365,30 +454,38 @@ export function ValueProofCenter() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Modeled range</CardTitle>
+              <CardTitle as={cardHeading}>Modeled range</CardTitle>
               <CardDescription>{MODELED_RANGE_NOTE}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {(
-                [
-                  ["Low", value.modeled.low],
-                  ["Base", value.modeled.base],
-                  ["High", value.modeled.high],
-                ] as const
-              ).map(([label, amount]) => (
+              {modeledRows.map(({ label, amount, display }) => (
                 <div key={label}>
                   <div className="mb-1 flex justify-between text-xs">
                     <span className="text-muted">{label}</span>
-                    <span className="font-semibold tabular">{formatUsd(amount)}</span>
+                    <span
+                      className={
+                        amount === null ? "font-medium text-muted" : "font-semibold tabular"
+                      }
+                    >
+                      {display}
+                    </span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-elevated" aria-hidden>
-                    <div
-                      className="h-full rounded-full bg-warn"
-                      style={{ width: `${(amount / modeledTop) * 100}%` }}
-                    />
-                  </div>
+                  {amount !== null && (
+                    <div className="h-2 overflow-hidden rounded-full bg-elevated" aria-hidden>
+                      <div
+                        className="h-full rounded-full bg-warn"
+                        style={{ width: `${(amount / modeledTop) * 100}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
+              {!modeledTiles.entered && (
+                <p className="text-xs text-muted">
+                  Enter the money at risk or the event probability in Value assumptions to see this
+                  range.
+                </p>
+              )}
               <div className="flex gap-2 rounded-xl border border-warn/30 bg-warn/5 p-3 text-xs leading-relaxed text-muted">
                 <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
                 <p>
@@ -400,7 +497,7 @@ export function ValueProofCenter() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Evidence checklist</CardTitle>
+              <CardTitle as={cardHeading}>Evidence checklist</CardTitle>
               <CardDescription>
                 Each line turns green once your own records show it.
               </CardDescription>

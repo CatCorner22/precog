@@ -2,17 +2,14 @@ import { useMemo, useState } from "react";
 import { KeyRound, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useTabName } from "@/lib/precog/presentation";
 import {
   LEAVER_ACCESS_ITEMS,
   leaverLabel,
   openAccessChecks,
-  unpromptedAccessChecks,
   type LeaverAccessItem,
 } from "@/lib/precog/continuity/access-removal";
-import { joinWithAnd } from "@/lib/precog/text";
 import { formatDay } from "@/lib/precog/dates";
 
 const WHY =
@@ -70,62 +67,6 @@ function AccessChecklist({
         )}
       </div>
     </div>
-  );
-}
-
-/**
- * Asked once, under the header, as soon as someone is known to have left:
- * are they off payroll, and are their logins gone? Either answer ends the
- * prompt; an unconfirmed check stays open on Start here and on the leaver
- * view of Who knows what.
- */
-export function LeaverAccessPrompt() {
-  const tabName = useTabName();
-  const { profile, template, confirmLeaverAccess, markLeaverPrompted } = usePractice();
-  const pending = useMemo(
-    () => unpromptedAccessChecks(profile.leaverAccessChecks, profile.industry, template.people),
-    [profile.leaverAccessChecks, profile.industry, template.people],
-  );
-  if (profile.onboardingComplete === false || pending.length === 0) return null;
-  const ids = pending.map((check) => check.id);
-  const one = pending.length === 1;
-  const names = one
-    ? leaverLabel(pending[0])
-    : joinWithAnd(
-        pending.map((check) => check.name),
-        2,
-      );
-  return (
-    <Card
-      className="rounded-none border-x-0 border-warn/30 bg-warn/10 shadow-none"
-      role="region"
-      aria-labelledby="leaver-access-prompt-title"
-    >
-      <div className="mx-auto max-w-7xl space-y-2 px-4 py-3 sm:px-6">
-        <p id="leaver-access-prompt-title" className="flex items-center gap-2 text-sm font-medium">
-          <KeyRound className="size-4 shrink-0" aria-hidden />
-          {one
-            ? `${names} has left. Stop their pay and remove their sign-ins.`
-            : `${pending.length} people have left: ${names}. Stop their pay and remove their sign-ins.`}
-        </p>
-        <p className="max-w-3xl text-sm text-muted">{WHY}</p>
-        <AccessChecklist
-          idPrefix="leaver-prompt"
-          confirmLabel={one ? "Confirm: done for them" : `Confirm: done for all ${pending.length}`}
-          onConfirm={() => {
-            confirmLeaverAccess(ids);
-            toast.success(
-              one ? `Recorded for ${pending[0].name}.` : `Recorded for ${pending.length} people.`,
-              { description: `Dated in the ${tabName("journal")}.` },
-            );
-          }}
-        >
-          <Button size="sm" variant="secondary" onClick={() => markLeaverPrompted(ids)}>
-            Not yet: keep it on Start here
-          </Button>
-        </AccessChecklist>
-      </div>
-    </Card>
   );
 }
 

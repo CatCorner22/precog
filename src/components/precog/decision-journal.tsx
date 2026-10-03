@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
-import { useTabName } from "@/lib/precog/presentation";
+import { usePresentation, useTabName } from "@/lib/precog/presentation";
 import {
   DECISION_KIND_LABEL,
+  DECISION_KIND_LABEL_PRINTED_V1,
   type DecisionEntry,
   type DecisionKind,
 } from "@/lib/precog/practice-profile";
@@ -55,10 +56,15 @@ type RegisterWrite =
 
 export function DecisionJournal({
   onOpenLinked,
+  headingLevel = 1,
 }: {
   onOpenLinked?: (tab: string, id?: string) => void;
+  /** 2 when the journal sits as a section inside another screen, such as Monthly review. */
+  headingLevel?: 1 | 2;
 }) {
+  const Heading = headingLevel === 2 ? "h2" : "h1";
   const tabName = useTabName();
+  const { say } = usePresentation();
   const {
     profile,
     template,
@@ -201,14 +207,17 @@ export function DecisionJournal({
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <Badge variant="accent">{tabName("journal")}</Badge>
-        <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
+        <Heading className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <BookOpen className="size-5 text-primary" />
           Write it down or it did not happen
-        </h1>
+        </Heading>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          Checking that controls still work (what the COSO framework calls monitoring) needs a paper
-          trail. Record remediate, accept residual risk, monitor, or insure decisions with a review
-          date. When you sign in, Precog syncs the log to your account.
+          {say(
+            "Checking that controls still work needs a paper trail.",
+            "Checking that controls still work (what the COSO framework calls monitoring) needs a paper trail.",
+          )}{" "}
+          Record each decision ({KINDS.map((k) => DECISION_KIND_LABEL[k].toLowerCase()).join(", ")})
+          with a review date. When you sign in, Precog syncs the log to your account.
         </p>
       </section>
 
@@ -482,9 +491,11 @@ export function DecisionJournal({
                         )}
                       </div>
                       <p className="mt-1 font-medium">{d.subject}</p>
-                      {d.note && d.note !== DECISION_KIND_LABEL[d.kind] && (
-                        <p className="mt-0.5 text-sm text-muted">{d.note}</p>
-                      )}
+                      {d.note &&
+                        d.note !== DECISION_KIND_LABEL[d.kind] &&
+                        d.note !== DECISION_KIND_LABEL_PRINTED_V1[d.kind] && (
+                          <p className="mt-0.5 text-sm text-muted">{d.note}</p>
+                        )}
                       <p className="mt-1 text-xs text-subtle">
                         {formatDay(d.createdAt)}
                         {d.reviewBy ? ` · review by ${formatDay(d.reviewBy)}` : ""}

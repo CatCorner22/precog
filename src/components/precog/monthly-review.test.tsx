@@ -147,6 +147,15 @@ describe("monthly review communicates evidence limits", () => {
     expect(html).toContain("control evidence log");
     expect(html.match(/data-review-independence="self_review"/g)).toHaveLength(4);
   });
+  it("is titled Monthly review, says which record a reviewer relies on, and links nowhere", () => {
+    const html = view();
+    expect(html).toContain(">Monthly review</h2>");
+    expect(html).not.toContain("This month’s file");
+    expect(html).toContain(
+      "The control evidence log is the record a reviewer relies on. Process Done marks, Decisions log entries and procedure proofs stay on this business and do not enter it.",
+    );
+    expect(html).not.toContain('href="/firm"');
+  });
 });
 
 describe("monthly review tells the owner where the result went", () => {

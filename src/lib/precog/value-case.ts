@@ -172,8 +172,14 @@ export function observedValueStatus(
   entered: Set<ValueInputKey>;
   hours: ObservedFigure;
   value: ObservedFigure;
+  /** Cash recovered: the documented recoveries, once entered. */
+  cash: ObservedFigure;
+  /** Time returned, valued at the owner's hourly cost, once the hours and the cost are entered. */
+  time: ObservedFigure;
   net: ObservedFigure;
   roi: ObservedFigure;
+  /** Return on cash alone: recoveries against the program cost, with no value put on time. */
+  cashRoi: ObservedFigure;
   payback: ObservedFigure;
 } {
   const inputs = normalizeValueCase(raw);
@@ -207,6 +213,21 @@ export function observedValueStatus(
       : defaultsOf(["reviewHoursBefore", "reviewHoursAfter", "hourlyCost", "directRecoveries"]),
   };
 
+  const cash: ObservedFigure = {
+    observed: recoveriesObserved,
+    value: recoveriesObserved ? inputs.directRecoveries : null,
+    defaultsUsed: [],
+    missing: recoveriesObserved ? [] : ["directRecoveries"],
+  };
+  const time: ObservedFigure = {
+    observed: laborObserved,
+    value: laborObserved ? calc.observed.laborValue : null,
+    defaultsUsed: valueDefaults,
+    missing: laborObserved
+      ? []
+      : defaultsOf(["reviewHoursBefore", "reviewHoursAfter", "hourlyCost"]),
+  };
+
   const netObserved = valueObserved && has("annualProgramCost");
   const net: ObservedFigure = {
     observed: netObserved,
@@ -236,15 +257,80 @@ export function observedValueStatus(
     missing: strictMissing,
   };
 
+  // Both inputs behind it are typed numbers, never defaults, so it is either
+  // observed or missing.
+  const cashRoiValue =
+    recoveriesObserved && has("annualProgramCost") ? calc.observed.cashRoi : null;
+  const cashRoi: ObservedFigure = {
+    observed: cashRoiValue !== null,
+    value: cashRoiValue,
+    defaultsUsed: [],
+    missing: cashRoiValue !== null ? [] : defaultsOf(["directRecoveries", "annualProgramCost"]),
+  };
+
   return {
     anyObservation: OBSERVED_INPUTS.some((k) => has(k)),
     entered,
     hours,
     value,
+    cash,
+    time,
     net,
     roi,
+    cashRoi,
     payback,
   };
+}
+
+/** What the two modeled tiles read before the owner enters their own exposure or probability. */
+export const NOT_ENTERED = "Not entered";
+
+/**
+ * The "Modeled risk reduction" and "Assumed loss baseline" tiles. While the
+ * annual exposure and the event probability are both Precog defaults, neither
+ * tile prints a dollar figure: it reads "Not entered", so a default never
+ * reads as the business's own loss.
+ */
+export function modeledTileValues(
+  raw: ValueCaseInputs,
+  typed: Iterable<ValueInputKey> = [],
+): { riskReduction: string; lossBaseline: string; entered: boolean } {
+  const inputs = normalizeValueCase(raw);
+  const entered = enteredValueInputs(inputs, typed);
+  const own = entered.has("annualExposure") || entered.has("eventProbability");
+  if (!own) return { riskReduction: NOT_ENTERED, lossBaseline: NOT_ENTERED, entered: false };
+  const { modeled } = calculateValueCase(inputs);
+  return {
+    riskReduction: formatUsd(modeled.base),
+    lossBaseline: formatUsd(modeled.expectedLossBefore),
+    entered: true,
+  };
+}
+
+/**
+ * The Low, Base and High rows of the "Modeled range" card. Like the modeled
+ * tiles, they read "Not entered" (with no bar) until the owner enters the
+ * annual exposure or the event probability, so a loss built only from Precog
+ * defaults never reads as this business's own.
+ */
+export function modeledRangeRows(
+  raw: ValueCaseInputs,
+  typed: Iterable<ValueInputKey> = [],
+): Array<{ label: "Low" | "Base" | "High"; amount: number | null; display: string }> {
+  const inputs = normalizeValueCase(raw);
+  const { entered } = modeledTileValues(inputs, typed);
+  const { modeled } = calculateValueCase(inputs);
+  return (
+    [
+      ["Low", modeled.low],
+      ["Base", modeled.base],
+      ["High", modeled.high],
+    ] as const
+  ).map(([label, amount]) =>
+    entered
+      ? { label, amount, display: formatUsd(amount) }
+      : { label, amount: null, display: NOT_ENTERED },
+  );
 }
 
 /** "reviews per year" / "reviews per year and loaded hourly cost" */
@@ -262,6 +348,12 @@ export function calculateValueCase(raw: ValueCaseInputs) {
   const observedNetValue = laborValue + inputs.directRecoveries - inputs.annualProgramCost;
   const observedRoi =
     inputs.annualProgramCost > 0 ? observedNetValue / inputs.annualProgramCost : null;
+  // Cash only: what was recovered against what the program costs, with no
+  // value put on the hours returned.
+  const cashRoi =
+    inputs.annualProgramCost > 0
+      ? (inputs.directRecoveries - inputs.annualProgramCost) / inputs.annualProgramCost
+      : null;
   const monthlyObservedValue = (laborValue + inputs.directRecoveries) / 12;
   const paybackMonths =
     monthlyObservedValue > 0 ? inputs.annualProgramCost / monthlyObservedValue : null;
@@ -274,6 +366,7 @@ export function calculateValueCase(raw: ValueCaseInputs) {
       total: laborValue + inputs.directRecoveries,
       net: observedNetValue,
       roi: observedRoi,
+      cashRoi,
       paybackMonths,
     },
     modeled: {
@@ -336,13 +429,15 @@ export function createValueCaseMemo(
           "## Directly observed value",
           "",
           line("Annual review hours returned", status.hours, (v) => v.toLocaleString("en-US")),
-          line("Observed value (labor and documented recoveries)", status.value, formatUsd),
-          `- Documented recoveries: ${typedRecoveries !== null ? formatUsd(typedRecoveries) : "not yet observed"}`,
-          `- Verified recoveries in the evidence register: ${formatUsd(register.recoveries)} (${register.verified} verified of ${count(register.total, "item")})${recoveriesDiffer ? "; this differs from the documented recoveries above" : ""}`,
+          line("Cash recovered", status.cash, formatUsd),
+          line("Time returned (valued at your hourly cost)", status.time, formatUsd),
+          line("Observed value (cash recovered and time returned)", status.value, formatUsd),
+          `- Verified recoveries in the evidence register: ${formatUsd(register.recoveries)} (${register.verified} verified of ${count(register.total, "item")})${recoveriesDiffer ? "; this differs from the cash recovered above" : ""}`,
           `- Verified hours in the evidence register: ${register.hours.toLocaleString("en-US")}`,
           `- Annual program cost: ${status.entered.has("annualProgramCost") ? formatUsd(value.inputs.annualProgramCost) : "not yet observed"}`,
           line("Net observed value", status.net, formatUsd),
-          line("Observed ROI", status.roi, (v) => formatPct(v, 1)),
+          line("Cash-only ROI", status.cashRoi, (v) => formatPct(v, 1)),
+          line("ROI including time", status.roi, (v) => formatPct(v, 1)),
           line("Payback", status.payback, (v) => `${v.toFixed(1)} months`),
         ]
       : [

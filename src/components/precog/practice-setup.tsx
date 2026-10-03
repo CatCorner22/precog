@@ -1,7 +1,8 @@
 import { toast } from "sonner";
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
-import { useTabName } from "@/lib/precog/presentation";
+import { usePresentation, useTabName } from "@/lib/precog/presentation";
+import { TeamLink } from "@/components/precog/team-link";
 import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { describeEnteredWork, enteredWork, hasEnteredWork } from "@/lib/precog/industry-switch";
 import { getIndustryTemplate } from "@/lib/precog/templates";
@@ -15,13 +16,25 @@ import { joinWithAnd } from "@/lib/precog/text";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 
 /**
- * Business profile editor — feeds staff into residual scores, scenarios, and
+ * Business settings editor — feeds staff into residual scores, scenarios, and
  * Pioneer. On an own business the figures the team decides (team size, years
  * of service when hire dates are known, items only one person knows, the
  * segregation score and the bank reconciliation answer) are shown, not set.
  */
-export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () => void }) {
+export function PracticeSetup({
+  onOpenDualRelease,
+  onLeave,
+}: {
+  onOpenDualRelease?: () => void;
+  /**
+   * Runs when a link leaves for another screen, or after a change that
+   * replaces the business and confirms it with a message, for example to
+   * close the dialog this sits in so the message is readable.
+   */
+  onLeave?: () => void;
+}) {
   const tabName = useTabName();
+  const { say } = usePresentation();
   const {
     profile,
     setPracticeName,
@@ -55,6 +68,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
   function loadSample(next: IndustryId) {
     setIndustry(next);
     setPendingIndustry(null);
+    onLeave?.();
     const tpl = getIndustryTemplate(next);
     toast.success(`Loaded the ${industryMeta(next).label} sample business`, {
       description: `${tpl.processes.length} processes · ${tpl.people.length} people · ${tpl.scenarios.length} scenarios`,
@@ -64,6 +78,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
   async function addBusiness(next: IndustryId) {
     const kept = profile.practiceName;
     const result = await createBusiness(next);
+    onLeave?.();
     if (!result.ok) {
       toast.error("Precog could not add a business", { description: result.reason });
       return;
@@ -87,6 +102,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
     )
       return;
     resetProfile();
+    onLeave?.();
   }
 
   // Figures that are not facts about this business yet say so.
@@ -100,8 +116,13 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
       ? "From the hire dates on your team."
       : "You have not entered hire dates for your team, so this is the sample business's figure."
     : undefined;
-  const segregationNote =
-    "An estimate for the sample team. Import or edit your team in the map builder to work it out from their duties.";
+  const segregationNote = (
+    <>
+      An estimate for the sample team. Import or edit your team under Team to work it out from their
+      duties. <TeamLink onClick={onLeave}>Edit the team</TeamLink>
+    </>
+  );
+  const segregationLabel = say("Duties kept apart", "Duty separation");
 
   return (
     <Card>
@@ -109,7 +130,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
         <div className="flex flex-wrap items-center gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Settings2 className="size-4 text-primary" />
-            Business profile
+            Business settings
           </CardTitle>
           <SyncStatusBadge />
         </div>
@@ -170,10 +191,10 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
           )}
           {ownTeam ? (
             // An own team's score comes only from who holds which duties.
-            <Figure label="Segregation score" value={s.segregationScore} note={FROM_DUTIES} />
+            <Figure label={segregationLabel} value={s.segregationScore} note={FROM_DUTIES} />
           ) : (
             <Slider
-              label="Segregation score"
+              label={segregationLabel}
               value={s.segregationScore}
               min={0}
               max={100}
@@ -256,6 +277,7 @@ export function PracticeSetup({ onOpenDualRelease }: { onOpenDualRelease?: () =>
                   return;
                 setCustomProcesses(null);
                 setMapLayout({});
+                onLeave?.();
                 toast.success("Back to the sample process map");
               }}
             >

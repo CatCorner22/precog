@@ -3,6 +3,7 @@ import type { StaffComposition } from "@/lib/precog/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LabelledRange } from "./labelled-range";
+import { usePresentation } from "@/lib/precog/presentation";
 import { whatIfApplies, whatIfDiffers } from "./scenario-page";
 
 /** The what-if staffing and what the card may do with it. */
@@ -36,6 +37,7 @@ export function StaffWhatIfCard({
   onReset,
   className,
 }: StaffWhatIf & { className?: string }) {
+  const { say } = usePresentation();
   const changed = whatIfDiffers(saved, staff);
   // A tried segregation score or bank reconciliation answer alone on an own
   // team leaves nothing to apply.
@@ -67,7 +69,7 @@ export function StaffWhatIfCard({
           />
         )}
         <LabelledRange
-          label="Segregation score"
+          label={say("Duties kept apart", "Duty separation")}
           value={staff.segregationScore}
           min={0}
           max={100}

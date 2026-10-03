@@ -4,7 +4,9 @@ import {
   bridgeRecordCommand,
   executionRunId,
   monthlyBridgeCommandId,
+  NO_EVIDENCE_REFERENCE,
 } from "./review-bridge";
+import { parseCommand } from "./executions/model";
 import type { ReviewItemKey } from "../firm/reviews";
 
 describe("review-bridge", () => {
@@ -26,6 +28,30 @@ describe("review-bridge", () => {
     expect(done.controlKey).toBe("bank_statement");
     expect(done.evidenceRefs).toEqual(["Opened April statement."]);
     expect(done.method).toBe("inquiry");
+  });
+
+  it("with no note, carries exactly one reference saying none was given, and passes the record schema", () => {
+    for (const result of ["done", "exception"] as const) {
+      const cmd = bridgeRecordCommand({
+        businessId: "biz_a",
+        period: "2026-04",
+        itemKey: "bank_statement",
+        ownerName: "Alex Owner",
+        dueOn: "2026-05-10",
+        result,
+        notes: "   ",
+        performedOn: "2026-04-12",
+        baseRevision: 1,
+      });
+      expect(cmd?.action).toBe("record");
+      if (cmd?.action !== "record") return;
+      expect(cmd.evidenceRefs).toEqual(["No evidence reference given"]);
+      expect(NO_EVIDENCE_REFERENCE).toBe("No evidence reference given");
+      const parsed = parseCommand(cmd);
+      expect(parsed.action === "record" && parsed.evidenceRefs).toEqual([
+        "No evidence reference given",
+      ]);
+    }
   });
 
   it("skips bridging skipped reviews", () => {

@@ -17,6 +17,7 @@ export function ClientList({
   deleted,
   activeId,
   onOpen,
+  onOpenReport,
   onRestored,
   onClientsChange,
 }: {
@@ -24,6 +25,7 @@ export function ClientList({
   deleted: DeletedBusinessRow[];
   activeId: string;
   onOpen: (id: string) => void;
+  onOpenReport: (id: string) => void;
   onRestored: (id: string) => void;
   onClientsChange: (clients: ClientEngagementRow[]) => void;
 }) {
@@ -174,6 +176,14 @@ export function ClientList({
                       Open
                     </button>
                   )}
+                  <button
+                    type="button"
+                    className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                    aria-label={`Open the report for ${client.name}`}
+                    onClick={() => onOpenReport(client.id)}
+                  >
+                    Open report
+                  </button>
                 </div>
               </div>
             </li>

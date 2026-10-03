@@ -16,6 +16,13 @@ describe("the home page address", () => {
     expect(home({ tab: "start" })).toEqual({});
     expect(home({ tab: "value" })).toEqual({ tab: "value" });
   });
+
+  it("opens the place an older tab id became", () => {
+    expect(home({ tab: "journal" })).toEqual({ tab: "monthly", item: "decisions" });
+    expect(home({ tab: "coso" })).toEqual({ tab: "scores", item: "coverage" });
+    expect(home({ tab: "layers", item: "source" })).toEqual({ tab: "sod", item: "controls" });
+    expect(home({ tab: "bogus", item: "x" })).toEqual({});
+  });
 });
 
 describe("the report address", () => {

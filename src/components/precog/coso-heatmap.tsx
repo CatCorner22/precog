@@ -112,7 +112,7 @@ export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarge
             <div
               className="grid grid-cols-2 gap-2 sm:grid-cols-5"
               role="group"
-              aria-label="COSO components"
+              aria-label={say("Coverage areas", "COSO components")}
             >
               {assessment.components.map((c) => {
                 const meta = STATUS_META[c.status];

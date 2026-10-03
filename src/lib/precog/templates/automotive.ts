@@ -364,14 +364,7 @@ export const automotiveTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-svc-1",
-          kind: "muda_waiting",
-          label: "Vehicles waiting on customer approval for additional work",
-          note: "Advisors phone estimates rather than send them, so cars sit on the lift while the advisor chases a call back.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-sales",
@@ -430,14 +423,7 @@ export const automotiveTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-sales-1",
-          kind: "muda_rework",
-          label: "Deals rewritten after the lender declines the structure",
-          note: "The office prints contracts before anyone reads the lender's conditions, so the customer signs twice.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-parts",
@@ -492,14 +478,7 @@ export const automotiveTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-parts-1",
-          kind: "muda_motion",
-          label: "Technicians walking to the counter for parts not pulled",
-          note: "The parts desk pulls parts for approved repair orders when asked instead of staging them, so the lift waits.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-claims",
@@ -555,14 +534,7 @@ export const automotiveTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-clm-1",
-          kind: "muda_rework",
-          label: "Claims returned for missing punch times or photos",
-          note: "Technicians close warranty lines without the documentation the claim needs, and someone has to resubmit the claim.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-title",
@@ -617,14 +589,7 @@ export const automotiveTemplate: IndustrySample = {
           status: "backlog",
         },
       ],
-      wastes: [
-        {
-          id: "w-title-1",
-          kind: "muda_waiting",
-          label: "Deal jackets waiting for a missing signature or stipulation",
-          note: "The office cannot post or fund a deal until sales brings back the paper the lender asked for.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ar",
@@ -669,14 +634,7 @@ export const automotiveTemplate: IndustrySample = {
           status: "planned",
         },
       ],
-      wastes: [
-        {
-          id: "w-ar-1",
-          kind: "muda_waiting",
-          label: "Warranty receivables waiting on resubmitted claims",
-          note: "The warranty clerk reworks denied claims one at a time instead of from a weekly list.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-cash",
@@ -730,14 +688,7 @@ export const automotiveTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-cash-1",
-          kind: "muda_waiting",
-          label: "Deposits held until the office manager is free to count",
-          note: "Cash from three counters waits in the safe, which delays both the bank and the record.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-ap",
@@ -792,14 +743,7 @@ export const automotiveTemplate: IndustrySample = {
           status: "planned",
         },
       ],
-      wastes: [
-        {
-          id: "w-ap-1",
-          kind: "muda_overprocessing",
-          label: "Supplier statements reconciled line by line by hand",
-          note: "The office matches parts invoices to the statement from paper instead of the supplier's electronic feed.",
-        },
-      ],
+      wastes: [],
     },
     {
       id: "proc-payroll",
@@ -854,14 +798,7 @@ export const automotiveTemplate: IndustrySample = {
           status: "exploring",
         },
       ],
-      wastes: [
-        {
-          id: "w-pay-1",
-          kind: "muda_rework",
-          label: "Commissions recalculated after deals unwind",
-          note: "The office works pay plans in a spreadsheet, so an unwound deal means a manual clawback next cycle.",
-        },
-      ],
+      wastes: [],
     },
   ],
   controls: [...baseFinancialControls(), ...automotiveControls],

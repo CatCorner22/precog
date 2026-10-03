@@ -32,7 +32,7 @@ export type DeepLinkTarget =
   | { type: "sod" }
   | { type: "knowledge"; knowledgeId?: string }
   | { type: "precog"; scenarioId?: string }
-  | { type: "layers"; layer?: string };
+  | { type: "controls" };
 
 interface CosoFinding {
   id: string;

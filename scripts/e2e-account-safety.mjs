@@ -105,6 +105,24 @@ async function nameInDb(user, id) {
   return (await db.query("select name from businesses where user_id=$1 and id=$2", [user, id]))
     .rows[0]?.name;
 }
+/**
+ * Opens Business settings from the business menu in the header and returns
+ * its "Business name" field, scoped to the dialog.
+ */
+async function openBusinessSettings(p) {
+  await p.getByRole("button", { name: /switch business/ }).click();
+  await p.getByRole("button", { name: "Business settings", exact: true }).click();
+  const field = p
+    .getByRole("dialog", { name: "Business settings" })
+    .getByRole("textbox", { name: "Business name", exact: true });
+  await field.waitFor();
+  return field;
+}
+/** Closes Business settings, so the rest of the page takes clicks again. */
+async function closeBusinessSettings(p) {
+  await p.keyboard.press("Escape");
+  await p.getByRole("dialog", { name: "Business settings" }).waitFor({ state: "detached" });
+}
 async function requestBody(data, expected) {
   return JSON.stringify(
     await toJSONAsync({ data, context: { checkAccount: true, expectedAccountId: expected } }),
@@ -125,9 +143,8 @@ try {
   step("A: genuine signed session resolves through Better Auth");
   let session = await context.request.get(`${base}/api/auth/get-session`);
   assert.equal((await session.json()).user.id, a);
-  await page.goto(`${base}/?tab=command`, { waitUntil: "networkidle" });
-  const nameField = page.getByRole("textbox", { name: "Business name", exact: true });
-  await nameField.waitFor();
+  await page.goto(`${base}/`, { waitUntil: "networkidle" });
+  const nameField = await openBusinessSettings(page);
   assert.equal(await nameField.inputValue(), "Safety Alpha");
   step("A: UI edit persists to PostgreSQL and survives reload");
   await nameField.fill("Safety Alpha edited");
@@ -137,7 +154,9 @@ try {
     "A's authenticated UI save did not reach PostgreSQL",
   );
   await page.reload({ waitUntil: "networkidle" });
+  await openBusinessSettings(page);
   assert.equal(await nameField.inputValue(), "Safety Alpha edited");
+  await closeBusinessSettings(page);
   const aProfile = await page.evaluate(
     (key) => JSON.parse(localStorage.getItem(key)),
     profileStorageKey(a),
@@ -154,8 +173,8 @@ try {
 
   step("A: sign-out hides this account in another already-open tab");
   const oldTab = await context.newPage();
-  await oldTab.goto(`${base}/?tab=command`, { waitUntil: "networkidle" });
-  await oldTab.getByRole("textbox", { name: "Business name", exact: true }).waitFor();
+  await oldTab.goto(`${base}/`, { waitUntil: "networkidle" });
+  await openBusinessSettings(oldTab);
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await page.waitForURL(base + "/");
   await oldTab
@@ -176,8 +195,8 @@ try {
   step("B: same browser loads only B's account and never uploads A's business");
   await context.clearCookies();
   await context.addCookies([cookieB]);
-  await page.goto(`${base}/?tab=command`, { waitUntil: "networkidle" });
-  await nameField.waitFor();
+  await page.goto(`${base}/`, { waitUntil: "networkidle" });
+  await openBusinessSettings(page);
   assert.equal(await nameField.inputValue(), "Safety Beta");
   assert.equal(await page.getByText("Safety Alpha edited", { exact: true }).count(), 0);
   assert.equal(

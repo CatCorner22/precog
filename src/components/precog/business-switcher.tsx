@@ -1,17 +1,34 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
 import { needsOwnName } from "@/lib/precog/business-lifecycle";
 import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Building2, Check, ChevronDown, Loader2, Plus, Trash2, Users, X } from "lucide-react";
+import {
+  Building2,
+  Check,
+  ChevronDown,
+  Loader2,
+  Plus,
+  Settings2,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
 import { inputCls } from "@/components/ui/field-classes";
 import type { BusinessSummary } from "@/lib/precog/practice-profile";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { removeBusinessPrompt } from "./business-switcher-text";
+import { OPEN_BUSINESS_SETTINGS_EVENT } from "@/lib/precog/business-settings-event";
 
-/** Header control: switch between businesses in the portfolio, or add a new one. */
+// Loaded on open, so the settings editor stays out of the code the header
+// loads on every page.
+const BusinessSettingsDialog = lazy(() =>
+  import("./business-settings-dialog").then((m) => ({ default: m.BusinessSettingsDialog })),
+);
+
+/** Header control: switch between businesses, open Business settings, or add a business. */
 export function BusinessSwitcher() {
   const {
     profile,
@@ -23,6 +40,7 @@ export function BusinessSwitcher() {
     setPracticeName,
   } = usePractice();
   const [open, setOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // The owner's team with the neutral name setup gave it: ask for the real one.
   const needsName = needsOwnName(profile);
   const [ownName, setOwnName] = useState("");
@@ -47,6 +65,16 @@ export function BusinessSwitcher() {
     if (!open || needsName) return;
     panel.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
   }, [open, needsName]);
+
+  // A panel elsewhere (for example a known-known figure) asks for Business settings.
+  useEffect(() => {
+    function openSettings() {
+      setOpen(false);
+      setSettingsOpen(true);
+    }
+    window.addEventListener(OPEN_BUSINESS_SETTINGS_EVENT, openSettings);
+    return () => window.removeEventListener(OPEN_BUSINESS_SETTINGS_EVENT, openSettings);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -271,6 +299,16 @@ export function BusinessSwitcher() {
               </div>
             ) : (
               <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    setSettingsOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-fg hover:bg-elevated"
+                >
+                  <Settings2 className="size-3.5" /> Business settings
+                </button>
                 {onSample && (
                   <button
                     type="button"
@@ -291,6 +329,16 @@ export function BusinessSwitcher() {
             )}
           </div>
         </div>
+      )}
+      {settingsOpen && (
+        <Suspense fallback={null}>
+          <BusinessSettingsDialog
+            onClose={() => {
+              setSettingsOpen(false);
+              trigger.current?.focus();
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

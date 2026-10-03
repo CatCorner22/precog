@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import { ArrowRight, Eye, EyeOff, Grid2x2, HelpCircle, Search } from "lucide-react";
 import { tabLabel, type NavFn } from "@/lib/precog/navigation";
+import { openBusinessSettings } from "@/lib/precog/business-settings-event";
 
 const Q_META: Record<
   JohariQuadrant,
@@ -245,6 +246,16 @@ export function JohariPanel({ onNavigate }: { onNavigate?: NavFn }) {
                       onClick={() => onNavigate?.(item.link!.tab, item.link!.id)}
                     >
                       Open {tabLabel(item.link.tab, say)}
+                    </Button>
+                  )}
+                  {item.opensBusinessSettings && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="mt-1 h-7 px-2 text-xs"
+                      onClick={openBusinessSettings}
+                    >
+                      Open Business settings
                     </Button>
                   )}
                 </div>

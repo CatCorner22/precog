@@ -46,6 +46,8 @@ export interface EpistemicItem {
     expectedLift: string;
   };
   link?: { tab: string; id?: string };
+  /** The owner changes this in Business settings, on the business menu, not on a tab. */
+  opensBusinessSettings?: true;
   /** For known knowns: what the app measured. */
   metric?: string;
 }
@@ -201,7 +203,7 @@ function inventoryItems(
       affects: ["residual", "precog", "sod"],
       confidenceDrag: 0,
       metric: `team ${staff.teamSize} · segregation ${staff.segregationScore} · tenure ${staff.avgTenureYears}y`,
-      link: { tab: "command" },
+      opensBusinessSettings: true,
     },
     {
       id: "kk-sod-matrix",
@@ -329,7 +331,7 @@ function inventoryItems(
         effort: "hours",
         expectedLift: `Largest single control lift for small ${pluralTeamLabel(profile.industry)}`,
       },
-      link: { tab: "command" },
+      opensBusinessSettings: true,
     });
   }
   return items;
@@ -349,7 +351,7 @@ function realtimeCapabilitiesFor(words: InventoryWords): RealtimeCapability[] {
   return [
     {
       id: "rt-profile",
-      label: "Business profile → residual re-score",
+      label: "Business settings → residual re-score",
       ready: true,
       latencyClass: "instant",
       description: "Team and variable sliders recompute the residual index and leading indicators.",

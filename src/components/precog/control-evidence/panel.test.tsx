@@ -142,6 +142,16 @@ describe("control log presentation", () => {
     expect(html).not.toContain("Firm members");
     expect(html).toContain("use the control evidence log");
   });
+  it("names the Monthly review in plain text and says which record a reviewer relies on", () => {
+    const html = renderToStaticMarkup(<ControlEvidencePanel />);
+    expect(html).toContain("Results recorded in the Monthly review create matching");
+    expect(html).not.toContain("This month’s review");
+    expect(html).not.toContain("separate record");
+    expect(html).not.toContain('href="/firm"');
+    expect(html).toContain(
+      "The control evidence log is the record a reviewer relies on. Process Done marks, Decisions log entries and procedure proofs stay on this business and do not enter it.",
+    );
+  });
   it("labels evidence as references rather than uploaded files", () => {
     const html = renderToStaticMarkup(
       <ExecutionForm

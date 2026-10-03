@@ -35,8 +35,8 @@ export function ChangesView({
     return { processes: base.processes, people: base.people };
   }, [against, industry, ownStart, people]);
   const { added, removed, modified, peopleAdded, peopleRemoved, total } = useMemo(
-    () => diffMaps(baseline, { processes, people }),
-    [baseline, processes, people],
+    () => diffMaps(baseline, { processes, people }, { baseIsTemplate: !against }),
+    [against, baseline, processes, people],
   );
 
   return (

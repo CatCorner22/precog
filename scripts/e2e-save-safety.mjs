@@ -106,6 +106,20 @@ async function nameInDb() {
   ).rows[0]?.name;
 }
 
+/**
+ * Opens Business settings from the business menu in the header and returns
+ * its "Business name" field, scoped to the dialog.
+ */
+async function openBusinessSettings(p) {
+  await p.getByRole("button", { name: /switch business/ }).click();
+  await p.getByRole("button", { name: "Business settings", exact: true }).click();
+  const field = p
+    .getByRole("dialog", { name: "Business settings" })
+    .getByRole("textbox", { name: "Business name", exact: true });
+  await field.waitFor();
+  return field;
+}
+
 async function newPage(cookie) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   if (cookie) await context.addCookies([cookie]);
@@ -136,7 +150,7 @@ try {
   await page.route(`**/_serverFn/${ids.loadBusinessProfile}**`, (route) =>
     failLoads ? route.abort("failed") : route.fallback(),
   );
-  await page.goto(`${base}/?tab=command`, { waitUntil: "networkidle" });
+  await page.goto(`${base}/`, { waitUntil: "networkidle" });
   await page.getByText("Could not reach your account").first().waitFor();
 
   step("sign-out while the account copy is unread offers the recovery download");
@@ -154,7 +168,7 @@ try {
   // The connection coming back retries at once, without waiting for the next try.
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await page.getByText("Saved to your account").first().waitFor();
-  const nameField = page.getByRole("textbox", { name: "Business name", exact: true });
+  const nameField = await openBusinessSettings(page);
   await nameField.fill("Save Safety recovered");
   await nameField.blur();
   await eventually(
@@ -169,9 +183,8 @@ try {
   await page.route(`**/_serverFn/${ids.saveBusinessProfile}**`, (route) =>
     route.fulfill({ status: 404, contentType: "text/plain; charset=utf-8", body: "Not found" }),
   );
-  await page.goto(`${base}/?tab=command`, { waitUntil: "networkidle" });
-  const field = page.getByRole("textbox", { name: "Business name", exact: true });
-  await field.waitFor();
+  await page.goto(`${base}/`, { waitUntil: "networkidle" });
+  const field = await openBusinessSettings(page);
   await field.fill("Save Safety after a release");
   await field.blur();
   await page.getByText(UPDATED).waitFor();
@@ -198,9 +211,8 @@ try {
     },
     [profileStorageKey(), JSON.stringify(profile("Guest Safety"))],
   );
-  await page.goto(`${base}/?tab=command`, { waitUntil: "networkidle" });
-  const guestField = page.getByRole("textbox", { name: "Business name", exact: true });
-  await guestField.waitFor();
+  await page.goto(`${base}/`, { waitUntil: "networkidle" });
+  const guestField = await openBusinessSettings(page);
   await guestField.fill("Guest Safety edited");
   await guestField.blur();
   await page.getByText("This browser did not keep your list of businesses").waitFor();

@@ -68,7 +68,8 @@ import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { buildSharePayload } from "@/lib/precog/share/share-payload";
 import { healthDelta, type HealthDelta } from "@/lib/precog/builder/what-if";
 import { analyzeWorkload, LOAD_BANDS } from "@/lib/precog/builder/workload";
-import { formatDayShort } from "@/lib/precog/dates";
+import { formatDayShort, localDateKey } from "@/lib/precog/dates";
+import { trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { downloadText } from "@/lib/download";
 import { industryMeta } from "@/lib/precog/industry";
 import type { MapValidationIssue } from "@/lib/precog/process-validation";
@@ -719,12 +720,21 @@ export function ProcessBuilder({
                 {},
                 residualScope(profile),
               );
+              // The same inputs the weekly action plan reads, so a shared list
+              // matches the one the owner sees.
               const actions = buildWeeklyActions({
                 tpl,
                 staff: profile.staff,
                 dualRelease: profile.dualRelease,
                 mapSnapshots: snapshots,
+                today: localDateKey(new Date()),
+                trackFreshness: trackRegisterFreshness(profile, tpl),
                 mapAssessed: mapReady,
+                decisions: profile.decisions,
+                plannedAbsences: profile.plannedAbsences,
+                procedures: profile.procedures,
+                integrationDriftSummary: profile.integrationDriftSummary,
+                accessReconciliation: profile.accessReconciliation,
               });
               return buildSharePayload(profile, actions, note, redactNames);
             }}

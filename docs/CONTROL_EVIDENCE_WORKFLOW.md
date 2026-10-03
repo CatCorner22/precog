@@ -32,8 +32,11 @@ competence. The screen explains the limitation.
 When a signed-in user records Done or Exception on the monthly review, Precog
 adds one **record** entry for that check and month, recorded by that account. The
 entry is dated the day the result is recorded, uses method inquiry, names the
-monthly review's suggested owner as performer and cites the note (or the month
-when the note is empty). Done awaits review; Exception needs correction, with
+monthly review's suggested owner as performer and cites the note as its one
+evidence reference. When the note is empty, the one reference reads exactly
+"No evidence reference given", so the entry never reads as if it cites
+something; entries recorded before this release keep the placeholder they were
+written with ("Monthly review note for" and the month). Done awaits review; Exception needs correction, with
 the monthly due date as the follow-up due date. A later result for the same
 check and month is refused here and kept only in the monthly review log.
 Monthly-review results recorded before this release are neither imported nor

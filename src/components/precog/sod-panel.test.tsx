@@ -6,12 +6,18 @@ import { resolveTemplate } from "@/lib/precog/active-template";
 import * as detect from "@/lib/precog/sod/detect";
 import { SodPanel } from "./sod-panel";
 
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
+}));
+
 vi.mock("@/lib/precog/sod/detect", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/precog/sod/detect")>();
   return { ...actual, detectSodConflicts: vi.fn(actual.detectSodConflicts) };
 });
 
-const render = (withShellReport: boolean) => {
+const render = (withShellReport: boolean, initialView?: string) => {
   const profile = defaultProfile("general");
   const tpl = resolveTemplate(profile);
   const report = detect.detectSodConflicts(
@@ -22,7 +28,7 @@ const render = (withShellReport: boolean) => {
   vi.mocked(detect.detectSodConflicts).mockClear();
   const html = renderToStaticMarkup(
     <ReadOnlyPracticeProvider profile={profile}>
-      <SodPanel report={withShellReport ? report : undefined} />
+      <SodPanel report={withShellReport ? report : undefined} initialView={initialView} />
     </ReadOnlyPracticeProvider>,
   );
   return { html, runs: vi.mocked(detect.detectSodConflicts).mock.calls.length };
@@ -35,5 +41,25 @@ describe("the duty-conflict tab", () => {
     expect(own.runs).toBeGreaterThan(0);
     expect(shell.runs).toBe(own.runs - 1);
     expect(shell.html).toBe(own.html);
+  });
+});
+
+describe("the duty-conflict tab's views", () => {
+  it("opens on Duty conflicts unless the address names another view", () => {
+    expect(render(true).html).toContain('id="sod-view-conflicts"');
+    expect(render(true, "nonsense").html).toContain('id="sod-view-conflicts"');
+    const controls = render(true, "controls").html;
+    expect(controls).toContain('id="sod-view-controls"');
+    expect(controls).toMatch(/<h2[^>]*>Controls<\/h2>/);
+  });
+
+  it("names the views and the figure in plain words, and links to the team", () => {
+    const { html } = render(true);
+    expect(html).toContain("Duty assignments");
+    expect(html).not.toContain("Duty map");
+    expect(html).toContain("Duties kept apart");
+    expect(html).not.toContain("Segregation health");
+    expect(html).toContain(">Controls<");
+    expect(html).toContain(">Edit the team<");
   });
 });

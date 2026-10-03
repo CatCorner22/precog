@@ -7,10 +7,13 @@ const LABEL = new Map(ENTITLEMENTS.map((e) => [e.id, e.label] as const));
  * The whole job catalog as a readable sheet: every title, what the job does,
  * and the money duties it starts with. Owners and their advisors can check the
  * base the fast setup draws on and disagree with it in the grid.
+ *
+ * `defaultOpen` starts the sheet expanded, for a caller whose own button
+ * already asked to see the catalog (the Team area's "Add a common job").
  */
-export function JobCatalogSheet() {
+export function JobCatalogSheet({ defaultOpen = false }: { defaultOpen?: boolean } = {}) {
   return (
-    <details className="rounded-lg border border-border bg-bg p-2 text-xs">
+    <details className="rounded-lg border border-border bg-bg p-2 text-xs" open={defaultOpen}>
       <summary className="cursor-pointer font-medium">
         See the {JOB_CATALOG.length} job titles and the duties each one starts with
       </summary>

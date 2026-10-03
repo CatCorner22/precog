@@ -35,7 +35,13 @@ import { localDateKey, formatDay, formatDayTime } from "@/lib/precog/dates";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { buttonClass } from "@/components/ui/button-variants";
 
-export function AssessmentSnapshots() {
+/**
+ * `headingLevel` sets the view's own heading; card headings sit one level
+ * under it. The Snapshots tab uses 1; /firm mounts it under an h2 and passes 3.
+ */
+export function AssessmentSnapshots({ headingLevel = 1 }: { headingLevel?: 1 | 2 | 3 } = {}) {
+  const Heading = `h${headingLevel}` as const;
+  const cardHeading = `h${headingLevel + 1}` as "h2" | "h3" | "h4";
   const workspace = useWorkspace();
   const { profile, replaceProfile } = usePractice();
   const businessId = profile.businessId ?? DEFAULT_BUSINESS_ID;
@@ -202,6 +208,38 @@ export function AssessmentSnapshots() {
     }
   }
 
+  /** Every snapshot the account holds, in full, as one JSON file the owner keeps. */
+  async function downloadAll() {
+    setBusy(true);
+    setError(null);
+    try {
+      const summaries = await listAssessmentSnapshots();
+      const snapshots = [];
+      for (const summary of summaries) {
+        const snapshot = await getAssessmentSnapshot({ data: { id: summary.id } });
+        if (snapshot) snapshots.push(snapshot);
+      }
+      downloadText(
+        `precog-snapshots-${localDateKey(new Date())}.json`,
+        `${JSON.stringify(
+          {
+            format: "precog-assessment-snapshots",
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            snapshots,
+          },
+          null,
+          2,
+        )}\n`,
+        "application/json",
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not download snapshots");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function exportComparison() {
     if (!comparison) return;
     const report = createSnapshotComparisonReport(
@@ -220,14 +258,15 @@ export function AssessmentSnapshots() {
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <Badge variant="accent">Versioned assessments</Badge>
-        <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
+        <Heading className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight">
           <Archive className="size-5 text-primary" />
           Preserve the decision record
-        </h1>
+        </Heading>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Save a dated copy of this business: its team, process map, register, controls, risk
-          inputs, decisions, Duty map and value proof. Snapshots are private to your account.
-          Restore replaces those parts of the open business and keeps its saved maps and logs.
+          inputs, decisions, Duty assignments and value proof. Snapshots are private to your
+          account. Restore replaces those parts of the open business and keeps its saved maps and
+          logs.
         </p>
       </section>
 
@@ -238,7 +277,9 @@ export function AssessmentSnapshots() {
       ) : !user ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Sign in to preserve assessments</CardTitle>
+            <CardTitle as={cardHeading} className="text-base">
+              Sign in to preserve assessments
+            </CardTitle>
             <CardDescription>
               Your local working profile remains available without an account.
             </CardDescription>
@@ -253,10 +294,12 @@ export function AssessmentSnapshots() {
         <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Create snapshot</CardTitle>
+              <CardTitle as={cardHeading} className="text-base">
+                Create snapshot
+              </CardTitle>
               <CardDescription>
                 Includes this business's team, process map, register, controls, risk inputs,
-                decisions, Duty map and value proof.
+                decisions, Duty assignments and value proof.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -286,20 +329,34 @@ export function AssessmentSnapshots() {
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-3">
               <div>
-                <CardTitle className="text-base">Snapshot history</CardTitle>
+                <CardTitle as={cardHeading} className="text-base">
+                  Snapshot history
+                </CardTitle>
                 <CardDescription>
                   Newest first · up to 50 snapshots across your businesses
                 </CardDescription>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => void refresh()}
-                disabled={busy || listing}
-                aria-label="Refresh snapshots"
-              >
-                <RefreshCw className={`size-3.5 ${listing ? "animate-spin" : ""}`} />
-              </Button>
+              <div className="flex shrink-0 items-center gap-1">
+                {items.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void downloadAll()}
+                    disabled={busy || listing}
+                  >
+                    <Download className="size-3.5" /> Download my snapshots
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void refresh()}
+                  disabled={busy || listing}
+                  aria-label="Refresh snapshots"
+                >
+                  <RefreshCw className={`size-3.5 ${listing ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-2">
               {comparison && (
@@ -465,7 +522,9 @@ export function AssessmentSnapshots() {
                         <Clock3 className="size-3" /> {item.practiceName} ·{" "}
                         {formatDayTime(item.createdAt)}
                       </p>
-                      {item.includesPowerMap && <Badge className="mt-2">Duty map included</Badge>}
+                      {item.includesPowerMap && (
+                        <Badge className="mt-2">Duty assignments included</Badge>
+                      )}
                       {item.includesValueProof && (
                         <Badge className="mt-2 ml-1">Value proof included</Badge>
                       )}

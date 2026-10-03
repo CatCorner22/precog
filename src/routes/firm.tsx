@@ -1,6 +1,6 @@
 import { ControlEvidencePanel } from "@/components/precog/control-evidence/panel";
-import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { AccessReconcile } from "@/components/precog/access-reconcile";
 import { FirmMembers } from "@/components/precog/firm/firm-members";
 import { FirmBilling } from "@/components/precog/firm/firm-billing";
 import { ClientList } from "@/components/precog/firm/client-list";
+import { openClientReport } from "@/components/precog/firm/open-client-report";
 import { ClientHistory } from "@/components/precog/firm/client-history";
 import { QuickBooksPanel } from "@/components/precog/firm/quickbooks-panel";
 import { NotificationSettingsPanel } from "@/components/precog/firm/notification-settings";
@@ -62,6 +63,19 @@ export const Route = createFileRoute("/firm")({
   }),
 });
 
+// Loaded after the page itself, as the home screen loads them, so the firm
+// workspace's first load does not carry the value proof and snapshot screens.
+const ValueProofCenter = lazy(() =>
+  import("@/components/precog/value-proof-center").then((module) => ({
+    default: module.ValueProofCenter,
+  })),
+);
+const AssessmentSnapshots = lazy(() =>
+  import("@/components/precog/assessment-snapshots").then((module) => ({
+    default: module.AssessmentSnapshots,
+  })),
+);
+
 const QUICKBOOKS_MESSAGE: Record<string, string> = {
   connected: "QuickBooks is connected. Read the books now to take the first reading.",
   declined: "Someone declined the QuickBooks connection.",
@@ -77,6 +91,7 @@ function FirmPage() {
   const { user, isPending } = useCurrentUserState();
   const { profile, template, replaceProfile, switchBusiness } = usePractice();
   const search = Route.useSearch();
+  const navigate = useNavigate();
   const [firm, setFirm] = useState<FirmContext | null>(null);
   const [members, setMembers] = useState<FirmMember[]>([]);
   const [invites, setInvites] = useState<FirmInvite[]>([]);
@@ -429,6 +444,14 @@ function FirmPage() {
             deleted={deleted}
             activeId={activeId}
             onOpen={(id) => void switchBusiness(id)}
+            onOpenReport={(id) =>
+              void openClientReport(
+                id,
+                switchBusiness,
+                () => void navigate({ to: "/report" }),
+                (reason) => toast.error(reason),
+              )
+            }
             onRestored={(id) => {
               setDeleted((cur) => cur.filter((d) => d.id !== id));
               void listFirmClients()
@@ -441,13 +464,12 @@ function FirmPage() {
           {!toolsOpen && (
             <p className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
               QuickBooks stays closed until the assessment is paid or the firm plan is active. A
-              past-due plan is not paid. The monthly file on this page stays open. Stripe is
-              connected on this deployment; the price is the $1,000 assessment and the $299 monthly
-              plan, not a price per client.
+              past-due plan is not paid. The Monthly review stays open. Stripe is connected on this
+              deployment; the price is the $1,000 assessment and the $299 monthly plan, not a price
+              per client.
             </p>
           )}
           <QuickBooksPanel signedIn={signedIn} />
-          <ClientHistory signedIn={signedIn} />
         </div>
       )}
 
@@ -457,12 +479,39 @@ function FirmPage() {
         <AccessReconcile />
       </div>
 
+      {/* Outside the signed-in blocks: value proof is kept on this device, so a
+          signed-out owner still sees and exports it here. */}
+      <section id="value-proof" className="mt-8 scroll-mt-16" aria-labelledby="value-proof-title">
+        <h2 id="value-proof-title" className="mb-3 text-lg font-semibold">
+          Value proof (this business)
+        </h2>
+        <Suspense fallback={<p className="text-sm text-muted">Loading value proof…</p>}>
+          <ValueProofCenter headingLevel={3} />
+        </Suspense>
+      </section>
+
+      <section id="history" className="mt-8 scroll-mt-16" aria-labelledby="history-title">
+        <h2 id="history-title" className="mb-3 text-lg font-semibold">
+          History
+        </h2>
+        <div className="space-y-4">
+          {signedIn && <ClientHistory signedIn={signedIn} />}
+          {/* The component's own heading ("Preserve the decision record") is
+              this part's h3, so the outline stays h1 > h2 > h3. */}
+          <section aria-label="Assessment snapshots">
+            <Suspense fallback={<p className="text-sm text-muted">Loading snapshots…</p>}>
+              <AssessmentSnapshots headingLevel={3} />
+            </Suspense>
+          </section>
+        </div>
+      </section>
+
       <p className="mt-8 text-sm">
         <Link to="/" className="underline-offset-4 hover:underline">
           Back to the business
         </Link>
       </p>
-      <LegalFooter className="mt-6" />
+      <LegalFooter className="mt-6" hideFirmLink />
     </main>
   );
 }

@@ -16,6 +16,9 @@ export interface MonthlyBridgeInput {
   followUpDueOn?: string;
 }
 
+/** The single evidence reference a bridged record carries when the monthly result has no note. */
+export const NO_EVIDENCE_REFERENCE = "No evidence reference given";
+
 /** Default on; set VITE_EVIDENCE_BRIDGE=false to disable server bridging during rollout. */
 export function bridgeEnabled(): boolean {
   if (typeof process !== "undefined" && process.env.VITE_EVIDENCE_BRIDGE === "false") {
@@ -47,9 +50,9 @@ export function bridgeRecordCommand(input: MonthlyBridgeInput): ExecutionCommand
 
   const scope = `${item.title}. ${item.why}`.slice(0, 1500);
   const note = (input.notes.trim() || `Monthly review (${input.result}).`).slice(0, 2000);
-  const refs = input.notes.trim()
-    ? [input.notes.trim().slice(0, 400)]
-    : [`Monthly review note for ${input.period}`.slice(0, 400)];
+  // The record schema needs at least one reference. With no note, the one
+  // reference says plainly that none was given, rather than reading like one.
+  const refs = input.notes.trim() ? [input.notes.trim().slice(0, 400)] : [NO_EVIDENCE_REFERENCE];
 
   if (input.result === "exception") {
     const followUpOwner = (input.followUpOwner ?? input.ownerName).trim().slice(0, 120);

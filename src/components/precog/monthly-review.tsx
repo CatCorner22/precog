@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { useToday } from "@/lib/use-today";
 import {
+  EVIDENCE_RECORD_NOTE,
   latestReview,
   monthlyReviewTasks,
   recordReview,
@@ -126,19 +126,16 @@ export function MonthlyReview() {
 
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
-      <h2 className="text-lg font-semibold">This month’s file</h2>
+      <h2 className="text-lg font-semibold">Monthly review</h2>
       <p className="mt-1 text-sm text-muted">
         The checks below come from the register. Record a result with an owner and a note. The
         monthly log keeps every result. When you are signed in, the first Done or Exception for each
-        check and month also goes into the{" "}
-        <Link to="/firm" className="underline underline-offset-2">
-          control evidence log
-        </Link>{" "}
-        as a preparer entry dated the day you record it (a firm reviewer still records review
-        separately). Two facts from QuickBooks, then the checks. Duty ticks on the map are starting
-        duties, not system access. Lock the report to send this page. Recording “Done” does not
-        establish independent verification.
+        check and month also goes into the control evidence log as a preparer entry dated the day
+        you record it (a firm reviewer still records review separately). Two facts from QuickBooks,
+        then the checks. Duty ticks on the map are starting duties, not system access. Lock the
+        report to send this page. Recording “Done” does not establish independent verification.
       </p>
+      <p className="mt-2 text-xs text-muted">{EVIDENCE_RECORD_NOTE}</p>
       {facts && (
         <ul className="mt-4 space-y-2">
           {facts.map((fact) => (

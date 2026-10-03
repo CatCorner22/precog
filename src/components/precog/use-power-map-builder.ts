@@ -299,14 +299,14 @@ export function usePowerMapBuilder() {
   async function importModel(file: File | undefined) {
     if (!file) return;
     if (file.size > MAX_IMPORT_BYTES) {
-      setImportMessage("That file is larger than a Duty map can be (256 KB).");
+      setImportMessage("That file is larger than a duty assignments file can be (256 KB).");
       return;
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(await file.text());
     } catch {
-      setImportMessage("That file is not a Precog Duty map.");
+      setImportMessage("That file is not a Precog duty assignments file.");
       return;
     }
     const read = readRoleAssignments(parsed);

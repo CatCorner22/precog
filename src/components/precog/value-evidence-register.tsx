@@ -31,9 +31,12 @@ const KINDS = Object.keys(VALUE_EVIDENCE_KIND_LABEL) as ValueEvidenceKind[];
 export function ValueEvidenceRegister({
   items,
   onChange,
+  headingAs = "h2",
 }: {
   items: ValueEvidence[];
   onChange: (items: ValueEvidence[]) => void;
+  /** The card heading's level: one under the view's own heading. */
+  headingAs?: "h2" | "h3" | "h4";
 }) {
   const today = localDateKey(new Date());
   const [draft, setDraft] = useState<EvidenceDraft>(() => emptyDraft(today));
@@ -89,7 +92,7 @@ export function ValueEvidenceRegister({
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle>Value evidence register</CardTitle>
+            <CardTitle as={headingAs}>Value evidence register</CardTitle>
             <CardDescription>
               Attach the observation, the day it happened and its source before presenting a value
               claim. Importing a file adds its records to this register.

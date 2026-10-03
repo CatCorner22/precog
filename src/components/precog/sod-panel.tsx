@@ -1,4 +1,13 @@
-import { AlertTriangle, Grid3x3, Network, ShieldCheck, Users, type LucideIcon } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import {
+  AlertTriangle,
+  Grid3x3,
+  ListChecks,
+  Network,
+  ShieldCheck,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { segregationLevel } from "@/lib/precog/scoring/bands";
 import { CONFLICT_RULES, entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import {
@@ -9,15 +18,18 @@ import {
 } from "@/lib/precog/sod/open-findings";
 import { sodScopeLine } from "@/lib/precog/integrations/drift-signals";
 import type { NavFn } from "@/lib/precog/navigation";
+import { usePresentation } from "@/lib/precog/presentation";
 import type { SodDetectionReport } from "@/lib/precog/sod/detect";
 import { DualReleasePanel } from "@/components/precog/dual-release-panel";
 import { PowerMapBuilder } from "@/components/precog/power-map-builder";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buttonClass } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
 import { joinWithAnd } from "@/lib/precog/text";
 import { SodConflictsSection } from "./sod-conflicts-section";
+import { SodControlsSection } from "./sod-controls-section";
 import { SodMatrixSection } from "./sod-matrix-section";
 import { SodRolesSection } from "./sod-roles-section";
 import { useSodPanel, type SodPanelModel, type SodView } from "./use-sod-panel";
@@ -25,12 +37,16 @@ import { useSodPanel, type SodPanelModel, type SodView } from "./use-sod-panel";
 export function SodPanel({
   onNavigate,
   report: shellReport,
+  initialView,
 }: {
   onNavigate?: NavFn;
   /** The shell's report for this business, so the tab does not run the check again. */
   report?: SodDetectionReport;
+  /** The view the address names (`?tab=sod&item=controls`); any other value opens Duty conflicts. */
+  initialView?: string | null;
 }) {
-  const model = useSodPanel(shellReport);
+  const { say } = usePresentation();
+  const model = useSodPanel(shellReport, initialView, onNavigate);
   const { profile, report, sodExamples, titleDuties, titleDutyNames, view, setView } = model;
   const health = report.summary.segregationHealth;
   // Never "strong" or "adequate" while a critical or high finding is open.
@@ -53,6 +69,13 @@ export function SodPanel({
           <Badge variant={profile.dualRelease.enabled ? "ok" : "warn"}>
             Dual release {profile.dualRelease.enabled ? "on" : "off"}
           </Badge>
+          <Link
+            to="/"
+            search={{ tab: "team" }}
+            className={buttonClass({ variant: "secondary", size: "sm", className: "ml-auto" })}
+          >
+            Edit the team
+          </Link>
         </div>
         <h1 className="mt-3 text-xl font-semibold tracking-tight">
           Who can move money, or hide it, on their own
@@ -67,7 +90,7 @@ export function SodPanel({
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <StatTile
-          label="Segregation health"
+          label={say("Duties kept apart", "Duty separation")}
           value={String(health)}
           hint={`0 to 100 · ${level} · Precog's index`}
           tone={level === "critical" ? "danger" : level === "weak" ? "warn" : "ok"}
@@ -109,7 +132,7 @@ export function SodPanel({
       </div>
       {belowNote && (
         <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-muted">
-          Segregation health reads {level}. {belowNote}
+          {say("Duties kept apart", "Duty separation")} reads {level}. {belowNote}
         </p>
       )}
       {report.summary.unheldDuties.length > 0 && (
@@ -128,12 +151,12 @@ export function SodPanel({
       {titleDuties && (
         <div className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
           <p>
-            {titleDuties} Check them in the Duty map: {joinWithAnd(titleDutyNames, 6)}.
+            {titleDuties} Check them in Duty assignments: {joinWithAnd(titleDutyNames, 6)}.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button size="sm" onClick={() => setView("power")}>
               <Network className="size-3.5" aria-hidden />
-              Open the Duty map
+              Open Duty assignments
             </Button>
             <Button size="sm" variant="secondary" onClick={model.confirmTitleGuesses}>
               I checked them: they are right
@@ -164,6 +187,7 @@ export function SodPanel({
         {view === "conflicts" && <SodConflictsSection model={model} onNavigate={onNavigate} />}
         {view === "matrix" && <SodMatrixSection report={report} />}
         {view === "roles" && <SodRolesSection model={model} />}
+        {view === "controls" && <SodControlsSection />}
       </div>
     </div>
   );
@@ -172,11 +196,12 @@ export function SodPanel({
 function ViewSwitcher({ model }: { model: SodPanelModel }) {
   const { view, setView, report } = model;
   const views: { id: SodView; label: string; icon: LucideIcon }[] = [
-    { id: "power", label: "Duty map", icon: Network },
+    { id: "power", label: "Duty assignments", icon: Network },
     { id: "dual", label: "Dual release", icon: ShieldCheck },
     { id: "conflicts", label: `Duty conflicts (${report.conflicts.length})`, icon: AlertTriangle },
     { id: "matrix", label: "Duty conflict matrix", icon: Grid3x3 },
     { id: "roles", label: "Duties by person", icon: Users },
+    { id: "controls", label: "Controls", icon: ListChecks },
   ];
   return (
     <div role="tablist" aria-label="Duty conflict views" className="flex flex-wrap gap-2">

@@ -16,12 +16,14 @@ import {
 } from "@/lib/precog/scoring/weights";
 import type { SensitivityReport } from "@/lib/precog/scoring/sensitivity";
 import { cn } from "@/lib/utils";
+import { usePresentation } from "@/lib/precog/presentation";
 import { formatWeight, UNIT, weightLabel } from "./scoring-basis-copy";
 
 /** The customer-facing disclosure of how the residual indices are weighted. */
 export function ScoringBasis({ sensitivity }: { sensitivity: SensitivityReport }) {
   const [open, setOpen] = useState(false);
   const detailsId = useId();
+  const { say } = usePresentation();
 
   return (
     <Card>
@@ -73,9 +75,9 @@ export function ScoringBasis({ sensitivity }: { sensitivity: SensitivityReport }
                   {HEALTH_SCALE.strong - 1} · Strong {HEALTH_SCALE.strong}+
                 </p>
                 <p className="mt-1 text-muted">
-                  Segregation health reads at best Weak while a critical duty conflict is open, and
-                  at best Adequate while a high one is. A conflict dual release covers only above a
-                  threshold still counts as open.
+                  {say("Duties kept apart", "Duty separation")} reads at best Weak while a critical
+                  duty conflict is open, and at best Adequate while a high one is. A conflict dual
+                  release covers only above a threshold still counts as open.
                 </p>
               </div>
               <div className="rounded-lg border border-border bg-elevated p-3">

@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { StartHereModel } from "@/lib/precog/start-here/model";
 import type { NavFn } from "@/lib/precog/navigation";
-import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
+import { healthTone, INDEX_BASIS } from "@/lib/precog/scoring/bands";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { formatDayRange } from "@/lib/precog/dates";
 import { useTabName } from "@/lib/precog/presentation";
 import { count, firstName } from "@/lib/precog/text";
@@ -21,16 +23,8 @@ export function StartHereContinuitySection({
   onOpenDetail: NavFn;
 }) {
   const tabName = useTabName();
-  const {
-    isSampleTeam,
-    industryLabel,
-    registerSize,
-    slippedCount,
-    registerReady,
-    trackFreshness,
-    readiness,
-    staffingToday,
-  } = model;
+  const { isSampleTeam, slippedCount, registerReady, trackFreshness, readiness, staffingToday } =
+    model;
 
   return (
     <section className="space-y-3">
@@ -172,13 +166,11 @@ export function StartHereContinuitySection({
       <Card>
         <CardContent className="space-y-4 pt-5">
           {!registerReady ? (
-            <div className="rounded-lg border border-border bg-panel/60 p-4">
-              <p className="text-sm font-medium">Not assessed yet</p>
-              <p className="mt-1 text-sm leading-relaxed text-muted">
-                {registerSize === 0
-                  ? "Your register is empty. List the duties and know-how the business runs on and mark who can do each, and these figures fill in."
-                  : `Your register holds ${registerSize} sample items from the ${industryLabel} sample, and you have not yet marked anyone on any of them. Mark who can do each, or remove what does not apply, and these figures fill in.`}
-              </p>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-panel/60 p-4">
+              <p className="text-sm font-medium">Not assessed yet.</p>
+              <Button size="sm" variant="secondary" onClick={() => onOpenDetail("knowledge")}>
+                Mark who can do each
+              </Button>
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -190,10 +182,15 @@ export function StartHereContinuitySection({
                 <p className="mt-1 text-xs text-subtle">work two or more people can run</p>
               </div>
               <div className="rounded-lg border border-border bg-panel/60 p-4">
-                <p className="font-mono text-2xl font-semibold tracking-tight">
+                <p
+                  className={cn(
+                    "font-mono text-2xl font-semibold tracking-tight",
+                    TONE_TEXT[healthTone(readiness.documentationIndex)],
+                  )}
+                >
                   {readiness.documentationIndex}%
                 </p>
-                <p className="mt-1 text-sm font-medium">Written and findable</p>
+                <p className="mt-1 text-sm font-medium">Written down</p>
                 <p className="mt-1 text-xs text-subtle">procedures a stand-in could follow</p>
               </div>
               <div className="rounded-lg border border-border bg-panel/60 p-4">
@@ -247,6 +244,14 @@ export function StartHereContinuitySection({
     </section>
   );
 }
+
+/** The text colour for a health tone, as the planner's tiles colour theirs. */
+const TONE_TEXT: Record<ReturnType<typeof healthTone>, string> = {
+  ok: "text-ok",
+  primary: "text-primary",
+  warn: "text-warn",
+  danger: "text-danger",
+};
 
 /** Must-do entries nobody can run alone that already waited before this absence began. */
 function waitingFor(window: AbsenceWindow): number {

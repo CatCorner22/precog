@@ -16,6 +16,7 @@ import {
 } from "@/lib/precog/scoring/residual-engine";
 import { weightSensitivity } from "@/lib/precog/scoring/sensitivity";
 import { usePractice } from "@/lib/precog/practice-context";
+import { usePresentation } from "@/lib/precog/presentation";
 import type { DeepLinkTarget } from "@/lib/precog/coso";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ const SCENARIO_SHARES = DEFAULT_WEIGHTS.scenario;
 
 export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTarget) => void }) {
   const { profile, template } = usePractice();
+  const { say } = usePresentation();
   const confirmed = useMemo(
     () => confirmedScenarioIds(profile.decisions, profile.industry),
     [profile.decisions, profile.industry],
@@ -106,7 +108,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
       <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Residual risk register</CardTitle>
+            <CardTitle>{say("Risks left after your controls", "Residual risk register")}</CardTitle>
             <CardDescription>
               Inherent × (1 − control effectiveness) × staff modifiers, each a weight Precog chose,
               sorted by the resulting index. Scenario rows blend a likelihood level and a severity
@@ -125,8 +127,8 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
               <NotCounted onClick={() => onNavigate({ type: "precog" })}>{scenarioNote}</NotCounted>
             )}
             {summary.starterControlsLeftOut.length > 0 && (
-              <NotCounted onClick={() => onNavigate({ type: "layers", layer: "control" })}>
-                {`Precog leaves out sample controls (${summary.starterControlsLeftOut.length}): nobody has confirmed they run in your business. Confirm one on Where risk sits with "This runs here" and it counts.`}
+              <NotCounted onClick={() => onNavigate({ type: "controls" })}>
+                {`Precog leaves out sample controls (${summary.starterControlsLeftOut.length}): nobody has confirmed they run in your business. Confirm one in Who controls what, under Controls, with "This runs here" and it counts.`}
               </NotCounted>
             )}
             <p className="text-xs text-subtle">
@@ -136,7 +138,11 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
               Each row shows inherent risk, control effectiveness, and the range across weight
               trials.
             </p>
-            <div role="group" aria-label="Residual risk register" className="space-y-2">
+            <div
+              role="group"
+              aria-label={say("Risks left after your controls", "Residual risk register")}
+              className="space-y-2"
+            >
               {rows.map((item) => (
                 <button
                   key={item.id}
@@ -196,7 +202,9 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Selected risk anatomy</CardTitle>
+              <CardTitle className="text-base">
+                {say("How this risk is scored", "Selected risk anatomy")}
+              </CardTitle>
               <CardDescription>Drivers that move this residual risk</CardDescription>
             </CardHeader>
             <CardContent>

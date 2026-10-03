@@ -5,6 +5,8 @@ import {
   createValueCaseMemo,
   normalizeEnteredInputs,
   MODELED_RANGE_NOTE,
+  modeledRangeRows,
+  modeledTileValues,
   observedValueStatus,
 } from "./value-case";
 import type { ValueEvidence } from "./value-evidence";
@@ -55,11 +57,114 @@ describe("observed value", () => {
   });
 });
 
+describe("modeled tiles and cash apart from time", () => {
+  it("reads Not entered on both modeled tiles while exposure and probability are defaults", () => {
+    expect(modeledTileValues(DEFAULT_VALUE_CASE)).toEqual({
+      riskReduction: "Not entered",
+      lossBaseline: "Not entered",
+      entered: false,
+    });
+    // The control reduction alone does not make the loss the owner's own.
+    expect(
+      modeledTileValues({ ...DEFAULT_VALUE_CASE, controlEffectiveness: 0.5 }).riskReduction,
+    ).toBe("Not entered");
+  });
+
+  it("reads Not entered on every Modeled range row while exposure and probability are defaults", () => {
+    expect(modeledRangeRows(DEFAULT_VALUE_CASE)).toEqual([
+      { label: "Low", amount: null, display: "Not entered" },
+      { label: "Base", amount: null, display: "Not entered" },
+      { label: "High", amount: null, display: "Not entered" },
+    ]);
+    expect(
+      modeledRangeRows({ ...DEFAULT_VALUE_CASE, controlEffectiveness: 0.5 }).map((r) => r.display),
+    ).toEqual(["Not entered", "Not entered", "Not entered"]);
+  });
+
+  it("shows the Modeled range once the owner enters exposure or probability", () => {
+    const inputs = { ...DEFAULT_VALUE_CASE, annualExposure: 400_000 };
+    const { modeled } = calculateValueCase(inputs);
+    const rows = modeledRangeRows(inputs);
+    expect(rows.map((r) => r.amount)).toEqual([modeled.low, modeled.base, modeled.high]);
+    expect(rows.map((r) => r.display)).toEqual([
+      formatUsd(modeled.low),
+      formatUsd(modeled.base),
+      formatUsd(modeled.high),
+    ]);
+    // Base matches the "Modeled risk reduction" tile.
+    expect(rows[1].display).toBe(modeledTileValues(inputs).riskReduction);
+    expect(modeledRangeRows(DEFAULT_VALUE_CASE, ["eventProbability"])[1].amount).toBe(
+      calculateValueCase(DEFAULT_VALUE_CASE).modeled.base,
+    );
+  });
+
+  it("shows the modeled figures once the owner enters exposure or probability", () => {
+    expect(modeledTileValues({ ...DEFAULT_VALUE_CASE, annualExposure: 400_000 })).toEqual({
+      riskReduction: formatUsd(400_000 * 0.04 * 0.35),
+      lossBaseline: formatUsd(16_000),
+      entered: true,
+    });
+    expect(modeledTileValues(DEFAULT_VALUE_CASE, ["eventProbability"]).lossBaseline).toBe(
+      "$10,000",
+    );
+  });
+
+  it("splits observed value into cash recovered and time returned", () => {
+    const s = observedValueStatus({ ...DEFAULT_VALUE_CASE, directRecoveries: 3_000 }, [
+      "reviewHoursBefore",
+      "reviewHoursAfter",
+      "annualReviews",
+      "hourlyCost",
+    ]);
+    expect(s.cash).toMatchObject({ observed: true, value: 3_000 });
+    expect(s.time).toMatchObject({ observed: true, value: 88 * 95 });
+    expect(s.value.value).toBe(3_000 + 88 * 95);
+    expect(observedValueStatus(DEFAULT_VALUE_CASE).cash.observed).toBe(false);
+    expect(observedValueStatus(DEFAULT_VALUE_CASE).time.observed).toBe(false);
+  });
+
+  it("computes cash ROI without labour, beside the ROI that includes time", () => {
+    const inputs = {
+      ...DEFAULT_VALUE_CASE,
+      directRecoveries: 6_000,
+      annualProgramCost: 4_000,
+    };
+    const calc = calculateValueCase(inputs);
+    expect(calc.observed.cashRoi).toBeCloseTo((6_000 - 4_000) / 4_000);
+    expect(calc.observed.roi).toBeCloseTo((88 * 95 + 6_000 - 4_000) / 4_000);
+    expect(calculateValueCase({ ...inputs, annualProgramCost: 0 }).observed.cashRoi).toBeNull();
+
+    const typed = [
+      "reviewHoursBefore",
+      "reviewHoursAfter",
+      "annualReviews",
+      "hourlyCost",
+      "directRecoveries",
+      "annualProgramCost",
+    ] as const;
+    const s = observedValueStatus(inputs, typed);
+    expect(s.cashRoi.value).toBeCloseTo(0.5);
+    expect(s.roi.value).toBeGreaterThan(s.cashRoi.value ?? Infinity);
+    const memo = createValueCaseMemo(inputs, at, [], typed);
+    expect(memo).toContain("- Cash recovered: $6,000");
+    expect(memo).toContain("- Time returned (valued at your hourly cost): $8,360");
+    expect(memo).toContain("- Cash-only ROI: 50.0%");
+    expect(memo).toMatch(/- ROI including time: \d/);
+  });
+
+  it("leaves cash ROI unobserved until recoveries and program cost are both entered", () => {
+    const s = observedValueStatus({ ...DEFAULT_VALUE_CASE, directRecoveries: 500 });
+    expect(s.cashRoi.observed).toBe(false);
+    expect(s.cashRoi.missing).toEqual(["annualProgramCost"]);
+  });
+});
+
 describe("createValueCaseMemo", () => {
   it("prints no observed section and no return from the app defaults", () => {
     const memo = createValueCaseMemo(DEFAULT_VALUE_CASE, at);
     expect(memo).not.toContain("## Directly observed value");
-    expect(memo).not.toMatch(/Observed ROI/);
+    expect(memo).not.toMatch(/ROI including time/);
+    expect(memo).not.toMatch(/Cash-only ROI/);
     expect(memo).not.toMatch(/Net observed value/);
     expect(memo).toContain("## Observed value\n\nNot yet observed.");
     expect(memo).toContain("- Annual exposure (Precog default): $250,000");
@@ -69,7 +174,8 @@ describe("createValueCaseMemo", () => {
   it("never exports a negative return built on defaults", () => {
     const memo = createValueCaseMemo({ ...DEFAULT_VALUE_CASE, hourlyCost: 100 }, at);
     expect(memo).toContain("## Directly observed value");
-    expect(memo).toMatch(/- Observed ROI: not yet observed; enter /);
+    expect(memo).toMatch(/- ROI including time: not yet observed; enter /);
+    expect(memo).toMatch(/- Cash-only ROI: not yet observed; enter /);
     expect(memo).toMatch(/- Net observed value: not yet observed; enter /);
     expect(memo).not.toMatch(/-\d+(\.\d)?%/);
   });
@@ -122,9 +228,9 @@ describe("createValueCaseMemo", () => {
     expect(memo).toContain(
       "| Verified | Money recovered | Duplicate supplier payment recovered | $2,400 | Aug 1, 2026 | AP credit memo 118 |",
     );
-    expect(memo).toContain("- Documented recoveries: $500");
+    expect(memo).toContain("- Cash recovered: $500");
     expect(memo).toContain(
-      "- Verified recoveries in the evidence register: $2,400 (1 verified of 1 item); this differs from the documented recoveries above",
+      "- Verified recoveries in the evidence register: $2,400 (1 verified of 1 item); this differs from the cash recovered above",
     );
   });
 
