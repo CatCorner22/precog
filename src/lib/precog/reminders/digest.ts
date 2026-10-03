@@ -2,6 +2,7 @@ import type { Sql } from "@/lib/db";
 import { reportServerError } from "@/lib/observability/report.server";
 import { normalizeProfile, type PracticeProfile } from "../practice-profile";
 import { digestTokenFor, loadFirmFor } from "../firm/store";
+import { loadEntitlements } from "../firm/entitlements.server";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
 import { renderDigest, renderOwnerReminder, type RenderedEmail } from "./email";
 import { NOT_SUPPRESSED } from "./suppression-store";
@@ -97,7 +98,24 @@ export async function runDigest(
     }
   }
 
+  // Owner reminder emails are part of the paid plans: the controlling
+  // account's plan (the firm owner's for a firm client) decides, read once
+  // per account per run.
+  const reminderEmailsOpen = new Map<string, Promise<boolean>>();
+  const ownerRemindersOpen = (userId: string): Promise<boolean> => {
+    let open = reminderEmailsOpen.get(userId);
+    if (!open) {
+      open = loadEntitlements(sql, userId).then((e) => e.features.ownerReminders);
+      reminderEmailsOpen.set(userId, open);
+    }
+    return open;
+  };
+
   for (const row of await ownerNoteTargets(sql)) {
+    if (!(await ownerRemindersOpen(row.controlling_user_id))) {
+      outcome.skipped += 1;
+      continue;
+    }
     const ownerItems = await unannounced(
       sql,
       row,
@@ -146,6 +164,8 @@ interface OwnerNoteRow extends BusinessRow {
   firm_name: string | null;
   /** The controlling account's address, when Precog trusts it. */
   reply_to: string | null;
+  /** The account whose plan and switch decide: the firm owner for a firm client. */
+  controlling_user_id: string;
 }
 
 /**
@@ -220,7 +240,8 @@ async function ownerNoteTargets(sql: Sql): Promise<OwnerNoteRow[]> {
   return sql.query<OwnerNoteRow>(`
     select b.user_id, b.id, b.name, e.owner_email, e.owner_email_token,
       f.name as firm_name,
-      case when ${TRUSTED_EMAIL("cu")} then cu.email end as reply_to
+      case when ${TRUSTED_EMAIL("cu")} then cu.email end as reply_to,
+      coalesce(b.firm_user_id, b.user_id) as controlling_user_id
     from businesses b
     join engagement_marks e on e.user_id = b.user_id and e.business_id = b.id
     left join notification_settings ns on ns.user_id = coalesce(b.firm_user_id, b.user_id)

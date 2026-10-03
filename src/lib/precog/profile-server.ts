@@ -14,6 +14,9 @@ import {
   saveBusinessRevision,
 } from "./business-store";
 import { loadFirmFor } from "./firm/store";
+import { countClients, loadEntitlements } from "./firm/entitlements.server";
+import { businessLimitMessage } from "./business-lifecycle";
+import { RequestError } from "@/lib/request-errors";
 import { assertVerificationsAllowed } from "./procedures/verify-guard";
 import { resolveClientDate } from "./dates";
 import {
@@ -62,6 +65,17 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       sql<{ name: string | null; email: string | null }>`
         select name, email from "user" where id = ${context.userId}`,
     ]);
+
+    // A new business counts against the plan's client limit (one on the
+    // free plan and the Assessment); the store's per-owner ceiling is the
+    // hard limit after it.
+    if (owner === null) {
+      const e = await loadEntitlements(sql, context.userId);
+      const held = await countClients(sql, context.userId, firm);
+      if (held >= e.clientLimit) {
+        throw new RequestError(402, businessLimitMessage({ plan: e.plan, limit: e.clientLimit }));
+      }
+    }
 
     // Revision check and write are a single compare-and-swap statement; see
     // business-store.ts. The table is keyed by (user_id, id), so another

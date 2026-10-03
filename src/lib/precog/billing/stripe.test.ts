@@ -325,6 +325,7 @@ describe("applying events", () => {
     created,
     data: { object: { payment_intent: intent, status } },
   });
+  // Inside the Assessment window counted from ENTITLEMENTS_FROM, whatever day the suite runs.
   const toolsOpen = async () => {
     const account = await loadBillingAccount(db.sql, "owner");
     return commercialToolsOpen({
@@ -332,6 +333,8 @@ describe("applying events", () => {
       subscriptionStatus: account?.subscriptionStatus ?? null,
       assessmentPaidAt: account?.assessmentPaidAt ?? null,
       assessmentRefundedAt: account?.assessmentRefundedAt ?? null,
+      pastDueSince: account?.pastDueSince ?? null,
+      now: new Date("2026-12-01T00:00:00.000Z"),
     });
   };
 
@@ -557,6 +560,12 @@ describe("starting checkout", () => {
     assessmentRefundedAt: null,
     assessmentDisputedAt: null,
     currentPeriodEnd: null,
+    pastDueSince: null,
+    paymentFailedEmailSentAt: null,
+    paymentFailedInvoiceUrl: null,
+    assessmentCreditUsedAt: null,
+    assessmentFeeCents: null,
+    assessmentCreditCents: null,
     updatedAt: "2026-10-01T00:00:00.000Z",
     ...over,
   });

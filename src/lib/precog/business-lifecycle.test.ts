@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   adoptOwnTeam,
   atBusinessLimit,
+  businessLimitMessage,
   isSampleBusiness,
   printedBusinessName,
   needsOwnName,
@@ -151,6 +152,22 @@ describe("Add a business from the business menu", () => {
   it("stops at the account's business limit", () => {
     expect(atBusinessLimit(49)).toBe(false);
     expect(atBusinessLimit(50)).toBe(true);
+  });
+
+  it("tells the owner what refused one more business: the ceiling, or the plan", () => {
+    expect(businessLimitMessage()).toBe(
+      "Your account already holds 50 businesses, the most it can keep. Delete one you no longer need, then try again.",
+    );
+    expect(businessLimitMessage(10)).toContain("already holds 10 businesses");
+    expect(businessLimitMessage({ plan: "free", limit: 1 })).toBe(
+      "Precog keeps one business per account for free. The Firm plan holds up to 50 client businesses; start it on the Firm page.",
+    );
+    expect(businessLimitMessage({ plan: "assessment", limit: 1 })).toBe(
+      "The Assessment covers one client business. The Firm plan holds up to 50; start it on the Firm page.",
+    );
+    expect(businessLimitMessage({ plan: "firm", limit: 50 })).toBe(
+      "Your firm already holds 50 client businesses, the most it can keep. Delete one you no longer need, then try again.",
+    );
   });
 });
 

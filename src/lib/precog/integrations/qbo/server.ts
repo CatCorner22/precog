@@ -3,8 +3,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { RequestError } from "@/lib/request-errors";
 import { requireBusinessOwner } from "../../firm/access.server";
-import { commercialToolsOpen, loadBillingAccount } from "../../firm/billing-store";
-import { loadFirmFor } from "../../firm/store";
+import { requireEntitlement } from "../../firm/entitlements.server";
 import { businessInput } from "../../firm/server-inputs";
 import { authorizeUrl, qboCallbackUrl, signState } from "./oauth";
 import { qboClientId, qboConfigured, stateSecret } from "./client.server";
@@ -24,24 +23,9 @@ interface QuickBooksStatus {
   drift: IntegrationDrift | null;
 }
 
-/** Refuses QuickBooks when Stripe is configured and the firm is not paid. past_due is not paid. */
+/** Refuses QuickBooks with a 402 when the firm's plan does not open it (entitlements.ts). */
 async function assertQuickBooksOpen(sql: Awaited<ReturnType<typeof getSql>>, userId: string) {
-  const { stripeConfigured } = await import("../../billing/stripe.server");
-  const firm = await loadFirmFor(sql, userId);
-  const account = await loadBillingAccount(sql, firm?.firmUserId ?? userId);
-  if (
-    !commercialToolsOpen({
-      stripeConfigured: stripeConfigured(),
-      subscriptionStatus: account?.subscriptionStatus ?? null,
-      assessmentPaidAt: account?.assessmentPaidAt ?? null,
-      assessmentRefundedAt: account?.assessmentRefundedAt ?? null,
-    })
-  ) {
-    throw new RequestError(
-      402,
-      "QuickBooks opens after the assessment is paid or the firm plan is active. A past-due plan is not paid.",
-    );
-  }
+  await requireEntitlement(sql, userId, "quickbooks");
 }
 
 /** The connection's state and the newest drift, for the firm workspace. */

@@ -55,6 +55,8 @@ import {
   signOffReportVersion,
 } from "./reports";
 import { loadBillingAccount, planToStore } from "./billing-store";
+import { businessLimitMessage } from "../business-lifecycle";
+import { countClients, loadEntitlements, requireEntitlement } from "./entitlements.server";
 import {
   businessInput,
   EMAIL,
@@ -133,6 +135,7 @@ export const inviteFirmMember = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
+    await requireEntitlement(sql, context.userId, "members");
     const invite = await createInvite(sql, {
       firmUserId: firm.firmUserId,
       email: data.email,
@@ -287,6 +290,8 @@ export const setClientOwnerEmail = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    // Clearing an address is always allowed; setting one needs the plan.
+    if (data.email) await requireEntitlement(sql, context.userId, "ownerReminders");
     const { confirmToken, stopped } = await setOwnerEmail(
       sql,
       owner,
@@ -358,6 +363,9 @@ export const lockReport = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    // Creating a version needs the plan; every version already locked stays
+    // readable, reviewable for issuance and markable as sent whatever the plan.
+    await requireEntitlement(sql, context.userId, "lockedVersions");
     // The figures are built on the preparer's calendar day, the day the
     // locked report prints, and stored so later scoring changes leave them.
     const { freezeReport } = await import("../report/stored-model");
@@ -526,6 +534,13 @@ export const restoreDeletedClient = createServerFn({ method: "POST" })
     const matches = candidates.filter((b) => b.id === data.businessId);
     const target = matches.find((b) => b.ownerUserId === context.userId) ?? matches[0];
     if (!target) throw new RequestError(404, "That business is not in the deleted list");
+    // A restore brings a live business back, so it counts against the plan
+    // as a new one does; the store's per-owner ceiling still applies after.
+    const e = await loadEntitlements(sql, context.userId);
+    const held = await countClients(sql, context.userId, firm);
+    if (held >= e.clientLimit) {
+      throw new RequestError(402, businessLimitMessage({ plan: e.plan, limit: e.clientLimit }));
+    }
     return {
       restored: await restoreBusinessRow(sql, target.ownerUserId, data.businessId, context.userId),
     };

@@ -24,6 +24,12 @@ function account(over: Partial<BillingAccount>): BillingAccount {
     assessmentRefundedAt: null,
     assessmentDisputedAt: null,
     currentPeriodEnd: null,
+    pastDueSince: null,
+    paymentFailedEmailSentAt: null,
+    paymentFailedInvoiceUrl: null,
+    assessmentCreditUsedAt: null,
+    assessmentFeeCents: null,
+    assessmentCreditCents: null,
     updatedAt: "2026-10-01T00:00:00.000Z",
     ...over,
   };
