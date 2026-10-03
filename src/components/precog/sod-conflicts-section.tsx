@@ -10,6 +10,7 @@ import { count, joinWithAnd } from "@/lib/precog/text";
 import { cn } from "@/lib/utils";
 import { RuleCaseCard } from "./case-card";
 import { IndexBasis } from "./index-basis";
+import { ConflictDecision } from "./sod-conflict-decision";
 import { ConflictSummary } from "./sod-conflict-summary";
 import { conflictsByPerson, SEVERITY_FILTERS } from "./sod-conflict-view";
 import type { SodPanelModel } from "./use-sod-panel";
@@ -188,6 +189,7 @@ function ConflictCardDetails({
           </Button>
         )}
       </div>
+      <ConflictDecision conflict={c} model={model} />
     </ConflictSummary>
   );
 }

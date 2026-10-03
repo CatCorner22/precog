@@ -39,6 +39,8 @@ import {
 } from "@/components/precog/decision-journal-text";
 import { residualScope } from "@/lib/precog/scoring/scope";
 import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
+import { isNotValid } from "@/lib/precog/decisions/decided-on";
+import { notValidCounts, notValidReasonText, ruleSeverity } from "@/lib/precog/decisions/not-valid";
 
 const KINDS: DecisionKind[] = ["remediate", "accept_residual", "monitor", "insure"];
 
@@ -48,6 +50,26 @@ const KIND_VARIANT: Record<DecisionKind, "warn" | "ok" | "primary"> = {
   monitor: "primary",
   insure: "primary",
 };
+
+/**
+ * An entry's kind, or for a finding judged not valid the judgement and its
+ * reason in place of the "Watch it" kind it is stored with. A critical
+ * finding judged not valid waits for a second person.
+ */
+function EntryKindBadge({ entry: d }: { entry: DecisionEntry }) {
+  if (!isNotValid(d) || !d.disposition) {
+    return <Badge variant={KIND_VARIANT[d.kind]}>{DECISION_KIND_LABEL[d.kind]}</Badge>;
+  }
+  const severity = ruleSeverity(d.linkedId);
+  return (
+    <>
+      <Badge variant="default">Judged not valid: {notValidReasonText(d.disposition)}</Badge>
+      {severity && !notValidCounts(severity) && (
+        <Badge variant="warn">Awaiting a second person</Badge>
+      )}
+    </>
+  );
+}
 
 /** What closing a register step as done writes back to the register. */
 type RegisterWrite =
@@ -308,7 +330,7 @@ export function DecisionJournal({
                     className="rounded-lg border border-border bg-elevated px-3 py-2.5"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant={KIND_VARIANT[d.kind]}>{DECISION_KIND_LABEL[d.kind]}</Badge>
+                      <EntryKindBadge entry={d} />
                       <span className="font-medium">{d.subject}</span>
                       {d.reviewBy && (
                         <span className="text-xs text-subtle">
@@ -481,7 +503,7 @@ export function DecisionJournal({
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant={KIND_VARIANT[d.kind]}>{DECISION_KIND_LABEL[d.kind]}</Badge>
+                        <EntryKindBadge entry={d} />
                         {!isDecisionOpen(d) && <Badge variant="default">Closed</Badge>}
                         {past && <Badge variant="danger">Review overdue</Badge>}
                         {d.residualAtDecision != null && (
@@ -493,7 +515,8 @@ export function DecisionJournal({
                       <p className="mt-1 font-medium">{d.subject}</p>
                       {d.note &&
                         d.note !== DECISION_KIND_LABEL[d.kind] &&
-                        d.note !== DECISION_KIND_LABEL_PRINTED_V1[d.kind] && (
+                        d.note !== DECISION_KIND_LABEL_PRINTED_V1[d.kind] &&
+                        !(d.disposition && d.note === notValidReasonText(d.disposition)) && (
                           <p className="mt-0.5 text-sm text-muted">{d.note}</p>
                         )}
                       <p className="mt-1 text-xs text-subtle">

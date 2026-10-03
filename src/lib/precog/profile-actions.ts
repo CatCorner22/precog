@@ -31,6 +31,7 @@ import {
   MAX_DECISION_SUBJECT,
   MAX_DECISIONS,
   withRiskFlags,
+  type DecisionDisposition,
   type DecisionEntry,
   type DecisionKind,
   type DecisionReviewOutcome,
@@ -82,6 +83,8 @@ export interface DecisionInput {
   linkedStep?: ContinuityStep;
   linkedPersonId?: string;
   linkedAbsenceId?: string;
+  /** Set only by "Not valid" on a duty-conflict card: the finding was judged not valid. */
+  disposition?: DecisionDisposition;
 }
 
 const MAX_MAP_VERSIONS = 12;
@@ -261,6 +264,7 @@ export function withDecision(
     ...(input.linkedStep ? { linkedStep: input.linkedStep } : {}),
     ...(input.linkedPersonId ? { linkedPersonId: input.linkedPersonId } : {}),
     ...(input.linkedAbsenceId ? { linkedAbsenceId: input.linkedAbsenceId } : {}),
+    ...(input.disposition ? { disposition: input.disposition } : {}),
     snapshot,
   };
   return { ...p, decisions: [entry, ...p.decisions].slice(0, MAX_DECISIONS) };

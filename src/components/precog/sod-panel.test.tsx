@@ -62,4 +62,13 @@ describe("the duty-conflict tab's views", () => {
     expect(html).toContain(">Controls<");
     expect(html).toContain(">Edit the team<");
   });
+
+  it("counts open conflicts with no decision, and lets each card log one or judge it not valid", () => {
+    const { html } = render(true);
+    expect(html).toContain("No decision yet");
+    expect(html).toContain("Open, with no logged decision");
+    expect(html).not.toContain("Open, no decision");
+    expect(html).toContain(">Log a decision<");
+    expect(html).toContain(">Not valid<");
+  });
 });

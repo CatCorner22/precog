@@ -391,7 +391,7 @@ function FirmPage() {
             team.
           </p>
         )}
-        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
+        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
           <Metric
             label="Hours to a complete map"
             value={metrics.hoursToMap === null ? "—" : String(metrics.hoursToMap)}
@@ -415,6 +415,11 @@ function FirmPage() {
             label="Open duty conflicts"
             value={own ? String(metrics.openFindings) : "—"}
             hint="Open as Start here and the report count them. A logged decision does not close a conflict."
+          />
+          <Metric
+            label="Findings judged valid"
+            value={metrics.validRate === null ? "—" : formatPct(metrics.validRate)}
+            hint="Duty conflicts nobody judged not valid, out of all duty conflicts found. A critical one counts as valid until a second person agrees. A conflict judged not valid stays open."
           />
           <Metric label="Report sent" value={metrics.reportSent ? "Yes" : "Not yet"} />
         </dl>

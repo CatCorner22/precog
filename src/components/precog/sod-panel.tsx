@@ -124,9 +124,9 @@ export function SodPanel({
           tone="primary"
         />
         <StatTile
-          label="Open, no decision"
-          value={String(report.summary.openWithoutAcceptance)}
-          hint="Not accepted; not closed by dual release"
+          label="No decision yet"
+          value={String(model.withoutDecision)}
+          hint="Open, with no logged decision"
           tone="warn"
         />
       </div>

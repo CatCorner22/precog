@@ -207,6 +207,9 @@ describe("pilot metrics CSV", () => {
     acceptedFindings: 1,
     actedOnFindings: 2,
     acceptanceRate: 0.5,
+    notValidFindings: 1,
+    validRate: 0.75,
+    notValidReasons: { duty_not_held: 0, controlled_elsewhere: 1, rule_does_not_fit: 0, other: 0 },
   };
 
   it("guards a business name that a spreadsheet would run as a formula", () => {
@@ -214,7 +217,7 @@ describe("pilot metrics CSV", () => {
     expect(business).toBe(`business,"'=HYPERLINK(""x"")"`);
   });
 
-  it("writes a plain business name and the metrics as before", () => {
+  it("writes a plain business name and the metrics as before, with the new columns appended", () => {
     expect(pilotMetricsCsv("Ruiz Dental", metrics)).toBe(
       [
         "business,Ruiz Dental",
@@ -227,6 +230,8 @@ describe("pilot metrics CSV", () => {
         "acceptedFindings,1",
         "actedOnFindings,2",
         "acceptanceRate,0.500",
+        "notValidFindings,1",
+        "validRate,0.750",
       ].join("\n"),
     );
   });
