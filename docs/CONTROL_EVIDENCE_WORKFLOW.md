@@ -17,8 +17,8 @@ The control evidence log is a section of each business's Monthly review
 (`/?tab=monthly`, section `evidence`, so `/?tab=monthly&item=evidence` opens on
 it), beside the monthly checks, the control calendar and the Decisions log. The
 firm workspace (`/firm`) no longer shows it: its client list opens each client
-on that client's Monthly review. The digest email still links to `/firm`, where
-that list is.
+on that client's Monthly review. The digest email links each item to its
+business and tab, and still links to `/firm`.
 
 ## Behavior
 

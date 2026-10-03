@@ -16,6 +16,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ThreatRouteImport } from './routes/threat'
+import { Route as ApiDigestEmailRouteImport } from './routes/api/digest-email'
 import { Route as ApiErrorsRouteImport } from './routes/api/errors'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiOwnerEmailRouteImport } from './routes/api/owner-email'
@@ -60,6 +61,11 @@ const TermsRoute = TermsRouteImport.update({
 const ThreatRoute = ThreatRouteImport.update({
   id: '/threat',
   path: '/threat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDigestEmailRoute = ApiDigestEmailRouteImport.update({
+  id: '/api/digest-email',
+  path: '/api/digest-email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiErrorsRoute = ApiErrorsRouteImport.update({
@@ -122,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/api/digest-email': typeof ApiDigestEmailRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
   '/api/owner-email': typeof ApiOwnerEmailRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/api/digest-email': typeof ApiDigestEmailRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
   '/api/owner-email': typeof ApiOwnerEmailRoute
@@ -161,6 +169,7 @@ export interface FileRoutesById {
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/api/digest-email': typeof ApiDigestEmailRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
   '/api/owner-email': typeof ApiOwnerEmailRoute
@@ -182,6 +191,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/terms'
     | '/threat'
+    | '/api/digest-email'
     | '/api/errors'
     | '/api/health'
     | '/api/owner-email'
@@ -201,6 +211,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/terms'
     | '/threat'
+    | '/api/digest-email'
     | '/api/errors'
     | '/api/health'
     | '/api/owner-email'
@@ -220,6 +231,7 @@ export interface FileRouteTypes {
     | '/report'
     | '/terms'
     | '/threat'
+    | '/api/digest-email'
     | '/api/errors'
     | '/api/health'
     | '/api/owner-email'
@@ -240,6 +252,7 @@ export interface RootRouteChildren {
   ReportRoute: typeof ReportRoute
   TermsRoute: typeof TermsRoute
   ThreatRoute: typeof ThreatRoute
+  ApiDigestEmailRoute: typeof ApiDigestEmailRoute
   ApiErrorsRoute: typeof ApiErrorsRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiOwnerEmailRoute: typeof ApiOwnerEmailRoute
@@ -301,6 +314,13 @@ declare module '@tanstack/react-router' {
       path: '/threat'
       fullPath: '/threat'
       preLoaderRoute: typeof ThreatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/digest-email': {
+      id: '/api/digest-email'
+      path: '/api/digest-email'
+      fullPath: '/api/digest-email'
+      preLoaderRoute: typeof ApiDigestEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/errors': {
@@ -384,6 +404,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReportRoute: ReportRoute,
   TermsRoute: TermsRoute,
   ThreatRoute: ThreatRoute,
+  ApiDigestEmailRoute: ApiDigestEmailRoute,
   ApiErrorsRoute: ApiErrorsRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiOwnerEmailRoute: ApiOwnerEmailRoute,

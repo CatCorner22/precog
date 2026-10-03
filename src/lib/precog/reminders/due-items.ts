@@ -37,6 +37,8 @@ export interface ReminderItem {
   stillOpen: boolean;
   /** Only the advisor hears about it (the monthly review). */
   advisorOnly: boolean;
+  /** The home page's search string that opens the item's tab (`?tab=monthly&item=decisions`). */
+  href: string;
 }
 
 export function dueItemsFor(profile: PracticeProfile, today: string): ReminderItem[] {
@@ -57,6 +59,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
       dueOn: reviewBy,
       overdue: overdue.includes(decision),
       advisorOnly: false,
+      href: "?tab=monthly&item=decisions",
     });
   }
 
@@ -71,6 +74,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
       dueOn: check.notedOn,
       overdue: (daysBetween(check.notedOn, today) ?? 0) > 0,
       advisorOnly: false,
+      href: "?tab=knowledge",
     });
   }
 
@@ -98,6 +102,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
       dueOn: window.absence.from,
       overdue: window.daysUntil <= 0,
       advisorOnly: false,
+      href: "?tab=knowledge",
     });
   }
 
@@ -118,6 +123,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
       dueOn: deadline,
       overdue: deadline <= today,
       advisorOnly: false,
+      href: "?tab=knowledge",
     });
   }
 
@@ -140,6 +146,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
       dueOn,
       overdue,
       advisorOnly: false,
+      href: `?tab=procedures&item=${encodeURIComponent(procedure.id)}`,
     });
   }
   for (const { procedure, backupIds, dueOn, overdue } of attention.unproven) {
@@ -153,6 +160,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
       dueOn,
       overdue,
       advisorOnly: false,
+      href: `?tab=procedures&item=${encodeURIComponent(procedure.id)}`,
     });
   }
 
@@ -176,6 +184,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
         dueOn,
         overdue: dueOn < today,
         advisorOnly: true,
+        href: "?tab=monthly",
       });
     }
   }
