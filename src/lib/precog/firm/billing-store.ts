@@ -218,10 +218,26 @@ export async function markAssessmentCreditUsed(
 }
 
 /**
+ * Records that the posted credit is being taken back: the amount goes to
+ * zero so a second refund or lost dispute on the same payment reverses
+ * nothing twice. The stamp stays, so the refunded payment is never credited
+ * again; only a new payment clears it (recordAssessmentPayment).
+ */
+export async function markAssessmentCreditReversed(sql: Sql, userId: string): Promise<void> {
+  await sql`
+    update billing_accounts
+    set assessment_credit_cents = 0, updated_at = now()
+    where user_id = ${userId}
+  `;
+}
+
+/**
  * Records a paid assessment. A redelivery (the same payment intent) keeps
  * the first stamp; a new intent after a refund or lost dispute is a new
  * payment, so it stamps the event time and clears the refund and dispute
- * marks. An event without a creation time stamps now.
+ * marks and the credit of the earlier payment (that credit was reversed
+ * with the refund, so the new payment earns its own). An event without a
+ * creation time stamps now.
  */
 export async function recordAssessmentPayment(
   sql: Sql,
@@ -259,6 +275,16 @@ export async function recordAssessmentPayment(
         when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
           then null
         else billing_accounts.assessment_disputed_at
+      end,
+      assessment_credit_used_at = case
+        when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
+          then null
+        else billing_accounts.assessment_credit_used_at
+      end,
+      assessment_credit_cents = case
+        when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
+          then null
+        else billing_accounts.assessment_credit_cents
       end,
       assessment_payment_intent = coalesce(excluded.assessment_payment_intent, billing_accounts.assessment_payment_intent),
       updated_at = now()
@@ -460,8 +486,12 @@ export async function recordSubscription(
 /**
  * A failed invoice payment on the subscription: keeps the first failure's
  * time and stores Stripe's hosted invoice link for the one email. The status
- * itself follows the subscription events; a stray stamp under an active
- * subscription means nothing (entitlementsFor).
+ * itself follows the subscription events. An invoice event created before
+ * the newest subscription event already stored (a late delivery after the
+ * payment that ended the episode went through) stamps no start, since a
+ * stray stamp under an active row would shorten the next episode's grace;
+ * an event with no creation time skips the order check, as recordSubscription
+ * does. The link is kept either way; a payment that goes through clears it.
  */
 export async function markPastDue(
   sql: Sql,
@@ -471,7 +501,13 @@ export async function markPastDue(
 ): Promise<void> {
   await sql`
     update billing_accounts
-    set past_due_since = coalesce(past_due_since, ${at}::timestamptz, now()),
+    set past_due_since = case
+        when ${at}::timestamptz is null
+          or subscription_event_at is null
+          or ${at}::timestamptz >= subscription_event_at
+        then coalesce(past_due_since, ${at}::timestamptz, now())
+        else past_due_since
+      end,
       payment_failed_invoice_url = coalesce(${invoiceUrl}::text, payment_failed_invoice_url),
       updated_at = now()
     where user_id = ${userId}

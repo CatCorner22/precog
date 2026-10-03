@@ -665,6 +665,31 @@ describe("event order", () => {
     expect(await applyBillingEvent(db.sql, failedInvoice("e4", "sub_1", 100))).toBe("ignored");
   });
 
+  it("stamps no start from a failed invoice delivered after the payment that ended the episode", async () => {
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e1", "customer.subscription.updated", "sub_1", "past_due", 1_700_000_000),
+    );
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e2", "customer.subscription.updated", "sub_1", "active", 1_701_000_000),
+    );
+    expect((await loadBillingAccount(db.sql, "owner"))?.pastDueSince).toBeNull();
+    // The invoice event from the ended episode arrives late.
+    expect(await applyBillingEvent(db.sql, failedInvoice("e3", "sub_1", 1_700_500_000))).toBe(
+      "applied",
+    );
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      subscriptionStatus: "active",
+      pastDueSince: null,
+    });
+    // The next real failure starts its own grace from its own time.
+    await applyBillingEvent(db.sql, failedInvoice("e4", "sub_1", 1_702_000_000));
+    expect((await loadBillingAccount(db.sql, "owner"))?.pastDueSince).toBe(
+      "2023-12-08T01:46:40.000Z",
+    );
+  });
+
   it("applies a newer event for the same subscription and a new one after a cancellation", async () => {
     await applyBillingEvent(
       db.sql,
@@ -883,7 +908,7 @@ describe("the Assessment credit", () => {
   it("credits the stored pre-tax fee once, before the first Firm plan Checkout", async () => {
     await db.sql`insert into billing_accounts
       (user_id, stripe_customer_id, assessment_paid_at, assessment_payment_intent, assessment_fee_cents)
-      values ('owner', 'cus_1', now(), 'pi_1', 100000)`;
+      values ('owner', 'cus_1', '2026-09-01T00:00:00Z', 'pi_1', 100000)`;
     const first = await credit();
     expect(first).toEqual({ customerId: "cus_1", creditedCents: 100_000 });
     expect(balanceCalls()).toHaveLength(1);
@@ -894,7 +919,10 @@ describe("the Assessment credit", () => {
     expect(balanceCalls()[0].body).toContain("amount=-100000");
     expect(balanceCalls()[0].body).toContain("currency=usd");
     expect(balanceCalls()[0].body).toContain("description=Assessment%20credit");
-    expect(balanceCalls()[0].headers["idempotency-key"]).toBe("credit-cus_1-owner");
+    // The key names the Assessment payment, so a later payment is not swallowed.
+    expect(balanceCalls()[0].headers["idempotency-key"]).toBe(
+      "credit-cus_1-owner-2026-09-01T00:00:00.000Z",
+    );
     expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
       assessmentCreditCents: 100_000,
     });
@@ -951,22 +979,93 @@ describe("the Assessment credit", () => {
     expect((await loadBillingAccount(db.sql, "owner"))?.assessmentCreditUsedAt).toBeNull();
   });
 
-  it("reverses what was posted when the Assessment is refunded after a credit", async () => {
-    await db.sql`insert into billing_accounts
+  const credited = () => db.sql`insert into billing_accounts
       (user_id, stripe_customer_id, assessment_paid_at, assessment_payment_intent,
         assessment_fee_cents, assessment_credit_used_at, assessment_credit_cents)
-      values ('owner', 'cus_1', now(), 'pi_1', 100000, now(), 100000)`;
+      values ('owner', 'cus_1', '2026-09-01T00:00:00Z', 'pi_1', 100000, now(), 100000)`;
+  const refund = (id: string, intent: string, created: number) => ({
+    id,
+    type: "charge.refunded",
+    created,
+    data: { object: { refunded: true, payment_intent: intent, invoice: null } },
+  });
+
+  it("reverses what was posted when the Assessment is refunded after a credit", async () => {
+    await credited();
+    expect(await applyBillingEvent(db.sql, refund("evt_r1", "pi_1", 500))).toBe("applied");
+    expect(balanceCalls()).toHaveLength(1);
+    expect(balanceCalls()[0].body).toContain("amount=100000");
+    expect(balanceCalls()[0].headers["idempotency-key"]).toBe(
+      "credit-reversal-cus_1-2026-09-01T00:00:00.000Z",
+    );
+    // The stamp stays (this payment is never credited again); the amount is spent.
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      assessmentCreditCents: 0,
+    });
+    expect((await loadBillingAccount(db.sql, "owner"))?.assessmentCreditUsedAt).not.toBeNull();
+  });
+
+  it("reverses nothing a second time on another refund or a lost dispute of the same payment", async () => {
+    await credited();
+    await applyBillingEvent(db.sql, refund("evt_r1", "pi_1", 500));
+    expect(balanceCalls()).toHaveLength(1);
+    expect(await applyBillingEvent(db.sql, refund("evt_r2", "pi_1", 600))).toBe("applied");
     expect(
       await applyBillingEvent(db.sql, {
-        id: "evt_r1",
-        type: "charge.refunded",
-        created: 500,
-        data: { object: { refunded: true, payment_intent: "pi_1", invoice: null } },
+        id: "evt_d_lost",
+        type: "charge.dispute.closed",
+        created: 700,
+        data: { object: { payment_intent: "pi_1", status: "lost" } },
       }),
     ).toBe("applied");
     expect(balanceCalls()).toHaveLength(1);
-    expect(balanceCalls()[0].body).toContain("amount=100000");
-    expect(balanceCalls()[0].headers["idempotency-key"]).toBe("credit-reversal-cus_1");
+  });
+
+  it("credits an Assessment paid again after a refund, as its own payment", async () => {
+    await credited();
+    await applyBillingEvent(db.sql, refund("evt_r1", "pi_1", 500));
+    // The credit does not apply to the refunded payment.
+    expect(await credit()).toEqual({ customerId: "cus_1", creditedCents: null });
+    expect(balanceCalls()).toHaveLength(1);
+    // A new payment with a new intent clears the earlier credit's record.
+    expect(
+      await applyBillingEvent(db.sql, {
+        id: "evt_p2",
+        type: "checkout.session.completed",
+        created: 1_800_000_000,
+        data: {
+          object: {
+            mode: "payment",
+            payment_status: "paid",
+            client_reference_id: "owner",
+            customer: "cus_1",
+            payment_intent: "pi_2",
+            amount_subtotal: 100_000,
+            amount_total: 108_250,
+          },
+        },
+      }),
+    ).toBe("applied");
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      assessmentPaidAt: "2027-01-15T08:00:00.000Z",
+      assessmentPaymentIntentId: "pi_2",
+      assessmentRefundedAt: null,
+      assessmentCreditUsedAt: null,
+      assessmentCreditCents: null,
+    });
+    expect(await credit()).toEqual({ customerId: "cus_1", creditedCents: 100_000 });
+    expect(balanceCalls()).toHaveLength(2);
+    expect(balanceCalls()[1].body).toContain("amount=-100000");
+    expect(balanceCalls()[1].headers["idempotency-key"]).toBe(
+      "credit-cus_1-owner-2027-01-15T08:00:00.000Z",
+    );
+    // A refund of the second payment reverses the second credit under its own key.
+    await applyBillingEvent(db.sql, refund("evt_r2", "pi_2", 1_800_000_500));
+    expect(balanceCalls()).toHaveLength(3);
+    expect(balanceCalls()[2].body).toContain("amount=100000");
+    expect(balanceCalls()[2].headers["idempotency-key"]).toBe(
+      "credit-reversal-cus_1-2027-01-15T08:00:00.000Z",
+    );
   });
 });
 

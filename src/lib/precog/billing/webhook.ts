@@ -4,6 +4,7 @@ import {
   ACTIVE_SUBSCRIPTION_STATUSES,
   claimBillingEvent,
   loadBillingAccount,
+  markAssessmentCreditReversed,
   markPastDue,
   recordAssessmentDispute,
   recordAssessmentPayment,
@@ -31,13 +32,19 @@ import { billingChangeFor, type StripeEvent } from "./stripe";
  * against the Firm plan, the credit is reversed on the Stripe customer
  * balance once the transaction has committed, best effort: a failure is
  * logged and reported, never retried through Stripe's redelivery (the event
- * is already claimed).
+ * is already claimed). The stored credit amount goes to zero inside the
+ * transaction, so a second refund or lost dispute on the same payment
+ * reverses nothing twice.
  */
 export async function applyBillingEvent(
   sql: Sql,
   event: StripeEvent,
 ): Promise<"duplicate" | "ignored" | "applied"> {
-  let reversal: { customerId: string; creditCents: number } | null = null;
+  let reversal: {
+    customerId: string;
+    creditCents: number;
+    assessmentPaidAt: string | null;
+  } | null = null;
   const outcome = await inTransaction(sql, async (tx) => {
     if (!(await claimBillingEvent(tx, event.id, event.type))) return "duplicate";
     const change = billingChangeFor(event);
@@ -69,11 +76,17 @@ export async function applyBillingEvent(
           ACTIVE_SUBSCRIPTION_STATUSES.has(account.subscriptionStatus),
         );
         if (!subscriptionActive) await setFirmPlan(tx, userId, "assessment");
-        if (account?.assessmentCreditUsedAt && account.stripeCustomerId) {
+        if (
+          account?.assessmentCreditUsedAt &&
+          account.stripeCustomerId &&
+          (account.assessmentCreditCents ?? 0) > 0
+        ) {
           reversal = {
             customerId: account.stripeCustomerId,
             creditCents: account.assessmentCreditCents ?? 0,
+            assessmentPaidAt: account.assessmentPaidAt,
           };
+          await markAssessmentCreditReversed(tx, userId);
         }
       }
       return "applied";
@@ -112,11 +125,12 @@ export async function applyBillingEvent(
 async function reverseAssessmentCredit(input: {
   customerId: string;
   creditCents: number;
+  assessmentPaidAt: string | null;
 }): Promise<void> {
   if (input.creditCents <= 0) return;
   try {
     const { reverseCustomerBalance } = await import("./stripe.server");
-    await reverseCustomerBalance(input.customerId, input.creditCents);
+    await reverseCustomerBalance(input.customerId, input.creditCents, input.assessmentPaidAt);
   } catch (err) {
     console.error(
       "[billing] Assessment credit not reversed:",

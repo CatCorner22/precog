@@ -131,32 +131,40 @@ export async function createCustomer(input: {
  * Posts a credit to the customer's balance, which Stripe draws down across
  * the following invoices until spent. A negative amount is a credit in
  * Stripe's terms. The idempotency key makes a retry after a lost answer
- * post nothing twice.
+ * post nothing twice; it names the Assessment payment (its paid-at time),
+ * so an Assessment paid again after a refund earns its own credit even
+ * inside the day Stripe remembers the key.
  */
 export async function creditCustomerBalance(
   customerId: string,
   amountCents: number,
   description: string,
   userId: string,
+  assessmentPaidAt: string | null,
 ): Promise<void> {
   await stripeRequest(
     "POST",
     `/customers/${encodeURIComponent(customerId)}/balance_transactions`,
     { amount: -amountCents, currency: "usd", description },
-    `credit-${customerId}-${userId}`,
+    `credit-${customerId}-${userId}-${assessmentPaidAt ?? "unknown"}`,
   );
 }
 
-/** Takes a posted credit back (a refunded Assessment keeps no credit). */
+/**
+ * Takes a posted credit back (a refunded Assessment keeps no credit). Keyed
+ * on the Assessment payment like the credit, so a later payment's reversal
+ * is not swallowed by this one's cached answer.
+ */
 export async function reverseCustomerBalance(
   customerId: string,
   amountCents: number,
+  assessmentPaidAt: string | null,
 ): Promise<void> {
   await stripeRequest(
     "POST",
     `/customers/${encodeURIComponent(customerId)}/balance_transactions`,
     { amount: amountCents, currency: "usd", description: "Assessment credit reversed" },
-    `credit-reversal-${customerId}`,
+    `credit-reversal-${customerId}-${assessmentPaidAt ?? "unknown"}`,
   );
 }
 
@@ -189,7 +197,13 @@ export async function applyAssessmentCredit(
     customerId = (await createCustomer({ userId: input.userId, email: input.email })).id;
     await recordStripeCustomer(sql, input.userId, customerId);
   }
-  await creditCustomerBalance(customerId, creditCents, "Assessment credit", input.userId);
+  await creditCustomerBalance(
+    customerId,
+    creditCents,
+    "Assessment credit",
+    input.userId,
+    account.assessmentPaidAt,
+  );
   await markAssessmentCreditUsed(sql, input.userId, creditCents);
   return { customerId, creditedCents: creditCents };
 }
