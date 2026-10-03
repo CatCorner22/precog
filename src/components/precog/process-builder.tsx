@@ -2,27 +2,17 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Blocks,
-  Camera,
   ChevronRight,
   ClipboardCheck,
   Clock,
-  Download,
-  FileSpreadsheet,
   Gauge,
   GitCompare,
   Hammer,
   HelpCircle,
-  History,
-  Link2,
   Plus,
   Redo2,
-  RotateCcw,
-  Scale,
   ShieldCheck,
   Undo2,
-  Upload,
-  UserMinus,
-  Users,
   X,
 } from "lucide-react";
 
@@ -32,19 +22,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { labelCls } from "@/components/ui/field-classes";
 import { BlockLibrary } from "@/components/precog/builder/block-library";
 import { ChangesView } from "@/components/precog/builder/changes-view";
-import { DeparturePanel } from "@/components/precog/builder/departure-panel";
+import { BuilderFileMenu } from "@/components/precog/builder/file-menu";
 import { HealthPill } from "@/components/precog/builder/health-pill";
 import { ProcessForm } from "@/components/precog/builder/process-form";
 import { ReviewPanel } from "@/components/precog/builder/review-panel";
 import { SharePanel } from "@/components/precog/builder/share-panel";
 import { SpreadsheetPanel } from "@/components/precog/builder/spreadsheet-panel";
-import { TeamEditor } from "@/components/precog/builder/team-editor";
 import { BuilderTour } from "@/components/precog/builder/tour";
 import { useBuilderTour } from "@/components/precog/builder/use-builder-tour";
 import { ValidationPanel } from "@/components/precog/builder/validation-panel";
 import { VersionsPanel } from "@/components/precog/builder/versions-panel";
-import { WorkloadView } from "@/components/precog/builder/workload-view";
-import { rankDepartureRisk } from "@/lib/precog/builder/departure";
 import { summarizeEvidence } from "@/lib/precog/builder/evidence";
 import { mapBackupJson, parseMapBackup, type MapBackup } from "@/lib/precog/builder/map-backup";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
@@ -55,7 +42,6 @@ import {
   type ProcessBlock,
   type SavedProcessBlock,
 } from "@/lib/precog/builder/process-blocks";
-import { suggestOwnerForProcess } from "@/lib/precog/builder/quick-fix";
 import {
   applyQuickFix,
   applyQuickFixes,
@@ -83,18 +69,13 @@ import type { ProcessNode } from "@/lib/precog/types";
 import { buildWeeklyActions } from "@/lib/precog/weekly-actions/build";
 import { cn } from "@/lib/utils";
 
-/** The builder's side panels; each toolbar button opens or closes one. */
+/**
+ * The builder's side panels; each toolbar button or File menu item opens or
+ * closes one. The team and its workload live on Team, and who is out on Who
+ * knows what, not here.
+ */
 export type BuilderPanel =
-  | "blocks"
-  | "changes"
-  | "departure"
-  | "review"
-  | "share"
-  | "spreadsheet"
-  | "team"
-  | "validate"
-  | "versions"
-  | "workload";
+  "blocks" | "changes" | "review" | "share" | "spreadsheet" | "validate" | "versions";
 
 /**
  * The map builder beside the canvas: the toolbar, its panels, and the
@@ -145,7 +126,6 @@ export function ProcessBuilder({
   const [review, setReview] = useState<MapReview | null>(null);
   const [reviewing, setReviewing] = useState(false);
   const tour = useBuilderTour();
-  const fileRef = useRef<HTMLInputElement>(null);
 
   // The starter map with nobody assigned, or an empty map, has no health to
   // show; the pill and the what-if deltas wait until the owner assigns an
@@ -222,19 +202,6 @@ export function ProcessBuilder({
     return previews;
   }, [blocksOpen, builtInBlocks, savedBlocks, processes, whatIf]);
 
-  const departureOpen = isOpen("departure");
-  const departures = useMemo(
-    () => (departureOpen ? rankDepartureRisk(tpl, processes, tpl.people, profile.staff) : []),
-    [departureOpen, tpl, processes, profile.staff],
-  );
-  const workloadOpen = isOpen("workload");
-  const workload = useMemo(
-    () =>
-      workloadOpen
-        ? analyzeWorkload(tpl, processes, tpl.people, profile.staff, profile.dualRelease)
-        : [],
-    [workloadOpen, tpl, processes, profile.staff, profile.dualRelease],
-  );
   const evidenceSummary = useMemo(() => summarizeEvidence(processes), [processes]);
   const evidenceDue = evidenceSummary.overdue + evidenceSummary.never;
   const selected = processes.find((p) => p.id === selectedProcessId) ?? null;
@@ -310,7 +277,7 @@ export function ProcessBuilder({
     saveMapVersion(name, currentHealth.score);
     setPanel("versions", true);
     toast.success("Version saved", {
-      description: "Restore or compare it any time from Versions.",
+      description: "Restore or compare it any time from File, Saved versions.",
     });
   }
 
@@ -468,39 +435,6 @@ export function ProcessBuilder({
     });
   }
 
-  /** Add a second owner so the process survives this person's departure. */
-  function addStandIn(processId: string, leavingPersonId: string) {
-    const proc = processes.find((p) => p.id === processId);
-    if (!proc) return;
-    const candidates = tpl.people.filter((p) => p.id !== leavingPersonId && p.active);
-    const standIn = suggestOwnerForProcess(
-      tpl,
-      { ...proc, ownerPersonIds: [] },
-      processes,
-      candidates,
-    );
-    if (!standIn) return;
-    update(processId, { ownerPersonIds: [...(proc.ownerPersonIds ?? []), standIn.id] });
-    toast.success(`${standIn.name} added as a stand-in owner of ${proc.name}`);
-  }
-
-  function reassign(fromId: string, processId: string) {
-    const proc = processes.find((p) => p.id === processId);
-    if (!proc) return;
-    const others = tpl.people.filter((p) => p.id !== fromId && p.active);
-    const candidate = suggestOwnerForProcess(
-      tpl,
-      { ...proc, ownerPersonIds: [] },
-      processes,
-      others,
-    );
-    if (!candidate) return;
-    update(processId, {
-      ownerPersonIds: [...(proc.ownerPersonIds ?? []).filter((o) => o !== fromId), candidate.id],
-    });
-    toast.success(`${proc.name} reassigned to ${candidate.name}`);
-  }
-
   const panelButton = (panel: BuilderPanel) => ({
     size: "sm" as const,
     variant: isOpen(panel) ? ("default" as const) : ("secondary" as const),
@@ -605,40 +539,20 @@ export function ProcessBuilder({
               <Redo2 className="size-3.5" />
             </button>
           </div>
-          <Button
-            {...panelButton("spreadsheet")}
-            title="Export to or import from a CSV spreadsheet"
-          >
-            <FileSpreadsheet className="size-3.5" /> Spreadsheet
-          </Button>
-          <Button size="sm" variant="secondary" onClick={exportMap} title="Full backup as JSON">
-            <Download className="size-3.5" /> Export
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => fileRef.current?.click()}
-            title="Restore a JSON backup"
-          >
-            <Upload className="size-3.5" /> Import
-          </Button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/json"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void importMap(f);
-              e.target.value = "";
-            }}
+          <BuilderFileMenu
+            spreadsheetOpen={isOpen("spreadsheet")}
+            shareOpen={isOpen("share")}
+            versionsOpen={isOpen("versions")}
+            versionCount={versions.length}
+            canResetMap={mapCustomized}
+            onSpreadsheet={() => toggle("spreadsheet")}
+            onExport={exportMap}
+            onImportFile={(f) => void importMap(f)}
+            onShare={() => toggle("share")}
+            onSampleMap={resetToTemplate}
+            onSaveVersion={saveVersion}
+            onVersions={() => toggle("versions")}
           />
-          <Button {...panelButton("team")}>
-            <Users className="size-3.5" /> Team ({tpl.people.length})
-          </Button>
-          <Button {...panelButton("workload")}>
-            <Scale className="size-3.5" /> Workload
-          </Button>
           <Button
             {...panelButton("review")}
             onClick={() =>
@@ -651,28 +565,6 @@ export function ProcessBuilder({
           >
             <ClipboardCheck className="size-3.5" /> Review
           </Button>
-          <Button {...panelButton("departure")} title="What breaks if someone leaves">
-            <UserMinus className="size-3.5" /> Bus factor
-          </Button>
-          <Button
-            {...panelButton("share")}
-            title="Create a read-only link for an advisor or lender"
-          >
-            <Link2 className="size-3.5" /> Share
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={saveVersion}
-            title="Save a named version of this map"
-          >
-            <Camera className="size-3.5" /> Save version
-          </Button>
-          {versions.length > 0 && (
-            <Button {...panelButton("versions")}>
-              <History className="size-3.5" /> Versions ({versions.length})
-            </Button>
-          )}
           <Button {...panelButton("validate")}>
             <ShieldCheck className="size-3.5" />
             Validate
@@ -687,20 +579,7 @@ export function ProcessBuilder({
               <GitCompare className="size-3.5" /> Changes
             </Button>
           )}
-          {mapCustomized && (
-            <Button size="sm" variant="ghost" onClick={resetToTemplate}>
-              <RotateCcw className="size-3.5" /> Sample process map
-            </Button>
-          )}
         </div>
-
-        {isOpen("departure") && (
-          <DeparturePanel
-            impacts={departures}
-            onSelectProcess={onSelectProcess}
-            onAddStandIn={addStandIn}
-          />
-        )}
 
         {isOpen("spreadsheet") && (
           <SpreadsheetPanel
@@ -794,15 +673,6 @@ export function ProcessBuilder({
           />
         )}
 
-        {isOpen("workload") && (
-          <WorkloadView
-            rows={workload}
-            processCount={processes.length}
-            onSelectProcess={onSelectProcess}
-            onReassign={reassign}
-          />
-        )}
-
         {isOpen("blocks") && (
           <BlockLibrary
             blocks={builtInBlocks}
@@ -852,10 +722,6 @@ export function ProcessBuilder({
             people={tpl.people}
             onSelectProcess={onSelectProcess}
           />
-        )}
-
-        {isOpen("team") && (
-          <TeamEditor people={tpl.people} onChange={(next) => setCustomPeople(next)} />
         )}
 
         <div>
