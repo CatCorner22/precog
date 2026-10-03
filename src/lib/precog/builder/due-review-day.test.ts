@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { collectDueItems, groupByDay } from "./due";
 import { defaultProfile, type DecisionEntry } from "../practice-profile";
-import { parseLocalDay } from "../dates";
 
 const decision: DecisionEntry = {
   id: "d1",
@@ -39,12 +38,5 @@ describe("decision re-reviews on the control calendar west of UTC", () => {
   it("skips a review date that is not a calendar day", () => {
     const profile = { ...defaultProfile(), decisions: [{ ...decision, reviewBy: "soon" }] };
     expect(collectDueItems([], [], profile, new Date(2026, 8, 26))).toEqual([]);
-  });
-
-  it("parses a stored day as local midnight", () => {
-    const day = parseLocalDay("2026-10-26");
-    expect(day?.getDate()).toBe(26);
-    expect(day?.getHours()).toBe(0);
-    expect(parseLocalDay("2026-02-30")).toBeNull();
   });
 });

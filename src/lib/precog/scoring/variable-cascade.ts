@@ -361,23 +361,6 @@ export function leverAffects(lever: CascadeLever, vars: RiskVariableState): stri
   return lever.affects.filter((a) => !/premium|credit|discount/i.test(a));
 }
 
-// The day figure is the scenario's assumed days until the problem is found:
-// detection and fewer opportunities shorten it, and a shorter run is a
-// smaller loss, so fewer days is better.
-export const LOWER_IS_BETTER: ReadonlySet<keyof MetricSnapshot> = new Set([
-  "likelihoodMultiplier",
-  "grossSeverityMultiplier",
-  "detectionLagMultiplier",
-  "grossExpected",
-  "retainedExpected",
-  "premiumAnnualNet",
-  "expectedAnnualCostOfRisk",
-  "eventPlusPremiumExpected",
-  "timelineP50",
-  "residualAverage",
-  "residualCriticalPath",
-]);
-
 // For transferred: higher can be better (more risk transferred) when gross is fixed
 export const HIGHER_IS_BETTER: ReadonlySet<keyof MetricSnapshot> = new Set([
   "transferredExpected",
