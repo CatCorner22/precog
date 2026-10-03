@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { CalendarDays, LogOut, Plus, Trash2, UserMinus, UserPlus } from "lucide-react";
 import { LeaverAccessList } from "@/components/precog/leaver-access";
 import {
@@ -206,7 +207,14 @@ export function OutTomorrowCard({
                   <ul className="space-y-1">
                     {d.processes.map((proc) => (
                       <li key={proc.id} className="flex items-center gap-2 text-xs">
-                        <span className="min-w-0 flex-1 truncate">{proc.name}</span>
+                        <Link
+                          to="/"
+                          search={{ tab: "map", item: proc.id }}
+                          className="min-w-0 flex-1 truncate text-primary underline-offset-4 hover:underline"
+                          title={`Open ${proc.name} on the process map`}
+                        >
+                          {proc.name}
+                        </Link>
                         <Button
                           size="sm"
                           variant="ghost"

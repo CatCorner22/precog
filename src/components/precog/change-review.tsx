@@ -38,7 +38,16 @@ export function ChangeReviewCard() {
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => setCustomPeople((people) => applyAssignmentsToPeople(people, baseline))}
+            onClick={() => {
+              const count = pendingChanges.length;
+              if (
+                window.confirm(
+                  `Discard ${count} pending change${count === 1 ? "" : "s"} and go back to the duties you last accepted? You cannot undo this.`,
+                )
+              ) {
+                setCustomPeople((people) => applyAssignmentsToPeople(people, baseline));
+              }
+            }}
             disabled={!pendingChanges.length}
           >
             <RotateCcw className="size-3.5" />

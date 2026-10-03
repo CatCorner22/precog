@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
-import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import type { RoleAssignment } from "@/lib/precog/sod/detect";
-import { normalizeRoleAssignments } from "@/lib/precog/sod/model-io";
+import {
+  dutyBaselineKey,
+  readDutyBaseline,
+  seedDutyBaseline,
+  storeDutyBaseline,
+} from "@/lib/precog/sod/duty-baseline";
 import { useWorkspace } from "@/lib/precog/workspace-context";
 
 /**
@@ -13,35 +17,18 @@ import { useWorkspace } from "@/lib/precog/workspace-context";
  */
 export function useDutyBaseline(assignments: RoleAssignment[], businessId: string | undefined) {
   const workspace = useWorkspace();
-  const baselineKey = `precog.power-map-baseline.v1:${businessId ?? DEFAULT_BUSINESS_ID}`;
-  const [baseline, setBaseline] = useState<RoleAssignment[]>(() => {
-    try {
-      const stored = workspace.local?.getItem(baselineKey);
-      const restored = stored ? normalizeRoleAssignments(JSON.parse(stored)) : undefined;
-      if (restored) return restored;
-    } catch {
-      /* storage unavailable or corrupt: start from today's assignments */
-    }
-    return assignments;
-  });
+  const baselineKey = dutyBaselineKey(businessId);
+  const [baseline, setBaseline] = useState<RoleAssignment[]>(
+    () => readDutyBaseline(workspace.local, businessId) ?? assignments,
+  );
 
   useEffect(() => {
-    try {
-      if (workspace.local?.getItem(baselineKey) === null) {
-        workspace.local?.setItem(baselineKey, JSON.stringify(baseline));
-      }
-    } catch {
-      /* storage unavailable */
-    }
-  }, [baselineKey, baseline, workspace.local]);
+    seedDutyBaseline(workspace.local, businessId, baseline);
+  }, [baselineKey, businessId, baseline, workspace.local]);
 
   function acceptBaseline(next: RoleAssignment[]) {
     setBaseline(next);
-    try {
-      workspace.local?.setItem(baselineKey, JSON.stringify(next));
-    } catch {
-      /* storage unavailable */
-    }
+    storeDutyBaseline(workspace.local, businessId, next);
   }
 
   return { baseline, acceptBaseline };

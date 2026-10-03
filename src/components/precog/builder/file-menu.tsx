@@ -211,6 +211,9 @@ export function BuilderFileMenu({
               title={item.title}
               onClick={() => {
                 setOpen(false);
+                // The item unmounts with the menu: give focus back to File first,
+                // so an action that moves focus itself (a panel opening) still wins.
+                triggerRef.current?.focus();
                 item.run();
               }}
               className={cn(
@@ -220,7 +223,11 @@ export function BuilderFileMenu({
             >
               {item.icon}
               <span className="min-w-0 flex-1">{item.label}</span>
-              {item.checked && <span className="text-xs text-primary">open</span>}
+              {item.checked && (
+                <span className="text-xs text-primary" aria-hidden>
+                  open
+                </span>
+              )}
             </button>
           ))}
         </div>

@@ -232,7 +232,7 @@ export function AccessReconcile() {
                   className="rounded-md border border-border px-2 py-1 hover:bg-elevated"
                   title={
                     row.status === "mapped"
-                      ? "The duty stays on the map; remove it in Duty assignments if it was wrong."
+                      ? "The duty stays on the map; remove it under Team if it was wrong."
                       : undefined
                   }
                   onClick={() => setUserStatus(row.id, "pending")}

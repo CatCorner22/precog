@@ -66,6 +66,19 @@ export function reassignOwner(
   };
 }
 
+/**
+ * Undo one owner change: the process gets back the owners it had before.
+ * Only that process changes, so edits made to other processes since stay.
+ */
+export function undoOwnerChange(processes: ProcessNode[], change: OwnerChange): ProcessNode[] {
+  const before = change.process.ownerPersonIds;
+  return processes.map((p) => {
+    if (p.id !== change.process.id) return p;
+    const { ownerPersonIds: _changed, ...rest } = p;
+    return before === undefined ? rest : { ...rest, ownerPersonIds: before };
+  });
+}
+
 function withOwners(processes: ProcessNode[], processId: string, owners: string[]): ProcessNode[] {
   return processes.map((p) => (p.id === processId ? { ...p, ownerPersonIds: owners } : p));
 }

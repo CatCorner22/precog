@@ -31,7 +31,7 @@ import type { ImportIssue } from "@/lib/precog/import/csv";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { absenceImpact, type AbsenceAction } from "@/lib/precog/continuity/absence-impact";
 import { personOutDetail } from "@/lib/precog/continuity/out-impact";
-import { addStandInOwner } from "@/lib/precog/builder/stand-in-owner";
+import { addStandInOwner, undoOwnerChange } from "@/lib/precog/builder/stand-in-owner";
 import { buildAssignments } from "@/lib/precog/sod/detect";
 import type { ContinuityStep } from "@/lib/precog/decisions/follow-through";
 import {
@@ -511,7 +511,12 @@ function useWhatIf(
       return;
     }
     actions.setCustomProcesses(change.next);
-    toast.success(`${change.person.name} added as a stand-in owner of ${change.process.name}`);
+    toast.success(`${change.person.name} added as a stand-in owner of ${change.process.name}`, {
+      action: {
+        label: "Undo",
+        onClick: () => actions.setCustomProcesses((current) => undoOwnerChange(current, change)),
+      },
+    });
   };
   return { absentIds: ids, startedWith, toggle, absence, details, addStandIn };
 }

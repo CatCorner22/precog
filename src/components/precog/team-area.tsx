@@ -9,7 +9,7 @@ import { WorkloadView } from "@/components/precog/builder/workload-view";
 import { JobCatalogSheet } from "@/components/precog/job-catalog-sheet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { reassignOwner } from "@/lib/precog/builder/stand-in-owner";
+import { reassignOwner, undoOwnerChange } from "@/lib/precog/builder/stand-in-owner";
 import { analyzeWorkload } from "@/lib/precog/builder/workload";
 import { usePracticeActions, usePracticeState } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
@@ -40,7 +40,12 @@ export function TeamArea() {
       return;
     }
     setCustomProcesses(change.next);
-    toast.success(`${change.process.name} reassigned to ${change.person.name}`);
+    toast.success(`${change.process.name} reassigned to ${change.person.name}`, {
+      action: {
+        label: "Undo",
+        onClick: () => setCustomProcesses((current) => undoOwnerChange(current, change)),
+      },
+    });
   }
 
   return (

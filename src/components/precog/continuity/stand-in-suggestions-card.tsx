@@ -10,16 +10,22 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { usePracticeActions, usePracticeState } from "@/lib/precog/practice-context";
 import { applyAssignmentsToPeople } from "@/lib/precog/sod/apply-assignments";
 import { buildAssignments, type RoleAssignment } from "@/lib/precog/sod/detect";
+import { seedDutyBaseline } from "@/lib/precog/sod/duty-baseline";
 import { dutyStandInSuggestions } from "@/lib/precog/sod/stand-in-suggestions";
+import { useWorkspace } from "@/lib/precog/workspace-context";
 
 /**
  * Stand-in suggestions for the money duties only one person holds, on Who
  * knows what: a candidate per duty who already works in its process and
  * gains no duty conflict, or why nobody fits. Applying one writes the duty
  * to that person on Team, where Change review lists it until it is accepted.
+ * Before the first change it stores today's duties as Change review's
+ * baseline when none is stored yet, so Team never takes the changed duties
+ * as the starting point.
  */
 export function StandInSuggestionsCard() {
-  const { template: tpl } = usePracticeState();
+  const { template: tpl, profile } = usePracticeState();
+  const workspace = useWorkspace();
   const { setCustomPeople } = usePracticeActions();
   const assignments = useMemo(() => buildAssignments(tpl), [tpl]);
   const { coverage, plans, program } = useMemo(
@@ -28,6 +34,7 @@ export function StandInSuggestionsCard() {
   );
 
   function apply(next: RoleAssignment[], message: string) {
+    seedDutyBaseline(workspace.local, profile.businessId, assignments);
     setCustomPeople((people) => applyAssignmentsToPeople(people, next));
     toast.success(message, {
       description: "Change review under Team lists it until you accept it.",
