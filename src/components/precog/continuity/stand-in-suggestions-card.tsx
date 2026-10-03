@@ -29,8 +29,8 @@ export function StandInSuggestionsCard() {
   const { setCustomPeople } = usePracticeActions();
   const assignments = useMemo(() => buildAssignments(tpl), [tpl]);
   const { coverage, plans, program } = useMemo(
-    () => dutyStandInSuggestions(assignments),
-    [assignments],
+    () => dutyStandInSuggestions(assignments, tpl.id),
+    [assignments, tpl.id],
   );
 
   function apply(next: RoleAssignment[], message: string) {

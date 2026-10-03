@@ -667,7 +667,7 @@ describe("domain invariants", () => {
     const before = sodDetect.detectAssignments({ assignments });
     const conflict = before.conflicts[0];
     assert.ok(conflict, "demo assignments should exercise at least one conflict");
-    const plans = resolutionPlanner.buildResolutionPlans(assignments, conflict);
+    const plans = resolutionPlanner.buildResolutionPlans(assignments, conflict, "dental");
     assert.ok(plans.length > 0);
     for (const plan of plans) {
       const nextAssignments = resolutionPlanner.applyResolutionPlan(assignments, plan);
@@ -773,6 +773,7 @@ describe("domain invariants", () => {
       assignments,
       person.personId,
       entitlement.id,
+      "dental",
     );
     const before = sodDetect.detectAssignments({ assignments });
     const after = sodDetect.detectAssignments({ assignments: impact.nextAssignments });
@@ -785,11 +786,12 @@ describe("domain invariants", () => {
       impact.nextAssignments,
       person.personId,
       entitlement.id,
+      "dental",
     );
     assert.equal(reverse.action, "remove");
     assert.deepEqual(reverse.nextAssignments, assignments);
     assert.equal(
-      changeImpact.evaluateAssignmentChange(assignments, "missing", entitlement.id),
+      changeImpact.evaluateAssignmentChange(assignments, "missing", entitlement.id, "dental"),
       undefined,
     );
   });
@@ -810,6 +812,7 @@ describe("domain invariants", () => {
       assignments,
       person.personId,
       entitlement.id,
+      "dental",
       staff,
     );
     const before = sodDetect.detectAssignments({ assignments }, staff);
@@ -830,6 +833,7 @@ describe("domain invariants", () => {
           assignments,
           person.personId,
           entitlement.id,
+          "dental",
         );
         assert.ok(impact);
         const changed = impact.nextAssignments.find((item) => item.personId === person.personId);
@@ -868,7 +872,7 @@ describe("domain invariants", () => {
 
   it("continuity planner recommends only conflict-free coverage improvements", () => {
     const dental = sodDetect.buildAssignments(templatesIndex.getIndustryTemplate("dental"));
-    const dentalPlans = coveragePlanner.buildCoveragePlans(dental);
+    const dentalPlans = coveragePlanner.buildCoveragePlans(dental, "dental");
     const conflicted = new Set(
       sodDetect
         .detectAssignments({ assignments: dental })
@@ -876,11 +880,14 @@ describe("domain invariants", () => {
         .map((c) => c.personId),
     );
     assert.ok(dentalPlans.every((plan) => !conflicted.has(plan.toPersonId)));
-    assert.ok(coveragePlanner.buildCoveragePlans(plannerRetail).length > 0);
-    for (const assignments of [dental, plannerRetail]) {
+    assert.ok(coveragePlanner.buildCoveragePlans(plannerRetail, "retail").length > 0);
+    for (const [assignments, industry] of [
+      [dental, "dental"],
+      [plannerRetail, "retail"],
+    ]) {
       const beforeCoverage = coverageAnalysis.analyzeDutyCoverage(assignments);
       const beforeConflicts = sodDetect.detectAssignments({ assignments }).conflicts.length;
-      for (const plan of coveragePlanner.buildCoveragePlans(assignments)) {
+      for (const plan of coveragePlanner.buildCoveragePlans(assignments, industry)) {
         const afterCoverage = coverageAnalysis.analyzeDutyCoverage(plan.nextAssignments);
         const afterConflicts = sodDetect.detectAssignments({
           assignments: plan.nextAssignments,
@@ -896,7 +903,7 @@ describe("domain invariants", () => {
     const assignments = plannerRetail;
     const beforeCoverage = coverageAnalysis.analyzeDutyCoverage(assignments);
     const beforeConflicts = sodDetect.detectAssignments({ assignments }).conflicts.length;
-    const program = coveragePlanner.buildCoverageProgram(assignments);
+    const program = coveragePlanner.buildCoverageProgram(assignments, "retail");
     const afterCoverage = coverageAnalysis.analyzeDutyCoverage(program.nextAssignments);
     const afterConflicts = sodDetect.detectAssignments({
       assignments: program.nextAssignments,

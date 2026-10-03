@@ -317,7 +317,7 @@ function bankRecActions({ tpl, input }: WeeklyContext): WeeklyAction[] {
   // An owner who already reconciles, but also takes or records the money,
   // is not told to start: the missing piece is a reader outside the books.
   const activePeople = tpl.people.filter((p) => p.active);
-  const ownerId = soleOwnerId(activePeople);
+  const ownerId = soleOwnerId(activePeople, tpl.id);
   const ownerReconciles = activePeople.some(
     (p) => p.id === ownerId && (p.entitlements ?? []).includes("bank_reconcile"),
   );

@@ -51,12 +51,16 @@ export interface CoverageProgram {
  * Suggest backups for high-risk duties only one person holds: up to three per
  * duty, from people in that duty's process, none adding a detected conflict.
  * A duty nobody holds is not handed to anyone: the business may not do it at
- * all, so it is a question for the owner, not a suggestion.
+ * all, so it is a question for the owner, not a suggestion. The line of
+ * business says whether the team has an owner at all (a nonprofit has none).
  */
-export function buildCoveragePlans(assignments: RoleAssignment[]): CoveragePlan[] {
+export function buildCoveragePlans(
+  assignments: RoleAssignment[],
+  industry: string | undefined,
+): CoveragePlan[] {
   const coverage = analyzeDutyCoverage(assignments);
   return coverage.singlePoints.flatMap((duty) =>
-    plansForDuty(assignments, duty, coverage.resilienceScore, PLANS_PER_DUTY),
+    plansForDuty(assignments, duty, coverage.resilienceScore, PLANS_PER_DUTY, industry),
   );
 }
 
@@ -66,7 +70,10 @@ export function buildCoveragePlans(assignments: RoleAssignment[]): CoveragePlan[
  * `buildCoveragePlans` order, that has one and has not already been handed
  * out twice.
  */
-export function buildCoverageProgram(assignments: RoleAssignment[]): CoverageProgram {
+export function buildCoverageProgram(
+  assignments: RoleAssignment[],
+  industry: string | undefined,
+): CoverageProgram {
   const startingScore = analyzeDutyCoverage(assignments).resilienceScore;
   let current = assignments;
   const steps: CoveragePlan[] = [];
@@ -77,7 +84,7 @@ export function buildCoverageProgram(assignments: RoleAssignment[]): CoveragePro
     let next: CoveragePlan | undefined;
     for (const duty of coverage.singlePoints) {
       if ((assignmentsPerDuty.get(duty.entitlementId) ?? 0) >= MAX_ASSIGNMENTS_PER_DUTY) continue;
-      [next] = plansForDuty(current, duty, coverage.resilienceScore, 1);
+      [next] = plansForDuty(current, duty, coverage.resilienceScore, 1, industry);
       if (next) break;
     }
     if (!next) break;
@@ -110,8 +117,9 @@ function plansForDuty(
   duty: DutyCoverage,
   startingScore: number,
   limit: number,
+  industry: string | undefined,
 ): CoveragePlan[] {
-  const ownerId = teamOwnerId(assignments);
+  const ownerId = teamOwnerId(assignments, industry);
   const candidates = assignments
     .filter((person) => !person.entitlements.includes(duty.entitlementId))
     .filter((person) => inDutyChain(person, duty.entitlementId, ownerId))

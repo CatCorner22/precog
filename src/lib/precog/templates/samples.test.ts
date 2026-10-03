@@ -310,7 +310,10 @@ describe("nonprofit sample", () => {
   it("has no owner, so the executive director's conflicts count", () => {
     const tpl = getIndustryTemplate("nonprofit");
     expect(industryHasOwner("nonprofit")).toBe(false);
-    expect(soleOwnerId(tpl.people)).toBeNull();
+    // By title alone the executive director is nobody's owner; by line of
+    // business, no one on the team is.
+    expect(soleOwnerId(tpl.people, "general")).toBeNull();
+    expect(soleOwnerId(tpl.people, "nonprofit")).toBeNull();
     const report = detectSodConflicts(tpl);
     expect(report.summary.ownerHeld).toBe(0);
     expect(findings("nonprofit")).toEqual(

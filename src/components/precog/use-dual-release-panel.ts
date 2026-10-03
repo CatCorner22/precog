@@ -143,7 +143,7 @@ export function useDualReleasePanel() {
     const ex = exceptionFromForm(exForm, {
       id: makeExceptionId(),
       createdAt: today,
-      approvedByPersonId: soleOwnerId(people),
+      approvedByPersonId: soleOwnerId(people, profile.industry),
     });
     if (!ex) return;
     setDualRelease({ ...policy, exceptions: [ex, ...exceptions.filter((e) => e.id !== ex.id)] });

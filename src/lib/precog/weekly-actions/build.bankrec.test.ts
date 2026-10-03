@@ -4,6 +4,7 @@ import { buildOwnTeam, ownBusinessProfile } from "@/lib/precog/onboarding/own-te
 import { defaultProfile } from "@/lib/precog/practice-profile";
 import { buildWeeklyActions } from "./build";
 import { buildThreatAssessment } from "@/lib/precog/threat-scoring";
+import { nonprofitLeaderPeople } from "@/test/nonprofit-leader-team";
 
 function bankRecAction(rows: Parameters<typeof buildOwnTeam>[0]) {
   const profile = ownBusinessProfile(defaultProfile("retail"), {
@@ -47,6 +48,24 @@ describe("the bank-reconciliation action", () => {
       { name: "Olive Owner", role: "Owner", duties: ["approve_payroll"] },
       { name: "Ben Cole", role: "Bookkeeper", duties: ["post_payments", "bank_reconcile"] },
     ]);
+    expect(action?.title).toBe("Start owner weekly bank reconciliation");
+  });
+
+  it("asks a nonprofit to start, because its reconciling leader is not an owner", () => {
+    // The leader carries no owner mark and reads as the owner by title alone;
+    // the line of business says the nonprofit has none.
+    const profile = ownBusinessProfile(defaultProfile("nonprofit"), {
+      practiceName: "Riverbend Food Bank",
+      people: nonprofitLeaderPeople(),
+    });
+    expect(profile.staff.independentBankRec).toBe(false);
+    const tpl = resolveTemplate(profile);
+    const action = buildWeeklyActions({
+      tpl,
+      staff: profile.staff,
+      dualRelease: profile.dualRelease,
+      today: "2026-09-23",
+    }).find((a) => a.id === "bank-rec");
     expect(action?.title).toBe("Start owner weekly bank reconciliation");
   });
 });

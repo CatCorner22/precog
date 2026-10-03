@@ -63,31 +63,40 @@ describe("isOwnerRole", () => {
 describe("soleOwnerId", () => {
   it("names the owner when exactly one person holds an owner title", () => {
     expect(
-      soleOwnerId([
-        { id: "a", role: "Owner" },
-        { id: "b", role: "Office Manager" },
-      ]),
+      soleOwnerId(
+        [
+          { id: "a", role: "Owner" },
+          { id: "b", role: "Office Manager" },
+        ],
+        "dental",
+      ),
     ).toBe("a");
   });
 
   it("names nobody when partners or co-owners share the business", () => {
     expect(
-      soleOwnerId([
-        { id: "a", role: "Partner" },
-        { id: "b", role: "Partner" },
-        { id: "c", role: "Bookkeeper" },
-      ]),
+      soleOwnerId(
+        [
+          { id: "a", role: "Partner" },
+          { id: "b", role: "Partner" },
+          { id: "c", role: "Bookkeeper" },
+        ],
+        "dental",
+      ),
     ).toBeNull();
     expect(
-      soleOwnerId([
-        { id: "a", role: "Owner" },
-        { id: "b", role: "Co-Owner" },
-      ]),
+      soleOwnerId(
+        [
+          { id: "a", role: "Owner" },
+          { id: "b", role: "Co-Owner" },
+        ],
+        "dental",
+      ),
     ).toBeNull();
   });
 
   it("names nobody when no title names an owner", () => {
-    expect(soleOwnerId([{ id: "a", role: "Office Manager" }])).toBeNull();
+    expect(soleOwnerId([{ id: "a", role: "Office Manager" }], "dental")).toBeNull();
   });
 });
 
@@ -97,7 +106,7 @@ describe("the owner's own mark from setup", () => {
       { id: "a", role: "Dentist", owner: true },
       { id: "b", role: "Office Manager", owner: false },
     ];
-    expect(soleOwnerId(team)).toBe("a");
+    expect(soleOwnerId(team, "dental")).toBe("a");
   });
 
   it("does not make an unmarked 'Managing Partner' the owner on a marked team", () => {
@@ -107,15 +116,18 @@ describe("the owner's own mark from setup", () => {
     ];
     expect(ownersMarked(team)).toBe(true);
     expect(ownsBusiness(team[1], true)).toBe(false);
-    expect(soleOwnerId(team)).toBe("a");
+    expect(soleOwnerId(team, "dental")).toBe("a");
   });
 
   it("finds no sole owner when two people are marked as owners", () => {
     expect(
-      soleOwnerId([
-        { id: "a", role: "Dentist", owner: true },
-        { id: "b", role: "Dentist", owner: true },
-      ]),
+      soleOwnerId(
+        [
+          { id: "a", role: "Dentist", owner: true },
+          { id: "b", role: "Dentist", owner: true },
+        ],
+        "dental",
+      ),
     ).toBeNull();
   });
 
@@ -125,7 +137,7 @@ describe("the owner's own mark from setup", () => {
       { id: "b", role: "Office Manager" },
     ];
     expect(ownersMarked(team)).toBe(false);
-    expect(soleOwnerId(team)).toBe("a");
+    expect(soleOwnerId(team, "dental")).toBe("a");
   });
 });
 

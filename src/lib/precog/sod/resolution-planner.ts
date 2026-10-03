@@ -28,15 +28,17 @@ export interface ResolutionPlan {
  *
  * A duty move changes the findings of the two people it touches and nobody
  * else's (a scan reads one person's duties and whether they are the sole
- * owner), so each option scans those two people, not the whole team.
+ * owner), so each option scans those two people, not the whole team. The line
+ * of business says whether the team has an owner at all (a nonprofit has none).
  */
 export function buildResolutionPlans(
   assignments: RoleAssignment[],
   conflict: DetectedConflict,
+  industry: string | undefined,
 ): ResolutionPlan[] {
   const source = assignments.find((item) => item.personId === conflict.personId);
   if (!source) return [];
-  const ownerId = teamOwnerId(assignments);
+  const ownerId = teamOwnerId(assignments, industry);
   const scan = (person: RoleAssignment) =>
     detectAssignments({ assignments: [person], soleOwnerId: ownerId }).conflicts.map((c) => c.id);
   const before = new Map(assignments.map((person) => [person.personId, scan(person)]));
