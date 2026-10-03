@@ -129,6 +129,9 @@ interface AccountExport {
     subscriptionId: string | null;
     subscriptionStatus: string | null;
     assessmentPaidAt: string | null;
+    assessmentPaymentIntentId: string | null;
+    assessmentRefundedAt: string | null;
+    assessmentDisputedAt: string | null;
     currentPeriodEnd: string | null;
   } | null;
   quickBooksConnections: Array<{
@@ -150,6 +153,8 @@ interface AccountExport {
 interface DeletedAccount {
   /** Encrypted QuickBooks refresh tokens to revoke at Intuit. */
   quickBooksRefreshTokens: string[];
+  /** The Stripe customer to delete at Stripe, when the account had one. */
+  stripeCustomerId: string | null;
 }
 
 /**
@@ -366,7 +371,7 @@ export function encodeHistoryPage(rows: BusinessHistoryExportRow[]): string {
  */
 export async function deleteAccountRows(sql: Sql, userId: string): Promise<DeletedAccount> {
   return inTransaction(sql, async (tx) => {
-    await refuseWhileBilling(tx, userId);
+    const stripeCustomerId = await refuseWhileBilling(tx, userId);
     await refuseWhileHoldingFirmClients(tx, userId);
     const connections = await tx<{ refresh_token_enc: string }>`
       select refresh_token_enc from integration_connections where user_id = ${userId}
@@ -378,13 +383,17 @@ export async function deleteAccountRows(sql: Sql, userId: string): Promise<Delet
     await tx`delete from assessment_snapshots where user_id = ${userId}`;
     await tx`delete from llm_daily_usage where scope = ${userScope(userId)}`;
     await tx`delete from "user" where "id" = ${userId}`;
-    return { quickBooksRefreshTokens: connections.map((c) => c.refresh_token_enc) };
+    return {
+      quickBooksRefreshTokens: connections.map((c) => c.refresh_token_enc),
+      stripeCustomerId,
+    };
   });
 }
 
-async function refuseWhileBilling(tx: Sql, userId: string): Promise<void> {
-  const rows = await tx<{ subscription_status: string | null }>`
-    select subscription_status from billing_accounts where user_id = ${userId}
+/** Refuses while the Firm plan runs; otherwise the Stripe customer id to delete, if any. */
+async function refuseWhileBilling(tx: Sql, userId: string): Promise<string | null> {
+  const rows = await tx<{ subscription_status: string | null; stripe_customer_id: string | null }>`
+    select subscription_status, stripe_customer_id from billing_accounts where user_id = ${userId}
   `;
   const status = rows[0]?.subscription_status;
   if (status && ACTIVE_SUBSCRIPTION_STATUSES.has(status)) {
@@ -393,6 +402,7 @@ async function refuseWhileBilling(tx: Sql, userId: string): Promise<void> {
       "Your firm plan is still active. Cancel it with Manage billing on the Firm page, then delete your account.",
     );
   }
+  return rows[0]?.stripe_customer_id ?? null;
 }
 
 async function refuseWhileHoldingFirmClients(tx: Sql, userId: string): Promise<void> {
@@ -734,9 +744,13 @@ async function readBilling(tx: Sql, userId: string): Promise<AccountExport["bill
     subscription_id: string | null;
     subscription_status: string | null;
     assessment_paid_at: string | null;
+    assessment_payment_intent: string | null;
+    assessment_refunded_at: string | null;
+    assessment_disputed_at: string | null;
     current_period_end: string | null;
   }>`
     select stripe_customer_id, subscription_id, subscription_status, assessment_paid_at,
+      assessment_payment_intent, assessment_refunded_at, assessment_disputed_at,
       current_period_end
     from billing_accounts where user_id = ${userId}
   `;
@@ -747,6 +761,9 @@ async function readBilling(tx: Sql, userId: string): Promise<AccountExport["bill
         subscriptionId: b.subscription_id,
         subscriptionStatus: b.subscription_status,
         assessmentPaidAt: toIsoTimestampOrNull(b.assessment_paid_at),
+        assessmentPaymentIntentId: b.assessment_payment_intent,
+        assessmentRefundedAt: toIsoTimestampOrNull(b.assessment_refunded_at),
+        assessmentDisputedAt: toIsoTimestampOrNull(b.assessment_disputed_at),
         currentPeriodEnd: toIsoTimestampOrNull(b.current_period_end),
       }
     : null;
