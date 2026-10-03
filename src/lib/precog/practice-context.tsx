@@ -64,12 +64,10 @@ import {
   withIntegrationDriftSummary,
   withDecision,
   withDecisionReview,
-  withDerivedSegregation,
   withDualRelease,
   withIndustry,
   withKnowledge,
   withLeaversConfirmed,
-  withLeaversPrompted,
   withMapHealth,
   withMapLayout,
   withMapVersion,
@@ -186,8 +184,6 @@ export interface PracticeActions {
    * removed: closes their checks and records each in the decisions log.
    */
   confirmLeaverAccess: (checkIds: string[]) => void;
-  /** The owner has seen the prompt for these leavers; it is not shown again. */
-  markLeaverPrompted: (checkIds: string[]) => void;
   /** Setup dialog: leave setup and go back to the business open before it, when there is one. */
   cancelSetup: () => Promise<void>;
   /** Map builder: replace the process map (null = back to industry template). */
@@ -219,7 +215,6 @@ export interface PracticeActions {
   removeProcedure: (id: string) => void;
   /** Procedures tab: record that someone other than the usual person followed procedure `id`. */
   recordProcedureProof: (id: string, proof: Omit<ProcedureProof, "id">) => void;
-  resetSegregationToDerived: () => void;
   /** Map builder: pin canvas positions for process nodes. */
   setMapLayout: (v: SetStateAction<Record<string, { x: number; y: number }>>) => void;
   /** Save or replace user-defined reusable process blocks. */
@@ -464,11 +459,6 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     setProfile((p) => withLeaversConfirmed(p, checkIds, localDateKey(new Date())));
   }, []);
 
-  const markLeaverPrompted = useCallback((checkIds: string[]) => {
-    if (checkIds.length === 0) return;
-    setProfile((p) => withLeaversPrompted(p, checkIds));
-  }, []);
-
   const replaceProfile = useCallback(
     (next: PracticeProfile) => {
       clearHistory();
@@ -582,10 +572,6 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
     setProfile((p) => withoutProcedure(p, id));
   }, []);
 
-  const resetSegregationToDerived = useCallback(() => {
-    setProfile((p) => withDerivedSegregation(p));
-  }, []);
-
   const setMapLayout = useCallback(
     (v: SetStateAction<Record<string, { x: number; y: number }>>) => {
       pushUndo();
@@ -644,7 +630,6 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       startOwnBusiness,
       confirmLeaverAccess,
-      markLeaverPrompted,
       cancelSetup,
       setCustomProcesses,
       setCustomPeople,
@@ -656,7 +641,6 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       verifyProcedure,
       removeProcedure,
       recordProcedureProof,
-      resetSegregationToDerived,
       setMapLayout,
       setSavedProcessBlocks,
       recordMapHealth,
@@ -687,7 +671,6 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       startOwnBusiness,
       confirmLeaverAccess,
-      markLeaverPrompted,
       cancelSetup,
       setCustomProcesses,
       setCustomPeople,
@@ -699,7 +682,6 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
       verifyProcedure,
       removeProcedure,
       recordProcedureProof,
-      resetSegregationToDerived,
       setMapLayout,
       setSavedProcessBlocks,
       recordMapHealth,
