@@ -22,6 +22,27 @@ describe("isOwnBusiness", () => {
     expect(isOwnBusiness(resolveTemplate({ industry: "dental" }))).toBe(false);
     expect(isOwnBusiness(resolveTemplate({ industry: "dental", customPeople: people }))).toBe(true);
   });
+
+  it("reads resolveTemplate's flag, and the people array where there is none", () => {
+    const sample = getIndustryTemplate("dental");
+    expect(resolveTemplate({ industry: "dental" }).ownPeople).toBeUndefined();
+    expect(resolveTemplate({ industry: "dental", customPeople: sample.people }).ownPeople).toBe(
+      undefined,
+    );
+    expect(
+      resolveTemplate({ industry: "dental", customPeople: [...sample.people] }).ownPeople,
+    ).toBe(true);
+    expect(resolveTemplate({ industry: "dental", customPeople: [] }).ownPeople).toBe(true);
+    // The sample's own array handed back as customPeople is still the sample team.
+    expect(
+      isOwnBusiness(resolveTemplate({ industry: "dental", customPeople: sample.people })),
+    ).toBe(false);
+    expect(isOwnBusiness(resolveTemplate({ industry: "dental", customPeople: [] }))).toBe(true);
+    // A template built by hand, without the flag, is read off its people array.
+    expect(isOwnBusiness({ id: "dental", people: sample.people })).toBe(false);
+    expect(isOwnBusiness({ id: "dental", people: [...sample.people] })).toBe(true);
+    expect(isOwnBusiness({ id: "dental", people: sample.people, ownPeople: true })).toBe(true);
+  });
 });
 
 describe("sample scenarios", () => {

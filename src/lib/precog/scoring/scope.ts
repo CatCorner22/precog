@@ -17,9 +17,13 @@ import type { ResidualScope } from "./residual-engine";
  * screen and every engine agrees.
  */
 
-/** True when the template carries the owner's own people rather than the sample team. */
-export function isOwnBusiness(tpl: Pick<IndustryTemplate, "id" | "people">): boolean {
-  return tpl.people !== industrySample(tpl.id).people;
+/**
+ * True when the template carries the owner's own people rather than the
+ * sample team: resolveTemplate says so with `ownPeople`; a template without
+ * the flag (a sample, or one built by hand) is read off its people array.
+ */
+export function isOwnBusiness(tpl: Pick<IndustryTemplate, "id" | "people" | "ownPeople">): boolean {
+  return tpl.ownPeople ?? tpl.people !== industrySample(tpl.id).people;
 }
 
 /** The sentence every screen shows where register-derived rows would have been. */
