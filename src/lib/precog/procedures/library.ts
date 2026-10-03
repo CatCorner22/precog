@@ -1,4 +1,4 @@
-import { PAYMENT_DESTINATION_CHANGE } from "../controls/critical-guidance";
+import { PAYMENT_DESTINATION_CHANGE, RECEIPT_SETTLEMENT } from "../controls/critical-guidance";
 import type { IndustryId } from "../industry";
 import { personDuties } from "../sod/assignments";
 import type { EntitlementId } from "../sod/conflict-rules";
@@ -36,6 +36,10 @@ export interface RecommendedProcedure {
   steps: { text: string; caution?: string }[];
   /** The rule or guidance it follows. */
   source: string;
+  /** The records that show it ran, to keep with each run. */
+  evidenceToKeep?: string[];
+  /** What to do instead when one person has to do both halves of the work. */
+  ifYouCannotSeparate?: string;
 }
 
 const COMMON_PRACTICE = "Common small-business control practice.";
@@ -69,6 +73,9 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       },
     ],
     source: GREEN_BOOK_10,
+    evidenceToKeep: ["Reconciliation sign-off"],
+    ifYouCannotSeparate:
+      "Each month, a person who does not post to the books compares the bank statement with the books.",
   },
   {
     id: "lib-vendor-bank-change",
@@ -97,6 +104,8 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       { text: "Confirm with the vendor that the first payment to the new account arrived." },
     ],
     source: `${PAYMENT_DESTINATION_CHANGE.source.publisher}: ${PAYMENT_DESTINATION_CHANGE.source.document}, ${PAYMENT_DESTINATION_CHANGE.source.url}. ${PAYMENT_DESTINATION_CHANGE.source.scope}`,
+    evidenceToKeep: [...PAYMENT_DESTINATION_CHANGE.evidence, "Approved supplier list"],
+    ifYouCannotSeparate: `${PAYMENT_DESTINATION_CHANGE.verification} ${PAYMENT_DESTINATION_CHANGE.monitoring} Arrange a separate authorized reviewer where the person who usually approves also prepares or changes the payment.`,
   },
   {
     id: "lib-release-payments",
@@ -127,6 +136,9 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       { text: "Save the payment report with the approved list." },
     ],
     source: GREEN_BOOK_10,
+    evidenceToKeep: ["Approved supplier list", "Match report", "Release log"],
+    ifYouCannotSeparate:
+      "Arrange a separate authorized reviewer where the person who usually approves the batch also prepares or releases it.",
   },
   {
     id: "lib-payroll",
@@ -152,6 +164,9 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       { text: "Save the payroll report and the approval." },
     ],
     source: GREEN_BOOK_10,
+    evidenceToKeep: ["Payroll register", "Change report", "Approval trail"],
+    ifYouCannotSeparate:
+      "Someone who does not run payroll reviews the change report each run and reconciles the headcount every quarter.",
   },
   {
     id: "lib-cash-deposit",
@@ -178,6 +193,14 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       { text: "Compare the bank's deposit amount with the slip when it appears online." },
     ],
     source: GREEN_BOOK_10,
+    evidenceToKeep: [
+      "Daily close report",
+      "Deposit slip",
+      "Variance log",
+      ...RECEIPT_SETTLEMENT.evidence,
+    ],
+    ifYouCannotSeparate:
+      "Someone who did not take the money ties out the deposits every week and reviews each variance.",
   },
   {
     id: "lib-refund-review",
@@ -200,6 +223,9 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       { text: "Sign and date the report." },
     ],
     source: GREEN_BOOK_10,
+    evidenceToKeep: ["Refund register", "Void report", "Approval trail"],
+    ifYouCannotSeparate:
+      "A second person who issues no refunds reviews the monthly refund and void listing and initials the sample.",
   },
   {
     id: "lib-cycle-count",
@@ -223,6 +249,9 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       { text: "Enter the approved adjustments." },
     ],
     source: COMMON_PRACTICE,
+    evidenceToKeep: ["Count sheets", "Adjustment report"],
+    ifYouCannotSeparate:
+      "Count everything at least once a year with a second person present who does not keep the stock.",
   },
   {
     id: "lib-receiving",
@@ -245,6 +274,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       },
     ],
     source: COMMON_PRACTICE,
+    evidenceToKeep: ["Receiving log", "Delivery tickets"],
   },
   {
     id: "lib-leaver-access",
@@ -270,6 +300,9 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     ],
     source:
       "NIST SP 800-53, control PS-4 (Personnel Termination): disable access and retrieve property when employment ends.",
+    evidenceToKeep: ["User list export", "Access review sign-off", "Audit log sample"],
+    ifYouCannotSeparate:
+      "Twice a year, someone who is not a system administrator reviews the list of everyone's access.",
   },
   {
     id: "lib-backup-test",
@@ -314,6 +347,8 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       { text: "Sign and date the statement." },
     ],
     source: COMMON_PRACTICE,
+    evidenceToKeep: ["Card statements", "Approval trail"],
+    ifYouCannotSeparate: "A second person who holds no company card reviews every card statement.",
   },
   // By line of business.
   {
@@ -372,6 +407,9 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     ],
     source:
       "ABA Model Rule 1.15 (safekeeping property) and the ABA Model Rules on Client Trust Account Records, Rule 1, which calls for reconciliation at least quarterly and prefers monthly. State rules differ; follow your own state's.",
+    evidenceToKeep: ["Three-way reconciliation", "Disbursement approvals"],
+    ifYouCannotSeparate:
+      "A partner who does not keep the books opens the trust account's bank statement each month.",
   },
   {
     id: "lib-tip-report",
@@ -396,6 +434,8 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     ],
     source:
       "IRS Publication 531 and Tax Topic 761: an employee who receives $20 or more in cash tips in a month reports them to the employer in writing by the 10th of the next month.",
+    evidenceToKeep: ["Tip pool sheet", "POS tip report", "Payroll register"],
+    ifYouCannotSeparate: "Reconcile the card tips with payroll every month.",
   },
   {
     id: "lib-lien-waiver",
@@ -426,6 +466,8 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     ],
     source:
       "Common construction practice. Lien waiver forms and rules differ by state; use your state's forms.",
+    evidenceToKeep: ["Pay applications", "Retainage schedule", "Waiver register"],
+    ifYouCannotSeparate: "A second person reviews each pay application before it goes out.",
   },
   {
     id: "lib-restricted-gift",
@@ -452,6 +494,9 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     ],
     source:
       "FASB ASU 2016-14 (ASC 958): an organization reports a gift with donor restrictions as net assets with donor restrictions and reclassifies it when the organization meets the restriction.",
+    evidenceToKeep: ["Fund balance report", "Grant reports", "Board minutes"],
+    ifYouCannotSeparate:
+      "Every quarter, reconcile the restricted funds and report them to the board.",
   },
   {
     id: "lib-deal-jacket",
@@ -480,6 +525,9 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       { text: "Sign and date the audit log." },
     ],
     source: COMMON_PRACTICE,
+    evidenceToKeep: ["Deal jacket checklist", "Remittance log", "Contracts-in-transit schedule"],
+    ifYouCannotSeparate:
+      "The dealer principal reviews the fees, payoffs and rebates on each deal every month.",
   },
 ];
 
