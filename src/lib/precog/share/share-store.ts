@@ -259,7 +259,7 @@ export async function revokeDepartingMemberShares(
   `;
 }
 
-/** Share view logs older than this are purged whenever an owner lists shares. */
+/** Share view logs older than this are purged by the weekly job (routes/api/cron/digest.ts). */
 export const SHARE_VIEW_RETENTION_DAYS = 90;
 
 export async function purgeOldShareViews(sql: Sql): Promise<void> {

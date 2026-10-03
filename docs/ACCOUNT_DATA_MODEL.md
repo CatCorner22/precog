@@ -63,7 +63,9 @@ introduced this model is in
   (`migrations/0023_business_deletion_markers.sql`): identity references and
   the deletion time, no profile. It stops a client with no revision from
   recreating a deleted id. Restoring removes the marker; deleting the account
-  removes its markers through a foreign-key cascade.
+  removes its markers through a foreign-key cascade. The same job purges share
+  view logs and failed passcode guesses past their retention
+  (`SHARE_VIEW_RETENTION_DAYS`, `PASSCODE_ATTEMPT_RETENTION_DAYS`).
 - History keeps one version per 15 minutes of each person's editing, for 90
   days and at most 200 versions per business; the newest kept version stays
   however old it is (`src/lib/precog/business-retention.ts`). A save copies

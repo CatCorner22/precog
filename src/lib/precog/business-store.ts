@@ -441,6 +441,8 @@ interface BusinessSummaryRow {
   ownerUserId: string;
   /** True when the business is a firm colleague's rather than the caller's own. */
   shared: boolean;
+  /** True when the business is a firm's client (`firm_user_id` set), whoever opened it. */
+  firmClient: boolean;
 }
 
 /**
@@ -458,6 +460,7 @@ export async function listBusinessSummaries(
   const rows = await sql<{
     id: string;
     user_id: string;
+    firm_user_id: string | null;
     name: string;
     industry: string;
     updated_at: unknown;
@@ -465,7 +468,7 @@ export async function listBusinessSummaries(
     health_score: unknown;
   }>`
     select
-      id, user_id, name, industry, updated_at,
+      id, user_id, firm_user_id, name, industry, updated_at,
       case when jsonb_typeof(profile->'customProcesses') = 'array'
         then jsonb_array_length(profile->'customProcesses') else 0 end as process_count,
       case when jsonb_typeof(profile->'mapCompletenessHistory') = 'array'
@@ -485,6 +488,7 @@ export async function listBusinessSummaries(
       typeof r.health_score === "number" && Number.isFinite(r.health_score) ? r.health_score : null,
     ownerUserId: r.user_id,
     shared: r.user_id !== userId,
+    firmClient: r.firm_user_id !== null,
   }));
 }
 

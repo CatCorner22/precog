@@ -5,6 +5,14 @@ import { reportServerError } from "@/lib/observability/report.server";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
 import { renderDigest, renderOwnerEmailConfirm, renderOwnerReminder } from "./email";
 import { DIGEST_OMITTED_PROFILE_KEYS, runDigest } from "./digest";
+import {
+  answerDigestAsk,
+  digestTokenFor,
+  loadDigestAsk,
+  loadNotificationSettings,
+  saveNotificationSettings,
+  stopDigestByToken,
+} from "../firm/store";
 import { INDUSTRIES } from "../industry";
 import { getIndustryTemplate } from "../templates";
 import type { Person } from "../types";
@@ -191,12 +199,15 @@ describe("due items", () => {
 });
 
 describe("email rendering", () => {
-  it("writes a digest with counts, one section per client, and an opt-out line", () => {
+  const STOP_URL = "https://app.example/api/digest-email?do=stop&token=t";
+
+  it("writes a digest with counts, one section per client, item links and a stop link", () => {
     const items = dueItemsFor(profileWithDues(), TODAY);
     const mail = renderDigest({
       firmName: "North Advisors",
-      clients: [{ businessName: "Riverside Plumbing", items }],
+      clients: [{ businessId: "biz_1", businessName: "Riverside Plumbing", items }],
       appUrl: "https://app.example",
+      unsubscribeUrl: STOP_URL,
     });
     expect(mail.subject).toMatch(/^Precog: \d+ items overdue across 1 client$/);
     expect(mail.text.split("\n")[0]).toBe("North Advisors: weekly digest");
@@ -205,8 +216,50 @@ describe("email rendering", () => {
     expect(mail.text).not.toMatch(/\d{4}-\d{2}-\d{2}\)/);
     expect(mail.text).toContain("Riverside Plumbing");
     expect(mail.text).toContain("https://app.example/firm");
-    expect(mail.html).toContain("Turn it off in the firm workspace");
+    expect(mail.text).toContain(
+      `You receive this because the weekly digest is on in your Precog account. Stop it: ${STOP_URL}`,
+    );
+    expect(mail.html).toContain(`<a href="${escapeAmp(STOP_URL)}">Stop the weekly digest</a>`);
+    expect(mail.html).not.toContain("Turn it off in the firm workspace");
+    expect(mail.headers).toEqual({
+      "List-Unsubscribe": `<${STOP_URL}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    });
+    // Each item opens its business and tab on the home page.
+    expect(mail.text).toContain("https://app.example/?business=biz_1&tab=monthly&item=decisions");
+    expect(mail.html).toContain(
+      '<a href="https://app.example/?business=biz_1&amp;tab=knowledge">Confirm Cy Gone is off payroll',
+    );
     expect(mail.html).not.toContain("<script");
+  });
+
+  it("names the business in the subject for an owner outside a firm", () => {
+    const items = dueItemsFor(profileWithDues(), TODAY);
+    const one = [{ ...items[0], overdue: false }];
+    const subject = (
+      firmName: string | null,
+      clients: { businessId: string; businessName: string; items: ReminderItem[] }[],
+    ) =>
+      renderDigest({ firmName, clients, appUrl: "https://app.example", unsubscribeUrl: STOP_URL })
+        .subject;
+    expect(subject(null, [{ businessId: "biz_1", businessName: "Ortiz Dental", items }])).toMatch(
+      /^Precog: \d+ items overdue on Ortiz Dental$/,
+    );
+    expect(subject(null, [{ businessId: "biz_1", businessName: "Ortiz Dental", items: one }])).toBe(
+      "Precog: 1 item due this week on Ortiz Dental",
+    );
+    expect(
+      subject(null, [
+        { businessId: "biz_1", businessName: "Ortiz Dental", items },
+        { businessId: "biz_2", businessName: "Hill Dental", items },
+      ]),
+    ).toMatch(/^Precog: \d+ items overdue across 2 businesses$/);
+    // A firm's subjects are unchanged.
+    expect(
+      subject("North Advisors", [
+        { businessId: "biz_1", businessName: "Ortiz Dental", items: one },
+      ]),
+    ).toBe("Precog: 1 item due this week");
   });
 
   it("escapes names in the owner note", () => {
@@ -220,6 +273,7 @@ describe("email rendering", () => {
       overdue: false,
       stillOpen: false,
       advisorOnly: false,
+      href: "?tab=monthly",
     };
     const mail = renderOwnerReminder({
       businessName: "A <b>Shop</b>",
@@ -292,8 +346,8 @@ describe("digest run", () => {
       "businesses",
       '"user"',
     );
-    await db.seedUser("adv", "adv@firm.test");
-    await db.seedUser("quiet", "quiet@firm.test");
+    await seedAdvisor("adv", "adv@firm.test");
+    await seedAdvisor("quiet", "quiet@firm.test");
     await db.pg.query(
       `insert into businesses (id, user_id, name, industry, profile, revision)
        values ('biz_1', 'adv', 'Riverside Plumbing', 'general', $1::jsonb, 1)`,
@@ -316,13 +370,40 @@ describe("digest run", () => {
     vi.mocked(reportServerError).mockClear();
   });
 
+  /**
+   * A user who turned the digest on. No row now means off (nobody is opted
+   * in by default), so each advisor the tests expect a digest for gets a
+   * row; notification_settings references "user", so it follows the user.
+   */
+  async function seedAdvisor(id: string, email: string) {
+    await db.seedUser(id, email);
+    await db.sql`insert into notification_settings (user_id, weekly_digest) values (${id}, true)`;
+  }
+
   function recorder() {
-    const sent: { to: string; subject: string; text: string; replyTo?: string }[] = [];
+    const sent: {
+      to: string;
+      subject: string;
+      text: string;
+      replyTo?: string;
+      headers?: Record<string, string>;
+    }[] = [];
     const send = async (
       to: string,
-      message: { subject: string; text: string; replyTo?: string },
+      message: {
+        subject: string;
+        text: string;
+        replyTo?: string;
+        headers?: Record<string, string>;
+      },
     ) => {
-      sent.push({ to, subject: message.subject, text: message.text, replyTo: message.replyTo });
+      sent.push({
+        to,
+        subject: message.subject,
+        text: message.text,
+        replyTo: message.replyTo,
+        headers: message.headers,
+      });
     };
     return { sent, send };
   }
@@ -331,7 +412,7 @@ describe("digest run", () => {
     runDigest(db.sql, { today: TODAY, appUrl: "https://app.example", send });
 
   it("sends the owner's note with a stop link even when nobody gets a digest", async () => {
-    await db.sql`insert into notification_settings (user_id, weekly_digest) values ('adv', false)`;
+    await db.sql`update notification_settings set weekly_digest = false where user_id = 'adv'`;
     const { sent, send } = recorder();
     const outcome = await run(send);
     expect(outcome).toMatchObject({ advisors: 0, owners: 1 });
@@ -344,8 +425,8 @@ describe("digest run", () => {
 
   it("follows the firm owner's switch even when a member turned theirs off", async () => {
     await firmWithReviewer();
-    await db.sql`insert into notification_settings (user_id, weekly_digest) values ('adv', false)`;
-    await db.sql`insert into notification_settings (user_id, owner_reminders) values ('rev', false)`;
+    await db.sql`update notification_settings set weekly_digest = false where user_id = 'adv'`;
+    await db.sql`update notification_settings set owner_reminders = false where user_id = 'rev'`;
     const { sent, send } = recorder();
     const outcome = await run(send);
     expect(outcome.owners).toBe(1);
@@ -382,7 +463,7 @@ describe("digest run", () => {
 
   /** 'adv' becomes the owner of North Advisors with biz_1 as a client, and 'rev' a reviewer. */
   async function firmWithReviewer() {
-    await db.seedUser("rev", "rev@firm.test");
+    await seedAdvisor("rev", "rev@firm.test");
     await db.pg.exec(`
       insert into firms (user_id, name) values ('adv', 'North Advisors');
       insert into firm_members (firm_user_id, member_user_id, role)
@@ -404,7 +485,7 @@ describe("digest run", () => {
   });
 
   it("respects the digest switch", async () => {
-    await db.sql`insert into notification_settings (user_id, weekly_digest) values ('adv', false)`;
+    await db.sql`update notification_settings set weekly_digest = false where user_id = 'adv'`;
     const { sent, send } = recorder();
     const outcome = await runDigest(db.sql, { today: TODAY, appUrl: "https://app.example", send });
     expect(outcome.advisors).toBe(0);
@@ -433,8 +514,8 @@ describe("digest run", () => {
 
   it("follows the firm owner's switch for the client's owner, not a member's", async () => {
     await firmWithReviewer();
-    await db.sql`insert into notification_settings (user_id, owner_reminders) values ('adv', false)`;
-    await db.sql`insert into notification_settings (user_id, owner_reminders) values ('rev', true)`;
+    await db.sql`update notification_settings set owner_reminders = false where user_id = 'adv'`;
+    await db.sql`update notification_settings set owner_reminders = true where user_id = 'rev'`;
     const { sent, send } = recorder();
     const outcome = await runDigest(db.sql, { today: TODAY, appUrl: "https://app.example", send });
     expect(outcome.owners).toBe(0);
@@ -458,8 +539,8 @@ describe("digest run", () => {
   });
 
   it("sends every other digest when one business cannot be normalised, and names it", async () => {
-    await db.seedUser("adv2", "adv2@firm.test");
-    await db.seedUser("adv3", "adv3@firm.test");
+    await seedAdvisor("adv2", "adv2@firm.test");
+    await seedAdvisor("adv3", "adv3@firm.test");
     await db.pg.query(
       `insert into businesses (id, user_id, name, industry, profile, revision)
        values ('biz_3', 'adv2', 'Hill Dental', 'general', $1::jsonb, 1),
@@ -490,4 +571,70 @@ describe("digest run", () => {
     });
     expect(later.owners).toBe(1);
   });
+
+  it("sends no digest to an account with no settings row: nobody is opted in by default", async () => {
+    await db.sql`delete from notification_settings where user_id = 'adv'`;
+    const { sent, send } = recorder();
+    const outcome = await run(send);
+    expect(outcome.advisors).toBe(0);
+    expect(sent.map((s) => s.to)).toEqual(["owner@shop.test"]);
+    expect(await loadNotificationSettings(db.sql, "adv")).toEqual({
+      weeklyDigest: false,
+      ownerReminders: true,
+    });
+  });
+
+  it("carries a stop link per account that turns the digest off, also as a one-click header", async () => {
+    const { sent, send } = recorder();
+    await run(send);
+    const digest = sent.find((s) => s.to === "adv@firm.test")!;
+    const token = await digestTokenFor(db.sql, "adv");
+    const url = `https://app.example/api/digest-email?do=stop&token=${token}`;
+    expect(token).toMatch(/^[0-9a-f]{48}$/);
+    expect(digest.text).toContain(`Stop it: ${url}`);
+    expect(digest.text).toContain("https://app.example/?business=biz_1&tab=");
+    expect(digest.headers?.["List-Unsubscribe"]).toBe(`<${url}>`);
+    // The same token on the next run; the link in an older digest keeps working.
+    expect(await digestTokenFor(db.sql, "adv")).toBe(token);
+
+    expect(await stopDigestByToken(db.sql, "ef".repeat(24))).toBe(false);
+    expect((await loadNotificationSettings(db.sql, "adv")).weeklyDigest).toBe(true);
+    expect(await stopDigestByToken(db.sql, token)).toBe(true);
+    expect((await loadNotificationSettings(db.sql, "adv")).weeklyDigest).toBe(false);
+  });
+
+  it("asks once: no row is unasked, a firm-page choice or an answer counts as asked", async () => {
+    await db.sql`delete from notification_settings where user_id = 'adv'`;
+    expect(await loadDigestAsk(db.sql, "adv")).toEqual({ asked: false });
+    await saveNotificationSettings(db.sql, "adv", { weeklyDigest: false, ownerReminders: true });
+    expect(await loadDigestAsk(db.sql, "adv")).toEqual({ asked: true });
+
+    expect(await loadDigestAsk(db.sql, "quiet")).toEqual({ asked: true });
+    await db.sql`delete from notification_settings where user_id = 'quiet'`;
+    expect(await loadDigestAsk(db.sql, "quiet")).toEqual({ asked: false });
+    await answerDigestAsk(db.sql, "quiet", true);
+    expect(await loadDigestAsk(db.sql, "quiet")).toEqual({ asked: true });
+    expect(await loadNotificationSettings(db.sql, "quiet")).toEqual({
+      weeklyDigest: true,
+      ownerReminders: true,
+    });
+  });
+
+  it("leaves owner reminders alone when the digest question is answered", async () => {
+    await db.sql`update notification_settings set owner_reminders = false where user_id = 'adv'`;
+    await answerDigestAsk(db.sql, "adv", false);
+    expect(await loadNotificationSettings(db.sql, "adv")).toEqual({
+      weeklyDigest: false,
+      ownerReminders: false,
+    });
+    await answerDigestAsk(db.sql, "adv", true);
+    expect(await loadNotificationSettings(db.sql, "adv")).toEqual({
+      weeklyDigest: true,
+      ownerReminders: false,
+    });
+  });
 });
+
+function escapeAmp(url: string): string {
+  return url.replace(/&/g, "&amp;");
+}

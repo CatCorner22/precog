@@ -111,10 +111,15 @@ export function usePortfolio(input: {
       const s = summarizeBusiness(p);
       const existing = byId.get(s.id);
       if (!existing || new Date(s.updatedAt) >= new Date(existing.updatedAt))
-        byId.set(s.id, { ...s, shared: existing?.shared });
+        byId.set(s.id, { ...s, shared: existing?.shared, firmClient: existing?.firmClient });
     }
     const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
-    byId.set(activeId, { ...summarizeBusiness(profile), shared: byId.get(activeId)?.shared });
+    const active = byId.get(activeId);
+    byId.set(activeId, {
+      ...summarizeBusiness(profile),
+      shared: active?.shared,
+      firmClient: active?.firmClient,
+    });
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- portfolioVersion tracks storage writes
   }, [

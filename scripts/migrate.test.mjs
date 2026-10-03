@@ -1,14 +1,49 @@
 /**
  * The deploy gate in ./migrate.mjs, run as `npm run build` and
  * `npm run db:migrate` run it: a production deploy without its database, a
- * strong signing secret, an https public address or sign-in must fail the
- * build, and every other build must leave the database alone.
+ * strong signing secret, an https public address, sign-in, the support
+ * mailbox or the operator's real details must fail the build, and every other
+ * build must leave the database alone.
  */
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const SCRIPT = fileURLToPath(new URL("./migrate.mjs", import.meta.url));
+const OPERATOR_TS = fileURLToPath(new URL("../src/lib/precog/legal/operator.ts", import.meta.url));
+const PLACEHOLDER_LINE = /^export const [A-Z_]+ = "\[[A-Z ]+\]";$/m;
+
+/**
+ * The operator settings a production build needs: the support mailbox and an
+ * operator file with no bracketed placeholder, written under the temp dir.
+ */
+const fixtureDir = mkdtempSync(join(tmpdir(), "precog-operator-"));
+const CLEAN = {
+  SUPPORT_EMAIL: "help@precog.example",
+  PRECOG_OPERATOR_FILE: operatorFixture("clean.ts", "Texas"),
+};
+
+/** Writes an operator module whose GOVERNING_LAW is `law`, and returns its path. */
+function operatorFixture(name, law) {
+  const path = join(fixtureDir, name);
+  writeFileSync(
+    path,
+    [
+      'export const OPERATOR_LEGAL_NAME = "Example Operator LLC";',
+      'export const OPERATOR_ADDRESS = "1 Main Street, Austin, TX 78701";',
+      `export const GOVERNING_LAW = "${law}";`,
+      'export const AUTH_BROKER_OPERATOR = "Example Broker Inc.";',
+      'export const XAI_API_DATA_POLICY_URL = "https://x.ai/legal/example";',
+      "export const SUPPORT_EMAIL: string =",
+      '  (import.meta.env.SUPPORT_EMAIL as string | undefined)?.trim() || "[SUPPORT EMAIL]";',
+      "",
+    ].join("\n"),
+  );
+  return path;
+}
 
 describe("migrate.mjs", () => {
   it("refuses a production build with neither DATABASE_URL nor BETTER_AUTH_SECRET", () => {
@@ -35,6 +70,7 @@ describe("migrate.mjs", () => {
         DATABASE_URL: "postgresql://nobody@127.0.0.1:9/none",
         BETTER_AUTH_SECRET: "short-secret",
         VITE_AUTH_ENABLED: "false",
+        ...CLEAN,
       },
       "--only-on-production",
     );
@@ -53,6 +89,42 @@ describe("migrate.mjs", () => {
       expect(plain.stderr).toContain("BETTER_AUTH_URL is not an https address");
     }
   });
+
+  it("refuses without SUPPORT_EMAIL", () => {
+    const { SUPPORT_EMAIL: _unset, ...without } = PRODUCTION;
+    const run = migrate(without, "--only-on-production");
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain(
+      "SUPPORT_EMAIL is not set. Set it to the mailbox that answers support and data requests, and redeploy.",
+    );
+    expect(run.stderr).not.toContain("is still the placeholder");
+  });
+
+  it("refuses while operator.ts holds a placeholder", () => {
+    const run = migrate(
+      { ...PRODUCTION, PRECOG_OPERATOR_FILE: operatorFixture("placeholder.ts", "[STATE]") },
+      "--only-on-production",
+    );
+    expect(run.status).toBe(1);
+    const refusals = run.stderr.split("\n").filter((line) => line.includes("Refusing"));
+    expect(refusals).toEqual([
+      expect.stringContaining(
+        "GOVERNING_LAW in src/lib/precog/legal/operator.ts is still the placeholder [STATE]. Enter the real value and redeploy.",
+      ),
+    ]);
+  });
+
+  // Skipped, not failed, once the owner enters the real values.
+  it.skipIf(!PLACEHOLDER_LINE.test(readFileSync(OPERATOR_TS, "utf8")))(
+    "the committed operator.ts is refused while it holds a placeholder",
+    () => {
+      const { PRECOG_OPERATOR_FILE: _override, ...committed } = PRODUCTION;
+      const run = migrate(committed, "--only-on-production");
+      expect(run.status).toBe(1);
+      expect(run.stderr).toContain("is still the placeholder");
+      expect(run.stderr).toContain("OPERATOR_LEGAL_NAME in src/lib/precog/legal/operator.ts");
+    },
+  );
 
   it("builds a fully set production deploy, warning when Google and X sign-in lack their client", () => {
     // Port 9 refuses the connection, so a run that passes the gate fails only
@@ -94,7 +166,9 @@ describe("migrate.mjs", () => {
       QBO_CLIENT_SECRET: "b",
       INTEGRATION_KEY: "c",
     });
-    expect(run.stderr).toContain("CRON_SECRET is not set");
+    expect(run.stderr).toContain(
+      "CRON_SECRET is not set, so the weekly job is refused: no reminder email, no purge of deleted businesses or share logs, no QuickBooks refresh.",
+    );
     expect(run.stderr).toContain(
       "Billing is half set up: STRIPE_PRICE_ASSESSMENT, STRIPE_PRICE_MONTHLY, STRIPE_WEBHOOK_SECRET not set.",
     );
@@ -124,6 +198,7 @@ const PRODUCTION = {
   BETTER_AUTH_SECRET: "s".repeat(32),
   BETTER_AUTH_URL: "https://precog.example.com",
   DATABASE_URL: "postgresql://nobody@127.0.0.1:9/none",
+  ...CLEAN,
 };
 
 /** Runs the script with only PATH and `vars` in its environment. */

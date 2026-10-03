@@ -7,6 +7,7 @@ import type { ReminderItem } from "./due-items";
  * land in accountants' inboxes, where a clear list beats a designed email.
  */
 interface DigestClient {
+  businessId: string;
   businessName: string;
   items: ReminderItem[];
 }
@@ -21,24 +22,32 @@ export interface RenderedEmail {
   headers?: Record<string, string>;
 }
 
-/** The advisor's weekly digest across every client with something due. */
+/**
+ * The advisor's weekly digest across every client with something due. Each
+ * item links to its business and tab on the home page; the stop link turns
+ * the digest off for this account alone, with no sign-in, and also goes out
+ * as the one-click List-Unsubscribe header that mail apps show.
+ */
 export function renderDigest(input: {
   firmName: string | null;
   clients: DigestClient[];
   appUrl: string;
+  unsubscribeUrl: string;
 }): RenderedEmail {
   const total = input.clients.reduce((n, c) => n + c.items.length, 0);
   const overdue = input.clients.reduce((n, c) => n + c.items.filter((i) => i.overdue).length, 0);
-  const subject =
-    overdue > 0
-      ? `Precog: ${count(overdue, "item")} overdue across ${count(input.clients.length, "client")}`
-      : `Precog: ${count(total, "item")} due this week`;
+  const subject = `Precog: ${digestSubject(input.firmName, input.clients, total, overdue)}`;
   const heading = input.firmName ? `${input.firmName}: weekly digest` : "Weekly digest";
-  const optOut =
-    "You receive this because the weekly digest is on in your Precog account. Turn it off in the firm workspace.";
+  const because = "You receive this because the weekly digest is on in your Precog account.";
+  const optOut = `${because} Stop it: ${input.unsubscribeUrl}`;
+  const itemUrl = (client: DigestClient, item: ReminderItem) =>
+    `${input.appUrl}/?business=${encodeURIComponent(client.businessId)}&${item.href.replace(/^\?/, "")}`;
 
   const textSections = input.clients.map((client) =>
-    [client.businessName, ...client.items.map((item) => `  - ${itemLine(item)}`)].join("\n"),
+    [
+      client.businessName,
+      ...client.items.map((item) => `  - ${itemLine(item)}\n    ${itemUrl(client, item)}`),
+    ].join("\n"),
   );
   const text = [
     heading,
@@ -56,7 +65,9 @@ export function renderDigest(input: {
         `<ul style="margin:0;padding-left:18px">${client.items
           .map(
             (item) =>
-              `<li style="margin:2px 0">${escapeHtml(item.title)} <span style="color:${
+              `<li style="margin:2px 0"><a href="${escapeHtml(itemUrl(client, item))}">${escapeHtml(
+                item.title,
+              )}</a> <span style="color:${
                 item.overdue ? "#b91c1c" : "#6b7280"
               }">(${escapeHtml(whenText(item))})</span></li>`,
           )
@@ -71,9 +82,35 @@ export function renderDigest(input: {
     `<h2 style="margin:4px 0 12px;font-size:18px">Weekly digest</h2>` +
     htmlSections +
     `<p style="margin-top:20px"><a href="${escapeHtml(input.appUrl)}/firm">Open the firm workspace</a></p>` +
-    `<p style="color:#6b7280;font-size:12px">${escapeHtml(optOut)}</p>` +
+    `<p style="color:#6b7280;font-size:12px">${escapeHtml(because)} ` +
+    `<a href="${escapeHtml(input.unsubscribeUrl)}">Stop the weekly digest</a></p>` +
     `</div>`;
-  return { subject, text, html };
+  return {
+    subject,
+    text,
+    html,
+    headers: {
+      "List-Unsubscribe": `<${input.unsubscribeUrl}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
+  };
+}
+
+/**
+ * A firm reads "across 2 clients"; an owner with one business reads "on
+ * Ortiz Dental", and one with several "across 2 businesses".
+ */
+function digestSubject(
+  firmName: string | null,
+  clients: DigestClient[],
+  total: number,
+  overdue: number,
+): string {
+  const what =
+    overdue > 0 ? `${count(overdue, "item")} overdue` : `${count(total, "item")} due this week`;
+  if (firmName) return overdue > 0 ? `${what} across ${count(clients.length, "client")}` : what;
+  if (clients.length === 1) return `${what} on ${clients[0].businessName}`;
+  return `${what} across ${count(clients.length, "business", "businesses")}`;
 }
 
 /**

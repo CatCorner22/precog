@@ -8,6 +8,7 @@ import { Route as Cron } from "./cron/digest";
 import { Route as StripeWebhook } from "./stripe/webhook";
 import { Route as ProcedureImage } from "./procedure-image";
 import { Route as OwnerEmail } from "./owner-email";
+import { Route as DigestEmail } from "./digest-email";
 
 // The leading "-" keeps this file out of the generated route tree.
 
@@ -172,10 +173,23 @@ describe("scheduled run", () => {
     expect((await run("Bearer cron-secret-value-and-more")).status).toBe(401);
   });
 
-  it("runs every stage with the right secret", async () => {
+  it("runs every stage with the right secret, purging share logs past their retention", async () => {
+    const t = db.current!;
+    await t.clear("map_share_views", "map_shares", "businesses", '"user"');
+    await t.seedUser("owner");
+    await t.pg.query(
+      `insert into map_shares (token, user_id, business_name, industry, payload, expires_at)
+       values ('ab12', 'owner', 'Riverside', 'general', '{}'::jsonb, now() + interval '7 days')`,
+    );
+    await t.pg.query(
+      `insert into map_share_views (token, viewed_at)
+       values ('ab12', now() - interval '91 days'), ('ab12', now() - interval '1 day')`,
+    );
     const res = await run("Bearer cron-secret-value");
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true, purged: 0, failures: [] });
+    expect(await res.json()).toMatchObject({ ok: true, purged: 0, shareLogs: true, failures: [] });
+    const left = await t.pg.query<{ n: string }>(`select count(*)::text as n from map_share_views`);
+    expect(left.rows[0].n).toBe("1");
   });
 
   it("still purges and re-reads the books when the digest fails", async () => {
@@ -308,6 +322,83 @@ describe("owner email links", () => {
       expect((await handlers(OwnerEmail).POST({ request })).status).toBe(404);
     }
     expect(await state()).toEqual({ confirmed: false, stopped: false });
+  });
+});
+
+describe("digest email links", () => {
+  const token = "ab".repeat(24);
+  const url = (query: string) => `https://app.example/api/digest-email?${query}`;
+  const digestOn = async () =>
+    (
+      await db.current!.pg.query<{ on: boolean }>(
+        `select weekly_digest as "on" from notification_settings where user_id = 'adv'`,
+      )
+    ).rows[0].on;
+
+  beforeEach(async () => {
+    const t = db.current!;
+    await t.clear("notification_settings", '"user"');
+    await t.seedUser("adv");
+    await t.pg.query(
+      `insert into notification_settings (user_id, weekly_digest, digest_token) values ('adv', true, $1)`,
+      [token],
+    );
+  });
+
+  it("shows a button on open and changes nothing until it is pressed", async () => {
+    const res = await handlers(DigestEmail).GET({
+      request: new Request(url(`do=stop&token=${token}`)),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const html = await res.text();
+    expect(html).toContain("Stop the weekly digest?");
+    expect(html).toContain(
+      "Precog will stop emailing you the weekly note about what is due on your businesses.",
+    );
+    expect(html).toContain('<form method="post">');
+    expect(html).toContain(">Stop the weekly digest</button>");
+    expect(await digestOn()).toBe(true);
+  });
+
+  it("stops the digest with a one-click POST", async () => {
+    const res = await handlers(DigestEmail).POST({
+      request: new Request(url(`do=stop&token=${token}`), {
+        method: "POST",
+        body: "List-Unsubscribe=One-Click",
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain(
+      "Precog will not send you the weekly digest again unless you turn it on.",
+    );
+    expect(await digestOn()).toBe(false);
+  });
+
+  it("answers 404 for an unknown or malformed token or another action", async () => {
+    for (const query of [
+      `do=stop&token=${"ef".repeat(24)}`,
+      "do=stop&token=nope",
+      `do=confirm&token=${token}`,
+    ]) {
+      expect((await handlers(DigestEmail).GET({ request: new Request(url(query)) })).status).toBe(
+        404,
+      );
+      const post = await handlers(DigestEmail).POST({
+        request: new Request(url(query), { method: "POST" }),
+      });
+      expect(post.status).toBe(404);
+      const body = await post.text();
+      expect(body).toContain("This link no longer works");
+      expect(body).toContain(
+        "The link may have changed since Precog sent the email. Turn the weekly digest off from the header after you sign in.",
+      );
+    }
+    expect(await digestOn()).toBe(true);
+    const other = await handlers(DigestEmail).ANY({
+      request: new Request(url(`do=stop&token=${token}`), { method: "PUT" }),
+    });
+    expect(other.status).toBe(405);
   });
 });
 

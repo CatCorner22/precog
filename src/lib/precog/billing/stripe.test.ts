@@ -11,8 +11,14 @@ import {
   verifyStripeSignature,
 } from "./stripe";
 import { applyBillingEvent } from "./webhook";
-import { createCheckoutSession } from "./stripe.server";
-import { checkoutRefusal, loadBillingAccount, type BillingAccount } from "../firm/billing-store";
+import { createCheckoutSession, deleteCustomer } from "./stripe.server";
+import {
+  checkoutRefusal,
+  commercialToolsOpen,
+  loadBillingAccount,
+  subscriptionStatusLabel,
+  type BillingAccount,
+} from "../firm/billing-store";
 import { loadFirmFor, saveFirm } from "../firm/store";
 
 describe("stripe signatures", () => {
@@ -66,7 +72,7 @@ describe("billing changes", () => {
         },
       },
     });
-    expect(paid).toEqual({ kind: "assessment-paid", userId: "user-1", customerId: "cus_1" });
+    expect(paid).toMatchObject({ kind: "assessment-paid", userId: "user-1", customerId: "cus_1" });
     const sub = billingChangeFor({
       id: "evt",
       type: "checkout.session.completed",
@@ -100,6 +106,81 @@ describe("billing changes", () => {
       kind: "ignore",
     });
     expect(parseStripeEvent("nope")).toBeNull();
+  });
+
+  it("reads a refund and a dispute off the charge events by their payment intent", () => {
+    expect(
+      billingChangeFor({
+        id: "e",
+        type: "charge.refunded",
+        created: 100,
+        data: { object: { refunded: true, payment_intent: "pi_1", invoice: null } },
+      }),
+    ).toEqual({
+      kind: "assessment-refunded",
+      paymentIntentId: "pi_1",
+      eventAt: "1970-01-01T00:01:40.000Z",
+    });
+    // A partial refund is not a refund of the assessment; an invoice charge is the Firm plan's.
+    expect(
+      billingChangeFor({
+        id: "e",
+        type: "charge.refunded",
+        data: { object: { refunded: false, payment_intent: "pi_1" } },
+      }),
+    ).toEqual({ kind: "ignore" });
+    expect(
+      billingChangeFor({
+        id: "e",
+        type: "charge.refunded",
+        data: { object: { refunded: true, payment_intent: "pi_1", invoice: "in_1" } },
+      }),
+    ).toEqual({ kind: "ignore" });
+    expect(
+      billingChangeFor({
+        id: "e",
+        type: "charge.dispute.created",
+        data: { object: { payment_intent: { id: "pi_1" }, status: "needs_response" } },
+      }),
+    ).toMatchObject({ kind: "assessment-dispute", paymentIntentId: "pi_1", status: "open" });
+    expect(
+      billingChangeFor({
+        id: "e",
+        type: "charge.dispute.closed",
+        data: { object: { payment_intent: "pi_1", status: "lost" } },
+      }),
+    ).toMatchObject({ kind: "assessment-dispute", status: "lost" });
+    expect(
+      billingChangeFor({
+        id: "e",
+        type: "charge.dispute.closed",
+        data: { object: { payment_intent: "pi_1", status: "won" } },
+      }),
+    ).toMatchObject({ kind: "assessment-dispute", status: "won" });
+    // An inquiry closed without a chargeback, or a dispute closed because
+    // the charge was refunded meanwhile, clears the mark like a win.
+    for (const status of ["warning_closed", "charge_refunded"]) {
+      expect(
+        billingChangeFor({
+          id: "e",
+          type: "charge.dispute.closed",
+          data: { object: { payment_intent: "pi_1", status } },
+        }),
+      ).toMatchObject({ kind: "assessment-dispute", status: "won" });
+    }
+  });
+
+  it("names every subscription status in plain words", () => {
+    expect(subscriptionStatusLabel("active")).toBe("Active");
+    expect(subscriptionStatusLabel("trialing")).toBe("Trial");
+    expect(subscriptionStatusLabel("past_due")).toBe("Payment overdue");
+    expect(subscriptionStatusLabel("incomplete")).toBe("Payment not finished");
+    expect(subscriptionStatusLabel("incomplete_expired")).toBe("Checkout expired");
+    expect(subscriptionStatusLabel("canceled")).toBe("Cancelled");
+    expect(subscriptionStatusLabel("unpaid")).toBe("Unpaid");
+    expect(subscriptionStatusLabel("paused")).toBe("Paused");
+    expect(subscriptionStatusLabel(null)).toBe("None");
+    expect(subscriptionStatusLabel("something_new")).toBe("something_new");
   });
 
   it("form-encodes nested params the way Stripe expects", () => {
@@ -217,6 +298,158 @@ describe("applying events", () => {
     expect((await loadBillingAccount(db.sql, "owner"))?.subscriptionStatus).toBe("incomplete");
     expect((await loadFirmFor(db.sql, "owner"))?.plan).toBe("assessment");
   });
+
+  const paidEvent = (id: string, intent: string, created?: number) => ({
+    id,
+    type: "checkout.session.completed",
+    ...(created === undefined ? {} : { created }),
+    data: {
+      object: {
+        mode: "payment",
+        payment_status: "paid",
+        client_reference_id: "owner",
+        customer: "cus_1",
+        payment_intent: intent,
+      },
+    },
+  });
+  const refundEvent = (id: string, intent: string, created = 500) => ({
+    id,
+    type: "charge.refunded",
+    created,
+    data: { object: { refunded: true, payment_intent: intent, invoice: null } },
+  });
+  const disputeEvent = (id: string, intent: string, status: string, created = 600) => ({
+    id,
+    type: status === "open" ? "charge.dispute.created" : "charge.dispute.closed",
+    created,
+    data: { object: { payment_intent: intent, status } },
+  });
+  const toolsOpen = async () => {
+    const account = await loadBillingAccount(db.sql, "owner");
+    return commercialToolsOpen({
+      stripeConfigured: true,
+      subscriptionStatus: account?.subscriptionStatus ?? null,
+      assessmentPaidAt: account?.assessmentPaidAt ?? null,
+      assessmentRefundedAt: account?.assessmentRefundedAt ?? null,
+    });
+  };
+
+  it("stamps the assessment with the event time, or now when Stripe gave none", async () => {
+    expect(await applyBillingEvent(db.sql, paidEvent("evt_p1", "pi_1", 100))).toBe("applied");
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      assessmentPaidAt: "1970-01-01T00:01:40.000Z",
+      assessmentPaymentIntentId: "pi_1",
+      assessmentRefundedAt: null,
+      assessmentDisputedAt: null,
+    });
+    await db.clear("billing_events", "billing_accounts");
+    expect(await applyBillingEvent(db.sql, paidEvent("evt_p2", "pi_2"))).toBe("applied");
+    const stamp = (await loadBillingAccount(db.sql, "owner"))?.assessmentPaidAt;
+    expect(stamp).not.toBeNull();
+    expect(Date.now() - Date.parse(stamp!)).toBeLessThan(60_000);
+  });
+
+  it("keeps the first stamp when the same payment is delivered again", async () => {
+    await applyBillingEvent(db.sql, paidEvent("evt_p1", "pi_1", 100));
+    expect(await applyBillingEvent(db.sql, paidEvent("evt_p1_again", "pi_1", 900))).toBe("applied");
+    expect((await loadBillingAccount(db.sql, "owner"))?.assessmentPaidAt).toBe(
+      "1970-01-01T00:01:40.000Z",
+    );
+  });
+
+  it("closes the tools on a refund and reopens the Pay button, then a new payment reopens them", async () => {
+    await applyBillingEvent(db.sql, paidEvent("evt_p1", "pi_1", 100));
+    expect(await toolsOpen()).toBe(true);
+    expect(checkoutRefusal(await loadBillingAccount(db.sql, "owner"), "assessment")).toMatch(
+      /already paid/,
+    );
+    expect(await applyBillingEvent(db.sql, refundEvent("evt_r1", "pi_1"))).toBe("applied");
+    const refunded = await loadBillingAccount(db.sql, "owner");
+    expect(refunded?.assessmentRefundedAt).toBe("1970-01-01T00:08:20.000Z");
+    expect(await toolsOpen()).toBe(false);
+    expect(checkoutRefusal(refunded, "assessment")).toBeNull();
+    expect((await loadFirmFor(db.sql, "owner"))?.plan).toBe("assessment");
+    // A new payment with a new intent.
+    expect(await applyBillingEvent(db.sql, paidEvent("evt_p2", "pi_2", 1000))).toBe("applied");
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      assessmentPaidAt: "1970-01-01T00:16:40.000Z",
+      assessmentPaymentIntentId: "pi_2",
+      assessmentRefundedAt: null,
+    });
+    expect(await toolsOpen()).toBe(true);
+  });
+
+  it("treats a lost dispute as a refund and a won one as nothing", async () => {
+    await applyBillingEvent(db.sql, paidEvent("evt_p1", "pi_1", 100));
+    expect(await applyBillingEvent(db.sql, disputeEvent("evt_d1", "pi_1", "open"))).toBe("applied");
+    expect((await loadBillingAccount(db.sql, "owner"))?.assessmentDisputedAt).toBe(
+      "1970-01-01T00:10:00.000Z",
+    );
+    expect(await toolsOpen()).toBe(true);
+    expect(await applyBillingEvent(db.sql, disputeEvent("evt_d2", "pi_1", "won"))).toBe("applied");
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      assessmentDisputedAt: null,
+      assessmentRefundedAt: null,
+    });
+    // An inquiry (opened as a dispute) closed without a chargeback clears the mark too.
+    expect(await applyBillingEvent(db.sql, disputeEvent("evt_d3", "pi_1", "open"))).toBe("applied");
+    expect((await loadBillingAccount(db.sql, "owner"))?.assessmentDisputedAt).not.toBeNull();
+    expect(await applyBillingEvent(db.sql, disputeEvent("evt_d3w", "pi_1", "warning_closed"))).toBe(
+      "applied",
+    );
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      assessmentDisputedAt: null,
+      assessmentRefundedAt: null,
+    });
+    expect(await toolsOpen()).toBe(true);
+    expect(await applyBillingEvent(db.sql, disputeEvent("evt_d5", "pi_1", "open"))).toBe("applied");
+    expect(await applyBillingEvent(db.sql, disputeEvent("evt_d4", "pi_1", "lost"))).toBe("applied");
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      assessmentDisputedAt: null,
+      assessmentRefundedAt: "1970-01-01T00:10:00.000Z",
+    });
+    expect(await toolsOpen()).toBe(false);
+  });
+
+  it("keeps the Firm plan when a refunded assessment sits under a running subscription", async () => {
+    await applyBillingEvent(db.sql, paidEvent("evt_p1", "pi_1", 100));
+    await applyBillingEvent(db.sql, created("active"));
+    expect((await loadFirmFor(db.sql, "owner"))?.plan).toBe("monthly");
+    await applyBillingEvent(db.sql, refundEvent("evt_r1", "pi_1"));
+    expect((await loadFirmFor(db.sql, "owner"))?.plan).toBe("monthly");
+    expect(await toolsOpen()).toBe(true);
+  });
+
+  it("ignores a refund or dispute whose intent is not the stored one", async () => {
+    await applyBillingEvent(db.sql, paidEvent("evt_p1", "pi_1", 100));
+    expect(await applyBillingEvent(db.sql, refundEvent("evt_r_other", "pi_other"))).toBe("ignored");
+    expect(await applyBillingEvent(db.sql, disputeEvent("evt_d_other", "pi_other", "open"))).toBe(
+      "ignored",
+    );
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      assessmentRefundedAt: null,
+      assessmentDisputedAt: null,
+    });
+    // A payment recorded before intents were stored has nothing to match.
+    await db.clear("billing_events", "billing_accounts");
+    await db.sql`
+      insert into billing_accounts (user_id, stripe_customer_id, assessment_paid_at)
+      values ('owner', 'cus_1', now())
+    `;
+    expect(await applyBillingEvent(db.sql, disputeEvent("evt_d_old", "pi_1", "open"))).toBe(
+      "ignored",
+    );
+    expect(await applyBillingEvent(db.sql, refundEvent("evt_r_old", "pi_1"))).toBe("ignored");
+    // A refund on an invoice charge is the Firm plan's, not the assessment's.
+    expect(
+      await applyBillingEvent(db.sql, {
+        id: "evt_r_invoice",
+        type: "charge.refunded",
+        data: { object: { refunded: true, payment_intent: "pi_1", invoice: "in_1" } },
+      }),
+    ).toBe("ignored");
+  });
 });
 
 describe("event order", () => {
@@ -320,6 +553,9 @@ describe("starting checkout", () => {
     subscriptionId: null,
     subscriptionStatus: null,
     assessmentPaidAt: null,
+    assessmentPaymentIntentId: null,
+    assessmentRefundedAt: null,
+    assessmentDisputedAt: null,
     currentPeriodEnd: null,
     updatedAt: "2026-10-01T00:00:00.000Z",
     ...over,
@@ -336,23 +572,37 @@ describe("starting checkout", () => {
     expect(
       checkoutRefusal(account({ assessmentPaidAt: "2026-09-01T00:00:00.000Z" }), "assessment"),
     ).toMatch(/already paid/);
+    expect(
+      checkoutRefusal(
+        account({
+          assessmentPaidAt: "2026-09-01T00:00:00.000Z",
+          assessmentRefundedAt: "2026-09-20T00:00:00.000Z",
+        }),
+        "assessment",
+      ),
+    ).toBeNull();
   });
 
   describe("the Stripe request", () => {
-    const calls: { body: string; headers: Record<string, string> }[] = [];
+    const calls: { url: string; method: string; body: string; headers: Record<string, string> }[] =
+      [];
+    let answer: () => Response;
     beforeEach(() => {
       calls.length = 0;
+      answer = () => new Response(JSON.stringify({ url: "https://checkout.example/s" }));
       vi.stubEnv("STRIPE_SECRET_KEY", "sk_test");
       vi.stubEnv("STRIPE_PRICE_ASSESSMENT", "price_a");
       vi.stubEnv("STRIPE_PRICE_MONTHLY", "price_m");
       vi.stubGlobal(
         "fetch",
-        vi.fn(async (_url: string, init: RequestInit) => {
+        vi.fn(async (url: string, init: RequestInit) => {
           calls.push({
+            url,
+            method: String(init.method),
             body: String(init.body),
             headers: init.headers as Record<string, string>,
           });
-          return new Response(JSON.stringify({ url: "https://checkout.example/s" }));
+          return answer();
         }),
       );
     });
@@ -388,6 +638,107 @@ describe("starting checkout", () => {
       expect(keys[1]).toBe(keys[0]);
       expect(new Set(keys).size).toBe(3);
     });
+
+    it("collects the billing address and tax id and prices the sale with Stripe Tax", async () => {
+      await createCheckoutSession({ ...input, plan: "assessment" });
+      await createCheckoutSession({ ...input, plan: "assessment", customerId: "cus_1" });
+      await createCheckoutSession(input);
+      for (const call of calls) {
+        expect(call.body).toContain("automatic_tax%5Benabled%5D=true");
+        expect(call.body).toContain("billing_address_collection=required");
+        expect(call.body).toContain("tax_id_collection%5Benabled%5D=true");
+      }
+      // A first payment creates the customer so a refund can find it; the
+      // intent's metadata names the account for the Stripe dashboard.
+      expect(calls[0].body).toContain("customer_creation=always");
+      expect(calls[0].body).toContain("payment_intent_data%5Bmetadata%5D%5BuserId%5D=owner");
+      expect(calls[0].body).toContain("payment_intent_data%5Bmetadata%5D%5Bplan%5D=assessment");
+      expect(calls[0].body).not.toContain("customer_update");
+      // Stripe refuses customer_creation and customer_update without a customer, or both at once.
+      expect(calls[1].body).not.toContain("customer_creation");
+      expect(calls[1].body).toContain("customer_update%5Baddress%5D=auto");
+      expect(calls[1].body).toContain("customer_update%5Bname%5D=auto");
+      expect(calls[2].body).not.toContain("customer_creation");
+      expect(calls[2].body).not.toContain("payment_intent_data");
+    });
+
+    it("deletes the Stripe customer and treats one already gone as deleted", async () => {
+      await deleteCustomer("cus_1");
+      expect(calls[0]).toMatchObject({
+        url: "https://api.stripe.com/v1/customers/cus_1",
+        method: "DELETE",
+      });
+      answer = () =>
+        new Response(
+          JSON.stringify({ error: { code: "resource_missing", message: "No such customer" } }),
+          { status: 404 },
+        );
+      await expect(deleteCustomer("cus_1")).resolves.toBeUndefined();
+      answer = () =>
+        new Response(JSON.stringify({ error: { message: "Stripe is down" } }), { status: 500 });
+      await expect(deleteCustomer("cus_1")).rejects.toThrow("Stripe is down");
+    });
+  });
+});
+
+describe("loading plan prices", () => {
+  const price = (amount: number, interval: string | null) =>
+    new Response(
+      JSON.stringify({
+        unit_amount: amount,
+        currency: "usd",
+        recurring: interval ? { interval } : null,
+      }),
+    );
+  let fail = false;
+  const fetchMock = vi.fn(async (url: string) => {
+    if (fail) return new Response(JSON.stringify({ error: { message: "down" } }), { status: 500 });
+    return url.endsWith("price_m") ? price(29_900, "month") : price(100_000, null);
+  });
+
+  beforeEach(() => {
+    vi.resetModules();
+    fail = false;
+    fetchMock.mockClear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-03T12:00:00Z"));
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test");
+    vi.stubEnv("STRIPE_PRICE_ASSESSMENT", "price_a");
+    vi.stubEnv("STRIPE_PRICE_MONTHLY", "price_m");
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("does not ask Stripe again for a minute after a failure", async () => {
+    const { loadPlanPrices } = await import("./stripe.server");
+    fail = true;
+    expect(await loadPlanPrices()).toBeNull();
+    const after = fetchMock.mock.calls.length;
+    expect(after).toBeGreaterThan(0);
+    expect(await loadPlanPrices()).toBeNull();
+    expect(fetchMock.mock.calls.length).toBe(after);
+    vi.setSystemTime(new Date("2026-10-03T12:01:01Z"));
+    fail = false;
+    expect(await loadPlanPrices()).toMatchObject({ monthly: { amount: 299 } });
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(after);
+  });
+
+  it("keeps serving the last good prices when a later read fails", async () => {
+    const { loadPlanPrices } = await import("./stripe.server");
+    expect(await loadPlanPrices()).toEqual({
+      assessment: { amount: 1000, currency: "usd", interval: null },
+      monthly: { amount: 299, currency: "usd", interval: "month" },
+    });
+    vi.setSystemTime(new Date("2026-10-03T12:11:00Z"));
+    fail = true;
+    expect(await loadPlanPrices()).toMatchObject({ assessment: { amount: 1000 } });
+    const after = fetchMock.mock.calls.length;
+    expect(await loadPlanPrices()).toMatchObject({ assessment: { amount: 1000 } });
+    expect(fetchMock.mock.calls.length).toBe(after);
   });
 });
 

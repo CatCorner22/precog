@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ControlReport } from "@/components/precog/control-report";
-import { getReport } from "@/lib/precog/firm/server";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { getFirm, getReport } from "@/lib/precog/firm/server";
 import type { ReportVersionRow } from "@/lib/precog/firm/reports";
 import type { FrozenReport } from "@/lib/precog/report/stored-model";
 import type { PracticeProfile } from "@/lib/precog/practice-profile";
+import { usePractice } from "@/lib/precog/practice-context";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
 import { localDateKey } from "@/lib/precog/dates";
 
@@ -16,7 +18,7 @@ export const Route = createFileRoute("/report")({
       : {},
   head: () => ({
     meta: [
-      { title: "Control Priorities Report · Precog Pioneer" },
+      { title: "Control Priorities Report · Precog" },
       {
         name: "description",
         content:
@@ -29,7 +31,43 @@ export const Route = createFileRoute("/report")({
 function ReportPage() {
   const { version } = Route.useSearch();
   if (version) return <LockedReport id={version} />;
-  return <ControlReport />;
+  return <LiveReport />;
+}
+
+/**
+ * The current report. The "Prepared for … by …" line names the viewer's firm
+ * only for a firm client (a member belongs to one firm, so a firm client they
+ * can see is their firm's); a signed-out visitor or a solo business makes no
+ * server call and prints no firm.
+ */
+function LiveReport() {
+  // The user object is rebuilt on every render; the id is the stable key, so
+  // the effect (and its getFirm() call) runs on sign-in changes only.
+  const userId = useCurrentUser()?.id ?? null;
+  const { profile, businesses } = usePractice();
+  const businessId = profile.businessId ?? null;
+  const firmClient = Boolean(businesses.find((b) => b.id === businessId)?.firmClient);
+  const [firmName, setFirmName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId || !firmClient) {
+      setFirmName(null);
+      return;
+    }
+    let cancel = false;
+    void getFirm()
+      .then((res) => {
+        if (!cancel) setFirmName(res.firm?.name ?? null);
+      })
+      .catch(() => {
+        if (!cancel) setFirmName(null);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [userId, firmClient]);
+
+  return <ControlReport firmName={firmName} />;
 }
 
 /**
@@ -45,6 +83,7 @@ function LockedReport({ id }: { id: string }) {
         version: ReportVersionRow;
         profile: PracticeProfile;
         frozen: FrozenReport | null;
+        firmName: string | null;
       }
   >({ kind: "loading" });
 
@@ -59,6 +98,7 @@ function LockedReport({ id }: { id: string }) {
             version: res.version,
             profile: res.profile,
             frozen: res.frozen,
+            firmName: res.firmName,
           });
         }
       })
@@ -100,7 +140,7 @@ function LockedReport({ id }: { id: string }) {
   }
   return (
     <ReadOnlyPracticeProvider profile={state.profile}>
-      <ControlReport locked={state.version} frozen={state.frozen} />
+      <ControlReport locked={state.version} frozen={state.frozen} firmName={state.firmName} />
     </ReadOnlyPracticeProvider>
   );
 }

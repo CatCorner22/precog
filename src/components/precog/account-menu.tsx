@@ -1,13 +1,17 @@
+/* eslint-disable react-refresh/only-export-components -- the helpers next to the controls are tested on their own */
 import { useWorkspace } from "@/lib/precog/workspace-context";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Download, History, Trash2 } from "lucide-react";
+import { Bell, BellOff, Download, History, Trash2 } from "lucide-react";
 import {
   deleteAccount,
   exportAccountData,
   exportBusinessHistory,
   listHistoryDownloads,
 } from "@/lib/precog/account-server";
+import { getNotificationSettings, updateNotificationSettings } from "@/lib/precog/firm/server";
+import type { NotificationSettings } from "@/lib/precog/firm/store";
+import { useDigestState, weeklyDigestAfter } from "@/components/precog/digest-state";
 import { signOut } from "@/lib/auth/client";
 import { clearLocalCopies } from "@/lib/precog/local-data";
 import { downloadText } from "@/lib/download";
@@ -166,7 +170,106 @@ function HistoryDownloads({
   );
 }
 
-/** Export and delete controls for the signed-in account. */
+export const DELETE_ACCOUNT_PROMPT =
+  "This deletes your account and everything in it: every business and its history, report versions, snapshots, shared links, your firm workspace and its members' access, reminders, the billing record (Stripe keeps its invoices and tax records) and the QuickBooks link. You cannot undo this. Export data and Download history first if you want a copy. Type DELETE to confirm.";
+
+/** The header's wording for the weekly digest switch. */
+export function digestSwitchLabel(weeklyDigest: boolean): string {
+  return weeklyDigest ? "Weekly digest: on" : "Weekly digest: off";
+}
+
+/**
+ * Flips the weekly digest alone and saves both switches; the saved settings
+ * come back, or null when the save failed and the old ones stand.
+ */
+export async function toggleDigest(
+  settings: NotificationSettings,
+): Promise<NotificationSettings | null> {
+  const next = { ...settings, weeklyDigest: !settings.weeklyDigest };
+  try {
+    await updateNotificationSettings({ data: next });
+    return next;
+  } catch {
+    toast.error("Precog did not save the reminder settings.");
+    return null;
+  }
+}
+
+/** The digest switch as drawn; hidden while this deployment cannot send email. */
+export function DigestSwitch({
+  state,
+  disabled,
+  onToggle,
+}: {
+  state: { settings: NotificationSettings; mailConfigured: boolean } | null;
+  disabled: boolean;
+  onToggle: () => void;
+}) {
+  if (!state || !state.mailConfigured) return null;
+  const on = state.settings.weeklyDigest;
+  const Icon = on ? Bell : BellOff;
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={onToggle}
+      disabled={disabled}
+      title="Once a week, Precog emails what is due on your businesses"
+      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-fg disabled:opacity-50"
+    >
+      <Icon className="size-3.5" aria-hidden />
+      {digestSwitchLabel(on)}
+    </button>
+  );
+}
+
+/**
+ * Loads the switches once and keeps the digest one in step with the one-time
+ * question above the tab strip: an answer there shows here, and a flip here
+ * answers the question (the server stamps the ask on either save).
+ */
+function DigestControl({ disabled }: { disabled: boolean }) {
+  const [state, setState] = useState<{
+    settings: NotificationSettings;
+    mailConfigured: boolean;
+  } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const digest = useDigestState();
+  useEffect(() => {
+    let cancel = false;
+    void getNotificationSettings()
+      .then((res) => {
+        if (!cancel) setState({ settings: res.settings, mailConfigured: res.mailConfigured });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancel = true;
+    };
+  }, []);
+  const shown = state && {
+    ...state,
+    settings: {
+      ...state.settings,
+      weeklyDigest: weeklyDigestAfter(digest.change, state.settings.weeklyDigest),
+    },
+  };
+  async function toggle() {
+    if (!shown) return;
+    setSaving(true);
+    const saved = await toggleDigest(shown.settings);
+    if (saved) {
+      setState({ ...shown, settings: saved });
+      digest.record({ asked: true, weeklyDigest: saved.weeklyDigest });
+    }
+    setSaving(false);
+  }
+  return (
+    <DigestSwitch state={shown} disabled={disabled || saving} onToggle={() => void toggle()} />
+  );
+}
+
+/** Export, digest and delete controls for the signed-in account. */
 export function AccountDataControls() {
   const workspace = useWorkspace();
   const [busy, setBusy] = useState<"export" | "history" | "delete" | null>(null);
@@ -185,9 +288,7 @@ export function AccountDataControls() {
   }
 
   async function deleteAccountAndSignOut() {
-    const typed = window.prompt(
-      "This deletes your account and everything in it: every business and its history, report versions, snapshots, shared links, your firm workspace and its members' access, reminders, the billing record and the QuickBooks link. You cannot undo this. Export data and Download history first if you want a copy. Type DELETE to confirm.",
-    );
+    const typed = window.prompt(DELETE_ACCOUNT_PROMPT);
     if (typed !== "DELETE") return;
     setBusy("delete");
     try {
@@ -207,7 +308,7 @@ export function AccountDataControls() {
   }
 
   return (
-    // On a phone the three controls wrap under one another instead of
+    // On a phone the four controls wrap under one another instead of
     // pushing the header wider than the screen.
     <div className="flex min-w-0 flex-wrap items-center gap-1">
       <button
@@ -224,6 +325,7 @@ export function AccountDataControls() {
         disabled={busy !== null}
         onBusy={(running) => setBusy(running ? "history" : null)}
       />
+      <DigestControl disabled={busy !== null} />
       <button
         type="button"
         onClick={() => void deleteAccountAndSignOut()}

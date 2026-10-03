@@ -13,6 +13,10 @@ import { serverFunctionId } from "./scripts/lib/server-fn-id.mjs";
 const commit = process.env.VERCEL_GIT_COMMIT_SHA?.trim();
 if (commit && !process.env.VITE_RELEASE) process.env.VITE_RELEASE = commit.slice(0, 12);
 
+// Vercel function regions. Null leaves Vercel's default; a string placeholder
+// cannot go here because Vercel refuses an unknown region at deploy.
+const FUNCTION_REGIONS: string[] | null = null; // Neon's region, for example ["iad1"], once the owner confirms it (docs/OPERATIONS.md, Production settings).
+
 /**
  * Finish PGLite bootstrap during dev-server setup (before traffic). Vite awaits
  * async `configureServer` hooks. Production: `src/lib/db` kicks `ensureDbReady`
@@ -141,6 +145,8 @@ export default defineConfig(({ command }) => ({
     strictPort: true,
   },
   resolve: { tsconfigPaths: true },
+  // SUPPORT_EMAIL reaches the client; see src/lib/precog/legal/operator.ts
+  envPrefix: ["VITE_", "SUPPORT_EMAIL"],
   // Dependencies Vite only discovers after the first page load. Left to
   // discovery, it re-bundles them a few seconds into a session and force-reloads
   // every open page, which lands mid-test in CI ("Failed to fetch dynamically
@@ -188,6 +194,18 @@ export default defineConfig(({ command }) => ({
                   "strict-transport-security": "max-age=31536000; includeSubDomains",
                 },
               },
+            },
+            // Function time limits: 60 s for every function, 300 s for the
+            // scheduled job, which runs the purge, the reminder emails and the
+            // QuickBooks re-reads in one invocation. 300 s needs the Vercel Pro
+            // plan (docs/OPERATIONS.md, Function limits). scripts/
+            // check-build-functions.mjs checks the built output carries them.
+            vercel: {
+              functions: {
+                maxDuration: 60,
+                ...(FUNCTION_REGIONS ? { regions: FUNCTION_REGIONS } : {}),
+              },
+              functionRules: { "/api/cron/digest": { maxDuration: 300 } },
             },
           }),
         ]

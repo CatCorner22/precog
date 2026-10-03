@@ -22,10 +22,16 @@ export const getBillingStatus = createServerFn({ method: "GET" })
     };
   });
 
-/** What the checkout buttons charge, read from Stripe; null when billing is not connected. */
-export const getPlanPrices = createServerFn({ method: "GET" })
-  .middleware([authMiddleware])
-  .handler(async () => ({ prices: await loadPlanPrices() }));
+/**
+ * What the checkout buttons charge, read from Stripe; `prices` is null when
+ * billing is not connected or Stripe did not answer. Open to anyone, since
+ * the sign-in page prints the Firm plan's price; Stripe is asked at most
+ * once per cache window (loadPlanPrices).
+ */
+export const getPlanPrices = createServerFn({ method: "GET" }).handler(async () => ({
+  configured: stripeConfigured(),
+  prices: await loadPlanPrices(),
+}));
 
 /** Starts Stripe Checkout for the firm owner; the webhook records the result. */
 export const startCheckout = createServerFn({ method: "POST" })

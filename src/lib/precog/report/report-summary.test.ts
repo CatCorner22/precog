@@ -10,6 +10,8 @@ import {
   decisionLog,
   decisionStatus,
   executiveSummary,
+  REPORT_BASIS,
+  REPORT_BASIS_TITLE,
   REPORT_CAVEATS,
 } from "./report-summary";
 
@@ -150,5 +152,16 @@ describe("executive summary", () => {
 
   it("writes its own caveats instead of the threat screen's demo-priors line", () => {
     expect(REPORT_CAVEATS).not.toMatch(/demo priors/);
+  });
+});
+
+describe("basis and limitations", () => {
+  it("says what the report is not and where its figures come from", () => {
+    expect(REPORT_BASIS_TITLE).toBe("Basis and limitations");
+    expect(REPORT_BASIS).toBe(
+      "This report is not an audit, review or attestation engagement under AICPA standards. Precog did not verify system access, bank records or the duties reported; duties are as the business entered them. Scores are indexes computed from those entries. Scenario figures are assumptions, and case figures describe other businesses.",
+    );
+    expect(REPORT_BASIS).toContain("not an audit");
+    expect(REPORT_BASIS).not.toMatch(/demo priors/);
   });
 });

@@ -9,13 +9,16 @@
  * preview build often carries the production DATABASE_URL).
  *
  * On a production deploy it refuses to continue without DATABASE_URL, a
- * BETTER_AUTH_SECRET of 32 or more characters and an https BETTER_AUTH_URL,
- * or with sign-in turned off, printing one line per problem. It warns about
- * sign-in without its broker client, each optional feature that is only half
- * configured (see .env.example) and when no error tracker is set. Elsewhere,
- * no DATABASE_URL means skip: the PGLite fallback applies the same files at
- * startup (src/lib/db.ts).
+ * BETTER_AUTH_SECRET of 32 or more characters, an https BETTER_AUTH_URL and
+ * the SUPPORT_EMAIL mailbox, with sign-in turned off, or while
+ * src/lib/precog/legal/operator.ts still holds a bracketed placeholder such as
+ * "[STATE]" (the Terms and Privacy pages print those constants), printing one
+ * line per problem. It warns about sign-in without its broker client, each
+ * optional feature that is only half configured (see .env.example) and when
+ * no error tracker is set. Elsewhere, no DATABASE_URL means skip: the PGLite
+ * fallback applies the same files at startup (src/lib/db.ts).
  */
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import pg from "pg";
@@ -27,6 +30,9 @@ const databaseUrl = env("DATABASE_URL");
 const lockTimeoutMs = env("MIGRATION_LOCK_TIMEOUT_MS")
   ? Number(env("MIGRATION_LOCK_TIMEOUT_MS"))
   : 30_000;
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+/** The operator constants the legal pages print, relative to the repository root. */
+const OPERATOR_FILE = "src/lib/precog/legal/operator.ts";
 
 if (onlyOnProduction && !isProduction) {
   console.log("[migrate] not a production deploy — leaving the database unchanged.");
@@ -44,7 +50,7 @@ if (!databaseUrl) {
   process.exit(0);
 }
 
-const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
+const migrationsDir = join(repoRoot, "migrations");
 
 main().catch((err) => {
   console.error("[migrate] failed:", err?.message || err);
@@ -106,6 +112,21 @@ function productionProblems() {
     );
   if (env("VITE_AUTH_ENABLED") === "false")
     problems.push('VITE_AUTH_ENABLED is "false", which turns sign-in off. Remove it and redeploy.');
+  // The footer, the legal pages and the broken-link page print this mailbox.
+  if (!env("SUPPORT_EMAIL"))
+    problems.push(
+      "SUPPORT_EMAIL is not set. Set it to the mailbox that answers support and data requests, and redeploy.",
+    );
+  // The Terms and Privacy pages print these constants; a bracketed value is
+  // the template's placeholder, not the operator. The SUPPORT_EMAIL line is
+  // not a bare literal, so it never matches here (the env check above is its gate).
+  const operatorFile = env("PRECOG_OPERATOR_FILE") ?? join(repoRoot, OPERATOR_FILE);
+  for (const [, name, literal] of readFileSync(operatorFile, "utf8").matchAll(
+    /^export const ([A-Z_]+) = "(\[[A-Z ]+\])";$/gm,
+  ))
+    problems.push(
+      `${name} in ${OPERATOR_FILE} is still the placeholder ${literal}. Enter the real value and redeploy.`,
+    );
   return problems;
 }
 
@@ -132,7 +153,7 @@ function featureWarnings() {
     );
   if (!env("CRON_SECRET"))
     warnings.push(
-      "CRON_SECRET is not set, so the weekly job is refused: no reminder email, no purge of deleted businesses, no QuickBooks refresh.",
+      "CRON_SECRET is not set, so the weekly job is refused: no reminder email, no purge of deleted businesses or share logs, no QuickBooks refresh.",
     );
   // The names src/lib/observability/report.server.ts reads.
   if (!env("SENTRY_DSN") && !env("ERROR_REPORT_URL"))

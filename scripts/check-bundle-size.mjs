@@ -93,6 +93,14 @@
  * of the moved panels. Measured 775.4 KB in 104 chunks, against 800.7 KB
  * after wave 1 and 790.1 KB before Phase 5. Total budget lowered from
  * 805 KB to 780 KB.
+ *
+ * 2026-10-03: commercial batch 1 adds the full Terms and Privacy text and
+ * the operator constants (S1), the report basis block and the "Prepared
+ * for … by …" line (S-report), the digest ask banner, the header switch
+ * and the stop link (S-digest), and the Stripe-sourced price labels and
+ * the sign-in price (S-billing). Measured 781.3 KB in 110 chunks after
+ * wave 1, against 775.4 KB before the batch. Total budget raised from
+ * 780 KB to 790 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -101,7 +109,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 780 * 1024,
+  totalGzipBytes: 790 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

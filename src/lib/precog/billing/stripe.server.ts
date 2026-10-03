@@ -20,7 +20,10 @@ export function stripeWebhookSecret(): string | undefined {
 /**
  * The amounts of the two prices the checkout buttons charge, so the buttons
  * print what the customer pays. Cached for ten minutes; null when Stripe is
- * not configured or does not answer.
+ * not configured or does not answer. When Stripe fails, the last good prices
+ * keep serving while the module holds any, else the failure is cached for a
+ * minute, so a page anyone can load (sign-in) cannot drive a request to
+ * Stripe per visit.
  */
 export async function loadPlanPrices(): Promise<Record<CheckoutPlan, PlanPrice> | null> {
   if (priceCache && priceCache.expiresAt > Date.now()) return priceCache.prices;
@@ -36,7 +39,9 @@ export async function loadPlanPrices(): Promise<Record<CheckoutPlan, PlanPrice> 
     priceCache = { prices, expiresAt: Date.now() + PRICE_CACHE_MS };
     return prices;
   } catch {
-    return null;
+    const stale = priceCache?.prices ?? null;
+    priceCache = { prices: stale, expiresAt: Date.now() + PRICE_ERROR_CACHE_MS };
+    return stale;
   }
 }
 
@@ -44,10 +49,16 @@ export async function loadPlanPrices(): Promise<Record<CheckoutPlan, PlanPrice> 
  * A Checkout Session for the fixed assessment (one payment) or the firm plan
  * (a subscription). The account id rides along so the webhook can attribute
  * the payment without a customer lookup. An account Stripe already knows
- * reuses its customer, so every subscription stays in one billing portal.
- * The idempotency key covers the request and the stored billing state
+ * reuses its customer, so every subscription stays in one billing portal;
+ * a first payment creates one, so a refund of it can be found later. The
+ * idempotency key covers the request and the stored billing state
  * (`billingVersion`, which the webhook moves): a second click or tab before
  * the webhook lands gets the same session back instead of a second charge.
+ *
+ * Stripe Tax prices the sale by the collected address, so the Stripe account
+ * must have Stripe Tax activated and a registration for each state where
+ * Precog collects (docs/OPERATIONS.md). The payment intent's metadata is for
+ * the Stripe dashboard; the webhook attributes a refund by the intent id.
  */
 export async function createCheckoutSession(input: {
   userId: string;
@@ -66,12 +77,17 @@ export async function createCheckoutSession(input: {
     client_reference_id: input.userId,
     // Stripe refuses a request that names both.
     ...(input.customerId
-      ? { customer: input.customerId }
+      ? { customer: input.customerId, customer_update: { address: "auto", name: "auto" } }
       : { customer_email: input.email ?? undefined }),
+    // Stripe refuses customer_creation alongside a customer.
+    ...(input.plan === "assessment" && !input.customerId ? { customer_creation: "always" } : {}),
     metadata: { userId: input.userId, plan: input.plan },
     ...(input.plan === "monthly"
       ? { subscription_data: { metadata: { userId: input.userId } } }
-      : {}),
+      : { payment_intent_data: { metadata: { userId: input.userId, plan: "assessment" } } }),
+    automatic_tax: { enabled: true },
+    billing_address_collection: "required",
+    tax_id_collection: { enabled: true },
     success_url: `${input.origin}/firm?billing=success`,
     cancel_url: `${input.origin}/firm?billing=cancelled`,
     allow_promotion_codes: true,
@@ -102,6 +118,22 @@ export async function createPortalSession(input: {
   return { url: session.url };
 }
 
+/**
+ * Deletes the account's Stripe customer when the account is deleted. Stripe
+ * keeps the invoices, receipts and tax records the law requires. A customer
+ * Stripe no longer has counts as deleted. Needs only the secret key: an
+ * account can hold a customer from before the prices were configured.
+ */
+export async function deleteCustomer(customerId: string): Promise<void> {
+  if (!env("STRIPE_SECRET_KEY")) return;
+  try {
+    await stripeRequest("DELETE", `/customers/${encodeURIComponent(customerId)}`);
+  } catch (error) {
+    if (error instanceof StripeError && error.code === "resource_missing") return;
+    throw error;
+  }
+}
+
 async function loadPrice(id: string): Promise<PlanPrice> {
   const price = await stripeRequest<{
     unit_amount: number | null;
@@ -116,8 +148,18 @@ async function loadPrice(id: string): Promise<PlanPrice> {
   };
 }
 
+/** A refusal from Stripe, with its error code when Stripe gave one. */
+class StripeError extends Error {
+  constructor(
+    message: string,
+    readonly code: string | null,
+  ) {
+    super(message);
+  }
+}
+
 async function stripeRequest<T>(
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "DELETE",
   path: string,
   params?: Record<string, unknown>,
   idempotencyKey?: string,
@@ -135,10 +177,17 @@ async function stripeRequest<T>(
     body: params ? encodeStripeParams(params) : undefined,
     signal: AbortSignal.timeout(10_000),
   });
-  const body = (await res.json()) as T & { error?: { message?: string } };
-  if (!res.ok) throw new Error(body.error?.message ?? `Stripe answered ${res.status}`);
+  const body = (await res.json()) as T & { error?: { message?: string; code?: string } };
+  if (!res.ok) {
+    throw new StripeError(
+      body.error?.message ?? `Stripe answered ${res.status}`,
+      body.error?.code ?? null,
+    );
+  }
   return body;
 }
 
 const PRICE_CACHE_MS = 10 * 60 * 1000;
-let priceCache: { prices: Record<CheckoutPlan, PlanPrice>; expiresAt: number } | null = null;
+/** How long a failed price read is remembered before Stripe is asked again. */
+const PRICE_ERROR_CACHE_MS = 60_000;
+let priceCache: { prices: Record<CheckoutPlan, PlanPrice> | null; expiresAt: number } | null = null;

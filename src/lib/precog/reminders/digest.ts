@@ -1,7 +1,7 @@
 import type { Sql } from "@/lib/db";
 import { reportServerError } from "@/lib/observability/report.server";
 import { normalizeProfile, type PracticeProfile } from "../practice-profile";
-import { loadFirmFor } from "../firm/store";
+import { digestTokenFor, loadFirmFor } from "../firm/store";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
 import { renderDigest, renderOwnerReminder, type RenderedEmail } from "./email";
 
@@ -13,8 +13,9 @@ interface DigestOutcome {
 }
 
 /**
- * The reminder run, in two passes. First, for every account with the digest
- * on: read each live business the account or its firm holds, work out what
+ * The reminder run, in two passes. First, for every account that turned the
+ * digest on (nobody is opted in by default; an account with no settings row
+ * gets nothing): read each live business the account or its firm holds, work out what
  * is due, drop the items already announced for that due date, and send one
  * digest per advisor. Then, apart from who receives a digest, one note per
  * client owner whose address is confirmed and not stopped. What was sent is
@@ -79,8 +80,13 @@ export async function runDigest(
         recipient.email,
         renderDigest({
           firmName: recipient.firmName,
-          clients: clients.map((c) => ({ businessName: c.row.name, items: c.items })),
+          clients: clients.map((c) => ({
+            businessId: c.row.id,
+            businessName: c.row.name,
+            items: c.items,
+          })),
           appUrl: input.appUrl,
+          unsubscribeUrl: `${input.appUrl}/api/digest-email?do=stop&token=${recipient.digestToken}`,
         }),
       );
       for (const client of clients) await logSent(sql, client.row, recipient.email, client.items);
@@ -123,6 +129,8 @@ interface Recipient {
   email: string;
   firmName: string | null;
   firmUserId: string | null;
+  /** What the digest's stop link carries; minted on the first digest. */
+  digestToken: string;
 }
 
 interface BusinessRow {
@@ -153,16 +161,17 @@ const TRUSTED_EMAIL = (alias: string) => `(
 )`;
 
 /**
- * Accounts with the digest on, a trusted address, and at least one live
- * business of their own or of a firm they belong to. The firm is the one the
- * workspace shows (loadFirmFor), so the digest and the workspace always agree.
+ * Accounts that turned the digest on (a missing settings row means off), with
+ * a trusted address and at least one live business of their own or of a firm
+ * they belong to. The firm is the one the workspace shows (loadFirmFor), so
+ * the digest and the workspace always agree.
  */
 async function recipients(sql: Sql): Promise<Recipient[]> {
-  const rows = await sql.query<{ id: string; email: string }>(`
-    select u.id, u.email
+  const rows = await sql.query<{ id: string; email: string; digest_token: string | null }>(`
+    select u.id, u.email, s.digest_token
     from "user" u
     left join notification_settings s on s.user_id = u.id
-    where coalesce(s.weekly_digest, true)
+    where coalesce(s.weekly_digest, false)
       and position('@' in u.email) > 0
       and ${TRUSTED_EMAIL("u")}
       and exists (
@@ -183,6 +192,7 @@ async function recipients(sql: Sql): Promise<Recipient[]> {
       email: row.email,
       firmName: firm?.name ?? null,
       firmUserId: firm?.firmUserId ?? null,
+      digestToken: row.digest_token ?? (await digestTokenFor(sql, row.id)),
     });
   }
   return out;

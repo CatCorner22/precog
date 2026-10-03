@@ -34,6 +34,7 @@ async function assertQuickBooksOpen(sql: Awaited<ReturnType<typeof getSql>>, use
       stripeConfigured: stripeConfigured(),
       subscriptionStatus: account?.subscriptionStatus ?? null,
       assessmentPaidAt: account?.assessmentPaidAt ?? null,
+      assessmentRefundedAt: account?.assessmentRefundedAt ?? null,
     })
   ) {
     throw new RequestError(

@@ -579,7 +579,7 @@ export function IndustryOnboarding() {
           <>
             <CardHeader>
               <Badge variant="accent" className="w-fit">
-                Welcome to Precog Pioneer
+                Welcome to Precog
               </Badge>
               <h2 id="industry-onboarding-title" ref={titleRef} tabIndex={-1} className={titleCls}>
                 Which line of business is this?

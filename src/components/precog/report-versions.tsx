@@ -19,9 +19,10 @@ import { formatDay, localDateKey } from "@/lib/precog/dates";
 import { signOffWithNote } from "./report-versions-actions";
 
 /**
- * Locking, listing and signing off report versions. A version freezes the
- * saved business under a number and the preparer's name; a reviewer of the
- * firm who did not prepare it signs it off; "sent" is stamped once.
+ * Locking, listing and reviewing report versions for issuance. A version
+ * freezes the saved business under a number and the preparer's name; a
+ * reviewer of the firm who did not prepare it reviews it for issuance;
+ * "sent" is stamped once.
  */
 export function ReportVersionsPanel() {
   const { profile, replaceProfile } = usePractice();
@@ -87,9 +88,9 @@ export function ReportVersionsPanel() {
       if (!result) return;
       const { version } = result;
       setVersions((cur) => (cur ?? []).map((v) => (v.id === id ? version : v)));
-      toast.success("Signed off.");
+      toast.success("Reviewed for issuance.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Precog did not record the sign-off.");
+      toast.error(err instanceof Error ? err.message : "Precog did not record the review.");
     } finally {
       setBusy(false);
     }
@@ -136,9 +137,9 @@ export function ReportVersionsPanel() {
         </div>
         <p className="mt-2 text-xs text-neutral-500">
           Locking freezes the business as you have saved it to your account, with your name and
-          today's date. A firm reviewer who did not prepare it signs it off. A one-person firm may
-          issue the file; that line says it is not an independent review. Duty ticks are starting
-          duties, not system access. Precog sets the sent stamp only once.
+          today's date. A firm reviewer who did not prepare it reviews it for issuance. A one-person
+          firm may issue the file; that line says it is not an independent review. Duty ticks are
+          starting duties, not system access. Precog sets the sent stamp only once.
         </p>
         {versions && versions.length > 0 && (
           <ul className="mt-3 divide-y divide-neutral-200">
@@ -177,9 +178,9 @@ export function ReportVersionsPanel() {
                       variant="secondary"
                       onClick={() => void signOff(v.id, v.versionNo)}
                       disabled={busy}
-                      aria-label={`Sign off version ${v.versionNo}`}
+                      aria-label={`Review version ${v.versionNo} for issuance`}
                     >
-                      <PenLine className="size-3.5" /> Sign off
+                      <PenLine className="size-3.5" /> Review for issuance
                     </Button>
                   )}
                   {!v.sentAt && (

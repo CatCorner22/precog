@@ -17,7 +17,7 @@ import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 import { buttonClass } from "@/components/ui/button-variants";
 
-const APP_NAME = "Precog Pioneer — Small Business Risk";
+const APP_NAME = "Precog — Small Business Risk";
 const host = import.meta.env.VITE_PUBLIC_HOSTNAME;
 const ogImage = host
   ? `https://og.grok.me/v1/card.png?host=${encodeURIComponent(host)}&title=${encodeURIComponent(APP_NAME)}`
@@ -32,7 +32,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "Precog Pioneer shows a small-business owner who can move money alone, what one absence would stop, and which fix to make this week, with prosecuted cases behind the findings where the record shows them.",
+          "Precog shows a small-business owner who can move money alone, what one absence would stop, and which fix to make this week, with prosecuted cases behind the findings where the record shows them.",
       },
       ...(ogImage
         ? [

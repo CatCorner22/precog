@@ -674,8 +674,9 @@ export async function loadNotificationSettings(
   const rows = await sql<{ weekly_digest: boolean; owner_reminders: boolean }>`
     select weekly_digest, owner_reminders from notification_settings where user_id = ${userId}
   `;
+  // No row means the account never chose: the digest is off until it does.
   return {
-    weeklyDigest: rows[0]?.weekly_digest ?? true,
+    weeklyDigest: rows[0]?.weekly_digest ?? false,
     ownerReminders: rows[0]?.owner_reminders ?? true,
   };
 }
@@ -685,14 +686,79 @@ export async function saveNotificationSettings(
   userId: string,
   settings: NotificationSettings,
 ): Promise<void> {
+  // Choosing on the firm page counts as having been asked about the digest.
   await sql`
-    insert into notification_settings (user_id, weekly_digest, owner_reminders, updated_at)
-    values (${userId}, ${settings.weeklyDigest}, ${settings.ownerReminders}, now())
+    insert into notification_settings (user_id, weekly_digest, owner_reminders, digest_asked_at, updated_at)
+    values (${userId}, ${settings.weeklyDigest}, ${settings.ownerReminders}, now(), now())
     on conflict (user_id) do update set
       weekly_digest = excluded.weekly_digest,
       owner_reminders = excluded.owner_reminders,
+      digest_asked_at = coalesce(notification_settings.digest_asked_at, now()),
       updated_at = now()
   `;
+}
+
+/**
+ * Whether the account has been asked, once, about the weekly digest. A row
+ * saved before the question existed counts as asked: the account already
+ * chose on the firm page.
+ */
+export async function loadDigestAsk(sql: Sql, userId: string): Promise<{ asked: boolean }> {
+  const rows = await sql<{ one: number }>`
+    select 1 as one from notification_settings where user_id = ${userId}
+  `;
+  return { asked: rows.length > 0 };
+}
+
+/**
+ * The account's answer to the one-time digest question. Only the digest
+ * column is written: owner reminders keep their stored value, or their
+ * default on a new row.
+ */
+export async function answerDigestAsk(
+  sql: Sql,
+  userId: string,
+  weeklyDigest: boolean,
+): Promise<void> {
+  await sql`
+    insert into notification_settings (user_id, weekly_digest, digest_asked_at, updated_at)
+    values (${userId}, ${weeklyDigest}, now(), now())
+    on conflict (user_id) do update set
+      weekly_digest = excluded.weekly_digest,
+      digest_asked_at = now(),
+      updated_at = now()
+  `;
+}
+
+/**
+ * The token the digest's stop link carries for this account, minted on first
+ * use. Whoever holds it can turn the digest off, and nothing else.
+ */
+export async function digestTokenFor(sql: Sql, userId: string): Promise<string> {
+  const rows = await sql<{ digest_token: string | null }>`
+    select digest_token from notification_settings where user_id = ${userId}
+  `;
+  if (rows[0]?.digest_token) return rows[0].digest_token;
+  const token = randomHex(24);
+  const saved = await sql<{ digest_token: string }>`
+    insert into notification_settings (user_id, digest_token, updated_at)
+    values (${userId}, ${token}, now())
+    on conflict (user_id) do update set
+      digest_token = coalesce(notification_settings.digest_token, excluded.digest_token),
+      updated_at = now()
+    returning digest_token
+  `;
+  return saved[0].digest_token;
+}
+
+/** Turns the digest off for the account the token names; false for an unknown token. */
+export async function stopDigestByToken(sql: Sql, token: string): Promise<boolean> {
+  const rows = await sql<{ user_id: string }>`
+    update notification_settings set weekly_digest = false, updated_at = now()
+    where digest_token = ${token}
+    returning user_id
+  `;
+  return rows.length > 0;
 }
 
 function asPlan(value: string): FirmPlan {

@@ -289,8 +289,12 @@ describe("account deletion safeguards", () => {
     await pg.exec(
       `update billing_accounts set subscription_status = 'canceled' where user_id = 'ua'`,
     );
-    await deleteAccountRows(sql, "ua");
+    // The Stripe customer comes back so the server can delete it at Stripe.
+    await expect(deleteAccountRows(sql, "ua")).resolves.toMatchObject({
+      stripeCustomerId: "cus_1",
+    });
     expect(await count('"user"', "where id = $1", ["ua"])).toBe(0);
+    await expect(deleteAccountRows(sql, "ub")).resolves.toMatchObject({ stripeCustomerId: null });
   });
 
   it("refuses while a member holds client businesses they set up for another firm", async () => {

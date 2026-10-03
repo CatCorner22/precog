@@ -11,13 +11,12 @@ import { MAX_BUSINESS_NAME } from "../business-id";
 import { resolveBusinessOwner } from "../business-store";
 import { resolveTemplate } from "../active-template";
 import type { PracticeProfile } from "../practice-profile";
-import { checkPasscodeGuess, hashPasscode, purgeOldPasscodeAttempts } from "./share-attempts";
+import { checkPasscodeGuess, hashPasscode } from "./share-attempts";
 import { redactSharePayload } from "./share-payload";
 import { parseCreateShareInput, type SharedMapPayload } from "./share-schema";
 import {
   insertMapShare,
   listMapShareSummaries,
-  purgeOldShareViews,
   recordShareView,
   revokeShare,
   ShareLimitError,
@@ -100,7 +99,8 @@ export const listMapShares = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    await purgeShareLogs(sql);
+    // View and failed-guess logs past their retention are purged by the
+    // weekly job (routes/api/cron/digest.ts), not on every open of this panel.
     // Every live link, then the newest revoked or expired ones: a live link
     // that dropped off the list could not be revoked from the app.
     return listMapShareSummaries(sql, context.userId);
@@ -200,23 +200,3 @@ type ShareRow = {
 };
 
 const passcodeLimiter = new SlidingWindowLimiter({ limit: 20, windowMs: 60_000 });
-
-/** How often one server instance purges the view and failed-guess logs. */
-const PURGE_INTERVAL_MS = 60 * 60_000;
-let lastPurgeAt = 0;
-
-/**
- * Owner-triggered housekeeping: view and failed-guess logs are kept for a
- * bounded period only. Runs at most once an hour per instance, not on every
- * open of the share panel.
- */
-async function purgeShareLogs(sql: Sql): Promise<void> {
-  if (Date.now() - lastPurgeAt < PURGE_INTERVAL_MS) return;
-  lastPurgeAt = Date.now();
-  await purgeOldShareViews(sql).catch((error) =>
-    console.error("Failed to purge old share views", error),
-  );
-  await purgeOldPasscodeAttempts(sql).catch((error) =>
-    console.error("Failed to purge old passcode attempts", error),
-  );
-}

@@ -1,4 +1,4 @@
-# Precog Pioneer
+# Precog
 
 **Internal controls and residual risk management for small businesses** — segregation-of-duties detection, a library of prosecuted cases showing what each gap has cost real businesses, knowledge continuity maps, scenario modeling, and an AI advisor grounded in your business profile and that case library.
 
@@ -196,13 +196,14 @@ business's own home page.
   line), each recorded as done, exception or skipped. The card statement
   check applies from October 2026; earlier months keep their four results. The log is append-only: a later result is a new row.
 - **Report versions**: a sent report is a locked version with the profile as
-  it was, the preparer, and the reviewer who signed it off.
+  it was, the preparer, and the reviewer who reviewed it for issuance.
 - **Billing**: the fixed assessment and the monthly firm plan through Stripe
   Checkout when Stripe is configured; otherwise the firm records its stage by
   hand.
 - **QuickBooks link** (read-only): reads the connected company's vendors and
   employees and compares them with the people on the duty map.
-- **Reminders**: a weekly email digest to advisors and a note to each client
+- **Reminders**: a weekly email digest to advisors, off until the account
+  turns it on, with a stop link in every digest, and a note to each client
   owner about what is due, sent by the scheduled job; each account can turn
   either off.
 
@@ -263,6 +264,9 @@ typecheck, lint, unit tests, build and bundle budget in that order, and stops
 at the first failure. `AGENTS.project.md` holds the repository rules.
 
 `scripts/README.md` lists every script and the CI job that runs it.
+`docs/OPERATIONS.md` holds the deploy, backup, monitoring and production
+settings; `docs/SECURITY.md` says what Precog does to protect data and who
+processes it; `docs/ACCOUNT_DATA_MODEL.md` describes what an account owns.
 
 ### Environment
 
@@ -284,6 +288,11 @@ or more characters and an https `BETTER_AUTH_URL`, or with
 `VITE_AUTH_ENABLED=false`, and warns in the build log when Google and X
 sign-in lack their client and about each optional feature that is half
 configured.
+Support: the production build also refuses to finish without `SUPPORT_EMAIL`,
+the mailbox shown as the Support link in the footer and on the Privacy and
+Terms pages, and while `src/lib/precog/legal/operator.ts` still holds a
+bracketed placeholder (legal name, address, governing law, the auth broker's
+operator and the xAI data-policy link).
 `npm run db:migrate` applies pending files on demand. The ledger
 (`scripts/migrate-core.mjs`) applies each file once under an advisory lock;
 `migrations/renamed.json` maps renumbered files to their old names so an older
@@ -294,9 +303,12 @@ PGLite applies the same files at startup.
 
 `vercel.json` calls `/api/cron/digest` every Monday at 13:00 UTC with
 `CRON_SECRET` as a bearer token. The run emails the weekly reminders, purges
-businesses deleted more than 30 days ago, and re-reads QuickBooks connections
+businesses deleted more than 30 days ago and share view and failed
+passcode-guess logs past their retention, and re-reads QuickBooks connections
 older than 28 days. Without `CRON_SECRET` every run is refused and none of
-this happens; a production build warns about it.
+this happens; a production build warns about it. The function may run for 300
+seconds; other functions 60 (`vite.config.ts`, checked by `check:functions`
+after each build).
 
 ### Continuous integration
 
@@ -305,8 +317,9 @@ to `main`; the release gate passes only when the other four pass.
 
 - **Typecheck, lint, test, build**: typecheck, lint, `npm test`, formatting,
   the production dependency audit, the build, its bundle budget
-  (`check:bundle`) and its security headers (`check:headers`). Each check runs
-  even when an earlier one fails, so one run reports every problem.
+  (`check:bundle`), its security headers (`check:headers`) and its function
+  time limits (`check:functions`). Each check runs even when an earlier one
+  fails, so one run reports every problem.
 - **Migrations against real Postgres**: applies every migration twice, then
   `test:postgres:migrations` (two simultaneous runners, lock timeout, rollback
   and retry), `test:postgres:quota` (the daily model budget under 64 parallel
@@ -328,6 +341,9 @@ to `main`; the release gate passes only when the other four pass.
 A newer push to a pull request cancels its older run; pushes to `main` never
 cancel each other. Actions are pinned to commits, and `.github/dependabot.yml`
 keeps them and the npm packages current (minor and patch versions only).
+A successful production deploy is tagged `deploy-<utc time>-<12-char sha>` by
+`.github/workflows/tag-deploy.yml`; the suffix is the release id in error
+reports (`docs/OPERATIONS.md`, "Release tags").
 
 ### Pinned dependencies
 

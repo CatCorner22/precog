@@ -5,13 +5,14 @@ run with `npm test`.
 
 ## Deploy
 
-| Script                    | Run by                                             | What it does                                                                                                                                                       |
-| ------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `migrate.mjs`             | `npm run db:migrate`; `npm run build` (production) | Applies pending `migrations/*.sql` to `DATABASE_URL`. With `--only-on-production` it does nothing unless `VERCEL_ENV` is production. Tested in `migrate.test.mjs`. |
-| `migrate-core.mjs`        | `migrate.mjs`, the Postgres migration check        | The ledger: each file once, under an advisory lock, with renamed files moved. Tested in `migrate-core.test.mjs`.                                                   |
-| `check-bundle-size.mjs`   | `npm run check:bundle` (CI `checks`)               | Fails when the built client's JavaScript passes its gzipped budget.                                                                                                |
-| `check-build-headers.mjs` | `npm run check:headers` (CI `checks`)              | Fails when the build's page route lacks a security header from `vite.config.ts`.                                                                                   |
-| `deploy-config.test.mjs`  | `npm test`                                         | `.env.example` names every variable the code reads; every cron in `vercel.json` calls a route that exists.                                                         |
+| Script                      | Run by                                             | What it does                                                                                                                                                       |
+| --------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `migrate.mjs`               | `npm run db:migrate`; `npm run build` (production) | Applies pending `migrations/*.sql` to `DATABASE_URL`. With `--only-on-production` it does nothing unless `VERCEL_ENV` is production. Tested in `migrate.test.mjs`. |
+| `migrate-core.mjs`          | `migrate.mjs`, the Postgres migration check        | The ledger: each file once, under an advisory lock, with renamed files moved. Tested in `migrate-core.test.mjs`.                                                   |
+| `check-bundle-size.mjs`     | `npm run check:bundle` (CI `checks`)               | Fails when the built client's JavaScript passes its gzipped budget.                                                                                                |
+| `check-build-headers.mjs`   | `npm run check:headers` (CI `checks`)              | Fails when the build's page route lacks a security header from `vite.config.ts`.                                                                                   |
+| `check-build-functions.mjs` | `npm run check:functions` (CI `checks`)            | Fails when a built function lacks a numeric `maxDuration` or `/api/cron/digest` is not at 300 s.                                                                   |
+| `deploy-config.test.mjs`    | `npm test`                                         | `.env.example` names every variable the code reads; every cron in `vercel.json` calls a route that exists.                                                         |
 
 ## PostgreSQL checks (CI `migrations` job)
 

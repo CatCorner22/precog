@@ -124,6 +124,8 @@ export interface BusinessSummary {
   healthScore: number | null;
   /** True for a firm colleague's client rather than the account's own business. */
   shared?: boolean;
+  /** True for a firm's client business, which the report names the firm on. */
+  firmClient?: boolean;
 }
 
 export interface MapVersion {

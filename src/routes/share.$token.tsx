@@ -11,7 +11,7 @@ export const Route = createFileRoute("/share/$token")({
   component: SharePage,
   head: () => ({
     meta: [
-      { title: "Shared process map · Precog Pioneer" },
+      { title: "Shared process map · Precog" },
       { name: "robots", content: "noindex, nofollow" },
       {
         name: "description",
@@ -131,7 +131,7 @@ function SharePage() {
             </button>
           )}
           <Link to="/" className="mt-4 inline-block text-sm text-neutral-700 underline">
-            Go to Precog Pioneer
+            Go to Precog
           </Link>
         </div>
       </div>
@@ -353,9 +353,9 @@ function SharePage() {
         </Section>
 
         <footer className="mt-8 border-t border-neutral-300 pt-3 text-xs leading-relaxed text-neutral-500">
-          Shared from Precog Pioneer. Educational internal-control decision support — not actuarial,
-          legal, or forensic advice, and never an accusation against any person. This is a frozen
-          snapshot; the owner's live map may have changed since.
+          Shared from Precog. Educational internal-control decision support — not actuarial, legal,
+          or forensic advice, and never an accusation against any person. This is a frozen snapshot;
+          the owner's live map may have changed since.
         </footer>
       </article>
     </div>

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { withReporting } from "@/lib/observability/with-reporting";
 import { escapeHtml } from "@/lib/precog/reminders/email";
 import { isOwnerConsentToken } from "@/lib/precog/reminders/owner-consent";
+import { SUPPORT_EMAIL } from "@/lib/precog/legal/operator";
 
 /**
  * The links in a client owner's emails: `?do=confirm` agrees to reminders,
@@ -81,6 +82,7 @@ function parse(url: string): { token: string; action: "confirm" | "stop" } | nul
 function gone(): Response {
   return page(404, "This link no longer works", [
     "The address may have changed since Precog sent the email. Ask the advisor who set up the reminders.",
+    `If you still get this page, write to ${SUPPORT_EMAIL}.`,
   ]);
 }
 

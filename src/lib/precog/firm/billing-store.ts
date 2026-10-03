@@ -10,6 +10,12 @@ export interface BillingAccount {
   subscriptionId: string | null;
   subscriptionStatus: string | null;
   assessmentPaidAt: string | null;
+  /** The payment intent behind the assessment payment; a refund or dispute names it. */
+  assessmentPaymentIntentId: string | null;
+  /** Set when Stripe refunded the assessment, or a dispute of it was lost; cleared by a new payment. */
+  assessmentRefundedAt: string | null;
+  /** Set while a dispute of the assessment is open; cleared when it is won or a new payment lands. */
+  assessmentDisputedAt: string | null;
   currentPeriodEnd: string | null;
   updatedAt: string;
 }
@@ -23,18 +29,53 @@ export const PAID_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
  * QuickBooks and the rest of the firm tools.
  * Stripe unconfigured: open, so the owner is not locked out of their own firm.
  * past_due: closed. An active or trialing subscription, or a paid assessment
- * with no subscription, is open.
+ * (not refunded) with no subscription, is open. A dispute under way does not
+ * close the tools; a lost dispute counts as a refund.
  */
 export function commercialToolsOpen(input: {
   stripeConfigured: boolean;
   subscriptionStatus: string | null;
   assessmentPaidAt: string | null;
+  assessmentRefundedAt: string | null;
 }): boolean {
   if (!input.stripeConfigured) return true;
   if (input.subscriptionStatus === "past_due") return false;
   if (input.subscriptionStatus && PAID_SUBSCRIPTION_STATUSES.has(input.subscriptionStatus))
     return true;
-  return Boolean(input.assessmentPaidAt);
+  return assessmentPaid(input);
+}
+
+/** True while the assessment is paid and not refunded. */
+export function assessmentPaid(
+  account: { assessmentPaidAt: string | null; assessmentRefundedAt: string | null } | null,
+): boolean {
+  return Boolean(account?.assessmentPaidAt) && !account?.assessmentRefundedAt;
+}
+
+/** The word the firm page prints for a Stripe subscription status. */
+export function subscriptionStatusLabel(status: string | null): string {
+  switch (status) {
+    case null:
+      return "None";
+    case "active":
+      return "Active";
+    case "trialing":
+      return "Trial";
+    case "past_due":
+      return "Payment overdue";
+    case "incomplete":
+      return "Payment not finished";
+    case "incomplete_expired":
+      return "Checkout expired";
+    case "canceled":
+      return "Cancelled";
+    case "unpaid":
+      return "Unpaid";
+    case "paused":
+      return "Paused";
+    default:
+      return status;
+  }
 }
 
 export async function loadBillingAccount(sql: Sql, userId: string): Promise<BillingAccount | null> {
@@ -43,10 +84,14 @@ export async function loadBillingAccount(sql: Sql, userId: string): Promise<Bill
     subscription_id: string | null;
     subscription_status: string | null;
     assessment_paid_at: string | null;
+    assessment_payment_intent: string | null;
+    assessment_refunded_at: string | null;
+    assessment_disputed_at: string | null;
     current_period_end: string | null;
     updated_at: string;
   }>`
     select stripe_customer_id, subscription_id, subscription_status, assessment_paid_at,
+      assessment_payment_intent, assessment_refunded_at, assessment_disputed_at,
       current_period_end, updated_at
     from billing_accounts where user_id = ${userId}
   `;
@@ -57,32 +102,120 @@ export async function loadBillingAccount(sql: Sql, userId: string): Promise<Bill
     subscriptionId: row.subscription_id,
     subscriptionStatus: row.subscription_status,
     assessmentPaidAt: toIsoTimestampOrNull(row.assessment_paid_at),
+    assessmentPaymentIntentId: row.assessment_payment_intent,
+    assessmentRefundedAt: toIsoTimestampOrNull(row.assessment_refunded_at),
+    assessmentDisputedAt: toIsoTimestampOrNull(row.assessment_disputed_at),
     currentPeriodEnd: toIsoTimestampOrNull(row.current_period_end),
     updatedAt: toIsoTimestamp(row.updated_at),
   };
 }
 
+/**
+ * Records a paid assessment. A redelivery (the same payment intent) keeps
+ * the first stamp; a new intent after a refund or lost dispute is a new
+ * payment, so it stamps the event time and clears the refund and dispute
+ * marks. An event without a creation time stamps now.
+ */
 export async function recordAssessmentPayment(
   sql: Sql,
-  userId: string,
-  stripeCustomerId: string | null,
+  input: {
+    userId: string;
+    stripeCustomerId: string | null;
+    paymentIntentId: string | null;
+    paidAt: string | null;
+  },
 ): Promise<void> {
   await sql`
-    insert into billing_accounts (user_id, stripe_customer_id, assessment_paid_at, updated_at)
-    values (${userId}, ${stripeCustomerId}, now(), now())
+    insert into billing_accounts
+      (user_id, stripe_customer_id, assessment_paid_at, assessment_payment_intent, updated_at)
+    values (
+      ${input.userId}, ${input.stripeCustomerId}, coalesce(${input.paidAt}::timestamptz, now()),
+      ${input.paymentIntentId}, now()
+    )
     on conflict (user_id) do update set
       stripe_customer_id = coalesce(excluded.stripe_customer_id, billing_accounts.stripe_customer_id),
-      assessment_paid_at = coalesce(billing_accounts.assessment_paid_at, now()),
+      assessment_paid_at = case
+        when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
+          then coalesce(excluded.assessment_paid_at, now())
+        else coalesce(billing_accounts.assessment_paid_at, excluded.assessment_paid_at, now())
+      end,
+      assessment_refunded_at = case
+        when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
+          then null
+        else billing_accounts.assessment_refunded_at
+      end,
+      assessment_disputed_at = case
+        when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
+          then null
+        else billing_accounts.assessment_disputed_at
+      end,
+      assessment_payment_intent = coalesce(excluded.assessment_payment_intent, billing_accounts.assessment_payment_intent),
       updated_at = now()
   `;
+}
+
+/** The account whose assessment payment a payment intent belongs to, or null. */
+export async function userForAssessmentIntent(
+  sql: Sql,
+  paymentIntentId: string,
+): Promise<string | null> {
+  const rows = await sql<{ user_id: string }>`
+    select user_id from billing_accounts where assessment_payment_intent = ${paymentIntentId}
+  `;
+  return rows[0]?.user_id ?? null;
+}
+
+/** Marks the assessment refunded, which closes the paid tools until a new payment. */
+export async function recordAssessmentRefund(
+  sql: Sql,
+  userId: string,
+  at: string | null,
+): Promise<void> {
+  await sql`
+    update billing_accounts
+    set assessment_refunded_at = coalesce(${at}::timestamptz, now()), updated_at = now()
+    where user_id = ${userId}
+  `;
+}
+
+/**
+ * Records a dispute of the assessment: open marks it disputed, won clears
+ * the mark, lost counts as a refund.
+ */
+export async function recordAssessmentDispute(
+  sql: Sql,
+  userId: string,
+  status: "open" | "won" | "lost",
+  at: string | null,
+): Promise<void> {
+  if (status === "open") {
+    await sql`
+      update billing_accounts
+      set assessment_disputed_at = coalesce(${at}::timestamptz, now()), updated_at = now()
+      where user_id = ${userId}
+    `;
+  } else if (status === "won") {
+    await sql`
+      update billing_accounts set assessment_disputed_at = null, updated_at = now()
+      where user_id = ${userId}
+    `;
+  } else {
+    await sql`
+      update billing_accounts
+      set assessment_disputed_at = null,
+        assessment_refunded_at = coalesce(${at}::timestamptz, now()),
+        updated_at = now()
+      where user_id = ${userId}
+    `;
+  }
 }
 
 /**
  * Why a new Checkout for `plan` would double-charge the account, or null
  * when it may start: the Firm plan is already running, or the assessment is
- * already paid. Reads the row the webhook writes, so it cannot see a payment
- * the webhook has not delivered yet; the Checkout idempotency key covers that
- * gap.
+ * already paid and not refunded. Reads the row the webhook writes, so it
+ * cannot see a payment the webhook has not delivered yet; the Checkout
+ * idempotency key covers that gap.
  */
 export function checkoutRefusal(account: BillingAccount | null, plan: string): string | null {
   if (
@@ -92,7 +225,7 @@ export function checkoutRefusal(account: BillingAccount | null, plan: string): s
   ) {
     return "Your firm plan is already active. Use Manage billing to change it.";
   }
-  if (plan === "assessment" && account?.assessmentPaidAt) {
+  if (plan === "assessment" && assessmentPaid(account)) {
     return "Your firm has already paid for the assessment.";
   }
   return null;

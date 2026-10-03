@@ -40,6 +40,16 @@ describe("the home page address", () => {
     expect(redirectOf("")).toBeNull();
   });
 
+  it("keeps the business a digest link names, and drops one too long to be an id", () => {
+    expect(home({ tab: "monthly", business: "biz_abc123" })).toEqual({
+      tab: "monthly",
+      business: "biz_abc123",
+    });
+    expect(home({ business: "x".repeat(65) })).toEqual({});
+    expect(home({ business: "" })).toEqual({});
+    expect(home({ business: 42 })).toEqual({});
+  });
+
   it("opens the place an older tab id became", () => {
     expect(home({ tab: "journal" })).toEqual({ tab: "monthly", item: "decisions" });
     expect(home({ tab: "coso" })).toEqual({ tab: "scores", item: "coverage" });

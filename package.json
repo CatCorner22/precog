@@ -35,6 +35,7 @@
     "perf:first-load": "node scripts/perf-first-load.mjs",
     "bench": "node scripts/bench-register.mjs",
     "check:headers": "node scripts/check-build-headers.mjs",
+    "check:functions": "node scripts/check-build-functions.mjs",
     "check:migrations": "node scripts/check-migrations-unchanged.mjs",
     "update:server-fn-ids": "node scripts/update-server-fn-ids.mjs",
     "verify": "npm run format:check && npm run typecheck && npm run lint && npm test && npm run build && npm run check:bundle",

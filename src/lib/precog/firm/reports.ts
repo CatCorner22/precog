@@ -8,8 +8,8 @@ import { RequestError } from "@/lib/request-errors";
  * Locked report versions. Locking freezes the business as the account holds
  * it (the saved row, not whatever the browser has unsaved) under the next
  * version number, with the preparer's name. A reviewer of the same firm, who
- * is not the preparer, signs it off. Nothing on a version changes afterwards
- * except the sent stamp.
+ * is not the preparer, reviews it for issuance. Nothing on a version changes
+ * afterwards except the sent stamp.
  */
 export interface ReportVersionRow {
   id: string;
@@ -243,12 +243,12 @@ export async function signOffReportVersion(
   const current = await loadReportVersion(sql, input.ownerUserId, input.id);
   if (!current) throw new ReportVersionError(404, "That report version does not exist");
   if (current.version.reviewedAt) {
-    throw new ReportVersionError(409, "Someone has already signed off this version");
+    throw new ReportVersionError(409, "Someone has already reviewed this version for issuance");
   }
   const self = current.version.preparedBy === input.reviewedBy;
   if (self) {
     if (!input.issueWithoutIndependentReview) {
-      throw new ReportVersionError(409, "The preparer cannot sign off their own report");
+      throw new ReportVersionError(409, "The preparer cannot review their own report for issuance");
     }
     const firms = await sql<{ firm_user_id: string | null }>`
       select firm_user_id from businesses
@@ -264,7 +264,7 @@ export async function signOffReportVersion(
       if (others.length) {
         throw new ReportVersionError(
           409,
-          "A different person at the firm must sign off this report",
+          "A different person at the firm must review this report for issuance",
         );
       }
     }
@@ -276,7 +276,7 @@ export async function signOffReportVersion(
     where user_id = ${input.ownerUserId} and id = ${input.id} and reviewed_at is null
   `;
   const updated = await loadReportVersion(sql, input.ownerUserId, input.id);
-  if (!updated) throw new Error("Unable to sign off the report");
+  if (!updated) throw new Error("Unable to record the review");
   return updated.version;
 }
 
@@ -302,6 +302,24 @@ export async function markReportVersionSent(
   `;
 }
 
+/**
+ * The name of the firm a business is a client of, for the report's
+ * "Prepared for … by …" line; null for a solo business, even when its owner
+ * holds a `firms` row of their own (the join is on `firm_user_id` alone).
+ */
+export async function reportFirmName(
+  sql: Sql,
+  ownerUserId: string,
+  businessId: string,
+): Promise<string | null> {
+  const rows = await sql<{ name: string }>`
+    select f.name from businesses b
+    join firms f on f.user_id = b.firm_user_id
+    where b.user_id = ${ownerUserId} and b.id = ${businessId}
+  `;
+  return rows[0]?.name ?? null;
+}
+
 /** One line of provenance for a locked version, printed in the report header. */
 export function versionProvenance(v: ReportVersionRow): string {
   const prepared = `Prepared by ${v.preparedByName ?? "a firm member"} on ${formatDay(v.preparedAt)}`;
@@ -309,6 +327,6 @@ export function versionProvenance(v: ReportVersionRow): string {
     ? " · Not yet reviewed"
     : v.reviewedBy && v.preparedBy === v.reviewedBy
       ? ` · Issued by ${v.reviewedByName ?? "the preparer"} on ${formatDay(v.reviewedAt)}. Not an independent review`
-      : ` · Reviewed by ${v.reviewedByName ?? "a reviewer"} on ${formatDay(v.reviewedAt)}`;
+      : ` · Reviewed for issuance by ${v.reviewedByName ?? "a reviewer"} on ${formatDay(v.reviewedAt)}`;
   return `Version ${v.versionNo} · ${prepared}${reviewed}`;
 }

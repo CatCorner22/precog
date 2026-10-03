@@ -61,9 +61,10 @@ export const exportBusinessHistory = createServerFn({ method: "GET" })
 
 /**
  * Deletes the account and everything it owns, then revokes its QuickBooks
- * connections at Intuit. Refused (409) while the firm plan is billing or the
- * account holds another firm's clients (see deleteAccountRows). The client
- * signs out and clears its local copies afterwards; nothing here can be undone.
+ * connections at Intuit and deletes its Stripe customer. Refused (409) while
+ * the firm plan is billing or the account holds another firm's clients (see
+ * deleteAccountRows). The client signs out and clears its local copies
+ * afterwards; nothing here can be undone.
  */
 export const deleteAccount = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -75,8 +76,23 @@ export const deleteAccount = createServerFn({ method: "POST" })
     const sql = await getSql();
     const deleted = await deleteAccountRows(sql, context.userId);
     await revokeQuickBooksTokens(deleted.quickBooksRefreshTokens);
+    await deleteStripeCustomer(deleted.stripeCustomerId);
     return { ok: true as const };
   });
+
+/** Best effort, as above: Stripe keeps the invoices and tax records either way. */
+async function deleteStripeCustomer(customerId: string | null): Promise<void> {
+  if (!customerId) return;
+  try {
+    const { deleteCustomer } = await import("./billing/stripe.server");
+    await deleteCustomer(customerId);
+  } catch (error) {
+    console.error(
+      "[account] Stripe customer not deleted:",
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
 
 /** Best effort: the rows are already gone, so a failed revoke is logged, never thrown. */
 async function revokeQuickBooksTokens(sealedTokens: string[]): Promise<void> {

@@ -1,61 +1,52 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { PILOT_OFFER, type FirmPlan } from "@/lib/precog/firm/pricing";
+import {
+  PILOT_OFFER,
+  planAmounts,
+  type CheckoutPlan,
+  type FirmPlan,
+  type PlanPrice,
+} from "@/lib/precog/firm/pricing";
 import type { BillingAccount } from "@/lib/precog/firm/billing-store";
-import { ACTIVE_SUBSCRIPTION_STATUSES } from "@/lib/precog/firm/billing-store";
-import { getPlanPrices, openBillingPortal, startCheckout } from "@/lib/precog/billing/server";
-import { formatPlanPrice, type CheckoutPlan, type PlanPrice } from "@/lib/precog/billing/stripe";
-import { formatUsd } from "@/lib/utils";
+import {
+  ACTIVE_SUBSCRIPTION_STATUSES,
+  assessmentPaid,
+  subscriptionStatusLabel,
+} from "@/lib/precog/firm/billing-store";
+import { openBillingPortal, startCheckout } from "@/lib/precog/billing/server";
 
 /**
  * The offer and how to buy it. With Stripe connected the buttons open
- * Checkout, print the amounts of the Stripe prices they charge, and the plan
- * follows the webhook; without it the owner records the stage by hand.
+ * Checkout, print the amounts of the Stripe prices they charge (`prices`,
+ * read by the page), and the plan follows the webhook; without it the owner
+ * records the stage by hand.
  */
 export function FirmBilling({
   plan,
   billing,
   billingConfigured,
+  prices,
   canManage,
   onMarkPlan,
 }: {
   plan: FirmPlan;
   billing: BillingAccount | null;
   billingConfigured: boolean;
+  /** Stripe's amounts; null while unknown, so no figure prints that Checkout would not charge. */
+  prices: Record<CheckoutPlan, PlanPrice> | null;
   canManage: boolean;
   onMarkPlan: (plan: FirmPlan) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
-  const [prices, setPrices] = useState<Record<CheckoutPlan, PlanPrice> | null>(null);
   const active = billing?.subscriptionStatus
     ? ACTIVE_SUBSCRIPTION_STATUSES.has(billing.subscriptionStatus)
     : false;
-
-  useEffect(() => {
-    if (!billingConfigured) return;
-    let cancel = false;
-    void getPlanPrices()
-      .then((res) => {
-        if (!cancel) setPrices(res.prices);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancel = true;
-    };
-  }, [billingConfigured]);
+  const paid = assessmentPaid(billing);
 
   // With Stripe connected, only Stripe's own amounts are printed; the offer's
   // figures describe the manual (invoiced) arrangement.
-  const amounts = billingConfigured
-    ? prices && {
-        assessment: formatPlanPrice(prices.assessment),
-        monthly: formatPlanPrice(prices.monthly),
-      }
-    : {
-        assessment: formatUsd(PILOT_OFFER.assessmentFeeUsd),
-        monthly: `${formatUsd(PILOT_OFFER.monthlyFeeUsd)} a month`,
-      };
+  const amounts = planAmounts(billingConfigured, prices);
 
   async function buy(which: CheckoutPlan) {
     setBusy(true);
@@ -99,17 +90,11 @@ export function FirmBilling({
           <>
             <div>
               <dt className="text-xs text-muted">Assessment paid</dt>
-              <dd className="mt-1 font-medium">
-                {billing?.assessmentPaidAt ? billing.assessmentPaidAt.slice(0, 10) : "Not yet"}
-              </dd>
+              <dd className="mt-1 font-medium">{assessmentCell(billing)}</dd>
             </div>
             <div>
               <dt className="text-xs text-muted">Subscription</dt>
-              <dd className="mt-1 font-medium">
-                {billing?.subscriptionStatus
-                  ? `${billing.subscriptionStatus}${billing.currentPeriodEnd ? ` · renews ${billing.currentPeriodEnd.slice(0, 10)}` : ""}`
-                  : "None"}
-              </dd>
+              <dd className="mt-1 font-medium">{subscriptionCell(billing)}</dd>
             </div>
           </>
         )}
@@ -118,12 +103,12 @@ export function FirmBilling({
         <div className="mt-3 flex flex-wrap gap-2">
           {billingConfigured ? (
             <>
-              {!billing?.assessmentPaidAt && !active && (
+              {!paid && !active && (
                 <p className="w-full text-xs text-subtle">
                   Start with the assessment, or go straight to the {PILOT_OFFER.monthlyLabel}.
                 </p>
               )}
-              {!billing?.assessmentPaidAt && (
+              {!paid && (
                 <Button size="sm" onClick={() => void buy("assessment")} disabled={busy}>
                   Pay for the assessment{amounts ? ` (${amounts.assessment})` : ""}
                 </Button>
@@ -144,6 +129,12 @@ export function FirmBilling({
                   Manage billing
                 </Button>
               )}
+              <p className="w-full text-xs text-subtle">
+                The Firm plan renews until you cancel it in Manage billing; cancelling keeps access
+                to the end of the paid period, and a started month is not refunded. The Assessment
+                is not refunded once a report version is locked. Prices are before sales tax, which
+                Checkout adds for your billing address. See the Terms.
+              </p>
             </>
           ) : (
             <>
@@ -166,4 +157,26 @@ export function FirmBilling({
       )}
     </section>
   );
+}
+
+/** "Refunded 2026-09-20", "Disputed", the day it was paid, or "Not yet". */
+function assessmentCell(billing: BillingAccount | null): string {
+  if (billing?.assessmentRefundedAt) return `Refunded ${billing.assessmentRefundedAt.slice(0, 10)}`;
+  if (billing?.assessmentDisputedAt) return "Disputed";
+  return billing?.assessmentPaidAt ? billing.assessmentPaidAt.slice(0, 10) : "Not yet";
+}
+
+/**
+ * The status in plain words, with the renewal date while the subscription
+ * runs (an overdue one still renews once the card pays) or the end date once
+ * cancelled.
+ */
+function subscriptionCell(billing: BillingAccount | null): string {
+  const status = billing?.subscriptionStatus ?? null;
+  const label = subscriptionStatusLabel(status);
+  const day = billing?.currentPeriodEnd?.slice(0, 10);
+  if (!day) return label;
+  if (status && ACTIVE_SUBSCRIPTION_STATUSES.has(status)) return `${label} · renews ${day}`;
+  if (status === "canceled") return `${label} · ends ${day}`;
+  return label;
 }

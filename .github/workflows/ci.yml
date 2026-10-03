@@ -59,6 +59,8 @@ jobs:
         run: npm run check:bundle
       - if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: npm run check:headers
+      - if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: npm run check:functions
       - name: Signed control evidence lifecycle on compiled HTTP handlers
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: npm run test:evidence:http

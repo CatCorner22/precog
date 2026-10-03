@@ -8,12 +8,17 @@ import {
   signInErrorMessage,
 } from "@/lib/auth/client";
 import { emailAndPasswordEnabled, PASSWORD_MIN_LENGTH } from "@/lib/auth/email-password";
-import { PILOT_OFFER } from "@/lib/precog/firm/pricing";
-import { formatUsd } from "@/lib/utils";
+import { PILOT_OFFER, planAmounts, type PlanAmounts } from "@/lib/precog/firm/pricing";
+import { getPlanPrices } from "@/lib/precog/billing/server";
 import { Button } from "@/components/ui/button";
 import { LegalFooter } from "@/components/precog/legal-footer";
 
 export const Route = createFileRoute("/login")({
+  // The Firm plan's price as Stripe charges it, read before the page renders
+  // so the first paint (and the served HTML) already carries the figure.
+  // Null when the price service fails, so the page never prints a figure
+  // Checkout would not charge.
+  loader: () => getPlanPrices().catch(() => null),
   component: Login,
 });
 
@@ -22,15 +27,21 @@ const inputCls =
 const labelCls = "block text-xs font-medium text-muted";
 
 function Login() {
+  // With Stripe connected only its own amount prints; without Stripe the
+  // offer's own figure prints; while the price is unknown, no figure.
+  const prices = Route.useLoaderData();
+  const amounts: PlanAmounts | null = prices ? planAmounts(prices.configured, prices.prices) : null;
+
   return (
     <main className="matrix-grid flex min-h-[calc(100dvh-var(--grok-banner-h,0px))] items-center justify-center p-6">
       <div className="w-full max-w-sm rounded-xl border border-border bg-surface p-6 shadow-sm">
-        <p className="text-xs tracking-[0.2em] text-primary uppercase">Precog Pioneer</p>
+        <p className="text-xs tracking-[0.2em] text-primary uppercase">Precog</p>
         <h1 className="mt-2 text-xl font-semibold tracking-tight">Sign in</h1>
         <p className="mt-1 text-sm text-muted">
           An account keeps your businesses, snapshots, and shared map links on every device you sign
           in from. Signing in is free. Advisors who look after several businesses can add the{" "}
-          {PILOT_OFFER.monthlyLabel.toLowerCase()} ({formatUsd(PILOT_OFFER.monthlyFeeUsd)} a month).
+          {PILOT_OFFER.monthlyLabel.toLowerCase()}
+          {amounts ? ` (${amounts.monthly})` : ""}.
         </p>
         {authEnabled ? (
           <ProviderButtons />
