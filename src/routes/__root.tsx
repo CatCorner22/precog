@@ -18,7 +18,11 @@ import appCss from "../styles.css?url";
 import { buttonClass } from "@/components/ui/button-variants";
 
 const APP_NAME = "Precog — Small Business Risk";
+const APP_DESCRIPTION =
+  "Precog shows a small-business owner who can move money alone, what one absence would stop, and which fix to make this week, with prosecuted cases behind the findings where the record shows them.";
 const host = import.meta.env.VITE_PUBLIC_HOSTNAME;
+// The share card: the PNG card first (X, Facebook and Slack ignore an SVG
+// og:image), then Precog's own SVG, which is also the landing page's picture.
 const ogImage = host
   ? `https://og.grok.me/v1/card.png?host=${encodeURIComponent(host)}&title=${encodeURIComponent(APP_NAME)}`
   : undefined;
@@ -29,21 +33,23 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
-      {
-        name: "description",
-        content:
-          "Precog shows a small-business owner who can move money alone, what one absence would stop, and which fix to make this week, with prosecuted cases behind the findings where the record shows them.",
-      },
+      { name: "description", content: APP_DESCRIPTION },
+      { property: "og:title", content: APP_NAME },
+      { property: "og:description", content: APP_DESCRIPTION },
+      { name: "twitter:card", content: "summary_large_image" },
+      ...(host ? [{ property: "og:url", content: `https://${host}/` }] : []),
       ...(ogImage
         ? [
             { property: "og:image", content: ogImage },
             { property: "og:image:width", content: "1200" },
             { property: "og:image:height", content: "630" },
+            { property: "og:image", content: `https://${host}/og.svg` },
           ]
         : []),
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      ...(host ? [{ rel: "canonical", href: `https://${host}/` }] : []),
       // Inline icon so the browser stops requesting a /favicon.ico that does not exist.
       {
         rel: "icon",
