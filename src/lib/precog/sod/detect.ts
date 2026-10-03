@@ -510,7 +510,8 @@ const UNHELD_WATCH: readonly EntitlementId[] = [
   "approve_payroll",
 ];
 
-const SEVERITY_RANK: Record<FindingSeverity, number> = {
+/** Sort order for findings: critical first, then high, medium and family. Shared by the report and the local brief. */
+export const SEVERITY_RANK: Record<FindingSeverity, number> = {
   critical: 0,
   high: 1,
   medium: 2,
