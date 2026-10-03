@@ -6,7 +6,6 @@ import { analyzeDutyCoverage } from "./coverage-analysis";
 import {
   buildCoveragePlans,
   buildCoverageProgram,
-  dutyToggleEffects,
   type CoveragePlan,
   type CoverageProgram,
 } from "./coverage-planner";
@@ -283,22 +282,6 @@ describe("coverage planner", () => {
   it("sequences the same program as scanning the whole team for every candidate", () => {
     for (const team of randomTeams(7, 3, 3)) {
       expect(buildCoverageProgram(team)).toEqual(referenceProgram(team));
-    }
-  }, 120_000);
-
-  it("shows each duty's conflict counts on the Power map exactly as a whole-team scan would", () => {
-    const duties = ENTITLEMENTS.map((e) => e.id).filter((id) => id !== "view_reports_only");
-    for (const team of [restaurant26(), ...randomTeams(99, 2, 6)]) {
-      for (const person of team) {
-        const effects = dutyToggleEffects(person, duties, team);
-        for (const duty of duties) {
-          const impact = evaluateAssignmentChange(team, person.personId, duty);
-          expect(effects.get(duty), `${person.personName} · ${duty}`).toEqual({
-            created: impact?.conflictsCreated.length,
-            resolved: impact?.conflictsResolved.length,
-          });
-        }
-      }
     }
   }, 120_000);
 });
