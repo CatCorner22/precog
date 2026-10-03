@@ -112,8 +112,8 @@ interface WeeklyActionsInput {
 }
 
 /**
- * How the weekly plan ranks each kind of action: higher comes first, and the
- * plan shows the top five. Top residual risk, the best lever and hot
+ * How the weekly actions rank each kind of action: higher comes first, and
+ * the list shows the top five. Top residual risk, the best lever and hot
  * processes rank by their own scores (see those sources).
  */
 const PRIORITY = {
@@ -245,7 +245,7 @@ interface WeeklyContext {
   decisions: readonly DecisionEntry[];
   /** Steps already open in the Journal, keyed by continuityStepKey. */
   committed: Map<string, ContinuityCommitment>;
-  /** Starter scenarios count only once the owner confirms them, as on the Dashboard and the residual register. */
+  /** Starter scenarios count only once the owner confirms them, as on the residual register. */
   scope: { confirmedScenarioIds: Set<string> };
   continuity: CoverageReport;
   /**
@@ -317,7 +317,7 @@ function bankRecActions({ tpl, input }: WeeklyContext): WeeklyAction[] {
   // An owner who already reconciles, but also takes or records the money,
   // is not told to start: the missing piece is a reader outside the books.
   const activePeople = tpl.people.filter((p) => p.active);
-  const ownerId = soleOwnerId(activePeople);
+  const ownerId = soleOwnerId(activePeople, tpl.id);
   const ownerReconciles = activePeople.some(
     (p) => p.id === ownerId && (p.entitlements ?? []).includes("bank_reconcile"),
   );

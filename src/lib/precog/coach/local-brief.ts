@@ -15,7 +15,12 @@ import {
   starterScenarioLabel,
   starterScenariosLeftOut,
 } from "../scoring/scope";
-import { detectSodConflicts, sodDetectionOptions, type DetectedConflict } from "../sod/detect";
+import {
+  detectSodConflicts,
+  SEVERITY_RANK,
+  sodDetectionOptions,
+  type DetectedConflict,
+} from "../sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "../sod/open-findings";
 import type { IndustryTemplate } from "../templates/types";
 import { closingSteps } from "../controls/dual-release-wording";
@@ -129,7 +134,7 @@ export function openConflictsByPerson(
     byPerson.set(c.personId, entry);
   }
   const worst = (p: PersonConflicts) =>
-    Math.min(...p.conflicts.map((c) => SEVERITY_ORDER[c.severity]));
+    Math.min(...p.conflicts.map((c) => SEVERITY_RANK[c.severity]));
   const top = (p: PersonConflicts) => Math.max(...p.conflicts.map((c) => c.score));
   return [...byPerson.values()].sort(
     (a, b) => worst(a) - worst(b) || top(b) - top(a) || a.personName.localeCompare(b.personName),
@@ -209,13 +214,6 @@ function isAbsenceQuestion(question: string): boolean {
 const INSURANCE_LEVER = /deductible|policy limit|claims load|premium/i;
 /** Wording about the terms of a crime policy, which only means something once one is entered. */
 const POLICY_TERMS = /deductible|policy limit|claims load/i;
-
-const SEVERITY_ORDER: Record<DetectedConflict["severity"], number> = {
-  critical: 0,
-  high: 1,
-  medium: 2,
-  family: 3,
-};
 
 /**
  * Severity in the words the Start here badges use ("Critical", "High",

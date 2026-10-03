@@ -1,6 +1,7 @@
 import { isCalendarDate, dateAfter, localDateKey } from "./dates";
 import { formatUsd } from "../utils";
 import { clamp } from "./number";
+import { readText } from "./profile-entries";
 
 export type ValueEvidenceKind = "time" | "recovery" | "control" | "exception";
 
@@ -54,13 +55,13 @@ export function normalizeValueEvidence(value: unknown): ValueEvidence[] {
   for (const candidate of value.slice(0, MAX_VALUE_EVIDENCE_ITEMS)) {
     if (!candidate || typeof candidate !== "object") continue;
     const item = candidate as Record<string, unknown>;
-    const id = text(item.id, 80);
-    const description = text(item.description, 240);
+    const id = readText(item.id, 80);
+    const description = readText(item.description, 240);
     const kind = item.kind as ValueEvidenceKind;
     if (!id || ids.has(id) || !description || !KINDS.has(kind)) continue;
     ids.add(id);
     const numeric = Number(item.amount);
-    const source = text(item.source, 240);
+    const source = readText(item.source, 240);
     result.push({
       id,
       kind,
@@ -165,10 +166,6 @@ function observationWindow(asOf: Date) {
     cutoffDate: dateAfter(asOf, -OBSERVATION_WINDOW_DAYS),
     asOfDate: localDateKey(asOf),
   };
-}
-
-function text(value: unknown, maximum: number) {
-  return typeof value === "string" ? value.trim().slice(0, maximum) : "";
 }
 
 function validDate(value: unknown) {

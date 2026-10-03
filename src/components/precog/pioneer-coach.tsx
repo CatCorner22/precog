@@ -12,12 +12,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Brain, Compass, GitBranch, Loader2, Sparkles } from "lucide-react";
 import { tabLabel, type NavFn } from "@/lib/precog/navigation";
 import { localDateKey } from "@/lib/precog/dates";
+import { journalEntry, type CoachDecision } from "@/lib/precog/coach/journal-entry";
 import {
   BUSINESS_CHANGED_MESSAGE,
   CoachResultView,
   coachErrorMessage,
-  journalEntry,
-  type CoachDecision,
   type CoachResult,
 } from "./pioneer-coach-parts";
 

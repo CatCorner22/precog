@@ -1,8 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState, type ReactNode } from "react";
 import type { PioneerCoachResult } from "@/lib/precog/coach/pioneer-answer";
-import type { DecisionInput } from "@/lib/precog/profile-actions";
-import { dateAfter } from "@/lib/precog/dates";
+import type { CoachDecision } from "@/lib/precog/coach/journal-entry";
 import { tabLabel, type NavFn } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
 import { count } from "@/lib/precog/text";
@@ -13,7 +12,7 @@ import { BookOpen, Check, ChevronDown, Copy, TriangleAlert } from "lucide-react"
 
 /** A finished brief as the coach screen keeps it: the server's success shape. */
 export type CoachResult = PioneerCoachResult;
-export type CoachDecision = CoachResult["decisions"][number];
+export type { CoachDecision };
 
 /** The message when the business changes while a brief is being built for the old one. */
 export const BUSINESS_CHANGED_MESSAGE =
@@ -259,24 +258,6 @@ export function coachErrorMessage(e: unknown): string {
   const refusal = typeof status === "number" && status >= 400 && status < 500;
   if (refusal && e instanceof Error && e.message.trim()) return e.message;
   return "Pioneer could not build the brief. Try again in a moment.";
-}
-
-/** The Journal entry for one recommended move, linked so the next brief recognises it. */
-export function journalEntry(d: CoachDecision, now: Date): DecisionInput {
-  return {
-    subject: d.action.slice(0, 120),
-    kind: "remediate",
-    note: d.rationale,
-    reviewBy: dateAfter(now, d.horizonDays),
-    ...(d.link
-      ? {
-          linkedTab: d.link.tab,
-          linkedId: d.link.id,
-          linkedStep: d.link.step,
-          linkedPersonId: d.link.personId,
-        }
-      : {}),
-  };
 }
 
 function renderInline(text: string): ReactNode[] {

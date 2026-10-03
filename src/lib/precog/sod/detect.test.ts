@@ -8,6 +8,7 @@ import {
   buildAssignments,
   detectAssignments,
   detectSodConflicts,
+  SEVERITY_RANK,
   type SodDetectionOptions,
 } from "./detect";
 import type { RoleAssignment } from "./assignments";
@@ -1012,5 +1013,13 @@ describe("the rulebook's case references", () => {
   it("describes no tuition case the library does not hold", () => {
     const rule = CONFLICT_RULES.find((r) => r.id === "rule-cash-admin")!;
     expect(rule.why).not.toMatch(/tuition/);
+  });
+});
+
+describe("SEVERITY_RANK", () => {
+  it("orders critical before high, high before medium and medium before family", () => {
+    expect(SEVERITY_RANK.critical).toBeLessThan(SEVERITY_RANK.high);
+    expect(SEVERITY_RANK.high).toBeLessThan(SEVERITY_RANK.medium);
+    expect(SEVERITY_RANK.medium).toBeLessThan(SEVERITY_RANK.family);
   });
 });

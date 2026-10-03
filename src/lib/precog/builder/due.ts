@@ -2,7 +2,7 @@
  * The control calendar's items: evidence reviews, decision re-reviews and a
  * snapshot nudge, as dated items. Evidence days come from evidenceStatus and
  * decisions from decisionsDue, so the calendar agrees with the evidence list
- * and the dashboard. The email digest has its own collector
+ * and Home. The email digest has its own collector
  * (reminders/due-items.ts).
  */
 import { decisionsDue } from "../decisions/follow-through";
@@ -60,7 +60,7 @@ export function collectDueItems(
     }
   }
 
-  // Open decisions only, the same set the dashboard counts: a closed
+  // Open decisions only, the same set Home counts: a closed
   // decision keeps its reviewBy but has nothing left to re-review.
   const today = localDateKey(now);
   const { overdue, dueSoon } = decisionsDue(profile.decisions, today, DECISION_HORIZON_DAYS);

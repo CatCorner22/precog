@@ -15,6 +15,7 @@ import { getIndustryTemplate } from "./templates";
 import { resolveTemplate } from "./active-template";
 import {
   DEFAULT_RISK_VARIABLES,
+  mergeStaffIntoVariables,
   VARIABLE_CATALOG,
   type RiskVariableState,
 } from "./scoring/dynamic-variables";
@@ -38,6 +39,7 @@ import { browserStorage, readLocal, writeLocal, type StorageLike } from "./local
 import { uid } from "./text";
 import { boundedNumber } from "./number";
 import {
+  asRecord,
   healthPointEntries,
   isRecord,
   knowledgeEntries,
@@ -48,7 +50,7 @@ import {
   relationEntries,
   savedBlockEntries,
 } from "./profile-entries";
-import { DEFAULT_BUSINESS_ID } from "./business-id";
+import { DEFAULT_BUSINESS_ID, MAX_BUSINESS_NAME } from "./business-id";
 import { ACTIVE_PROFILE_KEY, LEGACY_PROFILE_KEY, PORTFOLIO_KEY } from "./storage-keys";
 import { stripProcedureLinks } from "./procedures/coverage-link";
 import { normalizePlaces, normalizeProcedures } from "./procedures/normalize";
@@ -103,7 +105,7 @@ export interface PracticeProfile {
   monthlyReviews?: ReviewRecord[];
   /** Read-only user and vendor export compared with the duty map. */
   accessReconciliation?: AccessReconciliation;
-  /** Compact books-vs-map drift for home and the weekly plan (full detail stays on Firm). */
+  /** Compact books-vs-map drift for Home's "Do these first" list and the control report (full detail stays on Firm). */
   integrationDriftSummary?: IntegrationDriftSummary;
   /** Software platforms and physical places procedures are done in. */
   places?: Place[];
@@ -333,7 +335,7 @@ export function defaultProfile(industry: IndustryId = "dental"): PracticeProfile
     practiceName: tpl.businessName,
     industry,
     staff,
-    riskVariables: withRiskFlags(DEFAULT_RISK_VARIABLES, staff),
+    riskVariables: mergeStaffIntoVariables(DEFAULT_RISK_VARIABLES, staff),
     dualRelease,
     decisions: [],
     onboardingComplete: true,
@@ -363,7 +365,7 @@ export function normalizeProfile(
   input: Partial<PracticeProfile>,
   options: { onboardingCompleteFallback?: boolean; today?: string } = {},
 ): PracticeProfile {
-  const parsed = record(input) as Partial<PracticeProfile>;
+  const parsed = asRecord(input) as Partial<PracticeProfile>;
   const industry = isIndustryId(parsed.industry) ? parsed.industry : "dental";
   const base = defaultProfile(industry);
   const staff = normalizeStaff(parsed.staff, base.staff);
@@ -393,10 +395,10 @@ export function normalizeProfile(
     industry,
     practiceName:
       typeof parsed.practiceName === "string"
-        ? parsed.practiceName.trim().slice(0, 80) || base.practiceName
+        ? parsed.practiceName.trim().slice(0, MAX_BUSINESS_NAME) || base.practiceName
         : base.practiceName,
     staff,
-    riskVariables: withRiskFlags(
+    riskVariables: mergeStaffIntoVariables(
       normalizeRiskVariables(parsed.riskVariables, base.riskVariables),
       staff,
     ),
@@ -451,7 +453,7 @@ function withStaffFromDuties(p: PracticeProfile): PracticeProfile {
     independentBankRec: derived.independentBankRec,
     bankRecSource: "derived",
   };
-  return { ...p, staff, riskVariables: withRiskFlags(p.riskVariables, staff) };
+  return { ...p, staff, riskVariables: mergeStaffIntoVariables(p.riskVariables, staff) };
 }
 
 /**
@@ -491,22 +493,6 @@ export function readStoredProfile(raw: string | null): {
   } catch (error) {
     return { profile: setup(), unreadable: error ?? new Error("The normaliser failed.") };
   }
-}
-
-/**
- * The risk variables with their copy of the two control answers taken from
- * the staff figures, which hold them. Every write of the staff figures goes
- * through here, so the two copies cannot disagree.
- */
-export function withRiskFlags(
-  riskVariables: RiskVariableState,
-  staff: Pick<StaffComposition, "dualControlPayments" | "independentBankRec">,
-): RiskVariableState {
-  return {
-    ...riskVariables,
-    hasDualControl: staff.dualControlPayments,
-    hasIndependentBankRec: staff.independentBankRec,
-  };
 }
 
 /**
@@ -587,7 +573,7 @@ function normalizeLeaverAccessChecks(value: unknown): LeaverAccessCheck[] {
 
 /** Each risk variable is bounded by its catalog definition, or falls back to the default. */
 export function normalizeRiskVariables(value: unknown, base: RiskVariableState): RiskVariableState {
-  const input = record(value);
+  const input = asRecord(value);
   const normalized = { ...base } as unknown as Record<string, unknown>;
   for (const definition of VARIABLE_CATALOG) {
     const key = definition.id as keyof RiskVariableState;
@@ -610,7 +596,7 @@ export function normalizeRiskVariables(value: unknown, base: RiskVariableState):
 
 /** Stored staff figures are untrusted input: each field is typed and bounded, or falls back. */
 function normalizeStaff(value: unknown, base: StaffComposition): StaffComposition {
-  const input = record(value);
+  const input = asRecord(value);
   return {
     teamSize: Math.round(
       boundedNumber(input.teamSize, { min: 1, max: 500, fallback: base.teamSize }),
@@ -703,10 +689,6 @@ function normalizeDisposition(value: unknown): DecisionDisposition | undefined {
     ...(validBy ? { by: validBy } : {}),
     at: value.at.slice(0, 40),
   };
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return isRecord(value) ? value : {};
 }
 
 // ── Ids ────────────────────────────────────────────────────────────────────

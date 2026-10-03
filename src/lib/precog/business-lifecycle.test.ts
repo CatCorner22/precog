@@ -11,6 +11,7 @@ import {
   processesToEdit,
   replacesSampleTeam,
   sampleSetupProfile,
+  teamSource,
   unfinishedBusinessToKeep,
 } from "./business-lifecycle";
 import { getIndustryTemplate } from "./templates";
@@ -35,6 +36,16 @@ const ownTeam: Person[] = [
     entitlements: ["bank_reconcile"],
   },
 ];
+
+describe("where a business's people came from", () => {
+  it("is the sample until the owner enters a team, even one they then empty", () => {
+    expect(teamSource({})).toBe("sample");
+    expect(teamSource({ customPeople: null })).toBe("sample");
+    expect(teamSource({ customPeople: [] })).toBe("own");
+    expect(teamSource({ customPeople: ownTeam })).toBe("own");
+    expect(teamSource({ customPeople: getIndustryTemplate("dental").people })).toBe("own");
+  });
+});
 
 describe("the first edit to an owner's sample process map", () => {
   it("carries no sample owner ids into the owner's saved map", () => {

@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import { teamSource } from "@/lib/precog/team-source";
 import { usePresentation, useTabName } from "@/lib/precog/presentation";
 import { TeamLink } from "@/components/precog/team-link";
 import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Settings2, ShieldCheck } from "lucide-react";
 import { joinWithAnd } from "@/lib/precog/text";
-import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
+import { DEFAULT_BUSINESS_ID, MAX_BUSINESS_NAME } from "@/lib/precog/business-id";
 
 /**
  * Business settings editor — feeds staff into residual scores, scenarios, and
@@ -47,7 +48,7 @@ export function PracticeSetup({
   } = usePractice();
   const template = useTemplate();
   const s = profile.staff;
-  const ownTeam = Boolean(profile.customPeople);
+  const ownTeam = teamSource(profile) === "own";
   /** Keyed to the business it was made for, so switching businesses never carries a pending change across. */
   const businessKey = `${profile.businessId ?? DEFAULT_BUSINESS_ID}:${profile.industry}`;
   const [pendingChoice, setPendingChoice] = useState<{
@@ -337,7 +338,7 @@ export function BusinessNameField({
       <span className="text-muted">Business name</span>
       <input
         value={draft}
-        maxLength={80}
+        maxLength={MAX_BUSINESS_NAME}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"

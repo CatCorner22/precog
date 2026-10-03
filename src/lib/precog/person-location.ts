@@ -63,6 +63,6 @@ export function worksAt(places: readonly string[] | undefined, place: string | n
 }
 
 /** "Keyholder · Oakridge Mall and Riverside": a job title with where the person works, when that is known. */
-export function withPlaces(role: string, places: readonly string[] | undefined): string {
+export function roleWithPlaces(role: string, places: readonly string[] | undefined): string {
   return places && places.length > 0 ? `${role} · ${joinWithAnd(places)}` : role;
 }

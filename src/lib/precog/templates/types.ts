@@ -15,6 +15,13 @@ export interface IndustryTemplate {
   id: IndustryId;
   businessName: string;
   people: Person[];
+  /**
+   * Set by resolveTemplate when `people` are the owner's own rather than the
+   * sample's. Absent on the samples themselves and on a template built by
+   * hand, where isOwnBusiness falls back to comparing `people` with the
+   * sample's array.
+   */
+  ownPeople?: boolean;
   /** Maps `Person.role` strings to SoD entitlements for conflict detection. */
   roleTemplates: Record<string, EntitlementId[]>;
   knowledge: KnowledgeItem[];

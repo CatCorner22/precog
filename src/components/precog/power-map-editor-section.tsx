@@ -1,6 +1,6 @@
 import { ResponsibilityMatrix } from "./power-map-matrix";
 import { FAMILY_META } from "@/lib/precog/sod/duty-families";
-import { withPlaces } from "@/lib/precog/person-location";
+import { roleWithPlaces } from "@/lib/precog/person-location";
 import { Background, Controls, MiniMap, ReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -147,7 +147,8 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
               >
                 {assignments.map((person) => (
                   <option key={person.personId} value={person.personId}>
-                    {person.personName} · {withPlaces(person.role, placesOf.get(person.personId))}
+                    {person.personName} ·{" "}
+                    {roleWithPlaces(person.role, placesOf.get(person.personId))}
                   </option>
                 ))}
               </select>

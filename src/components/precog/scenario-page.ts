@@ -10,8 +10,7 @@ import { citingCaseStats, isOwnSector, type CaseStudy } from "@/lib/precog/evide
 import { casesBehindScenario } from "@/lib/precog/evidence/scenario-cases";
 import { dateAfter } from "@/lib/precog/dates";
 import { count } from "@/lib/precog/text";
-import { assumedAnnualFrequency } from "@/lib/precog/scoring/dynamic-variables";
-import { formatPct, formatUsd, formatUsdDelta } from "@/lib/utils";
+import { formatUsd, formatUsdDelta } from "@/lib/utils";
 
 export interface ScenarioCases {
   /** Up to three cases to show: cases that cite a linked rule first, the owner's sector first within each group. */
@@ -143,14 +142,6 @@ export function whatIfApplies(
   opts: { ownBusiness: boolean },
 ): boolean {
   return whatIfDiffers(saved, applyWhatIf(saved, whatIf, opts));
-}
-
-/** How the annual cost-of-risk figure is built, with the assumed yearly chance named. */
-export function costOfRiskHint(likelihoodMultiplier: number, noPolicy: boolean): string {
-  const pct = formatPct(assumedAnnualFrequency(likelihoodMultiplier), 1);
-  return noPolicy
-    ? `retained loss × assumed ${pct} chance a year`
-    : `premium + retained loss × assumed ${pct} chance a year`;
 }
 
 /**

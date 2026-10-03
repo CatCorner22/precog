@@ -95,8 +95,13 @@ export function ownsBusiness(person: OwnerCandidate, marked: boolean): boolean {
  * themselves. A line of business with no owner (a nonprofit belongs to no
  * one) has none, whatever the marks or titles say: this is where that rule is
  * read, so a team that reaches the engine without passing setup still gets it.
+ * Every caller passes the line of business for that reason; undefined is only
+ * a profile that has none yet, which is read as a business with an owner.
  */
-export function soleOwnerId(people: readonly OwnerCandidate[], industry?: string): string | null {
+export function soleOwnerId(
+  people: readonly OwnerCandidate[],
+  industry: string | undefined,
+): string | null {
   if (!industryHasOwner(industry)) return null;
   const marked = ownersMarked(people);
   const owners = people.filter((p) => ownsBusiness(p, marked));
@@ -106,7 +111,7 @@ export function soleOwnerId(people: readonly OwnerCandidate[], industry?: string
 /** `soleOwnerId` over a team of role assignments. */
 export function teamOwnerId(
   team: readonly { personId: string; role: string; owner?: boolean }[],
-  industry?: string,
+  industry: string | undefined,
 ): string | null {
   return soleOwnerId(
     team.map((a) => ({ id: a.personId, role: a.role, owner: a.owner })),

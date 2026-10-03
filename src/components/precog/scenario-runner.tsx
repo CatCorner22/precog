@@ -23,7 +23,7 @@ export type ScenarioView = "single" | "compare" | "variables" | "cascades";
  * the owner's settings and insurance, and what else a change moves.
  *
  * Staffing tried on this page is a what-if held here, not in the business
- * profile, so dragging a slider never changes the Dashboard or any other
+ * profile, so dragging a slider never changes Home or any other
  * screen; "Apply to my business" saves it. Settings and insurance are the
  * owner's own policy terms and save as they are edited.
  */

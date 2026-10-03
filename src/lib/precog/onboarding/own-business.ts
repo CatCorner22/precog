@@ -7,6 +7,7 @@
 
 import { defaultDualReleasePolicy, mitigatedSodRuleIds } from "../controls/dual-release";
 import { resolveTemplate } from "../active-template";
+import { MAX_BUSINESS_NAME } from "../business-id";
 import { deriveStaffFromTeam, independentReconciliationFromTeam } from "../sod/derive-staff";
 import type { PracticeProfile } from "../practice-profile";
 import type { Person } from "../types";
@@ -33,7 +34,8 @@ export function ownBusinessProfile(
   input: { practiceName: string; people: Person[] },
 ): PracticeProfile {
   // A blank name stays neutral; the sample business's name is not this business's.
-  const practiceName = input.practiceName.trim().slice(0, 80) || OWN_BUSINESS_FALLBACK_NAME;
+  const practiceName =
+    input.practiceName.trim().slice(0, MAX_BUSINESS_NAME) || OWN_BUSINESS_FALLBACK_NAME;
   const ownTemplate = resolveTemplate({ ...base, customPeople: input.people, customRelations: [] });
   // The dual-release approver roles are read off this team, not the sample's,
   // and no sample exception comes along.

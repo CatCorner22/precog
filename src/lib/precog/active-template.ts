@@ -124,6 +124,9 @@ export function resolveTemplate(source: TemplateSource): IndustryTemplate {
   const inPlace = source.controlsInPlace ?? controlsInPlace(source.decisions, source.industry);
   return {
     ...resolved,
+    // The sample's own array handed back as customPeople is still the sample
+    // team, so it carries no flag; an emptied team ([]) is the owner's.
+    ...(peopleOverrides && peopleOverrides !== base.people ? { ownPeople: true as const } : {}),
     controls: peopleOverrides
       ? ownControls(base.controls, resolved, confirmed, inPlace)
       : base.controls,

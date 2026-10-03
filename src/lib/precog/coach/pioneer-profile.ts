@@ -1,3 +1,5 @@
+import { MAX_BUSINESS_NAME } from "../business-id";
+import { serverUtcDay } from "../dates";
 import { isIndustryId, type IndustryId } from "../industry";
 import { resolveTemplate } from "../active-template";
 import { mergeDualReleasePolicy, type DualReleasePolicy } from "../controls/dual-release";
@@ -12,7 +14,7 @@ import {
   type PracticeProfile,
 } from "../practice-profile";
 import type { ContinuityStep } from "../decisions/follow-through";
-import type { RiskVariableState } from "../scoring/dynamic-variables";
+import { mergeStaffIntoVariables, type RiskVariableState } from "../scoring/dynamic-variables";
 import type {
   KnowledgeItem,
   KnowledgeRelation,
@@ -117,7 +119,7 @@ function sanitizeProcedureLink(value: unknown): ProcedureLinkInput | null {
  */
 export function pioneerProfileFrom(
   input: PioneerProfileInput,
-  today = new Date().toISOString().slice(0, 10),
+  today = serverUtcDay(),
 ): PracticeProfile {
   const industry: IndustryId = isIndustryId(input.industry) ? input.industry : "general";
   const base = defaultProfile(industry);
@@ -133,12 +135,11 @@ export function pioneerProfileFrom(
     input.dualRelease,
     staff,
   );
-  const riskVariables: RiskVariableState = {
-    ...normalizeRiskVariables(input.riskVariables, base.riskVariables),
-    hasDualControl: staff.dualControlPayments,
-    hasIndependentBankRec: staff.independentBankRec,
-  };
-  const practiceName = (input.practiceName ?? "").trim().slice(0, 80);
+  const riskVariables: RiskVariableState = mergeStaffIntoVariables(
+    normalizeRiskVariables(input.riskVariables, base.riskVariables),
+    staff,
+  );
+  const practiceName = (input.practiceName ?? "").trim().slice(0, MAX_BUSINESS_NAME);
   const decisions = Array.isArray(input.decisions)
     ? input.decisions
         .slice(0, PIONEER_LIST_CAPS.decisions)

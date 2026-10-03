@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
+import type { IndustryId } from "../industry";
 import { getIndustryTemplate } from "../templates";
-import { evaluateAssignmentChange } from "./change-impact";
+import { evaluateAssignmentChange } from "@/test/change-impact";
+import { nonprofitLeaderTeam } from "@/test/nonprofit-leader-team";
 import { ENTITLEMENTS, type EntitlementId } from "./conflict-rules";
 import { analyzeDutyCoverage } from "./coverage-analysis";
 import {
   buildCoveragePlans,
   buildCoverageProgram,
-  dutyToggleEffects,
   type CoveragePlan,
   type CoverageProgram,
 } from "./coverage-planner";
@@ -108,9 +109,12 @@ const restaurant26 = (): RoleAssignment[] =>
  * candidate runs two whole-team conflict scans through
  * evaluateAssignmentChange. The planner must give the same answers.
  */
-function referencePlans(assignments: RoleAssignment[]): CoveragePlan[] {
+function referencePlans(assignments: RoleAssignment[], industry: IndustryId): CoveragePlan[] {
   const coverage = analyzeDutyCoverage(assignments);
-  const owner = soleOwnerId(assignments.map((a) => ({ id: a.personId, role: a.role })));
+  const owner = soleOwnerId(
+    assignments.map((a) => ({ id: a.personId, role: a.role })),
+    industry,
+  );
   const entry = (id: string) => ENTITLEMENTS.find((e) => e.id === id);
   // Backups come from someone holding a weight-4-or-5 duty in the duty's own
   // process, or the sole owner.
@@ -122,7 +126,7 @@ function referencePlans(assignments: RoleAssignment[]): CoveragePlan[] {
         (entry(held)?.processIds ?? []).some((p) => (entry(duty)?.processIds ?? []).includes(p)),
     );
   const conflicted = new Set(
-    detectAssignments({ assignments })
+    detectAssignments({ assignments, industry })
       .conflicts.filter((c) => !c.ownerHeld)
       .map((c) => c.personId),
   );
@@ -132,7 +136,12 @@ function referencePlans(assignments: RoleAssignment[]): CoveragePlan[] {
       .filter((person) => inChain(person, duty.entitlementId))
       .filter((person) => person.personId === owner || !conflicted.has(person.personId))
       .map((person) => {
-        const impact = evaluateAssignmentChange(assignments, person.personId, duty.entitlementId);
+        const impact = evaluateAssignmentChange(
+          assignments,
+          person.personId,
+          duty.entitlementId,
+          industry,
+        );
         if (!impact || impact.conflictsCreated.length > 0) return undefined;
         return {
           id: `${duty.entitlementId}:${person.personId}`,
@@ -159,13 +168,13 @@ function referencePlans(assignments: RoleAssignment[]): CoveragePlan[] {
   );
 }
 
-function referenceProgram(assignments: RoleAssignment[]): CoverageProgram {
+function referenceProgram(assignments: RoleAssignment[], industry: IndustryId): CoverageProgram {
   const startingScore = analyzeDutyCoverage(assignments).resilienceScore;
   let current = assignments;
   const steps: CoveragePlan[] = [];
   const assignmentsPerDuty = new Map<EntitlementId, number>();
   for (let index = 0; index < 25; index++) {
-    const next = referencePlans(current).filter(
+    const next = referencePlans(current, industry).filter(
       (plan) => (assignmentsPerDuty.get(plan.entitlement) ?? 0) < 2,
     )[0];
     if (!next) break;
@@ -212,8 +221,10 @@ describe("coverage planner", () => {
     // Pinned from the whole-team reference scan under the current rulebook
     // (refund, void and journal-entry rules; check signing read as release),
     // with keep-few duties such as user access left out of stand-in cover.
-    expect(buildCoverageProgram(restaurant26())).toEqual(referenceProgram(restaurant26()));
-    const program = buildCoverageProgram(restaurant26());
+    expect(buildCoverageProgram(restaurant26(), "restaurant")).toEqual(
+      referenceProgram(restaurant26(), "restaurant"),
+    );
+    const program = buildCoverageProgram(restaurant26(), "restaurant");
     expect(program.steps.map((s) => `${s.id}:${s.continuityGain}`)).toEqual([
       "prepare_deposit:own-13:3",
     ]);
@@ -253,8 +264,10 @@ describe("coverage planner", () => {
   }, 120_000);
 
   it("offers a 26-person restaurant the same three backups per weak duty as the whole-team scan", () => {
-    expect(buildCoveragePlans(restaurant26())).toEqual(referencePlans(restaurant26()));
-    const plans = buildCoveragePlans(restaurant26());
+    expect(buildCoveragePlans(restaurant26(), "restaurant")).toEqual(
+      referencePlans(restaurant26(), "restaurant"),
+    );
+    const plans = buildCoveragePlans(restaurant26(), "restaurant");
     expect(plans.map((p) => `${p.id}:${p.continuityGain}:${p.currentWorkload}`)).toEqual([
       "prepare_deposit:own-13:3:1",
       "prepare_deposit:own-14:3:1",
@@ -263,7 +276,7 @@ describe("coverage planner", () => {
   }, 120_000);
 
   it("offers the same conflict-free backups as scanning the whole team, on every sample team and random teams", () => {
-    const teams = [
+    const teams: [RoleAssignment[], IndustryId][] = [
       ...(
         [
           "dental",
@@ -274,33 +287,35 @@ describe("coverage planner", () => {
           "nonprofit",
           "general",
         ] as const
-      ).map((id) => buildAssignments(getIndustryTemplate(id))),
-      ...randomTeams(20260923, 12, 5),
+      ).map((id): [RoleAssignment[], IndustryId] => [
+        buildAssignments(getIndustryTemplate(id)),
+        id,
+      ]),
+      ...randomTeams(20260923, 12, 5).map((team): [RoleAssignment[], IndustryId] => [
+        team,
+        "general",
+      ]),
     ];
-    for (const team of teams) expect(buildCoveragePlans(team)).toEqual(referencePlans(team));
+    for (const [team, industry] of teams) {
+      expect(buildCoveragePlans(team, industry)).toEqual(referencePlans(team, industry));
+    }
   }, 120_000);
 
   it("sequences the same program as scanning the whole team for every candidate", () => {
     for (const team of randomTeams(7, 3, 3)) {
-      expect(buildCoverageProgram(team)).toEqual(referenceProgram(team));
+      expect(buildCoverageProgram(team, "general")).toEqual(referenceProgram(team, "general"));
     }
   }, 120_000);
 
-  it("shows each duty's conflict counts on the Power map exactly as a whole-team scan would", () => {
-    const duties = ENTITLEMENTS.map((e) => e.id).filter((id) => id !== "view_reports_only");
-    for (const team of [restaurant26(), ...randomTeams(99, 2, 6)]) {
-      for (const person of team) {
-        const effects = dutyToggleEffects(person, duties, team);
-        for (const duty of duties) {
-          const impact = evaluateAssignmentChange(team, person.personId, duty);
-          expect(effects.get(duty), `${person.personName} · ${duty}`).toEqual({
-            created: impact?.conflictsCreated.length,
-            resolved: impact?.conflictsResolved.length,
-          });
-        }
-      }
-    }
-  }, 120_000);
+  it("treats a nonprofit's unmarked leader as an employee, the same as the whole-team scan", () => {
+    const team = nonprofitLeaderTeam();
+    expect(buildCoveragePlans(team, "nonprofit")).toEqual(referencePlans(team, "nonprofit"));
+    expect(buildCoverageProgram(team, "nonprofit")).toEqual(referenceProgram(team, "nonprofit"));
+    // The same people in a line of business with an owner: the leader's title
+    // makes them the owner, who may stand in anywhere.
+    expect(buildCoveragePlans(team, "general")).toEqual(referencePlans(team, "general"));
+    expect(buildCoverageProgram(team, "general")).toEqual(referenceProgram(team, "general"));
+  });
 });
 
 describe("backup suggestions a CPA would accept", () => {
@@ -333,20 +348,20 @@ describe("backup suggestions a CPA would accept", () => {
   ];
 
   it("never hands a cashier, stock associate or sales associate a duty outside their process", () => {
-    const plans = buildCoveragePlans(retail);
+    const plans = buildCoveragePlans(retail, "retail");
     for (const plan of plans) {
       if (plan.toPersonId === "c") {
         expect(["prepare_deposit"]).toContain(plan.entitlement);
       }
       expect(["s", "a"]).not.toContain(plan.toPersonId);
     }
-    const program = buildCoverageProgram(retail);
+    const program = buildCoverageProgram(retail, "retail");
     const derek = program.nextAssignments.find((p) => p.personId === "s")!;
     expect(derek.entitlements.sort()).toEqual(["order_supplies", "receive_goods"]);
   });
 
   it("does not hand out a duty nobody in the business holds", () => {
-    const plans = buildCoveragePlans(retail);
+    const plans = buildCoveragePlans(retail, "retail");
     expect(plans.some((p) => p.reason === "unassigned")).toBe(false);
     expect(plans.some((p) => p.entitlement === "manage_user_access")).toBe(false);
   });
@@ -367,6 +382,6 @@ describe("backup suggestions a CPA would accept", () => {
         entitlements: ["sign_checks"],
       },
     ];
-    expect(buildCoveragePlans(team).some((p) => p.toPersonId === "k")).toBe(false);
+    expect(buildCoveragePlans(team, "general").some((p) => p.toPersonId === "k")).toBe(false);
   });
 });

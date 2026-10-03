@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { usePractice } from "@/lib/precog/practice-context";
-import { needsOwnName } from "@/lib/precog/business-lifecycle";
+import { needsOwnName, teamSource } from "@/lib/precog/business-lifecycle";
 import { INDUSTRIES, industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { inputCls } from "@/components/ui/field-classes";
 import type { BusinessSummary } from "@/lib/precog/practice-profile";
-import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
+import { DEFAULT_BUSINESS_ID, MAX_BUSINESS_NAME } from "@/lib/precog/business-id";
 import { removeBusinessPrompt } from "./business-switcher-text";
 import { OPEN_BUSINESS_SETTINGS_EVENT } from "@/lib/precog/business-settings-event";
 
@@ -116,7 +116,7 @@ export function BusinessSwitcher() {
     }
     setOpen(false);
   }
-  const onSample = !profile.customPeople;
+  const onSample = teamSource(profile) === "sample";
 
   function openBusiness(b: BusinessSummary) {
     setOpen(false);
@@ -231,7 +231,7 @@ export function BusinessSwitcher() {
                   className={cn(inputCls, "mt-1 normal-case")}
                   placeholder="Your business name"
                   value={ownName}
-                  maxLength={80}
+                  maxLength={MAX_BUSINESS_NAME}
                   autoFocus
                   onChange={(e) => setOwnName(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && saveOwnName()}

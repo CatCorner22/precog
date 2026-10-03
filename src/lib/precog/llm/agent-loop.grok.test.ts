@@ -3,13 +3,7 @@ import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import { defaultProfile } from "../practice-profile";
 import { localBrief } from "../coach/local-brief";
 import { pioneerProfileFrom } from "../coach/pioneer-profile";
-import {
-  modelToolResults,
-  runGrokAgentLoop,
-  runLocalAgentLoop,
-  unknownCaseCitations,
-} from "./agent-loop";
-import type { ToolResult } from "./types";
+import { runGrokAgentLoop, runLocalAgentLoop } from "./agent-loop";
 import type { LlmAccess } from "./guard.server";
 
 // The daily model budget lives in the database; these tests are about the brief.
@@ -130,64 +124,5 @@ describe("runGrokAgentLoop", () => {
     );
     expect(result.modelStatus).toBe("not-asked");
     expect(fetchMock).not.toHaveBeenCalled();
-  });
-});
-
-describe("unknownCaseCitations", () => {
-  const tools: ToolResult[] = [
-    {
-      tool: "get_case_evidence",
-      ok: true,
-      summary: "1 case",
-      data: {
-        cases: [
-          { title: "HVAC company office manager wrote 100+ checks to herself", lossUsd: 294426 },
-        ],
-      },
-    },
-  ];
-
-  it("flags a case the library did not return, even with a real figure", () => {
-    expect(
-      unknownCaseCitations(
-        "In United States v. Smith (DOJ, 2023) a bookkeeper took $294,426 over five years.",
-        tools,
-      ),
-    ).toEqual(["United States v. Smith"]);
-  });
-
-  it("passes a case quoted by its library title", () => {
-    expect(
-      unknownCaseCitations(
-        'See "HVAC company office manager wrote 100+ checks to herself" (DOJ).',
-        tools,
-      ),
-    ).toEqual([]);
-  });
-});
-
-describe("modelToolResults", () => {
-  it("caps long lists and keeps a large map inside the prompt budget", () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
-    const edges = Array.from({ length: 2500 }, (_, i) => ({
-      from: `person-${i}`,
-      to: `item-${i}`,
-      note: "x".repeat(60),
-    }));
-    const tools: ToolResult[] = [
-      { tool: "get_knowledge_graph", ok: true, summary: "2,500 relations", data: { edges } },
-      ...Array.from({ length: 20 }, (_, i) => ({
-        tool: "get_process_records" as const,
-        ok: true,
-        summary: `tool ${i}`,
-        data: { rows: Array.from({ length: 25 }, () => ({ text: "y".repeat(80) })) },
-      })),
-    ];
-    const sent = modelToolResults(tools);
-    expect(JSON.stringify(sent).length).toBeLessThanOrEqual(42_000);
-    const graph = sent[0].data as { edges: unknown[] } | undefined;
-    expect(graph === undefined || graph.edges.length <= 26).toBe(true);
-    expect(sent.every((t) => t.summary)).toBe(true);
-    vi.restoreAllMocks();
   });
 });

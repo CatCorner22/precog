@@ -1,6 +1,7 @@
 import { CheckCircle2 } from "lucide-react";
 import { confirmControlEntry, inPlaceEntry } from "@/lib/precog/control-entries";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import { teamSource } from "@/lib/precog/team-source";
 import { useTabName } from "@/lib/precog/presentation";
 import { LAYER_META } from "@/lib/precog/templates/layer-meta";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +18,7 @@ export function SodControlsSection() {
   const { profile, addDecision } = usePractice();
   const { controls } = useTemplate();
   const meta = LAYER_META.control;
-  const ownBusiness = Boolean(profile.customPeople);
+  const ownBusiness = teamSource(profile) === "own";
   return (
     <div className="rounded-xl border border-border bg-surface p-5">
       <h2 className="font-semibold">{meta.name}</h2>

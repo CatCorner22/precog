@@ -226,39 +226,6 @@ async function reportModelFallback(error: unknown): Promise<void> {
   await reportServerError(error, "pioneer-model");
 }
 
-/**
- * Quoted titles and "X v. Y" captions in the model's text that match no case,
- * guidance title or other string the tools returned (nor the owner's own
- * question). A real figure attached to an invented case would otherwise pass
- * the figure check.
- */
-export function unknownCaseCitations(
-  text: string,
-  toolResults: ToolResult[],
-  question = "",
-): string[] {
-  const known = normalized(JSON.stringify(toolResults.map((t) => t.data)) + " " + question);
-  const cited = [
-    ...[...text.matchAll(QUOTED)].map((m) => m[1]).filter((q) => q.trim().split(/\s+/).length >= 4),
-    ...[...text.matchAll(CAPTION)].map((m) => m[0].replace(LEADING_WORDS, "")),
-  ];
-  return [...new Set(cited.map((c) => c.trim()))].filter((c) => !known.includes(normalized(c)));
-}
-
-/** A quoted run of text: straight or curly double quotes. */
-const QUOTED = /["“]([^"”\n]{8,200})["”]/g;
-/** A court caption: "United States v. Smith", "State v. Jones". */
-const CAPTION = /\b(?:[A-Z][\w.'&-]*\s){1,4}v\.\s(?:[A-Z][\w.'&-]*)(?:\s[A-Z][\w.'&-]*){0,3}/g;
-/** Sentence words a caption match can pick up in front of the first party ("In United States v. …"). */
-const LEADING_WORDS = /^(?:(?:In|See|The|Per|From|Like|As|Under|After|Before|Unlike)\s)+/;
-
-function normalized(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9$]+/g, " ")
-    .trim();
-}
-
 /** Tool summaries for the trace, with tools that said the same thing listed once. */
 function toolSummaryLines(toolResults: ToolResult[]): string[] {
   const bySummary = new Map<string, string[]>();
@@ -289,62 +256,4 @@ Return the selection JSON, with no extra fields or markdown.`;
     { role: "system", content: system },
     { role: "user", content: user },
   ];
-}
-
-/** Longest list the prompt carries from one tool; the rest is counted, not sent. */
-const MODEL_LIST_CAP = 25;
-/** Budget for the tool results in one prompt (about 10k tokens). */
-const MODEL_TOOL_BUDGET_CHARS = 40_000;
-/** Fields that grow with the map and repeat what the other fields say. */
-const MODEL_DROPPED_KEYS = new Set(["dependencyMap"]);
-
-/**
- * Legacy diagnostic helper (not used to authorize model prose): lists capped, bulky fields dropped,
- * and, if they still run over the budget, the largest tools reduced to their
- * one-line summary. A 40-person map's relation list would otherwise fill the
- * model's context and spend the owner's quota on edges.
- */
-export function modelToolResults(
-  toolResults: ToolResult[],
-): { tool: string; ok: boolean; summary: string; data?: unknown; note?: string }[] {
-  const rows = toolResults.map((t) => ({
-    tool: t.tool,
-    ok: t.ok,
-    summary: t.summary,
-    data: trimForModel(t.data),
-  }));
-  const size = (r: (typeof rows)[number]) => JSON.stringify(r).length;
-  let total = rows.reduce((n, r) => n + size(r), 0);
-  const out: { tool: string; ok: boolean; summary: string; data?: unknown; note?: string }[] = [
-    ...rows,
-  ];
-  if (total <= MODEL_TOOL_BUDGET_CHARS) return out;
-  const bySize = rows.map((r, i) => ({ i, n: size(r) })).sort((a, b) => b.n - a.n);
-  for (const { i, n } of bySize) {
-    if (total <= MODEL_TOOL_BUDGET_CHARS) break;
-    const { tool, ok, summary } = rows[i];
-    out[i] = { tool, ok, summary, note: "Details left out to fit the prompt; use the summary." };
-    total -= n - JSON.stringify(out[i]).length;
-  }
-  console.warn(
-    `[pioneer] tool results over the prompt budget; sent summaries only for ${out.filter((r) => r.note).length} tool(s)`,
-  );
-  return out;
-}
-
-function trimForModel(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    const kept = value.slice(0, MODEL_LIST_CAP).map(trimForModel);
-    return value.length > MODEL_LIST_CAP
-      ? [...kept, { more: value.length - MODEL_LIST_CAP }]
-      : kept;
-  }
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value)
-        .filter(([k]) => !MODEL_DROPPED_KEYS.has(k))
-        .map(([k, v]) => [k, trimForModel(v)]),
-    );
-  }
-  return value;
 }

@@ -1,5 +1,7 @@
-import { getIndustryTemplate, type IndustryTemplate } from "../templates";
+import { industrySample } from "../templates/registry";
+import type { IndustryTemplate } from "../templates/types";
 import type { PracticeProfile } from "../practice-profile";
+import { teamSource } from "../team-source";
 import type { IndustryId } from "../industry";
 import type { KnowledgeItem } from "../types";
 
@@ -22,7 +24,7 @@ function itemContent(item: KnowledgeItem): string {
 
 /** True when a list says exactly what the industry's starter list says. */
 function isStarterList(knowledge: readonly KnowledgeItem[], industry: IndustryId): boolean {
-  const starter = getIndustryTemplate(industry).knowledge;
+  const starter = industrySample(industry).knowledge;
   if (knowledge === starter) return true;
   if (knowledge.length !== starter.length) return false;
   return knowledge.every((item, i) => itemContent(item) === itemContent(starter[i]));
@@ -51,7 +53,7 @@ export function registerSource(
   if (profile.customKnowledge && !isStarterList(profile.customKnowledge, profile.industry)) {
     return "own";
   }
-  return profile.customPeople ? "starter" : "sample";
+  return teamSource(profile) === "own" ? "starter" : "sample";
 }
 
 /**

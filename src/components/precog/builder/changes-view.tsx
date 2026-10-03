@@ -8,6 +8,7 @@ import { diffMaps } from "@/lib/precog/builder/diff";
 import { starterProcesses } from "@/lib/precog/builder/map-state";
 import { industryMeta } from "@/lib/precog/industry";
 import { usePracticeState } from "@/lib/precog/practice-context";
+import { teamSource } from "@/lib/precog/team-source";
 import type { Person, ProcessNode } from "@/lib/precog/types";
 
 export function ChangesView({
@@ -24,10 +25,11 @@ export function ChangesView({
   against?: { processes: ProcessNode[]; people: Person[] };
   label?: string;
 }) {
-  const { industry, customPeople } = usePracticeState().profile;
+  const { profile } = usePracticeState();
+  const { industry } = profile;
   // An owner's own business began from the starter map with its own team, so
   // it is compared with that: never with the sample team or the sample's owners.
-  const ownStart = !against && Boolean(customPeople);
+  const ownStart = !against && teamSource(profile) === "own";
   const baseline = useMemo(() => {
     if (against) return against;
     if (ownStart) return { processes: starterProcesses({ industry }), people };

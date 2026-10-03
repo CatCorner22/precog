@@ -1,8 +1,9 @@
-import type { EntitlementId } from "./conflict-rules";
-import { analyzeDutyCoverage } from "./coverage-analysis";
-import { withEntitlement, type RoleAssignment } from "./assignments";
-import { detectAssignments, type DetectedConflict } from "./detect";
-import type { StaffComposition } from "../types";
+import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
+import { analyzeDutyCoverage } from "@/lib/precog/sod/coverage-analysis";
+import { withEntitlement, type RoleAssignment } from "@/lib/precog/sod/assignments";
+import { detectAssignments, type DetectedConflict } from "@/lib/precog/sod/detect";
+import type { IndustryId } from "@/lib/precog/industry";
+import type { StaffComposition } from "@/lib/precog/types";
 
 interface AssignmentChangeImpact {
   action: "assign" | "remove";
@@ -13,19 +14,24 @@ interface AssignmentChangeImpact {
   continuityChange: number;
 }
 
-/** Preview the exact risk effect of one assignment toggle before committing it. */
+/**
+ * Preview the exact risk effect of one assignment toggle before committing it.
+ * The line of business says whether the team has an owner at all (a nonprofit
+ * has none), as the planners under test are told it.
+ */
 export function evaluateAssignmentChange(
   assignments: RoleAssignment[],
   personId: string,
   entitlement: EntitlementId,
+  industry: IndustryId | undefined,
   staff?: StaffComposition,
 ): AssignmentChangeImpact | undefined {
   const person = assignments.find((item) => item.personId === personId);
   if (!person) return undefined;
   const active = person.entitlements.includes(entitlement);
   const nextAssignments = withEntitlement(assignments, personId, entitlement, !active);
-  const before = detectAssignments({ assignments }, staff);
-  const after = detectAssignments({ assignments: nextAssignments }, staff);
+  const before = detectAssignments({ assignments, industry }, staff);
+  const after = detectAssignments({ assignments: nextAssignments, industry }, staff);
   const beforeIds = new Set(before.conflicts.map((item) => item.id));
   const afterIds = new Set(after.conflicts.map((item) => item.id));
   const beforeCoverage = analyzeDutyCoverage(assignments);

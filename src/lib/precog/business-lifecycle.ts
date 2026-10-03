@@ -1,10 +1,14 @@
 import { resolveTemplate, type TemplateSource } from "./active-template";
+import { MAX_BUSINESS_NAME } from "./business-id";
 import { isDemoName, type IndustryId } from "./industry";
 import { OWN_BUSINESS_FALLBACK_NAME, ownBusinessProfile } from "./onboarding/own-business";
 import { defaultDualReleasePolicy } from "./controls/dual-release";
 import { defaultProfile, hasUserWork, type PracticeProfile } from "./practice-profile";
 import { getIndustryTemplate } from "./templates";
+import { teamSource } from "./team-source";
 import type { Person, ProcessNode } from "./types";
+
+export { teamSource, type TeamSource } from "./team-source";
 
 /**
  * A business the owner adds. Its setup is not finished, so the setup dialog
@@ -15,7 +19,7 @@ export function newBusinessProfile(industry: IndustryId, name?: string): Practic
   const fresh = defaultProfile(industry);
   return {
     ...fresh,
-    practiceName: name?.trim().slice(0, 80) || fresh.practiceName,
+    practiceName: name?.trim().slice(0, MAX_BUSINESS_NAME) || fresh.practiceName,
     onboardingComplete: false,
   };
 }
@@ -87,7 +91,7 @@ export function replacesSampleTeam(
   profile: Pick<PracticeProfile, "customPeople" | "industry">,
   next: readonly Person[] | null,
 ): boolean {
-  if (profile.customPeople || !next || next.length === 0) return false;
+  if (teamSource(profile) === "own" || !next || next.length === 0) return false;
   const sampleIds = new Set(getIndustryTemplate(profile.industry).people.map((p) => p.id));
   return !next.some((person) => sampleIds.has(person.id));
 }
@@ -148,7 +152,7 @@ export function needsOwnName(
 export function isSampleBusiness(
   profile: Pick<PracticeProfile, "customPeople" | "onboardingComplete">,
 ): boolean {
-  return !profile.customPeople || profile.onboardingComplete === false;
+  return teamSource(profile) === "sample" || profile.onboardingComplete === false;
 }
 
 /**

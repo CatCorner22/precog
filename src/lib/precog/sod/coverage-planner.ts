@@ -6,17 +6,17 @@
  * one person at a time, from that person's own duties and whether that person
  * is the team's sole owner (the one fact a scan reads from the rest of the
  * team), so granting or revoking a duty changes only that person's conflicts.
- * Every question the planner and the Power map ask ("would this grant create
- * a conflict?", "how many would this toggle create or resolve?") is therefore
- * answered by scanning that one person, not the team, and each scan is kept
- * by duty list: most of a team shares a handful of duty lists (every server
- * holds the same ones). Before scanning at all, the rulebook's pair matrix is
- * read: a duty that pairs safely with every duty the person holds can neither
- * create a conflict nor crowd one out.
+ * The question the planner asks ("would this grant create a conflict?") is
+ * therefore answered by scanning that one person, not the team, and each scan
+ * is kept by duty list: most of a team shares a handful of duty lists (every
+ * server holds the same ones). Before scanning at all, the rulebook's pair
+ * matrix is read: a duty that pairs safely with every duty the person holds
+ * can neither create a conflict nor crowd one out.
  *
  * The answers are the same as comparing whole-team scans before and after the
- * change, which is what `evaluateAssignmentChange` does (coverage-planner.test.ts
- * checks both ways side by side).
+ * change, which is what the test oracle `evaluateAssignmentChange`
+ * (src/test/change-impact.ts) does; coverage-planner.test.ts checks both ways
+ * side by side.
  */
 import { withEntitlement, type RoleAssignment } from "./assignments";
 import { entitlementById, isOperatingDuty, type EntitlementId } from "./conflict-rules";
@@ -47,22 +47,20 @@ export interface CoverageProgram {
   unresolvedGaps: number;
 }
 
-/** How many conflicts one duty toggle creates and resolves for the person. */
-export interface DutyToggleEffect {
-  created: number;
-  resolved: number;
-}
-
 /**
  * Suggest backups for high-risk duties only one person holds: up to three per
  * duty, from people in that duty's process, none adding a detected conflict.
  * A duty nobody holds is not handed to anyone: the business may not do it at
- * all, so it is a question for the owner, not a suggestion.
+ * all, so it is a question for the owner, not a suggestion. The line of
+ * business says whether the team has an owner at all (a nonprofit has none).
  */
-export function buildCoveragePlans(assignments: RoleAssignment[]): CoveragePlan[] {
+export function buildCoveragePlans(
+  assignments: RoleAssignment[],
+  industry: string | undefined,
+): CoveragePlan[] {
   const coverage = analyzeDutyCoverage(assignments);
   return coverage.singlePoints.flatMap((duty) =>
-    plansForDuty(assignments, duty, coverage.resilienceScore, PLANS_PER_DUTY),
+    plansForDuty(assignments, duty, coverage.resilienceScore, PLANS_PER_DUTY, industry),
   );
 }
 
@@ -72,7 +70,10 @@ export function buildCoveragePlans(assignments: RoleAssignment[]): CoveragePlan[
  * `buildCoveragePlans` order, that has one and has not already been handed
  * out twice.
  */
-export function buildCoverageProgram(assignments: RoleAssignment[]): CoverageProgram {
+export function buildCoverageProgram(
+  assignments: RoleAssignment[],
+  industry: string | undefined,
+): CoverageProgram {
   const startingScore = analyzeDutyCoverage(assignments).resilienceScore;
   let current = assignments;
   const steps: CoveragePlan[] = [];
@@ -83,7 +84,7 @@ export function buildCoverageProgram(assignments: RoleAssignment[]): CoveragePro
     let next: CoveragePlan | undefined;
     for (const duty of coverage.singlePoints) {
       if ((assignmentsPerDuty.get(duty.entitlementId) ?? 0) >= MAX_ASSIGNMENTS_PER_DUTY) continue;
-      [next] = plansForDuty(current, duty, coverage.resilienceScore, 1);
+      [next] = plansForDuty(current, duty, coverage.resilienceScore, 1, industry);
       if (next) break;
     }
     if (!next) break;
@@ -103,42 +104,6 @@ export function buildCoverageProgram(assignments: RoleAssignment[]): CoveragePro
 }
 
 /**
- * For one person, what granting or revoking each duty would do to their
- * conflicts: the same counts as `evaluateAssignmentChange`'s conflictsCreated
- * and conflictsResolved, read from scans of that person alone. `team` is the
- * whole team, needed only to know whether this person is its sole owner.
- */
-export function dutyToggleEffects(
-  person: RoleAssignment,
-  entitlements: readonly EntitlementId[],
-  team: readonly RoleAssignment[] = [person],
-): Map<EntitlementId, DutyToggleEffect> {
-  const soleOwner = person.personId === teamOwnerId(team);
-  const before = personConflictIds(person.entitlements, soleOwner);
-  const beforeIds = new Set(before);
-  const effects = new Map<EntitlementId, DutyToggleEffect>();
-  for (const entitlement of entitlements) {
-    const held = person.entitlements.includes(entitlement);
-    if (!held && pairsSafely(person.entitlements, entitlement)) {
-      effects.set(entitlement, { created: 0, resolved: 0 });
-      continue;
-    }
-    const after = personConflictIds(
-      held
-        ? person.entitlements.filter((id) => id !== entitlement)
-        : [...person.entitlements, entitlement],
-      soleOwner,
-    );
-    const afterIds = new Set(after);
-    effects.set(entitlement, {
-      created: after.filter((id) => !beforeIds.has(id)).length,
-      resolved: before.filter((id) => !afterIds.has(id)).length,
-    });
-  }
-  return effects;
-}
-
-/**
  * The best conflict-free people to take on one duty, at most `limit` of them.
  *
  * Candidates are everyone who does not hold the duty yet, lightest workload
@@ -152,8 +117,9 @@ function plansForDuty(
   duty: DutyCoverage,
   startingScore: number,
   limit: number,
+  industry: string | undefined,
 ): CoveragePlan[] {
-  const ownerId = teamOwnerId(assignments);
+  const ownerId = teamOwnerId(assignments, industry);
   const candidates = assignments
     .filter((person) => !person.entitlements.includes(duty.entitlementId))
     .filter((person) => inDutyChain(person, duty.entitlementId, ownerId))

@@ -36,8 +36,6 @@ import { confirmedControlIds, controlsInPlace, resolveTemplate } from "./active-
 import type { IndustryTemplate } from "./templates";
 import {
   defaultProfile,
-  makeDecisionId,
-  normalizeProfile,
   type BusinessSummary,
   type DecisionReviewOutcome,
   type MapVersion,
@@ -45,7 +43,6 @@ import {
   type PracticeProfile,
 } from "./practice-profile";
 import type { SavedProcessBlock } from "./builder/process-blocks";
-import { processesToEdit, replacesSampleTeam } from "./business-lifecycle";
 import { AccountLineage, LocalProfileStore, type UnreadableCopy } from "./save-conflict";
 import { downloadText } from "@/lib/download";
 import type { Departure } from "./continuity/access-removal";
@@ -55,45 +52,8 @@ import { useMapHistory } from "./use-map-history";
 import { useCloudSync, type SaveConflictReason, type SyncStatus } from "./use-cloud-sync";
 import { usePortfolio, type SwitchResult } from "./use-portfolio";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
-import {
-  currentPeople,
-  isMapCustomized,
-  makeMapVersion,
-  resolveUpdate,
-  withAccessReconciliation,
-  withIntegrationDriftSummary,
-  withDecision,
-  withDecisionReview,
-  withDerivedSegregation,
-  withDualRelease,
-  withIndustry,
-  withKnowledge,
-  withLeaversConfirmed,
-  withLeaversPrompted,
-  withMapHealth,
-  withMapLayout,
-  withMapVersion,
-  withMonthlyReviews,
-  withoutDecision,
-  withoutMapVersion,
-  withPeople,
-  withPlaces,
-  withPlannedAbsences,
-  withPracticeName,
-  withProcedure,
-  withProcedureVerified,
-  withProcedureProof,
-  withoutProcedure,
-  procedureFits,
-  withProcesses,
-  withRelations,
-  withReportSent,
-  withRestoredVersion,
-  withRiskVariables,
-  withSavedBlocks,
-  withStaff,
-  type DecisionInput,
-} from "./profile-actions";
+import { isMapCustomized, type DecisionInput } from "./profile-actions";
+import { makeProfileEdits } from "./practice-edits";
 import { localDateKey } from "./dates";
 import type { Place, Procedure, ProcedureProof } from "./procedures/types";
 import type { VerifyingAccount } from "./procedures/lifecycle";
@@ -186,8 +146,6 @@ export interface PracticeActions {
    * removed: closes their checks and records each in the decisions log.
    */
   confirmLeaverAccess: (checkIds: string[]) => void;
-  /** The owner has seen the prompt for these leavers; it is not shown again. */
-  markLeaverPrompted: (checkIds: string[]) => void;
   /** Setup dialog: leave setup and go back to the business open before it, when there is one. */
   cancelSetup: () => Promise<void>;
   /** Map builder: replace the process map (null = back to industry template). */
@@ -219,7 +177,6 @@ export interface PracticeActions {
   removeProcedure: (id: string) => void;
   /** Procedures tab: record that someone other than the usual person followed procedure `id`. */
   recordProcedureProof: (id: string, proof: Omit<ProcedureProof, "id">) => void;
-  resetSegregationToDerived: () => void;
   /** Map builder: pin canvas positions for process nodes. */
   setMapLayout: (v: SetStateAction<Record<string, { x: number; y: number }>>) => void;
   /** Save or replace user-defined reusable process blocks. */
@@ -419,295 +376,33 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
 
   // ── Edits: each is the matching pure function wrapped in a state update ──
 
-  const setPracticeName = useCallback((name: string, businessId?: string) => {
-    setProfile((p) => withPracticeName(p, name, businessId));
-  }, []);
-
-  const setIndustry = useCallback(
-    (industry: IndustryId) => {
-      clearHistory();
-      setProfile((p) => withIndustry(p, industry));
-    },
-    [clearHistory],
-  );
-
-  const setStaff = useCallback((staff: SetStateAction<StaffComposition>) => {
-    setProfile((p) => withStaff(p, resolveUpdate(staff, p.staff)));
-  }, []);
-
-  const setRiskVariables = useCallback((v: SetStateAction<RiskVariableState>) => {
-    setProfile((p) => withRiskVariables(p, resolveUpdate(v, p.riskVariables)));
-  }, []);
-
-  const setDualRelease = useCallback((v: SetStateAction<DualReleasePolicy>) => {
-    setProfile((p) => withDualRelease(p, resolveUpdate(v, p.dualRelease), new Date()));
-  }, []);
-
-  const addDecision = useCallback((input: DecisionInput) => {
-    const id = makeDecisionId();
-    setProfile((p) => withDecision(p, input, id, new Date()));
-  }, []);
-
-  const removeDecision = useCallback((id: string) => {
-    setProfile((p) => withoutDecision(p, id));
-  }, []);
-
-  const reviewDecision = useCallback(
-    (id: string, outcome: DecisionReviewOutcome, note?: string, extendDays = 90) => {
-      setProfile((p) => withDecisionReview(p, id, outcome, note, extendDays, new Date()));
-    },
-    [],
-  );
-
-  const confirmLeaverAccess = useCallback((checkIds: string[]) => {
-    if (checkIds.length === 0) return;
-    setProfile((p) => withLeaversConfirmed(p, checkIds, localDateKey(new Date())));
-  }, []);
-
-  const markLeaverPrompted = useCallback((checkIds: string[]) => {
-    if (checkIds.length === 0) return;
-    setProfile((p) => withLeaversPrompted(p, checkIds));
-  }, []);
-
-  const replaceProfile = useCallback(
-    (next: PracticeProfile) => {
-      clearHistory();
-      setProfile(normalizeProfile(next));
-    },
-    [clearHistory],
-  );
-
-  const setMonthlyReviews = useCallback((v: SetStateAction<ReviewRecord[]>) => {
-    setProfile((p) => withMonthlyReviews(p, resolveUpdate(v, p.monthlyReviews ?? [])));
-  }, []);
-
-  const setAccessReconciliation = useCallback(
-    (v: SetStateAction<AccessReconciliation | undefined>) => {
-      setProfile((p) => {
-        const next = resolveUpdate(v, p.accessReconciliation);
-        return next ? withAccessReconciliation(p, next) : p;
-      });
-    },
-    [],
-  );
-
-  const setIntegrationDriftFromQbo = useCallback(
-    (drift: import("./integrations/qbo/model").IntegrationDrift | null) => {
-      setProfile((p) => withIntegrationDriftSummary(p, drift));
-    },
-    [],
-  );
-
-  const markReportSent = useCallback(() => {
-    setProfile((p) => withReportSent(p, new Date()));
-  }, []);
-
-  const resetProfile = useCallback(() => {
-    clearHistory();
-    setProfile((p) => ({ ...defaultProfile(p.industry), businessId: p.businessId }));
-  }, [clearHistory]);
-
-  const setCustomPeople = useCallback(
-    (v: Person[] | null | ((current: Person[]) => Person[] | null)) => {
-      pushUndo();
-      // Told once, outside the update: the owner's people replacing the sample's.
-      const before = profileRef.current;
-      if (replacesSampleTeam(before, resolveUpdate(v, currentPeople(before)))) {
-        toast("Your team replaced the sample team", {
-          description:
-            "The sample's supplier waiver and its who-holds-it marks are gone. Name your business in the business menu.",
-        });
-      }
-      setProfile((p) =>
-        withPeople(p, resolveUpdate(v, currentPeople(p)), localDateKey(new Date())),
-      );
-    },
-    [pushUndo],
-  );
-
-  const setCustomProcesses = useCallback(
-    (v: ProcessNode[] | null | ((current: ProcessNode[]) => ProcessNode[] | null)) => {
-      pushUndo();
-      setProfile((p) => withProcesses(p, resolveUpdate(v, processesToEdit(p))));
-    },
-    [pushUndo],
-  );
-
-  const setCustomKnowledge = useCallback(
-    (v: KnowledgeItem[] | null | ((current: KnowledgeItem[]) => KnowledgeItem[] | null)) => {
-      setProfile((p) => withKnowledge(p, resolveUpdate(v, resolveTemplate(p).knowledge)));
-    },
-    [],
-  );
-
-  const setCustomRelations = useCallback(
-    (
-      v:
-        KnowledgeRelation[] | null | ((current: KnowledgeRelation[]) => KnowledgeRelation[] | null),
-    ) => {
-      setProfile((p) => withRelations(p, resolveUpdate(v, resolveTemplate(p).relations)));
-    },
-    [],
-  );
-
-  const setPlannedAbsences = useCallback((v: SetStateAction<PlannedAbsence[]>) => {
-    setProfile((p) => withPlannedAbsences(p, resolveUpdate(v, p.plannedAbsences ?? [])));
-  }, []);
-
-  const setPlaces = useCallback((v: SetStateAction<Place[]>) => {
-    setProfile((p) => withPlaces(p, resolveUpdate(v, p.places ?? [])));
-  }, []);
-
-  const saveProcedure = useCallback((next: Procedure) => {
-    const today = localDateKey(new Date());
-    if (!procedureFits(profileRef.current, next, today)) return false;
-    setProfile((p) => withProcedure(p, next, today));
-    return true;
-  }, []);
-
-  const verifyProcedure = useCallback(
-    (id: string, verifiedBy: string, account?: VerifyingAccount | null) => {
-      setProfile((p) =>
-        withProcedureVerified(p, id, verifiedBy, localDateKey(new Date()), account),
-      );
-    },
-    [],
-  );
-
-  const recordProcedureProof = useCallback((id: string, proof: Omit<ProcedureProof, "id">) => {
-    setProfile((p) => withProcedureProof(p, id, proof));
-  }, []);
-
-  const removeProcedure = useCallback((id: string) => {
-    setProfile((p) => withoutProcedure(p, id));
-  }, []);
-
-  const resetSegregationToDerived = useCallback(() => {
-    setProfile((p) => withDerivedSegregation(p));
-  }, []);
-
-  const setMapLayout = useCallback(
-    (v: SetStateAction<Record<string, { x: number; y: number }>>) => {
-      pushUndo();
-      setProfile((p) => withMapLayout(p, resolveUpdate(v, p.mapLayout ?? {})));
-    },
-    [pushUndo],
-  );
-
-  const setSavedProcessBlocks = useCallback((v: SetStateAction<SavedProcessBlock[]>) => {
-    setProfile((p) => withSavedBlocks(p, resolveUpdate(v, p.savedProcessBlocks ?? [])));
-  }, []);
-
-  const recordMapHealth = useCallback((score: number) => {
-    // Derived from the map, not an owner's edit: it must not stamp updatedAt.
-    setProfile({ derive: (p) => withMapHealth(p, score, new Date()) });
-  }, []);
-
-  const saveMapVersion = useCallback((name: string, healthScore: number): MapVersion => {
-    const version = makeMapVersion(profileRef.current, name, healthScore);
-    setProfile((p) => withMapVersion(p, version));
-    return version;
-  }, []);
-
-  const deleteMapVersion = useCallback((id: string) => {
-    setProfile((p) => withoutMapVersion(p, id));
-  }, []);
-
-  const restoreMapVersion = useCallback(
-    (id: string) => {
-      const v = profileRef.current.mapVersions?.find((x) => x.id === id);
-      if (!v) return;
-      pushUndo();
-      setProfile((p) => withRestoredVersion(p, v, localDateKey(new Date())));
-    },
-    [pushUndo],
+  const edits = useMemo(
+    () => makeProfileEdits({ setProfile, profileRef, pushUndo, clearHistory }),
+    [pushUndo, clearHistory],
   );
 
   // ── Published parts ──────────────────────────────────────────────────────
 
-  const actions = useMemo<PracticeActions>(
-    () => ({
-      setPracticeName,
-      setIndustry,
-      setStaff,
-      setRiskVariables,
-      setDualRelease,
-      addDecision,
-      removeDecision,
-      reviewDecision,
-      replaceProfile,
-      setMonthlyReviews,
-      setAccessReconciliation,
-      setIntegrationDriftFromQbo,
-      markReportSent,
-      resetProfile,
-      completeOnboarding,
-      startOwnBusiness,
-      confirmLeaverAccess,
-      markLeaverPrompted,
-      cancelSetup,
-      setCustomProcesses,
-      setCustomPeople,
-      setCustomKnowledge,
-      setCustomRelations,
-      setPlannedAbsences,
-      setPlaces,
-      saveProcedure,
-      verifyProcedure,
-      removeProcedure,
-      recordProcedureProof,
-      resetSegregationToDerived,
-      setMapLayout,
-      setSavedProcessBlocks,
-      recordMapHealth,
-      undoMap,
-      redoMap,
-      saveMapVersion,
-      deleteMapVersion,
-      restoreMapVersion,
-      switchBusiness,
-      createBusiness,
-      deleteBusiness,
-    }),
+  const actions = useMemo(
+    () =>
+      ({
+        ...edits,
+        completeOnboarding,
+        startOwnBusiness,
+        cancelSetup,
+        undoMap,
+        redoMap,
+        switchBusiness,
+        createBusiness,
+        deleteBusiness,
+      }) satisfies PracticeActions,
     [
-      setPracticeName,
-      setIndustry,
-      setStaff,
-      setRiskVariables,
-      setDualRelease,
-      addDecision,
-      removeDecision,
-      reviewDecision,
-      replaceProfile,
-      setMonthlyReviews,
-      setAccessReconciliation,
-      setIntegrationDriftFromQbo,
-      markReportSent,
-      resetProfile,
+      edits,
       completeOnboarding,
       startOwnBusiness,
-      confirmLeaverAccess,
-      markLeaverPrompted,
       cancelSetup,
-      setCustomProcesses,
-      setCustomPeople,
-      setCustomKnowledge,
-      setCustomRelations,
-      setPlannedAbsences,
-      setPlaces,
-      saveProcedure,
-      verifyProcedure,
-      removeProcedure,
-      recordProcedureProof,
-      resetSegregationToDerived,
-      setMapLayout,
-      setSavedProcessBlocks,
-      recordMapHealth,
       undoMap,
       redoMap,
-      saveMapVersion,
-      deleteMapVersion,
-      restoreMapVersion,
       switchBusiness,
       createBusiness,
       deleteBusiness,

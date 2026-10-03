@@ -34,17 +34,6 @@ export function localDaysBetween(from: Date, to: Date): number {
   return Math.round((startOfLocalDay(to).getTime() - startOfLocalDay(from).getTime()) / DAY_MS);
 }
 
-/**
- * Local midnight of a stored "YYYY-MM-DD" day, or null when it is not a real
- * calendar date. `new Date("2026-10-26")` is UTC midnight, which is the 25th
- * west of UTC; this keeps the day the owner chose.
- */
-export function parseLocalDay(day: string): Date | null {
-  if (utcDay(day) === null) return null;
-  const [year, month, date] = day.split("-").map(Number);
-  return new Date(year, month - 1, date);
-}
-
 /** The UTC calendar day of `date`, as "YYYY-MM-DD". For arithmetic done in UTC, not for "today" in the browser. */
 export function utcDateKey(date: Date): string {
   return date.toISOString().slice(0, 10);

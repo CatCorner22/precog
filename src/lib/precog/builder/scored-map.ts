@@ -17,8 +17,8 @@ export interface ScoredMap {
 /**
  * Score a process list the way the map page does: a starter process the
  * owner has not touched yet (see untouchedStarterProcessIds) is left out of
- * every figure, so the dashboard card, the builder's pill and the map page
- * count the same processes. Validation still reads the whole list, so a link
+ * every figure, so the builder's pill and the map page count the same
+ * processes. Validation still reads the whole list, so a link
  * to a starter process is never reported as broken.
  */
 export function scoreMap(

@@ -24,8 +24,8 @@ export interface StaffWhatIf {
 
 /**
  * Staffing the owner can try on the scenario page. Nothing here is saved:
- * the figures on this page follow the sliders, and the business profile, the
- * Dashboard and every other screen keep the saved staffing until the owner
+ * the figures on this page follow the sliders, and the business profile,
+ * Home and every other screen keep the saved staffing until the owner
  * chooses "Apply to my business".
  */
 export function StaffWhatIfCard({

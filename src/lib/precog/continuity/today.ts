@@ -12,9 +12,9 @@ import { joinWithAnd, firstName, count, verb } from "../text";
 import { formatDayRange } from "../dates";
 import { relationLevel, STRONG_LEVELS } from "./coverage";
 
-/** Leave starting within this many days counts as "starting soon" on the dashboard. */
+/** Leave starting within this many days counts as "starting soon" on Home. */
 export const SOON_DAYS = 7;
-/** A last day within this many days puts the leaver on the dashboard. */
+/** A last day within this many days puts the leaver on Home. */
 export const LEAVING_SOON_DAYS = 30;
 
 interface TodayStop {
@@ -68,14 +68,15 @@ interface TodayBrief {
   gone: Leaver[];
   /** False while nobody is marked on the register: the brief cannot say what stops. */
   assessed: boolean;
-  /** One plain sentence for the top of the dashboard; null when there is nothing to say. */
+  /** One plain sentence for the top of Home; null when there is nothing to say. */
   headline: string | null;
 }
 
 /**
- * What the owner needs to know about staffing when they open the app this
+ * What the owner needs to know about staffing when they open Precog this
  * morning: who is out, what that stops, who covers it, and what is about to
- * start. Pure — the dashboard, and anything else, renders from this.
+ * start. Pure — Home (start-here/model.ts), and anything else, renders from
+ * this.
  */
 export function todayBrief(
   tpl: IndustryTemplate,

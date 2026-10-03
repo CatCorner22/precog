@@ -60,14 +60,20 @@ export function CoveragePlanOption({ plan, onApply }: { plan: CoveragePlan; onAp
 export function ResolutionOptions({
   assignments,
   conflict,
+  industry,
   onApply,
 }: {
   assignments: RoleAssignment[];
   conflict: DetectedConflict;
+  /** The line of business: a nonprofit has no owner to leave out of the plans. */
+  industry: string | undefined;
   onApply: (plan: ResolutionPlan) => void;
 }) {
   // Planning re-runs detection several times per candidate: only when the map or the conflict changes.
-  const plans = useMemo(() => buildResolutionPlans(assignments, conflict), [assignments, conflict]);
+  const plans = useMemo(
+    () => buildResolutionPlans(assignments, conflict, industry),
+    [assignments, conflict, industry],
+  );
   return (
     <div className="space-y-2">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-subtle">

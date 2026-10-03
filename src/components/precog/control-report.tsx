@@ -6,7 +6,7 @@ import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { latestReview, reviewItemsFor, reviewResultLine } from "@/lib/precog/firm/reviews";
 import { industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
-import type { DetectedConflict } from "@/lib/precog/sod/detect";
+import { SEVERITY_RANK, type DetectedConflict } from "@/lib/precog/sod/detect";
 import {
   belowThresholdNote,
   conflictStatus,
@@ -117,7 +117,7 @@ export function ControlReport({
   const mapIssues = data.issues.filter((i) => i.severity !== "info");
   const sodRows = sod.conflicts
     .slice()
-    .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || b.score - a.score);
+    .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.score - a.score);
   const unheld = sod.summary.unheldDuties.map((d) => entitlementLabel(d));
   // People the books show and the map lacks fall outside the findings; say so beside them.
   const sodScope = sodScopeLine(profile.integrationDriftSummary);
@@ -651,13 +651,6 @@ const KIND_LABEL: Record<string, string> = {
   knowledge: "Know-how only one person holds",
   scenario: "Scenario",
   process: "Process",
-};
-
-const SEVERITY_ORDER: Record<DetectedConflict["severity"], number> = {
-  critical: 0,
-  high: 1,
-  medium: 2,
-  family: 3,
 };
 
 const SEVERITY_LABEL: Record<DetectedConflict["severity"], string> = {

@@ -8,7 +8,6 @@ import { DEFAULT_RISK_VARIABLES, type RiskVariableState } from "./dynamic-variab
 import {
   CASCADE_LEVERS,
   HIGHER_IS_BETTER,
-  LOWER_IS_BETTER,
   leverAffects,
   leverUnavailableReason,
   simulateAllCascades,
@@ -20,7 +19,6 @@ const dental = getIndustryTemplate("dental");
 
 describe("assumed days until found", () => {
   it("counts fewer days as better, so detection improves them", () => {
-    expect(LOWER_IS_BETTER.has("timelineP50")).toBe(true);
     expect(HIGHER_IS_BETTER.has("timelineP50")).toBe(false);
     const sim = simulateCascadeLever(
       dental,

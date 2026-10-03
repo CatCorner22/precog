@@ -7,6 +7,7 @@ import { DAY_MS } from "../dates";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { SlidingWindowLimiter } from "../llm/rate-limit";
 import { parseLoadShareInput } from "../public-inputs";
+import { MAX_BUSINESS_NAME } from "../business-id";
 import { resolveBusinessOwner } from "../business-store";
 import { resolveTemplate } from "../active-template";
 import type { PracticeProfile } from "../practice-profile";
@@ -81,7 +82,7 @@ export const createMapShare = createServerFn({ method: "POST" })
     const stored = await insertMapShare(sql, {
       token,
       userId: context.userId,
-      businessName: payload.businessName.slice(0, 80),
+      businessName: payload.businessName.slice(0, MAX_BUSINESS_NAME),
       industry: payload.industry,
       payloadJson: JSON.stringify(payload),
       expiresAt: expires,

@@ -39,8 +39,8 @@ export const PRIORITY_SCALE = { top: 88, high: 70, medium: 45, low: 35 } as cons
  * (severity × likelihood), its open duty conflicts, sole-owner knowledge, and
  * any linked residual score, read on PRIORITY_SCALE. The cutoffs order
  * attention on the map; no study sets them and they carry no probability
- * meaning. The map badge, the health card, the review, and the weekly plan
- * all read them from here.
+ * meaning. The map badge, the health card, the review, and the weekly
+ * actions all read them from here.
  */
 export const HEAT_BANDS = { hot: PRIORITY_SCALE.high, warm: PRIORITY_SCALE.medium } as const;
 

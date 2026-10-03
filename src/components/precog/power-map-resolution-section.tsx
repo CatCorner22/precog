@@ -42,6 +42,7 @@ export function PowerMapResolutionSection({ model }: { model: PowerMapBuilderMod
                 <ResolutionOptions
                   assignments={assignments}
                   conflict={conflict}
+                  industry={model.profile.industry}
                   onApply={(plan) => commit(applyResolutionPlan(assignments, plan))}
                 />
               </div>

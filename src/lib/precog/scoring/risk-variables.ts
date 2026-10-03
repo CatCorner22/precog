@@ -4,6 +4,7 @@
  * and the variables panel all read this one shape.
  */
 import type { InsuranceRecord } from "./insurance-record";
+import type { StaffComposition } from "../types";
 
 export interface RiskVariableState {
   /** Explicit policy provenance; absent legacy records are unverified, not uninsured. */
@@ -67,10 +68,16 @@ export const DEFAULT_RISK_VARIABLES: RiskVariableState = {
   underwritingLoadAnnual: 0,
 };
 
-/** Sync boolean controls from staff composition (scenario runner staff). */
+/**
+ * The risk variables with their copy of the two control answers taken from
+ * the staff figures, which hold them. Every write of the staff figures goes
+ * through here, so the two copies cannot disagree, and every read that pairs
+ * stored variables with staff figures (the engine, the cascade, the scenario
+ * runner) goes through here too, so what-if staff never read stale copies.
+ */
 export function mergeStaffIntoVariables(
   v: RiskVariableState,
-  staff: { dualControlPayments: boolean; independentBankRec: boolean },
+  staff: Pick<StaffComposition, "dualControlPayments" | "independentBankRec">,
 ): RiskVariableState {
   return {
     ...v,

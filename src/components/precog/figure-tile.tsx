@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * One labelled figure: a small label, the value, and what the value rests on.
- * Every stat tile on the scenario, variables, residual and threat screens uses
- * this, so a change to how a figure shows its basis is made once.
+ * Every stat tile on the scenario, variables and residual screens uses this,
+ * so a change to how a figure shows its basis is made once.
  */
 export function FigureTile({
   label,
