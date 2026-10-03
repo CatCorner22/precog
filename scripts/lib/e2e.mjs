@@ -81,10 +81,16 @@ export async function withPage(options, body) {
  * so a sample a previous session left behind does not skip the landing; the
  * clearing happens on a same-origin page that runs none of Precog's code
  * (robots.txt), because the home page writes its state back on pagehide.
+ * That page has no icon link, so the browser's own /favicon.ico request is
+ * answered here; its 404 would otherwise land in the console as an error
+ * whose text names no URL.
  */
 export async function openSetup(page, baseUrl, timeout) {
+  const favicon = (route) => route.fulfill({ status: 204 });
+  await page.route("**/favicon.ico", favicon);
   await page.goto(`${baseUrl}/robots.txt`, { waitUntil: "load", timeout });
   await page.evaluate(() => localStorage.clear());
+  await page.unroute("**/favicon.ico", favicon);
   await page.goto(`${baseUrl}/`, { waitUntil: "networkidle", timeout });
   await page.waitForURL(/\/welcome$/, { timeout });
   await page.getByRole("link", { name: "Set up your business" }).click();
