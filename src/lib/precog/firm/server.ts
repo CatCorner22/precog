@@ -54,7 +54,7 @@ import {
   reportFirmName,
   signOffReportVersion,
 } from "./reports";
-import { loadBillingAccount } from "./billing-store";
+import { loadBillingAccount, planToStore } from "./billing-store";
 import {
   businessInput,
   EMAIL,
@@ -103,9 +103,18 @@ export const saveFirmProfile = createServerFn({ method: "POST" })
   })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    // Once billing is connected the plan follows the payment provider.
+    // With Stripe connected the plan follows the webhook alone; without it
+    // the owner records the stage by hand.
+    const { stripeConfigured } = await import("../billing/stripe.server");
     const billing = await loadBillingAccount(sql, context.userId);
-    return { firm: await saveFirm(sql, context.userId, data.name, billing ? null : data.plan) };
+    return {
+      firm: await saveFirm(
+        sql,
+        context.userId,
+        data.name,
+        planToStore(stripeConfigured(), Boolean(billing), data.plan),
+      ),
+    };
   });
 
 /**
