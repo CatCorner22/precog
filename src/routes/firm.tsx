@@ -21,7 +21,8 @@ import {
 } from "@/lib/precog/firm/engagement";
 import { downloadText } from "@/lib/download";
 import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
-import { commercialToolsOpen } from "@/lib/precog/firm/billing-store";
+import { PaymentOverdueBanner } from "@/components/precog/payment-overdue-banner";
+import { getEntitlements, type EntitlementsAnswer } from "@/lib/precog/firm/entitlements-server";
 import {
   closedToolsNote,
   planAmounts,
@@ -101,6 +102,7 @@ function FirmPage() {
   const [billing, setBilling] = useState<BillingAccount | null>(null);
   const [billingConfigured, setBillingConfigured] = useState(false);
   const [prices, setPrices] = useState<Record<CheckoutPlan, PlanPrice> | null>(null);
+  const [entitlements, setEntitlements] = useState<EntitlementsAnswer | null>(null);
   const [name, setName] = useState("");
   const [clients, setClients] = useState<ClientEngagementRow[]>([]);
   const [deleted, setDeleted] = useState<DeletedBusinessRow[]>([]);
@@ -144,6 +146,12 @@ function FirmPage() {
     replaceProfile({ ...profile, engagement: next });
   }, [own, profile, replaceProfile]);
 
+  // The failed-payment email's link lands on the Plan card.
+  useEffect(() => {
+    if (search.billing !== "overdue" || !loaded || !firm) return;
+    document.getElementById("plan")?.scrollIntoView({ block: "start" });
+  }, [search.billing, loaded, firm]);
+
   useEffect(() => {
     if (search.billing === "success")
       toast.success("Checkout finished. The plan updates once Stripe confirms the payment.");
@@ -164,12 +172,13 @@ function FirmPage() {
     let cancel = false;
     void (async () => {
       try {
-        const [firmRes, clientRes, deletedRes, billingRes, priceRes] = await Promise.all([
+        const [firmRes, clientRes, deletedRes, billingRes, priceRes, planRes] = await Promise.all([
           getFirm(),
           listFirmClients(),
           listDeletedClients(),
           getBillingStatus().catch(() => null),
           getPlanPrices().catch(() => null),
+          getEntitlements().catch(() => null),
         ]);
         if (cancel) return;
         setFirm(firmRes.firm);
@@ -178,6 +187,7 @@ function FirmPage() {
         setBilling(billingRes?.account ?? firmRes.billing);
         setBillingConfigured(billingRes?.configured ?? false);
         setPrices(priceRes?.prices ?? null);
+        setEntitlements(planRes);
         setName(firmRes.firm?.name ?? "");
         setClients(clientRes.clients);
         setDeleted(deletedRes.deleted);
@@ -299,14 +309,13 @@ function FirmPage() {
 
   const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const isOwner = firm?.role === "owner";
-  const toolsOpen = commercialToolsOpen({
-    stripeConfigured: billingConfigured,
-    subscriptionStatus: billing?.subscriptionStatus ?? null,
-    assessmentPaidAt: billing?.assessmentPaidAt ?? null,
-    assessmentRefundedAt: billing?.assessmentRefundedAt ?? null,
-  });
-  // Only Stripe's own amounts print here (the tools close only with Stripe connected).
-  const priceNote = closedToolsNote(billingConfigured ? planAmounts(true, prices) : null);
+  // The firm's plan as the server computes it (a member sees the firm's state,
+  // not their own empty billing row). The note prints while the plan closes
+  // the tools and no failed payment is the reason (the banner says that).
+  const closedNote =
+    entitlements && !entitlements.features.quickbooks && !entitlements.closedAt
+      ? closedToolsNote(billingConfigured ? planAmounts(true, prices) : null, entitlements)
+      : null;
 
   return (
     <main className="mx-auto min-h-[calc(100dvh-var(--grok-banner-h,0px))] max-w-3xl px-6 py-8">
@@ -369,11 +378,13 @@ function FirmPage() {
               Waiting for Stripe to confirm the payment…
             </p>
           )}
+          <PaymentOverdueBanner variant="firm" />
           <FirmBilling
             plan={firm.plan}
             billing={billing}
             billingConfigured={billingConfigured}
             prices={prices}
+            entitlements={entitlements}
             canManage={isOwner}
             onMarkPlan={saveFirm}
           />
@@ -485,12 +496,9 @@ function FirmPage() {
             onClientsChange={setClients}
           />
           <NotificationSettingsPanel signedIn={signedIn} />
-          {!toolsOpen && (
+          {closedNote && (
             <p className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
-              QuickBooks stays closed until the assessment is paid or the firm plan is active. A
-              past-due plan is not paid. The Monthly review on each business's own screen stays
-              open.
-              {priceNote && ` ${priceNote}`}
+              {closedNote}
             </p>
           )}
           <QuickBooksPanel signedIn={signedIn} />
