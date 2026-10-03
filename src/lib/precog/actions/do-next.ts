@@ -1,4 +1,5 @@
 import { recommendedStepsForRules } from "../evidence";
+import type { IndustryId } from "../industry";
 import { rankFirstSteps, type OpenFinding } from "../coach/first-steps";
 import type { AccessReconciliation } from "../firm/reconcile";
 import { buildDriftActions, type DriftAction } from "../integrations/drift-signals";
@@ -27,6 +28,8 @@ export type DoNextItem =
 export interface DoNextInput {
   /** The open duty-conflict findings, as the report counts them (sod/open-findings). */
   open: readonly OpenFinding[];
+  /** The line of business, which words a step for a business with no owner. */
+  industry: IndustryId;
   integrationDriftSummary: IntegrationDriftSummary | null | undefined;
   accessReconciliation: AccessReconciliation | null | undefined;
 }
@@ -39,11 +42,12 @@ export interface DoNextInput {
  */
 export function doNextList({
   open,
+  industry,
   integrationDriftSummary,
   accessReconciliation,
 }: DoNextInput): DoNextItem[] {
   const ruleIds = [...new Set(open.map((f) => f.ruleId))];
-  const steps = rankFirstSteps(recommendedStepsForRules(ruleIds), open)
+  const steps = rankFirstSteps(recommendedStepsForRules(ruleIds, industry), open)
     .slice(0, DO_NEXT_STEPS_MAX)
     .map((step): DoNextItem => ({ kind: "step", id: step.control.id, step }));
   const drift = buildDriftActions({ summary: integrationDriftSummary, accessReconciliation })

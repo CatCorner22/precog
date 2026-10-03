@@ -287,6 +287,7 @@ export function buildStartHereModel({
   const sodOpen = openSeverityCounts(sod.conflicts, profile.dualRelease);
   const doNext = doNextList({
     open,
+    industry: profile.industry,
     integrationDriftSummary: profile.integrationDriftSummary,
     accessReconciliation: profile.accessReconciliation,
   });

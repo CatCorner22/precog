@@ -14,7 +14,13 @@
 import { formatUsd } from "@/lib/utils";
 import { BENCHMARK_BY_ID, COLLUSION_CAVEAT, METHOD_CAVEATS } from "./benchmarks";
 import { CASE_LIBRARY } from "./cases";
-import { CONTROL_CATALOG, type ControlDefinition, type ControlId } from "./controls";
+import {
+  CONTROL_CATALOG,
+  controlForIndustry,
+  type ControlDefinition,
+  type ControlId,
+} from "./controls";
+import type { IndustryId } from "../industry";
 import type { Benchmark, CaseStudy, DetectionRoute, IndustrySector, SchemeKind } from "./types";
 
 export * from "./types";
@@ -162,7 +168,10 @@ export function casesForControl(controlId: ControlId): CaseStudy[] {
  * derived from the case library rather than from a framework checklist, so
  * every item on it has already failed somewhere for real.
  */
-export function recommendedStepsForRules(ruleIds: readonly string[]): {
+export function recommendedStepsForRules(
+  ruleIds: readonly string[],
+  industry: IndustryId | undefined,
+): {
   control: ControlDefinition;
   supportingCaseIds: string[];
   /** How this control was phrased in the most relevant supporting case. */
@@ -187,7 +196,7 @@ export function recommendedStepsForRules(ruleIds: readonly string[]): {
 
   return [...tally.entries()]
     .map(([control, v]) => ({
-      control: CONTROL_CATALOG[control],
+      control: controlForIndustry(CONTROL_CATALOG[control], industry),
       supportingCaseIds: v.caseIds,
       asApplied: v.asApplied,
     }))

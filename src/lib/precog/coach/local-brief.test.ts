@@ -12,6 +12,7 @@ import {
   openConflictsByPerson,
 } from "./local-brief";
 import { pioneerProfileFrom } from "./pioneer-profile";
+import { nonprofitLeaderPeople } from "@/test/nonprofit-leader-team";
 
 vi.mock("../llm/agent-loop", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../llm/agent-loop")>();
@@ -148,5 +149,17 @@ describe("local brief fallback", () => {
     expect(localBrief(EMBEZZLEMENT, { profile, question: EMBEZZLEMENT }, profile).partial).toBe(
       false,
     );
+  });
+});
+
+describe("the bank-statement step for a business with no owner", () => {
+  it("tells a nonprofit that a board member opens the statement", () => {
+    const profile = { ...defaultProfile("nonprofit"), customPeople: nonprofitLeaderPeople() };
+    const { brief } = localBrief(EMBEZZLEMENT, { profile, question: EMBEZZLEMENT }, profile);
+    const statement = brief.decisions.find((d) => /opens the bank statement/.test(d.action));
+    expect(statement?.action).toBe(
+      "A board member opens the bank statement first, before anyone else handles it",
+    );
+    expect(brief.decisions.some((d) => d.action.startsWith("Owner opens"))).toBe(false);
   });
 });

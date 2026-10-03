@@ -1,3 +1,4 @@
+import type { IndustryId } from "../industry";
 /**
  * Canonical control catalogue.
  *
@@ -54,6 +55,12 @@ export interface ControlDefinition {
   id: ControlId;
   /** One line an owner could act on this week. */
   label: string;
+  /**
+   * The same line for a line of business where "owner" is the wrong person,
+   * for example a nonprofit, which belongs to no one. Read through
+   * `controlForIndustry`; the catalog keeps one id and one ranking.
+   */
+  labelByIndustry?: Partial<Record<IndustryId, string>>;
   /** What it actually defends against. */
   why: string;
   /** Roughly what it costs to put in place, once. */
@@ -89,6 +96,9 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "owner-opens-bank-statement": {
     id: "owner-opens-bank-statement",
     label: "Owner opens the bank statement first, before anyone else handles it",
+    labelByIndustry: {
+      nonprofit: "A board member opens the bank statement first, before anyone else handles it",
+    },
     why: "Cleared-check images show where money actually went. A forged signature clears the bank; only someone outside the process looking at the images catches it.",
     setup: "minutes",
     cadence: "monthly",
@@ -352,3 +362,16 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
     cadence: "each void or refund",
   },
 };
+
+/**
+ * A catalog control worded for one line of business: the nonprofit variant
+ * of a label where one exists, otherwise the control as written. Everything
+ * but the label (id, why, setup, cadence) is the same object's.
+ */
+export function controlForIndustry(
+  control: ControlDefinition,
+  industry: IndustryId | undefined,
+): ControlDefinition {
+  const label = industry ? control.labelByIndustry?.[industry] : undefined;
+  return label ? { ...control, label } : control;
+}

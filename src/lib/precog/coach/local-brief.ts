@@ -1,6 +1,7 @@
 import { resolveTemplate } from "../active-template";
 import { registerAssessed } from "../continuity/register-state";
-import { CONTROL_CATALOG } from "../evidence/controls";
+import { CONTROL_CATALOG, controlForIndustry } from "../evidence/controls";
+import type { IndustryId } from "../industry";
 import { runLocalAgentLoop, type LocalAgentRun } from "../llm/agent-loop";
 import { BRIEF_SECTION, renderDecision } from "../llm/agent-brief";
 import { readSpofData } from "../llm/spof-data";
@@ -152,7 +153,7 @@ export function fallbackBrief(
 ): StructuredBrief {
   const tpl = known.tpl ?? resolveTemplate(profile);
   const people = known.people ?? openConflictsByPerson(profile, tpl);
-  const statement = ownerStatementDecision();
+  const statement = ownerStatementDecision(profile.industry);
   const decisions = [
     ...people.slice(0, 3).map((p) => conflictDecision(p, profile)),
     statement,
@@ -277,8 +278,8 @@ function conflictDecision(
 }
 
 /** The step the owner can take alone this week, from the case library's control catalog. */
-function ownerStatementDecision(): PioneerDecision {
-  const control = CONTROL_CATALOG["owner-opens-bank-statement"];
+function ownerStatementDecision(industry: IndustryId): PioneerDecision {
+  const control = controlForIndustry(CONTROL_CATALOG["owner-opens-bank-statement"], industry);
   return {
     action: control.label,
     rationale: `${control.why} You can do this yourself this week; it takes minutes and needs nobody else's help.`,
@@ -439,7 +440,7 @@ function ownFirstBrief(
       return [registerDecision()];
     });
   }
-  const statement = ownerStatementDecision();
+  const statement = ownerStatementDecision(profile.industry);
   if (leadWithConflicts) {
     const lead = people.slice(0, 3).map((p) => conflictDecision(p, profile));
     decisions = [...lead, statement, ...decisions.filter((d) => d.action !== statement.action)];

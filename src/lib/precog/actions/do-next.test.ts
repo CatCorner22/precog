@@ -46,6 +46,7 @@ describe("doNextList", () => {
     const { profile, template, open } = sample(industry);
     const home = buildStartHereModel({ profile, template, today: TODAY }).firstSteps;
     const list = doNextList({
+      industry,
       open,
       integrationDriftSummary: profile.integrationDriftSummary,
       accessReconciliation: profile.accessReconciliation,
@@ -61,6 +62,7 @@ describe("doNextList", () => {
     (industry) => {
       const { profile, template, open } = sample(industry, DRIFT);
       const list = doNextList({
+        industry,
         open,
         integrationDriftSummary: DRIFT,
         accessReconciliation: profile.accessReconciliation,
@@ -81,6 +83,7 @@ describe("doNextList", () => {
     const { profile, open } = sample("dental");
     const steps = doNextSteps(
       doNextList({
+        industry: "dental",
         open,
         integrationDriftSummary: null,
         accessReconciliation: profile.accessReconciliation,
@@ -92,13 +95,19 @@ describe("doNextList", () => {
 
   it("lists only drift items when no duty conflict is open", () => {
     const list = doNextList({
+      industry: "dental",
       open: [],
       integrationDriftSummary: DRIFT,
       accessReconciliation: null,
     });
     expect(list.every((item) => item.kind === "drift")).toBe(true);
     expect(
-      doNextList({ open: [], integrationDriftSummary: null, accessReconciliation: null }),
+      doNextList({
+        industry: "dental",
+        open: [],
+        integrationDriftSummary: null,
+        accessReconciliation: null,
+      }),
     ).toEqual([]);
   });
 });
