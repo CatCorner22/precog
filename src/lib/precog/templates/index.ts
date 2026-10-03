@@ -15,9 +15,10 @@ export function getIndustryTemplate(id: IndustryId): IndustryTemplate {
 }
 
 /**
- * Built on first use, because building a sample runs the engines (conflict
- * detection, derived staff figures) and they are not ready at import time.
- * Engines that only need a sample's arrays read `./registry` instead.
+ * Built on first use, so the eight samples are only derived (conflict
+ * detection, derived staff figures) when a screen asks for one. Engines that
+ * only need a sample's arrays read `./registry`, which keeps this module off
+ * every engine's import path.
  */
 const BUILT: Partial<Record<IndustryId, IndustryTemplate>> = {};
 
