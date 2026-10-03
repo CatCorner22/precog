@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { MetricCard } from "@/components/precog/home-shell-parts";
+import { TeamLink } from "@/components/precog/team-link";
 import { buttonClass } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DriftAction } from "@/lib/precog/integrations/drift-signals";
@@ -38,10 +39,14 @@ export function StartHereFiguresSection({
   );
 }
 
+/** The drift item for the access import, which lives under Team. */
+const ACCESS_IMPORT = "drift-access-import";
+
 /**
  * Where QuickBooks or an access export disagrees with the duty assignments.
  * Home lists these items last on "Do these first"; the Dashboard shows them
- * in this card until it is retired.
+ * in this card until it is retired. Access rows open Team, where the import
+ * lives; QuickBooks rows open the firm workspace.
  */
 export function BooksVsDutiesCard({ driftActions }: { driftActions: readonly DriftAction[] }) {
   if (driftActions.length === 0) return null;
@@ -60,9 +65,19 @@ export function BooksVsDutiesCard({ driftActions }: { driftActions: readonly Dri
             <span className="font-medium text-fg">{d.title}.</span> {d.why}
           </p>
         ))}
-        <Link to="/firm" className={buttonClass({ variant: "secondary", size: "sm" })}>
-          Open firm workspace
-        </Link>
+        {/* The access import lives under Team; the QuickBooks reading stays on /firm. */}
+        <div className="flex flex-wrap gap-2">
+          {driftActions.some((d) => d.id === ACCESS_IMPORT) && (
+            <TeamLink className={buttonClass({ variant: "secondary", size: "sm" })}>
+              Map access rows under Team
+            </TeamLink>
+          )}
+          {driftActions.some((d) => d.id !== ACCESS_IMPORT) && (
+            <Link to="/firm" className={buttonClass({ variant: "secondary", size: "sm" })}>
+              Open firm workspace
+            </Link>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
