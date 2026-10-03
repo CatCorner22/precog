@@ -1,6 +1,14 @@
 import { encodeStripeParams, type CheckoutPlan, type PlanPrice } from "./stripe";
+import type { Sql } from "@/lib/db";
 import { env } from "@/lib/env.server";
+import { RequestError } from "@/lib/request-errors";
 import { toHex } from "@/lib/web-crypto";
+import {
+  assessmentCreditApplies,
+  markAssessmentCreditUsed,
+  recordStripeCustomer,
+  type BillingAccount,
+} from "../firm/billing-store";
 
 /**
  * Stripe calls that need the secret key. Configured when STRIPE_SECRET_KEY
@@ -104,6 +112,86 @@ export async function createCheckoutSession(input: {
   );
   if (!session.url) throw new Error("Stripe returned no checkout link");
   return { url: session.url };
+}
+
+/** A Stripe customer for an account that has none yet (an Assessment paid before Checkout created one). */
+export async function createCustomer(input: {
+  userId: string;
+  email: string | null;
+}): Promise<{ id: string }> {
+  return stripeRequest<{ id: string }>(
+    "POST",
+    "/customers",
+    { ...(input.email ? { email: input.email } : {}), metadata: { userId: input.userId } },
+    `customer-${input.userId}`,
+  );
+}
+
+/**
+ * Posts a credit to the customer's balance, which Stripe draws down across
+ * the following invoices until spent. A negative amount is a credit in
+ * Stripe's terms. The idempotency key makes a retry after a lost answer
+ * post nothing twice.
+ */
+export async function creditCustomerBalance(
+  customerId: string,
+  amountCents: number,
+  description: string,
+  userId: string,
+): Promise<void> {
+  await stripeRequest(
+    "POST",
+    `/customers/${encodeURIComponent(customerId)}/balance_transactions`,
+    { amount: -amountCents, currency: "usd", description },
+    `credit-${customerId}-${userId}`,
+  );
+}
+
+/** Takes a posted credit back (a refunded Assessment keeps no credit). */
+export async function reverseCustomerBalance(
+  customerId: string,
+  amountCents: number,
+): Promise<void> {
+  await stripeRequest(
+    "POST",
+    `/customers/${encodeURIComponent(customerId)}/balance_transactions`,
+    { amount: amountCents, currency: "usd", description: "Assessment credit reversed" },
+    `credit-reversal-${customerId}`,
+  );
+}
+
+export const ASSESSMENT_PRICE_UNKNOWN =
+  "Precog cannot read the Assessment price to credit it. Try again in a minute.";
+
+/**
+ * Before the first Firm plan Checkout of an account that paid the Assessment:
+ * credits the pre-tax fee to the Stripe customer balance (the fee stored at
+ * payment, else the configured price) and stamps the row, so the credit is
+ * posted once. An account with no customer yet gets one first. Nothing
+ * happens when the credit does not apply. Returns the customer to check out
+ * with.
+ */
+export async function applyAssessmentCredit(
+  sql: Sql,
+  input: { userId: string; email: string | null; account: BillingAccount | null },
+): Promise<{ customerId: string | null; creditedCents: number | null }> {
+  const { account } = input;
+  if (!account || !assessmentCreditApplies(account)) {
+    return { customerId: account?.stripeCustomerId ?? null, creditedCents: null };
+  }
+  const price = account.assessmentFeeCents ?? (await loadPlanPrices())?.assessment.amount;
+  const creditCents =
+    account.assessmentFeeCents ?? (typeof price === "number" ? Math.round(price * 100) : null);
+  if (creditCents === null || creditCents <= 0)
+    throw new RequestError(409, ASSESSMENT_PRICE_UNKNOWN);
+  let customerId = account.stripeCustomerId;
+  if (!customerId) {
+    customerId = (await createCustomer({ userId: input.userId, email: input.email })).id;
+    await recordStripeCustomer(sql, input.userId, customerId);
+  }
+  await creditCustomerBalance(customerId, creditCents, "Assessment credit", input.userId);
+  await markAssessmentCreditUsed(sql, input.userId, creditCents);
+  return { customerId, creditedCents: creditCents };
 }
 
 /** A Billing Portal session so the firm can update its card or cancel. */

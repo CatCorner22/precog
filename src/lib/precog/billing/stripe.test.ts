@@ -11,7 +11,7 @@ import {
   verifyStripeSignature,
 } from "./stripe";
 import { applyBillingEvent } from "./webhook";
-import { createCheckoutSession, deleteCustomer } from "./stripe.server";
+import { applyAssessmentCredit, createCheckoutSession, deleteCustomer } from "./stripe.server";
 import {
   checkoutRefusal,
   commercialToolsOpen,
@@ -424,6 +424,20 @@ describe("applying events", () => {
     expect(await toolsOpen()).toBe(true);
   });
 
+  it("stores the Assessment fee before tax from the Checkout session", async () => {
+    const base = paidEvent("evt_fee", "pi_1", 100);
+    const paid = {
+      ...base,
+      data: { object: { ...base.data.object, amount_subtotal: 100_000, amount_total: 108_250 } },
+    };
+    expect(await applyBillingEvent(db.sql, paid)).toBe("applied");
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      assessmentFeeCents: 100_000,
+      assessmentCreditUsedAt: null,
+      assessmentCreditCents: null,
+    });
+  });
+
   it("ignores a refund or dispute whose intent is not the stored one", async () => {
     await applyBillingEvent(db.sql, paidEvent("evt_p1", "pi_1", 100));
     expect(await applyBillingEvent(db.sql, refundEvent("evt_r_other", "pi_other"))).toBe("ignored");
@@ -523,6 +537,132 @@ describe("event order", () => {
     const account = await loadBillingAccount(db.sql, "owner");
     expect(account).toMatchObject({ subscriptionId: "sub_new", subscriptionStatus: "active" });
     expect((await loadFirmFor(db.sql, "owner"))?.plan).toBe("monthly");
+  });
+
+  const cancelEvent = (id: string, reason: string, created: number) =>
+    parseStripeEvent(
+      JSON.stringify({
+        id,
+        type: "customer.subscription.deleted",
+        created,
+        data: {
+          object: {
+            id: "sub_1",
+            status: "canceled",
+            customer: "cus_1",
+            cancellation_details: { reason },
+            metadata: { userId: "owner" },
+          },
+        },
+      }),
+    )!;
+  const failedInvoice = (id: string, subscription: string | null, created: number) =>
+    parseStripeEvent(
+      JSON.stringify({
+        id,
+        type: "invoice.payment_failed",
+        created,
+        data: {
+          object: {
+            id: "in_1",
+            customer: "cus_1",
+            subscription,
+            hosted_invoice_url: "https://invoice.stripe.com/i/in_1",
+          },
+        },
+      }),
+    )!;
+
+  it("stamps when the plan went past due and clears the episode once a payment goes through", async () => {
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e1", "customer.subscription.created", "sub_1", "active", 100),
+    );
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e2", "customer.subscription.updated", "sub_1", "past_due", 1_700_000_000),
+    );
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      subscriptionStatus: "past_due",
+      pastDueSince: "2023-11-14T22:13:20.000Z",
+    });
+    // A second past_due event keeps the first start.
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e3", "customer.subscription.updated", "sub_1", "past_due", 1_700_500_000),
+    );
+    await db.sql`update billing_accounts set payment_failed_email_sent_at = now(),
+      payment_failed_invoice_url = 'https://invoice.stripe.com/i/in_1'`;
+    expect((await loadBillingAccount(db.sql, "owner"))?.pastDueSince).toBe(
+      "2023-11-14T22:13:20.000Z",
+    );
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e4", "customer.subscription.updated", "sub_1", "active", 1_701_000_000),
+    );
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      subscriptionStatus: "active",
+      pastDueSince: null,
+      paymentFailedEmailSentAt: null,
+      paymentFailedInvoiceUrl: null,
+    });
+  });
+
+  it("keeps the failed-payment record on a cancellation only when Stripe's retries ran out", async () => {
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e1", "customer.subscription.updated", "sub_1", "past_due", 1_700_000_000),
+    );
+    await applyBillingEvent(db.sql, cancelEvent("e2", "payment_failed", 1_701_000_000));
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      subscriptionStatus: "canceled",
+      pastDueSince: "2023-11-14T22:13:20.000Z",
+    });
+    await db.clear("billing_events", "billing_accounts");
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e3", "customer.subscription.updated", "sub_1", "past_due", 1_700_000_000),
+    );
+    await applyBillingEvent(db.sql, cancelEvent("e4", "cancellation_requested", 1_701_000_000));
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      subscriptionStatus: "canceled",
+      pastDueSince: null,
+    });
+  });
+
+  it("reads a failed subscription invoice as past due with its hosted link, and ignores other invoices", async () => {
+    expect(billingChangeFor(failedInvoice("x", "sub_1", 100))).toEqual({
+      kind: "payment-failed",
+      customerId: "cus_1",
+      subscriptionId: "sub_1",
+      hostedInvoiceUrl: "https://invoice.stripe.com/i/in_1",
+      eventAt: "1970-01-01T00:01:40.000Z",
+    });
+    expect(billingChangeFor(failedInvoice("x", null, 100))).toEqual({ kind: "ignore" });
+    // The row is found by the customer; the invoice does not move the status.
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e1", "customer.subscription.created", "sub_1", "active", 100),
+    );
+    expect(await applyBillingEvent(db.sql, failedInvoice("e2", "sub_1", 1_700_000_000))).toBe(
+      "applied",
+    );
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      subscriptionStatus: "active",
+      paymentFailedInvoiceUrl: "https://invoice.stripe.com/i/in_1",
+    });
+    // The subscription event that follows keeps the invoice's start and link.
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e3", "customer.subscription.updated", "sub_1", "past_due", 1_700_000_500),
+    );
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      subscriptionStatus: "past_due",
+      pastDueSince: "2023-11-14T22:13:20.000Z",
+      paymentFailedInvoiceUrl: "https://invoice.stripe.com/i/in_1",
+    });
+    await db.clear("billing_events", "billing_accounts");
+    expect(await applyBillingEvent(db.sql, failedInvoice("e4", "sub_1", 100))).toBe("ignored");
   });
 
   it("applies a newer event for the same subscription and a new one after a cancellation", async () => {
@@ -687,6 +827,146 @@ describe("starting checkout", () => {
         new Response(JSON.stringify({ error: { message: "Stripe is down" } }), { status: 500 });
       await expect(deleteCustomer("cus_1")).rejects.toThrow("Stripe is down");
     });
+  });
+});
+
+describe("the Assessment credit", () => {
+  let db: TestDb;
+  const calls: { url: string; method: string; body: string; headers: Record<string, string> }[] =
+    [];
+  beforeAll(async () => {
+    db = await openTestDb();
+  }, 60_000);
+  afterAll(async () => {
+    await db.close();
+  });
+  beforeEach(async () => {
+    await db.clear("billing_events", "billing_accounts", "firm_members", "firms", '"user"');
+    await db.seedUser("owner", "o@example.com");
+    await saveFirm(db.sql, "owner", "North", "assessment");
+    calls.length = 0;
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test");
+    vi.stubEnv("STRIPE_PRICE_ASSESSMENT", "price_a");
+    vi.stubEnv("STRIPE_PRICE_MONTHLY", "price_m");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({
+          url,
+          method: String(init.method ?? "GET"),
+          body: String(init.body ?? ""),
+          headers: init.headers as Record<string, string>,
+        });
+        if (url.endsWith("/customers")) return new Response(JSON.stringify({ id: "cus_new" }));
+        if (url.includes("/prices/")) {
+          return new Response(
+            JSON.stringify({ unit_amount: 120_000, currency: "usd", recurring: null }),
+          );
+        }
+        return new Response(JSON.stringify({ id: "cbtxn_1", url: "https://checkout.example/s" }));
+      }),
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  const balanceCalls = () => calls.filter((c) => c.url.includes("/balance_transactions"));
+  const credit = async () =>
+    applyAssessmentCredit(db.sql, {
+      userId: "owner",
+      email: "o@example.com",
+      account: await loadBillingAccount(db.sql, "owner"),
+    });
+
+  it("credits the stored pre-tax fee once, before the first Firm plan Checkout", async () => {
+    await db.sql`insert into billing_accounts
+      (user_id, stripe_customer_id, assessment_paid_at, assessment_payment_intent, assessment_fee_cents)
+      values ('owner', 'cus_1', now(), 'pi_1', 100000)`;
+    const first = await credit();
+    expect(first).toEqual({ customerId: "cus_1", creditedCents: 100_000 });
+    expect(balanceCalls()).toHaveLength(1);
+    expect(balanceCalls()[0]).toMatchObject({
+      url: "https://api.stripe.com/v1/customers/cus_1/balance_transactions",
+      method: "POST",
+    });
+    expect(balanceCalls()[0].body).toContain("amount=-100000");
+    expect(balanceCalls()[0].body).toContain("currency=usd");
+    expect(balanceCalls()[0].body).toContain("description=Assessment%20credit");
+    expect(balanceCalls()[0].headers["idempotency-key"]).toBe("credit-cus_1-owner");
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      assessmentCreditCents: 100_000,
+    });
+    expect((await loadBillingAccount(db.sql, "owner"))?.assessmentCreditUsedAt).not.toBeNull();
+    // A second Checkout makes no balance call.
+    expect(await credit()).toEqual({ customerId: "cus_1", creditedCents: null });
+    expect(balanceCalls()).toHaveLength(1);
+  });
+
+  it("gives a cancelled and restarted subscription no credit", async () => {
+    await db.sql`insert into billing_accounts
+      (user_id, stripe_customer_id, subscription_id, subscription_status, assessment_paid_at, assessment_fee_cents)
+      values ('owner', 'cus_1', 'sub_old', 'canceled', now(), 100000)`;
+    expect(await credit()).toEqual({ customerId: "cus_1", creditedCents: null });
+    expect(balanceCalls()).toHaveLength(0);
+  });
+
+  it("falls back to the configured price, and creates a customer for a row without one", async () => {
+    await db.sql`insert into billing_accounts (user_id, assessment_paid_at)
+      values ('owner', now())`;
+    expect(await credit()).toEqual({ customerId: "cus_new", creditedCents: 120_000 });
+    const customer = calls.find((c) => c.url.endsWith("/customers"));
+    expect(customer?.body).toContain("email=o%40example.com");
+    expect(customer?.body).toContain("metadata%5BuserId%5D=owner");
+    expect(balanceCalls()[0].url).toContain("/customers/cus_new/");
+    expect(balanceCalls()[0].body).toContain("amount=-120000");
+    expect((await loadBillingAccount(db.sql, "owner"))?.stripeCustomerId).toBe("cus_new");
+  });
+
+  it("refuses when neither a stored fee nor the price is known, posting nothing", async () => {
+    await db.sql`insert into billing_accounts (user_id, stripe_customer_id, assessment_paid_at)
+      values ('owner', 'cus_1', now())`;
+    const fetchMock = vi.fn(
+      async (_url: string) =>
+        new Response(JSON.stringify({ error: { message: "down" } }), { status: 500 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    // A fresh module, so no price read by an earlier test is still cached.
+    vi.resetModules();
+    const fresh = await import("./stripe.server");
+    await expect(
+      fresh.applyAssessmentCredit(db.sql, {
+        userId: "owner",
+        email: "o@example.com",
+        account: await loadBillingAccount(db.sql, "owner"),
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      message: "Precog cannot read the Assessment price to credit it. Try again in a minute.",
+    });
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).not.toContainEqual(
+      expect.stringContaining("/balance_transactions"),
+    );
+    expect((await loadBillingAccount(db.sql, "owner"))?.assessmentCreditUsedAt).toBeNull();
+  });
+
+  it("reverses what was posted when the Assessment is refunded after a credit", async () => {
+    await db.sql`insert into billing_accounts
+      (user_id, stripe_customer_id, assessment_paid_at, assessment_payment_intent,
+        assessment_fee_cents, assessment_credit_used_at, assessment_credit_cents)
+      values ('owner', 'cus_1', now(), 'pi_1', 100000, now(), 100000)`;
+    expect(
+      await applyBillingEvent(db.sql, {
+        id: "evt_r1",
+        type: "charge.refunded",
+        created: 500,
+        data: { object: { refunded: true, payment_intent: "pi_1", invoice: null } },
+      }),
+    ).toBe("applied");
+    expect(balanceCalls()).toHaveLength(1);
+    expect(balanceCalls()[0].body).toContain("amount=100000");
+    expect(balanceCalls()[0].headers["idempotency-key"]).toBe("credit-reversal-cus_1");
   });
 });
 
