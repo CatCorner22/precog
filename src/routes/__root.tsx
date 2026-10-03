@@ -11,6 +11,7 @@ import { AuthProvider } from "@/lib/auth/provider";
 import { installGlobalErrorReporting } from "@/lib/observability/report-browser";
 import { PresentationProvider } from "@/lib/precog/presentation";
 import { isPracticePath, needsPractice } from "@/lib/precog/route-scope";
+import { useScrollToHash } from "@/lib/use-scroll-to-hash";
 import { CreatedWithGrokBanner } from "@/components/created-with-grok-banner";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
@@ -104,6 +105,7 @@ function CheckingAccount() {
 
 function RootDocument() {
   useEffect(() => installGlobalErrorReporting(), []);
+  useScrollToHash();
   const practicePage = useMatches({
     select: (matches) => needsPractice(matches.map((m) => m.routeId)),
   });
