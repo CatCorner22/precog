@@ -39,6 +39,7 @@ import { browserStorage, readLocal, writeLocal, type StorageLike } from "./local
 import { uid } from "./text";
 import { boundedNumber } from "./number";
 import {
+  asRecord,
   healthPointEntries,
   isRecord,
   knowledgeEntries,
@@ -364,7 +365,7 @@ export function normalizeProfile(
   input: Partial<PracticeProfile>,
   options: { onboardingCompleteFallback?: boolean; today?: string } = {},
 ): PracticeProfile {
-  const parsed = record(input) as Partial<PracticeProfile>;
+  const parsed = asRecord(input) as Partial<PracticeProfile>;
   const industry = isIndustryId(parsed.industry) ? parsed.industry : "dental";
   const base = defaultProfile(industry);
   const staff = normalizeStaff(parsed.staff, base.staff);
@@ -572,7 +573,7 @@ function normalizeLeaverAccessChecks(value: unknown): LeaverAccessCheck[] {
 
 /** Each risk variable is bounded by its catalog definition, or falls back to the default. */
 export function normalizeRiskVariables(value: unknown, base: RiskVariableState): RiskVariableState {
-  const input = record(value);
+  const input = asRecord(value);
   const normalized = { ...base } as unknown as Record<string, unknown>;
   for (const definition of VARIABLE_CATALOG) {
     const key = definition.id as keyof RiskVariableState;
@@ -595,7 +596,7 @@ export function normalizeRiskVariables(value: unknown, base: RiskVariableState):
 
 /** Stored staff figures are untrusted input: each field is typed and bounded, or falls back. */
 function normalizeStaff(value: unknown, base: StaffComposition): StaffComposition {
-  const input = record(value);
+  const input = asRecord(value);
   return {
     teamSize: Math.round(
       boundedNumber(input.teamSize, { min: 1, max: 500, fallback: base.teamSize }),
@@ -688,10 +689,6 @@ function normalizeDisposition(value: unknown): DecisionDisposition | undefined {
     ...(validBy ? { by: validBy } : {}),
     at: value.at.slice(0, 40),
   };
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return isRecord(value) ? value : {};
 }
 
 // ── Ids ────────────────────────────────────────────────────────────────────

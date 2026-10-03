@@ -145,6 +145,16 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+/** The value as a record, or an empty one when it is not an object (an array counts as not one). */
+export function asRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
+/** A stored string, trimmed and cut at `max` characters; anything that is not a string reads as "". */
+export function readText(value: unknown, max: number): string {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+
 /**
  * Entries of a stored list that carry the string fields every engine relies
  * on; anything else is dropped. Null when the value is not a list, which

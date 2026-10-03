@@ -1,5 +1,6 @@
 import { isCalendarDate } from "../dates";
 import { isIndustryId } from "../industry";
+import { asRecord, readText } from "../profile-entries";
 import type { ProcessCadence } from "../types";
 import { ENTITLEMENTS, type EntitlementId } from "../sod/conflict-rules";
 import type {
@@ -68,13 +69,13 @@ export function normalizePlaces(value: unknown): Place[] {
   const seen = new Set<string>();
   for (const entry of value) {
     if (out.length >= PROCEDURE_LIMITS.places) break;
-    const raw = record(entry);
-    const id = text(raw.id, 60);
-    const name = text(raw.name, PROCEDURE_LIMITS.placeName);
+    const raw = asRecord(entry);
+    const id = readText(raw.id, 60);
+    const name = readText(raw.name, PROCEDURE_LIMITS.placeName);
     if (!id || !name || seen.has(id)) continue;
     seen.add(id);
     const url = webUrl(raw.url);
-    const note = text(raw.note, PROCEDURE_LIMITS.placeNote);
+    const note = readText(raw.note, PROCEDURE_LIMITS.placeNote);
     out.push({
       id,
       kind: placeKind(raw.kind),
@@ -127,26 +128,26 @@ function jsonBytes(value: unknown): number {
 
 /** One stored procedure made safe, or null when it has no id, title or known industry. */
 export function normalizeProcedure(value: unknown, today: string): Procedure | null {
-  const raw = record(value);
-  const id = text(raw.id, 60);
-  const title = text(raw.title, PROCEDURE_LIMITS.title);
+  const raw = asRecord(value);
+  const id = readText(raw.id, 60);
+  const title = readText(raw.title, PROCEDURE_LIMITS.title);
   if (!id || !title || !isIndustryId(raw.industry)) return null;
   const createdAt = day(raw.createdAt, today) ?? today;
   const updatedAt = day(raw.updatedAt, today) ?? createdAt;
   const verifiedAt = day(raw.verifiedAt, today);
   const lastVerifiedAt = day(raw.lastVerifiedAt, today) ?? verifiedAt;
-  const verifiedBy = verifiedAt ? text(raw.verifiedBy, 120) : "";
-  const verifiedByAccountId = verifiedAt ? text(raw.verifiedByAccountId, 120) : "";
-  const verifiedByAccountName = verifiedByAccountId ? text(raw.verifiedByAccountName, 120) : "";
+  const verifiedBy = verifiedAt ? readText(raw.verifiedBy, 120) : "";
+  const verifiedByAccountId = verifiedAt ? readText(raw.verifiedByAccountId, 120) : "";
+  const verifiedByAccountName = verifiedByAccountId ? readText(raw.verifiedByAccountName, 120) : "";
   const optional = {
-    libraryId: text(raw.libraryId, 60),
-    placeId: text(raw.placeId, 60),
-    module: text(raw.module, PROCEDURE_LIMITS.module),
+    libraryId: readText(raw.libraryId, 60),
+    placeId: readText(raw.placeId, 60),
+    module: readText(raw.module, PROCEDURE_LIMITS.module),
     url: webUrl(raw.url),
-    purpose: text(raw.purpose, PROCEDURE_LIMITS.purpose),
-    trigger: text(raw.trigger, PROCEDURE_LIMITS.trigger),
-    ownerPersonId: text(raw.ownerPersonId, 120),
-    reviewerPersonId: text(raw.reviewerPersonId, 120),
+    purpose: readText(raw.purpose, PROCEDURE_LIMITS.purpose),
+    trigger: readText(raw.trigger, PROCEDURE_LIMITS.trigger),
+    ownerPersonId: readText(raw.ownerPersonId, 120),
+    reviewerPersonId: readText(raw.reviewerPersonId, 120),
   };
   return {
     id,
@@ -191,7 +192,7 @@ export function reviewDays(value: unknown): number {
 
 /** An http or https address, or "" for anything else (javascript:, data:, a bare word). */
 export function webUrl(value: unknown): string {
-  const raw = text(value, PROCEDURE_LIMITS.url);
+  const raw = readText(value, PROCEDURE_LIMITS.url);
   if (!raw) return "";
   try {
     const url = new URL(raw);
@@ -207,11 +208,11 @@ function normalizeSteps(value: unknown): ProcedureStep[] {
   const seen = new Set<string>();
   for (const entry of value) {
     if (out.length >= PROCEDURE_LIMITS.steps) break;
-    const raw = record(entry);
-    const id = text(raw.id, 60);
+    const raw = asRecord(entry);
+    const id = readText(raw.id, 60);
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    const caution = text(raw.caution, PROCEDURE_LIMITS.caution);
+    const caution = readText(raw.caution, PROCEDURE_LIMITS.caution);
     const imageIds = ids(raw.imageIds, PROCEDURE_LIMITS.imagesPerStep).filter((v) =>
       IMAGE_ID.test(v),
     );
@@ -233,9 +234,9 @@ function normalizeChangelog(value: unknown, today: string): ProcedureChange[] {
   const out: ProcedureChange[] = [];
   for (const entry of value) {
     if (out.length >= PROCEDURE_LIMITS.changelog) break;
-    const raw = record(entry);
+    const raw = asRecord(entry);
     const on = day(raw.on, today);
-    const summary = text(raw.summary, PROCEDURE_LIMITS.changeSummary);
+    const summary = readText(raw.summary, PROCEDURE_LIMITS.changeSummary);
     if (!on || !summary || !Number.isInteger(raw.version)) continue;
     out.push({ version: raw.version as number, on, summary });
   }
@@ -254,13 +255,13 @@ function normalizeProofs(value: unknown, today: string): ProcedureProof[] {
   const seen = new Set<string>();
   for (const entry of value) {
     if (out.length >= PROCEDURE_LIMITS.proofs) break;
-    const raw = record(entry);
-    const id = text(raw.id, 60);
-    const personId = text(raw.personId, 120);
+    const raw = asRecord(entry);
+    const id = readText(raw.id, 60);
+    const personId = readText(raw.personId, 120);
     const on = day(raw.on, today);
     if (!id || !personId || !on || seen.has(id)) continue;
     seen.add(id);
-    const note = text(raw.note, PROCEDURE_LIMITS.proofNote);
+    const note = readText(raw.note, PROCEDURE_LIMITS.proofNote);
     out.push({ id, personId, on, alone: raw.alone === true, ...(note ? { note } : {}) });
   }
   return out;
@@ -274,24 +275,14 @@ function day(value: unknown, today: string): string | undefined {
   return typeof value === "string" && isCalendarDate(value, today) ? value : undefined;
 }
 
-function text(value: unknown, max: number): string {
-  return typeof value === "string" ? value.trim().slice(0, max) : "";
-}
-
 function texts(value: unknown, count: number, max: number): string[] {
   if (!Array.isArray(value)) return [];
   return value
-    .map((v) => text(v, max))
+    .map((v) => readText(v, max))
     .filter(Boolean)
     .slice(0, count);
 }
 
 function ids(value: unknown, count: number): string[] {
   return [...new Set(texts(value, count * 2, 120))].slice(0, count);
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
 }
