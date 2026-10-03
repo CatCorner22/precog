@@ -105,7 +105,7 @@ export interface PracticeProfile {
   monthlyReviews?: ReviewRecord[];
   /** Read-only user and vendor export compared with the duty map. */
   accessReconciliation?: AccessReconciliation;
-  /** Compact books-vs-map drift for home and the weekly plan (full detail stays on Firm). */
+  /** Compact books-vs-map drift for Home's "Do these first" list and the control report (full detail stays on Firm). */
   integrationDriftSummary?: IntegrationDriftSummary;
   /** Software platforms and physical places procedures are done in. */
   places?: Place[];
