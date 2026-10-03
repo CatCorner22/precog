@@ -2,6 +2,7 @@ import type { IndustryId } from "../industry";
 import {
   DISPOSITION_REASON_LABEL,
   type DecisionDisposition,
+  type DecisionEntry,
   type DecisionKind,
 } from "../practice-profile";
 import { CONFLICT_RULES } from "../sod/conflict-rules";
@@ -18,28 +19,64 @@ const ANY_KIND: ReadonlySet<DecisionKind> = new Set<DecisionKind>([
   "insure",
 ]);
 
-/** The parts of a logged entry the not-valid rule reads. */
-export type NotValidEntry = DecidedEntry;
+/**
+ * The parts of a logged entry the not-valid rule reads. `linkedPersonId`
+ * names the one person a judgement is about; `createdAt` dates a decision
+ * logged after it.
+ */
+export type NotValidEntry = DecidedEntry &
+  Partial<Pick<DecisionEntry, "linkedPersonId" | "createdAt">>;
+
+/** The parts of a finding the not-valid rule reads: its rule or control, and who holds it. */
+export type NotValidFinding = DecidedFinding & Partial<Pick<DetectedConflict, "personId">>;
+
+/** Whether an entry links to this finding's rule or control under this industry. */
+function linksTo(d: NotValidEntry, finding: DecidedFinding, industry: IndustryId): boolean {
+  return (
+    Boolean(d.linkedId) &&
+    linkedToIndustry(d, industry) &&
+    (d.linkedId === finding.ruleId || d.linkedId === finding.linkedControlId)
+  );
+}
 
 /**
- * The newest entry judging this finding not valid: linked to its rule or
- * control under this industry. Null when nobody judged it.
+ * Whether a judgement is about this finding: it links to the finding's rule
+ * or control and, when it names a person, that person holds the finding.
+ * Judging one person's finding never sets aside another person's finding on
+ * the same rule.
+ */
+function judges(d: NotValidEntry, finding: NotValidFinding, industry: IndustryId): boolean {
+  if (!isNotValid(d) || !d.disposition || !linksTo(d, finding, industry)) return false;
+  return !d.linkedPersonId || d.linkedPersonId === finding.personId;
+}
+
+/**
+ * The judgement standing on this finding: the newest entry judging it not
+ * valid (`judges`). A decision logged against the finding after that
+ * judgement supersedes it, so the finding no longer counts as not valid.
+ * Null when no judgement stands.
  */
 export function notValidEntryFor<T extends NotValidEntry>(
-  finding: DecidedFinding,
+  finding: NotValidFinding,
   decisions: readonly T[],
   industry: IndustryId,
 ): (T & { disposition: DecisionDisposition }) | null {
   let newest: (T & { disposition: DecisionDisposition }) | null = null;
   for (const d of decisions) {
-    if (!isNotValid(d) || !d.disposition || !d.linkedId || !linkedToIndustry(d, industry)) {
-      continue;
-    }
-    if (d.linkedId !== finding.ruleId && d.linkedId !== finding.linkedControlId) continue;
+    if (!judges(d, finding, industry)) continue;
     const entry = d as T & { disposition: DecisionDisposition };
     if (!newest || entry.disposition.at > newest.disposition.at) newest = entry;
   }
-  return newest;
+  if (!newest) return null;
+  const judgedAt = newest.disposition.at;
+  const superseded = decisions.some(
+    (d) =>
+      !isNotValid(d) &&
+      linksTo(d, finding, industry) &&
+      typeof d.createdAt === "string" &&
+      d.createdAt > judgedAt,
+  );
+  return superseded ? null : newest;
 }
 
 /**
@@ -69,10 +106,11 @@ export function notValidReasonText(disposition: DecisionDisposition): string {
  * Open findings with no logged decision: the "No decision yet" tile. A
  * finding is answered by a decision of any kind logged against its rule or
  * control (the shared `decidedOn`), by an accepted residual risk on its
- * control, or by a "Not valid" judgement that counts (`notValidCounts`).
+ * control, or by a standing "Not valid" judgement that counts
+ * (`notValidEntryFor`, `notValidCounts`).
  */
 export function findingsWithoutDecision<
-  T extends DecidedFinding &
+  T extends NotValidFinding &
     Pick<
       DetectedConflict,
       "ownerHeld" | "dualReleaseMitigated" | "residualRiskAccepted" | "severity"
@@ -91,28 +129,28 @@ export function findingsWithoutDecision<
   );
 }
 
-/** What a duty-conflict card says was logged against it, from the newest linked entry. */
-export type CardDecision<T> =
-  | { type: "decision"; entry: T }
-  | { type: "not_valid"; entry: T & { disposition: DecisionDisposition } };
-
 /**
- * The newest entry logged against this finding's rule or control under this
- * industry: a decision, or a "Not valid" judgement. Null when none is.
+ * What a duty-conflict card says was logged against it: the newest decision
+ * linked to its rule or control, and the "Not valid" judgement standing on it
+ * by the same rule the counts read (`notValidEntryFor`). A judgement made
+ * after a decision shows beside it; a decision made after a judgement
+ * supersedes the judgement, so only the decision shows.
  */
+export type CardDecision<T> = {
+  decision: T | null;
+  notValid: (T & { disposition: DecisionDisposition }) | null;
+};
+
+/** What a duty-conflict card shows as logged against this finding under this industry. */
 export function cardDecision<T extends NotValidEntry & { createdAt: string }>(
-  finding: DecidedFinding,
+  finding: NotValidFinding,
   decisions: readonly T[],
   industry: IndustryId,
-): CardDecision<T> | null {
-  let newest: T | null = null;
+): CardDecision<T> {
+  let decision: T | null = null;
   for (const d of decisions) {
-    if (!d.linkedId || !linkedToIndustry(d, industry)) continue;
-    if (d.linkedId !== finding.ruleId && d.linkedId !== finding.linkedControlId) continue;
-    if (!newest || d.createdAt > newest.createdAt) newest = d;
+    if (isNotValid(d) || !linksTo(d, finding, industry)) continue;
+    if (!decision || d.createdAt > decision.createdAt) decision = d;
   }
-  if (!newest) return null;
-  return isNotValid(newest) && newest.disposition
-    ? { type: "not_valid", entry: newest as T & { disposition: DecisionDisposition } }
-    : { type: "decision", entry: newest };
+  return { decision, notValid: notValidEntryFor(finding, decisions, industry) };
 }

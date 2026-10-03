@@ -103,11 +103,13 @@ type MetricConflict = Pick<
   DetectedConflict,
   "ruleId" | "linkedControlId" | "ownerHeld" | "residualRiskAccepted" | "dualReleaseMitigated"
 > &
-  // Read only for "Not valid": a finding of unknown severity is never set aside.
-  Partial<Pick<DetectedConflict, "severity">>;
+  // Read only for "Not valid": who holds the finding, and how severe it is.
+  // A finding of unknown severity is never set aside.
+  Partial<Pick<DetectedConflict, "severity" | "personId">>;
 
 /** What the pilot metrics read from a logged decision. */
-type MetricDecision = Pick<DecisionEntry, "kind" | "linkedId" | "linkedIndustry" | "disposition">;
+type MetricDecision = Pick<DecisionEntry, "kind" | "linkedId" | "linkedIndustry" | "disposition"> &
+  Partial<Pick<DecisionEntry, "linkedPersonId" | "createdAt">>;
 
 /**
  * Findings are the detected conflicts other than the owner's own pairs, which

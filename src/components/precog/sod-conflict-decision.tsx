@@ -48,15 +48,15 @@ export function ConflictDecision({
 
   return (
     <div className="mt-2 space-y-2">
-      {logged?.type === "decision" && (
+      {logged.decision && (
         <p className="text-xs text-muted">
-          Decision: {DECISION_KIND_LABEL[logged.entry.kind]}
-          {logged.entry.reviewBy ? ` · review ${formatDay(logged.entry.reviewBy)}` : ""}
+          Decision: {DECISION_KIND_LABEL[logged.decision.kind]}
+          {logged.decision.reviewBy ? ` · review ${formatDay(logged.decision.reviewBy)}` : ""}
         </p>
       )}
-      {logged?.type === "not_valid" && (
+      {logged.notValid && (
         <p className="text-xs text-muted">
-          Judged not valid: {notValidReasonText(logged.entry.disposition)}
+          Judged not valid: {notValidReasonText(logged.notValid.disposition)}
           {!notValidCounts(c.severity) && (
             <span className="ml-1 font-medium text-warn">· Awaiting a second person</span>
           )}

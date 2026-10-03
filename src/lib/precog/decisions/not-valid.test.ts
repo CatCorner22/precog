@@ -7,7 +7,7 @@ import { detectSodConflicts, sodDetectionOptions, type DetectedConflict } from "
 import { partialDualReleaseCoverage } from "../sod/open-findings";
 import { conflictDecisionEntry, notValidEntry, notValidReady } from "./conflict-entries";
 import { decisionsDue } from "./follow-through";
-import { cardDecision, findingsWithoutDecision, ruleSeverity } from "./not-valid";
+import { cardDecision, findingsWithoutDecision, notValidEntryFor, ruleSeverity } from "./not-valid";
 
 const NOW = new Date("2026-09-15T12:00:00.000Z");
 
@@ -71,9 +71,9 @@ describe("a decision logged on a duty-conflict card", () => {
     const { profile, finding } = sampleWith((c) => c.severity === "high");
     const p = log(profile, conflictDecisionEntry(finding, "monitor", "", 30, NOW), "d1");
     const shown = cardDecision(finding, p.decisions, p.industry);
-    expect(shown?.type).toBe("decision");
-    expect(shown?.entry.kind).toBe("monitor");
-    expect(shown?.entry.reviewBy).toBe("2026-10-15");
+    expect(shown.notValid).toBeNull();
+    expect(shown.decision?.kind).toBe("monitor");
+    expect(shown.decision?.reviewBy).toBe("2026-10-15");
   });
 });
 
@@ -117,7 +117,79 @@ describe("a duty conflict judged not valid", () => {
     // It has no review date, so it never falls due.
     const due = decisionsDue(p.decisions, "2027-06-01");
     expect([...due.overdue, ...due.dueSoon].map((d) => d.id)).not.toContain("nv");
-    expect(cardDecision(finding, p.decisions, p.industry)?.type).toBe("not_valid");
+    const card = cardDecision(finding, p.decisions, p.industry);
+    expect(card.decision).toBeNull();
+    expect(card.notValid?.id).toBe("nv");
+  });
+
+  it("sets aside only the judged person's finding, not another holder of the same pair", () => {
+    const { profile, finding } = sampleWith((c) => c.severity !== "critical");
+    // A second person holds the same pair.
+    const other: DetectedConflict = {
+      ...finding,
+      id: `p-other:${finding.ruleId}`,
+      personId: "p-other",
+      personName: "Sam Lee",
+    };
+    const conflicts = [finding, other];
+    const partial = new Map<string, number>();
+    const p = log(profile, notValidEntry(finding, "duty_not_held", "", by, NOW), "nv");
+    expect(p.decisions[0].linkedPersonId).toBe(finding.personId);
+
+    expect(notValidEntryFor(finding, p.decisions, p.industry)?.id).toBe("nv");
+    expect(notValidEntryFor(other, p.decisions, p.industry)).toBeNull();
+    expect(cardDecision(other, p.decisions, p.industry).notValid).toBeNull();
+    expect(
+      findingsWithoutDecision(conflicts, partial, p.decisions, p.industry).map((c) => c.id),
+    ).toEqual([other.id]);
+    const metrics = pilotMetrics({
+      conflicts,
+      partialCoverage: partial,
+      decisions: p.decisions,
+      industry: p.industry,
+    });
+    expect(metrics.notValidFindings).toBe(1);
+    expect(metrics.notValidReasons.duty_not_held).toBe(1);
+    expect(metrics.validRate).toBeCloseTo(1 / 2);
+  });
+
+  it("is superseded by a decision logged after it, on the card and in every count", () => {
+    const { profile, base, finding } = sampleWith((c) => c.severity !== "critical");
+    const judged = log(profile, notValidEntry(finding, "rule_does_not_fit", "", by, NOW), "nv");
+    const later = new Date(NOW.getTime() + 60_000);
+    const p = withDecision(
+      judged,
+      conflictDecisionEntry(finding, "remediate", "Move it", 90, later),
+      "d1",
+      later,
+    );
+    expect(notValidEntryFor(finding, p.decisions, p.industry)).toBeNull();
+    const card = cardDecision(finding, p.decisions, p.industry);
+    expect(card.decision?.id).toBe("d1");
+    expect(card.notValid).toBeNull();
+    const after = figures(p);
+    expect(after.metrics.notValidFindings).toBe(0);
+    expect(after.metrics.validRate).toBe(base.metrics.validRate);
+    expect(after.metrics.actedOnFindings).toBe(base.metrics.actedOnFindings + 1);
+    expect(after.noDecision).toBe(base.noDecision - 1);
+  });
+
+  it("shows beside a decision logged before it, and counts as the card says", () => {
+    const { profile, base, finding } = sampleWith((c) => c.severity !== "critical");
+    const decided = log(profile, conflictDecisionEntry(finding, "monitor", "", 30, NOW), "d1");
+    const later = new Date(NOW.getTime() + 60_000);
+    const p = withDecision(
+      decided,
+      notValidEntry(finding, "controlled_elsewhere", "", by, later),
+      "nv",
+      later,
+    );
+    const card = cardDecision(finding, p.decisions, p.industry);
+    expect(card.decision?.id).toBe("d1");
+    expect(card.notValid?.id).toBe("nv");
+    const after = figures(p);
+    expect(after.metrics.notValidFindings).toBe(1);
+    expect(after.metrics.actedOnFindings).toBe(base.metrics.actedOnFindings + 1);
   });
 
   it("leaves a critical finding pending until a second person confirms it", () => {

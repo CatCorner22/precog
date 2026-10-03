@@ -9,7 +9,8 @@ import type { DecisionInput } from "../profile-actions";
 import type { DetectedConflict } from "../sod/detect";
 
 /** The finding a card logs against: its rule, the pair and who holds it. */
-export type CardFinding = Pick<DetectedConflict, "ruleId" | "title" | "personName">;
+export type CardFinding = Pick<DetectedConflict, "ruleId" | "title" | "personName"> &
+  Partial<Pick<DetectedConflict, "personId">>;
 
 /**
  * "Log a decision" on a duty-conflict card: the kind, the owner's note and a
@@ -59,6 +60,8 @@ export function notValidEntry(
     note: said || DISPOSITION_REASON_LABEL[reason],
     linkedTab: "sod",
     linkedId: c.ruleId,
+    // A judgement is about this one person's finding, not every holder of the pair.
+    ...(c.personId ? { linkedPersonId: c.personId } : {}),
     disposition: {
       verdict: "not_valid",
       reason,
