@@ -100,6 +100,11 @@ interface HomeSearch {
   build?: true | "validate";
   /** A QuickBooks connection outcome, kept only when it is one of the known codes. */
   quickbooks?: string;
+  /**
+   * The business to open first (a digest email links each item to its
+   * business and tab); the home page switches to it and drops the key.
+   */
+  business?: string;
 }
 
 export const TAB_IDS: readonly TabId[] = TAB_WORDS.map((t) => t.id);
@@ -176,13 +181,19 @@ export function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
     typeof search.quickbooks === "string" && QUICKBOOKS_STATUSES.has(search.quickbooks)
       ? search.quickbooks
       : undefined;
+  const business =
+    typeof search.business === "string" &&
+    search.business.length > 0 &&
+    search.business.length <= BUSINESS_MAX
+      ? search.business
+      : undefined;
   // Every key is present, undefined when dropped: the router lays these over
   // the raw query, so a key left out would keep the raw value (a retired
   // `?tab=command` would stay in the address and select no tab). A route
   // alias is the exception: its raw `tab` stays, so the address is not
   // rewritten to Home before the route's beforeLoad redirects it.
-  if (isRouteAliasId(search.tab)) return { item, build, quickbooks };
-  return { tab, item, build, quickbooks };
+  if (isRouteAliasId(search.tab)) return { item, build, quickbooks, business };
+  return { tab, item, build, quickbooks, business };
 }
 
 /**
@@ -201,6 +212,8 @@ const ITEM_TABS: ReadonlySet<TabId> = new Set([
 ]);
 
 const ITEM_MAX = 120;
+/** A business id is far shorter; anything longer is not one. */
+const BUSINESS_MAX = 64;
 
 /**
  * A tab's name in the active wording ("Who controls what" for "sod" in plain

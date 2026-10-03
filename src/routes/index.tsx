@@ -9,6 +9,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { toast } from "sonner";
 import {
   BookOpenCheck,
   CalendarCheck,
@@ -36,12 +37,13 @@ import {
   type RouteAliasId,
   type TabId,
 } from "@/lib/precog/navigation";
-import { usePracticeState, useTemplate } from "@/lib/precog/practice-context";
+import { usePracticeActions, usePracticeState, useTemplate } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { count } from "@/lib/precog/text";
 import { AccountDataControls } from "@/components/precog/account-menu";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
+import { DigestConsentPrompt } from "@/components/precog/digest-consent-prompt";
 import {
   CountBadge,
   MoreTabsMenu,
@@ -83,8 +85,33 @@ function Home() {
   const activeAdvanced = ADVANCED_TABS.find((t) => t.id === tab) ?? null;
 
   const tpl = useTemplate();
-  const { profile, ready } = usePracticeState();
+  const { profile, ready, businesses } = usePracticeState();
+  const { switchBusiness } = usePracticeActions();
   const { say } = usePresentation();
+
+  // A digest link names its business (`?business=<id>`): open it once the
+  // list holds it, then drop the key so a reload does not switch again. The
+  // open business is left alone when the id is not in the list (a client the
+  // account no longer sees, or a visitor who is signed out).
+  const wantedBusiness = search.business ?? null;
+  const switchedTo = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ready || !wantedBusiness || switchedTo.current === wantedBusiness) return;
+    const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
+    const dropKey = () =>
+      void navigate({ search: (prev) => ({ ...prev, business: undefined }), replace: true });
+    if (wantedBusiness === activeId) {
+      switchedTo.current = wantedBusiness;
+      dropKey();
+      return;
+    }
+    if (!businesses.some((b) => b.id === wantedBusiness)) return;
+    switchedTo.current = wantedBusiness;
+    void switchBusiness(wantedBusiness).then((result) => {
+      if (!result.ok) toast.error(result.reason);
+      dropKey();
+    });
+  }, [ready, wantedBusiness, businesses, profile.businessId, switchBusiness, navigate]);
 
   /**
    * The one way to change the view: a tab, optionally one item on it, and
@@ -229,6 +256,9 @@ function Home() {
               </SignedIn>
             </div>
           </div>
+          <SignedIn>
+            <DigestConsentPrompt />
+          </SignedIn>
           <TabStrip activeId={tab} onKeyDown={onTabKeyDown} tabCount={TABS.length}>
             {[...PRIMARY_TABS, ...(activeAdvanced ? [activeAdvanced] : [])].map((t) => {
               const Icon = t.icon;
