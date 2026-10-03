@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getIndustryTemplate } from "../templates";
-import { evaluateAssignmentChange } from "./change-impact";
+import { evaluateAssignmentChange } from "@/test/change-impact";
 import { ENTITLEMENTS, type EntitlementId } from "./conflict-rules";
 import { analyzeDutyCoverage } from "./coverage-analysis";
 import {

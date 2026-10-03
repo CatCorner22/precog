@@ -22,7 +22,7 @@ import * as controlMeasures from "./sod/control-measures";
 import * as resolutionPlanner from "./sod/resolution-planner";
 import * as coverageAnalysis from "./sod/coverage-analysis";
 import * as modelIo from "./sod/model-io";
-import * as changeImpact from "./sod/change-impact";
+import * as changeImpact from "../../test/change-impact";
 import * as coveragePlanner from "./sod/coverage-planner";
 import * as governanceReport from "./sod/governance-report";
 import * as assignmentDiff from "./sod/assignment-diff";

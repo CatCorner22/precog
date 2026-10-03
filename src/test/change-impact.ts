@@ -1,8 +1,8 @@
-import type { EntitlementId } from "./conflict-rules";
-import { analyzeDutyCoverage } from "./coverage-analysis";
-import { withEntitlement, type RoleAssignment } from "./assignments";
-import { detectAssignments, type DetectedConflict } from "./detect";
-import type { StaffComposition } from "../types";
+import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
+import { analyzeDutyCoverage } from "@/lib/precog/sod/coverage-analysis";
+import { withEntitlement, type RoleAssignment } from "@/lib/precog/sod/assignments";
+import { detectAssignments, type DetectedConflict } from "@/lib/precog/sod/detect";
+import type { StaffComposition } from "@/lib/precog/types";
 
 interface AssignmentChangeImpact {
   action: "assign" | "remove";
