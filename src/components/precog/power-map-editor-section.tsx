@@ -1,5 +1,4 @@
 import { ResponsibilityMatrix } from "./power-map-matrix";
-import { WEIGHT_TITLE } from "./power-map-words";
 import { FAMILY_META } from "@/lib/precog/sod/duty-families";
 import { withPlaces } from "@/lib/precog/person-location";
 import { Background, Controls, MiniMap, ReactFlow } from "@xyflow/react";
@@ -11,18 +10,17 @@ import {
   Network,
   Plus,
   RotateCcw,
-  Search,
   Table2,
   Trash2,
   Undo2,
   Upload,
 } from "lucide-react";
 import { isSimulatedPersonId } from "@/lib/precog/sod/apply-assignments";
-import { type DutyFamily } from "@/lib/precog/sod/conflict-rules";
 import { JOB_CATALOG } from "@/lib/precog/onboarding/job-catalog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { TeamLink } from "./team-link";
 import type { PowerMapBuilderModel } from "./use-power-map-builder";
 
 export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }) {
@@ -30,13 +28,8 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
     tpl,
     placesOf,
     assignments,
-    guidanceByDuty,
     selectedId,
     setSelectedId,
-    search,
-    setSearch,
-    family,
-    setFamily,
     conflictsOnly,
     setConflictsOnly,
     newJobId,
@@ -55,12 +48,6 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
     onNodesChange,
     onEdgesChange,
     selected,
-    selectedConflicts,
-    conflictEntitlements,
-    visibleEntitlements,
-    toggleEffects,
-    toggle,
-    toggleForPerson,
     addSimulationRole,
     reset,
     removeSelected,
@@ -82,7 +69,8 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
             </CardTitle>
             <CardDescription>
               Each line joins a person to a duty they hold. A red moving line is a duty in a
-              conflict. Drag the boxes into the layout that makes sense to your team.
+              conflict. Drag the boxes into the layout that makes sense to your team. To change who
+              holds a duty, <TeamLink>edit the team under Team</TeamLink>.
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -150,6 +138,26 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
                 }}
               />
             </label>
+            <label className="flex items-center gap-2 text-xs text-muted">
+              <span>Person</span>
+              <select
+                value={selectedId}
+                onChange={(e) => setSelectedId(e.target.value)}
+                className="max-w-56 rounded-md border border-border bg-bg px-2 py-1 text-xs text-fg"
+              >
+                {assignments.map((person) => (
+                  <option key={person.personId} value={person.personId}>
+                    {person.personName} · {withPlaces(person.role, placesOf.get(person.personId))}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selected && isSimulatedPersonId(selected.personId) && (
+              <Button size="sm" variant="ghost" onClick={removeSelected} className="text-danger">
+                <Trash2 className="size-3.5" />
+                Remove modeled job
+              </Button>
+            )}
             <Button size="sm" variant="ghost" onClick={reset}>
               <RotateCcw className="size-3.5" />
               Reset duties
@@ -221,7 +229,6 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
               conflictsOnly={conflictsOnly}
               processId={processId}
               placesOf={placesOf}
-              onToggle={toggleForPerson}
             />
           )}
         </CardContent>
@@ -260,154 +267,6 @@ export function PowerMapEditorSection({ model }: { model: PowerMapBuilderModel }
                 <Plus className="size-3.5" />
                 Add
               </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Assignment builder</CardTitle>
-            <CardDescription>
-              Pick a person, then add or remove duties. Precog saves each change and updates this
-              business&apos;s Duty assignments on every tab. Undo reverses one step; Discard in
-              Change review returns to the baseline you accepted. No sign-in or system permission
-              changes.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <label className="block text-sm">
-              <span className="text-muted">Person or job title</span>
-              <select
-                value={selectedId}
-                onChange={(e) => setSelectedId(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2"
-              >
-                {assignments.map((person) => (
-                  <option key={person.personId} value={person.personId}>
-                    {person.personName} · {withPlaces(person.role, placesOf.get(person.personId))}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-lg border border-border bg-elevated p-2">
-                <p className="text-xs text-subtle">DUTIES</p>
-                <p className="text-lg font-semibold">{selected?.entitlements.length ?? 0}</p>
-              </div>
-              <div
-                className={cn(
-                  "rounded-lg border p-2",
-                  selectedConflicts.length
-                    ? "border-danger/30 bg-danger/10"
-                    : "border-ok/30 bg-ok/10",
-                )}
-              >
-                <p className="text-xs text-subtle">CONFLICTS</p>
-                <p className="text-lg font-semibold">{selectedConflicts.length}</p>
-              </div>
-            </div>
-            {selected && isSimulatedPersonId(selected.personId) && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={removeSelected}
-                className="w-full text-danger"
-              >
-                <Trash2 className="size-3.5" />
-                Remove modeled job
-              </Button>
-            )}
-            <div className="relative">
-              <Search aria-hidden className="absolute left-2.5 top-2.5 size-3.5 text-subtle" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Find a duty…"
-                aria-label="Find a duty"
-                className="w-full rounded-lg border border-border bg-elevated py-2 pl-8 pr-3 text-sm"
-              />
-            </div>
-            <div className="flex gap-1 overflow-x-auto pb-1">
-              {(["all", ...Object.keys(FAMILY_META)] as (DutyFamily | "all")[]).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  aria-pressed={family === item}
-                  onClick={() => setFamily(item)}
-                  className={cn(
-                    "shrink-0 rounded-full border px-2 py-0.5 text-xs capitalize",
-                    family === item
-                      ? "border-primary/50 bg-primary/10"
-                      : "border-border text-muted",
-                  )}
-                >
-                  {item === "all" ? "all" : FAMILY_META[item].label}
-                </button>
-              ))}
-            </div>
-            <div className="max-h-[430px] space-y-1 overflow-y-auto pr-1">
-              {visibleEntitlements.map((entitlement) => {
-                const active = selected?.entitlements.includes(entitlement.id);
-                const conflict = conflictEntitlements.has(entitlement.id);
-                const guidance = guidanceByDuty[entitlement.id];
-                const effect = toggleEffects.get(entitlement.id);
-                const creates = effect?.created ?? 0;
-                const resolves = effect?.resolved ?? 0;
-                return (
-                  <button
-                    key={entitlement.id}
-                    type="button"
-                    aria-pressed={Boolean(active)}
-                    onClick={() => toggle(entitlement.id)}
-                    className={cn(
-                      "flex w-full items-start gap-2 rounded-lg border p-2 text-left",
-                      active
-                        ? conflict
-                          ? "border-danger/40 bg-danger/10"
-                          : "border-primary/30 bg-primary/10"
-                        : creates
-                          ? "border-danger/30 bg-danger/5"
-                          : "border-border bg-elevated text-muted",
-                    )}
-                  >
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border text-xs",
-                        active && "border-primary bg-primary text-primary-fg",
-                      )}
-                    >
-                      {active ? "✓" : ""}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-xs font-medium">{entitlement.label}</span>
-                      <span className="text-xs text-subtle">
-                        {FAMILY_META[entitlement.family].label} ·{" "}
-                        <span title={WEIGHT_TITLE}>weight {entitlement.riskWeight} of 5</span>
-                      </span>
-                      <span className="mt-1 block text-xs leading-relaxed text-subtle">
-                        {guidance.purpose}
-                      </span>
-                      {creates > 0 && (
-                        <span className="mt-1 block text-xs font-medium text-danger">
-                          Assigning creates {creates} conflict{creates === 1 ? "" : "s"}
-                        </span>
-                      )}
-                      {resolves > 0 && (
-                        <span className="mt-1 block text-xs font-medium text-ok">
-                          Removing resolves {resolves} conflict{resolves === 1 ? "" : "s"}
-                        </span>
-                      )}
-                    </span>
-                    {(conflict || creates > 0) && (
-                      <AlertTriangle
-                        aria-hidden
-                        className="ml-auto size-3.5 shrink-0 text-danger"
-                      />
-                    )}
-                  </button>
-                );
-              })}
             </div>
           </CardContent>
         </Card>

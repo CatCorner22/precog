@@ -1,7 +1,8 @@
 /**
  * State and actions behind the continuity planner (the Who knows what tab),
  * grouped as the screen reads: the figures, the register, the check-in, the
- * what-if card, leave, people leaving, and the Journal steps the cards log.
+ * "If someone is out" card, leave, people leaving, and the Journal steps the
+ * cards log.
  * Each card receives the one group it works with.
  */
 import { useMemo, useState } from "react";
@@ -29,6 +30,9 @@ import {
 import type { ImportIssue } from "@/lib/precog/import/csv";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { absenceImpact, type AbsenceAction } from "@/lib/precog/continuity/absence-impact";
+import { personOutDetail } from "@/lib/precog/continuity/out-impact";
+import { addStandInOwner, undoOwnerChange } from "@/lib/precog/builder/stand-in-owner";
+import { buildAssignments } from "@/lib/precog/sod/detect";
 import type { ContinuityStep } from "@/lib/precog/decisions/follow-through";
 import {
   checkInPlan,
@@ -148,7 +152,7 @@ export function useContinuityPlanner(initialKnowledgeId?: string | null) {
     writes,
     checkIn,
   });
-  const whatIf = useWhatIf(tpl, report, people, conflictsFor);
+  const whatIf = useWhatIf(actions, tpl, report, people, conflictsFor);
   const leave = useLeave(
     actions,
     profile,
@@ -469,8 +473,14 @@ function useRegisterEditor(
   };
 }
 
-/** "If someone is out tomorrow": who is ticked and what stops. */
+/**
+ * "If someone is out": who is ticked and what stops. For the ticked people
+ * together, the register items with no one else; for each ticked person, the
+ * duties nobody else holds and the processes nobody else owns, with a
+ * stand-in owner one press away.
+ */
 function useWhatIf(
+  actions: PracticeActions,
   tpl: IndustryTemplate,
   report: CoverageReport,
   people: Person[],
@@ -486,9 +496,29 @@ function useWhatIf(
     () => (ids.length > 0 ? absenceImpact(tpl, ids, conflictsFor) : null),
     [tpl, ids, conflictsFor],
   );
+  const assignments = useMemo(() => buildAssignments(tpl), [tpl]);
+  const details = useMemo(
+    () => ids.map((id) => personOutDetail(tpl, assignments, id)),
+    [tpl, assignments, ids],
+  );
   const toggle = (personId: string) =>
     setTicked(ids.includes(personId) ? ids.filter((id) => id !== personId) : [...ids, personId]);
-  return { absentIds: ids, startedWith, toggle, absence };
+  /** A second owner for a process the absent person would leave with none. */
+  const addStandIn = (processId: string, absentPersonId: string) => {
+    const change = addStandInOwner(tpl, tpl.processes, processId, absentPersonId);
+    if (!change) {
+      toast.error("Nobody else on the team can own this process yet.");
+      return;
+    }
+    actions.setCustomProcesses(change.next);
+    toast.success(`${change.person.name} added as a stand-in owner of ${change.process.name}`, {
+      action: {
+        label: "Undo",
+        onClick: () => actions.setCustomProcesses((current) => undoOwnerChange(current, change)),
+      },
+    });
+  };
+  return { absentIds: ids, startedWith, toggle, absence, details, addStandIn };
 }
 
 /** Out today, planned leave, and the debrief once someone is back. */

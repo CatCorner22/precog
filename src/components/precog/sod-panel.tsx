@@ -28,6 +28,7 @@ import { buttonClass } from "@/components/ui/button-variants";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
 import { joinWithAnd } from "@/lib/precog/text";
+import { TeamLink } from "@/components/precog/team-link";
 import { SodConflictsSection } from "./sod-conflicts-section";
 import { SodControlsSection } from "./sod-controls-section";
 import { SodMatrixSection } from "./sod-matrix-section";
@@ -124,9 +125,9 @@ export function SodPanel({
           tone="primary"
         />
         <StatTile
-          label="Open, no decision"
-          value={String(report.summary.openWithoutAcceptance)}
-          hint="Not accepted; not closed by dual release"
+          label="No decision yet"
+          value={String(model.withoutDecision)}
+          hint="Open, with no logged decision"
           tone="warn"
         />
       </div>
@@ -151,13 +152,13 @@ export function SodPanel({
       {titleDuties && (
         <div className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
           <p>
-            {titleDuties} Check them in Duty assignments: {joinWithAnd(titleDutyNames, 6)}.
+            {titleDuties} Check them under Team: {joinWithAnd(titleDutyNames, 6)}.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => setView("power")}>
+            <TeamLink className={buttonClass({ size: "sm" })}>
               <Network className="size-3.5" aria-hidden />
-              Open Duty assignments
-            </Button>
+              Open Team
+            </TeamLink>
             <Button size="sm" variant="secondary" onClick={model.confirmTitleGuesses}>
               I checked them: they are right
             </Button>

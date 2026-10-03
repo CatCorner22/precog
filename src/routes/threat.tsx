@@ -1,20 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ThreatAssessmentPanel } from "@/components/precog/threat-assessment";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+/**
+ * The retired threat screen. Its ranked list lives on How Precog scores, in
+ * What is still exposed, so a bookmark to /threat opens that view.
+ */
 export const Route = createFileRoute("/threat")({
-  component: ThreatPage,
-  head: () => ({
-    meta: [
-      { title: "Threat Assessment · Precog Pioneer" },
-      {
-        name: "description",
-        content:
-          "Special-operations style educational threat assessment for small business residual risk, SoD gaps, knowledge SPOFs, and control priorities.",
-      },
-    ],
-  }),
+  beforeLoad: () => {
+    throw redirect({ to: "/", search: { tab: "scores", item: "residual" } });
+  },
 });
-
-function ThreatPage() {
-  return <ThreatAssessmentPanel />;
-}

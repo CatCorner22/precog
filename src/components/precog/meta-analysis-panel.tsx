@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import {
   runMetaAnalysis,
   type EpistemicClass,
@@ -6,12 +6,11 @@ import {
 } from "@/lib/precog/llm/meta-analysis";
 import { usePractice } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
-import { johariPanes } from "@/components/precog/johari-pane";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Eye, EyeOff, HelpCircle, Radar, Search, Sparkles, Zap } from "lucide-react";
+import { AlertTriangle, Radar, Sparkles, Zap } from "lucide-react";
 import { tabLabel, type NavFn } from "@/lib/precog/navigation";
 import { openBusinessSettings } from "@/lib/precog/business-settings-event";
 
@@ -47,8 +46,6 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
   // The report is a pure function of the profile: it changes when the
   // business does, and re-running it on a timer would only repeat itself.
   const report = useMemo(() => runMetaAnalysis(profile), [profile]);
-  // Every pane comes from this business's own items, as on the Johari view.
-  const panes = useMemo(() => johariPanes(report.items), [report.items]);
 
   const filtered = report.items.filter((i) => {
     if (filter === "all") return true;
@@ -170,69 +167,36 @@ export function MetaAnalysisPanel({ onNavigate }: { onNavigate?: NavFn }) {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Zap className="size-4" />
-              What updates by itself
-            </CardTitle>
-            <CardDescription>
-              What recalculates as you edit, and what still needs you to enter it
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {report.realtimeCapabilities.map((c) => (
-              <div
-                key={c.id}
-                className={cn(
-                  "rounded-lg border px-3 py-2 text-sm",
-                  c.ready ? "border-ok/25 bg-ok/5" : "border-border bg-elevated",
-                )}
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={c.ready ? "ok" : "default"}>
-                    {c.ready ? "live" : "not live"}
-                  </Badge>
-                  <Badge variant="default">{c.latencyClass}</Badge>
-                  <span className="font-medium">{c.label}</span>
-                </div>
-                <p className="mt-1 text-xs text-muted">{c.description}</p>
-                <p className="mt-0.5 text-xs text-subtle">Depends on: {c.dependency}</p>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Zap className="size-4" />
+            What updates by itself
+          </CardTitle>
+          <CardDescription>
+            What recalculates as you edit, and what still needs you to enter it
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {report.realtimeCapabilities.map((c) => (
+            <div
+              key={c.id}
+              className={cn(
+                "rounded-lg border px-3 py-2 text-sm",
+                c.ready ? "border-ok/25 bg-ok/5" : "border-border bg-elevated",
+              )}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={c.ready ? "ok" : "default"}>{c.ready ? "live" : "not live"}</Badge>
+                <Badge variant="default">{c.latencyClass}</Badge>
+                <span className="font-medium">{c.label}</span>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <div className="space-y-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Eye className="size-4" />
-                Johari window
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-2 sm:grid-cols-2">
-              <JohariCell title="Open" icon={<Eye className="size-3" />} items={panes.open} />
-              <JohariCell
-                title="Blind (Precog sees, you may not)"
-                icon={<Search className="size-3" />}
-                items={panes.blind}
-              />
-              <JohariCell
-                title="Hidden (your team knows)"
-                icon={<EyeOff className="size-3" />}
-                items={panes.hidden}
-              />
-              <JohariCell
-                title="Unknown"
-                icon={<HelpCircle className="size-3" />}
-                items={panes.unknown}
-              />
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+              <p className="mt-1 text-xs text-muted">{c.description}</p>
+              <p className="mt-0.5 text-xs text-subtle">Depends on: {c.dependency}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -285,24 +249,6 @@ function CountChip({
       <p className="mt-1 text-xl font-semibold tabular">{n}</p>
       {hint && <p className="text-xs text-muted">{hint}</p>}
     </button>
-  );
-}
-
-function JohariCell({ title, icon, items }: { title: string; icon: ReactNode; items: string[] }) {
-  return (
-    <div className="rounded-lg border border-border bg-elevated p-2.5">
-      <p className="mb-1.5 flex items-center gap-1 text-xs font-medium text-subtle uppercase">
-        {icon}
-        {title}
-      </p>
-      <ul className="space-y-1 text-xs text-muted">
-        {items.slice(0, 4).map((t) => (
-          <li key={t} className="truncate" title={t}>
-            · {t}
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }
 

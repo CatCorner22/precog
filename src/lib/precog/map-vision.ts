@@ -30,6 +30,8 @@ export interface LayerConfig {
    */
   interactive: boolean;
   description: string;
+  /** Plain-mode wording, where the tactical label or description names a method. */
+  plain?: { label: string; description: string };
 }
 
 export const DEFAULT_LAYERS: LayerConfig[] = [
@@ -53,6 +55,10 @@ export const DEFAULT_LAYERS: LayerConfig[] = [
     visible: true,
     interactive: true,
     description: "Conflicting duties one person holds",
+    plain: {
+      label: "Duty conflicts / controls",
+      description: "Conflicting duties one person holds",
+    },
   },
   {
     id: "knowledge",
@@ -81,6 +87,7 @@ export const DEFAULT_LAYERS: LayerConfig[] = [
     visible: false,
     interactive: false,
     description: "Lean waste: delays and rework you tagged",
+    plain: { label: "Delays and rework", description: "Delays and rework you tagged" },
   },
   {
     id: "person",

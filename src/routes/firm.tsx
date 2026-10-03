@@ -1,11 +1,8 @@
-import { ControlEvidencePanel } from "@/components/precog/control-evidence/panel";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { Button } from "@/components/ui/button";
-import { MonthlyReview } from "@/components/precog/monthly-review";
-import { AccessReconcile } from "@/components/precog/access-reconcile";
 import { FirmMembers } from "@/components/precog/firm/firm-members";
 import { FirmBilling } from "@/components/precog/firm/firm-billing";
 import { ClientList } from "@/components/precog/firm/client-list";
@@ -304,8 +301,9 @@ function FirmPage() {
       <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">Firm workspace</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">{firm?.name || "Firm"}</h1>
       <p className="mt-2 text-sm text-muted">
-        One firm, its people, and each client kept apart. The open business is the one the review,
-        import, history and accounting panels below work on; other clients open from the list.
+        One firm, its people, and each client kept apart. The open business is the one the history,
+        value proof and accounting panels below work on. Its Monthly review and team are on its own
+        screen.
       </p>
 
       <section className="mt-6 rounded-xl border border-border bg-surface p-4">
@@ -317,7 +315,7 @@ function FirmPage() {
             <Link to="/login" className="underline-offset-4 hover:underline">
               Sign in
             </Link>{" "}
-            to keep a firm, invite colleagues and hold a client list. The review below still works
+            to keep a firm, invite colleagues and hold a client list. Value proof below still works
             on this device.
           </p>
         ) : firm && !isOwner ? (
@@ -391,7 +389,7 @@ function FirmPage() {
             team.
           </p>
         )}
-        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
+        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
           <Metric
             label="Hours to a complete map"
             value={metrics.hoursToMap === null ? "—" : String(metrics.hoursToMap)}
@@ -415,6 +413,11 @@ function FirmPage() {
             label="Open duty conflicts"
             value={own ? String(metrics.openFindings) : "—"}
             hint="Open as Start here and the report count them. A logged decision does not close a conflict."
+          />
+          <Metric
+            label="Findings judged valid"
+            value={metrics.validRate === null ? "—" : formatPct(metrics.validRate)}
+            hint="Duty conflicts nobody judged not valid, out of all duty conflicts found. A critical one counts as valid until a second person agrees. A conflict judged not valid stays open."
           />
           <Metric label="Report sent" value={metrics.reportSent ? "Yes" : "Not yet"} />
         </dl>
@@ -443,7 +446,15 @@ function FirmPage() {
             clients={clients}
             deleted={deleted}
             activeId={activeId}
-            onOpen={(id) => void switchBusiness(id)}
+            onOpen={(id) =>
+              // Open a client on its Monthly review, once the switch to it succeeded.
+              void openClientReport(
+                id,
+                switchBusiness,
+                () => void navigate({ to: "/", search: { tab: "monthly" } }),
+                (reason) => toast.error(reason),
+              )
+            }
             onOpenReport={(id) =>
               void openClientReport(
                 id,
@@ -464,20 +475,14 @@ function FirmPage() {
           {!toolsOpen && (
             <p className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
               QuickBooks stays closed until the assessment is paid or the firm plan is active. A
-              past-due plan is not paid. The Monthly review stays open. Stripe is connected on this
-              deployment; the price is the $1,000 assessment and the $299 monthly plan, not a price
-              per client.
+              past-due plan is not paid. The Monthly review on each business's own screen stays
+              open. Stripe is connected on this deployment; the price is the $1,000 assessment and
+              the $299 monthly plan, not a price per client.
             </p>
           )}
           <QuickBooksPanel signedIn={signedIn} />
         </div>
       )}
-
-      <div className="mt-4 space-y-4">
-        <MonthlyReview />
-        <ControlEvidencePanel />
-        <AccessReconcile />
-      </div>
 
       {/* Outside the signed-in blocks: value proof is kept on this device, so a
           signed-out owner still sees and exports it here. */}

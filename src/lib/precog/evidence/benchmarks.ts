@@ -152,6 +152,17 @@ export const BENCHMARK_BY_ID: Record<string, Benchmark> = Object.fromEntries(
 );
 
 /**
+ * The caveat on collusion, in both wordings: tactical mode names the control
+ * by its accounting term, plain mode by what it does.
+ */
+export const COLLUSION_CAVEAT = {
+  plain:
+    "Keeping duties apart assumes people do not collude. Two people acting together defeat every control built on one person checking another; co-conspirators carried out at least one case in this library.",
+  tactical:
+    "Segregation of duties assumes people do not collude. Two people acting together defeat every control built on one person checking another; co-conspirators carried out at least one case in this library.",
+};
+
+/**
  * Honest statement of what this app can and cannot tell a business owner.
  * Surfaced in the UI wherever a projection is shown. Being straight about the
  * limits is what separates a decision aid from a scare tactic.
@@ -161,6 +172,6 @@ export const METHOD_CAVEATS: string[] = [
   "The published medians cover cases that someone detected and investigated. Schemes that nobody found cannot be in the data, so real frequency runs higher than any study can measure.",
   "Loss figures are medians, not averages. Half of cases cost more. The distribution has a long tail.",
   "Nothing here scores a person. Every gap Precog shows is a structural weakness in how the business divides work, which is a fact about the organization chart and not about anyone's character.",
-  "Segregation of duties assumes people do not collude. Two people acting together defeat every control built on one person checking another; co-conspirators carried out at least one case in this library.",
+  COLLUSION_CAVEAT.tactical,
   "This is decision support for prioritizing internal controls. It is not an audit, an actuarial estimate, or legal advice.",
 ];

@@ -9,7 +9,9 @@ const SHOWN = 6;
 /**
  * Recommended procedures for this line of business (procedures/library.ts):
  * those that fit the team and the register first, each with why it matters,
- * what it would cover, its suggested steps and the guidance it follows.
+ * what it would cover, its suggested steps, the evidence to keep, what to
+ * do when one person has to do both halves of the work, and the guidance it
+ * follows.
  * Starting one opens the editor with the steps marked as suggestions.
  */
 export function RecommendedCard({
@@ -79,7 +81,8 @@ export function RecommendedCard({
                 )}
                 <details className="mt-1 text-xs">
                   <summary className="cursor-pointer text-muted">
-                    {r.steps.length} suggested steps and the source
+                    {r.steps.length} suggested steps
+                    {r.evidenceToKeep?.length ? ", the evidence to keep" : ""} and the source
                   </summary>
                   <ol className="mt-1 list-decimal space-y-0.5 pl-5">
                     {r.steps.map((s) => (
@@ -89,6 +92,22 @@ export function RecommendedCard({
                       </li>
                     ))}
                   </ol>
+                  {r.evidenceToKeep && r.evidenceToKeep.length > 0 && (
+                    <>
+                      <p className="mt-2 font-medium">Evidence to keep</p>
+                      <ul className="mt-0.5 list-disc space-y-0.5 pl-5">
+                        {r.evidenceToKeep.map((e) => (
+                          <li key={e}>{e}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {r.ifYouCannotSeparate && (
+                    <>
+                      <p className="mt-2 font-medium">If you cannot separate this duty</p>
+                      <p className="mt-0.5">{r.ifYouCannotSeparate}</p>
+                    </>
+                  )}
                   <p className="mt-1 text-muted">Source: {r.source}</p>
                 </details>
               </li>

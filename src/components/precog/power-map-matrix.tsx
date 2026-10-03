@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import type { DetectedConflict, RoleAssignment } from "@/lib/precog/sod/detect";
 import { FAMILY_META } from "@/lib/precog/sod/duty-families";
 import { withPlaces } from "@/lib/precog/person-location";
@@ -8,20 +7,19 @@ import { cn } from "@/lib/utils";
 import { mapSlice } from "./power-map-graph";
 import { WEIGHT_TITLE } from "./power-map-words";
 
+/** Who holds which duty, read-only: Team is where the duties change. */
 export function ResponsibilityMatrix({
   assignments,
   conflicts,
   conflictsOnly,
   processId,
   placesOf,
-  onToggle,
 }: {
   assignments: RoleAssignment[];
   conflicts: DetectedConflict[];
   conflictsOnly: boolean;
   processId: string;
   placesOf: ReadonlyMap<string, string[]>;
-  onToggle: (personId: string, entitlement: EntitlementId) => void;
 }) {
   const {
     shownPeople,
@@ -35,8 +33,8 @@ export function ResponsibilityMatrix({
     <div className="max-h-[720px] overflow-auto rounded-xl border border-border bg-bg">
       <table className="min-w-max border-separate border-spacing-0 text-xs">
         <caption className="sr-only">
-          Duty assignment matrix. Rows are duties and columns are people. Select a cell to add or
-          remove an assignment.
+          Duty assignment matrix. Rows are duties and columns are people. Team changes who holds
+          each duty.
         </caption>
         <thead className="sticky top-0 z-20 bg-surface">
           <tr>
@@ -85,23 +83,21 @@ export function ResponsibilityMatrix({
                 const conflict = conflictKeys.has(`${person.personId}:${duty.id}`);
                 return (
                   <td key={person.personId} className="border-b border-border p-1 text-center">
-                    <button
-                      type="button"
-                      aria-label={`${active ? "Remove" : "Assign"} ${duty.label} ${active ? "from" : "to"} ${person.personName}${conflict ? "; part of a duty conflict" : ""}`}
-                      aria-pressed={active}
-                      onClick={() => onToggle(person.personId, duty.id)}
+                    <span
+                      role="img"
+                      aria-label={`${person.personName} ${active ? "holds" : "does not hold"} ${duty.label}${conflict ? "; part of a duty conflict" : ""}`}
                       className={cn(
                         "mx-auto flex size-8 items-center justify-center rounded-md border text-sm",
                         conflict
                           ? "border-danger bg-danger/20 text-danger"
                           : active
                             ? "border-primary/50 bg-primary/15 text-primary"
-                            : "border-border text-transparent hover:border-primary/40 hover:text-subtle",
+                            : "border-transparent text-transparent",
                       )}
                       title={`${person.personName} · ${duty.label}${conflict ? " · duty conflict" : ""}`}
                     >
-                      {conflict ? "!" : active ? "✓" : "+"}
-                    </button>
+                      {conflict ? "!" : active ? "✓" : ""}
+                    </span>
                   </td>
                 );
               })}

@@ -216,11 +216,19 @@ try {
   await guestField.fill("Guest Safety edited");
   await guestField.blur();
   await page.getByText("This browser did not keep your list of businesses").waitFor();
-  const guest = await page.evaluate(
-    (key) => JSON.parse(localStorage.getItem(key) ?? "null"),
-    profileStorageKey(),
+  // The warning can show as the page loads, before the edit; the name field
+  // stores its edit a moment after it changes, so wait for the edit itself.
+  await eventually(
+    async () =>
+      (
+        await page.evaluate(
+          (key) => JSON.parse(localStorage.getItem(key) ?? "null"),
+          profileStorageKey(),
+        )
+      )?.practiceName === "Guest Safety edited",
+    "the open business is still kept",
+    10_000,
   );
-  assert.equal(guest?.practiceName, "Guest Safety edited", "the open business is still kept");
 
   assert.deepEqual(errors, [], "uncaught page errors");
   console.log(JSON.stringify({ ok: true, steps: step.names.length }));

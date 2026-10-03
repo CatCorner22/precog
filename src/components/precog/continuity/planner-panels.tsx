@@ -1,4 +1,5 @@
-import { CalendarDays, LogOut, Plus, Trash2, UserMinus } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { CalendarDays, LogOut, Plus, Trash2, UserMinus, UserPlus } from "lucide-react";
 import { LeaverAccessList } from "@/components/precog/leaver-access";
 import {
   LeaveDebriefCard,
@@ -32,7 +33,11 @@ import { cn } from "@/lib/utils";
 import { dependenceTone } from "@/lib/precog/scoring/bands";
 import { formatDayRange } from "@/lib/precog/dates";
 
-/** What-if: tick who is out and see what stops, who picks it up, and what to do first. */
+/**
+ * If someone is out: tick who is out and see what stops, who picks it up,
+ * and what to do first. The register items are for everyone ticked together;
+ * the duties and processes are listed for each ticked person.
+ */
 export function OutTomorrowCard({
   whatIf,
   people,
@@ -46,13 +51,14 @@ export function OutTomorrowCard({
   journal: JournalSteps;
   onSelect: (knowledgeId: string) => void;
 }) {
-  const { absentIds, absence, startedWith } = whatIf;
+  const { absentIds, absence, startedWith, details } = whatIf;
+  const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? "This person";
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <UserMinus className="size-4 text-muted" />
-          If someone is out tomorrow
+          If someone is out
         </CardTitle>
         <CardDescription>
           Sick, on leave, or leaving. What stops, who picks it up, and what to do first.
@@ -106,7 +112,7 @@ export function OutTomorrowCard({
             {absence.stops.length > 0 && (
               <div>
                 <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
-                  Stops on day one
+                  Register items with no one else
                 </div>
                 <ul className="space-y-1.5">
                   {absence.stops.map((s) => (
@@ -156,6 +162,81 @@ export function OutTomorrowCard({
         ) : (
           <p className="text-muted">Add people to the team to simulate an absence.</p>
         )}
+        {details.map((d) => {
+          const first = firstName(nameOf(d.personId));
+          return (
+            <div key={d.personId} className="space-y-2 border-t border-border pt-3">
+              {details.length > 1 && (
+                <p className="text-xs font-medium text-muted">If {first} is out:</p>
+              )}
+              <div>
+                <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
+                  Duties that stop
+                </div>
+                {d.dutiesStop.length > 0 ? (
+                  <ul className="flex flex-wrap gap-1">
+                    {d.dutiesStop.map((duty) => (
+                      <li key={duty.entitlementId}>
+                        <Badge variant="danger">{duty.label}</Badge>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted">
+                    None: someone else holds each money duty {first} holds.
+                  </p>
+                )}
+                {d.dutiesOneHolder.length > 0 && (
+                  <p className="mt-1 text-xs text-muted">
+                    Left with one holder:{" "}
+                    {d.dutiesOneHolder
+                      .map((duty) =>
+                        duty.assignees[0]
+                          ? `${duty.label} (${firstName(duty.assignees[0].personName)})`
+                          : duty.label,
+                      )
+                      .join(", ")}
+                  </p>
+                )}
+              </div>
+              <div>
+                <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
+                  Processes with no other owner
+                </div>
+                {d.processes.length > 0 ? (
+                  <ul className="space-y-1">
+                    {d.processes.map((proc) => (
+                      <li key={proc.id} className="flex items-center gap-2 text-xs">
+                        <Link
+                          to="/"
+                          search={{ tab: "map", item: proc.id }}
+                          className="min-w-0 flex-1 truncate text-primary underline-offset-4 hover:underline"
+                          title={`Open ${proc.name} on the process map`}
+                        >
+                          {proc.name}
+                        </Link>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-1.5 text-xs text-primary"
+                          title="Add a second owner who can step in"
+                          aria-label={`Add stand-in for ${proc.name}`}
+                          onClick={() => whatIf.addStandIn(proc.id, d.personId)}
+                        >
+                          <UserPlus className="size-3.5" /> Add stand-in
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted">
+                    None: every process {first} owns has another owner.
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </CardContent>
     </Card>
   );
@@ -402,8 +483,8 @@ export function LeavingTeamCard({
         {leaving.list.length === 0 && (
           <p className="text-xs text-muted">
             Nobody has given notice. When someone does, record the date here rather than removing
-            them &mdash; the weekly plan, printed report and Pioneer will count down to it and chase
-            the hand-off.
+            them &mdash; the printed report and Pioneer will count down to it and chase the
+            hand-off.
           </p>
         )}
         {leaving.list.map((l) => (

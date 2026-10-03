@@ -136,6 +136,6 @@ const STEPS: TourStep[] = [
   {
     icon: Activity,
     title: "Watch map completeness",
-    body: "The pill at the top of this panel tracks map completeness while you build. Back on the Dashboard the full card shows dimension bars, a trend line, and links straight to the weak spots.",
+    body: "The pill at the top of this panel tracks map completeness while you build. The File menu holds the spreadsheet, the JSON backup, the share link and saved versions of the map.",
   },
 ];

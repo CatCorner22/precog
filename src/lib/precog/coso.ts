@@ -38,6 +38,8 @@ interface CosoFinding {
   id: string;
   label: string;
   detail: string;
+  /** Plain-mode wording of `detail`, where `detail` names the framework. */
+  plainDetail?: string;
   severity: HealthLevel;
   link: DeepLinkTarget;
 }
@@ -54,6 +56,8 @@ interface CosoPrincipleScore {
   name: string;
   status: CosoStatus;
   note: string;
+  /** Plain-mode wording of `note`, where `note` uses an accounting term. */
+  plainNote?: string;
   /** The inputs this principle reads are not in yet; the status is "not_assessed". */
   notAssessed?: boolean;
 }
@@ -119,6 +123,9 @@ export function assessCoso(
   // here, as in the residual register.
   const ownControls = controls.filter((c) => !c.starter);
   const startersLeftOut = controls.length - ownControls.length;
+  const startersLeft = startersLeftOut
+    ? ` Precog leaves out ${count(startersLeftOut, "sample control")} until you confirm ${startersLeftOut === 1 ? "it runs" : "they run"} here.`
+    : "";
   const sodGaps = ownControls.filter((c) => !c.segregated);
   const residualAccepted = sodGaps.filter((c) => c.residualRiskAccepted);
   const unaddressedGaps = sodGaps.filter((c) => !c.residualRiskAccepted);
@@ -300,7 +307,8 @@ export function assessCoso(
           number: 10,
           name: "Select control activities",
           status: sodGaps.length > 0 || openSevere.length > 0 ? "gap" : "in_place",
-          note: `Segregation score ${staff.segregationScore}/100 with ${count(sodGaps.length, "open duty conflict")}; ${count(openSevere.length, "open critical or high duty conflict")} on the duty map.${startersLeftOut ? ` Precog leaves out ${count(startersLeftOut, "sample control")} until you confirm ${startersLeftOut === 1 ? "it runs" : "they run"} here.` : ""}`,
+          note: `Segregation score ${staff.segregationScore}/100 with ${count(sodGaps.length, "open duty conflict")}; ${count(openSevere.length, "open critical or high duty conflict")} on the duty map.${startersLeft}`,
+          plainNote: `Duties kept apart ${staff.segregationScore}/100 with ${count(sodGaps.length, "open duty conflict")}; ${count(openSevere.length, "open critical or high duty conflict")} in the duty assignments.${startersLeft}`,
         },
         {
           number: 11,
@@ -445,6 +453,8 @@ export function assessCoso(
           label: `${count(unaddressedGaps.length, "duty conflict")} without a residual-risk decision`,
           detail:
             "COSO expects the business to evaluate each duty conflict and then either fix it or accept it with a compensating design.",
+          plainDetail:
+            "A sound control system looks at each duty conflict and then either fixes it or accepts it with another check that covers it.",
           severity: unaddressedGaps.length > 0 ? "weak" : "strong",
           link: { type: "sod" },
         },

@@ -12,14 +12,14 @@
  * private helpers and the scheme maps they read.
  */
 import { formatUsd } from "@/lib/utils";
-import { BENCHMARK_BY_ID, METHOD_CAVEATS } from "./benchmarks";
+import { BENCHMARK_BY_ID, COLLUSION_CAVEAT, METHOD_CAVEATS } from "./benchmarks";
 import { CASE_LIBRARY } from "./cases";
 import { CONTROL_CATALOG, type ControlDefinition, type ControlId } from "./controls";
 import type { Benchmark, CaseStudy, DetectionRoute, IndustrySector, SchemeKind } from "./types";
 
 export * from "./types";
 export * from "./controls";
-export { CASE_LIBRARY, BENCHMARK_BY_ID, METHOD_CAVEATS };
+export { CASE_LIBRARY, BENCHMARK_BY_ID, COLLUSION_CAVEAT, METHOD_CAVEATS };
 
 // ---------------------------------------------------------------------------
 // Selection

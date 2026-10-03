@@ -42,6 +42,7 @@ import {
   executiveSummary,
   handSetNotes,
 } from "./report-summary";
+import { findingResponses } from "./finding-responses";
 
 /**
  * Everything the printed report shows, computed once from the template and
@@ -231,6 +232,8 @@ export function buildControlReportModel({
       today,
     ),
     decisionLog: decisionLog(profile.decisions),
+    /** The decision on each duty-conflict finding and the findings judged not valid (layout 3). */
+    responses: findingResponses(sod.conflicts, profile.decisions, profile.industry),
     followThrough: continuityFollowThrough(profile.decisions, profile.industry),
   };
 }

@@ -84,7 +84,9 @@ await withPage(options, async (p, errors) => {
   });
 
   step("spreadsheet: import a CSV");
-  await page.getByRole("button", { name: /^Spreadsheet$/ }).click();
+  // The spreadsheet panel sits in the builder's File menu.
+  await page.getByRole("button", { name: /^File$/ }).click();
+  await page.getByRole("menuitemcheckbox", { name: /^Spreadsheet/ }).click();
   const csvDir = mkdtempSync(join(tmpdir(), "precog-e2e-"));
   const csvPath = join(csvDir, "processes.csv");
   writeFileSync(

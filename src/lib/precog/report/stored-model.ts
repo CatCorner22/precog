@@ -8,13 +8,17 @@ import { isMapCustomized } from "../profile-actions";
 import { mergeProfile } from "../profile-merge";
 import { SCORING_VERSION } from "../scoring/weights";
 import { buildControlReportModel, type ControlReportModel } from "./build-control-report";
+import { NO_FINDING_RESPONSES, type FindingResponses } from "./finding-responses";
 
 /**
  * The report model as a locked version stores it: plain JSON, so it reads
  * back from the database exactly as it was built. The non-JSON values in the
  * model, the `committed` and `partialCoverage` maps, are stored as entries.
  */
-export type StoredReportModel = Omit<ControlReportModel, "committed" | "partialCoverage"> & {
+export type StoredReportModel = Omit<
+  ControlReportModel,
+  "committed" | "partialCoverage" | "responses"
+> & {
   committed: Array<[string, ContinuityCommitment]>;
   /**
    * Absent in a model stored before the report read partial dual-release
@@ -22,6 +26,11 @@ export type StoredReportModel = Omit<ControlReportModel, "committed" | "partialC
    * counts and statuses it was locked with.
    */
   partialCoverage?: Array<[string, number]>;
+  /**
+   * Absent in a model stored under layouts 1 and 2, which print no responses.
+   * Such a model revives with none.
+   */
+  responses?: FindingResponses;
 };
 
 /**
@@ -41,13 +50,15 @@ export interface FrozenReport {
  * stored model with another layout version recalculates instead of printing,
  * unless `ControlReport` still prints that layout with its own labels.
  *
+ * Layout 3: the decision on each duty-conflict finding and the findings
+ * judged not valid, plain decision labels, no assumed loss column.
  * Layout 2: map completeness (no heat part) and residual rows counted by band.
  * Layout 1: map health score (with heat) and the average residual score.
  */
-export const REPORT_LAYOUT_VERSION = 2;
+export const REPORT_LAYOUT_VERSION = 3;
 
 /** The layouts `ControlReport` prints from stored figures, each with its own labels. */
-export const PRINTED_LAYOUT_VERSIONS: readonly number[] = [1, REPORT_LAYOUT_VERSION];
+export const PRINTED_LAYOUT_VERSIONS: readonly number[] = [1, 2, REPORT_LAYOUT_VERSION];
 
 /**
  * The largest stored model, in characters of JSON. The samples build about
@@ -69,6 +80,7 @@ export function reviveReportModel(stored: StoredReportModel): ControlReportModel
     ...stored,
     committed: new Map(stored.committed),
     partialCoverage: new Map(stored.partialCoverage ?? []),
+    responses: stored.responses ?? NO_FINDING_RESPONSES,
   };
 }
 
@@ -96,7 +108,7 @@ export function buildReportModelForProfile(
 
 /**
  * Freezes the figures of a profile as saved on the account, merged as
- * `getReport` merges it. The model is null when it is past the cap or fails
+ * `getReport` merges it, with the responses to each duty-conflict finding. The model is null when it is past the cap or fails
  * to build; the version then locks without it and recalculates when opened.
  */
 export function freezeReport(

@@ -11,7 +11,7 @@ import * as rag from "./rag/retrieve";
 import * as corpus from "./rag/corpus";
 import * as scoring from "./threat-scoring";
 import * as profile from "./practice-profile";
-import * as blueprint from "./operating-blueprint";
+import * as procedureLibrary from "./procedures/library";
 import * as industryModule from "./industry";
 import * as templatesIndex from "./templates";
 import * as sodRules from "./sod/conflict-rules";
@@ -540,27 +540,23 @@ describe("domain invariants", () => {
     assert.equal("injected" in restored, false);
   });
 
-  it("operating blueprint covers complete tiered process guidance for every industry", () => {
+  it("procedures library gives every industry procedures with evidence to keep and a fallback", () => {
     for (const industry of industryModule.INDUSTRIES) {
-      const processes = blueprint.blueprintsForIndustry(industry.id);
-      assert.ok(processes.length >= 10, industry.id);
-      assert.equal(new Set(processes.map((process) => process.id)).size, processes.length);
-      for (const process of processes) {
-        assert.ok(process.primaryOwner, `${industry.id}:${process.id}`);
-        assert.ok(process.independentReviewer);
-        assert.ok(process.standard.length > 0);
-        assert.ok(process.leading.length > 0);
-        assert.ok(process.optimal.length > 0);
-        assert.ok(process.fallback.length > 0);
-        assert.ok(process.evidence.length > 0);
-      }
-      // No line of business reads another's vocabulary in the shared processes.
-      const shared = processes
-        .slice(3)
-        .map((p) => `${p.name} ${p.objective}`)
-        .join(" ");
-      if (industry.id !== "dental") assert.ok(!/patient|claim/i.test(shared), industry.id);
+      const shown = procedureLibrary.RECOMMENDED_PROCEDURES.filter(
+        (p) => !p.industries || p.industries.includes(industry.id),
+      );
+      const withEvidence = shown.filter((p) => (p.evidenceToKeep ?? []).length > 0);
+      assert.ok(withEvidence.length >= 10, industry.id);
+      assert.ok(
+        shown.filter((p) => p.ifYouCannotSeparate).length >= 9,
+        `${industry.id}: fallbacks`,
+      );
     }
+    // No line of business reads another's vocabulary in the shared procedures.
+    const shared = procedureLibrary.RECOMMENDED_PROCEDURES.filter((p) => !p.industries)
+      .map((p) => `${p.title} ${p.purpose} ${p.ifYouCannotSeparate ?? ""}`)
+      .join(" ");
+    assert.ok(!/patient|claim/i.test(shared));
   });
 
   it("power map covers common jobs and valid duty relationships", () => {

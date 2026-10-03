@@ -48,8 +48,50 @@ describe("the recommended procedures", () => {
 
   it("names no owner, so the steps read right for a nonprofit", () => {
     for (const r of RECOMMENDED_PROCEDURES) {
-      const words = [r.purpose, ...r.steps.flatMap((s) => [s.text, s.caution ?? ""])].join(" ");
+      const words = [
+        r.purpose,
+        ...r.steps.flatMap((s) => [s.text, s.caution ?? ""]),
+        r.ifYouCannotSeparate ?? "",
+      ].join(" ");
       expect(words, r.id).not.toMatch(/\bowner\b/i);
+    }
+  });
+});
+
+describe("the blueprint's evidence and fallbacks folded into the library", () => {
+  const FOLDED: Record<string, { evidence: string; fallback?: RegExp }> = {
+    "lib-bank-rec": { evidence: "Reconciliation sign-off", fallback: /does not post/ },
+    "lib-vendor-bank-change": {
+      evidence: "Contact verification record",
+      fallback: /separate authorized reviewer/,
+    },
+    "lib-release-payments": { evidence: "Release log", fallback: /separate authorized reviewer/ },
+    "lib-payroll": { evidence: "Change report", fallback: /change report/ },
+    "lib-cash-deposit": { evidence: "Processor settlement detail", fallback: /ties out/ },
+    "lib-refund-review": { evidence: "Refund register", fallback: /refund and void listing/ },
+    "lib-cycle-count": { evidence: "Count sheets", fallback: /once a year/ },
+    "lib-receiving": { evidence: "Receiving log" },
+    "lib-leaver-access": { evidence: "User list export", fallback: /Twice a year/ },
+    "lib-card-review": { evidence: "Card statements", fallback: /every card statement/ },
+    "lib-trust-rec": { evidence: "Three-way reconciliation", fallback: /trust account/ },
+    "lib-tip-report": { evidence: "Tip pool sheet", fallback: /card tips/ },
+    "lib-lien-waiver": { evidence: "Waiver register", fallback: /pay application/ },
+    "lib-restricted-gift": { evidence: "Fund balance report", fallback: /restricted funds/ },
+    "lib-deal-jacket": { evidence: "Remittance log", fallback: /fees, payoffs and rebates/ },
+  };
+
+  it.each(Object.entries(FOLDED))("%s carries its evidence and fallback text", (id, want) => {
+    const r = RECOMMENDED_PROCEDURES.find((p) => p.id === id)!;
+    expect(r, id).toBeDefined();
+    expect(r.evidenceToKeep, id).toContain(want.evidence);
+    expect(new Set(r.evidenceToKeep).size, id).toBe(r.evidenceToKeep!.length);
+    if (want.fallback) expect(r.ifYouCannotSeparate, id).toMatch(want.fallback);
+  });
+
+  it('writes the evidence and fallbacks without "should" or "e.g."', () => {
+    for (const r of RECOMMENDED_PROCEDURES) {
+      const text = [r.ifYouCannotSeparate ?? "", ...(r.evidenceToKeep ?? [])].join(" ");
+      expect(text, r.id).not.toMatch(/\bshould\b|\be\.g\./i);
     }
   });
 });

@@ -11,6 +11,15 @@ monthly checks, not a full control-design catalog or an audit opinion.
 This implementation starts from main `efb358b4e345ff7c7314760666d5f80acb9b5361`,
 source tree `b85abdbbd88ed7652a4ff3d743c7ec2d83ee26d9` (merged PR #146).
 
+## Where it appears
+
+The control evidence log is a section of each business's Monthly review
+(`/?tab=monthly`, section `evidence`, so `/?tab=monthly&item=evidence` opens on
+it), beside the monthly checks, the control calendar and the Decisions log. The
+firm workspace (`/firm`) no longer shows it: its client list opens each client
+on that client's Monthly review. The digest email still links to `/firm`, where
+that list is.
+
 ## Behavior
 
 | Action                                  | Result                      | Guard                                                                               |

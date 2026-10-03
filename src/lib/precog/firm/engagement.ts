@@ -1,7 +1,8 @@
 import { isDemoName } from "../industry";
 import { csvCell } from "../import/csv";
 import { decidedOn } from "../decisions/decided-on";
-import type { DecisionEntry } from "../practice-profile";
+import { notValidCounts, notValidEntryFor } from "../decisions/not-valid";
+import type { DecisionEntry, DispositionReason } from "../practice-profile";
 import type { DetectedConflict } from "../sod/detect";
 import { openFindings as sharedOpenFindings } from "../sod/open-findings";
 import type { IndustryId } from "../industry";
@@ -40,6 +41,15 @@ export interface PilotMetrics {
   actedOnFindings: number;
   /** Accepted findings divided by every finding. Null when there is nothing to judge. */
   acceptanceRate: number | null;
+  /**
+   * Findings judged not valid, critical ones excepted until a second person
+   * confirms them. They stay in the open count: the duties are still held.
+   */
+  notValidFindings: number;
+  /** Findings not judged not valid, divided by every finding. Null when there is nothing to judge. */
+  validRate: number | null;
+  /** How many of `notValidFindings` were set aside for each reason (the newest judgement per finding). */
+  notValidReasons: Record<DispositionReason, number>;
 }
 
 const ISO = /^\d{4}-\d{2}-\d{2}T/;
@@ -73,6 +83,9 @@ export function pilotMetricsCsv(businessName: string, metrics: PilotMetrics): st
     row("acceptedFindings", metrics.acceptedFindings),
     row("actedOnFindings", metrics.actedOnFindings),
     row("acceptanceRate", metrics.acceptanceRate === null ? "" : metrics.acceptanceRate.toFixed(3)),
+    // Appended, so a reader of the older columns finds them where they were.
+    row("notValidFindings", metrics.notValidFindings),
+    row("validRate", metrics.validRate === null ? "" : metrics.validRate.toFixed(3)),
   ].join("\n");
 }
 
@@ -89,10 +102,14 @@ export function mapIsComplete(people: readonly Person[] | null | undefined): boo
 type MetricConflict = Pick<
   DetectedConflict,
   "ruleId" | "linkedControlId" | "ownerHeld" | "residualRiskAccepted" | "dualReleaseMitigated"
->;
+> &
+  // Read only for "Not valid": who holds the finding, and how severe it is.
+  // A finding of unknown severity is never set aside.
+  Partial<Pick<DetectedConflict, "severity" | "personId">>;
 
 /** What the pilot metrics read from a logged decision. */
-type MetricDecision = Pick<DecisionEntry, "kind" | "linkedId" | "linkedIndustry" | "disposition">;
+type MetricDecision = Pick<DecisionEntry, "kind" | "linkedId" | "linkedIndustry" | "disposition"> &
+  Partial<Pick<DecisionEntry, "linkedPersonId" | "createdAt">>;
 
 /**
  * Findings are the detected conflicts other than the owner's own pairs, which
@@ -102,7 +119,9 @@ type MetricDecision = Pick<DecisionEntry, "kind" | "linkedId" | "linkedIndustry"
  * decision logged against their rule or control. Acted on counts the others
  * that something answered: dual release closes them at every amount, or a
  * remediate, monitor or insure decision is logged against them. A finding is
- * in at most one of accepted and acted on.
+ * in at most one of accepted and acted on. A "Not valid" judgement is not a
+ * decision, so it moves neither; it counts in `notValidFindings` instead,
+ * except on a critical finding, which waits for a second person.
  */
 export function pilotMetrics(input: {
   engagement?: EngagementStamp;
@@ -124,6 +143,20 @@ export function pilotMetrics(input: {
   );
   const openFindings = sharedOpenFindings(input.conflicts, input.partialCoverage).length;
   const acceptedFindings = accepted.length;
+  const notValidReasons: Record<DispositionReason, number> = {
+    duty_not_held: 0,
+    controlled_elsewhere: 0,
+    rule_does_not_fit: 0,
+    other: 0,
+  };
+  let notValidFindings = 0;
+  for (const c of all) {
+    if (!c.severity || !notValidCounts(c.severity)) continue;
+    const entry = notValidEntryFor(c, input.decisions, input.industry);
+    if (!entry) continue;
+    notValidFindings += 1;
+    notValidReasons[entry.disposition.reason] += 1;
+  }
   const started = input.engagement?.startedAt ? Date.parse(input.engagement.startedAt) : NaN;
   const completed = input.engagement?.mapCompletedAt
     ? Date.parse(input.engagement.mapCompletedAt)
@@ -142,6 +175,9 @@ export function pilotMetrics(input: {
     acceptedFindings,
     actedOnFindings: actedOn.length,
     acceptanceRate: findings === 0 ? null : acceptedFindings / findings,
+    notValidFindings,
+    validRate: findings === 0 ? null : (findings - notValidFindings) / findings,
+    notValidReasons,
   };
 }
 

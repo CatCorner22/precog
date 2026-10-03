@@ -1,35 +1,26 @@
-import { CoverageList, CoveragePlanOption } from "./power-map-parts";
+import { CoverageList } from "./power-map-parts";
 import { StatTile } from "@/components/ui/stat-tile";
-import type { AssignmentChange } from "@/lib/precog/sod/assignment-diff";
 import { withPlaces } from "@/lib/precog/person-location";
-import { AlertTriangle, Check, RotateCcw, ShieldCheck, UserRoundCheck, Users } from "lucide-react";
+import { AlertTriangle, ShieldCheck, UserRoundCheck, Users } from "lucide-react";
 import { JOB_CATALOG } from "@/lib/precog/onboarding/job-catalog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { riskTone } from "@/lib/precog/scoring/bands";
-import { usePresentation } from "@/lib/precog/presentation";
+import { usePresentation, useTabName } from "@/lib/precog/presentation";
 import type { PowerMapBuilderModel } from "./use-power-map-builder";
 
 export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel }) {
   const { say } = usePresentation();
+  const tabName = useTabName();
   const {
     assignments,
     coverage,
     report,
     criticalCount,
-    pendingChanges,
-    baseline,
-    commit,
-    acceptBaseline,
     setSelectedId,
-    setHistory,
     powerIndex,
     selectedId,
     placesOf,
-    coveragePlans,
-    coverageProgram,
   } = model;
 
   return (
@@ -63,87 +54,6 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
           tone={criticalCount > 0 ? "danger" : "primary"}
         />
       </div>
-
-      <Card>
-        <CardHeader className="flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-base">Change review</CardTitle>
-            <CardDescription>
-              Review proposed grants, revocations, hires, and removals against the loaded baseline
-              before treating the model as approved.
-            </CardDescription>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                commit(baseline);
-                setSelectedId(baseline[0]?.personId ?? "");
-              }}
-              disabled={!pendingChanges.length}
-            >
-              <RotateCcw className="size-3.5" />
-              Discard
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                acceptBaseline(assignments);
-                setHistory([]);
-              }}
-              disabled={!pendingChanges.length}
-            >
-              <Check className="size-3.5" />
-              Accept baseline
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {pendingChanges.length ? (
-            <>
-              <div className="mb-3 flex flex-wrap gap-2">
-                <Badge variant="accent">{pendingChanges.length} pending</Badge>
-                <Badge>
-                  {pendingChanges.filter((item) => item.kind === "duty_granted").length} grants
-                </Badge>
-                <Badge>
-                  {pendingChanges.filter((item) => item.kind === "duty_revoked").length} revocations
-                </Badge>
-              </div>
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {pendingChanges.slice(0, 12).map((change) => (
-                  <div
-                    key={change.id}
-                    className="rounded-lg border border-border bg-elevated p-2.5"
-                  >
-                    <p className="text-xs font-medium">{change.personName}</p>
-                    <p
-                      className={cn(
-                        "mt-0.5 text-xs",
-                        change.kind === "duty_granted" || change.kind === "person_added"
-                          ? "text-primary"
-                          : "text-warn",
-                      )}
-                    >
-                      {CHANGE_LABEL[change.kind]} {change.dutyLabel ?? change.role}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              {pendingChanges.length > 12 && (
-                <p className="mt-2 text-xs text-subtle">
-                  +{pendingChanges.length - 12} additional pending changes.
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-ok">
-              No pending model changes. Current assignments match the accepted baseline.
-            </p>
-          )}
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>
@@ -208,6 +118,7 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
           <CardDescription>
             Separation asks whether one person can move and hide money. Stand-in cover asks whether
             each duty has a trained stand-in. Fix both before you change anyone&apos;s access.
+            Stand-in suggestions for these duties are under {tabName("knowledge")}.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
@@ -254,129 +165,9 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
           />
         </CardContent>
       </Card>
-
-      {coveragePlans.length > 0 && (
-        <Card>
-          <CardHeader className="flex-row items-start justify-between gap-4">
-            <div>
-              <CardTitle className="text-base">Stand-in suggestions</CardTitle>
-              <CardDescription>
-                For high-risk duties only one person holds: people who already hold a duty of weight
-                4 or more in the same process and hold no conflict, where adding the duty creates no
-                conflict the rules detect. Check each person can actually do the work before you
-                assign it; undo is one click.
-              </CardDescription>
-            </div>
-            {coverageProgram.steps.length > 1 && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      `Assign all ${coverageProgram.steps.length} suggested stand-ins? Check each person can do the work; you can undo.`,
-                    )
-                  ) {
-                    commit(coverageProgram.nextAssignments);
-                  }
-                }}
-              >
-                <ShieldCheck className="size-3.5" />
-                Assign all suggested stand-ins
-              </Button>
-            )}
-          </CardHeader>
-          {coverageProgram.steps.length > 1 && (
-            <CardContent className="grid gap-2 border-t border-border py-3 sm:grid-cols-3">
-              <StatTile
-                label="Suggested stand-ins"
-                value={String(coverageProgram.steps.length)}
-                hint="Recalculated after each one"
-                tone="ok"
-              />
-              <StatTile
-                label="Projected stand-in cover"
-                value={`${coverageProgram.projectedScore}/100`}
-                hint={`+${coverageProgram.projectedScore - coverageProgram.startingScore} points`}
-                tone="ok"
-              />
-              <StatTile
-                label="Still one holder"
-                value={String(coverageProgram.unresolvedGaps)}
-                hint="Need someone outside, or a control"
-                tone={coverageProgram.unresolvedGaps > 0 ? "danger" : "ok"}
-              />
-            </CardContent>
-          )}
-          <CardContent className="space-y-3">
-            {Array.from(new Set(coveragePlans.map((plan) => plan.entitlement)))
-              .slice(0, 6)
-              .map((entitlement) => {
-                const options = coveragePlans.filter((plan) => plan.entitlement === entitlement);
-                const first = options[0];
-                return (
-                  <div
-                    key={entitlement}
-                    className="grid gap-3 rounded-xl border border-border bg-elevated p-3 lg:grid-cols-[minmax(220px,0.8fr)_minmax(0,2fr)]"
-                  >
-                    <div>
-                      <Badge variant={first.reason === "unassigned" ? "danger" : "warn"}>
-                        {first.reason === "unassigned" ? "Owner needed" : "Stand-in needed"}
-                      </Badge>
-                      <p className="mt-2 text-sm font-medium">{first.dutyLabel}</p>
-                      <p className="mt-1 text-xs text-subtle">
-                        Each candidate works in this duty&apos;s process already and adds no
-                        conflict the rules detect.
-                      </p>
-                    </div>
-                    <div className="grid gap-2 xl:grid-cols-3">
-                      {options.map((plan) => (
-                        <CoveragePlanOption
-                          key={plan.id}
-                          plan={plan}
-                          onApply={() => {
-                            setSelectedId(plan.toPersonId);
-                            commit(plan.nextAssignments);
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-          </CardContent>
-        </Card>
-      )}
-
-      {coveragePlans.length === 0 && coverage.singlePoints.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Stand-in suggestions</CardTitle>
-            <CardDescription>
-              No stand-in to suggest. Everyone who works in these duties&apos; processes already
-              holds a conflict, or would gain one by taking the duty on. Separate a conflict first,
-              or write the procedure down so a stand-in or your outside accountant can follow it.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {coverage.singlePoints.map((duty) => (
-              <Badge key={duty.entitlementId} variant="warn">
-                {duty.label} · only {duty.assignees[0]?.personName ?? "one person"}
-              </Badge>
-            ))}
-          </CardContent>
-        </Card>
-      )}
     </>
   );
 }
-
-/** Change review's verb for each kind of change: "Removes Reconcile the bank account". */
-const CHANGE_LABEL: Record<AssignmentChange["kind"], string> = {
-  duty_granted: "Adds",
-  duty_revoked: "Removes",
-  person_added: "New person:",
-  person_removed: "Removed:",
-};
 
 /** A person's authority on RISK_SCALE; below "Worth doing" it stays the plain accent. */
 const AUTHORITY_TEXT: Record<ReturnType<typeof riskTone>, string> = {

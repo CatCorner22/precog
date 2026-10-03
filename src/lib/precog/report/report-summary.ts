@@ -85,7 +85,7 @@ export function executiveSummary(input: SummaryInput): string[] {
 /**
  * Lines disclosing a staff figure the owner set by hand, printed beside the
  * KPIs. The priority and residual figures read the hand-set segregation
- * score while the duty separation index reads the duties, so a reader sees
+ * score while duty separation reads the duties, so a reader sees
  * both numbers and which figures follow which.
  */
 export function handSetNotes(handSet: HandSetFigures): string[] {
@@ -99,7 +99,7 @@ export function handSetNotes(handSet: HandSetFigures): string[] {
           ? " Your team's duties give the same."
           : ` Your team's duties give ${score.fromDuties}.`;
     lines.push(
-      `Segregation score set by hand: ${score.set}.${duties} The priority list and residual risk scores in this report use the score set by hand; the duty separation index reads the duties.`,
+      `Segregation score set by hand: ${score.set}.${duties} The priority list and residual risk scores in this report use the score set by hand; duty separation reads the duties.`,
     );
   }
   const bank = handSet.bankRec;

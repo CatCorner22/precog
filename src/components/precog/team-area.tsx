@@ -1,24 +1,52 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { BriefcaseBusiness } from "lucide-react";
+import { toast } from "sonner";
 import { AccessReconcile } from "@/components/precog/access-reconcile";
+import { ChangeReviewCard } from "@/components/precog/change-review";
 import { TeamEditor } from "@/components/precog/builder/team-editor";
+import { WorkloadView } from "@/components/precog/builder/workload-view";
 import { JobCatalogSheet } from "@/components/precog/job-catalog-sheet";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { usePracticeActions, useTemplate } from "@/lib/precog/practice-context";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { reassignOwner, undoOwnerChange } from "@/lib/precog/builder/stand-in-owner";
+import { analyzeWorkload } from "@/lib/precog/builder/workload";
+import { usePracticeActions, usePracticeState } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
 import { tabLabel } from "@/lib/precog/navigation";
 
 /**
  * The Team tab: who works here and which money duties each person holds,
- * edited in one place. Every other screen reads this list. The access and
- * payroll import checks it against the exports from the business's systems.
+ * edited in one place. Every other screen reads this list. Change review
+ * shows what changed since the owner last accepted the team's duties,
+ * Workload who carries the processes, and the access and payroll import
+ * checks the list against the exports from the business's systems.
  */
 export function TeamArea() {
-  const tpl = useTemplate();
-  const { setCustomPeople } = usePracticeActions();
+  const { template: tpl, profile } = usePracticeState();
+  const { setCustomPeople, setCustomProcesses } = usePracticeActions();
   const { say } = usePresentation();
+  const navigate = useNavigate();
   const [showJobs, setShowJobs] = useState(false);
+  const workload = useMemo(
+    () => analyzeWorkload(tpl, tpl.processes, tpl.people, profile.staff, profile.dualRelease),
+    [tpl, profile.staff, profile.dualRelease],
+  );
+
+  function reassign(fromId: string, processId: string) {
+    const change = reassignOwner(tpl, tpl.processes, fromId, processId);
+    if (!change) {
+      toast.error("Nobody else on the team can take this on yet.");
+      return;
+    }
+    setCustomProcesses(change.next);
+    toast.success(`${change.process.name} reassigned to ${change.person.name}`, {
+      action: {
+        label: "Undo",
+        onClick: () => setCustomProcesses((current) => undoOwnerChange(current, change)),
+      },
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -53,6 +81,24 @@ export function TeamArea() {
       <Card>
         <CardContent className="p-4">
           <TeamEditor people={tpl.people} onChange={(next) => setCustomPeople(next)} />
+        </CardContent>
+      </Card>
+      <ChangeReviewCard />
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Workload</CardTitle>
+          <CardDescription>
+            Who carries the processes, the duties and the duty conflicts. Press a process to open it
+            on the process map.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <WorkloadView
+            rows={workload}
+            processCount={tpl.processes.length}
+            onSelectProcess={(id) => void navigate({ to: "/", search: { tab: "map", item: id } })}
+            onReassign={reassign}
+          />
         </CardContent>
       </Card>
       <AccessReconcile />

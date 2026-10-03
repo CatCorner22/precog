@@ -13,6 +13,8 @@ import {
   titleDutiesSentence,
 } from "@/lib/precog/sod/title-duties";
 import { businessLocations, locationsById, worksAt } from "@/lib/precog/person-location";
+import { findingsWithoutDecision } from "@/lib/precog/decisions/not-valid";
+import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { rulesDualReleaseCanNarrow, type ConflictSeverity } from "./sod-conflict-view";
 
 export type SodView = "conflicts" | "matrix" | "roles" | "dual" | "power" | "controls";
@@ -35,7 +37,7 @@ export function useSodPanel(
   onNavigate?: NavFn,
 ) {
   const tpl = useTemplate();
-  const { profile, setCustomPeople } = usePractice();
+  const { profile, setCustomPeople, addDecision } = usePractice();
   // People and their duty pairs first; the dual-release policy is one step away.
   const [view, setShownView] = useState<SodView>(() => sodViewFrom(initialView) ?? "conflicts");
   // A later link (?tab=sod&item=controls) switches the view in place, so the
@@ -63,6 +65,18 @@ export function useSodPanel(
       shellReport ??
       detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease)),
     [shellReport, tpl, profile.staff, profile.dualRelease],
+  );
+  // Open findings nobody has logged a decision on: the "No decision yet" tile.
+  // It reads the same decided-on rule as the pilot metrics, so the two move together.
+  const withoutDecision = useMemo(
+    () =>
+      findingsWithoutDecision(
+        report.conflicts,
+        partialDualReleaseCoverage(profile.dualRelease, report.conflicts),
+        profile.decisions,
+        profile.industry,
+      ).length,
+    [report.conflicts, profile.dualRelease, profile.decisions, profile.industry],
   );
   const narrowable = useMemo(
     () => rulesDualReleaseCanNarrow(profile.dualRelease),
@@ -97,6 +111,8 @@ export function useSodPanel(
   return {
     profile,
     report,
+    withoutDecision,
+    addDecision,
     narrowable,
     sodExamples: getIndustryCopy(profile.industry).sodExamples,
     titleDuties,
