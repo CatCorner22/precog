@@ -7,7 +7,6 @@ import {
   briefAuthorLine,
   coachErrorMessage,
   extraWarnings,
-  journalEntry,
   type CoachResult,
 } from "./pioneer-coach-parts";
 
@@ -64,29 +63,6 @@ describe("coachErrorMessage", () => {
     expect(coachErrorMessage("boom")).toBe(
       "Pioneer could not build the brief. Try again in a moment.",
     );
-  });
-});
-
-describe("journalEntry", () => {
-  it("links a cross-training move to its register item so the next brief follows it up", () => {
-    const entry = journalEntry(
-      {
-        action: "Cross-train Chris Patel on Insurance denial appeals",
-        rationale: "Only Jordan can run it.",
-        effort: "medium",
-        horizonDays: 30,
-        link: { tab: "knowledge", id: "k-appeals", step: "cover", personId: "p6" },
-      },
-      new Date(2026, 8, 1),
-    );
-    expect(entry).toMatchObject({
-      kind: "remediate",
-      linkedTab: "knowledge",
-      linkedId: "k-appeals",
-      linkedStep: "cover",
-      linkedPersonId: "p6",
-      reviewBy: "2026-10-01",
-    });
   });
 });
 

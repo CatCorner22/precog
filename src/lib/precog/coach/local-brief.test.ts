@@ -3,7 +3,7 @@ import { runLocalAgentLoop } from "../llm/agent-loop";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import { defaultProfile } from "../practice-profile";
 import { withDecision } from "../profile-actions";
-import { journalEntry } from "@/components/precog/pioneer-coach-parts";
+import { journalEntry } from "./journal-entry";
 import {
   DEFAULT_COACH_QUESTION,
   fallbackBrief,
