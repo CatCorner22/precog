@@ -4,6 +4,7 @@ import { RequestError } from "@/lib/request-errors";
 import { inTransaction } from "@/lib/sql-transaction";
 import { ACTIVE_SUBSCRIPTION_STATUSES } from "./firm/billing-store";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
+import { SUPPORT_EMAIL } from "./legal/operator";
 import { userScope } from "./llm/daily-usage";
 import { count } from "./text";
 import { pictureUrl } from "./procedures/image-pipeline";
@@ -399,7 +400,7 @@ async function refuseWhileBilling(tx: Sql, userId: string): Promise<string | nul
   if (status && ACTIVE_SUBSCRIPTION_STATUSES.has(status)) {
     throw new RequestError(
       409,
-      "Your firm plan is still active. Cancel it with Manage billing on the Firm page, then delete your account.",
+      `Your firm plan is still active. Cancel it with Manage billing on the Firm page, then delete your account. If you cannot, write to ${SUPPORT_EMAIL}.`,
     );
   }
   return rows[0]?.stripe_customer_id ?? null;
@@ -418,7 +419,7 @@ async function refuseWhileHoldingFirmClients(tx: Sql, userId: string): Promise<v
   if (!held) return;
   throw new RequestError(
     409,
-    `You set up ${count(Number(held.n), "client business", "client businesses")} for ${held.firm_name}. Deleting your account would delete them too. Ask the firm owner what to keep, delete those businesses yourself, then delete your account.`,
+    `You set up ${count(Number(held.n), "client business", "client businesses")} for ${held.firm_name}. Deleting your account would delete them too. Ask the firm owner what to keep, delete those businesses yourself, then delete your account. Need help? Write to ${SUPPORT_EMAIL}.`,
   );
 }
 
