@@ -6,10 +6,30 @@ import type { DecisionEntry, DispositionReason } from "../practice-profile";
 import type { DetectedConflict } from "../sod/detect";
 import { openFindings as sharedOpenFindings } from "../sod/open-findings";
 import type { IndustryId } from "../industry";
+// From team-source, never business-lifecycle, which imports this file.
+import { teamSource } from "../team-source";
 import type { Person } from "../types";
 
-/** True when this profile is the owner's team rather than an industry sample. */
+/**
+ * True when this profile is the owner's team rather than an industry sample.
+ *
+ * A finished business answers from `teamSource`, so an emptied team or one
+ * kept under a sample's name is still the owner's. A business whose setup
+ * is unfinished keeps the older rule, which also asks for people and a name
+ * of the owner's; every caller passes a full profile, so the optional field
+ * is always there to read.
+ */
 export function isOwnTeam(profile: {
+  customPeople?: readonly Person[] | null;
+  practiceName: string;
+  onboardingComplete?: boolean;
+}): boolean {
+  if (profile.onboardingComplete === false) return legacyOwnTeam(profile);
+  return teamSource(profile) === "own";
+}
+
+/** The rule before `teamSource`: people entered, under a name that is not a sample's. */
+function legacyOwnTeam(profile: {
   customPeople?: readonly Person[] | null;
   practiceName: string;
 }): boolean {

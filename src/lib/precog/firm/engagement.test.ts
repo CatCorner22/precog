@@ -188,11 +188,36 @@ describe("pilot engagement", () => {
     expect(answered.acceptanceRate).toBe(0);
   });
 
-  it("does not treat a sample practice name as the owner's team", () => {
-    expect(isOwnTeam({ practiceName: "Ridgeview Family Dental", customPeople: people })).toBe(
+  it("treats a finished business as the owner's team once people were entered, whatever the name", () => {
+    expect(isOwnTeam({ practiceName: "Ridgeview Family Dental", customPeople: people })).toBe(true);
+    expect(isOwnTeam({ practiceName: "Own Plumbing", customPeople: people })).toBe(true);
+    expect(isOwnTeam({ practiceName: "Own Plumbing", customPeople: [] })).toBe(true);
+    expect(isOwnTeam({ practiceName: "Own Plumbing", customPeople: null })).toBe(false);
+    expect(isOwnTeam({ practiceName: "Own Plumbing" })).toBe(false);
+  });
+
+  it("keeps the older rule while setup is unfinished: people entered under a name of the owner's", () => {
+    const unfinished = { onboardingComplete: false };
+    expect(
+      isOwnTeam({ ...unfinished, practiceName: "Ridgeview Family Dental", customPeople: people }),
+    ).toBe(false);
+    expect(isOwnTeam({ ...unfinished, practiceName: "Own Plumbing", customPeople: people })).toBe(
+      true,
+    );
+    expect(isOwnTeam({ ...unfinished, practiceName: "Own Plumbing", customPeople: [] })).toBe(
       false,
     );
-    expect(isOwnTeam({ practiceName: "Own Plumbing", customPeople: people })).toBe(true);
+  });
+
+  it("stamps a start for an own team whose people were emptied", () => {
+    const ownTeam = isOwnTeam({ practiceName: "Own Plumbing", customPeople: [] });
+    const stamp = advanceEngagement(undefined, {
+      now: "2026-10-06T00:00:00.000Z",
+      people: [],
+      ownTeam,
+    });
+    expect(stamp?.startedAt).toBe("2026-10-06T00:00:00.000Z");
+    expect(stamp?.mapCompletedAt).toBeUndefined();
   });
 });
 

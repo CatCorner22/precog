@@ -5,6 +5,8 @@ import { reportServerError } from "@/lib/observability/report.server";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
 import { renderDigest, renderOwnerEmailConfirm, renderOwnerReminder } from "./email";
 import { DIGEST_OMITTED_PROFILE_KEYS, runDigest } from "./digest";
+import { INDUSTRIES } from "../industry";
+import { getIndustryTemplate } from "../templates";
 import type { Person } from "../types";
 
 // A normaliser bug for one business, by name: the rest pass through unchanged.
@@ -149,6 +151,31 @@ describe("due items", () => {
       expect(decision?.overdue, tz).toBe(false);
     }
     vi.unstubAllEnvs();
+  });
+
+  it("counts an edited sample kept under its demo name as the owner's, and names its monthly review", () => {
+    for (const industry of INDUSTRIES.map((i) => i.id)) {
+      const base = defaultProfile(industry);
+      const edited: PracticeProfile = {
+        ...base,
+        customPeople: [...getIndustryTemplate(industry).people],
+      };
+      const keys = dueItemsFor(edited, "2026-10-06").map((i) => i.key);
+      expect(keys, industry).toContain("monthly:2026-10");
+      // An unfinished copy keeps the older rule: a demo name is not the owner's.
+      expect(dueItemsFor({ ...edited, onboardingComplete: false }, "2026-10-06"), industry).toEqual(
+        [],
+      );
+    }
+  });
+
+  it("names only the monthly review for an own team whose people were emptied", () => {
+    const emptied: PracticeProfile = {
+      ...defaultProfile("general"),
+      practiceName: "Riverside Plumbing",
+      customPeople: [],
+    };
+    expect(dueItemsFor(emptied, "2026-10-06").map((i) => i.key)).toEqual(["monthly:2026-10"]);
   });
 
   it("announces an overdue item again every four weeks while it stays open", () => {

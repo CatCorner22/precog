@@ -15,8 +15,9 @@ import type { Person } from "./types";
 /**
  * Every place that asks "is this the sample team or the owner's?" answers
  * from `customPeople`, each in its own words. This table pins what each one
- * says today for every shape `customPeople` can take, so that moving them
- * onto one primitive changes nothing.
+ * says for every shape `customPeople` can take, so that moving them onto one
+ * primitive changes nothing it does not name. The one named change is
+ * `isOwnTeam`, which follows `teamSource` for a finished business.
  */
 
 const REAL_TEAM: Person[] = [
@@ -113,7 +114,10 @@ function expected(row: Row) {
   const processCount = getIndustryTemplate(row.industry).processes.length;
   return {
     isOwnBusiness: entered && row.people !== "sample array",
-    isOwnTeam: entered && row.people !== "empty" && row.name !== "demo",
+    // A finished business follows teamSource; an unfinished copy keeps the older rule.
+    isOwnTeam: row.onboardingComplete
+      ? entered
+      : entered && row.people !== "empty" && row.name !== "demo",
     isSampleBusiness: !entered || !row.onboardingComplete,
     mapSource: !entered ? "sample" : samplePeople ? "own" : "starter",
     untouchedStarterProcesses: entered && !samplePeople ? processCount : 0,
