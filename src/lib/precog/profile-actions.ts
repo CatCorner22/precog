@@ -44,7 +44,6 @@ import { adoptOwnTeam, processesToEdit, replacesSampleTeam } from "./business-li
 import {
   confirmAccessRemoved,
   departuresBetween,
-  markPrompted,
   noteDepartures,
   type Departure,
 } from "./continuity/access-removal";
@@ -315,12 +314,6 @@ export function withLeaversConfirmed(
     leaverAccessChecks: checks,
     decisions: [...decisions, ...p.decisions].slice(0, MAX_DECISIONS),
   };
-}
-
-export function withLeaversPrompted(p: PracticeProfile, checkIds: string[]): PracticeProfile {
-  const before = p.leaverAccessChecks ?? [];
-  const after = markPrompted(before, checkIds);
-  return after.some((check, i) => check !== before[i]) ? { ...p, leaverAccessChecks: after } : p;
 }
 
 // ── Team, map and register ─────────────────────────────────────────────────

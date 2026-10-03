@@ -7,10 +7,8 @@ import { markLeft } from "./leavers";
 import {
   confirmAccessRemoved,
   departuresBetween,
-  markPrompted,
   noteDepartures,
   openAccessChecks,
-  unpromptedAccessChecks,
 } from "./access-removal";
 
 const TODAY = "2026-09-24";
@@ -97,7 +95,7 @@ describe("the owner marks a keyholder as left", () => {
   it("dates an unconfirmed check to the second departure after a rehire", () => {
     const after = team.map((p) => (p.id === "p-jordan" ? { ...p, active: false } : p));
     const first = noteDepartures([], departuresBetween(team, after), "marked", "retail", TODAY);
-    const prompted = markPrompted(first, [first[0].id]);
+    const prompted = first.map((check) => ({ ...check, prompted: true as const }));
     const again = noteDepartures(
       prompted,
       departuresBetween(team, after),
@@ -107,7 +105,7 @@ describe("the owner marks a keyholder as left", () => {
     );
     expect(again).toHaveLength(1);
     expect(again[0]).toMatchObject({ notedOn: "2027-03-01", source: "marked" });
-    expect(unpromptedAccessChecks(again, "retail", after)).toHaveLength(1);
+    expect(again[0].prompted).toBeUndefined();
   });
 
   it("marking left from the register (past last day) opens the check too", () => {
@@ -140,13 +138,7 @@ describe("the owner answers the prompt", () => {
     );
 
   it("is prompted once: 'not yet' keeps the item open on Start here without asking again", () => {
-    const checks = open();
-    expect(unpromptedAccessChecks(checks, "retail", [])).toHaveLength(2);
-    const later = markPrompted(
-      checks,
-      checks.map((c) => c.id),
-    );
-    expect(unpromptedAccessChecks(later, "retail", [])).toHaveLength(0);
+    const later = open().map((check) => ({ ...check, prompted: true as const }));
     expect(openAccessChecks(later, "retail", [])).toHaveLength(2);
   });
 
@@ -179,7 +171,9 @@ describe("the owner answers the prompt", () => {
 
   it("checks belong to one line of business, and survive a save and reload", () => {
     const fresh = open();
-    const checks = markPrompted(fresh, [fresh[0].id]);
+    const checks = fresh.map((check, i) =>
+      i === 0 ? { ...check, prompted: true as const } : check,
+    );
     expect(openAccessChecks(checks, "dental", [])).toHaveLength(0);
     const saved = JSON.parse(
       JSON.stringify({ ...defaultProfile("retail"), leaverAccessChecks: checks }),

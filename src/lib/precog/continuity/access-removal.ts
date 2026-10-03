@@ -133,26 +133,6 @@ export function openAccessChecks(
   );
 }
 
-/** Open checks the owner has not been prompted about yet: the prompt shows each person once. */
-export function unpromptedAccessChecks(
-  checks: readonly LeaverAccessCheck[] | undefined,
-  industry: IndustryId,
-  people: readonly Person[],
-): LeaverAccessCheck[] {
-  return openAccessChecks(checks, industry, people).filter((check) => !check.prompted);
-}
-
-/** Marks checks as prompted, so the prompt does not come back for them. */
-export function markPrompted(
-  checks: readonly LeaverAccessCheck[],
-  ids: readonly string[],
-): LeaverAccessCheck[] {
-  const set = new Set(ids);
-  return checks.map((check) =>
-    set.has(check.id) && !check.prompted ? { ...check, prompted: true as const } : check,
-  );
-}
-
 /**
  * The owner confirmed, on `today`, that these people are off payroll and
  * their logins are removed. Closes their checks and returns one decisions-log
