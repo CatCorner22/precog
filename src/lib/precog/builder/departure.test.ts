@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultProfile } from "../practice-profile";
 import { resolveTemplate } from "../active-template";
-import { rankDepartureRisk, singlePointsOfFailure } from "./departure";
+import { rankDepartureRisk } from "./departure";
 import { previewMapHealth } from "./what-if";
 
 const profile = defaultProfile("dental");
@@ -25,15 +25,5 @@ describe("rankDepartureRisk", () => {
     expect(jordan.orphanedProcesses.map((p) => p.id)).toContain("proc-cash");
     expect(jordan.coveredProcesses.map((p) => p.id)).toContain("proc-schedule");
     expect(jordan.recommendations[0]).toMatch(/^Name a new owner on "Cash handling & deposits"/);
-  });
-
-  it("counts the people whose departure orphans a process or critical knowledge", () => {
-    const expected = ranked.filter(
-      (d) =>
-        d.orphanedProcesses.length > 0 ||
-        d.orphanedKnowledge.some((k) => k.criticality === "critical"),
-    ).length;
-    expect(singlePointsOfFailure(ranked)).toBe(expected);
-    expect(expected).toBeGreaterThan(0);
   });
 });

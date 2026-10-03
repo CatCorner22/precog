@@ -47,19 +47,6 @@ export function rankDepartureRisk(
     .sort((a, b) => b.impact - a.impact);
 }
 
-/**
- * How many people the business cannot lose: those whose departure would
- * orphan at least one process or critical knowledge item. (Not a "bus
- * factor", which counts the fewest people whose loss stops the work.)
- */
-export function singlePointsOfFailure(impacts: DepartureImpact[]): number {
-  return impacts.filter(
-    (i) =>
-      i.orphanedProcesses.length > 0 ||
-      i.orphanedKnowledge.some((k) => k.criticality === "critical"),
-  ).length;
-}
-
 function simulateDeparture(
   tpl: IndustryTemplate,
   person: Person,
