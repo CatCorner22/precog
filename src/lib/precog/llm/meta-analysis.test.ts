@@ -81,12 +81,6 @@ describe("runMetaAnalysis follows the business's own facts", () => {
     expect(done.recommendations.join(" ")).not.toMatch(/Give the app more to work with/);
   });
 
-  it("lists no blind spot that is not true of the business", () => {
-    const report = runMetaAnalysis(defaultProfile("dental"));
-    expect(report.johari.blind.join(" ")).not.toMatch(/waiver/);
-    expect(report.johari.blind.join(" ")).not.toMatch(/Dual-release exception residual/);
-  });
-
   it("words the Journal gap from the entries it has", () => {
     const gap = (decisions: PracticeProfile["decisions"]) =>
       runMetaAnalysis({ ...defaultProfile("general"), decisions }).items.find(

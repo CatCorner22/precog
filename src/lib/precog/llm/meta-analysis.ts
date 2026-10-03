@@ -16,7 +16,6 @@ import type { DecisionEntry, PracticeProfile } from "../practice-profile";
 import { pluralTeamLabel } from "../industry";
 import { portfolioSummary } from "../scoring/residual-engine";
 import { scoreLeadingIndicators } from "../ml/leading-indicators";
-import { HEALTH_SCALE } from "../scoring/bands";
 import { count, joinWithAnd } from "../text";
 import {
   knownUnknowns as knownUnknownItems,
@@ -64,17 +63,6 @@ interface MetaAnalysisReport {
     unknownKnowns: number;
     criticalUnknowns: number;
     topProbe: string;
-  };
-  /** Johari-style panes for the control system. */
-  johari: {
-    /** Known to the owner and measured by the app. */
-    open: string[];
-    /** What the app's checks show about this business that the owner may not have taken in. */
-    blind: string[];
-    /** What the owner knows that the app does not record. */
-    hidden: string[];
-    /** What neither sees yet. */
-    unknown: string[];
   };
   narrative: string[];
   recommendations: string[];
@@ -131,16 +119,6 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
       criticalUnknowns,
       topProbe,
     },
-    johari: {
-      open: byClass("known_known")
-        .map((i) => i.title)
-        .slice(0, 6),
-      blind: blindPane(facts),
-      hidden: byClass("unknown_known").map((i) => i.title),
-      unknown: byClass("unknown_unknown")
-        .map((i) => i.title)
-        .slice(0, 6),
-    },
     narrative: [
       `Precog measures ${knownKnowns} of these items directly from your profile, admits ${knownUnknowns} gaps it knows about, and lists ${unknownUnknowns} areas outside what it models.`,
       `${rtReady} of ${realtimeCapabilities.length} inputs re-score live from the profile; the rest need something imported or written down.`,
@@ -151,7 +129,7 @@ export function runMetaAnalysis(profile: PracticeProfile): MetaAnalysisReport {
   };
 }
 
-/** The facts about this business the inventory, the blind pane and the recommendations read. */
+/** The facts about this business the inventory and the recommendations read. */
 interface BusinessFacts {
   profile: PracticeProfile;
   tpl: ReturnType<typeof resolveTemplate>;
@@ -416,32 +394,6 @@ function realtimeCapabilitiesFor(words: InventoryWords): RealtimeCapability[] {
       dependency: "a new kind of model",
     },
   ];
-}
-
-/**
- * What the app's checks show that the owner may not have taken in, built from
- * this business's own facts; nothing is listed that is not true of it.
- */
-function blindPane(facts: BusinessFacts): string[] {
-  const { staff } = facts.profile;
-  const lines: string[] = [];
-  if (facts.waives) {
-    lines.push(
-      `${count(facts.waives, "dual-release waiver")} let one person release some payments alone`,
-    );
-  }
-  if (facts.breachedIndicators > 0 && staff.segregationScore >= HEALTH_SCALE.adequate) {
-    lines.push(
-      `${count(facts.breachedIndicators, "watched condition")} breached while separation of duties is self-rated as fine`,
-    );
-  }
-  const top = facts.portfolio.top[0];
-  if (top?.p50Days !== undefined) {
-    lines.push(
-      `${top.name}: Precog assumes about ${count(top.p50Days, "day")} before anyone would find it`,
-    );
-  }
-  return lines.length ? lines : ["Nothing Precog sees that you have not marked."];
 }
 
 /** Recommendations that follow from this business's facts, then the standing ones. */
