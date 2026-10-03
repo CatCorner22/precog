@@ -274,8 +274,10 @@ processes it; `docs/ACCOUNT_DATA_MODEL.md` describes what an account owns.
 what each one enables and what happens when it is empty: the database and
 sign-in (required in production), the public app URL, the assistants and
 their daily ceilings, the scheduled job (`CRON_SECRET`), reminder email
-(Resend), billing (Stripe), the QuickBooks link, error reporting (Sentry or a
-webhook) and hosting outside Vercel. `scripts/deploy-config.test.mjs` fails
+(Resend, with `RESEND_WEBHOOK_SECRET` for its bounce and complaint webhook,
+so a bouncing or complaining address is not emailed again), billing
+(Stripe), the QuickBooks link, error reporting (Sentry or a webhook) and
+hosting outside Vercel. `scripts/deploy-config.test.mjs` fails
 when the code reads a variable the file does not name.
 
 ### Database migrations

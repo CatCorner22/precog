@@ -20,6 +20,7 @@ Bracketed values such as `[NEON PITR DAYS]` in this file are facts the owner fil
 | `SUPPORT_EMAIL`                | Support mailbox; baked at build; production refuses without it or with an operator placeholder          |
 | `CRON_SECRET`                  | Bearer token Vercel sends to `/api/cron/digest`; without it the weekly job is refused                   |
 | `RESEND_API_KEY`, `EMAIL_FROM` | Reminder, digest, confirmation and invitation email through Resend; without both, Precog sends no email |
+| `RESEND_WEBHOOK_SECRET`        | Resend bounce and complaint signing secret; without it a bouncing address keeps being emailed           |
 | `STRIPE_*`                     | Firm billing when enabled                                                                               |
 | QuickBooks                     | Intuit app credentials for read-only sync                                                               |
 | `XAI_API_KEY`                  | Optional server-side AI features                                                                        |
@@ -34,7 +35,7 @@ Bracketed values such as `[NEON PITR DAYS]` in this file are facts the owner fil
 
 - Server failures go to Sentry when `SENTRY_DSN` is set, or as a JSON POST to `ERROR_REPORT_URL` (for example a Slack or Discord relay) when only that is set. With neither, they reach only the server log, and nobody is alerted.
 - A production build prints a warning when neither is set. It does not fail the build.
-- Server functions, the scheduled job, the Stripe webhook, the owner email links and the procedure images all report unexpected failures. Precog does not report expected refusals (4xx).
+- Server functions, the scheduled job, the Stripe webhook, the Resend webhook, the owner email links and the procedure images all report unexpected failures. Precog does not report expected refusals (4xx).
 - Point an uptime check at `GET /api/health` and run it no more often than every 30 minutes. Each call runs one database query, so a more frequent check keeps a scale-to-zero database (Neon) awake around the clock. See "Uptime monitor" below.
 
 ## Uptime monitor
@@ -96,6 +97,10 @@ Drill record (one row per drill; the first drill sets `[RTO]`):
 - Activate Stripe Tax in the Stripe dashboard and add a tax registration for each state where Precog collects. Every Checkout collects the billing address and tax id and applies Stripe Tax, so without an active Stripe Tax account Checkout fails with Stripe's automatic-tax error.
 - Subscribe the webhook endpoint (`https://<BETTER_AUTH_URL host>/api/stripe/webhook`, signed with `STRIPE_WEBHOOK_SECRET`) to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `charge.refunded`, `charge.dispute.created` and `charge.dispute.closed`.
 - Dunning: in Stripe → Settings → Subscriptions and emails, set Smart Retries on, the retry period to 14 days, and "cancel the subscription" as the action after the last failed retry. Precog closes the paid tools while Stripe reports `past_due` (`commercialToolsOpen` in `src/lib/precog/firm/billing-store.ts`) and shows the status on the Firm page; the in-product warning and email during the retry period are a later batch.
+
+## Resend
+
+- In Resend → Webhooks, add the endpoint `https://<BETTER_AUTH_URL host>/api/resend/webhook` subscribed to `email.bounced` and `email.complained`, and set its signing secret (starts with `whsec_`) as `RESEND_WEBHOOK_SECRET`. A hard bounce or a complaint puts the address in `email_suppressions` (migration 0038), and the weekly digest and the owner notes skip it from the next run. A Transient bounce (a full mailbox) stops nothing. Without the secret the endpoint answers 404 and a bouncing address keeps being emailed every week.
 
 ## Release tags
 
@@ -195,7 +200,7 @@ Scheduled job and email
 
 - [ ] `CRON_SECRET` is set (without it every weekly run is refused).
 - [ ] `RESEND_API_KEY`, `EMAIL_FROM` and `EMAIL_REPLY_TO` are set, and the sending domain has SPF, DKIM and DMARC records.
-- [ ] The Resend bounce and complaint webhook is added once that code ships, with its secret in `RESEND_WEBHOOK_SECRET`.
+- [ ] The Resend bounce and complaint webhook is added (see Resend above), with its secret in `RESEND_WEBHOOK_SECRET`.
 
 Billing
 
