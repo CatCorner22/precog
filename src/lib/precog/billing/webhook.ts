@@ -4,6 +4,7 @@ import {
   ACTIVE_SUBSCRIPTION_STATUSES,
   claimBillingEvent,
   loadBillingAccount,
+  markPastDue,
   recordAssessmentDispute,
   recordAssessmentPayment,
   recordAssessmentRefund,
@@ -25,12 +26,19 @@ import { billingChangeFor, type StripeEvent } from "./stripe";
  * stored with the assessment payment, and by nothing else: a dispute on a
  * Firm-plan invoice charge, a late refund of a superseded intent and a
  * payment made before the intent was stored are all "ignored".
+ *
+ * After a refund or a lost dispute on an Assessment that was credited
+ * against the Firm plan, the credit is reversed on the Stripe customer
+ * balance once the transaction has committed, best effort: a failure is
+ * logged and reported, never retried through Stripe's redelivery (the event
+ * is already claimed).
  */
 export async function applyBillingEvent(
   sql: Sql,
   event: StripeEvent,
 ): Promise<"duplicate" | "ignored" | "applied"> {
-  return inTransaction(sql, async (tx) => {
+  let reversal: { customerId: string; creditCents: number } | null = null;
+  const outcome = await inTransaction(sql, async (tx) => {
     if (!(await claimBillingEvent(tx, event.id, event.type))) return "duplicate";
     const change = billingChangeFor(event);
     if (change.kind === "ignore") return "ignored";
@@ -40,6 +48,7 @@ export async function applyBillingEvent(
         stripeCustomerId: change.customerId,
         paymentIntentId: change.paymentIntentId,
         paidAt: change.eventAt,
+        feeCents: change.amountSubtotalCents,
       });
       return "applied";
     }
@@ -60,7 +69,19 @@ export async function applyBillingEvent(
           ACTIVE_SUBSCRIPTION_STATUSES.has(account.subscriptionStatus),
         );
         if (!subscriptionActive) await setFirmPlan(tx, userId, "assessment");
+        if (account?.assessmentCreditUsedAt && account.stripeCustomerId) {
+          reversal = {
+            customerId: account.stripeCustomerId,
+            creditCents: account.assessmentCreditCents ?? 0,
+          };
+        }
       }
+      return "applied";
+    }
+    if (change.kind === "payment-failed") {
+      const userId = change.customerId ? await userForCustomer(tx, change.customerId) : null;
+      if (!userId) return "ignored";
+      await markPastDue(tx, userId, change.eventAt, change.hostedInvoiceUrl);
       return "applied";
     }
     const userId =
@@ -73,6 +94,7 @@ export async function applyBillingEvent(
       status: change.status,
       currentPeriodEnd: change.currentPeriodEnd,
       eventAt: change.eventAt,
+      cancellationReason: change.cancellationReason,
     });
     // The plan on the firm row follows the subscription status as stored,
     // which a late checkout event does not overwrite.
@@ -83,4 +105,24 @@ export async function applyBillingEvent(
     );
     return "applied";
   });
+  if (reversal) await reverseAssessmentCredit(reversal);
+  return outcome;
+}
+
+async function reverseAssessmentCredit(input: {
+  customerId: string;
+  creditCents: number;
+}): Promise<void> {
+  if (input.creditCents <= 0) return;
+  try {
+    const { reverseCustomerBalance } = await import("./stripe.server");
+    await reverseCustomerBalance(input.customerId, input.creditCents);
+  } catch (err) {
+    console.error(
+      "[billing] Assessment credit not reversed:",
+      err instanceof Error ? err.message : err,
+    );
+    const { reportServerError } = await import("@/lib/observability/report.server");
+    await reportServerError(err, "stripe-credit-reversal");
+  }
 }
