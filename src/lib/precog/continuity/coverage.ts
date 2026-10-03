@@ -160,7 +160,7 @@ export function setRelationLevel(
 }
 
 /**
- * Whether anyone is marked on the item at any level. Until then every backup
+ * Whether anyone is marked on the item at any level. Until then every stand-in
  * candidate ties on generic reasons and the pick would come down to the
  * alphabet, so Precog names nobody to train.
  */
