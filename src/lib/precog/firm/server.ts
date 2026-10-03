@@ -51,6 +51,7 @@ import {
   loadReportVersion,
   lockReportVersion,
   markReportVersionSent,
+  reportFirmName,
   signOffReportVersion,
 } from "./reports";
 import { loadBillingAccount } from "./billing-store";
@@ -386,6 +387,7 @@ export const getReport = createServerFn({ method: "GET" })
     return {
       version: loaded.version,
       frozen,
+      firmName: await reportFirmName(sql, where.ownerUserId, where.businessId),
       profile: {
         ...mergeProfile(
           {

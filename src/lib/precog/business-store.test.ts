@@ -505,6 +505,12 @@ describe("firm access", () => {
 
     const shared = await listBusinessSummaries(sql, "user-b", "user-a");
     expect(shared.map((b) => [b.id, b.shared])).toEqual([["biz_1", true]]);
+    // A firm client is flagged for whoever lists it; a solo business is not.
+    const own = await listBusinessSummaries(sql, "user-a");
+    expect(own.map((b) => [b.id, b.firmClient]).sort()).toEqual([
+      ["biz_1", true],
+      ["biz_private", false],
+    ]);
   });
 
   it("a member's save lands on the owner's row and names the member", async () => {
