@@ -5,6 +5,55 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+/**
+ * Layering. The library (`src/lib`) never imports a component or a route, and
+ * a component or a page route never imports a server-only module. Server-only
+ * modules are the `*.server` files plus three that carry no suffix: `lib/db`,
+ * `lib/pglite-sql` and `lib/auth/server`. Only `src/routes/api/**` may import
+ * those. The patterns keep a leading `**\/` so both the `@/` alias and a
+ * relative path match.
+ */
+const NO_UPPER_LAYERS = {
+  patterns: [
+    {
+      group: ["@/components/**", "**/components/**"],
+      message: "The library does not import components.",
+    },
+    { group: ["@/routes/**", "**/routes/**"], message: "The library does not import routes." },
+  ],
+};
+
+const SERVER_ONLY_PATTERNS = [
+  { group: ["**/*.server"], message: "Server-only module: import it from src/routes/api only." },
+  {
+    group: ["@/lib/db", "**/lib/db", "**/pglite-sql", "@/lib/auth/server", "**/lib/auth/server"],
+    message: "Server-only module: import it from src/routes/api only.",
+  },
+];
+
+const NO_SERVER_OR_ROUTES = {
+  patterns: [
+    ...SERVER_ONLY_PATTERNS,
+    {
+      group: ["@/routes/**", "**/routes/**"],
+      message: "Components and page routes do not import routes.",
+    },
+  ],
+};
+
+/** `import("...server")`, `import("@/lib/db")` and any template-literal import source. */
+const NO_DYNAMIC_SERVER = [
+  {
+    selector:
+      'ImportExpression[source.type="Literal"][source.value=/(\\.server$|(^|\\/)lib\\/db$|(^|\\/)pglite-sql$|(^|\\/)lib\\/auth\\/server$)/]',
+    message: "Server-only module: import it from src/routes/api only.",
+  },
+  {
+    selector: 'ImportExpression[source.type="TemplateLiteral"]',
+    message: "Dynamic imports take a string literal, so the layering rules can read them.",
+  },
+];
+
 /** Flat ESLint config for the TanStack Start app-builder template. */
 export default tseslint.config(
   {
@@ -44,6 +93,31 @@ export default tseslint.config(
   {
     files: ["src/routes/**/*.{ts,tsx}"],
     rules: { "react-refresh/only-export-components": "off" },
+  },
+  // Layering: the library never reaches up into components or routes.
+  // `src/lib/error-component.tsx` is a template file that AGENTS.md pins in
+  // place, and it renders a Button, so it stays exempt (owner decision).
+  {
+    files: ["src/lib/**/*.{ts,tsx}"],
+    ignores: ["src/lib/error-component.tsx"],
+    rules: { "no-restricted-imports": ["error", NO_UPPER_LAYERS] },
+  },
+  // Layering: components and page routes never import a server-only module or
+  // a route. API routes are the server boundary and are exempt.
+  {
+    files: ["src/components/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": ["error", NO_SERVER_OR_ROUTES],
+      "no-restricted-syntax": ["error", ...NO_DYNAMIC_SERVER],
+    },
+  },
+  {
+    files: ["src/routes/**/*.{ts,tsx}"],
+    ignores: ["src/routes/api/**"],
+    rules: {
+      "no-restricted-imports": ["error", NO_SERVER_OR_ROUTES],
+      "no-restricted-syntax": ["error", ...NO_DYNAMIC_SERVER],
+    },
   },
   // Disable rules that conflict with Prettier formatting.
   prettier,
