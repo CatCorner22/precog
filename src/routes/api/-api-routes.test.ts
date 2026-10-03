@@ -6,6 +6,8 @@ import { signPayload } from "@/lib/precog/billing/stripe";
 import { Route as QboCallback } from "./integrations/qbo/callback";
 import { Route as Cron } from "./cron/digest";
 import { Route as StripeWebhook } from "./stripe/webhook";
+import { Route as ResendWebhook } from "./resend/webhook";
+import { signSvixPayload } from "@/lib/precog/reminders/resend-webhook";
 import { Route as ProcedureImage } from "./procedure-image";
 import { Route as OwnerEmail } from "./owner-email";
 import { Route as DigestEmail } from "./digest-email";
@@ -56,6 +58,9 @@ vi.mock("@/lib/auth/verify.server", () => ({
   },
 }));
 
+// A Resend signing secret in its real shape: "whsec_" and a base64 key.
+const RESEND_SECRET = `whsec_${btoa("resend-test-signing-key")}`;
+
 type Handler = (ctx: { request: Request }) => Promise<Response> | Response;
 function handlers(route: unknown): Record<string, Handler> {
   return (route as { options: { server: { handlers: Record<string, Handler> } } }).options.server
@@ -69,6 +74,7 @@ beforeAll(async () => {
   vi.stubEnv("PUBLIC_APP_URL", "https://app.example");
   vi.stubEnv("CRON_SECRET", "cron-secret-value");
   vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_test");
+  vi.stubEnv("RESEND_WEBHOOK_SECRET", RESEND_SECRET);
   db.current = await openTestDb();
 }, 60_000);
 afterAll(async () => {
@@ -261,6 +267,105 @@ describe("Stripe webhook", () => {
     const res = await deliver(payload, { "stripe-signature": `t=${t},v1=${v1}` });
     expect(res.status).toBe(409);
     expect(report.error).not.toHaveBeenCalled();
+  });
+});
+
+describe("Resend webhook", () => {
+  const deliver = async (payload: string, headers: Record<string, string> = {}) =>
+    handlers(ResendWebhook).POST({
+      request: new Request("https://app.example/api/resend/webhook", {
+        method: "POST",
+        body: payload,
+        headers,
+      }),
+    });
+  const signedHeaders = async (payload: string, id = "msg_1") => {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const sig = await signSvixPayload(RESEND_SECRET, id, timestamp, payload);
+    return { "svix-id": id, "svix-timestamp": String(timestamp), "svix-signature": `v1,${sig}` };
+  };
+  const bounce = (to: string[], type = "Permanent") =>
+    JSON.stringify({ type: "email.bounced", data: { email_id: "em_1", to, bounce: { type } } });
+
+  beforeEach(async () => {
+    await db.current!.clear("email_suppressions");
+  });
+
+  it("answers 404 while no webhook secret is set", async () => {
+    vi.stubEnv("RESEND_WEBHOOK_SECRET", "");
+    const payload = bounce(["dead@shop.test"]);
+    const res = await deliver(payload, await signedHeaders(payload));
+    expect(res.status).toBe(404);
+    expect(await res.text()).toBe("Email events are not connected");
+    vi.stubEnv("RESEND_WEBHOOK_SECRET", RESEND_SECRET);
+  });
+
+  it("refuses an oversized delivery by its declared length and by its bytes", async () => {
+    const declared = await deliver("{}", { "content-length": String(300 * 1024) });
+    expect(declared.status).toBe(413);
+    const wide = await deliver("€".repeat(100_000));
+    expect(wide.status).toBe(413);
+  });
+
+  it("refuses a missing or bad signature and a signed body that is not an event", async () => {
+    const payload = bounce(["dead@shop.test"]);
+    expect((await deliver(payload)).status).toBe(400);
+    const bad = await deliver(payload, {
+      ...(await signedHeaders(payload)),
+      "svix-signature": "v1,AAAA",
+    });
+    expect(bad.status).toBe(400);
+    expect(await bad.text()).toBe("Bad signature");
+    const notEvent = await deliver("[1]", await signedHeaders("[1]"));
+    expect(notEvent.status).toBe(400);
+    expect(await notEvent.text()).toBe("Bad event");
+    expect(await db.current!.sql`select email from email_suppressions`).toEqual([]);
+  });
+
+  it("records a bounced address once, however often the event is delivered", async () => {
+    const payload = bounce(["Dead@Shop.test"]);
+    const first = await deliver(payload, await signedHeaders(payload));
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({ received: true, suppressed: 1 });
+    const again = await deliver(payload, await signedHeaders(payload, "msg_2"));
+    expect(await again.json()).toEqual({ received: true, suppressed: 1 });
+    const complaint = JSON.stringify({
+      type: "email.complained",
+      data: { email_id: "em_1", to: ["dead@shop.test"] },
+    });
+    await deliver(complaint, await signedHeaders(complaint, "msg_3"));
+    const rows = await db.current!.sql<{
+      email: string;
+      reason: string;
+      provider_event_id: string;
+    }>`
+      select email, reason, provider_event_id from email_suppressions
+    `;
+    expect(rows).toEqual([
+      { email: "dead@shop.test", reason: "bounced", provider_event_id: "em_1" },
+    ]);
+  });
+
+  it("stops nobody for a transient bounce or an unrelated event", async () => {
+    const soft = bounce(["full@shop.test"], "Transient");
+    expect(await (await deliver(soft, await signedHeaders(soft))).json()).toEqual({
+      received: true,
+      suppressed: 0,
+    });
+    const sent = JSON.stringify({ type: "email.sent", data: { to: ["a@shop.test"] } });
+    expect(await (await deliver(sent, await signedHeaders(sent, "msg_2"))).json()).toEqual({
+      received: true,
+      suppressed: 0,
+    });
+    expect(await db.current!.sql`select email from email_suppressions`).toEqual([]);
+  });
+
+  it("answers 405 to anything but a POST", async () => {
+    const res = await handlers(ResendWebhook).ANY({
+      request: new Request("https://app.example/api/resend/webhook"),
+    });
+    expect(res.status).toBe(405);
+    expect(res.headers.get("allow")).toBe("POST");
   });
 });
 
