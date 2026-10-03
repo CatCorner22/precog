@@ -1,5 +1,5 @@
-import { useWorkspace } from "@/lib/precog/workspace-context";
 import { useEffect, useMemo, useState } from "react";
+import { useDutyBaseline } from "./use-duty-baseline";
 import { buildGraph } from "./power-map-graph";
 import { useEdgesState, useNodesState } from "@xyflow/react";
 import {
@@ -26,7 +26,6 @@ import { analyzeAbsenceImpact, analyzeDutyCoverage } from "@/lib/precog/sod/cove
 import {
   createPowerMapFile,
   createResponsibilityMatrixCsv,
-  normalizeRoleAssignments,
   readRoleAssignments,
 } from "@/lib/precog/sod/model-io";
 import {
@@ -36,16 +35,13 @@ import {
   type DutyToggleEffect,
 } from "@/lib/precog/sod/coverage-planner";
 import { createGovernanceReport } from "@/lib/precog/sod/governance-report";
-import { diffAssignments } from "@/lib/precog/sod/assignment-diff";
 import { calculatePowerIndex } from "@/lib/precog/sod/power-index";
 import { locationsById } from "@/lib/precog/person-location";
 import { downloadText, downloadCsv } from "@/lib/download";
 import { localDateKey } from "@/lib/precog/dates";
-import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import { count } from "@/lib/precog/text";
 
 export function usePowerMapBuilder() {
-  const workspace = useWorkspace();
   const tpl = useTemplate();
   // Where each person works, when the business has two or more locations.
   const placesOf = useMemo(() => locationsById(tpl.people), [tpl.people]);
@@ -67,43 +63,10 @@ export function usePowerMapBuilder() {
   const [absentPersonId, setAbsentPersonId] = useState("");
   const [importMessage, setImportMessage] = useState("");
   const [mapView, setMapView] = useState<"graph" | "matrix">("graph");
-  // The accepted baseline is kept per business in this browser, so leaving
-  // the tab with changes pending does not quietly approve them: reopening
-  // the map still shows them against the last baseline the owner accepted.
-  const baselineKey = `precog.power-map-baseline.v1:${profile.businessId ?? DEFAULT_BUSINESS_ID}`;
-  const [baseline, setBaseline] = useState<RoleAssignment[]>(() => {
-    try {
-      const stored = workspace.local?.getItem(baselineKey);
-      const restored = stored ? normalizeRoleAssignments(JSON.parse(stored)) : undefined;
-      if (restored) return restored;
-    } catch {
-      /* storage unavailable or corrupt: start from today's assignments */
-    }
-    return assignments;
-  });
+  // The baseline the owner last accepted under Team, Change review: Reset
+  // duties returns an owner's own team to it.
+  const { baseline } = useDutyBaseline(assignments, profile.businessId);
   const [processId, setProcessId] = useState("all");
-
-  useEffect(() => {
-    // The first time a business opens the map, today's assignments become the
-    // baseline and are stored, so edits made now still show as pending after
-    // the owner leaves the tab and comes back.
-    try {
-      if (workspace.local?.getItem(baselineKey) === null) {
-        workspace.local?.setItem(baselineKey, JSON.stringify(baseline));
-      }
-    } catch {
-      /* storage unavailable */
-    }
-  }, [baselineKey, baseline, workspace.local]);
-
-  function acceptBaseline(next: RoleAssignment[]) {
-    setBaseline(next);
-    try {
-      workspace.local?.setItem(baselineKey, JSON.stringify(next));
-    } catch {
-      /* storage unavailable */
-    }
-  }
 
   const report = useMemo(
     () =>
@@ -116,10 +79,6 @@ export function usePowerMapBuilder() {
   const coverage = useMemo(() => analyzeDutyCoverage(assignments), [assignments]);
   const coveragePlans = useMemo(() => buildCoveragePlans(assignments), [assignments]);
   const coverageProgram = useMemo(() => buildCoverageProgram(assignments), [assignments]);
-  const pendingChanges = useMemo(
-    () => diffAssignments(baseline, assignments),
-    [assignments, baseline],
-  );
   const powerIndex = useMemo(() => calculatePowerIndex(assignments, tpl.id), [assignments, tpl.id]);
   const absenceImpact = useMemo(
     () => (absentPersonId ? analyzeAbsenceImpact(assignments, absentPersonId) : undefined),
@@ -293,8 +252,8 @@ export function usePowerMapBuilder() {
 
   /**
    * Replaces the map with a downloaded map file. The accepted baseline stays,
-   * so the change review shows what the file changed until the owner accepts
-   * it. Rows the file cannot supply are left out and named.
+   * so Change review under Team shows what the file changed until the owner
+   * accepts it. Rows the file cannot supply are left out and named.
    */
   async function importModel(file: File | undefined) {
     if (!file) return;
@@ -348,15 +307,12 @@ export function usePowerMapBuilder() {
     importMessage,
     mapView,
     setMapView,
-    baseline,
     processId,
     setProcessId,
-    acceptBaseline,
     report,
     coverage,
     coveragePlans,
     coverageProgram,
-    pendingChanges,
     powerIndex,
     absenceImpact,
     selected,
