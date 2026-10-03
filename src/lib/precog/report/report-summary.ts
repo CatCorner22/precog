@@ -46,6 +46,14 @@ export const REPORT_CAVEATS =
   "Precog computes every index here from what the business entered. Loss and detection figures describe prosecuted cases and published studies about other businesses, not this one.";
 
 /**
+ * The basis block printed on page one and in the footer of every report,
+ * live or locked: what the report is not, and where its figures come from.
+ */
+export const REPORT_BASIS_TITLE = "Basis and limitations";
+export const REPORT_BASIS =
+  "This report is not an audit, review or attestation engagement under AICPA standards. Precog did not verify system access, bank records or the duties reported; duties are as the business entered them. Scores are indexes computed from those entries. Scenario figures are assumptions, and case figures describe other businesses.";
+
+/**
  * The executive summary: a few plain sentences from the report's own
  * figures, so it reads the same as the sections below it.
  */
