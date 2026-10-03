@@ -13,6 +13,7 @@ import {
   DocumentationPlanCard,
   SelectedKnowledgeCard,
 } from "@/components/precog/continuity/planner-register-panels";
+import { StandInSuggestionsCard } from "@/components/precog/continuity/stand-in-suggestions-card";
 import { useContinuityPlanner } from "@/components/precog/continuity/use-continuity-planner";
 
 /** The Who knows what tab: the register, the plans built from it, and absence planning. */
@@ -78,6 +79,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
             journal={p.journal}
             onSelect={select}
           />
+          <StandInSuggestionsCard />
           <DependenceCard registerAssessed={p.registerAssessed} report={p.report} />
         </div>
       </div>

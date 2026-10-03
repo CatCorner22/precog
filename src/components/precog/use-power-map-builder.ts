@@ -17,13 +17,12 @@ import {
 } from "@/lib/precog/sod/detect";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { powerGuidance } from "@/lib/precog/sod/power-guidance";
-import { analyzeAbsenceImpact, analyzeDutyCoverage } from "@/lib/precog/sod/coverage-analysis";
+import { analyzeDutyCoverage } from "@/lib/precog/sod/coverage-analysis";
 import {
   createPowerMapFile,
   createResponsibilityMatrixCsv,
   readRoleAssignments,
 } from "@/lib/precog/sod/model-io";
-import { buildCoveragePlans, buildCoverageProgram } from "@/lib/precog/sod/coverage-planner";
 import { createGovernanceReport } from "@/lib/precog/sod/governance-report";
 import { calculatePowerIndex } from "@/lib/precog/sod/power-index";
 import { locationsById } from "@/lib/precog/person-location";
@@ -49,7 +48,6 @@ export function usePowerMapBuilder() {
   const [newJobId, setNewJobId] = useState(JOB_CATALOG[0]?.id ?? "");
   const [simulationName, setSimulationName] = useState("");
   const [history, setHistory] = useState<RoleAssignment[][]>([]);
-  const [absentPersonId, setAbsentPersonId] = useState("");
   const [importMessage, setImportMessage] = useState("");
   const [mapView, setMapView] = useState<"graph" | "matrix">("graph");
   // The baseline the owner last accepted under Team, Change review: Reset
@@ -66,13 +64,7 @@ export function usePowerMapBuilder() {
     [assignments, profile.dualRelease, profile.staff, tpl],
   );
   const coverage = useMemo(() => analyzeDutyCoverage(assignments), [assignments]);
-  const coveragePlans = useMemo(() => buildCoveragePlans(assignments), [assignments]);
-  const coverageProgram = useMemo(() => buildCoverageProgram(assignments), [assignments]);
   const powerIndex = useMemo(() => calculatePowerIndex(assignments, tpl.id), [assignments, tpl.id]);
-  const absenceImpact = useMemo(
-    () => (absentPersonId ? analyzeAbsenceImpact(assignments, absentPersonId) : undefined),
-    [absentPersonId, assignments],
-  );
   const selected = shownAssignment(assignments, selectedId);
   // The person on screen, which differs from `selectedId` once that person is
   // gone (an undone hire, an import, a removal).
@@ -256,8 +248,6 @@ export function usePowerMapBuilder() {
     simulationName,
     setSimulationName,
     history,
-    absentPersonId,
-    setAbsentPersonId,
     importMessage,
     mapView,
     setMapView,
@@ -265,10 +255,7 @@ export function usePowerMapBuilder() {
     setProcessId,
     report,
     coverage,
-    coveragePlans,
-    coverageProgram,
     powerIndex,
-    absenceImpact,
     selected,
     selectedConflicts,
     nodes,
