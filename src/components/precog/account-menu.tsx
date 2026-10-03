@@ -11,6 +11,7 @@ import {
 } from "@/lib/precog/account-server";
 import { getNotificationSettings, updateNotificationSettings } from "@/lib/precog/firm/server";
 import type { NotificationSettings } from "@/lib/precog/firm/store";
+import { useDigestState, weeklyDigestAfter } from "@/components/precog/digest-state";
 import { signOut } from "@/lib/auth/client";
 import { clearLocalCopies } from "@/lib/precog/local-data";
 import { downloadText } from "@/lib/download";
@@ -223,13 +224,18 @@ export function DigestSwitch({
   );
 }
 
-/** Loads the switches once and keeps the digest one in step with the header. */
+/**
+ * Loads the switches once and keeps the digest one in step with the one-time
+ * question above the tab strip: an answer there shows here, and a flip here
+ * answers the question (the server stamps the ask on either save).
+ */
 function DigestControl({ disabled }: { disabled: boolean }) {
   const [state, setState] = useState<{
     settings: NotificationSettings;
     mailConfigured: boolean;
   } | null>(null);
   const [saving, setSaving] = useState(false);
+  const digest = useDigestState();
   useEffect(() => {
     let cancel = false;
     void getNotificationSettings()
@@ -241,15 +247,25 @@ function DigestControl({ disabled }: { disabled: boolean }) {
       cancel = true;
     };
   }, []);
+  const shown = state && {
+    ...state,
+    settings: {
+      ...state.settings,
+      weeklyDigest: weeklyDigestAfter(digest.change, state.settings.weeklyDigest),
+    },
+  };
   async function toggle() {
-    if (!state) return;
+    if (!shown) return;
     setSaving(true);
-    const saved = await toggleDigest(state.settings);
-    if (saved) setState({ ...state, settings: saved });
+    const saved = await toggleDigest(shown.settings);
+    if (saved) {
+      setState({ ...shown, settings: saved });
+      digest.record({ asked: true, weeklyDigest: saved.weeklyDigest });
+    }
     setSaving(false);
   }
   return (
-    <DigestSwitch state={state} disabled={disabled || saving} onToggle={() => void toggle()} />
+    <DigestSwitch state={shown} disabled={disabled || saving} onToggle={() => void toggle()} />
   );
 }
 

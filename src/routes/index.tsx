@@ -44,6 +44,7 @@ import { count } from "@/lib/precog/text";
 import { AccountDataControls } from "@/components/precog/account-menu";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
 import { DigestConsentPrompt } from "@/components/precog/digest-consent-prompt";
+import { DigestStateProvider } from "@/components/precog/digest-state";
 import {
   CountBadge,
   MoreTabsMenu,
@@ -62,7 +63,7 @@ import { cn } from "@/lib/utils";
 import { buttonClass } from "@/components/ui/button-variants";
 
 export const Route = createFileRoute("/")({
-  component: Home,
+  component: HomeRoute,
   // The open tab and the item on it live in the URL (?tab=precog&item=…) so
   // refresh, back/forward, and shared links land on the same view and item.
   validateSearch: parseHomeSearch,
@@ -73,6 +74,18 @@ export const Route = createFileRoute("/")({
     if (href) throw redirect({ href });
   },
 });
+
+/**
+ * The digest switch in the header and the one-time question under it share
+ * what changed on this page, so neither shows a stale setting.
+ */
+function HomeRoute() {
+  return (
+    <DigestStateProvider>
+      <Home />
+    </DigestStateProvider>
+  );
+}
 
 function Home() {
   const search = Route.useSearch();

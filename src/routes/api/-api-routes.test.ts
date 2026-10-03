@@ -353,7 +353,11 @@ describe("digest email links", () => {
     expect(res.headers.get("cache-control")).toBe("no-store");
     const html = await res.text();
     expect(html).toContain("Stop the weekly digest?");
+    expect(html).toContain(
+      "Precog will stop emailing you the weekly note about what is due on your businesses.",
+    );
     expect(html).toContain('<form method="post">');
+    expect(html).toContain(">Stop the weekly digest</button>");
     expect(await digestOn()).toBe(true);
   });
 
@@ -384,7 +388,11 @@ describe("digest email links", () => {
         request: new Request(url(query), { method: "POST" }),
       });
       expect(post.status).toBe(404);
-      expect(await post.text()).toContain("This link no longer works");
+      const body = await post.text();
+      expect(body).toContain("This link no longer works");
+      expect(body).toContain(
+        "The link may have changed since Precog sent the email. Turn the weekly digest off from the header after you sign in.",
+      );
     }
     expect(await digestOn()).toBe(true);
     const other = await handlers(DigestEmail).ANY({

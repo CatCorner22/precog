@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Bell } from "lucide-react";
 import { answerDigestAsk, getDigestAsk } from "@/lib/precog/reminders/digest-consent-server";
+import { askedAfter, useDigestState } from "@/components/precog/digest-state";
 import { buttonClass } from "@/components/ui/button-variants";
 
 export const DIGEST_ASK_QUESTION =
@@ -15,10 +16,12 @@ export const DIGEST_ASK_NO = "No thanks";
  * account: nobody gets the weekly digest until they say yes here, on the
  * firm page or in the header. The server remembers the answer, so no
  * browser storage is involved and the question never comes back on another
- * device.
+ * device. A flip of the header's switch answers it too, through the shared
+ * digest state.
  */
 export function DigestConsentPrompt() {
   const [ask, setAsk] = useState<{ asked: boolean; mailConfigured: boolean } | null>(null);
+  const digest = useDigestState();
   useEffect(() => {
     let cancel = false;
     void getDigestAsk()
@@ -33,9 +36,14 @@ export function DigestConsentPrompt() {
   if (!ask) return null;
   return (
     <DigestConsentBanner
-      asked={ask.asked}
+      asked={askedAfter(digest.change, ask.asked)}
       mailConfigured={ask.mailConfigured}
-      onAnswer={(weeklyDigest) => answerDigest(weeklyDigest, () => setAsk({ ...ask, asked: true }))}
+      onAnswer={(weeklyDigest) =>
+        answerDigest(weeklyDigest, () => {
+          setAsk({ ...ask, asked: true });
+          digest.record({ asked: true, weeklyDigest });
+        })
+      }
     />
   );
 }

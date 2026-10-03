@@ -63,6 +63,7 @@ describe("the weekly digest switch in the header", () => {
     expect(on).toContain("Weekly digest: on");
     expect(on).toContain('role="switch"');
     expect(on).toContain('aria-checked="true"');
+    expect(on).toContain('title="Once a week, Precog emails what is due on your businesses"');
     const off = render({ weeklyDigest: false, mailConfigured: true });
     expect(off).toContain("Weekly digest: off");
     expect(off).toContain('aria-checked="false"');
