@@ -23,6 +23,7 @@ import { downloadText } from "@/lib/download";
 import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { commercialToolsOpen } from "@/lib/precog/firm/billing-store";
 import {
+  closedToolsNote,
   planAmounts,
   type CheckoutPlan,
   type FirmPlan,
@@ -305,7 +306,7 @@ function FirmPage() {
     assessmentRefundedAt: billing?.assessmentRefundedAt ?? null,
   });
   // Only Stripe's own amounts print here (the tools close only with Stripe connected).
-  const amounts = billingConfigured ? planAmounts(true, prices) : null;
+  const priceNote = closedToolsNote(billingConfigured ? planAmounts(true, prices) : null);
 
   return (
     <main className="mx-auto min-h-[calc(100dvh-var(--grok-banner-h,0px))] max-w-3xl px-6 py-8">
@@ -489,8 +490,7 @@ function FirmPage() {
               QuickBooks stays closed until the assessment is paid or the firm plan is active. A
               past-due plan is not paid. The Monthly review on each business's own screen stays
               open.
-              {amounts &&
-                ` Stripe is connected on this deployment; the price is the ${amounts.assessment} assessment and the ${amounts.monthly} plan, not a price per client.`}
+              {priceNote && ` ${priceNote}`}
             </p>
           )}
           <QuickBooksPanel signedIn={signedIn} />

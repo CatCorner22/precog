@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FirmBilling } from "./firm-billing";
 import type { BillingAccount } from "@/lib/precog/firm/billing-store";
+import { closedToolsNote, planAmounts } from "@/lib/precog/firm/pricing";
 
 vi.mock("@/lib/precog/billing/server", () => ({
   openBillingPortal: vi.fn(),
@@ -91,6 +92,14 @@ describe("FirmBilling with Stripe connected", () => {
     );
     expect(disputed).toContain("Disputed");
     expect(disputed).not.toContain("Pay for the assessment");
+  });
+
+  it("names Stripe's amounts in the closed-tools note, and nothing while they are unknown", () => {
+    expect(closedToolsNote(planAmounts(true, prices))).toBe(
+      "Stripe is connected on this deployment; the price is the $1,000 assessment and the $299 a month plan, not a price per client.",
+    );
+    expect(closedToolsNote(planAmounts(true, null))).toBeNull();
+    expect(closedToolsNote(null)).toBeNull();
   });
 
   it("prints no figure while Stripe's prices are unknown", () => {

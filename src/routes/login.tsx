@@ -14,6 +14,11 @@ import { Button } from "@/components/ui/button";
 import { LegalFooter } from "@/components/precog/legal-footer";
 
 export const Route = createFileRoute("/login")({
+  // The Firm plan's price as Stripe charges it, read before the page renders
+  // so the first paint (and the served HTML) already carries the figure.
+  // Null when the price service fails, so the page never prints a figure
+  // Checkout would not charge.
+  loader: () => getPlanPrices().catch(() => null),
   component: Login,
 });
 
@@ -22,21 +27,10 @@ const inputCls =
 const labelCls = "block text-xs font-medium text-muted";
 
 function Login() {
-  // The Firm plan's price as Stripe charges it; null while unknown, so the
-  // page never prints a figure Checkout would not charge. Without Stripe
-  // the offer's own figure prints.
-  const [amounts, setAmounts] = useState<PlanAmounts | null>(null);
-  useEffect(() => {
-    let cancel = false;
-    void getPlanPrices()
-      .then((res) => {
-        if (!cancel) setAmounts(planAmounts(res.configured, res.prices));
-      })
-      .catch(() => undefined);
-    return () => {
-      cancel = true;
-    };
-  }, []);
+  // With Stripe connected only its own amount prints; without Stripe the
+  // offer's own figure prints; while the price is unknown, no figure.
+  const prices = Route.useLoaderData();
+  const amounts: PlanAmounts | null = prices ? planAmounts(prices.configured, prices.prices) : null;
 
   return (
     <main className="matrix-grid flex min-h-[calc(100dvh-var(--grok-banner-h,0px))] items-center justify-center p-6">

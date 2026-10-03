@@ -157,6 +157,17 @@ describe("billing changes", () => {
         data: { object: { payment_intent: "pi_1", status: "won" } },
       }),
     ).toMatchObject({ kind: "assessment-dispute", status: "won" });
+    // An inquiry closed without a chargeback, or a dispute closed because
+    // the charge was refunded meanwhile, clears the mark like a win.
+    for (const status of ["warning_closed", "charge_refunded"]) {
+      expect(
+        billingChangeFor({
+          id: "e",
+          type: "charge.dispute.closed",
+          data: { object: { payment_intent: "pi_1", status } },
+        }),
+      ).toMatchObject({ kind: "assessment-dispute", status: "won" });
+    }
   });
 
   it("names every subscription status in plain words", () => {
@@ -381,7 +392,18 @@ describe("applying events", () => {
       assessmentDisputedAt: null,
       assessmentRefundedAt: null,
     });
+    // An inquiry (opened as a dispute) closed without a chargeback clears the mark too.
     expect(await applyBillingEvent(db.sql, disputeEvent("evt_d3", "pi_1", "open"))).toBe("applied");
+    expect((await loadBillingAccount(db.sql, "owner"))?.assessmentDisputedAt).not.toBeNull();
+    expect(await applyBillingEvent(db.sql, disputeEvent("evt_d3w", "pi_1", "warning_closed"))).toBe(
+      "applied",
+    );
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      assessmentDisputedAt: null,
+      assessmentRefundedAt: null,
+    });
+    expect(await toolsOpen()).toBe(true);
+    expect(await applyBillingEvent(db.sql, disputeEvent("evt_d5", "pi_1", "open"))).toBe("applied");
     expect(await applyBillingEvent(db.sql, disputeEvent("evt_d4", "pi_1", "lost"))).toBe("applied");
     expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
       assessmentDisputedAt: null,

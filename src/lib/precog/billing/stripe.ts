@@ -32,6 +32,12 @@ export type BillingChange =
   | {
       kind: "assessment-dispute";
       paymentIntentId: string;
+      /**
+       * open: Stripe opened a dispute or an inquiry. lost: the money went
+       * back. won: the dispute closed any other way (won, an inquiry closed
+       * without a chargeback, the charge refunded meanwhile), which clears
+       * the mark.
+       */
       status: "open" | "won" | "lost";
       eventAt: string | null;
     }
@@ -190,15 +196,11 @@ export function billingChangeFor(event: StripeEvent): BillingChange {
   if (event.type === "charge.dispute.created" || event.type === "charge.dispute.closed") {
     const paymentIntentId = idOf(object.payment_intent);
     if (!paymentIntentId) return { kind: "ignore" };
+    // A closed dispute keeps the mark only when it was lost: Stripe closes an
+    // inquiry as "warning_closed" and a refunded charge's dispute as
+    // "charge_refunded", and neither is a chargeback.
     const status =
-      event.type === "charge.dispute.created"
-        ? "open"
-        : object.status === "won"
-          ? "won"
-          : object.status === "lost"
-            ? "lost"
-            : null;
-    if (!status) return { kind: "ignore" };
+      event.type === "charge.dispute.created" ? "open" : object.status === "lost" ? "lost" : "won";
     return { kind: "assessment-dispute", paymentIntentId, status, eventAt };
   }
   if (

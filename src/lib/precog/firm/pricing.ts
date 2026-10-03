@@ -69,3 +69,13 @@ export function planAmounts(
     monthly: `${formatUsd(PILOT_OFFER.monthlyFeeUsd)} a month`,
   };
 }
+
+/**
+ * The sentence the firm page adds to its closed-tools note once Stripe's
+ * amounts are known, or null while they are not, so the note never prints a
+ * figure Checkout would not charge.
+ */
+export function closedToolsNote(amounts: PlanAmounts | null): string | null {
+  if (!amounts) return null;
+  return `Stripe is connected on this deployment; the price is the ${amounts.assessment} assessment and the ${amounts.monthly} plan, not a price per client.`;
+}
