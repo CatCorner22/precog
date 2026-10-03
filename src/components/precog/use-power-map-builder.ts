@@ -2,17 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useDutyBaseline } from "./use-duty-baseline";
 import { buildGraph } from "./power-map-graph";
 import { useEdgesState, useNodesState } from "@xyflow/react";
-import {
-  OPERATING_DUTIES,
-  type DutyFamily,
-  type EntitlementId,
-} from "@/lib/precog/sod/conflict-rules";
+import { OPERATING_DUTIES } from "@/lib/precog/sod/conflict-rules";
 import {
   applyAssignmentsToPeople,
   isSimulatedPersonId,
   newSimulatedPersonId,
 } from "@/lib/precog/sod/apply-assignments";
-import { withEntitlement } from "@/lib/precog/sod/assignments";
 import { JOB_CATALOG, jobCatalogEntry, seatDuties } from "@/lib/precog/onboarding/job-catalog";
 import {
   buildAssignments,
@@ -28,12 +23,7 @@ import {
   createResponsibilityMatrixCsv,
   readRoleAssignments,
 } from "@/lib/precog/sod/model-io";
-import {
-  buildCoveragePlans,
-  buildCoverageProgram,
-  dutyToggleEffects,
-  type DutyToggleEffect,
-} from "@/lib/precog/sod/coverage-planner";
+import { buildCoveragePlans, buildCoverageProgram } from "@/lib/precog/sod/coverage-planner";
 import { createGovernanceReport } from "@/lib/precog/sod/governance-report";
 import { calculatePowerIndex } from "@/lib/precog/sod/power-index";
 import { locationsById } from "@/lib/precog/person-location";
@@ -46,14 +36,13 @@ export function usePowerMapBuilder() {
   // Where each person works, when the business has two or more locations.
   const placesOf = useMemo(() => locationsById(tpl.people), [tpl.people]);
   const { profile, setCustomPeople } = usePractice();
-  // The map is a view of the people register: every grant, revocation, hire,
-  // or import writes through to the profile, so the conflict list, the
-  // matrix, and the dashboard summary all read the same assignments.
+  // The map is a view of the people register, which Team edits. A simulated
+  // hire, an applied resolution, an import or a reset writes through to the
+  // profile, so the conflict list, the matrix and every other screen read the
+  // same assignments.
   const assignments = useMemo(() => buildAssignments(tpl), [tpl]);
   const guidanceByDuty = powerGuidance(profile.industry);
   const [selectedId, setSelectedId] = useState(assignments[0]?.personId ?? "");
-  const [search, setSearch] = useState("");
-  const [family, setFamily] = useState<DutyFamily | "all">("all");
   const [conflictsOnly, setConflictsOnly] = useState(false);
   // Simulated hires come from the same job catalog the setup grid uses, seated
   // for this line of business; the sample's dental role list suits no one else.
@@ -92,10 +81,6 @@ export function usePowerMapBuilder() {
     () => report.conflicts.filter((item) => item.personId === shownId),
     [report.conflicts, shownId],
   );
-  const conflictEntitlements = useMemo(
-    () => new Set(selectedConflicts.flatMap((item) => [item.entitlementA, item.entitlementB])),
-    [selectedConflicts],
-  );
   const graph = useMemo(
     () => buildGraph(assignments, report.conflicts, conflictsOnly, processId, placesOf),
     [assignments, report.conflicts, conflictsOnly, processId, placesOf],
@@ -114,39 +99,12 @@ export function usePowerMapBuilder() {
     setEdges(graph.edges);
   }, [graph, setEdges, setNodes]);
 
-  const visibleEntitlements = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return OPERATING_DUTIES.filter((item) => family === "all" || item.family === family)
-      .filter((item) => processId === "all" || item.processIds.includes(processId))
-      .filter(
-        (item) =>
-          !query ||
-          `${item.label} ${item.family} ${item.processIds.join(" ")}`.toLowerCase().includes(query),
-      );
-  }, [family, processId, search]);
-  const toggleEffects = useMemo(
+  // The duties the process lens shows, for the control measures below the map.
+  const visibleEntitlements = useMemo(
     () =>
-      selected
-        ? dutyToggleEffects(
-            selected,
-            OPERATING_DUTIES.map((item) => item.id),
-            assignments,
-          )
-        : new Map<EntitlementId, DutyToggleEffect>(),
-    [selected, assignments],
+      OPERATING_DUTIES.filter((item) => processId === "all" || item.processIds.includes(processId)),
+    [processId],
   );
-
-  function toggle(entitlement: EntitlementId) {
-    if (selected) toggleForPerson(selected.personId, entitlement);
-  }
-
-  function toggleForPerson(personId: string, entitlement: EntitlementId) {
-    const person = assignments.find((item) => item.personId === personId);
-    if (!person) return;
-    setSelectedId(personId);
-    const holds = person.entitlements.includes(entitlement);
-    commit(withEntitlement(assignments, personId, entitlement, !holds));
-  }
 
   function addSimulationRole() {
     const job = jobCatalogEntry(newJobId);
@@ -291,10 +249,6 @@ export function usePowerMapBuilder() {
     guidanceByDuty,
     selectedId: shownId,
     setSelectedId,
-    search,
-    setSearch,
-    family,
-    setFamily,
     conflictsOnly,
     setConflictsOnly,
     newJobId,
@@ -317,15 +271,11 @@ export function usePowerMapBuilder() {
     absenceImpact,
     selected,
     selectedConflicts,
-    conflictEntitlements,
     nodes,
     edges,
     onNodesChange,
     onEdgesChange,
     visibleEntitlements,
-    toggleEffects,
-    toggle,
-    toggleForPerson,
     addSimulationRole,
     reset,
     removeSelected,
