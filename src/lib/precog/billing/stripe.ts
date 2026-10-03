@@ -5,17 +5,9 @@
  */
 import { constantTimeEqual, hmacSha256, toHex } from "@/lib/web-crypto";
 
-export type CheckoutPlan = "assessment" | "monthly";
-
-/** What a plan costs, as the Stripe price behind its checkout button says. */
-export interface PlanPrice {
-  /** In the currency's main unit (dollars, not cents). */
-  amount: number;
-  /** ISO code in lower case, as Stripe writes it ("usd"). */
-  currency: string;
-  /** "month" for the Firm plan's subscription; null for a one-off payment. */
-  interval: string | null;
-}
+// The plan types and the price formatter live in ../firm/pricing so a page
+// that prints prices (the sign-in page) does not pull web-crypto in with them.
+export { formatPlanPrice, type CheckoutPlan, type PlanPrice } from "../firm/pricing";
 
 export interface StripeEvent {
   id: string;
@@ -26,8 +18,23 @@ export interface StripeEvent {
 }
 
 /** What a webhook event means for an account, independent of Stripe's shapes. */
-type BillingChange =
-  | { kind: "assessment-paid"; userId: string; customerId: string | null }
+export type BillingChange =
+  | {
+      kind: "assessment-paid";
+      userId: string;
+      customerId: string | null;
+      /** The payment intent behind the charge; a refund or dispute names it. */
+      paymentIntentId: string | null;
+      /** When Stripe created the event (ISO), or null when it did not say. */
+      eventAt: string | null;
+    }
+  | { kind: "assessment-refunded"; paymentIntentId: string; eventAt: string | null }
+  | {
+      kind: "assessment-dispute";
+      paymentIntentId: string;
+      status: "open" | "won" | "lost";
+      eventAt: string | null;
+    }
   | {
       kind: "subscription";
       userId: string | null;
@@ -40,16 +47,6 @@ type BillingChange =
       eventAt: string | null;
     }
   | { kind: "ignore" };
-
-/** "$1,000", "$299 a month", "$299.50 a month"; other currencies print in their own symbol. */
-export function formatPlanPrice(price: PlanPrice): string {
-  const amount = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: price.currency.toUpperCase(),
-    minimumFractionDigits: Number.isInteger(price.amount) ? 0 : 2,
-  }).format(price.amount);
-  return price.interval ? `${amount} a ${price.interval}` : amount;
-}
 
 const SIGNATURE_TOLERANCE_SECONDS = 300;
 
@@ -122,11 +119,15 @@ function str(value: unknown): string | null {
   return typeof value === "string" && value ? value : null;
 }
 
-function customerIdOf(object: Record<string, unknown>): string | null {
-  const customer = object.customer;
-  if (typeof customer === "string") return customer;
-  if (customer && typeof customer === "object") return str((customer as { id?: unknown }).id);
+/** A Stripe reference that arrives as an id or as the expanded object. */
+function idOf(value: unknown): string | null {
+  if (typeof value === "string") return value || null;
+  if (value && typeof value === "object") return str((value as { id?: unknown }).id);
   return null;
+}
+
+function customerIdOf(object: Record<string, unknown>): string | null {
+  return idOf(object.customer);
 }
 
 /**
@@ -137,6 +138,12 @@ function customerIdOf(object: Record<string, unknown>): string | null {
  * completion carries no subscription status or renewal date: those come from
  * the customer.subscription.* events, whichever order they arrive in. A
  * delayed payment method completes through async_payment_succeeded.
+ *
+ * A refund (charge.refunded, once the charge is fully refunded) and a
+ * dispute (charge.dispute.created / closed) carry only the payment intent;
+ * the store matches it against the intent stored with the assessment
+ * payment. A refund on an invoice charge is the Firm plan's, which the
+ * subscription events already describe, so it is ignored here.
  */
 export function billingChangeFor(event: StripeEvent): BillingChange {
   const object = event.data.object;
@@ -164,9 +171,35 @@ export function billingChangeFor(event: StripeEvent): BillingChange {
       };
     }
     if (object.mode === "payment" && object.payment_status === "paid") {
-      return { kind: "assessment-paid", userId, customerId };
+      return {
+        kind: "assessment-paid",
+        userId,
+        customerId,
+        paymentIntentId: idOf(object.payment_intent),
+        eventAt,
+      };
     }
     return { kind: "ignore" };
+  }
+  if (event.type === "charge.refunded") {
+    const paymentIntentId = idOf(object.payment_intent);
+    if (object.refunded !== true || object.invoice != null || !paymentIntentId)
+      return { kind: "ignore" };
+    return { kind: "assessment-refunded", paymentIntentId, eventAt };
+  }
+  if (event.type === "charge.dispute.created" || event.type === "charge.dispute.closed") {
+    const paymentIntentId = idOf(object.payment_intent);
+    if (!paymentIntentId) return { kind: "ignore" };
+    const status =
+      event.type === "charge.dispute.created"
+        ? "open"
+        : object.status === "won"
+          ? "won"
+          : object.status === "lost"
+            ? "lost"
+            : null;
+    if (!status) return { kind: "ignore" };
+    return { kind: "assessment-dispute", paymentIntentId, status, eventAt };
   }
   if (
     event.type === "customer.subscription.updated" ||

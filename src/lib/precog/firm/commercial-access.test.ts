@@ -8,6 +8,7 @@ describe("commercialToolsOpen", () => {
         stripeConfigured: false,
         subscriptionStatus: null,
         assessmentPaidAt: null,
+        assessmentRefundedAt: null,
       }),
     ).toBe(true);
   });
@@ -18,6 +19,7 @@ describe("commercialToolsOpen", () => {
         stripeConfigured: true,
         subscriptionStatus: "past_due",
         assessmentPaidAt: "2026-09-01T00:00:00.000Z",
+        assessmentRefundedAt: null,
       }),
     ).toBe(false);
   });
@@ -28,6 +30,7 @@ describe("commercialToolsOpen", () => {
         stripeConfigured: true,
         subscriptionStatus: "active",
         assessmentPaidAt: null,
+        assessmentRefundedAt: null,
       }),
     ).toBe(true);
     expect(
@@ -35,6 +38,7 @@ describe("commercialToolsOpen", () => {
         stripeConfigured: true,
         subscriptionStatus: null,
         assessmentPaidAt: "2026-09-01T00:00:00.000Z",
+        assessmentRefundedAt: null,
       }),
     ).toBe(true);
     expect(
@@ -42,7 +46,28 @@ describe("commercialToolsOpen", () => {
         stripeConfigured: true,
         subscriptionStatus: null,
         assessmentPaidAt: null,
+        assessmentRefundedAt: null,
       }),
     ).toBe(false);
+  });
+
+  it("closes again once the assessment is refunded", () => {
+    expect(
+      commercialToolsOpen({
+        stripeConfigured: true,
+        subscriptionStatus: null,
+        assessmentPaidAt: "2026-09-01T00:00:00.000Z",
+        assessmentRefundedAt: "2026-09-20T00:00:00.000Z",
+      }),
+    ).toBe(false);
+    // An active plan keeps the tools open whatever happened to the assessment.
+    expect(
+      commercialToolsOpen({
+        stripeConfigured: true,
+        subscriptionStatus: "active",
+        assessmentPaidAt: "2026-09-01T00:00:00.000Z",
+        assessmentRefundedAt: "2026-09-20T00:00:00.000Z",
+      }),
+    ).toBe(true);
   });
 });

@@ -3,8 +3,12 @@ import { inTransaction } from "@/lib/sql-transaction";
 import {
   ACTIVE_SUBSCRIPTION_STATUSES,
   claimBillingEvent,
+  loadBillingAccount,
+  recordAssessmentDispute,
   recordAssessmentPayment,
+  recordAssessmentRefund,
   recordSubscription,
+  userForAssessmentIntent,
   userForCustomer,
 } from "../firm/billing-store";
 import { setFirmPlan } from "../firm/store";
@@ -16,6 +20,11 @@ import { billingChangeFor, type StripeEvent } from "./stripe";
  * change commit together, so a failure part-way rolls the claim back and
  * Stripe's retry applies the event. Returns what was done, for the route's
  * log line and for tests.
+ *
+ * A refund or dispute is attributed by its payment intent matching the one
+ * stored with the assessment payment, and by nothing else: a dispute on a
+ * Firm-plan invoice charge, a late refund of a superseded intent and a
+ * payment made before the intent was stored are all "ignored".
  */
 export async function applyBillingEvent(
   sql: Sql,
@@ -26,7 +35,32 @@ export async function applyBillingEvent(
     const change = billingChangeFor(event);
     if (change.kind === "ignore") return "ignored";
     if (change.kind === "assessment-paid") {
-      await recordAssessmentPayment(tx, change.userId, change.customerId);
+      await recordAssessmentPayment(tx, {
+        userId: change.userId,
+        stripeCustomerId: change.customerId,
+        paymentIntentId: change.paymentIntentId,
+        paidAt: change.eventAt,
+      });
+      return "applied";
+    }
+    if (change.kind === "assessment-refunded" || change.kind === "assessment-dispute") {
+      const userId = await userForAssessmentIntent(tx, change.paymentIntentId);
+      if (!userId) return "ignored";
+      if (change.kind === "assessment-refunded") {
+        await recordAssessmentRefund(tx, userId, change.eventAt);
+      } else {
+        await recordAssessmentDispute(tx, userId, change.status, change.eventAt);
+      }
+      // After a refund or a lost dispute the firm is back on the assessment
+      // stage, unless its subscription is still running.
+      if (change.kind === "assessment-refunded" || change.status === "lost") {
+        const account = await loadBillingAccount(tx, userId);
+        const subscriptionActive = Boolean(
+          account?.subscriptionStatus &&
+          ACTIVE_SUBSCRIPTION_STATUSES.has(account.subscriptionStatus),
+        );
+        if (!subscriptionActive) await setFirmPlan(tx, userId, "assessment");
+      }
       return "applied";
     }
     const userId =

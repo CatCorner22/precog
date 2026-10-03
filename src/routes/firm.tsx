@@ -22,7 +22,12 @@ import {
 import { downloadText } from "@/lib/download";
 import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { commercialToolsOpen } from "@/lib/precog/firm/billing-store";
-import type { FirmPlan } from "@/lib/precog/firm/pricing";
+import {
+  planAmounts,
+  type CheckoutPlan,
+  type FirmPlan,
+  type PlanPrice,
+} from "@/lib/precog/firm/pricing";
 import {
   getFirm,
   listDeletedClients,
@@ -30,7 +35,7 @@ import {
   recordEngagement,
   saveFirmProfile,
 } from "@/lib/precog/firm/server";
-import { getBillingStatus } from "@/lib/precog/billing/server";
+import { getBillingStatus, getPlanPrices } from "@/lib/precog/billing/server";
 import type { BillingAccount } from "@/lib/precog/firm/billing-store";
 import type {
   ClientEngagementRow,
@@ -50,7 +55,7 @@ export const Route = createFileRoute("/firm")({
   }),
   head: () => ({
     meta: [
-      { title: "Firm workspace · Precog Pioneer" },
+      { title: "Firm workspace · Precog" },
       {
         name: "description",
         content:
@@ -94,6 +99,7 @@ function FirmPage() {
   const [invites, setInvites] = useState<FirmInvite[]>([]);
   const [billing, setBilling] = useState<BillingAccount | null>(null);
   const [billingConfigured, setBillingConfigured] = useState(false);
+  const [prices, setPrices] = useState<Record<CheckoutPlan, PlanPrice> | null>(null);
   const [name, setName] = useState("");
   const [clients, setClients] = useState<ClientEngagementRow[]>([]);
   const [deleted, setDeleted] = useState<DeletedBusinessRow[]>([]);
@@ -157,11 +163,12 @@ function FirmPage() {
     let cancel = false;
     void (async () => {
       try {
-        const [firmRes, clientRes, deletedRes, billingRes] = await Promise.all([
+        const [firmRes, clientRes, deletedRes, billingRes, priceRes] = await Promise.all([
           getFirm(),
           listFirmClients(),
           listDeletedClients(),
           getBillingStatus().catch(() => null),
+          getPlanPrices().catch(() => null),
         ]);
         if (cancel) return;
         setFirm(firmRes.firm);
@@ -169,6 +176,7 @@ function FirmPage() {
         setInvites(firmRes.invites);
         setBilling(billingRes?.account ?? firmRes.billing);
         setBillingConfigured(billingRes?.configured ?? false);
+        setPrices(priceRes?.prices ?? null);
         setName(firmRes.firm?.name ?? "");
         setClients(clientRes.clients);
         setDeleted(deletedRes.deleted);
@@ -294,7 +302,10 @@ function FirmPage() {
     stripeConfigured: billingConfigured,
     subscriptionStatus: billing?.subscriptionStatus ?? null,
     assessmentPaidAt: billing?.assessmentPaidAt ?? null,
+    assessmentRefundedAt: billing?.assessmentRefundedAt ?? null,
   });
+  // Only Stripe's own amounts print here (the tools close only with Stripe connected).
+  const amounts = billingConfigured ? planAmounts(true, prices) : null;
 
   return (
     <main className="mx-auto min-h-[calc(100dvh-var(--grok-banner-h,0px))] max-w-3xl px-6 py-8">
@@ -361,6 +372,7 @@ function FirmPage() {
             plan={firm.plan}
             billing={billing}
             billingConfigured={billingConfigured}
+            prices={prices}
             canManage={isOwner}
             onMarkPlan={saveFirm}
           />
@@ -476,8 +488,9 @@ function FirmPage() {
             <p className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
               QuickBooks stays closed until the assessment is paid or the firm plan is active. A
               past-due plan is not paid. The Monthly review on each business's own screen stays
-              open. Stripe is connected on this deployment; the price is the $1,000 assessment and
-              the $299 monthly plan, not a price per client.
+              open.
+              {amounts &&
+                ` Stripe is connected on this deployment; the price is the ${amounts.assessment} assessment and the ${amounts.monthly} plan, not a price per client.`}
             </p>
           )}
           <QuickBooksPanel signedIn={signedIn} />
