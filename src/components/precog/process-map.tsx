@@ -51,6 +51,7 @@ import {
   type PriorityTarget,
 } from "@/lib/precog/map-vision";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import { useScoredMap } from "@/lib/precog/builder/use-scored-map";
 import {
   mapAssessed,
   mapNotAssessedNote,
@@ -140,6 +141,7 @@ export function ProcessMap({
     redoMap,
     canUndoMap,
     canRedoMap,
+    recordMapHealth,
   } = usePractice();
   const { say } = usePresentation();
   const [vision, setVision] = useState<MapVisionMode>("standard");
@@ -196,6 +198,14 @@ export function ProcessMap({
   // the owner has not touched yet.
   const mapReady = mapAssessed(profile);
   const notAssessedNote = mapNotAssessedNote(profile);
+  // Keep the map completeness history: the business switcher's "map N%
+  // complete", the report's change since the first point and the value proof
+  // read it. The retired Dashboard recorded it on each visit; the map screen
+  // does now, once the map is assessed, whenever the score changes.
+  const scored = useScoredMap();
+  useEffect(() => {
+    if (mapReady) recordMapHealth(scored.health.score);
+  }, [mapReady, scored.health.score, recordMapHealth]);
   const starterIds = useMemo(
     () =>
       untouchedStarterProcessIds({

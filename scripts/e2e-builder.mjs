@@ -8,6 +8,7 @@
  *   3. keyboard: F frames the selection, ArrowLeft moves to the previous stage
  *   4. Spreadsheet: import a CSV that updates one process and adds another
  *   5. Ctrl+Z undoes the import
+ *   6. the map completeness history records the edited map's score
  *
  * Usage: node scripts/e2e-builder.mjs [baseUrl]   (default http://127.0.0.1:8080/)
  * Env:   E2E_TIMEOUT_MS (default 45000), E2E_SCREENSHOT (PNG path on failure)
@@ -17,7 +18,13 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { e2eOptions, restingViewport, viewportTransform, withPage } from "./lib/e2e.mjs";
+import {
+  e2eOptions,
+  profileStorageKey,
+  restingViewport,
+  viewportTransform,
+  withPage,
+} from "./lib/e2e.mjs";
 import { eventually, stepLogger } from "./lib/steps.mjs";
 
 const options = e2eOptions();
@@ -125,6 +132,27 @@ await withPage(options, async (p, errors) => {
     .locator('.react-flow__node:has-text("Supply ordering")')
     .first()
     .waitFor({ state: "detached" });
+
+  step("the map completeness history records the edited map's score");
+  // The map screen records the score once the map is assessed (the Dashboard
+  // used to); the switcher's "map N% complete" and the report's change since
+  // the first point read this history. The profile is stored a moment after
+  // each edit, so wait for it.
+  await eventually(
+    async () => {
+      const history = await page.evaluate(
+        (key) => JSON.parse(localStorage.getItem(key) ?? "null")?.mapCompletenessHistory,
+        profileStorageKey(),
+      );
+      return (
+        Array.isArray(history) &&
+        history.length >= 1 &&
+        history.every((point) => Number.isInteger(point.score) && typeof point.at === "string")
+      );
+    },
+    "the edited map's completeness score was not recorded",
+    10_000,
+  );
 
   assert(errors.page.length === 0, `page errors: ${errors.page.join(" | ")}`);
   assert(errors.console.length === 0, `console errors: ${errors.console.join(" | ")}`);
