@@ -23,8 +23,13 @@ import { usePresentation } from "@/lib/precog/presentation";
 /** Where the screened records came from; the demo must never pass for the owner's data. */
 type Source = "demo" | "file" | "paste";
 
-export function ForensicPanel() {
+/**
+ * `headingLevel` 3 puts the card titles under a section heading, as on the
+ * Monthly review; 2 (the default) leaves them under the page's h1.
+ */
+export function ForensicPanel({ headingLevel = 2 }: { headingLevel?: 2 | 3 }) {
   const { say } = usePresentation();
+  const titleAs = headingLevel === 3 ? "h3" : "h2";
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [source, setSource] = useState<Source | null>(null);
   const [undated, setUndated] = useState(false);
@@ -68,7 +73,7 @@ export function ForensicPanel() {
             <Badge variant="accent">{say("Number patterns", "Forensic screen")}</Badge>
             <Badge variant="primary">Runs locally · educational</Badge>
           </div>
-          <CardTitle className="mt-2 flex items-center gap-2">
+          <CardTitle as={titleAs} className="mt-2 flex items-center gap-2">
             <Sigma className="size-5 text-primary" />
             Transaction pattern screen
           </CardTitle>
@@ -127,7 +132,9 @@ export function ForensicPanel() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Screen summary</CardTitle>
+          <CardTitle as={titleAs} className="text-base">
+            Screen summary
+          </CardTitle>
           <CardDescription>
             {source === "demo"
               ? `Sample data: 60 generated days from a dental office (${report.n} records), not your records.`
@@ -195,7 +202,9 @@ export function ForensicPanel() {
       {findings.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Patterns to discuss</CardTitle>
+            <CardTitle as={titleAs} className="text-base">
+              Patterns to discuss
+            </CardTitle>
             <CardDescription>
               These results are prompts for process review, not conclusions.
             </CardDescription>

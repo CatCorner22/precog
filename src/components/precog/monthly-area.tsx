@@ -1,18 +1,20 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { ControlCalendarCard } from "@/components/precog/control-calendar";
 import { ControlEvidencePanel } from "@/components/precog/control-evidence/panel";
 import { DecisionJournal } from "@/components/precog/decision-journal";
+import { TabLoading } from "@/components/precog/home-shell-parts";
 import { MonthlyReview } from "@/components/precog/monthly-review";
 import { tabLabel } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
 
 /** The sections the Monthly review tab can open on; `item` names one of them. */
-const SECTIONS = ["checks", "evidence", "calendar", "decisions"] as const;
+const SECTIONS = ["checks", "evidence", "calendar", "decisions", "number-patterns"] as const;
 
 /**
  * The Monthly review tab: this month's checks, the control evidence log, the
- * control work due this week, and the Decisions log, on one screen. It works
- * signed out and on a sample; each panel says what signing in adds.
+ * control work due this week, the Decisions log, and the number-pattern
+ * screen for a CSV of transactions, on one screen. It works signed out and on
+ * a sample; each panel says what signing in adds.
  */
 export function MonthlyArea({
   item,
@@ -38,7 +40,8 @@ export function MonthlyArea({
         <h1 className="text-lg font-semibold">{tabLabel("monthly", say)}</h1>
         <p className="text-sm text-muted">
           The checks to run this month, the record of each check, the control work due this week,
-          and the decisions you logged, with their review dates.
+          the decisions you logged, with their review dates, and a screen for number patterns in a
+          CSV of transactions.
         </p>
       </div>
       <section id="checks" className="scroll-mt-40">
@@ -57,6 +60,25 @@ export function MonthlyArea({
       <section id="decisions" aria-label={tabLabel("journal", say)} className="scroll-mt-40">
         <DecisionJournal onOpenLinked={openTab} headingLevel={2} />
       </section>
+      <section
+        id="number-patterns"
+        aria-labelledby="number-patterns-heading"
+        className="scroll-mt-40 space-y-3"
+      >
+        <h2 id="number-patterns-heading" className="text-lg font-semibold">
+          Number patterns in a CSV
+        </h2>
+        <Suspense fallback={<TabLoading />}>
+          <ForensicPanel headingLevel={3} />
+        </Suspense>
+      </section>
     </div>
   );
 }
+
+/** The screen and its statistics load only when the Monthly review opens. */
+const ForensicPanel = lazy(() =>
+  import("@/components/precog/forensic-panel").then((module) => ({
+    default: module.ForensicPanel,
+  })),
+);
