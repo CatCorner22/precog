@@ -71,5 +71,9 @@ describe("Open report on the client list", () => {
     );
     expect(html.match(/>Open report</g)).toHaveLength(2);
     expect(html).toContain('aria-label="Open the report for Second Dental"');
+    // Open leads to each client's Monthly review, the open client's included.
+    expect(html.match(/>Open</g)).toHaveLength(2);
+    expect(html).toContain('aria-label="Open the Monthly review for Second Dental"');
+    expect(html).toContain('aria-label="Open the Monthly review for Open One"');
   });
 });

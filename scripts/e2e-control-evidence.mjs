@@ -64,7 +64,8 @@ try {
     actor.prep,
   );
   // Readiness comes from the loaded account-log controls, not global network silence.
-  await page.goto(base + "/firm", { waitUntil: "domcontentloaded" });
+  // The control evidence log lives in each business's Monthly review, not on /firm.
+  await page.goto(base + "/?tab=monthly", { waitUntil: "domcontentloaded" });
   const panel = page.getByRole("region", { name: "Control evidence log" });
   await panel.getByText("Record a check with evidence", { exact: true }).waitFor();
   step("Real preparer session can open the control evidence log");
@@ -79,7 +80,7 @@ try {
       (await (await context.request.get(base + "/api/auth/get-session")).json()).user.id,
       actor[key],
     );
-    await page.goto(base + "/firm", { waitUntil: "domcontentloaded" });
+    await page.goto(base + "/?tab=monthly", { waitUntil: "domcontentloaded" });
   };
   await panel.getByText("Record a check with evidence", { exact: true }).click();
   let form = panel.locator("form").first();
@@ -246,6 +247,39 @@ try {
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
     "Mobile horizontal overflow",
   );
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  // A sample control confirmed under Who controls what > Controls counts at
+  // once: How Precog scores > What is still exposed leaves out one fewer. The
+  // reviewer owns the fixture business, so the confirmation is theirs.
+  const leftOutLine = /Precog leaves out sample controls \((\d+)\)/;
+  const leftOut = async () => {
+    await page.goto(base + "/?tab=residual", { waitUntil: "domcontentloaded" });
+    await page
+      .getByLabel(/Risks left after your controls|Residual risk register/)
+      .first()
+      .waitFor();
+    const line = page.getByText(leftOutLine);
+    if ((await line.count()) === 0) return 0;
+    return Number((await line.first().innerText()).match(leftOutLine)[1]);
+  };
+  const before = await leftOut();
+  assert.ok(before > 0, "The fixture business has unconfirmed sample controls");
+  await page.goto(base + "/?tab=sod&item=controls", { waitUntil: "domcontentloaded" });
+  const confirm = page.getByRole("button", { name: "This runs here" });
+  await confirm.first().waitFor();
+  const unconfirmed = await confirm.count();
+  await confirm.first().click();
+  // The Decisions log entry is written once the button leaves that control.
+  await page.waitForFunction(
+    (n) =>
+      [...document.querySelectorAll("button")].filter((b) =>
+        b.textContent?.includes("This runs here"),
+      ).length < n,
+    unconfirmed,
+  );
+  const after = await leftOut();
+  assert.ok(after < before, `Sample controls left out: ${before} before, ${after} after`);
+  step("A sample control confirmed under Controls leaves What is still exposed");
   await page.goto("about:blank");
   await context.clearCookies();
   await context.addCookies([cookies.outside]);

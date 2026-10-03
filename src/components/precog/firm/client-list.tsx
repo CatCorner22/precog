@@ -24,6 +24,7 @@ export function ClientList({
   clients: ClientEngagementRow[];
   deleted: DeletedBusinessRow[];
   activeId: string;
+  /** Switch to the client and open its Monthly review. */
   onOpen: (id: string) => void;
   onOpenReport: (id: string) => void;
   onRestored: (id: string) => void;
@@ -166,16 +167,14 @@ export function ClientList({
                         : "Add owner email"}
                     </button>
                   )}
-                  {client.id !== activeId && (
-                    <button
-                      type="button"
-                      className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
-                      aria-label={`Open ${client.name}`}
-                      onClick={() => onOpen(client.id)}
-                    >
-                      Open
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                    aria-label={`Open the Monthly review for ${client.name}`}
+                    onClick={() => onOpen(client.id)}
+                  >
+                    Open
+                  </button>
                   <button
                     type="button"
                     className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
