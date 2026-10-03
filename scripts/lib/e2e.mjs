@@ -74,6 +74,21 @@ export async function withPage(options, body) {
   }
 }
 
+/**
+ * Opens setup as a first-time guest: the home page sends a visitor with no
+ * business to the landing page, whose "Set up your business" link comes
+ * back with the industry radios open. Clears this browser's storage first,
+ * so a sample a previous session left behind does not skip the landing.
+ */
+export async function openSetup(page, baseUrl, timeout) {
+  await page.goto(`${baseUrl}/`, { waitUntil: "networkidle", timeout });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: "networkidle", timeout });
+  await page.waitForURL(/\/welcome$/, { timeout });
+  await page.getByRole("link", { name: "Set up your business" }).click();
+  await page.getByRole("radiogroup").waitFor({ timeout });
+}
+
 /** Waits until `locator` matches exactly `count` elements (Playwright's count() does not wait). */
 export async function waitForCount(locator, count, label = "locator") {
   let seen;

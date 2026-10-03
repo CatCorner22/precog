@@ -10,6 +10,7 @@
 import assert from "node:assert/strict";
 import {
   e2eOptions,
+  openSetup,
   profileStorageKey,
   restingViewport,
   waitForCount,
@@ -31,7 +32,7 @@ if (passed)
 
 async function insuranceAndMapHistory(page, errors) {
   step("demo: open insurance settings");
-  await page.goto(base, { waitUntil: "networkidle" });
+  await openSetup(page, base, options.timeout);
   await page.getByRole("radio", { name: /^Dental/ }).click();
   await page.getByRole("button", { name: "Explore the sample instead" }).click();
   await page.goto(`${base}/?tab=precog`, { waitUntil: "networkidle" });
@@ -143,7 +144,7 @@ async function insuranceAndMapHistory(page, errors) {
 
 async function exceptionFirstSetup(page, errors) {
   step("setup: exception-first review retains every imported person");
-  await page.goto(base, { waitUntil: "networkidle" });
+  await openSetup(page, base, options.timeout);
   await page.getByRole("button", { name: "Set up my own business", exact: true }).click();
   await page.getByLabel("Business name", { exact: true }).fill("Review Workflow Example");
   await page
@@ -208,7 +209,7 @@ async function refusedDraftStorage(page, errors) {
       return original.call(this, key, value);
     };
   });
-  await page.goto(base, { waitUntil: "networkidle" });
+  await openSetup(page, base, options.timeout);
   await page.getByRole("button", { name: "Set up my own business", exact: true }).click();
   await page.getByLabel("Business name", { exact: true }).fill("Unsaved draft example");
   await page.getByText(/This browser will not keep your progress/).waitFor();

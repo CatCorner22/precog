@@ -24,6 +24,7 @@ import {
   Users,
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import type { DeepLinkTarget } from "@/lib/precog/coso";
 import {
@@ -101,6 +102,20 @@ function Home() {
   const { profile, ready, businesses } = usePracticeState();
   const { switchBusiness } = usePracticeActions();
   const { say } = usePresentation();
+  const { user, isPending } = useCurrentUserState();
+
+  // A signed-out visitor with no business on this device lands on the
+  // landing page first; its "Set up your business" link comes back with
+  // `?start=1`, which opens setup here. A signed-in account with no business
+  // sees setup straight away. The list always carries the open business, so
+  // "no business" means the open one is unfinished and it is the only one.
+  const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
+  const noBusiness =
+    profile.onboardingComplete === false && businesses.every((b) => b.id === activeId);
+  const wantsLanding = ready && !isPending && !user && noBusiness && !search.start;
+  useEffect(() => {
+    if (wantsLanding) void navigate({ to: "/welcome", replace: true });
+  }, [wantsLanding, navigate]);
 
   // A digest link names its business (`?business=<id>`): open it once the
   // list holds it, then drop the key so a reload does not switch again. The
