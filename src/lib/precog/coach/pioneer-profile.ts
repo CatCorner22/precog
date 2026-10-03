@@ -1,4 +1,5 @@
 import { MAX_BUSINESS_NAME } from "../business-id";
+import { serverUtcDay } from "../dates";
 import { isIndustryId, type IndustryId } from "../industry";
 import { resolveTemplate } from "../active-template";
 import { mergeDualReleasePolicy, type DualReleasePolicy } from "../controls/dual-release";
@@ -118,7 +119,7 @@ function sanitizeProcedureLink(value: unknown): ProcedureLinkInput | null {
  */
 export function pioneerProfileFrom(
   input: PioneerProfileInput,
-  today = new Date().toISOString().slice(0, 10),
+  today = serverUtcDay(),
 ): PracticeProfile {
   const industry: IndustryId = isIndustryId(input.industry) ? input.industry : "general";
   const base = defaultProfile(industry);

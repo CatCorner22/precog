@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { RequestError } from "@/lib/request-errors";
-import { formatMonth, isCalendarDate } from "../../dates";
+import { formatMonth, isCalendarDate, latestClientDay } from "../../dates";
 import { stableStringify } from "../../text";
 import type { ReviewItemKey } from "../../firm/reviews";
 
@@ -248,7 +248,7 @@ export function applyCommand(
     );
 
   // A calendar day may lead UTC by one day. This is an entry bound, not proof of performance.
-  const latestDay = new Date(Date.parse(now) + 86_400_000).toISOString().slice(0, 10);
+  const latestDay = latestClientDay(new Date(now));
   const forPeriod = command.action === "record" ? command.period : previous?.period;
   if (!forPeriod || forPeriod > latestDay.slice(0, 7))
     throw new RequestError(400, "The check cannot cover a future period.");
