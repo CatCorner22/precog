@@ -28,8 +28,6 @@ export const BRIEF_SECTION = {
   sources: "Where the figures come from",
 } as const;
 
-export const BRIEF_SECTIONS: readonly string[] = Object.values(BRIEF_SECTION);
-
 /**
  * When a warning fires. Every threshold is this app's own choice, not a
  * benchmark, and the text that quotes one says so.
