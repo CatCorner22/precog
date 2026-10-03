@@ -62,11 +62,31 @@ const render = (profile: PracticeProfile) =>
     </ReadOnlyPracticeProvider>,
   );
 
+/** A locked version printing the figures stored for `profile` under `layoutVersion`. */
+const renderStored = (profile: PracticeProfile, layoutVersion: number) =>
+  renderToStaticMarkup(
+    <ReadOnlyPracticeProvider profile={profile}>
+      <ControlReport
+        locked={locked}
+        frozen={{
+          layoutVersion,
+          model: serializeReportModel(buildReportModelForProfile(profile, "2026-09-26")),
+        }}
+      />
+    </ReadOnlyPracticeProvider>,
+  );
+
+/** The report's text with its tags as single bars. */
+const textOf = (html: string) => html.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|");
+
 describe("printed control report", () => {
-  it("prints no Coverage check KPI beside the duty separation index", () => {
+  it("prints no Coverage check KPI beside the duty separation figure", () => {
     const html = render(defaultProfile("dental"));
-    expect(html).toContain("Duty separation index");
+    expect(textOf(html)).toContain("|Duty separation|");
+    expect(html).not.toContain("Duty separation index");
     expect(html).not.toContain("Coverage check");
+    // Layouts 1 and 2 keep the name they printed.
+    expect(renderStored(defaultProfile("dental"), 2)).toContain("Duty separation index");
   });
 
   it("discloses a segregation score set by hand on a sample, and only then", () => {
@@ -148,16 +168,19 @@ describe("printed control report", () => {
   });
   it("prints the layout 1 and 2 decision labels, not the screen's plain ones", () => {
     const kinds = ["accept_residual", "remediate", "monitor", "insure"] as const;
-    const html = render({
-      ...defaultProfile("dental"),
-      decisions: kinds.map((kind, i) => ({
-        id: `d${i}`,
-        createdAt: "2026-09-20T12:00:00.000Z",
-        subject: `Decision ${i}`,
-        kind,
-        note: "",
-      })),
-    });
+    const html = renderStored(
+      {
+        ...defaultProfile("dental"),
+        decisions: kinds.map((kind, i) => ({
+          id: `d${i}`,
+          createdAt: "2026-09-20T12:00:00.000Z",
+          subject: `Decision ${i}`,
+          kind,
+          note: "",
+        })),
+      },
+      2,
+    );
     for (const label of ["Accept residual", "Remediate", "Monitor", "Transfer / insure"]) {
       expect(html).toContain(`<span class="font-medium">${label}</span>`);
     }
@@ -181,7 +204,7 @@ describe("report cover headlines", () => {
       expect(top).toContain("Priority 88 or more");
       expect(top).not.toMatch(/fix first|80 or more|residual/i);
       // The residual "Fix first" band: risks at 80 or more on the residual index.
-      const residual = between("Residual risks by band", "Duty separation index");
+      const residual = between("Residual risks by band", "Duty separation");
       expect(residual).toMatch(/\|\d+ fix first\|/);
       expect(residual).toContain("Fix first at 80 or more");
       expect(residual).not.toMatch(/top|priority|88/i);
@@ -314,5 +337,136 @@ describe("locked version figures", () => {
       "Precog stored this version&#x27;s figures for an earlier report layout.",
     );
     expect(html).toContain(atLock.summary[0]);
+  });
+});
+
+describe("report layout 3", () => {
+  const profile = defaultProfile("dental");
+  const at = (ruleId: string) =>
+    buildReportModelForProfile(profile, "2026-09-26").sod.conflicts.find(
+      (c) => c.ruleId === ruleId,
+    )!;
+  // Maya's medium admin-pay finding, her high card-review finding and her
+  // critical vendor finding (see finding-responses.test.ts).
+  const answered: PracticeProfile = {
+    ...profile,
+    decisions: [
+      {
+        id: "d-admin",
+        createdAt: "2026-09-20T12:00:00.000Z",
+        subject: "Split vendor set-up from payment",
+        kind: "remediate",
+        note: "",
+        reviewBy: "2026-10-15",
+        linkedTab: "sod",
+        linkedId: "rule-admin-pay",
+        linkedIndustry: "dental",
+      },
+      {
+        id: "d-cards",
+        createdAt: "2026-09-21T12:00:00.000Z",
+        subject: "Card review",
+        kind: "monitor",
+        note: "",
+        linkedTab: "sod",
+        linkedId: "rule-card-review",
+        linkedIndustry: "dental",
+        disposition: {
+          verdict: "not_valid",
+          reason: "controlled_elsewhere",
+          by: { userId: "u1", name: "Ada Park" },
+          at: "2026-09-21",
+        },
+      },
+      {
+        id: "d-vendor",
+        createdAt: "2026-09-22T12:00:00.000Z",
+        subject: "Vendor set-up and payment",
+        kind: "monitor",
+        note: "",
+        linkedTab: "sod",
+        linkedId: "rule-vendor-create-pay",
+        linkedIndustry: "dental",
+        disposition: { verdict: "not_valid", reason: "rule_does_not_fit", at: "2026-09-22" },
+      },
+    ],
+  };
+
+  it("is the layout a live report prints", () => {
+    expect(REPORT_LAYOUT_VERSION).toBe(3);
+    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3]);
+    const html = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={answered}>
+        <ControlReport />
+      </ReadOnlyPracticeProvider>,
+    );
+    expect(html).toContain("Judged not valid");
+    expect(html).not.toContain("Assumed loss");
+    expect(textOf(html)).toContain("|Duty separation|");
+  });
+
+  it("prints no assumed loss column or note, and no idea counts on the process map", () => {
+    const html = render(profile);
+    expect(html).not.toContain("Assumed loss");
+    expect(html).not.toMatch(/\d+ ideas/);
+    // Layout 2 printed both.
+    const two = renderStored(profile, 2);
+    expect(two).toContain("Assumed loss");
+    expect(two).toMatch(/\d+ ideas/);
+  });
+
+  it("prints the plain decision labels", () => {
+    const html = render({
+      ...profile,
+      decisions: (["accept_residual", "remediate", "monitor", "insure"] as const).map(
+        (kind, i) => ({
+          id: `d${i}`,
+          createdAt: "2026-09-20T12:00:00.000Z",
+          subject: `Decision ${i}`,
+          kind,
+          note: "",
+        }),
+      ),
+    });
+    for (const label of ["Accept the risk", "Fix it", "Watch it", "Insure it"]) {
+      expect(html).toContain(`<span class="font-medium">${label}</span>`);
+    }
+    for (const label of ["Accept residual", "Remediate", "Transfer / insure"]) {
+      expect(html).not.toContain(label);
+    }
+  });
+
+  it("prints the response and review date of each finding, and the findings judged not valid", () => {
+    const text = textOf(render(answered));
+    expect(text).toContain("|Response|Review by|");
+    const sod = text.slice(text.indexOf("Segregation of duties"));
+    expect(sod).toContain("|Fix it|Oct 15, 2026|");
+    expect(sod).toContain("|Judged not valid|—|");
+    expect(sod).toContain("|Awaiting a second person|—|");
+    expect(sod).toContain("|No decision yet|—|");
+
+    const list = sod.slice(sod.indexOf("|Judged not valid|", sod.indexOf("|Review by|") + 1));
+    const cards = at("rule-card-review");
+    const vendor = at("rule-vendor-create-pay");
+    expect(list).toContain(
+      `${cards.personName}: ${cards.labelA} + ${cards.labelB.charAt(0).toLowerCase()}`,
+    );
+    expect(list).toContain("Someone outside this map checks it");
+    expect(list).toContain("· by Ada Park on Sep 21, 2026");
+    expect(list).toContain(`${vendor.personName}: ${vendor.labelA}`);
+    expect(list).toContain("The rule does not fit this business");
+    expect(list).toContain("· by someone not signed in on Sep 22, 2026");
+    expect(list).toContain("Awaiting a second person");
+    // The log names the judgement, not the "Watch it" the entry is stored as.
+    const log = text.slice(text.indexOf("Decisions log"));
+    expect(log).toContain("|Judged not valid: Someone outside this map checks it|");
+    expect(log).not.toContain("Watch it");
+  });
+
+  it("prints no responses or not-valid list under layout 2", () => {
+    const html = renderStored(answered, 2);
+    expect(html).not.toContain("Review by");
+    expect(html).not.toContain("Judged not valid");
+    expect(html).not.toContain("Awaiting a second person");
   });
 });

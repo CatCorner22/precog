@@ -16,7 +16,11 @@ import {
 import { sodScopeLine } from "@/lib/precog/integrations/drift-signals";
 import { trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
-import { DECISION_KIND_LABEL_PRINTED_V1 } from "@/lib/precog/practice-profile";
+import {
+  DECISION_KIND_LABEL,
+  DECISION_KIND_LABEL_PRINTED_V1,
+  DISPOSITION_REASON_LABEL,
+} from "@/lib/precog/practice-profile";
 import { PRIORITY_BAND_LABEL, PRIORITY_TOP } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
@@ -29,10 +33,12 @@ import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import {
   lockedFigures,
   recalculationNote,
+  REPORT_LAYOUT_VERSION,
   reviveReportModel,
   type FrozenReport,
 } from "@/lib/precog/report/stored-model";
 import { REPORT_CAVEATS } from "@/lib/precog/report/report-summary";
+import type { FindingResponses, NotValidFinding } from "@/lib/precog/report/finding-responses";
 import { ControlReportContinuitySections } from "@/components/precog/control-report-continuity-sections";
 import {
   ControlReportCaseAppendix,
@@ -73,9 +79,15 @@ export function ControlReport({
 
   const figures = locked ? lockedFigures(frozen) : null;
   const storedModel = figures && "model" in figures ? figures.model : null;
-  // A version stored under layout 1 keeps that layout's labels: its map score
-  // still counts heat, and it carries the average residual, not band counts.
-  const layoutOne = figures !== null && "model" in figures && figures.layoutVersion === 1;
+  // A live report, and a locked one that recalculates, print the current
+  // layout; a locked version with stored figures prints its own. Layout 1's
+  // map score still counts heat, and it carries the average residual, not
+  // band counts; layouts 1 and 2 print the decision labels they printed then.
+  const layoutVersion =
+    figures && "model" in figures ? figures.layoutVersion : REPORT_LAYOUT_VERSION;
+  const layoutOne = layoutVersion === 1;
+  const layoutThree = layoutVersion >= 3;
+  const kindLabel = layoutThree ? DECISION_KIND_LABEL : DECISION_KIND_LABEL_PRINTED_V1;
   const data = useMemo(
     () =>
       storedModel
@@ -96,6 +108,7 @@ export function ControlReport({
       ? recalculationNote(figures.reason, formatDay(localDateKey(new Date())))
       : null;
   const { threat, portfolio, sod, sodOpen, sodLevel, mapHealth, healthDelta, decisionLog } = data;
+  const { byConflict: responses, notValid } = data.responses;
   const sodNote = belowThresholdNote(sodOpen);
   // Pairs dual release reduces stay among the open conflicts; count them once.
   const dual = dualReleaseSplit(sod.conflicts, data.partialCoverage);
@@ -235,7 +248,7 @@ export function ControlReport({
             />
           )}
           <Kpi
-            label="Duty separation index"
+            label={layoutThree ? "Duty separation" : "Duty separation index"}
             value={String(sod.summary.segregationHealth)}
             hint={`${sodLevel} · ${openSodHint(sodOpen)}`}
           />
@@ -339,8 +352,8 @@ export function ControlReport({
                   <th className="py-1.5 pr-2">Target</th>
                   <th className="py-1.5 pr-2">Type</th>
                   <th className="py-1.5 pr-2">Band</th>
-                  <th className="py-1.5 pr-2 text-right">Priority</th>
-                  <th className="py-1.5 text-right">Assumed loss</th>
+                  <th className={`py-1.5 text-right${layoutThree ? "" : " pr-2"}`}>Priority</th>
+                  {!layoutThree && <th className="py-1.5 text-right">Assumed loss</th>}
                 </tr>
               </thead>
               <tbody>
@@ -362,19 +375,29 @@ export function ControlReport({
                         {PRIORITY_BAND_LABEL[t.band]}
                       </span>
                     </td>
-                    <td className="py-1.5 pr-2 text-right tabular">{t.priority}</td>
-                    <td className="py-1.5 text-right tabular text-neutral-700">
-                      {t.expectedLoss ? formatUsd(t.expectedLoss) : "—"}
+                    <td className={`py-1.5 text-right tabular${layoutThree ? "" : " pr-2"}`}>
+                      {t.priority}
                     </td>
+                    {!layoutThree && (
+                      <td className="py-1.5 text-right tabular text-neutral-700">
+                        {t.expectedLoss ? formatUsd(t.expectedLoss) : "—"}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="mt-2 text-xs text-neutral-600">
-            Assumed loss is the scenario&apos;s assumption in Precog, not a measured figure.
-            {data.policyNote ? ` Insurance: ${data.policyNote}.` : ""}
-          </p>
+          {layoutThree ? (
+            data.policyNote && (
+              <p className="mt-2 text-xs text-neutral-600">Insurance: {data.policyNote}.</p>
+            )
+          ) : (
+            <p className="mt-2 text-xs text-neutral-600">
+              Assumed loss is the scenario&apos;s assumption in Precog, not a measured figure.
+              {data.policyNote ? ` Insurance: ${data.policyNote}.` : ""}
+            </p>
+          )}
         </Section>
 
         <Section title="Segregation of duties">
@@ -402,7 +425,13 @@ export function ControlReport({
                     <th className="py-1.5 pr-2">Person</th>
                     <th className="py-1.5 pr-2">Duties held together</th>
                     <th className="py-1.5 pr-2">Severity</th>
-                    <th className="py-1.5">Status</th>
+                    <th className={layoutThree ? "py-1.5 pr-2" : "py-1.5"}>Status</th>
+                    {layoutThree && (
+                      <>
+                        <th className="py-1.5 pr-2">Response</th>
+                        <th className="py-1.5">Review by</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -413,9 +442,21 @@ export function ControlReport({
                         {c.labelA} + {midSentence(c.labelB)}
                       </td>
                       <td className="py-1.5 pr-2">{SEVERITY_LABEL[c.severity]}</td>
-                      <td className="py-1.5 text-neutral-700">
+                      <td
+                        className={
+                          layoutThree ? "py-1.5 pr-2 text-neutral-700" : "py-1.5 text-neutral-700"
+                        }
+                      >
                         {conflictStatus(c, data.partialCoverage)}
                       </td>
+                      {layoutThree && (
+                        <>
+                          <td className="py-1.5 pr-2">{responseLine(c.id, responses, notValid)}</td>
+                          <td className="py-1.5 tabular text-neutral-700">
+                            {reviewByLine(responses[c.id]?.reviewBy)}
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -424,6 +465,36 @@ export function ControlReport({
                 Each row says what one person&apos;s duties allow, not anything they have done.
               </p>
             </>
+          )}
+          {layoutThree && notValid.length > 0 && (
+            <div className="mt-3">
+              <h3 className="text-sm font-semibold">Judged not valid</h3>
+              <ul className="mt-1 space-y-1.5 text-sm">
+                {notValid.map((n) => {
+                  const c = sod.conflicts.find((x) => x.id === n.conflictId);
+                  return (
+                    <li key={n.conflictId} className="border-b border-neutral-200 pb-1.5">
+                      <p>
+                        {c && (
+                          <span className="font-medium">
+                            {c.personName}: {c.labelA} + {midSentence(c.labelB)} ·{" "}
+                          </span>
+                        )}
+                        {DISPOSITION_REASON_LABEL[n.reason]}
+                        <span className="text-neutral-500">
+                          {" "}
+                          · by {n.byName ?? "someone not signed in"} on {formatDay(n.at)}
+                        </span>
+                        {n.critical && (
+                          <span className="font-medium"> · Awaiting a second person</span>
+                        )}
+                      </p>
+                      {n.note && <p className="text-neutral-600">{n.note}</p>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
             {sod.recommendations.map((r) => (
@@ -469,7 +540,8 @@ export function ControlReport({
                   <span className="font-medium">{p.name}</span>
                   <span className="text-neutral-500">
                     {" "}
-                    · {(p.risks ?? []).length} risks · {(p.ideas ?? []).length} ideas
+                    · {(p.risks ?? []).length} risks
+                    {layoutThree ? "" : ` · ${(p.ideas ?? []).length} ideas`}
                     {mapFrom === "starter"
                       ? ""
                       : ` · ${
@@ -493,8 +565,12 @@ export function ControlReport({
               {decisionLog.shown.map(({ decision: d, status }) => (
                 <li key={d.id} className="border-b border-neutral-200 pb-1.5">
                   <p>
-                    <span className="font-medium">{DECISION_KIND_LABEL_PRINTED_V1[d.kind]}</span> ·{" "}
-                    {d.subject}
+                    <span className="font-medium">
+                      {layoutThree && d.disposition
+                        ? `Judged not valid: ${DISPOSITION_REASON_LABEL[d.disposition.reason]}`
+                        : kindLabel[d.kind]}
+                    </span>{" "}
+                    · {d.subject}
                     <span className="text-neutral-500">
                       {" "}
                       · {status} · logged {formatDay(d.createdAt)}
@@ -523,6 +599,27 @@ export function ControlReport({
       </article>
     </div>
   );
+}
+
+/**
+ * The Response column of layout 3: the decision logged on the finding, else
+ * its not-valid judgement, which waits for a second person on a critical one.
+ */
+function responseLine(
+  conflictId: string,
+  responses: FindingResponses["byConflict"],
+  notValid: readonly NotValidFinding[],
+): string {
+  const decision = responses[conflictId];
+  if (decision) return DECISION_KIND_LABEL[decision.kind];
+  const judged = notValid.find((n) => n.conflictId === conflictId);
+  if (judged) return judged.critical ? "Awaiting a second person" : "Judged not valid";
+  return "No decision yet";
+}
+
+/** The Review by column of layout 3: the open decision's review date, if it has one. */
+function reviewByLine(reviewBy: string | undefined): string {
+  return reviewBy ? formatDay(reviewBy) : "—";
 }
 
 /** Plain names for the priority stack's target kinds. */
