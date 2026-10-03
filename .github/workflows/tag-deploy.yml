@@ -1,0 +1,35 @@
+name: Tag production deploy
+
+# Vercel's Git integration deploys main and reports each deploy as a GitHub
+# Deployment named "Production" or "Preview". When a Production deploy
+# succeeds, this tags the deployed commit deploy-<utc time>-<12-char sha>; the
+# 12-character suffix equals the release id in error reports
+# (src/lib/observability/report.server.ts). docs/OPERATIONS.md, "Release
+# tags", says where to look when no tag appears.
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+
+jobs:
+  tag:
+    name: Tag the deployed commit
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.deployment.sha }}
+          fetch-depth: 1
+
+      - name: Tag and push
+        env:
+          SHA: ${{ github.event.deployment.sha }}
+        run: |
+          TAG="deploy-$(date -u +%Y%m%d-%H%M%S)-${SHA:0:12}"
+          git tag "$TAG" "$SHA"
+          git push origin "refs/tags/$TAG"
