@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 /**
  * Headless tab walk: for every industry demo, open every top-level tab, each
- * view of How Precog scores, and the standalone routes (/threat, /report,
- * /login, /privacy, /terms, /firm, /share/<bad token>) and fail on
- * any uncaught page error, React error-boundary card, hydration warning, or
- * console error. This is the check that would have caught the /threat
- * hydration mismatch and any tab that throws on a template it was not written for.
+ * view of How Precog scores, and the standalone routes (/report, /login,
+ * /privacy, /terms, /firm, /share/<bad token>) and fail on any uncaught page
+ * error, React error-boundary card, hydration warning, or console error. This
+ * is the check that catches a hydration mismatch and any tab that throws on a
+ * template it was not written for.
  * Once, signed out, it also checks the header (Report, Needs attention), the
- * Monthly review tab, old tab ids in the address (?tab=journal, ?tab=layers),
- * the tab count, and the home footer's Privacy link.
+ * Monthly review tab, old tab ids in the address (?tab=journal, ?tab=layers,
+ * ?tab=command, ?tab=value), the retired /threat page, the Advanced menu's
+ * links to the firm workspace, the tab count, and the home footer's Privacy
+ * link.
  *
  * Usage: node scripts/e2e-tabs.mjs [baseUrl]   (default http://127.0.0.1:8080/)
  * Env:   E2E_TIMEOUT_MS (default 45000), E2E_SCREENSHOT (PNG path on failure)
@@ -82,12 +84,18 @@ await withPage(options, async (page, errors) => {
       lastLabel = label;
     }
     await page.locator("nav [data-more-tabs]").click();
-    const advanced = await page.locator('[role="menu"] [role="menuitem"]').allInnerTexts();
+    // Advanced views only: its links to other pages are checked once, below.
+    const advanced = await page
+      .locator('[role="menu"] [role="menuitem"]:not([data-route-link])')
+      .allInnerTexts();
     await page.keyboard.press("Escape");
     for (const text of advanced) {
       const label = text.trim().split("\n")[0];
       await page.locator("nav [data-more-tabs]").click();
-      await page.locator('[role="menu"] [role="menuitem"]', { hasText: label }).first().click();
+      await page
+        .locator('[role="menu"] [role="menuitem"]:not([data-route-link])', { hasText: label })
+        .first()
+        .click();
       await settle();
       await drain(`${industry}: tab "${label}"`);
       lastLabel = label;
@@ -130,10 +138,8 @@ await withPage(options, async (page, errors) => {
     await settle();
     await drain(`${industry}: Who controls what, view "controls"`);
 
-    for (const path of ["/threat", "/report"]) {
-      await page.goto(`${baseUrl}${path}`, { waitUntil: "networkidle", timeout });
-      await drain(`${industry}: ${path}`);
-    }
+    await page.goto(`${baseUrl}/report`, { waitUntil: "networkidle", timeout });
+    await drain(`${industry}: /report`);
   }
 
   await shellChecks(page);
@@ -164,10 +170,62 @@ async function shellChecks(page) {
     await page.locator("nav[data-tab-count]").waitFor();
   };
 
-  // Fourteen tabs: six in the strip, the rest under Advanced.
+  // Ten tabs: six in the strip, four under Advanced.
   await home();
   const tabCount = await page.locator("nav[data-tab-count]").getAttribute("data-tab-count");
-  if (tabCount !== "14") throw new Error(`expected 14 tabs, data-tab-count is ${tabCount}`);
+  if (tabCount !== "10") throw new Error(`expected 10 tabs, data-tab-count is ${tabCount}`);
+
+  const selectedTab = async () =>
+    (await page.locator('nav [role="tab"][aria-selected="true"]').first().innerText())
+      .trim()
+      .split("\n")[0];
+
+  // The retired Dashboard opens Home.
+  await home("?tab=command");
+  if ((await selectedTab()) !== "Home") {
+    throw new Error(`?tab=command opened "${await selectedTab()}", not Home`);
+  }
+  if (/[?&]tab=/.test(page.url())) throw new Error(`?tab=command kept a tab: ${page.url()}`);
+
+  // The retired /threat page opens How Precog scores, on What is still exposed.
+  await page.goto(`${baseUrl}/threat`, { waitUntil: "networkidle", timeout });
+  await page.locator("nav[data-tab-count]").waitFor();
+  if (!/[?&]tab=scores/.test(page.url()) || !/[?&]item=residual/.test(page.url())) {
+    throw new Error(`/threat did not open What is still exposed: ${page.url()}`);
+  }
+  if ((await selectedTab()) !== "How Precog scores") {
+    throw new Error(`/threat opened "${await selectedTab()}", not How Precog scores`);
+  }
+
+  // Value proof moved to the firm workspace: the old address and the Advanced
+  // link both land on its section, in view, while signed out.
+  const valueProofInView = async (how) => {
+    await page.waitForURL(/\/firm#value-proof$/, { timeout });
+    await page.getByRole("heading", { name: "Value proof (this business)" }).waitFor({ timeout });
+    await page.waitForFunction(
+      () => {
+        const el = document.getElementById("value-proof");
+        if (!el) return false;
+        const box = el.getBoundingClientRect();
+        return box.top < window.innerHeight && box.bottom > 0;
+      },
+      null,
+      { timeout },
+    );
+    console.log(`  ✓ ${how} lands on Value proof`);
+  };
+  await page.goto(`${baseUrl}/?tab=value`, { waitUntil: "networkidle", timeout });
+  await valueProofInView("?tab=value");
+  await page.goto(`${baseUrl}/?tab=snapshots`, { waitUntil: "networkidle", timeout });
+  await page.waitForURL(/\/firm#history$/, { timeout });
+  await page.getByRole("heading", { name: "History", exact: true }).waitFor({ timeout });
+
+  await home();
+  await page.locator("nav [data-more-tabs]").click();
+  await page.locator('[role="menu"] [data-route-link="value"]').click();
+  await valueProofInView("Advanced › Value proof");
+
+  await home();
 
   // The header's Report link is there for everyone.
   await page.getByRole("link", { name: "Report", exact: true }).click();

@@ -4,6 +4,8 @@ import {
   isTabId,
   parseHomeSearch,
   resolveNavTarget,
+  ROUTE_ALIASES,
+  routeAliasHref,
   TAB_ALIASES,
   TAB_IDS,
   TAB_WORDS,
@@ -14,8 +16,7 @@ const tactical = (_plain: string, tacticalWord: string) => tacticalWord;
 
 describe("parseHomeSearch", () => {
   it("keeps a known tab and drops an unknown one", () => {
-    expect(parseHomeSearch({ tab: "snapshots" })).toEqual({ tab: "snapshots" });
-    expect(parseHomeSearch({ tab: "value" })).toEqual({ tab: "value" });
+    expect(parseHomeSearch({ tab: "procedures" })).toEqual({ tab: "procedures" });
     expect(parseHomeSearch({ tab: "bogus" })).toEqual({});
     expect(parseHomeSearch({ tab: 3 })).toEqual({});
   });
@@ -76,6 +77,20 @@ describe("parseHomeSearch", () => {
     expect(parseHomeSearch({ tab: "intel" })).toEqual({ tab: "scores", item: "patterns" });
   });
 
+  it("opens Home for the retired Dashboard and Procedures for the retired blueprint", () => {
+    expect(parseHomeSearch({ tab: "command" })).toEqual({});
+    expect(parseHomeSearch({ tab: "blueprint" })).toEqual({ tab: "procedures" });
+    expect(parseHomeSearch({ tab: "blueprint", item: "pr-1" })).toEqual({
+      tab: "procedures",
+      item: "pr-1",
+    });
+  });
+
+  it("leaves a route alias out of the home address; the route redirects it first", () => {
+    expect(parseHomeSearch({ tab: "value" })).toEqual({});
+    expect(parseHomeSearch({ tab: "snapshots" })).toEqual({});
+  });
+
   it("opens Controls on Who controls what for a Where risk sits link", () => {
     expect(parseHomeSearch({ tab: "layers", item: "source" })).toEqual({
       tab: "sod",
@@ -100,7 +115,8 @@ describe("resolveNavTarget", () => {
     for (const [id, alias] of Object.entries(TAB_ALIASES)) {
       expect(isNavTarget(id)).toBe(true);
       expect(isTabId(id)).toBe(false);
-      expect(resolveNavTarget(id)).toEqual({ tab: alias.tab, item: alias.item });
+      const item = "item" in alias ? alias.item : undefined;
+      expect(resolveNavTarget(id)).toEqual(item ? { tab: alias.tab, item } : { tab: alias.tab });
       expect(isTabId(alias.tab)).toBe(true);
     }
   });
@@ -124,6 +140,20 @@ describe("resolveNavTarget", () => {
     expect(resolveNavTarget("layers", "source")).toEqual({ tab: "sod", item: "controls" });
   });
 
+  it("opens the retired Dashboard on Home and the retired blueprint on Procedures", () => {
+    expect(resolveNavTarget("command")).toEqual({ tab: "start" });
+    expect(resolveNavTarget("blueprint")).toEqual({ tab: "procedures" });
+  });
+
+  it("sends Value proof and the snapshots to their sections on the firm workspace", () => {
+    expect(resolveNavTarget("value")).toEqual({ href: "/firm#value-proof" });
+    expect(resolveNavTarget("snapshots", "s1")).toEqual({ href: "/firm#history" });
+    expect(routeAliasHref("?tab=value")).toBe("/firm#value-proof");
+    expect(routeAliasHref("?tab=snapshots&item=x")).toBe("/firm#history");
+    expect(routeAliasHref("?tab=journal")).toBeNull();
+    expect(routeAliasHref("")).toBeNull();
+  });
+
   it("returns nothing for an unknown name, so the address falls back to Home", () => {
     expect(resolveNavTarget("bogus")).toBeNull();
     expect(resolveNavTarget("journal ")).toBeNull();
@@ -134,8 +164,10 @@ describe("resolveNavTarget", () => {
 describe("tab vocabulary", () => {
   it("lists each tab once, with a plain and a tactical name", () => {
     expect(new Set(TAB_IDS).size).toBe(TAB_WORDS.length);
-    expect(TAB_WORDS).toHaveLength(14);
-    expect(isTabId("layers")).toBe(false);
+    expect(TAB_WORDS).toHaveLength(10);
+    for (const retired of ["layers", "command", "value", "blueprint", "snapshots"]) {
+      expect(isTabId(retired)).toBe(false);
+    }
     for (const t of TAB_WORDS) {
       expect(t.label.trim()).not.toBe("");
       expect(t.tactical.trim()).not.toBe("");
@@ -144,6 +176,11 @@ describe("tab vocabulary", () => {
 
   it("never gives an alias the id of a tab", () => {
     for (const id of Object.keys(TAB_ALIASES)) expect(isTabId(id)).toBe(false);
+    for (const id of Object.keys(ROUTE_ALIASES)) {
+      expect(isTabId(id)).toBe(false);
+      expect(isNavTarget(id)).toBe(true);
+      expect(Object.keys(TAB_ALIASES)).not.toContain(id);
+    }
   });
 
   it("accepts 'control' and 'control-in-place' as places to go but not as tabs", () => {
@@ -163,6 +200,10 @@ describe("tab vocabulary", () => {
     expect(tabLabel("intel")).toBe("Patterns");
     expect(tabLabel("control")).toBe("Controls");
     expect(tabLabel("layers", tactical)).toBe("Controls");
+    expect(tabLabel("command")).toBe("Home");
+    expect(tabLabel("blueprint")).toBe("Procedures");
+    expect(tabLabel("value")).toBe("Value proof");
+    expect(tabLabel("snapshots")).toBe("History");
   });
 
   it("names the new tabs", () => {

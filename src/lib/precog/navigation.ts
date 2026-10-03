@@ -17,10 +17,6 @@ export const TAB_WORDS = [
   { id: "precog", label: "What could happen", tactical: "Scenarios" },
   { id: "pioneer", label: "Ask Pioneer", tactical: "Pioneer" },
   { id: "scores", label: "How Precog scores", tactical: "Scoring" },
-  { id: "command", label: "Dashboard", tactical: "Command" },
-  { id: "value", label: "Value proof", tactical: "Value" },
-  { id: "blueprint", label: "Operating blueprint", tactical: "Blueprint" },
-  { id: "snapshots", label: "Assessment snapshots", tactical: "Snapshots" },
 ] as const;
 
 export type TabId = (typeof TAB_WORDS)[number]["id"];
@@ -48,12 +44,40 @@ export const TAB_ALIASES = {
   coso: { tab: "scores", item: "coverage", label: "Coverage check", tactical: "COSO" },
   intel: { tab: "scores", item: "patterns", label: "Patterns", tactical: "Intel" },
   journal: { tab: "monthly", item: "decisions", label: "Decisions log", tactical: "Journal" },
+  // The retired Dashboard opens Home; the retired blueprint screen opens Procedures.
+  command: { tab: "start", label: "Home", tactical: "Home" },
+  blueprint: { tab: "procedures", label: "Procedures", tactical: "Procedures" },
 } as const satisfies Record<string, { tab: TabId; item?: string; label: string; tactical: string }>;
 
 export type AliasId = keyof typeof TAB_ALIASES;
 
-/** Where a panel can send the owner: a tab, or an alias that opens one. */
-export type NavTarget = TabId | AliasId;
+/**
+ * Older tab ids that now live on another page: Value proof and the
+ * assessment snapshots moved to the firm workspace, each to its own section.
+ * They keep their wording, like a tab alias.
+ */
+export const ROUTE_ALIASES = {
+  value: { href: "/firm#value-proof", label: "Value proof", tactical: "Value" },
+  snapshots: { href: "/firm#history", label: "History", tactical: "History" },
+} as const satisfies Record<string, { href: string; label: string; tactical: string }>;
+
+export type RouteAliasId = keyof typeof ROUTE_ALIASES;
+
+export function isRouteAliasId(value: unknown): value is RouteAliasId {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(ROUTE_ALIASES, value);
+}
+
+/**
+ * The page a raw `?tab=` names when it is a route alias, read from the
+ * address before `parseHomeSearch` drops it (the home route redirects there).
+ */
+export function routeAliasHref(searchStr: string): string | null {
+  const tab = new URLSearchParams(searchStr).get("tab");
+  return isRouteAliasId(tab) ? ROUTE_ALIASES[tab].href : null;
+}
+
+/** Where a panel can send the owner: a tab, an alias that opens one, or a route alias. */
+export type NavTarget = TabId | AliasId | RouteAliasId;
 
 /**
  * How a panel asks the shell to open another tab, optionally focused on one
@@ -66,7 +90,8 @@ export type NavFn = (tab: string, id?: string) => void;
  * The home page's address: `?tab=precog&item=<scenario id>` opens that
  * scenario, and `&build=1` opens How work flows in build mode, so a reload or
  * a pasted link lands on the same view and the same item. An alias in the
- * address (`?tab=journal`) opens the tab and the view it became.
+ * address (`?tab=journal`) opens the tab and the view it became; a route
+ * alias (`?tab=value`) is redirected to its page before this runs.
  */
 interface HomeSearch {
   tab?: TabId;
@@ -88,7 +113,7 @@ export function isAliasId(value: unknown): value is AliasId {
 }
 
 export function isNavTarget(value: unknown): value is NavTarget {
-  return isTabId(value) || isAliasId(value);
+  return isTabId(value) || isAliasId(value) || isRouteAliasId(value);
 }
 
 /**
@@ -107,6 +132,7 @@ export function resolveNavTarget(
     return alias.item ? { tab: alias.tab, item: alias.item } : withItem(alias.tab, item);
   }
   if (isTabId(target)) return withItem(target, item);
+  if (isRouteAliasId(target)) return { href: ROUTE_ALIASES[target].href };
   return null;
 }
 
@@ -150,12 +176,13 @@ export function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
     typeof search.quickbooks === "string" && QUICKBOOKS_STATUSES.has(search.quickbooks)
       ? search.quickbooks
       : undefined;
-  return {
-    ...(tab ? { tab } : {}),
-    ...(item ? { item } : {}),
-    ...(build ? { build } : {}),
-    ...(quickbooks ? { quickbooks } : {}),
-  };
+  // Every key is present, undefined when dropped: the router lays these over
+  // the raw query, so a key left out would keep the raw value (a retired
+  // `?tab=command` would stay in the address and select no tab). A route
+  // alias is the exception: its raw `tab` stays, so the address is not
+  // rewritten to Home before the route's beforeLoad redirects it.
+  if (isRouteAliasId(search.tab)) return { item, build, quickbooks };
+  return { tab, item, build, quickbooks };
 }
 
 /**
@@ -188,6 +215,8 @@ export function tabLabel(
 ): string {
   const wording: { label: string; tactical: string } | undefined = isAliasId(tab)
     ? TAB_ALIASES[tab]
-    : TAB_WORDS.find((t) => t.id === tab);
+    : isRouteAliasId(tab)
+      ? ROUTE_ALIASES[tab]
+      : TAB_WORDS.find((t) => t.id === tab);
   return wording ? say(wording.label, wording.tactical) : tab;
 }

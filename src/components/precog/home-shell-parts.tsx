@@ -6,7 +6,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ExternalLink } from "lucide-react";
 import type { TabId } from "@/lib/precog/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,7 +23,7 @@ export interface ShellTab {
 /**
  * Horizontal tab strip that tells the user there is more: a fade on whichever
  * edge still has hidden tabs, and the active tab scrolled into view so the
- * tabs past the viewport (12 through 15 on a laptop) are discoverable.
+ * tabs past the viewport on a narrow screen are discoverable.
  */
 export function TabStrip({
   activeId,
@@ -95,10 +95,18 @@ export function TabStrip({
   );
 }
 
+/** A place on another page that the Advanced menu links to, below its views. */
+export interface ShellRouteLink {
+  id: string;
+  label: string;
+  href: string;
+}
+
 /**
  * The advanced views behind one control. Rendered inside the tab strip as a
  * menu, not a tab: the tab it opens then appears in the strip as the active
- * tab, so the strip always shows where the reader is.
+ * tab, so the strip always shows where the reader is. Below a separator it
+ * links to places on other pages (`data-route-link`), which are not tabs.
  *
  * Keyboard: Enter, Space or ArrowDown on the button opens the menu on its
  * first item; ArrowUp, ArrowDown, Home and End move within it and never reach
@@ -110,20 +118,44 @@ export function MoreTabsMenu({
   activeId,
   label,
   onPick,
+  links = [],
+  onOpenLink,
 }: {
   tabs: readonly ShellTab[];
   activeId: TabId;
   label: (tab: ShellTab) => string;
   onPick: (id: TabId) => void;
+  links?: readonly ShellRouteLink[];
+  onOpenLink?: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // The strip scrolls sideways, which would clip a menu hung below it, so the
+  // menu is placed against the window, under its button.
+  const [place, setPlace] = useState<{ top: number; right: number } | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const itemRefs = useRef<(HTMLElement | null)[]>([]);
 
   useEffect(() => {
     if (!open) return;
-    itemRefs.current[0]?.focus();
+    const placeMenu = () => {
+      const box = triggerRef.current?.getBoundingClientRect();
+      if (box) setPlace({ top: box.bottom + 4, right: Math.max(8, window.innerWidth - box.right) });
+    };
+    placeMenu();
+    const frame = requestAnimationFrame(() => itemRefs.current[0]?.focus({ preventScroll: true }));
+    window.addEventListener("resize", placeMenu);
+    window.addEventListener("scroll", placeMenu, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      setPlace(null);
+      window.removeEventListener("resize", placeMenu);
+      window.removeEventListener("scroll", placeMenu, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const onDoc = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
@@ -154,7 +186,7 @@ export function MoreTabsMenu({
   function onMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     // Keys pressed inside the menu belong to the menu, not to the tab strip around it.
     event.stopPropagation();
-    const items = itemRefs.current.filter((el): el is HTMLButtonElement => el !== null);
+    const items = itemRefs.current.filter((el): el is HTMLElement => el !== null);
     const index = items.findIndex((el) => el === document.activeElement);
     let next: number | null = null;
     if (event.key === "ArrowDown") next = (index + 1) % items.length;
@@ -202,12 +234,13 @@ export function MoreTabsMenu({
           aria-hidden
         />
       </button>
-      {open && (
+      {open && place && (
         <div
           role="menu"
+          style={{ top: place.top, right: place.right }}
           aria-label="Advanced views"
           onKeyDown={onMenuKeyDown}
-          className="absolute right-0 z-30 mt-1 w-64 rounded-lg border border-border bg-surface p-1 shadow-xl"
+          className="fixed z-30 w-64 rounded-lg border border-border bg-surface p-1 shadow-xl"
         >
           {tabs.map((t, i) => {
             const Icon = t.icon;
@@ -232,6 +265,29 @@ export function MoreTabsMenu({
               </button>
             );
           })}
+          {links.length > 0 && <div role="separator" className="my-1 border-t border-border" />}
+          {links.map((link, i) => (
+            <a
+              key={link.id}
+              ref={(el) => {
+                itemRefs.current[tabs.length + i] = el;
+              }}
+              href={link.href}
+              role="menuitem"
+              tabIndex={-1}
+              data-route-link={link.id}
+              onClick={(event) => {
+                if (!onOpenLink || event.metaKey || event.ctrlKey || event.shiftKey) return;
+                event.preventDefault();
+                setOpen(false);
+                onOpenLink(link.id);
+              }}
+              className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-muted hover:bg-elevated hover:text-fg focus:bg-elevated"
+            >
+              <ExternalLink className="size-4" aria-hidden />
+              <span className="flex-1">{link.label}</span>
+            </a>
+          ))}
         </div>
       )}
     </div>

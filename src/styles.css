@@ -1,7 +1,6 @@
 @import "tailwindcss";
 /* Skins for one view each, kept out of this file's tokens and base rules. */
 @import "./components/precog/process-map/tactical.css";
-@import "./components/precog/threat-assessment.css";
 
 @theme {
   --color-bg: #0a0b0d;

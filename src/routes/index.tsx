@@ -1,26 +1,41 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, type KeyboardEvent } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  Activity,
-  Archive,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import {
   BookOpenCheck,
   CalendarCheck,
   Eye,
   Gauge,
   House,
-  LibraryBig,
   Map,
   MessageSquare,
   Network,
   Shield,
   Sparkles,
-  TrendingUp,
   Users,
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import type { DeepLinkTarget } from "@/lib/precog/coso";
-import { parseHomeSearch, resolveNavTarget, TAB_WORDS, type TabId } from "@/lib/precog/navigation";
+import {
+  isTabId,
+  parseHomeSearch,
+  resolveNavTarget,
+  ROUTE_ALIASES,
+  routeAliasHref,
+  TAB_WORDS,
+  tabLabel,
+  type RouteAliasId,
+  type TabId,
+} from "@/lib/precog/navigation";
 import { usePracticeState, useTemplate } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
@@ -49,12 +64,20 @@ export const Route = createFileRoute("/")({
   // The open tab and the item on it live in the URL (?tab=precog&item=…) so
   // refresh, back/forward, and shared links land on the same view and item.
   validateSearch: parseHomeSearch,
+  // Value proof and the snapshots moved to the firm workspace. The search
+  // parser drops a tab it does not know, so the raw address is read here.
+  beforeLoad: ({ location }) => {
+    const href = routeAliasHref(location.searchStr);
+    if (href) throw redirect({ href });
+  },
 });
 
 function Home() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  const tab: TabId = search.tab ?? "start";
+  // A raw route alias (`?tab=value`) can sit here for the instant before the
+  // redirect; anything that is not a tab opens Home.
+  const tab: TabId = isTabId(search.tab) ? search.tab : "start";
   const item = search.item ?? null;
   const build = search.build ?? false;
   const activeAdvanced = ADVANCED_TABS.find((t) => t.id === tab) ?? null;
@@ -245,6 +268,12 @@ function Home() {
               activeId={tab}
               label={(t) => say(t.label, t.tactical)}
               onPick={(id) => openTab(id)}
+              links={ROUTE_LINK_IDS.map((id) => ({
+                id,
+                label: tabLabel(id, say),
+                href: ROUTE_ALIASES[id].href,
+              }))}
+              onOpenLink={(id) => openTab(id)}
             />
           </TabStrip>
         </header>
@@ -263,7 +292,6 @@ function Home() {
               <Suspense fallback={<TabLoading />}>
                 {tab === "start" && <StartHere onOpenDetail={openTab} sod={sodReport} />}
                 {tab === "team" && <TeamArea />}
-                {tab === "command" && <Dashboard sodReport={sodReport} onOpen={openTab} />}
                 {tab === "map" && (
                   <ProcessMap
                     key={String(build)}
@@ -281,14 +309,8 @@ function Home() {
                 {tab === "knowledge" && (
                   <div className="space-y-4">
                     <TabIntro id="knowledge" />
+                    <KnowledgeDrawing item={item} />
                     <ContinuityPlanner initialKnowledgeId={item} />
-                    <div>
-                      <h2 className="text-base font-semibold">The register as a drawing</h2>
-                      <p className="text-sm text-muted">
-                        The same register, drawn as people and what each of them knows.
-                      </p>
-                    </div>
-                    <KnowledgeMap initialKnowledgeId={item} />
                   </div>
                 )}
                 {tab === "procedures" && (
@@ -306,9 +328,6 @@ function Home() {
                 {tab === "sod" && (
                   <SodPanel onNavigate={openTab} report={sodReport} initialView={item} />
                 )}
-                {tab === "snapshots" && <AssessmentSnapshots />}
-                {tab === "blueprint" && <OperatingBlueprint />}
-                {tab === "value" && <ValueProofCenter />}
               </Suspense>
             </TabErrorBoundary>
           </div>
@@ -338,6 +357,40 @@ function TabIntro({ id }: { id: keyof typeof TAB_INTROS }) {
   );
 }
 
+/**
+ * The register drawn as people and what each of them knows, on request: the
+ * register below is the working view, so the drawing (and its code) loads
+ * only when the owner asks for it.
+ */
+function KnowledgeDrawing({ item }: { item: string | null }) {
+  const [shown, setShown] = useState(false);
+  return (
+    <div className="space-y-4">
+      <button
+        type="button"
+        aria-expanded={shown}
+        onClick={() => setShown((v) => !v)}
+        className={buttonClass({ variant: "secondary", size: "sm" })}
+      >
+        Show as a drawing
+      </button>
+      {shown && (
+        <section id="knowledge-drawing" aria-labelledby="knowledge-drawing-title">
+          <h2 id="knowledge-drawing-title" className="text-base font-semibold">
+            The register as a drawing
+          </h2>
+          <p className="mb-4 text-sm text-muted">
+            The same register, drawn as people and what each of them knows.
+          </p>
+          <Suspense fallback={<TabLoading />}>
+            <KnowledgeMap initialKnowledgeId={item} />
+          </Suspense>
+        </section>
+      )}
+    </div>
+  );
+}
+
 /** The item a coverage-check or residual link points at, in the shell's `item` vocabulary. */
 function deepLinkItem(target: DeepLinkTarget): string | undefined {
   switch (target.type) {
@@ -361,10 +414,6 @@ const TAB_ICONS: Record<TabId, ShellTab["icon"]> = {
   precog: Sparkles,
   pioneer: MessageSquare,
   scores: Gauge,
-  command: Activity,
-  value: TrendingUp,
-  blueprint: LibraryBig,
-  snapshots: Archive,
 };
 
 const TABS: readonly ShellTab[] = TAB_WORDS.map((t) => ({ ...t, icon: TAB_ICONS[t.id] }));
@@ -374,7 +423,7 @@ const TABS: readonly ShellTab[] = TAB_WORDS.map((t) => ({ ...t, icon: TAB_ICONS[
  * what, who knows what, how to do it when they are out, and what to check
  * each month. The rest are deeper views of the same inputs and sit behind
  * "Advanced". Every tab keeps its id and deep link, and older ids open the
- * view they became (TAB_ALIASES).
+ * view they became (TAB_ALIASES) or the page they moved to (ROUTE_ALIASES).
  */
 const PRIMARY_TAB_IDS: readonly TabId[] = [
   "start",
@@ -384,6 +433,12 @@ const PRIMARY_TAB_IDS: readonly TabId[] = [
   "procedures",
   "monthly",
 ];
+/**
+ * Value proof and History live on the firm workspace. Advanced links there,
+ * so an owner who is signed out (and has no Firm workspace button) still
+ * reaches Value proof on this device.
+ */
+const ROUTE_LINK_IDS: readonly RouteAliasId[] = ["value", "snapshots"];
 const PRIMARY_TABS = PRIMARY_TAB_IDS.map((id) => TABS.find((t) => t.id === id)!);
 const ADVANCED_TABS = TABS.filter((t) => !PRIMARY_TAB_IDS.includes(t.id));
 
@@ -426,9 +481,6 @@ const loadIndustryOnboarding = () => import("@/components/precog/industry-onboar
 const IndustryOnboarding = lazy(() =>
   loadIndustryOnboarding().then((module) => ({ default: module.IndustryOnboarding })),
 );
-const Dashboard = lazy(() =>
-  import("@/components/precog/dashboard").then((module) => ({ default: module.Dashboard })),
-);
 const ProcessMap = lazy(() =>
   import("@/components/precog/process-map").then((module) => ({ default: module.ProcessMap })),
 );
@@ -464,19 +516,4 @@ const MonthlyArea = lazy(() =>
 );
 const ScoresArea = lazy(() =>
   import("@/components/precog/scores-area").then((module) => ({ default: module.ScoresArea })),
-);
-const AssessmentSnapshots = lazy(() =>
-  import("@/components/precog/assessment-snapshots").then((module) => ({
-    default: module.AssessmentSnapshots,
-  })),
-);
-const OperatingBlueprint = lazy(() =>
-  import("@/components/precog/operating-blueprint").then((module) => ({
-    default: module.OperatingBlueprint,
-  })),
-);
-const ValueProofCenter = lazy(() =>
-  import("@/components/precog/value-proof-center").then((module) => ({
-    default: module.ValueProofCenter,
-  })),
 );
