@@ -291,8 +291,8 @@ configured.
 Support: the production build also refuses to finish without `SUPPORT_EMAIL`,
 the mailbox shown as the Support link in the footer and on the Privacy and
 Terms pages, and while `src/lib/precog/legal/operator.ts` still holds a
-bracketed operator placeholder (the operator's legal name, address and
-governing law).
+bracketed placeholder (legal name, address, governing law, the auth broker's
+operator and the xAI data-policy link).
 `npm run db:migrate` applies pending files on demand. The ledger
 (`scripts/migrate-core.mjs`) applies each file once under an advisory lock;
 `migrations/renamed.json` maps renumbered files to their old names so an older

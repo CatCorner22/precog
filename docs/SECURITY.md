@@ -25,7 +25,7 @@ Every response carries, from `vite.config.ts`:
 
 ## Authentication
 
-- Google and X sign-in go through Precog's auth broker; Precog's own Better Auth (`src/lib/auth/server.ts`) holds the session. Session cookies are Better Auth's, http-only and same-origin.
+- Google and X sign-in go through Precog's auth broker; Precog's own Better Auth (`src/lib/auth/server.ts`) holds the session. Session cookies are Better Auth's: http-only, secure and SameSite=Lax; server functions additionally refuse cross-site requests (`assertSameSiteRequest` in `src/lib/auth/middleware.ts`).
 - Email-and-password sign-in, when a deployment turns it on (`src/lib/auth/email-password.server.ts`), stores a hash of the password, never the password, and emails a confirmation link; an unconfirmed sign-up is removed after 24 hours.
 - There is no multi-factor sign-in today.
 - The email links (owner reminder consent and stop links, password reset, confirmation) carry long random tokens; a link that does not match one answers a plain "no longer works" page and reveals nothing about the account.
@@ -47,7 +47,7 @@ Every response carries, from `vite.config.ts`:
 - The model-call cap keeps a one-way hash of the network address, and the count holds no question or reply (`src/lib/precog/llm/`).
 - Before notes reach the model, Precog masks anything that looks like a password, card number or code, and masks the draft that comes back (the Privacy page lists exactly what each feature sends).
 - Precog does not use what you enter to train a model and sends xAI nothing for training.
-- Procedure pictures are re-encoded in the browser and again on the server, which drops their metadata (camera, GPS position, owner names).
+- Procedure pictures are re-encoded in the browser, which drops their EXIF and GPS data, and the server then strips the remaining metadata segments (EXIF, XMP, text and time chunks) before storing them (`src/lib/precog/procedures/image-bytes.ts`).
 - Deleting an account removes its rows; a deleted business is purged after a grace period by the weekly job (`docs/ACCOUNT_DATA_MODEL.md`).
 
 ## Logging and monitoring
@@ -75,14 +75,14 @@ Write to the mailbox in the `SUPPORT_EMAIL` environment variable, which is the S
 
 The same list as the Privacy page, which is authoritative:
 
-| Processor                                        | What for                                     |
-| ------------------------------------------------ | -------------------------------------------- |
-| Vercel                                           | Hosting                                      |
-| Neon                                             | Database                                     |
-| `[AUTH BROKER OPERATOR]`                         | Google and X sign-in through the auth broker |
-| Google, X                                        | Sign-in providers                            |
-| Resend                                           | Email                                        |
-| Stripe                                           | Payment                                      |
-| xAI                                              | Model calls                                  |
-| Intuit                                           | QuickBooks, only when a firm connects it     |
-| Sentry or the error relay Precog's operator sets | Error reports, without prompt text           |
+| Processor                                                                         | What for                                     |
+| --------------------------------------------------------------------------------- | -------------------------------------------- |
+| Vercel                                                                            | Hosting                                      |
+| Neon                                                                              | Database                                     |
+| The operator named in `AUTH_BROKER_OPERATOR` (`src/lib/precog/legal/operator.ts`) | Google and X sign-in through the auth broker |
+| Google, X                                                                         | Sign-in providers                            |
+| Resend                                                                            | Email                                        |
+| Stripe                                                                            | Payment                                      |
+| xAI                                                                               | Model calls                                  |
+| Intuit                                                                            | QuickBooks, only when a firm connects it     |
+| Sentry or the error relay Precog's operator sets                                  | Error reports, without prompt text           |
