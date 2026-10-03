@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { DetectedConflict, RoleAssignment } from "@/lib/precog/sod/detect";
 import { FAMILY_META } from "@/lib/precog/sod/duty-families";
-import { withPlaces } from "@/lib/precog/person-location";
+import { roleWithPlaces } from "@/lib/precog/person-location";
 import { joinWithAnd } from "@/lib/precog/text";
 import { cn } from "@/lib/utils";
 import { mapSlice } from "./power-map-graph";
@@ -52,7 +52,7 @@ export function ResponsibilityMatrix({
               >
                 <span
                   className="block max-w-32 -rotate-45 origin-bottom-left whitespace-nowrap text-left font-medium text-muted"
-                  title={`${person.personName} · ${withPlaces(person.role, placesOf.get(person.personId))}`}
+                  title={`${person.personName} · ${roleWithPlaces(person.role, placesOf.get(person.personId))}`}
                 >
                   {person.personName}
                   {placesOf.has(person.personId) && (

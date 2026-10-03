@@ -1,6 +1,6 @@
 import { CoverageList } from "./power-map-parts";
 import { StatTile } from "@/components/ui/stat-tile";
-import { withPlaces } from "@/lib/precog/person-location";
+import { roleWithPlaces } from "@/lib/precog/person-location";
 import { AlertTriangle, ShieldCheck, UserRoundCheck, Users } from "lucide-react";
 import { JOB_CATALOG } from "@/lib/precog/onboarding/job-catalog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,7 +82,7 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
                 <div>
                   <p className="text-sm font-medium">{person.personName}</p>
                   <p className="text-xs text-subtle">
-                    {withPlaces(person.role, placesOf.get(person.personId))}
+                    {roleWithPlaces(person.role, placesOf.get(person.personId))}
                   </p>
                 </div>
                 <span
