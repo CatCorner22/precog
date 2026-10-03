@@ -63,7 +63,7 @@ export function NeedsAttentionMenu({ onOpen }: { onOpen: (tab: string) => void }
       {
         id: "monthly",
         n: monthly,
-        text: `${count(monthly, "monthly check")} open`,
+        text: `${count(monthly, "Monthly review check")} open`,
         target: "monthly",
       },
     ].filter((item) => item.n > 0);
