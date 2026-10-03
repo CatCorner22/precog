@@ -5,9 +5,12 @@ import {
   loadReportVersion,
   lockReportVersion,
   markReportVersionSent,
+  reportFirmName,
   reportVersionFor,
   ReportVersionError,
   signOffReportVersion,
+  versionProvenance,
+  type ReportVersionRow,
 } from "./reports";
 
 let db: TestDb;
@@ -65,7 +68,7 @@ describe("report versions", () => {
     ]);
   });
 
-  it("a reviewer other than the preparer signs off, once", async () => {
+  it("a reviewer other than the preparer reviews it for issuance, once", async () => {
     await lockReportVersion(db.sql, {
       ownerUserId: "owner",
       businessId: "biz_1",
@@ -73,14 +76,16 @@ describe("report versions", () => {
       scopeNote: "",
       id: "rv_1",
     });
-    await expect(
-      signOffReportVersion(db.sql, {
-        ownerUserId: "owner",
-        id: "rv_1",
-        reviewedBy: "owner",
-        note: "",
-      }),
-    ).rejects.toBeInstanceOf(ReportVersionError);
+    const selfReview = signOffReportVersion(db.sql, {
+      ownerUserId: "owner",
+      id: "rv_1",
+      reviewedBy: "owner",
+      note: "",
+    });
+    await expect(selfReview).rejects.toBeInstanceOf(ReportVersionError);
+    await expect(selfReview).rejects.toMatchObject({
+      message: "The preparer cannot review their own report for issuance",
+    });
     const signed = await signOffReportVersion(db.sql, {
       ownerUserId: "owner",
       id: "rv_1",
@@ -89,18 +94,56 @@ describe("report versions", () => {
     });
     expect([signed.reviewedByName, signed.reviewNote]).toEqual(["reviewer", "Agreed."]);
     expect(signed.reviewedAt).toBeTruthy();
-    await expect(
-      signOffReportVersion(db.sql, {
-        ownerUserId: "owner",
-        id: "rv_1",
-        reviewedBy: "reviewer",
-        note: "",
-      }),
-    ).rejects.toBeInstanceOf(ReportVersionError);
+    const second = signOffReportVersion(db.sql, {
+      ownerUserId: "owner",
+      id: "rv_1",
+      reviewedBy: "reviewer",
+      note: "",
+    });
+    await expect(second).rejects.toBeInstanceOf(ReportVersionError);
+    await expect(second).rejects.toMatchObject({
+      message: "Someone has already reviewed this version for issuance",
+    });
 
     await markReportVersionSent(db.sql, "owner", "rv_1");
     const sent = await loadReportVersion(db.sql, "owner", "rv_1");
     expect(sent?.version.sentAt).toBeTruthy();
+  });
+
+  it("a preparer with colleagues cannot issue the file without an independent review", async () => {
+    await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_1",
+    });
+    await db.pg.query(`insert into firms (user_id, name) values ('owner', 'North')`);
+    await db.pg.query(
+      `insert into firm_members (firm_user_id, member_user_id, role)
+       values ('owner', 'owner', 'owner'), ('owner', 'reviewer', 'reviewer')`,
+    );
+    await db.pg.query("update businesses set firm_user_id = 'owner'");
+    await expect(
+      signOffReportVersion(db.sql, {
+        ownerUserId: "owner",
+        id: "rv_1",
+        reviewedBy: "owner",
+        note: "",
+        issueWithoutIndependentReview: true,
+      }),
+    ).rejects.toMatchObject({
+      message: "A different person at the firm must review this report for issuance",
+    });
+  });
+
+  it("names the firm only for a firm client, never for a solo business", async () => {
+    await db.pg.query(`insert into firms (user_id, name) values ('owner', 'North Advisors')`);
+    // The owner holds a firms row, but the business is not a firm client.
+    expect(await reportFirmName(db.sql, "owner", "biz_1")).toBeNull();
+    await db.pg.query("update businesses set firm_user_id = 'owner'");
+    expect(await reportFirmName(db.sql, "owner", "biz_1")).toBe("North Advisors");
+    expect(await reportFirmName(db.sql, "owner", "biz_missing")).toBeNull();
   });
 
   it("refuses to lock a deleted or foreign business", async () => {
@@ -175,5 +218,49 @@ describe("report version access", () => {
   it("two locks at once get consecutive numbers", async () => {
     const [a, b] = await Promise.all([lock("rv_a"), lock("rv_b")]);
     expect([a.versionNo, b.versionNo].sort()).toEqual([1, 2]);
+  });
+});
+
+describe("versionProvenance", () => {
+  const base: ReportVersionRow = {
+    id: "rv_1",
+    businessId: "biz_1",
+    versionNo: 2,
+    revision: 3,
+    scopeNote: "",
+    preparedBy: "ada",
+    preparedByName: "Ada Park",
+    preparedAt: "2026-09-26T12:00:00.000Z",
+    reviewedBy: null,
+    reviewedByName: null,
+    reviewedAt: null,
+    reviewNote: "",
+    sentAt: null,
+  };
+
+  it("says who prepared it and who reviewed it for issuance", () => {
+    expect(versionProvenance(base)).toBe(
+      "Version 2 · Prepared by Ada Park on Sep 26, 2026 · Not yet reviewed",
+    );
+    expect(
+      versionProvenance({
+        ...base,
+        reviewedBy: "ben",
+        reviewedByName: "Ben Ortiz",
+        reviewedAt: "2026-09-28T12:00:00.000Z",
+      }),
+    ).toBe(
+      "Version 2 · Prepared by Ada Park on Sep 26, 2026 · Reviewed for issuance by Ben Ortiz on Sep 28, 2026",
+    );
+    expect(
+      versionProvenance({
+        ...base,
+        reviewedBy: "ada",
+        reviewedByName: "Ada Park",
+        reviewedAt: "2026-09-28T12:00:00.000Z",
+      }),
+    ).toBe(
+      "Version 2 · Prepared by Ada Park on Sep 26, 2026 · Issued by Ada Park on Sep 28, 2026. Not an independent review",
+    );
   });
 });
