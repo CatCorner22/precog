@@ -172,7 +172,9 @@ export function CosoHeatmap({ onNavigate }: { onNavigate: (target: DeepLinkTarge
                 <SeverityIcon status={f.severity} />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium leading-snug">{f.label}</span>
-                  <span className="mt-0.5 block text-xs text-muted line-clamp-2">{f.detail}</span>
+                  <span className="mt-0.5 block text-xs text-muted line-clamp-2">
+                    {say(f.plainDetail ?? f.detail, f.detail)}
+                  </span>
                 </span>
                 <ArrowRight className="mt-0.5 size-3.5 shrink-0 text-subtle" />
               </button>
@@ -193,6 +195,7 @@ function ComponentDetail({
   component: CosoComponentAssessment;
   onNavigate: (target: DeepLinkTarget) => void;
 }) {
+  const { say } = usePresentation();
   const meta = STATUS_META[component.status];
 
   return (
@@ -217,7 +220,7 @@ function ComponentDetail({
                   </Badge>
                 </div>
                 <p className="mt-1 text-sm font-medium">{p.name}</p>
-                <p className="mt-1 text-xs text-muted">{p.note}</p>
+                <p className="mt-1 text-xs text-muted">{say(p.plainNote ?? p.note, p.note)}</p>
               </li>
             ))}
           </ul>
@@ -236,7 +239,9 @@ function ComponentDetail({
                   <SeverityIcon status={f.severity} />
                   <span className="min-w-0 flex-1">
                     <span className="font-medium">{f.label}</span>
-                    <span className="mt-0.5 block text-sm text-muted">{f.detail}</span>
+                    <span className="mt-0.5 block text-sm text-muted">
+                      {say(f.plainDetail ?? f.detail, f.detail)}
+                    </span>
                   </span>
                   <span className="inline-flex items-center gap-1 text-xs text-primary">
                     Open <ArrowRight className="size-3" />
