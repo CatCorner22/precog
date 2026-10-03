@@ -41,14 +41,16 @@ function ReportPage() {
  * server call and prints no firm.
  */
 function LiveReport() {
-  const user = useCurrentUser();
+  // The user object is rebuilt on every render; the id is the stable key, so
+  // the effect (and its getFirm() call) runs on sign-in changes only.
+  const userId = useCurrentUser()?.id ?? null;
   const { profile, businesses } = usePractice();
   const businessId = profile.businessId ?? null;
   const firmClient = Boolean(businesses.find((b) => b.id === businessId)?.firmClient);
   const [firmName, setFirmName] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user || !firmClient) {
+    if (!userId || !firmClient) {
       setFirmName(null);
       return;
     }
@@ -63,7 +65,7 @@ function LiveReport() {
     return () => {
       cancel = true;
     };
-  }, [user, firmClient]);
+  }, [userId, firmClient]);
 
   return <ControlReport firmName={firmName} />;
 }
