@@ -483,8 +483,8 @@ export function LeavingTeamCard({
         {leaving.list.length === 0 && (
           <p className="text-xs text-muted">
             Nobody has given notice. When someone does, record the date here rather than removing
-            them &mdash; the weekly plan, printed report and Pioneer will count down to it and chase
-            the hand-off.
+            them &mdash; the printed report and Pioneer will count down to it and chase the
+            hand-off.
           </p>
         )}
         {leaving.list.map((l) => (

@@ -86,6 +86,13 @@
  * Each slice fit alone. Total budget raised from 800 KB to 805 KB; wave 2
  * retires the Dashboard, Johari, /threat, the blueprint screen and the old
  * places of the moved panels, then lowers the budget to the measured total.
+ *
+ * 2026-10-03: Phase 5 wave 2 (E1, E2, E3, G, H, I) retires the Dashboard,
+ * the weekly plan screen, /threat, the Operating blueprint, Johari, Where
+ * risk sits and the two duplicate absence cards, and removes the old places
+ * of the moved panels. Measured 775.4 KB in 104 chunks, against 800.7 KB
+ * after wave 1 and 790.1 KB before Phase 5. Total budget lowered from
+ * 805 KB to 780 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -94,7 +101,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 805 * 1024,
+  totalGzipBytes: 780 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

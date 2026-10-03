@@ -1,9 +1,4 @@
-import { Link } from "@tanstack/react-router";
 import { MetricCard } from "@/components/precog/home-shell-parts";
-import { TeamLink } from "@/components/precog/team-link";
-import { buttonClass } from "@/components/ui/button-variants";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { DriftAction } from "@/lib/precog/integrations/drift-signals";
 import type { NavFn } from "@/lib/precog/navigation";
 import type { StartHereModel } from "@/lib/precog/start-here/model";
 
@@ -36,49 +31,5 @@ export function StartHereFiguresSection({
         onClick={() => onOpenDetail("knowledge")}
       />
     </section>
-  );
-}
-
-/** The drift item for the access import, which lives under Team. */
-const ACCESS_IMPORT = "drift-access-import";
-
-/**
- * Where QuickBooks or an access export disagrees with the duty assignments.
- * Home lists these items last on "Do these first"; the Dashboard shows them
- * in this card until it is retired. Access rows open Team, where the import
- * lives; QuickBooks rows open the firm workspace.
- */
-export function BooksVsDutiesCard({ driftActions }: { driftActions: readonly DriftAction[] }) {
-  if (driftActions.length === 0) return null;
-  return (
-    <Card className="border-warn/40 bg-warn/5">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">Books vs your duty assignments</CardTitle>
-        <CardDescription>
-          QuickBooks or an access export disagrees with your duty assignments — resolve it before
-          you rely on segregation checks.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-2 text-sm">
-        {driftActions.slice(0, 3).map((d) => (
-          <p key={d.id}>
-            <span className="font-medium text-fg">{d.title}.</span> {d.why}
-          </p>
-        ))}
-        {/* The access import lives under Team; the QuickBooks reading stays on /firm. */}
-        <div className="flex flex-wrap gap-2">
-          {driftActions.some((d) => d.id === ACCESS_IMPORT) && (
-            <TeamLink className={buttonClass({ variant: "secondary", size: "sm" })}>
-              Map access rows under Team
-            </TeamLink>
-          )}
-          {driftActions.some((d) => d.id !== ACCESS_IMPORT) && (
-            <Link to="/firm" className={buttonClass({ variant: "secondary", size: "sm" })}>
-              Open firm workspace
-            </Link>
-          )}
-        </div>
-      </CardContent>
-    </Card>
   );
 }
