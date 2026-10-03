@@ -1,4 +1,5 @@
-import { getIndustryTemplate, type IndustryTemplate } from "../templates";
+import { industrySample } from "../templates/registry";
+import type { IndustryTemplate } from "../templates/types";
 import { industryMeta, type IndustryId } from "../industry";
 import type { ScenarioTemplate } from "../types";
 import { firstName } from "../text";
@@ -18,7 +19,7 @@ import type { ResidualScope } from "./residual-engine";
 
 /** True when the template carries the owner's own people rather than the sample team. */
 export function isOwnBusiness(tpl: Pick<IndustryTemplate, "id" | "people">): boolean {
-  return tpl.people !== getIndustryTemplate(tpl.id).people;
+  return tpl.people !== industrySample(tpl.id).people;
 }
 
 /** The sentence every screen shows where register-derived rows would have been. */
@@ -54,8 +55,9 @@ export function confirmedScenarioIds(
 /**
  * What the residual register counts for a profile: the scenarios the owner
  * confirmed and the risk settings they entered. Every surface that prints the
- * average residual (Dashboard, early-warning checks, process map, Residual
- * page, report) builds its scope here, so they all quote one figure.
+ * average residual (the process map and its builder, the Decisions log, the
+ * Patterns signals, the Pioneer meta-analysis, the control report and the
+ * shared report) builds its scope here, so they all quote one figure.
  */
 export function residualScope(profile: {
   decisions?: readonly ScenarioDecision[] | null;
@@ -128,7 +130,7 @@ export function withOwnScenarioWording(tpl: IndustryTemplate): IndustryTemplate 
   if (!isOwnBusiness(tpl)) return tpl;
   const cached = NARRATIVE_CACHE.get(tpl);
   if (cached) return cached;
-  const base = getIndustryTemplate(tpl.id);
+  const base = industrySample(tpl.id);
   const scenarios = tpl.scenarios.map((s) => ownScenarioWording(s, base));
   const out = { ...tpl, scenarios };
   NARRATIVE_CACHE.set(tpl, out);
