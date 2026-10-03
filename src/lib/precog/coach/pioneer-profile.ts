@@ -12,7 +12,7 @@ import {
   type PracticeProfile,
 } from "../practice-profile";
 import type { ContinuityStep } from "../decisions/follow-through";
-import type { RiskVariableState } from "../scoring/dynamic-variables";
+import { mergeStaffIntoVariables, type RiskVariableState } from "../scoring/dynamic-variables";
 import type {
   KnowledgeItem,
   KnowledgeRelation,
@@ -133,11 +133,10 @@ export function pioneerProfileFrom(
     input.dualRelease,
     staff,
   );
-  const riskVariables: RiskVariableState = {
-    ...normalizeRiskVariables(input.riskVariables, base.riskVariables),
-    hasDualControl: staff.dualControlPayments,
-    hasIndependentBankRec: staff.independentBankRec,
-  };
+  const riskVariables: RiskVariableState = mergeStaffIntoVariables(
+    normalizeRiskVariables(input.riskVariables, base.riskVariables),
+    staff,
+  );
   const practiceName = (input.practiceName ?? "").trim().slice(0, 80);
   const decisions = Array.isArray(input.decisions)
     ? input.decisions

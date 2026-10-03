@@ -5,7 +5,7 @@ import type {
   ProcessNode,
   StaffComposition,
 } from "./types";
-import type { RiskVariableState } from "./scoring/dynamic-variables";
+import { mergeStaffIntoVariables, type RiskVariableState } from "./scoring/dynamic-variables";
 import {
   mergeDualReleasePolicy,
   mitigatedSodRuleIds,
@@ -30,7 +30,6 @@ import {
   MAX_DECISION_NOTE,
   MAX_DECISION_SUBJECT,
   MAX_DECISIONS,
-  withRiskFlags,
   type DecisionDisposition,
   type DecisionEntry,
   type DecisionKind,
@@ -69,7 +68,7 @@ import type { Place, Procedure, ProcedureProof } from "./procedures/types";
  *
  * Every edit that moves the team, the map or the register re-derives the
  * staff figures from it, and every write of the staff figures keeps the risk
- * variables' copy of the two control flags in step (`withRiskFlags`).
+ * variables' copy of the two control flags in step (`mergeStaffIntoVariables`).
  */
 
 export interface DecisionInput {
@@ -222,7 +221,7 @@ export function withDualRelease(
     ...p,
     dualRelease: { ...dualRelease, updatedAt: now.toISOString() },
     staff,
-    riskVariables: withRiskFlags(p.riskVariables, staff),
+    riskVariables: mergeStaffIntoVariables(p.riskVariables, staff),
   };
 }
 
@@ -586,7 +585,7 @@ function withStaffFigures(p: PracticeProfile, staff: StaffComposition): Practice
   return {
     ...p,
     staff,
-    riskVariables: withRiskFlags(p.riskVariables, staff),
+    riskVariables: mergeStaffIntoVariables(p.riskVariables, staff),
     dualRelease: switched
       ? { ...p.dualRelease, enabled: staff.dualControlPayments }
       : p.dualRelease,

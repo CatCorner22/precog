@@ -2,6 +2,7 @@ import { daysBetween } from "./dates";
 import { resolveTemplate } from "./active-template";
 import { adoptOwnTeam } from "./business-lifecycle";
 import { mitigatedSodRuleIds, type DualReleasePolicy } from "./controls/dual-release";
+import { mergeStaffIntoVariables } from "./scoring/risk-variables";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
 import { defaultProfile, type PracticeProfile } from "./practice-profile";
 import { count, joinWithAnd, stableStringify } from "./text";
@@ -138,11 +139,7 @@ function untouchedSettings(
     defaults,
     {
       staff,
-      riskVariables: {
-        ...defaults.riskVariables,
-        hasDualControl: staff.dualControlPayments,
-        hasIndependentBankRec: staff.independentBankRec,
-      },
+      riskVariables: mergeStaffIntoVariables(defaults.riskVariables, staff),
       dualRelease: adoptOwnTeam(defaults, p.customPeople).dualRelease,
     },
   ];
