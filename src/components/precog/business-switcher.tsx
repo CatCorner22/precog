@@ -187,15 +187,13 @@ export function BusinessSwitcher() {
         className="group flex min-w-0 items-center gap-1 rounded-md text-left hover:bg-elevated/60"
         aria-expanded={open}
         aria-controls="business-switcher-panel"
-        aria-label={`Precog Pioneer ${profile.practiceName}${needsName ? " (name it)" : ""}: switch business${
+        aria-label={`Precog ${profile.practiceName}${needsName ? " (name it)" : ""}: switch business${
           businesses.length > 1 ? ` (${businesses.length} businesses)` : ""
         }`}
         title="Switch business"
       >
         <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold tracking-tight">
-            Precog Pioneer
-          </span>
+          <span className="block truncate text-sm font-semibold tracking-tight">Precog</span>
           <span className="flex items-center gap-1 text-xs text-muted" aria-hidden>
             <span className="truncate">{profile.practiceName}</span>
             {needsName && (
