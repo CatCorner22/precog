@@ -1,5 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { commercialToolsOpen } from "./billing-store";
+import { commercialToolsOpen, planToStore } from "./billing-store";
+
+describe("planToStore", () => {
+  it("ignores the client's plan while Stripe is connected", () => {
+    expect(planToStore(true, false, "monthly")).toBeNull();
+    expect(planToStore(true, true, "assessment")).toBeNull();
+  });
+
+  it("ignores the client's plan once a billing row exists", () => {
+    expect(planToStore(false, true, "monthly")).toBeNull();
+  });
+
+  it("stores the plan the owner recorded by hand when nothing else sets it", () => {
+    expect(planToStore(false, false, "monthly")).toBe("monthly");
+    expect(planToStore(false, false, "assessment")).toBe("assessment");
+  });
+});
 
 describe("commercialToolsOpen", () => {
   it("stays open when Stripe is not configured", () => {

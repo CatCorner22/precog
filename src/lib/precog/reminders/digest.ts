@@ -4,6 +4,7 @@ import { normalizeProfile, type PracticeProfile } from "../practice-profile";
 import { digestTokenFor, loadFirmFor } from "../firm/store";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
 import { renderDigest, renderOwnerReminder, type RenderedEmail } from "./email";
+import { NOT_SUPPRESSED } from "./suppression-store";
 
 interface DigestOutcome {
   advisors: number;
@@ -162,9 +163,9 @@ const TRUSTED_EMAIL = (alias: string) => `(
 
 /**
  * Accounts that turned the digest on (a missing settings row means off), with
- * a trusted address and at least one live business of their own or of a firm
- * they belong to. The firm is the one the workspace shows (loadFirmFor), so
- * the digest and the workspace always agree.
+ * a trusted address that has not bounced or complained, and at least one live
+ * business of their own or of a firm they belong to. The firm is the one the
+ * workspace shows (loadFirmFor), so the digest and the workspace always agree.
  */
 async function recipients(sql: Sql): Promise<Recipient[]> {
   const rows = await sql.query<{ id: string; email: string; digest_token: string | null }>(`
@@ -174,6 +175,7 @@ async function recipients(sql: Sql): Promise<Recipient[]> {
     where coalesce(s.weekly_digest, false)
       and position('@' in u.email) > 0
       and ${TRUSTED_EMAIL("u")}
+      and ${NOT_SUPPRESSED("u.email")}
       and exists (
         select 1 from businesses b
         where b.deleted_at is null
@@ -210,9 +212,9 @@ async function businessesFor(sql: Sql, recipient: Recipient): Promise<BusinessRo
 }
 
 /**
- * Live businesses whose owner confirmed their address and has not stopped
- * the reminders, where the controlling account (the firm owner for a firm
- * client) has owner reminders on.
+ * Live businesses whose owner confirmed their address, has not stopped the
+ * reminders and whose address has not bounced or complained, where the
+ * controlling account (the firm owner for a firm client) has owner reminders on.
  */
 async function ownerNoteTargets(sql: Sql): Promise<OwnerNoteRow[]> {
   return sql.query<OwnerNoteRow>(`
@@ -229,6 +231,7 @@ async function ownerNoteTargets(sql: Sql): Promise<OwnerNoteRow[]> {
       and e.owner_email_token is not null
       and e.owner_email_confirmed_at is not null
       and e.owner_email_unsubscribed_at is null
+      and ${NOT_SUPPRESSED("e.owner_email")}
       and coalesce(ns.owner_reminders, true)
     order by b.user_id, b.id
   `);

@@ -160,6 +160,12 @@ function featureWarnings() {
     warnings.push(
       "Neither SENTRY_DSN nor ERROR_REPORT_URL is set, so server errors go only to the server log and nobody is alerted. Set one of them (see docs/OPERATIONS.md, Monitoring).",
     );
+  // Without the webhook secret Resend's bounce and complaint events are
+  // refused, so nothing stops a dead address from being emailed again.
+  if (env("RESEND_API_KEY") && !env("RESEND_WEBHOOK_SECRET"))
+    warnings.push(
+      "RESEND_WEBHOOK_SECRET is not set, so bounce and complaint events are refused and a bouncing address keeps being emailed every week.",
+    );
   // Features that need every one of their variables (see .env.example).
   const features = [
     [

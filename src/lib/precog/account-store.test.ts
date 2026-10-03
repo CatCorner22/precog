@@ -285,6 +285,11 @@ describe("account deletion safeguards", () => {
       status: 409,
       message: expect.stringMatching(/Cancel it with Manage billing/),
     });
+    await expect(deleteAccountRows(sql, "ua")).rejects.toMatchObject({
+      message: expect.stringMatching(
+        /then delete your account\. If you cannot, write to \[SUPPORT EMAIL\]\.$/,
+      ),
+    });
     expect(await count('"user"', "where id = $1", ["ua"])).toBe(1);
     await pg.exec(
       `update billing_accounts set subscription_status = 'canceled' where user_id = 'ua'`,
@@ -306,6 +311,11 @@ describe("account deletion safeguards", () => {
     await expect(deleteAccountRows(sql, "ub")).rejects.toMatchObject({
       status: 409,
       message: expect.stringMatching(/1 client business for Alpha CPA/),
+    });
+    await expect(deleteAccountRows(sql, "ub")).rejects.toMatchObject({
+      message: expect.stringMatching(
+        /then delete your account\. Need help\? Write to \[SUPPORT EMAIL\]\.$/,
+      ),
     });
     expect(await count("businesses", "where user_id = $1", ["ub"])).toBe(1);
     await pg.exec(`update businesses set deleted_at = now() where user_id = 'ub'`);

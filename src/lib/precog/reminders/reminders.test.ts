@@ -339,6 +339,7 @@ describe("digest run", () => {
   beforeEach(async () => {
     await db.clear(
       "reminder_log",
+      "email_suppressions",
       "notification_settings",
       "engagement_marks",
       "firm_members",
@@ -442,6 +443,43 @@ describe("digest run", () => {
     `;
     expect((await run(send)).owners).toBe(0);
     expect(sent.map((s) => s.to)).not.toContain("owner@shop.test");
+  });
+
+  it("skips an advisor whose address bounced or complained, and logs nothing for them", async () => {
+    await db.sql`
+      insert into email_suppressions (email, reason, provider_event_id)
+      values ('adv@firm.test', 'bounced', 'em_1')
+    `;
+    const { sent, send } = recorder();
+    const outcome = await run(send);
+    expect(outcome).toMatchObject({ advisors: 0, owners: 1 });
+    expect(sent.map((s) => s.to)).toEqual(["owner@shop.test"]);
+    const logged = await db.sql<{ recipient: string }>`
+      select distinct recipient from reminder_log order by recipient
+    `;
+    expect(logged.map((r) => r.recipient)).toEqual(["owner@shop.test"]);
+  });
+
+  it("skips an owner whose address complained while the other owner still gets a note", async () => {
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision)
+       values ('biz_3', 'adv', 'Hill Dental', 'general', $1::jsonb, 1)`,
+      [JSON.stringify({ ...profileWithDues(), practiceName: "Hill Dental" })],
+    );
+    await db.pg.query(
+      `insert into engagement_marks (user_id, business_id, owner_email, owner_email_token, owner_email_confirmed_at)
+       values ('adv', 'biz_3', 'Second@Shop.test', $1, now())`,
+      ["cd".repeat(24)],
+    );
+    // The stored address differs only in case: suppression ignores case.
+    await db.sql`
+      insert into email_suppressions (email, reason, provider_event_id)
+      values ('second@shop.test', 'complained', 'em_2')
+    `;
+    const { sent, send } = recorder();
+    const outcome = await run(send);
+    expect(outcome).toMatchObject({ advisors: 1, owners: 1 });
+    expect(sent.map((s) => s.to).sort()).toEqual(["adv@firm.test", "owner@shop.test"]);
   });
 
   it("sends the digest only to a confirmed address or a Google or X account", async () => {

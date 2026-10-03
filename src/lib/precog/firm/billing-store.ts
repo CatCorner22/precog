@@ -1,5 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
+import type { FirmPlan } from "./pricing";
 
 /**
  * What the payment provider last said about an account. Rows are written by
@@ -76,6 +77,21 @@ export function subscriptionStatusLabel(status: string | null): string {
     default:
       return status;
   }
+}
+
+/**
+ * The plan a firm profile save may store, or null to keep the stored one.
+ * With Stripe connected the plan follows the webhook alone, whatever the
+ * client sent; so does an account that already has a billing row. Without
+ * Stripe the owner records the stage by hand.
+ */
+export function planToStore(
+  stripeConfigured: boolean,
+  hasBillingRow: boolean,
+  requested: FirmPlan,
+): FirmPlan | null {
+  if (stripeConfigured || hasBillingRow) return null;
+  return requested;
 }
 
 export async function loadBillingAccount(sql: Sql, userId: string): Promise<BillingAccount | null> {

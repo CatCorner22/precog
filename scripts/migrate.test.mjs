@@ -176,6 +176,19 @@ describe("migrate.mjs", () => {
     expect(run.stderr).not.toContain("Reminder email is half set up");
   });
 
+  it("warns on production when Resend is set without its webhook secret", () => {
+    const resend = { ...PRODUCTION, RESEND_API_KEY: "re_test", EMAIL_FROM: "x@precog.example" };
+    const unsigned = migrate(resend);
+    expect(unsigned.stderr).toContain(
+      "RESEND_WEBHOOK_SECRET is not set, so bounce and complaint events are refused and a bouncing address keeps being emailed every week.",
+    );
+    expect(unsigned.stderr).not.toContain("Reminder email is half set up");
+    const signed = migrate({ ...resend, RESEND_WEBHOOK_SECRET: "whsec_test" });
+    expect(signed.stderr).not.toContain("RESEND_WEBHOOK_SECRET is not set");
+    // The warning is tied to Resend being set, not printed for every build.
+    expect(migrate(PRODUCTION).stderr).not.toContain("RESEND_WEBHOOK_SECRET is not set");
+  });
+
   it("warns on production when no error tracker is set, and builds on", () => {
     const base = PRODUCTION;
     const bare = migrate(base);

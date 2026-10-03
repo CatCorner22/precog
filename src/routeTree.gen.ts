@@ -25,6 +25,7 @@ import { Route as JoinTokenRouteImport } from './routes/join.$token'
 import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCronDigestRouteImport } from './routes/api/cron/digest'
+import { Route as ApiResendWebhookRouteImport } from './routes/api/resend/webhook'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
 import { Route as ApiIntegrationsQboCallbackRouteImport } from './routes/api/integrations/qbo/callback'
 
@@ -108,6 +109,11 @@ const ApiCronDigestRoute = ApiCronDigestRouteImport.update({
   path: '/api/cron/digest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiResendWebhookRoute = ApiResendWebhookRouteImport.update({
+  id: '/api/resend/webhook',
+  path: '/api/resend/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   id: '/api/stripe/webhook',
   path: '/api/stripe/webhook',
@@ -137,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/digest': typeof ApiCronDigestRoute
+  '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
@@ -157,6 +164,7 @@ export interface FileRoutesByTo {
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/digest': typeof ApiCronDigestRoute
+  '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
@@ -178,6 +186,7 @@ export interface FileRoutesById {
   '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cron/digest': typeof ApiCronDigestRoute
+  '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
@@ -200,6 +209,7 @@ export interface FileRouteTypes {
     | '/share/$token'
     | '/api/auth/$'
     | '/api/cron/digest'
+    | '/api/resend/webhook'
     | '/api/stripe/webhook'
     | '/api/integrations/qbo/callback'
   fileRoutesByTo: FileRoutesByTo
@@ -220,6 +230,7 @@ export interface FileRouteTypes {
     | '/share/$token'
     | '/api/auth/$'
     | '/api/cron/digest'
+    | '/api/resend/webhook'
     | '/api/stripe/webhook'
     | '/api/integrations/qbo/callback'
   id:
@@ -240,6 +251,7 @@ export interface FileRouteTypes {
     | '/share/$token'
     | '/api/auth/$'
     | '/api/cron/digest'
+    | '/api/resend/webhook'
     | '/api/stripe/webhook'
     | '/api/integrations/qbo/callback'
   fileRoutesById: FileRoutesById
@@ -261,6 +273,7 @@ export interface RootRouteChildren {
   ShareTokenRoute: typeof ShareTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiCronDigestRoute: typeof ApiCronDigestRoute
+  ApiResendWebhookRoute: typeof ApiResendWebhookRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   ApiIntegrationsQboCallbackRoute: typeof ApiIntegrationsQboCallbackRoute
 }
@@ -379,6 +392,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronDigestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/resend/webhook': {
+      id: '/api/resend/webhook'
+      path: '/api/resend/webhook'
+      fullPath: '/api/resend/webhook'
+      preLoaderRoute: typeof ApiResendWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/stripe/webhook': {
       id: '/api/stripe/webhook'
       path: '/api/stripe/webhook'
@@ -413,6 +433,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShareTokenRoute: ShareTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiCronDigestRoute: ApiCronDigestRoute,
+  ApiResendWebhookRoute: ApiResendWebhookRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   ApiIntegrationsQboCallbackRoute: ApiIntegrationsQboCallbackRoute,
 }
