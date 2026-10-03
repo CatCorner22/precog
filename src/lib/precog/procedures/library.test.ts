@@ -4,7 +4,12 @@ import { ENTITLEMENTS } from "../sod/conflict-rules";
 import { getIndustryTemplate } from "../templates";
 import { findLikelySecrets } from "./credential-guard";
 import { verifyProcedure, withProcedureEdit } from "./lifecycle";
-import { libraryRows, procedureFromLibrary, RECOMMENDED_PROCEDURES } from "./library";
+import {
+  ifYouCannotSeparateFor,
+  libraryRows,
+  procedureFromLibrary,
+  RECOMMENDED_PROCEDURES,
+} from "./library";
 import { normalizeProcedure, PROCEDURE_LIMITS } from "./normalize";
 import { procedureRecommendations } from "./quality";
 import { stepWritingIssues } from "./writing";
@@ -52,9 +57,70 @@ describe("the recommended procedures", () => {
         r.purpose,
         ...r.steps.flatMap((s) => [s.text, s.caution ?? ""]),
         r.ifYouCannotSeparate ?? "",
+        ...Object.values(r.ifYouCannotSeparateByIndustry ?? {}),
       ].join(" ");
       expect(words, r.id).not.toMatch(/\bowner\b/i);
     }
+  });
+
+  it("sets a line of business's own fallback only on a procedure that line is shown", () => {
+    for (const r of RECOMMENDED_PROCEDURES) {
+      const own = Object.keys(r.ifYouCannotSeparateByIndustry ?? {});
+      if (own.length === 0) continue;
+      expect(r.ifYouCannotSeparate, r.id).toBeTruthy();
+      for (const id of own) {
+        expect(r.industries ? r.industries.includes(id as never) : true, `${r.id} ${id}`).toBe(
+          true,
+        );
+      }
+    }
+  });
+});
+
+describe("the stock-count fallback by line of business", () => {
+  const count = RECOMMENDED_PROCEDURES.find((p) => p.id === "lib-cycle-count")!;
+  const SHARED =
+    "Count everything at least once a year with a second person present who does not keep the stock.";
+  const OWN: Record<string, string> = {
+    retail:
+      "Do a full count every quarter, with a second person present who does not keep the stock.",
+    restaurant:
+      "Count the food and drink every month, with a second person present who does not keep the stock.",
+    construction:
+      "Take an equipment and materials inventory every quarter, with a second person present who does not keep the stock.",
+    automotive: "Someone outside the parts desk counts the parts every quarter.",
+  };
+
+  it.each(Object.entries(OWN))("%s reads its own stricter count", (industry, text) => {
+    expect(ifYouCannotSeparateFor(count, industry as (typeof INDUSTRIES)[number]["id"])).toBe(text);
+  });
+
+  it.each(["dental", "professional_services", "nonprofit", "general"] as const)(
+    "%s reads the shared yearly count",
+    (industry) => {
+      expect(ifYouCannotSeparateFor(count, industry)).toBe(SHARED);
+    },
+  );
+
+  it("covers exactly those four, and every line of business resolves to some text", () => {
+    expect(Object.keys(count.ifYouCannotSeparateByIndustry ?? {}).sort()).toEqual(
+      ["automotive", "construction", "restaurant", "retail"].sort(),
+    );
+    expect(INDUSTRIES).toHaveLength(8);
+    for (const { id } of INDUSTRIES) expect(ifYouCannotSeparateFor(count, id)).toBeTruthy();
+  });
+
+  it("keeps the weekly section count itself unchanged", () => {
+    expect(count.cadence).toBe("weekly");
+    expect(count.trigger).toBe("Every week, a different section each time");
+    expect(count.steps.map((s) => s.text)).toEqual([
+      "Print the count sheet for this week's section without the quantities on hand.",
+      "Count each item on the sheet.",
+      "Compare each count with the quantity in the system.",
+      "Recount each item that differs.",
+      "Ask a second person to approve each adjustment before anyone enters it.",
+      "Enter the approved adjustments.",
+    ]);
   });
 });
 
@@ -90,7 +156,11 @@ describe("the blueprint's evidence and fallbacks folded into the library", () =>
 
   it('writes the evidence and fallbacks without "should" or "e.g."', () => {
     for (const r of RECOMMENDED_PROCEDURES) {
-      const text = [r.ifYouCannotSeparate ?? "", ...(r.evidenceToKeep ?? [])].join(" ");
+      const text = [
+        r.ifYouCannotSeparate ?? "",
+        ...Object.values(r.ifYouCannotSeparateByIndustry ?? {}),
+        ...(r.evidenceToKeep ?? []),
+      ].join(" ");
       expect(text, r.id).not.toMatch(/\bshould\b|\be\.g\./i);
     }
   });

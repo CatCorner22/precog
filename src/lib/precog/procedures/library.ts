@@ -40,6 +40,20 @@ export interface RecommendedProcedure {
   evidenceToKeep?: string[];
   /** What to do instead when one person has to do both halves of the work. */
   ifYouCannotSeparate?: string;
+  /**
+   * The same, for a line of business whose stock or records call for a
+   * stricter fallback than the shared one. Every other line of business reads
+   * `ifYouCannotSeparate`. Resolve it with `ifYouCannotSeparateFor`.
+   */
+  ifYouCannotSeparateByIndustry?: Partial<Record<IndustryId, string>>;
+}
+
+/** The fallback text this line of business reads: its own where one is set, else the shared one. */
+export function ifYouCannotSeparateFor(
+  r: Pick<RecommendedProcedure, "ifYouCannotSeparate" | "ifYouCannotSeparateByIndustry">,
+  industry: IndustryId,
+): string | undefined {
+  return r.ifYouCannotSeparateByIndustry?.[industry] ?? r.ifYouCannotSeparate;
 }
 
 const COMMON_PRACTICE = "Common small-business control practice.";
@@ -252,6 +266,17 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     evidenceToKeep: ["Count sheets", "Adjustment report"],
     ifYouCannotSeparate:
       "Count everything at least once a year with a second person present who does not keep the stock.",
+    // The lines of business whose stock turns fastest or costs most keep the
+    // stricter counts the retired Operating blueprint set for them.
+    ifYouCannotSeparateByIndustry: {
+      retail:
+        "Do a full count every quarter, with a second person present who does not keep the stock.",
+      restaurant:
+        "Count the food and drink every month, with a second person present who does not keep the stock.",
+      construction:
+        "Take an equipment and materials inventory every quarter, with a second person present who does not keep the stock.",
+      automotive: "Someone outside the parts desk counts the parts every quarter.",
+    },
   },
   {
     id: "lib-receiving",
