@@ -12,20 +12,24 @@ import { PILOT_OFFER, planAmounts, type PlanAmounts } from "@/lib/precog/firm/pr
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { buttonClass } from "@/components/ui/button-variants";
 
+const PRICING_TITLE = "Pricing · Precog";
+const PRICING_DESCRIPTION =
+  "What Precog costs: free for one business, an Assessment for one client, the Firm plan for several.";
+
 export const Route = createFileRoute("/pricing")({
   // The amounts as Stripe charges them, read before the page renders so the
   // served HTML already carries them. Null when the price service fails, so
   // the page never prints a figure Checkout would not charge.
   loader: () => getPlanPrices().catch(() => null),
   component: PricingPage,
+  // The share tags repeat the title and description, so a shared /pricing
+  // link unfurls as the pricing page rather than as the home page.
   head: () => ({
     meta: [
-      { title: "Pricing · Precog" },
-      {
-        name: "description",
-        content:
-          "What Precog costs: free for one business, an Assessment for one client, the Firm plan for several.",
-      },
+      { title: PRICING_TITLE },
+      { name: "description", content: PRICING_DESCRIPTION },
+      { property: "og:title", content: PRICING_TITLE },
+      { property: "og:description", content: PRICING_DESCRIPTION },
     ],
   }),
 });

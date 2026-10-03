@@ -28,36 +28,44 @@ const ogImage = host
   : undefined;
 
 export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: APP_NAME },
-      { name: "description", content: APP_DESCRIPTION },
-      { property: "og:title", content: APP_NAME },
-      { property: "og:description", content: APP_DESCRIPTION },
-      { name: "twitter:card", content: "summary_large_image" },
-      ...(host ? [{ property: "og:url", content: `https://${host}/` }] : []),
-      ...(ogImage
-        ? [
-            { property: "og:image", content: ogImage },
-            { property: "og:image:width", content: "1200" },
-            { property: "og:image:height", content: "630" },
-            { property: "og:image", content: `https://${host}/og.svg` },
-          ]
-        : []),
-    ],
-    links: [
-      { rel: "stylesheet", href: appCss },
-      ...(host ? [{ rel: "canonical", href: `https://${host}/` }] : []),
-      // Inline icon so the browser stops requesting a /favicon.ico that does not exist.
-      {
-        rel: "icon",
-        type: "image/svg+xml",
-        href: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f172a'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%2360a5fa' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='%2360a5fa'/%3E%3C/svg%3E",
-      },
-    ],
-  }),
+  // The page's own address for og:url and the canonical link: the deepest
+  // match is the page, so /pricing names itself rather than the home page.
+  // Links are not deduplicated across routes and meta is (the deepest route
+  // wins), so a page overrides og:title and og:description in its own head.
+  head: ({ matches }: { matches: ReadonlyArray<{ pathname: string }> }) => {
+    const path = matches[matches.length - 1]?.pathname ?? "/";
+    const pageUrl = host ? `https://${host}${path}` : undefined;
+    return {
+      meta: [
+        { charSet: "utf-8" },
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        { title: APP_NAME },
+        { name: "description", content: APP_DESCRIPTION },
+        { property: "og:title", content: APP_NAME },
+        { property: "og:description", content: APP_DESCRIPTION },
+        { name: "twitter:card", content: "summary_large_image" },
+        ...(pageUrl ? [{ property: "og:url", content: pageUrl }] : []),
+        ...(ogImage
+          ? [
+              { property: "og:image", content: ogImage },
+              { property: "og:image:width", content: "1200" },
+              { property: "og:image:height", content: "630" },
+              { property: "og:image", content: `https://${host}/og.svg` },
+            ]
+          : []),
+      ],
+      links: [
+        { rel: "stylesheet", href: appCss },
+        ...(pageUrl ? [{ rel: "canonical", href: pageUrl }] : []),
+        // Inline icon so the browser stops requesting a /favicon.ico that does not exist.
+        {
+          rel: "icon",
+          type: "image/svg+xml",
+          href: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f172a'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%2360a5fa' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='%2360a5fa'/%3E%3C/svg%3E",
+        },
+      ],
+    };
+  },
   beforeLoad: ({ location }) => preloadPracticeShell(location.pathname),
   component: RootDocument,
   notFoundComponent: NotFound,

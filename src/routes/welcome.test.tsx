@@ -27,7 +27,9 @@ import { Route } from "./welcome";
 type RouteLike = {
   options: {
     component: ComponentType;
-    head: () => { meta: Array<{ title?: string; name?: string; content?: string }> };
+    head: () => {
+      meta: Array<{ title?: string; name?: string; property?: string; content?: string }>;
+    };
   };
 };
 
@@ -41,6 +43,11 @@ describe("the landing page", () => {
     expect(meta.find((m) => m.title)).toBeUndefined();
     expect(meta.find((m) => m.name === "description")?.content).toBe(
       "Precog shows a small-business owner who can move money alone, what one absence would stop, and which fix to make this week.",
+    );
+    // The share description is the page's own; the root's og:title stands.
+    expect(meta.find((m) => m.property === "og:title")).toBeUndefined();
+    expect(meta.find((m) => m.property === "og:description")?.content).toBe(
+      meta.find((m) => m.name === "description")?.content,
     );
   });
 

@@ -9,15 +9,16 @@ import { buttonClass } from "@/components/ui/button-variants";
  * business engine, so a first visit and a share preview paint at once. The
  * home page sends a signed-out visitor with no business here.
  */
+const WELCOME_DESCRIPTION =
+  "Precog shows a small-business owner who can move money alone, what one absence would stop, and which fix to make this week.";
+
 export const Route = createFileRoute("/welcome")({
   component: WelcomePage,
+  // The title stays the root's; the share description is this page's own.
   head: () => ({
     meta: [
-      {
-        name: "description",
-        content:
-          "Precog shows a small-business owner who can move money alone, what one absence would stop, and which fix to make this week.",
-      },
+      { name: "description", content: WELCOME_DESCRIPTION },
+      { property: "og:description", content: WELCOME_DESCRIPTION },
     ],
   }),
 });

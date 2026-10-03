@@ -31,7 +31,9 @@ import { Route } from "./pricing";
 type RouteLike = {
   options: {
     component: ComponentType;
-    head: () => { meta: Array<{ title?: string; name?: string; content?: string }> };
+    head: () => {
+      meta: Array<{ title?: string; name?: string; property?: string; content?: string }>;
+    };
   };
 };
 
@@ -52,6 +54,15 @@ describe("the pricing page", () => {
     expect(head.find((m) => m.title)?.title).toBe("Pricing · Precog");
     expect(head.find((m) => m.name === "description")?.content).toBe(
       "What Precog costs: free for one business, an Assessment for one client, the Firm plan for several.",
+    );
+  });
+
+  it("unfurls as the pricing page, not as the home page", () => {
+    // Meta is deduplicated by property with the deepest route winning, so
+    // these replace the root's og:title and og:description on /pricing.
+    expect(head.find((m) => m.property === "og:title")?.content).toBe("Pricing · Precog");
+    expect(head.find((m) => m.property === "og:description")?.content).toBe(
+      head.find((m) => m.name === "description")?.content,
     );
   });
 
