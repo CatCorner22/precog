@@ -85,7 +85,7 @@ import { AddDutyControl, DutyHeading, SeatNote, YearsHereInput } from "./industr
 import { localDateKey } from "@/lib/precog/dates";
 import { teamSizeScaleWarning } from "@/lib/precog/continuity/scale-message";
 import { clamp } from "@/lib/precog/number";
-import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
+import { DEFAULT_BUSINESS_ID, MAX_BUSINESS_NAME } from "@/lib/precog/business-id";
 import { count } from "@/lib/precog/text";
 export function IndustryOnboarding() {
   const tabName = useTabName();
@@ -699,7 +699,7 @@ export function IndustryOnboarding() {
                   }
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
-                  maxLength={80}
+                  maxLength={MAX_BUSINESS_NAME}
                 />
               </label>
 

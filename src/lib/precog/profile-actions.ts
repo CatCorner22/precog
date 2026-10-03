@@ -52,7 +52,7 @@ import type { ReviewRecord } from "./firm/reviews";
 import type { AccessReconciliation } from "./firm/reconcile";
 import { localDateKey, formatDay } from "./dates";
 import { nameKey, uid } from "./text";
-import { DEFAULT_BUSINESS_ID } from "./business-id";
+import { DEFAULT_BUSINESS_ID, MAX_BUSINESS_NAME } from "./business-id";
 import { stripProcedureLinks } from "./procedures/coverage-link";
 import { verifyProcedure, withProcedureEdit, type VerifyingAccount } from "./procedures/lifecycle";
 import { PROCEDURE_LIMITS, proceduresBytes } from "./procedures/normalize";
@@ -124,7 +124,7 @@ export function withPracticeName(
   businessId?: string,
 ): PracticeProfile {
   if (businessId !== undefined && (p.businessId ?? DEFAULT_BUSINESS_ID) !== businessId) return p;
-  return { ...p, practiceName: name.slice(0, 80) };
+  return { ...p, practiceName: name.slice(0, MAX_BUSINESS_NAME) };
 }
 
 /** A fresh profile for the industry, keeping the name (unless it was a demo's), the journal and the id. */

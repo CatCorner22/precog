@@ -49,7 +49,7 @@ import {
   relationEntries,
   savedBlockEntries,
 } from "./profile-entries";
-import { DEFAULT_BUSINESS_ID } from "./business-id";
+import { DEFAULT_BUSINESS_ID, MAX_BUSINESS_NAME } from "./business-id";
 import { ACTIVE_PROFILE_KEY, LEGACY_PROFILE_KEY, PORTFOLIO_KEY } from "./storage-keys";
 import { stripProcedureLinks } from "./procedures/coverage-link";
 import { normalizePlaces, normalizeProcedures } from "./procedures/normalize";
@@ -394,7 +394,7 @@ export function normalizeProfile(
     industry,
     practiceName:
       typeof parsed.practiceName === "string"
-        ? parsed.practiceName.trim().slice(0, 80) || base.practiceName
+        ? parsed.practiceName.trim().slice(0, MAX_BUSINESS_NAME) || base.practiceName
         : base.practiceName,
     staff,
     riskVariables: mergeStaffIntoVariables(

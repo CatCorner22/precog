@@ -1,4 +1,5 @@
 import type { Departure } from "../continuity/access-removal";
+import { MAX_BUSINESS_NAME } from "../business-id";
 import { INDUSTRIES, type IndustryId } from "../industry";
 import type { StorageLike } from "../local-data";
 import { firstRowForIndustry, type OwnTeamRow } from "./own-team";
@@ -97,7 +98,7 @@ export function readSetupDraft(storage: StorageLike | null = sessionArea()): Set
     return {
       step: draft.step === "team" ? "team" : "industry",
       selected: draft.selected as IndustryId,
-      businessName: draft.businessName.slice(0, 80),
+      businessName: draft.businessName.slice(0, MAX_BUSINESS_NAME),
       rows: draft.rows.filter(isRow),
       paste: typeof draft.paste === "string" ? draft.paste : "",
       ...(typeof draft.businessId === "string" ? { businessId: draft.businessId } : {}),

@@ -1,6 +1,7 @@
 import type { Sql } from "@/lib/db";
 import { inTransaction } from "@/lib/sql-transaction";
 import { RequestError } from "@/lib/request-errors";
+import { MAX_BUSINESS_NAME } from "./business-id";
 import { toIsoTimestamp } from "./iso-time";
 import type { PracticeProfile } from "./practice-profile";
 import { sanitizeSnapshotProfile } from "./snapshot-profile";
@@ -96,7 +97,7 @@ export async function insertSnapshot(
         `snap_${crypto.randomUUID()}`,
         userId,
         input.title,
-        profile.practiceName.slice(0, 80),
+        profile.practiceName.slice(0, MAX_BUSINESS_NAME),
         json,
         powerMap.json ?? null,
         valueProof.caseJson ?? null,

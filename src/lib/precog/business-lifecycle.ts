@@ -1,4 +1,5 @@
 import { resolveTemplate, type TemplateSource } from "./active-template";
+import { MAX_BUSINESS_NAME } from "./business-id";
 import { isDemoName, type IndustryId } from "./industry";
 import { OWN_BUSINESS_FALLBACK_NAME, ownBusinessProfile } from "./onboarding/own-business";
 import { defaultDualReleasePolicy } from "./controls/dual-release";
@@ -15,7 +16,7 @@ export function newBusinessProfile(industry: IndustryId, name?: string): Practic
   const fresh = defaultProfile(industry);
   return {
     ...fresh,
-    practiceName: name?.trim().slice(0, 80) || fresh.practiceName,
+    practiceName: name?.trim().slice(0, MAX_BUSINESS_NAME) || fresh.practiceName,
     onboardingComplete: false,
   };
 }

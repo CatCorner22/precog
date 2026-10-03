@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { assertExpectedAccount } from "@/lib/auth/expected-account";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
+import { MAX_BUSINESS_NAME } from "./business-id";
 import type { IndustryId } from "./industry";
 import type { PracticeProfile } from "./practice-profile";
 import { mergeProfile } from "./profile-merge";
@@ -50,7 +51,7 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     assertExpectedAccount(data.expectedAccountId, context.userId);
-    const name = data.profile.practiceName.trim().slice(0, 80) || "My Business";
+    const name = data.profile.practiceName.trim().slice(0, MAX_BUSINESS_NAME) || "My Business";
     const { businessId, json: profileJson } = data;
 
     // A firm member saving a colleague's client writes the colleague's row;

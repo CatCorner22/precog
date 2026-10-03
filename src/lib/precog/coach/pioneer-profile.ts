@@ -1,3 +1,4 @@
+import { MAX_BUSINESS_NAME } from "../business-id";
 import { isIndustryId, type IndustryId } from "../industry";
 import { resolveTemplate } from "../active-template";
 import { mergeDualReleasePolicy, type DualReleasePolicy } from "../controls/dual-release";
@@ -137,7 +138,7 @@ export function pioneerProfileFrom(
     normalizeRiskVariables(input.riskVariables, base.riskVariables),
     staff,
   );
-  const practiceName = (input.practiceName ?? "").trim().slice(0, 80);
+  const practiceName = (input.practiceName ?? "").trim().slice(0, MAX_BUSINESS_NAME);
   const decisions = Array.isArray(input.decisions)
     ? input.decisions
         .slice(0, PIONEER_LIST_CAPS.decisions)
