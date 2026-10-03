@@ -12,5 +12,5 @@ export function registerScaleWarning(people: number, items: number): string | nu
 
 export function teamSizeScaleWarning(activePeople: number): string | null {
   if (activePeople <= REGISTER_RESPONSIVE_PEOPLE) return null;
-  return `You entered ${activePeople} people. The continuity register stays responsive up to about ${REGISTER_RESPONSIVE_PEOPLE} active people; larger teams can lean on import, paging, and the weekly plan rather than one giant grid.`;
+  return `You entered ${activePeople} people. The continuity register stays responsive up to about ${REGISTER_RESPONSIVE_PEOPLE} active people; larger teams can lean on import, paging, and the printed report's ranked next steps rather than one giant grid.`;
 }

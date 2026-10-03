@@ -103,6 +103,50 @@ export interface ShellRouteLink {
 }
 
 /**
+ * Where a fixed-position menu goes so it hangs 4px under `trigger`, flush
+ * with its right edge. A fixed element is placed against the viewport, unless
+ * an ancestor has a transform, filter, backdrop-filter or similar: then that
+ * ancestor's padding box is the frame. The sticky home header has
+ * backdrop-blur and sits below the "Created with Grok" bar when that bar
+ * shows, so window coordinates would put the menu one bar-height too low.
+ * The right edge is taken from the frame's client width, which leaves out a
+ * vertical scrollbar, where window.innerWidth includes it.
+ */
+function fixedMenuPlace(trigger: HTMLElement): { top: number; right: number } {
+  const box = trigger.getBoundingClientRect();
+  let frame: HTMLElement | null = null;
+  for (
+    let el = trigger.parentElement;
+    el && el !== document.documentElement;
+    el = el.parentElement
+  ) {
+    const css = getComputedStyle(el);
+    const backdrop =
+      css.backdropFilter ||
+      (css as unknown as { webkitBackdropFilter?: string }).webkitBackdropFilter;
+    if (
+      (css.transform && css.transform !== "none") ||
+      (css.filter && css.filter !== "none") ||
+      (backdrop && backdrop !== "none") ||
+      (css.perspective && css.perspective !== "none") ||
+      /transform|filter|perspective/.test(css.willChange) ||
+      /paint|layout|strict|content/.test(css.contain)
+    ) {
+      frame = el;
+      break;
+    }
+  }
+  let frameTop = 0;
+  let frameRight = document.documentElement.clientWidth;
+  if (frame) {
+    const f = frame.getBoundingClientRect();
+    frameTop = f.top + frame.clientTop;
+    frameRight = f.left + frame.clientLeft + frame.clientWidth;
+  }
+  return { top: box.bottom - frameTop + 4, right: Math.max(8, frameRight - box.right) };
+}
+
+/**
  * The advanced views behind one control. Rendered inside the tab strip as a
  * menu, not a tab: the tab it opens then appears in the strip as the active
  * tab, so the strip always shows where the reader is. Below a separator it
@@ -130,7 +174,8 @@ export function MoreTabsMenu({
 }) {
   const [open, setOpen] = useState(false);
   // The strip scrolls sideways, which would clip a menu hung below it, so the
-  // menu is placed against the window, under its button.
+  // menu is fixed-position, under its button. See fixedMenuPlace for why the
+  // numbers are not plain window coordinates.
   const [place, setPlace] = useState<{ top: number; right: number } | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -139,8 +184,7 @@ export function MoreTabsMenu({
   useEffect(() => {
     if (!open) return;
     const placeMenu = () => {
-      const box = triggerRef.current?.getBoundingClientRect();
-      if (box) setPlace({ top: box.bottom + 4, right: Math.max(8, window.innerWidth - box.right) });
+      if (triggerRef.current) setPlace(fixedMenuPlace(triggerRef.current));
     };
     placeMenu();
     const frame = requestAnimationFrame(() => itemRefs.current[0]?.focus({ preventScroll: true }));

@@ -84,6 +84,8 @@ await withPage(options, async (page, errors) => {
       lastLabel = label;
     }
     await page.locator("nav [data-more-tabs]").click();
+    // The menu is placed under its button after it opens; read it once it shows.
+    await page.locator('[role="menu"] [role="menuitem"]').first().waitFor();
     // Advanced views only: its links to other pages are checked once, below.
     const advanced = await page
       .locator('[role="menu"] [role="menuitem"]:not([data-route-link])')
@@ -284,6 +286,7 @@ async function shellChecks(page) {
       .waitFor({ state: "detached" });
   }
   await page.locator("nav [data-more-tabs]").click();
+  await page.locator('[role="menu"] [role="menuitem"]').first().waitFor();
   const advanced = await page.locator('[role="menu"] [role="menuitem"]').allInnerTexts();
   await page.keyboard.press("Escape");
   const leaked = advanced.filter((text) => attentionItems.includes(text));
