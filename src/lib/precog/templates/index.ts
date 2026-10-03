@@ -4,14 +4,7 @@ import type { IndustrySample, IndustryTemplate } from "./types";
 import { CONFLICT_RULES } from "../sod/conflict-rules";
 import { detectSodConflicts } from "../sod/detect";
 import { deriveStaffFromTeam } from "../sod/derive-staff";
-import { dentalTemplate } from "./dental";
-import { retailTemplate } from "./retail";
-import { professionalServicesTemplate } from "./professional-services";
-import { restaurantTemplate } from "./restaurant";
-import { constructionTemplate } from "./construction";
-import { automotiveTemplate } from "./automotive";
-import { nonprofitTemplate } from "./nonprofit";
-import { generalTemplate } from "./general";
+import { REGISTRY } from "./registry";
 
 export type { IndustryTemplate } from "./types";
 
@@ -21,18 +14,11 @@ export function getIndustryTemplate(id: IndustryId): IndustryTemplate {
   return (BUILT[key] ??= sampleTemplate(REGISTRY[key]));
 }
 
-const REGISTRY: Record<IndustryId, IndustrySample> = {
-  dental: dentalTemplate,
-  retail: retailTemplate,
-  professional_services: professionalServicesTemplate,
-  restaurant: restaurantTemplate,
-  construction: constructionTemplate,
-  automotive: automotiveTemplate,
-  nonprofit: nonprofitTemplate,
-  general: generalTemplate,
-};
-
-/** Built on first use: the engines it runs import this module in turn. */
+/**
+ * Built on first use, because building a sample runs the engines (conflict
+ * detection, derived staff figures) and they are not ready at import time.
+ * Engines that only need a sample's arrays read `./registry` instead.
+ */
 const BUILT: Partial<Record<IndustryId, IndustryTemplate>> = {};
 
 /**
