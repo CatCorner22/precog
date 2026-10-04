@@ -82,7 +82,7 @@ await withPage(options, async (page, errors) => {
       await drain(`${industry}: tab "${label}"`);
       lastLabel = label;
     }
-    await page.locator("nav [data-more-tabs]").click();
+    await page.locator("[data-more-tabs]").click();
     // The menu is placed under its button after it opens; read it once it shows.
     await page.locator('[role="menu"] [role="menuitem"]').first().waitFor();
     // Advanced views only: its links to other pages are checked once, below.
@@ -92,7 +92,7 @@ await withPage(options, async (page, errors) => {
     await page.keyboard.press("Escape");
     for (const text of advanced) {
       const label = text.trim().split("\n")[0];
-      await page.locator("nav [data-more-tabs]").click();
+      await page.locator("[data-more-tabs]").click();
       await page
         .locator('[role="menu"] [role="menuitem"]:not([data-route-link])', { hasText: label })
         .first()
@@ -231,7 +231,7 @@ async function shellChecks(page) {
   await page.getByRole("heading", { name: "History", exact: true }).waitFor({ timeout });
 
   await home();
-  await page.locator("nav [data-more-tabs]").click();
+  await page.locator("[data-more-tabs]").click();
   await page.locator('[role="menu"] [data-route-link="value"]').click();
   await valueProofInView("Advanced › Value proof");
 
@@ -293,7 +293,7 @@ async function shellChecks(page) {
       .locator('[role="menu"][aria-label="Needs attention"]')
       .waitFor({ state: "detached" });
   }
-  await page.locator("nav [data-more-tabs]").click();
+  await page.locator("[data-more-tabs]").click();
   await page.locator('[role="menu"] [role="menuitem"]').first().waitFor();
   const advanced = await page.locator('[role="menu"] [role="menuitem"]').allInnerTexts();
   await page.keyboard.press("Escape");

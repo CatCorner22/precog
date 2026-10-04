@@ -6,7 +6,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { ChevronDown, ExternalLink } from "lucide-react";
+import { ChevronDown, ExternalLink, MoreHorizontal } from "lucide-react";
 import type { TabId } from "@/lib/precog/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,11 +28,14 @@ export interface ShellTab {
 export function TabStrip({
   activeId,
   children,
+  trailing,
   onKeyDown,
   tabCount,
 }: {
   activeId: string;
   children: ReactNode;
+  /** Pinned at the strip's right end, outside the tablist: menus, never tabs. */
+  trailing?: ReactNode;
   onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
   /** Every tab, including the ones behind "Advanced"; the tab walk (scripts/e2e-tabs.mjs) checks it. */
   tabCount: number;
@@ -72,8 +75,12 @@ export function TabStrip({
         onKeyDown={onKeyDown}
         // `relative` makes the strip the containing block of absolutely placed
         // text inside a tab (the badges' screen-reader text), so it scrolls and
-        // clips with the tabs instead of widening the page on a phone.
-        className="relative mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6 [scrollbar-width:thin]"
+        // clips with the tabs instead of widening the page on a phone. The
+        // trailing padding keeps the last tab clear of the pinned control.
+        className={cn(
+          "relative mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6 [scrollbar-width:thin]",
+          trailing && "pr-44 sm:pr-48",
+        )}
       >
         {children}
       </nav>
@@ -91,6 +98,11 @@ export function TabStrip({
           edges.right ? "opacity-100" : "opacity-0",
         )}
       />
+      {trailing && (
+        <div className="pointer-events-none absolute top-0 right-0 bottom-3 flex items-center bg-gradient-to-l from-bg via-bg to-transparent pr-4 pl-16 sm:pr-6">
+          <div className="pointer-events-auto">{trailing}</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -147,14 +159,14 @@ function fixedMenuPlace(trigger: HTMLElement): { top: number; right: number } {
 }
 
 /**
- * The advanced views behind one control. Rendered inside the tab strip as a
- * menu, not a tab: the tab it opens then appears in the strip as the active
- * tab, so the strip always shows where the reader is. Below a separator it
+ * The advanced views behind one control. Pinned at the tab strip's right end
+ * as a menu, not a tab: the tab it opens then appears in the strip as the
+ * active tab, so the strip always shows where the reader is. Below a separator it
  * links to places on other pages (`data-route-link`), which are not tabs.
  *
  * Keyboard: Enter, Space or ArrowDown on the button opens the menu on its
  * first item; ArrowUp, ArrowDown, Home and End move within it and never reach
- * the tab strip; Escape closes it and returns focus to the button; picking a
+ * the tabs; Escape closes it and returns focus to the button; picking a
  * view moves focus to that view's tab.
  */
 export function MoreTabsMenu({
@@ -228,7 +240,7 @@ export function MoreTabsMenu({
   }
 
   function onMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    // Keys pressed inside the menu belong to the menu, not to the tab strip around it.
+    // Keys pressed inside the menu belong to the menu, not to the tabs beside it.
     event.stopPropagation();
     const items = itemRefs.current.filter((el): el is HTMLElement => el !== null);
     const index = items.findIndex((el) => el === document.activeElement);
@@ -335,6 +347,98 @@ export function MoreTabsMenu({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The header's action row, folded on a phone. `inline` stays in the row at
+ * every width; `leading` and `trailing` render beside it on wider screens
+ * and fold behind one "More" disclosure below the `sm` breakpoint, so a
+ * phone header is two rows instead of four. The disclosure is a plain
+ * disclosure, not a menu: its panel holds live controls, so Tab moves
+ * through them naturally and Escape closes it and returns focus to the
+ * button. The server renders the wide row; a phone folds after hydration.
+ */
+export function HeaderActions({
+  leading,
+  inline,
+  trailing,
+}: {
+  leading: ReactNode;
+  inline: ReactNode;
+  trailing: ReactNode;
+}) {
+  const [wide, setWide] = useState(true);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const sync = () => {
+      setWide(mq.matches);
+      if (mq.matches) setOpen(false);
+    };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  if (wide) {
+    return (
+      <>
+        {leading}
+        {inline}
+        {trailing}
+      </>
+    );
+  }
+  return (
+    <>
+      {inline}
+      <div ref={ref} className="relative">
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-expanded={open}
+          aria-controls="header-more"
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated/60 px-2.5 py-1.5 text-xs font-medium text-muted hover:text-fg"
+        >
+          <MoreHorizontal className="size-4" aria-hidden /> More
+        </button>
+        {open && (
+          <div
+            id="header-more"
+            role="group"
+            aria-label="More header actions"
+            className="absolute top-full right-0 z-30 mt-1 flex min-w-56 flex-col items-stretch gap-2 rounded-lg border border-border bg-surface p-3 shadow-xl"
+          >
+            {leading}
+            {trailing}
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
