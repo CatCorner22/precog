@@ -21,7 +21,7 @@ vi.mock("react", async (importOriginal) => {
         : actual.useEffect(effect, deps),
   };
 });
-const state = vi.hoisted(() => ({ userId: "bea" }));
+const state = vi.hoisted(() => ({ userId: "bea", firmClient: true }));
 // A new object on every call, as the real session hook builds one on every render.
 vi.mock("@/lib/auth/use-current-user", () => ({
   useCurrentUserState: () => ({
@@ -32,7 +32,7 @@ vi.mock("@/lib/auth/use-current-user", () => ({
 vi.mock("@/lib/precog/practice-context", () => ({
   usePractice: () => ({
     profile: { businessId: "biz_1", practiceName: "Acme" },
-    businesses: [{ id: "biz_1", firmClient: true }],
+    businesses: [{ id: "biz_1", firmClient: state.firmClient }],
     replaceProfile: vi.fn(),
   }),
   usePracticeSync: () => ({ syncStatus: "synced" }),
@@ -46,6 +46,8 @@ const server = vi.hoisted(() => ({
   signOffReport: vi.fn(),
 }));
 vi.mock("@/lib/precog/firm/server", () => server);
+const plans = vi.hoisted(() => ({ getEntitlements: vi.fn() }));
+vi.mock("@/lib/precog/firm/entitlements-server", () => plans);
 vi.mock("@/lib/precog/firm/review-server", () => ({
   requestReportReview: vi.fn(),
   returnReport: vi.fn(),
@@ -96,18 +98,30 @@ function labels(node: ReactNode): string[] {
   return [...own, ...labels(node.props.children)];
 }
 
-/** The panel for `viewer` (with `role` at the firm) over `versions`, after its loads settle. */
-async function panel(viewer: string, role: string, versions: ReportVersionRow[]) {
+/**
+ * The panel for `viewer` (with `role` at the firm, or null in no firm) over
+ * `versions`, after its loads settle. `lockedVersions` is what the viewer's
+ * plan answers.
+ */
+async function panel(
+  viewer: string,
+  role: string | null,
+  versions: ReportVersionRow[],
+  lockedVersions = true,
+) {
   state.userId = viewer;
   server.listReports.mockResolvedValue({ versions });
-  server.getFirm.mockResolvedValue({ firm: { role } });
+  server.getFirm.mockResolvedValue({ firm: role ? { role } : null });
+  plans.getEntitlements.mockResolvedValue({ features: { lockedVersions } });
   const tree = await runtime.settle(() => ReportVersionsPanel());
   return { tree, labels: labels(tree), html: renderToStaticMarkup(<>{tree}</>) };
 }
 
 beforeEach(() => {
   runtime.reset();
+  state.firmClient = true;
   for (const fn of Object.values(server)) fn.mockReset();
+  plans.getEntitlements.mockReset();
 });
 afterEach(() => runtime.reset());
 
@@ -117,6 +131,7 @@ describe("report versions panel", () => {
     expect(server.listReports).toHaveBeenCalledTimes(1);
     expect(server.listReports).toHaveBeenCalledWith({ data: { businessId: "biz_1" } });
     expect(server.getFirm).toHaveBeenCalledTimes(1);
+    expect(plans.getEntitlements).toHaveBeenCalledTimes(1);
     expect(runtime.renders).toBeLessThanOrEqual(3);
   });
 
@@ -153,5 +168,44 @@ describe("report versions panel", () => {
       expect(html).toContain("Returned: Add the payroll duties.");
       expect(names.filter((n) => n !== "Open version 1" && n !== "Report versions")).toEqual([]);
     }
+  });
+
+  describe("Share on a reviewed version", () => {
+    const reviewed = () => version({ reviewedBy: "ada", reviewedAt: "2026-10-06T09:00:00.000Z" });
+
+    it("shows for a firm's client", async () => {
+      const { labels: names } = await panel("bea", "reviewer", [reviewed()]);
+      expect(names).toContain("Share version 1");
+    });
+
+    it("shows for a solo owner in no firm whose plan allows locked versions", async () => {
+      state.firmClient = false;
+      const { labels: names } = await panel("ada", null, [reviewed()]);
+      expect(names).toContain("Share version 1");
+      // Not before the version is reviewed for issuance.
+      runtime.reset();
+      expect((await panel("ada", null, [version({})])).labels).not.toContain("Share version 1");
+    });
+
+    it("hides for a solo owner on the free plan, or when the plan cannot be read", async () => {
+      state.firmClient = false;
+      expect((await panel("ada", null, [reviewed()], false)).labels).not.toContain(
+        "Share version 1",
+      );
+      runtime.reset();
+      state.userId = "ada";
+      server.listReports.mockResolvedValue({ versions: [reviewed()] });
+      server.getFirm.mockResolvedValue({ firm: null });
+      plans.getEntitlements.mockRejectedValue(new Error("offline"));
+      const tree = await runtime.settle(() => ReportVersionsPanel());
+      expect(labels(tree)).toContain("Open version 1");
+      expect(labels(tree)).not.toContain("Share version 1");
+    });
+
+    it("hides on a firm member's private business although the firm's plan is open", async () => {
+      state.firmClient = false;
+      const { labels: names } = await panel("ada", "preparer", [reviewed()]);
+      expect(names).not.toContain("Share version 1");
+    });
   });
 });

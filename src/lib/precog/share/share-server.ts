@@ -10,7 +10,8 @@ import { parseLoadShareInput } from "../public-inputs";
 import { MAX_BUSINESS_NAME } from "../business-id";
 import { resolveBusinessOwner } from "../business-store";
 import { resolveTemplate } from "../active-template";
-import { requireEntitlement } from "../firm/entitlements.server";
+import { loadEntitlements, requireEntitlement } from "../firm/entitlements.server";
+import { loadFirmFor } from "../firm/store";
 import type { PracticeProfile } from "../practice-profile";
 import { requireReportVersion } from "../firm/access.server";
 import { checkPasscodeGuess, hashPasscode } from "./share-attempts";
@@ -131,10 +132,27 @@ function parseCreateReportShareInput(input: unknown): {
 }
 
 /**
- * A link to a locked report version of a firm's client business. The link
- * stores the version's id, never a copy: the page prints the figures stored
- * at lock through the same renderer as the signed-in version page. Refused
- * for a solo business, a version not yet reviewed for issuance and a version
+ * Whether a business with no firm may share its reviewed versions: only when
+ * its account is in no firm (a member's private business stays refused,
+ * since a member reads the firm owner's plan) and that account's own plan
+ * allows locked versions (an Assessment inside its window, or a deployment
+ * without Stripe). Nothing is read for a firm client.
+ */
+async function soloShareAllowed(sql: Sql, ownerUserId: string, businessId: string) {
+  const rows = await sql<{ firm_user_id: string | null }>`
+    select firm_user_id from businesses where user_id = ${ownerUserId} and id = ${businessId}
+  `;
+  if (!rows[0] || rows[0].firm_user_id !== null) return false;
+  if (await loadFirmFor(sql, ownerUserId)) return false;
+  return (await loadEntitlements(sql, ownerUserId)).features.lockedVersions;
+}
+
+/**
+ * A link to a locked report version of a firm's client business, or of a
+ * solo owner's business when soloShareAllowed says so. The link stores the
+ * version's id, never a copy: the page prints the figures stored at lock
+ * through the same renderer as the signed-in version page. Refused for any
+ * other solo business, a version not yet reviewed for issuance and a version
  * without stored figures (share-store.ts).
  */
 export const createReportShare = createServerFn({ method: "POST" })
@@ -146,7 +164,10 @@ export const createReportShare = createServerFn({ method: "POST" })
     const { randomBytes } = await import("node:crypto");
     const sql = await getSql();
     const where = await requireReportVersion(sql, context.userId, data.versionId);
-    const refusal = await reportShareRefusal(sql, where.ownerUserId, data.versionId);
+    const allowSolo = await soloShareAllowed(sql, where.ownerUserId, where.businessId);
+    const refusal = await reportShareRefusal(sql, where.ownerUserId, data.versionId, {
+      allowSolo,
+    });
     if (refusal) throw new RequestError(409, refusal);
     // Minting a link is a new issuance action, like locking: it needs the
     // plan even though already-issued links keep serving whatever the plan.

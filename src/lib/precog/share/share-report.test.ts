@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import { freezeReport } from "../report/stored-model";
@@ -15,11 +15,43 @@ import {
   shareStillReachable,
   type NewMapShare,
 } from "./share-store";
+import { createReportShare } from "./share-server";
+
+// createReportShare runs as a plain handler: the validator, then the handler
+// with the caller's id, against this file's PGlite.
+const ref = vi.hoisted(() => ({ db: null as null | { sql: unknown } }));
+vi.mock("@tanstack/react-start", () => ({
+  createServerFn: () => {
+    let validate = (input: unknown) => input;
+    const chain = {
+      middleware: () => chain,
+      validator: (fn: (input: unknown) => unknown) => {
+        validate = fn;
+        return chain;
+      },
+      handler:
+        (fn: (args: { context: unknown; data: unknown }) => unknown) =>
+        (args: { context: unknown; data: unknown }) =>
+          fn({ context: args.context, data: validate(args.data) }),
+    };
+    return chain;
+  },
+}));
+vi.mock("@/lib/auth/middleware", () => ({ authMiddleware: {} }));
+vi.mock("@/lib/db", () => ({ getSql: async () => ref.db?.sql }));
+
+type ShareCall = (args: {
+  context: { userId: string };
+  data: { versionId: string };
+}) => Promise<{ token: string }>;
+const shareReport = (userId: string, versionId: string) =>
+  (createReportShare as unknown as ShareCall)({ context: { userId }, data: { versionId } });
 
 let db: TestDb;
 
 beforeAll(async () => {
   db = await openTestDb();
+  ref.db = db;
 }, 60_000);
 
 afterAll(() => db.close());
@@ -95,6 +127,7 @@ const client: PracticeProfile = {
 beforeEach(async () => {
   await db.clear(
     "map_shares",
+    "billing_accounts",
     "report_versions",
     "firm_members",
     "firms",
@@ -329,6 +362,74 @@ describe("sharing a locked report version", () => {
     ]);
     // The owner's link follows the client to the owner's account.
     expect(await shareStillReachable(db.sql, token(2))).toBe(true);
+  });
+});
+
+describe("sharing a solo owner's reviewed version", () => {
+  const withStripe = () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test");
+    vi.stubEnv("STRIPE_PRICE_ASSESSMENT", "price_a");
+    vi.stubEnv("STRIPE_PRICE_MONTHLY", "price_m");
+  };
+  const withoutStripe = () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "");
+    vi.stubEnv("STRIPE_PRICE_ASSESSMENT", "");
+    vi.stubEnv("STRIPE_PRICE_MONTHLY", "");
+  };
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  async function reviewedSoloVersion() {
+    await lock("solo", "solo_biz", "rv_solo");
+    await review("rv_solo");
+  }
+
+  it("refuses a free solo owner with the firm-clients text", async () => {
+    withStripe();
+    await reviewedSoloVersion();
+    await expect(shareReport("solo", "rv_solo")).rejects.toMatchObject({
+      status: 409,
+      message: REPORT_SHARE_REFUSAL.solo,
+    });
+  });
+
+  it("lets an Assessment owner inside its window share", async () => {
+    withStripe();
+    await reviewedSoloVersion();
+    await db.sql`insert into billing_accounts (user_id, assessment_paid_at) values ('solo', now())`;
+    const { token: tok } = await shareReport("solo", "rv_solo");
+    const row = await loadReportShareRow(db.sql, tok);
+    expect(row).toMatchObject({ reportVersionId: "rv_solo", ownerUserId: "solo" });
+    expect((await loadSharedReport(db.sql, row!, "2026-10-01"))?.version.id).toBe("rv_solo");
+  });
+
+  it("lets a solo owner share on a deployment without Stripe", async () => {
+    withoutStripe();
+    await reviewedSoloVersion();
+    const { token: tok } = await shareReport("solo", "rv_solo");
+    expect((await loadReportShareRow(db.sql, tok))?.reportVersionId).toBe("rv_solo");
+  });
+
+  it("refuses a firm member's private business although the firm's plan is open", async () => {
+    withStripe();
+    await db.sql`insert into billing_accounts (user_id, subscription_id, subscription_status)
+      values ('owner', 'sub_1', 'active')`;
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id)
+       values ('prep_own', 'prep', 'Prep Own', 'dental', $1::jsonb, 1, null)`,
+      [JSON.stringify(client)],
+    );
+    await lock("prep", "prep_own", "rv_private");
+    await review("rv_private");
+    await expect(shareReport("prep", "rv_private")).rejects.toMatchObject({
+      status: 409,
+      message: REPORT_SHARE_REFUSAL.solo,
+    });
+    // The firm's client still shares under the same plan.
+    await lock("prep", "client", "rv_client");
+    await review("rv_client");
+    expect((await shareReport("prep", "rv_client")).token).toMatch(/^[0-9a-f]{36}$/);
   });
 });
 

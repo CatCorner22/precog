@@ -13,6 +13,7 @@ import {
   signOffReport,
 } from "@/lib/precog/firm/server";
 import { requestReportReview, returnReport } from "@/lib/precog/firm/review-server";
+import { getEntitlements } from "@/lib/precog/firm/entitlements-server";
 import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/reports";
 import type { FirmRole } from "@/lib/precog/firm/store";
 import { isOwnTeam } from "@/lib/precog/firm/engagement";
@@ -41,14 +42,19 @@ export function ReportVersionsPanel() {
   const { user, isPending } = useCurrentUserState();
   const [versions, setVersions] = useState<ReportVersionRow[] | null>(null);
   const [role, setRole] = useState<FirmRole | null>(null);
+  // The account is in no firm and its plan allows locked versions.
+  const [soloPlanOpen, setSoloPlanOpen] = useState(false);
   const [scope, setScope] = useState("");
   const [busy, setBusy] = useState(false);
   const [sharing, setSharing] = useState<string | null>(null);
   const businessId = profile.businessId ?? null;
   const own = isOwnTeam(profile);
-  // Report links are for a firm's client businesses (share-store.ts); a solo
-  // business shows no Share button rather than a refused one.
+  // Report links are for a firm's client businesses (share-store.ts), and for
+  // a solo owner in no firm whose plan allows locked versions (share-server.ts
+  // soloShareAllowed); any other business shows no Share button rather than
+  // a refused one. The server refuses anyway when the panel is wrong.
   const firmClient = Boolean(businesses.find((b) => b.id === businessId)?.firmClient);
+  const canShareSolo = !firmClient && soloPlanOpen;
   // Keyed on the account id, never on `user`: the session hook builds a new
   // user object on every render, so an effect keyed on it would load again
   // after each answer it set, and keep calling the server.
@@ -57,11 +63,16 @@ export function ReportVersionsPanel() {
   useEffect(() => {
     if (isPending || !userId || !businessId || !own) return;
     let cancel = false;
-    void Promise.all([listReports({ data: { businessId } }), getFirm()])
-      .then(([res, firm]) => {
+    void Promise.all([
+      listReports({ data: { businessId } }),
+      getFirm(),
+      getEntitlements().catch(() => null),
+    ])
+      .then(([res, firm, plan]) => {
         if (cancel) return;
         setVersions(res.versions);
         setRole(firm.firm?.role ?? null);
+        setSoloPlanOpen(!firm.firm && Boolean(plan?.features.lockedVersions));
       })
       .catch(() => {
         if (!cancel) setVersions([]);
@@ -280,7 +291,7 @@ export function ReportVersionsPanel() {
                       <Send className="size-3.5" /> Mark sent
                     </Button>
                   )}
-                  {firmClient && v.reviewedAt && v.hasFigures && (
+                  {(firmClient || canShareSolo) && v.reviewedAt && v.hasFigures && (
                     <Button
                       size="sm"
                       variant="secondary"

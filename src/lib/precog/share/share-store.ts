@@ -200,11 +200,13 @@ export async function listMapShareSummaries(sql: Sql, userId: string): Promise<S
 
 /**
  * Why a locked version cannot be shared as an issued report, or null when it
- * can: report links are for a firm's client businesses, only a version
- * reviewed for issuance, and only one that stores the figures it printed (a
- * version without them recalculates with today's scoring, which is not what
- * was issued). The caller has already checked that `ownerUserId` may open
- * the version.
+ * can: report links are for a firm's client businesses (or, with
+ * `allowSolo`, a business whose owner is in no firm and whose plan allows
+ * locked versions; the caller decides that), only a version reviewed for
+ * issuance, and only one that stores the figures it printed (a version
+ * without them recalculates with today's scoring, which is not what was
+ * issued). The caller has already checked that `ownerUserId` may open the
+ * version.
  */
 export const REPORT_SHARE_REFUSAL = {
   solo: "Report links are for a firm's client businesses. Add the business to your firm to share its report.",
@@ -217,6 +219,7 @@ export async function reportShareRefusal(
   sql: Sql,
   ownerUserId: string,
   versionId: string,
+  { allowSolo = false }: { allowSolo?: boolean } = {},
 ): Promise<string | null> {
   const rows = await sql<{ firm_client: boolean; reviewed: boolean; has_figures: boolean }>`
     select b.firm_user_id is not null as firm_client,
@@ -228,7 +231,7 @@ export async function reportShareRefusal(
   `;
   const row = rows[0];
   if (!row) return "That report version does not exist";
-  if (!row.firm_client) return REPORT_SHARE_REFUSAL.solo;
+  if (!row.firm_client && !allowSolo) return REPORT_SHARE_REFUSAL.solo;
   if (!row.reviewed) return REPORT_SHARE_REFUSAL.unreviewed;
   if (!row.has_figures) return REPORT_SHARE_REFUSAL.noFigures;
   return null;
