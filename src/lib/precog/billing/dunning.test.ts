@@ -13,7 +13,7 @@ describe("the failed-payment email", () => {
     expect(email.subject).toBe("Precog: the Firm plan payment failed");
     expect(email.text).toBe(
       [
-        "The card on the Firm plan for North Advisors was declined on 2026-10-20. Stripe will try again over the next 14 days. Precog keeps the plan open until 2026-11-03; after that the QuickBooks link, new locked report versions, member invitations and owner reminder emails close until the payment goes through. The Monthly review for your clients and every locked version you already hold stay open. Fix the payment: https://invoice.stripe.com/i/in_1",
+        "The payment for the Firm plan for North Advisors failed on 2026-10-20. Stripe will try again over the next 14 days. Precog keeps the plan open until 2026-11-03; after that the QuickBooks link, new locked report versions, member invitations and owner reminder emails close until the payment goes through. The Monthly review for your clients and every locked version you already hold stay open. Fix the payment: https://invoice.stripe.com/i/in_1",
         "",
         "You receive this because you own North Advisors on Precog.",
       ].join("\n"),
@@ -29,8 +29,10 @@ describe("the failed-payment email", () => {
       fixUrl: "https://app.example/firm?billing=overdue",
     });
     expect(email.text).toContain(
-      "The card on the Firm plan for North Advisors was declined on 2026-10-20. Stripe will try again over the next 14 days, and Precog keeps the plan open while it does; after that the QuickBooks link, new locked report versions, member invitations and owner reminder emails close until the payment goes through. The Monthly review for your clients and every locked version you already hold stay open. Fix the payment: https://app.example/firm?billing=overdue",
+      "The payment for the Firm plan for North Advisors failed on 2026-10-20. Stripe will try again over the next 14 days, and Precog keeps the plan open while it does; after that the QuickBooks link, new locked report versions, member invitations and owner reminder emails close until the payment goes through. The Monthly review for your clients and every locked version you already hold stay open. Fix the payment: https://app.example/firm?billing=overdue",
     );
     expect(email.text).not.toMatch(/\bshould\b|the app\b/);
+    // One sentence for every payment method: card, bank account or invoice.
+    expect(email.text).not.toMatch(/\bcard\b|declined/);
   });
 });
