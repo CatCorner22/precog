@@ -143,6 +143,9 @@ export async function linkCustomer({
     log(`Linked ${customerId} to ${user.id}.`);
   }
   if (applied) {
+    // Stamped with the link time: a subscription event Stripe sent before
+    // the link (refused then, retried now) is older than the state applied
+    // here, so the webhook skips it instead of writing a stale status.
     await query(
       `update billing_accounts set
          subscription_id = $2,
@@ -157,6 +160,7 @@ export async function linkCustomer({
            when $3 in ('active', 'trialing') then null
            else past_due_since
          end,
+         subscription_event_at = now(),
          updated_at = now()
        where user_id = $1`,
       [user.id, applied.id, applied.status, applied.current_period_end ?? null, priceOf(applied)],

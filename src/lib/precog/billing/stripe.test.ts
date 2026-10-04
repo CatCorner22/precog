@@ -26,6 +26,7 @@ import {
   checkoutRefusal,
   commercialToolsOpen,
   loadBillingAccount,
+  setStripeCustomer,
   subscriptionStatusLabel,
   type BillingAccount,
 } from "../firm/billing-store";
@@ -94,6 +95,35 @@ describe("billing changes", () => {
       },
     });
     expect(sub).toMatchObject({ kind: "subscription", subscriptionId: "sub_1", status: null });
+  });
+
+  it("marks a paid checkout that names no account as unattributed, and an unpaid one as noise", () => {
+    const paid = billingChangeFor({
+      id: "evt",
+      type: "checkout.session.completed",
+      data: {
+        object: { mode: "payment", payment_status: "paid", customer: "cus_9" },
+      },
+    });
+    expect(paid).toEqual({
+      kind: "unattributed",
+      eventType: "checkout.session.completed",
+      customerId: "cus_9",
+    });
+    expect(
+      billingChangeFor({
+        id: "evt",
+        type: "checkout.session.completed",
+        data: { object: { mode: "subscription", subscription: "sub_9", customer: "cus_9" } },
+      }),
+    ).toMatchObject({ kind: "unattributed", customerId: "cus_9" });
+    expect(
+      billingChangeFor({
+        id: "evt",
+        type: "checkout.session.completed",
+        data: { object: { mode: "payment", payment_status: "unpaid" } },
+      }),
+    ).toEqual({ kind: "ignore" });
   });
 
   it("maps a cancelled subscription to canceled and ignores unrelated events", () => {
@@ -545,6 +575,50 @@ describe("event order", () => {
         data: { object: { id: sub, status, customer: "cus_1", metadata: { userId: "owner" } } },
       }),
     )!;
+
+  it("refuses a subscription event that names no account, and retries it instead of claiming it", async () => {
+    const orphan = parseStripeEvent(
+      JSON.stringify({
+        id: "e_orphan",
+        type: "customer.subscription.created",
+        created: 100,
+        data: { object: { id: "sub_9", status: "active", customer: "cus_9" } },
+      }),
+    )!;
+    await expect(applyBillingEvent(db.sql, orphan)).rejects.toMatchObject({ status: 500 });
+    // The claim rolled back with the refusal, so a redelivery tries again.
+    await expect(applyBillingEvent(db.sql, orphan)).rejects.toMatchObject({ status: 500 });
+    expect((await db.pg.query("select id from billing_events")).rows).toEqual([]);
+    // Once the operator links the customer, Stripe's retry applies.
+    await setStripeCustomer(db.sql, "owner", "cus_9");
+    expect(await applyBillingEvent(db.sql, orphan)).toBe("applied");
+    expect((await loadFirmFor(db.sql, "owner"))?.plan).toBe("monthly");
+  });
+
+  it("ignores an ended subscription for a customer no account holds", async () => {
+    for (const status of ["canceled", "incomplete_expired"]) {
+      const ended = parseStripeEvent(
+        JSON.stringify({
+          id: `e_ended_${status}`,
+          type: "customer.subscription.deleted",
+          created: 100,
+          data: { object: { id: "sub_old", status, customer: "cus_old" } },
+        }),
+      )!;
+      expect(await applyBillingEvent(db.sql, ended)).toBe("ignored");
+    }
+  });
+
+  it("refuses a paid checkout that names no account", async () => {
+    const checkout = parseStripeEvent(
+      JSON.stringify({
+        id: "e_checkout_orphan",
+        type: "checkout.session.completed",
+        data: { object: { mode: "payment", payment_status: "paid", customer: "cus_9" } },
+      }),
+    )!;
+    await expect(applyBillingEvent(db.sql, checkout)).rejects.toMatchObject({ status: 500 });
+  });
 
   it("ignores a retried update that Stripe created before the cancellation", async () => {
     await applyBillingEvent(

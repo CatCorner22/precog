@@ -72,6 +72,12 @@ export type BillingChange =
       hostedInvoiceUrl: string | null;
       eventAt: string | null;
     }
+  | {
+      /** Money moved but no account can be named: the webhook refuses it (500) so Stripe retries and the failure is reported, instead of acknowledging it as ignored. */
+      kind: "unattributed";
+      eventType: string;
+      customerId: string | null;
+    }
   | { kind: "ignore" };
 
 const SIGNATURE_TOLERANCE_SECONDS = 300;
@@ -181,8 +187,17 @@ export function billingChangeFor(event: StripeEvent): BillingChange {
   ) {
     const metadata = (object.metadata ?? {}) as Record<string, unknown>;
     const userId = str(object.client_reference_id) ?? str(metadata.userId);
-    if (!userId) return { kind: "ignore" };
     const customerId = customerIdOf(object);
+    if (!userId) {
+      // A completed checkout always names the account that started it — an
+      // unpaid one-off is the only abandonment, and only it is noise.
+      const paid =
+        object.mode === "subscription" ||
+        (object.mode === "payment" && object.payment_status === "paid");
+      return paid
+        ? { kind: "unattributed", eventType: event.type, customerId }
+        : { kind: "ignore" };
+    }
     if (object.mode === "subscription") {
       const subscriptionId = str(object.subscription);
       if (!subscriptionId) return { kind: "ignore" };
