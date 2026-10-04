@@ -151,9 +151,12 @@ async function authorizeBusinessWriter(
 }
 
 /**
- * Delete and restore are not a member's save. The account that owns the
- * row may always do both, and so may the firm owner. A preparer or a
- * reviewer may not; someone outside the firm meets the usual refusal.
+ * Delete and restore are not a member's save. A firm's client is the firm
+ * owner's to delete or restore, a member's own client businesses included:
+ * they stay with the firm when the member leaves, so a preparer or a
+ * reviewer is refused even on a row they set up. The account that owns a
+ * row outside any firm (or whose firm is gone) does both; someone outside
+ * the firm meets the usual refusal.
  */
 async function authorizeBusinessDestroyer(
   sql: Sql,
@@ -161,14 +164,17 @@ async function authorizeBusinessDestroyer(
   actor: string,
   firm: string | null,
 ) {
-  if (owner === actor) return;
+  if (owner === actor && (firm === null || firm === owner)) return;
   const member = await sql<{ role: string }>`
     select role from firm_members
     where member_user_id = ${actor} and firm_user_id = ${firm} for share
   `;
   const role = member[0]?.role;
   if (role === "owner") return;
-  if (!role) throw new BusinessUnavailableError();
+  if (!role) {
+    if (owner === actor) return; // The row's firm is gone: the row is its account's alone.
+    throw new BusinessUnavailableError();
+  }
   throw new RequestError(403, "Only the firm owner can delete or restore a client.");
 }
 

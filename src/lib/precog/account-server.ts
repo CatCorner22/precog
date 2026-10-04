@@ -50,15 +50,30 @@ export const listHistoryDownloads = createServerFn({ method: "GET" })
  */
 export const exportBusinessHistory = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .validator((input: { businessId: string; beforeRevision?: number | null }) => {
-    const raw = requireObject(input);
-    if (!isBusinessId(raw.businessId)) throw new RequestError(400, "Unknown business");
-    const before = raw.beforeRevision ?? null;
-    if (before !== null && (!Number.isInteger(before) || Number(before) < 1)) {
-      throw new RequestError(400, "Unknown revision");
-    }
-    return { businessId: raw.businessId, beforeRevision: before === null ? null : Number(before) };
-  })
+  .validator(
+    (input: {
+      businessId: string;
+      beforeRevision?: number | null;
+      ownerUserId?: string | null;
+    }) => {
+      const raw = requireObject(input);
+      if (!isBusinessId(raw.businessId)) throw new RequestError(400, "Unknown business");
+      const before = raw.beforeRevision ?? null;
+      if (before !== null && (!Number.isInteger(before) || Number(before) < 1)) {
+        throw new RequestError(400, "Unknown revision");
+      }
+      // The list row's account; the store accepts it only through the caller's firm.
+      const owner = raw.ownerUserId ?? null;
+      if (owner !== null && (typeof owner !== "string" || !owner || owner.length > 128)) {
+        throw new RequestError(400, "Unknown business");
+      }
+      return {
+        businessId: raw.businessId,
+        beforeRevision: before === null ? null : Number(before),
+        ownerUserId: owner,
+      };
+    },
+  )
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const page = await exportBusinessHistoryPage(
@@ -68,6 +83,7 @@ export const exportBusinessHistory = createServerFn({ method: "GET" })
       data.beforeRevision,
       undefined,
       await ownedFirm(sql, context.userId),
+      data.ownerUserId,
     );
     return { base64: encodeHistoryPage(page.rows), nextBeforeRevision: page.nextBeforeRevision };
   });

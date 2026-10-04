@@ -417,9 +417,13 @@ function FirmPage() {
                 for (const line of removedMemberToasts(next.removed.name, next.removed.moved)) {
                   toast.success(line);
                 }
-                // The handed-over clients now list under the owner's account.
+                // The handed-over clients, deleted ones included, now list
+                // under the owner's account.
                 void listFirmClients()
                   .then((res) => setClients(res.clients))
+                  .catch(() => undefined);
+                void listDeletedClients()
+                  .then((res) => setDeleted(res.deleted))
                   .catch(() => undefined);
               }
             }}

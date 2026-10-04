@@ -302,17 +302,33 @@ export async function listAccountHistoryBusinesses(
 }
 
 /**
- * Whose row a history download reads for `businessId`: the caller's own
- * when they hold one, else the row a member of the caller's firm set up for
- * it (`firmUserId` is the firm the caller owns). Resolved here, never from
- * what the client sends. Null when neither exists.
+ * Whose row a history download reads for `businessId`. With `ownerUserId`
+ * named (the list row the caller chose): the caller's own rows when it is
+ * theirs, else that account's row only when it is a member of the firm the
+ * caller owns (`firmUserId`) and the row is that firm's client, so the
+ * owner's and a member's rows under one id download apart. Without it: the
+ * caller's own row when they hold one, else the firm's. The membership is
+ * read here, never trusted from what the client sends. Null when nothing
+ * resolves, and the page is then empty.
  */
 async function historyOwnerFor(
   sql: Sql,
   userId: string,
   businessId: string,
   firmUserId: string | null,
+  ownerUserId: string | null,
 ): Promise<string | null> {
+  if (ownerUserId === userId) return userId;
+  if (ownerUserId !== null) {
+    if (firmUserId === null) return null;
+    const rows = await sql<{ user_id: string }>`
+      select b.user_id from businesses b
+      join firm_members m on m.firm_user_id = b.firm_user_id and m.member_user_id = b.user_id
+      where b.id = ${businessId} and b.user_id = ${ownerUserId} and b.firm_user_id = ${firmUserId}
+      limit 1
+    `;
+    return rows[0]?.user_id ?? null;
+  }
   const rows = await sql<{ user_id: string }>`
     select b.user_id from businesses b
     where b.id = ${businessId}
@@ -337,8 +353,9 @@ export const HISTORY_PAGE_BYTES = 3 * 1024 * 1024;
  * when given. A page holds versions until their profiles reach `budgetBytes`,
  * and always at least one (a profile is at most 2 MB, under 2.7 MB encoded).
  * `nextBeforeRevision` is null on the last page. Only the caller's own rows,
- * or, for a firm owner (`firmUserId`), a row a member set up for the firm:
- * another account's id returns an empty page.
+ * or, for a firm owner (`firmUserId`), a row a member set up for the firm,
+ * named by `ownerUserId` when the owner's and a member's rows share the id
+ * (see historyOwnerFor): another account's id returns an empty page.
  *
  * The walk prints one version at a time and stops at the first one past the
  * budget, so a request measures only its own page and that one extra version,
@@ -351,8 +368,10 @@ export async function exportBusinessHistoryPage(
   beforeRevision: number | null,
   budgetBytes = HISTORY_PAGE_BYTES,
   firmUserId: string | null = null,
+  ownerUserId: string | null = null,
 ): Promise<{ rows: BusinessHistoryExportRow[]; nextBeforeRevision: number | null }> {
-  const userId = await historyOwnerFor(sql, callerUserId, businessId, firmUserId);
+  const userId = await historyOwnerFor(sql, callerUserId, businessId, firmUserId, ownerUserId);
+  if (userId === null) return { rows: [], nextBeforeRevision: null };
   const rows = await sql<{
     business_id: string;
     revision: number | string;

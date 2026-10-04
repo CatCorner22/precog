@@ -495,6 +495,23 @@ describe("past versions download apart from the account export", () => {
     // The owner's own row wins the shared id; a member's firm client pages for the owner.
     const own = await exportBusinessHistoryPage(sql, "ua", "biz_1", null, undefined, "ua");
     expect(own.rows.map((r) => r.profile)).toEqual([{ notes: "owner" }]);
+    // The list row names whose history it is, so the member's row under the
+    // shared id downloads apart from the owner's; the member's private
+    // business, a stranger's id and a member who left stay out of reach.
+    const byOwner = (owner: string, id = "biz_1", firm: string | null = "ua") =>
+      exportBusinessHistoryPage(sql, "ua", id, null, undefined, firm, owner).then((p) =>
+        p.rows.map((r) => r.profile),
+      );
+    expect(await byOwner("ua")).toEqual([{ notes: "owner" }]);
+    expect(await byOwner("ub")).toEqual([{ notes: "member" }]);
+    expect(await byOwner("ub", "biz_private")).toEqual([]);
+    expect(await byOwner("uc")).toEqual([]);
+    expect(await byOwner("ub", "biz_1", null)).toEqual([]);
+    await pg.query(`delete from firm_members where member_user_id = 'ub'`);
+    expect(await byOwner("ub")).toEqual([]);
+    await pg.query(
+      `insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'ub', 'preparer')`,
+    );
     await pg.exec(`delete from businesses where user_id = 'ua'`);
     const theirs = await exportBusinessHistoryPage(sql, "ua", "biz_1", null, undefined, "ua");
     expect(theirs.rows.map((r) => r.profile)).toEqual([{ notes: "member" }]);

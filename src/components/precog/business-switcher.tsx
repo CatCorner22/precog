@@ -63,17 +63,19 @@ export function BusinessSwitcher() {
   const own = businesses.filter((b) => !b.shared);
   const firmClients = businesses.filter((b) => b.shared);
   const { user } = useCurrentUserState();
-  // Only the firm owner deletes a colleague's client, so the trash button on
-  // a shared row needs the role; read once, and only when such a row shows.
+  // Only the firm owner deletes a firm's client, a member's own included, so
+  // the trash button on a firm-client row needs the role; read once, and only
+  // when such a row shows.
   const [firmRole, setFirmRole] = useState<FirmRole | null>(null);
   const roleRead = useRef(false);
+  const anyFirmClient = businesses.some((b) => b.firmClient || b.shared);
   useEffect(() => {
-    if (!user || firmClients.length === 0 || roleRead.current) return;
+    if (!user || !anyFirmClient || roleRead.current) return;
     roleRead.current = true;
     void getFirm()
       .then((res) => setFirmRole(res.firm?.role ?? null))
       .catch(() => undefined);
-  }, [user, firmClients.length]);
+  }, [user, anyFirmClient]);
 
   // Opening moves focus into the panel (the name field has its own autofocus).
   useEffect(() => {
@@ -178,7 +180,7 @@ export function BusinessSwitcher() {
           </span>
           {active && <Check className="size-3.5 shrink-0 text-primary" />}
         </button>
-        {!active && (!b.shared || firmRole === "owner") && (
+        {!active && ((!b.shared && !b.firmClient) || firmRole === "owner") && (
           <button
             type="button"
             disabled={switchingBusiness}
