@@ -16,6 +16,7 @@ import type {
   FirmRole,
   InviteRole,
 } from "@/lib/precog/firm/store";
+import type { MovedBusiness } from "@/lib/precog/business-store";
 import { formatDay } from "@/lib/precog/dates";
 import { fieldCls } from "@/components/ui/field-classes";
 
@@ -39,7 +40,13 @@ export function FirmMembers({
   firm: FirmContext;
   members: FirmMember[];
   invites: FirmInvite[];
-  onChange: (next: { members?: FirmMember[]; invites?: FirmInvite[]; left?: boolean }) => void;
+  onChange: (next: {
+    members?: FirmMember[];
+    invites?: FirmInvite[];
+    left?: boolean;
+    /** A member was removed: who, and the client businesses handed to the owner. */
+    removed?: { name: string; moved: MovedBusiness[] };
+  }) => void;
 }) {
   const owner = firm.role === "owner";
   const [email, setEmail] = useState("");
@@ -97,13 +104,13 @@ export function FirmMembers({
   async function remove(userId: string, name: string) {
     if (
       !window.confirm(
-        `Remove ${name} from ${firm.name}? They lose access to the firm's clients, their share links to those clients stop working, and the businesses they own leave the firm with them.`,
+        `Remove ${name} from ${firm.name}? They lose access to the firm's clients, their share links to those clients stop working, and the client businesses they set up stay with the firm under your account.`,
       )
     )
       return;
     try {
       const res = await removeFirmMember({ data: { userId } });
-      onChange({ members: res.members });
+      onChange({ members: res.members, removed: { name, moved: res.moved } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Precog did not remove the member.");
     }
@@ -112,7 +119,7 @@ export function FirmMembers({
   async function leave() {
     if (
       !window.confirm(
-        `Leave ${firm.name}? You lose access to the firm's clients, your share links to those clients stop working, and the businesses you own leave the firm with you.`,
+        `Leave ${firm.name}? You lose access to the firm's clients, your share links to those clients stop working, and the client businesses you set up stay with the firm. Businesses you kept outside the firm stay yours.`,
       )
     )
       return;

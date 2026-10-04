@@ -46,6 +46,7 @@ beforeEach(async () => {
     "firm_members",
     "firms",
     "businesses",
+    "business_profiles",
     '"user"',
   );
   for (const id of ["ua", "ub", "uc"]) {
@@ -198,26 +199,141 @@ describe("firm membership edge cases", () => {
     return createInvite(db.sql, { firmUserId: "ua", email, role, token });
   }
 
-  it("a removed or departed member takes their own businesses out of the firm", async () => {
+  const MOVED_ID = /^biz_1-[0-9a-f]{8}$/;
+
+  it("a removed or departed member's firm clients stay with the firm under the owner", async () => {
     await saveFirm(db.sql, "ua", "North", "assessment");
     await invite("t1");
     await acceptInvite(db.sql, "t1", "ub");
     await db.pg.query("update businesses set firm_user_id = 'ua' where user_id = 'ub'");
-    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBe("ua");
-    await db.pg.query("delete from businesses where user_id = 'ua'");
-    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBe("ub");
-
-    await removeMember(db.sql, "ua", "ub");
-    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBeNull();
-    const rows = await db.pg.query<{ firm_user_id: string | null }>(
-      "select firm_user_id from businesses where user_id = 'ub'",
+    // A private business the member had before joining stays theirs.
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision)
+       values ('biz_private', 'ub', 'Private', 'general', '{}'::jsonb, 1)`,
     );
-    expect(rows.rows[0].firm_user_id).toBeNull();
+    // Child rows and a colleague's pointer, which follow the business.
+    await db.pg.query(
+      `insert into business_history (user_id, business_id, revision, name, industry, profile)
+       values ('ub', 'biz_1', 1, 'Client UB', 'general', '{}'::jsonb)`,
+    );
+    await insertReviewEvent(
+      db.sql,
+      "ub",
+      {
+        businessId: "biz_1",
+        period: "2026-09",
+        itemKey: "bank_statement",
+        ownerName: "Bea",
+        dueOn: null,
+        result: "done",
+        notes: "",
+      },
+      "ua",
+    );
+    await db.pg.query(
+      `insert into business_profiles (user_id, profile)
+       values ('ua', '{"businessId":"biz_1","ownerUserId":"ub","pointerVersion":2}'::jsonb),
+              ('ub', '{"businessId":"biz_1","ownerUserId":"ub","pointerVersion":2}'::jsonb)`,
+    );
+    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBe("ua");
+
+    const moved = await removeMember(db.sql, "ua", "ub");
+    expect(moved).toEqual([
+      { from: "biz_1", to: expect.stringMatching(MOVED_ID), name: "Client UB" },
+    ]);
+    const to = moved[0].to;
+    // The owner's own biz_1 holds the id, so the moved one took a new address.
+    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBe("ua");
+    expect(await resolveBusinessOwner(db.sql, "ua", to)).toBe("ua");
+    expect(await resolveBusinessOwner(db.sql, "ub", to)).toBeNull();
+    const rows = await db.pg.query<{
+      id: string;
+      user_id: string;
+      firm_user_id: string | null;
+      saved_by: string | null;
+      revision: number;
+    }>("select id, user_id, firm_user_id, saved_by, revision from businesses order by user_id, id");
+    expect(rows.rows).toEqual([
+      { id: "biz_1", user_id: "ua", firm_user_id: "ua", saved_by: null, revision: 1 },
+      { id: to, user_id: "ua", firm_user_id: "ua", saved_by: "ub", revision: 2 },
+      { id: "biz_private", user_id: "ub", firm_user_id: null, saved_by: null, revision: 1 },
+      { id: "biz_1", user_id: "uc", firm_user_id: null, saved_by: null, revision: 1 },
+    ]);
+    const children = await db.pg.query<{ t: string; user_id: string; business_id: string }>(
+      `select 'history' as t, user_id, business_id from business_history
+       union all select 'review', user_id, business_id from review_events
+       order by 1`,
+    );
+    expect(children.rows).toEqual([
+      { t: "history", user_id: "ua", business_id: to },
+      { t: "review", user_id: "ua", business_id: to },
+    ]);
+    const pointers = await db.pg.query<{ user_id: string; profile: Record<string, unknown> }>(
+      "select user_id, profile from business_profiles order by user_id",
+    );
+    expect(pointers.rows).toEqual([
+      { user_id: "ua", profile: { businessId: to, ownerUserId: "ua", pointerVersion: 2 } },
+    ]);
 
     await invite("t2", "uc@example.test");
     await acceptInvite(db.sql, "t2", "uc");
     await db.pg.query("update businesses set firm_user_id = 'ua' where user_id = 'uc'");
-    await leaveFirm(db.sql, "ua", "uc");
+    const left = await leaveFirm(db.sql, "ua", "uc");
+    expect(left).toEqual([
+      { from: "biz_1", to: expect.stringMatching(MOVED_ID), name: "Client UC" },
+    ]);
+    expect(await resolveBusinessOwner(db.sql, "ua", left[0].to)).toBe("ua");
+    expect(await resolveBusinessOwner(db.sql, "uc", "biz_1")).toBeNull();
+  }, 60_000);
+
+  it("keeps the client's id when the owner holds nothing by it, and renames it over a deletion marker", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await invite("t1");
+    await acceptInvite(db.sql, "t1", "ub");
+    await db.pg.query("update businesses set firm_user_id = 'ua' where user_id = 'ub'");
+    await db.pg.query("delete from businesses where user_id = 'ua'");
+    expect(await removeMember(db.sql, "ua", "ub")).toEqual([
+      { from: "biz_1", to: "biz_1", name: "Client UB" },
+    ]);
+    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBe("ua");
+
+    // The owner holds only a deletion marker for biz_1 (a purged business):
+    // the marker shares the key and outlives the purge, so the moved row is renamed.
+    await db.pg.query("delete from businesses where user_id = 'ua'");
+    await db.pg.query(
+      "insert into business_deletion_markers (user_id, business_id) values ('ua', 'biz_1')",
+    );
+    await invite("t2", "uc@example.test");
+    await acceptInvite(db.sql, "t2", "uc");
+    await db.pg.query("update businesses set firm_user_id = 'ua' where user_id = 'uc'");
+    const moved = await leaveFirm(db.sql, "ua", "uc");
+    expect(moved[0].to).toMatch(MOVED_ID);
+    expect(await resolveBusinessOwner(db.sql, "ua", moved[0].to)).toBe("ua");
+    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBeNull();
+  }, 60_000);
+
+  it("moves a deleted client and the markers of purged ones with the member's departure", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await invite("t1");
+    await acceptInvite(db.sql, "t1", "ub");
+    await db.pg.query("delete from businesses where user_id = 'ua'");
+    await db.pg.query(
+      "update businesses set firm_user_id = 'ua', deleted_at = now() where user_id = 'ub'",
+    );
+    await db.pg.query(
+      `insert into business_deletion_markers (user_id, business_id, firm_user_id)
+       values ('ub', 'biz_1', 'ua'), ('ub', 'biz_purged', 'ua'), ('ub', 'biz_mine', null)`,
+    );
+    await removeMember(db.sql, "ua", "ub");
+    const markers = await db.pg.query<{ user_id: string; business_id: string }>(
+      "select user_id, business_id from business_deletion_markers order by 1, 2",
+    );
+    expect(markers.rows).toEqual([
+      { user_id: "ua", business_id: "biz_1" },
+      { user_id: "ua", business_id: "biz_purged" },
+      { user_id: "ub", business_id: "biz_mine" },
+    ]);
+    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1", true)).toBe("ua");
     expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBeNull();
   }, 60_000);
 

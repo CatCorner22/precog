@@ -5,6 +5,7 @@ import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
 import { businessLimitMessage, MAX_BUSINESSES_PER_ACCOUNT } from "./business-lifecycle";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
 import { revokeBusinessShares } from "./share/share-store";
+import { randomHex } from "@/lib/web-crypto";
 import {
   DELETED_RETENTION_DAYS,
   HISTORY_RETENTION_DAYS,
@@ -670,6 +671,106 @@ export async function restoreBusinessRow(
     await tx`delete from business_deletion_markers where user_id = ${ownerUserId} and business_id = ${businessId}`;
     return true;
   });
+}
+
+/** One business the hand-over moved: its id under the member, its id under the owner, its name. */
+export interface MovedBusiness {
+  from: string;
+  to: string;
+  name: string;
+}
+
+/**
+ * Hands every business a departing member set up for the firm (live and
+ * deleted) to the firm owner's account, inside the caller's transaction. A
+ * business row is keyed by its owner, and every per-business table carries
+ * that key with no update cascade, so the move is a new parent row under the
+ * owner, a repoint of every child row, and the old parent deleted last.
+ *
+ * The owner may already hold the same client-generated id: a `businesses`
+ * row (live or deleted) or a `business_deletion_markers` row, which shares
+ * the key and outlives the purge. Such a business gets a new id
+ * (`<old id>-<8 hex>`), which the caller reports; the member's open tab
+ * meets the usual "no longer available" refusal on its next save.
+ *
+ * Markers of the member's purged firm clients move too, so a stale device
+ * cannot bring one back under the owner. The owner's per-account ceiling is
+ * not checked: nothing is created, only re-parented.
+ */
+export async function transferBusinessesToOwner(
+  tx: Sql,
+  input: { firmUserId: string; memberUserId: string },
+): Promise<MovedBusiness[]> {
+  const { firmUserId: owner, memberUserId: member } = input;
+  for (const id of [owner, member].sort()) await lockBusinessOwner(tx, id);
+  const rows = await tx<{ id: string; name: string }>`
+    select id, name from businesses
+    where user_id = ${member} and firm_user_id = ${owner}
+    order by id
+  `;
+  const moved: MovedBusiness[] = [];
+  for (const row of rows) {
+    const held = await tx`
+      select 1 from businesses where user_id = ${owner} and id = ${row.id}
+      union all
+      select 1 from business_deletion_markers where user_id = ${owner} and business_id = ${row.id}
+    `;
+    const to = held.length ? `${row.id}-${randomHex(4)}` : row.id;
+    await tx`
+      insert into businesses
+        (id, user_id, name, industry, profile, created_at, updated_at, revision, deleted_at,
+          saved_by, firm_user_id)
+      select ${to}, ${owner}, name, industry, profile, created_at, now(), revision + 1, deleted_at,
+        ${member}, firm_user_id
+      from businesses where user_id = ${member} and id = ${row.id}
+    `;
+    await tx`update business_history set user_id = ${owner}, business_id = ${to}
+      where user_id = ${member} and business_id = ${row.id}`;
+    await tx`update report_versions set user_id = ${owner}, business_id = ${to}
+      where user_id = ${member} and business_id = ${row.id}`;
+    await tx`update integration_connections set user_id = ${owner}, business_id = ${to}
+      where user_id = ${member} and business_id = ${row.id}`;
+    await tx`update integration_snapshots set user_id = ${owner}, business_id = ${to}
+      where user_id = ${member} and business_id = ${row.id}`;
+    await tx`update procedure_images set user_id = ${owner}, business_id = ${to}
+      where user_id = ${member} and business_id = ${row.id}`;
+    await tx`update control_execution_log set user_id = ${owner}, business_id = ${to}
+      where user_id = ${member} and business_id = ${row.id}`;
+    await tx`update engagement_marks set user_id = ${owner}, business_id = ${to}
+      where user_id = ${member} and business_id = ${row.id}`;
+    await tx`update review_events set user_id = ${owner}, business_id = ${to}
+      where user_id = ${member} and business_id = ${row.id}`;
+    await tx`update reminder_log set user_id = ${owner}, business_id = ${to}
+      where user_id = ${member} and business_id = ${row.id}`;
+    await tx`update owner_email_stops set user_id = ${owner}, business_id = ${to}
+      where user_id = ${member} and business_id = ${row.id}`;
+    await tx`update business_deletion_markers set user_id = ${owner}, business_id = ${to}
+      where user_id = ${member} and business_id = ${row.id}`;
+    await tx`update map_shares set business_owner_id = ${owner}, business_id = ${to}
+      where business_owner_id = ${member} and business_id = ${row.id}`;
+    // Colleagues' pointers follow the row; the member's own pointer goes.
+    await tx`delete from business_profiles
+      where user_id = ${member}
+        and coalesce(profile->>'businessId', ${DEFAULT_BUSINESS_ID}) = ${row.id}
+        and coalesce(profile->>'ownerUserId', user_id) = ${member}`;
+    await tx`update business_profiles
+      set profile = profile || jsonb_build_object('businessId', ${to}::text, 'ownerUserId', ${owner}::text),
+        updated_at = now()
+      where user_id <> ${member}
+        and profile->>'businessId' = ${row.id} and profile->>'ownerUserId' = ${member}`;
+    await tx`delete from businesses where user_id = ${member} and id = ${row.id}`;
+    moved.push({ from: row.id, to, name: row.name });
+  }
+  // Purged firm clients left only a marker: it moves too, unless the owner holds one.
+  await tx`
+    insert into business_deletion_markers (user_id, business_id, firm_user_id, deleted_at)
+    select ${owner}, business_id, firm_user_id, deleted_at from business_deletion_markers
+    where user_id = ${member} and firm_user_id = ${owner}
+    on conflict (user_id, business_id) do nothing
+  `;
+  await tx`delete from business_deletion_markers
+    where user_id = ${member} and firm_user_id = ${owner}`;
+  return moved;
 }
 
 export interface DeletedBusinessRow {

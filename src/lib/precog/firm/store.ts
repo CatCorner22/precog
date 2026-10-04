@@ -6,6 +6,7 @@ import type { ReviewItemKey, ReviewResult } from "./reviews";
 import { RequestError } from "@/lib/request-errors";
 import { randomHex } from "@/lib/web-crypto";
 import { revokeDepartingMemberShares } from "../share/share-store";
+import { transferBusinessesToOwner, type MovedBusiness } from "../business-store";
 
 /**
  * A firm is keyed by its owner's account: `firms.user_id` is both the owner
@@ -191,16 +192,17 @@ export async function setMemberRole(
 }
 
 /**
- * Removes a member. The businesses they own leave the firm with them, so the
- * firm keeps no access to a departed colleague's clients.
+ * Removes a member. The client businesses they set up for the firm stay with
+ * it, under the owner's account (see `transferBusinessesToOwner`); the
+ * businesses they kept outside the firm stay theirs. Returns what moved.
  */
 export async function removeMember(
   sql: Sql,
   firmUserId: string,
   memberUserId: string,
-): Promise<void> {
+): Promise<MovedBusiness[]> {
   if (memberUserId === firmUserId) throw new FirmMembershipError("Nobody can remove the owner.");
-  await detachMember(sql, firmUserId, memberUserId);
+  return detachMember(sql, firmUserId, memberUserId);
 }
 
 /**
@@ -426,33 +428,37 @@ export async function acceptInvite(
   });
 }
 
-/** A member leaves, taking the businesses they own with them; the owner cannot leave. */
-export async function leaveFirm(sql: Sql, firmUserId: string, userId: string): Promise<void> {
+/**
+ * A member leaves; the client businesses they set up stay with the firm, as
+ * on removal. The owner cannot leave. Returns what moved.
+ */
+export async function leaveFirm(
+  sql: Sql,
+  firmUserId: string,
+  userId: string,
+): Promise<MovedBusiness[]> {
   if (firmUserId === userId) throw new FirmMembershipError("The owner cannot leave the firm.");
-  await detachMember(sql, firmUserId, userId);
+  return detachMember(sql, firmUserId, userId);
 }
 
 /**
- * Ends a membership and takes the member's own businesses (live and deleted)
- * out of the firm. Share links that crossed the line (the member's links to
- * the firm's clients, colleagues' links to the member's businesses) are
- * revoked first, while the businesses still name the firm.
+ * Ends a membership and hands the member's firm clients (live and deleted)
+ * to the owner's account. The member's share links to the firm's clients,
+ * their own included, are revoked first, while the rows still name them;
+ * colleagues' links to those clients keep working, since the clients stay.
  */
-async function detachMember(sql: Sql, firmUserId: string, memberUserId: string): Promise<void> {
-  await inTransaction(sql, async (tx) => {
+async function detachMember(
+  sql: Sql,
+  firmUserId: string,
+  memberUserId: string,
+): Promise<MovedBusiness[]> {
+  return inTransaction(sql, async (tx) => {
     await revokeDepartingMemberShares(tx, firmUserId, memberUserId);
     await tx`
       delete from firm_members
       where firm_user_id = ${firmUserId} and member_user_id = ${memberUserId} and role <> 'owner'
     `;
-    await tx`
-      update businesses set firm_user_id = null
-      where user_id = ${memberUserId} and firm_user_id = ${firmUserId}
-    `;
-    await tx`
-      update business_deletion_markers set firm_user_id = null
-      where user_id = ${memberUserId} and firm_user_id = ${firmUserId}
-    `;
+    return transferBusinessesToOwner(tx, { firmUserId, memberUserId });
   });
 }
 

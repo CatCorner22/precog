@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { Button } from "@/components/ui/button";
 import { FirmMembers } from "@/components/precog/firm/firm-members";
+import { removedMemberToasts } from "@/components/precog/firm/firm-members-text";
 import { FirmBilling } from "@/components/precog/firm/firm-billing";
 import { ClientList } from "@/components/precog/firm/client-list";
 import { openClientReport } from "@/components/precog/firm/open-client-report";
@@ -399,6 +400,15 @@ function FirmPage() {
               }
               if (next.members) setMembers(next.members);
               if (next.invites) setInvites(next.invites);
+              if (next.removed) {
+                for (const line of removedMemberToasts(next.removed.name, next.removed.moved)) {
+                  toast.success(line);
+                }
+                // The handed-over clients now list under the owner's account.
+                void listFirmClients()
+                  .then((res) => setClients(res.clients))
+                  .catch(() => undefined);
+              }
             }}
           />
         </div>

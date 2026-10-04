@@ -218,8 +218,8 @@ export const removeFirmMember = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
-    await removeMember(sql, firm.firmUserId, data.userId);
-    return { members: await listMembers(sql, firm.firmUserId) };
+    const moved = await removeMember(sql, firm.firmUserId, data.userId);
+    return { members: await listMembers(sql, firm.firmUserId), moved };
   });
 
 export const leaveFirm = createServerFn({ method: "POST" })
