@@ -15,7 +15,6 @@ import type { SwitchResult } from "@/lib/precog/use-portfolio";
 import { count } from "@/lib/precog/text";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { buttonClass } from "@/components/ui/button-variants";
-import { focusableIn } from "./industry-onboarding-helpers";
 
 export const GUEST_IMPORT_SAVE = "Save to my account";
 export const GUEST_IMPORT_NOT_NOW = "Not now";
@@ -225,5 +224,17 @@ export function GuestImportDialog({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * The dialog's focusable controls, in order. Kept here rather than imported
+ * from the setup helpers, which would pull the job-title catalog onto the
+ * home page's first load.
+ */
+function focusableIn(root: HTMLElement | null): HTMLElement[] {
+  if (!root) return [];
+  return Array.from(
+    root.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex]:not([tabindex="-1"])'),
   );
 }
