@@ -37,6 +37,8 @@ export interface BillingAccount {
   assessmentFeeCents: number | null;
   /** The credit posted to the Stripe customer balance, in cents, so a refund reverses what was posted. */
   assessmentCreditCents: number | null;
+  /** When a Stripe-side credit reversal last failed; the weekly run retries while this is set and cents stay posted. */
+  assessmentCreditReversalFailedAt: string | null;
   updatedAt: string;
 }
 
@@ -152,6 +154,7 @@ export async function loadBillingAccount(sql: Sql, userId: string): Promise<Bill
     assessment_credit_used_at: string | null;
     assessment_fee_cents: number | string | null;
     assessment_credit_cents: number | string | null;
+    assessment_credit_reversal_failed_at: string | null;
     updated_at: string;
   }>`
     select stripe_customer_id, subscription_id, subscription_status, assessment_paid_at,
@@ -160,7 +163,7 @@ export async function loadBillingAccount(sql: Sql, userId: string): Promise<Bill
       coalesce(past_due_since,
         case when subscription_status = 'past_due' then subscription_event_at end) as past_due_since,
       payment_failed_email_sent_at, payment_failed_invoice_url, assessment_credit_used_at,
-      assessment_fee_cents, assessment_credit_cents, updated_at
+      assessment_fee_cents, assessment_credit_cents, assessment_credit_reversal_failed_at, updated_at
     from billing_accounts where user_id = ${userId}
   `;
   const row = rows[0];
@@ -181,6 +184,9 @@ export async function loadBillingAccount(sql: Sql, userId: string): Promise<Bill
     assessmentFeeCents: row.assessment_fee_cents === null ? null : Number(row.assessment_fee_cents),
     assessmentCreditCents:
       row.assessment_credit_cents === null ? null : Number(row.assessment_credit_cents),
+    assessmentCreditReversalFailedAt: toIsoTimestampOrNull(
+      row.assessment_credit_reversal_failed_at,
+    ),
     updatedAt: toIsoTimestamp(row.updated_at),
   };
 }
@@ -221,14 +227,67 @@ export async function markAssessmentCreditUsed(
  * Records that the posted credit is being taken back: the amount goes to
  * zero so a second refund or lost dispute on the same payment reverses
  * nothing twice. The stamp stays, so the refunded payment is never credited
- * again; only a new payment clears it (recordAssessmentPayment).
+ * again; only a new payment clears it (recordAssessmentPayment). A failed
+ * reversal clears, since this call means Stripe just took the credit back.
  */
 export async function markAssessmentCreditReversed(sql: Sql, userId: string): Promise<void> {
   await sql`
     update billing_accounts
-    set assessment_credit_cents = 0, updated_at = now()
+    set assessment_credit_cents = 0, assessment_credit_reversal_failed_at = null, updated_at = now()
     where user_id = ${userId}
   `;
+}
+
+/**
+ * Records that the Stripe-side reversal failed after the ledger already
+ * zeroed the amount: the amount comes back so the row agrees with the
+ * customer balance Stripe still holds, and the failure time marks the row
+ * for the weekly retry (retryFailedCreditReversals). The Stripe call carries
+ * a deterministic idempotency key, so a retry posts nothing twice.
+ */
+export async function markAssessmentCreditReversalFailed(
+  sql: Sql,
+  userId: string,
+  creditCents: number,
+): Promise<void> {
+  await sql`
+    update billing_accounts
+    set assessment_credit_cents = ${creditCents},
+      assessment_credit_reversal_failed_at = now(), updated_at = now()
+    where user_id = ${userId}
+  `;
+}
+
+/** Accounts whose credit reversal failed and still needs taking back, oldest failure first. */
+export async function listFailedCreditReversals(
+  sql: Sql,
+): Promise<
+  { userId: string; customerId: string; creditCents: number; assessmentPaidAt: string | null }[]
+> {
+  const rows = await sql<{
+    user_id: string;
+    stripe_customer_id: string | null;
+    assessment_credit_cents: number | string | null;
+    assessment_paid_at: string | null;
+  }>`
+    select user_id, stripe_customer_id, assessment_credit_cents, assessment_paid_at
+    from billing_accounts
+    where assessment_credit_reversal_failed_at is not null
+      and coalesce(assessment_credit_cents, 0) > 0
+    order by assessment_credit_reversal_failed_at asc
+  `;
+  return rows.flatMap((r) =>
+    r.stripe_customer_id && r.assessment_credit_cents !== null
+      ? [
+          {
+            userId: r.user_id,
+            customerId: r.stripe_customer_id,
+            creditCents: Number(r.assessment_credit_cents),
+            assessmentPaidAt: toIsoTimestampOrNull(r.assessment_paid_at),
+          },
+        ]
+      : [],
+  );
 }
 
 /**
@@ -285,6 +344,11 @@ export async function recordAssessmentPayment(
         when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
           then null
         else billing_accounts.assessment_credit_cents
+      end,
+      assessment_credit_reversal_failed_at = case
+        when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
+          then null
+        else billing_accounts.assessment_credit_reversal_failed_at
       end,
       assessment_payment_intent = coalesce(excluded.assessment_payment_intent, billing_accounts.assessment_payment_intent),
       updated_at = now()
