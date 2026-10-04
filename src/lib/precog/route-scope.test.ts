@@ -13,6 +13,7 @@ describe("needsPractice", () => {
     "/pricing",
     "/welcome",
     "/share/$token",
+    "/share/report/$token",
     "/join/$token",
     "/threat",
   ])("%s renders without it", (id) => {
@@ -35,6 +36,7 @@ describe("isPracticePath", () => {
     "/pricing",
     "/welcome",
     "/share/abc",
+    "/share/report/abc",
     "/join/abc",
     "/reports",
     "/threat",

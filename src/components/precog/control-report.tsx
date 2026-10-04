@@ -66,18 +66,22 @@ import { count, firstName, midSentence, verb } from "@/lib/precog/text";
  * it for the business (firm clients only); with `coverPage` as well, a cover
  * page comes first. The basis block, the letterhead, the cover, that line and
  * the footer are standing statements printed around the stored figures, so a
- * locked version's figures print unchanged.
+ * locked version's figures print unchanged. With `shared`, the page is a
+ * share link's: the toolbar keeps Print alone (no way back into Precog, no
+ * sent stamp) and the versions panel stays off.
  */
 export function ControlReport({
   locked = null,
   frozen = null,
   firm = null,
   coverPage = false,
+  shared = false,
 }: {
   locked?: ReportVersionRow | null;
   frozen?: Pick<FrozenReport, "layoutVersion" | "model"> | null;
   firm?: FirmSnapshot | null;
   coverPage?: boolean;
+  shared?: boolean;
 }) {
   const { profile, mapCustomized, markReportSent } = usePractice();
   const tpl = useTemplate();
@@ -164,14 +168,18 @@ export function ControlReport({
     <div className="report min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-white text-neutral-900">
       <div className="print:hidden sticky top-[var(--grok-banner-h,0px)] z-10 border-b border-neutral-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-6 py-3">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900"
-          >
-            <ArrowLeft className="size-4" /> Back to Precog
-          </Link>
+          {shared ? (
+            <span />
+          ) : (
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900"
+            >
+              <ArrowLeft className="size-4" /> Back to Precog
+            </Link>
+          )}
           <div className="flex flex-wrap items-center gap-2">
-            {locked ? (
+            {shared ? null : locked ? (
               <Link
                 to="/report"
                 className="inline-flex h-8 items-center rounded-md border border-neutral-300 px-3 text-xs font-medium hover:bg-neutral-100"
@@ -201,7 +209,7 @@ export function ControlReport({
           </div>
         </div>
       </div>
-      {!locked && <ReportVersionsPanel />}
+      {!locked && !shared && <ReportVersionsPanel />}
 
       <article className="mx-auto max-w-4xl px-6 py-8 print:px-0 print:py-0">
         {coverPage && firm && (

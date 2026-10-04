@@ -29,6 +29,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCronDigestRouteImport } from './routes/api/cron/digest'
 import { Route as ApiResendWebhookRouteImport } from './routes/api/resend/webhook'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
+import { Route as ShareReportTokenRouteImport } from './routes/share.report.$token'
 import { Route as ApiIntegrationsQboCallbackRouteImport } from './routes/api/integrations/qbo/callback'
 
 const IndexRoute = IndexRouteImport.update({
@@ -131,6 +132,11 @@ const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   path: '/api/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShareReportTokenRoute = ShareReportTokenRouteImport.update({
+  id: '/share/report/$token',
+  path: '/share/report/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiIntegrationsQboCallbackRoute =
   ApiIntegrationsQboCallbackRouteImport.update({
     id: '/api/integrations/qbo/callback',
@@ -159,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/digest': typeof ApiCronDigestRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/share/report/$token': typeof ShareReportTokenRoute
   '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -182,6 +189,7 @@ export interface FileRoutesByTo {
   '/api/cron/digest': typeof ApiCronDigestRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/share/report/$token': typeof ShareReportTokenRoute
   '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
 export interface FileRoutesById {
@@ -206,6 +214,7 @@ export interface FileRoutesById {
   '/api/cron/digest': typeof ApiCronDigestRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/share/report/$token': typeof ShareReportTokenRoute
   '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
 export interface FileRouteTypes {
@@ -231,6 +240,7 @@ export interface FileRouteTypes {
     | '/api/cron/digest'
     | '/api/resend/webhook'
     | '/api/stripe/webhook'
+    | '/share/report/$token'
     | '/api/integrations/qbo/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -254,6 +264,7 @@ export interface FileRouteTypes {
     | '/api/cron/digest'
     | '/api/resend/webhook'
     | '/api/stripe/webhook'
+    | '/share/report/$token'
     | '/api/integrations/qbo/callback'
   id:
     | '__root__'
@@ -277,6 +288,7 @@ export interface FileRouteTypes {
     | '/api/cron/digest'
     | '/api/resend/webhook'
     | '/api/stripe/webhook'
+    | '/share/report/$token'
     | '/api/integrations/qbo/callback'
   fileRoutesById: FileRoutesById
 }
@@ -301,6 +313,7 @@ export interface RootRouteChildren {
   ApiCronDigestRoute: typeof ApiCronDigestRoute
   ApiResendWebhookRoute: typeof ApiResendWebhookRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
+  ShareReportTokenRoute: typeof ShareReportTokenRoute
   ApiIntegrationsQboCallbackRoute: typeof ApiIntegrationsQboCallbackRoute
 }
 
@@ -446,6 +459,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/share/report/$token': {
+      id: '/share/report/$token'
+      path: '/share/report/$token'
+      fullPath: '/share/report/$token'
+      preLoaderRoute: typeof ShareReportTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/integrations/qbo/callback': {
       id: '/api/integrations/qbo/callback'
       path: '/api/integrations/qbo/callback'
@@ -477,6 +497,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronDigestRoute: ApiCronDigestRoute,
   ApiResendWebhookRoute: ApiResendWebhookRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
+  ShareReportTokenRoute: ShareReportTokenRoute,
   ApiIntegrationsQboCallbackRoute: ApiIntegrationsQboCallbackRoute,
 }
 export const routeTree = rootRouteImport
