@@ -4,10 +4,16 @@ import { FirmBilling } from "./firm-billing";
 import type { BillingAccount } from "@/lib/precog/firm/billing-store";
 import { entitlementsFor, type Entitlements } from "@/lib/precog/firm/entitlements";
 import { closedToolsNote, planAmounts } from "@/lib/precog/firm/pricing";
+import { BILLING_TERMS_SENTENCE } from "@/lib/precog/firm/plan-contents";
 
 vi.mock("@/lib/precog/billing/server", () => ({
   openBillingPortal: vi.fn(),
   startCheckout: vi.fn(),
+}));
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
 }));
 
 const prices = {
@@ -69,8 +75,24 @@ describe("FirmBilling with Stripe connected", () => {
     expect(html).toContain(
       "The Firm plan renews until you cancel it in Manage billing; cancelling keeps access to the end of the paid period, and a started month is not refunded. The Assessment is not refunded once a report version is locked. Prices are before sales tax, which Checkout adds for your billing address. See the Terms.",
     );
+    expect(html).toContain(BILLING_TERMS_SENTENCE);
     expect(html).toContain("Pay for the assessment ($1,000)");
     expect(html).toContain("Start the Firm plan ($299 a month)");
+    expect(html).toContain('<a href="/pricing">See pricing</a>');
+    // Without Stripe there is no Checkout, so no pricing link either.
+    expect(
+      renderToStaticMarkup(
+        <FirmBilling
+          plan="assessment"
+          billing={null}
+          billingConfigured={false}
+          prices={null}
+          entitlements={null}
+          canManage
+          onMarkPlan={async () => undefined}
+        />,
+      ),
+    ).not.toContain("See pricing");
   });
 
   it("promises the Assessment credit before it is used, and not after", () => {

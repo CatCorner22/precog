@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { BILLING_TERMS_SENTENCE } from "@/lib/precog/firm/plan-contents";
 import {
   PILOT_OFFER,
   planAmounts,
@@ -134,12 +136,10 @@ export function FirmBilling({
                   Manage billing
                 </Button>
               )}
-              <p className="w-full text-xs text-subtle">
-                The Firm plan renews until you cancel it in Manage billing; cancelling keeps access
-                to the end of the paid period, and a started month is not refunded. The Assessment
-                is not refunded once a report version is locked. Prices are before sales tax, which
-                Checkout adds for your billing address. See the Terms.
-              </p>
+              <p className="w-full text-xs text-subtle">{BILLING_TERMS_SENTENCE}</p>
+              <Link to="/pricing" className="text-xs underline-offset-4 hover:underline">
+                See pricing
+              </Link>
             </>
           ) : (
             <>

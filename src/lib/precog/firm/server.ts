@@ -57,6 +57,7 @@ import {
 import { loadBillingAccount, planToStore } from "./billing-store";
 import { businessLimitMessage } from "../business-lifecycle";
 import { countClients, loadEntitlements, requireEntitlement } from "./entitlements.server";
+import { recordFirst } from "../telemetry/events.server";
 import {
   businessInput,
   EMAIL,
@@ -401,6 +402,7 @@ export const recordMonthlyReview = createServerFn({ method: "POST" })
     await insertReviewEvent(sql, owner, data, context.userId);
     const { bridgeMonthlyReview } = await import("../controls/review-bridge.server");
     const bridged = await bridgeMonthlyReview(sql, context.userId, data, data.today);
+    await recordFirst(sql, context.userId, "first_monthly_review", data.businessId);
     return { ok: true as const, ...bridged };
   });
 
@@ -434,6 +436,7 @@ export const lockReport = createServerFn({ method: "POST" })
       id: `rv_${randomHex(12)}`,
       freeze: (profile) => freezeReport(profile, data.today),
     });
+    await recordFirst(sql, context.userId, "first_locked_version", data.businessId);
     return { version };
   });
 
@@ -516,6 +519,7 @@ export const markReportSent = createServerFn({ method: "POST" })
     const sql = await getSql();
     const where = await requireReportVersion(sql, context.userId, data.id);
     await markReportVersionSent(sql, where.ownerUserId, data.id);
+    await recordFirst(sql, context.userId, "first_report_sent", where.businessId);
     return { ok: true as const };
   });
 

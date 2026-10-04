@@ -225,13 +225,43 @@ describe("account export covers every table the account owns", () => {
     await pg.query(
       `insert into business_deletion_markers (user_id, business_id) values ('ua', 'biz_gone')`,
     );
+    await pg.query(
+      `update firms set letterhead = '1 Main St', logo_data_url = 'data:image/png;base64,iVBORw0KGgo=', cover_page = false`,
+    );
+    await pg.query(
+      `update report_versions set firm_name = 'Alpha CPA', firm_letterhead = '1 Main St'`,
+    );
+    await pg.query(
+      `insert into product_events (user_id, event, business_id, occurred_at)
+       values ('ua', 'first_business', 'biz_1', '2026-09-01T00:00:00Z'),
+              ('ua', 'first_locked_version', 'biz_1', '2026-09-02T00:00:00Z'),
+              ('ub', 'first_business', 'biz_1', '2026-09-03T00:00:00Z')`,
+    );
 
     const out = await exportAccountRows(sql, "ua");
     expect(out).not.toHaveProperty("businessHistory");
     const history = await exportBusinessHistoryPage(sql, "ua", "biz_1", null);
     expect(history.rows.map((h) => h.name)).toEqual(["Biz before"]);
     expect(out.reportVersions.map((r) => r.scopeNote)).toEqual(["Year-end review"]);
-    expect(out.firm?.name).toBe("Alpha CPA");
+    expect(out.reportVersions[0].firm).toEqual({
+      name: "Alpha CPA",
+      letterhead: "1 Main St",
+      logoDataUrl: null,
+    });
+    expect(out.firm).toMatchObject({
+      name: "Alpha CPA",
+      letterhead: "1 Main St",
+      logoDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+      coverPage: false,
+    });
+    expect(out.activity).toEqual([
+      { event: "first_business", businessId: "biz_1", occurredAt: "2026-09-01T00:00:00.000Z" },
+      {
+        event: "first_locked_version",
+        businessId: "biz_1",
+        occurredAt: "2026-09-02T00:00:00.000Z",
+      },
+    ]);
     expect(out.firmMemberships).toEqual([
       expect.objectContaining({ firmUserId: "ua", role: "owner" }),
     ]);
