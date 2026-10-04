@@ -46,6 +46,7 @@ import { AccountDataControls } from "@/components/precog/account-menu";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
 import { DigestConsentPrompt } from "@/components/precog/digest-consent-prompt";
 import { DigestStateProvider } from "@/components/precog/digest-state";
+import { GuestImportPrompt } from "@/components/precog/guest-import-prompt";
 import {
   CountBadge,
   MoreTabsMenu,
@@ -55,6 +56,7 @@ import {
 } from "@/components/precog/home-shell-parts";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { NeedsAttentionMenu } from "@/components/precog/needs-attention-menu";
+import { PaymentOverdueBanner } from "@/components/precog/payment-overdue-banner";
 import { PresentationToggle } from "@/components/precog/presentation-toggle";
 import { SaveConflictBanner } from "@/components/precog/save-conflict-banner";
 import { StartHere } from "@/components/precog/start-here";
@@ -238,6 +240,12 @@ function Home() {
           <IndustryOnboarding />
         </Suspense>
       )}
+      {/* Guest work from before sign-in: asked outside the inert shell and
+          above setup, because on a first sign-in the account is empty and
+          setup is open; saving the guest business opens it and closes setup. */}
+      <SignedIn>
+        <GuestImportPrompt />
+      </SignedIn>
       <div inert={showOnboarding}>
         <a
           href="#main-content"
@@ -285,6 +293,7 @@ function Home() {
             </div>
           </div>
           <SignedIn>
+            <PaymentOverdueBanner variant="home" />
             <DigestConsentPrompt />
           </SignedIn>
           <TabStrip activeId={tab} onKeyDown={onTabKeyDown} tabCount={TABS.length}>
