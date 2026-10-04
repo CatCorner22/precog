@@ -17,6 +17,15 @@ export interface MapBackup {
   dropped: number;
 }
 
+/** Largest map backup the importer reads, in bytes; checked before the file is parsed. */
+export const MAX_MAP_BACKUP_BYTES = 2 * 1024 * 1024;
+
+/** Why a backup of `bytes` refuses to import, or null when its size is fine. */
+export function mapBackupSizeRefusal(bytes: number): string | null {
+  if (bytes <= MAX_MAP_BACKUP_BYTES) return null;
+  return `This file is too large to import (${Math.ceil(bytes / 1024 / 1024)} MB; the limit is 2 MB). Export a smaller map, or split it first.`;
+}
+
 /** The JSON backup the builder's Export writes. */
 export function mapBackupJson(backup: {
   industry: IndustryId;
