@@ -27,10 +27,8 @@ export function shareErrorView(reason: string): ShareErrorView {
         kind: "passcode",
         message: `After ${PASSCODE_ATTEMPT_LIMIT} wrong passcodes this link locks for ${PASSCODE_ATTEMPT_WINDOW_MINUTES} minutes. Ask the owner for the passcode and try again then.`,
       };
-    case "revoked":
-      return { kind: "message", message: "The owner revoked this link.", retry: false };
-    case "expired":
-      return { kind: "message", message: "This link has expired.", retry: false };
+    case "unavailable":
+      return { kind: "message", message: "This link is not valid.", retry: false };
     case "network":
       return {
         kind: "message",

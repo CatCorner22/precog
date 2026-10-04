@@ -21,7 +21,12 @@ describe("shareErrorView", () => {
       message: "Too many opens from this address. Wait a minute, then try again.",
       retry: true,
     });
-    for (const reason of ["revoked", "expired", "missing", "invalid", "anything-else"]) {
+    expect(shareErrorView("unavailable")).toMatchObject({
+      kind: "message",
+      message: "This link is not valid.",
+      retry: false,
+    });
+    for (const reason of ["anything-else"]) {
       expect(shareErrorView(reason)).toMatchObject({ kind: "message", retry: false });
     }
   });

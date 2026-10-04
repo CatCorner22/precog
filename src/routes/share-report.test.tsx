@@ -44,14 +44,14 @@ describe("the shared report page", () => {
     expect(source).toContain("heading={SHARED_REPORT_UNAVAILABLE}");
     const html = renderToStaticMarkup(
       <ShareGate
-        reason="revoked"
+        reason="unavailable"
         heading={SHARED_REPORT_UNAVAILABLE}
         onRetry={() => undefined}
         onPasscode={() => undefined}
       />,
     );
     expect(html).toContain("Shared report unavailable");
-    expect(html).toContain("The owner revoked this link.");
+    expect(html).toContain("This link is not valid.");
     expect(html).toContain("Go to Precog");
     expect(html).not.toContain("Try again");
     // A network failure offers a retry; the map page keeps its own heading.
