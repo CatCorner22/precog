@@ -146,6 +146,51 @@ describe("report versions", () => {
     expect(await reportFirmName(db.sql, "owner", "biz_missing")).toBeNull();
   });
 
+  it("freezes the firm's name and letterhead into a firm client's version, and null for a solo one", async () => {
+    const logo = "data:image/png;base64,iVBORw0KGgo=";
+    await db.pg.query(
+      `insert into firms (user_id, name, letterhead, logo_data_url)
+       values ('owner', 'North Advisors', '12 Elm St', $1)`,
+      [logo],
+    );
+    const solo = await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_solo",
+    });
+    expect(solo.firm).toBeNull();
+    await db.pg.query("update businesses set firm_user_id = 'owner'");
+    const v = await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_firm",
+    });
+    expect(v.firm).toEqual({ name: "North Advisors", letterhead: "12 Elm St", logoDataUrl: logo });
+    // A later rename or new letterhead leaves the version as it was printed.
+    await db.pg.query(
+      "update firms set name = 'North & Co', letterhead = '', logo_data_url = null",
+    );
+    const kept = await loadReportVersion(db.sql, "owner", "rv_firm");
+    expect(kept?.version.firm).toEqual({
+      name: "North Advisors",
+      letterhead: "12 Elm St",
+      logoDataUrl: logo,
+    });
+    // The list carries the name and letterhead but never the logo, which only
+    // the single-version load above carries.
+    expect((await listReportVersions(db.sql, "owner", "biz_1")).map((r) => r.firm)).toEqual([
+      { name: "North Advisors", letterhead: "12 Elm St", logoDataUrl: null },
+      null,
+    ]);
+    // A version stored before the snapshot columns existed reads as null.
+    await db.pg.query("update report_versions set firm_name = null where id = 'rv_firm'");
+    expect((await loadReportVersion(db.sql, "owner", "rv_firm"))?.version.firm).toBeNull();
+  });
+
   it("refuses to lock a deleted or foreign business", async () => {
     await db.sql`update businesses set deleted_at = now()`;
     await expect(
@@ -236,6 +281,7 @@ describe("versionProvenance", () => {
     reviewedAt: null,
     reviewNote: "",
     sentAt: null,
+    firm: null,
   };
 
   it("says who prepared it and who reviewed it for issuance", () => {

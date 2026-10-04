@@ -75,7 +75,7 @@ export function WorkspaceRecovery() {
       )
     )
       return;
-    const copied = copyGuestBusinesses(guest, workspace.local);
+    const copied = copyGuestBusinesses(guest, workspace.local).length;
     setMessage(
       copied
         ? `Copied ${count(copied, "guest business", "guest businesses")}. Open one from the business menu to review and sync it.`

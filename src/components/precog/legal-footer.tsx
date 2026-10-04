@@ -2,8 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { SUPPORT_EMAIL } from "@/lib/precog/legal/operator";
 
 /**
- * Links to the privacy notice, the terms, the support mailbox, and the firm
- * workspace. Shown on the home screen, onboarding, and wherever an account can
+ * Links to the privacy notice, the terms, the support mailbox, the pricing
+ * page, and the firm workspace. Shown on the home screen, onboarding, and wherever an account can
  * be created or a roster saved. The firm workspace passes `hideFirmLink`, so
  * it never links to itself.
  */
@@ -29,6 +29,9 @@ export function LegalFooter({
         >
           Support
         </a>
+        <Link to="/pricing" className="underline-offset-4 hover:text-fg hover:underline">
+          Pricing
+        </Link>
       </nav>
       {!hideFirmLink && (
         <Link

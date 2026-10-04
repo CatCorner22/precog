@@ -74,6 +74,29 @@ export async function withPage(options, body) {
   }
 }
 
+/**
+ * Opens setup as a first-time guest: the home page sends a visitor with no
+ * business to the landing page, whose "Set up your business" link comes
+ * back with the industry radios open. Clears this browser's storage first,
+ * so a sample a previous session left behind does not skip the landing; the
+ * clearing happens on a same-origin page that runs none of Precog's code
+ * (robots.txt), because the home page writes its state back on pagehide.
+ * That page has no icon link, so the browser's own /favicon.ico request is
+ * answered here; its 404 would otherwise land in the console as an error
+ * whose text names no URL.
+ */
+export async function openSetup(page, baseUrl, timeout) {
+  const favicon = (route) => route.fulfill({ status: 204 });
+  await page.route("**/favicon.ico", favicon);
+  await page.goto(`${baseUrl}/robots.txt`, { waitUntil: "load", timeout });
+  await page.evaluate(() => localStorage.clear());
+  await page.unroute("**/favicon.ico", favicon);
+  await page.goto(`${baseUrl}/`, { waitUntil: "networkidle", timeout });
+  await page.waitForURL(/\/welcome$/, { timeout });
+  await page.getByRole("link", { name: "Set up your business" }).click();
+  await page.getByRole("radiogroup").waitFor({ timeout });
+}
+
 /** Waits until `locator` matches exactly `count` elements (Playwright's count() does not wait). */
 export async function waitForCount(locator, count, label = "locator") {
   let seen;

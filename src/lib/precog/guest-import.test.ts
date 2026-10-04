@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { copyGuestBusinesses, importableGuestBusinesses } from "./guest-import";
+import {
+  copyGuestBusinesses,
+  declineGuestBusinesses,
+  importableGuestBusinesses,
+} from "./guest-import";
 import { clearLocalCopies } from "./local-data";
 import {
   ACTIVE_PROFILE_KEY,
@@ -61,15 +65,17 @@ describe("guest work copied into an account", () => {
     const { guest, account } = browser();
     savePortfolioEntry(business("biz_1", "Riverside Dental"), guest);
 
-    expect(copyGuestBusinesses(guest, account)).toBe(1);
+    const ids = copyGuestBusinesses(guest, account);
+    expect(ids).toHaveLength(1);
     const copies = Object.values(loadPortfolio(account));
     expect(copies).toHaveLength(1);
     expect(copies[0].practiceName).toBe("Riverside Dental");
-    expect(copies[0].businessId).not.toBe("biz_1");
+    expect(copies[0].businessId).toBe(ids[0]);
+    expect(ids[0]).not.toBe("biz_1");
     expect(loadPortfolio(guest).biz_1?.practiceName).toBe("Riverside Dental");
 
     expect(importableGuestBusinesses(guest, account)).toEqual([]);
-    expect(copyGuestBusinesses(guest, account)).toBe(0);
+    expect(copyGuestBusinesses(guest, account)).toHaveLength(0);
     expect(Object.keys(loadPortfolio(account))).toHaveLength(1);
   });
 
@@ -92,7 +98,7 @@ describe("guest work copied into an account", () => {
     );
     savePortfolioEntry(business("biz_1", "Riverside Dental", { procedures: [verified] }), guest);
 
-    expect(copyGuestBusinesses(guest, account)).toBe(1);
+    expect(copyGuestBusinesses(guest, account)).toHaveLength(1);
     const [copy] = Object.values(loadPortfolio(account));
     expect(copy.procedures?.[0]?.verifiedAt).toBeUndefined();
     expect(copy.procedures?.[0]?.lastVerifiedAt).toBe("2026-09-10");
@@ -115,7 +121,7 @@ describe("guest work copied into an account", () => {
     savePortfolioEntry(business("biz_1", "Riverside Dental"), guest);
     writeValueProof("biz_1", { valueCase: { hourlyRate: 90 }, evidence: undefined }, guest);
 
-    expect(copyGuestBusinesses(guest, account)).toBe(1);
+    expect(copyGuestBusinesses(guest, account)).toHaveLength(1);
     const [copy] = Object.values(loadPortfolio(account));
     expect(readValueProof(copy.businessId as string, account, { claimLegacy: false })).toEqual({
       valueCase: { hourlyRate: 90 },
@@ -128,6 +134,26 @@ describe("guest work copied into an account", () => {
     savePortfolioEntry(business("biz_1", "Riverside Dental"), guest);
     copyGuestBusinesses(guest, account);
     expect(importableGuestBusinesses(guest, other)).toHaveLength(1);
+  });
+
+  it("remembers 'Not now' per account and guest business; the recovery panel still sees them", () => {
+    const { guest, account, other } = browser();
+    savePortfolioEntry(business("biz_1", "Riverside Dental"), guest);
+    declineGuestBusinesses(guest, account);
+    savePortfolioEntry(business("biz_2", "Hillcrest Vet"), guest);
+
+    const prompt = importableGuestBusinesses(guest, account, { includeDeclined: false });
+    expect(prompt.map((p) => p.practiceName)).toEqual(["Hillcrest Vet"]);
+    expect(importableGuestBusinesses(guest, account)).toHaveLength(2);
+    expect(importableGuestBusinesses(guest, other, { includeDeclined: false })).toHaveLength(2);
+
+    // The prompt's Save copies only what it offered; the panel copies the rest.
+    expect(copyGuestBusinesses(guest, account, { includeDeclined: false })).toHaveLength(1);
+    expect(Object.values(loadPortfolio(account)).map((p) => p.practiceName)).toEqual([
+      "Hillcrest Vet",
+    ]);
+    expect(copyGuestBusinesses(guest, account)).toHaveLength(1);
+    expect(importableGuestBusinesses(guest, account)).toEqual([]);
   });
 });
 

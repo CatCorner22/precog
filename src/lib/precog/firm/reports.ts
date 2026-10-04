@@ -3,13 +3,15 @@ import { inTransaction } from "@/lib/sql-transaction";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { formatDay } from "../dates";
 import { RequestError } from "@/lib/request-errors";
+import type { FirmSnapshot } from "./store";
 
 /**
  * Locked report versions. Locking freezes the business as the account holds
  * it (the saved row, not whatever the browser has unsaved) under the next
- * version number, with the preparer's name. A reviewer of the same firm, who
- * is not the preparer, reviews it for issuance. Nothing on a version changes
- * afterwards except the sent stamp.
+ * version number, with the preparer's name, and, for a firm client, the
+ * firm's name and letterhead as they were that day. A reviewer of the same
+ * firm, who is not the preparer, reviews it for issuance. Nothing on a
+ * version changes afterwards except the sent stamp.
  */
 export interface ReportVersionRow {
   id: string;
@@ -25,6 +27,13 @@ export interface ReportVersionRow {
   reviewedAt: string | null;
   reviewNote: string;
   sentAt: string | null;
+  /**
+   * The firm as frozen at lock; null for a solo business and for versions
+   * locked before migration 0041. The versions list carries the name and
+   * letterhead with `logoDataUrl` null (up to 50 rows, nothing prints the
+   * logo there); only the single-version load carries the logo.
+   */
+  firm: FirmSnapshot | null;
 }
 
 export class ReportVersionError extends RequestError {
@@ -37,7 +46,8 @@ export class ReportVersionError extends RequestError {
 const VERSION_COLUMNS = `
   v.id, v.business_id, v.version_no, v.revision, v.scope_note,
   v.prepared_by, p.name as prepared_by_name, v.prepared_at,
-  v.reviewed_by, r.name as reviewed_by_name, v.reviewed_at, v.review_note, v.sent_at
+  v.reviewed_by, r.name as reviewed_by_name, v.reviewed_at, v.review_note, v.sent_at,
+  v.firm_name, v.firm_letterhead
 `;
 const VERSION_JOINS = `
   left join "user" p on p.id = v.prepared_by
@@ -58,6 +68,10 @@ interface RawVersion {
   reviewed_at: string | null;
   review_note: string;
   sent_at: string | null;
+  firm_name: string | null;
+  firm_letterhead: string | null;
+  /** Selected by the single-version load only; the list leaves it out. */
+  firm_logo_data_url?: string | null;
 }
 
 function toRow(r: RawVersion): ReportVersionRow {
@@ -75,6 +89,14 @@ function toRow(r: RawVersion): ReportVersionRow {
     reviewedAt: toIsoTimestampOrNull(r.reviewed_at),
     reviewNote: r.review_note,
     sentAt: toIsoTimestampOrNull(r.sent_at),
+    firm:
+      r.firm_name === null
+        ? null
+        : {
+            name: r.firm_name,
+            letterhead: r.firm_letterhead ?? "",
+            logoDataUrl: r.firm_logo_data_url ?? null,
+          },
   };
 }
 
@@ -116,10 +138,13 @@ export async function lockReportVersion(
     `;
     if (!business[0]) throw new ReportVersionError(404, "That client is not on this account");
     const frozen = input.freeze?.(business[0].profile) ?? null;
+    // The firm's name and letterhead are copied in as they are today, through
+    // the same join `reportFirmName` uses, so a solo business freezes none.
     await tx`
       insert into report_versions
         (id, user_id, business_id, version_no, revision, profile, scope_note, prepared_by,
-         scoring_version, layout_version, report_model)
+         scoring_version, layout_version, report_model,
+         firm_name, firm_letterhead, firm_logo_data_url)
       select
         ${input.id},
         b.user_id,
@@ -134,8 +159,12 @@ export async function lockReportVersion(
         ${input.preparedBy},
         ${frozen?.scoringVersion ?? null},
         ${frozen?.layoutVersion ?? null},
-        ${frozen?.model ? JSON.stringify(frozen.model) : null}::jsonb
+        ${frozen?.model ? JSON.stringify(frozen.model) : null}::jsonb,
+        f.name,
+        f.letterhead,
+        f.logo_data_url
       from businesses b
+      left join firms f on f.user_id = b.firm_user_id
       where b.user_id = ${input.ownerUserId} and b.id = ${input.businessId}
     `;
     return loadReportVersion(tx, input.ownerUserId, input.id);
@@ -158,14 +187,14 @@ export async function listReportVersions(
   return rows.map(toRow);
 }
 
-/** One version with its frozen profile, or null. */
+/** One version with its frozen profile and the firm's frozen logo, or null. */
 export async function loadReportVersion<TProfile = unknown>(
   sql: Sql,
   ownerUserId: string,
   id: string,
 ): Promise<{ version: ReportVersionRow; profile: TProfile } | null> {
   const rows = await sql.query<RawVersion & { profile: TProfile }>(
-    `select ${VERSION_COLUMNS}, v.profile from report_versions v ${VERSION_JOINS}
+    `select ${VERSION_COLUMNS}, v.firm_logo_data_url, v.profile from report_versions v ${VERSION_JOINS}
      where v.user_id = $1 and v.id = $2`,
     [ownerUserId, id],
   );

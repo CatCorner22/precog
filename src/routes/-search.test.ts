@@ -50,6 +50,14 @@ describe("the home page address", () => {
     expect(home({ business: 42 })).toEqual({});
   });
 
+  it("keeps the landing page's way in, and drops anything that is not it", () => {
+    expect(home({ start: true })).toEqual({ start: true });
+    expect(home({ start: "1" })).toEqual({ start: true });
+    expect(home({ start: "0" })).toEqual({});
+    expect(home({ start: false })).toEqual({});
+    expect(home({ start: "yes" })).toEqual({});
+  });
+
   it("opens the place an older tab id became", () => {
     expect(home({ tab: "journal" })).toEqual({ tab: "monthly", item: "decisions" });
     expect(home({ tab: "coso" })).toEqual({ tab: "scores", item: "coverage" });

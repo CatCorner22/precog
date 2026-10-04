@@ -6,6 +6,8 @@ import type { ReviewItemKey, ReviewResult } from "./reviews";
 import { RequestError } from "@/lib/request-errors";
 import { randomHex } from "@/lib/web-crypto";
 import { revokeDepartingMemberShares } from "../share/share-store";
+import { transferBusinessesToOwner, type MovedBusiness } from "../business-store";
+import { SUPPORT_EMAIL } from "../legal/operator";
 
 /**
  * A firm is keyed by its owner's account: `firms.user_id` is both the owner
@@ -17,12 +19,27 @@ export type FirmRole = "owner" | "preparer" | "reviewer";
 export type InviteRole = Exclude<FirmRole, "owner">;
 export const INVITE_ROLES: readonly InviteRole[] = ["preparer", "reviewer"];
 
+/**
+ * What a client report prints for the firm: its name, the letterhead text
+ * under it (address and contact as the firm writes them) and the logo as a
+ * data URL. Frozen into each locked version at lock (migration 0041).
+ */
+export interface FirmSnapshot {
+  name: string;
+  letterhead: string;
+  logoDataUrl: string | null;
+}
+
 export interface FirmContext {
   /** The owner's user id, which is the firm's id. */
   firmUserId: string;
   name: string;
   plan: FirmPlan;
   role: FirmRole;
+  letterhead: string;
+  logoDataUrl: string | null;
+  /** Whether client reports open with a cover page. */
+  coverPage: boolean;
 }
 
 export interface FirmMember {
@@ -83,8 +100,16 @@ const MAX_MEMBERS_PER_FIRM = 25;
 
 /** The firm `userId` works in: their own when they own one, else the one they joined. */
 export async function loadFirmFor(sql: Sql, userId: string): Promise<FirmContext | null> {
-  const rows = await sql<{ firm_user_id: string; name: string; plan: string; role: string }>`
-    select m.firm_user_id, f.name, f.plan, m.role
+  const rows = await sql<{
+    firm_user_id: string;
+    name: string;
+    plan: string;
+    role: string;
+    letterhead: string;
+    logo_data_url: string | null;
+    cover_page: boolean;
+  }>`
+    select m.firm_user_id, f.name, f.plan, m.role, f.letterhead, f.logo_data_url, f.cover_page
     from firm_members m
     join firms f on f.user_id = m.firm_user_id
     where m.member_user_id = ${userId}
@@ -98,7 +123,34 @@ export async function loadFirmFor(sql: Sql, userId: string): Promise<FirmContext
     name: row.name,
     plan: asPlan(row.plan),
     role: asRole(row.role),
+    letterhead: row.letterhead,
+    logoDataUrl: row.logo_data_url,
+    coverPage: Boolean(row.cover_page),
   };
+}
+
+/**
+ * The letterhead, logo and cover-page switch of the caller's own firm, as
+ * printed on its clients' reports from now on; versions locked earlier keep
+ * the copy they were locked with. A member of someone else's firm, or an
+ * account with no firm, cannot set one.
+ */
+export async function saveFirmLetterhead(
+  sql: Sql,
+  userId: string,
+  input: { letterhead: string; logoDataUrl: string | null; coverPage: boolean },
+): Promise<FirmContext> {
+  const rows = await sql`
+    update firms
+    set letterhead = ${input.letterhead}, logo_data_url = ${input.logoDataUrl},
+      cover_page = ${input.coverPage}, updated_at = now()
+    where user_id = ${userId}
+    returning user_id
+  `;
+  if (!rows.length) throw new RequestError(404, "Set up the firm first");
+  const firm = await loadFirmFor(sql, userId);
+  if (!firm || firm.firmUserId !== userId) throw new RequestError(404, "Set up the firm first");
+  return firm;
 }
 
 export class FirmMembershipError extends RequestError {
@@ -125,14 +177,13 @@ export async function saveFirm(
       `You are a member of ${current.name}. Leave it before starting a firm of your own.`,
     );
   }
-  const rows = await sql<{ name: string; plan: string }>`
+  await sql`
     insert into firms (user_id, name, plan, updated_at)
     values (${userId}, ${name}, coalesce(${plan}::text, 'assessment'), now())
     on conflict (user_id) do update set
       name = excluded.name,
       plan = coalesce(${plan}::text, firms.plan),
       updated_at = now()
-    returning name, plan
   `;
   // The owner's membership row always says owner, whatever wrote it last.
   await sql`
@@ -145,8 +196,9 @@ export async function saveFirm(
     update businesses set firm_user_id = ${userId}
     where user_id = ${userId} and firm_user_id is null
   `;
-  const row = rows[0];
-  return { firmUserId: userId, name: row.name, plan: asPlan(row.plan), role: "owner" };
+  const saved = await loadFirmFor(sql, userId);
+  if (!saved) throw new Error("Unable to save the firm");
+  return saved;
 }
 
 /** Sets the plan alone, as the billing webhook does. */
@@ -191,16 +243,17 @@ export async function setMemberRole(
 }
 
 /**
- * Removes a member. The businesses they own leave the firm with them, so the
- * firm keeps no access to a departed colleague's clients.
+ * Removes a member. The client businesses they set up for the firm stay with
+ * it, under the owner's account (see `transferBusinessesToOwner`); the
+ * businesses they kept outside the firm stay theirs. Returns what moved.
  */
 export async function removeMember(
   sql: Sql,
   firmUserId: string,
   memberUserId: string,
-): Promise<void> {
+): Promise<MovedBusiness[]> {
   if (memberUserId === firmUserId) throw new FirmMembershipError("Nobody can remove the owner.");
-  await detachMember(sql, firmUserId, memberUserId);
+  return detachMember(sql, firmUserId, memberUserId);
 }
 
 /**
@@ -306,8 +359,9 @@ export function maskEmail(email: string): string {
  *   - "mismatch": its address is confirmed and real but another one, so the
  *     invitation is not for it;
  *   - "confirm": Precog cannot vouch for its address (an unconfirmed password
- *     sign-up, or X, whose sign-in carries a made-up address), so the person
- *     must say they are the one invited, and the firm owner hears of it.
+ *     sign-up, or X, whose sign-in carries a made-up address), so it cannot
+ *     join: joining needs a confirmed address that is the invited one, from a
+ *     Google sign-in or a confirmed email-and-password account.
  */
 export type InviteFit = "match" | "mismatch" | "confirm";
 
@@ -351,8 +405,6 @@ export async function inviteFit(
 
 export interface AcceptedInvite {
   firm: FirmContext;
-  /** Set when Precog could not match the account to the invited address; the firm owner is told. */
-  unmatched: { invitedEmail: string; accountEmail: string } | null;
 }
 
 /**
@@ -367,7 +419,6 @@ export async function acceptInvite(
   sql: Sql,
   token: string,
   userId: string,
-  _options: { confirmOtherEmail?: boolean } = {},
 ): Promise<AcceptedInvite> {
   return inTransaction(sql, async (tx) => {
     const invites = await tx<{ firm_user_id: string; role: string; email: string }>`
@@ -389,7 +440,7 @@ export async function acceptInvite(
       throw new FirmMembershipError(
         fit === "mismatch"
           ? `The firm sent this invitation to ${maskEmail(invite.email)}, and you are signed in as ${accountEmail}. Sign in with the invited address, or ask the firm owner to invite ${accountEmail}.`
-          : `Precog cannot match this account to ${maskEmail(invite.email)}. Confirm that email on this account, then open the invitation again.`,
+          : `Precog cannot vouch for this account's address. Joining a firm needs a confirmed address that is the invited one: sign in with Google under ${maskEmail(invite.email)}, or with an email-and-password account you have confirmed, then open the invitation again.`,
       );
     }
     const current = await loadFirmFor(tx, userId);
@@ -419,40 +470,123 @@ export async function acceptInvite(
     `;
     const joined = await loadFirmFor(tx, userId);
     if (!joined) throw new Error("Unable to join the firm");
-    return {
-      firm: joined,
-      unmatched: null,
-    };
+    return { firm: joined };
   });
 }
 
-/** A member leaves, taking the businesses they own with them; the owner cannot leave. */
-export async function leaveFirm(sql: Sql, firmUserId: string, userId: string): Promise<void> {
+/**
+ * A member leaves; the client businesses they set up stay with the firm, as
+ * on removal. The owner cannot leave. Returns what moved.
+ */
+export async function leaveFirm(
+  sql: Sql,
+  firmUserId: string,
+  userId: string,
+): Promise<MovedBusiness[]> {
   if (firmUserId === userId) throw new FirmMembershipError("The owner cannot leave the firm.");
-  await detachMember(sql, firmUserId, userId);
+  return detachMember(sql, firmUserId, userId);
 }
 
 /**
- * Ends a membership and takes the member's own businesses (live and deleted)
- * out of the firm. Share links that crossed the line (the member's links to
- * the firm's clients, colleagues' links to the member's businesses) are
- * revoked first, while the businesses still name the firm.
+ * Ends a membership and hands the member's firm clients (live and deleted)
+ * to the owner's account. The member's share links to the firm's clients,
+ * their own included, are revoked first, while the rows still name them;
+ * colleagues' links to those clients keep working, since the clients stay.
  */
-async function detachMember(sql: Sql, firmUserId: string, memberUserId: string): Promise<void> {
-  await inTransaction(sql, async (tx) => {
+async function detachMember(
+  sql: Sql,
+  firmUserId: string,
+  memberUserId: string,
+): Promise<MovedBusiness[]> {
+  return inTransaction(sql, async (tx) => {
     await revokeDepartingMemberShares(tx, firmUserId, memberUserId);
     await tx`
       delete from firm_members
       where firm_user_id = ${firmUserId} and member_user_id = ${memberUserId} and role <> 'owner'
     `;
-    await tx`
-      update businesses set firm_user_id = null
-      where user_id = ${memberUserId} and firm_user_id = ${firmUserId}
+    return transferBusinessesToOwner(tx, { firmUserId, memberUserId });
+  });
+}
+
+/**
+ * Hands the firm to one of its members, in one transaction. The firm is
+ * keyed by its owner's account, so the move is a new `firms` row under the
+ * new owner, every row that names the firm repointed (members, invitations,
+ * client businesses, deletion markers, which are `on delete set null` and so
+ * go before the old row), the billing row moved, and the old `firms` row
+ * deleted last. The new owner's role becomes owner and the old owner's
+ * reviewer. Refused while the firm's payment is overdue or disputed, for a
+ * non-member, for someone who owns a firm, and for someone who already has
+ * a billing record (impossible through the product; Support untangles it).
+ * The Stripe side (customer and subscription metadata) is the caller's.
+ */
+export async function transferFirmOwnership(
+  sql: Sql,
+  firmUserId: string,
+  newOwnerUserId: string,
+): Promise<void> {
+  if (newOwnerUserId === firmUserId) {
+    throw new FirmMembershipError("You already own this firm.");
+  }
+  await inTransaction(sql, async (tx) => {
+    await tx`select id from "user" where id in (${firmUserId}, ${newOwnerUserId}) order by id for update`;
+    const firms = await tx<{
+      name: string;
+      plan: string;
+      letterhead: string;
+      logo_data_url: string | null;
+      cover_page: boolean;
+    }>`
+      select name, plan, letterhead, logo_data_url, cover_page
+      from firms where user_id = ${firmUserId} for update
     `;
-    await tx`
-      update business_deletion_markers set firm_user_id = null
-      where user_id = ${memberUserId} and firm_user_id = ${firmUserId}
+    const firm = firms[0];
+    if (!firm) throw new RequestError(404, "Set up the firm first");
+    const people = await tx<{ name: string | null; email: string }>`
+      select name, email from "user" where id = ${newOwnerUserId}
     `;
+    const name = people[0]?.name || people[0]?.email || "That account";
+    const member = await tx`
+      select 1 from firm_members
+      where firm_user_id = ${firmUserId} and member_user_id = ${newOwnerUserId}
+    `;
+    if (!member.length) throw new FirmMembershipError(`${name} is not a member of ${firm.name}.`);
+    const owns = await tx`select 1 from firms where user_id = ${newOwnerUserId}`;
+    if (owns.length) throw new FirmMembershipError(`${name} already owns a firm.`);
+    const billing = await tx<{ subscription_status: string | null; disputed: boolean }>`
+      select subscription_status, assessment_disputed_at is not null as disputed
+      from billing_accounts where user_id = ${firmUserId} for update
+    `;
+    if (billing[0]?.subscription_status === "past_due" || billing[0]?.disputed) {
+      throw new FirmMembershipError(
+        `The firm cannot change owner while its payment is overdue or a payment is disputed. Fix that in Manage billing first, or write to ${SUPPORT_EMAIL}.`,
+      );
+    }
+    const theirs = await tx`select 1 from billing_accounts where user_id = ${newOwnerUserId}`;
+    if (theirs.length) {
+      throw new FirmMembershipError(
+        `${name} already has a billing record, so Precog cannot move the firm's billing to them. Write to ${SUPPORT_EMAIL}.`,
+      );
+    }
+    await tx`
+      insert into firms (user_id, name, plan, letterhead, logo_data_url, cover_page, updated_at)
+      values (${newOwnerUserId}, ${firm.name}, ${firm.plan}, ${firm.letterhead},
+        ${firm.logo_data_url}, ${firm.cover_page}, now())
+    `;
+    await tx`update firm_members set firm_user_id = ${newOwnerUserId} where firm_user_id = ${firmUserId}`;
+    await tx`
+      update firm_members set role = case member_user_id
+        when ${newOwnerUserId} then 'owner' when ${firmUserId} then 'reviewer' else role end
+      where firm_user_id = ${newOwnerUserId}
+    `;
+    await tx`update firm_invites set firm_user_id = ${newOwnerUserId} where firm_user_id = ${firmUserId}`;
+    await tx`update businesses set firm_user_id = ${newOwnerUserId} where firm_user_id = ${firmUserId}`;
+    await tx`
+      update business_deletion_markers set firm_user_id = ${newOwnerUserId}
+      where firm_user_id = ${firmUserId}
+    `;
+    await tx`update billing_accounts set user_id = ${newOwnerUserId}, updated_at = now() where user_id = ${firmUserId}`;
+    await tx`delete from firms where user_id = ${firmUserId}`;
   });
 }
 

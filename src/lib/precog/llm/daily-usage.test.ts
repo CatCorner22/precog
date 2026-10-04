@@ -7,6 +7,7 @@ import {
   createDailyUsagePurger,
   purgeOldDailyUsage,
   takeDailyBudget,
+  userDailyLimits,
   withinDailyBudget,
 } from "./daily-usage";
 
@@ -178,8 +179,22 @@ describe("withinDailyBudget", () => {
     const purge = createDailyUsagePurger();
     expect(await withinDailyBudget(async () => sql, "a", undefined, purge)).toBe(true);
     const rows = await sql<{ scope: string }>`select scope from llm_daily_usage order by scope`;
-    // "a" has no verified email or social sign-in, so it draws on the shared pool too.
-    expect(rows.map((r) => r.scope)).toEqual(["global", "pool:unverified", "user:a"]);
+    // "a" is on the free plan, so it draws on the free pool, and has no
+    // verified email or social sign-in, so on the unverified pool too.
+    expect(rows.map((r) => r.scope)).toEqual(["global", "pool:free", "pool:unverified", "user:a"]);
+  });
+
+  it("prints the figures in force for a plan, with the paid one beside the free one", () => {
+    expect(userDailyLimits("free")).toEqual({ limit: 100, paidLimit: 400 });
+    expect(userDailyLimits("paid")).toEqual({ limit: 400, paidLimit: 400 });
+    expect(userDailyLimits("free", { perUser: 7, perUserPaid: 30, global: 100 })).toEqual({
+      limit: 7,
+      paidLimit: 30,
+    });
+    expect(userDailyLimits("paid", { perUser: 7, global: 100 })).toEqual({
+      limit: 7,
+      paidLimit: 7,
+    });
   });
 });
 
@@ -228,6 +243,69 @@ describe("shares of the global budget", () => {
     expect(rows.find((r) => r.scope === "user:verified-1")?.calls).toBe(2);
     // The address is stored hashed.
     expect(rows.some((r) => r.scope.includes("198.51"))).toBe(false);
+  });
+
+  it("holds free accounts to their shared pool while a paid account still passes", async () => {
+    const shared = { ...limits, perUser: 3, perUserPaid: 10, freePool: 4, unverified: 100 };
+    const calls = (user: string, plan: "free" | "paid") =>
+      checkDailyBudget(async () => sql, user, shared, noPurge, null, plan);
+    let admitted = 0;
+    for (const user of ["google-1", "verified-1", "free-1"]) {
+      for (let i = 0; i < 3; i += 1) {
+        if ((await calls(user, "free")) === "allowed") admitted += 1;
+      }
+    }
+    expect(admitted).toBe(4);
+    // free-2 has spent nothing itself: the pool, not its own ceiling, is full.
+    expect(await calls("free-2", "free")).toBe("spent-pool");
+    // A paid account draws on the global budget alone, not the free pool.
+    expect(await calls("free-2", "paid")).toBe("allowed");
+    const rows = await sql<{ scope: string; calls: number }>`
+      select scope, calls from llm_daily_usage order by scope
+    `;
+    expect(rows.find((r) => r.scope === "pool:free")?.calls).toBe(4);
+    expect(rows.find((r) => r.scope === "global")?.calls).toBe(5);
+  });
+
+  it("gives a paid account the paid allowance, and stops it there", async () => {
+    const shared = { ...limits, perUser: 1, perUserPaid: 3, unverified: 100 };
+    const calls = (plan: "free" | "paid") =>
+      checkDailyBudget(async () => sql, "google-1", shared, noPurge, null, plan);
+    expect(await calls("paid")).toBe("allowed");
+    expect(await calls("paid")).toBe("allowed");
+    expect(await calls("paid")).toBe("allowed");
+    expect(await calls("paid")).toBe("spent");
+    // The same account on the free plan is already past the free allowance.
+    expect(await calls("free")).toBe("spent");
+  });
+
+  it("tells a full address or unverified pool apart from the caller's own ceiling", async () => {
+    const shared = { ...limits, perUser: 5, perUserPaid: 5, perAddress: 2, unverified: 1 };
+    const calls = (user: string, address: string | null) =>
+      checkDailyBudget(async () => sql, user, shared, noPurge, address, "paid");
+    expect(await calls("google-1", "198.51.100.7")).toBe("allowed");
+    expect(await calls("google-1", "198.51.100.7")).toBe("allowed");
+    // The office address is full; verified-1 itself has made no call today.
+    expect(await calls("verified-1", "198.51.100.7")).toBe("spent-pool");
+    expect(await calls("verified-1", null)).toBe("allowed");
+    // The unverified pool, after free-1 fills it: free-2 has made no call.
+    expect(await calls("free-1", null)).toBe("allowed");
+    expect(await calls("free-2", null)).toBe("spent-pool");
+    // Their own ceiling, once reached, is named before a pool they share.
+    const own = { ...shared, perUserPaid: 1, perAddress: 100 };
+    expect(await checkDailyBudget(async () => sql, "free-1", own, noPurge, null, "paid")).toBe(
+      "spent",
+    );
+  });
+
+  it("tells the global ceiling apart from the caller's own", async () => {
+    const shared = { ...limits, perUser: 5, perUserPaid: 5, global: 2, unverified: 100 };
+    const calls = (user: string) =>
+      checkDailyBudget(async () => sql, user, shared, noPurge, null, "paid");
+    expect(await calls("google-1")).toBe("allowed");
+    expect(await calls("verified-1")).toBe("allowed");
+    expect(await calls("google-1")).toBe("spent-global");
+    expect(await calls("free-1")).toBe("spent-global");
   });
 });
 

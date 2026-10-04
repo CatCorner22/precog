@@ -32,14 +32,16 @@ export const Route = createFileRoute("/privacy")({
  * (src/lib/precog/procedures/image-store.server.ts), UNCONFIRMED_HOLD_HOURS
  * (src/lib/auth/email-password.server.ts), purgeOldDailyUsage's keepDays
  * (src/lib/precog/llm/daily-usage.ts), MAX_HISTORY_PER_BUSINESS
- * (src/lib/precog/business-retention.ts) and LLM_DAILY_PER_USER's default
- * (src/lib/precog/llm/daily-usage.ts). Change those and this page together.
+ * (src/lib/precog/business-retention.ts) and the defaults of LLM_DAILY_PER_USER
+ * and LLM_DAILY_PER_USER_PAID (src/lib/precog/llm/daily-usage.ts). Change those
+ * and this page together.
  */
 const UNREFERENCED_PICTURE_DAYS = 30;
 const UNCONFIRMED_SIGNUP_HOURS = 24;
 const MODEL_CALL_COUNT_DAYS = 35;
 const MAX_VERSIONS_PER_BUSINESS = 200;
-const MODEL_CALLS_PER_ACCOUNT_PER_DAY = 150;
+const MODEL_CALLS_FREE_PER_DAY = 100;
+const MODEL_CALLS_PAID_PER_DAY = 400;
 
 /** Who handles data on Precog's behalf, and for what. */
 const PROCESSORS: ReadonlyArray<readonly [string, string]> = [
@@ -64,6 +66,14 @@ const RETENTION: ReadonlyArray<readonly [string, string]> = [
   [
     "Locked report versions and the monthly review log of a firm's clients",
     "kept until the business is purged or the account is deleted",
+  ],
+  [
+    "When you first set up a business, locked a report version, marked a report sent or recorded a monthly review",
+    "kept until the account is deleted",
+  ],
+  [
+    "A firm's letterhead and logo",
+    "until the firm changes them or the account is deleted; each locked version keeps the copy it was printed with",
   ],
   ["Pictures no step uses", `${UNREFERENCED_PICTURE_DAYS} days`],
   ["An unconfirmed email-and-password sign-up", `${UNCONFIRMED_SIGNUP_HOURS} hours`],
@@ -128,7 +138,9 @@ function PrivacyPage() {
         <p>
           Until you sign in, Precog stores the business profile, Decisions log, monthly review
           notes, and access-import queue in this browser only. A private window or a full site-data
-          clear removes them. Precog does not save them on its server.
+          clear removes them. Precog does not save them on its server. When you sign in, Precog asks
+          before it copies a business you set up while signed out into your account; it never copies
+          one without asking.
         </p>
         <p>
           Pioneer and the <strong>Review</strong>, <strong>Suggest</strong>, and{" "}
@@ -153,14 +165,22 @@ function PrivacyPage() {
           them.
         </p>
         <p>
+          Precog also notes the day you first set up a business, first locked a report version,
+          first marked a report sent and first recorded a monthly review, so Precog's operator can
+          see whether new accounts get started. That note holds no names and no text you entered,
+          and no analytics script runs in your browser.
+        </p>
+        <p>
           When you connect QuickBooks Online, the database keeps the connection tokens, encrypted,
           and the last twelve readings of the vendor and employee lists. Disconnecting deletes the
-          tokens and those readings.
+          tokens and those readings. When a reading fails or QuickBooks' permission is about to end,
+          Precog emails the firm owner once per problem, whether or not the weekly digest is on.
         </p>
         <p>
           When a firm pays through Stripe, the database keeps the Stripe customer and subscription
           ids, the plan status, and the date the firm paid for the assessment. The card itself goes
-          to Stripe; Precog never sees the card number.
+          to Stripe; Precog never sees the card number. When a Firm plan payment fails, Precog
+          emails the firm owner once and keeps the plan open for 14 days while the card is retried.
         </p>
         <p>
           Deleting your account deletes the Stripe customer record. Stripe keeps the invoices,
@@ -186,8 +206,6 @@ function PrivacyPage() {
           address on their client card, Precog emails the owner once to ask whether they agree to
           reminders, and sends that address nothing more until the owner agrees. Each reminder has a
           link that stops them. When a firm owner invites a colleague, Precog emails the invitation.
-          When someone joins with an invitation that Precog cannot match to their sign-in, Precog
-          emails the firm owner.
         </p>
         <p>
           Shared map links are separate. Anyone with the link can open that frozen map until it
@@ -221,8 +239,9 @@ function PrivacyPage() {
         <p>
           Every member of a firm can open every client business the firm holds, including its
           evidence log. When a member is removed or leaves, the shared map links they made on the
-          firm's clients are revoked, and the client businesses they set up stay with the firm, as
-          the Terms say.
+          firm's clients are revoked, and the client businesses they set up move to the firm owner's
+          account, as the Terms say. The firm owner can hand the firm, its clients, its invitations
+          and its billing to a member; the previous owner stays on as a reviewer.
         </p>
       </section>
 
@@ -291,8 +310,9 @@ function PrivacyPage() {
               {XAI_API_DATA_POLICY_URL}
             </a>
           )}
-          . Precog caps model calls per account per day ({MODEL_CALLS_PER_ACCOUNT_PER_DAY} unless
-          this deployment sets another limit).
+          . Precog caps model calls per account per day ({MODEL_CALLS_FREE_PER_DAY} on the free plan
+          and {MODEL_CALLS_PAID_PER_DAY} on the Firm plan, unless this deployment sets other
+          limits).
         </p>
       </section>
 
@@ -301,17 +321,19 @@ function PrivacyPage() {
         <p>
           Signed in, <strong>Export data</strong> in the header downloads one JSON file of the
           account: businesses, snapshots, shares, the firm record, engagement stamps, and the review
-          log. <strong>Download history</strong>, beside it, downloads each business’s past versions
-          separately, one JSON file per business. For step pictures, the account file lists each
-          picture’s details and the link that shows it while the account exists, not the picture
-          itself. The file leaves out passcode hashes. <strong>Delete account</strong> removes the
-          account and those rows. It asks you to type DELETE first. Precog refuses to delete an
-          account while its Firm plan is active: cancel the plan with Manage billing first. It also
-          refuses while the account holds client businesses it set up for another firm: ask that
-          firm's owner what to keep, delete those businesses yourself, then delete the account. Data
-          requests, including from a person named in a business who has no account, go to{" "}
-          {SUPPORT_EMAIL}. Clearing saved data on this device, from the error screen or after
-          deletion, removes only the browser copy.
+          log and, for a firm owner, a list of the client businesses its members set up; their past
+          versions download through Download history. <strong>Download history</strong>, beside it,
+          downloads each business’s past versions separately, one JSON file per business. For step
+          pictures, the account file lists each picture’s details and the link that shows it while
+          the account exists, not the picture itself. The file leaves out passcode hashes.{" "}
+          <strong>Delete account</strong> removes the account and those rows. It asks you to type
+          DELETE first. Precog refuses to delete an account while its Firm plan is active: cancel
+          the plan with Manage billing first, or make a colleague the firm's owner. It also refuses
+          while the account holds client businesses it set up for another firm: ask that firm's
+          owner to remove you from the firm first (your client businesses stay with the firm), then
+          delete the account. Data requests, including from a person named in a business who has no
+          account, go to {SUPPORT_EMAIL}. Clearing saved data on this device, from the error screen
+          or after deletion, removes only the browser copy.
         </p>
       </section>
 

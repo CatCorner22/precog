@@ -24,6 +24,7 @@ import {
   Users,
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
 import type { DeepLinkTarget } from "@/lib/precog/coso";
 import {
@@ -46,6 +47,10 @@ import { BusinessSwitcher } from "@/components/precog/business-switcher";
 import { DigestConsentPrompt } from "@/components/precog/digest-consent-prompt";
 import { DigestStateProvider } from "@/components/precog/digest-state";
 import {
+  BehindGuestImportPrompt,
+  GuestImportPrompt,
+} from "@/components/precog/guest-import-prompt";
+import {
   CountBadge,
   MoreTabsMenu,
   TabLoading,
@@ -54,6 +59,7 @@ import {
 } from "@/components/precog/home-shell-parts";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { NeedsAttentionMenu } from "@/components/precog/needs-attention-menu";
+import { PaymentOverdueBanner } from "@/components/precog/payment-overdue-banner";
 import { PresentationToggle } from "@/components/precog/presentation-toggle";
 import { SaveConflictBanner } from "@/components/precog/save-conflict-banner";
 import { StartHere } from "@/components/precog/start-here";
@@ -101,6 +107,20 @@ function Home() {
   const { profile, ready, businesses } = usePracticeState();
   const { switchBusiness } = usePracticeActions();
   const { say } = usePresentation();
+  const { user, isPending } = useCurrentUserState();
+
+  // A signed-out visitor with no business on this device lands on the
+  // landing page first; its "Set up your business" link comes back with
+  // `?start=1`, which opens setup here. A signed-in account with no business
+  // sees setup straight away. The list always carries the open business, so
+  // "no business" means the open one is unfinished and it is the only one.
+  const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
+  const noBusiness =
+    profile.onboardingComplete === false && businesses.every((b) => b.id === activeId);
+  const wantsLanding = ready && !isPending && !user && noBusiness && !search.start;
+  useEffect(() => {
+    if (wantsLanding) void navigate({ to: "/welcome", replace: true });
+  }, [wantsLanding, navigate]);
 
   // A digest link names its business (`?business=<id>`): open it once the
   // list holds it, then drop the key so a reload does not switch again. The
@@ -190,6 +210,20 @@ function Home() {
     }
     onboardingWasOpen.current = showOnboarding;
   }, [showOnboarding]);
+  // The guest-work question sits above setup on a first sign-in (the account
+  // is empty, so setup is open too). While it is up, setup is inert so only
+  // the question takes the keyboard; when it closes with setup still open,
+  // focus goes back to setup's question.
+  const [guestPromptOpen, setGuestPromptOpen] = useState(false);
+  const guestPromptWasOpen = useRef(false);
+  useEffect(() => {
+    if (guestPromptWasOpen.current && !guestPromptOpen && showOnboarding) {
+      requestAnimationFrame(() =>
+        document.getElementById("industry-onboarding-title")?.focus({ preventScroll: true }),
+      );
+    }
+    guestPromptWasOpen.current = guestPromptOpen;
+  }, [guestPromptOpen, showOnboarding]);
 
   // The shell computes only what it shows on every tab: the conflict badge.
   // "Needs attention" counts its own items; each tab runs its own engines.
@@ -219,10 +253,18 @@ function Home() {
   return (
     <div className="min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-bg">
       {showOnboarding && (
-        <Suspense fallback={<SetupLoading />}>
-          <IndustryOnboarding />
-        </Suspense>
+        <BehindGuestImportPrompt open={guestPromptOpen}>
+          <Suspense fallback={<SetupLoading />}>
+            <IndustryOnboarding />
+          </Suspense>
+        </BehindGuestImportPrompt>
       )}
+      {/* Guest work from before sign-in: asked outside the inert shell and
+          above setup, because on a first sign-in the account is empty and
+          setup is open; saving the guest business opens it and closes setup. */}
+      <SignedIn>
+        <GuestImportPrompt onOpenChange={setGuestPromptOpen} />
+      </SignedIn>
       <div inert={showOnboarding}>
         <a
           href="#main-content"
@@ -270,6 +312,7 @@ function Home() {
             </div>
           </div>
           <SignedIn>
+            <PaymentOverdueBanner variant="home" />
             <DigestConsentPrompt />
           </SignedIn>
           <TabStrip activeId={tab} onKeyDown={onTabKeyDown} tabCount={TABS.length}>

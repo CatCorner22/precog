@@ -16,13 +16,22 @@ import { withoutVerification } from "./procedures/lifecycle";
 /**
  * Copying guest work into a signed-in account. The guest originals stay where
  * they are; each copy gets a new business id, and the account remembers which
- * guest business it already copied so a second copy never happens.
+ * guest business it already copied so a second copy never happens. An account
+ * that answered "Not now" to the prompt on the home page is remembered too,
+ * per guest business, so the prompt stays down; the recovery panel keeps
+ * offering those.
  */
+
+export interface ImportableOptions {
+  /** False leaves out the guest businesses this account declined in the prompt. */
+  includeDeclined?: boolean;
+}
 
 /** Guest businesses in this browser with real, finished work this account has not copied yet. */
 export function importableGuestBusinesses(
   guest: StorageLike,
   account: StorageLike,
+  { includeDeclined = true }: ImportableOptions = {},
 ): PracticeProfile[] {
   const all = loadPortfolio(guest);
   const raw = readStoredActiveProfile(guest);
@@ -34,14 +43,19 @@ export function importableGuestBusinesses(
     (p) =>
       hasUserWork(p) &&
       p.onboardingComplete !== false &&
-      !readLocal(copiedMarker(p.businessId), account),
+      !readLocal(copiedMarker(p.businessId), account) &&
+      (includeDeclined || !readLocal(declinedMarker(p.businessId), account)),
   );
 }
 
-/** Copy every importable guest business into the account; returns how many copies were saved. */
-export function copyGuestBusinesses(guest: StorageLike, account: StorageLike): number {
-  let copied = 0;
-  for (const p of importableGuestBusinesses(guest, account)) {
+/** Copy every importable guest business into the account; returns the new ids, in copy order. */
+export function copyGuestBusinesses(
+  guest: StorageLike,
+  account: StorageLike,
+  options: ImportableOptions = {},
+): string[] {
+  const copied: string[] = [];
+  for (const p of importableGuestBusinesses(guest, account, options)) {
     const id = makeBusinessId();
     // A procedure verified while signed out carries no account's stamp, so
     // the account would be recording it as a new verification on its first
@@ -63,12 +77,30 @@ export function copyGuestBusinesses(guest: StorageLike, account: StorageLike): n
     // Mark the original copied only once the copy is really stored.
     if (loadPortfolio(account)[id]) {
       writeLocal(copiedMarker(p.businessId), id, account);
-      copied += 1;
+      copied.push(id);
     }
   }
   return copied;
 }
 
+/** Remember, for this account, that the prompt was declined for every guest business it offered. */
+export function declineGuestBusinesses(guest: StorageLike, account: StorageLike): void {
+  for (const p of importableGuestBusinesses(guest, account, { includeDeclined: false }))
+    writeLocal(declinedMarker(p.businessId), new Date().toISOString(), account);
+}
+
+/** The id this account's copy of a guest business got, or null when it was never copied. */
+export function copiedGuestBusinessId(
+  guestBusinessId: string | undefined,
+  account: StorageLike,
+): string | null {
+  return readLocal(copiedMarker(guestBusinessId), account);
+}
+
 function copiedMarker(guestBusinessId: string | undefined): string {
   return `precog.guest-import.${guestBusinessId}`;
+}
+
+function declinedMarker(guestBusinessId: string | undefined): string {
+  return `precog.guest-import.declined.${guestBusinessId}`;
 }

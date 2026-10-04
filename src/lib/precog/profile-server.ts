@@ -14,8 +14,12 @@ import {
   saveBusinessRevision,
 } from "./business-store";
 import { loadFirmFor } from "./firm/store";
+import { countClients, loadEntitlements } from "./firm/entitlements.server";
+import { businessLimitMessage } from "./business-lifecycle";
+import { RequestError } from "@/lib/request-errors";
 import { assertVerificationsAllowed } from "./procedures/verify-guard";
 import { resolveClientDate } from "./dates";
+import { recordFirst } from "./telemetry/events.server";
 import {
   parseDeleteBusinessRequest,
   parseOpenBusinessRequest,
@@ -63,6 +67,17 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
         select name, email from "user" where id = ${context.userId}`,
     ]);
 
+    // A new business counts against the plan's client limit (one on the
+    // free plan and the Assessment); the store's per-owner ceiling is the
+    // hard limit after it.
+    if (owner === null) {
+      const e = await loadEntitlements(sql, context.userId);
+      const held = await countClients(sql, context.userId, firm);
+      if (held >= e.clientLimit) {
+        throw new RequestError(402, businessLimitMessage({ plan: e.plan, limit: e.clientLimit }));
+      }
+    }
+
     // Revision check and write are a single compare-and-swap statement; see
     // business-store.ts. The table is keyed by (user_id, id), so another
     // user's business with the same client-generated id is a different row.
@@ -104,6 +119,8 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       previousProcedures: saved.previousProcedures,
       heldNamedImages: saved.heldNamedImages,
     });
+    // The saver's first business, once; a failed write is reported, not thrown.
+    if (owner === null) await recordFirst(sql, context.userId, "first_business", businessId);
     return {
       ok: true as const,
       revision: saved.revision,

@@ -41,6 +41,33 @@ export function inviteRoleInput(value: unknown): InviteRole {
   return value as InviteRole;
 }
 
+/** A logo as the browser re-encodes it: PNG or JPEG, base64, 64 KB of picture (88 000 characters). */
+const LOGO_DATA_URL = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/;
+export const MAX_LOGO_DATA_URL_CHARS = 88_000;
+export const LOGO_REFUSAL = "The logo must be a PNG or JPEG of 64 KB or less";
+
+/** The firm's letterhead text, logo and cover-page switch. */
+export function letterheadInput(input: {
+  letterhead: string;
+  logoDataUrl: string | null;
+  coverPage: boolean;
+}): { letterhead: string; logoDataUrl: string | null; coverPage: boolean } {
+  const raw = requireObject(input);
+  const letterhead = typeof raw.letterhead === "string" ? raw.letterhead.trim().slice(0, 600) : "";
+  let logoDataUrl: string | null = null;
+  if (raw.logoDataUrl !== null && raw.logoDataUrl !== undefined && raw.logoDataUrl !== "") {
+    if (
+      typeof raw.logoDataUrl !== "string" ||
+      raw.logoDataUrl.length > MAX_LOGO_DATA_URL_CHARS ||
+      !LOGO_DATA_URL.test(raw.logoDataUrl)
+    ) {
+      throw new RequestError(400, LOGO_REFUSAL);
+    }
+    logoDataUrl = raw.logoDataUrl;
+  }
+  return { letterhead, logoDataUrl, coverPage: raw.coverPage === true };
+}
+
 /** An engagement stamp: absent is null; anything but an ISO date or instant is a 400. */
 export function instantInput(value: unknown): string | null {
   if (value === undefined || value === null) return null;

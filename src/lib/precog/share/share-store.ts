@@ -230,11 +230,12 @@ export async function revokeBusinessShares(
 }
 
 /**
- * A member leaves the firm (or is removed): revokes the links they made on
- * the firm's other clients, the links colleagues made on the businesses the
- * member takes with them, and the member's links made before links recorded
- * their business (which cannot be told apart). Run before the member's
- * businesses leave the firm.
+ * A member leaves the firm (or is removed): revokes every link they made on
+ * the firm's clients, the ones they set up included (those stay with the
+ * firm, and the member loses access), and the member's links made before
+ * links recorded their business (which cannot be told apart). Colleagues'
+ * links to the clients the member set up keep working. Run before the
+ * member's clients are handed to the owner, while the rows still name them.
  */
 export async function revokeDepartingMemberShares(
   sql: Sql,
@@ -244,16 +245,13 @@ export async function revokeDepartingMemberShares(
   await sql`
     update map_shares s set revoked_at = now()
     where s.revoked_at is null
+      and s.user_id = ${memberUserId}
       and (
-        (s.user_id = ${memberUserId} and s.business_id is null)
+        s.business_id is null
         or exists (
           select 1 from businesses b
           where b.user_id = s.business_owner_id and b.id = s.business_id
             and b.firm_user_id = ${firmUserId}
-            and (
-              (s.user_id = ${memberUserId} and b.user_id <> ${memberUserId})
-              or (b.user_id = ${memberUserId} and s.user_id <> ${memberUserId})
-            )
         )
       )
   `;

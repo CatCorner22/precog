@@ -12,10 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FirmRouteImport } from './routes/firm'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ThreatRouteImport } from './routes/threat'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as ApiDigestEmailRouteImport } from './routes/api/digest-email'
 import { Route as ApiErrorsRouteImport } from './routes/api/errors'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -44,6 +46,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
@@ -62,6 +69,11 @@ const TermsRoute = TermsRouteImport.update({
 const ThreatRoute = ThreatRouteImport.update({
   id: '/threat',
   path: '/threat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDigestEmailRoute = ApiDigestEmailRouteImport.update({
@@ -130,10 +142,12 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/welcome': typeof WelcomeRoute
   '/api/digest-email': typeof ApiDigestEmailRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
@@ -151,10 +165,12 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/welcome': typeof WelcomeRoute
   '/api/digest-email': typeof ApiDigestEmailRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
@@ -173,10 +189,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/welcome': typeof WelcomeRoute
   '/api/digest-email': typeof ApiDigestEmailRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
@@ -196,10 +214,12 @@ export interface FileRouteTypes {
     | '/'
     | '/firm'
     | '/login'
+    | '/pricing'
     | '/privacy'
     | '/report'
     | '/terms'
     | '/threat'
+    | '/welcome'
     | '/api/digest-email'
     | '/api/errors'
     | '/api/health'
@@ -217,10 +237,12 @@ export interface FileRouteTypes {
     | '/'
     | '/firm'
     | '/login'
+    | '/pricing'
     | '/privacy'
     | '/report'
     | '/terms'
     | '/threat'
+    | '/welcome'
     | '/api/digest-email'
     | '/api/errors'
     | '/api/health'
@@ -238,10 +260,12 @@ export interface FileRouteTypes {
     | '/'
     | '/firm'
     | '/login'
+    | '/pricing'
     | '/privacy'
     | '/report'
     | '/terms'
     | '/threat'
+    | '/welcome'
     | '/api/digest-email'
     | '/api/errors'
     | '/api/health'
@@ -260,10 +284,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   FirmRoute: typeof FirmRoute
   LoginRoute: typeof LoginRoute
+  PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   ReportRoute: typeof ReportRoute
   TermsRoute: typeof TermsRoute
   ThreatRoute: typeof ThreatRoute
+  WelcomeRoute: typeof WelcomeRoute
   ApiDigestEmailRoute: typeof ApiDigestEmailRoute
   ApiErrorsRoute: typeof ApiErrorsRoute
   ApiHealthRoute: typeof ApiHealthRoute
@@ -301,6 +327,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/privacy': {
       id: '/privacy'
       path: '/privacy'
@@ -327,6 +360,13 @@ declare module '@tanstack/react-router' {
       path: '/threat'
       fullPath: '/threat'
       preLoaderRoute: typeof ThreatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/digest-email': {
@@ -420,10 +460,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   FirmRoute: FirmRoute,
   LoginRoute: LoginRoute,
+  PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   ReportRoute: ReportRoute,
   TermsRoute: TermsRoute,
   ThreatRoute: ThreatRoute,
+  WelcomeRoute: WelcomeRoute,
   ApiDigestEmailRoute: ApiDigestEmailRoute,
   ApiErrorsRoute: ApiErrorsRoute,
   ApiHealthRoute: ApiHealthRoute,
