@@ -154,6 +154,11 @@ export function DecisionJournal({
   // Only the due decisions show a delta, and each snapshot runs the engines,
   // so the map is built for those alone.
   const currentSnapshots = useMemo(() => {
+    const scope = residualScope({
+      decisions: profile.decisions,
+      industry: profile.industry,
+      riskVariables: profile.riskVariables,
+    });
     return new Map(
       dueDecisions.map((d) => [
         d.id,
@@ -164,10 +169,19 @@ export function DecisionJournal({
           d.subject,
           new Date(),
           linkedKnowledgeId(d, profile.industry),
+          scope,
         ),
       ]),
     );
-  }, [dueDecisions, profile.industry, template, profile.staff, profile.dualRelease]);
+  }, [
+    dueDecisions,
+    profile.decisions,
+    profile.industry,
+    profile.riskVariables,
+    template,
+    profile.staff,
+    profile.dualRelease,
+  ]);
   const closeOuts = useMemo(
     () => new Map(dueDecisions.map((d) => [d.id, registerCloseOut(d, template)])),
     [dueDecisions, template],
