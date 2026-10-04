@@ -1,4 +1,5 @@
 import type { Sql } from "@/lib/db";
+import { RequestError } from "@/lib/request-errors";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { entitlementsFor } from "./entitlements";
 import type { FirmPlan } from "./pricing";
@@ -558,6 +559,86 @@ export async function userForCustomer(sql: Sql, stripeCustomerId: string): Promi
     select user_id from billing_accounts where stripe_customer_id = ${stripeCustomerId}
   `;
   return rows[0]?.user_id ?? null;
+}
+
+/**
+ * The refusal when a Stripe customer has no active, trialing or past_due
+ * subscription: linking it would give the account a billing row with no
+ * running plan, which closes a firm marked by hand. Checked Stripe-side by
+ * the link script (scripts/lib/link-stripe-customer.mjs, which copies this
+ * text and is pinned equal to it) and the operator page.
+ */
+export function NO_RUNNING_SUBSCRIPTION(customerId: string): string {
+  return `Stripe customer ${customerId} has no running subscription. Create the subscription in Stripe first, then link.`;
+}
+
+export const CUSTOMER_OF_ANOTHER_ACCOUNT = "That customer belongs to another account in Precog.";
+
+/**
+ * Links a Stripe customer the owner set up outside Checkout (a net-30
+ * invoice subscription, a firm marked by hand) to an account, so its
+ * subscription events attribute. Refuses (409) a customer another account
+ * holds, an account that already holds another customer unless `replace`,
+ * and a member of a firm who is not its owner (the firm's plan reads the
+ * owner's row). "unchanged" when the account already holds this customer.
+ * The script runs the same statement (scripts/lib/link-stripe-customer.mjs).
+ */
+export async function setStripeCustomer(
+  sql: Sql,
+  userId: string,
+  customerId: string,
+  { replace = false }: { replace?: boolean } = {},
+): Promise<"linked" | "unchanged"> {
+  const owner = await userForCustomer(sql, customerId);
+  if (owner && owner !== userId) throw new RequestError(409, CUSTOMER_OF_ANOTHER_ACCOUNT);
+  const memberships = await sql<{ email: string | null; firm: string }>`
+    select u.email, f.name as firm
+    from firm_members m
+    join firms f on f.user_id = m.firm_user_id
+    join "user" u on u.id = m.member_user_id
+    where m.member_user_id = ${userId} and m.role <> 'owner'
+  `;
+  const member = memberships[0];
+  if (member) {
+    throw new RequestError(
+      409,
+      `${member.email ?? userId} is a member of ${member.firm}, not its owner. Link the firm owner's account.`,
+    );
+  }
+  const stored = await sql<{ stripe_customer_id: string | null }>`
+    select stripe_customer_id from billing_accounts where user_id = ${userId}
+  `;
+  const current = stored[0]?.stripe_customer_id ?? null;
+  if (current === customerId) return "unchanged";
+  if (current && !replace) {
+    throw new RequestError(
+      409,
+      `This account already has Stripe customer ${current}. Tick Replace to link another.`,
+    );
+  }
+  await sql`
+    insert into billing_accounts (user_id, stripe_customer_id, updated_at)
+    values (${userId}, ${customerId}, now())
+    on conflict (user_id) do update set
+      stripe_customer_id = excluded.stripe_customer_id, updated_at = now()
+  `;
+  return "linked";
+}
+
+/**
+ * A firm marked "monthly" by hand before Stripe was connected, with no
+ * billing row: it keeps the Firm plan until HAND_MARKED_PLANS_UNTIL, and any
+ * billing row ends that exception.
+ */
+export async function isHandMarked(sql: Sql, userId: string): Promise<boolean> {
+  const rows = await sql<{ hand_marked: boolean }>`
+    select exists (
+      select 1 from firms f
+      where f.user_id = ${userId} and f.plan = 'monthly'
+        and not exists (select 1 from billing_accounts b where b.user_id = f.user_id)
+    ) as hand_marked
+  `;
+  return Boolean(rows[0]?.hand_marked);
 }
 
 /** True the first time an event id is seen; false for a redelivery. */
