@@ -10,6 +10,7 @@ import {
   type QuickBooksAlertItem,
 } from "./alert-email";
 import { markAlerted } from "./store";
+import { beforeDeadline } from "../../cron/budget";
 
 export interface QuickBooksAlertOutcome {
   /** Accounts emailed. */
@@ -17,6 +18,10 @@ export interface QuickBooksAlertOutcome {
   /** Accounts covered without an email: mail off, or an address Precog cannot use. */
   skipped: number;
   errors: string[];
+  /** The deadline came before every account was covered. */
+  stopped: boolean;
+  /** Accounts left for the next run when stopped. */
+  remaining: number;
 }
 
 /**
@@ -34,6 +39,10 @@ export interface QuickBooksAlertOutcome {
  * nothing is sent and nothing is stamped, so the alerts go out once mail is
  * set up.
  *
+ * With a `deadline` (epoch milliseconds) the stage stops before the next
+ * account once it is reached; the accounts left keep their rows unstamped,
+ * so the next run covers them.
+ *
  * `send` is injected so the stage runs against PGLite in a test with no
  * network; the cron route passes the real mailer.
  */
@@ -43,15 +52,29 @@ export async function alertQuickBooksProblems(
     today: string;
     appUrl: string;
     send: (to: string, message: RenderedEmail) => Promise<void>;
+    deadline?: number;
   },
 ): Promise<QuickBooksAlertOutcome> {
-  const outcome: QuickBooksAlertOutcome = { emailed: 0, skipped: 0, errors: [] };
+  const outcome: QuickBooksAlertOutcome = {
+    emailed: 0,
+    skipped: 0,
+    errors: [],
+    stopped: false,
+    remaining: 0,
+  };
   const groups = groupByAccount(await problems(sql));
   if (!mailConfigured()) {
     outcome.skipped = groups.size;
     return outcome;
   }
+  let index = 0;
   for (const [userId, rows] of groups) {
+    if (!beforeDeadline(input.deadline)) {
+      outcome.stopped = true;
+      outcome.remaining = groups.size - index;
+      break;
+    }
+    index += 1;
     const { email, trusted, suppressed, firm_name: firmName } = rows[0];
     const deliverable = Boolean(email && trusted && !suppressed);
     if (!deliverable) {

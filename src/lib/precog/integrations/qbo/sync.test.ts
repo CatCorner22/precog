@@ -192,7 +192,12 @@ describe("QuickBooks reading", () => {
     await db.sql`update integration_connections set refresh_token_enc = 'not.a.token'`;
     vi.stubGlobal("fetch", fakeIntuit({ Vendor: [], Employee: [] }).fetchStub);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    expect(await syncDueConnections(db.sql)).toEqual({ synced: 0, failed: 1 });
+    expect(await syncDueConnections(db.sql)).toEqual({
+      synced: 0,
+      failed: 1,
+      stopped: false,
+      remaining: 0,
+    });
     const row = (await loadConnection(db.sql, "own", "biz_1"))!;
     expect(row.lastError).toBe(
       "QuickBooks no longer accepts this connection. Disconnect and connect again.",
@@ -284,6 +289,25 @@ describe("QuickBooks reading", () => {
     await expect(deleteConnection(failing, "own", "biz_1")).rejects.toThrow("connection lost");
     expect(await loadConnection(db.sql, "own", "biz_1")).not.toBeNull();
     expect(await listSnapshots(db.sql, "own", "biz_1", 12)).toHaveLength(1);
+  });
+
+  it("stops before the next connection once the deadline has passed, and says how many are left", async () => {
+    await connect(db.sql);
+    const intuit = fakeIntuit({ Vendor: [], Employee: [] });
+    vi.stubGlobal("fetch", intuit.fetchStub);
+    expect(await syncDueConnections(db.sql, { deadline: Date.now() - 1 })).toEqual({
+      synced: 0,
+      failed: 0,
+      stopped: true,
+      remaining: 1,
+    });
+    expect(intuit.fetchStub).not.toHaveBeenCalled();
+    expect(await syncDueConnections(db.sql, { deadline: Date.now() + 60_000 })).toEqual({
+      synced: 1,
+      failed: 0,
+      stopped: false,
+      remaining: 0,
+    });
   });
 
   it("records who connected, and who connected again, without changing whose books they are", async () => {

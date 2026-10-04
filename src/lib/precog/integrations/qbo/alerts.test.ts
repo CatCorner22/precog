@@ -87,7 +87,13 @@ describe("QuickBooks alerts", () => {
 
   it("emails each firm owner once about every problem, never the member, then stays quiet", async () => {
     const { sent, send } = recorder();
-    expect(await run(send)).toEqual({ emailed: 2, skipped: 0, errors: [] });
+    expect(await run(send)).toEqual({
+      emailed: 2,
+      skipped: 0,
+      errors: [],
+      stopped: false,
+      remaining: 0,
+    });
     expect(sent.map((s) => s.to).sort()).toEqual(["adv@firm.test", "solo@shop.test"]);
     const firm = sent.find((s) => s.to === "adv@firm.test")!;
     expect(firm.subject).toBe("Precog: QuickBooks needs attention for 2 clients");
@@ -111,7 +117,13 @@ describe("QuickBooks alerts", () => {
     ]);
 
     const again = recorder();
-    expect(await run(again.send)).toEqual({ emailed: 0, skipped: 0, errors: [] });
+    expect(await run(again.send)).toEqual({
+      emailed: 0,
+      skipped: 0,
+      errors: [],
+      stopped: false,
+      remaining: 0,
+    });
     expect(again.sent).toEqual([]);
     expect(report.error).not.toHaveBeenCalled();
   });
@@ -158,7 +170,13 @@ describe("QuickBooks alerts", () => {
       values ('adv@firm.test', 'bounced', 'em_1')
     `;
     const { sent, send } = recorder();
-    expect(await run(send)).toEqual({ emailed: 1, skipped: 1, errors: [] });
+    expect(await run(send)).toEqual({
+      emailed: 1,
+      skipped: 1,
+      errors: [],
+      stopped: false,
+      remaining: 0,
+    });
     expect(sent.map((s) => s.to)).toEqual(["solo@shop.test"]);
     expect(report.error).toHaveBeenCalledTimes(1);
     expect(report.error).toHaveBeenCalledWith(expect.any(Error), "qbo-alert");
@@ -167,14 +185,26 @@ describe("QuickBooks alerts", () => {
       { business_id: "biz_2", failure: false, expiry: true },
     ]);
     report.error.mockClear();
-    expect(await run(recorder().send)).toEqual({ emailed: 0, skipped: 0, errors: [] });
+    expect(await run(recorder().send)).toEqual({
+      emailed: 0,
+      skipped: 0,
+      errors: [],
+      stopped: false,
+      remaining: 0,
+    });
     expect(report.error).not.toHaveBeenCalled();
   });
 
   it("treats an unconfirmed password address the same way", async () => {
     await db.sql`update "user" set "emailVerified" = false where id = 'solo'`;
     const { sent, send } = recorder();
-    expect(await run(send)).toEqual({ emailed: 1, skipped: 1, errors: [] });
+    expect(await run(send)).toEqual({
+      emailed: 1,
+      skipped: 1,
+      errors: [],
+      stopped: false,
+      remaining: 0,
+    });
     expect(sent.map((s) => s.to)).toEqual(["adv@firm.test"]);
     expect(report.error).toHaveBeenCalledTimes(1);
     expect((await stamps())[2]).toEqual({ business_id: "biz_3", failure: false, expiry: true });
@@ -186,7 +216,13 @@ describe("QuickBooks alerts", () => {
       values ('acc_x', 'x-1', 'grok-x', 'adv', now(), now())
     `;
     const { sent, send } = recorder();
-    expect(await run(send)).toEqual({ emailed: 1, skipped: 1, errors: [] });
+    expect(await run(send)).toEqual({
+      emailed: 1,
+      skipped: 1,
+      errors: [],
+      stopped: false,
+      remaining: 0,
+    });
     expect(sent.map((s) => s.to)).toEqual(["solo@shop.test"]);
     expect(report.error).toHaveBeenCalledTimes(1);
     expect(report.error).toHaveBeenCalledWith(expect.any(Error), "qbo-alert");
@@ -195,8 +231,28 @@ describe("QuickBooks alerts", () => {
       { business_id: "biz_2", failure: false, expiry: true },
     ]);
     report.error.mockClear();
-    expect(await run(recorder().send)).toEqual({ emailed: 0, skipped: 0, errors: [] });
+    expect(await run(recorder().send)).toEqual({
+      emailed: 0,
+      skipped: 0,
+      errors: [],
+      stopped: false,
+      remaining: 0,
+    });
     expect(report.error).not.toHaveBeenCalled();
+  });
+
+  it("stops before the next account once the deadline has passed, leaving its rows for the next run", async () => {
+    const { sent, send } = recorder();
+    const outcome = await alertQuickBooksProblems(db.sql, {
+      today: TODAY,
+      appUrl: "https://app.example",
+      send,
+      deadline: Date.now() - 1,
+    });
+    expect(outcome).toEqual({ emailed: 0, skipped: 0, errors: [], stopped: true, remaining: 2 });
+    expect(sent).toEqual([]);
+    expect((await stamps()).every((s) => !s.failure && !s.expiry)).toBe(true);
+    expect((await run(recorder().send)).emailed).toBe(2);
   });
 
   it("stamps nothing when a send fails, so the next run tries again", async () => {
@@ -248,7 +304,13 @@ describe("QuickBooks alerts", () => {
     vi.stubEnv("RESEND_API_KEY", "");
     try {
       const { sent, send } = recorder();
-      expect(await run(send)).toEqual({ emailed: 0, skipped: 2, errors: [] });
+      expect(await run(send)).toEqual({
+        emailed: 0,
+        skipped: 2,
+        errors: [],
+        stopped: false,
+        remaining: 0,
+      });
       expect(sent).toEqual([]);
       expect((await stamps()).every((s) => !s.failure && !s.expiry)).toBe(true);
     } finally {

@@ -1,7 +1,9 @@
 import type { Sql } from "@/lib/db";
 import { reportServerError } from "@/lib/observability/report.server";
 import { normalizeProfile, type PracticeProfile } from "../practice-profile";
-import { digestTokenFor, loadFirmFor } from "../firm/store";
+import { digestTokenFor } from "../firm/store";
+import { randomHex } from "@/lib/web-crypto";
+import { beforeDeadline } from "../cron/budget";
 import { loadEntitlements } from "../firm/entitlements.server";
 import { EXPIRY_WARNING_DAYS } from "../integrations/qbo/alert-email";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
@@ -14,6 +16,10 @@ interface DigestOutcome {
   owners: number;
   skipped: number;
   errors: string[];
+  /** The deadline came before every recipient and owner note was covered. */
+  stopped: boolean;
+  /** Recipients and owner notes left for the next run when stopped. */
+  remaining: number;
 }
 
 /**
@@ -34,6 +40,10 @@ interface DigestOutcome {
  * A business the normaliser throws on is reported, named in `errors` and
  * left out; every other business and recipient still gets its email.
  *
+ * With a `deadline` (epoch milliseconds) the run stops before the next
+ * recipient or owner note once it is reached, and says how many it left;
+ * nothing left is logged, so the next run sends it.
+ *
  * `send` is injected so the job runs against PGLite in a test with no
  * network; the cron route passes the real mailer.
  */
@@ -43,9 +53,17 @@ export async function runDigest(
     today: string;
     appUrl: string;
     send: (to: string, message: RenderedEmail) => Promise<void>;
+    deadline?: number;
   },
 ): Promise<DigestOutcome> {
-  const outcome: DigestOutcome = { advisors: 0, owners: 0, skipped: 0, errors: [] };
+  const outcome: DigestOutcome = {
+    advisors: 0,
+    owners: 0,
+    skipped: 0,
+    errors: [],
+    stopped: false,
+    remaining: 0,
+  };
   // Each business's profile is read once per run, however many recipients
   // share it. Null for a business that could not be read: reported once, then skipped.
   const itemsByBusiness = new Map<string, ReminderItem[] | null>();
@@ -67,7 +85,14 @@ export async function runDigest(
     return items ?? [];
   };
 
-  for (const recipient of await recipients(sql)) {
+  const everyone = await recipients(sql);
+  const quickBooksCounts = await quickBooksNeedingAttention(sql, everyone);
+  for (const [index, recipient] of everyone.entries()) {
+    if (!beforeDeadline(input.deadline)) {
+      outcome.stopped = true;
+      outcome.remaining += everyone.length - index;
+      break;
+    }
     const clients: { row: BusinessRow; items: ReminderItem[] }[] = [];
     for (const row of await businessesFor(sql, recipient)) {
       const items = forAudience(await itemsFor(row), "advisor");
@@ -91,7 +116,7 @@ export async function runDigest(
           })),
           appUrl: input.appUrl,
           unsubscribeUrl: `${input.appUrl}/api/digest-email?do=stop&token=${recipient.digestToken}`,
-          quickBooks: { needAttention: await quickBooksNeedingAttention(sql, recipient) },
+          quickBooks: { needAttention: quickBooksCounts.get(recipient.userId) ?? 0 },
         }),
       );
       for (const client of clients) await logSent(sql, client.row, recipient.email, client.items);
@@ -114,7 +139,13 @@ export async function runDigest(
     return open;
   };
 
-  for (const row of await ownerNoteTargets(sql)) {
+  const notes = await ownerNoteTargets(sql);
+  for (const [index, row] of notes.entries()) {
+    if (!beforeDeadline(input.deadline)) {
+      outcome.stopped = true;
+      outcome.remaining += notes.length - index;
+      break;
+    }
     if (!(await ownerRemindersOpen(row.controlling_user_id))) {
       outcome.skipped += 1;
       continue;
@@ -183,13 +214,30 @@ export { TRUSTED_EMAIL };
  * Accounts that turned the digest on (a missing settings row means off), with
  * a trusted address that has not bounced or complained, and at least one live
  * business of their own or of a firm they belong to. The firm is the one the
- * workspace shows (loadFirmFor), so the digest and the workspace always agree.
+ * workspace shows (loadFirmFor's order: the firm the account owns, else the
+ * one it joined first), read in the same query, so the digest and the
+ * workspace always agree. Stop-link tokens missing on first send are minted
+ * in one statement for every recipient that needs one.
  */
 async function recipients(sql: Sql): Promise<Recipient[]> {
-  const rows = await sql.query<{ id: string; email: string; digest_token: string | null }>(`
-    select u.id, u.email, s.digest_token
+  const rows = await sql.query<{
+    id: string;
+    email: string;
+    digest_token: string | null;
+    firm_user_id: string | null;
+    firm_name: string | null;
+  }>(`
+    select u.id, u.email, s.digest_token, wf.firm_user_id, wf.name as firm_name
     from "user" u
     left join notification_settings s on s.user_id = u.id
+    left join lateral (
+      select m.firm_user_id, f.name
+      from firm_members m
+      join firms f on f.user_id = m.firm_user_id
+      where m.member_user_id = u.id
+      order by (m.firm_user_id = u.id) desc, m.joined_at asc
+      limit 1
+    ) wf on true
     where coalesce(s.weekly_digest, false)
       and position('@' in u.email) > 0
       and ${TRUSTED_EMAIL("u")}
@@ -204,18 +252,38 @@ async function recipients(sql: Sql): Promise<Recipient[]> {
       )
     order by u.id
   `);
+  const tokens = await mintDigestTokens(
+    sql,
+    rows.filter((r) => !r.digest_token).map((r) => r.id),
+  );
   const out: Recipient[] = [];
   for (const row of rows) {
-    const firm = await loadFirmFor(sql, row.id);
     out.push({
       userId: row.id,
       email: row.email,
-      firmName: firm?.name ?? null,
-      firmUserId: firm?.firmUserId ?? null,
-      digestToken: row.digest_token ?? (await digestTokenFor(sql, row.id)),
+      firmName: row.firm_name ?? null,
+      firmUserId: row.firm_user_id ?? null,
+      digestToken: row.digest_token ?? tokens.get(row.id) ?? (await digestTokenFor(sql, row.id)),
     });
   }
   return out;
+}
+
+/**
+ * Mints the digest's stop-link token (digestTokenFor's format) for each
+ * account that has none, in one statement. An account that gained a token
+ * meanwhile keeps it and is absent from the answer; the caller then reads it
+ * with digestTokenFor.
+ */
+async function mintDigestTokens(sql: Sql, userIds: string[]): Promise<Map<string, string>> {
+  if (userIds.length === 0) return new Map();
+  const minted = await sql<{ user_id: string; digest_token: string }>`
+    update notification_settings s set digest_token = t.token, updated_at = now()
+    from unnest(${userIds}::text[], ${userIds.map(() => randomHex(24))}::text[]) as t(user_id, token)
+    where s.user_id = t.user_id and s.digest_token is null
+    returning s.user_id, s.digest_token
+  `;
+  return new Map(minted.map((r) => [r.user_id, r.digest_token]));
 }
 
 async function businessesFor(sql: Sql, recipient: Recipient): Promise<BusinessRow[]> {
@@ -230,22 +298,32 @@ async function businessesFor(sql: Sql, recipient: Recipient): Promise<BusinessRo
 }
 
 /**
- * How many of the recipient's businesses (businessesFor) have a QuickBooks
- * connection whose last reading failed or whose permission ends within the
- * alert's warning period; the digest prints the count as one line.
+ * For every recipient, how many of their businesses (businessesFor) have a
+ * QuickBooks connection whose last reading failed or whose permission ends
+ * within the alert's warning period; the digest prints the count as one
+ * line. One grouped query per run; a recipient with none is absent.
  */
-async function quickBooksNeedingAttention(sql: Sql, recipient: Recipient): Promise<number> {
-  const rows = await sql<{ n: number }>`
-    select count(*)::int as n
-    from integration_connections c
-    join businesses b on b.user_id = c.user_id and b.id = c.business_id and b.deleted_at is null
+async function quickBooksNeedingAttention(
+  sql: Sql,
+  everyone: readonly Recipient[],
+): Promise<Map<string, number>> {
+  if (everyone.length === 0) return new Map();
+  const rows = await sql<{ user_id: string; n: number }>`
+    select r.user_id, count(*)::int as n
+    from unnest(
+      ${everyone.map((r) => r.userId)}::text[],
+      ${everyone.map((r) => r.firmUserId)}::text[]
+    ) as r(user_id, firm_user_id)
+    join businesses b on b.deleted_at is null
+      and (b.user_id = r.user_id
+        or (r.firm_user_id is not null and b.firm_user_id = r.firm_user_id))
+    join integration_connections c on c.user_id = b.user_id and c.business_id = b.id
     where c.provider = 'qbo'
-      and (b.user_id = ${recipient.userId}
-        or (${recipient.firmUserId}::text is not null and b.firm_user_id = ${recipient.firmUserId}))
       and (c.last_error is not null
         or c.refresh_expires_at <= now() + make_interval(days => ${EXPIRY_WARNING_DAYS}::int))
+    group by r.user_id
   `;
-  return Number(rows[0]?.n ?? 0);
+  return new Map(rows.map((r) => [r.user_id, Number(r.n)]));
 }
 
 /**

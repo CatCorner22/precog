@@ -18,6 +18,7 @@ const db = vi.hoisted(() => ({ current: null as TestDb | null }));
 const session = vi.hoisted(() => ({ userId: null as string | null }));
 const digestStage = vi.hoisted(() => ({ fail: false, sendsFail: false }));
 const billing = vi.hoisted(() => ({ failure: null as Error | null }));
+const budgets = vi.hoisted(() => ({ digest: 150_000, quickbooks: 90_000, alerts: 30_000 }));
 const report = vi.hoisted(() => ({
   error: vi.fn(async (_err: unknown, _at?: string | null) => {}),
 }));
@@ -35,7 +36,14 @@ vi.mock("@/lib/precog/reminders/digest", async (importOriginal) => {
     runDigest: (...args: Parameters<typeof actual.runDigest>) => {
       if (digestStage.fail) throw new Error("digest failed");
       if (digestStage.sendsFail)
-        return Promise.resolve({ advisors: 0, owners: 0, skipped: 0, errors: ["owner b1: down"] });
+        return Promise.resolve({
+          advisors: 0,
+          owners: 0,
+          skipped: 0,
+          errors: ["owner b1: down"],
+          stopped: false,
+          remaining: 0,
+        });
       return actual.runDigest(...args);
     },
   };
@@ -51,6 +59,10 @@ vi.mock("@/lib/precog/billing/webhook", async (importOriginal) => {
   };
 });
 vi.mock("@/lib/observability/report.server", () => ({ reportServerError: report.error }));
+vi.mock("@/lib/precog/cron/budget", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/precog/cron/budget")>()),
+  CRON_STAGE_BUDGET_MS: budgets,
+}));
 vi.mock("@/lib/auth/verify.server", () => ({
   requireUserId: async () => {
     if (!session.userId) throw new Error("Unauthorized");
@@ -93,6 +105,7 @@ afterEach(() => {
   requestContext.current = undefined;
   digestStage.fail = false;
   digestStage.sendsFail = false;
+  Object.assign(budgets, { digest: 150_000, quickbooks: 90_000, alerts: 30_000 });
   billing.failure = null;
   report.error.mockClear();
 });
@@ -244,6 +257,32 @@ describe("scheduled run", () => {
     expect(left.rows[0].n).toBe("1");
   });
 
+  it("answers partial and names the stage that ran out of time, still with 200", async () => {
+    const t = db.current!;
+    await t.clear("notification_settings", "map_shares", "businesses", '"user"');
+    await t.seedUser("owner", "owner@shop.test");
+    await t.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision)
+       values ('biz_1', 'owner', 'Riverside Plumbing', 'general', '{}'::jsonb, 1)`,
+    );
+    await t.pg.query(
+      `insert into notification_settings (user_id, weekly_digest) values ('owner', true)`,
+    );
+    const full = await run("Bearer cron-secret-value");
+    expect(await full.json()).toMatchObject({ ok: true, partial: false, stopped: [] });
+
+    budgets.digest = 0;
+    const res = await run("Bearer cron-secret-value");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      partial: true,
+      stopped: ["digest"],
+      digest: { advisors: 0, stopped: true, remaining: 1 },
+      failures: [],
+    });
+  });
+
   it("still purges and re-reads the books when the digest fails", async () => {
     digestStage.fail = true;
     vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -251,7 +290,7 @@ describe("scheduled run", () => {
     expect(res.status).toBe(500);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body).toMatchObject({ ok: false, failures: ["digest"], digest: null, purged: 0 });
-    expect(body.synced).toEqual({ synced: 0, failed: 0 });
+    expect(body.synced).toEqual({ synced: 0, failed: 0, stopped: false, remaining: 0 });
   });
 
   it("counts a digest that sent nothing and had errors as a failed stage", async () => {
@@ -261,7 +300,7 @@ describe("scheduled run", () => {
     expect(res.status).toBe(500);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body).toMatchObject({ ok: false, failures: ["digest"] });
-    expect(body.synced).toEqual({ synced: 0, failed: 0 });
+    expect(body.synced).toEqual({ synced: 0, failed: 0, stopped: false, remaining: 0 });
   });
 });
 

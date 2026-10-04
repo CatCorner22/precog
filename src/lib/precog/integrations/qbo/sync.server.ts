@@ -1,5 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { reportServerError } from "@/lib/observability/report.server";
+import { beforeDeadline } from "../../cron/budget";
 import {
   decryptSecret,
   encryptSecret,
@@ -70,13 +71,23 @@ export async function syncConnection(
 /**
  * The scheduled pass: every connection whose reading is stale. A failure is
  * recorded on the connection as a sentence the advisor can act on; the raw
- * error goes to the server log.
+ * error goes to the server log. With a `deadline` (epoch milliseconds) the
+ * pass stops before the next connection once it is reached: `stopped` says
+ * so and `remaining` counts the connections left, which the next run reads
+ * first (the stalest go first).
  */
-export async function syncDueConnections(sql: Sql): Promise<{ synced: number; failed: number }> {
-  if (!qboConfigured()) return { synced: 0, failed: 0 };
+export async function syncDueConnections(
+  sql: Sql,
+  options: { deadline?: number } = {},
+): Promise<{ synced: number; failed: number; stopped: boolean; remaining: number }> {
+  if (!qboConfigured()) return { synced: 0, failed: 0, stopped: false, remaining: 0 };
   let synced = 0;
   let failed = 0;
-  for (const connection of await listConnectionsDue(sql, SYNC_STALE_DAYS)) {
+  const due = await listConnectionsDue(sql, SYNC_STALE_DAYS);
+  for (const [index, connection] of due.entries()) {
+    if (!beforeDeadline(options.deadline)) {
+      return { synced, failed, stopped: true, remaining: due.length - index };
+    }
     try {
       await syncConnection(sql, connection);
       synced += 1;
@@ -85,7 +96,7 @@ export async function syncDueConnections(sql: Sql): Promise<{ synced: number; fa
       await recordReadingFailure(sql, connection, err);
     }
   }
-  return { synced, failed };
+  return { synced, failed, stopped: false, remaining: 0 };
 }
 
 /**
