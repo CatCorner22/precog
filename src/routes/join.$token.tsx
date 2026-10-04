@@ -40,10 +40,10 @@ function JoinPage() {
     };
   }, [token]);
 
-  async function join(confirmOtherEmail: boolean) {
+  async function join() {
     setBusy(true);
     try {
-      const { firm } = await acceptFirmInvite({ data: { token, confirmOtherEmail } });
+      const { firm } = await acceptFirmInvite({ data: { token } });
       toast.success(`You joined ${firm.name} as ${firm.role}.`);
       void navigate({ to: "/firm" });
     } catch (err) {
@@ -84,7 +84,7 @@ function JoinPage() {
                 invitedEmail={invite.email}
                 accountLabel={user.displayName ?? user.primaryEmail ?? "this account"}
                 busy={busy}
-                onJoin={(confirmOtherEmail) => void join(confirmOtherEmail)}
+                onJoin={() => void join()}
               />
             ) : (
               <SignInHere token={token} email={invite.email} />
@@ -113,7 +113,7 @@ function JoinAs({
   invitedEmail: string;
   accountLabel: string;
   busy: boolean;
-  onJoin: (confirmOtherEmail: boolean) => void;
+  onJoin: () => void;
 }) {
   const [fit, setFit] = useState<InviteFitResult | "loading">("loading");
 
@@ -143,8 +143,9 @@ function JoinAs({
           </>
         ) : (
           <>
-            Precog cannot match this account to <span className="text-fg">{invitedEmail}</span>.
-            Confirm that email on this account, then open the invitation again.
+            Precog cannot vouch for this account's address. Sign in with Google under{" "}
+            <span className="text-fg">{invitedEmail}</span>, or with an email-and-password account
+            that has confirmed it, then open the invitation again.
           </>
         )}
       </p>
@@ -155,7 +156,7 @@ function JoinAs({
       <p className="mt-4 text-sm text-muted">
         The firm sent this invitation to <span className="text-fg">{invitedEmail}</span>.
       </p>
-      <Button className="mt-5 w-full" onClick={() => onJoin(false)} disabled={busy}>
+      <Button className="mt-5 w-full" onClick={onJoin} disabled={busy}>
         {busy ? "Joining…" : `Join as ${accountLabel}`}
       </Button>
     </>
@@ -166,8 +167,9 @@ type InviteFitResult = Awaited<ReturnType<typeof checkFirmInvite>>["fit"];
 
 /**
  * Sign-in on the invitation itself, so the invitee comes back to this link
- * instead of the home page. The email form lives on the sign-in page, which
- * returns home, so that route says to come back.
+ * instead of the home page. Only Google is offered: an X sign-in carries no
+ * confirmed address, so it could never join. The email form lives on the
+ * sign-in page, which returns home, so that route says to come back.
  */
 function SignInHere({ token, email }: { token: string; email: string }) {
   const here = `/join/${token}`;
@@ -177,11 +179,11 @@ function SignInHere({ token, email }: { token: string; email: string }) {
   return (
     <>
       <p className="mt-4 text-sm text-muted">
-        Sign in to join. The firm sent the invitation to <span className="text-fg">{email}</span>;
-        sign in with that address.
+        Sign in to join. The firm sent the invitation to <span className="text-fg">{email}</span>.
+        Sign in with Google or with the email address the invitation was sent to.
       </p>
       <div className="mt-4 space-y-2">
-        {GROK_PROVIDERS.map((p) => (
+        {GROK_PROVIDERS.filter((p) => p.providerId === "grok-google").map((p) => (
           <Button
             key={p.providerId}
             type="button"

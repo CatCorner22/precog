@@ -308,8 +308,9 @@ export function maskEmail(email: string): string {
  *   - "mismatch": its address is confirmed and real but another one, so the
  *     invitation is not for it;
  *   - "confirm": Precog cannot vouch for its address (an unconfirmed password
- *     sign-up, or X, whose sign-in carries a made-up address), so the person
- *     must say they are the one invited, and the firm owner hears of it.
+ *     sign-up, or X, whose sign-in carries a made-up address), so it cannot
+ *     join: joining needs a confirmed address that is the invited one, from a
+ *     Google sign-in or a confirmed email-and-password account.
  */
 export type InviteFit = "match" | "mismatch" | "confirm";
 
@@ -353,8 +354,6 @@ export async function inviteFit(
 
 export interface AcceptedInvite {
   firm: FirmContext;
-  /** Set when Precog could not match the account to the invited address; the firm owner is told. */
-  unmatched: { invitedEmail: string; accountEmail: string } | null;
 }
 
 /**
@@ -369,7 +368,6 @@ export async function acceptInvite(
   sql: Sql,
   token: string,
   userId: string,
-  _options: { confirmOtherEmail?: boolean } = {},
 ): Promise<AcceptedInvite> {
   return inTransaction(sql, async (tx) => {
     const invites = await tx<{ firm_user_id: string; role: string; email: string }>`
@@ -391,7 +389,7 @@ export async function acceptInvite(
       throw new FirmMembershipError(
         fit === "mismatch"
           ? `The firm sent this invitation to ${maskEmail(invite.email)}, and you are signed in as ${accountEmail}. Sign in with the invited address, or ask the firm owner to invite ${accountEmail}.`
-          : `Precog cannot match this account to ${maskEmail(invite.email)}. Confirm that email on this account, then open the invitation again.`,
+          : `Precog cannot vouch for this account's address. Joining a firm needs a confirmed address that is the invited one: sign in with Google under ${maskEmail(invite.email)}, or with an email-and-password account you have confirmed, then open the invitation again.`,
       );
     }
     const current = await loadFirmFor(tx, userId);
@@ -421,10 +419,7 @@ export async function acceptInvite(
     `;
     const joined = await loadFirmFor(tx, userId);
     if (!joined) throw new Error("Unable to join the firm");
-    return {
-      firm: joined,
-      unmatched: null,
-    };
+    return { firm: joined };
   });
 }
 

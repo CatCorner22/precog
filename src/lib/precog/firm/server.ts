@@ -41,8 +41,6 @@ import {
   setMemberRole,
   setOwnerEmail,
   upsertEngagementMark,
-  type AcceptedInvite,
-  type FirmContext,
   type InviteRole,
 } from "./store";
 import {
@@ -173,23 +171,13 @@ export const checkFirmInvite = createServerFn({ method: "GET" })
     return { fit: await inviteFit(sql, data.token, context.userId) };
   });
 
-/**
- * Joins the firm. When Precog could not match the account to the invited
- * address, the person had to confirm, and the firm owner gets an email.
- */
+/** Joins the firm; only an account whose confirmed address is the invited one gets in. */
 export const acceptFirmInvite = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { token: string; confirmOtherEmail?: boolean }) => ({
-    ...tokenInput(input),
-    confirmOtherEmail: requireObject(input).confirmOtherEmail === true,
-  }))
+  .validator(tokenInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const { firm, unmatched } = await acceptInvite(sql, data.token, context.userId, {
-      confirmOtherEmail: data.confirmOtherEmail,
-    });
-    if (unmatched) await emailUnmatchedJoin(sql, firm, context.userId, unmatched);
-    return { firm };
+    return { firm: (await acceptInvite(sql, data.token, context.userId)).firm };
   });
 
 export const setFirmMemberRole = createServerFn({ method: "POST" })
@@ -622,48 +610,6 @@ async function emailOwnerConfirmation(
     const { reportServerError } = await import("@/lib/observability/report.server");
     await reportServerError(err, "owner-email-confirmation");
     return "not-sent";
-  }
-}
-
-/**
- * Tells the firm owner that someone joined with an invitation Precog could
- * not match to their account, so the owner can remove them. Without email
- * the owner still sees the new member in the firm's member list.
- */
-async function emailUnmatchedJoin(
-  sql: Awaited<ReturnType<typeof getSql>>,
-  firm: FirmContext,
-  memberId: string,
-  unmatched: NonNullable<AcceptedInvite["unmatched"]>,
-): Promise<void> {
-  const [{ mailConfigured, sendEmail }, { requestOrigin }, { renderUnmatchedJoin }] =
-    await Promise.all([
-      import("../reminders/mailer.server"),
-      import("@/lib/request-origin.server"),
-      import("./invite-email"),
-    ]);
-  if (!mailConfigured()) return;
-  const rows = await sql<{ id: string; name: string | null; email: string }>`
-    select id, name, email from "user" where id in (${firm.firmUserId}, ${memberId})
-  `;
-  const owner = rows.find((r) => r.id === firm.firmUserId);
-  const member = rows.find((r) => r.id === memberId);
-  if (!owner?.email.includes("@")) return;
-  try {
-    await sendEmail(
-      owner.email,
-      renderUnmatchedJoin({
-        firmName: firm.name,
-        role: firm.role,
-        memberName: member?.name || null,
-        accountEmail: unmatched.accountEmail,
-        invitedEmail: unmatched.invitedEmail,
-        link: `${requestOrigin()}/firm`,
-      }),
-    );
-  } catch (err) {
-    const { reportServerError } = await import("@/lib/observability/report.server");
-    await reportServerError(err, "firm-unmatched-join-email");
   }
 }
 

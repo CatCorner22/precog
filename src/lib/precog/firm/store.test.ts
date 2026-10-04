@@ -133,11 +133,7 @@ describe("firm membership", () => {
     });
 
     const joined = await acceptInvite(db.sql, "tok_1", "ub");
-    expect([joined.firm.firmUserId, joined.firm.role, joined.unmatched]).toEqual([
-      "ua",
-      "reviewer",
-      null,
-    ]);
+    expect([joined.firm.firmUserId, joined.firm.role]).toEqual(["ua", "reviewer"]);
     expect(await listInvites(db.sql, "ua")).toEqual([]);
     await expect(acceptInvite(db.sql, "tok_1", "uc")).rejects.toBeInstanceOf(FirmMembershipError);
 
@@ -422,9 +418,7 @@ describe("invitation and the accepting account's address", () => {
     await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toThrow(
       /sent this invitation to a\*\*\*@cpa\.test/,
     );
-    await expect(
-      acceptInvite(db.sql, "t1", "ub", { confirmOtherEmail: true }),
-    ).rejects.toBeInstanceOf(FirmMembershipError);
+    await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toBeInstanceOf(FirmMembershipError);
     expect(await peekInvite(db.sql, "t1")).not.toBeNull();
     expect(await loadFirmFor(db.sql, "ub")).toBeNull();
   });
@@ -432,15 +426,15 @@ describe("invitation and the accepting account's address", () => {
   it("admits the invited address without asking", async () => {
     await db.pg.query(`update "user" set email = 'alice@cpa.test' where id = 'ub'`);
     expect((await inviteFit(db.sql, "t1", "ub"))?.fit).toBe("match");
-    expect((await acceptInvite(db.sql, "t1", "ub")).unmatched).toBeNull();
+    expect((await acceptInvite(db.sql, "t1", "ub")).firm.name).toBe("North");
   });
 
   it("refuses an address Precog cannot vouch for, and keeps the invitation open", async () => {
     await db.pg.query(`update "user" set "emailVerified" = false where id = 'ub'`);
     expect((await inviteFit(db.sql, "t1", "ub"))?.fit).toBe("confirm");
-    await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toThrow(/cannot match this account/);
-    await expect(acceptInvite(db.sql, "t1", "ub", { confirmOtherEmail: true })).rejects.toThrow(
-      /cannot match this account/,
+    await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toThrow(/cannot vouch for this account/);
+    await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toThrow(
+      "Precog cannot vouch for this account's address. Joining a firm needs a confirmed address that is the invited one: sign in with Google under a***@cpa.test, or with an email-and-password account you have confirmed, then open the invitation again.",
     );
     expect(await peekInvite(db.sql, "t1")).not.toBeNull();
     expect(await loadFirmFor(db.sql, "ub")).toBeNull();
