@@ -21,6 +21,9 @@ import type { BusinessSummary } from "@/lib/precog/practice-profile";
 import { DEFAULT_BUSINESS_ID, MAX_BUSINESS_NAME } from "@/lib/precog/business-id";
 import { removeBusinessPrompt } from "./business-switcher-text";
 import { OPEN_BUSINESS_SETTINGS_EVENT } from "@/lib/precog/business-settings-event";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { getFirm } from "@/lib/precog/firm/server";
+import type { FirmRole } from "@/lib/precog/firm/store";
 
 // Loaded on open, so the settings editor stays out of the code the header
 // loads on every page.
@@ -59,6 +62,18 @@ export function BusinessSwitcher() {
   const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const own = businesses.filter((b) => !b.shared);
   const firmClients = businesses.filter((b) => b.shared);
+  const { user } = useCurrentUserState();
+  // Only the firm owner deletes a colleague's client, so the trash button on
+  // a shared row needs the role; read once, and only when such a row shows.
+  const [firmRole, setFirmRole] = useState<FirmRole | null>(null);
+  const roleRead = useRef(false);
+  useEffect(() => {
+    if (!user || firmClients.length === 0 || roleRead.current) return;
+    roleRead.current = true;
+    void getFirm()
+      .then((res) => setFirmRole(res.firm?.role ?? null))
+      .catch(() => undefined);
+  }, [user, firmClients.length]);
 
   // Opening moves focus into the panel (the name field has its own autofocus).
   useEffect(() => {
@@ -163,7 +178,7 @@ export function BusinessSwitcher() {
           </span>
           {active && <Check className="size-3.5 shrink-0 text-primary" />}
         </button>
-        {!active && (
+        {!active && (!b.shared || firmRole === "owner") && (
           <button
             type="button"
             disabled={switchingBusiness}

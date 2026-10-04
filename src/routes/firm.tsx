@@ -517,6 +517,7 @@ function FirmPage() {
                 .catch(() => undefined);
             }}
             onClientsChange={setClients}
+            canRestore={!firm || isOwner}
           />
           <NotificationSettingsPanel signedIn={signedIn} />
           {closedNote && (

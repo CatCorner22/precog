@@ -151,8 +151,9 @@ async function authorizeBusinessWriter(
 }
 
 /**
- * Delete and restore are not a preparer's save. The account that owns the
- * row may always do both. A firm reviewer or firm owner may. A preparer may not.
+ * Delete and restore are not a member's save. The account that owns the
+ * row may always do both, and so may the firm owner. A preparer or a
+ * reviewer may not; someone outside the firm meets the usual refusal.
  */
 async function authorizeBusinessDestroyer(
   sql: Sql,
@@ -166,9 +167,9 @@ async function authorizeBusinessDestroyer(
     where member_user_id = ${actor} and firm_user_id = ${firm} for share
   `;
   const role = member[0]?.role;
-  if (role === "owner" || role === "reviewer") return;
+  if (role === "owner") return;
   if (!role) throw new BusinessUnavailableError();
-  throw new RequestError(403, "A preparer cannot delete or restore a client.");
+  throw new RequestError(403, "Only the firm owner can delete or restore a client.");
 }
 
 export async function saveBusinessRevision<TProfile = unknown>(

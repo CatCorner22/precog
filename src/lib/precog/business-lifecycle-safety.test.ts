@@ -139,7 +139,13 @@ describe("transactional business safety", () => {
     await saveBusinessRevision(db.sql, { ...input("one", null), firmUserId: "a" });
     await saveBusinessRevision(db.sql, { ...input("one", 1), savedBy: "b" });
     expect((await counts()).pointers).toBe(2);
-    await deleteBusinessRow(db.sql, "a", "one", "b");
+    // A reviewer cannot delete a client; the owner can, and the reviewer's pointer goes too.
+    await expect(deleteBusinessRow(db.sql, "a", "one", "b")).rejects.toMatchObject({
+      status: 403,
+      message: "Only the firm owner can delete or restore a client.",
+    });
+    expect((await counts()).pointers).toBe(2);
+    await deleteBusinessRow(db.sql, "a", "one", "a");
     expect((await counts()).pointers).toBe(0);
     expect(await resolveBusinessOwner(db.sql, "b", "one", true)).toBe("a");
   });
