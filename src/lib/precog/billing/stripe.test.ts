@@ -819,6 +819,35 @@ describe("event order", () => {
     expect((await loadBillingAccount(db.sql, "owner"))?.subscriptionPriceId).toBe("price_t3y");
   });
 
+  it("gives a new subscription no price from the cancelled one before its own price arrives", async () => {
+    vi.stubEnv("STRIPE_PRICE_TIER_3", "price_t3");
+    try {
+      await applyBillingEvent(db.sql, priced("n1", "sub_1", "active", 100, "price_t3"));
+      await applyBillingEvent(db.sql, priced("n2", "sub_1", "canceled", 200));
+      expect((await loadBillingAccount(db.sql, "owner"))?.subscriptionPriceId).toBe("price_t3");
+      // The completion for the new subscription arrives before its created event.
+      await applyBillingEvent(db.sql, {
+        id: "n3",
+        type: "checkout.session.completed",
+        created: 300,
+        data: {
+          object: {
+            mode: "subscription",
+            subscription: "sub_2",
+            customer: "cus_1",
+            client_reference_id: "owner",
+          },
+        },
+      });
+      const account = await loadBillingAccount(db.sql, "owner");
+      expect(account).toMatchObject({ subscriptionId: "sub_2", subscriptionPriceId: null });
+      // An unknown price keeps the 50-client limit, never the old tier's.
+      expect(tierForPrice(account?.subscriptionPriceId ?? null)).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("reports a second subscription completed beside the running one, once, and keeps the first", async () => {
     report.mockClear();
     await applyBillingEvent(db.sql, priced("s1", "sub_1", "active", 100, "price_t1"));
@@ -837,6 +866,12 @@ describe("event order", () => {
     };
     expect(await applyBillingEvent(db.sql, second)).toBe("applied");
     expect(await applyBillingEvent(db.sql, second)).toBe("duplicate");
+    // The second subscription's own created and renewal events report nothing more.
+    await applyBillingEvent(
+      db.sql,
+      subEvent("s2c", "customer.subscription.created", "sub_2", "active", 210),
+    );
+    await applyBillingEvent(db.sql, priced("s2u", "sub_2", "active", 220, "price_t2"));
     expect(report).toHaveBeenCalledTimes(1);
     const [error, where] = report.mock.calls[0] as [Error, string];
     expect(where).toBe("billing-second-subscription");

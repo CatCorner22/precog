@@ -148,7 +148,10 @@ export async function linkCustomer({
          subscription_id = $2,
          subscription_status = $3,
          current_period_end = case when $4::bigint is null then current_period_end else to_timestamp($4::bigint) end,
-         subscription_price_id = coalesce($5::text, subscription_price_id),
+         subscription_price_id = case
+           when subscription_id = $2 then coalesce($5::text, subscription_price_id)
+           else $5::text
+         end,
          past_due_since = case
            when $3 in ('past_due', 'unpaid') then coalesce(past_due_since, now())
            when $3 in ('active', 'trialing') then null

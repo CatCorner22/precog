@@ -38,7 +38,10 @@ function stripeFake(subscriptions = {}) {
     posts,
     stripeGet: async (path) => {
       const customer = path.match(/^\/customers\/(cus_[a-z0-9]+)$/);
-      if (customer) return ["cus_1", "cus_2"].includes(customer[1]) ? { id: customer[1] } : null;
+      if (customer) {
+        if (customer[1] === "cus_1") return { id: "cus_1", email: "billing@firm.test" };
+        return customer[1] === "cus_2" ? { id: "cus_2" } : null;
+      }
       const list = path.match(/^\/subscriptions\?customer=(cus_[a-z0-9]+)&status=all&limit=3$/);
       if (list) return { data: subscriptions[list[1]] ?? [] };
       throw new Error(`unexpected GET ${path}`);
@@ -104,8 +107,20 @@ describe("linking a Stripe customer from the script", () => {
   });
 
   it("writes the same customer row setStripeCustomer writes, and applies the subscription", async () => {
-    const { result, posts } = await run({ account: "owner", customerId: "cus_1", yes: true });
+    const { result, lines, posts } = await run({
+      account: "owner",
+      customerId: "cus_1",
+      yes: true,
+    });
     expect(result.outcome).toBe("linked");
+    expect(lines).toEqual([
+      "Account: owner@firm.test (owner)",
+      "Stripe customer: cus_1 (billing@firm.test)",
+      "Plan after linking: Firm plan · Starter, active, renews 2026-11-04",
+      "Linked cus_1 to owner.",
+      "Applied subscription sub_net30 (active).",
+      "Named owner on the Stripe customer.",
+    ]);
     expect(await row("owner")).toMatchObject({
       stripe_customer_id: "cus_1",
       subscription_id: "sub_net30",
@@ -128,6 +143,42 @@ describe("linking a Stripe customer from the script", () => {
     // Both leave the same columns set apart from what the script applies from Stripe.
     expect(viaStore?.assessmentPaidAt).toBe(viaScript?.assessmentPaidAt);
     expect(viaStore?.assessmentCreditUsedAt).toBe(viaScript?.assessmentCreditUsedAt);
+  });
+
+  it("prints each step when the customer is already linked, and keeps a price only for the same subscription", async () => {
+    await setStripeCustomer(db.sql, "owner", "cus_2");
+    await db.pg.query(
+      `update billing_accounts set subscription_id = 'sub_old', subscription_status = 'canceled',
+         subscription_price_id = 'price_t3' where user_id = 'owner'`,
+    );
+    const noItems = { ...running(), items: undefined };
+    const { result, lines } = await run(
+      { account: "owner", customerId: "cus_2", yes: true },
+      stripeFake({ cus_2: [noItems] }),
+    );
+    expect(result.outcome).toBe("unchanged");
+    expect(lines).toEqual([
+      "Account: owner@firm.test (owner)",
+      "Stripe customer: cus_2",
+      "Plan after linking: Firm plan, active, renews 2026-11-04",
+      "Already linked to cus_2.",
+      "Applied subscription sub_net30 (active).",
+      "Named owner on the Stripe customer.",
+    ]);
+    // A new subscription never keeps the old one's tier.
+    expect(await row("owner")).toMatchObject({
+      subscription_id: "sub_net30",
+      subscription_price_id: null,
+    });
+    // The same subscription with no items keeps its stored price.
+    await db.pg.query(
+      `update billing_accounts set subscription_price_id = 'price_t1' where user_id = 'owner'`,
+    );
+    await run(
+      { account: "owner", customerId: "cus_2", yes: true },
+      stripeFake({ cus_2: [noItems] }),
+    );
+    expect((await row("owner"))?.subscription_price_id).toBe("price_t1");
   });
 
   it("refuses with the store's words: another account, another customer, a member", async () => {

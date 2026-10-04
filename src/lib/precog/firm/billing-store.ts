@@ -405,7 +405,7 @@ export async function recordSubscription(
      * why; any other reason (the firm asked) clears it.
      */
     cancellationReason?: string | null;
-    /** The subscription's Stripe price (its tier); null keeps the stored one. */
+    /** The subscription's Stripe price (its tier); null keeps the stored one for the same subscription. */
     priceId?: string | null;
   },
 ): Promise<{ status: string; ignoredOther: boolean; storedSubscriptionId: string | null }> {
@@ -462,7 +462,13 @@ export async function recordSubscription(
     on conflict (user_id) do update set
       stripe_customer_id = coalesce(excluded.stripe_customer_id, billing_accounts.stripe_customer_id),
       subscription_id = excluded.subscription_id,
-      subscription_price_id = coalesce(excluded.subscription_price_id, billing_accounts.subscription_price_id),
+      -- A later event for the same subscription without items keeps its price;
+      -- a new subscription never inherits the old one's tier.
+      subscription_price_id = case
+        when billing_accounts.subscription_id = excluded.subscription_id
+        then coalesce(excluded.subscription_price_id, billing_accounts.subscription_price_id)
+        else excluded.subscription_price_id
+      end,
       subscription_status = case
         when ${input.status}::text is null
           and billing_accounts.subscription_id = excluded.subscription_id

@@ -115,7 +115,10 @@ export async function applyBillingEvent(
       cancellationReason: change.cancellationReason,
       priceId: change.priceId,
     });
-    if (ignoredOther) {
+    // Reported once, on the Checkout completion that started it: the
+    // subscription's own created and updated events (each renewal) are not
+    // news again.
+    if (ignoredOther && change.status === null) {
       secondSubscription = {
         userId,
         ignored: change.subscriptionId,
