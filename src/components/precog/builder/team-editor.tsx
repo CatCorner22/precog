@@ -189,7 +189,11 @@ export function TeamEditor({
       toast.error("Keep at least one person on the team.");
       return;
     }
-    if (!window.confirm(`Remove ${p.name}? Precog also removes their name from every process.`))
+    if (
+      !window.confirm(
+        `Remove ${p.name}? Precog also removes their name from every process. You cannot undo this.`,
+      )
+    )
       return;
     onChange(people.filter((x) => x.id !== id));
   }

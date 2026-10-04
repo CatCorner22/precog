@@ -10,7 +10,7 @@ const OPTIONS: { mode: PresentationMode; label: string; title: string }[] = [
   {
     mode: "tactical",
     label: "Tactical",
-    title: "Threat-operations naming and styling. Same gaps, same numbers.",
+    title: "Accounting and framework terms, for a CPA audience. Same gaps, same numbers.",
   },
 ];
 

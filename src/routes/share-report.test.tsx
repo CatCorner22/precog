@@ -84,6 +84,29 @@ describe("the shared report page", () => {
     expect(html).not.toContain("Shared report unavailable");
   });
 
+  it("marks the field invalid and described after a wrong guess, valid before the first", () => {
+    const first = renderToStaticMarkup(
+      <ShareGate
+        reason="passcode"
+        heading={SHARED_REPORT_UNAVAILABLE}
+        onRetry={() => undefined}
+        onPasscode={() => undefined}
+      />,
+    );
+    expect(first).toContain('aria-invalid="false"');
+    expect(first).toContain('aria-describedby="share-passcode-message"');
+    const wrong = renderToStaticMarkup(
+      <ShareGate
+        reason="passcode_wrong"
+        heading={SHARED_REPORT_UNAVAILABLE}
+        onRetry={() => undefined}
+        onPasscode={() => undefined}
+      />,
+    );
+    expect(wrong).toContain('aria-invalid="true"');
+    expect(wrong).toContain('id="share-passcode-message"');
+  });
+
   it("prints the version through the report renderer, read-only and without a cover page", () => {
     expect(source).toContain("Read-only share · version {version.versionNo}");
     expect(source).toContain("` · issued ${formatDay(version.reviewedAt)}`");

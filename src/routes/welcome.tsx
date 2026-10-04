@@ -47,6 +47,17 @@ function WelcomePage() {
               Sign in
             </Link>
           </div>
+          <p className="mt-3 text-sm text-muted">
+            Just looking?{" "}
+            <Link
+              to="/"
+              search={{ start: true }}
+              className="underline-offset-4 hover:text-fg hover:underline"
+            >
+              Explore a sample business
+            </Link>{" "}
+            first — its team is fictional and every gap says so.
+          </p>
         </div>
         <img src="/og.svg" alt="" className="w-full rounded-xl border border-border" />
       </div>

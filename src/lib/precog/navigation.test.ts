@@ -154,7 +154,7 @@ describe("resolveNavTarget", () => {
     expect(routeAliasHref("")).toBeNull();
   });
 
-  it("returns nothing for an unknown name, so the address falls back to Home", () => {
+  it("returns nothing for an unknown name, so the address falls back to Start here", () => {
     expect(resolveNavTarget("bogus")).toBeNull();
     expect(resolveNavTarget("journal ")).toBeNull();
     expect(parseHomeSearch({ tab: "bogus", item: "x" })).toEqual({});
@@ -200,14 +200,14 @@ describe("tab vocabulary", () => {
     expect(tabLabel("intel")).toBe("Patterns");
     expect(tabLabel("control")).toBe("Controls");
     expect(tabLabel("layers", tactical)).toBe("Controls");
-    expect(tabLabel("command")).toBe("Home");
+    expect(tabLabel("command")).toBe("Start here");
     expect(tabLabel("blueprint")).toBe("Procedures");
     expect(tabLabel("value")).toBe("Value proof");
     expect(tabLabel("snapshots")).toBe("History");
   });
 
   it("names the new tabs", () => {
-    expect(tabLabel("start")).toBe("Home");
+    expect(tabLabel("start")).toBe("Start here");
     expect(tabLabel("monthly")).toBe("Monthly review");
     expect(tabLabel("scores")).toBe("How Precog scores");
     expect(tabLabel("scores", tactical)).toBe("Scoring");

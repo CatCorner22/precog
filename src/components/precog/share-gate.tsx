@@ -26,6 +26,9 @@ export function ShareGate({
   const [passcode, setPasscode] = useState("");
   const view = shareErrorView(reason);
   if (view.kind === "passcode") {
+    // Any passcode render after the first ("wrong", throttled, locked) names
+    // a failed guess, so the field carries it as invalid and described.
+    const failedGuess = reason !== "passcode";
     return (
       <div className="flex min-h-dvh items-center justify-center bg-white p-8">
         <form
@@ -39,7 +42,11 @@ export function ShareGate({
           <h1 className="mt-3 text-center text-lg font-semibold text-neutral-900">
             Passcode required
           </h1>
-          <p className="mt-1 text-center text-sm text-neutral-600" role="status">
+          <p
+            id="share-passcode-message"
+            className="mt-1 text-center text-sm text-neutral-600"
+            role="status"
+          >
             {view.message}
           </p>
           <label
@@ -52,6 +59,8 @@ export function ShareGate({
             id="share-passcode"
             type="password"
             autoComplete="off"
+            aria-invalid={failedGuess}
+            aria-describedby="share-passcode-message"
             className="mt-1 w-full rounded border border-neutral-300 px-3 py-2 text-sm"
             value={passcode}
             onChange={(event) => setPasscode(event.target.value)}

@@ -43,7 +43,7 @@ export function StartHere({
     <div className="space-y-6">
       <header className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">Home</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Start here</h1>
           {!model.preamble.isSampleTeam && (
             <Link
               to="/report"
@@ -58,11 +58,14 @@ export function StartHere({
           )}
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          This page opens with two headline figures, then says what to do first, then shows where a
-          business like yours carries exposure, what that same exposure has cost real businesses,
-          and whether the work goes on when someone is out. Every dollar figure and duration on this
-          page links to the case or study it came from. The continuity percentages are
-          Precog&rsquo;s own indices; Who knows what explains how Precog counts each.
+          Two headline figures, then what to do first, then where a business like yours carries
+          exposure, what that same exposure has cost real businesses, and whether the work goes on
+          when someone is out.
+        </p>
+        <p className="max-w-2xl text-sm leading-relaxed text-muted">
+          Every dollar figure and duration on this page links to the case or study it came from. The
+          continuity percentages are Precog&rsquo;s own indices; Who knows what explains how Precog
+          counts each.
         </p>
       </header>
 
