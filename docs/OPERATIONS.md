@@ -50,7 +50,7 @@ Bracketed values such as `[NEON PITR DAYS]` in this file are facts the owner fil
 
 ## Log drain
 
-Until model usage is stored in the database (batch 3), the only record of what the model calls cost is the `[grok] usage` line in the function log (see "AI calls" under Performance baseline). Vercel keeps function logs for a short time, so drain them:
+Daily call counts live in Postgres (`llm_daily_usage`, migration 0012), so the daily ceiling holds across instances; per-call detail — tokens, latency, outcome — exists only as the `[grok] usage` line in the function log (see "AI calls" under Performance baseline). Vercel keeps function logs for a short time, so drain them to keep any per-call cost record:
 
 - Vercel project → Settings → Log Drains → add a drain.
 - Sources: Function and Build. Format: NDJSON.
@@ -100,6 +100,7 @@ Drill record (one row per drill; the first drill sets `[RTO]`):
 - Activate Stripe Tax in the Stripe dashboard and add a tax registration for each state where Precog collects. Every Checkout collects the billing address and tax id and applies Stripe Tax, so without an active Stripe Tax account Checkout fails with Stripe's automatic-tax error.
 - Subscribe the webhook endpoint (`https://<BETTER_AUTH_URL host>/api/stripe/webhook`, signed with `STRIPE_WEBHOOK_SECRET`) to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`, `charge.refunded`, `charge.dispute.created` and `charge.dispute.closed`.
 - Dunning: in Stripe → Settings → Subscriptions and emails, set Smart Retries on, the retry period to 14 days, and "cancel the subscription" as the action after the last failed retry. Precog shows a banner on the home and Firm pages and emails the firm owner once when the subscription goes past due, keeps the paid surface open for 14 days from the first failure, and closes it after; the Monthly review and existing locked versions never close. Keep Stripe's retry period at 14 days so its cancellation and Precog's close coincide; Stripe's cancellation for a failed payment keeps the "closed because the payment failed" notice, a cancellation the firm asks for does not.
+- Assessment disputes: while a dispute is open the paid tools stay open (the chargeback can still be won); a lost dispute counts as a refund and closes them until a new payment. The firm cannot change owner while a payment is disputed — the transfer refuses until the dispute clears.
 - Assessment-credit reversals retry inline, then weekly: when the webhook cannot reach Stripe, the row keeps the posted amount and stamps `assessment_credit_reversal_failed_at`, and the scheduled run's `credit-reversals` stage retries each parked row once a week under the same idempotency key. Rows still parked after a run need a look in the Stripe dashboard (the customer balance transaction with the matching `credit-reversal-…` key):
 
 ```sql
