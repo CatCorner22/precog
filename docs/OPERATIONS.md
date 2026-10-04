@@ -100,6 +100,13 @@ Drill record (one row per drill; the first drill sets `[RTO]`):
 - Activate Stripe Tax in the Stripe dashboard and add a tax registration for each state where Precog collects. Every Checkout collects the billing address and tax id and applies Stripe Tax, so without an active Stripe Tax account Checkout fails with Stripe's automatic-tax error.
 - Subscribe the webhook endpoint (`https://<BETTER_AUTH_URL host>/api/stripe/webhook`, signed with `STRIPE_WEBHOOK_SECRET`) to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`, `charge.refunded`, `charge.dispute.created` and `charge.dispute.closed`.
 - Dunning: in Stripe → Settings → Subscriptions and emails, set Smart Retries on, the retry period to 14 days, and "cancel the subscription" as the action after the last failed retry. Precog shows a banner on the home and Firm pages and emails the firm owner once when the subscription goes past due, keeps the paid surface open for 14 days from the first failure, and closes it after; the Monthly review and existing locked versions never close. Keep Stripe's retry period at 14 days so its cancellation and Precog's close coincide; Stripe's cancellation for a failed payment keeps the "closed because the payment failed" notice, a cancellation the firm asks for does not.
+- Assessment-credit reversals retry inline, then weekly: when the webhook cannot reach Stripe, the row keeps the posted amount and stamps `assessment_credit_reversal_failed_at`, and the scheduled run's `credit-reversals` stage retries each parked row once a week under the same idempotency key. Rows still parked after a run need a look in the Stripe dashboard (the customer balance transaction with the matching `credit-reversal-…` key):
+
+```sql
+select user_id, stripe_customer_id, assessment_credit_cents, assessment_credit_reversal_failed_at
+from billing_accounts
+where assessment_credit_reversal_failed_at is not null and coalesce(assessment_credit_cents, 0) > 0;
+```
 
 ## Resend
 

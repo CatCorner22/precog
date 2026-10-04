@@ -10,7 +10,7 @@ import {
   signPayload,
   verifyStripeSignature,
 } from "./stripe";
-import { applyBillingEvent } from "./webhook";
+import { applyBillingEvent, retryFailedCreditReversals } from "./webhook";
 import {
   applyAssessmentCredit,
   createCheckoutSession,
@@ -797,6 +797,7 @@ describe("starting checkout", () => {
     assessmentCreditUsedAt: null,
     assessmentFeeCents: null,
     assessmentCreditCents: null,
+    assessmentCreditReversalFailedAt: null,
     updatedAt: "2026-10-01T00:00:00.000Z",
     ...over,
   });
@@ -1101,6 +1102,44 @@ describe("the Assessment credit", () => {
       }),
     ).toBe("applied");
     expect(balanceCalls()).toHaveLength(1);
+  });
+
+  it("parks a reversal Stripe refuses and retries it under the same key", async () => {
+    await credited();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    let down = true;
+    const retried: { body: string; headers: Record<string, string> }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        if (down)
+          return new Response(JSON.stringify({ error: { message: "down" } }), { status: 500 });
+        retried.push({
+          body: String(init.body ?? ""),
+          headers: init.headers as Record<string, string>,
+        });
+        return new Response(JSON.stringify({ id: "cbtxn_2" }));
+      }),
+    );
+    expect(await applyBillingEvent(db.sql, refund("evt_r1", "pi_1", 500))).toBe("applied");
+    // The row agrees with the balance Stripe still holds, and is marked.
+    const parked = await loadBillingAccount(db.sql, "owner");
+    expect(parked).toMatchObject({ assessmentCreditCents: 100_000 });
+    expect(parked?.assessmentCreditReversalFailedAt).not.toBeNull();
+    // Stripe recovers; the weekly retry takes the credit back, once.
+    down = false;
+    expect(await retryFailedCreditReversals(db.sql)).toEqual({ retried: 1, failed: 0 });
+    expect(retried).toHaveLength(1);
+    expect(retried[0].body).toContain("amount=100000");
+    expect(retried[0].headers["idempotency-key"]).toBe(
+      "credit-reversal-cus_1-2026-09-01T00:00:00.000Z",
+    );
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      assessmentCreditCents: 0,
+      assessmentCreditReversalFailedAt: null,
+    });
+    expect(await retryFailedCreditReversals(db.sql)).toEqual({ retried: 0, failed: 0 });
+    logged.mockRestore();
   });
 
   it("credits an Assessment paid again after a refund, as its own payment", async () => {

@@ -3,8 +3,10 @@ import { inTransaction } from "@/lib/sql-transaction";
 import {
   ACTIVE_SUBSCRIPTION_STATUSES,
   claimBillingEvent,
+  listFailedCreditReversals,
   loadBillingAccount,
   markAssessmentCreditReversed,
+  markAssessmentCreditReversalFailed,
   markPastDue,
   recordAssessmentDispute,
   recordAssessmentPayment,
@@ -30,17 +32,18 @@ import { billingChangeFor, type StripeEvent } from "./stripe";
  *
  * After a refund or a lost dispute on an Assessment that was credited
  * against the Firm plan, the credit is reversed on the Stripe customer
- * balance once the transaction has committed, best effort: a failure is
- * logged and reported, never retried through Stripe's redelivery (the event
- * is already claimed). The stored credit amount goes to zero inside the
- * transaction, so a second refund or lost dispute on the same payment
- * reverses nothing twice.
+ * balance once the transaction has committed, with a short inline retry; a
+ * failure that outlasts the retry restores the stored amount and marks the
+ * row, and the weekly run retries it (retryFailedCreditReversals). The
+ * stored credit amount goes to zero inside the transaction, so a second
+ * refund or lost dispute on the same payment reverses nothing twice.
  */
 export async function applyBillingEvent(
   sql: Sql,
   event: StripeEvent,
 ): Promise<"duplicate" | "ignored" | "applied"> {
   let reversal: {
+    userId: string;
     customerId: string;
     creditCents: number;
     assessmentPaidAt: string | null;
@@ -82,6 +85,7 @@ export async function applyBillingEvent(
           (account.assessmentCreditCents ?? 0) > 0
         ) {
           reversal = {
+            userId,
             customerId: account.stripeCustomerId,
             creditCents: account.assessmentCreditCents ?? 0,
             assessmentPaidAt: account.assessmentPaidAt,
@@ -122,25 +126,81 @@ export async function applyBillingEvent(
     );
     return "applied";
   });
-  if (reversal) await reverseAssessmentCredit(reversal);
+  if (reversal) await reverseAssessmentCredit(sql, reversal);
   return outcome;
 }
 
-async function reverseAssessmentCredit(input: {
-  customerId: string;
-  creditCents: number;
-  assessmentPaidAt: string | null;
-}): Promise<void> {
-  if (input.creditCents <= 0) return;
-  try {
-    const { reverseCustomerBalance } = await import("./stripe.server");
-    await reverseCustomerBalance(input.customerId, input.creditCents, input.assessmentPaidAt);
-  } catch (err) {
-    console.error(
-      "[billing] Assessment credit not reversed:",
-      err instanceof Error ? err.message : err,
-    );
-    const { reportServerError } = await import("@/lib/observability/report.server");
-    await reportServerError(err, "stripe-credit-reversal");
+/** Inline attempts before a reversal is parked for the weekly run. */
+const REVERSAL_ATTEMPTS = 3;
+/** Waits between attempts, in milliseconds; bounded for a webhook invocation. */
+const REVERSAL_RETRY_MS = [500, 2000];
+
+/**
+ * Takes back a posted Assessment credit on the Stripe customer balance. The
+ * Stripe call carries a deterministic idempotency key, so every attempt and
+ * every weekly retry posts at most once. When every inline attempt fails,
+ * the stored amount comes back (the row agrees with the balance Stripe
+ * still holds) and the row is marked for the weekly run; the outcome is
+ * reported either way a failure outlasts the retry.
+ */
+async function reverseAssessmentCredit(
+  sql: Sql,
+  input: {
+    userId: string;
+    customerId: string;
+    creditCents: number;
+    assessmentPaidAt: string | null;
+  },
+): Promise<boolean> {
+  if (input.creditCents <= 0) return true;
+  const { reverseCustomerBalance } = await import("./stripe.server");
+  let last: unknown = null;
+  for (let attempt = 0; attempt < REVERSAL_ATTEMPTS; attempt += 1) {
+    try {
+      await reverseCustomerBalance(input.customerId, input.creditCents, input.assessmentPaidAt);
+      return true;
+    } catch (err) {
+      last = err;
+      if (attempt < REVERSAL_RETRY_MS.length) {
+        await new Promise((resolve) => setTimeout(resolve, REVERSAL_RETRY_MS[attempt]));
+      }
+    }
   }
+  console.error(
+    "[billing] Assessment credit not reversed:",
+    last instanceof Error ? last.message : last,
+  );
+  await markAssessmentCreditReversalFailed(sql, input.userId, input.creditCents);
+  const { reportServerError } = await import("@/lib/observability/report.server");
+  await reportServerError(last, "stripe-credit-reversal");
+  return false;
+}
+
+/**
+ * Retries every credit reversal a webhook parked, for the weekly run: one
+ * Stripe attempt each, oldest failure first. A success zeroes the amount and
+ * clears the mark; a failure keeps both for the week after and is reported.
+ * Returns what moved, for the run's answer.
+ */
+export async function retryFailedCreditReversals(
+  sql: Sql,
+): Promise<{ retried: number; failed: number }> {
+  const pending = await listFailedCreditReversals(sql);
+  const { reverseCustomerBalance } = await import("./stripe.server");
+  const { reportServerError } = await import("@/lib/observability/report.server");
+  let failed = 0;
+  for (const row of pending) {
+    try {
+      await reverseCustomerBalance(row.customerId, row.creditCents, row.assessmentPaidAt);
+      await markAssessmentCreditReversed(sql, row.userId);
+    } catch (err) {
+      failed += 1;
+      console.error(
+        "[billing] Assessment credit reversal retry failed:",
+        err instanceof Error ? err.message : err,
+      );
+      await reportServerError(err, "stripe-credit-reversal-retry");
+    }
+  }
+  return { retried: pending.length, failed };
 }
