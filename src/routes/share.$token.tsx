@@ -197,87 +197,101 @@ function SharePage() {
         )}
 
         <Section title="Processes">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-neutral-300 text-left text-xs tracking-wide text-neutral-500 uppercase">
-                <th className="py-1.5 pr-2">Process</th>
-                <th className="py-1.5 pr-2">Owner(s)</th>
-                <th className="py-1.5 pr-2">Controls</th>
-                <th className="py-1.5 pr-2">Top risk</th>
-                <th className="py-1.5 pr-2">Evidence</th>
-                <th className="py-1.5 text-right">Heat</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payload.processes.map((p) => {
-                const top = [...p.risks].sort(
-                  (a, b) => b.severity * b.likelihood - a.severity * a.likelihood,
-                )[0];
-                const overdue = p.evidence.filter(
-                  (e) => e.status === "overdue" || e.status === "never",
-                ).length;
-                return (
-                  <tr key={p.id} className="border-b border-neutral-200 align-top">
-                    <td className="py-1.5 pr-2">
-                      <p className="font-medium">{p.name}</p>
-                      <p className="text-xs text-neutral-600">{p.description}</p>
-                    </td>
-                    <td className="py-1.5 pr-2 text-neutral-700">
-                      {p.owners.join(", ") || <span className="text-red-700">unowned</span>}
-                    </td>
-                    <td className="py-1.5 pr-2 text-neutral-700">
-                      {p.controls.length ? (
-                        <ul className="space-y-0.5">
-                          {p.controls.map((c, i) => (
-                            <li key={`${i}-${c.name}`} className="flex items-center gap-1">
-                              <ShieldCheck
-                                className={`size-3 ${c.segregated ? "text-emerald-700" : "text-amber-600"}`}
-                              />
-                              {c.name}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <span className="text-neutral-400">none</span>
-                      )}
-                    </td>
-                    <td className="py-1.5 pr-2 text-neutral-700">
-                      {top ? `${top.title} (S${top.severity}×L${top.likelihood})` : "—"}
-                    </td>
-                    <td className="py-1.5 pr-2 text-neutral-700">
-                      {p.evidence.length ? (
-                        <>
-                          <p className={overdue ? "text-amber-700" : ""}>
-                            {p.evidence.length - overdue}/{p.evidence.length} current
-                          </p>
-                          <ul className="text-xs text-neutral-600">
-                            {p.evidence.map((e, i) => (
-                              <li key={`${i}-${e.label}`}>{evidenceLine(e)}</li>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-neutral-300 text-left text-xs tracking-wide text-neutral-500 uppercase">
+                  <th scope="col" className="py-1.5 pr-2">
+                    Process
+                  </th>
+                  <th scope="col" className="py-1.5 pr-2">
+                    Owner(s)
+                  </th>
+                  <th scope="col" className="py-1.5 pr-2">
+                    Controls
+                  </th>
+                  <th scope="col" className="py-1.5 pr-2">
+                    Top risk
+                  </th>
+                  <th scope="col" className="py-1.5 pr-2">
+                    Evidence
+                  </th>
+                  <th scope="col" className="py-1.5 text-right">
+                    Heat
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {payload.processes.map((p) => {
+                  const top = [...p.risks].sort(
+                    (a, b) => b.severity * b.likelihood - a.severity * a.likelihood,
+                  )[0];
+                  const overdue = p.evidence.filter(
+                    (e) => e.status === "overdue" || e.status === "never",
+                  ).length;
+                  return (
+                    <tr key={p.id} className="border-b border-neutral-200 align-top">
+                      <td className="py-1.5 pr-2">
+                        <p className="font-medium">{p.name}</p>
+                        <p className="text-xs text-neutral-600">{p.description}</p>
+                      </td>
+                      <td className="py-1.5 pr-2 text-neutral-700">
+                        {p.owners.join(", ") || <span className="text-red-700">unowned</span>}
+                      </td>
+                      <td className="py-1.5 pr-2 text-neutral-700">
+                        {p.controls.length ? (
+                          <ul className="space-y-0.5">
+                            {p.controls.map((c, i) => (
+                              <li key={`${i}-${c.name}`} className="flex items-center gap-1">
+                                <ShieldCheck
+                                  className={`size-3 ${c.segregated ? "text-emerald-700" : "text-amber-600"}`}
+                                />
+                                {c.name}
+                              </li>
                             ))}
                           </ul>
-                        </>
-                      ) : (
-                        <span className="text-neutral-400">—</span>
-                      )}
-                    </td>
-                    <td className="py-1.5 text-right tabular">
-                      <span
-                        className={
-                          p.heat >= HEAT_BANDS.hot
-                            ? "font-semibold text-red-700"
-                            : p.heat >= HEAT_BANDS.warm
-                              ? "text-amber-700"
-                              : "text-neutral-600"
-                        }
-                      >
-                        {p.heat}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        ) : (
+                          <span className="text-neutral-400">none</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 pr-2 text-neutral-700">
+                        {top ? `${top.title} (S${top.severity}×L${top.likelihood})` : "—"}
+                      </td>
+                      <td className="py-1.5 pr-2 text-neutral-700">
+                        {p.evidence.length ? (
+                          <>
+                            <p className={overdue ? "text-amber-700" : ""}>
+                              {p.evidence.length - overdue}/{p.evidence.length} current
+                            </p>
+                            <ul className="text-xs text-neutral-600">
+                              {p.evidence.map((e, i) => (
+                                <li key={`${i}-${e.label}`}>{evidenceLine(e)}</li>
+                              ))}
+                            </ul>
+                          </>
+                        ) : (
+                          <span className="text-neutral-400">—</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 text-right tabular">
+                        <span
+                          className={
+                            p.heat >= HEAT_BANDS.hot
+                              ? "font-semibold text-red-700"
+                              : p.heat >= HEAT_BANDS.warm
+                                ? "text-amber-700"
+                                : "text-neutral-600"
+                          }
+                        >
+                          {p.heat}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </Section>
 
         {payload.issues.length > 0 && (

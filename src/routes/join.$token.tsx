@@ -94,8 +94,20 @@ function JoinPage() {
           <>
             <h1 className="mt-2 text-xl font-semibold tracking-tight">Join {invite.firmName}</h1>
             <p className="mt-2 text-sm text-muted">
-              The firm invited you as a <strong className="text-fg">{invite.role}</strong>. A
-              preparer maps clients and locks reports; a reviewer also reviews reports for issuance.
+              The firm invited you as a <strong className="text-fg">{invite.role}</strong>. You can:
+            </p>
+            <ul className="mt-2 list-disc space-y-0.5 pl-5 text-sm text-muted">
+              {[
+                "Map clients and lock reports",
+                "Record monthly review results and control checks",
+                ...(invite.role === "reviewer"
+                  ? ["Review control checks", "Sign off reports someone else prepared"]
+                  : []),
+              ].map((duty) => (
+                <li key={duty}>{duty}</li>
+              ))}
+            </ul>
+            <p className="mt-2 text-sm text-muted">
               Only the firm owner deletes or restores a client.
             </p>
             {isPending ? (
