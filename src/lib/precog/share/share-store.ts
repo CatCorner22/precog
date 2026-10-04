@@ -427,7 +427,9 @@ export interface SharedReport {
  * The version a report link prints, as `getReport` loads it for a signed-in
  * viewer, with the profile cut down to what the report reads: the link hands
  * the version's names, duties and review results to whoever holds it, and
- * nothing the business wrote for itself. Null when the version is gone.
+ * nothing the business wrote for itself. Null when the version is gone or
+ * not reviewed for issuance: a link never prints what issuance never cleared,
+ * even if the review was cleared after the link was minted.
  */
 export async function loadSharedReport(
   sql: Sql,
@@ -439,7 +441,7 @@ export async function loadSharedReport(
     row.ownerUserId,
     row.reportVersionId,
   );
-  if (!loaded) return null;
+  if (!loaded || !loaded.version.reviewedAt) return null;
   const [frozen, name] = await Promise.all([
     loadFrozenReport<StoredReportModel>(sql, row.ownerUserId, row.reportVersionId),
     reportFirmName(sql, row.ownerUserId, row.businessId),
