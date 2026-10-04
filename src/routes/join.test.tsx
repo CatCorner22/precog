@@ -23,10 +23,12 @@ describe("the invitation page", () => {
     );
   });
 
-  it("says what each role does and who deletes or restores a client", () => {
-    expect(source).toContain(
-      "A preparer maps clients and locks reports; a reviewer also reviews reports for issuance. Only the firm owner deletes or restores a client.",
-    );
+  it("says what each role can do and who deletes or restores a client", () => {
+    expect(source).toContain("Map clients and lock reports");
+    expect(source).toContain("Record monthly review results and control checks");
+    expect(source).toContain("Review control checks");
+    expect(source).toContain("Sign off reports someone else prepared");
+    expect(source).toContain("Only the firm owner deletes or restores a client.");
   });
 
   it("tells a throttled visitor to wait rather than calling the link closed", () => {
