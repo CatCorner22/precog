@@ -13,6 +13,8 @@ export const COVER_PAGE_LABEL = "Print a cover page on client reports";
 export const REMOVE_LOGO = "Remove logo";
 export const SAVE_LETTERHEAD = "Save letterhead";
 export const LETTERHEAD_SAVED = "Letterhead saved.";
+/** The toast when the save fails with no message of its own. */
+export const LETTERHEAD_NOT_SAVED = "Precog did not save the letterhead.";
 /** Word for word the server's refusal (`letterheadInput`), so the browser can say it before uploading. */
 export const LOGO_REFUSAL = "The logo must be a PNG or JPEG of 64 KB or less";
 export const LETTERHEAD_MAX_CHARS = 600;
@@ -147,14 +149,16 @@ export async function submitLetterhead(
   } catch (err) {
     return {
       ok: false,
-      message: err instanceof Error ? err.message : "Precog did not save the letterhead.",
+      message: err instanceof Error ? err.message : LETTERHEAD_NOT_SAVED,
     };
   }
 }
 
 /**
  * The picked file drawn at most `LOGO_MAX_SIDE` wide or high and encoded
- * again as PNG, or as JPEG at falling quality when PNG is too large. A file
+ * again as PNG, or as JPEG at falling quality when PNG is too large. JPEG has
+ * no transparency and a browser composites it onto black, so before the JPEG
+ * attempts the canvas is filled white and the picture drawn again. A file
  * that is not a picture, or one that stays over the cap, is refused with the
  * server's words.
  */
@@ -179,7 +183,14 @@ export async function encodeLogo(file: Blob): Promise<string> {
     ["image/jpeg", 0.7],
     ["image/jpeg", 0.55],
   ];
+  let onWhite = false;
   for (const [type, quality] of attempts) {
+    if (type === "image/jpeg" && !onWhite) {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(picture, 0, 0, width, height);
+      onWhite = true;
+    }
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, quality));
     if (!blob || blob.type !== type) continue;
     const url = logoDataUrl(type, await toBase64(blob));

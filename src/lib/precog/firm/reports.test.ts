@@ -180,9 +180,11 @@ describe("report versions", () => {
       letterhead: "12 Elm St",
       logoDataUrl: logo,
     });
-    expect((await listReportVersions(db.sql, "owner", "biz_1")).map((r) => r.firm?.name)).toEqual([
-      "North Advisors",
-      undefined,
+    // The list carries the name and letterhead but never the logo, which only
+    // the single-version load above carries.
+    expect((await listReportVersions(db.sql, "owner", "biz_1")).map((r) => r.firm)).toEqual([
+      { name: "North Advisors", letterhead: "12 Elm St", logoDataUrl: null },
+      null,
     ]);
     // A version stored before the snapshot columns existed reads as null.
     await db.pg.query("update report_versions set firm_name = null where id = 'rv_firm'");

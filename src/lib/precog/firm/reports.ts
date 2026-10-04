@@ -27,7 +27,12 @@ export interface ReportVersionRow {
   reviewedAt: string | null;
   reviewNote: string;
   sentAt: string | null;
-  /** The firm as frozen at lock; null for a solo business and for versions locked before migration 0041. */
+  /**
+   * The firm as frozen at lock; null for a solo business and for versions
+   * locked before migration 0041. The versions list carries the name and
+   * letterhead with `logoDataUrl` null (up to 50 rows, nothing prints the
+   * logo there); only the single-version load carries the logo.
+   */
   firm: FirmSnapshot | null;
 }
 
@@ -42,7 +47,7 @@ const VERSION_COLUMNS = `
   v.id, v.business_id, v.version_no, v.revision, v.scope_note,
   v.prepared_by, p.name as prepared_by_name, v.prepared_at,
   v.reviewed_by, r.name as reviewed_by_name, v.reviewed_at, v.review_note, v.sent_at,
-  v.firm_name, v.firm_letterhead, v.firm_logo_data_url
+  v.firm_name, v.firm_letterhead
 `;
 const VERSION_JOINS = `
   left join "user" p on p.id = v.prepared_by
@@ -65,7 +70,8 @@ interface RawVersion {
   sent_at: string | null;
   firm_name: string | null;
   firm_letterhead: string | null;
-  firm_logo_data_url: string | null;
+  /** Selected by the single-version load only; the list leaves it out. */
+  firm_logo_data_url?: string | null;
 }
 
 function toRow(r: RawVersion): ReportVersionRow {
@@ -89,7 +95,7 @@ function toRow(r: RawVersion): ReportVersionRow {
         : {
             name: r.firm_name,
             letterhead: r.firm_letterhead ?? "",
-            logoDataUrl: r.firm_logo_data_url,
+            logoDataUrl: r.firm_logo_data_url ?? null,
           },
   };
 }
@@ -181,14 +187,14 @@ export async function listReportVersions(
   return rows.map(toRow);
 }
 
-/** One version with its frozen profile, or null. */
+/** One version with its frozen profile and the firm's frozen logo, or null. */
 export async function loadReportVersion<TProfile = unknown>(
   sql: Sql,
   ownerUserId: string,
   id: string,
 ): Promise<{ version: ReportVersionRow; profile: TProfile } | null> {
   const rows = await sql.query<RawVersion & { profile: TProfile }>(
-    `select ${VERSION_COLUMNS}, v.profile from report_versions v ${VERSION_JOINS}
+    `select ${VERSION_COLUMNS}, v.firm_logo_data_url, v.profile from report_versions v ${VERSION_JOINS}
      where v.user_id = $1 and v.id = $2`,
     [ownerUserId, id],
   );

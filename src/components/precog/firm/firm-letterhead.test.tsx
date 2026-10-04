@@ -12,6 +12,7 @@ const {
   COVER_PAGE_LABEL,
   FirmLetterhead,
   LETTERHEAD_LABEL,
+  LETTERHEAD_NOT_SAVED,
   LETTERHEAD_SAVED,
   LOGO_LABEL,
   LOGO_MAX_DATA_URL_CHARS,
@@ -116,5 +117,13 @@ describe("the letterhead form", () => {
     expect(
       await submitLetterhead({ letterhead: "", logoDataUrl: null, coverPage: true }, refused),
     ).toEqual({ ok: false, message: "Only the firm owner can do that" });
+    // A rejection with no message of its own prints Precog's own sentence.
+    expect(LETTERHEAD_NOT_SAVED).toBe("Precog did not save the letterhead.");
+    const failed = vi.fn(async () => {
+      throw "offline";
+    });
+    expect(
+      await submitLetterhead({ letterhead: "", logoDataUrl: null, coverPage: true }, failed),
+    ).toEqual({ ok: false, message: LETTERHEAD_NOT_SAVED });
   });
 });
