@@ -28,6 +28,12 @@ export interface ReportVersionRow {
   reviewNote: string;
   sentAt: string | null;
   /**
+   * Whether the version stores the figures it printed. False for a version
+   * locked before Precog stored them or whose model was past the cap; such
+   * a version recalculates when opened, so it cannot be shared as issued.
+   */
+  hasFigures: boolean;
+  /**
    * The firm as frozen at lock; null for a solo business and for versions
    * locked before migration 0041. The versions list carries the name and
    * letterhead with `logoDataUrl` null (up to 50 rows, nothing prints the
@@ -47,6 +53,7 @@ const VERSION_COLUMNS = `
   v.id, v.business_id, v.version_no, v.revision, v.scope_note,
   v.prepared_by, p.name as prepared_by_name, v.prepared_at,
   v.reviewed_by, r.name as reviewed_by_name, v.reviewed_at, v.review_note, v.sent_at,
+  v.report_model is not null as has_figures,
   v.firm_name, v.firm_letterhead
 `;
 const VERSION_JOINS = `
@@ -68,6 +75,7 @@ interface RawVersion {
   reviewed_at: string | null;
   review_note: string;
   sent_at: string | null;
+  has_figures: boolean;
   firm_name: string | null;
   firm_letterhead: string | null;
   /** Selected by the single-version load only; the list leaves it out. */
@@ -89,6 +97,7 @@ function toRow(r: RawVersion): ReportVersionRow {
     reviewedAt: toIsoTimestampOrNull(r.reviewed_at),
     reviewNote: r.review_note,
     sentAt: toIsoTimestampOrNull(r.sent_at),
+    hasFigures: Boolean(r.has_figures),
     firm:
       r.firm_name === null
         ? null

@@ -1,6 +1,18 @@
 import type { Sql } from "@/lib/db";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { RequestError } from "@/lib/request-errors";
+import {
+  loadFrozenReport,
+  loadReportVersion,
+  reportFirmName,
+  type FrozenReportRow,
+  type ReportVersionRow,
+} from "../firm/reports";
+import type { FirmSnapshot } from "../firm/store";
+import type { StoredReportModel } from "../report/stored-model";
+import type { PracticeProfile } from "../practice-profile";
+import { mergeProfile } from "../profile-merge";
+import { shareReportProfile } from "./report-share-profile";
 
 /**
  * Share-link rows, kept free of `createServerFn` so they run against PGLite in
@@ -36,6 +48,8 @@ export interface NewMapShare {
   /** The business the link copies (its owner and id), checked by the caller. */
   businessOwnerId?: string | null;
   businessId?: string | null;
+  /** The locked report version a report link prints; null for a map link. */
+  reportVersionId?: string | null;
 }
 
 /**
@@ -52,7 +66,7 @@ export async function insertMapShare(
   const rows = await sql<{ token: string }>`
     insert into map_shares (
       token, user_id, business_name, industry, payload, expires_at,
-      redacted, passcode_salt, passcode_hash, business_owner_id, business_id
+      redacted, passcode_salt, passcode_hash, business_owner_id, business_id, report_version_id
     )
     select
       ${share.token}::text,
@@ -65,7 +79,8 @@ export async function insertMapShare(
       ${share.passcodeSalt}::text,
       ${share.passcodeHash}::text,
       ${share.businessOwnerId ?? null}::text,
-      ${share.businessId ?? null}::text
+      ${share.businessId ?? null}::text,
+      ${share.reportVersionId ?? null}::text
     where (
       select count(*) from map_shares
       where user_id = ${share.userId}
@@ -88,6 +103,13 @@ export interface ShareSummary {
   lastViewedAt: string | null;
   /** Who made the link when a colleague did (the firm owner sees those); null for the caller's own. */
   createdBy: string | null;
+  /** A map link carries a copy of the map; a report link prints a locked version. */
+  kind: "map" | "report";
+  /** The business the link copies; null for a link made before links recorded it. */
+  businessId: string | null;
+  /** The locked version a report link prints, and its number; null for a map link. */
+  reportVersionId: string | null;
+  versionNo: number | null;
 }
 
 type ShareListRow = {
@@ -100,7 +122,21 @@ type ShareListRow = {
   views: number | string | null;
   last_viewed_at: unknown;
   created_by: string | null;
+  business_id: string | null;
+  report_version_id: string | null;
+  version_no: number | string | null;
 };
+
+const SHARE_LIST_COLUMNS = `
+  s.token, s.created_at, s.expires_at, s.revoked_at, s.redacted,
+  s.passcode_hash is not null as has_passcode,
+  (select count(*)::int from map_share_views v where v.token = s.token) as views,
+  (select max(viewed_at) from map_share_views v where v.token = s.token) as last_viewed_at,
+  case when s.user_id = $1 then null
+    else (select u.name from "user" u where u.id = s.user_id) end as created_by,
+  s.business_id, s.report_version_id, rv.version_no
+`;
+const SHARE_LIST_JOINS = `left join report_versions rv on rv.id = s.report_version_id`;
 
 /**
  * The owner's links: every live one, however many, then the newest revoked
@@ -110,41 +146,31 @@ type ShareListRow = {
  * can revoke them.
  */
 export async function listMapShareSummaries(sql: Sql, userId: string): Promise<ShareSummary[]> {
-  const live = await sql<ShareListRow>`
-    select
-      token, created_at, expires_at, revoked_at, redacted,
-      passcode_hash is not null as has_passcode,
-      (select count(*)::int from map_share_views v where v.token = s.token) as views,
-      (select max(viewed_at) from map_share_views v where v.token = s.token) as last_viewed_at,
-      case when s.user_id = ${userId} then null
-        else (select u.name from "user" u where u.id = s.user_id) end as created_by
-    from map_shares s
-    where (
-        s.user_id = ${userId}
-        or exists (
-          select 1 from businesses b
-          where b.user_id = s.business_owner_id and b.id = s.business_id
-            and b.firm_user_id = ${userId}
-        )
-      )
-      and revoked_at is null
-      and (expires_at is null or expires_at > now())
-    order by created_at desc
-  `;
-  const inactive = await sql<ShareListRow>`
-    select
-      token, created_at, expires_at, revoked_at, redacted,
-      passcode_hash is not null as has_passcode,
-      (select count(*)::int from map_share_views v where v.token = s.token) as views,
-      (select max(viewed_at) from map_share_views v where v.token = s.token) as last_viewed_at,
-      case when s.user_id = ${userId} then null
-        else (select u.name from "user" u where u.id = s.user_id) end as created_by
-    from map_shares s
-    where s.user_id = ${userId}
-      and (revoked_at is not null or (expires_at is not null and expires_at <= now()))
-    order by created_at desc
-    limit ${INACTIVE_SHARES_LISTED}::int
-  `;
+  const live = await sql.query<ShareListRow>(
+    `select ${SHARE_LIST_COLUMNS}
+     from map_shares s ${SHARE_LIST_JOINS}
+     where (
+         s.user_id = $1
+         or exists (
+           select 1 from businesses b
+           where b.user_id = s.business_owner_id and b.id = s.business_id
+             and b.firm_user_id = $1
+         )
+       )
+       and s.revoked_at is null
+       and (s.expires_at is null or s.expires_at > now())
+     order by s.created_at desc`,
+    [userId],
+  );
+  const inactive = await sql.query<ShareListRow>(
+    `select ${SHARE_LIST_COLUMNS}
+     from map_shares s ${SHARE_LIST_JOINS}
+     where s.user_id = $1
+       and (s.revoked_at is not null or (s.expires_at is not null and s.expires_at <= now()))
+     order by s.created_at desc
+     limit $2`,
+    [userId, INACTIVE_SHARES_LISTED],
+  );
   return [...live, ...inactive]
     .map((r) => ({
       token: r.token,
@@ -156,8 +182,107 @@ export async function listMapShareSummaries(sql: Sql, userId: string): Promise<S
       views: Number(r.views ?? 0),
       lastViewedAt: toIsoTimestampOrNull(r.last_viewed_at),
       createdBy: r.created_by ?? null,
+      kind: r.report_version_id ? ("report" as const) : ("map" as const),
+      businessId: r.business_id ?? null,
+      reportVersionId: r.report_version_id ?? null,
+      versionNo: r.version_no === null || r.version_no === undefined ? null : Number(r.version_no),
     }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/**
+ * Why a locked version cannot be shared as an issued report, or null when it
+ * can: report links are for a firm's client businesses, only a version
+ * reviewed for issuance, and only one that stores the figures it printed (a
+ * version without them recalculates with today's scoring, which is not what
+ * was issued). The caller has already checked that `ownerUserId` may open
+ * the version.
+ */
+export const REPORT_SHARE_REFUSAL = {
+  solo: "Report links are for a firm's client businesses. Add the business to your firm to share its report.",
+  unreviewed: "Only a version reviewed for issuance can be shared. Review it for issuance first.",
+  noFigures:
+    "This version was locked without its stored figures, so Precog cannot share it as issued. Lock a new version and review it.",
+} as const;
+
+export async function reportShareRefusal(
+  sql: Sql,
+  ownerUserId: string,
+  versionId: string,
+): Promise<string | null> {
+  const rows = await sql<{ firm_client: boolean; reviewed: boolean; has_figures: boolean }>`
+    select b.firm_user_id is not null as firm_client,
+      v.reviewed_at is not null as reviewed,
+      v.report_model is not null as has_figures
+    from report_versions v
+    join businesses b on b.user_id = v.user_id and b.id = v.business_id
+    where v.user_id = ${ownerUserId} and v.id = ${versionId}
+  `;
+  const row = rows[0];
+  if (!row) return "That report version does not exist";
+  if (!row.firm_client) return REPORT_SHARE_REFUSAL.solo;
+  if (!row.reviewed) return REPORT_SHARE_REFUSAL.unreviewed;
+  if (!row.has_figures) return REPORT_SHARE_REFUSAL.noFigures;
+  return null;
+}
+
+/** A share row with the locked version it prints, for the public report page. */
+export interface ReportShareRow {
+  token: string;
+  createdAt: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  passcodeSalt: string | null;
+  passcodeHash: string | null;
+  reportVersionId: string;
+  /** The version's owner account and business, which `loadReportVersion` is keyed by. */
+  ownerUserId: string;
+  businessId: string;
+  versionNo: number;
+  reviewedAt: string | null;
+}
+
+/**
+ * The share row for a report link with its version's keys, or null when the
+ * token is unknown or names a map link. The version row is joined, so a
+ * version deleted with its business (the cascade also removes the share)
+ * reads as missing.
+ */
+export async function loadReportShareRow(sql: Sql, token: string): Promise<ReportShareRow | null> {
+  const rows = await sql<{
+    token: string;
+    created_at: unknown;
+    expires_at: unknown;
+    revoked_at: unknown;
+    passcode_salt: string | null;
+    passcode_hash: string | null;
+    report_version_id: string;
+    user_id: string;
+    business_id: string;
+    version_no: number | string;
+    reviewed_at: unknown;
+  }>`
+    select s.token, s.created_at, s.expires_at, s.revoked_at, s.passcode_salt, s.passcode_hash,
+      s.report_version_id, v.user_id, v.business_id, v.version_no, v.reviewed_at
+    from map_shares s
+    join report_versions v on v.id = s.report_version_id
+    where s.token = ${token}
+  `;
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    token: r.token,
+    createdAt: toIsoTimestamp(r.created_at),
+    expiresAt: toIsoTimestampOrNull(r.expires_at),
+    revokedAt: toIsoTimestampOrNull(r.revoked_at),
+    passcodeSalt: r.passcode_salt,
+    passcodeHash: r.passcode_hash,
+    reportVersionId: r.report_version_id,
+    ownerUserId: r.user_id,
+    businessId: r.business_id,
+    versionNo: Number(r.version_no),
+    reviewedAt: toIsoTimestampOrNull(r.reviewed_at),
+  };
 }
 
 /**
@@ -286,4 +411,51 @@ export async function recordShareView(
         and viewed_at > now() - interval '1 minute'
     )
   `;
+}
+
+/** What the public report page prints for a report link. */
+export interface SharedReport {
+  version: ReportVersionRow;
+  frozen: FrozenReportRow<StoredReportModel> | null;
+  /** The firm as frozen at lock, else its live name alone (a version locked before 0041). */
+  firm: FirmSnapshot | null;
+  /** The slice of the business the printed report reads (report-share-profile.ts). */
+  profile: PracticeProfile;
+}
+
+/**
+ * The version a report link prints, as `getReport` loads it for a signed-in
+ * viewer, with the profile cut down to what the report reads: the link hands
+ * the version's names, duties and review results to whoever holds it, and
+ * nothing the business wrote for itself. Null when the version is gone.
+ */
+export async function loadSharedReport(
+  sql: Sql,
+  row: Pick<ReportShareRow, "ownerUserId" | "businessId" | "reportVersionId">,
+  today: string,
+): Promise<SharedReport | null> {
+  const loaded = await loadReportVersion<PracticeProfile>(
+    sql,
+    row.ownerUserId,
+    row.reportVersionId,
+  );
+  if (!loaded) return null;
+  const [frozen, name] = await Promise.all([
+    loadFrozenReport<StoredReportModel>(sql, row.ownerUserId, row.reportVersionId),
+    reportFirmName(sql, row.ownerUserId, row.businessId),
+  ]);
+  const merged = mergeProfile(
+    {
+      profile: loaded.profile,
+      industry: loaded.profile.industry,
+      name: loaded.profile.practiceName,
+    },
+    today,
+  );
+  return {
+    version: loaded.version,
+    frozen,
+    firm: loaded.version.firm ?? (name ? { name, letterhead: "", logoDataUrl: null } : null),
+    profile: shareReportProfile({ ...merged, businessId: row.businessId }),
+  };
 }

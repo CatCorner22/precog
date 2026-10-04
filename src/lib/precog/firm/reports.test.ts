@@ -68,6 +68,43 @@ describe("report versions", () => {
     ]);
   });
 
+  it("says whether a version stores its figures", async () => {
+    const bare = await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_bare",
+    });
+    expect(bare.hasFigures).toBe(false);
+    const stored = await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_stored",
+      freeze: () => ({ scoringVersion: "1.0.0", layoutVersion: 3, model: { summary: [] } }),
+    });
+    expect(stored.hasFigures).toBe(true);
+    // A lock that ran but could not store the model reads as without figures.
+    const dropped = await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_dropped",
+      freeze: () => ({ scoringVersion: "1.0.0", layoutVersion: 3, model: null }),
+    });
+    expect(dropped.hasFigures).toBe(false);
+    expect(
+      (await listReportVersions(db.sql, "owner", "biz_1")).map((v) => [v.id, v.hasFigures]),
+    ).toEqual([
+      ["rv_dropped", false],
+      ["rv_stored", true],
+      ["rv_bare", false],
+    ]);
+  });
+
   it("a reviewer other than the preparer reviews it for issuance, once", async () => {
     await lockReportVersion(db.sql, {
       ownerUserId: "owner",
@@ -281,6 +318,7 @@ describe("versionProvenance", () => {
     reviewedAt: null,
     reviewNote: "",
     sentAt: null,
+    hasFigures: false,
     firm: null,
   };
 

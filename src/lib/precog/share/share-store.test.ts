@@ -123,9 +123,16 @@ describe("insertMapShare", () => {
     expect(await insertMapShare(sql, newShare(tok(MAX_LIVE_SHARES)))).toBe(true);
   });
 
-  it("stores the fields it was given", async () => {
+  it("stores the fields it was given, and lists a map link as a map", async () => {
     const share = { ...newShare(tok(7)), redacted: true, passcodeSalt: "s", passcodeHash: "h" };
     expect(await insertMapShare(sql, share)).toBe(true);
+    const [listed] = await listMapShareSummaries(sql, "u1");
+    expect([listed.kind, listed.reportVersionId, listed.versionNo, listed.businessId]).toEqual([
+      "map",
+      null,
+      null,
+      null,
+    ]);
     const rows = await pg.query<Record<string, unknown>>(
       "select user_id, business_name, industry, payload, redacted, passcode_salt, passcode_hash from map_shares",
     );
