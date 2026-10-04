@@ -18,6 +18,7 @@ import { countClients, loadEntitlements } from "./firm/entitlements.server";
 import { businessLimitMessage } from "./business-lifecycle";
 import { RequestError } from "@/lib/request-errors";
 import { assertVerificationsAllowed } from "./procedures/verify-guard";
+import { stampDispositions } from "./decisions/disposition-stamp";
 import { resolveClientDate } from "./dates";
 import { recordFirst } from "./telemetry/events.server";
 import {
@@ -81,12 +82,32 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
     // Revision check and write are a single compare-and-swap statement; see
     // business-store.ts. The table is keyed by (user_id, id), so another
     // user's business with the same client-generated id is a different row.
+    //
+    // A "Not valid" judgement names its judge, so a new or changed one
+    // takes the saver's stamp here, never the browser's name. Judgements
+    // already stored stay as they are. Saves without judgements skip the
+    // extra read entirely.
+    let nextProfile = data.profile;
+    let nextJson = profileJson;
+    if (data.profile.decisions?.some((d) => d.disposition)) {
+      const stored = await sql<{ profile: PracticeProfile }>`
+        select profile from businesses
+        where user_id = ${owner ?? context.userId} and id = ${businessId}
+      `;
+      const saverName = saver[0]?.name?.trim() || saver[0]?.email || context.userId;
+      nextProfile = stampDispositions(
+        data.profile,
+        (stored[0]?.profile as PracticeProfile | undefined) ?? null,
+        { id: context.userId, name: saverName },
+      );
+      if (nextProfile !== data.profile) nextJson = JSON.stringify({ ...nextProfile, businessId });
+    }
     const saved = await saveBusinessRevision<PracticeProfile>(sql, {
       userId: owner ?? context.userId,
       businessId,
       name,
       industry: data.industry,
-      profileJson,
+      profileJson: nextJson,
       baseRevision: data.baseRevision,
       savedBy: context.userId,
       firmUserId: firm?.firmUserId ?? null,

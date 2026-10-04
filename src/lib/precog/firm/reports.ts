@@ -321,12 +321,20 @@ export async function signOffReportVersion(
 /**
  * Stamps a version as sent, and the client's engagement with the first sent
  * report, so the client list and the pilot figures read the same fact.
+ * Refused until the version is signed off: delivery metrics never include
+ * unreviewed work. The sole-issuer path stays open through sign-off, which a
+ * one-partner firm records before sending.
  */
 export async function markReportVersionSent(
   sql: Sql,
   ownerUserId: string,
   id: string,
 ): Promise<void> {
+  const current = await loadReportVersion(sql, ownerUserId, id);
+  if (!current) throw new ReportVersionError(404, "That report version does not exist");
+  if (!current.version.reviewedAt) {
+    throw new ReportVersionError(409, "Sign off this report before marking it sent.");
+  }
   await sql`
     with sent as (
       update report_versions set sent_at = coalesce(sent_at, now())

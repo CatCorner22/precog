@@ -281,9 +281,35 @@ describe("report version access", () => {
     });
   });
 
-  it("marking a version sent stamps the client's engagement once", async () => {
+  it("refuses the sent stamp until the version is signed off", async () => {
     await lock("rv_1");
-    await lock("rv_2");
+    await expect(markReportVersionSent(db.sql, "owner", "rv_1")).rejects.toMatchObject({
+      status: 409,
+    });
+    await expect(markReportVersionSent(db.sql, "owner", "rv_missing")).rejects.toMatchObject({
+      status: 404,
+    });
+    await signOffReportVersion(db.sql, {
+      ownerUserId: "owner",
+      id: "rv_1",
+      reviewedBy: "reviewer",
+      note: "",
+    });
+    await markReportVersionSent(db.sql, "owner", "rv_1");
+    const sent = await loadReportVersion(db.sql, "owner", "rv_1");
+    expect(sent?.version.sentAt).toBeTruthy();
+  });
+
+  it("marking a version sent stamps the client's engagement once", async () => {
+    for (const id of ["rv_1", "rv_2"]) {
+      await lock(id);
+      await signOffReportVersion(db.sql, {
+        ownerUserId: "owner",
+        id,
+        reviewedBy: "reviewer",
+        note: "",
+      });
+    }
     await markReportVersionSent(db.sql, "owner", "rv_1");
     const first = await db.pg.query<{ report_sent_at: string; open_findings: number | null }>(
       "select report_sent_at, open_findings from engagement_marks",
