@@ -48,10 +48,11 @@ export const PAID_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 /**
  * QuickBooks and the rest of the firm tools: `entitlementsFor(...).features.quickbooks`.
  * Stripe unconfigured: open, so the owner is not locked out of their own firm.
- * past_due: open for PAST_DUE_GRACE_DAYS from `pastDueSince` (or while that
- * start is unknown), then closed. An active or trialing subscription, or a
- * paid assessment (not refunded) inside its window, is open. A dispute under
- * way does not close the tools; a lost dispute counts as a refund.
+ * past_due or unpaid: open for PAST_DUE_GRACE_DAYS from `pastDueSince` (or
+ * while that start is unknown), then closed. An active or trialing
+ * subscription, or a paid assessment (not refunded) inside its window, is
+ * open. A dispute under way does not close the tools; a lost dispute counts
+ * as a refund.
  */
 export function commercialToolsOpen(input: {
   stripeConfigured: boolean;
@@ -158,7 +159,7 @@ export async function loadBillingAccount(sql: Sql, userId: string): Promise<Bill
       assessment_payment_intent, assessment_refunded_at, assessment_disputed_at,
       current_period_end,
       coalesce(past_due_since,
-        case when subscription_status = 'past_due' then subscription_event_at end) as past_due_since,
+        case when subscription_status in ('past_due', 'unpaid') then subscription_event_at end) as past_due_since,
       payment_failed_email_sent_at, payment_failed_invoice_url, assessment_credit_used_at,
       assessment_fee_cents, assessment_credit_cents, updated_at
     from billing_accounts where user_id = ${userId}
@@ -431,7 +432,7 @@ export async function recordSubscription(
       ${input.userId}, ${input.stripeCustomerId}, ${input.subscriptionId},
       coalesce(${input.status}::text, 'active'), ${input.currentPeriodEnd}::timestamptz,
       ${eventAt}::timestamptz,
-      case when ${input.status}::text = 'past_due' then coalesce(${eventAt}::timestamptz, now()) end,
+      case when ${input.status}::text in ('past_due', 'unpaid') then coalesce(${eventAt}::timestamptz, now()) end,
       now()
     )
     on conflict (user_id) do update set
@@ -455,12 +456,12 @@ export async function recordSubscription(
         else excluded.subscription_event_at
       end,
       -- A checkout completion (null status) says nothing about dunning. A
-      -- past_due keeps the first start; a payment that goes through clears the
-      -- episode; a cancellation keeps the record only when Stripe's retries
-      -- ran out; anything else leaves it.
+      -- past_due or unpaid keeps the first start; a payment that goes through
+      -- clears the episode; a cancellation keeps the record only when Stripe's
+      -- retries ran out; anything else leaves it.
       past_due_since = case
         when ${input.status}::text is null then billing_accounts.past_due_since
-        when excluded.subscription_status = 'past_due'
+        when excluded.subscription_status in ('past_due', 'unpaid')
           then coalesce(billing_accounts.past_due_since, excluded.subscription_event_at, now())
         when excluded.subscription_status in ('active', 'trialing') then null
         when excluded.subscription_status = 'canceled'
