@@ -4,6 +4,7 @@ import { ControlReport } from "@/components/precog/control-report";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { getFirm, getReport } from "@/lib/precog/firm/server";
 import type { ReportVersionRow } from "@/lib/precog/firm/reports";
+import type { FirmSnapshot } from "@/lib/precog/firm/store";
 import type { FrozenReport } from "@/lib/precog/report/stored-model";
 import type { PracticeProfile } from "@/lib/precog/practice-profile";
 import { usePractice } from "@/lib/precog/practice-context";
@@ -35,10 +36,10 @@ function ReportPage() {
 }
 
 /**
- * The current report. The "Prepared for … by …" line names the viewer's firm
- * only for a firm client (a member belongs to one firm, so a firm client they
- * can see is their firm's); a signed-out visitor or a solo business makes no
- * server call and prints no firm.
+ * The current report. The letterhead and the "Prepared for … by …" line name
+ * the viewer's firm only for a firm client (a member belongs to one firm, so
+ * a firm client they can see is their firm's); a signed-out visitor or a solo
+ * business makes no server call and prints no firm.
  */
 function LiveReport() {
   // The user object is rebuilt on every render; the id is the stable key, so
@@ -47,32 +48,46 @@ function LiveReport() {
   const { profile, businesses } = usePractice();
   const businessId = profile.businessId ?? null;
   const firmClient = Boolean(businesses.find((b) => b.id === businessId)?.firmClient);
-  const [firmName, setFirmName] = useState<string | null>(null);
+  const [firm, setFirm] = useState<{ snapshot: FirmSnapshot; coverPage: boolean } | null>(null);
 
   useEffect(() => {
     if (!userId || !firmClient) {
-      setFirmName(null);
+      setFirm(null);
       return;
     }
     let cancel = false;
     void getFirm()
       .then((res) => {
-        if (!cancel) setFirmName(res.firm?.name ?? null);
+        if (cancel) return;
+        setFirm(
+          res.firm
+            ? {
+                snapshot: {
+                  name: res.firm.name,
+                  letterhead: res.firm.letterhead,
+                  logoDataUrl: res.firm.logoDataUrl,
+                },
+                coverPage: res.firm.coverPage,
+              }
+            : null,
+        );
       })
       .catch(() => {
-        if (!cancel) setFirmName(null);
+        if (!cancel) setFirm(null);
       });
     return () => {
       cancel = true;
     };
   }, [userId, firmClient]);
 
-  return <ControlReport firmName={firmName} />;
+  return <ControlReport firm={firm?.snapshot ?? null} coverPage={firm?.coverPage ?? false} />;
 }
 
 /**
  * A locked version: the frozen profile under a read-only provider, printed
- * from the figures stored when it was locked (null for an older version).
+ * from the figures stored when it was locked (null for an older version) and
+ * with the firm as frozen at lock (its current name alone for a version
+ * locked before the letterhead was stored).
  */
 function LockedReport({ id }: { id: string }) {
   const [state, setState] = useState<
@@ -83,7 +98,8 @@ function LockedReport({ id }: { id: string }) {
         version: ReportVersionRow;
         profile: PracticeProfile;
         frozen: FrozenReport | null;
-        firmName: string | null;
+        firm: FirmSnapshot | null;
+        coverPage: boolean;
       }
   >({ kind: "loading" });
 
@@ -98,7 +114,8 @@ function LockedReport({ id }: { id: string }) {
             version: res.version,
             profile: res.profile,
             frozen: res.frozen,
-            firmName: res.firmName,
+            firm: res.firm,
+            coverPage: res.coverPage,
           });
         }
       })
@@ -140,7 +157,12 @@ function LockedReport({ id }: { id: string }) {
   }
   return (
     <ReadOnlyPracticeProvider profile={state.profile}>
-      <ControlReport locked={state.version} frozen={state.frozen} firmName={state.firmName} />
+      <ControlReport
+        locked={state.version}
+        frozen={state.frozen}
+        firm={state.firm}
+        coverPage={state.coverPage}
+      />
     </ReadOnlyPracticeProvider>
   );
 }

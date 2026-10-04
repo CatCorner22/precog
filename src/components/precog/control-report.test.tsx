@@ -35,6 +35,7 @@ const locked: ReportVersionRow = {
   reviewedAt: null,
   reviewNote: "",
   sentAt: null,
+  firm: null,
 };
 
 const team: Person[] = [
@@ -216,20 +217,88 @@ describe("report header, basis block and footer", () => {
     expect(renderStored(defaultProfile("dental"), 2)).toContain("Duty separation index");
   });
 
+  const north = { name: "North Advisors", letterhead: "", logoDataUrl: null };
+
   it("names the firm under the title for a firm client, and nothing without one", () => {
     const withFirm = renderToStaticMarkup(
       <ReadOnlyPracticeProvider profile={ortiz}>
-        <ControlReport locked={locked} firmName="North Advisors" />
+        <ControlReport locked={locked} firm={north} />
       </ReadOnlyPracticeProvider>,
     );
     expect(textOf(withFirm)).toContain("|Prepared for Ortiz Dental Studio by North Advisors|");
     expect(render(ortiz)).not.toContain("Prepared for");
     const live = renderToStaticMarkup(
       <ReadOnlyPracticeProvider profile={ortiz}>
-        <ControlReport firmName={null} />
+        <ControlReport firm={null} />
       </ReadOnlyPracticeProvider>,
     );
     expect(live).not.toContain("Prepared for");
+    expect(live).not.toContain("report-letterhead");
+  });
+
+  it("prints the firm's letterhead and logo above the eyebrow", () => {
+    const logo = "data:image/png;base64,iVBORw0KGgo=";
+    const html = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={ortiz}>
+        <ControlReport
+          locked={locked}
+          firm={{ name: "North Advisors", letterhead: "12 Elm St\n555-0100", logoDataUrl: logo }}
+        />
+      </ReadOnlyPracticeProvider>,
+    );
+    const head = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
+    expect(head).toContain('class="report-letterhead');
+    expect(head).toContain('alt="North Advisors logo"');
+    expect(head).toContain(`src="${logo}"`);
+    expect(textOf(head)).toContain(
+      "|North Advisors|12 Elm St\n555-0100|Internal control priorities|",
+    );
+    // Without a logo no image prints; the name still leads.
+    const plain = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={ortiz}>
+        <ControlReport locked={locked} firm={north} />
+      </ReadOnlyPracticeProvider>,
+    );
+    expect(plain).not.toContain("<img");
+    expect(plain).toContain('class="report-letterhead');
+  });
+
+  it("opens with a cover page only when the firm asks for one", () => {
+    const covered = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={ortiz}>
+        <ControlReport locked={locked} firm={north} coverPage />
+      </ReadOnlyPracticeProvider>,
+    );
+    expect(covered).toContain('aria-label="Cover page"');
+    const cover = covered.slice(
+      covered.indexOf('aria-label="Cover page"'),
+      covered.indexOf("<header"),
+    );
+    expect(cover).toContain("break-after-page");
+    expect(textOf(cover)).toContain("|Prepared for Ortiz Dental Studio by North Advisors|");
+    expect(textOf(cover)).toContain(
+      "Version 1 · Prepared by Ada Park on Sep 26, 2026 · Not yet reviewed",
+    );
+    const live = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={ortiz}>
+        <ControlReport firm={north} coverPage />
+      </ReadOnlyPracticeProvider>,
+    );
+    expect(textOf(live.slice(0, live.indexOf("<header")))).toMatch(/\|generated [A-Z][a-z]{2} \d/);
+    expect(
+      renderToStaticMarkup(
+        <ReadOnlyPracticeProvider profile={ortiz}>
+          <ControlReport locked={locked} firm={north} />
+        </ReadOnlyPracticeProvider>,
+      ),
+    ).not.toContain("Cover page");
+    expect(
+      renderToStaticMarkup(
+        <ReadOnlyPracticeProvider profile={ortiz}>
+          <ControlReport locked={locked} firm={null} coverPage />
+        </ReadOnlyPracticeProvider>,
+      ),
+    ).not.toContain("Cover page");
   });
 
   it("repeats the basis in the footer and says the report was prepared with Precog", () => {
