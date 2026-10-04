@@ -206,11 +206,11 @@ describe("the guest-work question after sign-in", () => {
     expect(Object.keys(loadPortfolio(account))).toEqual([]);
   });
 
-  it("keeps the setup dialog inert while the question is open above it", () => {
+  it("hides the setup dialog, inert, while the question is open above it", () => {
     const setup = <div role="dialog" aria-modal="true" id="setup" />;
     expect(
       renderToStaticMarkup(<BehindGuestImportPrompt open>{setup}</BehindGuestImportPrompt>),
-    ).toBe('<div inert=""><div role="dialog" aria-modal="true" id="setup"></div></div>');
+    ).toBe('<div inert="" hidden=""><div role="dialog" aria-modal="true" id="setup"></div></div>');
     expect(
       renderToStaticMarkup(<BehindGuestImportPrompt open={false}>{setup}</BehindGuestImportPrompt>),
     ).toBe('<div><div role="dialog" aria-modal="true" id="setup"></div></div>');

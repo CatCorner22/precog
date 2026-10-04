@@ -211,10 +211,11 @@ function Home() {
     }
     onboardingWasOpen.current = showOnboarding;
   }, [showOnboarding]);
-  // The guest-work question sits above setup on a first sign-in (the account
-  // is empty, so setup is open too). While it is up, setup is inert so only
-  // the question takes the keyboard; when it closes with setup still open,
-  // focus goes back to setup's question.
+  // The guest-work question goes first on a first sign-in (the account
+  // is empty, so setup would be open too): setup stays mounted but hidden
+  // and inert while the question is up, so the two dialogs never show
+  // together and no typed setup work is lost either way. When the question
+  // closes with setup still to do, focus goes to setup's question.
   const [guestPromptOpen, setGuestPromptOpen] = useState(false);
   const guestPromptWasOpen = useRef(false);
   useEffect(() => {
@@ -260,9 +261,9 @@ function Home() {
           </Suspense>
         </BehindGuestImportPrompt>
       )}
-      {/* Guest work from before sign-in: asked outside the inert shell and
-          above setup, because on a first sign-in the account is empty and
-          setup is open; saving the guest business opens it and closes setup. */}
+      {/* Guest work from before sign-in: asked before setup shows, because
+          on a first sign-in the account is empty and setup would be open
+          too; saving the guest business opens it and setup never appears. */}
       <SignedIn>
         <GuestImportPrompt onOpenChange={setGuestPromptOpen} />
       </SignedIn>
