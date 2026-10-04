@@ -164,8 +164,8 @@ describe("the engagement block", () => {
     expect(html.match(/disabled=""/g)?.length).toBe(6);
   });
 
-  it("prints the archive progress and holds the button while it builds", () => {
-    const building = (archiveProgress: string) =>
+  it("prints the archive progress in a status line that is there before it, and holds the button", () => {
+    const building = (archiveProgress: string | null) =>
       renderToStaticMarkup(
         <EngagementForm
           businessName="Ortiz Dental"
@@ -175,12 +175,22 @@ describe("the engagement block", () => {
           archiveProgress={archiveProgress}
         />,
       );
+    // The archive's status line is the second on the block (the first is the
+    // engagement's status); it is mounted empty, so its first message is
+    // announced as a change, not inserted with the element.
+    const archiveStatus = (html: string) =>
+      [...html.matchAll(/role="status"[^>]*>([^<]*)</g)].map((m) => m[1])[1];
+    const idle = building(null);
+    expect(archiveStatus(idle)).toBe("");
+    expect(idle).not.toContain('disabled=""');
     const counting = building("");
+    expect(archiveStatus(counting)).toBe("");
     expect(counting.match(/disabled=""/g)?.length).toBe(1);
-    expect(counting).not.toContain("Building the archive");
     const html = building("Building the archive: version 2 of 3…");
-    expect(html).toContain('role="status">Building the archive: version 2 of 3…</p>');
+    expect(archiveStatus(html)).toBe("Building the archive: version 2 of 3…");
     expect(html.match(/disabled=""/g)?.length).toBe(1);
+    // A member who is not the owner has no download and no archive status line.
+    expect(form(active, false).match(/role="status"/g)).toHaveLength(1);
   });
 
   it("renders nothing until the engagement loads", () => {

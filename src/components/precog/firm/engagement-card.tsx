@@ -202,22 +202,23 @@ export function EngagementForm({
             </Button>
           ))}
         {isOwner && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={archiveProgress !== null}
-            onClick={() => onDownloadArchive?.()}
-          >
-            {DOWNLOAD_ARCHIVE}
-          </Button>
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={archiveProgress !== null}
+              onClick={() => onDownloadArchive?.()}
+            >
+              {DOWNLOAD_ARCHIVE}
+            </Button>
+            {/* Mounted before the first message, so a screen reader announces it as it changes. */}
+            <span className="self-center text-xs text-muted" role="status">
+              {archiveProgress || ""}
+            </span>
+          </>
         )}
       </div>
-      {archiveProgress ? (
-        <p className="text-xs text-muted" role="status">
-          {archiveProgress}
-        </p>
-      ) : null}
     </form>
   );
 }
