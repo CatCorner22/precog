@@ -1,13 +1,14 @@
 # Precog Commercial Assessment
 
-**Assessment date:** 2026-09-19  
+**Assessment date:** 2026-09-19
+**Update:** 2026-10-04 — the scorecard rows for evidence workflow, integrations, and multi-entity administration are refreshed below to what has shipped since (control evidence log, QuickBooks sync, firm workspace). The rest of the document stands as written on 19 September.
 **Verdict:** promising vertical workflow product, but not yet a stand-alone category winner.
 
 ## Executive judgment
 
 Precog is not a bad commercial idea. It addresses a real gap between dental-practice analytics, which explain operational performance, and enterprise governance tools, which are too expensive and abstract for most dental groups. The strongest product is not “AI risk software for every dentist.” It is a **dental-specific responsibility, control, and evidence system for growing groups and their advisors**.
 
-The present product is differentiated in design depth: it can model people, powers, conflicts, continuity gaps, proposed hires, safe reassignments, snapshots, and governance reports. It is not yet commercially defensible because it relies primarily on manually maintained models, has no production-system connectors, cannot prove that modeled assignments match actual access, and does not yet operate an ongoing evidence/review workflow.
+The present product is differentiated in design depth: it can model people, powers, conflicts, continuity gaps, proposed hires, safe reassignments, snapshots, and governance reports. It is not yet commercially defensible because it relies primarily on manually maintained models, has no production-system connectors, cannot prove that modeled assignments match actual access, and does not yet operate an ongoing evidence/review workflow. (Update Oct 2026: QuickBooks sync, the control-evidence log with its monthly-review bridge, and the firm workspace have since shipped, so the connector and workflow gaps are narrower; modeled-vs-actual proof and PMS connectivity are still open.)
 
 The likely outcome by segment:
 
@@ -51,21 +52,21 @@ The most important competitors may be spreadsheets, office-manager knowledge, de
 
 ## Current product scorecard
 
-| Capability                        | Current position   | Commercial requirement                                                            |
-| --------------------------------- | ------------------ | --------------------------------------------------------------------------------- |
-| Dental-specific duty ontology     | Strong early asset | Expand and validate with operators, CPAs, billers, and investigators.             |
-| Conflict detection                | Good prototype     | Measure precision/recall and support configurable policy packs.                   |
-| Visual map and matrix             | Differentiated     | Validate usability on real 20–200-person organizations.                           |
-| Continuity and absence modeling   | Differentiated     | Add designated backups, effective dates, and drill evidence.                      |
-| Resolution planning               | Promising          | Add constraints for location, license, capacity, employment, and system access.   |
-| Snapshots and exports             | Useful             | Add approvals, signatures, retention, comparison, and audit history.              |
-| Knowledge and operating blueprint | Useful             | Establish expert editorial governance and dated source provenance.                |
-| Actual-vs-modeled validation      | Missing            | Highest priority: ingest real users, roles, transactions, and logs.               |
-| Evidence workflow                 | Missing            | Assign tests, request evidence, record reviewer conclusion, remediate exceptions. |
-| Integrations                      | Missing            | PMS, accounting, banking/payment, payroll, identity, ticketing, and HRIS.         |
-| Multi-entity administration       | Missing            | Required for groups, advisors, and scalable revenue.                              |
-| Security/compliance assurance     | Early              | Tenant controls, audit logs, encryption, recovery, SOC 2 path, BAA posture.       |
-| Outcome proof                     | Missing            | Required to sell an avoided-loss product to executives.                           |
+| Capability                        | Current position                | Commercial requirement                                                                                                                                                                                                |
+| --------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dental-specific duty ontology     | Strong early asset              | Expand and validate with operators, CPAs, billers, and investigators.                                                                                                                                                 |
+| Conflict detection                | Good prototype                  | Measure precision/recall and support configurable policy packs.                                                                                                                                                       |
+| Visual map and matrix             | Differentiated                  | Validate usability on real 20–200-person organizations.                                                                                                                                                               |
+| Continuity and absence modeling   | Differentiated                  | Add designated backups, effective dates, and drill evidence.                                                                                                                                                          |
+| Resolution planning               | Promising                       | Add constraints for location, license, capacity, employment, and system access.                                                                                                                                       |
+| Snapshots and exports             | Useful                          | Add approvals, signatures, retention, comparison, and audit history.                                                                                                                                                  |
+| Knowledge and operating blueprint | Useful                          | Establish expert editorial governance and dated source provenance.                                                                                                                                                    |
+| Actual-vs-modeled validation      | Partial (Oct 2026)              | QuickBooks drift and access reconciliation exist; still no PMS connector, identity sync, or transaction-log ingestion.                                                                                                |
+| Evidence workflow                 | Shipped (Oct 2026)              | Control execution log with monthly-review bridge, firm preparer/reviewer roles, and sign-off (`docs/CONTROL_EVIDENCE_WORKFLOW.md`, migration 0026). Remaining: evidence requests with due dates and approval history. |
+| Integrations                      | Partial (Oct 2026)              | QuickBooks read-only sync, payroll/access CSV, HR roster import. Still no PMS live connector.                                                                                                                         |
+| Multi-entity administration       | Shipped for advisors (Oct 2026) | Firm workspace: clients, members, invites, billing, report versions (`/firm`). Group-native multi-location policy still open.                                                                                         |
+| Security/compliance assurance     | Early                           | Tenant controls, audit logs, encryption, recovery, SOC 2 path, BAA posture.                                                                                                                                           |
+| Outcome proof                     | Missing                         | Required to sell an avoided-loss product to executives.                                                                                                                                                               |
 
 ## Best market opportunities
 
