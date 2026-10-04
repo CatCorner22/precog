@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { RequestError } from "@/lib/request-errors";
-import { requireBusinessOwner } from "../../firm/access.server";
+import { requireBusinessOwner, requireIntegrationManager } from "../../firm/access.server";
 import { commercialToolsOpen, loadBillingAccount } from "../../firm/billing-store";
 import { loadFirmFor } from "../../firm/store";
 import { businessInput } from "../../firm/server-inputs";
@@ -70,7 +70,7 @@ export const startQuickBooksConnect = createServerFn({ method: "POST" })
       throw new RequestError(409, "QuickBooks is not connected on this deployment");
     const sql = await getSql();
     await assertQuickBooksOpen(sql, context.userId);
-    await requireBusinessOwner(sql, context.userId, data.businessId);
+    await requireIntegrationManager(sql, context.userId, data.businessId);
     const state = await signState(
       { userId: context.userId, businessId: data.businessId, issuedAt: Date.now() },
       stateSecret(),
@@ -108,7 +108,7 @@ export const disconnectQuickBooks = createServerFn({ method: "POST" })
   .validator(businessInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    const owner = await requireIntegrationManager(sql, context.userId, data.businessId);
     const connection = await loadConnection(sql, owner, data.businessId);
     if (connection) await removeConnection(sql, connection);
     return { ok: true as const };

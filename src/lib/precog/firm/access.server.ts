@@ -51,3 +51,19 @@ export async function requireFirmRole(
   }
   return firm;
 }
+
+/**
+ * Who may connect, sync apart, or disconnect a financial integration: the
+ * account holding the business always, otherwise a firm owner or reviewer.
+ * A preparer keeps read and sync access through the status and sync calls,
+ * but connecting or revoking the client's books is never a preparer's action.
+ */
+export async function requireIntegrationManager(
+  sql: Sql,
+  userId: string,
+  businessId: string,
+): Promise<string> {
+  const owner = await requireBusinessOwner(sql, userId, businessId);
+  if (owner !== userId) await requireFirmRole(sql, userId, ["owner", "reviewer"]);
+  return owner;
+}
