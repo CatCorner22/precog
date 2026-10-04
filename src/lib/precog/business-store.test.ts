@@ -409,7 +409,7 @@ describe("history kept by time", () => {
   it("keeps the newest version however old it is", async () => {
     await age(HISTORY_RETENTION_DAYS * 24 * 60 + 60);
     // A restore keeps the current state first, saved long before the retention period.
-    await keepVersionBeforeRestore(sql, "user-a", "biz_1");
+    await keepVersionBeforeRestore(sql, "user-a", "biz_1", "user-a");
     await saveRepeatedly(1, 1);
     expect(await kept()).toEqual([1]);
   });
@@ -428,7 +428,7 @@ describe("history kept by time", () => {
   it("keeps the state a restore replaces, even inside the window", async () => {
     const last = await saveRepeatedly(1, 3);
     expect(await kept()).toEqual([1]);
-    await keepVersionBeforeRestore(sql, "user-a", "biz_1");
+    await keepVersionBeforeRestore(sql, "user-a", "biz_1", "user-a");
     await saveRepeatedly(last, 1);
     expect(await kept()).toEqual([4, 1]);
   });
@@ -562,6 +562,34 @@ describe("firm access", () => {
       savedBy: "user-b",
     });
     expect(saved.ok).toBe(true);
+  });
+
+  it("refuses a firm member's restore on an ended client before the history changes", async () => {
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_1", null, "Client"),
+      firmUserId: "user-a",
+    });
+    await sql`insert into engagement_marks (user_id, business_id, status, ended_at)
+      values ('user-a', 'biz_1', 'ended', now())`;
+    const history = async () =>
+      (
+        await sql<{ revision: number | string }>`
+          select revision from business_history
+          where user_id = 'user-a' and business_id = 'biz_1' order by revision`
+      ).map((r) => Number(r.revision));
+    const before = await history();
+    const ended = { status: 409, message: ENGAGEMENT_ENDED };
+    await expect(keepVersionBeforeRestore(sql, "user-a", "biz_1", "user-b")).rejects.toMatchObject(
+      ended,
+    );
+    await expect(keepVersionBeforeRestore(sql, "user-a", "biz_1", "user-a")).rejects.toMatchObject(
+      ended,
+    );
+    expect(await history()).toEqual(before);
+    // Reopened, the restore keeps the current state first.
+    await sql`update engagement_marks set status = 'active', ended_at = null`;
+    await keepVersionBeforeRestore(sql, "user-a", "biz_1", "user-b");
+    expect(await history()).toEqual([...before, 1]);
   });
 
   it("an ended engagement leaves a business with no firm alone", async () => {

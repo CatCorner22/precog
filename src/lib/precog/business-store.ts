@@ -321,13 +321,17 @@ async function keepCurrentVersion(
 /**
  * Keeps the state a restore is about to replace, however recently a version
  * was kept, so a restore loses nothing. The caller has checked access.
+ * Refused, with the history untouched, for a member of the business's firm
+ * while its engagement has ended.
  */
 export async function keepVersionBeforeRestore(
   sql: Sql,
   ownerUserId: string,
   businessId: string,
+  actorUserId: string,
 ): Promise<void> {
   await inTransaction(sql, async (tx) => {
+    await assertEngagementOpen(tx, ownerUserId, businessId, actorUserId);
     await keepCurrentVersion(tx, ownerUserId, businessId);
     await pruneHistory(tx, ownerUserId, businessId);
   });

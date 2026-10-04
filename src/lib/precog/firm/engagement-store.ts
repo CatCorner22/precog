@@ -42,15 +42,27 @@ function toRecord(r: RawEngagement): EngagementRecord {
   };
 }
 
-/** The engagement of one business, or null when no row exists yet (an active, empty one). */
+/**
+ * The engagement of one business, or null when no row exists yet (an active,
+ * empty one). A preparer or reviewer who is no longer a member of the
+ * business's firm reads as not set, so the form shows what a save sends.
+ */
 export async function loadEngagement(
   sql: Sql,
   ownerUserId: string,
   businessId: string,
 ): Promise<EngagementRecord | null> {
   const rows = await sql<RawEngagement>`
-    select scope, period_start, period_end, status, ended_at, preparer_user_id, reviewer_user_id
-    from engagement_marks where user_id = ${ownerUserId} and business_id = ${businessId}
+    select e.scope, e.period_start, e.period_end, e.status, e.ended_at,
+      (select m.member_user_id from firm_members m
+        where m.firm_user_id = b.firm_user_id
+          and m.member_user_id = e.preparer_user_id) as preparer_user_id,
+      (select m.member_user_id from firm_members m
+        where m.firm_user_id = b.firm_user_id
+          and m.member_user_id = e.reviewer_user_id) as reviewer_user_id
+    from engagement_marks e
+    left join businesses b on b.user_id = e.user_id and b.id = e.business_id
+    where e.user_id = ${ownerUserId} and e.business_id = ${businessId}
   `;
   return rows[0] ? toRecord(rows[0]) : null;
 }

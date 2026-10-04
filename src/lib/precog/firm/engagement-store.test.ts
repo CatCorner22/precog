@@ -185,6 +185,28 @@ describe("saveEngagement", () => {
     );
   });
 
+  it("reads a preparer or reviewer who has left the firm as not set, so a later save lands", async () => {
+    await save({ scope: "Map", preparerUserId: "prep", reviewerUserId: "rev" });
+    await db.pg.exec(`delete from firm_members where member_user_id in ('prep', 'rev')`);
+    const loaded = await loadEngagement(db.sql, "own", "biz_1");
+    expect([loaded?.scope, loaded?.preparerUserId, loaded?.reviewerUserId]).toEqual([
+      "Map",
+      null,
+      null,
+    ]);
+    // The form sends back what it loaded; a scope-only edit is not refused.
+    const saved = await save({
+      scope: "Map and review",
+      preparerUserId: loaded?.preparerUserId ?? null,
+      reviewerUserId: loaded?.reviewerUserId ?? null,
+    });
+    expect([saved.scope, saved.preparerUserId, saved.reviewerUserId]).toEqual([
+      "Map and review",
+      null,
+      null,
+    ]);
+  });
+
   it("refuses a business with no firm", async () => {
     await expect(
       saveEngagement(db.sql, {

@@ -588,7 +588,7 @@ export const keepHistoryBeforeRestore = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    await keepVersionBeforeRestore(sql, owner, data.businessId);
+    await keepVersionBeforeRestore(sql, owner, data.businessId, context.userId);
     return { ok: true as const };
   });
 
