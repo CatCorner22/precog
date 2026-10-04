@@ -16,6 +16,7 @@ import { refreshIntegrationDriftSummary } from "./integrations/drift-profile";
 import type { IntegrationDrift } from "./integrations/qbo/model";
 import { industryHasOwner, industryMeta, isDemoName, type IndustryId } from "./industry";
 import { resolveTemplate } from "./active-template";
+import { residualScope } from "./scoring/scope";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
 import { soleOwnerCriticalCount } from "./continuity/coverage";
@@ -247,6 +248,7 @@ export function withDecision(
     input.subject,
     now,
     input.linkedTab === "knowledge" ? input.linkedId : undefined,
+    residualScope({ decisions: p.decisions, industry: p.industry, riskVariables: p.riskVariables }),
   );
   const entry: DecisionEntry = {
     id,
@@ -289,6 +291,7 @@ export function withDecisionReview(
     decision.subject,
     now,
     linkedKnowledgeId(decision, p.industry),
+    residualScope({ decisions: p.decisions, industry: p.industry, riskVariables: p.riskVariables }),
   );
   const trimmedNote = note?.trim();
   const reviewed = applyDecisionReview(
