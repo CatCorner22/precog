@@ -193,7 +193,14 @@ describe("scheduled run", () => {
     );
     const res = await run("Bearer cron-secret-value");
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true, purged: 0, shareLogs: true, failures: [] });
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      purged: 0,
+      quickbooksAlerts: { emailed: 0 },
+      shareLogs: true,
+      activation: { signedUp: 1 },
+      failures: [],
+    });
     const left = await t.pg.query<{ n: string }>(`select count(*)::text as n from map_share_views`);
     expect(left.rows[0].n).toBe("1");
   });

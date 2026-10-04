@@ -6,11 +6,14 @@ const NO_STORE = { "cache-control": "no-store" } as const;
 /**
  * The scheduled run (see vercel.json `crons`). Deleted businesses past their
  * grace period are purged, then the reminders go out by email, then connected
- * accounting systems are re-read, then shared-map view logs and failed
- * passcode guesses past their retention are purged: the emails run before
- * QuickBooks, so a slow or failing QuickBooks pass cannot stop them. Each
- * stage runs on its own, so a failure in one is reported in the answer and
- * does not stop the others.
+ * accounting systems are re-read, then firm owners are told once per problem
+ * about a QuickBooks reading that failed or a permission about to end, then
+ * shared-map view logs and failed passcode guesses past their retention are
+ * purged, then the week's first-time milestones are counted into the answer:
+ * the emails run before QuickBooks, so a slow or failing QuickBooks pass
+ * cannot stop them, and the alerts run after it, so they name the failures
+ * this run just recorded. Each stage runs on its own, so a failure in one is
+ * reported in the answer and does not stop the others.
  * Emails that fail inside the digest are reported; the digest counts as a
  * failed stage when it had errors and sent nothing. Vercel calls it with
  * `Authorization: Bearer $CRON_SECRET`; anything else is refused.
@@ -22,17 +25,29 @@ export const Route = createFileRoute("/api/cron/digest")({
         if (!(await authorized(request.headers.get("authorization")))) {
           return new Response("Unauthorized", { status: 401, headers: NO_STORE });
         }
-        const [{ getSql }, { runDigest }, mailer, store, firmStore, qbo, shareStore, attempts] =
-          await Promise.all([
-            import("@/lib/db"),
-            import("@/lib/precog/reminders/digest"),
-            import("@/lib/precog/reminders/mailer.server"),
-            import("@/lib/precog/business-store"),
-            import("@/lib/precog/firm/store"),
-            import("@/lib/precog/integrations/qbo/sync.server"),
-            import("@/lib/precog/share/share-store"),
-            import("@/lib/precog/share/share-attempts"),
-          ]);
+        const [
+          { getSql },
+          { runDigest },
+          mailer,
+          store,
+          firmStore,
+          qbo,
+          qboAlerts,
+          shareStore,
+          attempts,
+          telemetry,
+        ] = await Promise.all([
+          import("@/lib/db"),
+          import("@/lib/precog/reminders/digest"),
+          import("@/lib/precog/reminders/mailer.server"),
+          import("@/lib/precog/business-store"),
+          import("@/lib/precog/firm/store"),
+          import("@/lib/precog/integrations/qbo/sync.server"),
+          import("@/lib/precog/integrations/qbo/alerts.server"),
+          import("@/lib/precog/share/share-store"),
+          import("@/lib/precog/share/share-attempts"),
+          import("@/lib/precog/telemetry/events.server"),
+        ]);
         const sql = await getSql();
         const { originFrom } = await import("@/lib/request-origin.server");
         const appUrl = originFrom(request.url, request.headers);
@@ -63,11 +78,21 @@ export const Route = createFileRoute("/api/cron/digest")({
           return outcome;
         });
         const synced = await stage("quickbooks", failures, () => qbo.syncDueConnections(sql));
+        const quickbooksAlerts = await stage("quickbooks-alerts", failures, () =>
+          qboAlerts.alertQuickBooksProblems(sql, {
+            today,
+            appUrl,
+            send: configured ? mailer.sendEmail : async () => undefined,
+          }),
+        );
         const shareLogs = await stage("share-logs", failures, async () => {
           await shareStore.purgeOldShareViews(sql);
           await attempts.purgeOldPasscodeAttempts(sql);
           return true;
         });
+        const activation = await stage("activation", failures, () =>
+          telemetry.weeklyActivation(sql, today),
+        );
 
         return Response.json(
           {
@@ -77,7 +102,9 @@ export const Route = createFileRoute("/api/cron/digest")({
             digest,
             purged,
             synced,
+            quickbooksAlerts,
             shareLogs,
+            activation,
             failures,
           },
           { status: failures.length === 0 ? 200 : 500, headers: NO_STORE },
