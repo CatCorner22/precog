@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { Eye } from "lucide-react";
 import { loadReportShare } from "@/lib/precog/share/share-server";
+import { clientErrorStatus } from "@/lib/request-errors";
 import type { ReportVersionRow } from "@/lib/precog/firm/reports";
 import type { FirmSnapshot } from "@/lib/precog/firm/store";
 import type { FrozenReport } from "@/lib/precog/report/stored-model";
@@ -86,8 +87,12 @@ function SharedReportPage() {
             profile: res.profile,
             expiresAt: res.expiresAt,
           });
-      } catch {
-        setState({ kind: "error", reason: "network" });
+      } catch (err) {
+        // A throttled reader waits a minute; anyone else checks the connection.
+        setState({
+          kind: "error",
+          reason: clientErrorStatus(err) === 429 ? "throttled" : "network",
+        });
       }
     },
     [token],

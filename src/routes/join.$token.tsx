@@ -7,6 +7,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
 import { emailAndPasswordEnabled } from "@/lib/auth/email-password";
 import { acceptFirmInvite, checkFirmInvite, peekFirmInvite } from "@/lib/precog/firm/server";
+import { clientErrorStatus } from "@/lib/request-errors";
 
 export const Route = createFileRoute("/join/$token")({
   component: JoinPage,
@@ -22,9 +23,10 @@ function JoinPage() {
   const { user, isPending } = useCurrentUserState();
   const navigate = useNavigate();
   const [invite, setInvite] = useState<
-    { firmName: string; role: string; email: string } | null | "loading"
+    { firmName: string; role: string; email: string } | null | "loading" | "throttled"
   >("loading");
   const [busy, setBusy] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancel = false;
@@ -32,13 +34,14 @@ function JoinPage() {
       .then((res) => {
         if (!cancel) setInvite(res.invite);
       })
-      .catch(() => {
-        if (!cancel) setInvite(null);
+      .catch((err) => {
+        // A throttled visitor waits a minute; anyone else sees the closed page.
+        if (!cancel) setInvite(clientErrorStatus(err) === 429 ? "throttled" : null);
       });
     return () => {
       cancel = true;
     };
-  }, [token]);
+  }, [token, attempt]);
 
   async function join() {
     setBusy(true);
@@ -59,6 +62,24 @@ function JoinPage() {
         <p className="text-xs tracking-[0.2em] text-primary uppercase">Precog</p>
         {invite === "loading" ? (
           <p className="mt-4 text-sm text-muted">Checking the invitation…</p>
+        ) : invite === "throttled" ? (
+          <>
+            <h1 className="mt-2 text-xl font-semibold tracking-tight">
+              Too many opens from this address
+            </h1>
+            <p className="mt-2 text-sm text-muted">
+              Wait a minute, then check the invitation again. The link itself is unchanged.
+            </p>
+            <Button
+              className="mt-4"
+              onClick={() => {
+                setInvite("loading");
+                setAttempt((n) => n + 1);
+              }}
+            >
+              Check again
+            </Button>
+          </>
         ) : invite === null ? (
           <>
             <h1 className="mt-2 text-xl font-semibold tracking-tight">

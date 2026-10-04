@@ -14,8 +14,13 @@ describe("shareErrorView", () => {
     );
   });
 
-  it("offers a retry only for a network failure", () => {
+  it("offers a retry for a network failure and for throttling, and nowhere else", () => {
     expect(shareErrorView("network")).toMatchObject({ kind: "message", retry: true });
+    expect(shareErrorView("throttled")).toMatchObject({
+      kind: "message",
+      message: "Too many opens from this address. Wait a minute, then try again.",
+      retry: true,
+    });
     for (const reason of ["revoked", "expired", "missing", "invalid", "anything-else"]) {
       expect(shareErrorView(reason)).toMatchObject({ kind: "message", retry: false });
     }

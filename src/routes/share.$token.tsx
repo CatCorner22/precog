@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { loadMapShare, type SharedMapPayload } from "@/lib/precog/share/share-server";
+import { clientErrorStatus } from "@/lib/request-errors";
 import { evidenceLine, ownerTag } from "@/lib/precog/builder/share-view";
 import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
 import { Eye, ShieldCheck } from "lucide-react";
@@ -52,8 +53,12 @@ function SharePage() {
             expiresAt: res.expiresAt,
             redacted: res.redacted,
           });
-      } catch {
-        setState({ kind: "error", reason: "network" });
+      } catch (err) {
+        // A throttled reader waits a minute; anyone else checks the connection.
+        setState({
+          kind: "error",
+          reason: clientErrorStatus(err) === 429 ? "throttled" : "network",
+        });
       }
     },
     [token],
