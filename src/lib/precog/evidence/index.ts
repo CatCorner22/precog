@@ -12,6 +12,7 @@
  * private helpers and the scheme maps they read.
  */
 import { formatUsd } from "@/lib/utils";
+import { formatDay } from "../dates";
 import { BENCHMARK_BY_ID, COLLUSION_CAVEAT, METHOD_CAVEATS } from "./benchmarks";
 import { CASE_LIBRARY } from "./cases";
 import {
@@ -338,6 +339,15 @@ export function caseIsVerified(study: Pick<CaseStudy, "verifiedOn" | "verifiedBy
 export const UNVERIFIED_CASE = {
   label: "Unverified",
   title: "Nobody has checked this record against its source yet.",
+} as const;
+
+/**
+ * The marker and its explanation for a record a named person has checked
+ * against its source (`verifiedOn`, `verifiedBy`).
+ */
+export const VERIFIED_CASE = {
+  label: "Verified against its source",
+  title: (on: string, by: string) => `Checked on ${formatDay(on)} by ${by}.`,
 } as const;
 
 /** What a duty-conflict card says when no case in the library cites its rule. */
