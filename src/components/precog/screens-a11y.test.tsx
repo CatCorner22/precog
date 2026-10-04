@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { SectionHeader } from "./builder/chips";
-import { TabStrip } from "./home-shell-parts";
+import { HeaderActions, TabStrip } from "./home-shell-parts";
 import { InsuranceRecordPanel } from "./insurance-record-panel";
 import { DualReleaseExceptionsCard } from "./dual-release-exceptions-card";
 import { EMPTY_EXCEPTION_FORM } from "./dual-release-panel-actions";
@@ -59,6 +59,46 @@ describe("tab strip", () => {
     const nav = html.match(/<nav[^>]*class="([^"]*)"/)?.[1] ?? "";
     expect(nav.split(" ")).toContain("relative");
     expect(nav.split(" ")).toContain("overflow-x-auto");
+  });
+
+  it("renders trailing controls outside the tablist, after the tabs", () => {
+    const html = renderToStaticMarkup(
+      <TabStrip
+        activeId="map"
+        tabCount={2}
+        trailing={
+          <button type="button" data-more-tabs>
+            Advanced
+          </button>
+        }
+      >
+        <button type="button" role="tab">
+          Map
+        </button>
+      </TabStrip>,
+    );
+    const navBody = html.match(/<nav[^>]*>([\s\S]*)<\/nav>/)?.[1] ?? "";
+    expect(navBody).not.toContain("data-more-tabs");
+    expect(navBody).toContain('role="tab"');
+    expect(html.indexOf("data-more-tabs")).toBeGreaterThan(html.indexOf("</nav>"));
+  });
+});
+
+describe("header actions", () => {
+  it("renders everything inline with no More disclosure on the server", () => {
+    const html = renderToStaticMarkup(
+      <HeaderActions
+        leading={<span>wording</span>}
+        inline={<span>report</span>}
+        trailing={<span>firm</span>}
+      />,
+    );
+    expect(html).toContain("wording");
+    expect(html).toContain("report");
+    expect(html).toContain("firm");
+    expect(html).not.toContain("header-more");
+    expect(html.indexOf("wording")).toBeLessThan(html.indexOf("report"));
+    expect(html.indexOf("report")).toBeLessThan(html.indexOf("firm"));
   });
 });
 

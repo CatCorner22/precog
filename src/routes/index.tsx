@@ -52,6 +52,7 @@ import {
 } from "@/components/precog/guest-import-prompt";
 import {
   CountBadge,
+  HeaderActions,
   MoreTabsMenu,
   TabLoading,
   TabStrip,
@@ -273,8 +274,8 @@ function Home() {
           Skip to content
         </a>
         <header className="sticky top-[var(--grok-banner-h,0px)] z-20 border-b border-border bg-bg/90 backdrop-blur">
-          {/* On a phone the wording, save state, Report, Needs attention and Firm
-              workspace wrap to a second row instead of disappearing. */}
+          {/* On a phone Report and Needs attention stay in the row and the rest
+              folds behind "More" instead of wrapping to a second row. */}
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
             <div className="order-1 flex min-w-0 items-center gap-2">
               <span className="inline-flex size-8 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
@@ -283,21 +284,36 @@ function Home() {
               <BusinessSwitcher />
             </div>
             <div className="order-3 flex w-full flex-wrap items-center gap-2 sm:order-2 sm:ml-auto sm:w-auto">
-              <PresentationToggle />
-              <SyncStatusBadge compactOnPhone />
-              <Link to="/report" className={buttonClass({ variant: "secondary", size: "sm" })}>
-                Report
-              </Link>
-              <NeedsAttentionMenu onOpen={(target) => openTab(target)} />
-              <SignedIn>
-                <Link
-                  to="/firm"
-                  title="For accountants and advisors who look after several businesses"
-                  className={buttonClass({ variant: "secondary", size: "sm" })}
-                >
-                  Firm workspace
-                </Link>
-              </SignedIn>
+              <HeaderActions
+                leading={
+                  <>
+                    <PresentationToggle />
+                    <SyncStatusBadge compactOnPhone />
+                  </>
+                }
+                inline={
+                  <>
+                    <Link
+                      to="/report"
+                      className={buttonClass({ variant: "secondary", size: "sm" })}
+                    >
+                      Report
+                    </Link>
+                    <NeedsAttentionMenu onOpen={(target) => openTab(target)} />
+                  </>
+                }
+                trailing={
+                  <SignedIn>
+                    <Link
+                      to="/firm"
+                      title="For accountants and advisors who look after several businesses"
+                      className={buttonClass({ variant: "secondary", size: "sm" })}
+                    >
+                      Firm workspace
+                    </Link>
+                  </SignedIn>
+                }
+              />
             </div>
             <div className="order-2 flex items-center gap-2 sm:order-3">
               <SignedOut>
@@ -315,7 +331,25 @@ function Home() {
             <PaymentOverdueBanner variant="home" />
             <DigestConsentPrompt />
           </SignedIn>
-          <TabStrip activeId={tab} onKeyDown={onTabKeyDown} tabCount={TABS.length}>
+          <TabStrip
+            activeId={tab}
+            onKeyDown={onTabKeyDown}
+            tabCount={TABS.length}
+            trailing={
+              <MoreTabsMenu
+                tabs={ADVANCED_TABS}
+                activeId={tab}
+                label={(t) => say(t.label, t.tactical)}
+                onPick={(id) => openTab(id)}
+                links={ROUTE_LINK_IDS.map((id) => ({
+                  id,
+                  label: tabLabel(id, say),
+                  href: ROUTE_ALIASES[id].href,
+                }))}
+                onOpenLink={(id) => openTab(id)}
+              />
+            }
+          >
             {[...PRIMARY_TABS, ...(activeAdvanced ? [activeAdvanced] : [])].map((t) => {
               const Icon = t.icon;
               const active = tab === t.id;
@@ -349,18 +383,6 @@ function Home() {
                 </button>
               );
             })}
-            <MoreTabsMenu
-              tabs={ADVANCED_TABS}
-              activeId={tab}
-              label={(t) => say(t.label, t.tactical)}
-              onPick={(id) => openTab(id)}
-              links={ROUTE_LINK_IDS.map((id) => ({
-                id,
-                label: tabLabel(id, say),
-                href: ROUTE_ALIASES[id].href,
-              }))}
-              onOpenLink={(id) => openTab(id)}
-            />
           </TabStrip>
         </header>
         <SaveConflictBanner />
