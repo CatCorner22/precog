@@ -87,6 +87,7 @@ export async function runDigest(
 
   const everyone = await recipients(sql);
   const quickBooksCounts = await quickBooksNeedingAttention(sql, everyone);
+  const reviewCounts = await versionsAwaitingReview(sql, everyone);
   for (const [index, recipient] of everyone.entries()) {
     if (!beforeDeadline(input.deadline)) {
       outcome.stopped = true;
@@ -117,6 +118,7 @@ export async function runDigest(
           appUrl: input.appUrl,
           unsubscribeUrl: `${input.appUrl}/api/digest-email?do=stop&token=${recipient.digestToken}`,
           quickBooks: { needAttention: quickBooksCounts.get(recipient.userId) ?? 0 },
+          reviews: { awaiting: reviewCounts.get(recipient.userId) ?? 0 },
         }),
       );
       for (const client of clients) await logSent(sql, client.row, recipient.email, client.items);
@@ -321,6 +323,48 @@ async function quickBooksNeedingAttention(
     where c.provider = 'qbo'
       and (c.last_error is not null
         or c.refresh_expires_at <= now() + make_interval(days => ${EXPIRY_WARNING_DAYS}::int))
+    group by r.user_id
+  `;
+  return new Map(rows.map((r) => [r.user_id, Number(r.n)]));
+}
+
+/**
+ * For every recipient, how many locked versions of their firm's live clients
+ * await their review for issuance: requested, neither reviewed nor returned,
+ * not prepared by them, while they are the firm's owner or a reviewer; and
+ * requested from them, or from nobody in particular, or from someone who is
+ * no longer an owner or reviewer of the firm (so a request never waits on a
+ * person who cannot act). One grouped query per run; a recipient with none
+ * is absent. The line rides on a digest that goes anyway.
+ */
+async function versionsAwaitingReview(
+  sql: Sql,
+  everyone: readonly Recipient[],
+): Promise<Map<string, number>> {
+  const members = everyone.filter((r) => r.firmUserId !== null);
+  if (members.length === 0) return new Map();
+  const rows = await sql<{ user_id: string; n: number }>`
+    select r.user_id, count(*)::int as n
+    from unnest(
+      ${members.map((r) => r.userId)}::text[],
+      ${members.map((r) => r.firmUserId)}::text[]
+    ) as r(user_id, firm_user_id)
+    join firm_members m on m.firm_user_id = r.firm_user_id
+      and m.member_user_id = r.user_id and m.role in ('owner', 'reviewer')
+    join businesses b on b.deleted_at is null and b.firm_user_id = r.firm_user_id
+    join report_versions v on v.user_id = b.user_id and v.business_id = b.id
+    where v.review_requested_at is not null
+      and v.reviewed_at is null
+      and v.returned_at is null
+      and v.prepared_by is distinct from r.user_id
+      and (v.review_requested_from = r.user_id
+        or v.review_requested_from is null
+        or not exists (
+          select 1 from firm_members f
+          where f.firm_user_id = r.firm_user_id
+            and f.member_user_id = v.review_requested_from
+            and f.role in ('owner', 'reviewer')
+        ))
     group by r.user_id
   `;
   return new Map(rows.map((r) => [r.user_id, Number(r.n)]));

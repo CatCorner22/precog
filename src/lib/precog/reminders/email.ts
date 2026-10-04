@@ -35,12 +35,16 @@ export function renderDigest(input: {
   unsubscribeUrl: string;
   /** Connected clients whose QuickBooks reading failed or whose permission is about to end. */
   quickBooks?: { needAttention: number };
+  /** Locked report versions awaiting this recipient's review for issuance. */
+  reviews?: { awaiting: number };
 }): RenderedEmail {
   const needAttention = input.quickBooks?.needAttention ?? 0;
   const quickBooksLine =
     needAttention > 0
       ? `QuickBooks needs attention for ${count(needAttention, "client")}. See the firm workspace.`
       : null;
+  const awaiting = input.reviews?.awaiting ?? 0;
+  const reviewsLine = awaiting > 0 ? awaitingReviewLine(awaiting) : null;
   const total = input.clients.reduce((n, c) => n + c.items.length, 0);
   const overdue = input.clients.reduce((n, c) => n + c.items.filter((i) => i.overdue).length, 0);
   const subject = `Precog: ${digestSubject(input.firmName, input.clients, total, overdue)}`;
@@ -61,6 +65,7 @@ export function renderDigest(input: {
     "",
     ...textSections.flatMap((section) => [section, ""]),
     ...(quickBooksLine ? [quickBooksLine, ""] : []),
+    ...(reviewsLine ? [reviewsLine, ""] : []),
     `Open the firm workspace: ${input.appUrl}/firm`,
     "",
     optOut,
@@ -90,6 +95,7 @@ export function renderDigest(input: {
     `<h2 style="margin:4px 0 12px;font-size:18px">Weekly digest</h2>` +
     htmlSections +
     (quickBooksLine ? `<p style="margin-top:16px">${escapeHtml(quickBooksLine)}</p>` : "") +
+    (reviewsLine ? `<p style="margin-top:16px">${escapeHtml(reviewsLine)}</p>` : "") +
     `<p style="margin-top:20px"><a href="${escapeHtml(input.appUrl)}/firm">Open the firm workspace</a></p>` +
     `<p style="color:#6b7280;font-size:12px">${escapeHtml(because)} ` +
     `<a href="${escapeHtml(input.unsubscribeUrl)}">Stop the weekly digest</a></p>` +
@@ -103,6 +109,13 @@ export function renderDigest(input: {
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     },
   };
+}
+
+/** "1 report version awaits your review. …" / "2 report versions await your review. …" */
+export function awaitingReviewLine(awaiting: number): string {
+  return awaiting === 1
+    ? "1 report version awaits your review. See the firm workspace."
+    : `${awaiting} report versions await your review. See the firm workspace.`;
 }
 
 /**
