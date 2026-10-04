@@ -9,6 +9,7 @@ import { userScope } from "./llm/daily-usage";
 import { usageTotalsFor, type UsageTotal } from "./llm/usage-log.server";
 import { count } from "./text";
 import { pictureUrl } from "./procedures/image-pipeline";
+import { resetEngagement } from "./firm/grant-store";
 
 /**
  * Everything the app holds for one account, in one JSON document the owner can
@@ -31,7 +32,22 @@ interface AccountExport {
     revision: number;
     updatedAt: string;
     deletedAt: string | null;
+    /** When the account shared the business with a firm (migration 0046); null otherwise. */
+    grantedAt: string | null;
     profile: unknown;
+  }>;
+  /**
+   * The account's invitations to firms to work on its businesses, accepted
+   * or not, with the firm's name once one accepted. Never the link's token.
+   */
+  firmGrants: Array<{
+    businessId: string;
+    invitedEmail: string;
+    createdAt: string;
+    expiresAt: string;
+    acceptedAt: string | null;
+    revokedAt: string | null;
+    firmName: string | null;
   }>;
   /** Businesses deleted for good; only the id and the day are kept. */
   deletedBusinesses: Array<{ businessId: string; deletedAt: string }>;
@@ -226,6 +242,7 @@ export async function exportAccountRows(
     const [
       user,
       businesses,
+      firmGrants,
       deletedBusinesses,
       firmClients,
       reportVersions,
@@ -249,6 +266,7 @@ export async function exportAccountRows(
     ] = await Promise.all([
       readUser(tx, userId),
       readBusinesses(tx, userId),
+      readFirmGrants(tx, userId),
       readDeletedBusinesses(tx, userId),
       readFirmClients(tx, userId, firmUserId),
       readReportVersions(tx, userId),
@@ -278,6 +296,7 @@ export async function exportAccountRows(
       controlExecutions,
       user,
       businesses,
+      firmGrants,
       deletedBusinesses,
       firmClients,
       reportVersions,
@@ -347,8 +366,9 @@ export async function listAccountHistoryBusinesses(
 /**
  * Whose row a history download reads for `businessId`. With `ownerUserId`
  * named (the list row the caller chose): the caller's own rows when it is
- * theirs, else that account's row only when it is a member of the firm the
- * caller owns (`firmUserId`) and the row is that firm's client, so the
+ * theirs, else that account's row only when it is that firm's client and the
+ * account is a member of the firm the caller owns (`firmUserId`) or shared
+ * the business with it (a granted business), so the
  * owner's and a member's rows under one id download apart. Without it: the
  * caller's own row when they hold one, else the firm's. The membership is
  * read here, never trusted from what the client sends. Null when nothing
@@ -366,8 +386,9 @@ async function historyOwnerFor(
     if (firmUserId === null) return null;
     const rows = await sql<{ user_id: string }>`
       select b.user_id from businesses b
-      join firm_members m on m.firm_user_id = b.firm_user_id and m.member_user_id = b.user_id
+      left join firm_members m on m.firm_user_id = b.firm_user_id and m.member_user_id = b.user_id
       where b.id = ${businessId} and b.user_id = ${ownerUserId} and b.firm_user_id = ${firmUserId}
+        and (m.member_user_id is not null or b.granted_at is not null)
       limit 1
     `;
     return rows[0]?.user_id ?? null;
@@ -503,9 +524,23 @@ export async function deleteAccountRows(sql: Sql, userId: string): Promise<Delet
     const connections = await tx<{ refresh_token_enc: string }>`
       select refresh_token_enc from integration_connections where user_id = ${userId}
     `;
+    // Members' and owners' businesses leave the deleted firm. A business its
+    // owner shared with the firm goes back to the owner with a fresh
+    // engagement, and invitations still waiting on this address close.
+    const granted = await tx<{ user_id: string; id: string }>`
+      select user_id, id from businesses
+      where firm_user_id = ${userId} and user_id <> ${userId} and granted_at is not null
+      for update
+    `;
     await tx`
-      update businesses set firm_user_id = null
+      update businesses set firm_user_id = null, granted_at = null
       where firm_user_id = ${userId} and user_id <> ${userId}
+    `;
+    for (const row of granted) await resetEngagement(tx, row.user_id, row.id);
+    await tx`
+      update business_firm_grants set revoked_at = now()
+      where revoked_at is null and accepted_at is null
+        and lower(invited_email) = lower((select email from "user" where id = ${userId}))
     `;
     await tx`delete from assessment_snapshots where user_id = ${userId}`;
     await tx`delete from llm_daily_usage where scope = ${userScope(userId)}`;
@@ -537,6 +572,7 @@ async function refuseWhileHoldingFirmClients(tx: Sql, userId: string): Promise<v
     select f.name as firm_name, count(*) as n
     from businesses b join firms f on f.user_id = b.firm_user_id
     where b.user_id = ${userId} and b.firm_user_id <> ${userId} and b.deleted_at is null
+      and b.granted_at is null
     group by f.name
     order by count(*) desc
     limit 1
@@ -567,9 +603,10 @@ async function readBusinesses(tx: Sql, userId: string): Promise<AccountExport["b
     revision: number | string;
     updated_at: string;
     deleted_at: string | null;
+    granted_at: string | null;
     profile: unknown;
   }>`
-    select id, name, industry, revision, updated_at, deleted_at, profile
+    select id, name, industry, revision, updated_at, deleted_at, granted_at, profile
     from businesses where user_id = ${userId} order by updated_at desc
   `;
   return rows.map((b) => ({
@@ -579,7 +616,36 @@ async function readBusinesses(tx: Sql, userId: string): Promise<AccountExport["b
     revision: Number(b.revision),
     updatedAt: toIsoTimestamp(b.updated_at),
     deletedAt: toIsoTimestampOrNull(b.deleted_at),
+    grantedAt: toIsoTimestampOrNull(b.granted_at),
     profile: b.profile,
+  }));
+}
+
+async function readFirmGrants(tx: Sql, userId: string): Promise<AccountExport["firmGrants"]> {
+  const rows = await tx<{
+    business_id: string;
+    invited_email: string;
+    created_at: string;
+    expires_at: string;
+    accepted_at: string | null;
+    revoked_at: string | null;
+    firm_name: string | null;
+  }>`
+    select g.business_id, g.invited_email, g.created_at, g.expires_at, g.accepted_at,
+      g.revoked_at, f.name as firm_name
+    from business_firm_grants g
+    left join firms f on f.user_id = g.firm_user_id
+    where g.business_owner_id = ${userId}
+    order by g.created_at desc
+  `;
+  return rows.map((g) => ({
+    businessId: g.business_id,
+    invitedEmail: g.invited_email,
+    createdAt: toIsoTimestamp(g.created_at),
+    expiresAt: toIsoTimestamp(g.expires_at),
+    acceptedAt: toIsoTimestampOrNull(g.accepted_at),
+    revokedAt: toIsoTimestampOrNull(g.revoked_at),
+    firmName: g.firm_name,
   }));
 }
 

@@ -471,6 +471,35 @@ describe("firm ownership transfer", () => {
     });
   });
 
+  it("keeps the retention period and repoints client invitations and locked versions", async () => {
+    await db.pg.exec(`
+      update firms set retention_years = 10 where user_id = 'ua';
+      update businesses set firm_user_id = 'ua', granted_at = now() where user_id = 'uc';
+      insert into business_firm_grants (token, business_owner_id, business_id, invited_email,
+          firm_user_id, expires_at, accepted_by, accepted_at)
+        values ('g1', 'uc', 'biz_1', 'ua@example.test', 'ua', now() + interval '1 day', 'ua', now());
+      insert into report_versions (id, user_id, business_id, version_no, profile, firm_user_id)
+        values ('rv_1', 'uc', 'biz_1', 1, '{}'::jsonb, 'ua'),
+          ('rv_2', 'ub', 'biz_1', 1, '{}'::jsonb, 'elsewhere');
+    `);
+    await transferFirmOwnership(db.sql, "ua", "ub");
+    const firm = await db.pg.query<{ retention_years: number }>(
+      "select retention_years from firms where user_id = 'ub'",
+    );
+    expect(firm.rows).toEqual([{ retention_years: 10 }]);
+    const grants = await db.pg.query<{ firm_user_id: string | null }>(
+      "select firm_user_id from business_firm_grants",
+    );
+    expect(grants.rows).toEqual([{ firm_user_id: "ub" }]);
+    const versions = await db.pg.query<{ id: string; firm_user_id: string | null }>(
+      "select id, firm_user_id from report_versions order by id",
+    );
+    expect(versions.rows).toEqual([
+      { id: "rv_1", firm_user_id: "ub" },
+      { id: "rv_2", firm_user_id: "elsewhere" },
+    ]);
+  });
+
   it("refuses a non-member, a firm owner, and the owner themselves", async () => {
     await expect(transferFirmOwnership(db.sql, "ua", "uc")).rejects.toThrow(
       "uc is not a member of North.",

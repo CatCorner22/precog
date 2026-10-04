@@ -652,3 +652,86 @@ describe("past versions download apart from the account export", () => {
     expect(rest.nextBeforeRevision).toBeNull();
   });
 });
+
+describe("a business its owner shared with a firm", () => {
+  /** `ub`, outside the firm, shared biz_1 with `ua`'s Alpha CPA through grant g1. */
+  beforeEach(async () => {
+    await seedFirm("ua", "Alpha CPA");
+    await pg.exec(`
+      update businesses set firm_user_id = 'ua', granted_at = '2026-10-01T12:00:00Z'
+        where user_id = 'ub';
+      insert into business_firm_grants (token, business_owner_id, business_id, invited_email,
+          firm_user_id, created_at, expires_at, accepted_by, accepted_at)
+        values ('g1', 'ub', 'biz_1', 'ua@example.test', 'ua', '2026-09-30T12:00:00Z',
+          '2026-10-14T12:00:00Z', 'ua', '2026-10-01T12:00:00Z');
+      insert into engagement_marks (user_id, business_id, scope, status, ended_at,
+          reviewer_user_id, started_at)
+        values ('ub', 'biz_1', 'Duty map', 'ended', now(), 'ua', '2026-10-02T00:00:00Z');
+    `);
+  });
+
+  it("lets its owner delete their account; the member refusal stays for a firm's own client", async () => {
+    await deleteAccountRows(sql, "ub");
+    expect(await count('"user"', "where id = $1", ["ub"])).toBe(0);
+  });
+
+  it("downloads the shared business's history for the firm owner", async () => {
+    await pg.exec(`
+      insert into business_history (user_id, business_id, revision, name, industry, profile)
+      values ('ub', 'biz_1', 1, 'Biz', 'dental', '{"notes":"shared"}'::jsonb)
+    `);
+    const page = await exportBusinessHistoryPage(sql, "ua", "biz_1", null, undefined, "ua", "ub");
+    expect(page.rows.map((r) => r.profile)).toEqual([{ notes: "shared" }]);
+    // Handed back, it is out of the firm owner's reach.
+    await pg.exec(
+      `update businesses set firm_user_id = null, granted_at = null where user_id = 'ub'`,
+    );
+    const after = await exportBusinessHistoryPage(sql, "ua", "biz_1", null, undefined, "ua", "ub");
+    expect(after.rows).toEqual([]);
+  });
+
+  it("hands the business back when the firm owner deletes their account, and closes invitations to them", async () => {
+    await pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision)
+        values ('biz_2', 'ub', 'Second', 'dental', '{}'::jsonb, 1);
+      insert into business_firm_grants (token, business_owner_id, business_id, invited_email, expires_at)
+        values ('g2', 'ub', 'biz_2', 'UA@example.test', now() + interval '1 day');
+    `);
+    await deleteAccountRows(sql, "ua");
+    const rows = await pg.query<{ firm_user_id: string | null; granted_at: string | null }>(
+      `select firm_user_id, granted_at from businesses where user_id = 'ub' and id = 'biz_1'`,
+    );
+    expect(rows.rows).toEqual([{ firm_user_id: null, granted_at: null }]);
+    const engagement = await pg.query<Record<string, unknown>>(
+      `select scope, status, ended_at, reviewer_user_id, started_at is not null as started
+       from engagement_marks where user_id = 'ub' and business_id = 'biz_1'`,
+    );
+    expect(engagement.rows).toEqual([
+      { scope: "", status: "active", ended_at: null, reviewer_user_id: null, started: true },
+    ]);
+    const open = await pg.query<{ revoked: boolean }>(
+      `select revoked_at is not null as revoked from business_firm_grants where token = 'g2'`,
+    );
+    expect(open.rows).toEqual([{ revoked: true }]);
+  });
+
+  it("exports when the business was shared and the invitations, never their tokens", async () => {
+    const data = await exportAccountRows(sql, "ub");
+    expect(data.businesses.map((b) => [b.id, b.grantedAt])).toEqual([
+      ["biz_1", "2026-10-01T12:00:00.000Z"],
+    ]);
+    expect(data.firmGrants).toEqual([
+      {
+        businessId: "biz_1",
+        invitedEmail: "ua@example.test",
+        createdAt: "2026-09-30T12:00:00.000Z",
+        expiresAt: "2026-10-14T12:00:00.000Z",
+        acceptedAt: "2026-10-01T12:00:00.000Z",
+        revokedAt: null,
+        firmName: "Alpha CPA",
+      },
+    ]);
+    expect(JSON.stringify(data)).not.toContain('"g1"');
+    expect((await exportAccountRows(sql, "ua")).firmGrants).toEqual([]);
+  });
+});

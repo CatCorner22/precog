@@ -366,7 +366,7 @@ export function maskEmail(email: string): string {
  */
 export type InviteFit = "match" | "mismatch" | "confirm";
 
-async function accountFit(
+export async function accountFit(
   sql: Sql,
   userId: string,
   invitedEmail: string,
@@ -505,8 +505,9 @@ async function detachMember(
  * keyed by its owner's account, so the move is a new `firms` row under the
  * new owner, every row that names the firm repointed (members, invitations,
  * client businesses, deletion markers, which are `on delete set null` and so
- * go before the old row), the billing row moved, and the old `firms` row
- * deleted last. The new owner's role becomes owner and the old owner's
+ * go before the old row), the billing row moved, the client invitations it
+ * accepted and the versions locked for it repointed, and the old `firms` row
+ * deleted last. The firm's settings (letterhead, cover page, retention) move. The new owner's role becomes owner and the old owner's
  * reviewer. Refused while the firm's payment is overdue or disputed, for a
  * non-member, for someone who owns a firm, and for someone who already has
  * a billing record (impossible through the product; Support untangles it).
@@ -528,8 +529,9 @@ export async function transferFirmOwnership(
       letterhead: string;
       logo_data_url: string | null;
       cover_page: boolean;
+      retention_years: number | string;
     }>`
-      select name, plan, letterhead, logo_data_url, cover_page
+      select name, plan, letterhead, logo_data_url, cover_page, retention_years
       from firms where user_id = ${firmUserId} for update
     `;
     const firm = firms[0];
@@ -561,9 +563,10 @@ export async function transferFirmOwnership(
       );
     }
     await tx`
-      insert into firms (user_id, name, plan, letterhead, logo_data_url, cover_page, updated_at)
+      insert into firms
+        (user_id, name, plan, letterhead, logo_data_url, cover_page, retention_years, updated_at)
       values (${newOwnerUserId}, ${firm.name}, ${firm.plan}, ${firm.letterhead},
-        ${firm.logo_data_url}, ${firm.cover_page}, now())
+        ${firm.logo_data_url}, ${firm.cover_page}, ${Number(firm.retention_years)}, now())
     `;
     await tx`update firm_members set firm_user_id = ${newOwnerUserId} where firm_user_id = ${firmUserId}`;
     await tx`
@@ -578,6 +581,16 @@ export async function transferFirmOwnership(
       where firm_user_id = ${firmUserId}
     `;
     await tx`update billing_accounts set user_id = ${newOwnerUserId}, updated_at = now() where user_id = ${firmUserId}`;
+    // Client invitations accepted by the firm, and the versions locked for it,
+    // follow the firm (its id is its owner's), before the old row goes.
+    await tx`
+      update business_firm_grants set firm_user_id = ${newOwnerUserId}
+      where firm_user_id = ${firmUserId}
+    `;
+    await tx`
+      update report_versions set firm_user_id = ${newOwnerUserId}
+      where firm_user_id = ${firmUserId}
+    `;
     await tx`delete from firms where user_id = ${firmUserId}`;
   });
 }

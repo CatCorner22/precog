@@ -269,6 +269,25 @@ describe("assertEngagementOpen", () => {
     await setEngagementStatus(db.sql, "solo", "biz_s", "ended");
     await expect(assertEngagementOpen(db.sql, "solo", "biz_s", "solo")).resolves.toBeUndefined();
   });
+
+  it("lets the owner of a business shared with the firm through an ended engagement, not a member", async () => {
+    // `prep` shared their own biz_p with their firm: it stays theirs to change.
+    await db.pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id, granted_at)
+        values ('biz_p', 'prep', 'Own Shop', 'general', '{}'::jsonb, 1, 'own', now());
+    `);
+    await setEngagementStatus(db.sql, "prep", "biz_p", "ended");
+    await expect(assertEngagementOpen(db.sql, "prep", "biz_p", "prep")).resolves.toBeUndefined();
+    await expect(assertEngagementOpen(db.sql, "prep", "biz_p", "rev")).rejects.toMatchObject({
+      status: 409,
+      message: ENGAGEMENT_ENDED,
+    });
+    // The same account on a firm client it did not share is a member like any other.
+    await db.pg.exec(`update businesses set granted_at = null where id = 'biz_p'`);
+    await expect(assertEngagementOpen(db.sql, "prep", "biz_p", "prep")).rejects.toMatchObject({
+      status: 409,
+    });
+  });
 });
 
 describe("retention", () => {
