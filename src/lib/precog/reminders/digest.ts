@@ -74,7 +74,11 @@ export async function runDigest(
       try {
         const profile = await profileFor(sql, row);
         // Deleted since the run listed it: nothing to announce.
-        items = profile ? dueItemsFor(normalizeProfile(profile), input.today) : [];
+        items = profile
+          ? dueItemsFor(normalizeProfile(profile), input.today, {
+              hasFirm: row.firm_user_id !== null,
+            })
+          : [];
       } catch (err) {
         items = null;
         outcome.errors.push(`business ${row.id}: ${errorText(err)}`);
@@ -192,6 +196,8 @@ interface BusinessRow {
   user_id: string;
   id: string;
   name: string;
+  /** The firm working on the business; null for an owner's own business. */
+  firm_user_id: string | null;
 }
 
 interface OwnerNoteRow extends BusinessRow {
@@ -290,7 +296,7 @@ async function mintDigestTokens(sql: Sql, userIds: string[]): Promise<Map<string
 
 async function businessesFor(sql: Sql, recipient: Recipient): Promise<BusinessRow[]> {
   return sql<BusinessRow>`
-    select b.user_id, b.id, b.name
+    select b.user_id, b.id, b.name, b.firm_user_id
     from businesses b
     where b.deleted_at is null
       and (b.user_id = ${recipient.userId}
@@ -377,7 +383,7 @@ async function versionsAwaitingReview(
  */
 async function ownerNoteTargets(sql: Sql): Promise<OwnerNoteRow[]> {
   return sql.query<OwnerNoteRow>(`
-    select b.user_id, b.id, b.name, e.owner_email, e.owner_email_token,
+    select b.user_id, b.id, b.name, b.firm_user_id, e.owner_email, e.owner_email_token,
       f.name as firm_name,
       case when ${TRUSTED_EMAIL("cu")} then cu.email end as reply_to,
       coalesce(b.firm_user_id, b.user_id) as controlling_user_id

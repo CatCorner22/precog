@@ -3,7 +3,13 @@ import { resolveTemplate } from "../active-template";
 import { decisionsDue } from "../decisions/follow-through";
 import { absencesNeedingAttention, plannedAbsenceReport } from "../continuity/planned-absence";
 import { handoverDeadline, leavers } from "../continuity/leavers";
-import { latestReview, monthKey, monthlyReviewTasks, reviewDueOn } from "../firm/reviews";
+import {
+  latestReview,
+  MONTHLY_REVIEW_GRACE_DAY,
+  monthKey,
+  monthlyReviewTasks,
+  reviewDueOn,
+} from "../firm/reviews";
 import { isOwnTeam } from "../firm/engagement";
 import type { PracticeProfile } from "../practice-profile";
 import { daysBetween, formatDay } from "../dates";
@@ -35,13 +41,23 @@ export interface ReminderItem {
   overdue: boolean;
   /** Overdue for at least four weeks and announced before. */
   stillOpen: boolean;
-  /** Only the advisor hears about it (the monthly review). */
+  /** Only the advisor hears about it (the monthly review, on a business with a firm). */
   advisorOnly: boolean;
   /** The home page's search string that opens the item's tab (`?tab=monthly&item=decisions`). */
   href: string;
 }
 
-export function dueItemsFor(profile: PracticeProfile, today: string): ReminderItem[] {
+/**
+ * `hasFirm` is whether the business has a firm working on it. The monthly
+ * review is the advisor's only then; a business with no firm has no advisor
+ * but its owner, so its owner's note names the review too. Defaults to true,
+ * so a caller that does not say keeps the advisor-only rule.
+ */
+export function dueItemsFor(
+  profile: PracticeProfile,
+  today: string,
+  { hasFirm = true }: { hasFirm?: boolean } = {},
+): ReminderItem[] {
   if (!isOwnTeam(profile)) return [];
   const items: ReminderItem[] = [];
   const add = (item: Omit<ReminderItem, "announceKey" | "stillOpen">) =>
@@ -164,8 +180,10 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
     });
   }
 
-  // The monthly review is the advisor's: it is due once the month has
-  // started and stays due until every item has a result for the period.
+  // The monthly review is the advisor's when a firm works on the business,
+  // else the owner's: it is due from MONTHLY_REVIEW_GRACE_DAY (as the Needs
+  // attention menu counts it) and stays due until every item has a result
+  // for the period.
   const period = monthKey(today);
   const day = Number(today.slice(8, 10));
   if (day >= MONTHLY_REVIEW_GRACE_DAY) {
@@ -183,7 +201,7 @@ export function dueItemsFor(profile: PracticeProfile, today: string): ReminderIt
         ownerDetail: detail,
         dueOn,
         overdue: dueOn < today,
-        advisorOnly: true,
+        advisorOnly: hasFirm,
         href: "?tab=monthly",
       });
     }
@@ -202,7 +220,6 @@ export function forAudience(
   return audience === "advisor" ? [...items] : items.filter((item) => !item.advisorOnly);
 }
 
-const MONTHLY_REVIEW_GRACE_DAY = 5;
 const LEAVER_LEAD_DAYS = 7;
 /** An overdue item is announced again after this many days while it stays open. */
 const REANNOUNCE_DAYS = 28;

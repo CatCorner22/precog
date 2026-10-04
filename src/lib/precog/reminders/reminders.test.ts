@@ -117,6 +117,19 @@ describe("due items", () => {
     expect(dueItemsFor(defaultProfile("general"), TODAY)).toEqual([]);
   });
 
+  it("names the monthly review to the owner audience when the business has no firm", () => {
+    const items = dueItemsFor(profileWithDues(), TODAY, { hasFirm: false });
+    const monthly = items.find((i) => i.key === "monthly:2026-09");
+    expect(monthly?.advisorOnly).toBe(false);
+    expect(forAudience(items, "owner").map((i) => i.key)).toContain("monthly:2026-09");
+    // Saying the business has a firm keeps the advisor-only rule, as the default does.
+    expect(
+      forAudience(dueItemsFor(profileWithDues(), TODAY, { hasFirm: true }), "owner").map(
+        (i) => i.key,
+      ),
+    ).not.toContain("monthly:2026-09");
+  });
+
   it("finds the same items in the profile the digest reads, without the map's history fields", () => {
     const full: PracticeProfile = {
       ...profileWithDues(),
@@ -854,6 +867,29 @@ describe("digest run", () => {
       await db.sql`update businesses set deleted_at = now() where id = 'biz_1'`;
       expect((await lines()).adv).toBeNull();
     });
+  });
+
+  it("names the monthly review in the owner's note for a business with no firm, and not for a firm client", async () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "");
+    try {
+      const solo = recorder();
+      expect((await run(solo.send)).owners).toBe(1);
+      const soloNote = solo.sent.find((s) => s.to === "owner@shop.test");
+      expect(soloNote?.text).toContain("Monthly review for 2026-09");
+
+      await db.sql`delete from reminder_log`;
+      await firmWithReviewer();
+      const firm = recorder();
+      expect((await run(firm.send)).owners).toBe(1);
+      const firmNote = firm.sent.find((s) => s.to === "owner@shop.test");
+      expect(firmNote?.text).not.toContain("Monthly review for 2026-09");
+      // The firm's own digest still names it.
+      expect(firm.sent.find((s) => s.to === "adv@firm.test")?.text).toContain(
+        "Monthly review for 2026-09",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("follows the firm owner's switch for the client's owner, not a member's", async () => {
