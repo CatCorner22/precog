@@ -18,6 +18,7 @@ export const Route = createFileRoute("/api/owner-email")({
       GET: withReporting(async ({ request }) => {
         const link = parse(request.url);
         if (!link) return gone();
+        if (await throttled()) return throttledPage();
         const { getSql } = await import("@/lib/db");
         const { findOwnerConsent } = await import("@/lib/precog/reminders/owner-consent");
         const consent = await findOwnerConsent(await getSql(), link.token);
@@ -42,6 +43,7 @@ export const Route = createFileRoute("/api/owner-email")({
       POST: withReporting(async ({ request }) => {
         const link = parse(request.url);
         if (!link) return gone();
+        if (await throttled()) return throttledPage();
         const { getSql } = await import("@/lib/db");
         const consent = await import("@/lib/precog/reminders/owner-consent");
         const sql = await getSql();
@@ -83,6 +85,28 @@ function gone(): Response {
   return page(404, "This link no longer works", [
     "The address may have changed since Precog sent the email. Ask the advisor who set up the reminders.",
     `If you still get this page, write to ${SUPPORT_EMAIL}.`,
+  ]);
+}
+
+/** Whether the caller's address already opened enough emailed links this minute. */
+async function throttled(): Promise<boolean> {
+  try {
+    const [{ requestIp }, limits] = await Promise.all([
+      import("@/lib/request-ip.server"),
+      import("@/lib/precog/reminders/email-link-limits"),
+    ]);
+    return !limits.takeEmailLinkAllowance(requestIp());
+  } catch {
+    // The allowance must never break the link flow (no request context in
+    // scripts and tests, or a limiter fault): the tokens stay unguessable
+    // either way.
+    return false;
+  }
+}
+
+function throttledPage(): Response {
+  return page(429, "Too many tries", [
+    "Too many opens from this address. Wait a minute, then open the link again.",
   ]);
 }
 
