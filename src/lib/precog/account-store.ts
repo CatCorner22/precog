@@ -34,6 +34,21 @@ interface AccountExport {
   }>;
   /** Businesses deleted for good; only the id and the day are kept. */
   deletedBusinesses: Array<{ businessId: string; deletedAt: string }>;
+  /**
+   * For a firm owner: the firm's client businesses that members set up, as
+   * summaries (the profiles are the members' rows; each one's past versions
+   * download through the history download, which lists them too). Empty for
+   * everyone else.
+   */
+  firmClients: Array<{
+    id: string;
+    name: string;
+    industry: string;
+    ownerUserId: string;
+    revision: number;
+    updatedAt: string;
+    deletedAt: string | null;
+  }>;
   reportVersions: Array<{
     id: string;
     businessId: string;
@@ -161,14 +176,21 @@ interface DeletedAccount {
 /**
  * Reads the account's rows from one consistent snapshot, so a save landing
  * mid-export cannot make one part of the file disagree with another.
+ * `firmUserId` is the firm the caller owns (null otherwise): its members'
+ * client businesses come along as summaries.
  */
-export async function exportAccountRows(sql: Sql, userId: string): Promise<AccountExport> {
+export async function exportAccountRows(
+  sql: Sql,
+  userId: string,
+  firmUserId: string | null = null,
+): Promise<AccountExport> {
   return inTransaction(sql, async (tx) => {
     await tx`set transaction isolation level repeatable read`;
     const [
       user,
       businesses,
       deletedBusinesses,
+      firmClients,
       reportVersions,
       snapshots,
       shares,
@@ -189,6 +211,7 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
       readUser(tx, userId),
       readBusinesses(tx, userId),
       readDeletedBusinesses(tx, userId),
+      readFirmClients(tx, userId, firmUserId),
       readReportVersions(tx, userId),
       readSnapshots(tx, userId),
       readShares(tx, userId),
@@ -215,6 +238,7 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
       user,
       businesses,
       deletedBusinesses,
+      firmClients,
       reportVersions,
       snapshots,
       shares,
@@ -245,24 +269,59 @@ export interface BusinessHistoryExportRow {
   profile: unknown;
 }
 
-/** The account's businesses that have past versions, deleted ones included, by name. */
+/**
+ * The account's businesses that have past versions, deleted ones included,
+ * by name; for a firm owner (`firmUserId` set) the firm's client businesses
+ * its members set up as well, each with the account that holds the row.
+ */
 export async function listAccountHistoryBusinesses(
   sql: Sql,
   userId: string,
-): Promise<Array<{ businessId: string; name: string; versions: number }>> {
-  const rows = await sql<{ business_id: string; name: string; versions: number | string }>`
-    select h.business_id, coalesce(max(b.name), max(h.name)) as name, count(*) as versions
+  firmUserId: string | null = null,
+): Promise<Array<{ businessId: string; name: string; versions: number; ownerUserId: string }>> {
+  const rows = await sql<{
+    business_id: string;
+    user_id: string;
+    name: string;
+    versions: number | string;
+  }>`
+    select h.business_id, h.user_id, coalesce(max(b.name), max(h.name)) as name, count(*) as versions
     from business_history h
     left join businesses b on b.user_id = h.user_id and b.id = h.business_id
     where h.user_id = ${userId}
-    group by h.business_id
-    order by 2, 1
+      or (${firmUserId}::text is not null and b.firm_user_id = ${firmUserId})
+    group by h.business_id, h.user_id
+    order by 3, 1, (h.user_id = ${userId}) desc
   `;
   return rows.map((r) => ({
     businessId: r.business_id,
     name: r.name,
     versions: Number(r.versions),
+    ownerUserId: r.user_id,
   }));
+}
+
+/**
+ * Whose row a history download reads for `businessId`: the caller's own
+ * when they hold one, else the row a member of the caller's firm set up for
+ * it (`firmUserId` is the firm the caller owns). Resolved here, never from
+ * what the client sends. Null when neither exists.
+ */
+async function historyOwnerFor(
+  sql: Sql,
+  userId: string,
+  businessId: string,
+  firmUserId: string | null,
+): Promise<string | null> {
+  const rows = await sql<{ user_id: string }>`
+    select b.user_id from businesses b
+    where b.id = ${businessId}
+      and (b.user_id = ${userId}
+        or (${firmUserId}::text is not null and b.firm_user_id = ${firmUserId}))
+    order by (b.user_id = ${userId}) desc
+    limit 1
+  `;
+  return rows[0]?.user_id ?? userId;
 }
 
 /**
@@ -277,7 +336,8 @@ export const HISTORY_PAGE_BYTES = 3 * 1024 * 1024;
  * One page of a business's past versions, newest first, below `beforeRevision`
  * when given. A page holds versions until their profiles reach `budgetBytes`,
  * and always at least one (a profile is at most 2 MB, under 2.7 MB encoded).
- * `nextBeforeRevision` is null on the last page. Only the caller's own rows:
+ * `nextBeforeRevision` is null on the last page. Only the caller's own rows,
+ * or, for a firm owner (`firmUserId`), a row a member set up for the firm:
  * another account's id returns an empty page.
  *
  * The walk prints one version at a time and stops at the first one past the
@@ -286,11 +346,13 @@ export const HISTORY_PAGE_BYTES = 3 * 1024 * 1024;
  */
 export async function exportBusinessHistoryPage(
   sql: Sql,
-  userId: string,
+  callerUserId: string,
   businessId: string,
   beforeRevision: number | null,
   budgetBytes = HISTORY_PAGE_BYTES,
+  firmUserId: string | null = null,
 ): Promise<{ rows: BusinessHistoryExportRow[]; nextBeforeRevision: number | null }> {
+  const userId = await historyOwnerFor(sql, callerUserId, businessId, firmUserId);
   const rows = await sql<{
     business_id: string;
     revision: number | string;
@@ -454,6 +516,36 @@ async function readBusinesses(tx: Sql, userId: string): Promise<AccountExport["b
     updatedAt: toIsoTimestamp(b.updated_at),
     deletedAt: toIsoTimestampOrNull(b.deleted_at),
     profile: b.profile,
+  }));
+}
+
+async function readFirmClients(
+  tx: Sql,
+  userId: string,
+  firmUserId: string | null,
+): Promise<AccountExport["firmClients"]> {
+  if (!firmUserId) return [];
+  const rows = await tx<{
+    id: string;
+    name: string;
+    industry: string;
+    user_id: string;
+    revision: number | string;
+    updated_at: string;
+    deleted_at: string | null;
+  }>`
+    select id, name, industry, user_id, revision, updated_at, deleted_at
+    from businesses where firm_user_id = ${firmUserId} and user_id <> ${userId}
+    order by updated_at desc
+  `;
+  return rows.map((b) => ({
+    id: b.id,
+    name: b.name,
+    industry: b.industry,
+    ownerUserId: b.user_id,
+    revision: Number(b.revision),
+    updatedAt: toIsoTimestamp(b.updated_at),
+    deletedAt: toIsoTimestampOrNull(b.deleted_at),
   }));
 }
 

@@ -10,6 +10,7 @@ import {
   listAccountHistoryBusinesses,
 } from "./account-store";
 import { isBusinessId } from "./profile-input";
+import { loadFirmFor } from "./firm/store";
 import { decryptSecret, qboConfigured, revokeToken } from "./integrations/qbo/client.server";
 
 /**
@@ -20,15 +21,25 @@ export const exportAccountData = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    return { json: JSON.stringify(await exportAccountRows(sql, context.userId), null, 2) };
+    const firmUserId = await ownedFirm(sql, context.userId);
+    return {
+      json: JSON.stringify(await exportAccountRows(sql, context.userId, firmUserId), null, 2),
+    };
   });
+
+/** The firm the account owns, whose members' clients its export and history list hold; null otherwise. */
+async function ownedFirm(sql: Awaited<ReturnType<typeof getSql>>, userId: string) {
+  const firm = await loadFirmFor(sql, userId);
+  return firm?.role === "owner" ? firm.firmUserId : null;
+}
 
 /** The account's businesses with past versions, for the Download history list. */
 export const listHistoryDownloads = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    return { businesses: await listAccountHistoryBusinesses(sql, context.userId) };
+    const firmUserId = await ownedFirm(sql, context.userId);
+    return { businesses: await listAccountHistoryBusinesses(sql, context.userId, firmUserId) };
   });
 
 /**
@@ -55,6 +66,8 @@ export const exportBusinessHistory = createServerFn({ method: "GET" })
       context.userId,
       data.businessId,
       data.beforeRevision,
+      undefined,
+      await ownedFirm(sql, context.userId),
     );
     return { base64: encodeHistoryPage(page.rows), nextBeforeRevision: page.nextBeforeRevision };
   });

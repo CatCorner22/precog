@@ -256,6 +256,38 @@ describe("account export covers every table the account owns", () => {
   });
 });
 
+describe("a firm owner's export", () => {
+  it("lists the firm's client businesses that members set up as summaries, never their profiles", async () => {
+    await seedFirm("ua", "Alpha CPA");
+    await pg.query(
+      `insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'ub', 'preparer')`,
+    );
+    await pg.exec(`
+      update businesses set firm_user_id = 'ua';
+      update businesses set profile = '{"practiceName":"Member secret"}'::jsonb where user_id = 'ub';
+      insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
+        values ('biz_private', 'ub', 'Private', 'dental', '{}'::jsonb, 1, now());
+    `);
+    const owner = await exportAccountRows(sql, "ua", "ua");
+    expect(owner.businesses.map((b) => b.id)).toEqual(["biz_1"]);
+    expect(owner.firmClients).toEqual([
+      {
+        id: "biz_1",
+        name: "Biz",
+        industry: "dental",
+        ownerUserId: "ub",
+        revision: 1,
+        updatedAt: expect.stringMatching(/Z$/),
+        deletedAt: null,
+      },
+    ]);
+    expect(JSON.stringify(owner)).not.toContain("Member secret");
+    // A member's export, and an owner's without the firm, hold no colleagues' rows.
+    expect((await exportAccountRows(sql, "ub", null)).firmClients).toEqual([]);
+    expect((await exportAccountRows(sql, "ua")).firmClients).toEqual([]);
+  });
+});
+
 describe("account deletion safeguards", () => {
   it("rolls every statement back when a later one fails", async () => {
     await pg.exec(`
@@ -379,7 +411,7 @@ describe("past versions download apart from the account export", () => {
     expect(revisions).toEqual(Array.from({ length: 200 }, (_, i) => 200 - i));
 
     expect(await listAccountHistoryBusinesses(sql, "ua")).toEqual([
-      { businessId: "biz_1", name: "Biz", versions: 200 },
+      { businessId: "biz_1", name: "Biz", versions: 200, ownerUserId: "ua" },
     ]);
   }, 60_000);
 
@@ -424,6 +456,49 @@ describe("past versions download apart from the account export", () => {
     const other = await exportBusinessHistoryPage(sql, "ub", "biz_1", null);
     expect(other).toEqual({ rows: [], nextBeforeRevision: null });
     expect(await listAccountHistoryBusinesses(sql, "ub")).toEqual([]);
+  });
+
+  it("lists and pages a member's firm client for the firm owner, and nobody else's", async () => {
+    await seedFirm("ua", "Alpha CPA");
+    await pg.query(
+      `insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'ub', 'preparer')`,
+    );
+    await pg.exec(`
+      update businesses set firm_user_id = 'ua';
+      insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
+        values ('biz_private', 'ub', 'Private', 'dental', '{}'::jsonb, 1, now());
+      insert into business_history (user_id, business_id, revision, name, industry, profile)
+      values ('ua', 'biz_1', 1, 'Biz', 'dental', '{"notes":"owner"}'::jsonb),
+        ('ub', 'biz_1', 1, 'Biz', 'dental', '{"notes":"member"}'::jsonb),
+        ('ub', 'biz_private', 1, 'Private', 'dental', '{"notes":"private"}'::jsonb);
+    `);
+    // The owner lists their own row and the member's firm client, not the
+    // member's private business; the member lists only their own rows.
+    expect(await listAccountHistoryBusinesses(sql, "ua", "ua")).toEqual([
+      { businessId: "biz_1", name: "Biz", versions: 1, ownerUserId: "ua" },
+      { businessId: "biz_1", name: "Biz", versions: 1, ownerUserId: "ub" },
+    ]);
+    expect((await listAccountHistoryBusinesses(sql, "ub")).map((b) => b.ownerUserId)).toEqual([
+      "ub",
+      "ub",
+    ]);
+    // The owner's own row wins the shared id; a member's firm client pages for the owner.
+    const own = await exportBusinessHistoryPage(sql, "ua", "biz_1", null, undefined, "ua");
+    expect(own.rows.map((r) => r.profile)).toEqual([{ notes: "owner" }]);
+    await pg.exec(`delete from businesses where user_id = 'ua'`);
+    const theirs = await exportBusinessHistoryPage(sql, "ua", "biz_1", null, undefined, "ua");
+    expect(theirs.rows.map((r) => r.profile)).toEqual([{ notes: "member" }]);
+    const outside = await exportBusinessHistoryPage(
+      sql,
+      "ua",
+      "biz_private",
+      null,
+      undefined,
+      "ua",
+    );
+    expect(outside.rows).toEqual([]);
+    // Without the firm (a member, or a solo account) the member's row is out of reach.
+    expect((await exportBusinessHistoryPage(sql, "ua", "biz_1", null)).rows).toEqual([]);
   });
 
   it("puts a version larger than the page budget on a page of its own", async () => {
