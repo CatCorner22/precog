@@ -515,7 +515,7 @@ describe("digest run", () => {
     expect(sent.map((s) => s.to).sort()).toEqual(["adv@firm.test", "owner@shop.test"]);
   });
 
-  it("sends the digest only to an address Precog can vouch for, or a Google account", async () => {
+  it("sends the digest only to an address Precog can vouch for", async () => {
     await db.sql`update "user" set "emailVerified" = false where id = 'adv'`;
     const first = recorder();
     const outcome = await run(first.send);
@@ -527,9 +527,15 @@ describe("digest run", () => {
       insert into account (id, "accountId", "providerId", "userId", "createdAt", "updatedAt")
       values ('acc_g', 'g-1', 'grok-google', 'adv', now(), now())
     `;
+    // A Google sign-in whose address the broker did not mark confirmed is not vouched for.
     const second = recorder();
-    expect((await run(second.send)).advisors).toBe(1);
-    expect(second.sent.map((s) => s.to)).toEqual(["adv@firm.test"]);
+    expect((await run(second.send)).advisors).toBe(0);
+    expect(second.sent.map((s) => s.to)).toEqual([]);
+
+    await db.sql`update "user" set "emailVerified" = true where id = 'adv'`;
+    const third = recorder();
+    expect((await run(third.send)).advisors).toBe(1);
+    expect(third.sent.map((s) => s.to)).toEqual(["adv@firm.test"]);
   });
 
   it("sends nothing to an X-only account, and its owner notes carry no reply-to", async () => {

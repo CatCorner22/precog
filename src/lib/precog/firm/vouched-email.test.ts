@@ -52,10 +52,10 @@ describe("vouched addresses", () => {
     });
   });
 
-  it("trusts for email a vouched address or any Google sign-in, never an X-only one", async () => {
+  it("trusts for email exactly the vouched addresses: never X-only, never an unconfirmed Google one", async () => {
     expect(await verdicts(TRUSTED_EMAIL)).toEqual({
       google_confirmed: true,
-      google_unconfirmed: true,
+      google_unconfirmed: false,
       password_confirmed: true,
       x_and_google: true,
       x_only: false,
@@ -76,7 +76,7 @@ describe("vouched addresses", () => {
     expect(problems).toEqual({
       password_confirmed: null,
       google_confirmed: null,
-      google_unconfirmed: null,
+      google_unconfirmed: "unconfirmed",
       x_only: "x_only",
       x_and_google: null,
     });

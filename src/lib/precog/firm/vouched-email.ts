@@ -23,12 +23,11 @@ export const VOUCHED_EMAIL = (alias: string) => `(
 
 /**
  * An address Precog emails on its own initiative: the weekly digest, the
- * QuickBooks service notice and the Reply-To of an owner's reminder. A
- * vouched address, or a Google sign-in whose address the broker may not
- * mark confirmed.
+ * QuickBooks service notice and the Reply-To of an owner's reminder. Exactly
+ * the firm join's rule, so a Google sign-in whose address the broker did not
+ * mark confirmed is not emailed either.
  */
-export const TRUSTED_EMAIL = (alias: string) =>
-  `(${VOUCHED_EMAIL(alias)} or ${GOOGLE_ACCOUNT(alias)})`;
+export const TRUSTED_EMAIL = VOUCHED_EMAIL;
 
 /** The account has a Google sign-in through the auth broker. */
 export const GOOGLE_ACCOUNT = (alias: string) => `exists (
