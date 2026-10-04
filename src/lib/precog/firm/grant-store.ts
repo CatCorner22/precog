@@ -5,7 +5,10 @@ import { randomHex } from "@/lib/web-crypto";
 import { toIsoTimestamp } from "../iso-time";
 import { businessLimitMessage } from "../business-lifecycle";
 import { countClients, loadEntitlements } from "./entitlements.server";
+import { GRANT_CLOSED, GRANT_CONFIRM } from "./grant-texts";
 import { accountFit, FirmMembershipError, loadFirmFor, maskEmail } from "./store";
+
+export { GRANT_CLOSED, GRANT_CONFIRM };
 
 /**
  * A business owner's grant of their business to a firm (migration 0046).
@@ -27,10 +30,6 @@ export const ALREADY_WITH_FIRM =
 export const GRANT_LIMIT = "Precog sends at most five firm invitations a day for one business.";
 export const ONLY_FIRM_OWNER_ACCEPTS =
   "Only a firm's owner can accept a client invitation. Set up your firm on the Firm page first, then open this link again.";
-export const GRANT_CONFIRM =
-  "Sign in with Google or with the email address the invitation was sent to.";
-export const GRANT_CLOSED =
-  "This invitation has expired or was already used. Ask the business owner for a new one.";
 export const OWN_BUSINESS_GRANT =
   "This invitation is for your own business, so there is nothing to accept. Send the link to the firm owner it names.";
 export const END_ACCESS_REFUSED =

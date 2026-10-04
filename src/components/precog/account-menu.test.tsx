@@ -93,6 +93,45 @@ describe("the weekly digest switch in the header", () => {
   });
 });
 
+describe("the note when the digest cannot reach the account", () => {
+  const X_NOTE =
+    "Precog cannot email the address your X sign-in carries, so the weekly digest cannot reach you. Sign in with Google or an email-and-password account to receive it.";
+  const UNCONFIRMED_NOTE =
+    "Precog cannot confirm the address on this account, so the weekly digest cannot reach you. Sign in with a Google account whose address Google has confirmed, or with an email-and-password account.";
+
+  function withProblem(
+    weeklyDigest: boolean,
+    digestAddressProblem: "x_only" | "unconfirmed" | null,
+  ): string {
+    return renderToStaticMarkup(
+      <DigestSwitch
+        state={{
+          settings: { weeklyDigest, ownerReminders: true },
+          mailConfigured: true,
+          digestAddressProblem,
+        }}
+        disabled={false}
+        onToggle={() => {}}
+      />,
+    );
+  }
+
+  it("says why, keyed on the reason, while the digest is on", async () => {
+    const { digestAddressNote } = await import("./account-menu");
+    expect(digestAddressNote("x_only")).toBe(X_NOTE);
+    expect(digestAddressNote("unconfirmed")).toBe(UNCONFIRMED_NOTE);
+    expect(digestAddressNote(null)).toBeNull();
+    expect(withProblem(true, "x_only")).toContain(X_NOTE);
+    expect(withProblem(true, "unconfirmed")).toContain(UNCONFIRMED_NOTE);
+  });
+
+  it("prints nothing when the address is fine, or while the digest is off", () => {
+    expect(withProblem(true, null)).not.toContain("cannot reach you");
+    expect(withProblem(false, "x_only")).not.toContain("cannot reach you");
+    expect(withProblem(true, null)).toContain("Weekly digest: on");
+  });
+});
+
 describe("the sessions entry", () => {
   it("offers Sessions beside the other account controls, opening a dialog", async () => {
     const { SessionsControl, SESSIONS_ENTRY } = await import("./account-menu");

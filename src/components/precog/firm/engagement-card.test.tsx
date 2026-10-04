@@ -8,6 +8,10 @@ vi.mock("@/lib/precog/firm/engagement-server", () => ({
   saveEngagement: vi.fn(),
   setEngagementStatus: vi.fn(),
 }));
+vi.mock("@/lib/precog/firm/grant-server", () => ({
+  endFirmAccess: vi.fn(),
+  getBusinessGrant: vi.fn(),
+}));
 
 const {
   END_ENGAGEMENT,
@@ -31,6 +35,10 @@ const {
   SCOPE_LABEL,
   endEngagementPrompt,
   engagementStatusText,
+  HAND_BACK,
+  HAND_BACK_FAILED,
+  handBackPrompt,
+  handedBackToast,
 } = await import("./engagement-card");
 
 const members: FirmMember[] = [
@@ -191,6 +199,33 @@ describe("the engagement block", () => {
     expect(html.match(/disabled=""/g)?.length).toBe(1);
     // A member who is not the owner has no download and no archive status line.
     expect(form(active, false).match(/role="status"/g)).toHaveLength(1);
+  });
+
+  it("offers the hand-back to the owner alone, on a business its owner shared", () => {
+    const withHandBack = (isOwner: boolean, onHandBack?: () => void) =>
+      renderToStaticMarkup(
+        <EngagementForm
+          businessName="Ortiz Dental"
+          members={members}
+          isOwner={isOwner}
+          engagement={active}
+          onHandBack={onHandBack}
+        />,
+      );
+    expect(HAND_BACK).toBe("Hand back to its owner");
+    expect(withHandBack(true, () => undefined)).toContain(`>${HAND_BACK}</button>`);
+    // A client the firm set up itself has no hand-back; a member never sees one.
+    expect(withHandBack(true)).not.toContain(HAND_BACK);
+    expect(withHandBack(false, () => undefined)).not.toContain(HAND_BACK);
+  });
+
+  it("asks before handing back, saying the firm loses the versions it locked", () => {
+    expect(handBackPrompt("Ortiz Dental")).toBe(
+      "Hand Ortiz Dental back to its owner? The firm loses access to its map and Monthly review and can no longer open the versions it locked; the owner keeps them. Download the engagement archive first if the firm needs a copy.",
+    );
+    expect(handBackPrompt("Ortiz Dental")).not.toContain("You cannot undo this.");
+    expect(handedBackToast("Ortiz Dental")).toBe("Ortiz Dental is back with its owner.");
+    expect(HAND_BACK_FAILED).toBe("Precog could not hand the business back.");
   });
 
   it("renders nothing until the engagement loads", () => {

@@ -229,6 +229,20 @@ export function digestSwitchLabel(weeklyDigest: boolean): string {
   return weeklyDigest ? "Weekly digest: on" : "Weekly digest: off";
 }
 
+/** Why the weekly digest cannot reach the account's address (getNotificationSettings). */
+export type DigestAddressProblem = "x_only" | "unconfirmed" | null;
+
+/** The note under the digest switch when the digest is on but cannot reach the account. */
+export function digestAddressNote(problem: DigestAddressProblem): string | null {
+  if (problem === "x_only") {
+    return "Precog cannot email the address your X sign-in carries, so the weekly digest cannot reach you. Sign in with Google or an email-and-password account to receive it.";
+  }
+  if (problem === "unconfirmed") {
+    return "Precog cannot confirm the address on this account, so the weekly digest cannot reach you. Sign in with a Google account whose address Google has confirmed, or with an email-and-password account.";
+  }
+  return null;
+}
+
 /**
  * Flips the weekly digest alone and saves both switches; the saved settings
  * come back, or null when the save failed and the old ones stand.
@@ -246,20 +260,29 @@ export async function toggleDigest(
   }
 }
 
-/** The digest switch as drawn; hidden while this deployment cannot send email. */
+/**
+ * The digest switch as drawn; hidden while this deployment cannot send email.
+ * While on, a note under it says why the digest cannot reach this account,
+ * when it cannot.
+ */
 export function DigestSwitch({
   state,
   disabled,
   onToggle,
 }: {
-  state: { settings: NotificationSettings; mailConfigured: boolean } | null;
+  state: {
+    settings: NotificationSettings;
+    mailConfigured: boolean;
+    digestAddressProblem?: DigestAddressProblem;
+  } | null;
   disabled: boolean;
   onToggle: () => void;
 }) {
   if (!state || !state.mailConfigured) return null;
   const on = state.settings.weeklyDigest;
   const Icon = on ? Bell : BellOff;
-  return (
+  const note = on ? digestAddressNote(state.digestAddressProblem ?? null) : null;
+  const button = (
     <button
       type="button"
       role="switch"
@@ -273,6 +296,13 @@ export function DigestSwitch({
       {digestSwitchLabel(on)}
     </button>
   );
+  if (!note) return button;
+  return (
+    <span className="inline-flex max-w-xs flex-col items-start">
+      {button}
+      <span className="px-2 text-xs text-warn">{note}</span>
+    </span>
+  );
 }
 
 /**
@@ -284,6 +314,7 @@ function DigestControl({ disabled }: { disabled: boolean }) {
   const [state, setState] = useState<{
     settings: NotificationSettings;
     mailConfigured: boolean;
+    digestAddressProblem: DigestAddressProblem;
   } | null>(null);
   const [saving, setSaving] = useState(false);
   const digest = useDigestState();
@@ -291,7 +322,13 @@ function DigestControl({ disabled }: { disabled: boolean }) {
     let cancel = false;
     void getNotificationSettings()
       .then((res) => {
-        if (!cancel) setState({ settings: res.settings, mailConfigured: res.mailConfigured });
+        if (!cancel) {
+          setState({
+            settings: res.settings,
+            mailConfigured: res.mailConfigured,
+            digestAddressProblem: res.digestAddressProblem ?? null,
+          });
+        }
       })
       .catch(() => undefined);
     return () => {
