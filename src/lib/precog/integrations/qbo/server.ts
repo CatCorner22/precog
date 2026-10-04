@@ -35,6 +35,10 @@ export const getQuickBooksStatus = createServerFn({ method: "GET" })
   .handler(async ({ context, data }): Promise<QuickBooksStatus> => {
     const configured = qboConfigured();
     const sql = await getSql();
+    // Closed with the plan like connecting and syncing: after the plan
+    // closes, members stop polling drift off the stored snapshots. Both
+    // readers degrade to no reading when this refuses.
+    await assertQuickBooksOpen(sql, context.userId);
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
     const connection = await loadConnection(sql, owner, data.businessId);
     if (!connection) return { configured, connection: null, drift: null };
