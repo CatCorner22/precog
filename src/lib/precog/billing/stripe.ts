@@ -27,6 +27,8 @@ export type BillingChange =
       paymentIntentId: string | null;
       /** When Stripe created the event (ISO), or null when it did not say. */
       eventAt: string | null;
+      /** The session's amount before tax, in cents (what the Assessment credit posts), or null. */
+      amountSubtotalCents: number | null;
     }
   | { kind: "assessment-refunded"; paymentIntentId: string; eventAt: string | null }
   | {
@@ -50,6 +52,17 @@ export type BillingChange =
       status: string | null;
       currentPeriodEnd: string | null;
       /** When Stripe created the event (ISO), or null when it did not say. */
+      eventAt: string | null;
+      /** Stripe's reason on a cancellation ("payment_failed" when its retries ran out), else null. */
+      cancellationReason: string | null;
+    }
+  | {
+      /** An invoice on the subscription was not paid; the subscription events move the status. */
+      kind: "payment-failed";
+      customerId: string | null;
+      subscriptionId: string;
+      /** Stripe's hosted invoice page, where the card can be fixed without signing in. */
+      hostedInvoiceUrl: string | null;
       eventAt: string | null;
     }
   | { kind: "ignore" };
@@ -174,6 +187,7 @@ export function billingChangeFor(event: StripeEvent): BillingChange {
         status: null,
         currentPeriodEnd: null,
         eventAt,
+        cancellationReason: null,
       };
     }
     if (object.mode === "payment" && object.payment_status === "paid") {
@@ -183,9 +197,23 @@ export function billingChangeFor(event: StripeEvent): BillingChange {
         customerId,
         paymentIntentId: idOf(object.payment_intent),
         eventAt,
+        amountSubtotalCents:
+          typeof object.amount_subtotal === "number" ? object.amount_subtotal : null,
       };
     }
     return { kind: "ignore" };
+  }
+  if (event.type === "invoice.payment_failed") {
+    // A one-off or dashboard invoice has no subscription and never marks one past due.
+    const subscriptionId = idOf(object.subscription);
+    if (!subscriptionId) return { kind: "ignore" };
+    return {
+      kind: "payment-failed",
+      customerId: customerIdOf(object),
+      subscriptionId,
+      hostedInvoiceUrl: str(object.hosted_invoice_url),
+      eventAt,
+    };
   }
   if (event.type === "charge.refunded") {
     const paymentIntentId = idOf(object.payment_intent);
@@ -216,6 +244,7 @@ export function billingChangeFor(event: StripeEvent): BillingChange {
         ? new Date(object.current_period_end * 1000).toISOString()
         : null;
     const metadata = (object.metadata ?? {}) as Record<string, unknown>;
+    const cancellation = object.cancellation_details as Record<string, unknown> | undefined;
     return {
       kind: "subscription",
       userId: str(metadata.userId),
@@ -224,6 +253,7 @@ export function billingChangeFor(event: StripeEvent): BillingChange {
       status: event.type === "customer.subscription.deleted" ? "canceled" : status,
       currentPeriodEnd: periodEnd,
       eventAt,
+      cancellationReason: str(cancellation?.reason),
     };
   }
   return { kind: "ignore" };

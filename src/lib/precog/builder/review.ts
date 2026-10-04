@@ -5,7 +5,7 @@
 import { HEAT_BANDS } from "../scoring/bands";
 import { HEALTH_SCALE } from "../scoring/bands";
 import { personLabel } from "../person-label";
-import type { GrokAccess } from "../llm/types";
+import type { DailyLimitInfo, GrokAccess } from "../llm/types";
 
 interface ReviewProcessInput {
   id: string;
@@ -44,6 +44,8 @@ export interface MapReview {
   source: "grok" | "local";
   model?: string;
   grokStatus?: GrokAccess;
+  /** Which daily ceiling was met, when grokStatus is "daily_limit". */
+  dailyLimit?: DailyLimitInfo;
   headline: string;
   grade: "A" | "B" | "C" | "F";
   sections: ReviewSection[];

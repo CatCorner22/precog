@@ -6,12 +6,19 @@ describe("needsPractice", () => {
     expect(needsPractice(["__root__", id])).toBe(true);
   });
 
-  it.each(["/login", "/privacy", "/terms", "/share/$token", "/join/$token", "/threat"])(
-    "%s renders without it",
-    (id) => {
-      expect(needsPractice(["__root__", id])).toBe(false);
-    },
-  );
+  it.each([
+    "/login",
+    "/privacy",
+    "/terms",
+    "/pricing",
+    "/welcome",
+    "/share/$token",
+    "/share/report/$token",
+    "/join/$token",
+    "/threat",
+  ])("%s renders without it", (id) => {
+    expect(needsPractice(["__root__", id])).toBe(false);
+  });
 
   it("renders the not-found page without it", () => {
     expect(needsPractice(["__root__"])).toBe(false);
@@ -23,10 +30,17 @@ describe("isPracticePath", () => {
     expect(isPracticePath(path)).toBe(true);
   });
 
-  it.each(["/login", "/privacy", "/share/abc", "/join/abc", "/reports", "/threat"])(
-    "%s does not",
-    (path) => {
-      expect(isPracticePath(path)).toBe(false);
-    },
-  );
+  it.each([
+    "/login",
+    "/privacy",
+    "/pricing",
+    "/welcome",
+    "/share/abc",
+    "/share/report/abc",
+    "/join/abc",
+    "/reports",
+    "/threat",
+  ])("%s does not", (path) => {
+    expect(isPracticePath(path)).toBe(false);
+  });
 });

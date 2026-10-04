@@ -38,12 +38,12 @@ import {
   removeMember,
   revokeInvite,
   saveFirm,
+  saveFirmLetterhead as saveFirmLetterheadRow,
   saveNotificationSettings,
   setMemberRole,
   setOwnerEmail,
+  transferFirmOwnership as transferFirmOwnershipRows,
   upsertEngagementMark,
-  type AcceptedInvite,
-  type FirmContext,
   type InviteRole,
 } from "./store";
 import {
@@ -56,12 +56,16 @@ import {
   signOffReportVersion,
 } from "./reports";
 import { loadBillingAccount, planToStore } from "./billing-store";
+import { businessLimitMessage } from "../business-lifecycle";
+import { countClients, loadEntitlements, requireEntitlement } from "./entitlements.server";
+import { recordFirst } from "../telemetry/events.server";
 import {
   businessInput,
   EMAIL,
   idInput,
   instantInput,
   inviteRoleInput,
+  letterheadInput,
   PLANS,
   tokenInput,
 } from "./server-inputs";
@@ -119,6 +123,19 @@ export const saveFirmProfile = createServerFn({ method: "POST" })
   });
 
 /**
+ * The owner's letterhead, logo and cover-page switch, printed on the firm's
+ * client reports from now on. The logo arrives re-encoded by the browser.
+ */
+export const saveFirmLetterhead = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(letterheadInput)
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    await requireFirmRole(sql, context.userId, ["owner"]);
+    return { firm: await saveFirmLetterheadRow(sql, context.userId, data) };
+  });
+
+/**
  * Creates an invitation and, when email is connected, sends the link to the
  * colleague. `emailed` says whether it went; the owner can always copy it.
  */
@@ -134,6 +151,7 @@ export const inviteFirmMember = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
+    await requireEntitlement(sql, context.userId, "members");
     const invite = await createInvite(sql, {
       firmUserId: firm.firmUserId,
       email: data.email,
@@ -191,23 +209,13 @@ export const checkFirmInvite = createServerFn({ method: "GET" })
     return { fit: await inviteFit(sql, data.token, context.userId) };
   });
 
-/**
- * Joins the firm. When Precog could not match the account to the invited
- * address, the person had to confirm, and the firm owner gets an email.
- */
+/** Joins the firm; only an account whose confirmed address is the invited one gets in. */
 export const acceptFirmInvite = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { token: string; confirmOtherEmail?: boolean }) => ({
-    ...tokenInput(input),
-    confirmOtherEmail: requireObject(input).confirmOtherEmail === true,
-  }))
+  .validator(tokenInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const { firm, unmatched } = await acceptInvite(sql, data.token, context.userId, {
-      confirmOtherEmail: data.confirmOtherEmail,
-    });
-    if (unmatched) await emailUnmatchedJoin(sql, firm, context.userId, unmatched);
-    return { firm };
+    return { firm: (await acceptInvite(sql, data.token, context.userId)).firm };
   });
 
 export const setFirmMemberRole = createServerFn({ method: "POST" })
@@ -225,20 +233,73 @@ export const setFirmMemberRole = createServerFn({ method: "POST" })
     return { members: await listMembers(sql, firm.firmUserId) };
   });
 
+function memberInput(input: { userId: string }): { userId: string } {
+  const raw = requireObject(input);
+  if (typeof raw.userId !== "string" || !raw.userId) throw new RequestError(400, "Unknown member");
+  return { userId: raw.userId.slice(0, 120) };
+}
+
 export const removeFirmMember = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { userId: string }) => {
-    const raw = requireObject(input);
-    if (typeof raw.userId !== "string" || !raw.userId)
-      throw new RequestError(400, "Unknown member");
-    return { userId: raw.userId.slice(0, 120) };
-  })
+  .validator(memberInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
-    await removeMember(sql, firm.firmUserId, data.userId);
-    return { members: await listMembers(sql, firm.firmUserId) };
+    const moved = await removeMember(sql, firm.firmUserId, data.userId);
+    return { members: await listMembers(sql, firm.firmUserId), moved };
   });
+
+/**
+ * Hands the firm, its clients, members, invitations and billing to a member;
+ * the caller stays on as a reviewer. Stripe's customer and subscription
+ * are repointed best effort afterwards, so receipts reach the new owner.
+ */
+export const transferFirmOwnership = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(memberInput)
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const firm = await requireFirmRole(sql, context.userId, ["owner"]);
+    await transferFirmOwnershipRows(sql, firm.firmUserId, data.userId);
+    await repointStripeOwner(sql, data.userId);
+    return {
+      firm: await loadFirmFor(sql, context.userId),
+      members: await listMembers(sql, data.userId),
+    };
+  });
+
+/** Best effort, logged like the customer deletion: the rows have already moved. */
+async function repointStripeOwner(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  newOwnerUserId: string,
+): Promise<void> {
+  const billing = await loadBillingAccount(sql, newOwnerUserId);
+  if (!billing?.stripeCustomerId) return;
+  const { updateCustomer, updateSubscriptionMetadata } = await import("../billing/stripe.server");
+  const rows = await sql<{ email: string | null }>`
+    select email from "user" where id = ${newOwnerUserId}
+  `;
+  try {
+    await updateCustomer(billing.stripeCustomerId, {
+      email: rows[0]?.email ?? null,
+      userId: newOwnerUserId,
+    });
+  } catch (error) {
+    console.error(
+      "[firm] Stripe customer not repointed:",
+      error instanceof Error ? error.message : error,
+    );
+  }
+  if (!billing.subscriptionId) return;
+  try {
+    await updateSubscriptionMetadata(billing.subscriptionId, { userId: newOwnerUserId });
+  } catch (error) {
+    console.error(
+      "[firm] Stripe subscription not repointed:",
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
 
 export const leaveFirm = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -308,6 +369,8 @@ export const setClientOwnerEmail = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    // Clearing an address is always allowed; setting one needs the plan.
+    if (data.email) await requireEntitlement(sql, context.userId, "ownerReminders");
     const { confirmToken, stopped } = await setOwnerEmail(
       sql,
       owner,
@@ -360,6 +423,7 @@ export const recordMonthlyReview = createServerFn({ method: "POST" })
     await insertReviewEvent(sql, owner, data, context.userId);
     const { bridgeMonthlyReview } = await import("../controls/review-bridge.server");
     const bridged = await bridgeMonthlyReview(sql, context.userId, data, data.today);
+    await recordFirst(sql, context.userId, "first_monthly_review", data.businessId);
     return { ok: true as const, ...bridged };
   });
 
@@ -379,6 +443,9 @@ export const lockReport = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    // Creating a version needs the plan; every version already locked stays
+    // readable, reviewable for issuance and markable as sent whatever the plan.
+    await requireEntitlement(sql, context.userId, "lockedVersions");
     // The figures are built on the preparer's calendar day, the day the
     // locked report prints, and stored so later scoring changes leave them.
     const { freezeReport } = await import("../report/stored-model");
@@ -390,6 +457,7 @@ export const lockReport = createServerFn({ method: "POST" })
       id: `rv_${randomHex(12)}`,
       freeze: (profile) => freezeReport(profile, data.today),
     });
+    await recordFirst(sql, context.userId, "first_locked_version", data.businessId);
     return { version };
   });
 
@@ -413,11 +481,18 @@ export const getReport = createServerFn({ method: "GET" })
     const where = await requireReportVersion(sql, context.userId, data.id);
     const loaded = await loadReportVersion<PracticeProfile>(sql, where.ownerUserId, data.id);
     if (!loaded) throw new RequestError(404, "That report version does not exist");
-    const frozen = await loadFrozenReport<StoredReportModel>(sql, where.ownerUserId, data.id);
+    const [frozen, name, coverPage] = await Promise.all([
+      loadFrozenReport<StoredReportModel>(sql, where.ownerUserId, data.id),
+      reportFirmName(sql, where.ownerUserId, where.businessId),
+      reportCoverPage(sql, where.ownerUserId, where.businessId),
+    ]);
+    // A version locked before the snapshot existed prints the firm's current
+    // name only; the cover-page switch is the firm's, live.
     return {
       version: loaded.version,
       frozen,
-      firmName: await reportFirmName(sql, where.ownerUserId, where.businessId),
+      firm: loaded.version.firm ?? (name ? { name, letterhead: "", logoDataUrl: null } : null),
+      coverPage,
       profile: {
         ...mergeProfile(
           {
@@ -465,8 +540,23 @@ export const markReportSent = createServerFn({ method: "POST" })
     const sql = await getSql();
     const where = await requireReportVersion(sql, context.userId, data.id);
     await markReportVersionSent(sql, where.ownerUserId, data.id);
+    await recordFirst(sql, context.userId, "first_report_sent", where.businessId);
     return { ok: true as const };
   });
+
+/** Whether the firm a business is a client of prints a cover page; true when it has none. */
+async function reportCoverPage(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  ownerUserId: string,
+  businessId: string,
+): Promise<boolean> {
+  const rows = await sql<{ cover_page: boolean }>`
+    select f.cover_page from businesses b
+    join firms f on f.user_id = b.firm_user_id
+    where b.user_id = ${ownerUserId} and b.id = ${businessId}
+  `;
+  return rows[0] ? Boolean(rows[0].cover_page) : true;
+}
 
 // ── History and deleted businesses ──────────────────────────────────────────
 
@@ -547,6 +637,13 @@ export const restoreDeletedClient = createServerFn({ method: "POST" })
     const matches = candidates.filter((b) => b.id === data.businessId);
     const target = matches.find((b) => b.ownerUserId === context.userId) ?? matches[0];
     if (!target) throw new RequestError(404, "That business is not in the deleted list");
+    // A restore brings a live business back, so it counts against the plan
+    // as a new one does; the store's per-owner ceiling still applies after.
+    const e = await loadEntitlements(sql, context.userId);
+    const held = await countClients(sql, context.userId, firm);
+    if (held >= e.clientLimit) {
+      throw new RequestError(402, businessLimitMessage({ plan: e.plan, limit: e.clientLimit }));
+    }
     return {
       restored: await restoreBusinessRow(sql, target.ownerUserId, data.businessId, context.userId),
     };
@@ -628,48 +725,6 @@ async function emailOwnerConfirmation(
     const { reportServerError } = await import("@/lib/observability/report.server");
     await reportServerError(err, "owner-email-confirmation");
     return "not-sent";
-  }
-}
-
-/**
- * Tells the firm owner that someone joined with an invitation Precog could
- * not match to their account, so the owner can remove them. Without email
- * the owner still sees the new member in the firm's member list.
- */
-async function emailUnmatchedJoin(
-  sql: Awaited<ReturnType<typeof getSql>>,
-  firm: FirmContext,
-  memberId: string,
-  unmatched: NonNullable<AcceptedInvite["unmatched"]>,
-): Promise<void> {
-  const [{ mailConfigured, sendEmail }, { requestOrigin }, { renderUnmatchedJoin }] =
-    await Promise.all([
-      import("../reminders/mailer.server"),
-      import("@/lib/request-origin.server"),
-      import("./invite-email"),
-    ]);
-  if (!mailConfigured()) return;
-  const rows = await sql<{ id: string; name: string | null; email: string }>`
-    select id, name, email from "user" where id in (${firm.firmUserId}, ${memberId})
-  `;
-  const owner = rows.find((r) => r.id === firm.firmUserId);
-  const member = rows.find((r) => r.id === memberId);
-  if (!owner?.email.includes("@")) return;
-  try {
-    await sendEmail(
-      owner.email,
-      renderUnmatchedJoin({
-        firmName: firm.name,
-        role: firm.role,
-        memberName: member?.name || null,
-        accountEmail: unmatched.accountEmail,
-        invitedEmail: unmatched.invitedEmail,
-        link: `${requestOrigin()}/firm`,
-      }),
-    );
-  } catch (err) {
-    const { reportServerError } = await import("@/lib/observability/report.server");
-    await reportServerError(err, "firm-unmatched-join-email");
   }
 }
 

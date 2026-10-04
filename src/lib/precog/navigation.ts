@@ -105,6 +105,11 @@ interface HomeSearch {
    * business and tab); the home page switches to it and drops the key.
    */
   business?: string;
+  /**
+   * The landing page's way in (`?start=1`): a visitor with no business opens
+   * setup here instead of being sent back to the landing page.
+   */
+  start?: true;
 }
 
 export const TAB_IDS: readonly TabId[] = TAB_WORDS.map((t) => t.id);
@@ -187,13 +192,14 @@ export function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
     search.business.length <= BUSINESS_MAX
       ? search.business
       : undefined;
+  const start = search.start === "1" || search.start === true ? (true as const) : undefined;
   // Every key is present, undefined when dropped: the router lays these over
   // the raw query, so a key left out would keep the raw value (a retired
   // `?tab=command` would stay in the address and select no tab). A route
   // alias is the exception: its raw `tab` stays, so the address is not
   // rewritten to Home before the route's beforeLoad redirects it.
-  if (isRouteAliasId(search.tab)) return { item, build, quickbooks, business };
-  return { tab, item, build, quickbooks, business };
+  if (isRouteAliasId(search.tab)) return { item, build, quickbooks, business, start };
+  return { tab, item, build, quickbooks, business, start };
 }
 
 /**

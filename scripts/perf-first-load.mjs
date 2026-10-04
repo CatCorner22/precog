@@ -36,6 +36,12 @@ export const PAGE_BUDGETS_KB = {
   "/terms": 152,
   // An invalid share token renders the public share page's error state.
   "/share/x": 161,
+  // Batch 2, set on 2026-10-04 from the compiled build: the pricing page
+  // (156.4 KB), the landing page a fresh visitor is sent to from / (142.1 KB)
+  // and the report share page's error state (146.4 KB).
+  "/pricing": 173,
+  "/welcome": 157,
+  "/share/report/x": 162,
 };
 
 /** The gzipped size of one file's bytes, as check-bundle-size.mjs counts it. */

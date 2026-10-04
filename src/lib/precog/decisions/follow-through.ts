@@ -14,8 +14,8 @@ import type {
   DecisionReview,
   DecisionSnapshot,
 } from "../practice-profile";
-import { portfolioSummary } from "../scoring/residual-engine";
-import { SCORING_VERSION } from "../scoring/weights";
+import { portfolioSummary, type ResidualScope } from "../scoring/residual-engine";
+import { DEFAULT_WEIGHTS, SCORING_VERSION } from "../scoring/weights";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, Person, StaffComposition } from "../types";
@@ -163,8 +163,9 @@ export function captureDecisionSnapshot(
   subject?: string,
   now: Date = new Date(),
   knowledgeId?: string,
+  scope: ResidualScope = {},
 ): DecisionSnapshot {
-  const portfolio = portfolioSummary(tpl, staff);
+  const portfolio = portfolioSummary(tpl, staff, DEFAULT_WEIGHTS, scope);
   const sod = detectSodConflicts(tpl, staff, sodDetectionOptions(tpl, dualRelease));
   const subjectScore =
     subject === undefined

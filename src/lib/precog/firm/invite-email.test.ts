@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderFirmInvitation, renderUnmatchedJoin } from "./invite-email";
+import { renderFirmInvitation } from "./invite-email";
 
 describe("firm invitation email", () => {
   it("carries the link and escapes the firm name in the HTML", () => {
@@ -18,20 +18,27 @@ describe("firm invitation email", () => {
     expect(email.html).not.toContain("<Advisors>");
   });
 
-  it("tells the owner who joined with an invitation Precog could not match", () => {
-    const email = renderUnmatchedJoin({
+  it("says what a reviewer does in the words the report uses", () => {
+    const email = renderFirmInvitation({
       firmName: "North",
-      role: "preparer",
-      memberName: "Bob <b>",
-      accountEmail: "bob@gmail.test",
-      invitedEmail: "alice@cpa.test",
-      link: "https://app.example/firm",
+      inviterName: null,
+      role: "reviewer",
+      link: "https://app.example/join/abc",
     });
-    expect(email.subject).toBe("bob@gmail.test joined North on Precog");
     expect(email.text).toContain(
-      "Bob <b> (bob@gmail.test) joined North as a preparer with the invitation you sent to alice@cpa.test.",
+      "A reviewer does what a preparer does, reviews control checks, and reviews for issuance reports that someone else prepared.",
     );
-    expect(email.text).toContain("https://app.example/firm");
-    expect(email.html).toContain("Bob &lt;b&gt;");
+  });
+
+  it("says which sign-ins carry a confirmed address", () => {
+    const email = renderFirmInvitation({
+      firmName: "North",
+      inviterName: null,
+      role: "preparer",
+      link: "https://app.example/join/abc",
+    });
+    expect(email.text).toContain(
+      "The link works once and expires in two weeks. Sign in with Google under this address, or with an email-and-password account that has confirmed it, then open the link to join.",
+    );
   });
 });

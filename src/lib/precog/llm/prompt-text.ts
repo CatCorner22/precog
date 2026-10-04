@@ -5,7 +5,13 @@
  * tells the model it is data, never instructions.
  */
 import type { LlmAccess } from "./guard.server";
-import { DailyLimitReached, type GrokAccess } from "./types";
+import { DailyLimitReached, type DailyLimitInfo, type GrokAccess } from "./types";
+
+/** Why an answer came from Grok or the local rules, with the ceiling met when it was today's budget. */
+export interface GrokFallbackStatus {
+  grokStatus: GrokAccess;
+  dailyLimit?: DailyLimitInfo;
+}
 
 /**
  * Owner-typed text for inside an <owner_text> block, with any opening or
@@ -55,14 +61,15 @@ export function parseJsonReply(text: string): Record<string, unknown> | null {
  * holds; otherwise Grok's answer, or the local one when Grok returns nothing
  * usable or fails. `ask` must call the model through callModel(access, ...),
  * which spends the daily budget. Either way the result carries the caller's
- * Grok status, or "daily_limit" when today's model budget was used up.
+ * Grok status, or "daily_limit" with the ceiling met when today's model
+ * budget was used up.
  */
 export async function withGrokFallback<T extends object>(
   access: LlmAccess,
   local: T,
   worthAsking: boolean,
   ask: (access: LlmAccess) => Promise<T | null>,
-): Promise<T & { grokStatus: GrokAccess }> {
+): Promise<T & GrokFallbackStatus> {
   const grok = access.grok;
   if (grok !== "allowed" || !process.env.XAI_API_KEY?.trim() || !worthAsking) {
     return { ...local, grokStatus: grok };
@@ -71,7 +78,10 @@ export async function withGrokFallback<T extends object>(
     const answer = await ask(access);
     return { ...(answer ?? local), grokStatus: grok };
   } catch (error) {
-    return { ...local, grokStatus: error instanceof DailyLimitReached ? error.grok : grok };
+    if (error instanceof DailyLimitReached) {
+      return { ...local, grokStatus: error.grok, dailyLimit: error.dailyLimit };
+    }
+    return { ...local, grokStatus: grok };
   }
 }
 

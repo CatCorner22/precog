@@ -12,10 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FirmRouteImport } from './routes/firm'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ReportRouteImport } from './routes/report'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ThreatRouteImport } from './routes/threat'
+import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as ApiDigestEmailRouteImport } from './routes/api/digest-email'
 import { Route as ApiErrorsRouteImport } from './routes/api/errors'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -27,6 +29,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCronDigestRouteImport } from './routes/api/cron/digest'
 import { Route as ApiResendWebhookRouteImport } from './routes/api/resend/webhook'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
+import { Route as ShareReportTokenRouteImport } from './routes/share.report.$token'
 import { Route as ApiIntegrationsQboCallbackRouteImport } from './routes/api/integrations/qbo/callback'
 
 const IndexRoute = IndexRouteImport.update({
@@ -42,6 +45,11 @@ const FirmRoute = FirmRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -62,6 +70,11 @@ const TermsRoute = TermsRouteImport.update({
 const ThreatRoute = ThreatRouteImport.update({
   id: '/threat',
   path: '/threat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDigestEmailRoute = ApiDigestEmailRouteImport.update({
@@ -119,6 +132,11 @@ const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   path: '/api/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShareReportTokenRoute = ShareReportTokenRouteImport.update({
+  id: '/share/report/$token',
+  path: '/share/report/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiIntegrationsQboCallbackRoute =
   ApiIntegrationsQboCallbackRouteImport.update({
     id: '/api/integrations/qbo/callback',
@@ -130,10 +148,12 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/welcome': typeof WelcomeRoute
   '/api/digest-email': typeof ApiDigestEmailRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
@@ -145,16 +165,19 @@ export interface FileRoutesByFullPath {
   '/api/cron/digest': typeof ApiCronDigestRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/share/report/$token': typeof ShareReportTokenRoute
   '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/welcome': typeof WelcomeRoute
   '/api/digest-email': typeof ApiDigestEmailRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
@@ -166,6 +189,7 @@ export interface FileRoutesByTo {
   '/api/cron/digest': typeof ApiCronDigestRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/share/report/$token': typeof ShareReportTokenRoute
   '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
 export interface FileRoutesById {
@@ -173,10 +197,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
   '/terms': typeof TermsRoute
   '/threat': typeof ThreatRoute
+  '/welcome': typeof WelcomeRoute
   '/api/digest-email': typeof ApiDigestEmailRoute
   '/api/errors': typeof ApiErrorsRoute
   '/api/health': typeof ApiHealthRoute
@@ -188,6 +214,7 @@ export interface FileRoutesById {
   '/api/cron/digest': typeof ApiCronDigestRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/share/report/$token': typeof ShareReportTokenRoute
   '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
 export interface FileRouteTypes {
@@ -196,10 +223,12 @@ export interface FileRouteTypes {
     | '/'
     | '/firm'
     | '/login'
+    | '/pricing'
     | '/privacy'
     | '/report'
     | '/terms'
     | '/threat'
+    | '/welcome'
     | '/api/digest-email'
     | '/api/errors'
     | '/api/health'
@@ -211,16 +240,19 @@ export interface FileRouteTypes {
     | '/api/cron/digest'
     | '/api/resend/webhook'
     | '/api/stripe/webhook'
+    | '/share/report/$token'
     | '/api/integrations/qbo/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/firm'
     | '/login'
+    | '/pricing'
     | '/privacy'
     | '/report'
     | '/terms'
     | '/threat'
+    | '/welcome'
     | '/api/digest-email'
     | '/api/errors'
     | '/api/health'
@@ -232,16 +264,19 @@ export interface FileRouteTypes {
     | '/api/cron/digest'
     | '/api/resend/webhook'
     | '/api/stripe/webhook'
+    | '/share/report/$token'
     | '/api/integrations/qbo/callback'
   id:
     | '__root__'
     | '/'
     | '/firm'
     | '/login'
+    | '/pricing'
     | '/privacy'
     | '/report'
     | '/terms'
     | '/threat'
+    | '/welcome'
     | '/api/digest-email'
     | '/api/errors'
     | '/api/health'
@@ -253,6 +288,7 @@ export interface FileRouteTypes {
     | '/api/cron/digest'
     | '/api/resend/webhook'
     | '/api/stripe/webhook'
+    | '/share/report/$token'
     | '/api/integrations/qbo/callback'
   fileRoutesById: FileRoutesById
 }
@@ -260,10 +296,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   FirmRoute: typeof FirmRoute
   LoginRoute: typeof LoginRoute
+  PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   ReportRoute: typeof ReportRoute
   TermsRoute: typeof TermsRoute
   ThreatRoute: typeof ThreatRoute
+  WelcomeRoute: typeof WelcomeRoute
   ApiDigestEmailRoute: typeof ApiDigestEmailRoute
   ApiErrorsRoute: typeof ApiErrorsRoute
   ApiHealthRoute: typeof ApiHealthRoute
@@ -275,6 +313,7 @@ export interface RootRouteChildren {
   ApiCronDigestRoute: typeof ApiCronDigestRoute
   ApiResendWebhookRoute: typeof ApiResendWebhookRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
+  ShareReportTokenRoute: typeof ShareReportTokenRoute
   ApiIntegrationsQboCallbackRoute: typeof ApiIntegrationsQboCallbackRoute
 }
 
@@ -299,6 +338,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -327,6 +373,13 @@ declare module '@tanstack/react-router' {
       path: '/threat'
       fullPath: '/threat'
       preLoaderRoute: typeof ThreatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/welcome': {
+      id: '/welcome'
+      path: '/welcome'
+      fullPath: '/welcome'
+      preLoaderRoute: typeof WelcomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/digest-email': {
@@ -406,6 +459,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/share/report/$token': {
+      id: '/share/report/$token'
+      path: '/share/report/$token'
+      fullPath: '/share/report/$token'
+      preLoaderRoute: typeof ShareReportTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/integrations/qbo/callback': {
       id: '/api/integrations/qbo/callback'
       path: '/api/integrations/qbo/callback'
@@ -420,10 +480,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   FirmRoute: FirmRoute,
   LoginRoute: LoginRoute,
+  PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   ReportRoute: ReportRoute,
   TermsRoute: TermsRoute,
   ThreatRoute: ThreatRoute,
+  WelcomeRoute: WelcomeRoute,
   ApiDigestEmailRoute: ApiDigestEmailRoute,
   ApiErrorsRoute: ApiErrorsRoute,
   ApiHealthRoute: ApiHealthRoute,
@@ -435,6 +497,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronDigestRoute: ApiCronDigestRoute,
   ApiResendWebhookRoute: ApiResendWebhookRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
+  ShareReportTokenRoute: ShareReportTokenRoute,
   ApiIntegrationsQboCallbackRoute: ApiIntegrationsQboCallbackRoute,
 }
 export const routeTree = rootRouteImport

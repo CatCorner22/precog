@@ -61,8 +61,10 @@ export function ReviewPanel({
           </p>
         </div>
       </div>
-      {ruleBasedReason(review.source, review.grokStatus) && (
-        <p className="text-xs text-subtle">{ruleBasedReason(review.source, review.grokStatus)}</p>
+      {ruleBasedReason(review.source, review.grokStatus, review.dailyLimit) && (
+        <p className="text-xs text-subtle">
+          {ruleBasedReason(review.source, review.grokStatus, review.dailyLimit)}
+        </p>
       )}
       {/* Grok can repeat a heading or a point; the review is fixed once received, so index keys hold. */}
       {review.sections.map((s, sectionIndex) => (

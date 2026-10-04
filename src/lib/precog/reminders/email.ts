@@ -33,7 +33,14 @@ export function renderDigest(input: {
   clients: DigestClient[];
   appUrl: string;
   unsubscribeUrl: string;
+  /** Connected clients whose QuickBooks reading failed or whose permission is about to end. */
+  quickBooks?: { needAttention: number };
 }): RenderedEmail {
+  const needAttention = input.quickBooks?.needAttention ?? 0;
+  const quickBooksLine =
+    needAttention > 0
+      ? `QuickBooks needs attention for ${count(needAttention, "client")}. See the firm workspace.`
+      : null;
   const total = input.clients.reduce((n, c) => n + c.items.length, 0);
   const overdue = input.clients.reduce((n, c) => n + c.items.filter((i) => i.overdue).length, 0);
   const subject = `Precog: ${digestSubject(input.firmName, input.clients, total, overdue)}`;
@@ -53,6 +60,7 @@ export function renderDigest(input: {
     heading,
     "",
     ...textSections.flatMap((section) => [section, ""]),
+    ...(quickBooksLine ? [quickBooksLine, ""] : []),
     `Open the firm workspace: ${input.appUrl}/firm`,
     "",
     optOut,
@@ -81,6 +89,7 @@ export function renderDigest(input: {
     )}</p>` +
     `<h2 style="margin:4px 0 12px;font-size:18px">Weekly digest</h2>` +
     htmlSections +
+    (quickBooksLine ? `<p style="margin-top:16px">${escapeHtml(quickBooksLine)}</p>` : "") +
     `<p style="margin-top:20px"><a href="${escapeHtml(input.appUrl)}/firm">Open the firm workspace</a></p>` +
     `<p style="color:#6b7280;font-size:12px">${escapeHtml(because)} ` +
     `<a href="${escapeHtml(input.unsubscribeUrl)}">Stop the weekly digest</a></p>` +

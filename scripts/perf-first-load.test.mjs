@@ -48,7 +48,16 @@ describe("overBudget", () => {
   });
 
   it("budgets every page the script measures in whole KB", () => {
-    expect(Object.keys(PAGE_BUDGETS_KB)).toEqual(["/", "/login", "/privacy", "/terms", "/share/x"]);
+    expect(Object.keys(PAGE_BUDGETS_KB)).toEqual([
+      "/",
+      "/login",
+      "/privacy",
+      "/terms",
+      "/share/x",
+      "/pricing",
+      "/welcome",
+      "/share/report/x",
+    ]);
     for (const budget of Object.values(PAGE_BUDGETS_KB)) {
       expect(Number.isInteger(budget) && budget > 0).toBe(true);
     }

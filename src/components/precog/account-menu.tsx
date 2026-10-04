@@ -23,6 +23,13 @@ interface HistoryBusiness {
   businessId: string;
   name: string;
   versions: number;
+  /** The account that holds the row: the caller's own, or a firm member's for the firm owner. */
+  ownerUserId: string;
+}
+
+/** One list row's key: a firm owner's own business and a member's client can share an id. */
+function historyKey(b: HistoryBusiness): string {
+  return `${b.ownerUserId}:${b.businessId}`;
 }
 
 /** One page as the server sends it: the rows' JSON in base64 (see encodeHistoryPage). */
@@ -38,7 +45,11 @@ async function downloadBusinessHistory(business: HistoryBusiness): Promise<void>
   do {
     const page: { base64: string; nextBeforeRevision: number | null } = await exportBusinessHistory(
       {
-        data: { businessId: business.businessId, beforeRevision: before },
+        data: {
+          businessId: business.businessId,
+          beforeRevision: before,
+          ownerUserId: business.ownerUserId,
+        },
       },
     );
     versions.push(...decodeHistoryPage(page.base64));
@@ -102,7 +113,7 @@ function HistoryDownloads({
   }
 
   async function download(business: HistoryBusiness) {
-    setBusyId(business.businessId);
+    setBusyId(historyKey(business));
     onBusy(true);
     try {
       await downloadBusinessHistory(business);
@@ -147,7 +158,7 @@ function HistoryDownloads({
           ) : (
             businesses.map((b) => (
               <button
-                key={b.businessId}
+                key={historyKey(b)}
                 type="button"
                 onClick={() => void download(b)}
                 disabled={busyId !== null}
@@ -157,7 +168,7 @@ function HistoryDownloads({
                 <Download className="size-3.5" aria-hidden />
                 <span className="flex-1 truncate">{b.name}</span>
                 <span>
-                  {busyId === b.businessId
+                  {busyId === historyKey(b)
                     ? "Downloading…"
                     : `${b.versions} ${b.versions === 1 ? "version" : "versions"}`}
                 </span>

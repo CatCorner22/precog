@@ -24,6 +24,8 @@ Bracketed values such as `[NEON PITR DAYS]` in this file are facts the owner fil
 | `STRIPE_*`                     | Firm billing when enabled                                                                               |
 | QuickBooks                     | Intuit app credentials for read-only sync                                                               |
 | `XAI_API_KEY`                  | Optional server-side AI features                                                                        |
+| `LLM_DAILY_PER_USER_PAID`      | Daily model calls per account on the Firm plan or an Assessment inside its window (default 400)         |
+| `LLM_DAILY_FREE_POOL`          | Daily model calls every free account together may spend of the global ceiling (default 500 of 1500)     |
 | `SENTRY_DSN`                   | Error tracker (see Monitoring)                                                                          |
 | `ERROR_REPORT_URL`             | Error webhook when Sentry is not used                                                                   |
 
@@ -36,6 +38,7 @@ Bracketed values such as `[NEON PITR DAYS]` in this file are facts the owner fil
 - Server failures go to Sentry when `SENTRY_DSN` is set, or as a JSON POST to `ERROR_REPORT_URL` (for example a Slack or Discord relay) when only that is set. With neither, they reach only the server log, and nobody is alerted.
 - A production build prints a warning when neither is set. It does not fail the build.
 - Server functions, the scheduled job, the Stripe webhook, the Resend webhook, the owner email links and the procedure images all report unexpected failures. Precog does not report expected refusals (4xx).
+- The scheduled run also emails firm owners about failing or lapsing QuickBooks connections (once per problem; an address that cannot be reached is reported once instead).
 - Point an uptime check at `GET /api/health` and run it no more often than every 30 minutes. Each call runs one database query, so a more frequent check keeps a scale-to-zero database (Neon) awake around the clock. See "Uptime monitor" below.
 
 ## Uptime monitor
@@ -95,12 +98,22 @@ Drill record (one row per drill; the first drill sets `[RTO]`):
 ## Stripe
 
 - Activate Stripe Tax in the Stripe dashboard and add a tax registration for each state where Precog collects. Every Checkout collects the billing address and tax id and applies Stripe Tax, so without an active Stripe Tax account Checkout fails with Stripe's automatic-tax error.
-- Subscribe the webhook endpoint (`https://<BETTER_AUTH_URL host>/api/stripe/webhook`, signed with `STRIPE_WEBHOOK_SECRET`) to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `charge.refunded`, `charge.dispute.created` and `charge.dispute.closed`.
-- Dunning: in Stripe → Settings → Subscriptions and emails, set Smart Retries on, the retry period to 14 days, and "cancel the subscription" as the action after the last failed retry. Precog closes the paid tools while Stripe reports `past_due` (`commercialToolsOpen` in `src/lib/precog/firm/billing-store.ts`) and shows the status on the Firm page; the in-product warning and email during the retry period are a later batch.
+- Subscribe the webhook endpoint (`https://<BETTER_AUTH_URL host>/api/stripe/webhook`, signed with `STRIPE_WEBHOOK_SECRET`) to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`, `charge.refunded`, `charge.dispute.created` and `charge.dispute.closed`.
+- Dunning: in Stripe → Settings → Subscriptions and emails, set Smart Retries on, the retry period to 14 days, and "cancel the subscription" as the action after the last failed retry. Precog shows a banner on the home and Firm pages and emails the firm owner once when the subscription goes past due, keeps the paid surface open for 14 days from the first failure, and closes it after; the Monthly review and existing locked versions never close. Keep Stripe's retry period at 14 days so its cancellation and Precog's close coincide; Stripe's cancellation for a failed payment keeps the "closed because the payment failed" notice, a cancellation the firm asks for does not.
 
 ## Resend
 
 - In Resend → Webhooks, add the endpoint `https://<BETTER_AUTH_URL host>/api/resend/webhook` subscribed to `email.bounced` and `email.complained`, and set its signing secret (starts with `whsec_`) as `RESEND_WEBHOOK_SECRET`. A hard bounce or a complaint puts the address in `email_suppressions` (migration 0038), and the weekly digest and the owner notes skip it from the next run. A Transient bounce (a full mailbox) stops nothing. Without the secret the endpoint answers 404 and a bouncing address keeps being emailed every week.
+
+## Activation counts
+
+Migration `0042_product_events.sql` keeps one row per account and milestone in `product_events` (the first business set up, the first locked report version, the first report marked sent, the first monthly review recorded): two ids and a time, no names and no text, deleted with the account. The weekly run's JSON answer carries the seven days' counts under the key `activation` (`signedUp`, `firstBusiness`, `firstLockedVersion`, `firstReportSent`, `firstMonthlyReview`); `/api/health` never does. Three views in the Neon SQL editor give the longer series:
+
+- `product_activation_weekly`: accounts per week and milestone.
+- `product_signups_weekly`: accounts created per week, from `"user"."createdAt"` (no write).
+- `product_retained_reviewers`: accounts that recorded a monthly review in both this month and the one before.
+
+Precog runs no analytics script in the browser; these counts are the only product telemetry.
 
 ## Release tags
 
@@ -172,6 +185,7 @@ Hosting
 - [ ] Vercel plan is Pro, so the 300-second `maxDuration` on `/api/cron/digest` deploys (Function limits).
 - [ ] `FUNCTION_REGIONS` in `vite.config.ts` equals the Neon region `[NEON REGION]`.
 - [ ] `VITE_PUBLIC_HOSTNAME` is the production host (share previews).
+- [ ] `public/` reaches the build output (`robots.txt` and `og.svg` answer on the production host).
 - [ ] Vercel Firewall rules rate-limit `/api/auth/*` and the server-function path; the in-process limiters are cost control only.
 - [ ] Log drain is set (Log drain above).
 - [ ] Uptime monitor is set (Uptime monitor above).
@@ -205,9 +219,11 @@ Scheduled job and email
 Billing
 
 - [ ] `STRIPE_PRICE_ASSESSMENT` is the $1,000 one-off price and `STRIPE_PRICE_MONTHLY` the $299 monthly price in the Stripe account the secret key belongs to.
-- [ ] The webhook endpoint is subscribed to the eight events listed under Stripe, with its signing secret in `STRIPE_WEBHOOK_SECRET`.
+- [ ] The webhook endpoint is subscribed to the nine events listed under Stripe, with its signing secret in `STRIPE_WEBHOOK_SECRET`.
 - [ ] Stripe Tax is active with a registration per state.
 - [ ] Dunning retries and the after-retry action are set (Stripe above).
+- [ ] `ENTITLEMENTS_FROM` in `src/lib/precog/firm/entitlements.ts` is the first production deploy date (an Assessment paid before it counts its 90 days from that date).
+- [ ] `HAND_MARKED_PLANS_UNTIL` in the same file: firms marked monthly by hand with no billing row turn free after it; link each to a Stripe customer before then.
 - [ ] The statement descriptor reads as the firm expects on its card statement.
 
 QuickBooks

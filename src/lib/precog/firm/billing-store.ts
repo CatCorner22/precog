@@ -1,5 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
+import { entitlementsFor } from "./entitlements";
 import type { FirmPlan } from "./pricing";
 
 /**
@@ -18,6 +19,24 @@ export interface BillingAccount {
   /** Set while a dispute of the assessment is open; cleared when it is won or a new payment lands. */
   assessmentDisputedAt: string | null;
   currentPeriodEnd: string | null;
+  /**
+   * When the subscription first went past due (the Firm plan stays open for
+   * PAST_DUE_GRACE_DAYS from here); for a row already past due before the
+   * column existed, the time of its newest subscription event. Cleared when
+   * a payment goes through; kept on a cancellation Stripe made because the
+   * retries ran out.
+   */
+  pastDueSince: string | null;
+  /** When the one failed-payment email went (or was found suppressed); cleared when a payment goes through. */
+  paymentFailedEmailSentAt: string | null;
+  /** Stripe's hosted page for the failed invoice, where the card can be fixed without signing in. */
+  paymentFailedInvoiceUrl: string | null;
+  /** When the Assessment fee was credited against the Firm plan's first Checkout. */
+  assessmentCreditUsedAt: string | null;
+  /** The Assessment fee as charged before tax, in cents, from the Checkout session. */
+  assessmentFeeCents: number | null;
+  /** The credit posted to the Stripe customer balance, in cents, so a refund reverses what was posted. */
+  assessmentCreditCents: number | null;
   updatedAt: string;
 }
 
@@ -27,23 +46,46 @@ export const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing", "past
 export const PAID_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 
 /**
- * QuickBooks and the rest of the firm tools.
+ * QuickBooks and the rest of the firm tools: `entitlementsFor(...).features.quickbooks`.
  * Stripe unconfigured: open, so the owner is not locked out of their own firm.
- * past_due: closed. An active or trialing subscription, or a paid assessment
- * (not refunded) with no subscription, is open. A dispute under way does not
- * close the tools; a lost dispute counts as a refund.
+ * past_due: open for PAST_DUE_GRACE_DAYS from `pastDueSince` (or while that
+ * start is unknown), then closed. An active or trialing subscription, or a
+ * paid assessment (not refunded) inside its window, is open. A dispute under
+ * way does not close the tools; a lost dispute counts as a refund.
  */
 export function commercialToolsOpen(input: {
   stripeConfigured: boolean;
   subscriptionStatus: string | null;
   assessmentPaidAt: string | null;
   assessmentRefundedAt: string | null;
+  pastDueSince?: string | null;
+  now?: Date;
 }): boolean {
-  if (!input.stripeConfigured) return true;
-  if (input.subscriptionStatus === "past_due") return false;
-  if (input.subscriptionStatus && PAID_SUBSCRIPTION_STATUSES.has(input.subscriptionStatus))
-    return true;
-  return assessmentPaid(input);
+  return entitlementsFor({
+    stripeConfigured: input.stripeConfigured,
+    firmPlan: null,
+    billing: {
+      subscriptionStatus: input.subscriptionStatus,
+      assessmentPaidAt: input.assessmentPaidAt,
+      assessmentRefundedAt: input.assessmentRefundedAt,
+      pastDueSince: input.pastDueSince ?? null,
+    },
+    now: input.now ?? new Date(),
+  }).features.quickbooks;
+}
+
+/**
+ * True when the first subscription Checkout credits the Assessment fee: paid,
+ * not refunded, never subscribed, and not credited already. A cancelled and
+ * restarted subscription keeps its id, so it gets no second credit.
+ */
+export function assessmentCreditApplies(account: BillingAccount | null): boolean {
+  return (
+    account !== null &&
+    assessmentPaid(account) &&
+    account.subscriptionId === null &&
+    account.assessmentCreditUsedAt === null
+  );
 }
 
 /** True while the assessment is paid and not refunded. */
@@ -104,11 +146,21 @@ export async function loadBillingAccount(sql: Sql, userId: string): Promise<Bill
     assessment_refunded_at: string | null;
     assessment_disputed_at: string | null;
     current_period_end: string | null;
+    past_due_since: string | null;
+    payment_failed_email_sent_at: string | null;
+    payment_failed_invoice_url: string | null;
+    assessment_credit_used_at: string | null;
+    assessment_fee_cents: number | string | null;
+    assessment_credit_cents: number | string | null;
     updated_at: string;
   }>`
     select stripe_customer_id, subscription_id, subscription_status, assessment_paid_at,
       assessment_payment_intent, assessment_refunded_at, assessment_disputed_at,
-      current_period_end, updated_at
+      current_period_end,
+      coalesce(past_due_since,
+        case when subscription_status = 'past_due' then subscription_event_at end) as past_due_since,
+      payment_failed_email_sent_at, payment_failed_invoice_url, assessment_credit_used_at,
+      assessment_fee_cents, assessment_credit_cents, updated_at
     from billing_accounts where user_id = ${userId}
   `;
   const row = rows[0];
@@ -122,15 +174,70 @@ export async function loadBillingAccount(sql: Sql, userId: string): Promise<Bill
     assessmentRefundedAt: toIsoTimestampOrNull(row.assessment_refunded_at),
     assessmentDisputedAt: toIsoTimestampOrNull(row.assessment_disputed_at),
     currentPeriodEnd: toIsoTimestampOrNull(row.current_period_end),
+    pastDueSince: toIsoTimestampOrNull(row.past_due_since),
+    paymentFailedEmailSentAt: toIsoTimestampOrNull(row.payment_failed_email_sent_at),
+    paymentFailedInvoiceUrl: row.payment_failed_invoice_url,
+    assessmentCreditUsedAt: toIsoTimestampOrNull(row.assessment_credit_used_at),
+    assessmentFeeCents: row.assessment_fee_cents === null ? null : Number(row.assessment_fee_cents),
+    assessmentCreditCents:
+      row.assessment_credit_cents === null ? null : Number(row.assessment_credit_cents),
     updatedAt: toIsoTimestamp(row.updated_at),
   };
+}
+
+/**
+ * Stores the Stripe customer an account was given outside Checkout (the
+ * Assessment credit creates one for a row paid before Checkout created
+ * customers). A customer already stored is kept.
+ */
+export async function recordStripeCustomer(
+  sql: Sql,
+  userId: string,
+  stripeCustomerId: string,
+): Promise<void> {
+  await sql`
+    insert into billing_accounts (user_id, stripe_customer_id, updated_at)
+    values (${userId}, ${stripeCustomerId}, now())
+    on conflict (user_id) do update set
+      stripe_customer_id = coalesce(billing_accounts.stripe_customer_id, excluded.stripe_customer_id),
+      updated_at = now()
+  `;
+}
+
+/** Stamps the Assessment credit as posted, with the amount that was posted. */
+export async function markAssessmentCreditUsed(
+  sql: Sql,
+  userId: string,
+  creditCents: number,
+): Promise<void> {
+  await sql`
+    update billing_accounts
+    set assessment_credit_used_at = now(), assessment_credit_cents = ${creditCents}, updated_at = now()
+    where user_id = ${userId}
+  `;
+}
+
+/**
+ * Records that the posted credit is being taken back: the amount goes to
+ * zero so a second refund or lost dispute on the same payment reverses
+ * nothing twice. The stamp stays, so the refunded payment is never credited
+ * again; only a new payment clears it (recordAssessmentPayment).
+ */
+export async function markAssessmentCreditReversed(sql: Sql, userId: string): Promise<void> {
+  await sql`
+    update billing_accounts
+    set assessment_credit_cents = 0, updated_at = now()
+    where user_id = ${userId}
+  `;
 }
 
 /**
  * Records a paid assessment. A redelivery (the same payment intent) keeps
  * the first stamp; a new intent after a refund or lost dispute is a new
  * payment, so it stamps the event time and clears the refund and dispute
- * marks. An event without a creation time stamps now.
+ * marks and the credit of the earlier payment (that credit was reversed
+ * with the refund, so the new payment earns its own). An event without a
+ * creation time stamps now.
  */
 export async function recordAssessmentPayment(
   sql: Sql,
@@ -139,17 +246,21 @@ export async function recordAssessmentPayment(
     stripeCustomerId: string | null;
     paymentIntentId: string | null;
     paidAt: string | null;
+    /** The session's amount before tax, in cents; what the Assessment credit posts. */
+    feeCents?: number | null;
   },
 ): Promise<void> {
   await sql`
     insert into billing_accounts
-      (user_id, stripe_customer_id, assessment_paid_at, assessment_payment_intent, updated_at)
+      (user_id, stripe_customer_id, assessment_paid_at, assessment_payment_intent,
+        assessment_fee_cents, updated_at)
     values (
       ${input.userId}, ${input.stripeCustomerId}, coalesce(${input.paidAt}::timestamptz, now()),
-      ${input.paymentIntentId}, now()
+      ${input.paymentIntentId}, ${input.feeCents ?? null}::integer, now()
     )
     on conflict (user_id) do update set
       stripe_customer_id = coalesce(excluded.stripe_customer_id, billing_accounts.stripe_customer_id),
+      assessment_fee_cents = coalesce(excluded.assessment_fee_cents, billing_accounts.assessment_fee_cents),
       assessment_paid_at = case
         when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
           then coalesce(excluded.assessment_paid_at, now())
@@ -164,6 +275,16 @@ export async function recordAssessmentPayment(
         when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
           then null
         else billing_accounts.assessment_disputed_at
+      end,
+      assessment_credit_used_at = case
+        when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
+          then null
+        else billing_accounts.assessment_credit_used_at
+      end,
+      assessment_credit_cents = case
+        when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
+          then null
+        else billing_accounts.assessment_credit_cents
       end,
       assessment_payment_intent = coalesce(excluded.assessment_payment_intent, billing_accounts.assessment_payment_intent),
       updated_at = now()
@@ -272,6 +393,12 @@ export async function recordSubscription(
     currentPeriodEnd: string | null;
     /** When Stripe created the event (ISO); null when unknown, which skips the order check. */
     eventAt?: string | null;
+    /**
+     * Stripe's `cancellation_details.reason` on a cancellation: "payment_failed"
+     * when its retries ran out, which keeps `past_due_since` as the record of
+     * why; any other reason (the firm asked) clears it.
+     */
+    cancellationReason?: string | null;
   },
 ): Promise<string> {
   const stored = await sql<{
@@ -295,14 +422,17 @@ export async function recordSubscription(
     if (otherWhileActive || older) return current.subscription_status;
   }
   const eventAt = input.status === null ? null : (input.eventAt ?? null);
+  const cancellationReason = input.cancellationReason ?? null;
   const rows = await sql<{ subscription_status: string }>`
     insert into billing_accounts
       (user_id, stripe_customer_id, subscription_id, subscription_status, current_period_end,
-        subscription_event_at, updated_at)
+        subscription_event_at, past_due_since, updated_at)
     values (
       ${input.userId}, ${input.stripeCustomerId}, ${input.subscriptionId},
       coalesce(${input.status}::text, 'active'), ${input.currentPeriodEnd}::timestamptz,
-      ${eventAt}::timestamptz, now()
+      ${eventAt}::timestamptz,
+      case when ${input.status}::text = 'past_due' then coalesce(${eventAt}::timestamptz, now()) end,
+      now()
     )
     on conflict (user_id) do update set
       stripe_customer_id = coalesce(excluded.stripe_customer_id, billing_accounts.stripe_customer_id),
@@ -324,10 +454,73 @@ export async function recordSubscription(
         then greatest(excluded.subscription_event_at, billing_accounts.subscription_event_at)
         else excluded.subscription_event_at
       end,
+      -- A checkout completion (null status) says nothing about dunning. A
+      -- past_due keeps the first start; a payment that goes through clears the
+      -- episode; a cancellation keeps the record only when Stripe's retries
+      -- ran out; anything else leaves it.
+      past_due_since = case
+        when ${input.status}::text is null then billing_accounts.past_due_since
+        when excluded.subscription_status = 'past_due'
+          then coalesce(billing_accounts.past_due_since, excluded.subscription_event_at, now())
+        when excluded.subscription_status in ('active', 'trialing') then null
+        when excluded.subscription_status = 'canceled'
+          and ${cancellationReason}::text is distinct from 'payment_failed' then null
+        else billing_accounts.past_due_since
+      end,
+      payment_failed_email_sent_at = case
+        when ${input.status}::text is not null
+          and excluded.subscription_status in ('active', 'trialing') then null
+        else billing_accounts.payment_failed_email_sent_at
+      end,
+      payment_failed_invoice_url = case
+        when ${input.status}::text is not null
+          and excluded.subscription_status in ('active', 'trialing') then null
+        else billing_accounts.payment_failed_invoice_url
+      end,
       updated_at = now()
     returning subscription_status
   `;
   return rows[0].subscription_status;
+}
+
+/**
+ * A failed invoice payment on the subscription: keeps the first failure's
+ * time and stores Stripe's hosted invoice link for the one email. The status
+ * itself follows the subscription events. An invoice event created before
+ * the newest subscription event already stored (a late delivery after the
+ * payment that ended the episode went through) stamps no start, since a
+ * stray stamp under an active row would shorten the next episode's grace;
+ * an event with no creation time skips the order check, as recordSubscription
+ * does. The link is kept either way; a payment that goes through clears it.
+ */
+export async function markPastDue(
+  sql: Sql,
+  userId: string,
+  at: string | null,
+  invoiceUrl: string | null,
+): Promise<void> {
+  await sql`
+    update billing_accounts
+    set past_due_since = case
+        when ${at}::timestamptz is null
+          or subscription_event_at is null
+          or ${at}::timestamptz >= subscription_event_at
+        then coalesce(past_due_since, ${at}::timestamptz, now())
+        else past_due_since
+      end,
+      payment_failed_invoice_url = coalesce(${invoiceUrl}::text, payment_failed_invoice_url),
+      updated_at = now()
+    where user_id = ${userId}
+  `;
+}
+
+/** Stamps the one failed-payment email as sent (or found suppressed) for this episode. */
+export async function markPaymentFailedEmailSent(sql: Sql, userId: string): Promise<void> {
+  await sql`
+    update billing_accounts
+    set payment_failed_email_sent_at = now(), updated_at = now()
+    where user_id = ${userId}
+  `;
 }
 
 /** The account a Stripe customer id belongs to, or null. */

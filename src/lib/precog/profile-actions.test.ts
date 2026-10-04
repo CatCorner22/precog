@@ -29,6 +29,11 @@ import {
 } from "./profile-actions";
 import { captureMapSnapshot } from "./builder/map-history";
 import type { Person } from "./types";
+import { resolveTemplate } from "./active-template";
+import { buildOwnTeam, ownBusinessProfile } from "./onboarding/own-team";
+import { portfolioSummary } from "./scoring/residual-engine";
+import { residualScope } from "./scoring/scope";
+import { DEFAULT_WEIGHTS } from "./scoring/weights";
 
 const NOW = new Date("2026-09-25T10:00:00Z");
 
@@ -320,6 +325,51 @@ describe("the journal caps", () => {
 });
 
 describe("journal and list edits", () => {
+  it("stores the Decisions screen's scoped average on a new decision", () => {
+    // The sample business counts every scenario, so non-default risk
+    // settings alone move the scoped figure away from the unscoped one.
+    const base = defaultProfile("dental");
+    const p = {
+      ...base,
+      riskVariables: {
+        ...base.riskVariables,
+        dailyCashExposure: 7500,
+        hasSecurityCameras: true,
+        deductible: 25000,
+      },
+    };
+    const tpl = resolveTemplate(p);
+    const scope = residualScope({
+      decisions: p.decisions,
+      industry: p.industry,
+      riskVariables: p.riskVariables,
+    });
+    const scoped = portfolioSummary(tpl, p.staff, DEFAULT_WEIGHTS, scope).averageResidual;
+    expect(scoped).not.toBe(portfolioSummary(tpl, p.staff).averageResidual);
+    const next = withDecision(p, { subject: "Bank rec", kind: "remediate", note: "" }, "d1", NOW);
+    expect(next.decisions[0].snapshot?.averageResidual).toBe(scoped);
+  });
+
+  it("stores the scoped average for an own team with no confirmed scenarios", () => {
+    const team = buildOwnTeam([
+      { name: "Ana Ruiz", role: "Owner", duties: ["bank_reconcile"] },
+      { name: "Ben Ochoa", role: "Office Manager", duties: ["post_payments"] },
+    ]);
+    const p = ownBusinessProfile(defaultProfile("dental"), {
+      practiceName: "Ruiz Dental",
+      people: team,
+    });
+    const tpl = resolveTemplate(p);
+    const scope = residualScope({
+      decisions: p.decisions,
+      industry: p.industry,
+      riskVariables: p.riskVariables,
+    });
+    const scoped = portfolioSummary(tpl, p.staff, DEFAULT_WEIGHTS, scope).averageResidual;
+    const next = withDecision(p, { subject: "Bank rec", kind: "remediate", note: "" }, "d1", NOW);
+    expect(next.decisions[0].snapshot?.averageResidual).toBe(scoped);
+  });
+
   it("closes a reviewed decision with a snapshot, and keeps a still-open one open", () => {
     const p = withDecision(
       defaultProfile("general"),

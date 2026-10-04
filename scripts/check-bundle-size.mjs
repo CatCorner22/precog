@@ -100,7 +100,12 @@
  * and the stop link (S-digest), and the Stripe-sourced price labels and
  * the sign-in price (S-billing). Measured 781.3 KB in 110 chunks after
  * wave 1, against 775.4 KB before the batch. Total budget raised from
- * 780 KB to 790 KB.
+ * 780 KB to 790 KB. *
+ * 2026-10-04: commercial batch 2 adds the pricing and landing pages, the
+ * entitlements and the payment-overdue banner, the guest-work prompt, the
+ * firm letterhead, cover page and report share. Measured 790.5 KB in 117
+ * chunks after wave 3 (P2), against 781.3 KB before the batch. Total budget
+ * raised from 790 KB to 800 KB; the figure after wave 4 is in the PR.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -109,7 +114,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 790 * 1024,
+  totalGzipBytes: 800 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

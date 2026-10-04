@@ -1,11 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { loadMapShare, type SharedMapPayload } from "@/lib/precog/share/share-server";
-import { evidenceLine, ownerTag, shareErrorView } from "@/lib/precog/builder/share-view";
+import { evidenceLine, ownerTag } from "@/lib/precog/builder/share-view";
 import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
-import { Eye, Lock, ShieldCheck } from "lucide-react";
+import { Eye, ShieldCheck } from "lucide-react";
 import { formatDay } from "@/lib/precog/dates";
 import { Section } from "@/components/precog/control-report-parts";
+import { ShareGate } from "@/components/precog/share-gate";
 
 export const Route = createFileRoute("/share/$token")({
   component: SharePage,
@@ -36,7 +37,6 @@ type LoadState =
 function SharePage() {
   const { token } = Route.useParams();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
-  const [passcode, setPasscode] = useState("");
 
   const loadShare = useCallback(
     async (code?: string) => {
@@ -72,69 +72,13 @@ function SharePage() {
   }
 
   if (state.kind === "error") {
-    const view = shareErrorView(state.reason);
-    if (view.kind === "passcode") {
-      return (
-        <div className="flex min-h-dvh items-center justify-center bg-white p-8">
-          <form
-            className="w-full max-w-sm rounded-lg border border-neutral-200 p-5"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void loadShare(passcode);
-            }}
-          >
-            <Lock className="mx-auto size-8 text-neutral-400" />
-            <h1 className="mt-3 text-center text-lg font-semibold text-neutral-900">
-              Passcode required
-            </h1>
-            <p className="mt-1 text-center text-sm text-neutral-600" role="status">
-              {view.message}
-            </p>
-            <label
-              htmlFor="share-passcode"
-              className="mt-4 block text-xs font-medium text-neutral-700"
-            >
-              Passcode
-            </label>
-            <input
-              id="share-passcode"
-              type="password"
-              autoComplete="off"
-              className="mt-1 w-full rounded border border-neutral-300 px-3 py-2 text-sm"
-              value={passcode}
-              onChange={(event) => setPasscode(event.target.value)}
-              autoFocus
-            />
-            <button
-              type="submit"
-              className="mt-3 w-full rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-700"
-            >
-              Open
-            </button>
-          </form>
-        </div>
-      );
-    }
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-white p-8">
-        <div className="max-w-sm text-center">
-          <Lock className="mx-auto size-8 text-neutral-400" />
-          <h1 className="mt-3 text-lg font-semibold text-neutral-900">Shared map unavailable</h1>
-          <p className="mt-1 text-sm text-neutral-600">{view.message}</p>
-          {view.retry && (
-            <button
-              type="button"
-              onClick={() => void loadShare()}
-              className="mt-4 block w-full rounded bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-700"
-            >
-              Try again
-            </button>
-          )}
-          <Link to="/" className="mt-4 inline-block text-sm text-neutral-700 underline">
-            Go to Precog
-          </Link>
-        </div>
-      </div>
+      <ShareGate
+        reason={state.reason}
+        heading="Shared map unavailable"
+        onRetry={() => void loadShare()}
+        onPasscode={(passcode) => void loadShare(passcode)}
+      />
     );
   }
 
