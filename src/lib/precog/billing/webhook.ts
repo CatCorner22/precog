@@ -31,10 +31,13 @@ import { billingChangeFor, type StripeEvent } from "./stripe";
  * Firm-plan invoice charge, a late refund of a superseded intent and a
  * payment made before the intent was stored are all "ignored".
  *
- * Money the webhook cannot attribute is never "ignored": a paid checkout
- * that names no account, or a subscription event for an unknown customer,
- * throws, which rolls the claim back and answers 500, so Stripe retries
- * and the failure is reported instead of vanishing with a 200.
+ * A checkout or subscription event the webhook cannot attribute is never
+ * "ignored": a paid checkout that names no account, or a subscription event
+ * for an unknown customer, throws, which rolls the claim back and answers
+ * 500, so Stripe retries and the failure is reported instead of vanishing
+ * with a 200. Linking the customer (OPERATIONS, Stripe) lets the retry of
+ * a subscription event apply. A subscription that has ended
+ * (canceled, incomplete_expired) for an unknown customer stays "ignored".
  *
  * After a refund or a lost dispute on an Assessment that was credited
  * against the Firm plan, the credit is reversed on the Stripe customer
@@ -121,6 +124,10 @@ export async function applyBillingEvent(
     const userId =
       change.status === null ? (change.userId ?? byCustomer) : (byCustomer ?? change.userId);
     if (!userId) {
+      // An ended subscription moves no money, and a cancellation for a
+      // customer no account holds (an old customer after a --replace link,
+      // or an account already deleted) can never be attributed.
+      if (change.status === "canceled" || change.status === "incomplete_expired") return "ignored";
       throw new RequestError(
         500,
         `Stripe subscription ${change.subscriptionId} names no account (customer ${change.customerId ?? "unknown"})`,

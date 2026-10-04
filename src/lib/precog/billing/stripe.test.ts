@@ -26,6 +26,7 @@ import {
   checkoutRefusal,
   commercialToolsOpen,
   loadBillingAccount,
+  setStripeCustomer,
   subscriptionStatusLabel,
   type BillingAccount,
 } from "../firm/billing-store";
@@ -587,6 +588,25 @@ describe("event order", () => {
     await expect(applyBillingEvent(db.sql, orphan)).rejects.toMatchObject({ status: 500 });
     // The claim rolled back with the refusal, so a redelivery tries again.
     await expect(applyBillingEvent(db.sql, orphan)).rejects.toMatchObject({ status: 500 });
+    expect((await db.pg.query("select id from billing_events")).rows).toEqual([]);
+    // Once the operator links the customer, Stripe's retry applies.
+    await setStripeCustomer(db.sql, "owner", "cus_9");
+    expect(await applyBillingEvent(db.sql, orphan)).toBe("applied");
+    expect((await loadFirmFor(db.sql, "owner"))?.plan).toBe("monthly");
+  });
+
+  it("ignores an ended subscription for a customer no account holds", async () => {
+    for (const status of ["canceled", "incomplete_expired"]) {
+      const ended = parseStripeEvent(
+        JSON.stringify({
+          id: `e_ended_${status}`,
+          type: "customer.subscription.deleted",
+          created: 100,
+          data: { object: { id: "sub_old", status, customer: "cus_old" } },
+        }),
+      )!;
+      expect(await applyBillingEvent(db.sql, ended)).toBe("ignored");
+    }
   });
 
   it("refuses a paid checkout that names no account", async () => {
