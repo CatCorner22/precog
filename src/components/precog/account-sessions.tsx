@@ -121,7 +121,7 @@ export async function signOutOtherSessions(): Promise<boolean> {
 /**
  * Ends every session, this one included, then signs this browser out as the
  * menu's Sign out does. The unsaved-work check runs first, so a customer who
- * chooses to stay keeps every session.
+ * chooses to stay keeps every session. Never throws.
  */
 export async function signOutEverywhere(): Promise<void> {
   if (!(await runExitCheck("sign-out"))) return;
@@ -132,7 +132,13 @@ export async function signOutEverywhere(): Promise<void> {
     toast.error(SESSIONS_TEXT.signOutEverywhereFailed);
     return;
   }
-  await signOut("/", { skipRecovery: true });
+  try {
+    await signOut("/", { skipRecovery: true });
+  } catch {
+    // Every session is already ended, so a fresh load of the start page shows
+    // this browser signed out even though its own sign-out request failed.
+    window.location.assign("/");
+  }
 }
 
 function focusable(root: HTMLElement | null): HTMLElement[] {
@@ -188,14 +194,20 @@ export default function AccountSessionsDialog({ onClose }: { onClose: () => void
 
   async function others() {
     setBusy(true);
-    if (await signOutOtherSessions()) await reload();
-    setBusy(false);
+    try {
+      if (await signOutOtherSessions()) await reload();
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function everywhere() {
     setBusy(true);
-    await signOutEverywhere();
-    setBusy(false);
+    try {
+      await signOutEverywhere();
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

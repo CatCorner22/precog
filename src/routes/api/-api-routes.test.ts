@@ -17,8 +17,13 @@ import { Route as DigestEmail } from "./digest-email";
 const db = vi.hoisted(() => ({ current: null as TestDb | null }));
 const session = vi.hoisted(() => ({ userId: null as string | null }));
 const digestStage = vi.hoisted(() => ({ fail: false, sendsFail: false }));
+const usagePurge = vi.hoisted(() => ({ fail: false }));
 const billing = vi.hoisted(() => ({ failure: null as Error | null }));
-const budgets = vi.hoisted(() => ({ digest: 150_000, quickbooks: 90_000, alerts: 30_000 }));
+const budgets = vi.hoisted(() => ({
+  digest: 150_000,
+  quickbooks: 90_000,
+  "quickbooks-alerts": 30_000,
+}));
 const report = vi.hoisted(() => ({
   error: vi.fn(async (_err: unknown, _at?: string | null) => {}),
 }));
@@ -45,6 +50,16 @@ vi.mock("@/lib/precog/reminders/digest", async (importOriginal) => {
           remaining: 0,
         });
       return actual.runDigest(...args);
+    },
+  };
+});
+vi.mock("@/lib/precog/llm/usage-log.server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/precog/llm/usage-log.server")>();
+  return {
+    ...actual,
+    purgeOldUsage: (...args: Parameters<typeof actual.purgeOldUsage>) => {
+      if (usagePurge.fail) return Promise.reject(new Error("usage purge failed"));
+      return actual.purgeOldUsage(...args);
     },
   };
 });
@@ -105,7 +120,8 @@ afterEach(() => {
   requestContext.current = undefined;
   digestStage.fail = false;
   digestStage.sendsFail = false;
-  Object.assign(budgets, { digest: 150_000, quickbooks: 90_000, alerts: 30_000 });
+  usagePurge.fail = false;
+  Object.assign(budgets, { digest: 150_000, quickbooks: 90_000, "quickbooks-alerts": 30_000 });
   billing.failure = null;
   report.error.mockClear();
 });
@@ -281,6 +297,51 @@ describe("scheduled run", () => {
       digest: { advisors: 0, stopped: true, remaining: 1 },
       failures: [],
     });
+  });
+
+  it("names the alerts stage the same way in `stopped` as in `failures`", async () => {
+    const t = db.current!;
+    await t.clear("integration_connections", "notification_settings", "businesses", '"user"');
+    await t.seedUser("owner", "owner@shop.test");
+    await t.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision)
+       values ('biz_1', 'owner', 'Riverside Plumbing', 'general', '{}'::jsonb, 1)`,
+    );
+    await t.pg.query(
+      `insert into integration_connections (user_id, business_id, provider, realm_id,
+         access_token_enc, refresh_token_enc, access_expires_at, refresh_expires_at)
+       values ('owner', 'biz_1', 'qbo', '123', 'a', 'r', now() + interval '1 hour',
+         now() + interval '3 days')`,
+    );
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    vi.stubEnv("EMAIL_FROM", "Precog <hello@precog.test>");
+    Object.assign(budgets, { digest: 0, quickbooks: 0, "quickbooks-alerts": 0 });
+    try {
+      const res = await run("Bearer cron-secret-value");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { partial: boolean; stopped: string[] };
+      expect(body.partial).toBe(true);
+      expect(body.stopped).toContain("quickbooks-alerts");
+      expect(body.stopped).not.toContain("alerts");
+    } finally {
+      vi.stubEnv("RESEND_API_KEY", "");
+      vi.stubEnv("EMAIL_FROM", "");
+      await t.clear("integration_connections");
+    }
+  });
+
+  it("keeps the business purge and a 200 when the usage purge fails", async () => {
+    usagePurge.fail = true;
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const res = await run("Bearer cron-secret-value");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      purged: 0,
+      modelUsage: { purged: null },
+      failures: [],
+    });
+    expect(report.error).toHaveBeenCalledWith(expect.any(Error), "cron-model-usage-purge");
   });
 
   it("still purges and re-reads the books when the digest fails", async () => {

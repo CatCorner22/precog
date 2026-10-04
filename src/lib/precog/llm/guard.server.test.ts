@@ -313,6 +313,16 @@ describe("callModel", () => {
     });
   });
 
+  it("records the local development account with no account, which has no user row", async () => {
+    const { callModel } = await guard();
+    seams.grokChat.mockImplementation(async (_key, opts) => {
+      opts.onUsage(LINE);
+      return { text: "brief", model: "m1" };
+    });
+    await callModel({ userId: "dev-user", grok: "allowed" }, CHAT);
+    expect(seams.insertUsage.mock.calls[0]?.[1]).toMatchObject({ userId: null, feature: "coach" });
+  });
+
   it("records a failed call with its outcome and null counts", async () => {
     const { callModel } = await guard();
     seams.grokChat.mockImplementation(async (_key, opts) => {

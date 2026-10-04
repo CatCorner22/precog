@@ -11,7 +11,8 @@ const NO_STORE = { "cache-control": "no-store" } as const;
  * about a QuickBooks reading that failed or a permission about to end, then
  * shared-map view logs and failed passcode guesses past their retention are
  * purged, then the week's first-time milestones are counted into the answer
- * (the purge stage also drops model-call records past their 13 months):
+ * (model-call records past their 13 months are dropped after the purge, on
+ * their own, so a failure there is reported but fails no stage):
  * the emails run before QuickBooks, so a slow or failing QuickBooks pass
  * cannot stop them, and the alerts run after it, so they name the failures
  * this run just recorded. Each stage runs on its own, so a failure in one is
@@ -69,9 +70,15 @@ export const Route = createFileRoute("/api/cron/digest")({
         const purged = await stage("purge", failures, async () => {
           const count = await store.purgeDeletedBusinesses(sql);
           if (count > 0) await firmStore.deleteOrphanedClientAudit(sql);
-          modelUsage.purged = await usageLog.purgeOldUsage(sql);
           return count;
         });
+        // Its own catch, so a failed usage purge neither hides nor fails the business purge.
+        try {
+          modelUsage.purged = await usageLog.purgeOldUsage(sql);
+        } catch (err) {
+          const { reportServerError } = await import("@/lib/observability/report.server");
+          await reportServerError(err, "cron-model-usage-purge");
+        }
         const digest = await stage("digest", failures, async () => {
           const outcome = await runDigest(sql, {
             today,
@@ -101,9 +108,9 @@ export const Route = createFileRoute("/api/cron/digest")({
             today,
             appUrl,
             send: configured ? mailer.sendEmail : async () => undefined,
-            deadline: deadline("alerts"),
+            deadline: deadline("quickbooks-alerts"),
           });
-          if (outcome.stopped) stopped.push("alerts");
+          if (outcome.stopped) stopped.push("quickbooks-alerts");
           // alertQuickBooksProblems already reported the sends it gave up on.
           if (outcome.errors.length > 0 && outcome.emailed === 0)
             failures.push("quickbooks-alerts");

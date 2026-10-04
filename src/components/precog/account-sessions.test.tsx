@@ -140,6 +140,19 @@ describe("the signed-in sessions dialog", () => {
     );
   });
 
+  it("loads the start page, and never throws, when this browser's sign-out fails after the revoke", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("window", { location: { assign } });
+    try {
+      auth.revokeSessions.mockResolvedValue({ data: { status: true }, error: null });
+      auth.signOut.mockRejectedValueOnce(new Error("network down"));
+      await expect(signOutEverywhere()).resolves.toBeUndefined();
+      expect(assign).toHaveBeenCalledWith("/");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("keeps every session when the customer stays, or when the revoke fails", async () => {
     auth.exitCheck.mockResolvedValue(false);
     await signOutEverywhere();

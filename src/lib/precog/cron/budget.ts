@@ -10,7 +10,7 @@
 export const CRON_STAGE_BUDGET_MS = {
   digest: 150_000,
   quickbooks: 90_000,
-  alerts: 30_000,
+  "quickbooks-alerts": 30_000,
 } as const;
 
 export type CronStage = keyof typeof CRON_STAGE_BUDGET_MS;

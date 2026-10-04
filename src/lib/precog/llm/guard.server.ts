@@ -144,7 +144,8 @@ async function recordedCall(
     if (line) {
       try {
         await insertUsage(await getSql(), {
-          userId,
+          // The local development account has no "user" row for the foreign key.
+          userId: userId === DEV_USER_ID ? null : userId,
           feature: line.feature,
           model: line.model,
           promptTokens: line.promptTokens,
