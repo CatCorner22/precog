@@ -1,3 +1,6 @@
+import type { ReportVersionRow } from "@/lib/precog/firm/reports";
+import type { FirmRole } from "@/lib/precog/firm/store";
+
 /**
  * Asks the reviewer for an optional note, then records the review for
  * issuance with it. Cancel on the prompt stops here and resolves to null:
@@ -61,4 +64,38 @@ export async function returnWithNote<T>(
   if (note === null) return null;
   if (!note.trim()) return "empty";
   return send(note.trim());
+}
+
+/** The accessible names of the request-and-return buttons, naming the version. */
+export function askForReviewLabel(versionNo: number): string {
+  return `Ask for review of version ${versionNo}`;
+}
+export function returnVersionLabel(versionNo: number): string {
+  return `Return version ${versionNo} to its preparer`;
+}
+
+/** Which review buttons a version shows the viewer on the versions panel. */
+export interface ReviewButtons {
+  /** "Ask for review": the preparer or the firm owner, on a firm client's version not yet reviewed, requested or returned. */
+  ask: boolean;
+  /** "Issue without an independent review": the preparer, on a version not yet reviewed or returned. */
+  issueAlone: boolean;
+  /** "Review for issuance" and "Return to preparer": an owner or reviewer who did not prepare it, on a version not yet reviewed or returned. */
+  reviewOrReturn: boolean;
+}
+
+export function reviewButtonsFor(input: {
+  version: Pick<ReportVersionRow, "preparedBy" | "reviewedAt" | "reviewRequestedAt" | "returnedAt">;
+  viewerId: string;
+  role: FirmRole | null;
+  firmClient: boolean;
+}): ReviewButtons {
+  const { version: v, viewerId, role, firmClient } = input;
+  const open = !v.reviewedAt && !v.returnedAt;
+  const prepared = v.preparedBy === viewerId;
+  return {
+    ask: firmClient && open && !v.reviewRequestedAt && (prepared || role === "owner"),
+    issueAlone: open && prepared,
+    reviewOrReturn: open && !prepared && (role === "owner" || role === "reviewer"),
+  };
 }

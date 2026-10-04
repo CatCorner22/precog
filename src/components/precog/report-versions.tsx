@@ -18,8 +18,11 @@ import type { FirmRole } from "@/lib/precog/firm/store";
 import { isOwnTeam } from "@/lib/precog/firm/engagement";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
 import {
+  askForReviewLabel,
   returnedNoteLine,
+  returnVersionLabel,
   returnWithNote,
+  reviewButtonsFor,
   REVIEW_WORKFLOW_TEXT,
   reviewRequestedToast,
   signOffWithNote,
@@ -46,9 +49,13 @@ export function ReportVersionsPanel() {
   // Report links are for a firm's client businesses (share-store.ts); a solo
   // business shows no Share button rather than a refused one.
   const firmClient = Boolean(businesses.find((b) => b.id === businessId)?.firmClient);
+  // Keyed on the account id, never on `user`: the session hook builds a new
+  // user object on every render, so an effect keyed on it would load again
+  // after each answer it set, and keep calling the server.
+  const userId = user?.id ?? null;
 
   useEffect(() => {
-    if (isPending || !user || !businessId || !own) return;
+    if (isPending || !userId || !businessId || !own) return;
     let cancel = false;
     void Promise.all([listReports({ data: { businessId } }), getFirm()])
       .then(([res, firm]) => {
@@ -62,7 +69,7 @@ export function ReportVersionsPanel() {
     return () => {
       cancel = true;
     };
-  }, [isPending, user, businessId, own]);
+  }, [isPending, userId, businessId, own]);
 
   if (isPending || !user || !businessId || !own) return null;
 
@@ -166,7 +173,9 @@ export function ReportVersionsPanel() {
     }
   }
 
-  const canReview = role === "owner" || role === "reviewer";
+  const viewerId = user.id;
+  const buttonsFor = (version: ReportVersionRow) =>
+    reviewButtonsFor({ version, viewerId, role, firmClient });
 
   return (
     <section className="print:hidden mx-auto max-w-4xl px-6 pt-6" aria-label="Report versions">
@@ -216,22 +225,18 @@ export function ReportVersionsPanel() {
                   >
                     Open
                   </Link>
-                  {firmClient &&
-                    !v.reviewedAt &&
-                    !v.reviewRequestedAt &&
-                    !v.returnedAt &&
-                    (v.preparedBy === user.id || role === "owner") && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => void askForReview(v.id)}
-                        disabled={busy}
-                        aria-label={`Ask for review of version ${v.versionNo}`}
-                      >
-                        <UserCheck className="size-3.5" /> {REVIEW_WORKFLOW_TEXT.ask}
-                      </Button>
-                    )}
-                  {!v.reviewedAt && !v.returnedAt && v.preparedBy === user.id && (
+                  {buttonsFor(v).ask && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => void askForReview(v.id)}
+                      disabled={busy}
+                      aria-label={askForReviewLabel(v.versionNo)}
+                    >
+                      <UserCheck className="size-3.5" /> {REVIEW_WORKFLOW_TEXT.ask}
+                    </Button>
+                  )}
+                  {buttonsFor(v).issueAlone && (
                     <Button
                       size="sm"
                       variant="secondary"
@@ -242,7 +247,7 @@ export function ReportVersionsPanel() {
                       <PenLine className="size-3.5" /> Issue without an independent review
                     </Button>
                   )}
-                  {!v.reviewedAt && !v.returnedAt && canReview && v.preparedBy !== user.id && (
+                  {buttonsFor(v).reviewOrReturn && (
                     <>
                       <Button
                         size="sm"
@@ -258,7 +263,7 @@ export function ReportVersionsPanel() {
                         variant="secondary"
                         onClick={() => void giveBack(v.id, v.versionNo)}
                         disabled={busy}
-                        aria-label={`Return version ${v.versionNo} to its preparer`}
+                        aria-label={returnVersionLabel(v.versionNo)}
                       >
                         <Undo2 className="size-3.5" /> {REVIEW_WORKFLOW_TEXT.returnToPreparer}
                       </Button>

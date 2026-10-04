@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  askForReviewLabel,
   askReturnNote,
   returnedNoteLine,
+  returnVersionLabel,
   returnWithNote,
+  reviewButtonsFor,
   REVIEW_WORKFLOW_TEXT,
   reviewRequestedToast,
   signOffWithNote,
@@ -75,5 +78,73 @@ describe("request-and-return wording", () => {
     expect(reviewRequestedToast("Bea Lin")).toBe("Review requested from Bea Lin.");
     expect(reviewRequestedToast(null)).toBe("Review requested from the firm's reviewers.");
     expect(returnedNoteLine("Add the payroll duties.")).toBe("Returned: Add the payroll duties.");
+  });
+});
+
+describe("request-and-return buttons", () => {
+  it("names the version in each button's accessible name", () => {
+    expect(askForReviewLabel(3)).toBe("Ask for review of version 3");
+    expect(returnVersionLabel(3)).toBe("Return version 3 to its preparer");
+  });
+
+  const fresh = { preparedBy: "ada", reviewedAt: null, reviewRequestedAt: null, returnedAt: null };
+  const requested = { ...fresh, reviewRequestedAt: "2026-10-06T09:00:00.000Z" };
+  const returned = { ...requested, returnedAt: "2026-10-07T09:00:00.000Z" };
+  const reviewed = { ...requested, reviewedAt: "2026-10-07T09:00:00.000Z" };
+  const none = { ask: false, issueAlone: false, reviewOrReturn: false };
+
+  it("offers the preparer Ask for review and Issue alone, never Review or Return", () => {
+    expect(
+      reviewButtonsFor({ version: fresh, viewerId: "ada", role: "preparer", firmClient: true }),
+    ).toEqual({ ask: true, issueAlone: true, reviewOrReturn: false });
+    // A preparer who is also the firm owner still cannot review their own version.
+    expect(
+      reviewButtonsFor({ version: fresh, viewerId: "ada", role: "owner", firmClient: true }),
+    ).toEqual({ ask: true, issueAlone: true, reviewOrReturn: false });
+  });
+
+  it("offers the firm owner Ask for review on a version someone else prepared, beside Review and Return", () => {
+    expect(
+      reviewButtonsFor({ version: fresh, viewerId: "own", role: "owner", firmClient: true }),
+    ).toEqual({ ask: true, issueAlone: false, reviewOrReturn: true });
+  });
+
+  it("offers a reviewer who did not prepare it Review and Return, not Ask for review", () => {
+    expect(
+      reviewButtonsFor({ version: fresh, viewerId: "bea", role: "reviewer", firmClient: true }),
+    ).toEqual({ ask: false, issueAlone: false, reviewOrReturn: true });
+  });
+
+  it("offers another preparer nothing", () => {
+    expect(
+      reviewButtonsFor({ version: fresh, viewerId: "cy", role: "preparer", firmClient: true }),
+    ).toEqual(none);
+  });
+
+  it("asks for review only on a firm client's version", () => {
+    expect(
+      reviewButtonsFor({ version: fresh, viewerId: "ada", role: null, firmClient: false }),
+    ).toEqual({ ask: false, issueAlone: true, reviewOrReturn: false });
+  });
+
+  it("drops Ask for review once asked, and keeps Review and Return for the reviewer", () => {
+    expect(
+      reviewButtonsFor({ version: requested, viewerId: "ada", role: "preparer", firmClient: true }),
+    ).toEqual({ ask: false, issueAlone: true, reviewOrReturn: false });
+    expect(
+      reviewButtonsFor({ version: requested, viewerId: "bea", role: "reviewer", firmClient: true }),
+    ).toEqual({ ask: false, issueAlone: false, reviewOrReturn: true });
+  });
+
+  it("shows no review button on a returned or a reviewed version, to anyone", () => {
+    for (const version of [returned, reviewed]) {
+      for (const [viewerId, role] of [
+        ["ada", "preparer"],
+        ["own", "owner"],
+        ["bea", "reviewer"],
+      ] as const) {
+        expect(reviewButtonsFor({ version, viewerId, role, firmClient: true })).toEqual(none);
+      }
+    }
   });
 });
