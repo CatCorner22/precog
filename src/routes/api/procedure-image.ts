@@ -23,6 +23,16 @@ export const Route = createFileRoute("/api/procedure-image")({
         const businessId = url.searchParams.get("b");
         const id = url.searchParams.get("id");
         if (!isBusinessId(businessId) || !id || !IMAGE_ID.test(id)) return notFound();
+        const { assertSameSiteRequest } = await import("@/lib/auth/isolation.server");
+        try {
+          // A sibling app on the same site rides this app's Lax session
+          // cookie on scripted subrequests; refuse those as every other
+          // signed-in read does. Answered as a miss, so a prober cannot
+          // tell a blocked picture from a missing one.
+          assertSameSiteRequest();
+        } catch {
+          return notFound();
+        }
         const [{ requireUserId }, { getSql }, { resolveBusinessOwner }, { readProcedureImage }] =
           await Promise.all([
             import("@/lib/auth/verify.server"),

@@ -276,6 +276,10 @@ export const loadMapShare = createServerFn({ method: "POST" })
   .validator((input: { token: string; passcode?: string }) => parseLoadShareInput(input))
   .handler(async ({ data }) => {
     if (!TOKEN_SHAPE.test(data.token)) return { found: false as const, reason: "invalid" as const };
+    const { requestIp } = await import("@/lib/request-ip.server");
+    // Every open counts, passcode or not: an unprotected link otherwise
+    // answers unlimited reads, each writing a view row.
+    takeShareViewAllowance(requestIp());
     const sql = await getSql();
     const rows = await sql<ShareRow>`
       select token, payload, created_at, expires_at, revoked_at, redacted, passcode_salt, passcode_hash
@@ -317,6 +321,9 @@ export const loadReportShare = createServerFn({ method: "POST" })
   .validator((input: { token: string; passcode?: string }) => parseLoadShareInput(input))
   .handler(async ({ data }) => {
     if (!TOKEN_SHAPE.test(data.token)) return { found: false as const, reason: "invalid" as const };
+    // The same per-address allowance as a shared map: a report link is public too.
+    const { requestIp } = await import("@/lib/request-ip.server");
+    takeShareViewAllowance(requestIp());
     const sql = await getSql();
     const row = await loadReportShareRow(sql, data.token);
     if (!row) return { found: false as const, reason: "missing" as const };
@@ -346,3 +353,19 @@ type ShareRow = {
 };
 
 const passcodeLimiter = new SlidingWindowLimiter({ limit: 20, windowMs: 60_000 });
+
+/** Opens of any shared map or report one address may make a minute, passcode or not. */
+export const SHARE_VIEWS_PER_MINUTE = 60;
+const shareViewLimiter = new SlidingWindowLimiter({
+  limit: SHARE_VIEWS_PER_MINUTE,
+  windowMs: 60_000,
+});
+
+/** Refuses (429) an address past its per-minute share-open allowance. */
+export function takeShareViewAllowance(ip: string, limiter = shareViewLimiter): void {
+  if (limiter.take(ip).allowed) return;
+  throw new RequestError(
+    429,
+    `Precog opens at most ${SHARE_VIEWS_PER_MINUTE} shared links a minute from one address. Wait a minute, then open the link again.`,
+  );
+}

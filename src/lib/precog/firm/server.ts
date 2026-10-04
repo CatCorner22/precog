@@ -4,6 +4,7 @@ import { getSql } from "@/lib/db";
 import { RequestError, requireObject } from "@/lib/request-errors";
 import { randomHex } from "@/lib/web-crypto";
 import { isBusinessId } from "../profile-input";
+import { SlidingWindowLimiter } from "../llm/rate-limit";
 import {
   keepVersionBeforeRestore,
   listBusinessHistory,
@@ -175,9 +176,29 @@ export const revokeFirmInvite = createServerFn({ method: "POST" })
 export const peekFirmInvite = createServerFn({ method: "GET" })
   .validator(tokenInput)
   .handler(async ({ data }) => {
+    const { requestIp } = await import("@/lib/request-ip.server");
+    // Invitation tokens carry 48 hex characters, so guessing is
+    // impractical; this only keeps a prober from hammering the lookup.
+    takeInvitePeekAllowance(requestIp());
     const sql = await getSql();
     return { invite: await peekInvite(sql, data.token) };
   });
+
+/** Peeks at invitation links one address may make a minute. */
+export const INVITE_PEEKS_PER_MINUTE = 30;
+const invitePeekLimiter = new SlidingWindowLimiter({
+  limit: INVITE_PEEKS_PER_MINUTE,
+  windowMs: 60_000,
+});
+
+/** Refuses (429) an address past its per-minute invitation-peek allowance. */
+export function takeInvitePeekAllowance(ip: string, limiter = invitePeekLimiter): void {
+  if (limiter.take(ip).allowed) return;
+  throw new RequestError(
+    429,
+    `Precog opens at most ${INVITE_PEEKS_PER_MINUTE} invitation links a minute from one address. Wait a minute, then open the invitation again.`,
+  );
+}
 
 /** How the signed-in account fits the invitation, so the page can ask before joining. */
 export const checkFirmInvite = createServerFn({ method: "GET" })
