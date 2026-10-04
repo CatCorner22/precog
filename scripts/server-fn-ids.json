@@ -17,6 +17,8 @@
   "src/lib/precog/firm/engagement-server.ts#saveFirmRetention": "10ee2502ef05e0c0074f9861841430fea33d67c76d561798216540c9ee8ef730",
   "src/lib/precog/firm/engagement-server.ts#setEngagementStatus": "58d17832784de8f2d9fd125a9b02ed27cec2da1d0515035961c0ed59a1c129ec",
   "src/lib/precog/firm/entitlements-server.ts#getEntitlements": "475327e5519983240d941cc0efb05d7a73c0453797c505e7ec87db76832dd583",
+  "src/lib/precog/firm/review-server.ts#requestReportReview": "1a3347c6586df8ff47d6fc00b1dfa457aff57b3bbac77a994caa06e0f9a706f9",
+  "src/lib/precog/firm/review-server.ts#returnReport": "02a296370203313ca7cbba66143ef4f9d1f47dcc20727bf3d29e8cd967e30ac5",
   "src/lib/precog/firm/server.ts#acceptFirmInvite": "449a1431ee496ca89018a54948636e5f545ed9f9d0ed529b96811dc03d496f1d",
   "src/lib/precog/firm/server.ts#checkFirmInvite": "39c549f30bba48e63529137d65e36c76c0879baf3face513906dd7e9a15579ec",
   "src/lib/precog/firm/server.ts#getFirm": "cb70060c539e73628997c0cacabf91dda69566d420e71b768f17f7d069790081",

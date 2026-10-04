@@ -4,14 +4,17 @@ import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { formatDay } from "../dates";
 import { RequestError } from "@/lib/request-errors";
 import type { FirmSnapshot } from "./store";
+import { loadEngagement } from "./engagement-store";
 
 /**
  * Locked report versions. Locking freezes the business as the account holds
  * it (the saved row, not whatever the browser has unsaved) under the next
  * version number, with the preparer's name, and, for a firm client, the
- * firm's name and letterhead as they were that day. A reviewer of the same
- * firm, who is not the preparer, reviews it for issuance. Nothing on a
- * version changes afterwards except the sent stamp.
+ * firm's name and letterhead as they were that day. The preparer asks for
+ * review; a reviewer of the same firm, who is not the preparer, reviews it
+ * for issuance or returns it with a note, and the preparer then locks a new
+ * one. Nothing on a version changes afterwards except those stamps and the
+ * sent stamp.
  */
 export interface ReportVersionRow {
   id: string;
@@ -46,6 +49,20 @@ export interface ReportVersionRow {
    * migration 0045. Printed from here only.
    */
   engagement: VersionEngagement | null;
+  /** When the preparer or firm owner asked for review; null when nobody asked. */
+  reviewRequestedAt: string | null;
+  /**
+   * Who the request went to; null on a request when every eligible reviewer
+   * of the firm may take it (and when nobody asked).
+   */
+  reviewRequestedFrom: string | null;
+  reviewRequestedFromName: string | null;
+  /** When a reviewer returned the version to its preparer; a returned version is never reviewed. */
+  returnedAt: string | null;
+  returnedBy: string | null;
+  returnedByName: string | null;
+  /** What the reviewer asked the preparer to change; empty unless returned. */
+  returnNote: string;
 }
 
 /** The engagement frozen into a locked version. */
@@ -55,6 +72,21 @@ export interface VersionEngagement {
   periodStart: string | null;
   periodEnd: string | null;
 }
+
+/** The refusals of the request-and-return workflow, pinned in reports.test.ts and review-server.test.ts. */
+export const REVIEW_REQUEST_REFUSED =
+  "Only the preparer or the firm owner can ask for review of this version.";
+export const ALREADY_REVIEWED = "This version has already been reviewed for issuance.";
+export const VERSION_RETURNED =
+  "This version was returned to its preparer. Lock a new version for review.";
+export const NO_ELIGIBLE_REVIEWER =
+  "No one else at the firm can review this version. Give a member the reviewer role on the Firm page, then ask again.";
+export const RETURN_NOTE_REQUIRED = "Add a note saying what to change.";
+export const RETURN_NOTE_TOO_LONG = "Keep the note to 600 characters or fewer.";
+export const PREPARER_CANNOT_RETURN = "The preparer cannot return their own version.";
+export const REVIEW_BEFORE_SENT = "Review this version for issuance before marking it sent.";
+/** The longest return note, after trimming. */
+export const RETURN_NOTE_MAX = 600;
 
 export class ReportVersionError extends RequestError {
   constructor(status: number, message: string) {
@@ -69,11 +101,15 @@ const VERSION_COLUMNS = `
   v.reviewed_by, r.name as reviewed_by_name, v.reviewed_at, v.review_note, v.sent_at,
   v.report_model is not null as has_figures,
   v.firm_name, v.firm_letterhead,
-  v.engagement_scope, v.engagement_period_start, v.engagement_period_end
+  v.engagement_scope, v.engagement_period_start, v.engagement_period_end,
+  v.review_requested_at, v.review_requested_from, q.name as review_requested_from_name,
+  v.returned_at, v.returned_by, t.name as returned_by_name, v.return_note
 `;
 const VERSION_JOINS = `
   left join "user" p on p.id = v.prepared_by
   left join "user" r on r.id = v.reviewed_by
+  left join "user" q on q.id = v.review_requested_from
+  left join "user" t on t.id = v.returned_by
 `;
 
 interface RawVersion {
@@ -96,6 +132,13 @@ interface RawVersion {
   engagement_scope: string | null;
   engagement_period_start: string | null;
   engagement_period_end: string | null;
+  review_requested_at: string | null;
+  review_requested_from: string | null;
+  review_requested_from_name: string | null;
+  returned_at: string | null;
+  returned_by: string | null;
+  returned_by_name: string | null;
+  return_note: string;
   /** Selected by the single-version load only; the list leaves it out. */
   firm_logo_data_url?: string | null;
 }
@@ -134,6 +177,13 @@ function toRow(r: RawVersion): ReportVersionRow {
             periodStart: r.engagement_period_start,
             periodEnd: r.engagement_period_end,
           },
+    reviewRequestedAt: toIsoTimestampOrNull(r.review_requested_at),
+    reviewRequestedFrom: r.review_requested_from,
+    reviewRequestedFromName: r.review_requested_from_name,
+    returnedAt: toIsoTimestampOrNull(r.returned_at),
+    returnedBy: r.returned_by,
+    returnedByName: r.returned_by_name,
+    returnNote: r.return_note,
   };
 }
 
@@ -317,6 +367,7 @@ export async function signOffReportVersion(
   if (current.version.reviewedAt) {
     throw new ReportVersionError(409, "Someone has already reviewed this version for issuance");
   }
+  if (current.version.returnedAt) throw new ReportVersionError(409, VERSION_RETURNED);
   const self = current.version.preparedBy === input.reviewedBy;
   if (self) {
     if (!input.issueWithoutIndependentReview) {
@@ -345,7 +396,8 @@ export async function signOffReportVersion(
   await sql`
     update report_versions
     set reviewed_by = ${input.reviewedBy}, reviewed_at = now(), review_note = ${note}
-    where user_id = ${input.ownerUserId} and id = ${input.id} and reviewed_at is null
+    where user_id = ${input.ownerUserId} and id = ${input.id}
+      and reviewed_at is null and returned_at is null
   `;
   const updated = await loadReportVersion(sql, input.ownerUserId, input.id);
   if (!updated) throw new Error("Unable to record the review");
@@ -355,9 +407,9 @@ export async function signOffReportVersion(
 /**
  * Stamps a version as sent, and the client's engagement with the first sent
  * report, so the client list and the pilot figures read the same fact.
- * Refused until the version is signed off: delivery metrics never include
- * unreviewed work. The sole-issuer path stays open through sign-off, which a
- * one-partner firm records before sending.
+ * Refused until the version is reviewed for issuance: delivery metrics never
+ * include unreviewed work. The sole-issuer path stays open through the
+ * review, which a one-partner firm records before sending.
  */
 export async function markReportVersionSent(
   sql: Sql,
@@ -367,7 +419,7 @@ export async function markReportVersionSent(
   const current = await loadReportVersion(sql, ownerUserId, id);
   if (!current) throw new ReportVersionError(404, "That report version does not exist");
   if (!current.version.reviewedAt) {
-    throw new ReportVersionError(409, "Sign off this report before marking it sent.");
+    throw new ReportVersionError(409, REVIEW_BEFORE_SENT);
   }
   await sql`
     with sent as (
@@ -380,6 +432,118 @@ export async function markReportVersionSent(
     on conflict (user_id, business_id) do update set
       report_sent_at = coalesce(engagement_marks.report_sent_at, excluded.report_sent_at)
   `;
+}
+
+/**
+ * The members of a firm who may review a version for issuance: the owner and
+ * the reviewers, never the version's preparer. The owner comes first.
+ */
+export async function eligibleReviewers(
+  sql: Sql,
+  firmUserId: string,
+  preparedBy: string | null,
+): Promise<string[]> {
+  const rows = await sql<{ member_user_id: string }>`
+    select member_user_id from firm_members
+    where firm_user_id = ${firmUserId}
+      and role in ('owner', 'reviewer')
+      and member_user_id is distinct from ${preparedBy}::text
+    order by (member_user_id = ${firmUserId}) desc, member_user_id
+  `;
+  return rows.map((r) => r.member_user_id);
+}
+
+/** The version and the firm of its business, or a 404. */
+async function versionAndFirm(
+  sql: Sql,
+  ownerUserId: string,
+  id: string,
+): Promise<{ version: ReportVersionRow; firmUserId: string | null }> {
+  const current = await loadReportVersion(sql, ownerUserId, id);
+  if (!current) throw new ReportVersionError(404, "That report version does not exist");
+  const firms = await sql<{ firm_user_id: string | null }>`
+    select firm_user_id from businesses
+    where user_id = ${ownerUserId} and id = ${current.version.businessId}
+  `;
+  return { version: current.version, firmUserId: firms[0]?.firm_user_id ?? null };
+}
+
+/**
+ * The preparer, or the firm owner, asks for review of a version. The request
+ * goes to the engagement's reviewer when that person may review it now, else
+ * to the firm owner when the owner may, else to every eligible reviewer of
+ * the firm (stored as null). Refused when nobody else at the firm can review
+ * it, and on a version already reviewed or returned. Asking again re-stamps.
+ */
+export async function requestReportVersionReview(
+  sql: Sql,
+  input: { ownerUserId: string; id: string; requestedBy: string },
+): Promise<ReportVersionRow> {
+  const { version, firmUserId } = await versionAndFirm(sql, input.ownerUserId, input.id);
+  if (version.preparedBy !== input.requestedBy && firmUserId !== input.requestedBy) {
+    throw new ReportVersionError(403, REVIEW_REQUEST_REFUSED);
+  }
+  if (version.reviewedAt) throw new ReportVersionError(409, ALREADY_REVIEWED);
+  if (version.returnedAt) throw new ReportVersionError(409, VERSION_RETURNED);
+  const eligible = firmUserId ? await eligibleReviewers(sql, firmUserId, version.preparedBy) : [];
+  if (!firmUserId || eligible.length === 0) {
+    throw new ReportVersionError(409, NO_ELIGIBLE_REVIEWER);
+  }
+  const engagement = await loadEngagement(sql, input.ownerUserId, version.businessId);
+  const assigned = engagement?.reviewerUserId ?? null;
+  const from =
+    assigned && eligible.includes(assigned)
+      ? assigned
+      : eligible.includes(firmUserId)
+        ? firmUserId
+        : null;
+  const rows = await sql`
+    update report_versions
+    set review_requested_at = now(), review_requested_by = ${input.requestedBy},
+      review_requested_from = ${from}
+    where user_id = ${input.ownerUserId} and id = ${input.id}
+      and reviewed_at is null and returned_at is null
+    returning id
+  `;
+  // A reviewer acted between the read and the write.
+  if (!rows.length) throw new ReportVersionError(409, ALREADY_REVIEWED);
+  const updated = await loadReportVersion(sql, input.ownerUserId, input.id);
+  if (!updated) throw new Error("Unable to record the request");
+  return updated.version;
+}
+
+/**
+ * A reviewer returns a version to its preparer with a note saying what to
+ * change. The version stays as it was locked and can no longer be reviewed;
+ * the preparer locks a new one. Refused for the preparer, and on a version
+ * already reviewed or returned.
+ */
+export async function returnReportVersion(
+  sql: Sql,
+  input: { ownerUserId: string; id: string; returnedBy: string; note: string },
+): Promise<ReportVersionRow> {
+  const note = input.note.trim();
+  if (!note) throw new ReportVersionError(400, RETURN_NOTE_REQUIRED);
+  if (note.length > RETURN_NOTE_MAX) throw new ReportVersionError(400, RETURN_NOTE_TOO_LONG);
+  const current = await loadReportVersion(sql, input.ownerUserId, input.id);
+  if (!current) throw new ReportVersionError(404, "That report version does not exist");
+  if (current.version.preparedBy === input.returnedBy) {
+    throw new ReportVersionError(409, PREPARER_CANNOT_RETURN);
+  }
+  if (current.version.reviewedAt) throw new ReportVersionError(409, ALREADY_REVIEWED);
+  if (current.version.returnedAt) throw new ReportVersionError(409, VERSION_RETURNED);
+  const rows = await sql`
+    update report_versions
+    set returned_at = now(), returned_by = ${input.returnedBy}, return_note = ${note}
+    where user_id = ${input.ownerUserId} and id = ${input.id}
+      and reviewed_at is null and returned_at is null
+    returning id
+  `;
+  // Another reviewer acted between the read and the write.
+  if (!rows.length) throw new ReportVersionError(409, ALREADY_REVIEWED);
+  const updated = await loadReportVersion(sql, input.ownerUserId, input.id);
+  if (!updated) throw new Error("Unable to record the return");
+  return updated.version;
 }
 
 /**
@@ -419,7 +583,15 @@ export function engagementLine(v: Pick<ReportVersionRow, "engagement">): string 
 export function versionProvenance(v: ReportVersionRow): string {
   const prepared = `Prepared by ${v.preparedByName ?? "a firm member"} on ${formatDay(v.preparedAt)}`;
   const reviewed = !v.reviewedAt
-    ? " · Not yet reviewed"
+    ? v.returnedAt
+      ? ` · Returned by ${v.returnedByName ?? "a reviewer"} on ${formatDay(v.returnedAt)}`
+      : v.reviewRequestedAt
+        ? ` · Review requested from ${
+            v.reviewRequestedFrom === null
+              ? "the firm's reviewers"
+              : (v.reviewRequestedFromName ?? "a reviewer")
+          } on ${formatDay(v.reviewRequestedAt)}`
+        : " · Not yet reviewed"
     : v.reviewedBy && v.preparedBy === v.reviewedBy
       ? ` · Issued by ${v.reviewedByName ?? "the preparer"} on ${formatDay(v.reviewedAt)}. Not an independent review`
       : ` · Reviewed for issuance by ${v.reviewedByName ?? "a reviewer"} on ${formatDay(v.reviewedAt)}`;

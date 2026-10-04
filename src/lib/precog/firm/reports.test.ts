@@ -9,6 +9,7 @@ import {
   reportFirmName,
   reportVersionFor,
   ReportVersionError,
+  REVIEW_BEFORE_SENT,
   signOffReportVersion,
   versionProvenance,
   type ReportVersionRow,
@@ -348,6 +349,13 @@ describe("versionProvenance", () => {
     hasFigures: false,
     firm: null,
     engagement: null,
+    reviewRequestedAt: null,
+    reviewRequestedFrom: null,
+    reviewRequestedFromName: null,
+    returnedAt: null,
+    returnedBy: null,
+    returnedByName: null,
+    returnNote: "",
   };
 
   it("says who prepared it and who reviewed it for issuance", () => {
@@ -374,6 +382,66 @@ describe("versionProvenance", () => {
     ).toBe(
       "Version 2 · Prepared by Ada Park on Sep 26, 2026 · Issued by Ada Park on Sep 28, 2026. Not an independent review",
     );
+  });
+
+  it("says who a review was requested from, or that the firm's reviewers may take it", () => {
+    const requested = {
+      ...base,
+      reviewRequestedAt: "2026-10-06T12:00:00.000Z",
+      reviewRequestedFrom: "bea",
+      reviewRequestedFromName: "Bea Lin",
+    };
+    expect(versionProvenance(requested)).toBe(
+      "Version 2 · Prepared by Ada Park on Sep 26, 2026 · Review requested from Bea Lin on Oct 6, 2026",
+    );
+    expect(
+      versionProvenance({ ...requested, reviewRequestedFrom: null, reviewRequestedFromName: null }),
+    ).toBe(
+      "Version 2 · Prepared by Ada Park on Sep 26, 2026 · Review requested from the firm's reviewers on Oct 6, 2026",
+    );
+    // Once reviewed, the review line replaces the request.
+    expect(
+      versionProvenance({
+        ...requested,
+        reviewedBy: "bea",
+        reviewedByName: "Bea Lin",
+        reviewedAt: "2026-10-07T12:00:00.000Z",
+      }),
+    ).toBe(
+      "Version 2 · Prepared by Ada Park on Sep 26, 2026 · Reviewed for issuance by Bea Lin on Oct 7, 2026",
+    );
+  });
+
+  it("says who returned a version and when", () => {
+    expect(
+      versionProvenance({
+        ...base,
+        reviewRequestedAt: "2026-10-06T12:00:00.000Z",
+        reviewRequestedFrom: "bea",
+        reviewRequestedFromName: "Bea Lin",
+        returnedAt: "2026-10-07T12:00:00.000Z",
+        returnedBy: "bea",
+        returnedByName: "Bea Lin",
+        returnNote: "Add the payroll duties.",
+      }),
+    ).toBe("Version 2 · Prepared by Ada Park on Sep 26, 2026 · Returned by Bea Lin on Oct 7, 2026");
+  });
+});
+
+describe("the sent stamp's refusal", () => {
+  it("asks for the review for issuance first, in those words", async () => {
+    await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_1",
+    });
+    await expect(markReportVersionSent(db.sql, "owner", "rv_1")).rejects.toMatchObject({
+      status: 409,
+      message: "Review this version for issuance before marking it sent.",
+    });
+    expect(REVIEW_BEFORE_SENT).toBe("Review this version for issuance before marking it sent.");
   });
 });
 

@@ -38,6 +38,13 @@ const locked: ReportVersionRow = {
   hasFigures: false,
   firm: null,
   engagement: null,
+  reviewRequestedAt: null,
+  reviewRequestedFrom: null,
+  reviewRequestedFromName: null,
+  returnedAt: null,
+  returnedBy: null,
+  returnedByName: null,
+  returnNote: "",
 };
 
 const team: Person[] = [
