@@ -13,6 +13,8 @@ import {
 } from "../src/lib/precog/firm/billing-store";
 import { entitlementsFor } from "../src/lib/precog/firm/entitlements";
 import { loadFirmFor, saveFirm } from "../src/lib/precog/firm/store";
+import { parseStripeEvent } from "../src/lib/precog/billing/stripe";
+import { applyBillingEvent } from "../src/lib/precog/billing/webhook";
 import {
   linkCustomer,
   LinkRefused,
@@ -179,6 +181,31 @@ describe("linking a Stripe customer from the script", () => {
       stripeFake({ cus_2: [noItems] }),
     );
     expect((await row("owner"))?.subscription_price_id).toBe("price_t1");
+  });
+
+  it("stamps the link time, so a subscription event sent before the link cannot undo it", async () => {
+    await run({ account: "owner", customerId: "cus_1", yes: true });
+    expect((await row("owner"))?.subscription_status).toBe("active");
+    // Stripe refused this past_due update before the link and retries it now.
+    const event = (id, status, created) =>
+      parseStripeEvent(
+        JSON.stringify({
+          id,
+          type: "customer.subscription.updated",
+          created,
+          data: { object: { id: "sub_net30", status, customer: "cus_1" } },
+        }),
+      );
+    await applyBillingEvent(db.sql, event("e_before_link", "past_due", 100));
+    expect((await row("owner"))?.subscription_status).toBe("active");
+    const pastDue = await db.pg.query(
+      `select past_due_since from billing_accounts where user_id = 'owner'`,
+    );
+    expect(pastDue.rows[0].past_due_since).toBeNull();
+    // An event Stripe creates after the link still applies.
+    const later = Math.ceil(Date.now() / 1000) + 60;
+    await applyBillingEvent(db.sql, event("e_after_link", "past_due", later));
+    expect((await row("owner"))?.subscription_status).toBe("past_due");
   });
 
   it("refuses with the store's words: another account, another customer, a member", async () => {

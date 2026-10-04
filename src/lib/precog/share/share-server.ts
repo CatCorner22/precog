@@ -203,21 +203,16 @@ export const revokeMapShare = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-type ShareRefusal =
-  | "invalid"
-  | "missing"
-  | "revoked"
-  | "expired"
-  | "passcode"
-  | "passcode_wrong"
-  | "rate_limited"
-  | "locked";
+type ShareRefusal = "unavailable" | "passcode" | "passcode_wrong" | "rate_limited" | "locked";
 
 /**
  * The steps every public share load takes before it hands anything back:
  * revocation, whether the maker still reaches the business, expiry, the
  * passcode with its per-token attempt window, and the view log. Returns the
- * reason a link does not open, or null when it does.
+ * reason a link does not open, or null when it does. A missing, revoked, or
+ * expired link all read as "unavailable", so a prober cannot tell a real
+ * token from a made-up one; only the passcode flow keeps its own reasons,
+ * and guessing there meets the attempt window and lockout.
  */
 async function openShare(
   sql: Sql,
@@ -231,8 +226,8 @@ async function openShare(
   passcode: string | undefined,
   label: string,
 ): Promise<ShareRefusal | null> {
-  if (share.revokedAt || !(await shareStillReachable(sql, share.token))) return "revoked";
-  if (share.expiresAt && new Date(share.expiresAt).getTime() < Date.now()) return "expired";
+  if (share.revokedAt || !(await shareStillReachable(sql, share.token))) return "unavailable";
+  if (share.expiresAt && new Date(share.expiresAt).getTime() < Date.now()) return "unavailable";
   const [{ createHash, timingSafeEqual }, { requestIp }, { getRequest }] = await Promise.all([
     import("node:crypto"),
     import("@/lib/request-ip.server"),
@@ -279,7 +274,8 @@ const TOKEN_SHAPE = /^[a-f0-9]{24,64}$/;
 export const loadMapShare = createServerFn({ method: "POST" })
   .validator((input: { token: string; passcode?: string }) => parseLoadShareInput(input))
   .handler(async ({ data }) => {
-    if (!TOKEN_SHAPE.test(data.token)) return { found: false as const, reason: "invalid" as const };
+    if (!TOKEN_SHAPE.test(data.token))
+      return { found: false as const, reason: "unavailable" as const };
     const { requestIp } = await import("@/lib/request-ip.server");
     // Every open counts, passcode or not: an unprotected link otherwise
     // answers unlimited reads, each writing a view row.
@@ -291,7 +287,7 @@ export const loadMapShare = createServerFn({ method: "POST" })
       where token = ${data.token} and report_version_id is null
     `;
     const row = rows[0];
-    if (!row) return { found: false as const, reason: "missing" as const };
+    if (!row) return { found: false as const, reason: "unavailable" as const };
     const expiresAt = toIsoTimestampOrNull(row.expires_at);
     const refused = await openShare(
       sql,
@@ -319,22 +315,23 @@ export const loadMapShare = createServerFn({ method: "POST" })
  * Public: the locked version a report link names, with the figures stored at
  * lock, the firm as frozen into the version and the slice of the business
  * the printed report reads (report-share-profile.ts). The same checks as a
- * map link; a map token answers "missing" here, as a report token does there.
+ * map link; a map token answers "unavailable" here, as a report token does there.
  */
 export const loadReportShare = createServerFn({ method: "POST" })
   .validator((input: { token: string; passcode?: string }) => parseLoadShareInput(input))
   .handler(async ({ data }) => {
-    if (!TOKEN_SHAPE.test(data.token)) return { found: false as const, reason: "invalid" as const };
+    if (!TOKEN_SHAPE.test(data.token))
+      return { found: false as const, reason: "unavailable" as const };
     // The same per-address allowance as a shared map: a report link is public too.
     const { requestIp } = await import("@/lib/request-ip.server");
     takeShareViewAllowance(requestIp());
     const sql = await getSql();
     const row = await loadReportShareRow(sql, data.token);
-    if (!row) return { found: false as const, reason: "missing" as const };
+    if (!row) return { found: false as const, reason: "unavailable" as const };
     const refused = await openShare(sql, row, data.passcode, "report");
     if (refused) return { found: false as const, reason: refused };
     const report = await loadSharedReport(sql, row, localDateKey(new Date()));
-    if (!report) return { found: false as const, reason: "missing" as const };
+    if (!report) return { found: false as const, reason: "unavailable" as const };
     return {
       found: true as const,
       kind: "report" as const,
