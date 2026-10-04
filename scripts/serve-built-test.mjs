@@ -19,25 +19,27 @@ const mime = {
   ".ico": "image/x-icon",
   ".woff2": "font/woff2",
   ".json": "application/json",
+  ".txt": "text/plain",
 };
 const tasks = new Set();
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", base);
-    if (url.pathname.startsWith("/assets/")) {
+    // Vercel answers a request from the static output first (built assets and
+    // the files copied from public/, such as /og.svg and /robots.txt) and only
+    // then from the function; the function alone answers 404 for those paths.
+    if (req.method === "GET" || req.method === "HEAD") {
       const path = resolve(root, "." + decodeURIComponent(url.pathname));
-      if (!path.startsWith(root + sep)) {
-        res.writeHead(400);
-        res.end();
-        return;
-      }
-      try {
-        const data = await readFile(path);
+      // A path outside the static root (a traversal, or "/" itself, which
+      // resolves to the root directory) is never read as a file.
+      const data = path.startsWith(root + sep) ? await readFile(path).catch(() => null) : null;
+      if (data) {
         const suffix = path.slice(path.lastIndexOf("."));
         res.writeHead(200, { "content-type": mime[suffix] ?? "application/octet-stream" });
         res.end(req.method === "HEAD" ? undefined : data);
         return;
-      } catch {
+      }
+      if (url.pathname.startsWith("/assets/")) {
         res.writeHead(404);
         res.end();
         return;
