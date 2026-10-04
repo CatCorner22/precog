@@ -5,7 +5,10 @@
  * function under .vercel/output/functions has a numeric `maxDuration` in its
  * .vc-config.json, and the function that serves /api/cron/digest (the `dest`
  * of that route in config.json, else the catch-all __server.func) has 300.
- * Run after `npm run build`; exits non-zero naming each problem.
+ * Run after `npm run build`; exits non-zero naming each problem. It also
+ * warns, without failing, while no function carries `regions` (the owner has
+ * not set FUNCTION_REGIONS yet), since functions then run in Vercel's default
+ * region rather than next to the database.
  *
  * Usage: node scripts/check-build-functions.mjs
  */
@@ -15,6 +18,8 @@ import { join, relative } from "node:path";
 const OUTPUT = ".vercel/output";
 const CRON_ROUTE = "/api/cron/digest";
 const CRON_MAX_DURATION = 300;
+const REGION_WARNING =
+  "[functions] no region pinned: FUNCTION_REGIONS in vite.config.ts is null, so functions run in Vercel's default region, not next to the database (docs/OPERATIONS.md, Function limits).";
 
 /** Every `.vc-config.json` below `dir`, without following the symlinked function directories twice. */
 async function findFunctionConfigs(dir, seen = new Set()) {
@@ -43,9 +48,11 @@ const problems = [];
 const configs = await findFunctionConfigs(join(OUTPUT, "functions"));
 if (configs.length === 0) problems.push(`no .vc-config.json under ${OUTPUT}/functions`);
 const durations = new Map();
+let pinnedRegions = 0;
 for (const path of configs) {
   const name = relative(join(OUTPUT, "functions"), path).replace(/\/\.vc-config\.json$/, "");
-  const { maxDuration } = JSON.parse(await readFile(path, "utf8"));
+  const { maxDuration, regions } = JSON.parse(await readFile(path, "utf8"));
+  if (Array.isArray(regions) && regions.length > 0) pinnedRegions += 1;
   if (typeof maxDuration !== "number" || !Number.isFinite(maxDuration)) {
     problems.push(`${name}: maxDuration is ${JSON.stringify(maxDuration) ?? "missing"}`);
   }
@@ -57,6 +64,10 @@ if (!durations.has(cronFunction)) {
   problems.push(
     `${cronFunction}: maxDuration is ${durations.get(cronFunction)}, expected ${CRON_MAX_DURATION} for ${CRON_ROUTE}`,
   );
+}
+
+if (configs.length > 0 && pinnedRegions === 0) {
+  console.warn(REGION_WARNING);
 }
 
 if (problems.length) {
