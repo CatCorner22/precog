@@ -74,7 +74,8 @@ function JoinPage() {
             <h1 className="mt-2 text-xl font-semibold tracking-tight">Join {invite.firmName}</h1>
             <p className="mt-2 text-sm text-muted">
               The firm invited you as a <strong className="text-fg">{invite.role}</strong>. A
-              preparer maps clients and locks reports; a reviewer also signs reports off.
+              preparer maps clients and locks reports; a reviewer also reviews reports for issuance.
+              Only the firm owner deletes or restores a client.
             </p>
             {isPending ? (
               <p className="mt-4 text-sm text-muted">Checking your sign-in…</p>

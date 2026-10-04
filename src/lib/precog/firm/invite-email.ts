@@ -28,5 +28,5 @@ const ROLE_DUTY: Record<InviteRole, string> = {
   preparer:
     "A preparer maps clients, records monthly review results and control checks, and locks reports.",
   reviewer:
-    "A reviewer does what a preparer does, reviews control checks, and signs off reports that someone else prepared.",
+    "A reviewer does what a preparer does, reviews control checks, and reviews for issuance reports that someone else prepared.",
 };

@@ -208,6 +208,37 @@ export async function applyAssessmentCredit(
   return { customerId, creditedCents: creditCents };
 }
 
+/**
+ * After the firm changes owner: the subscription's metadata names the new
+ * owner, so a later subscription event that falls back to it lands on the
+ * right account. Best effort; nothing without the secret key.
+ */
+export async function updateSubscriptionMetadata(
+  subscriptionId: string,
+  input: { userId: string },
+): Promise<void> {
+  if (!env("STRIPE_SECRET_KEY")) return;
+  await stripeRequest("POST", `/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    metadata: { userId: input.userId },
+  });
+}
+
+/**
+ * After the firm changes owner: Stripe's receipts and failed-payment emails
+ * go to the new owner's address, and the customer names the new account.
+ * Best effort; nothing without the secret key.
+ */
+export async function updateCustomer(
+  customerId: string,
+  input: { email: string | null; userId: string },
+): Promise<void> {
+  if (!env("STRIPE_SECRET_KEY")) return;
+  await stripeRequest("POST", `/customers/${encodeURIComponent(customerId)}`, {
+    ...(input.email ? { email: input.email } : {}),
+    metadata: { userId: input.userId },
+  });
+}
+
 /** A Billing Portal session so the firm can update its card or cancel. */
 export async function createPortalSession(input: {
   customerId: string;

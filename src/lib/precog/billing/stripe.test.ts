@@ -11,7 +11,13 @@ import {
   verifyStripeSignature,
 } from "./stripe";
 import { applyBillingEvent } from "./webhook";
-import { applyAssessmentCredit, createCheckoutSession, deleteCustomer } from "./stripe.server";
+import {
+  applyAssessmentCredit,
+  createCheckoutSession,
+  deleteCustomer,
+  updateCustomer,
+  updateSubscriptionMetadata,
+} from "./stripe.server";
 import {
   checkoutRefusal,
   commercialToolsOpen,
@@ -263,6 +269,46 @@ describe("applying events", () => {
         metadata: { userId: "owner" },
       },
     },
+  });
+
+  it("attributes a subscription event by the stored customer when its metadata names a past owner", async () => {
+    expect(await applyBillingEvent(db.sql, created("active"))).toBe("applied");
+    // The firm changed owner: the billing row moved with the customer id.
+    await db.seedUser("heir");
+    await saveFirm(db.sql, "heir", "North", "monthly");
+    await db.pg.query("update billing_accounts set user_id = 'heir' where user_id = 'owner'");
+    expect(
+      await applyBillingEvent(db.sql, {
+        id: "evt_stale",
+        type: "customer.subscription.updated",
+        data: {
+          object: {
+            id: "sub_1",
+            status: "past_due",
+            customer: "cus_1",
+            metadata: { userId: "owner" },
+          },
+        },
+      }),
+    ).toBe("applied");
+    expect((await loadBillingAccount(db.sql, "heir"))?.subscriptionStatus).toBe("past_due");
+    expect(await loadBillingAccount(db.sql, "owner")).toBeNull();
+    // A checkout completion still names the account that started it.
+    expect(
+      await applyBillingEvent(db.sql, {
+        id: "evt_new_checkout",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            mode: "subscription",
+            subscription: "sub_2",
+            customer: "cus_2",
+            client_reference_id: "owner",
+          },
+        },
+      }),
+    ).toBe("applied");
+    expect((await loadBillingAccount(db.sql, "owner"))?.subscriptionId).toBe("sub_2");
   });
 
   it("leaves the event unclaimed when applying it fails, so the retry applies it", async () => {
@@ -793,6 +839,22 @@ describe("starting checkout", () => {
       plan: "monthly" as const,
       origin: "https://precog.example",
     };
+
+    it("repoints the customer and the subscription to the firm's new owner", async () => {
+      await updateCustomer("cus_1", { email: "heir@example.com", userId: "heir" });
+      await updateSubscriptionMetadata("sub_1", { userId: "heir" });
+      expect(calls.map((c) => [c.method, c.url])).toEqual([
+        ["POST", "https://api.stripe.com/v1/customers/cus_1"],
+        ["POST", "https://api.stripe.com/v1/subscriptions/sub_1"],
+      ]);
+      expect(calls[0].body).toBe("email=heir%40example.com&metadata%5BuserId%5D=heir");
+      expect(calls[1].body).toBe("metadata%5BuserId%5D=heir");
+      // Without the secret key neither call is made.
+      vi.stubEnv("STRIPE_SECRET_KEY", "");
+      await updateCustomer("cus_1", { email: null, userId: "heir" });
+      await updateSubscriptionMetadata("sub_1", { userId: "heir" });
+      expect(calls).toHaveLength(2);
+    });
 
     it("reuses the stored Stripe customer instead of the email", async () => {
       await createCheckoutSession({ ...input, customerId: "cus_1" });

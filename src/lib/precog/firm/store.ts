@@ -7,6 +7,7 @@ import { RequestError } from "@/lib/request-errors";
 import { randomHex } from "@/lib/web-crypto";
 import { revokeDepartingMemberShares } from "../share/share-store";
 import { transferBusinessesToOwner, type MovedBusiness } from "../business-store";
+import { SUPPORT_EMAIL } from "../legal/operator";
 
 /**
  * A firm is keyed by its owner's account: `firms.user_id` is both the owner
@@ -454,6 +455,80 @@ async function detachMember(
       where firm_user_id = ${firmUserId} and member_user_id = ${memberUserId} and role <> 'owner'
     `;
     return transferBusinessesToOwner(tx, { firmUserId, memberUserId });
+  });
+}
+
+/**
+ * Hands the firm to one of its members, in one transaction. The firm is
+ * keyed by its owner's account, so the move is a new `firms` row under the
+ * new owner, every row that names the firm repointed (members, invitations,
+ * client businesses, deletion markers, which are `on delete set null` and so
+ * go before the old row), the billing row moved, and the old `firms` row
+ * deleted last. The new owner's role becomes owner and the old owner's
+ * reviewer. Refused while the firm's payment is overdue or disputed, for a
+ * non-member, for someone who owns a firm, and for someone who already has
+ * a billing record (impossible through the product; Support untangles it).
+ * The Stripe side (customer and subscription metadata) is the caller's.
+ */
+export async function transferFirmOwnership(
+  sql: Sql,
+  firmUserId: string,
+  newOwnerUserId: string,
+): Promise<void> {
+  if (newOwnerUserId === firmUserId) {
+    throw new FirmMembershipError("You already own this firm.");
+  }
+  await inTransaction(sql, async (tx) => {
+    await tx`select id from "user" where id in (${firmUserId}, ${newOwnerUserId}) order by id for update`;
+    const firms = await tx<{ name: string; plan: string }>`
+      select name, plan from firms where user_id = ${firmUserId} for update
+    `;
+    const firm = firms[0];
+    if (!firm) throw new RequestError(404, "Set up the firm first");
+    const people = await tx<{ name: string | null; email: string }>`
+      select name, email from "user" where id = ${newOwnerUserId}
+    `;
+    const name = people[0]?.name || people[0]?.email || "That account";
+    const member = await tx`
+      select 1 from firm_members
+      where firm_user_id = ${firmUserId} and member_user_id = ${newOwnerUserId}
+    `;
+    if (!member.length) throw new FirmMembershipError(`${name} is not a member of ${firm.name}.`);
+    const owns = await tx`select 1 from firms where user_id = ${newOwnerUserId}`;
+    if (owns.length) throw new FirmMembershipError(`${name} already owns a firm.`);
+    const billing = await tx<{ subscription_status: string | null; disputed: boolean }>`
+      select subscription_status, assessment_disputed_at is not null as disputed
+      from billing_accounts where user_id = ${firmUserId} for update
+    `;
+    if (billing[0]?.subscription_status === "past_due" || billing[0]?.disputed) {
+      throw new FirmMembershipError(
+        `The firm cannot change owner while its payment is overdue or a payment is disputed. Fix that in Manage billing first, or write to ${SUPPORT_EMAIL}.`,
+      );
+    }
+    const theirs = await tx`select 1 from billing_accounts where user_id = ${newOwnerUserId}`;
+    if (theirs.length) {
+      throw new FirmMembershipError(
+        `${name} already has a billing record, so Precog cannot move the firm's billing to them. Write to ${SUPPORT_EMAIL}.`,
+      );
+    }
+    await tx`
+      insert into firms (user_id, name, plan, updated_at)
+      values (${newOwnerUserId}, ${firm.name}, ${firm.plan}, now())
+    `;
+    await tx`update firm_members set firm_user_id = ${newOwnerUserId} where firm_user_id = ${firmUserId}`;
+    await tx`
+      update firm_members set role = case member_user_id
+        when ${newOwnerUserId} then 'owner' when ${firmUserId} then 'reviewer' else role end
+      where firm_user_id = ${newOwnerUserId}
+    `;
+    await tx`update firm_invites set firm_user_id = ${newOwnerUserId} where firm_user_id = ${firmUserId}`;
+    await tx`update businesses set firm_user_id = ${newOwnerUserId} where firm_user_id = ${firmUserId}`;
+    await tx`
+      update business_deletion_markers set firm_user_id = ${newOwnerUserId}
+      where firm_user_id = ${firmUserId}
+    `;
+    await tx`update billing_accounts set user_id = ${newOwnerUserId}, updated_at = now() where user_id = ${firmUserId}`;
+    await tx`delete from firms where user_id = ${firmUserId}`;
   });
 }
 

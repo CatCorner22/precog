@@ -10,6 +10,7 @@ vi.mock("@/lib/precog/firm/server", () => ({
   removeFirmMember: vi.fn(),
   revokeFirmInvite: vi.fn(),
   setFirmMemberRole: vi.fn(),
+  transferFirmOwnership: vi.fn(),
 }));
 
 const firm = (role: FirmContext["role"]): FirmContext => ({
@@ -58,10 +59,24 @@ describe("the people panel", () => {
     expect(render("owner")).toContain('aria-label="Remove Bea"');
     expect(render("preparer")).not.toContain('aria-label="Remove Bea"');
   });
+
+  it("says what each role does and what only the owner does", () => {
+    expect(render("owner").replace(/\s+/g, " ")).toContain(
+      "A preparer maps clients, records monthly review results and control checks, and locks reports. A reviewer does the same, reviews control checks, and reviews for issuance reports that someone else prepared. Every member sees every client of the firm. Only the owner deletes or restores a client, invites and removes members, and hands the firm to a colleague.",
+    );
+  });
+
+  it("offers Make owner on each other member to the owner alone", () => {
+    const owner = render("owner");
+    expect(owner).toContain('aria-label="Make Bea the owner"');
+    expect(owner.match(/Make owner</g)).toHaveLength(1);
+    expect(render("reviewer")).not.toContain("Make owner");
+    expect(render("preparer")).not.toContain("Make owner");
+  });
 });
 
 describe("the prompts", () => {
-  it("say the client businesses stay with the firm", async () => {
+  it("say the client businesses stay with the firm, and what a transfer hands over", async () => {
     const source = await import("node:fs").then((fs) =>
       fs.readFileSync(new URL("./firm-members.tsx", import.meta.url), "utf8"),
     );
@@ -71,5 +86,9 @@ describe("the prompts", () => {
     expect(source).toContain(
       "Leave ${firm.name}? You lose access to the firm's clients, your share links to those clients stop working, and the client businesses you set up stay with the firm. Businesses you kept outside the firm stay yours.",
     );
+    expect(source).toContain(
+      "Make ${name} the owner of ${firm.name}? They take the firm's clients, members, invitations and billing, and you stay on as a reviewer. Stripe's receipts and payment emails go to them from now on, and owner reminders for the firm's clients follow their settings. You cannot undo this.",
+    );
+    expect(source).toContain("`${name} now owns ${firm.name}.`");
   });
 });

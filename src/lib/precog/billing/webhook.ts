@@ -97,8 +97,12 @@ export async function applyBillingEvent(
       await markPastDue(tx, userId, change.eventAt, change.hostedInvoiceUrl);
       return "applied";
     }
+    // A checkout completion (null status) names the account that started
+    // it, which may be a new customer. A subscription event's metadata can
+    // be stale after the firm changed owner, so the stored customer wins.
+    const byCustomer = change.customerId ? await userForCustomer(tx, change.customerId) : null;
     const userId =
-      change.userId ?? (change.customerId ? await userForCustomer(tx, change.customerId) : null);
+      change.status === null ? (change.userId ?? byCustomer) : (byCustomer ?? change.userId);
     if (!userId) return "ignored";
     const status = await recordSubscription(tx, {
       userId,

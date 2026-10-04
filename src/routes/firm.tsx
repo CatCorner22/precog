@@ -400,6 +400,19 @@ function FirmPage() {
               }
               if (next.members) setMembers(next.members);
               if (next.invites) setInvites(next.invites);
+              if (next.firm !== undefined) {
+                // The firm changed owner: the caller is a reviewer now, with
+                // no invitations or billing to see; the server says so.
+                setFirm(next.firm);
+                void getFirm()
+                  .then((res) => {
+                    setFirm(res.firm);
+                    setMembers(res.members);
+                    setInvites(res.invites);
+                    setBilling(res.billing);
+                  })
+                  .catch(() => undefined);
+              }
               if (next.removed) {
                 for (const line of removedMemberToasts(next.removed.name, next.removed.moved)) {
                   toast.success(line);

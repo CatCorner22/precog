@@ -19,6 +19,7 @@ import {
   saveFirm,
   setMemberRole,
   setOwnerEmail,
+  transferFirmOwnership,
   upsertEngagementMark,
 } from "./store";
 import {
@@ -47,6 +48,7 @@ beforeEach(async () => {
     "firms",
     "businesses",
     "business_profiles",
+    "billing_accounts",
     '"user"',
   );
   for (const id of ["ua", "ub", "uc"]) {
@@ -380,6 +382,107 @@ describe("firm membership edge cases", () => {
     await saveFirm(db.sql, "ua", "North", "monthly");
     expect((await saveFirm(db.sql, "ua", "North Advisors", null)).plan).toBe("monthly");
     expect((await saveFirm(db.sql, "ub", "South", null)).plan).toBe("assessment");
+  });
+});
+
+describe("firm ownership transfer", () => {
+  beforeEach(async () => {
+    await saveFirm(db.sql, "ua", "North", "monthly");
+    await createInvite(db.sql, {
+      firmUserId: "ua",
+      email: "ub@example.test",
+      role: "preparer",
+      token: "t1",
+    });
+    await acceptInvite(db.sql, "t1", "ub");
+    await createInvite(db.sql, {
+      firmUserId: "ua",
+      email: "new@example.test",
+      role: "reviewer",
+      token: "open",
+    });
+    await db.pg.query("update businesses set firm_user_id = 'ua' where user_id in ('ua', 'ub')");
+    await db.pg.query(
+      "insert into business_deletion_markers (user_id, business_id, firm_user_id) values ('ub', 'biz_gone', 'ua')",
+    );
+    await db.pg.query(
+      `insert into billing_accounts (user_id, stripe_customer_id, subscription_id, subscription_status)
+       values ('ua', 'cus_1', 'sub_1', 'active')`,
+    );
+  });
+
+  it("moves members, invitations, clients, markers and billing, and swaps the roles", async () => {
+    await transferFirmOwnership(db.sql, "ua", "ub");
+    expect(await loadFirmFor(db.sql, "ua")).toEqual({
+      firmUserId: "ub",
+      name: "North",
+      plan: "monthly",
+      role: "reviewer",
+    });
+    expect((await loadFirmFor(db.sql, "ub"))?.role).toBe("owner");
+    expect((await listMembers(db.sql, "ub")).map((m) => [m.userId, m.role])).toEqual([
+      ["ub", "owner"],
+      ["ua", "reviewer"],
+    ]);
+    expect((await listInvites(db.sql, "ub")).map((i) => i.token)).toEqual(["open"]);
+    const firms = await db.pg.query<{ user_id: string }>("select user_id from firms");
+    expect(firms.rows).toEqual([{ user_id: "ub" }]);
+    const clients = await db.pg.query<{ user_id: string; firm_user_id: string | null }>(
+      "select user_id, firm_user_id from businesses order by user_id",
+    );
+    expect(clients.rows).toEqual([
+      { user_id: "ua", firm_user_id: "ub" },
+      { user_id: "ub", firm_user_id: "ub" },
+      { user_id: "uc", firm_user_id: null },
+    ]);
+    const markers = await db.pg.query<{ firm_user_id: string | null }>(
+      "select firm_user_id from business_deletion_markers",
+    );
+    expect(markers.rows).toEqual([{ firm_user_id: "ub" }]);
+    const billing = await db.pg.query<{ user_id: string; stripe_customer_id: string }>(
+      "select user_id, stripe_customer_id from billing_accounts",
+    );
+    expect(billing.rows).toEqual([{ user_id: "ub", stripe_customer_id: "cus_1" }]);
+    // The old owner's own business is a firm client they hold as a member now.
+    expect(await resolveBusinessOwner(db.sql, "ub", "biz_1")).toBe("ub");
+    expect(
+      (await listClientEngagements(db.sql, "ub", "ub")).map((c) => c.ownerUserId).sort(),
+    ).toEqual(["ua", "ub"]);
+  });
+
+  it("refuses a non-member, a firm owner, and the owner themselves", async () => {
+    await expect(transferFirmOwnership(db.sql, "ua", "uc")).rejects.toThrow(
+      "uc is not a member of North.",
+    );
+    await db.pg.query("insert into firms (user_id, name) values ('uc', 'South')");
+    await db.pg.query(
+      "insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'uc', 'preparer')",
+    );
+    await expect(transferFirmOwnership(db.sql, "ua", "uc")).rejects.toThrow(
+      "uc already owns a firm.",
+    );
+    await expect(transferFirmOwnership(db.sql, "ua", "ua")).rejects.toBeInstanceOf(
+      FirmMembershipError,
+    );
+    expect((await loadFirmFor(db.sql, "ua"))?.role).toBe("owner");
+  });
+
+  it("refuses while the payment is overdue or disputed, or the member has a billing record", async () => {
+    await db.pg.query("update billing_accounts set subscription_status = 'past_due'");
+    await expect(transferFirmOwnership(db.sql, "ua", "ub")).rejects.toThrow(
+      "The firm cannot change owner while its payment is overdue or a payment is disputed. Fix that in Manage billing first, or write to [SUPPORT EMAIL].",
+    );
+    await db.pg.query(
+      "update billing_accounts set subscription_status = 'active', assessment_disputed_at = now()",
+    );
+    await expect(transferFirmOwnership(db.sql, "ua", "ub")).rejects.toThrow(/payment is disputed/);
+    await db.pg.query("update billing_accounts set assessment_disputed_at = null");
+    await db.pg.query("insert into billing_accounts (user_id) values ('ub')");
+    await expect(transferFirmOwnership(db.sql, "ua", "ub")).rejects.toThrow(
+      "ub already has a billing record, so Precog cannot move the firm's billing to them. Write to [SUPPORT EMAIL].",
+    );
+    expect((await loadFirmFor(db.sql, "ua"))?.role).toBe("owner");
+    expect((await listMembers(db.sql, "ua")).map((m) => m.userId)).toEqual(["ua", "ub"]);
   });
 });
 

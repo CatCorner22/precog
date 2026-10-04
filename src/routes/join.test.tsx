@@ -22,4 +22,10 @@ describe("the invitation page", () => {
       'Precog cannot vouch for this account\'s address. Sign in with Google under{" "} <span className="text-fg">{invitedEmail}</span>, or with an email-and-password account that has confirmed it, then open the invitation again.',
     );
   });
+
+  it("says what each role does and who deletes or restores a client", () => {
+    expect(source).toContain(
+      "A preparer maps clients and locks reports; a reviewer also reviews reports for issuance. Only the firm owner deletes or restores a client.",
+    );
+  });
 });

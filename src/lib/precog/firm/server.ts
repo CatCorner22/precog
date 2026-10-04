@@ -40,6 +40,7 @@ import {
   saveNotificationSettings,
   setMemberRole,
   setOwnerEmail,
+  transferFirmOwnership as transferFirmOwnershipRows,
   upsertEngagementMark,
   type InviteRole,
 } from "./store";
@@ -195,20 +196,73 @@ export const setFirmMemberRole = createServerFn({ method: "POST" })
     return { members: await listMembers(sql, firm.firmUserId) };
   });
 
+function memberInput(input: { userId: string }): { userId: string } {
+  const raw = requireObject(input);
+  if (typeof raw.userId !== "string" || !raw.userId) throw new RequestError(400, "Unknown member");
+  return { userId: raw.userId.slice(0, 120) };
+}
+
 export const removeFirmMember = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { userId: string }) => {
-    const raw = requireObject(input);
-    if (typeof raw.userId !== "string" || !raw.userId)
-      throw new RequestError(400, "Unknown member");
-    return { userId: raw.userId.slice(0, 120) };
-  })
+  .validator(memberInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
     const moved = await removeMember(sql, firm.firmUserId, data.userId);
     return { members: await listMembers(sql, firm.firmUserId), moved };
   });
+
+/**
+ * Hands the firm, its clients, members, invitations and billing to a member;
+ * the caller stays on as a reviewer. Stripe's customer and subscription
+ * are repointed best effort afterwards, so receipts reach the new owner.
+ */
+export const transferFirmOwnership = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(memberInput)
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const firm = await requireFirmRole(sql, context.userId, ["owner"]);
+    await transferFirmOwnershipRows(sql, firm.firmUserId, data.userId);
+    await repointStripeOwner(sql, data.userId);
+    return {
+      firm: await loadFirmFor(sql, context.userId),
+      members: await listMembers(sql, data.userId),
+    };
+  });
+
+/** Best effort, logged like the customer deletion: the rows have already moved. */
+async function repointStripeOwner(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  newOwnerUserId: string,
+): Promise<void> {
+  const billing = await loadBillingAccount(sql, newOwnerUserId);
+  if (!billing?.stripeCustomerId) return;
+  const { updateCustomer, updateSubscriptionMetadata } = await import("../billing/stripe.server");
+  const rows = await sql<{ email: string | null }>`
+    select email from "user" where id = ${newOwnerUserId}
+  `;
+  try {
+    await updateCustomer(billing.stripeCustomerId, {
+      email: rows[0]?.email ?? null,
+      userId: newOwnerUserId,
+    });
+  } catch (error) {
+    console.error(
+      "[firm] Stripe customer not repointed:",
+      error instanceof Error ? error.message : error,
+    );
+  }
+  if (!billing.subscriptionId) return;
+  try {
+    await updateSubscriptionMetadata(billing.subscriptionId, { userId: newOwnerUserId });
+  } catch (error) {
+    console.error(
+      "[firm] Stripe subscription not repointed:",
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
 
 export const leaveFirm = createServerFn({ method: "POST" })
   .middleware([authMiddleware])

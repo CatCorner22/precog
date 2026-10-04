@@ -18,6 +18,18 @@ describe("firm invitation email", () => {
     expect(email.html).not.toContain("<Advisors>");
   });
 
+  it("says what a reviewer does in the words the report uses", () => {
+    const email = renderFirmInvitation({
+      firmName: "North",
+      inviterName: null,
+      role: "reviewer",
+      link: "https://app.example/join/abc",
+    });
+    expect(email.text).toContain(
+      "A reviewer does what a preparer does, reviews control checks, and reviews for issuance reports that someone else prepared.",
+    );
+  });
+
   it("says which sign-ins carry a confirmed address", () => {
     const email = renderFirmInvitation({
       firmName: "North",

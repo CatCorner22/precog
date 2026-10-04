@@ -38,6 +38,7 @@
   "src/lib/precog/firm/server.ts#setClientOwnerEmail": "7126bde247259c40ccb6ba1fa90502d56d7905f0e3d0a062853be75c8f5b1657",
   "src/lib/precog/firm/server.ts#setFirmMemberRole": "375a7d88e3651f3c20ddfa92f1f143c809e4c586cf855d0a53d2d9c5d2729c94",
   "src/lib/precog/firm/server.ts#signOffReport": "e15784b96185f49447f29dc4a8a8a6b6240f865246d49ee25260e67b79ac9e2f",
+  "src/lib/precog/firm/server.ts#transferFirmOwnership": "e63b1a2fb280511521f09e8722a5d2cc0c131b66a3a6d583594544bc536b1931",
   "src/lib/precog/firm/server.ts#updateNotificationSettings": "732fa22580d96fbb4222aed6327d68f57b5f959227cf2db95f62bd8180ddea1f",
   "src/lib/precog/integrations/qbo/server.ts#disconnectQuickBooks": "c0bde9c169531f02c1b5891f60a781267fd679de2e0b11ea2f048d41fd247b29",
   "src/lib/precog/integrations/qbo/server.ts#getQuickBooksStatus": "8c54f8fa136a96bc68242ef4f98d61d99866865767a0aa01da24278f375e5a17",

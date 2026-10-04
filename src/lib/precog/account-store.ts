@@ -462,7 +462,7 @@ async function refuseWhileBilling(tx: Sql, userId: string): Promise<string | nul
   if (status && ACTIVE_SUBSCRIPTION_STATUSES.has(status)) {
     throw new RequestError(
       409,
-      `Your firm plan is still active. Cancel it with Manage billing on the Firm page, then delete your account. If you cannot, write to ${SUPPORT_EMAIL}.`,
+      `Your firm plan is still active. Cancel it with Manage billing on the Firm page, or make a colleague the firm's owner, then delete your account. If you cannot, write to ${SUPPORT_EMAIL}.`,
     );
   }
   return rows[0]?.stripe_customer_id ?? null;

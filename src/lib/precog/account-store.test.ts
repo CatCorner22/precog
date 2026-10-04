@@ -318,6 +318,11 @@ describe("account deletion safeguards", () => {
       message: expect.stringMatching(/Cancel it with Manage billing/),
     });
     await expect(deleteAccountRows(sql, "ua")).rejects.toMatchObject({
+      message: expect.stringContaining(
+        "on the Firm page, or make a colleague the firm's owner, then delete your account.",
+      ),
+    });
+    await expect(deleteAccountRows(sql, "ua")).rejects.toMatchObject({
       message: expect.stringMatching(
         /then delete your account\. If you cannot, write to \[SUPPORT EMAIL\]\.$/,
       ),
