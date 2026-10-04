@@ -19,6 +19,7 @@ import { businessLimitMessage } from "./business-lifecycle";
 import { RequestError } from "@/lib/request-errors";
 import { assertVerificationsAllowed } from "./procedures/verify-guard";
 import { resolveClientDate } from "./dates";
+import { recordFirst } from "./telemetry/events.server";
 import {
   parseDeleteBusinessRequest,
   parseOpenBusinessRequest,
@@ -118,6 +119,8 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       previousProcedures: saved.previousProcedures,
       heldNamedImages: saved.heldNamedImages,
     });
+    // The saver's first business, once; a failed write is reported, not thrown.
+    if (owner === null) await recordFirst(sql, context.userId, "first_business", businessId);
     return {
       ok: true as const,
       revision: saved.revision,
