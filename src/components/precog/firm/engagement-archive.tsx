@@ -14,7 +14,7 @@ import { getReport, listReports } from "@/lib/precog/firm/server";
 import type { FirmSnapshot } from "@/lib/precog/firm/store";
 import type { PracticeProfile } from "@/lib/precog/practice-profile";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
-import type { FrozenReport } from "@/lib/precog/report/stored-model";
+import { lockedFigures, type FrozenReport } from "@/lib/precog/report/stored-model";
 import { shareReportProfile } from "@/lib/precog/share/report-share-profile";
 import { slug } from "@/lib/precog/text";
 
@@ -23,9 +23,9 @@ import { slug } from "@/lib/precog/text";
  * copy): one self-contained HTML file holding the engagement, the monthly
  * review log and every locked version as it prints, with the figures and
  * firm snapshot of each version in a JSON block for a machine to read. Each
- * version renders through the same `ControlReport` a share link uses (the
- * stored figures, the firm as frozen at lock, the share projection of the
- * profile), so the archive carries none of the business's private notes.
+ * version renders through the same `ControlReport` the version's own page
+ * uses, with the firm as frozen at lock and no toolbar, so it prints the
+ * figures Precog prints for that version (see `archiveReportElement`).
  * Lazy-loaded from the Engagement block, so the report code reaches the
  * firm page only on click.
  */
@@ -35,6 +35,22 @@ export const ARCHIVE_SECTION_REVIEWS = "Monthly review log";
 export const ARCHIVE_SECTION_VERSIONS = "Locked report versions";
 export const ARCHIVE_NO_REVIEWS = "No monthly review results are recorded.";
 export const ARCHIVE_NO_VERSIONS = "No report version is locked yet.";
+/** A preparer or reviewer the engagement names who is no longer among the firm's members. */
+export const ARCHIVE_FORMER_MEMBER = "A former member of the firm";
+/** "Recorded by" for a result whose recording account is unknown (before 0015, or deleted). */
+export const ARCHIVE_RECORDER_UNKNOWN = "Not recorded";
+
+/**
+ * The most versions `listReports` returns, newest first (`listReportVersions`
+ * in reports.ts, `limit 50`). An archive that receives this many cannot tell
+ * whether older ones exist, so it says it may leave them out.
+ */
+export const REPORT_LIST_LIMIT = 50;
+
+/** "This archive holds the newest 50 locked versions. Any older locked version is not in it." */
+export function archiveVersionLimitNote(limit: number = REPORT_LIST_LIMIT): string {
+  return `This archive holds the newest ${limit} locked versions. Any older locked version is not in it.`;
+}
 export const ARCHIVE_REVIEW_HEADERS = [
   "Period",
   "Check",
@@ -67,7 +83,13 @@ export interface ArchiveInput {
   engagement: EngagementRecord | null;
   reviews: readonly ReviewLogRow[];
   versions: readonly ArchiveVersion[];
-  /** Names of the firm's members by user id, for the preparer and reviewer. */
+  /**
+   * True when the version list came back full (`REPORT_LIST_LIMIT`), so
+   * older versions may be missing; the archive then says so, in print and
+   * in the JSON block.
+   */
+  versionLimitReached?: boolean;
+  /** Names of the firm's current members by user id, for the preparer and reviewer. */
   memberNames: Readonly<Record<string, string>>;
   /** The page's stylesheet text, inlined so the file prints as the report does. */
   styles: string;
@@ -108,7 +130,9 @@ function engagementRows(
     preparerUserId: null,
     reviewerUserId: null,
   };
-  const person = (id: string | null) => (id ? (names[id] ?? "Not set") : "Not set");
+  // An id with no current member is someone who left the firm; a deleted
+  // account's id is already null (the column is `on delete set null`).
+  const person = (id: string | null) => (id ? (names[id] ?? ARCHIVE_FORMER_MEMBER) : "Not set");
   const from = record.periodStart ? formatDay(record.periodStart) : null;
   const to = record.periodEnd ? formatDay(record.periodEnd) : null;
   const period =
@@ -129,6 +153,16 @@ function engagementRows(
   ];
 }
 
+/**
+ * The result and who did the check, as Precog's own review line names them
+ * ("Exception — Dana"); the note has its own column.
+ */
+function resultCell(r: Pick<ReviewLogRow, "result" | "ownerName">): string {
+  const label = isReviewResult(r.result) ? RESULT_LABEL[r.result] : r.result;
+  const owner = r.ownerName.trim();
+  return owner ? `${label} — ${owner}` : label;
+}
+
 /** The archive as one HTML document. Pure, so it is tested without a browser. */
 export function engagementArchiveDocument(input: ArchiveInput): string {
   const business = input.businessName.trim() || "Business";
@@ -143,9 +177,10 @@ export function engagementArchiveDocument(input: ArchiveInput): string {
           [
             formatMonth(r.period),
             CHECK_TITLE.get(r.itemKey) ?? r.itemKey,
-            isReviewResult(r.result) ? RESULT_LABEL[r.result] : r.result,
+            resultCell(r),
             r.notes,
-            r.recordedByName ?? r.ownerName,
+            // The account that recorded it, never the person who did the check.
+            r.recordedByName ?? ARCHIVE_RECORDER_UNKNOWN,
             formatDay(r.recordedAt),
           ]
             .map((cell) => `<td>${esc(cell)}</td>`)
@@ -164,6 +199,7 @@ export function engagementArchiveDocument(input: ArchiveInput): string {
         )
         .join("")
     : `<p>${esc(ARCHIVE_NO_VERSIONS)}</p>`;
+  const limitReached = input.versionLimitReached ?? false;
   const data = {
     engagement: input.engagement,
     reviews: input.reviews,
@@ -174,6 +210,9 @@ export function engagementArchiveDocument(input: ArchiveInput): string {
       firm: v.firm,
       model: v.frozen?.model ?? null,
     })),
+    // True when the list stopped at the newest REPORT_LIST_LIMIT versions,
+    // so any older locked version is not in `versions`.
+    versionLimitReached: limitReached,
   };
   return [
     "<!doctype html>",
@@ -197,6 +236,7 @@ export function engagementArchiveDocument(input: ArchiveInput): string {
     `<h2>${esc(ARCHIVE_SECTION_ENGAGEMENT)}</h2><table><tbody>${engagement}</tbody></table>`,
     `<h2>${esc(ARCHIVE_SECTION_REVIEWS)}</h2>${reviews}`,
     `<h2>${esc(ARCHIVE_SECTION_VERSIONS)}</h2>`,
+    limitReached ? `<p class="archive-limit">${esc(archiveVersionLimitNote())}</p>` : "",
     "</div>",
     versions,
     `<script type="application/json" id="precog-archive">${scriptJson(data)}</script>`,
@@ -236,9 +276,27 @@ function pageStyles(): string {
 }
 
 /**
- * One locked version as it prints: the share projection under a read-only
- * provider. The detached root sits outside the page's router, so the page's
- * router is handed in for the report's links (a sample business prints one).
+ * The profile a version renders under in the archive. A version with usable
+ * stored figures prints its stored model, and the share projection prints
+ * the same page (pinned in report-share-profile.test.tsx) while keeping the
+ * business's own notes out of the render. A version without them (locked
+ * before Precog stored figures, locked without them, or stored for another
+ * layout) recalculates from the profile, and the projection has dropped what
+ * that reads (decisions, risk settings, dual release, planned leave), so it
+ * renders under the version's own profile, as its page in Precog does.
+ */
+export function archiveProfileFor(
+  frozen: ArchiveVersion["frozen"],
+  profile: PracticeProfile,
+): PracticeProfile {
+  return "model" in lockedFigures(frozen) ? shareReportProfile(profile) : profile;
+}
+
+/**
+ * One locked version as it prints, under a read-only provider over
+ * `archiveProfileFor`. The detached root sits outside the page's router, so
+ * the page's router is handed in for the report's links (a sample business
+ * prints one).
  */
 export function archiveReportElement(
   v: Pick<ArchiveVersion, "version" | "frozen" | "firm">,
@@ -246,7 +304,7 @@ export function archiveReportElement(
   router: AnyRouter | null = null,
 ): ReactElement {
   const report = (
-    <ReadOnlyPracticeProvider profile={shareReportProfile(profile)}>
+    <ReadOnlyPracticeProvider profile={archiveProfileFor(v.frozen, profile)}>
       <ControlReport locked={v.version} frozen={v.frozen} firm={v.firm} coverPage={false} shared />
     </ReadOnlyPracticeProvider>
   );
@@ -268,9 +326,11 @@ export interface BuildArchiveOptions {
 }
 
 /**
- * Loads the engagement, the review log and every locked version (one at a
- * time, oldest first), renders each and downloads the archive. Throws when a
- * load or a render fails; nothing is saved then.
+ * Loads the engagement, the review log and every locked version `listReports`
+ * returns (one at a time, oldest first; at most the newest
+ * `REPORT_LIST_LIMIT`, and the archive says so when the list is full),
+ * renders each and downloads the archive. Throws when a load or a render
+ * fails; nothing is saved then.
  */
 export async function buildEngagementArchive(opts: BuildArchiveOptions): Promise<string> {
   const render = opts.render ?? renderDetached;
@@ -278,6 +338,8 @@ export async function buildEngagementArchive(opts: BuildArchiveOptions): Promise
     getEngagement({ data: { businessId: opts.businessId, withReviews: true } }),
     listReports({ data: { businessId: opts.businessId } }),
   ]);
+  // A full list may stop short of the oldest versions; the archive says so.
+  const versionLimitReached = listRes.versions.length >= REPORT_LIST_LIMIT;
   const rows = [...listRes.versions].sort((a, b) => a.versionNo - b.versionNo);
   const today = localDateKey(new Date());
   const versions: ArchiveVersion[] = [];
@@ -295,6 +357,7 @@ export async function buildEngagementArchive(opts: BuildArchiveOptions): Promise
     engagement: engagementRes.engagement,
     reviews: engagementRes.reviews ?? [],
     versions,
+    versionLimitReached,
     memberNames: opts.memberNames,
     styles: (opts.styles ?? pageStyles)(),
   });
