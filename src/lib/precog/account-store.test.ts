@@ -286,6 +286,23 @@ describe("account export covers every table the account owns", () => {
   });
 });
 
+describe("account export of model calls", () => {
+  it("lists the account's model calls per feature as totals, never the text, and nobody else's", async () => {
+    await pg.query(
+      `insert into llm_usage (user_id, feature, model, prompt_tokens, completion_tokens, outcome)
+       values ('ua', 'coach', 'm1', 100, 20, 'ok'), ('ua', 'coach', 'm1', null, null, 'timeout'),
+              ('ua', 'brief', 'm1', 7, 3, 'ok'), ('ub', 'coach', 'm1', 999, 1, 'ok')`,
+    );
+    const out = await exportAccountRows(sql, "ua");
+    expect(out.modelUsage).toEqual([
+      { feature: "brief", calls: 1, promptTokens: 7, completionTokens: 3 },
+      { feature: "coach", calls: 2, promptTokens: 100, completionTokens: 20 },
+    ]);
+    await deleteAccountRows(sql, "ua");
+    expect(await count("llm_usage")).toBe(1);
+  });
+});
+
 describe("a firm owner's export", () => {
   it("lists the firm's client businesses that members set up as summaries, never their profiles", async () => {
     await seedFirm("ua", "Alpha CPA");

@@ -6,6 +6,7 @@ import { ACTIVE_SUBSCRIPTION_STATUSES } from "./firm/billing-store";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
 import { SUPPORT_EMAIL } from "./legal/operator";
 import { userScope } from "./llm/daily-usage";
+import { usageTotalsFor, type UsageTotal } from "./llm/usage-log.server";
 import { count } from "./text";
 import { pictureUrl } from "./procedures/image-pipeline";
 
@@ -174,6 +175,8 @@ interface AccountExport {
   }>;
   /** The account's milestones (first business, first locked version, first report sent, first monthly review). */
   activity: Array<{ event: string; businessId: string | null; occurredAt: string }>;
+  /** Model calls the account made, per feature: calls and tokens, never the text. */
+  modelUsage: UsageTotal[];
 }
 
 /** What account deletion removed that still has to be undone outside the database. */
@@ -219,6 +222,7 @@ export async function exportAccountRows(
       procedureImages,
       controlExecutions,
       activity,
+      modelUsage,
     ] = await Promise.all([
       readUser(tx, userId),
       readBusinesses(tx, userId),
@@ -244,6 +248,7 @@ export async function exportAccountRows(
         record: ControlExecution;
       }>`select business_id as "businessId", record from control_execution_log where user_id=${userId} order by created_at,id`,
       readActivity(tx, userId),
+      usageTotalsFor(tx, userId),
     ]);
     return {
       exportedAt: new Date().toISOString(),
@@ -268,6 +273,7 @@ export async function exportAccountRows(
       quickBooksSnapshots,
       procedureImages,
       activity,
+      modelUsage,
     };
   });
 }
@@ -460,7 +466,8 @@ export function encodeHistoryPage(rows: BusinessHistoryExportRow[]): string {
  * Snapshots and the per-user model-usage counts carry no foreign key to the
  * user, so they are deleted explicitly; everything else (businesses and their
  * history, report versions and QuickBooks rows, shares, the firm, reminders,
- * billing, the activity milestones, sessions and linked accounts) cascades
+ * billing, the activity milestones, the model-call records, sessions and
+ * linked accounts) cascades
  * from the user row. Client
  * businesses that members of this account's firm set up stay with those
  * members and leave the firm. The app-wide usage count is not the account's

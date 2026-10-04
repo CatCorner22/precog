@@ -12,6 +12,7 @@ const seams = vi.hoisted(() => ({
   aiPlan: "free" as "free" | "paid",
   loadEntitlements: vi.fn(),
   reportServerError: vi.fn(),
+  insertUsage: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/isolation.server", () => ({ assertSameSiteRequest: seams.sameSite }));
@@ -36,6 +37,7 @@ vi.mock("./daily-usage", async (importOriginal) => ({
   checkDailyBudget: seams.checkDailyBudget,
 }));
 vi.mock("./grok-client.server", () => ({ grokChat: seams.grokChat }));
+vi.mock("./usage-log.server", () => ({ insertUsage: seams.insertUsage }));
 vi.mock("@/lib/precog/firm/entitlements.server", () => ({
   loadEntitlements: seams.loadEntitlements,
 }));
@@ -66,6 +68,7 @@ beforeEach(() => {
   seams.aiPlan = "free";
   seams.loadEntitlements.mockReset().mockImplementation(async () => ({ aiPlan: seams.aiPlan }));
   seams.reportServerError.mockReset().mockResolvedValue(undefined);
+  seams.insertUsage.mockReset().mockResolvedValue(undefined);
   vi.stubEnv("XAI_API_KEY", "key");
   vi.stubEnv("DATABASE_URL", "postgres://db");
 });
@@ -166,7 +169,10 @@ describe("callModel", () => {
       model: "grok",
     });
     expect(seams.checkDailyBudget).toHaveBeenCalledTimes(1);
-    expect(seams.grokChat).toHaveBeenCalledWith("key", CHAT);
+    expect(seams.grokChat).toHaveBeenCalledWith("key", {
+      ...CHAT,
+      onUsage: expect.any(Function),
+    });
   });
 
   it("spends nothing and calls nothing for a request that may not use the model", async () => {
@@ -274,5 +280,75 @@ describe("callModel", () => {
       dailyLimit: { scope: "user" },
     });
     expect(seams.reportServerError).toHaveBeenCalledTimes(1);
+  });
+
+  const LINE = {
+    feature: "coach",
+    model: "m1",
+    promptTokens: 30,
+    completionTokens: 7,
+    totalTokens: 37,
+    latencyMs: 5,
+    outcome: "ok" as const,
+  };
+
+  it("records the call's usage before it answers, without the text", async () => {
+    const { callModel } = await guard();
+    seams.grokChat.mockImplementation(async (_key, opts) => {
+      opts.onUsage(LINE);
+      return { text: "brief", model: "m1" };
+    });
+    await expect(callModel({ userId: "u1", grok: "allowed" }, CHAT)).resolves.toEqual({
+      text: "brief",
+      model: "m1",
+    });
+    expect(seams.insertUsage).toHaveBeenCalledTimes(1);
+    expect(seams.insertUsage.mock.calls[0]?.[1]).toEqual({
+      userId: "u1",
+      feature: "coach",
+      model: "m1",
+      promptTokens: 30,
+      completionTokens: 7,
+      outcome: "ok",
+    });
+  });
+
+  it("records a failed call with its outcome and null counts", async () => {
+    const { callModel } = await guard();
+    seams.grokChat.mockImplementation(async (_key, opts) => {
+      opts.onUsage({ ...LINE, promptTokens: null, completionTokens: null, outcome: "timeout" });
+      return null;
+    });
+    await expect(callModel({ userId: "u1", grok: "allowed" }, CHAT)).resolves.toBeNull();
+    expect(seams.insertUsage.mock.calls[0]?.[1]).toMatchObject({
+      outcome: "timeout",
+      promptTokens: null,
+      completionTokens: null,
+    });
+  });
+
+  it("never fails the answer when the record cannot be written, and reports it", async () => {
+    const { callModel } = await guard();
+    seams.grokChat.mockImplementation(async (_key, opts) => {
+      opts.onUsage(LINE);
+      return { text: "brief", model: "m1" };
+    });
+    seams.insertUsage.mockRejectedValue(new Error("db down"));
+    await expect(callModel({ userId: "u1", grok: "allowed" }, CHAT)).resolves.toEqual({
+      text: "brief",
+      model: "m1",
+    });
+    expect(seams.reportServerError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "db down" }),
+      "llm-usage",
+    );
+  });
+
+  it("records nothing for a call it never made", async () => {
+    const { callModel } = await guard();
+    seams.checkDailyBudget.mockResolvedValue("spent");
+    await expect(callModel({ userId: "u1", grok: "allowed" }, CHAT)).rejects.toBeTruthy();
+    await callModel({ userId: "u1", grok: "rate_limited" }, CHAT);
+    expect(seams.insertUsage).not.toHaveBeenCalled();
   });
 });

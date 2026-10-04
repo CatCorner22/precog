@@ -197,6 +197,11 @@ describe("scheduled run", () => {
       `insert into map_share_views (token, viewed_at)
        values ('ab12', now() - interval '91 days'), ('ab12', now() - interval '1 day')`,
     );
+    await t.pg.query(
+      `insert into llm_usage (user_id, feature, model, outcome, called_at)
+       values ('owner', 'coach', 'm1', 'ok', now() - interval '14 months'),
+              ('owner', 'coach', 'm1', 'ok', now() - interval '1 day')`,
+    );
     const res = await run("Bearer cron-secret-value");
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
@@ -205,6 +210,7 @@ describe("scheduled run", () => {
       quickbooksAlerts: { emailed: 0 },
       shareLogs: true,
       activation: { signedUp: 1 },
+      modelUsage: { purged: 1 },
       failures: [],
     });
     const left = await t.pg.query<{ n: string }>(`select count(*)::text as n from map_share_views`);

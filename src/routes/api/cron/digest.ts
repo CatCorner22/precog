@@ -9,7 +9,8 @@ const NO_STORE = { "cache-control": "no-store" } as const;
  * accounting systems are re-read, then firm owners are told once per problem
  * about a QuickBooks reading that failed or a permission about to end, then
  * shared-map view logs and failed passcode guesses past their retention are
- * purged, then the week's first-time milestones are counted into the answer:
+ * purged, then the week's first-time milestones are counted into the answer
+ * (the purge stage also drops model-call records past their 13 months):
  * the emails run before QuickBooks, so a slow or failing QuickBooks pass
  * cannot stop them, and the alerts run after it, so they name the failures
  * this run just recorded. Each stage runs on its own, so a failure in one is
@@ -36,6 +37,7 @@ export const Route = createFileRoute("/api/cron/digest")({
           shareStore,
           attempts,
           telemetry,
+          usageLog,
         ] = await Promise.all([
           import("@/lib/db"),
           import("@/lib/precog/reminders/digest"),
@@ -47,6 +49,7 @@ export const Route = createFileRoute("/api/cron/digest")({
           import("@/lib/precog/share/share-store"),
           import("@/lib/precog/share/share-attempts"),
           import("@/lib/precog/telemetry/events.server"),
+          import("@/lib/precog/llm/usage-log.server"),
         ]);
         const sql = await getSql();
         const { originFrom } = await import("@/lib/request-origin.server");
@@ -55,9 +58,11 @@ export const Route = createFileRoute("/api/cron/digest")({
         const configured = mailer.mailConfigured();
         const failures: string[] = [];
 
+        const modelUsage: { purged: number | null } = { purged: null };
         const purged = await stage("purge", failures, async () => {
           const count = await store.purgeDeletedBusinesses(sql);
           if (count > 0) await firmStore.deleteOrphanedClientAudit(sql);
+          modelUsage.purged = await usageLog.purgeOldUsage(sql);
           return count;
         });
         const digest = await stage("digest", failures, async () => {
@@ -109,6 +114,7 @@ export const Route = createFileRoute("/api/cron/digest")({
             quickbooksAlerts,
             shareLogs,
             activation,
+            modelUsage,
             failures,
           },
           { status: failures.length === 0 ? 200 : 500, headers: NO_STORE },
