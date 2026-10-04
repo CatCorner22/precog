@@ -10,6 +10,7 @@ import { parseLoadShareInput } from "../public-inputs";
 import { MAX_BUSINESS_NAME } from "../business-id";
 import { resolveBusinessOwner } from "../business-store";
 import { resolveTemplate } from "../active-template";
+import { requireEntitlement } from "../firm/entitlements.server";
 import type { PracticeProfile } from "../practice-profile";
 import { requireReportVersion } from "../firm/access.server";
 import { checkPasscodeGuess, hashPasscode } from "./share-attempts";
@@ -147,6 +148,9 @@ export const createReportShare = createServerFn({ method: "POST" })
     const where = await requireReportVersion(sql, context.userId, data.versionId);
     const refusal = await reportShareRefusal(sql, where.ownerUserId, data.versionId);
     if (refusal) throw new RequestError(409, refusal);
+    // Minting a link is a new issuance action, like locking: it needs the
+    // plan even though already-issued links keep serving whatever the plan.
+    await requireEntitlement(sql, context.userId, "lockedVersions");
     const names = await sql<{ name: string; industry: string }>`
       select name, industry from businesses
       where user_id = ${where.ownerUserId} and id = ${where.businessId}

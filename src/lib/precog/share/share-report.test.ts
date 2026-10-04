@@ -230,6 +230,18 @@ describe("sharing a locked report version", () => {
     );
   });
 
+  it("never prints a link whose version is not reviewed for issuance", async () => {
+    await lock("prep", "client", "rv_1");
+    await reportLink(token(1), "prep", "rv_1");
+    const row = await loadReportShareRow(db.sql, token(1));
+    expect(row?.reviewedAt).toBeNull();
+    expect(await loadSharedReport(db.sql, row!, "2026-10-01")).toBeNull();
+    await review("rv_1");
+    const reviewed = await loadReportShareRow(db.sql, token(1));
+    expect(reviewed?.reviewedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(await loadSharedReport(db.sql, reviewed!, "2026-10-01")).not.toBeNull();
+  });
+
   it("lists a report link with its kind and version, and a map link as a map", async () => {
     await lock("prep", "client", "rv_1");
     await review("rv_1");
