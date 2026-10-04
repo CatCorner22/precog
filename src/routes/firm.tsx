@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FirmMembers } from "@/components/precog/firm/firm-members";
 import { removedMemberToasts } from "@/components/precog/firm/firm-members-text";
 import { FirmBilling } from "@/components/precog/firm/firm-billing";
+import { FirmLetterhead } from "@/components/precog/firm/firm-letterhead";
 import { ClientList } from "@/components/precog/firm/client-list";
 import { openClientReport } from "@/components/precog/firm/open-client-report";
 import { ClientHistory } from "@/components/precog/firm/client-history";
@@ -353,7 +354,7 @@ function FirmPage() {
             }}
           >
             <label className="min-w-[16rem] flex-1 text-xs text-muted">
-              Firm name on reports
+              Firm name and letterhead on reports
               <input
                 className="mt-1 w-full rounded-md border border-border bg-bg px-2 py-1.5 text-sm text-fg"
                 value={name}
@@ -370,6 +371,7 @@ function FirmPage() {
             </button>
           </form>
         )}
+        {signedIn && firm && isOwner && <FirmLetterhead firm={firm} onSaved={setFirm} />}
       </section>
 
       {signedIn && firm && (
