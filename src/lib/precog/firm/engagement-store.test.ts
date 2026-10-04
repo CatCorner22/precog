@@ -13,6 +13,7 @@ import {
   RETENTION_YEARS_DEFAULT,
   RETENTION_YEARS_MAX,
   RETENTION_YEARS_MIN,
+  type EngagementInput,
 } from "./engagement-row";
 import {
   assertEngagementOpen,
@@ -60,7 +61,7 @@ beforeEach(async () => {
   `);
 });
 
-const blank = {
+const blank: EngagementInput = {
   scope: "",
   periodStart: null,
   periodEnd: null,
@@ -68,7 +69,7 @@ const blank = {
   reviewerUserId: null,
 };
 
-function save(fields: Partial<typeof blank>, actorUserId = "own") {
+function save(fields: Partial<EngagementInput>, actorUserId = "own") {
   return saveEngagement(db.sql, {
     ownerUserId: "own",
     businessId: "biz_1",
