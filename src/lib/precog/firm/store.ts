@@ -19,12 +19,27 @@ export type FirmRole = "owner" | "preparer" | "reviewer";
 export type InviteRole = Exclude<FirmRole, "owner">;
 export const INVITE_ROLES: readonly InviteRole[] = ["preparer", "reviewer"];
 
+/**
+ * What a client report prints for the firm: its name, the letterhead text
+ * under it (address and contact as the firm writes them) and the logo as a
+ * data URL. Frozen into each locked version at lock (migration 0041).
+ */
+export interface FirmSnapshot {
+  name: string;
+  letterhead: string;
+  logoDataUrl: string | null;
+}
+
 export interface FirmContext {
   /** The owner's user id, which is the firm's id. */
   firmUserId: string;
   name: string;
   plan: FirmPlan;
   role: FirmRole;
+  letterhead: string;
+  logoDataUrl: string | null;
+  /** Whether client reports open with a cover page. */
+  coverPage: boolean;
 }
 
 export interface FirmMember {
@@ -85,8 +100,16 @@ const MAX_MEMBERS_PER_FIRM = 25;
 
 /** The firm `userId` works in: their own when they own one, else the one they joined. */
 export async function loadFirmFor(sql: Sql, userId: string): Promise<FirmContext | null> {
-  const rows = await sql<{ firm_user_id: string; name: string; plan: string; role: string }>`
-    select m.firm_user_id, f.name, f.plan, m.role
+  const rows = await sql<{
+    firm_user_id: string;
+    name: string;
+    plan: string;
+    role: string;
+    letterhead: string;
+    logo_data_url: string | null;
+    cover_page: boolean;
+  }>`
+    select m.firm_user_id, f.name, f.plan, m.role, f.letterhead, f.logo_data_url, f.cover_page
     from firm_members m
     join firms f on f.user_id = m.firm_user_id
     where m.member_user_id = ${userId}
@@ -100,7 +123,34 @@ export async function loadFirmFor(sql: Sql, userId: string): Promise<FirmContext
     name: row.name,
     plan: asPlan(row.plan),
     role: asRole(row.role),
+    letterhead: row.letterhead,
+    logoDataUrl: row.logo_data_url,
+    coverPage: Boolean(row.cover_page),
   };
+}
+
+/**
+ * The letterhead, logo and cover-page switch of the caller's own firm, as
+ * printed on its clients' reports from now on; versions locked earlier keep
+ * the copy they were locked with. A member of someone else's firm, or an
+ * account with no firm, cannot set one.
+ */
+export async function saveFirmLetterhead(
+  sql: Sql,
+  userId: string,
+  input: { letterhead: string; logoDataUrl: string | null; coverPage: boolean },
+): Promise<FirmContext> {
+  const rows = await sql`
+    update firms
+    set letterhead = ${input.letterhead}, logo_data_url = ${input.logoDataUrl},
+      cover_page = ${input.coverPage}, updated_at = now()
+    where user_id = ${userId}
+    returning user_id
+  `;
+  if (!rows.length) throw new RequestError(404, "Set up the firm first");
+  const firm = await loadFirmFor(sql, userId);
+  if (!firm || firm.firmUserId !== userId) throw new RequestError(404, "Set up the firm first");
+  return firm;
 }
 
 export class FirmMembershipError extends RequestError {
@@ -127,14 +177,13 @@ export async function saveFirm(
       `You are a member of ${current.name}. Leave it before starting a firm of your own.`,
     );
   }
-  const rows = await sql<{ name: string; plan: string }>`
+  await sql`
     insert into firms (user_id, name, plan, updated_at)
     values (${userId}, ${name}, coalesce(${plan}::text, 'assessment'), now())
     on conflict (user_id) do update set
       name = excluded.name,
       plan = coalesce(${plan}::text, firms.plan),
       updated_at = now()
-    returning name, plan
   `;
   // The owner's membership row always says owner, whatever wrote it last.
   await sql`
@@ -147,8 +196,9 @@ export async function saveFirm(
     update businesses set firm_user_id = ${userId}
     where user_id = ${userId} and firm_user_id is null
   `;
-  const row = rows[0];
-  return { firmUserId: userId, name: row.name, plan: asPlan(row.plan), role: "owner" };
+  const saved = await loadFirmFor(sql, userId);
+  if (!saved) throw new Error("Unable to save the firm");
+  return saved;
 }
 
 /** Sets the plan alone, as the billing webhook does. */
@@ -480,8 +530,15 @@ export async function transferFirmOwnership(
   }
   await inTransaction(sql, async (tx) => {
     await tx`select id from "user" where id in (${firmUserId}, ${newOwnerUserId}) order by id for update`;
-    const firms = await tx<{ name: string; plan: string }>`
-      select name, plan from firms where user_id = ${firmUserId} for update
+    const firms = await tx<{
+      name: string;
+      plan: string;
+      letterhead: string;
+      logo_data_url: string | null;
+      cover_page: boolean;
+    }>`
+      select name, plan, letterhead, logo_data_url, cover_page
+      from firms where user_id = ${firmUserId} for update
     `;
     const firm = firms[0];
     if (!firm) throw new RequestError(404, "Set up the firm first");
@@ -512,8 +569,9 @@ export async function transferFirmOwnership(
       );
     }
     await tx`
-      insert into firms (user_id, name, plan, updated_at)
-      values (${newOwnerUserId}, ${firm.name}, ${firm.plan}, now())
+      insert into firms (user_id, name, plan, letterhead, logo_data_url, cover_page, updated_at)
+      values (${newOwnerUserId}, ${firm.name}, ${firm.plan}, ${firm.letterhead},
+        ${firm.logo_data_url}, ${firm.cover_page}, now())
     `;
     await tx`update firm_members set firm_user_id = ${newOwnerUserId} where firm_user_id = ${firmUserId}`;
     await tx`

@@ -17,6 +17,7 @@ import {
   peekInvite,
   removeMember,
   saveFirm,
+  saveFirmLetterhead,
   setMemberRole,
   setOwnerEmail,
   transferFirmOwnership,
@@ -418,6 +419,9 @@ describe("firm ownership transfer", () => {
       name: "North",
       plan: "monthly",
       role: "reviewer",
+      letterhead: "",
+      logoDataUrl: null,
+      coverPage: true,
     });
     expect((await loadFirmFor(db.sql, "ub"))?.role).toBe("owner");
     expect((await listMembers(db.sql, "ub")).map((m) => [m.userId, m.role])).toEqual([
@@ -448,6 +452,22 @@ describe("firm ownership transfer", () => {
     expect(
       (await listClientEngagements(db.sql, "ub", "ub")).map((c) => c.ownerUserId).sort(),
     ).toEqual(["ua", "ub"]);
+  });
+
+  it("carries the letterhead, logo and cover-page switch to the new owner's firm row", async () => {
+    await saveFirmLetterhead(db.sql, "ua", {
+      letterhead: "12 Elm St",
+      logoDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+      coverPage: false,
+    });
+    await transferFirmOwnership(db.sql, "ua", "ub");
+    expect(await loadFirmFor(db.sql, "ub")).toMatchObject({
+      firmUserId: "ub",
+      role: "owner",
+      letterhead: "12 Elm St",
+      logoDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+      coverPage: false,
+    });
   });
 
   it("refuses a non-member, a firm owner, and the owner themselves", async () => {
@@ -483,6 +503,49 @@ describe("firm ownership transfer", () => {
     );
     expect((await loadFirmFor(db.sql, "ua"))?.role).toBe("owner");
     expect((await listMembers(db.sql, "ua")).map((m) => m.userId)).toEqual(["ua", "ub"]);
+  });
+});
+
+describe("firm letterhead", () => {
+  it("is empty with a cover page on a new firm, and the owner alone sets it", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    expect(await loadFirmFor(db.sql, "ua")).toMatchObject({
+      letterhead: "",
+      logoDataUrl: null,
+      coverPage: true,
+    });
+    const saved = await saveFirmLetterhead(db.sql, "ua", {
+      letterhead: "12 Elm St\n555-0100",
+      logoDataUrl: "data:image/jpeg;base64,/9j/4AAQ",
+      coverPage: false,
+    });
+    expect(saved).toMatchObject({
+      firmUserId: "ua",
+      role: "owner",
+      letterhead: "12 Elm St\n555-0100",
+      logoDataUrl: "data:image/jpeg;base64,/9j/4AAQ",
+      coverPage: false,
+    });
+    // A member reads it; renaming the firm keeps it; a member or an account
+    // with no firm cannot set one.
+    await createInvite(db.sql, {
+      firmUserId: "ua",
+      email: "ub@example.test",
+      role: "preparer",
+      token: "t1",
+    });
+    await acceptInvite(db.sql, "t1", "ub");
+    expect((await loadFirmFor(db.sql, "ub"))?.letterhead).toBe("12 Elm St\n555-0100");
+    expect((await saveFirm(db.sql, "ua", "North Advisors", null)).letterhead).toBe(
+      "12 Elm St\n555-0100",
+    );
+    await expect(
+      saveFirmLetterhead(db.sql, "ub", { letterhead: "x", logoDataUrl: null, coverPage: true }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      saveFirmLetterhead(db.sql, "uc", { letterhead: "x", logoDataUrl: null, coverPage: true }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect((await loadFirmFor(db.sql, "ua"))?.letterhead).toBe("12 Elm St\n555-0100");
   });
 });
 

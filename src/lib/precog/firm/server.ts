@@ -37,6 +37,7 @@ import {
   removeMember,
   revokeInvite,
   saveFirm,
+  saveFirmLetterhead as saveFirmLetterheadRow,
   saveNotificationSettings,
   setMemberRole,
   setOwnerEmail,
@@ -62,6 +63,7 @@ import {
   idInput,
   instantInput,
   inviteRoleInput,
+  letterheadInput,
   PLANS,
   tokenInput,
 } from "./server-inputs";
@@ -116,6 +118,19 @@ export const saveFirmProfile = createServerFn({ method: "POST" })
         planToStore(stripeConfigured(), Boolean(billing), data.plan),
       ),
     };
+  });
+
+/**
+ * The owner's letterhead, logo and cover-page switch, printed on the firm's
+ * client reports from now on. The logo arrives re-encoded by the browser.
+ */
+export const saveFirmLetterhead = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(letterheadInput)
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    await requireFirmRole(sql, context.userId, ["owner"]);
+    return { firm: await saveFirmLetterheadRow(sql, context.userId, data) };
   });
 
 /**
@@ -442,11 +457,18 @@ export const getReport = createServerFn({ method: "GET" })
     const where = await requireReportVersion(sql, context.userId, data.id);
     const loaded = await loadReportVersion<PracticeProfile>(sql, where.ownerUserId, data.id);
     if (!loaded) throw new RequestError(404, "That report version does not exist");
-    const frozen = await loadFrozenReport<StoredReportModel>(sql, where.ownerUserId, data.id);
+    const [frozen, name, coverPage] = await Promise.all([
+      loadFrozenReport<StoredReportModel>(sql, where.ownerUserId, data.id),
+      reportFirmName(sql, where.ownerUserId, where.businessId),
+      reportCoverPage(sql, where.ownerUserId, where.businessId),
+    ]);
+    // A version locked before the snapshot existed prints the firm's current
+    // name only; the cover-page switch is the firm's, live.
     return {
       version: loaded.version,
       frozen,
-      firmName: await reportFirmName(sql, where.ownerUserId, where.businessId),
+      firm: loaded.version.firm ?? (name ? { name, letterhead: "", logoDataUrl: null } : null),
+      coverPage,
       profile: {
         ...mergeProfile(
           {
@@ -496,6 +518,20 @@ export const markReportSent = createServerFn({ method: "POST" })
     await markReportVersionSent(sql, where.ownerUserId, data.id);
     return { ok: true as const };
   });
+
+/** Whether the firm a business is a client of prints a cover page; true when it has none. */
+async function reportCoverPage(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  ownerUserId: string,
+  businessId: string,
+): Promise<boolean> {
+  const rows = await sql<{ cover_page: boolean }>`
+    select f.cover_page from businesses b
+    join firms f on f.user_id = b.firm_user_id
+    where b.user_id = ${ownerUserId} and b.id = ${businessId}
+  `;
+  return rows[0] ? Boolean(rows[0].cover_page) : true;
+}
 
 // ── History and deleted businesses ──────────────────────────────────────────
 

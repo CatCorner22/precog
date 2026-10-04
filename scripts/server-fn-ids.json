@@ -34,6 +34,7 @@
   "src/lib/precog/firm/server.ts#removeFirmMember": "7fdb5dcb0a86c1cd5badc6b78bf4f326dfccdd4ddc1064ae739a249d13f61263",
   "src/lib/precog/firm/server.ts#restoreDeletedClient": "6d0ff25d24ff7df341b9fd45b2e35b1e8ee5f323cf55f2d1e03580a1db891276",
   "src/lib/precog/firm/server.ts#revokeFirmInvite": "25a1b1a2a31d74a78efd0245b48428e932ba0104a67069136cec07bc4b9cd0a1",
+  "src/lib/precog/firm/server.ts#saveFirmLetterhead": "ae770f12fa584077866cf3557424a07c336bd5f10af6a250a7426d88fec0ecf2",
   "src/lib/precog/firm/server.ts#saveFirmProfile": "5dcf3c54d17e91c030ff94e94f5e8c4b5d48431f592a7b97aebb82182e66da7b",
   "src/lib/precog/firm/server.ts#setClientOwnerEmail": "7126bde247259c40ccb6ba1fa90502d56d7905f0e3d0a062853be75c8f5b1657",
   "src/lib/precog/firm/server.ts#setFirmMemberRole": "375a7d88e3651f3c20ddfa92f1f143c809e4c586cf855d0a53d2d9c5d2729c94",

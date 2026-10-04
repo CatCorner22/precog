@@ -18,6 +18,9 @@ const firm = (role: FirmContext["role"]): FirmContext => ({
   name: "North Advisors",
   plan: "assessment",
   role,
+  letterhead: "",
+  logoDataUrl: null,
+  coverPage: true,
 });
 
 const members: FirmMember[] = [
