@@ -4,6 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Person } from "@/lib/precog/types";
 import type { ReviewRecord } from "@/lib/precog/firm/reviews";
 import { MonthlyReview } from "./monthly-review";
+import {
+  EVIDENCE_STATUS_LABEL,
+  evidenceLogLine,
+  evidenceStatuses,
+} from "./monthly-review-evidence";
 
 const state = vi.hoisted(() => ({
   people: [] as Person[],
@@ -44,6 +49,8 @@ vi.mock("@/lib/precog/practice-context", () => ({
 vi.mock("@/lib/auth/use-current-user", () => ({ useCurrentUser: () => state.user }));
 vi.mock("@/lib/use-today", () => ({ useToday: () => new Date(2026, 8, 29) }));
 vi.mock("@/lib/precog/firm/server", () => server);
+const evidenceLog = vi.hoisted(() => ({ getControlExecutionLog: vi.fn() }));
+vi.mock("@/lib/precog/controls/executions/server", () => evidenceLog);
 vi.mock("@/lib/precog/integrations/qbo/server", () => ({
   getQuickBooksStatus: vi.fn(async () => ({ configured: false, connection: null, drift: null })),
 }));
@@ -228,5 +235,41 @@ describe("monthly review tells the owner where the result went", () => {
     );
     expect(toast.success).not.toHaveBeenCalled();
     expect(JSON.stringify(toast.warning.mock.calls)).not.toContain("signed in");
+  });
+});
+
+describe("monthly review shows the evidence log's state beside a result", () => {
+  it("names each of the four states for the check and month's run", () => {
+    expect(EVIDENCE_STATUS_LABEL).toEqual({
+      awaiting_review: "Awaiting review",
+      needs_correction: "Needs correction",
+      awaiting_retest: "Awaiting retest",
+      reviewed: "Reviewed",
+    });
+    const statuses = evidenceStatuses([
+      { id: "2026-09-payroll_headcount", status: "awaiting_review" },
+      { id: "2026-09-bank_statement", status: "needs_correction" },
+      { id: "2026-09-new_vendors", status: "awaiting_retest" },
+      { id: "2026-09-card_statement", status: "reviewed" },
+    ]);
+    expect(evidenceLogLine(statuses, "2026-09", "payroll_headcount")).toBe(
+      "Evidence log: Awaiting review",
+    );
+    expect(evidenceLogLine(statuses, "2026-09", "bank_statement")).toBe(
+      "Evidence log: Needs correction",
+    );
+    expect(evidenceLogLine(statuses, "2026-09", "new_vendors")).toBe(
+      "Evidence log: Awaiting retest",
+    );
+    expect(evidenceLogLine(statuses, "2026-09", "card_statement")).toBe("Evidence log: Reviewed");
+  });
+
+  it("prints nothing when the log holds no run for the check and month, or was not read", () => {
+    const statuses = evidenceStatuses([{ id: "2026-08-payroll_headcount", status: "reviewed" }]);
+    expect(evidenceLogLine(statuses, "2026-09", "payroll_headcount")).toBeNull();
+    expect(evidenceLogLine(null, "2026-09", "payroll_headcount")).toBeNull();
+    state.people = [owner()];
+    expect(view()).not.toContain("Evidence log:");
+    expect(evidenceLog.getControlExecutionLog).not.toHaveBeenCalled();
   });
 });

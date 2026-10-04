@@ -14,6 +14,9 @@ import {
 } from "@/lib/precog/firm/reviews";
 import { recordMonthlyReview } from "@/lib/precog/firm/server";
 import { getQuickBooksStatus } from "@/lib/precog/integrations/qbo/server";
+import { getControlExecutionLog } from "@/lib/precog/controls/executions/server";
+import type { ExecutionStatus } from "@/lib/precog/controls/executions/model";
+import { evidenceLogLine, evidenceStatuses } from "./monthly-review-evidence";
 import { monthlyWorkpaperFacts, type WorkpaperFact } from "@/lib/precog/firm/workpaper";
 import { clientErrorStatus } from "@/lib/request-errors";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
@@ -28,6 +31,11 @@ export function MonthlyReview() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [facts, setFacts] = useState<WorkpaperFact[] | null>(null);
+  // The evidence log's state of each run this month, read once when signed
+  // in and again after a result is recorded; null until read or on failure.
+  const [evidence, setEvidence] = useState<Map<string, ExecutionStatus> | null>(null);
+  const [evidenceRead, setEvidenceRead] = useState(0);
+  const period = tasks[0]?.period ?? null;
 
   useEffect(() => {
     if (!user || !profile.businessId) {
@@ -46,6 +54,31 @@ export function MonthlyReview() {
       cancel = true;
     };
   }, [user, profile.businessId]);
+
+  useEffect(() => {
+    if (!user || !profile.businessId || !period) {
+      setEvidence(null);
+      return;
+    }
+    let cancel = false;
+    void getControlExecutionLog({
+      data: {
+        businessId: profile.businessId,
+        expectedAccountId: user.id,
+        period,
+        cursor: null,
+      },
+    })
+      .then((log) => {
+        if (!cancel) setEvidence(evidenceStatuses(log.entries));
+      })
+      .catch(() => {
+        if (!cancel) setEvidence(null);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [user, profile.businessId, period, evidenceRead]);
 
   async function save(
     key: (typeof tasks)[number]["key"],
@@ -74,6 +107,7 @@ export function MonthlyReview() {
           today: localDateKey(new Date()),
         },
       }).then((res) => {
+        setEvidenceRead((n) => n + 1);
         if (result === "skipped") {
           toast.success("Skipped for this month on this business.");
           return;
@@ -149,6 +183,7 @@ export function MonthlyReview() {
       <ul className="mt-4 space-y-4">
         {tasks.map((task) => {
           const latest = latestReview(records, task.key, task.period);
+          const logLine = evidenceLogLine(evidence, task.period, task.key);
           return (
             <li key={task.key} className="rounded-lg border border-border p-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -169,6 +204,7 @@ export function MonthlyReview() {
                   {latest.notes ? ` — ${latest.notes}` : ""}
                 </p>
               )}
+              {logLine && <p className="mt-1 text-xs text-muted">{logLine}</p>}
               <label className="mt-2 block text-xs text-muted">
                 Note
                 <input
