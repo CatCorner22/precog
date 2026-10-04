@@ -152,7 +152,7 @@ export function SodPanel({
       {titleDuties && (
         <div className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-sm leading-relaxed text-muted">
           <p>
-            {titleDuties} Check them under Team: {joinWithAnd(titleDutyNames, 6)}.
+            {titleDuties} Confirm them under Team: {joinWithAnd(titleDutyNames, 6)}.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <TeamLink className={buttonClass({ size: "sm" })}>

@@ -54,6 +54,7 @@ export async function applyBillingEvent(
     creditCents: number;
     assessmentPaidAt: string | null;
   } | null = null;
+  let secondSubscription: { userId: string; ignored: string; stored: string | null } | null = null;
   const outcome = await inTransaction(sql, async (tx) => {
     if (!(await claimBillingEvent(tx, event.id, event.type))) return "duplicate";
     const change = billingChangeFor(event);
@@ -126,6 +127,8 @@ export async function applyBillingEvent(
       );
     }
     const status = await recordSubscription(tx, {
+    if (!userId) return "ignored";
+    const { status, ignoredOther, storedSubscriptionId } = await recordSubscription(tx, {
       userId,
       stripeCustomerId: change.customerId,
       subscriptionId: change.subscriptionId,
@@ -133,7 +136,18 @@ export async function applyBillingEvent(
       currentPeriodEnd: change.currentPeriodEnd,
       eventAt: change.eventAt,
       cancellationReason: change.cancellationReason,
+      priceId: change.priceId,
     });
+    // Reported once, on the Checkout completion that started it: the
+    // subscription's own created and updated events (each renewal) are not
+    // news again.
+    if (ignoredOther && change.status === null) {
+      secondSubscription = {
+        userId,
+        ignored: change.subscriptionId,
+        stored: storedSubscriptionId,
+      };
+    }
     // The plan on the firm row follows the subscription status as stored,
     // which a late checkout event does not overwrite.
     await setFirmPlan(
@@ -144,7 +158,24 @@ export async function applyBillingEvent(
     return "applied";
   });
   if (reversal) await reverseAssessmentCredit(sql, reversal);
+  if (secondSubscription) await reportSecondSubscription(secondSubscription);
   return outcome;
+}
+
+/**
+ * Two subscription Checkouts completed for one account (two tiers asked for
+ * in the same second): Stripe charges the second while Precog keeps the
+ * first. Reported for the operator to cancel and refund it (OPERATIONS).
+ */
+async function reportSecondSubscription(input: {
+  userId: string;
+  ignored: string;
+  stored: string | null;
+}): Promise<void> {
+  const message = `second subscription ${input.ignored} beside ${input.stored ?? "none"} for account ${input.userId}`;
+  console.error(`[billing] ${message}`);
+  const { reportServerError } = await import("@/lib/observability/report.server");
+  await reportServerError(new Error(message), "billing-second-subscription");
 }
 
 /** Inline attempts before a reversal is parked for the weekly run. */

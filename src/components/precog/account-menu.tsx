@@ -1,8 +1,8 @@
 /* eslint-disable react-refresh/only-export-components -- the helpers next to the controls are tested on their own */
 import { useWorkspace } from "@/lib/precog/workspace-context";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Bell, BellOff, Download, History, Trash2 } from "lucide-react";
+import { Bell, BellOff, Download, History, MonitorSmartphone, Trash2 } from "lucide-react";
 import {
   deleteAccount,
   exportAccountData,
@@ -18,6 +18,46 @@ import { downloadText } from "@/lib/download";
 import { localDateKey } from "@/lib/precog/dates";
 import { clientErrorStatus } from "@/lib/request-errors";
 import { slug } from "@/lib/precog/text";
+
+/** The sessions dialog, loaded only when the entry is used. */
+const AccountSessionsDialog = lazy(() => import("./account-sessions"));
+
+/** The menu entry's label and hover text. */
+export const SESSIONS_ENTRY = {
+  label: "Sessions",
+  title: "See where this account is signed in, and sign out other sessions",
+} as const;
+
+/** The "Sessions" entry and, once used, its dialog; focus returns to the entry on close. */
+export function SessionsControl({ disabled }: { disabled: boolean }) {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  function close() {
+    setOpen(false);
+    requestAnimationFrame(() => button.current?.focus());
+  }
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+        disabled={disabled}
+        title={SESSIONS_ENTRY.title}
+        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-fg disabled:opacity-50"
+      >
+        <MonitorSmartphone className="size-3.5" aria-hidden />
+        {SESSIONS_ENTRY.label}
+      </button>
+      {open && (
+        <Suspense fallback={null}>
+          <AccountSessionsDialog onClose={close} />
+        </Suspense>
+      )}
+    </>
+  );
+}
 
 interface HistoryBusiness {
   businessId: string;
@@ -280,7 +320,7 @@ function DigestControl({ disabled }: { disabled: boolean }) {
   );
 }
 
-/** Export, digest and delete controls for the signed-in account. */
+/** Export, history, digest, sessions and delete controls for the signed-in account. */
 export function AccountDataControls() {
   const workspace = useWorkspace();
   const [busy, setBusy] = useState<"export" | "history" | "delete" | null>(null);
@@ -319,7 +359,7 @@ export function AccountDataControls() {
   }
 
   return (
-    // On a phone the four controls wrap under one another instead of
+    // On a phone the five controls wrap under one another instead of
     // pushing the header wider than the screen.
     <div className="flex min-w-0 flex-wrap items-center gap-1">
       <button
@@ -337,6 +377,7 @@ export function AccountDataControls() {
         onBusy={(running) => setBusy(running ? "history" : null)}
       />
       <DigestControl disabled={busy !== null} />
+      <SessionsControl disabled={busy !== null} />
       <button
         type="button"
         onClick={() => void deleteAccountAndSignOut()}

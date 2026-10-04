@@ -18,8 +18,12 @@ export const Route = createFileRoute("/api/health")({
           },
           async () => {
             const sql = await getSql();
-            const { controlExecutionLogReady } = await import("@/lib/migration-status.server");
-            return { controlEvidenceLog: await controlExecutionLogReady(sql) };
+            const { controlExecutionLogReady, migrationsApplied } =
+              await import("@/lib/migration-status.server");
+            return {
+              controlEvidenceLog: await controlExecutionLogReady(sql),
+              migrationsApplied: await migrationsApplied(sql),
+            };
           },
         ),
       ANY: () => healthMethodNotAllowed(),

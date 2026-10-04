@@ -13,6 +13,7 @@
     "dev": "vite dev --host 0.0.0.0 --port 8080",
     "build": "vite build && node scripts/migrate.mjs --only-on-production",
     "db:migrate": "node scripts/migrate.mjs",
+    "link:stripe-customer": "node scripts/link-stripe-customer.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -46,8 +47,8 @@
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "@tailwindcss/vite": "^4.1.0",
-    "@tanstack/react-router": "^1.170.40",
-    "@tanstack/react-start": "^1.168.59",
+    "@tanstack/react-router": "^1.170.41",
+    "@tanstack/react-start": "^1.168.60",
     "@xyflow/react": "^12.12.0",
     "better-auth": "~1.6.25",
     "class-variance-authority": "^0.7.1",
@@ -55,7 +56,7 @@
     "html-to-image": "^1.11.13",
     "kysely": "^0.29.6",
     "lucide-react": "^0.577.0",
-    "pg": "^8.23.0",
+    "pg": "^8.23.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "sonner": "^2.0.8",
@@ -80,7 +81,7 @@
     "prettier": "^3.9.9",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.71.0",
-    "vite": "^8.3.1",
+    "vite": "^8.3.2",
     "vitest": "^4.1.11"
   }
 }

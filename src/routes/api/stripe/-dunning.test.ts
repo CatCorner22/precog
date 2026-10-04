@@ -111,7 +111,7 @@ describe("Stripe webhook dunning", () => {
       subject: "Precog: the Firm plan payment failed",
     });
     expect(mail.sent[0].text).toContain(
-      "The card on the Firm plan for North Advisors was declined on 2023-11-14. Stripe will try again over the next 14 days. Precog keeps the plan open until 2023-11-28;",
+      "The payment for the Firm plan for North Advisors failed on 2023-11-14. Stripe will try again over the next 14 days. Precog keeps the plan open until 2023-11-28;",
     );
     expect(mail.sent[0].text).toContain("Fix the payment: https://invoice.stripe.com/i/in_1");
     expect(

@@ -1,4 +1,5 @@
-import { encodeStripeParams, type CheckoutPlan, type PlanPrice } from "./stripe";
+import { encodeStripeParams, type CheckoutPlan, type PlanPrice, type PlanPrices } from "./stripe";
+import { CHECKOUT_PLANS, isSubscriptionPlan, type Tier } from "../firm/pricing";
 import type { Sql } from "@/lib/db";
 import { env } from "@/lib/env.server";
 import { RequestError } from "@/lib/request-errors";
@@ -26,24 +27,102 @@ export function stripeWebhookSecret(): string | undefined {
 }
 
 /**
- * The amounts of the two prices the checkout buttons charge, so the buttons
- * print what the customer pays. Cached for ten minutes; null when Stripe is
- * not configured or does not answer. When Stripe fails, the last good prices
- * keep serving while the module holds any, else the failure is cached for a
- * minute, so a page anyone can load (sign-in) cannot drive a request to
- * Stripe per visit.
+ * The Stripe price a Checkout plan charges. Starter monthly ("tier1", and the
+ * stale "monthly") is STRIPE_PRICE_TIER_1, else STRIPE_PRICE_MONTHLY, so once
+ * the Starter price is set Checkout never sells the legacy price again.
+ * Undefined when the plan's id is not set (that tier is not offered).
  */
-export async function loadPlanPrices(): Promise<Record<CheckoutPlan, PlanPrice> | null> {
+export function priceIdFor(plan: CheckoutPlan): string | undefined {
+  switch (plan) {
+    case "assessment":
+      return env("STRIPE_PRICE_ASSESSMENT");
+    case "monthly":
+    case "tier1":
+      return env("STRIPE_PRICE_TIER_1") || env("STRIPE_PRICE_MONTHLY");
+    case "tier2":
+      return env("STRIPE_PRICE_TIER_2");
+    case "tier3":
+      return env("STRIPE_PRICE_TIER_3");
+    case "tier1_annual":
+      return env("STRIPE_PRICE_TIER_1_ANNUAL");
+    case "tier2_annual":
+      return env("STRIPE_PRICE_TIER_2_ANNUAL");
+    case "tier3_annual":
+      return env("STRIPE_PRICE_TIER_3_ANNUAL");
+  }
+}
+
+/** The plan a Checkout request names; "monthly" stays accepted as Starter monthly (a tab opened before the tiers). */
+export function parseCheckoutPlan(plan: unknown): CheckoutPlan {
+  if (typeof plan !== "string" || !CHECKOUT_PLANS.includes(plan as CheckoutPlan)) {
+    throw new RequestError(400, "Unknown plan");
+  }
+  return plan as CheckoutPlan;
+}
+
+export const TIER_NOT_OFFERED =
+  "That tier is not offered on this deployment yet. Write to Support.";
+
+/** Refuses (409) a tier or yearly plan whose Stripe price id is not set on this deployment. */
+export function assertPlanOffered(plan: CheckoutPlan): void {
+  if (!priceIdFor(plan)) throw new RequestError(409, TIER_NOT_OFFERED);
+}
+
+/**
+ * The tier a subscription's price stands for, or null when Precog does not
+ * know it. The legacy STRIPE_PRICE_MONTHLY is Starter only when it is also
+ * STRIPE_PRICE_TIER_1; otherwise it maps to null, so every subscription that
+ * ran before the tiers keeps 50 clients until its price changes in Stripe.
+ */
+export function tierForPrice(priceId: string | null): Tier | null {
+  if (!priceId) return null;
+  const tier1 = env("STRIPE_PRICE_TIER_1");
+  if (priceId === tier1 || priceId === env("STRIPE_PRICE_TIER_1_ANNUAL")) return 1;
+  if (priceId === env("STRIPE_PRICE_TIER_2") || priceId === env("STRIPE_PRICE_TIER_2_ANNUAL"))
+    return 2;
+  if (priceId === env("STRIPE_PRICE_TIER_3") || priceId === env("STRIPE_PRICE_TIER_3_ANNUAL"))
+    return 3;
+  return null;
+}
+
+/**
+ * The amounts of the prices the checkout buttons charge, so the buttons
+ * print what the customer pays: the Assessment and Starter monthly are
+ * required; each other tier and yearly price is read when its id is set and
+ * is null when it is not or Stripe could not read it. Cached for ten
+ * minutes; null when Stripe is not configured or does not answer. When
+ * Stripe fails, the last good prices keep serving while the module holds
+ * any, else the failure is cached for a minute, so a page anyone can load
+ * (sign-in) cannot drive a request to Stripe per visit.
+ */
+export async function loadPlanPrices(): Promise<PlanPrices | null> {
   if (priceCache && priceCache.expiresAt > Date.now()) return priceCache.prices;
   const assessmentId = env("STRIPE_PRICE_ASSESSMENT");
-  const monthlyId = env("STRIPE_PRICE_MONTHLY");
+  const monthlyId = priceIdFor("tier1");
   if (!assessmentId || !monthlyId || !env("STRIPE_SECRET_KEY")) return null;
+  const optional = (plan: CheckoutPlan): Promise<PlanPrice | null> => {
+    const id = priceIdFor(plan);
+    return id ? loadPrice(id).catch(() => null) : Promise.resolve(null);
+  };
   try {
-    const [assessment, monthly] = await Promise.all([
+    const [assessment, monthly, t1y, t2m, t2y, t3m, t3y] = await Promise.all([
       loadPrice(assessmentId),
       loadPrice(monthlyId),
+      optional("tier1_annual"),
+      optional("tier2"),
+      optional("tier2_annual"),
+      optional("tier3"),
+      optional("tier3_annual"),
     ]);
-    const prices = { assessment, monthly };
+    const prices: PlanPrices = {
+      assessment,
+      monthly,
+      tiers: {
+        1: { month: monthly, year: t1y },
+        2: { month: t2m, year: t2y },
+        3: { month: t3m, year: t3y },
+      },
+    };
     priceCache = { prices, expiresAt: Date.now() + PRICE_CACHE_MS };
     return prices;
   } catch {
@@ -54,14 +133,27 @@ export async function loadPlanPrices(): Promise<Record<CheckoutPlan, PlanPrice> 
 }
 
 /**
- * A Checkout Session for the fixed assessment (one payment) or the firm plan
- * (a subscription). The account id rides along so the webhook can attribute
- * the payment without a customer lookup. An account Stripe already knows
- * reuses its customer, so every subscription stays in one billing portal;
- * a first payment creates one, so a refund of it can be found later. The
- * idempotency key covers the request and the stored billing state
- * (`billingVersion`, which the webhook moves): a second click or tab before
- * the webhook lands gets the same session back instead of a second charge.
+ * A Checkout Session for the fixed assessment (one payment) or the Firm plan
+ * (a subscription on the chosen tier and interval). The account id rides
+ * along so the webhook can attribute the payment without a customer lookup.
+ * An account Stripe already knows reuses its customer, so every subscription
+ * stays in one billing portal; a first payment creates one, so a refund of it
+ * can be found later. Card and US bank account (ACH) are offered on both; an
+ * ACH Assessment completes unpaid and opens nothing until Stripe confirms the
+ * payment (checkout.session.async_payment_succeeded).
+ *
+ * A Firm plan Checkout first names a Stripe customer (creating one, keyed on
+ * the account, when none is stored; nothing is written here, the webhook
+ * stores it on completion) and keeps one open subscription Checkout per
+ * account: an open one for the same plan is handed back as it is, and every
+ * other open one is expired (expireOtherCheckouts), so a Starter Checkout
+ * left open in another tab cannot complete beside a Practice one.
+ *
+ * The idempotency key covers the request, the stored billing state
+ * (`billingVersion`, which the webhook moves), the hour, and the sessions
+ * this call expired: a second click or tab inside the hour gets the same
+ * session back instead of a second charge, and a session Stripe expired
+ * (after 24 hours, or by this call) is never handed back again.
  *
  * Stripe Tax prices the sale by the collected address, so the Stripe account
  * must have Stripe Tax activated and a registration for each state where
@@ -75,24 +167,35 @@ export async function createCheckoutSession(input: {
   billingVersion: string | null;
   plan: CheckoutPlan;
   origin: string;
+  /** The clock (ms), for the hour in the idempotency key; tests pass it. */
+  now?: number;
 }): Promise<{ url: string }> {
-  const price =
-    input.plan === "monthly" ? env("STRIPE_PRICE_MONTHLY") : env("STRIPE_PRICE_ASSESSMENT");
+  const price = priceIdFor(input.plan);
   if (!price) throw new Error("Stripe is not configured");
+  const subscription = isSubscriptionPlan(input.plan);
+  let customerId = input.customerId;
+  let expiredIds: string[] = [];
+  if (subscription) {
+    customerId ??= (await createCustomer({ userId: input.userId, email: input.email })).id;
+    const open = await expireOtherCheckouts({ customerId, userId: input.userId, plan: input.plan });
+    if (open.reuse) return { url: open.reuse };
+    expiredIds = open.expiredIds;
+  }
   const params = {
-    mode: input.plan === "monthly" ? "subscription" : "payment",
+    mode: subscription ? "subscription" : "payment",
     line_items: [{ price, quantity: 1 }],
     client_reference_id: input.userId,
     // Stripe refuses a request that names both.
-    ...(input.customerId
-      ? { customer: input.customerId, customer_update: { address: "auto", name: "auto" } }
+    ...(customerId
+      ? { customer: customerId, customer_update: { address: "auto", name: "auto" } }
       : { customer_email: input.email ?? undefined }),
     // Stripe refuses customer_creation alongside a customer.
-    ...(input.plan === "assessment" && !input.customerId ? { customer_creation: "always" } : {}),
+    ...(input.plan === "assessment" && !customerId ? { customer_creation: "always" } : {}),
     metadata: { userId: input.userId, plan: input.plan },
-    ...(input.plan === "monthly"
+    ...(subscription
       ? { subscription_data: { metadata: { userId: input.userId } } }
       : { payment_intent_data: { metadata: { userId: input.userId, plan: "assessment" } } }),
+    payment_method_types: ["card", "us_bank_account"],
     automatic_tax: { enabled: true },
     billing_address_collection: "required",
     tax_id_collection: { enabled: true },
@@ -100,9 +203,12 @@ export async function createCheckoutSession(input: {
     cancel_url: `${input.origin}/firm?billing=cancelled`,
     allow_promotion_codes: true,
   };
+  const hourBucket = Math.floor((input.now ?? Date.now()) / HOUR_MS);
   const digest = await crypto.subtle.digest(
     "SHA-256",
-    new TextEncoder().encode(`${input.billingVersion ?? "none"}\n${encodeStripeParams(params)}`),
+    new TextEncoder().encode(
+      `${input.billingVersion ?? "none"}\n${hourBucket}\n${expiredIds.join(",")}\n${encodeStripeParams(params)}`,
+    ),
   );
   const session = await stripeRequest<{ url: string | null }>(
     "POST",
@@ -112,6 +218,50 @@ export async function createCheckoutSession(input: {
   );
   if (!session.url) throw new Error("Stripe returned no checkout link");
   return { url: session.url };
+}
+
+const HOUR_MS = 3_600_000;
+
+/** "monthly" is the stale name of Starter monthly, so the two are one plan. */
+function samePlan(a: unknown, b: CheckoutPlan): boolean {
+  const norm = (plan: unknown) => (plan === "monthly" ? "tier1" : plan);
+  return norm(a) === norm(b);
+}
+
+/**
+ * The account's open subscription Checkouts on its customer: an open one for
+ * the same plan is handed back (`reuse`, its link); every other one the
+ * account started is expired, and their ids come back sorted for the
+ * idempotency key. Sessions another account started on the same customer
+ * are left alone.
+ */
+export async function expireOtherCheckouts(input: {
+  customerId: string;
+  userId: string;
+  plan: CheckoutPlan;
+}): Promise<{ reuse: string | null; expiredIds: string[] }> {
+  const list = await stripeRequest<{
+    data?: {
+      id: string;
+      url: string | null;
+      mode: string;
+      metadata?: Record<string, unknown> | null;
+    }[];
+  }>(
+    "GET",
+    `/checkout/sessions?customer=${encodeURIComponent(input.customerId)}&status=open&limit=10`,
+  );
+  const mine = (list.data ?? []).filter(
+    (s) => s.mode === "subscription" && s.metadata?.userId === input.userId,
+  );
+  const reuse = mine.find((s) => samePlan(s.metadata?.plan, input.plan) && s.url) ?? null;
+  const expiredIds: string[] = [];
+  for (const session of mine) {
+    if (session === reuse) continue;
+    await stripeRequest("POST", `/checkout/sessions/${encodeURIComponent(session.id)}/expire`);
+    expiredIds.push(session.id);
+  }
+  return { reuse: reuse?.url ?? null, expiredIds: expiredIds.sort() };
 }
 
 /** A Stripe customer for an account that has none yet (an Assessment paid before Checkout created one). */
@@ -323,4 +473,4 @@ async function stripeRequest<T>(
 const PRICE_CACHE_MS = 10 * 60 * 1000;
 /** How long a failed price read is remembered before Stripe is asked again. */
 const PRICE_ERROR_CACHE_MS = 60_000;
-let priceCache: { prices: Record<CheckoutPlan, PlanPrice> | null; expiresAt: number } | null = null;
+let priceCache: { prices: PlanPrices | null; expiresAt: number } | null = null;

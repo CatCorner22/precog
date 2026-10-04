@@ -93,6 +93,21 @@ describe("the weekly digest switch in the header", () => {
   });
 });
 
+describe("the sessions entry", () => {
+  it("offers Sessions beside the other account controls, opening a dialog", async () => {
+    const { SessionsControl, SESSIONS_ENTRY } = await import("./account-menu");
+    const html = renderToStaticMarkup(<SessionsControl disabled={false} />);
+    expect(SESSIONS_ENTRY.label).toBe("Sessions");
+    expect(html).toContain(">Sessions</button>");
+    expect(html).toContain('aria-haspopup="dialog"');
+    expect(html).toContain(
+      'title="See where this account is signed in, and sign out other sessions"',
+    );
+    // The dialog loads only when the entry is used.
+    expect(html).not.toContain("Signed-in sessions");
+  });
+});
+
 describe("the account deletion prompt", () => {
   it("says Stripe keeps its invoices and tax records, and that it cannot be undone", () => {
     expect(DELETE_ACCOUNT_PROMPT).toContain(

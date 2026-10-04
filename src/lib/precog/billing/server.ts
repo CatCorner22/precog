@@ -4,12 +4,14 @@ import { getSql } from "@/lib/db";
 import { RequestError, requireObject } from "@/lib/request-errors";
 import { checkoutRefusal, loadBillingAccount } from "../firm/billing-store";
 import { requireFirmRole } from "../firm/access.server";
-import type { CheckoutPlan } from "./stripe";
+import { isSubscriptionPlan, type CheckoutPlan } from "../firm/pricing";
 import {
   applyAssessmentCredit,
+  assertPlanOffered,
   createCheckoutSession,
   createPortalSession,
   loadPlanPrices,
+  parseCheckoutPlan,
   stripeConfigured,
 } from "./stripe.server";
 
@@ -37,16 +39,13 @@ export const getPlanPrices = createServerFn({ method: "GET" }).handler(async () 
 /** Starts Stripe Checkout for the firm owner; the webhook records the result. */
 export const startCheckout = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { plan: CheckoutPlan }) => {
-    const raw = requireObject(input);
-    if (raw.plan !== "assessment" && raw.plan !== "monthly") {
-      throw new RequestError(400, "Unknown plan");
-    }
-    return { plan: raw.plan as CheckoutPlan };
-  })
+  .validator((input: { plan: CheckoutPlan }) => ({
+    plan: parseCheckoutPlan(requireObject(input).plan),
+  }))
   .handler(async ({ context, data }) => {
     if (!stripeConfigured())
       throw new RequestError(409, "Billing is not connected on this deployment");
+    assertPlanOffered(data.plan);
     const sql = await getSql();
     await requireFirmRole(sql, context.userId, ["owner"]);
     const account = await loadBillingAccount(sql, context.userId);
@@ -58,10 +57,9 @@ export const startCheckout = createServerFn({ method: "POST" })
     const email = users[0]?.email ?? null;
     // The first Firm plan Checkout of an Assessment payer: the fee goes onto
     // the Stripe customer balance first, so the plan's invoices draw it down.
-    const credit =
-      data.plan === "monthly"
-        ? await applyAssessmentCredit(sql, { userId: context.userId, email, account })
-        : { customerId: account?.stripeCustomerId ?? null, creditedCents: null };
+    const credit = isSubscriptionPlan(data.plan)
+      ? await applyAssessmentCredit(sql, { userId: context.userId, email, account })
+      : { customerId: account?.stripeCustomerId ?? null, creditedCents: null };
     // A posted credit moved the row, so the session's idempotency key moves too.
     const current =
       credit.creditedCents === null ? account : await loadBillingAccount(sql, context.userId);

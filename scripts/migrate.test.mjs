@@ -176,6 +176,44 @@ describe("migrate.mjs", () => {
     expect(run.stderr).not.toContain("Reminder email is half set up");
   });
 
+  it("warns on production when the tier or yearly prices are half set", () => {
+    const run = migrate({
+      ...PRODUCTION,
+      STRIPE_PRICE_TIER_1: "price_t1",
+      STRIPE_PRICE_TIER_2_ANNUAL: "price_t2y",
+      STRIPE_PRICE_TIER_3_ANNUAL: "price_t3y",
+    });
+    expect(run.stderr).toContain(
+      "Firm plan tiers is half set up: STRIPE_PRICE_TIER_2, STRIPE_PRICE_TIER_3 not set.",
+    );
+    expect(run.stderr).toContain(
+      "Yearly prices is half set up: STRIPE_PRICE_TIER_1_ANNUAL not set.",
+    );
+    // None of them set: the tiers are simply off.
+    expect(migrate(PRODUCTION).stderr).not.toMatch(/Firm plan tiers|Yearly prices/);
+  });
+
+  it("warns on production when DATABASE_URL is Neon's direct host, not the pooled one", () => {
+    const warning =
+      "DATABASE_URL is Neon's direct host. Use the pooled host (its name ends in -pooler): Precog refuses the direct host in production.";
+    // pg connects to the ?host= address (refused at once), so the run ends fast
+    // after the warnings print; the warning reads the URL's own host.
+    const direct = migrate({
+      ...PRODUCTION,
+      DATABASE_URL:
+        "postgresql://nobody@ep-quiet-sea-123456.us-east-2.aws.neon.tech:9/none?host=127.0.0.1",
+    });
+    expect(direct.stderr).toContain(warning);
+    const pooled = migrate({
+      ...PRODUCTION,
+      DATABASE_URL:
+        "postgresql://nobody@ep-quiet-sea-123456-pooler.us-east-2.aws.neon.tech:9/none?host=127.0.0.1",
+    });
+    expect(pooled.stderr).not.toContain("Neon's direct host");
+    // CI's local database is not Neon at all.
+    expect(migrate(PRODUCTION).stderr).not.toContain("Neon's direct host");
+  });
+
   it("warns on production when Resend is set without its webhook secret", () => {
     const resend = { ...PRODUCTION, RESEND_API_KEY: "re_test", EMAIL_FROM: "x@precog.example" };
     const unsigned = migrate(resend);

@@ -162,6 +162,74 @@ describe("grokChat", () => {
     error.mockRestore();
   });
 
+  it("hands onUsage the same line it logs, on success and on failure", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const onUsage = vi.fn();
+    const options = {
+      messages: [{ role: "user" as const, content: "hi" }],
+      maxTokens: 10,
+      temperature: 0.2,
+      feature: "coach",
+      onUsage,
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "answer" } }],
+          model: "grok-test",
+          usage: { prompt_tokens: 12, completion_tokens: 4, total_tokens: 16 },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await grokChat("test-key", options);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("busy", { status: 503 })));
+    await grokChat("test-key", options);
+
+    const logged = info.mock.calls.map((call) =>
+      JSON.parse(String(call[0]).slice("[grok] usage ".length)),
+    );
+    expect(onUsage.mock.calls.map((c) => c[0])).toEqual(logged);
+    expect(onUsage.mock.calls[0][0]).toMatchObject({
+      feature: "coach",
+      model: "grok-test",
+      promptTokens: 12,
+      completionTokens: 4,
+      outcome: "ok",
+    });
+    expect(onUsage.mock.calls[1][0]).toMatchObject({ outcome: "http_503", promptTokens: null });
+    // The callback stays local: the request body carries no extra field.
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(init.body))).not.toHaveProperty("onUsage");
+    info.mockRestore();
+    error.mockRestore();
+  });
+
+  it("keeps its answer when onUsage throws", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ choices: [{ message: { content: "fine" } }] }), {
+          status: 200,
+        }),
+      ),
+    );
+    await expect(
+      grokChat("test-key", {
+        messages: [{ role: "user", content: "hi" }],
+        maxTokens: 10,
+        temperature: 0.2,
+        onUsage: () => {
+          throw new Error("recorder down");
+        },
+      }),
+    ).resolves.toMatchObject({ text: "fine" });
+    info.mockRestore();
+  });
+
   it("only sends response_format for JSON requests", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {

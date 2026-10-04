@@ -1,5 +1,14 @@
-import { describe, expect, it } from "vitest";
-import { commercialToolsOpen, planToStore } from "./billing-store";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { openTestDb, type TestDb } from "@/test/pglite";
+import {
+  commercialToolsOpen,
+  isHandMarked,
+  loadBillingAccount,
+  NO_RUNNING_SUBSCRIPTION,
+  planToStore,
+  setStripeCustomer,
+} from "./billing-store";
+import { saveFirm } from "./store";
 
 describe("planToStore", () => {
   it("ignores the client's plan while Stripe is connected", () => {
@@ -114,5 +123,65 @@ describe("commercialToolsOpen", () => {
         assessmentRefundedAt: "2026-09-20T00:00:00.000Z",
       }),
     ).toBe(true);
+  });
+});
+
+describe("setStripeCustomer", () => {
+  let db: TestDb;
+  beforeAll(async () => {
+    db = await openTestDb();
+  }, 60_000);
+  afterAll(async () => {
+    await db.close();
+  });
+  beforeEach(async () => {
+    await db.clear("billing_accounts", "firm_members", "firms", '"user"');
+    for (const id of ["owner", "other", "member"]) await db.seedUser(id, `${id}@firm.test`);
+    await saveFirm(db.sql, "owner", "North Advisors", "monthly");
+    await db.pg.exec(
+      `insert into firm_members (firm_user_id, member_user_id, role) values ('owner', 'member', 'preparer')`,
+    );
+  });
+
+  const customerOf = async (userId: string) =>
+    (await loadBillingAccount(db.sql, userId))?.stripeCustomerId ?? null;
+
+  it("links a customer, then says unchanged for the same one", async () => {
+    expect(await isHandMarked(db.sql, "owner")).toBe(true);
+    expect(await setStripeCustomer(db.sql, "owner", "cus_1")).toBe("linked");
+    expect(await customerOf("owner")).toBe("cus_1");
+    // The new row ends the hand-marked exception.
+    expect(await isHandMarked(db.sql, "owner")).toBe(false);
+    expect(await setStripeCustomer(db.sql, "owner", "cus_1")).toBe("unchanged");
+  });
+
+  it("refuses a customer another account holds, and another customer without Replace", async () => {
+    await setStripeCustomer(db.sql, "other", "cus_other");
+    await expect(setStripeCustomer(db.sql, "owner", "cus_other")).rejects.toMatchObject({
+      status: 409,
+      message: "That customer belongs to another account in Precog.",
+    });
+    await setStripeCustomer(db.sql, "owner", "cus_1");
+    await expect(setStripeCustomer(db.sql, "owner", "cus_2")).rejects.toMatchObject({
+      status: 409,
+      message: "This account already has Stripe customer cus_1. Tick Replace to link another.",
+    });
+    expect(await setStripeCustomer(db.sql, "owner", "cus_2", { replace: true })).toBe("linked");
+    expect(await customerOf("owner")).toBe("cus_2");
+  });
+
+  it("refuses a member of a firm who is not its owner", async () => {
+    await expect(setStripeCustomer(db.sql, "member", "cus_m")).rejects.toMatchObject({
+      status: 409,
+      message:
+        "member@firm.test is a member of North Advisors, not its owner. Link the firm owner's account.",
+    });
+    expect(await customerOf("member")).toBeNull();
+  });
+
+  it("words the no-running-subscription refusal the script and the operator page share", () => {
+    expect(NO_RUNNING_SUBSCRIPTION("cus_1")).toBe(
+      "Stripe customer cus_1 has no running subscription. Create the subscription in Stripe first, then link.",
+    );
   });
 });

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { FirmBilling } from "./firm-billing";
 import type { BillingAccount } from "@/lib/precog/firm/billing-store";
 import { entitlementsFor, type Entitlements } from "@/lib/precog/firm/entitlements";
-import { closedToolsNote, planAmounts } from "@/lib/precog/firm/pricing";
+import { closedToolsNote, planAmounts, type PlanPrices } from "@/lib/precog/firm/pricing";
 import { BILLING_TERMS_SENTENCE } from "@/lib/precog/firm/plan-contents";
 
 vi.mock("@/lib/precog/billing/server", () => ({
@@ -16,9 +16,15 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
-const prices = {
+const starter = { amount: 299, currency: "usd", interval: "month" };
+const prices: PlanPrices = {
   assessment: { amount: 1000, currency: "usd", interval: null },
-  monthly: { amount: 299, currency: "usd", interval: "month" },
+  monthly: starter,
+  tiers: {
+    1: { month: starter, year: { amount: 2990, currency: "usd", interval: "year" } },
+    2: { month: { amount: 599, currency: "usd", interval: "month" }, year: null },
+    3: { month: null, year: null },
+  },
 };
 
 function account(over: Partial<BillingAccount>): BillingAccount {
@@ -37,6 +43,7 @@ function account(over: Partial<BillingAccount>): BillingAccount {
     assessmentCreditUsedAt: null,
     assessmentFeeCents: null,
     assessmentCreditCents: null,
+    subscriptionPriceId: null,
     assessmentCreditReversalFailedAt: null,
     updatedAt: "2026-10-01T00:00:00.000Z",
     ...over,
@@ -74,7 +81,7 @@ describe("FirmBilling with Stripe connected", () => {
   it("prints the refund and tax terms under the Checkout buttons", () => {
     const html = render(null);
     expect(html).toContain(
-      "The Firm plan renews until you cancel it in Manage billing; cancelling keeps access to the end of the paid period, and a started month is not refunded. The Assessment is not refunded once a report version is locked. Prices are before sales tax, which Checkout adds for your billing address. See the Terms.",
+      "The Firm plan renews until you cancel it in Manage billing; cancelling keeps access to the end of the paid period, and a started month or year is not refunded. The Assessment is not refunded once a report version is locked. Prices are before sales tax, which Checkout adds for your billing address. See the Terms.",
     );
     expect(html).toContain(BILLING_TERMS_SENTENCE);
     expect(html).toContain("Pay for the assessment ($1,000)");
@@ -218,16 +225,79 @@ describe("FirmBilling with Stripe connected", () => {
 
   it("says what the paid plans open in the closed-tools note, with Stripe's amounts once known", () => {
     expect(closedToolsNote(planAmounts(true, prices), free)).toBe(
-      "The QuickBooks link, locked report versions, firm members, owner reminder emails and more than one client business are part of the Firm plan ($299 a month). The Assessment ($1,000) covers one client with locked versions and the QuickBooks link for 90 days from payment. The Monthly review on each business's own screen stays open.",
+      "The QuickBooks link, locked report versions, firm members, owner reminder emails and more than one client business are part of the Firm plan (from $299 a month). The Assessment ($1,000) covers one client with locked versions and the QuickBooks link for 90 days from payment. The Monthly review on each business's own screen stays open.",
     );
     expect(closedToolsNote(planAmounts(true, null), free)).toBe(
       "The QuickBooks link, locked report versions, firm members, owner reminder emails and more than one client business are part of the Firm plan. The Assessment covers one client with locked versions and the QuickBooks link for 90 days from payment. The Monthly review on each business's own screen stays open.",
     );
     const ended = { plan: "free" as const, assessmentEndedAt: "2027-01-03T00:00:00.000Z" };
     expect(closedToolsNote(planAmounts(true, prices), ended)).toBe(
-      "Your Assessment's 90 days ended on 2027-01-03. The QuickBooks link and new locked versions are closed; every locked version you already hold stays. Start the Firm plan ($299 a month) on this page. The Monthly review on each business's own screen stays open.",
+      "Your Assessment's 90 days ended on 2027-01-03. The QuickBooks link and new locked versions are closed; every locked version you already hold stays. Start the Firm plan (from $299 a month) on this page. The Monthly review on each business's own screen stays open.",
     );
     expect(closedToolsNote(null, ended)).not.toContain("$");
+  });
+
+  const firmOn = (tier: 1 | 2 | 3 | null, clientCount?: number) => ({
+    ...entitlementsFor({
+      stripeConfigured: true,
+      firmPlan: "monthly",
+      billing: {
+        subscriptionStatus: "active",
+        pastDueSince: null,
+        assessmentPaidAt: null,
+        assessmentRefundedAt: null,
+      },
+      now: new Date("2026-12-01T00:00:00.000Z"),
+      tier,
+    }),
+    ...(clientCount === undefined ? {} : { clientCount }),
+  });
+  const active = account({ subscriptionId: "sub_1", subscriptionStatus: "active" });
+
+  it("names the tier in the current plan and counts the clients against its limit", () => {
+    const html = text(render(active, true, firmOn(1, 4)));
+    expect(html).toContain("Current plan Firm plan · Starter, up to 5 client businesses");
+    expect(html).toContain("4 of 5 client businesses");
+    expect(html).not.toContain("Move up a tier");
+    expect(text(render(active, true, firmOn(2, 3)))).toContain(
+      "Firm plan · Practice, up to 20 client businesses",
+    );
+    // An unknown tier keeps the plain label and its 50.
+    const unknown = text(render(active, true, firmOn(null, 7)));
+    expect(unknown).toContain("Current plan Firm plan Assessment paid");
+    expect(unknown).toContain("7 of 50 client businesses");
+    // No count is printed until the page knows it.
+    expect(text(render(active, true, firmOn(1)))).not.toContain("client businesses ·");
+  });
+
+  it("says how to get more clients at the tier's limit, for the owner and for a member", () => {
+    expect(text(render(active, true, firmOn(1, 5)))).toContain(
+      "5 of 5 client businesses · Move up a tier in Manage billing.",
+    );
+    expect(text(render(active, false, firmOn(2, 20)))).toContain(
+      "20 of 20 client businesses · Ask the firm owner to move up a tier.",
+    );
+    // The top tier has nowhere to move up to.
+    const top = text(render(active, true, firmOn(3, 50)));
+    expect(top).toContain("50 of 50 client businesses");
+    expect(top).not.toContain("Move up a tier");
+  });
+
+  it("starts the Firm plan with a tier and a billing choice, Starter monthly by default", () => {
+    const html = render(null);
+    expect(html).toContain(">Tier<");
+    expect(html).toContain(">Billing<");
+    for (const option of [
+      '<option value="1" selected="">Starter (1–5 clients)</option>',
+      '<option value="2">Practice (6–20 clients)</option>',
+      '<option value="month" selected="">Monthly</option>',
+      '<option value="year">Yearly (ten months&#x27; price)</option>',
+    ]) {
+      expect(html).toContain(option);
+    }
+    // A tier with no price for the chosen interval is not offered.
+    expect(html).toContain('<option value="3" disabled="">Firm (21–50 clients)</option>');
+    expect(html).toContain("Start the Firm plan ($299 a month)");
   });
 
   it("prints no figure while Stripe's prices are unknown", () => {

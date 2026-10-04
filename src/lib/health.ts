@@ -12,7 +12,7 @@ const NO_STORE = { "cache-control": "no-store" } as const;
 
 export async function healthResponse(
   checkDatabase: () => Promise<void>,
-  extras?: () => Promise<Record<string, boolean>>,
+  extras?: () => Promise<Record<string, boolean | number | null>>,
 ): Promise<Response> {
   const startedAt = Date.now();
   try {

@@ -13,8 +13,12 @@ import {
 import { applyBillingEvent, retryFailedCreditReversals } from "./webhook";
 import {
   applyAssessmentCredit,
+  assertPlanOffered,
   createCheckoutSession,
   deleteCustomer,
+  parseCheckoutPlan,
+  priceIdFor,
+  tierForPrice,
   updateCustomer,
   updateSubscriptionMetadata,
 } from "./stripe.server";
@@ -26,6 +30,9 @@ import {
   type BillingAccount,
 } from "../firm/billing-store";
 import { loadFirmFor, saveFirm } from "../firm/store";
+
+const report = vi.hoisted(() => vi.fn(async (_error: unknown, _at?: string | null) => undefined));
+vi.mock("@/lib/observability/report.server", () => ({ reportServerError: report }));
 
 describe("stripe signatures", () => {
   const secret = "whsec_test";
@@ -833,6 +840,105 @@ describe("event order", () => {
       subscriptionStatus: "active",
     });
   });
+
+  const priced = (id: string, sub: string, status: string, created: number, price?: string) =>
+    parseStripeEvent(
+      JSON.stringify({
+        id,
+        type: "customer.subscription.updated",
+        created,
+        data: {
+          object: {
+            id: sub,
+            status,
+            customer: "cus_1",
+            metadata: { userId: "owner" },
+            ...(price ? { items: { data: [{ price: { id: price } }] } } : {}),
+          },
+        },
+      }),
+    )!;
+
+  it("stores the subscription's price, and keeps it when a later event names none", async () => {
+    expect(billingChangeFor(priced("p0", "sub_1", "active", 100, "price_t2"))).toMatchObject({
+      kind: "subscription",
+      priceId: "price_t2",
+    });
+    await applyBillingEvent(db.sql, priced("p1", "sub_1", "active", 100, "price_t2"));
+    expect((await loadBillingAccount(db.sql, "owner"))?.subscriptionPriceId).toBe("price_t2");
+    await applyBillingEvent(db.sql, priced("p2", "sub_1", "active", 200));
+    expect((await loadBillingAccount(db.sql, "owner"))?.subscriptionPriceId).toBe("price_t2");
+    // A move to another tier in the Billing Portal names the new price.
+    await applyBillingEvent(db.sql, priced("p3", "sub_1", "active", 300, "price_t3y"));
+    expect((await loadBillingAccount(db.sql, "owner"))?.subscriptionPriceId).toBe("price_t3y");
+  });
+
+  it("gives a new subscription no price from the cancelled one before its own price arrives", async () => {
+    vi.stubEnv("STRIPE_PRICE_TIER_3", "price_t3");
+    try {
+      await applyBillingEvent(db.sql, priced("n1", "sub_1", "active", 100, "price_t3"));
+      await applyBillingEvent(db.sql, priced("n2", "sub_1", "canceled", 200));
+      expect((await loadBillingAccount(db.sql, "owner"))?.subscriptionPriceId).toBe("price_t3");
+      // The completion for the new subscription arrives before its created event.
+      await applyBillingEvent(db.sql, {
+        id: "n3",
+        type: "checkout.session.completed",
+        created: 300,
+        data: {
+          object: {
+            mode: "subscription",
+            subscription: "sub_2",
+            customer: "cus_1",
+            client_reference_id: "owner",
+          },
+        },
+      });
+      const account = await loadBillingAccount(db.sql, "owner");
+      expect(account).toMatchObject({ subscriptionId: "sub_2", subscriptionPriceId: null });
+      // An unknown price keeps the 50-client limit, never the old tier's.
+      expect(tierForPrice(account?.subscriptionPriceId ?? null)).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("reports a second subscription completed beside the running one, once, and keeps the first", async () => {
+    report.mockClear();
+    await applyBillingEvent(db.sql, priced("s1", "sub_1", "active", 100, "price_t1"));
+    const second = {
+      id: "s2",
+      type: "checkout.session.completed",
+      created: 200,
+      data: {
+        object: {
+          mode: "subscription",
+          subscription: "sub_2",
+          customer: "cus_1",
+          client_reference_id: "owner",
+        },
+      },
+    };
+    expect(await applyBillingEvent(db.sql, second)).toBe("applied");
+    expect(await applyBillingEvent(db.sql, second)).toBe("duplicate");
+    // The second subscription's own created and renewal events report nothing more.
+    await applyBillingEvent(
+      db.sql,
+      subEvent("s2c", "customer.subscription.created", "sub_2", "active", 210),
+    );
+    await applyBillingEvent(db.sql, priced("s2u", "sub_2", "active", 220, "price_t2"));
+    expect(report).toHaveBeenCalledTimes(1);
+    const [error, where] = report.mock.calls[0] as [Error, string];
+    expect(where).toBe("billing-second-subscription");
+    expect(error.message).toBe("second subscription sub_2 beside sub_1 for account owner");
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      subscriptionId: "sub_1",
+      subscriptionStatus: "active",
+      subscriptionPriceId: "price_t1",
+    });
+    // The duplicate's own cancellation is not news.
+    await applyBillingEvent(db.sql, priced("s3", "sub_2", "canceled", 300));
+    expect(report).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("starting checkout", () => {
@@ -851,6 +957,7 @@ describe("starting checkout", () => {
     assessmentCreditUsedAt: null,
     assessmentFeeCents: null,
     assessmentCreditCents: null,
+    subscriptionPriceId: null,
     assessmentCreditReversalFailedAt: null,
     updatedAt: "2026-10-01T00:00:00.000Z",
     ...over,
@@ -863,6 +970,12 @@ describe("starting checkout", () => {
     );
     expect(checkoutRefusal(account({ subscriptionStatus: "past_due" }), "monthly")).not.toBeNull();
     expect(checkoutRefusal(account({ subscriptionStatus: "canceled" }), "monthly")).toBeNull();
+    // Every tier and interval is the same Firm plan.
+    for (const plan of ["tier1", "tier2", "tier3_annual"]) {
+      expect(checkoutRefusal(account({ subscriptionStatus: "active" }), plan)).toBe(
+        "Your firm plan is already active. Use Manage billing to change it.",
+      );
+    }
     expect(checkoutRefusal(account({ subscriptionStatus: "active" }), "assessment")).toBeNull();
     expect(
       checkoutRefusal(account({ assessmentPaidAt: "2026-09-01T00:00:00.000Z" }), "assessment"),
@@ -881,26 +994,86 @@ describe("starting checkout", () => {
   describe("the Stripe request", () => {
     const calls: { url: string; method: string; body: string; headers: Record<string, string> }[] =
       [];
-    let answer: () => Response;
+    /**
+     * Stripe's Checkout as far as these tests need it: a create returns the
+     * session its idempotency key already made, the list answers the open
+     * ones, and expire closes one.
+     */
+    type FakeSession = {
+      id: string;
+      url: string;
+      mode: string;
+      status: "open" | "expired";
+      customer: string | null;
+      metadata: Record<string, string>;
+    };
+    let sessions: FakeSession[] = [];
+    let byKey = new Map<string, FakeSession>();
+    const stripeFake = (url: string, method: string, body: string, key: string | undefined) => {
+      const path = url.replace("https://api.stripe.com/v1", "");
+      if (method === "POST" && path === "/customers")
+        return new Response(JSON.stringify({ id: "cus_new" }));
+      if (method === "GET" && path.startsWith("/checkout/sessions?")) {
+        const customer = new URL(url).searchParams.get("customer");
+        const open = sessions.filter((x) => x.status === "open" && x.customer === customer);
+        return new Response(JSON.stringify({ data: open }));
+      }
+      const expire = path.match(/^\/checkout\/sessions\/(.+)\/expire$/);
+      if (method === "POST" && expire) {
+        const session = sessions.find((x) => x.id === expire[1]);
+        if (session) session.status = "expired";
+        return new Response(JSON.stringify(session ?? {}));
+      }
+      if (method === "POST" && path === "/checkout/sessions") {
+        const known = key ? byKey.get(key) : undefined;
+        if (known) return new Response(JSON.stringify(known));
+        const form = new URLSearchParams(body);
+        const id = `cs_${sessions.length + 1}`;
+        const session: FakeSession = {
+          id,
+          url: `https://checkout.example/${id}`,
+          mode: form.get("mode") ?? "",
+          status: "open",
+          customer: form.get("customer"),
+          metadata: {
+            userId: form.get("metadata[userId]") ?? "",
+            plan: form.get("metadata[plan]") ?? "",
+          },
+        };
+        sessions.push(session);
+        if (key) byKey.set(key, session);
+        return new Response(JSON.stringify(session));
+      }
+      return new Response(JSON.stringify({ url: "https://checkout.example/s" }));
+    };
+    let answer: (url: string, method: string, body: string, key?: string) => Response;
     beforeEach(() => {
       calls.length = 0;
-      answer = () => new Response(JSON.stringify({ url: "https://checkout.example/s" }));
+      sessions = [];
+      byKey = new Map();
+      answer = stripeFake;
       vi.stubEnv("STRIPE_SECRET_KEY", "sk_test");
       vi.stubEnv("STRIPE_PRICE_ASSESSMENT", "price_a");
       vi.stubEnv("STRIPE_PRICE_MONTHLY", "price_m");
       vi.stubGlobal(
         "fetch",
         vi.fn(async (url: string, init: RequestInit) => {
+          const headers = init.headers as Record<string, string>;
           calls.push({
             url,
             method: String(init.method),
             body: String(init.body),
-            headers: init.headers as Record<string, string>,
+            headers,
           });
-          return answer();
+          return answer(url, String(init.method), String(init.body), headers["idempotency-key"]);
         }),
       );
     });
+    const creates = () =>
+      calls.filter(
+        (c) => c.method === "POST" && c.url === "https://api.stripe.com/v1/checkout/sessions",
+      );
+    const expires = () => calls.filter((c) => c.url.endsWith("/expire"));
     afterEach(() => {
       vi.unstubAllEnvs();
       vi.unstubAllGlobals();
@@ -933,27 +1106,157 @@ describe("starting checkout", () => {
 
     it("reuses the stored Stripe customer instead of the email", async () => {
       await createCheckoutSession({ ...input, customerId: "cus_1" });
-      await createCheckoutSession(input);
-      expect(calls[0].body).toContain("customer=cus_1");
-      expect(calls[0].body).not.toContain("customer_email");
-      expect(calls[1].body).toContain("customer_email=o%40example.com");
+      await createCheckoutSession({ ...input, plan: "assessment" });
+      expect(creates()[0].body).toContain("customer=cus_1");
+      expect(creates()[0].body).not.toContain("customer_email");
+      expect(creates()[1].body).toContain("customer_email=o%40example.com");
     });
 
-    it("sends the same idempotency key until the stored billing state moves", async () => {
+    it("names a new customer on a Firm plan Checkout for an account Stripe does not know", async () => {
       await createCheckoutSession(input);
-      await createCheckoutSession(input);
-      await createCheckoutSession({ ...input, billingVersion: "v2" });
-      await createCheckoutSession({ ...input, plan: "assessment" });
-      const keys = calls.map((c) => c.headers["idempotency-key"]);
+      const customer = calls.find((c) => c.url === "https://api.stripe.com/v1/customers");
+      expect(customer?.headers["idempotency-key"]).toBe("customer-owner");
+      expect(customer?.body).toContain("metadata%5BuserId%5D=owner");
+      expect(creates()[0].body).toContain("customer=cus_new");
+      expect(creates()[0].body).not.toContain("customer_email");
+    });
+
+    it("sends the same idempotency key until the stored billing state moves or the hour turns", async () => {
+      // Stripe hands the same session back for the same key, so the open list
+      // stays empty here and every call reaches the create.
+      answer = (url, method, body) =>
+        url.includes("/checkout/sessions?")
+          ? new Response(JSON.stringify({ data: [] }))
+          : stripeFake(url, method, body, undefined);
+      const now = Date.parse("2026-10-04T10:15:00Z");
+      await createCheckoutSession({ ...input, now });
+      await createCheckoutSession({ ...input, now: now + 30 * 60_000 });
+      await createCheckoutSession({ ...input, billingVersion: "v2", now });
+      await createCheckoutSession({ ...input, plan: "assessment", now });
+      await createCheckoutSession({ ...input, now: now + 60 * 60_000 });
+      const keys = creates().map((c) => c.headers["idempotency-key"]);
       expect(keys[0]).toMatch(/^checkout-[0-9a-f]{64}$/);
       expect(keys[1]).toBe(keys[0]);
-      expect(new Set(keys).size).toBe(3);
+      // A new key in the next hour, so a session Stripe expired is never handed back.
+      expect(keys[4]).not.toBe(keys[0]);
+      expect(new Set(keys).size).toBe(4);
+    });
+
+    it("charges the tier and interval chosen and offers card and US bank account", async () => {
+      vi.stubEnv("STRIPE_PRICE_TIER_2_ANNUAL", "price_t2y");
+      await createCheckoutSession({ ...input, plan: "tier2_annual" });
+      await createCheckoutSession({ ...input, plan: "assessment" });
+      const [annual, assessment] = creates();
+      expect(annual.body).toContain("mode=subscription");
+      expect(annual.body).toContain("line_items%5B0%5D%5Bprice%5D=price_t2y");
+      expect(annual.body).toContain("metadata%5Bplan%5D=tier2_annual");
+      for (const call of [annual, assessment]) {
+        expect(call.body).toContain(
+          "payment_method_types%5B0%5D=card&payment_method_types%5B1%5D=us_bank_account",
+        );
+      }
+      expect(assessment.body).toContain("mode=payment");
+    });
+
+    it("keeps one open Firm plan Checkout: another tier expires the first", async () => {
+      vi.stubEnv("STRIPE_PRICE_TIER_2", "price_t2");
+      const now = Date.parse("2026-10-04T10:00:00Z");
+      const at = (minutes: number) => now + minutes * 60_000;
+      const starter = await createCheckoutSession({
+        ...input,
+        customerId: "cus_1",
+        plan: "tier1",
+        now: at(0),
+      });
+      const practice = await createCheckoutSession({
+        ...input,
+        customerId: "cus_1",
+        plan: "tier2",
+        now: at(5),
+      });
+      expect(expires()).toHaveLength(1);
+      expect(expires()[0].url).toBe("https://api.stripe.com/v1/checkout/sessions/cs_1/expire");
+      expect(creates()).toHaveLength(2);
+      expect(creates()[0].headers["idempotency-key"]).not.toBe(
+        creates()[1].headers["idempotency-key"],
+      );
+      expect(sessions.filter((x) => x.status === "open").map((x) => x.url)).toEqual([practice.url]);
+      expect(starter.url).not.toBe(practice.url);
+      // Back to Starter inside the hour: a fresh session, not the expired one.
+      const again = await createCheckoutSession({
+        ...input,
+        customerId: "cus_1",
+        plan: "tier1",
+        now: at(10),
+      });
+      expect(creates()).toHaveLength(3);
+      expect(again.url).not.toBe(starter.url);
+      expect(sessions.filter((x) => x.status === "open").map((x) => x.url)).toEqual([again.url]);
+    });
+
+    it("hands back the open Checkout for the same plan without creating one", async () => {
+      const first = await createCheckoutSession({ ...input, customerId: "cus_1", plan: "tier1" });
+      // A tab opened before the tiers asks for "monthly", the same Starter plan.
+      const second = await createCheckoutSession({ ...input, customerId: "cus_1" });
+      expect(second.url).toBe(first.url);
+      expect(creates()).toHaveLength(1);
+      expect(expires()).toHaveLength(0);
+    });
+
+    it("lists and expires nothing for an Assessment", async () => {
+      await createCheckoutSession({ ...input, customerId: "cus_1", plan: "assessment" });
+      expect(calls.map((c) => [c.method, c.url])).toEqual([
+        ["POST", "https://api.stripe.com/v1/checkout/sessions"],
+      ]);
+    });
+
+    it("picks each plan's price and maps a price back to its tier", () => {
+      vi.stubEnv("STRIPE_PRICE_TIER_2", "price_t2");
+      vi.stubEnv("STRIPE_PRICE_TIER_3", "price_t3");
+      vi.stubEnv("STRIPE_PRICE_TIER_1_ANNUAL", "price_t1y");
+      // No Starter price yet: Starter runs on the legacy price, which keeps 50.
+      expect(priceIdFor("monthly")).toBe("price_m");
+      expect(priceIdFor("tier1")).toBe("price_m");
+      expect(tierForPrice("price_m")).toBeNull();
+      vi.stubEnv("STRIPE_PRICE_TIER_1", "price_t1");
+      expect(priceIdFor("monthly")).toBe("price_t1");
+      expect(priceIdFor("tier1")).toBe("price_t1");
+      expect(priceIdFor("tier1_annual")).toBe("price_t1y");
+      expect(priceIdFor("tier2_annual")).toBeUndefined();
+      expect(tierForPrice("price_t1")).toBe(1);
+      expect(tierForPrice("price_t1y")).toBe(1);
+      expect(tierForPrice("price_t2")).toBe(2);
+      expect(tierForPrice("price_t3")).toBe(3);
+      expect(tierForPrice("price_m")).toBeNull();
+      expect(tierForPrice("price_other")).toBeNull();
+      expect(tierForPrice(null)).toBeNull();
+      vi.stubEnv("STRIPE_PRICE_TIER_1", "price_m");
+      expect(tierForPrice("price_m")).toBe(1);
+    });
+
+    it("refuses an unknown plan and a tier this deployment has no price for", () => {
+      expect(parseCheckoutPlan("tier2_annual")).toBe("tier2_annual");
+      expect(parseCheckoutPlan("monthly")).toBe("monthly");
+      for (const bad of ["enterprise", "", 3, undefined]) {
+        expect(() => parseCheckoutPlan(bad)).toThrow(
+          expect.objectContaining({ status: 400, message: "Unknown plan" }),
+        );
+      }
+      expect(() => assertPlanOffered("tier3")).toThrow(
+        expect.objectContaining({
+          status: 409,
+          message: "That tier is not offered on this deployment yet. Write to Support.",
+        }),
+      );
+      expect(() => assertPlanOffered("monthly")).not.toThrow();
+      expect(() => assertPlanOffered("assessment")).not.toThrow();
     });
 
     it("collects the billing address and tax id and prices the sale with Stripe Tax", async () => {
       await createCheckoutSession({ ...input, plan: "assessment" });
       await createCheckoutSession({ ...input, plan: "assessment", customerId: "cus_1" });
       await createCheckoutSession(input);
+      const calls = creates();
       for (const call of calls) {
         expect(call.body).toContain("automatic_tax%5Benabled%5D=true");
         expect(call.body).toContain("billing_address_collection=required");
@@ -1067,6 +1370,27 @@ describe("the Assessment credit", () => {
     // A second Checkout makes no balance call.
     expect(await credit()).toEqual({ customerId: "cus_1", creditedCents: null });
     expect(balanceCalls()).toHaveLength(1);
+  });
+
+  it("names a Stripe customer for a first Firm plan Checkout without storing anything", async () => {
+    // startCheckout's order: the credit (none applies to an account with no
+    // row), then the session, which names a customer keyed on the account.
+    const { customerId } = await credit();
+    expect(customerId).toBeNull();
+    await createCheckoutSession({
+      userId: "owner",
+      email: "o@example.com",
+      customerId,
+      billingVersion: null,
+      plan: "tier1",
+      origin: "https://precog.example",
+    });
+    const customers = calls.filter((c) => c.url.endsWith("/customers"));
+    expect(customers).toHaveLength(1);
+    expect(customers[0].headers["idempotency-key"]).toBe("customer-owner");
+    // The webhook stores the customer on completion; an abandoned Checkout
+    // leaves no row, so a firm marked by hand keeps its exception.
+    expect(await loadBillingAccount(db.sql, "owner")).toBeNull();
   });
 
   it("gives a cancelled and restarted subscription no credit", async () => {
@@ -1254,10 +1578,11 @@ describe("loading plan prices", () => {
       }),
     );
   let fail = false;
-  const fetchMock = vi.fn(async (url: string) => {
+  const defaultFetch = async (url: string) => {
     if (fail) return new Response(JSON.stringify({ error: { message: "down" } }), { status: 500 });
     return url.endsWith("price_m") ? price(29_900, "month") : price(100_000, null);
-  });
+  };
+  const fetchMock = vi.fn(defaultFetch);
 
   beforeEach(() => {
     vi.resetModules();
@@ -1290,11 +1615,49 @@ describe("loading plan prices", () => {
     expect(fetchMock.mock.calls.length).toBeGreaterThan(after);
   });
 
+  it("reads each tier and yearly price that is set, Starter from the Starter price", async () => {
+    vi.stubEnv("STRIPE_PRICE_TIER_1", "price_t1");
+    vi.stubEnv("STRIPE_PRICE_TIER_1_ANNUAL", "price_t1y");
+    vi.stubEnv("STRIPE_PRICE_TIER_2", "price_t2");
+    vi.stubEnv("STRIPE_PRICE_TIER_3", "price_t3_broken");
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("price_t1")) return price(34_900, "month");
+      if (url.endsWith("price_t1y")) return price(349_000, "year");
+      if (url.endsWith("price_t2")) return price(69_900, "month");
+      if (url.endsWith("price_t3_broken"))
+        return new Response(JSON.stringify({ error: { message: "No such price" } }), {
+          status: 404,
+        });
+      return price(100_000, null);
+    });
+    const { loadPlanPrices } = await import("./stripe.server");
+    const prices = await loadPlanPrices();
+    fetchMock.mockImplementation(defaultFetch);
+    expect(prices).toEqual({
+      assessment: { amount: 1000, currency: "usd", interval: null },
+      monthly: { amount: 349, currency: "usd", interval: "month" },
+      tiers: {
+        1: {
+          month: { amount: 349, currency: "usd", interval: "month" },
+          year: { amount: 3490, currency: "usd", interval: "year" },
+        },
+        2: { month: { amount: 699, currency: "usd", interval: "month" }, year: null },
+        // A tier Stripe could not read is not offered; the rest still load.
+        3: { month: null, year: null },
+      },
+    });
+  });
+
   it("keeps serving the last good prices when a later read fails", async () => {
     const { loadPlanPrices } = await import("./stripe.server");
     expect(await loadPlanPrices()).toEqual({
       assessment: { amount: 1000, currency: "usd", interval: null },
       monthly: { amount: 299, currency: "usd", interval: "month" },
+      tiers: {
+        1: { month: { amount: 299, currency: "usd", interval: "month" }, year: null },
+        2: { month: null, year: null },
+        3: { month: null, year: null },
+      },
     });
     vi.setSystemTime(new Date("2026-10-03T12:11:00Z"));
     fail = true;

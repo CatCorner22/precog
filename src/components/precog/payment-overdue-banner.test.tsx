@@ -40,7 +40,7 @@ function render(e: Parameters<typeof overdueNotice>[0], variant: "home" | "firm"
 describe("the failed-payment notice", () => {
   it("tells the owner the grace end and gives them the button", () => {
     expect(overdueNotice(inGrace)).toEqual({
-      text: "Your Firm plan's card payment failed on 2026-10-20. Precog keeps the plan open until 2026-11-03; fix the payment in Manage billing before then.",
+      text: "The payment for your Firm plan failed on 2026-10-20. Precog keeps the plan open until 2026-11-03; fix the payment in Manage billing before then.",
       action: "fix",
     });
     const html = render(inGrace);
@@ -50,7 +50,7 @@ describe("the failed-payment notice", () => {
 
   it("tells a member who to ask, with no button", () => {
     expect(overdueNotice({ ...inGrace, isOwner: false })).toEqual({
-      text: "The firm's card payment failed on 2026-10-20. Precog keeps the Firm plan open until 2026-11-03. Ask Pat Owner to fix it in Manage billing.",
+      text: "The payment for the firm's Firm plan failed on 2026-10-20. Precog keeps the Firm plan open until 2026-11-03. Ask Pat Owner to fix it in Manage billing.",
       action: "ask",
     });
     expect(render({ ...inGrace, isOwner: false })).not.toContain("Fix payment");
@@ -71,10 +71,10 @@ describe("the failed-payment notice", () => {
 
   it("keeps the plan open while Stripe retries when the start of the grace is unknown", () => {
     expect(overdueNotice(unknownStart)?.text).toBe(
-      "Your Firm plan's card payment failed on 2026-10-20. Precog keeps the plan open while Stripe retries the card; fix the payment in Manage billing.",
+      "The payment for your Firm plan failed on 2026-10-20. Precog keeps the plan open while Stripe retries the payment; fix the payment in Manage billing.",
     );
     expect(overdueNotice({ ...unknownStart, isOwner: false })?.text).toBe(
-      "The firm's card payment failed on 2026-10-20. Precog keeps the Firm plan open while Stripe retries the card. Ask Pat Owner to fix it in Manage billing.",
+      "The payment for the firm's Firm plan failed on 2026-10-20. Precog keeps the Firm plan open while Stripe retries the payment. Ask Pat Owner to fix it in Manage billing.",
     );
   });
 

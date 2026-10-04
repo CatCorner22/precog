@@ -60,15 +60,15 @@ export function overdueNotice(
   if (e.isOwner) {
     return {
       text: e.graceEndsAt
-        ? `Your Firm plan's card payment failed on ${since}. Precog keeps the plan open until ${day(e.graceEndsAt)}; fix the payment in Manage billing before then.`
-        : `Your Firm plan's card payment failed on ${since}. Precog keeps the plan open while Stripe retries the card; fix the payment in Manage billing.`,
+        ? `The payment for your Firm plan failed on ${since}. Precog keeps the plan open until ${day(e.graceEndsAt)}; fix the payment in Manage billing before then.`
+        : `The payment for your Firm plan failed on ${since}. Precog keeps the plan open while Stripe retries the payment; fix the payment in Manage billing.`,
       action: "fix",
     };
   }
   return {
     text: e.graceEndsAt
-      ? `The firm's card payment failed on ${since}. Precog keeps the Firm plan open until ${day(e.graceEndsAt)}. ${ask}`
-      : `The firm's card payment failed on ${since}. Precog keeps the Firm plan open while Stripe retries the card. ${ask}`,
+      ? `The payment for the firm's Firm plan failed on ${since}. Precog keeps the Firm plan open until ${day(e.graceEndsAt)}. ${ask}`
+      : `The payment for the firm's Firm plan failed on ${since}. Precog keeps the Firm plan open while Stripe retries the payment. ${ask}`,
     action: "ask",
   };
 }

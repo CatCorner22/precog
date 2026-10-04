@@ -35,3 +35,54 @@ describe("caseCoveragePhrase", () => {
     }
   });
 });
+
+describe("setup leave confirms", () => {
+  it("asks on Escape whenever typed work exists, and names the loss when storage is broken", async () => {
+    const { leaveSetupConfirm } = await import("./industry-onboarding-helpers");
+    expect(
+      leaveSetupConfirm({
+        typed: false,
+        keepsNothing: true,
+        draftSaved: false,
+        returnsToName: "Ridgeview",
+      }),
+    ).toBeNull();
+    expect(
+      leaveSetupConfirm({
+        typed: true,
+        keepsNothing: false,
+        draftSaved: true,
+        returnsToName: "Ridgeview",
+      }),
+    ).toBe("Leave setup and go back to Ridgeview?");
+    expect(
+      leaveSetupConfirm({
+        typed: true,
+        keepsNothing: true,
+        draftSaved: null,
+        returnsToName: "Ridgeview",
+      }),
+    ).toBe("Leave setup and go back to Ridgeview? This browser will not keep what you typed.");
+    expect(
+      leaveSetupConfirm({
+        typed: true,
+        keepsNothing: false,
+        draftSaved: false,
+        returnsToName: "R",
+      }),
+    ).toContain("will not keep what you typed");
+  });
+
+  it("asks on Cancel only when leaving loses typed work", async () => {
+    const { cancelSetupConfirm } = await import("./industry-onboarding-helpers");
+    expect(cancelSetupConfirm({ typed: false, keepsNothing: true, draftSaved: false })).toBeNull();
+    expect(cancelSetupConfirm({ typed: true, keepsNothing: false, draftSaved: true })).toBeNull();
+    expect(cancelSetupConfirm({ typed: true, keepsNothing: false, draftSaved: null })).toBeNull();
+    expect(cancelSetupConfirm({ typed: true, keepsNothing: true, draftSaved: null })).toBe(
+      "Cancel setup? This browser will not keep what you typed.",
+    );
+    expect(cancelSetupConfirm({ typed: true, keepsNothing: false, draftSaved: false })).toBe(
+      "Cancel setup? This browser will not keep what you typed.",
+    );
+  });
+});
