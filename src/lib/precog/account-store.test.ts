@@ -287,6 +287,68 @@ describe("account export covers every table the account owns", () => {
   });
 });
 
+describe("account export of the batch 3 columns", () => {
+  it("carries the price, the retention, the engagement and each version's request and return", async () => {
+    await seedFirm("ua", "Alpha CPA");
+    await pg.query(
+      `insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'ub', 'reviewer')`,
+    );
+    await pg.query(`update firms set retention_years = 9 where user_id = 'ua'`);
+    await pg.query(
+      `insert into billing_accounts (user_id, subscription_id, subscription_status, subscription_price_id)
+       values ('ua', 'sub_1', 'active', 'price_tier_2')`,
+    );
+    await pg.query(
+      `insert into engagement_marks (user_id, business_id, scope, period_start, period_end, status,
+         ended_at, preparer_user_id, reviewer_user_id)
+       values ('ua', 'biz_1', 'Duty map', '2026-01-01', '2026-12-31', 'ended',
+         '2026-10-01T00:00:00Z', 'ua', 'ub')`,
+    );
+    await pg.query(
+      `insert into report_versions (id, user_id, business_id, version_no, profile, prepared_by,
+         engagement_scope, engagement_period_start, engagement_period_end,
+         review_requested_at, review_requested_by, review_requested_from,
+         returned_at, returned_by, return_note)
+       values ('rv_1', 'ua', 'biz_1', 1, '{}'::jsonb, 'ua', 'Duty map', '2026-01-01', null,
+         '2026-10-02T00:00:00Z', 'ua', 'ub', '2026-10-03T00:00:00Z', 'ub', 'Add payroll.'),
+         ('rv_2', 'ua', 'biz_1', 2, '{}'::jsonb, 'ua', null, null, null,
+         null, null, null, null, null, '')`,
+    );
+
+    const out = await exportAccountRows(sql, "ua");
+    expect(out.billing?.subscriptionPriceId).toBe("price_tier_2");
+    expect(out.firm?.retentionYears).toBe(9);
+    expect(out.engagements[0]).toMatchObject({
+      scope: "Duty map",
+      periodStart: "2026-01-01",
+      periodEnd: "2026-12-31",
+      status: "ended",
+      endedAt: "2026-10-01T00:00:00.000Z",
+      preparerUserId: "ua",
+      reviewerUserId: "ub",
+    });
+    const [v2, v1] = out.reportVersions;
+    expect(v1).toMatchObject({
+      engagement: { scope: "Duty map", periodStart: "2026-01-01", periodEnd: null },
+      reviewRequestedAt: "2026-10-02T00:00:00.000Z",
+      reviewRequestedBy: "ua",
+      reviewRequestedFrom: "ub",
+      returnedAt: "2026-10-03T00:00:00.000Z",
+      returnedBy: "ub",
+      returnNote: "Add payroll.",
+    });
+    expect(v2).toMatchObject({
+      engagement: null,
+      reviewRequestedAt: null,
+      reviewRequestedBy: null,
+      reviewRequestedFrom: null,
+      returnedAt: null,
+      returnedBy: null,
+      returnNote: "",
+    });
+  });
+});
+
 describe("account export of model calls", () => {
   it("lists the account's model calls per feature as totals, never the text, and nobody else's", async () => {
     await pg.query(

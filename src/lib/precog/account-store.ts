@@ -64,6 +64,15 @@ interface AccountExport {
     sentAt: string | null;
     /** The firm's name and letterhead as frozen at lock; null before migration 0041 and for a solo business. */
     firm: { name: string; letterhead: string; logoDataUrl: string | null } | null;
+    /** The engagement's scope and period as frozen at lock; null before migration 0045 or when empty. */
+    engagement: { scope: string; periodStart: string | null; periodEnd: string | null } | null;
+    /** Request and return (migration 0047); null and empty when never asked or returned. */
+    reviewRequestedAt: string | null;
+    reviewRequestedBy: string | null;
+    reviewRequestedFrom: string | null;
+    returnedAt: string | null;
+    returnedBy: string | null;
+    returnNote: string;
     profile: unknown;
   }>;
   snapshots: Array<{
@@ -91,6 +100,8 @@ interface AccountExport {
     letterhead: string;
     logoDataUrl: string | null;
     coverPage: boolean;
+    /** How long the firm keeps a deleted client's records, in years. */
+    retentionYears: number;
     updatedAt: string;
   } | null;
   /** Firms this account belongs to, its own included. */
@@ -114,6 +125,14 @@ interface AccountExport {
     acceptedFindings: number;
     /** The client owner's email, kept for reminders. */
     ownerEmail: string | null;
+    /** The engagement (migration 0045): what the firm was engaged to do, for when, by whom. */
+    scope: string;
+    periodStart: string | null;
+    periodEnd: string | null;
+    status: string;
+    endedAt: string | null;
+    preparerUserId: string | null;
+    reviewerUserId: string | null;
   }>;
   reviews: Array<{
     businessId: string;
@@ -159,6 +178,8 @@ interface AccountExport {
     assessmentRefundedAt: string | null;
     assessmentDisputedAt: string | null;
     currentPeriodEnd: string | null;
+    /** The Stripe price the subscription runs on (migration 0044); null until an event names it. */
+    subscriptionPriceId: string | null;
   } | null;
   quickBooksConnections: Array<{
     businessId: string;
@@ -622,11 +643,22 @@ async function readReportVersions(
     firm_name: string | null;
     firm_letterhead: string | null;
     firm_logo_data_url: string | null;
+    engagement_scope: string | null;
+    engagement_period_start: string | null;
+    engagement_period_end: string | null;
+    review_requested_at: string | null;
+    review_requested_by: string | null;
+    review_requested_from: string | null;
+    returned_at: string | null;
+    returned_by: string | null;
+    return_note: string;
     profile: unknown;
   }>`
     select id, business_id, version_no, revision, scope_note, prepared_by, prepared_at,
       reviewed_by, reviewed_at, review_note, sent_at, firm_name, firm_letterhead,
-      firm_logo_data_url, profile
+      firm_logo_data_url, engagement_scope, engagement_period_start, engagement_period_end,
+      review_requested_at, review_requested_by, review_requested_from, returned_at,
+      returned_by, return_note, profile
     from report_versions where user_id = ${userId}
     order by business_id, version_no desc
   `;
@@ -650,6 +682,22 @@ async function readReportVersions(
             letterhead: r.firm_letterhead ?? "",
             logoDataUrl: r.firm_logo_data_url,
           },
+    engagement:
+      r.engagement_scope === null &&
+      r.engagement_period_start === null &&
+      r.engagement_period_end === null
+        ? null
+        : {
+            scope: r.engagement_scope ?? "",
+            periodStart: r.engagement_period_start,
+            periodEnd: r.engagement_period_end,
+          },
+    reviewRequestedAt: toIsoTimestampOrNull(r.review_requested_at),
+    reviewRequestedBy: r.review_requested_by,
+    reviewRequestedFrom: r.review_requested_from,
+    returnedAt: toIsoTimestampOrNull(r.returned_at),
+    returnedBy: r.returned_by,
+    returnNote: r.return_note,
     profile: r.profile,
   }));
 }
@@ -712,9 +760,10 @@ async function readFirm(tx: Sql, userId: string): Promise<AccountExport["firm"]>
     letterhead: string;
     logo_data_url: string | null;
     cover_page: boolean;
+    retention_years: number | string;
     updated_at: string;
   }>`
-    select name, plan, letterhead, logo_data_url, cover_page, updated_at
+    select name, plan, letterhead, logo_data_url, cover_page, retention_years, updated_at
     from firms where user_id = ${userId}
   `;
   const firm = rows[0];
@@ -725,6 +774,7 @@ async function readFirm(tx: Sql, userId: string): Promise<AccountExport["firm"]>
         letterhead: firm.letterhead,
         logoDataUrl: firm.logo_data_url,
         coverPage: Boolean(firm.cover_page),
+        retentionYears: Number(firm.retention_years),
         updatedAt: toIsoTimestamp(firm.updated_at),
       }
     : null;
@@ -800,9 +850,17 @@ async function readEngagements(tx: Sql, userId: string): Promise<AccountExport["
     open_findings: number | string | null;
     accepted_findings: number | string;
     owner_email: string | null;
+    scope: string;
+    period_start: string | null;
+    period_end: string | null;
+    status: string;
+    ended_at: string | null;
+    preparer_user_id: string | null;
+    reviewer_user_id: string | null;
   }>`
     select business_id, started_at, map_completed_at, report_sent_at, open_findings,
-      accepted_findings, owner_email
+      accepted_findings, owner_email, scope, period_start, period_end, status, ended_at,
+      preparer_user_id, reviewer_user_id
     from engagement_marks where user_id = ${userId}
   `;
   return rows.map((e) => ({
@@ -813,6 +871,13 @@ async function readEngagements(tx: Sql, userId: string): Promise<AccountExport["
     openFindings: e.open_findings === null ? null : Number(e.open_findings),
     acceptedFindings: Number(e.accepted_findings),
     ownerEmail: e.owner_email ?? null,
+    scope: e.scope,
+    periodStart: e.period_start,
+    periodEnd: e.period_end,
+    status: e.status,
+    endedAt: toIsoTimestampOrNull(e.ended_at),
+    preparerUserId: e.preparer_user_id,
+    reviewerUserId: e.reviewer_user_id,
   }));
 }
 
@@ -923,10 +988,11 @@ async function readBilling(tx: Sql, userId: string): Promise<AccountExport["bill
     assessment_refunded_at: string | null;
     assessment_disputed_at: string | null;
     current_period_end: string | null;
+    subscription_price_id: string | null;
   }>`
     select stripe_customer_id, subscription_id, subscription_status, assessment_paid_at,
       assessment_payment_intent, assessment_refunded_at, assessment_disputed_at,
-      current_period_end
+      current_period_end, subscription_price_id
     from billing_accounts where user_id = ${userId}
   `;
   const b = rows[0];
@@ -940,6 +1006,7 @@ async function readBilling(tx: Sql, userId: string): Promise<AccountExport["bill
         assessmentRefundedAt: toIsoTimestampOrNull(b.assessment_refunded_at),
         assessmentDisputedAt: toIsoTimestampOrNull(b.assessment_disputed_at),
         currentPeriodEnd: toIsoTimestampOrNull(b.current_period_end),
+        subscriptionPriceId: b.subscription_price_id,
       }
     : null;
 }
