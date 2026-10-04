@@ -36,8 +36,8 @@ export const GUEST_IMPORT_NOT_SAVED =
  * every guest business is copied, or once the account said "Not now" to each
  * of them (the recovery panel keeps offering those). The firm question is one
  * read, made once the prompt has something to ask about. `onOpenChange` tells
- * the page when the question is up, so the setup dialog under it can be made
- * inert (BehindGuestImportPrompt) instead of competing for the keyboard.
+ * the page when the question is up, so setup hides behind it
+ * (BehindGuestImportPrompt) instead of showing underneath it.
  */
 export function GuestImportPrompt({
   onOpenChange,
@@ -119,10 +119,12 @@ export function GuestImportPrompt({
 }
 
 /**
- * Wraps the setup dialog on the home page: inert while the guest-work
- * question is open above it, so Tab and a screen reader meet only the
- * question. Without it the two modals compete, and setup's own focus on its
- * title would pull the keyboard behind the question's backdrop.
+ * Wraps the setup dialog on the home page: hidden and inert while the
+ * guest-work question is open, so only one dialog ever shows and Tab and a
+ * screen reader meet only the question. Setup stays mounted underneath, so
+ * typed work survives even when the browser keeps nothing; without the
+ * wrapper the two modals would compete, and setup's own focus on its title
+ * would pull the keyboard behind the question's backdrop.
  */
 export function BehindGuestImportPrompt({
   open,
@@ -131,7 +133,11 @@ export function BehindGuestImportPrompt({
   open: boolean;
   children: ReactNode;
 }) {
-  return <div inert={open}>{children}</div>;
+  return (
+    <div inert={open} hidden={open || undefined}>
+      {children}
+    </div>
+  );
 }
 
 /**
