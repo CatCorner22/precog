@@ -75,7 +75,10 @@ export function SignalsPanel({ onNavigate }: { onNavigate?: NavFn }) {
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Watched conditions</CardTitle>
           <CardDescription>
-            {counts.breach} breached · {counts.watch} at watch · {counts.ok} clear
+            {say(
+              `${counts.breach} past the line · ${counts.watch} close to the line · ${counts.ok} clear`,
+              `${counts.breach} breached · ${counts.watch} at watch · ${counts.ok} clear`,
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -99,7 +102,11 @@ export function SignalsPanel({ onNavigate }: { onNavigate?: NavFn }) {
                       i.status === "breach" ? "danger" : i.status === "watch" ? "warn" : "ok"
                     }
                   >
-                    {i.status === "ok" ? "clear" : i.status}
+                    {i.status === "breach"
+                      ? say("past the line", "breach")
+                      : i.status === "watch"
+                        ? say("close to the line", "watch")
+                        : "clear"}
                   </Badge>
                   <span className="font-medium">{say(i.label, i.tacticalLabel ?? i.label)}</span>
                 </div>

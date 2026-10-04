@@ -7,7 +7,7 @@
  * better off knowing both words for the same thing.
  */
 export const TAB_WORDS = [
-  { id: "start", label: "Home", tactical: "Home" },
+  { id: "start", label: "Start here", tactical: "Start here" },
   { id: "team", label: "Team", tactical: "Team" },
   { id: "sod", label: "Who controls what", tactical: "SoD" },
   { id: "knowledge", label: "Who knows what", tactical: "Knowledge" },
@@ -44,8 +44,8 @@ export const TAB_ALIASES = {
   coso: { tab: "scores", item: "coverage", label: "Coverage check", tactical: "COSO" },
   intel: { tab: "scores", item: "patterns", label: "Patterns", tactical: "Intel" },
   journal: { tab: "monthly", item: "decisions", label: "Decisions log", tactical: "Journal" },
-  // The retired Dashboard opens Home; the retired blueprint screen opens Procedures.
-  command: { tab: "start", label: "Home", tactical: "Home" },
+  // The retired Dashboard opens Start here; the retired blueprint screen opens Procedures.
+  command: { tab: "start", label: "Start here", tactical: "Start here" },
   blueprint: { tab: "procedures", label: "Procedures", tactical: "Procedures" },
 } as const satisfies Record<string, { tab: TabId; item?: string; label: string; tactical: string }>;
 

@@ -102,7 +102,7 @@ function scenarioProps(profile: PracticeProfile) {
 
 /** The primary areas, each as the home shell mounts it (or its parts, where the shell adds only a heading). */
 const PRIMARY: [string, (profile: PracticeProfile) => ReactNode][] = [
-  ["Home", () => <StartHere onOpenDetail={noop} />],
+  ["Start here", () => <StartHere onOpenDetail={noop} />],
   ["Team", () => <TeamArea />],
   ...["conflicts", "dual", "matrix", "roles", "power", "controls"].map(
     (view): [string, () => ReactNode] => [

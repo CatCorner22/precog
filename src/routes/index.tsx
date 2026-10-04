@@ -97,7 +97,7 @@ function Home() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   // A raw route alias (`?tab=value`) can sit here for the instant before the
-  // redirect; anything that is not a tab opens Home.
+  // redirect; anything that is not a tab opens Start here.
   const tab: TabId = isTabId(search.tab) ? search.tab : "start";
   const item = search.item ?? null;
   const build = search.build ?? false;
@@ -547,7 +547,7 @@ const TAB_INTROS = {
   precog: {
     heading: "Scenario engine",
     plain:
-      "Pick a scenario to see the assumed loss and how long it would run undetected, then test what dual release, an independent bank reconciliation, or your insurance would change.",
+      "Pick a scenario to see the assumed loss and how long it would run undetected, then test what two people releasing a payment, someone else checking the bank statement, or your insurance would change.",
     tactical: "Timelines, insurance cost of risk, multi-scenario compare, cascades.",
   },
 } satisfies Partial<Record<TabId, { heading: string; plain: string; tactical: string }>>;

@@ -112,12 +112,12 @@ describe("the pricing page", () => {
     }
   });
 
-  it("offers sign-in to a visitor and the Firm page to an account, with the footer", () => {
+  it("offers sign-in to a visitor and the Firm workspace to an account, with the footer", () => {
     const html = render(null);
     expect(html).toContain('href="/login"');
     expect(html).toContain("Sign in to start");
     expect(html).toContain('href="/firm"');
-    expect(html).toContain("Open the Firm page");
+    expect(html).toContain("Open the Firm workspace");
     expect(html).toContain('aria-label="Legal"');
   });
 });

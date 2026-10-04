@@ -127,7 +127,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
         <Badge variant="primary">Grounded in Precog&rsquo;s tools</Badge>
         <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
           <Compass className="size-6 text-primary" aria-hidden />
-          Pioneer
+          {tabLabel("pioneer", say)}
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted sm:text-base">
           Pioneer builds every answer from Precog&rsquo;s own records: the exposure that remains,

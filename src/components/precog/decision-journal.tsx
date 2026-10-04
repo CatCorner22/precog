@@ -452,7 +452,8 @@ export function DecisionJournal({
                       : ""}
                     . The largest: &ldquo;{acceptEvidence.largest.title}&rdquo; (
                     {lossPhrase(acceptEvidence.largest)}). Accepting is a legitimate decision; write
-                    down which compensating control makes it acceptable and who reviews it.
+                    down which {say("extra check", "compensating control")} makes it acceptable and
+                    who reviews it.
                   </p>
                   {onOpenLinked && (
                     <button
@@ -471,7 +472,10 @@ export function DecisionJournal({
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   rows={3}
-                  placeholder="Why this choice? What compensating control? Who owns the review?"
+                  placeholder={say(
+                    "Why this choice? What extra check? Who owns the review?",
+                    "Why this choice? What compensating control? Who owns the review?",
+                  )}
                   className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
                 />
               </label>
