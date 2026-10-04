@@ -8,6 +8,7 @@ import { randomHex } from "@/lib/web-crypto";
 import { revokeDepartingMemberShares } from "../share/share-store";
 import { transferBusinessesToOwner, type MovedBusiness } from "../business-store";
 import { SUPPORT_EMAIL } from "../legal/operator";
+import { TRUSTED_EMAIL, VOUCHED_EMAIL, X_ACCOUNT } from "./vouched-email";
 
 /**
  * A firm is keyed by its owner's account: `firms.user_id` is both the owner
@@ -370,19 +371,10 @@ async function accountFit(
   userId: string,
   invitedEmail: string,
 ): Promise<{ fit: InviteFit; accountEmail: string }> {
-  const rows = await sql<{ email: string; real: boolean }>`
-    select u.email,
-      (u."emailVerified" and (
-        exists (
-          select 1 from account a
-          where a."userId" = u.id and a."providerId" in ('credential', 'grok-google')
-        )
-        or not exists (
-          select 1 from account a where a."userId" = u.id and a."providerId" = 'grok-x'
-        )
-      )) as real
-    from "user" u where u.id = ${userId}
-  `;
+  const rows = await sql.query<{ email: string; real: boolean }>(
+    `select u.email, ${VOUCHED_EMAIL("u")} as real from "user" u where u.id = $1`,
+    [userId],
+  );
   const account = rows[0];
   if (!account) throw new FirmMembershipError("Sign in to join the firm.");
   const same = account.email.toLowerCase() === invitedEmail.toLowerCase();
@@ -883,6 +875,30 @@ export async function digestTokenFor(sql: Sql, userId: string): Promise<string> 
     returning digest_token
   `;
   return saved[0].digest_token;
+}
+
+/**
+ * Why the weekly digest cannot reach this account's address, or null when it
+ * can (TRUSTED_EMAIL, the digest's own rule): "x_only" for an account whose
+ * only sign-in is X, whose address the broker makes up; "unconfirmed" for
+ * any other address Precog cannot vouch for. Also null for an unknown account.
+ */
+export async function digestAddressProblem(
+  sql: Sql,
+  userId: string,
+): Promise<"x_only" | "unconfirmed" | null> {
+  const rows = await sql.query<{ trusted: boolean; x_only: boolean }>(
+    `select ${TRUSTED_EMAIL("u")} as trusted,
+      (${X_ACCOUNT("u")} and not exists (
+        select 1 from account a
+        where a."userId" = u.id and a."providerId" in ('credential', 'grok-google')
+      )) as x_only
+    from "user" u where u.id = $1`,
+    [userId],
+  );
+  const row = rows[0];
+  if (!row || row.trusted) return null;
+  return row.x_only ? "x_only" : "unconfirmed";
 }
 
 /** Turns the digest off for the account the token names; false for an unknown token. */

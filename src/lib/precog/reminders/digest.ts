@@ -7,6 +7,7 @@ import { EXPIRY_WARNING_DAYS } from "../integrations/qbo/alert-email";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
 import { renderDigest, renderOwnerReminder, type RenderedEmail } from "./email";
 import { NOT_SUPPRESSED } from "./suppression-store";
+import { TRUSTED_EMAIL } from "../firm/vouched-email";
 
 interface DigestOutcome {
   advisors: number;
@@ -171,19 +172,12 @@ interface OwnerNoteRow extends BusinessRow {
 }
 
 /**
- * An account whose address Precog trusts: confirmed, or signed in through
- * Google or X. A password sign-up that never confirmed its address could
- * have typed anyone's. A SQL fragment over the "user" row aliased `alias`
- * (a name the caller writes, never user input); the QuickBooks alert reads
- * the same rule.
+ * An account whose address Precog trusts (firm/vouched-email.ts): the firm
+ * join's rule, so an X-only account, whose sign-in carries a made-up
+ * address, receives nothing. A password sign-up that never confirmed its
+ * address could have typed anyone's. The QuickBooks alert reads the same rule.
  */
-export const TRUSTED_EMAIL = (alias: string) => `(
-  ${alias}."emailVerified"
-  or exists (
-    select 1 from account a
-    where a."userId" = ${alias}.id and a."providerId" in ('grok-google', 'grok-x')
-  )
-)`;
+export { TRUSTED_EMAIL };
 
 /**
  * Accounts that turned the digest on (a missing settings row means off), with

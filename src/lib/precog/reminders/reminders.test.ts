@@ -515,7 +515,7 @@ describe("digest run", () => {
     expect(sent.map((s) => s.to).sort()).toEqual(["adv@firm.test", "owner@shop.test"]);
   });
 
-  it("sends the digest only to a confirmed address or a Google or X account", async () => {
+  it("sends the digest only to an address Precog can vouch for, or a Google account", async () => {
     await db.sql`update "user" set "emailVerified" = false where id = 'adv'`;
     const first = recorder();
     const outcome = await run(first.send);
@@ -530,6 +530,28 @@ describe("digest run", () => {
     const second = recorder();
     expect((await run(second.send)).advisors).toBe(1);
     expect(second.sent.map((s) => s.to)).toEqual(["adv@firm.test"]);
+  });
+
+  it("sends nothing to an X-only account, and its owner notes carry no reply-to", async () => {
+    // A confirmed flag does not help: X sign-ins carry a made-up address.
+    await db.sql`
+      insert into account (id, "accountId", "providerId", "userId", "createdAt", "updatedAt")
+      values ('acc_x', 'x-1', 'grok-x', 'adv', now(), now())
+    `;
+    const { sent, send } = recorder();
+    const outcome = await run(send);
+    expect(outcome).toMatchObject({ advisors: 0, owners: 1, errors: [] });
+    expect(sent.map((s) => s.to)).toEqual(["owner@shop.test"]);
+    expect(sent[0].replyTo).toBeUndefined();
+
+    // The same account with a password sign-in as well is vouched for again.
+    await db.sql`
+      insert into account (id, "accountId", "providerId", "userId", "createdAt", "updatedAt")
+      values ('acc_c', 'adv', 'credential', 'adv', now(), now())
+    `;
+    const again = recorder();
+    expect((await run(again.send)).advisors).toBe(1);
+    expect(again.sent.map((s) => s.to)).toEqual(["adv@firm.test"]);
   });
 
   /** 'adv' becomes the owner of North Advisors with biz_1 as a client, and 'rev' a reviewer. */

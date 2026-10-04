@@ -180,6 +180,25 @@ describe("QuickBooks alerts", () => {
     expect((await stamps())[2]).toEqual({ business_id: "biz_3", failure: false, expiry: true });
   });
 
+  it("treats an X-only firm owner's made-up address as not deliverable: reported once, rows stamped", async () => {
+    await db.sql`
+      insert into account (id, "accountId", "providerId", "userId", "createdAt", "updatedAt")
+      values ('acc_x', 'x-1', 'grok-x', 'adv', now(), now())
+    `;
+    const { sent, send } = recorder();
+    expect(await run(send)).toEqual({ emailed: 1, skipped: 1, errors: [] });
+    expect(sent.map((s) => s.to)).toEqual(["solo@shop.test"]);
+    expect(report.error).toHaveBeenCalledTimes(1);
+    expect(report.error).toHaveBeenCalledWith(expect.any(Error), "qbo-alert");
+    expect((await stamps()).slice(0, 2)).toEqual([
+      { business_id: "biz_1", failure: true, expiry: false },
+      { business_id: "biz_2", failure: false, expiry: true },
+    ]);
+    report.error.mockClear();
+    expect(await run(recorder().send)).toEqual({ emailed: 0, skipped: 0, errors: [] });
+    expect(report.error).not.toHaveBeenCalled();
+  });
+
   it("stamps nothing when a send fails, so the next run tries again", async () => {
     const outcome = await alertQuickBooksProblems(db.sql, {
       today: TODAY,

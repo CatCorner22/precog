@@ -4,6 +4,7 @@ import { resolveBusinessOwner } from "../business-store";
 import {
   acceptInvite,
   createInvite,
+  digestAddressProblem,
   FirmMembershipError,
   insertReviewEvent,
   inviteFit,
@@ -612,6 +613,24 @@ describe("invitation and the accepting account's address", () => {
        values ('acc_x', 'x-1', 'grok-x', 'ub', now(), now())`,
     );
     expect((await inviteFit(db.sql, "t1", "ub"))?.fit).toBe("confirm");
+    expect(await digestAddressProblem(db.sql, "ub")).toBe("x_only");
+  });
+
+  it("says why the digest cannot reach an address: unconfirmed, X-only, or nothing wrong", async () => {
+    expect(await digestAddressProblem(db.sql, "ub")).toBeNull();
+    await db.pg.query(`update "user" set "emailVerified" = false where id = 'ub'`);
+    expect(await digestAddressProblem(db.sql, "ub")).toBe("unconfirmed");
+    await db.pg.query(
+      `insert into account (id, "accountId", "providerId", "userId", "createdAt", "updatedAt")
+       values ('acc_x', 'x-1', 'grok-x', 'ub', now(), now())`,
+    );
+    expect(await digestAddressProblem(db.sql, "ub")).toBe("x_only");
+    await db.pg.query(
+      `insert into account (id, "accountId", "providerId", "userId", "createdAt", "updatedAt")
+       values ('acc_c', 'ub', 'credential', 'ub', now(), now())`,
+    );
+    expect(await digestAddressProblem(db.sql, "ub")).toBe("unconfirmed");
+    expect(await digestAddressProblem(db.sql, "nobody")).toBeNull();
   });
 
   it("masks the invited address", () => {

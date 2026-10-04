@@ -27,7 +27,7 @@ export interface QuickBooksAlertOutcome {
  * owner for a solo business); the connection's own row is not consulted for
  * the address. A service notice: it goes out whatever the weekly digest
  * switch says, with no stop link. An account whose address Precog cannot use
- * (unconfirmed, or bounced or complained) is reported once and its rows are
+ * (unconfirmed, an X-only sign-in, or bounced or complained) is reported once and its rows are
  * stamped as covered, so one failure episode reports once; the next episode
  * reports again. A send the mailer gives up on is reported once per run and
  * leaves its rows unstamped, so the next run tries again. With mail off
