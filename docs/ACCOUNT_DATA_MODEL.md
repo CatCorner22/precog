@@ -88,9 +88,12 @@ introduced this model is in
   the same transaction (`transferBusinessesToOwner` in
   `src/lib/precog/business-store.ts`). A business row is keyed by its owner
   and no child table cascades an update, so the move is a copy of the parent
-  row under the owner, a repoint of every child row (history, procedure
-  pictures, evidence log, shares, review log, deletion markers), and the old
-  parent deleted last. When the owner already holds the same id, as a
+  row under the owner, a repoint of every child row (history, report
+  versions, QuickBooks connections and readings, procedure pictures, evidence
+  log, engagement marks, review log, reminder and owner-email logs, shares,
+  deletion markers and colleagues' profile pointers; the member's own pointer
+  is deleted), and the old parent deleted last. When the owner already holds
+  the same id, as a
   `businesses` row or a `business_deletion_markers` row, the moved business
   gets a new id (`<old id>-<8 hex>`); the owner's Firm page names it, and the
   member's open tab meets the usual "no longer available" refusal on its next
