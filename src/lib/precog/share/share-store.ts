@@ -5,6 +5,7 @@ import {
   loadFrozenReport,
   loadReportVersion,
   reportFirmName,
+  withoutReviewRouting,
   type FrozenReportRow,
   type ReportVersionRow,
 } from "../firm/reports";
@@ -434,7 +435,8 @@ export interface SharedReport {
  * The version a report link prints, as `getReport` loads it for a signed-in
  * viewer, with the profile cut down to what the report reads: the link hands
  * the version's names, duties and review results to whoever holds it, and
- * nothing the business wrote for itself. Null when the version is gone or
+ * nothing the business wrote for itself, nor the firm's review routing
+ * (withoutReviewRouting). Null when the version is gone or
  * not reviewed for issuance: a link never prints what issuance never cleared,
  * even if the review was cleared after the link was minted.
  */
@@ -462,7 +464,9 @@ export async function loadSharedReport(
     today,
   );
   return {
-    version: loaded.version,
+    // Who a review was requested from, who returned it and the return note
+    // are the firm's own working notes: a public link never names them.
+    version: withoutReviewRouting(loaded.version),
     frozen,
     firm: loaded.version.firm ?? (name ? { name, letterhead: "", logoDataUrl: null } : null),
     profile: shareReportProfile({ ...merged, businessId: row.businessId }),

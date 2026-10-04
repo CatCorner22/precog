@@ -230,6 +230,31 @@ describe("sharing a locked report version", () => {
     );
   });
 
+  it("never names who a review was requested from, who returned it or the return note", async () => {
+    await lock("prep", "client", "rv_1");
+    await review("rv_1");
+    await db.pg.query(
+      `update report_versions set review_requested_at = now(), review_requested_by = 'prep',
+         review_requested_from = 'owner', returned_at = now(), returned_by = 'owner',
+         return_note = 'Ask Ada about the Quokka ledger' where id = 'rv_1'`,
+    );
+    await reportLink(token(1), "prep", "rv_1");
+    const row = await loadReportShareRow(db.sql, token(1));
+    const shared = await loadSharedReport(db.sql, row!, "2026-10-01");
+    expect(shared?.version).toMatchObject({
+      id: "rv_1",
+      reviewRequestedAt: null,
+      reviewRequestedFrom: null,
+      reviewRequestedFromName: null,
+      returnedAt: null,
+      returnedBy: null,
+      returnedByName: null,
+      returnNote: "",
+    });
+    expect(shared?.version.reviewedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(JSON.stringify(shared)).not.toContain("Quokka ledger");
+  });
+
   it("never prints a link whose version is not reviewed for issuance", async () => {
     await lock("prep", "client", "rv_1");
     await reportLink(token(1), "prep", "rv_1");
