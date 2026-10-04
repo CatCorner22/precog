@@ -83,6 +83,37 @@ introduced this model is in
 - An active pointer names both the business and the account that owns it.
   The store reads a legacy full-profile pointer only for a profile that was
   never migrated, never for a modern id-only pointer or a known deletion.
+- When a firm member is removed or leaves, every client business they set
+  up for the firm (live and deleted) moves to the firm owner's account in
+  the same transaction (`transferBusinessesToOwner` in
+  `src/lib/precog/business-store.ts`). A business row is keyed by its owner
+  and no child table cascades an update, so the move is a copy of the parent
+  row under the owner, a repoint of every child row (history, procedure
+  pictures, evidence log, shares, review log, deletion markers), and the old
+  parent deleted last. When the owner already holds the same id, as a
+  `businesses` row or a `business_deletion_markers` row, the moved business
+  gets a new id (`<old id>-<8 hex>`); the owner's Firm page names it, and the
+  member's open tab meets the usual "no longer available" refusal on its next
+  save. The owner's per-account ceiling is not checked (nothing is created).
+- The firm owner can hand the firm to a member (`transferFirmOwnership` in
+  `src/lib/precog/firm/store.ts`): a new `firms` row under the new owner,
+  every row that names the firm repointed (members, invitations, client
+  businesses, deletion markers, the billing row), the old row deleted last;
+  the new owner's role becomes owner and the old owner's reviewer. Refused
+  while the firm's payment is overdue or disputed.
+- `product_events` (migration 0042) keeps one row per account and milestone
+  (first business, first locked version, first report sent, first monthly
+  review): the account id, the business id with no foreign key, and a time.
+  It is deleted with the account and never backfilled; a purged first
+  business keeps its milestone.
+- A firm's letterhead text, logo (a data URL up to 64 KB) and cover-page
+  switch live on `firms` (migration 0041); locking a report version copies
+  the firm's name, letterhead and logo into `report_versions`, so a locked
+  version prints what the firm looked like when it was locked. Versions
+  locked before 0041 carry no snapshot and print the firm's live name only.
+- A shared locked report is a `map_shares` row with `report_version_id` set
+  (migration 0040), so it dies with the version and with the account like a
+  shared map does.
 
 ## Releasing changes to this model
 
