@@ -3,6 +3,7 @@ import { reportServerError } from "@/lib/observability/report.server";
 import { normalizeProfile, type PracticeProfile } from "../practice-profile";
 import { digestTokenFor, loadFirmFor } from "../firm/store";
 import { loadEntitlements } from "../firm/entitlements.server";
+import { EXPIRY_WARNING_DAYS } from "../integrations/qbo/alert-email";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
 import { renderDigest, renderOwnerReminder, type RenderedEmail } from "./email";
 import { NOT_SUPPRESSED } from "./suppression-store";
@@ -89,6 +90,7 @@ export async function runDigest(
           })),
           appUrl: input.appUrl,
           unsubscribeUrl: `${input.appUrl}/api/digest-email?do=stop&token=${recipient.digestToken}`,
+          quickBooks: { needAttention: await quickBooksNeedingAttention(sql, recipient) },
         }),
       );
       for (const client of clients) await logSent(sql, client.row, recipient.email, client.items);
@@ -171,9 +173,11 @@ interface OwnerNoteRow extends BusinessRow {
 /**
  * An account whose address Precog trusts: confirmed, or signed in through
  * Google or X. A password sign-up that never confirmed its address could
- * have typed anyone's.
+ * have typed anyone's. A SQL fragment over the "user" row aliased `alias`
+ * (a name the caller writes, never user input); the QuickBooks alert reads
+ * the same rule.
  */
-const TRUSTED_EMAIL = (alias: string) => `(
+export const TRUSTED_EMAIL = (alias: string) => `(
   ${alias}."emailVerified"
   or exists (
     select 1 from account a
@@ -229,6 +233,25 @@ async function businessesFor(sql: Sql, recipient: Recipient): Promise<BusinessRo
         or (${recipient.firmUserId}::text is not null and b.firm_user_id = ${recipient.firmUserId}))
     order by b.user_id, b.id
   `;
+}
+
+/**
+ * How many of the recipient's businesses (businessesFor) have a QuickBooks
+ * connection whose last reading failed or whose permission ends within the
+ * alert's warning period; the digest prints the count as one line.
+ */
+async function quickBooksNeedingAttention(sql: Sql, recipient: Recipient): Promise<number> {
+  const rows = await sql<{ n: number }>`
+    select count(*)::int as n
+    from integration_connections c
+    join businesses b on b.user_id = c.user_id and b.id = c.business_id and b.deleted_at is null
+    where c.provider = 'qbo'
+      and (b.user_id = ${recipient.userId}
+        or (${recipient.firmUserId}::text is not null and b.firm_user_id = ${recipient.firmUserId}))
+      and (c.last_error is not null
+        or c.refresh_expires_at <= now() + make_interval(days => ${EXPIRY_WARNING_DAYS}::int))
+  `;
+  return Number(rows[0]?.n ?? 0);
 }
 
 /**

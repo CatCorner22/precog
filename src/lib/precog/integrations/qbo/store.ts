@@ -17,6 +17,12 @@ export interface ConnectionRow {
   connectedAt: string;
   lastSyncedAt: string | null;
   lastError: string | null;
+  /** When the last failed reading was recorded; kept across a later success. */
+  lastErrorAt: string | null;
+  /** When the firm owner was told about the current failure episode; cleared by a successful reading. */
+  failureAlertedAt: string | null;
+  /** The expiry the firm owner was warned about; a refresh that moves the expiry re-arms the warning. */
+  expiryAlertedFor: string | null;
 }
 
 /** What the firm workspace shows about a connection; never the tokens. */
@@ -72,7 +78,8 @@ export async function saveConnection(
       access_expires_at = excluded.access_expires_at,
       refresh_expires_at = excluded.refresh_expires_at,
       connected_at = now(),
-      last_error = null
+      last_error = null,
+      failure_alerted_at = null
   `;
 }
 
@@ -132,6 +139,11 @@ export async function listConnectionsDue(sql: Sql, staleDays: number): Promise<C
   return rows.map(toRow);
 }
 
+/**
+ * Records the outcome of a reading. A success keeps the error's time for the
+ * record and ends the failure episode, so the next failure alerts the firm
+ * owner again; a failure keeps the last read time and any alert already sent.
+ */
 export async function markSynced(
   sql: Sql,
   ownerUserId: string,
@@ -141,7 +153,28 @@ export async function markSynced(
   await sql`
     update integration_connections set
       last_synced_at = case when ${error}::text is null then now() else last_synced_at end,
-      last_error = ${error}
+      last_error = ${error},
+      last_error_at = case when ${error}::text is null then last_error_at else now() end,
+      failure_alerted_at = case when ${error}::text is null then null else failure_alerted_at end
+    where user_id = ${ownerUserId} and business_id = ${businessId} and provider = 'qbo'
+  `;
+}
+
+/**
+ * Stamps what the firm owner has now been told about, after the alert was
+ * sent or found undeliverable: the current failure episode, the expiry it
+ * named, or both. Nothing else on the row moves.
+ */
+export async function markAlerted(
+  sql: Sql,
+  ownerUserId: string,
+  businessId: string,
+  covered: { failure: boolean; expiry: boolean },
+): Promise<void> {
+  await sql`
+    update integration_connections set
+      failure_alerted_at = case when ${covered.failure} then now() else failure_alerted_at end,
+      expiry_alerted_for = case when ${covered.expiry} then refresh_expires_at else expiry_alerted_for end
     where user_id = ${ownerUserId} and business_id = ${businessId} and provider = 'qbo'
   `;
 }
@@ -256,6 +289,9 @@ interface RawConnection {
   connected_at: string;
   last_synced_at: string | null;
   last_error: string | null;
+  last_error_at: string | null;
+  failure_alerted_at: string | null;
+  expiry_alerted_for: string | null;
 }
 
 function toRow(r: RawConnection): ConnectionRow {
@@ -270,5 +306,8 @@ function toRow(r: RawConnection): ConnectionRow {
     connectedAt: toIsoTimestamp(r.connected_at),
     lastSyncedAt: toIsoTimestampOrNull(r.last_synced_at),
     lastError: r.last_error,
+    lastErrorAt: toIsoTimestampOrNull(r.last_error_at),
+    failureAlertedAt: toIsoTimestampOrNull(r.failure_alerted_at),
+    expiryAlertedFor: toIsoTimestampOrNull(r.expiry_alerted_for),
   };
 }

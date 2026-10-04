@@ -233,6 +233,38 @@ describe("email rendering", () => {
     expect(mail.html).not.toContain("<script");
   });
 
+  it("adds one line about QuickBooks connections that need attention, and none when all is well", () => {
+    const items = dueItemsFor(profileWithDues(), TODAY);
+    const render = (needAttention: number) =>
+      renderDigest({
+        firmName: "North Advisors",
+        clients: [{ businessId: "biz_1", businessName: "Riverside Plumbing", items }],
+        appUrl: "https://app.example",
+        unsubscribeUrl: STOP_URL,
+        quickBooks: { needAttention },
+      });
+    const two = render(2);
+    expect(two.text).toContain(
+      "\nQuickBooks needs attention for 2 clients. See the firm workspace.\n\nOpen the firm workspace:",
+    );
+    expect(two.html).toContain(
+      '<p style="margin-top:16px">QuickBooks needs attention for 2 clients. See the firm workspace.</p>',
+    );
+    expect(render(1).text).toContain(
+      "QuickBooks needs attention for 1 client. See the firm workspace.",
+    );
+    expect(render(0).text).not.toContain("QuickBooks");
+    expect(render(0).text).toBe(
+      renderDigest({
+        firmName: "North Advisors",
+        clients: [{ businessId: "biz_1", businessName: "Riverside Plumbing", items }],
+        appUrl: "https://app.example",
+        unsubscribeUrl: STOP_URL,
+      }).text,
+    );
+    expect(two.subject).toBe(render(0).subject);
+  });
+
   it("names the business in the subject for an owner outside a firm", () => {
     const items = dueItemsFor(profileWithDues(), TODAY);
     const one = [{ ...items[0], overdue: false }];
@@ -339,6 +371,7 @@ describe("digest run", () => {
   beforeEach(async () => {
     await db.clear(
       "reminder_log",
+      "integration_connections",
       "email_suppressions",
       "notification_settings",
       "engagement_marks",
@@ -548,6 +581,36 @@ describe("digest run", () => {
       "owner@shop.test",
       "rev@firm.test",
     ]);
+  });
+
+  it("tells a firm's digests how many clients' QuickBooks connections need attention", async () => {
+    await firmWithReviewer();
+    const connect = (userId: string, businessId: string, refreshExpires: string) =>
+      db.pg.query(
+        `insert into integration_connections (user_id, business_id, provider, realm_id,
+           access_token_enc, refresh_token_enc, access_expires_at, refresh_expires_at, last_error)
+         values ($1, $2, 'qbo', '123', 'a', 'r', now() + interval '1 hour', ${refreshExpires}, $3)`,
+        [userId, businessId, null],
+      );
+    const quiet = recorder();
+    await run(quiet.send);
+    expect(quiet.sent.find((s) => s.to === "adv@firm.test")?.text).not.toContain("QuickBooks");
+
+    await db.clear("reminder_log");
+    await connect("adv", "biz_1", "now() + interval '10 days'");
+    await connect("quiet", "biz_2", "now() + interval '90 days'");
+    await db.sql`
+      update integration_connections set last_error = 'QuickBooks refused the request. Try again later.'
+      where business_id = 'biz_2'
+    `;
+    const { sent, send } = recorder();
+    await run(send);
+    const line = "QuickBooks needs attention for 1 client. See the firm workspace.";
+    expect(sent.find((s) => s.to === "adv@firm.test")?.text).toContain(line);
+    expect(sent.find((s) => s.to === "rev@firm.test")?.text).toContain(line);
+    // biz_2 belongs to an account outside the firm, with nothing due: no digest, no count.
+    expect(sent.map((s) => s.to)).not.toContain("quiet@firm.test");
+    expect(sent.find((s) => s.to === "owner@shop.test")?.text).not.toContain("QuickBooks");
   });
 
   it("follows the firm owner's switch for the client's owner, not a member's", async () => {
