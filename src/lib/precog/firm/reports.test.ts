@@ -12,6 +12,7 @@ import {
   REVIEW_BEFORE_SENT,
   signOffReportVersion,
   versionProvenance,
+  withoutReviewRouting,
   type ReportVersionRow,
 } from "./reports";
 
@@ -425,6 +426,31 @@ describe("versionProvenance", () => {
         returnNote: "Add the payroll duties.",
       }),
     ).toBe("Version 2 · Prepared by Ada Park on Sep 26, 2026 · Returned by Bea Lin on Oct 7, 2026");
+  });
+
+  it("hands a report link no request-and-return routing, and prints the same line", () => {
+    const reviewed = {
+      ...base,
+      reviewRequestedAt: "2026-10-06T12:00:00.000Z",
+      reviewRequestedFrom: "own",
+      reviewRequestedFromName: "Olu Firm-Owner",
+      reviewedBy: "bea",
+      reviewedByName: "Bea Lin",
+      reviewedAt: "2026-10-07T12:00:00.000Z",
+    };
+    const shared = withoutReviewRouting(reviewed);
+    expect(shared).toEqual({
+      ...reviewed,
+      reviewRequestedAt: null,
+      reviewRequestedFrom: null,
+      reviewRequestedFromName: null,
+      returnedAt: null,
+      returnedBy: null,
+      returnedByName: null,
+      returnNote: "",
+    });
+    expect(JSON.stringify(shared)).not.toMatch(/"own"|Olu/);
+    expect(versionProvenance(shared)).toBe(versionProvenance(reviewed));
   });
 });
 

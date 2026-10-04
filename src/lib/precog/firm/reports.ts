@@ -597,3 +597,24 @@ export function versionProvenance(v: ReportVersionRow): string {
       : ` · Reviewed for issuance by ${v.reviewedByName ?? "a reviewer"} on ${formatDay(v.reviewedAt)}`;
   return `Version ${v.versionNo} · ${prepared}${reviewed}`;
 }
+
+/**
+ * The version as a report link hands it to whoever holds the link: without
+ * the firm's own request-and-return routing (who a review was asked of, by
+ * account id and name, and any return and its note). A link opens only a
+ * version reviewed for issuance, whose printed line names the preparer and
+ * the reviewer alone, so the link carries nothing more. For the share loader
+ * (`share/share-store.ts` `loadSharedReport`).
+ */
+export function withoutReviewRouting(v: ReportVersionRow): ReportVersionRow {
+  return {
+    ...v,
+    reviewRequestedAt: null,
+    reviewRequestedFrom: null,
+    reviewRequestedFromName: null,
+    returnedAt: null,
+    returnedBy: null,
+    returnedByName: null,
+    returnNote: "",
+  };
+}
