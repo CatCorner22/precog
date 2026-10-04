@@ -157,3 +157,42 @@ export function dutiesHeldByTitle(rows: readonly OwnTeamRow[], role: string): En
   }
   return [...CORE_DUTIES, ...extraDuties([...held])].filter((d) => held.has(d));
 }
+
+/** Whether leaving setup now loses typed work: the browser keeps nothing, or the draft write failed. */
+export function setupLeaveLosesWork(input: {
+  keepsNothing: boolean;
+  draftSaved: boolean | null;
+}): boolean {
+  return input.keepsNothing || input.draftSaved === false;
+}
+
+/**
+ * What leaving setup asks when the owner typed something, or null when
+ * there is nothing to ask about. Escape asks whenever there is typed work
+ * (an accidental keypress); when the browser cannot keep the draft, the
+ * question says the typed work is lost.
+ */
+export function leaveSetupConfirm(input: {
+  typed: boolean;
+  keepsNothing: boolean;
+  draftSaved: boolean | null;
+  returnsToName: string;
+}): string | null {
+  if (!input.typed) return null;
+  const lost = setupLeaveLosesWork(input) ? " This browser will not keep what you typed." : "";
+  return `Leave setup and go back to ${input.returnsToName}?${lost}`;
+}
+
+/**
+ * What the Cancel link asks, or null when it goes back silently. The draft
+ * restores when storage works, so Cancel only asks when leaving loses typed
+ * work.
+ */
+export function cancelSetupConfirm(input: {
+  typed: boolean;
+  keepsNothing: boolean;
+  draftSaved: boolean | null;
+}): string | null {
+  if (!input.typed || !setupLeaveLosesWork(input)) return null;
+  return "Cancel setup? This browser will not keep what you typed.";
+}
