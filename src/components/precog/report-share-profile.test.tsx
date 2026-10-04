@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { defaultProfile, type PracticeProfile } from "@/lib/precog/practice-profile";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
 import type { ReportVersionRow } from "@/lib/precog/firm/reports";
-import type { Person } from "@/lib/precog/types";
+import type { KnowledgeItem, Person } from "@/lib/precog/types";
+import { industrySample } from "@/lib/precog/templates/registry";
 import {
   buildReportModelForProfile,
   PRINTED_LAYOUT_VERSIONS,
@@ -51,19 +52,42 @@ const team: Person[] = [
     role: "Bookkeeper",
     active: true,
     entitlements: ["enter_invoices", "release_payment", "bank_reconcile"],
+    // The roster's own columns and a notice period: the leaving section
+    // prints the last day from the stored model, not from the profile.
+    employeeId: "EMP-0042",
+    department: "Front office",
+    tenureYears: 6,
+    lastDay: "2026-10-30",
   },
 ];
 
 /**
+ * The industry's starter register with one location written on it: the
+ * only edit, so whether the report tracks freshness turns on that field
+ * alone (register-state.ts, itemContent).
+ */
+const register: KnowledgeItem[] = industrySample("dental").knowledge.map((item, i) =>
+  i === 0
+    ? {
+        ...item,
+        description: "Ada keeps the bank token in the top drawer.",
+        procedureLocation: "Shared drive > Finance > Bank binder",
+      }
+    : item,
+);
+
+/**
  * A business with everything a firm's client writes for itself: its own
- * team, a journal with notes, planned leave, a leaver check, a written
- * procedure, a place, review results and a books-versus-map reading.
+ * team, a register with a location, a journal with notes, planned leave, a
+ * leaver check, a written procedure, a place, review results and a
+ * books-versus-map reading.
  */
 const full: PracticeProfile = {
   ...defaultProfile("dental"),
   practiceName: "Ortiz Dental Studio",
   businessId: "b1",
   customPeople: team,
+  customKnowledge: register,
   mapLayout: { p1: { x: 10, y: 20 } },
   decisions: [
     {
@@ -158,11 +182,15 @@ describe("shareReportProfile", () => {
     for (const layout of PRINTED_LAYOUT_VERSIONS) {
       const whole = render(full, layout);
       expect(whole).toContain("Ortiz Dental Studio");
+      // The branches the projection has to keep alive: the leaving section
+      // (from the stored model) and the freshness line (from the register).
+      expect(whole).toContain("last day");
+      expect(whole).toContain("of work has a confirmation from the last");
       expect(render(projected, layout)).toBe(whole);
     }
   });
 
-  it("drops what the report never prints: the journal, leave, leaver checks, places and procedures", () => {
+  it("drops what the report never prints: the journal, leave, leaver checks, places, procedures and roster columns", () => {
     const projected = shareReportProfile(full);
     expect(projected).not.toHaveProperty("notes");
     expect(projected.decisions).toEqual([]);
@@ -179,9 +207,34 @@ describe("shareReportProfile", () => {
       "Bank login",
       "QuickBooks Online",
       "new hire starts in November",
+      // The roster's columns and the notice period on a person.
+      "EMP-0042",
+      "Front office",
+      "tenureYears",
+      "2026-10-30",
+      // A register item's description.
+      "top drawer",
     ]) {
       expect(text).not.toContain(secret);
     }
+  });
+
+  it("keeps a register item's location, which decides whether freshness is tracked", () => {
+    const projected = shareReportProfile(full);
+    expect(projected.customKnowledge?.[0]).toEqual({
+      ...industrySample("dental").knowledge[0],
+      description: "",
+      procedureLocation: "Shared drive > Finance > Bank binder",
+    });
+    // Without the location the list would read as the untouched starter list.
+    const withoutLocation = shareReportProfile({
+      ...full,
+      customKnowledge: register.map((item) => {
+        const { procedureLocation: _dropped, ...rest } = item;
+        return rest;
+      }),
+    });
+    expect(render(withoutLocation, 3)).not.toContain("of work has a confirmation from the last");
   });
 
   it("keeps what the report reads: the name, team, map, reviews, reading and stamps", () => {
@@ -189,7 +242,16 @@ describe("shareReportProfile", () => {
     expect(projected.practiceName).toBe("Ortiz Dental Studio");
     expect(projected.businessId).toBe("b1");
     expect(projected.industry).toBe("dental");
-    expect(projected.customPeople).toBe(team);
+    expect(projected.customPeople).toEqual([
+      team[0],
+      {
+        id: "b",
+        name: "Ben Ortiz",
+        role: "Bookkeeper",
+        active: true,
+        entitlements: ["enter_invoices", "release_payment", "bank_reconcile"],
+      },
+    ]);
     expect(projected.mapLayout).toEqual({ p1: { x: 10, y: 20 } });
     expect(projected.monthlyReviews).toBe(full.monthlyReviews);
     expect(projected.integrationDriftSummary).toBe(full.integrationDriftSummary);

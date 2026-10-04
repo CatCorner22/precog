@@ -67,8 +67,9 @@ import { count, firstName, midSentence, verb } from "@/lib/precog/text";
  * page comes first. The basis block, the letterhead, the cover, that line and
  * the footer are standing statements printed around the stored figures, so a
  * locked version's figures print unchanged. With `shared`, the page is a
- * share link's: the toolbar keeps Print alone (no way back into Precog, no
- * sent stamp) and the versions panel stays off.
+ * share link's: the toolbar (the way back into Precog, the sent stamp and
+ * Print) and the versions panel stay off; the share page's own bar carries
+ * Print.
  */
 export function ControlReport({
   locked = null,
@@ -166,49 +167,47 @@ export function ControlReport({
 
   return (
     <div className="report min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-white text-neutral-900">
-      <div className="print:hidden sticky top-[var(--grok-banner-h,0px)] z-10 border-b border-neutral-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-6 py-3">
-          {shared ? (
-            <span />
-          ) : (
+      {!shared && (
+        <div className="print:hidden sticky top-[var(--grok-banner-h,0px)] z-10 border-b border-neutral-200 bg-white/95 backdrop-blur">
+          <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-6 py-3">
             <Link
               to="/"
               className="inline-flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900"
             >
               <ArrowLeft className="size-4" /> Back to Precog
             </Link>
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-            {shared ? null : locked ? (
-              <Link
-                to="/report"
-                className="inline-flex h-8 items-center rounded-md border border-neutral-300 px-3 text-xs font-medium hover:bg-neutral-100"
-              >
-                Back to the current report
-              </Link>
-            ) : (
-              !sample && (
-                <>
-                  <span role="status" className="text-xs text-neutral-600">
-                    {sentAt ? `Marked sent on ${formatDay(sentAt)}` : ""}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={Boolean(sentAt)}
-                    onClick={markReportSent}
-                  >
-                    {sentAt ? "Report marked sent" : "Mark report sent"}
-                  </Button>
-                </>
-              )
-            )}
-            <Button size="sm" onClick={() => window.print()}>
-              <Printer className="size-3.5" /> Print / Save as PDF
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {locked ? (
+                <Link
+                  to="/report"
+                  className="inline-flex h-8 items-center rounded-md border border-neutral-300 px-3 text-xs font-medium hover:bg-neutral-100"
+                >
+                  Back to the current report
+                </Link>
+              ) : (
+                !sample && (
+                  <>
+                    <span role="status" className="text-xs text-neutral-600">
+                      {sentAt ? `Marked sent on ${formatDay(sentAt)}` : ""}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={Boolean(sentAt)}
+                      onClick={markReportSent}
+                    >
+                      {sentAt ? "Report marked sent" : "Mark report sent"}
+                    </Button>
+                  </>
+                )
+              )}
+              <Button size="sm" onClick={() => window.print()}>
+                <Printer className="size-3.5" /> Print / Save as PDF
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
       {!locked && !shared && <ReportVersionsPanel />}
 
       <article className="mx-auto max-w-4xl px-6 py-8 print:px-0 print:py-0">

@@ -33,6 +33,10 @@ describe("the shared report page", () => {
     expect(SHARED_REPORT_TITLE).toBe("Shared report · Precog");
     expect(meta).toContainEqual({ title: "Shared report · Precog" });
     expect(meta).toContainEqual({ name: "robots", content: "noindex, nofollow" });
+    expect(meta).toContainEqual({
+      name: "description",
+      content: "Read-only view of a locked internal control priorities report, as issued.",
+    });
   });
 
   it("heads a link that does not open with the report's own heading", () => {
@@ -84,6 +88,11 @@ describe("the shared report page", () => {
     expect(source).toContain("Read-only share · version {version.versionNo}");
     expect(source).toContain("` · issued ${formatDay(version.reviewedAt)}`");
     expect(source).toContain("` · expires ${formatDay(expiresAt)}`");
+    // The bar's Print is the page's one print control: ControlReport's own
+    // toolbar stays off under `shared` (control-report.test.tsx).
+    expect(source).toContain("onClick={() => window.print()}");
+    expect(source).toContain("> Print </button>");
+    expect(source).not.toContain("Print / Save as PDF");
     expect(source).toContain(
       "<report.ControlReport locked={version} frozen={frozen} firm={firm} coverPage={false} shared />",
     );

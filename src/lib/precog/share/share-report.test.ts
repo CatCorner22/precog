@@ -45,6 +45,19 @@ const client: PracticeProfile = {
       role: "Bookkeeper",
       active: true,
       entitlements: ["enter_invoices", "release_payment", "bank_reconcile"],
+      employeeId: "EMP-0042",
+    },
+  ],
+  customKnowledge: [
+    {
+      id: "k_bank",
+      name: "Bank reconciliation",
+      criticality: "critical",
+      category: "process",
+      description: "Ada keeps the bank token in the top drawer.",
+      linkedProcessIds: [],
+      documented: true,
+      procedureLocation: "Shared drive > Finance > Bank binder",
     },
   ],
   decisions: [
@@ -208,6 +221,13 @@ describe("sharing a locked report version", () => {
     const text = JSON.stringify(shared?.profile);
     expect(text).not.toContain("probation");
     expect(text).not.toContain("Open Banking");
+    // Nor the roster's employee id or a register item's description; the
+    // item's location travels because it decides whether freshness is tracked.
+    expect(text).not.toContain("EMP-0042");
+    expect(text).not.toContain("top drawer");
+    expect(shared?.profile.customKnowledge?.[0].procedureLocation).toBe(
+      "Shared drive > Finance > Bank binder",
+    );
   });
 
   it("lists a report link with its kind and version, and a map link as a map", async () => {

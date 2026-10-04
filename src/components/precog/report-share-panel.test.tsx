@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ReportSharePanel } from "./report-share-panel";
-import { REPORT_SHARE_EXPIRIES, REPORT_SHARE_NOTE } from "./report-share-panel-text";
+import {
+  REPORT_SHARE_EXPIRIES,
+  REPORT_SHARE_LIST_FAILED,
+  REPORT_SHARE_NOTE,
+} from "./report-share-panel-text";
 
 vi.mock("@/lib/precog/share/share-server", () => ({
   createReportShare: vi.fn(),
@@ -53,5 +57,20 @@ describe("the report share panel", () => {
     // Only this version's live report links are listed; map links stay in the map builder.
     expect(source).toContain('l.kind === "report" && l.reportVersionId === versionId');
     expect(source).toContain("`${origin}/share/report/${token}`");
+  });
+
+  it("says how to retry when this version's links could not be listed", () => {
+    // The list loads once per opening, so the retry is to reopen the panel;
+    // the sentence is the map builder's panel's. A static render runs no
+    // effect, so the failed state is pinned from the source.
+    expect(REPORT_SHARE_LIST_FAILED).toBe(
+      "Couldn't load your links. Close and reopen Share to try again.",
+    );
+    expect(source).toContain(
+      '{listFailed && <p className="text-red-700">{REPORT_SHARE_LIST_FAILED}</p>}',
+    );
+    expect(source).toContain(
+      ".catch(() => { if (cancelled) return; setLinks([]); setListFailed(true); })",
+    );
   });
 });

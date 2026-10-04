@@ -320,7 +320,7 @@ describe("a shared report", () => {
   };
   const north = { name: "North Advisors", letterhead: "", logoDataUrl: null };
 
-  it("keeps Print alone in the toolbar: no way back into Precog, no sent stamp, no versions panel", () => {
+  it("prints without its toolbar: no way back into Precog, no sent stamp, no Print, no versions panel", () => {
     const shared = renderToStaticMarkup(
       <ReadOnlyPracticeProvider profile={ortiz}>
         <ControlReport locked={locked} firm={north} shared />
@@ -330,7 +330,8 @@ describe("a shared report", () => {
     expect(shared).not.toContain("Back to the current report");
     expect(shared).not.toContain("Mark report sent");
     expect(shared).not.toContain("Report versions");
-    expect(shared).toContain("Print / Save as PDF");
+    // The share page's bar carries the one Print control (share-report.test.tsx).
+    expect(shared).not.toContain("Print / Save as PDF");
     expect(textOf(shared)).toContain("|Prepared for Ortiz Dental Studio by North Advisors|");
     expect(shared).toContain("Prepared with Precog.");
     // The signed-in locked page keeps its way back.

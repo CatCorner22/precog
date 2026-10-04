@@ -119,7 +119,8 @@ function SharedReportPage() {
   const { version, expiresAt } = state;
   return (
     <div className="min-h-dvh bg-white text-neutral-900">
-      <div className="border-b border-neutral-200 bg-neutral-50 print:hidden">
+      {/* The page's one toolbar: ControlReport's own stays off under `shared`. */}
+      <div className="print:hidden sticky top-[var(--grok-banner-h,0px)] z-10 border-b border-neutral-200 bg-neutral-50/95 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-6 py-3 text-xs text-neutral-600">
           <span className="inline-flex items-center gap-1.5">
             <Eye className="size-3.5" /> Read-only share · version {version.versionNo}

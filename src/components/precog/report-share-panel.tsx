@@ -8,7 +8,11 @@ import { createReportShare, listMapShares, revokeMapShare } from "@/lib/precog/s
 import type { ShareSummary } from "@/lib/precog/share/share-store";
 import { formatDayShort } from "@/lib/precog/dates";
 import { cn } from "@/lib/utils";
-import { REPORT_SHARE_EXPIRIES, REPORT_SHARE_NOTE } from "./report-share-panel-text";
+import {
+  REPORT_SHARE_EXPIRIES,
+  REPORT_SHARE_LIST_FAILED,
+  REPORT_SHARE_NOTE,
+} from "./report-share-panel-text";
 
 /**
  * Read-only links to one locked report version: an expiry, an optional
@@ -189,9 +193,7 @@ export function ReportSharePanel({
           </a>
         </div>
       )}
-      {listFailed && (
-        <p className="text-red-700">Couldn&apos;t load this version&apos;s links. Try again.</p>
-      )}
+      {listFailed && <p className="text-red-700">{REPORT_SHARE_LIST_FAILED}</p>}
       {live.length > 0 && (
         <div>
           <p className={labelCls}>Live links ({live.length})</p>
