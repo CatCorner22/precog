@@ -37,6 +37,8 @@ export interface BillingAccount {
   assessmentFeeCents: number | null;
   /** The credit posted to the Stripe customer balance, in cents, so a refund reverses what was posted. */
   assessmentCreditCents: number | null;
+  /** The Stripe price the subscription runs on (its tier); null until a subscription event names it. */
+  subscriptionPriceId: string | null;
   updatedAt: string;
 }
 
@@ -153,6 +155,7 @@ export async function loadBillingAccount(sql: Sql, userId: string): Promise<Bill
     assessment_credit_used_at: string | null;
     assessment_fee_cents: number | string | null;
     assessment_credit_cents: number | string | null;
+    subscription_price_id: string | null;
     updated_at: string;
   }>`
     select stripe_customer_id, subscription_id, subscription_status, assessment_paid_at,
@@ -161,7 +164,7 @@ export async function loadBillingAccount(sql: Sql, userId: string): Promise<Bill
       coalesce(past_due_since,
         case when subscription_status in ('past_due', 'unpaid') then subscription_event_at end) as past_due_since,
       payment_failed_email_sent_at, payment_failed_invoice_url, assessment_credit_used_at,
-      assessment_fee_cents, assessment_credit_cents, updated_at
+      assessment_fee_cents, assessment_credit_cents, subscription_price_id, updated_at
     from billing_accounts where user_id = ${userId}
   `;
   const row = rows[0];
@@ -182,6 +185,7 @@ export async function loadBillingAccount(sql: Sql, userId: string): Promise<Bill
     assessmentFeeCents: row.assessment_fee_cents === null ? null : Number(row.assessment_fee_cents),
     assessmentCreditCents:
       row.assessment_credit_cents === null ? null : Number(row.assessment_credit_cents),
+    subscriptionPriceId: row.subscription_price_id,
     updatedAt: toIsoTimestamp(row.updated_at),
   };
 }
@@ -357,7 +361,7 @@ export async function recordAssessmentDispute(
  */
 export function checkoutRefusal(account: BillingAccount | null, plan: string): string | null {
   if (
-    plan === "monthly" &&
+    plan !== "assessment" &&
     account?.subscriptionStatus &&
     ACTIVE_SUBSCRIPTION_STATUSES.has(account.subscriptionStatus)
   ) {
@@ -400,8 +404,10 @@ export async function recordSubscription(
      * why; any other reason (the firm asked) clears it.
      */
     cancellationReason?: string | null;
+    /** The subscription's Stripe price (its tier); null keeps the stored one. */
+    priceId?: string | null;
   },
-): Promise<string> {
+): Promise<{ status: string; ignoredOther: boolean; storedSubscriptionId: string | null }> {
   const stored = await sql<{
     subscription_id: string | null;
     subscription_status: string | null;
@@ -420,24 +426,42 @@ export async function recordSubscription(
     const older = Boolean(
       input.eventAt && storedAt && Date.parse(input.eventAt) < Date.parse(storedAt),
     );
-    if (otherWhileActive || older) return current.subscription_status;
+    if (otherWhileActive || older) {
+      // A second subscription starting or running beside the one the firm
+      // pays for (two Checkouts completed in the same second): Stripe charges
+      // it, so the webhook reports it for the operator to cancel and refund.
+      // A late event or the duplicate's own cancellation is not news.
+      const ignoredOther =
+        otherWhileActive &&
+        !older &&
+        input.status !== "canceled" &&
+        input.status !== "incomplete_expired";
+      return {
+        status: current.subscription_status,
+        ignoredOther,
+        storedSubscriptionId: current.subscription_id,
+      };
+    }
   }
   const eventAt = input.status === null ? null : (input.eventAt ?? null);
   const cancellationReason = input.cancellationReason ?? null;
+  const priceId = input.priceId ?? null;
   const rows = await sql<{ subscription_status: string }>`
     insert into billing_accounts
       (user_id, stripe_customer_id, subscription_id, subscription_status, current_period_end,
-        subscription_event_at, past_due_since, updated_at)
+        subscription_event_at, past_due_since, subscription_price_id, updated_at)
     values (
       ${input.userId}, ${input.stripeCustomerId}, ${input.subscriptionId},
       coalesce(${input.status}::text, 'active'), ${input.currentPeriodEnd}::timestamptz,
       ${eventAt}::timestamptz,
       case when ${input.status}::text in ('past_due', 'unpaid') then coalesce(${eventAt}::timestamptz, now()) end,
+      ${priceId}::text,
       now()
     )
     on conflict (user_id) do update set
       stripe_customer_id = coalesce(excluded.stripe_customer_id, billing_accounts.stripe_customer_id),
       subscription_id = excluded.subscription_id,
+      subscription_price_id = coalesce(excluded.subscription_price_id, billing_accounts.subscription_price_id),
       subscription_status = case
         when ${input.status}::text is null
           and billing_accounts.subscription_id = excluded.subscription_id
@@ -481,7 +505,11 @@ export async function recordSubscription(
       updated_at = now()
     returning subscription_status
   `;
-  return rows[0].subscription_status;
+  return {
+    status: rows[0].subscription_status,
+    ignoredOther: false,
+    storedSubscriptionId: input.subscriptionId,
+  };
 }
 
 /**

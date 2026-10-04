@@ -28,9 +28,8 @@ import { getEntitlements, type EntitlementsAnswer } from "@/lib/precog/firm/enti
 import {
   closedToolsNote,
   planAmounts,
-  type CheckoutPlan,
   type FirmPlan,
-  type PlanPrice,
+  type PlanPrices,
 } from "@/lib/precog/firm/pricing";
 import {
   getFirm,
@@ -103,7 +102,7 @@ function FirmPage() {
   const [invites, setInvites] = useState<FirmInvite[]>([]);
   const [billing, setBilling] = useState<BillingAccount | null>(null);
   const [billingConfigured, setBillingConfigured] = useState(false);
-  const [prices, setPrices] = useState<Record<CheckoutPlan, PlanPrice> | null>(null);
+  const [prices, setPrices] = useState<PlanPrices | null>(null);
   const [entitlements, setEntitlements] = useState<EntitlementsAnswer | null>(null);
   const [name, setName] = useState("");
   const [clients, setClients] = useState<ClientEngagementRow[]>([]);

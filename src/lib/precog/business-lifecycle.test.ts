@@ -160,14 +160,29 @@ describe("Add a business from the business menu", () => {
     );
     expect(businessLimitMessage(10)).toContain("already holds 10 businesses");
     expect(businessLimitMessage({ plan: "free", limit: 1 })).toBe(
-      "Precog keeps one business per account for free. The Firm plan holds up to 50 client businesses; start it on the Firm page.",
+      "Precog keeps one business per account for free. The Firm plan holds 5, 20 or 50 client businesses by tier; start it on the Firm page.",
     );
     expect(businessLimitMessage({ plan: "assessment", limit: 1 })).toBe(
-      "The Assessment covers one client business. The Firm plan holds up to 50; start it on the Firm page.",
+      "The Assessment covers one client business. The Firm plan holds 5, 20 or 50 by tier; start it on the Firm page.",
     );
     expect(businessLimitMessage({ plan: "firm", limit: 50 })).toBe(
       "Your firm already holds 50 client businesses, the most it can keep. Delete one you no longer need, then try again.",
     );
+  });
+
+  it("names the firm's tier and how to move up, for the owner and for a member", () => {
+    expect(businessLimitMessage({ plan: "firm", limit: 5, tier: 1 })).toBe(
+      "Your firm's Starter tier holds 5 client businesses. Move up a tier in Manage billing on the Firm page, or delete a client you no longer need.",
+    );
+    expect(businessLimitMessage({ plan: "firm", limit: 20, tier: 2, asMember: true })).toBe(
+      "Your firm's Practice tier holds 20 client businesses. Ask the firm owner to move up a tier, or to delete a client the firm no longer needs.",
+    );
+    // The top tier and an unknown tier have nowhere to move up to.
+    for (const tier of [3, null] as const) {
+      expect(businessLimitMessage({ plan: "firm", limit: 50, tier })).toBe(
+        "Your firm already holds 50 client businesses, the most it can keep. Delete one you no longer need, then try again.",
+      );
+    }
   });
 });
 

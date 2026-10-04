@@ -33,9 +33,9 @@ const Page = (Route as unknown as RouteLike).options.component;
 const html = renderToStaticMarkup(<Page />);
 
 describe("the sign-in page", () => {
-  it("names the firm plan with the offer's figure and links to pricing", () => {
+  it("names the Firm plan from the offer's Starter figure and links to pricing", () => {
     expect(html).toContain(
-      "Advisors who look after several businesses can add the firm plan ($299 a month). ",
+      "Advisors who look after several businesses can add the Firm plan (from $299 a month). ",
     );
     expect(html).toContain('<a href="/pricing"');
     expect(html).toContain(">See pricing</a>.");

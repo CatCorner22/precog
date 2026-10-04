@@ -28,12 +28,15 @@ export const FIRM_INCLUDES: readonly string[] = [
 ];
 
 /**
- * A price statement, not a rule: nothing in Precog refuses a sixth client
- * business on the Firm plan today. Per-client tiers come with a later batch.
+ * The rule the tiers hold: each tier's client limit (TIER_CLIENT_LIMITS) is
+ * enforced when a client business is added or restored.
  */
 export const FIRM_CLIENT_RULE =
-  "The Firm plan is priced for up to five client businesses. Running more? Write to Support.";
+  "Each tier holds up to its number of client businesses; move up a tier in Manage billing when you need more.";
+
+/** Under the tier table on the pricing page. */
+export const TIER_TABLE_NOTE = "Yearly is ten months' price.";
 
 /** The billing sentence under the Checkout buttons, word for word on the Plan card. */
 export const BILLING_TERMS_SENTENCE =
-  "The Firm plan renews until you cancel it in Manage billing; cancelling keeps access to the end of the paid period, and a started month is not refunded. The Assessment is not refunded once a report version is locked. Prices are before sales tax, which Checkout adds for your billing address. See the Terms.";
+  "The Firm plan renews until you cancel it in Manage billing; cancelling keeps access to the end of the paid period, and a started month or year is not refunded. The Assessment is not refunded once a report version is locked. Prices are before sales tax, which Checkout adds for your billing address. See the Terms.";

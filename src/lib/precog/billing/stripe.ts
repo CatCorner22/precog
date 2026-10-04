@@ -7,7 +7,12 @@ import { constantTimeEqual, hmacSha256, toHex } from "@/lib/web-crypto";
 
 // The plan types and the price formatter live in ../firm/pricing so a page
 // that prints prices (the sign-in page) does not pull web-crypto in with them.
-export { formatPlanPrice, type CheckoutPlan, type PlanPrice } from "../firm/pricing";
+export {
+  formatPlanPrice,
+  type CheckoutPlan,
+  type PlanPrice,
+  type PlanPrices,
+} from "../firm/pricing";
 
 export interface StripeEvent {
   id: string;
@@ -55,6 +60,8 @@ export type BillingChange =
       eventAt: string | null;
       /** Stripe's reason on a cancellation ("payment_failed" when its retries ran out), else null. */
       cancellationReason: string | null;
+      /** The price of the subscription's first item (its tier); null on a checkout completion or when absent. */
+      priceId: string | null;
     }
   | {
       /** An invoice on the subscription was not paid; the subscription events move the status. */
@@ -188,6 +195,7 @@ export function billingChangeFor(event: StripeEvent): BillingChange {
         currentPeriodEnd: null,
         eventAt,
         cancellationReason: null,
+        priceId: null,
       };
     }
     if (object.mode === "payment" && object.payment_status === "paid") {
@@ -245,6 +253,7 @@ export function billingChangeFor(event: StripeEvent): BillingChange {
         : null;
     const metadata = (object.metadata ?? {}) as Record<string, unknown>;
     const cancellation = object.cancellation_details as Record<string, unknown> | undefined;
+    const items = object.items as { data?: { price?: unknown }[] } | undefined;
     return {
       kind: "subscription",
       userId: str(metadata.userId),
@@ -254,6 +263,7 @@ export function billingChangeFor(event: StripeEvent): BillingChange {
       currentPeriodEnd: periodEnd,
       eventAt,
       cancellationReason: str(cancellation?.reason),
+      priceId: idOf(Array.isArray(items?.data) ? items.data[0]?.price : undefined),
     };
   }
   return { kind: "ignore" };

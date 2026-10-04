@@ -4,6 +4,7 @@ import {
   entitlementRefusal,
   entitlementsFor,
   HAND_MARKED_PLANS_UNTIL,
+  TIER_CLIENT_LIMITS,
   type BillingFacts,
   type Entitlements,
 } from "./entitlements";
@@ -104,6 +105,40 @@ describe("entitlementsFor with Stripe", () => {
       expect(e).toMatchObject({ plan: "firm", features: allOpen, clientLimit: 50, aiPlan: "paid" });
       expect(e.paidUntil).toBeNull();
     }
+  });
+
+  it("holds the tier's clients on an open Firm plan, and 50 while the tier is unknown", () => {
+    const withTier = (tier: 1 | 2 | 3 | null, facts = billing({ subscriptionStatus: "active" })) =>
+      entitlementsFor({
+        stripeConfigured: true,
+        firmPlan: "monthly",
+        billing: facts,
+        now: at("2026-12-01"),
+        tier,
+      });
+    expect(TIER_CLIENT_LIMITS).toEqual({ 1: 5, 2: 20, 3: 50 });
+    expect(withTier(1)).toMatchObject({ plan: "firm", tier: 1, clientLimit: 5 });
+    expect(withTier(2)).toMatchObject({ plan: "firm", tier: 2, clientLimit: 20 });
+    expect(withTier(3)).toMatchObject({ plan: "firm", tier: 3, clientLimit: 50 });
+    expect(withTier(null)).toMatchObject({ plan: "firm", tier: null, clientLimit: 50 });
+    // A failed payment inside the grace keeps the tier's limit.
+    const pastDue = billing({
+      subscriptionStatus: "past_due",
+      pastDueSince: "2026-11-25T00:00:00.000Z",
+    });
+    expect(withTier(1, pastDue)).toMatchObject({ plan: "firm", tier: 1, clientLimit: 5 });
+    // Outside the Firm plan a tier means nothing.
+    expect(withTier(2, billing())).toMatchObject({ plan: "free", tier: null, clientLimit: 1 });
+    // Without Stripe: 50, tier unknown.
+    expect(
+      entitlementsFor({
+        stripeConfigured: false,
+        firmPlan: "monthly",
+        billing: null,
+        now: at("2026-12-01"),
+        tier: 1,
+      }),
+    ).toMatchObject({ tier: null, clientLimit: 50 });
   });
 
   it("keeps the Firm plan for 14 days after a failed payment, then closes it", () => {

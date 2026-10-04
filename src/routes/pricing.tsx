@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SignedIn, SignedOut } from "@/lib/auth/gates";
 import { getPlanPrices } from "@/lib/precog/billing/server";
@@ -7,8 +8,9 @@ import {
   FIRM_CLIENT_RULE,
   FIRM_INCLUDES,
   FREE_INCLUDES,
+  TIER_TABLE_NOTE,
 } from "@/lib/precog/firm/plan-contents";
-import { PILOT_OFFER, planAmounts, type PlanAmounts } from "@/lib/precog/firm/pricing";
+import { PILOT_OFFER, planAmounts, TIERS, type PlanAmounts } from "@/lib/precog/firm/pricing";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { buttonClass } from "@/components/ui/button-variants";
 
@@ -57,10 +59,13 @@ function PricingPage() {
         />
         <PlanCard
           name={PILOT_OFFER.monthlyLabel}
-          amount={amounts?.monthly ?? null}
+          amount={amounts ? `from ${amounts.monthly}` : null}
           includes={FIRM_INCLUDES}
-          note={FIRM_CLIENT_RULE}
-        />
+        >
+          <TierTable amounts={amounts} />
+          <p className="mt-2 text-xs text-muted">{TIER_TABLE_NOTE}</p>
+          <p className="mt-2 text-xs text-muted">{FIRM_CLIENT_RULE}</p>
+        </PlanCard>
       </div>
 
       <p className="mt-6 text-xs text-subtle">{BILLING_TERMS_SENTENCE}</p>
@@ -83,17 +88,61 @@ function PricingPage() {
   );
 }
 
+/**
+ * The Firm plan's tiers: client businesses, monthly and yearly prices. A
+ * price Stripe (or, without Stripe, the offer) does not hold prints "Write to
+ * Support"; while Stripe's prices are unknown every price cell is empty.
+ */
+function TierTable({ amounts }: { amounts: PlanAmounts | null }) {
+  const cell = (value: string | null) => (amounts ? (value ?? "Write to Support") : "");
+  return (
+    <table className="mt-4 w-full text-left text-xs">
+      <caption className="mb-1 text-left font-medium tracking-wide text-muted uppercase">
+        Firm plan tiers
+      </caption>
+      <thead>
+        <tr className="text-muted">
+          <th scope="col" className="py-1 pr-2 font-medium">
+            Tier
+          </th>
+          <th scope="col" className="py-1 pr-2 font-medium">
+            Client businesses
+          </th>
+          <th scope="col" className="py-1 pr-2 font-medium">
+            Monthly
+          </th>
+          <th scope="col" className="py-1 font-medium">
+            Yearly
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {TIERS.map((t) => (
+          <tr key={t.tier} className="border-t border-border">
+            <th scope="row" className="py-1 pr-2 font-medium">
+              {t.label}
+            </th>
+            <td className="py-1 pr-2">{t.clients}</td>
+            <td className="py-1 pr-2">{cell(amounts?.tiers[t.tier].month ?? null)}</td>
+            <td className="py-1">{cell(amounts?.tiers[t.tier].year ?? null)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 /** One plan: its name, the amount (nothing while unknown), and what it includes. */
 function PlanCard({
   name,
   amount,
   includes,
-  note,
+  children,
 }: {
   name: string;
   amount: string | null;
   includes: readonly string[];
-  note?: string;
+  children?: ReactNode;
 }) {
   return (
     <section className="rounded-xl border border-border bg-surface p-5 shadow-sm">
@@ -105,7 +154,7 @@ function PlanCard({
           <li key={item}>{item}</li>
         ))}
       </ul>
-      {note && <p className="mt-4 text-xs text-muted">{note}</p>}
+      {children}
     </section>
   );
 }
