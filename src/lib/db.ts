@@ -72,6 +72,7 @@ export function getPgPool(): Promise<import("pg").Pool> {
       new Error("getPgPool() needs DATABASE_URL (the PGLite fallback has no pool)"),
     );
   }
+  if (PRODUCTION_DIRECT_NEON) return Promise.reject(new Error(PRODUCTION_DIRECT_NEON_MESSAGE));
   state.__pgPoolPromise__ ??= createPool().catch((err) => {
     state.__pgPoolPromise__ = undefined;
     throw err;
@@ -127,6 +128,32 @@ const PRODUCTION_WITHOUT_DATABASE_MESSAGE =
 
 if (PRODUCTION_WITHOUT_DATABASE) console.error(`[db] ${PRODUCTION_WITHOUT_DATABASE_MESSAGE}`);
 
+/**
+ * Production on Neon uses the pooled host (its name ends in -pooler): each
+ * warm function keeps up to four connections, and the direct host runs out
+ * of them under load. A self-hosted Postgres (no neon.tech host) is left
+ * alone; the build warns about the same host (scripts/migrate.mjs).
+ */
+export function isDirectNeonHost(url: string | undefined): boolean {
+  if (!url) return false;
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return host.endsWith(".neon.tech") && !host.includes("-pooler");
+}
+
+const PRODUCTION_DIRECT_NEON =
+  typeof process !== "undefined" &&
+  process.env.VERCEL_ENV === "production" &&
+  isDirectNeonHost(databaseUrl);
+const PRODUCTION_DIRECT_NEON_MESSAGE =
+  "DATABASE_URL points at Neon's direct host in production. Use the pooled host (its name ends in -pooler) and redeploy.";
+
+if (PRODUCTION_DIRECT_NEON) console.error(`[db] ${PRODUCTION_DIRECT_NEON_MESSAGE}`);
+
 let sqlPromise: Promise<Sql> | null = null;
 
 async function createSql(): Promise<Sql> {
@@ -137,6 +164,7 @@ async function createSql(): Promise<Sql> {
     );
   }
   if (PRODUCTION_WITHOUT_DATABASE) throw new Error(PRODUCTION_WITHOUT_DATABASE_MESSAGE);
+  if (PRODUCTION_DIRECT_NEON) throw new Error(PRODUCTION_DIRECT_NEON_MESSAGE);
   return dbSource === "postgres" ? createPostgresSql() : createPgliteSql();
 }
 

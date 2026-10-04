@@ -40,6 +40,20 @@ export interface ReportVersionRow {
    * logo there); only the single-version load carries the logo.
    */
   firm: FirmSnapshot | null;
+  /**
+   * The client's engagement (scope and period) as it stood at lock; null
+   * when all three were empty, and for every version locked before
+   * migration 0045. Printed from here only.
+   */
+  engagement: VersionEngagement | null;
+}
+
+/** The engagement frozen into a locked version. */
+export interface VersionEngagement {
+  scope: string;
+  /** "YYYY-MM-DD", or null. */
+  periodStart: string | null;
+  periodEnd: string | null;
 }
 
 export class ReportVersionError extends RequestError {
@@ -54,7 +68,8 @@ const VERSION_COLUMNS = `
   v.prepared_by, p.name as prepared_by_name, v.prepared_at,
   v.reviewed_by, r.name as reviewed_by_name, v.reviewed_at, v.review_note, v.sent_at,
   v.report_model is not null as has_figures,
-  v.firm_name, v.firm_letterhead
+  v.firm_name, v.firm_letterhead,
+  v.engagement_scope, v.engagement_period_start, v.engagement_period_end
 `;
 const VERSION_JOINS = `
   left join "user" p on p.id = v.prepared_by
@@ -78,6 +93,9 @@ interface RawVersion {
   has_figures: boolean;
   firm_name: string | null;
   firm_letterhead: string | null;
+  engagement_scope: string | null;
+  engagement_period_start: string | null;
+  engagement_period_end: string | null;
   /** Selected by the single-version load only; the list leaves it out. */
   firm_logo_data_url?: string | null;
 }
@@ -105,6 +123,16 @@ function toRow(r: RawVersion): ReportVersionRow {
             name: r.firm_name,
             letterhead: r.firm_letterhead ?? "",
             logoDataUrl: r.firm_logo_data_url ?? null,
+          },
+    engagement:
+      r.engagement_scope === null &&
+      r.engagement_period_start === null &&
+      r.engagement_period_end === null
+        ? null
+        : {
+            scope: r.engagement_scope ?? "",
+            periodStart: r.engagement_period_start,
+            periodEnd: r.engagement_period_end,
           },
   };
 }
@@ -148,12 +176,14 @@ export async function lockReportVersion(
     if (!business[0]) throw new ReportVersionError(404, "That client is not on this account");
     const frozen = input.freeze?.(business[0].profile) ?? null;
     // The firm's name and letterhead are copied in as they are today, through
-    // the same join `reportFirmName` uses, so a solo business freezes none.
+    // the same join `reportFirmName` uses, so a solo business freezes none;
+    // the engagement's scope and period likewise (an empty scope as null).
     await tx`
       insert into report_versions
         (id, user_id, business_id, version_no, revision, profile, scope_note, prepared_by,
          scoring_version, layout_version, report_model,
-         firm_name, firm_letterhead, firm_logo_data_url)
+         firm_name, firm_letterhead, firm_logo_data_url,
+         engagement_scope, engagement_period_start, engagement_period_end)
       select
         ${input.id},
         b.user_id,
@@ -171,9 +201,13 @@ export async function lockReportVersion(
         ${frozen?.model ? JSON.stringify(frozen.model) : null}::jsonb,
         f.name,
         f.letterhead,
-        f.logo_data_url
+        f.logo_data_url,
+        nullif(e.scope, ''),
+        e.period_start,
+        e.period_end
       from businesses b
       left join firms f on f.user_id = b.firm_user_id
+      left join engagement_marks e on e.user_id = b.user_id and e.business_id = b.id
       where b.user_id = ${input.ownerUserId} and b.id = ${input.businessId}
     `;
     return loadReportVersion(tx, input.ownerUserId, input.id);
@@ -364,6 +398,21 @@ export async function reportFirmName(
     where b.user_id = ${ownerUserId} and b.id = ${businessId}
   `;
   return rows[0]?.name ?? null;
+}
+
+/**
+ * The engagement line a locked version prints: "Engagement: {scope} · {from}
+ * to {to}", leaving out a missing part and its separator. Null when the
+ * version froze no engagement.
+ */
+export function engagementLine(v: Pick<ReportVersionRow, "engagement">): string | null {
+  const e = v.engagement;
+  if (!e) return null;
+  const from = e.periodStart ? formatDay(e.periodStart) : null;
+  const to = e.periodEnd ? formatDay(e.periodEnd) : null;
+  const period = from && to ? `${from} to ${to}` : from ? `from ${from}` : to ? `to ${to}` : "";
+  const parts = [e.scope.trim(), period].filter(Boolean);
+  return parts.length ? `Engagement: ${parts.join(" · ")}` : null;
 }
 
 /** One line of provenance for a locked version, printed in the report header. */

@@ -215,8 +215,8 @@ describe("account export covers every table the account owns", () => {
     );
     await pg.query(
       `insert into integration_connections (user_id, business_id, provider, realm_id, access_token_enc,
-         refresh_token_enc, access_expires_at, refresh_expires_at)
-       values ('ua', 'biz_1', 'qbo', 'realm_1', 'ACCESS_SECRET', 'REFRESH_SECRET', now(), now())`,
+         refresh_token_enc, access_expires_at, refresh_expires_at, connected_by)
+       values ('ua', 'biz_1', 'qbo', 'realm_1', 'ACCESS_SECRET', 'REFRESH_SECRET', now(), now(), 'ub')`,
     );
     await pg.query(
       `insert into integration_snapshots (user_id, business_id, provider, vendors)
@@ -277,12 +277,30 @@ describe("account export covers every table the account owns", () => {
       subscriptionStatus: "canceled",
     });
     expect(out.quickBooksConnections.map((c) => c.realmId)).toEqual(["realm_1"]);
+    expect(out.quickBooksConnections[0].connectedBy).toBe("ub");
     expect(out.quickBooksSnapshots[0].vendors).toEqual([{ name: "Acme" }]);
     expect(out.deletedBusinesses.map((d) => d.businessId)).toEqual(["biz_gone"]);
     const json = JSON.stringify(out);
     expect(json).not.toContain("INVITE_TOKEN_SECRET");
     expect(json).not.toContain("ACCESS_SECRET");
     expect(json).not.toContain("REFRESH_SECRET");
+  });
+});
+
+describe("account export of model calls", () => {
+  it("lists the account's model calls per feature as totals, never the text, and nobody else's", async () => {
+    await pg.query(
+      `insert into llm_usage (user_id, feature, model, prompt_tokens, completion_tokens, outcome)
+       values ('ua', 'coach', 'm1', 100, 20, 'ok'), ('ua', 'coach', 'm1', null, null, 'timeout'),
+              ('ua', 'brief', 'm1', 7, 3, 'ok'), ('ub', 'coach', 'm1', 999, 1, 'ok')`,
+    );
+    const out = await exportAccountRows(sql, "ua");
+    expect(out.modelUsage).toEqual([
+      { feature: "brief", calls: 1, promptTokens: 7, completionTokens: 3 },
+      { feature: "coach", calls: 2, promptTokens: 100, completionTokens: 20 },
+    ]);
+    await deleteAccountRows(sql, "ua");
+    expect(await count("llm_usage")).toBe(1);
   });
 });
 

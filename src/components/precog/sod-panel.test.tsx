@@ -72,3 +72,25 @@ describe("the duty-conflict tab's views", () => {
     expect(html).toContain(">Not valid<");
   });
 });
+
+describe("the duty-conflict tab's note on duties from job titles", () => {
+  it("asks the owner to confirm the duties under Team, naming who", () => {
+    const sample = defaultProfile("general");
+    const people = resolveTemplate(sample)
+      .people.slice(0, 3)
+      .map((person, index) =>
+        index === 0 ? { ...person, dutiesFromTitle: true as const } : person,
+      );
+    const profile = { ...sample, customPeople: people };
+    const html = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={profile}>
+        <SodPanel />
+      </ReadOnlyPracticeProvider>,
+    );
+    expect(html).toContain(
+      `One of your 3 people carries the usual duties for their job title. Confirm them under Team: ${people[0].name}.`,
+    );
+    expect(html).not.toContain("Check them under Team");
+    expect(html).toContain("I checked them: they are right");
+  });
+});

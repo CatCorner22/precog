@@ -13,6 +13,7 @@
     "dev": "vite dev --host 0.0.0.0 --port 8080",
     "build": "vite build && node scripts/migrate.mjs --only-on-production",
     "db:migrate": "node scripts/migrate.mjs",
+    "link:stripe-customer": "node scripts/link-stripe-customer.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

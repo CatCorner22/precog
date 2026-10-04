@@ -1,6 +1,6 @@
 import { MAX_BUSINESSES_PER_ACCOUNT } from "../business-lifecycle";
 import type { BillingAccount } from "./billing-store";
-import type { FirmPlan } from "./pricing";
+import type { FirmPlan, Tier } from "./pricing";
 
 /**
  * What a plan opens, computed from the billing row alone. Pure, so the firm
@@ -19,11 +19,20 @@ export const ENTITLEMENTS_FROM = "2026-10-05";
 /** Until this day a firm marked "monthly" by hand before Stripe was connected (no billing row) keeps the Firm plan with Stripe configured. The owner may change it. */
 export const HAND_MARKED_PLANS_UNTIL = "2027-01-04";
 
+/** Live client businesses each Firm plan tier holds. */
+export const TIER_CLIENT_LIMITS: Record<Tier, number> = { 1: 5, 2: 20, 3: 50 };
+
 export interface Entitlements {
   plan: Plan;
   features: Record<Feature, boolean>;
-  /** Live client businesses the plan holds: 1 free and Assessment, MAX_BUSINESSES_PER_ACCOUNT (50) Firm plan and without Stripe. */
+  /**
+   * Live client businesses the plan holds: 1 free and Assessment; on an open
+   * Firm plan the tier's limit (TIER_CLIENT_LIMITS), or
+   * MAX_BUSINESSES_PER_ACCOUNT (50) while the tier is unknown; 50 without Stripe.
+   */
   clientLimit: number;
+  /** The open Firm plan's tier, from the subscription's Stripe price; null when unknown or on any other plan. */
+  tier: Tier | null;
   /** When the Assessment window ends (ISO), else null. */
   paidUntil: string | null;
   /** When the Assessment window ended, when it has (ISO), else null. */
@@ -99,36 +108,44 @@ export function entitlementsFor(input: {
   firmPlan: FirmPlan | null;
   billing: BillingFacts | null;
   now: Date;
+  /** The subscription's tier from its Stripe price (tierForPrice); null or absent when unknown. */
+  tier?: Tier | null;
 }): Entitlements {
   const { firmPlan, billing } = input;
+  const tier = input.tier ?? null;
   const now = input.now.getTime();
   if (!input.stripeConfigured) {
     return {
       plan: firmPlan === "assessment" ? "assessment" : "firm",
       features: ALL_FEATURES,
       clientLimit: MAX_BUSINESSES_PER_ACCOUNT,
+      tier: null,
       ...NO_DATES,
       aiPlan: "paid",
     };
   }
   const status = billing?.subscriptionStatus ?? null;
-  if (status === "active" || status === "trialing") return firmPlanOpen(NO_DATES);
+  if (status === "active" || status === "trialing") return firmPlanOpen(NO_DATES, tier);
 
   const dunning = status !== null && DUNNING_STATUSES.has(status);
   const pastDueSince = dunning ? (billing?.pastDueSince ?? null) : null;
   const graceEnd = pastDueSince ? Date.parse(pastDueSince) + PAST_DUE_GRACE_DAYS * DAY_MS : null;
   if ((status === "past_due" || status === "unpaid") && (graceEnd === null || now < graceEnd)) {
-    return firmPlanOpen({
-      ...NO_DATES,
-      pastDueSince,
-      graceEndsAt: graceEnd === null ? null : iso(graceEnd),
-    });
+    return firmPlanOpen(
+      {
+        ...NO_DATES,
+        pastDueSince,
+        graceEndsAt: graceEnd === null ? null : iso(graceEnd),
+      },
+      tier,
+    );
   }
   const closedAt = graceEnd !== null && now >= graceEnd ? iso(graceEnd) : null;
   const dates = { ...NO_DATES, pastDueSince, closedAt };
 
   if (billing === null && firmPlan === "monthly" && now < dayStart(HAND_MARKED_PLANS_UNTIL)) {
-    return firmPlanOpen(NO_DATES);
+    // A firm marked by hand has no subscription, so no tier: it keeps 50.
+    return firmPlanOpen(NO_DATES, null);
   }
 
   if (billing?.assessmentPaidAt && !billing.assessmentRefundedAt) {
@@ -139,6 +156,7 @@ export function entitlementsFor(input: {
         plan: "assessment",
         features: { ...NO_FEATURES, quickbooks: true, lockedVersions: true },
         clientLimit: 1,
+        tier: null,
         ...dates,
         paidUntil: iso(end),
         aiPlan: "paid",
@@ -148,19 +166,35 @@ export function entitlementsFor(input: {
       plan: "free",
       features: NO_FEATURES,
       clientLimit: 1,
+      tier: null,
       ...dates,
       assessmentEndedAt: iso(end),
       aiPlan: "free",
     };
   }
-  return { plan: "free", features: NO_FEATURES, clientLimit: 1, ...dates, aiPlan: "free" };
+  return {
+    plan: "free",
+    features: NO_FEATURES,
+    clientLimit: 1,
+    tier: null,
+    ...dates,
+    aiPlan: "free",
+  };
 }
 
-function firmPlanOpen(dates: Dates): Entitlements {
+/**
+ * An open Firm plan holds its tier's clients. A running subscription whose
+ * price Precog does not know (created in the dashboard, on the legacy
+ * STRIPE_PRICE_MONTHLY price, or not seen since the tier column arrived)
+ * keeps MAX_BUSINESSES_PER_ACCOUNT, so nobody is refused a client the plan
+ * allowed before tiers.
+ */
+function firmPlanOpen(dates: Dates, tier: Tier | null): Entitlements {
   return {
     plan: "firm",
     features: ALL_FEATURES,
-    clientLimit: MAX_BUSINESSES_PER_ACCOUNT,
+    clientLimit: tier === null ? MAX_BUSINESSES_PER_ACCOUNT : TIER_CLIENT_LIMITS[tier],
+    tier,
     ...dates,
     aiPlan: "paid",
   };

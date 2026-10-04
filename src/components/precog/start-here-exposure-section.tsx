@@ -70,7 +70,7 @@ export function StartHereExposureSection({
             onClick={() => onOpenDetail("sod")}
             className="font-medium text-primary underline underline-offset-2 hover:text-fg"
           >
-            Check them in {tabName("sod")}.
+            Confirm them in {tabName("sod")}.
           </button>
         </p>
       )}

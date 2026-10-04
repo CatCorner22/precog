@@ -1,4 +1,5 @@
 import type { Sql } from "@/lib/db";
+import { RequestError } from "@/lib/request-errors";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { entitlementsFor } from "./entitlements";
 import type { FirmPlan } from "./pricing";
@@ -37,6 +38,8 @@ export interface BillingAccount {
   assessmentFeeCents: number | null;
   /** The credit posted to the Stripe customer balance, in cents, so a refund reverses what was posted. */
   assessmentCreditCents: number | null;
+  /** The Stripe price the subscription runs on (its tier); null until a subscription event names it. */
+  subscriptionPriceId: string | null;
   /** When a Stripe-side credit reversal last failed; the weekly run retries while this is set and cents stay posted. */
   assessmentCreditReversalFailedAt: string | null;
   updatedAt: string;
@@ -155,6 +158,7 @@ export async function loadBillingAccount(sql: Sql, userId: string): Promise<Bill
     assessment_credit_used_at: string | null;
     assessment_fee_cents: number | string | null;
     assessment_credit_cents: number | string | null;
+    subscription_price_id: string | null;
     assessment_credit_reversal_failed_at: string | null;
     updated_at: string;
   }>`
@@ -164,7 +168,8 @@ export async function loadBillingAccount(sql: Sql, userId: string): Promise<Bill
       coalesce(past_due_since,
         case when subscription_status in ('past_due', 'unpaid') then subscription_event_at end) as past_due_since,
       payment_failed_email_sent_at, payment_failed_invoice_url, assessment_credit_used_at,
-      assessment_fee_cents, assessment_credit_cents, assessment_credit_reversal_failed_at, updated_at
+      assessment_fee_cents, assessment_credit_cents, subscription_price_id,
+      assessment_credit_reversal_failed_at, updated_at
     from billing_accounts where user_id = ${userId}
   `;
   const row = rows[0];
@@ -185,6 +190,7 @@ export async function loadBillingAccount(sql: Sql, userId: string): Promise<Bill
     assessmentFeeCents: row.assessment_fee_cents === null ? null : Number(row.assessment_fee_cents),
     assessmentCreditCents:
       row.assessment_credit_cents === null ? null : Number(row.assessment_credit_cents),
+    subscriptionPriceId: row.subscription_price_id,
     assessmentCreditReversalFailedAt: toIsoTimestampOrNull(
       row.assessment_credit_reversal_failed_at,
     ),
@@ -421,7 +427,7 @@ export async function recordAssessmentDispute(
  */
 export function checkoutRefusal(account: BillingAccount | null, plan: string): string | null {
   if (
-    plan === "monthly" &&
+    plan !== "assessment" &&
     account?.subscriptionStatus &&
     ACTIVE_SUBSCRIPTION_STATUSES.has(account.subscriptionStatus)
   ) {
@@ -464,8 +470,10 @@ export async function recordSubscription(
      * why; any other reason (the firm asked) clears it.
      */
     cancellationReason?: string | null;
+    /** The subscription's Stripe price (its tier); null keeps the stored one for the same subscription. */
+    priceId?: string | null;
   },
-): Promise<string> {
+): Promise<{ status: string; ignoredOther: boolean; storedSubscriptionId: string | null }> {
   const stored = await sql<{
     subscription_id: string | null;
     subscription_status: string | null;
@@ -484,24 +492,48 @@ export async function recordSubscription(
     const older = Boolean(
       input.eventAt && storedAt && Date.parse(input.eventAt) < Date.parse(storedAt),
     );
-    if (otherWhileActive || older) return current.subscription_status;
+    if (otherWhileActive || older) {
+      // A second subscription starting or running beside the one the firm
+      // pays for (two Checkouts completed in the same second): Stripe charges
+      // it, so the webhook reports it for the operator to cancel and refund.
+      // A late event or the duplicate's own cancellation is not news.
+      const ignoredOther =
+        otherWhileActive &&
+        !older &&
+        input.status !== "canceled" &&
+        input.status !== "incomplete_expired";
+      return {
+        status: current.subscription_status,
+        ignoredOther,
+        storedSubscriptionId: current.subscription_id,
+      };
+    }
   }
   const eventAt = input.status === null ? null : (input.eventAt ?? null);
   const cancellationReason = input.cancellationReason ?? null;
+  const priceId = input.priceId ?? null;
   const rows = await sql<{ subscription_status: string }>`
     insert into billing_accounts
       (user_id, stripe_customer_id, subscription_id, subscription_status, current_period_end,
-        subscription_event_at, past_due_since, updated_at)
+        subscription_event_at, past_due_since, subscription_price_id, updated_at)
     values (
       ${input.userId}, ${input.stripeCustomerId}, ${input.subscriptionId},
       coalesce(${input.status}::text, 'active'), ${input.currentPeriodEnd}::timestamptz,
       ${eventAt}::timestamptz,
       case when ${input.status}::text in ('past_due', 'unpaid') then coalesce(${eventAt}::timestamptz, now()) end,
+      ${priceId}::text,
       now()
     )
     on conflict (user_id) do update set
       stripe_customer_id = coalesce(excluded.stripe_customer_id, billing_accounts.stripe_customer_id),
       subscription_id = excluded.subscription_id,
+      -- A later event for the same subscription without items keeps its price;
+      -- a new subscription never inherits the old one's tier.
+      subscription_price_id = case
+        when billing_accounts.subscription_id = excluded.subscription_id
+        then coalesce(excluded.subscription_price_id, billing_accounts.subscription_price_id)
+        else excluded.subscription_price_id
+      end,
       subscription_status = case
         when ${input.status}::text is null
           and billing_accounts.subscription_id = excluded.subscription_id
@@ -545,7 +577,11 @@ export async function recordSubscription(
       updated_at = now()
     returning subscription_status
   `;
-  return rows[0].subscription_status;
+  return {
+    status: rows[0].subscription_status,
+    ignoredOther: false,
+    storedSubscriptionId: input.subscriptionId,
+  };
 }
 
 /**
@@ -594,6 +630,86 @@ export async function userForCustomer(sql: Sql, stripeCustomerId: string): Promi
     select user_id from billing_accounts where stripe_customer_id = ${stripeCustomerId}
   `;
   return rows[0]?.user_id ?? null;
+}
+
+/**
+ * The refusal when a Stripe customer has no active, trialing or past_due
+ * subscription: linking it would give the account a billing row with no
+ * running plan, which closes a firm marked by hand. Checked Stripe-side by
+ * the link script (scripts/lib/link-stripe-customer.mjs, which copies this
+ * text and is pinned equal to it) and the operator page.
+ */
+export function NO_RUNNING_SUBSCRIPTION(customerId: string): string {
+  return `Stripe customer ${customerId} has no running subscription. Create the subscription in Stripe first, then link.`;
+}
+
+export const CUSTOMER_OF_ANOTHER_ACCOUNT = "That customer belongs to another account in Precog.";
+
+/**
+ * Links a Stripe customer the owner set up outside Checkout (a net-30
+ * invoice subscription, a firm marked by hand) to an account, so its
+ * subscription events attribute. Refuses (409) a customer another account
+ * holds, an account that already holds another customer unless `replace`,
+ * and a member of a firm who is not its owner (the firm's plan reads the
+ * owner's row). "unchanged" when the account already holds this customer.
+ * The script runs the same statement (scripts/lib/link-stripe-customer.mjs).
+ */
+export async function setStripeCustomer(
+  sql: Sql,
+  userId: string,
+  customerId: string,
+  { replace = false }: { replace?: boolean } = {},
+): Promise<"linked" | "unchanged"> {
+  const owner = await userForCustomer(sql, customerId);
+  if (owner && owner !== userId) throw new RequestError(409, CUSTOMER_OF_ANOTHER_ACCOUNT);
+  const memberships = await sql<{ email: string | null; firm: string }>`
+    select u.email, f.name as firm
+    from firm_members m
+    join firms f on f.user_id = m.firm_user_id
+    join "user" u on u.id = m.member_user_id
+    where m.member_user_id = ${userId} and m.role <> 'owner'
+  `;
+  const member = memberships[0];
+  if (member) {
+    throw new RequestError(
+      409,
+      `${member.email ?? userId} is a member of ${member.firm}, not its owner. Link the firm owner's account.`,
+    );
+  }
+  const stored = await sql<{ stripe_customer_id: string | null }>`
+    select stripe_customer_id from billing_accounts where user_id = ${userId}
+  `;
+  const current = stored[0]?.stripe_customer_id ?? null;
+  if (current === customerId) return "unchanged";
+  if (current && !replace) {
+    throw new RequestError(
+      409,
+      `This account already has Stripe customer ${current}. Tick Replace to link another.`,
+    );
+  }
+  await sql`
+    insert into billing_accounts (user_id, stripe_customer_id, updated_at)
+    values (${userId}, ${customerId}, now())
+    on conflict (user_id) do update set
+      stripe_customer_id = excluded.stripe_customer_id, updated_at = now()
+  `;
+  return "linked";
+}
+
+/**
+ * A firm marked "monthly" by hand before Stripe was connected, with no
+ * billing row: it keeps the Firm plan until HAND_MARKED_PLANS_UNTIL, and any
+ * billing row ends that exception.
+ */
+export async function isHandMarked(sql: Sql, userId: string): Promise<boolean> {
+  const rows = await sql<{ hand_marked: boolean }>`
+    select exists (
+      select 1 from firms f
+      where f.user_id = ${userId} and f.plan = 'monthly'
+        and not exists (select 1 from billing_accounts b where b.user_id = f.user_id)
+    ) as hand_marked
+  `;
+  return Boolean(rows[0]?.hand_marked);
 }
 
 /** True the first time an event id is seen; false for a redelivery. */

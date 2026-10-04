@@ -1,8 +1,34 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OwnTeamRow } from "@/lib/precog/onboarding/own-team";
-import { NO_CASE_FOR_RULE, UNVERIFIED_CASE } from "@/lib/precog/evidence";
+import { NO_CASE_FOR_RULE, UNVERIFIED_CASE, VERIFIED_CASE } from "@/lib/precog/evidence";
 import { SetupPreviewCard } from "./setup-preview-card";
+
+/** When set, the first finding's case reads as verified by this person on this day. */
+const verification = vi.hoisted(() => ({ on: null as string | null, by: "" }));
+
+vi.mock("@/lib/precog/onboarding/setup-preview", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/precog/onboarding/setup-preview")>();
+  return {
+    ...actual,
+    previewSetup: (...args: Parameters<typeof actual.previewSetup>) => {
+      const preview = actual.previewSetup(...args);
+      const study = preview.first?.study;
+      if (!verification.on || !preview.first || !study) return preview;
+      return {
+        ...preview,
+        first: {
+          ...preview.first,
+          study: { ...study, verifiedOn: verification.on, verifiedBy: verification.by },
+        },
+      };
+    },
+  };
+});
+
+afterEach(() => {
+  verification.on = null;
+});
 
 const rows: OwnTeamRow[] = [
   { name: "Ana Ruiz", role: "Owner", duties: [], owner: true },
@@ -41,6 +67,16 @@ describe("SetupPreviewCard's case", () => {
     expect(html).toContain(UNVERIFIED_CASE.label);
     expect(html).toContain(UNVERIFIED_CASE.title);
     expect(html).not.toContain("A related arrangement");
+  });
+
+  it("shows the verified marker instead of Unverified once the case is checked", () => {
+    verification.on = "2026-10-01";
+    verification.by = "A. Reviewer";
+    const html = renderToStaticMarkup(<SetupPreviewCard rows={rows} industry="dental" />);
+    expect(html).toContain("The same arrangement");
+    expect(html).toContain(VERIFIED_CASE.label);
+    expect(html).toContain('title="Checked on Oct 1, 2026 by A. Reviewer."');
+    expect(html).not.toContain(UNVERIFIED_CASE.label);
   });
 
   it("says no prosecuted case shows the pair when no record cites the rule", () => {

@@ -7,7 +7,13 @@ import { databaseConfigured, getSql } from "@/lib/db";
 import { reportServerError } from "@/lib/observability/report.server";
 import { loadEntitlements } from "@/lib/precog/firm/entitlements.server";
 import { checkDailyBudget, userDailyLimits, type AiPlan } from "./daily-usage";
-import { grokChat, type GrokChatOptions, type GrokChatResult } from "./grok-client.server";
+import {
+  grokChat,
+  type GrokChatOptions,
+  type GrokChatResult,
+  type GrokUsageLine,
+} from "./grok-client.server";
+import { insertUsage } from "./usage-log.server";
 import { createAnonymousHeavyGate, LLM_LIMITS, SlidingWindowLimiter } from "./rate-limit";
 import { DailyLimitReached, type DailyLimitInfo, type GrokAccess } from "./types";
 import { RequestError } from "@/lib/request-errors";
@@ -92,6 +98,11 @@ export async function resolveLlmAccess(
  * when today's budget is spent, naming the ceiling met. Returns null, and the
  * caller uses its local answer, when the request may not call the model, the
  * budget cannot be read (fails closed), or the upstream call fails.
+ *
+ * Every attempted call, answered or failed, is recorded in `llm_usage` (the
+ * tokens the API reported, no text) before this returns, so a function that
+ * freezes after answering cannot drop the row; a failed record is reported
+ * and never fails the answer.
  */
 export async function callModel(
   access: LlmAccess,
@@ -108,11 +119,44 @@ export async function callModel(
     callerAddress(),
     plan,
   );
-  if (budget === "allowed") return grokChat(apiKey, opts);
+  if (budget === "allowed") return recordedCall(access.userId, apiKey, opts);
   if (budget === "unavailable") return null;
   const { limit, paidLimit } = userDailyLimits(plan);
   if (budget === "spent-global") await reportGlobalCeilingOnce();
   throw new DailyLimitReached({ scope: CEILING_SCOPE[budget], plan, limit, paidLimit });
+}
+
+/** The model call, then its record, awaited inside its own catch. */
+async function recordedCall(
+  userId: string,
+  apiKey: string,
+  opts: GrokChatOptions,
+): Promise<GrokChatResult | null> {
+  let usage: GrokUsageLine | null = null;
+  const keep = (line: GrokUsageLine) => {
+    usage = line;
+    opts.onUsage?.(line);
+  };
+  try {
+    return await grokChat(apiKey, { ...opts, onUsage: keep });
+  } finally {
+    const line = usage as GrokUsageLine | null;
+    if (line) {
+      try {
+        await insertUsage(await getSql(), {
+          // The local development account has no "user" row for the foreign key.
+          userId: userId === DEV_USER_ID ? null : userId,
+          feature: line.feature,
+          model: line.model,
+          promptTokens: line.promptTokens,
+          completionTokens: line.completionTokens,
+          outcome: line.outcome,
+        });
+      } catch (err) {
+        await reportServerError(err, "llm-usage");
+      }
+    }
+  }
 }
 
 /** The ceiling a refused budget names, by the budget's answer. */

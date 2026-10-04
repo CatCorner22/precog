@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { serverUtcDay } from "@/lib/precog/dates";
+import { CRON_STAGE_BUDGET_MS, type CronStage } from "@/lib/precog/cron/budget";
 
 const NO_STORE = { "cache-control": "no-store" } as const;
 
@@ -11,12 +12,18 @@ const NO_STORE = { "cache-control": "no-store" } as const;
  * shared-map view logs and failed passcode guesses past their retention are
  * purged, then the week's first-time milestones are counted into the answer,
  * and any Assessment-credit reversal a webhook parked is retried against
- * Stripe: the emails run before QuickBooks, so a slow or failing QuickBooks pass
+ * Stripe (model-call records past their 13 months are dropped after the
+ * purge, on their own, so a failure there is reported but fails no stage):
+ * the emails run before QuickBooks, so a slow or failing QuickBooks pass
  * cannot stop them, and the alerts run after it, so they name the failures
  * this run just recorded. Each stage runs on its own, so a failure in one is
  * reported in the answer and does not stop the others.
  * Emails that fail inside the digest or the alerts are reported; either
- * counts as a failed stage when it had errors and sent nothing. Vercel calls it with
+ * counts as a failed stage when it had errors and sent nothing. The digest,
+ * QuickBooks and alert stages each get a deadline (CRON_STAGE_BUDGET_MS, from
+ * the stage's start) and stop before their next recipient, connection or
+ * account once it passes; the answer then says `partial: true` and names
+ * them in `stopped` (still 200: the next run picks up what is left). Vercel calls it with
  * `Authorization: Bearer $CRON_SECRET`; anything else is refused.
  */
 export const Route = createFileRoute("/api/cron/digest")({
@@ -37,6 +44,7 @@ export const Route = createFileRoute("/api/cron/digest")({
           shareStore,
           attempts,
           telemetry,
+          usageLog,
           billingWebhook,
         ] = await Promise.all([
           import("@/lib/db"),
@@ -49,6 +57,7 @@ export const Route = createFileRoute("/api/cron/digest")({
           import("@/lib/precog/share/share-store"),
           import("@/lib/precog/share/share-attempts"),
           import("@/lib/precog/telemetry/events.server"),
+          import("@/lib/precog/llm/usage-log.server"),
           import("@/lib/precog/billing/webhook"),
         ]);
         const sql = await getSql();
@@ -57,18 +66,30 @@ export const Route = createFileRoute("/api/cron/digest")({
         const today = serverUtcDay();
         const configured = mailer.mailConfigured();
         const failures: string[] = [];
+        const stopped: CronStage[] = [];
+        const deadline = (name: CronStage) => Date.now() + CRON_STAGE_BUDGET_MS[name];
 
+        const modelUsage: { purged: number | null } = { purged: null };
         const purged = await stage("purge", failures, async () => {
           const count = await store.purgeDeletedBusinesses(sql);
           if (count > 0) await firmStore.deleteOrphanedClientAudit(sql);
           return count;
         });
+        // Its own catch, so a failed usage purge neither hides nor fails the business purge.
+        try {
+          modelUsage.purged = await usageLog.purgeOldUsage(sql);
+        } catch (err) {
+          const { reportServerError } = await import("@/lib/observability/report.server");
+          await reportServerError(err, "cron-model-usage-purge");
+        }
         const digest = await stage("digest", failures, async () => {
           const outcome = await runDigest(sql, {
             today,
             appUrl,
             send: configured ? mailer.sendEmail : async () => undefined,
+            deadline: deadline("digest"),
           });
+          if (outcome.stopped) stopped.push("digest");
           if (outcome.errors.length > 0) {
             // runDigest already reported each business it could not read.
             const unreported = outcome.errors.filter((e) => !e.startsWith("business "));
@@ -80,13 +101,19 @@ export const Route = createFileRoute("/api/cron/digest")({
           }
           return outcome;
         });
-        const synced = await stage("quickbooks", failures, () => qbo.syncDueConnections(sql));
+        const synced = await stage("quickbooks", failures, async () => {
+          const outcome = await qbo.syncDueConnections(sql, { deadline: deadline("quickbooks") });
+          if (outcome.stopped) stopped.push("quickbooks");
+          return outcome;
+        });
         const quickbooksAlerts = await stage("quickbooks-alerts", failures, async () => {
           const outcome = await qboAlerts.alertQuickBooksProblems(sql, {
             today,
             appUrl,
             send: configured ? mailer.sendEmail : async () => undefined,
+            deadline: deadline("quickbooks-alerts"),
           });
+          if (outcome.stopped) stopped.push("quickbooks-alerts");
           // alertQuickBooksProblems already reported the sends it gave up on.
           if (outcome.errors.length > 0 && outcome.emailed === 0)
             failures.push("quickbooks-alerts");
@@ -107,6 +134,8 @@ export const Route = createFileRoute("/api/cron/digest")({
         return Response.json(
           {
             ok: failures.length === 0,
+            partial: stopped.length > 0,
+            stopped,
             today,
             mailConfigured: configured,
             digest,
@@ -115,6 +144,7 @@ export const Route = createFileRoute("/api/cron/digest")({
             quickbooksAlerts,
             shareLogs,
             activation,
+            modelUsage,
             creditReversals,
             failures,
           },

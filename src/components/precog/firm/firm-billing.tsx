@@ -2,14 +2,19 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { fieldCls } from "@/components/ui/field-classes";
 import { BILLING_TERMS_SENTENCE } from "@/lib/precog/firm/plan-contents";
 import {
+  checkoutPlanFor,
   PILOT_OFFER,
   planAmounts,
+  TIERS,
+  type BillingInterval,
   type CheckoutPlan,
   type FirmPlan,
   type PlanAmounts,
-  type PlanPrice,
+  type PlanPrices,
+  type Tier,
 } from "@/lib/precog/firm/pricing";
 import type { BillingAccount } from "@/lib/precog/firm/billing-store";
 import {
@@ -40,13 +45,18 @@ export function FirmBilling({
   billing: BillingAccount | null;
   billingConfigured: boolean;
   /** Stripe's amounts; null while unknown, so no figure prints that Checkout would not charge. */
-  prices: Record<CheckoutPlan, PlanPrice> | null;
-  /** What the firm's plan opens today; null while unknown. */
-  entitlements: Entitlements | null;
+  prices: PlanPrices | null;
+  /**
+   * What the firm's plan opens today; null while unknown. The page passes
+   * getEntitlements' answer, whose client count prints the "n of limit" line.
+   */
+  entitlements: (Entitlements & { clientCount?: number }) | null;
   canManage: boolean;
   onMarkPlan: (plan: FirmPlan) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
+  const [tier, setTier] = useState<Tier>(1);
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>("month");
   const active = billing?.subscriptionStatus
     ? ACTIVE_SUBSCRIPTION_STATUSES.has(billing.subscriptionStatus)
     : false;
@@ -55,6 +65,12 @@ export function FirmBilling({
   // With Stripe connected, only Stripe's own amounts are printed; the offer's
   // figures describe the manual (invoiced) arrangement.
   const amounts = planAmounts(billingConfigured, prices);
+  // A tier with no price for the chosen interval is not offered; while the
+  // prices are unknown nothing is greyed out (Checkout refuses an unset one).
+  const offered = (t: Tier, i: BillingInterval) => !amounts || amounts.tiers[t][i] !== null;
+  const selectedPrice = amounts ? amounts.tiers[tier][billingInterval] : null;
+  const countLine =
+    billingConfigured && entitlements ? clientCountLine(entitlements, canManage) : null;
 
   async function buy(which: CheckoutPlan) {
     setBusy(true);
@@ -106,6 +122,7 @@ export function FirmBilling({
           </>
         )}
       </dl>
+      {countLine && <p className="mt-2 text-sm text-muted">{countLine}</p>}
       {canManage && (
         <div className="mt-3 flex flex-wrap gap-2">
           {billingConfigured ? (
@@ -121,15 +138,46 @@ export function FirmBilling({
                 </Button>
               )}
               {!active && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => void buy("monthly")}
-                  disabled={busy}
-                >
-                  Start the {PILOT_OFFER.monthlyLabel}
-                  {amounts ? ` (${amounts.monthly})` : ""}
-                </Button>
+                <div className="flex w-full flex-wrap items-end gap-2">
+                  <label className="text-xs text-muted">
+                    Tier
+                    <select
+                      className={`${fieldCls} mt-1 block`}
+                      value={tier}
+                      onChange={(e) => setTier(Number(e.target.value) as Tier)}
+                    >
+                      {TIERS.map((t) => (
+                        <option
+                          key={t.tier}
+                          value={t.tier}
+                          disabled={!offered(t.tier, billingInterval)}
+                        >
+                          {`${t.label} (${t.clients} clients)`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs text-muted">
+                    Billing
+                    <select
+                      className={`${fieldCls} mt-1 block`}
+                      value={billingInterval}
+                      onChange={(e) => setBillingInterval(e.target.value as BillingInterval)}
+                    >
+                      <option value="month">Monthly</option>
+                      <option value="year">{"Yearly (ten months' price)"}</option>
+                    </select>
+                  </label>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void buy(checkoutPlanFor(tier, billingInterval))}
+                    disabled={busy || !offered(tier, billingInterval)}
+                  >
+                    Start the {PILOT_OFFER.monthlyLabel}
+                    {selectedPrice ? ` (${selectedPrice})` : ""}
+                  </Button>
+                </div>
               )}
               {billing?.stripeCustomerId && (
                 <Button size="sm" variant="secondary" onClick={() => void portal()} disabled={busy}>
@@ -189,13 +237,19 @@ function planSentence(
   return `${assessment} Start the ${monthly} later and the Assessment fee is credited against its invoices. ${PILOT_OFFER.monthlyDetail}`;
 }
 
-/** "Free", "Assessment (until 2026-12-30)", "Assessment (ended 2026-12-30)", "Firm plan" and its overdue and closed forms. */
+/**
+ * "Free", "Assessment (until 2026-12-30)", "Assessment (ended 2026-12-30)",
+ * "Firm plan" (tier unknown) or "Firm plan · Starter, up to 5 client
+ * businesses", and the overdue and closed forms.
+ */
 function currentPlanLabel(e: Entitlements): string {
   if (e.closedAt) return `${PILOT_OFFER.monthlyLabel} (closed ${e.closedAt.slice(0, 10)})`;
   if (e.plan === "firm") {
-    return e.graceEndsAt
-      ? `${PILOT_OFFER.monthlyLabel} (payment overdue, closes ${e.graceEndsAt.slice(0, 10)})`
+    const tier = TIERS.find((t) => t.tier === e.tier);
+    const name = tier
+      ? `${PILOT_OFFER.monthlyLabel} · ${tier.label}, up to ${e.clientLimit} client businesses`
       : PILOT_OFFER.monthlyLabel;
+    return e.graceEndsAt ? `${name} (payment overdue, closes ${e.graceEndsAt.slice(0, 10)})` : name;
   }
   if (e.plan === "assessment" && e.paidUntil) {
     return `${PILOT_OFFER.assessmentLabel} (until ${e.paidUntil.slice(0, 10)})`;
@@ -204,6 +258,23 @@ function currentPlanLabel(e: Entitlements): string {
     return `${PILOT_OFFER.assessmentLabel} (ended ${e.assessmentEndedAt.slice(0, 10)})`;
   }
   return "Free";
+}
+
+/**
+ * "4 of 5 client businesses" on an open Firm plan whose client count is
+ * known; at a Starter or Practice limit it says how to get more: the owner
+ * moves up a tier in Manage billing, a member asks the owner.
+ */
+function clientCountLine(
+  e: Entitlements & { clientCount?: number },
+  canManage: boolean,
+): string | null {
+  if (e.plan !== "firm" || typeof e.clientCount !== "number") return null;
+  const line = `${e.clientCount} of ${e.clientLimit} client businesses`;
+  if (e.tier === null || e.tier === 3 || e.clientCount < e.clientLimit) return line;
+  return canManage
+    ? `${line} · Move up a tier in Manage billing.`
+    : `${line} · Ask the firm owner to move up a tier.`;
 }
 
 /** "Refunded 2026-09-20", "Disputed", the day it was paid, or "Not yet". */

@@ -1,6 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { RequestError } from "@/lib/request-errors";
-import { stripeConfigured } from "../billing/stripe.server";
+import { stripeConfigured, tierForPrice } from "../billing/stripe.server";
 import { loadBillingAccount } from "./billing-store";
 import {
   entitlementRefusal,
@@ -23,6 +23,9 @@ export async function loadEntitlements(sql: Sql, userId: string): Promise<Entitl
     firmPlan: firm?.plan ?? null,
     billing,
     now: new Date(),
+    // The tier follows the subscription's Stripe price; an unknown or legacy
+    // price is null, which keeps 50 clients.
+    tier: tierForPrice(billing?.subscriptionPriceId ?? null),
   });
 }
 

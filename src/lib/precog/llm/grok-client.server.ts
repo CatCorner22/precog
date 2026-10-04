@@ -8,6 +8,11 @@ export interface GrokChatOptions {
   jsonObject?: boolean;
   /** Which feature made the call, for the usage log line only; never sent upstream. */
   feature?: string;
+  /**
+   * Receives the same usage line the log gets, for every attempted call
+   * (success or failure), so the caller can store it. Never sent upstream.
+   */
+  onUsage?: (line: GrokUsageLine) => void;
 }
 
 export interface GrokChatResult {
@@ -58,8 +63,8 @@ export async function grokChat(
     outcome: GrokUsageLine["outcome"],
     model: string,
     tokens?: { prompt_tokens?: unknown; completion_tokens?: unknown; total_tokens?: unknown },
-  ) =>
-    logUsage({
+  ) => {
+    const line: GrokUsageLine = {
       feature: opts.feature ?? "unknown",
       model,
       promptTokens: tokenCount(tokens?.prompt_tokens),
@@ -67,7 +72,14 @@ export async function grokChat(
       totalTokens: tokenCount(tokens?.total_tokens),
       latencyMs: Date.now() - started,
       outcome,
-    });
+    };
+    logUsage(line);
+    try {
+      opts.onUsage?.(line);
+    } catch {
+      // A recorder that throws never changes the call's answer.
+    }
+  };
 
   try {
     const response = await fetch("https://api.x.ai/v1/chat/completions", {

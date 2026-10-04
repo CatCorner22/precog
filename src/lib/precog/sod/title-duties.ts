@@ -23,20 +23,31 @@ export function titleDutiesSentence(people: readonly Person[]): string {
   const guessed = peopleWithTitleDuties(people).length;
   if (guessed === 0 || total === 0) return "";
   if (total === 1) {
-    return "Duties for your one person are the usual ones for their job title, not ones you confirmed.";
+    return "Your one person carries the usual duties for their job title.";
   }
   if (guessed === total) {
-    return `Duties for all ${total} of your people are the usual ones for their job titles, not ones you confirmed.`;
+    return `All ${total} of your people carry the usual duties for their job titles.`;
   }
-  return `Duties for ${guessed} of your ${total} people are the usual ones for their job ${
-    guessed === 1 ? "title" : "titles"
-  }, not ones you confirmed.`;
+  if (guessed === 1) {
+    return `One of your ${total} people carries the usual duties for their job title.`;
+  }
+  return `${guessed} of your ${total} people carry the usual duties for their job titles.`;
 }
 
 /** The team with every "duties from the job title" mark cleared: the owner has checked them. */
 export function confirmTitleDuties(people: readonly Person[]): Person[] {
   return people.map((person) => {
     if (!person.dutiesFromTitle) return person;
+    const rest: Person = { ...person };
+    delete rest.dutiesFromTitle;
+    return rest;
+  });
+}
+
+/** The team with one person's "duties from the job title" mark cleared: the owner confirmed theirs. */
+export function confirmTitleDutiesFor(people: readonly Person[], personId: string): Person[] {
+  return people.map((person) => {
+    if (person.id !== personId || !person.dutiesFromTitle) return person;
     const rest: Person = { ...person };
     delete rest.dutiesFromTitle;
     return rest;

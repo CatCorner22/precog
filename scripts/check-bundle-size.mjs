@@ -106,6 +106,14 @@
  * firm letterhead, cover page and report share. Measured 790.5 KB in 117
  * chunks after wave 3 (P2), against 781.3 KB before the batch. Total budget
  * raised from 790 KB to 800 KB; the figure after wave 4 is in the PR.
+ *
+ * 2026-10-04: commercial batch 3 adds the tier table and Checkout selects,
+ * the engagement block and archive, the review workflow, the grant card,
+ * the operator page and the client table; its plan estimates about +23 KB.
+ * Measured 800.2 KB in 122 chunks after wave 1, against 796.2 KB before the
+ * batch. Total budget raised once, from 800 KB to 825 KB, so every wave's
+ * verify holds; the PR states the total after the last wave, and the budget
+ * is lowered then if the batch lands well under it.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -114,7 +122,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 800 * 1024,
+  totalGzipBytes: 825 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
