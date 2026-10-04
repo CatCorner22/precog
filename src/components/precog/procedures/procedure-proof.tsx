@@ -112,7 +112,7 @@ export function ProofSection({
   return (
     <section
       id={`proof-section-${procedure.id}`}
-      className="scroll-mt-40 space-y-2"
+      className="space-y-2"
       aria-labelledby={`proof-${procedure.id}`}
     >
       <h3
