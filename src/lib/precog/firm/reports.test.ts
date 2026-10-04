@@ -68,6 +68,43 @@ describe("report versions", () => {
     ]);
   });
 
+  it("says whether a version stores its figures", async () => {
+    const bare = await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_bare",
+    });
+    expect(bare.hasFigures).toBe(false);
+    const stored = await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_stored",
+      freeze: () => ({ scoringVersion: "1.0.0", layoutVersion: 3, model: { summary: [] } }),
+    });
+    expect(stored.hasFigures).toBe(true);
+    // A lock that ran but could not store the model reads as without figures.
+    const dropped = await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_dropped",
+      freeze: () => ({ scoringVersion: "1.0.0", layoutVersion: 3, model: null }),
+    });
+    expect(dropped.hasFigures).toBe(false);
+    expect(
+      (await listReportVersions(db.sql, "owner", "biz_1")).map((v) => [v.id, v.hasFigures]),
+    ).toEqual([
+      ["rv_dropped", false],
+      ["rv_stored", true],
+      ["rv_bare", false],
+    ]);
+  });
+
   it("a reviewer other than the preparer reviews it for issuance, once", async () => {
     await lockReportVersion(db.sql, {
       ownerUserId: "owner",
@@ -144,6 +181,51 @@ describe("report versions", () => {
     await db.pg.query("update businesses set firm_user_id = 'owner'");
     expect(await reportFirmName(db.sql, "owner", "biz_1")).toBe("North Advisors");
     expect(await reportFirmName(db.sql, "owner", "biz_missing")).toBeNull();
+  });
+
+  it("freezes the firm's name and letterhead into a firm client's version, and null for a solo one", async () => {
+    const logo = "data:image/png;base64,iVBORw0KGgo=";
+    await db.pg.query(
+      `insert into firms (user_id, name, letterhead, logo_data_url)
+       values ('owner', 'North Advisors', '12 Elm St', $1)`,
+      [logo],
+    );
+    const solo = await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_solo",
+    });
+    expect(solo.firm).toBeNull();
+    await db.pg.query("update businesses set firm_user_id = 'owner'");
+    const v = await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_firm",
+    });
+    expect(v.firm).toEqual({ name: "North Advisors", letterhead: "12 Elm St", logoDataUrl: logo });
+    // A later rename or new letterhead leaves the version as it was printed.
+    await db.pg.query(
+      "update firms set name = 'North & Co', letterhead = '', logo_data_url = null",
+    );
+    const kept = await loadReportVersion(db.sql, "owner", "rv_firm");
+    expect(kept?.version.firm).toEqual({
+      name: "North Advisors",
+      letterhead: "12 Elm St",
+      logoDataUrl: logo,
+    });
+    // The list carries the name and letterhead but never the logo, which only
+    // the single-version load above carries.
+    expect((await listReportVersions(db.sql, "owner", "biz_1")).map((r) => r.firm)).toEqual([
+      { name: "North Advisors", letterhead: "12 Elm St", logoDataUrl: null },
+      null,
+    ]);
+    // A version stored before the snapshot columns existed reads as null.
+    await db.pg.query("update report_versions set firm_name = null where id = 'rv_firm'");
+    expect((await loadReportVersion(db.sql, "owner", "rv_firm"))?.version.firm).toBeNull();
   });
 
   it("refuses to lock a deleted or foreign business", async () => {
@@ -262,6 +344,8 @@ describe("versionProvenance", () => {
     reviewedAt: null,
     reviewNote: "",
     sentAt: null,
+    hasFigures: false,
+    firm: null,
   };
 
   it("says who prepared it and who reviewed it for issuance", () => {

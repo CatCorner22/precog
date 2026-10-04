@@ -34,8 +34,7 @@ import {
 import { rankFirstSteps } from "../coach/first-steps";
 import { buildWeeklyActions } from "../weekly-actions/build";
 import { buildProcessMapGraph } from "../process-graph";
-import { computeMapHealth } from "../process-health";
-import { validateProcessMap } from "../process-validation";
+import { scoreMap } from "../builder/scored-map";
 import { registerAssessed } from "../continuity/register-state";
 import {
   continuityFollowThrough,
@@ -127,6 +126,18 @@ export function buildControlReportModel({
   const committed = continuityCommitments(profile.decisions, tpl, today);
   const policyNote = insuranceFigureNote(profile.riskVariables, isOwnBusiness(tpl));
   const { snapshots } = buildProcessMapGraph(tpl, profile.staff, {}, residualScope(profile));
+  // Score the map as the map screen scores it: a starter process the owner
+  // has not touched yet stays out of the health figure and its issues, so
+  // the printed score matches the map pill and the stored history it is
+  // compared with below. Weekly actions keep the full graph snapshots.
+  const scored = scoreMap(tpl, tpl.processes, profile.staff, {
+    profile: { industry: profile.industry, customPeople: profile.customPeople },
+    people: tpl.people,
+    layout: profile.mapLayout ?? {},
+    customized: mapCustomized,
+  });
+  const issues = scored.issues;
+  const mapHealth = scored.health;
   const actions = buildWeeklyActions({
     tpl,
     staff: profile.staff,
@@ -141,13 +152,6 @@ export function buildControlReportModel({
     integrationDriftSummary: profile.integrationDriftSummary,
     accessReconciliation: profile.accessReconciliation,
   });
-  const issues = validateProcessMap(
-    tpl.processes,
-    tpl.people,
-    new Set(tpl.controls.map((c) => c.id)),
-    profile.mapLayout ?? {},
-  );
-  const mapHealth = computeMapHealth(snapshots, issues, { customized: mapCustomized });
   // Open as every screen counts it: not the owner's own pair and not closed by
   // dual release at every amount. The KPI hint, the duty-conflict section and
   // this summary give the same count; the status column reads the same map.

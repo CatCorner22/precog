@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /share/
+Disallow: /api/
+Disallow: /report
+Disallow: /firm
+Allow: /

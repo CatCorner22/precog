@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
 import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
 import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/reports";
+import type { FirmSnapshot } from "@/lib/precog/firm/store";
 import { ReportVersionsPanel } from "@/components/precog/report-versions";
 import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
 import { fixFirstOf } from "@/lib/precog/threat-scoring";
@@ -60,19 +61,28 @@ import { count, firstName, midSentence, verb } from "@/lib/precog/text";
  * provider) and names the preparer and reviewer instead of today's date.
  * With `frozen`, it prints the figures stored when the version was locked,
  * so later scoring changes leave them as they were; a locked version without
- * usable stored figures recalculates them and says why. With `firmName`, the
- * header says which firm prepared it for the business (firm clients only).
- * The basis block, that line and the footer are standing statements printed
- * around the stored figures, so a locked version's figures print unchanged.
+ * usable stored figures recalculates them and says why. With `firm`, the
+ * firm's letterhead leads the page and the header says which firm prepared
+ * it for the business (firm clients only); with `coverPage` as well, a cover
+ * page comes first. The basis block, the letterhead, the cover, that line and
+ * the footer are standing statements printed around the stored figures, so a
+ * locked version's figures print unchanged. With `shared`, the page is a
+ * share link's: the toolbar (the way back into Precog, the sent stamp and
+ * Print) and the versions panel stay off; the share page's own bar carries
+ * Print.
  */
 export function ControlReport({
   locked = null,
   frozen = null,
-  firmName = null,
+  firm = null,
+  coverPage = false,
+  shared = false,
 }: {
   locked?: ReportVersionRow | null;
   frozen?: Pick<FrozenReport, "layoutVersion" | "model"> | null;
-  firmName?: string | null;
+  firm?: FirmSnapshot | null;
+  coverPage?: boolean;
+  shared?: boolean;
 }) {
   const { profile, mapCustomized, markReportSent } = usePractice();
   const tpl = useTemplate();
@@ -134,59 +144,105 @@ export function ControlReport({
     item,
     latest: latestReview(profile.monthlyReviews ?? [], item.key, month),
   }));
+  const mapLine = `${industry.label} · ${profile.staff.teamSize}-person ${industry.teamLabel} · ${
+    mapFrom === "starter"
+      ? "sample process map"
+      : mapCustomized
+        ? "custom process map"
+        : "industry template map"
+  }`;
+  const letterhead = firm && (
+    <div className="report-letterhead mb-4 flex items-center gap-4">
+      {firm.logoDataUrl && (
+        <img src={firm.logoDataUrl} alt={`${firm.name} logo`} className="max-h-16" />
+      )}
+      <div>
+        <p className="font-semibold">{firm.name}</p>
+        {firm.letterhead && (
+          <p className="text-sm whitespace-pre-line text-neutral-700">{firm.letterhead}</p>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <div className="report min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-white text-neutral-900">
-      <div className="print:hidden sticky top-[var(--grok-banner-h,0px)] z-10 border-b border-neutral-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-6 py-3">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900"
-          >
-            <ArrowLeft className="size-4" /> Back to Precog
-          </Link>
-          <div className="flex flex-wrap items-center gap-2">
-            {locked ? (
-              <Link
-                to="/report"
-                className="inline-flex h-8 items-center rounded-md border border-neutral-300 px-3 text-xs font-medium hover:bg-neutral-100"
-              >
-                Back to the current report
-              </Link>
-            ) : (
-              !sample && (
-                <>
-                  <span role="status" className="text-xs text-neutral-600">
-                    {sentAt ? `Marked sent on ${formatDay(sentAt)}` : ""}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={Boolean(sentAt)}
-                    onClick={markReportSent}
-                  >
-                    {sentAt ? "Report marked sent" : "Mark report sent"}
-                  </Button>
-                </>
-              )
-            )}
-            <Button size="sm" onClick={() => window.print()}>
-              <Printer className="size-3.5" /> Print / Save as PDF
-            </Button>
+      {!shared && (
+        <div className="print:hidden sticky top-[var(--grok-banner-h,0px)] z-10 border-b border-neutral-200 bg-white/95 backdrop-blur">
+          <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-6 py-3">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 text-sm text-neutral-600 hover:text-neutral-900"
+            >
+              <ArrowLeft className="size-4" /> Back to Precog
+            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {locked ? (
+                <Link
+                  to="/report"
+                  className="inline-flex h-8 items-center rounded-md border border-neutral-300 px-3 text-xs font-medium hover:bg-neutral-100"
+                >
+                  Back to the current report
+                </Link>
+              ) : (
+                !sample && (
+                  <>
+                    <span role="status" className="text-xs text-neutral-600">
+                      {sentAt ? `Marked sent on ${formatDay(sentAt)}` : ""}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={Boolean(sentAt)}
+                      onClick={markReportSent}
+                    >
+                      {sentAt ? "Report marked sent" : "Mark report sent"}
+                    </Button>
+                  </>
+                )
+              )}
+              <Button size="sm" onClick={() => window.print()}>
+                <Printer className="size-3.5" /> Print / Save as PDF
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
-      {!locked && <ReportVersionsPanel />}
+      )}
+      {!locked && !shared && <ReportVersionsPanel />}
 
       <article className="mx-auto max-w-4xl px-6 py-8 print:px-0 print:py-0">
+        {coverPage && firm && (
+          <section
+            aria-label="Cover page"
+            className="report-cover mb-8 flex min-h-[60vh] flex-col justify-between break-after-page border-b-2 border-neutral-900 pb-8 print:min-h-[90vh] print:border-b-0"
+          >
+            {letterhead}
+            <div>
+              <p className="text-xs font-semibold tracking-[0.2em] text-neutral-500 uppercase">
+                Internal control priorities{sample ? " · sample business" : ""}
+              </p>
+              <h1 className="mt-2 text-4xl font-bold tracking-tight">{businessName}</h1>
+              <p className="mt-2 text-base text-neutral-700">
+                Prepared for {businessName} by {firm.name}
+              </p>
+              <p className="mt-1 text-sm text-neutral-800">
+                {locked ? versionProvenance(locked) : `generated ${formatDay(generated)}`}
+              </p>
+              {locked?.scopeNote && (
+                <p className="mt-1 text-sm text-neutral-700">Scope: {locked.scopeNote}</p>
+              )}
+            </div>
+          </section>
+        )}
         <header className="border-b-2 border-neutral-900 pb-4">
+          {letterhead}
           <p className="text-xs font-semibold tracking-[0.2em] text-neutral-500 uppercase">
             Internal control priorities{sample ? " · sample business" : ""}
           </p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight">{businessName}</h1>
-          {firmName && (
+          {firm && (
             <p className="mt-1 text-sm text-neutral-700">
-              Prepared for {businessName} by {firmName}
+              Prepared for {businessName} by {firm.name}
             </p>
           )}
           {locked && (
@@ -201,13 +257,7 @@ export function ControlReport({
             </p>
           )}
           <p className="mt-1 text-sm text-neutral-600">
-            {industry.label} · {profile.staff.teamSize}-person {industry.teamLabel} ·{" "}
-            {mapFrom === "starter"
-              ? "sample process map"
-              : mapCustomized
-                ? "custom process map"
-                : "industry template map"}{" "}
-            · generated {formatDay(generated)}
+            {mapLine} · generated {formatDay(generated)}
           </p>
         </header>
 

@@ -89,9 +89,9 @@ export function SuggestPanel({
             </Badge>
             <span>{result.rationale}</span>
           </div>
-          {ruleBasedReason(result.source, result.grokStatus) && (
+          {ruleBasedReason(result.source, result.grokStatus, result.dailyLimit) && (
             <p className="text-xs text-subtle">
-              {ruleBasedReason(result.source, result.grokStatus)}
+              {ruleBasedReason(result.source, result.grokStatus, result.dailyLimit)}
             </p>
           )}
           {result.risks.length > 0 && (

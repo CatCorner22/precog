@@ -4,7 +4,9 @@ import { toast } from "sonner";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { Button } from "@/components/ui/button";
 import { FirmMembers } from "@/components/precog/firm/firm-members";
+import { removedMemberToasts } from "@/components/precog/firm/firm-members-text";
 import { FirmBilling } from "@/components/precog/firm/firm-billing";
+import { FirmLetterhead } from "@/components/precog/firm/firm-letterhead";
 import { ClientList } from "@/components/precog/firm/client-list";
 import { openClientReport } from "@/components/precog/firm/open-client-report";
 import { ClientHistory } from "@/components/precog/firm/client-history";
@@ -21,7 +23,8 @@ import {
 } from "@/lib/precog/firm/engagement";
 import { downloadText } from "@/lib/download";
 import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
-import { commercialToolsOpen } from "@/lib/precog/firm/billing-store";
+import { PaymentOverdueBanner } from "@/components/precog/payment-overdue-banner";
+import { getEntitlements, type EntitlementsAnswer } from "@/lib/precog/firm/entitlements-server";
 import {
   closedToolsNote,
   planAmounts,
@@ -101,6 +104,7 @@ function FirmPage() {
   const [billing, setBilling] = useState<BillingAccount | null>(null);
   const [billingConfigured, setBillingConfigured] = useState(false);
   const [prices, setPrices] = useState<Record<CheckoutPlan, PlanPrice> | null>(null);
+  const [entitlements, setEntitlements] = useState<EntitlementsAnswer | null>(null);
   const [name, setName] = useState("");
   const [clients, setClients] = useState<ClientEngagementRow[]>([]);
   const [deleted, setDeleted] = useState<DeletedBusinessRow[]>([]);
@@ -144,6 +148,12 @@ function FirmPage() {
     replaceProfile({ ...profile, engagement: next });
   }, [own, profile, replaceProfile]);
 
+  // The failed-payment email's link lands on the Plan card.
+  useEffect(() => {
+    if (search.billing !== "overdue" || !loaded || !firm) return;
+    document.getElementById("plan")?.scrollIntoView({ block: "start" });
+  }, [search.billing, loaded, firm]);
+
   useEffect(() => {
     if (search.billing === "success")
       toast.success("Checkout finished. The plan updates once Stripe confirms the payment.");
@@ -164,12 +174,13 @@ function FirmPage() {
     let cancel = false;
     void (async () => {
       try {
-        const [firmRes, clientRes, deletedRes, billingRes, priceRes] = await Promise.all([
+        const [firmRes, clientRes, deletedRes, billingRes, priceRes, planRes] = await Promise.all([
           getFirm(),
           listFirmClients(),
           listDeletedClients(),
           getBillingStatus().catch(() => null),
           getPlanPrices().catch(() => null),
+          getEntitlements().catch(() => null),
         ]);
         if (cancel) return;
         setFirm(firmRes.firm);
@@ -178,6 +189,7 @@ function FirmPage() {
         setBilling(billingRes?.account ?? firmRes.billing);
         setBillingConfigured(billingRes?.configured ?? false);
         setPrices(priceRes?.prices ?? null);
+        setEntitlements(planRes);
         setName(firmRes.firm?.name ?? "");
         setClients(clientRes.clients);
         setDeleted(deletedRes.deleted);
@@ -299,14 +311,13 @@ function FirmPage() {
 
   const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const isOwner = firm?.role === "owner";
-  const toolsOpen = commercialToolsOpen({
-    stripeConfigured: billingConfigured,
-    subscriptionStatus: billing?.subscriptionStatus ?? null,
-    assessmentPaidAt: billing?.assessmentPaidAt ?? null,
-    assessmentRefundedAt: billing?.assessmentRefundedAt ?? null,
-  });
-  // Only Stripe's own amounts print here (the tools close only with Stripe connected).
-  const priceNote = closedToolsNote(billingConfigured ? planAmounts(true, prices) : null);
+  // The firm's plan as the server computes it (a member sees the firm's state,
+  // not their own empty billing row). The note prints while the plan closes
+  // the tools and no failed payment is the reason (the banner says that).
+  const closedNote =
+    entitlements && !entitlements.features.quickbooks && !entitlements.closedAt
+      ? closedToolsNote(billingConfigured ? planAmounts(true, prices) : null, entitlements)
+      : null;
 
   return (
     <main className="mx-auto min-h-[calc(100dvh-var(--grok-banner-h,0px))] max-w-3xl px-6 py-8">
@@ -343,7 +354,7 @@ function FirmPage() {
             }}
           >
             <label className="min-w-[16rem] flex-1 text-xs text-muted">
-              Firm name on reports
+              Firm name and letterhead on reports
               <input
                 className="mt-1 w-full rounded-md border border-border bg-bg px-2 py-1.5 text-sm text-fg"
                 value={name}
@@ -360,6 +371,7 @@ function FirmPage() {
             </button>
           </form>
         )}
+        {signedIn && firm && isOwner && <FirmLetterhead firm={firm} onSaved={setFirm} />}
       </section>
 
       {signedIn && firm && (
@@ -369,11 +381,13 @@ function FirmPage() {
               Waiting for Stripe to confirm the payment…
             </p>
           )}
+          <PaymentOverdueBanner variant="firm" />
           <FirmBilling
             plan={firm.plan}
             billing={billing}
             billingConfigured={billingConfigured}
             prices={prices}
+            entitlements={entitlements}
             canManage={isOwner}
             onMarkPlan={saveFirm}
           />
@@ -388,6 +402,32 @@ function FirmPage() {
               }
               if (next.members) setMembers(next.members);
               if (next.invites) setInvites(next.invites);
+              if (next.firm !== undefined) {
+                // The firm changed owner: the caller is a reviewer now, with
+                // no invitations or billing to see; the server says so.
+                setFirm(next.firm);
+                void getFirm()
+                  .then((res) => {
+                    setFirm(res.firm);
+                    setMembers(res.members);
+                    setInvites(res.invites);
+                    setBilling(res.billing);
+                  })
+                  .catch(() => undefined);
+              }
+              if (next.removed) {
+                for (const line of removedMemberToasts(next.removed.name, next.removed.moved)) {
+                  toast.success(line);
+                }
+                // The handed-over clients, deleted ones included, now list
+                // under the owner's account.
+                void listFirmClients()
+                  .then((res) => setClients(res.clients))
+                  .catch(() => undefined);
+                void listDeletedClients()
+                  .then((res) => setDeleted(res.deleted))
+                  .catch(() => undefined);
+              }
             }}
           />
         </div>
@@ -483,14 +523,12 @@ function FirmPage() {
                 .catch(() => undefined);
             }}
             onClientsChange={setClients}
+            canRestore={!firm || isOwner}
           />
           <NotificationSettingsPanel signedIn={signedIn} />
-          {!toolsOpen && (
+          {closedNote && (
             <p className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
-              QuickBooks stays closed until the assessment is paid or the firm plan is active. A
-              past-due plan is not paid. The Monthly review on each business's own screen stays
-              open.
-              {priceNote && ` ${priceNote}`}
+              {closedNote}
             </p>
           )}
           <QuickBooksPanel signedIn={signedIn} />

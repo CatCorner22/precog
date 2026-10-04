@@ -1,6 +1,14 @@
 import { encodeStripeParams, type CheckoutPlan, type PlanPrice } from "./stripe";
+import type { Sql } from "@/lib/db";
 import { env } from "@/lib/env.server";
+import { RequestError } from "@/lib/request-errors";
 import { toHex } from "@/lib/web-crypto";
+import {
+  assessmentCreditApplies,
+  markAssessmentCreditUsed,
+  recordStripeCustomer,
+  type BillingAccount,
+} from "../firm/billing-store";
 
 /**
  * Stripe calls that need the secret key. Configured when STRIPE_SECRET_KEY
@@ -104,6 +112,131 @@ export async function createCheckoutSession(input: {
   );
   if (!session.url) throw new Error("Stripe returned no checkout link");
   return { url: session.url };
+}
+
+/** A Stripe customer for an account that has none yet (an Assessment paid before Checkout created one). */
+export async function createCustomer(input: {
+  userId: string;
+  email: string | null;
+}): Promise<{ id: string }> {
+  return stripeRequest<{ id: string }>(
+    "POST",
+    "/customers",
+    { ...(input.email ? { email: input.email } : {}), metadata: { userId: input.userId } },
+    `customer-${input.userId}`,
+  );
+}
+
+/**
+ * Posts a credit to the customer's balance, which Stripe draws down across
+ * the following invoices until spent. A negative amount is a credit in
+ * Stripe's terms. The idempotency key makes a retry after a lost answer
+ * post nothing twice; it names the Assessment payment (its paid-at time),
+ * so an Assessment paid again after a refund earns its own credit even
+ * inside the day Stripe remembers the key.
+ */
+export async function creditCustomerBalance(
+  customerId: string,
+  amountCents: number,
+  description: string,
+  userId: string,
+  assessmentPaidAt: string | null,
+): Promise<void> {
+  await stripeRequest(
+    "POST",
+    `/customers/${encodeURIComponent(customerId)}/balance_transactions`,
+    { amount: -amountCents, currency: "usd", description },
+    `credit-${customerId}-${userId}-${assessmentPaidAt ?? "unknown"}`,
+  );
+}
+
+/**
+ * Takes a posted credit back (a refunded Assessment keeps no credit). Keyed
+ * on the Assessment payment like the credit, so a later payment's reversal
+ * is not swallowed by this one's cached answer.
+ */
+export async function reverseCustomerBalance(
+  customerId: string,
+  amountCents: number,
+  assessmentPaidAt: string | null,
+): Promise<void> {
+  await stripeRequest(
+    "POST",
+    `/customers/${encodeURIComponent(customerId)}/balance_transactions`,
+    { amount: amountCents, currency: "usd", description: "Assessment credit reversed" },
+    `credit-reversal-${customerId}-${assessmentPaidAt ?? "unknown"}`,
+  );
+}
+
+export const ASSESSMENT_PRICE_UNKNOWN =
+  "Precog cannot read the Assessment price to credit it. Try again in a minute.";
+
+/**
+ * Before the first Firm plan Checkout of an account that paid the Assessment:
+ * credits the pre-tax fee to the Stripe customer balance (the fee stored at
+ * payment, else the configured price) and stamps the row, so the credit is
+ * posted once. An account with no customer yet gets one first. Nothing
+ * happens when the credit does not apply. Returns the customer to check out
+ * with.
+ */
+export async function applyAssessmentCredit(
+  sql: Sql,
+  input: { userId: string; email: string | null; account: BillingAccount | null },
+): Promise<{ customerId: string | null; creditedCents: number | null }> {
+  const { account } = input;
+  if (!account || !assessmentCreditApplies(account)) {
+    return { customerId: account?.stripeCustomerId ?? null, creditedCents: null };
+  }
+  const price = account.assessmentFeeCents ?? (await loadPlanPrices())?.assessment.amount;
+  const creditCents =
+    account.assessmentFeeCents ?? (typeof price === "number" ? Math.round(price * 100) : null);
+  if (creditCents === null || creditCents <= 0)
+    throw new RequestError(409, ASSESSMENT_PRICE_UNKNOWN);
+  let customerId = account.stripeCustomerId;
+  if (!customerId) {
+    customerId = (await createCustomer({ userId: input.userId, email: input.email })).id;
+    await recordStripeCustomer(sql, input.userId, customerId);
+  }
+  await creditCustomerBalance(
+    customerId,
+    creditCents,
+    "Assessment credit",
+    input.userId,
+    account.assessmentPaidAt,
+  );
+  await markAssessmentCreditUsed(sql, input.userId, creditCents);
+  return { customerId, creditedCents: creditCents };
+}
+
+/**
+ * After the firm changes owner: the subscription's metadata names the new
+ * owner, so a later subscription event that falls back to it lands on the
+ * right account. Best effort; nothing without the secret key.
+ */
+export async function updateSubscriptionMetadata(
+  subscriptionId: string,
+  input: { userId: string },
+): Promise<void> {
+  if (!env("STRIPE_SECRET_KEY")) return;
+  await stripeRequest("POST", `/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    metadata: { userId: input.userId },
+  });
+}
+
+/**
+ * After the firm changes owner: Stripe's receipts and failed-payment emails
+ * go to the new owner's address, and the customer names the new account.
+ * Best effort; nothing without the secret key.
+ */
+export async function updateCustomer(
+  customerId: string,
+  input: { email: string | null; userId: string },
+): Promise<void> {
+  if (!env("STRIPE_SECRET_KEY")) return;
+  await stripeRequest("POST", `/customers/${encodeURIComponent(customerId)}`, {
+    ...(input.email ? { email: input.email } : {}),
+    metadata: { userId: input.userId },
+  });
 }
 
 /** A Billing Portal session so the firm can update its card or cancel. */

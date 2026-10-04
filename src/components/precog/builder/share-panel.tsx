@@ -85,6 +85,10 @@ export function SharePanel({
           views: 0,
           lastViewedAt: null,
           createdBy: null,
+          kind: "map",
+          businessId,
+          reportVersionId: null,
+          versionNo: null,
         },
         ...(cur ?? []),
       ]);

@@ -17,8 +17,10 @@ import {
   peekInvite,
   removeMember,
   saveFirm,
+  saveFirmLetterhead,
   setMemberRole,
   setOwnerEmail,
+  transferFirmOwnership,
   upsertEngagementMark,
 } from "./store";
 import {
@@ -46,6 +48,8 @@ beforeEach(async () => {
     "firm_members",
     "firms",
     "businesses",
+    "business_profiles",
+    "billing_accounts",
     '"user"',
   );
   for (const id of ["ua", "ub", "uc"]) {
@@ -132,11 +136,7 @@ describe("firm membership", () => {
     });
 
     const joined = await acceptInvite(db.sql, "tok_1", "ub");
-    expect([joined.firm.firmUserId, joined.firm.role, joined.unmatched]).toEqual([
-      "ua",
-      "reviewer",
-      null,
-    ]);
+    expect([joined.firm.firmUserId, joined.firm.role]).toEqual(["ua", "reviewer"]);
     expect(await listInvites(db.sql, "ua")).toEqual([]);
     await expect(acceptInvite(db.sql, "tok_1", "uc")).rejects.toBeInstanceOf(FirmMembershipError);
 
@@ -198,26 +198,141 @@ describe("firm membership edge cases", () => {
     return createInvite(db.sql, { firmUserId: "ua", email, role, token });
   }
 
-  it("a removed or departed member takes their own businesses out of the firm", async () => {
+  const MOVED_ID = /^biz_1-[0-9a-f]{8}$/;
+
+  it("a removed or departed member's firm clients stay with the firm under the owner", async () => {
     await saveFirm(db.sql, "ua", "North", "assessment");
     await invite("t1");
     await acceptInvite(db.sql, "t1", "ub");
     await db.pg.query("update businesses set firm_user_id = 'ua' where user_id = 'ub'");
-    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBe("ua");
-    await db.pg.query("delete from businesses where user_id = 'ua'");
-    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBe("ub");
-
-    await removeMember(db.sql, "ua", "ub");
-    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBeNull();
-    const rows = await db.pg.query<{ firm_user_id: string | null }>(
-      "select firm_user_id from businesses where user_id = 'ub'",
+    // A private business the member had before joining stays theirs.
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision)
+       values ('biz_private', 'ub', 'Private', 'general', '{}'::jsonb, 1)`,
     );
-    expect(rows.rows[0].firm_user_id).toBeNull();
+    // Child rows and a colleague's pointer, which follow the business.
+    await db.pg.query(
+      `insert into business_history (user_id, business_id, revision, name, industry, profile)
+       values ('ub', 'biz_1', 1, 'Client UB', 'general', '{}'::jsonb)`,
+    );
+    await insertReviewEvent(
+      db.sql,
+      "ub",
+      {
+        businessId: "biz_1",
+        period: "2026-09",
+        itemKey: "bank_statement",
+        ownerName: "Bea",
+        dueOn: null,
+        result: "done",
+        notes: "",
+      },
+      "ua",
+    );
+    await db.pg.query(
+      `insert into business_profiles (user_id, profile)
+       values ('ua', '{"businessId":"biz_1","ownerUserId":"ub","pointerVersion":2}'::jsonb),
+              ('ub', '{"businessId":"biz_1","ownerUserId":"ub","pointerVersion":2}'::jsonb)`,
+    );
+    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBe("ua");
+
+    const moved = await removeMember(db.sql, "ua", "ub");
+    expect(moved).toEqual([
+      { from: "biz_1", to: expect.stringMatching(MOVED_ID), name: "Client UB" },
+    ]);
+    const to = moved[0].to;
+    // The owner's own biz_1 holds the id, so the moved one took a new address.
+    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBe("ua");
+    expect(await resolveBusinessOwner(db.sql, "ua", to)).toBe("ua");
+    expect(await resolveBusinessOwner(db.sql, "ub", to)).toBeNull();
+    const rows = await db.pg.query<{
+      id: string;
+      user_id: string;
+      firm_user_id: string | null;
+      saved_by: string | null;
+      revision: number;
+    }>("select id, user_id, firm_user_id, saved_by, revision from businesses order by user_id, id");
+    expect(rows.rows).toEqual([
+      { id: "biz_1", user_id: "ua", firm_user_id: "ua", saved_by: null, revision: 1 },
+      { id: to, user_id: "ua", firm_user_id: "ua", saved_by: "ub", revision: 2 },
+      { id: "biz_private", user_id: "ub", firm_user_id: null, saved_by: null, revision: 1 },
+      { id: "biz_1", user_id: "uc", firm_user_id: null, saved_by: null, revision: 1 },
+    ]);
+    const children = await db.pg.query<{ t: string; user_id: string; business_id: string }>(
+      `select 'history' as t, user_id, business_id from business_history
+       union all select 'review', user_id, business_id from review_events
+       order by 1`,
+    );
+    expect(children.rows).toEqual([
+      { t: "history", user_id: "ua", business_id: to },
+      { t: "review", user_id: "ua", business_id: to },
+    ]);
+    const pointers = await db.pg.query<{ user_id: string; profile: Record<string, unknown> }>(
+      "select user_id, profile from business_profiles order by user_id",
+    );
+    expect(pointers.rows).toEqual([
+      { user_id: "ua", profile: { businessId: to, ownerUserId: "ua", pointerVersion: 2 } },
+    ]);
 
     await invite("t2", "uc@example.test");
     await acceptInvite(db.sql, "t2", "uc");
     await db.pg.query("update businesses set firm_user_id = 'ua' where user_id = 'uc'");
-    await leaveFirm(db.sql, "ua", "uc");
+    const left = await leaveFirm(db.sql, "ua", "uc");
+    expect(left).toEqual([
+      { from: "biz_1", to: expect.stringMatching(MOVED_ID), name: "Client UC" },
+    ]);
+    expect(await resolveBusinessOwner(db.sql, "ua", left[0].to)).toBe("ua");
+    expect(await resolveBusinessOwner(db.sql, "uc", "biz_1")).toBeNull();
+  }, 60_000);
+
+  it("keeps the client's id when the owner holds nothing by it, and renames it over a deletion marker", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await invite("t1");
+    await acceptInvite(db.sql, "t1", "ub");
+    await db.pg.query("update businesses set firm_user_id = 'ua' where user_id = 'ub'");
+    await db.pg.query("delete from businesses where user_id = 'ua'");
+    expect(await removeMember(db.sql, "ua", "ub")).toEqual([
+      { from: "biz_1", to: "biz_1", name: "Client UB" },
+    ]);
+    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBe("ua");
+
+    // The owner holds only a deletion marker for biz_1 (a purged business):
+    // the marker shares the key and outlives the purge, so the moved row is renamed.
+    await db.pg.query("delete from businesses where user_id = 'ua'");
+    await db.pg.query(
+      "insert into business_deletion_markers (user_id, business_id) values ('ua', 'biz_1')",
+    );
+    await invite("t2", "uc@example.test");
+    await acceptInvite(db.sql, "t2", "uc");
+    await db.pg.query("update businesses set firm_user_id = 'ua' where user_id = 'uc'");
+    const moved = await leaveFirm(db.sql, "ua", "uc");
+    expect(moved[0].to).toMatch(MOVED_ID);
+    expect(await resolveBusinessOwner(db.sql, "ua", moved[0].to)).toBe("ua");
+    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBeNull();
+  }, 60_000);
+
+  it("moves a deleted client and the markers of purged ones with the member's departure", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await invite("t1");
+    await acceptInvite(db.sql, "t1", "ub");
+    await db.pg.query("delete from businesses where user_id = 'ua'");
+    await db.pg.query(
+      "update businesses set firm_user_id = 'ua', deleted_at = now() where user_id = 'ub'",
+    );
+    await db.pg.query(
+      `insert into business_deletion_markers (user_id, business_id, firm_user_id)
+       values ('ub', 'biz_1', 'ua'), ('ub', 'biz_purged', 'ua'), ('ub', 'biz_mine', null)`,
+    );
+    await removeMember(db.sql, "ua", "ub");
+    const markers = await db.pg.query<{ user_id: string; business_id: string }>(
+      "select user_id, business_id from business_deletion_markers order by 1, 2",
+    );
+    expect(markers.rows).toEqual([
+      { user_id: "ua", business_id: "biz_1" },
+      { user_id: "ua", business_id: "biz_purged" },
+      { user_id: "ub", business_id: "biz_mine" },
+    ]);
+    expect(await resolveBusinessOwner(db.sql, "ua", "biz_1", true)).toBe("ua");
     expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBeNull();
   }, 60_000);
 
@@ -271,6 +386,169 @@ describe("firm membership edge cases", () => {
   });
 });
 
+describe("firm ownership transfer", () => {
+  beforeEach(async () => {
+    await saveFirm(db.sql, "ua", "North", "monthly");
+    await createInvite(db.sql, {
+      firmUserId: "ua",
+      email: "ub@example.test",
+      role: "preparer",
+      token: "t1",
+    });
+    await acceptInvite(db.sql, "t1", "ub");
+    await createInvite(db.sql, {
+      firmUserId: "ua",
+      email: "new@example.test",
+      role: "reviewer",
+      token: "open",
+    });
+    await db.pg.query("update businesses set firm_user_id = 'ua' where user_id in ('ua', 'ub')");
+    await db.pg.query(
+      "insert into business_deletion_markers (user_id, business_id, firm_user_id) values ('ub', 'biz_gone', 'ua')",
+    );
+    await db.pg.query(
+      `insert into billing_accounts (user_id, stripe_customer_id, subscription_id, subscription_status)
+       values ('ua', 'cus_1', 'sub_1', 'active')`,
+    );
+  });
+
+  it("moves members, invitations, clients, markers and billing, and swaps the roles", async () => {
+    await transferFirmOwnership(db.sql, "ua", "ub");
+    expect(await loadFirmFor(db.sql, "ua")).toEqual({
+      firmUserId: "ub",
+      name: "North",
+      plan: "monthly",
+      role: "reviewer",
+      letterhead: "",
+      logoDataUrl: null,
+      coverPage: true,
+    });
+    expect((await loadFirmFor(db.sql, "ub"))?.role).toBe("owner");
+    expect((await listMembers(db.sql, "ub")).map((m) => [m.userId, m.role])).toEqual([
+      ["ub", "owner"],
+      ["ua", "reviewer"],
+    ]);
+    expect((await listInvites(db.sql, "ub")).map((i) => i.token)).toEqual(["open"]);
+    const firms = await db.pg.query<{ user_id: string }>("select user_id from firms");
+    expect(firms.rows).toEqual([{ user_id: "ub" }]);
+    const clients = await db.pg.query<{ user_id: string; firm_user_id: string | null }>(
+      "select user_id, firm_user_id from businesses order by user_id",
+    );
+    expect(clients.rows).toEqual([
+      { user_id: "ua", firm_user_id: "ub" },
+      { user_id: "ub", firm_user_id: "ub" },
+      { user_id: "uc", firm_user_id: null },
+    ]);
+    const markers = await db.pg.query<{ firm_user_id: string | null }>(
+      "select firm_user_id from business_deletion_markers",
+    );
+    expect(markers.rows).toEqual([{ firm_user_id: "ub" }]);
+    const billing = await db.pg.query<{ user_id: string; stripe_customer_id: string }>(
+      "select user_id, stripe_customer_id from billing_accounts",
+    );
+    expect(billing.rows).toEqual([{ user_id: "ub", stripe_customer_id: "cus_1" }]);
+    // The old owner's own business is a firm client they hold as a member now.
+    expect(await resolveBusinessOwner(db.sql, "ub", "biz_1")).toBe("ub");
+    expect(
+      (await listClientEngagements(db.sql, "ub", "ub")).map((c) => c.ownerUserId).sort(),
+    ).toEqual(["ua", "ub"]);
+  });
+
+  it("carries the letterhead, logo and cover-page switch to the new owner's firm row", async () => {
+    await saveFirmLetterhead(db.sql, "ua", {
+      letterhead: "12 Elm St",
+      logoDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+      coverPage: false,
+    });
+    await transferFirmOwnership(db.sql, "ua", "ub");
+    expect(await loadFirmFor(db.sql, "ub")).toMatchObject({
+      firmUserId: "ub",
+      role: "owner",
+      letterhead: "12 Elm St",
+      logoDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+      coverPage: false,
+    });
+  });
+
+  it("refuses a non-member, a firm owner, and the owner themselves", async () => {
+    await expect(transferFirmOwnership(db.sql, "ua", "uc")).rejects.toThrow(
+      "uc is not a member of North.",
+    );
+    await db.pg.query("insert into firms (user_id, name) values ('uc', 'South')");
+    await db.pg.query(
+      "insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'uc', 'preparer')",
+    );
+    await expect(transferFirmOwnership(db.sql, "ua", "uc")).rejects.toThrow(
+      "uc already owns a firm.",
+    );
+    await expect(transferFirmOwnership(db.sql, "ua", "ua")).rejects.toBeInstanceOf(
+      FirmMembershipError,
+    );
+    expect((await loadFirmFor(db.sql, "ua"))?.role).toBe("owner");
+  });
+
+  it("refuses while the payment is overdue or disputed, or the member has a billing record", async () => {
+    await db.pg.query("update billing_accounts set subscription_status = 'past_due'");
+    await expect(transferFirmOwnership(db.sql, "ua", "ub")).rejects.toThrow(
+      "The firm cannot change owner while its payment is overdue or a payment is disputed. Fix that in Manage billing first, or write to [SUPPORT EMAIL].",
+    );
+    await db.pg.query(
+      "update billing_accounts set subscription_status = 'active', assessment_disputed_at = now()",
+    );
+    await expect(transferFirmOwnership(db.sql, "ua", "ub")).rejects.toThrow(/payment is disputed/);
+    await db.pg.query("update billing_accounts set assessment_disputed_at = null");
+    await db.pg.query("insert into billing_accounts (user_id) values ('ub')");
+    await expect(transferFirmOwnership(db.sql, "ua", "ub")).rejects.toThrow(
+      "ub already has a billing record, so Precog cannot move the firm's billing to them. Write to [SUPPORT EMAIL].",
+    );
+    expect((await loadFirmFor(db.sql, "ua"))?.role).toBe("owner");
+    expect((await listMembers(db.sql, "ua")).map((m) => m.userId)).toEqual(["ua", "ub"]);
+  });
+});
+
+describe("firm letterhead", () => {
+  it("is empty with a cover page on a new firm, and the owner alone sets it", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    expect(await loadFirmFor(db.sql, "ua")).toMatchObject({
+      letterhead: "",
+      logoDataUrl: null,
+      coverPage: true,
+    });
+    const saved = await saveFirmLetterhead(db.sql, "ua", {
+      letterhead: "12 Elm St\n555-0100",
+      logoDataUrl: "data:image/jpeg;base64,/9j/4AAQ",
+      coverPage: false,
+    });
+    expect(saved).toMatchObject({
+      firmUserId: "ua",
+      role: "owner",
+      letterhead: "12 Elm St\n555-0100",
+      logoDataUrl: "data:image/jpeg;base64,/9j/4AAQ",
+      coverPage: false,
+    });
+    // A member reads it; renaming the firm keeps it; a member or an account
+    // with no firm cannot set one.
+    await createInvite(db.sql, {
+      firmUserId: "ua",
+      email: "ub@example.test",
+      role: "preparer",
+      token: "t1",
+    });
+    await acceptInvite(db.sql, "t1", "ub");
+    expect((await loadFirmFor(db.sql, "ub"))?.letterhead).toBe("12 Elm St\n555-0100");
+    expect((await saveFirm(db.sql, "ua", "North Advisors", null)).letterhead).toBe(
+      "12 Elm St\n555-0100",
+    );
+    await expect(
+      saveFirmLetterhead(db.sql, "ub", { letterhead: "x", logoDataUrl: null, coverPage: true }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      saveFirmLetterhead(db.sql, "uc", { letterhead: "x", logoDataUrl: null, coverPage: true }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect((await loadFirmFor(db.sql, "ua"))?.letterhead).toBe("12 Elm St\n555-0100");
+  });
+});
+
 describe("client engagement figures", () => {
   it("a client nobody has counted shows no conflict figure instead of zero", async () => {
     await saveFirm(db.sql, "ua", "North", "assessment");
@@ -306,9 +584,7 @@ describe("invitation and the accepting account's address", () => {
     await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toThrow(
       /sent this invitation to a\*\*\*@cpa\.test/,
     );
-    await expect(
-      acceptInvite(db.sql, "t1", "ub", { confirmOtherEmail: true }),
-    ).rejects.toBeInstanceOf(FirmMembershipError);
+    await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toBeInstanceOf(FirmMembershipError);
     expect(await peekInvite(db.sql, "t1")).not.toBeNull();
     expect(await loadFirmFor(db.sql, "ub")).toBeNull();
   });
@@ -316,15 +592,15 @@ describe("invitation and the accepting account's address", () => {
   it("admits the invited address without asking", async () => {
     await db.pg.query(`update "user" set email = 'alice@cpa.test' where id = 'ub'`);
     expect((await inviteFit(db.sql, "t1", "ub"))?.fit).toBe("match");
-    expect((await acceptInvite(db.sql, "t1", "ub")).unmatched).toBeNull();
+    expect((await acceptInvite(db.sql, "t1", "ub")).firm.name).toBe("North");
   });
 
   it("refuses an address Precog cannot vouch for, and keeps the invitation open", async () => {
     await db.pg.query(`update "user" set "emailVerified" = false where id = 'ub'`);
     expect((await inviteFit(db.sql, "t1", "ub"))?.fit).toBe("confirm");
-    await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toThrow(/cannot match this account/);
-    await expect(acceptInvite(db.sql, "t1", "ub", { confirmOtherEmail: true })).rejects.toThrow(
-      /cannot match this account/,
+    await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toThrow(/cannot vouch for this account/);
+    await expect(acceptInvite(db.sql, "t1", "ub")).rejects.toThrow(
+      "Precog cannot vouch for this account's address. Joining a firm needs a confirmed address that is the invited one: sign in with Google under a***@cpa.test, or with an email-and-password account you have confirmed, then open the invitation again.",
     );
     expect(await peekInvite(db.sql, "t1")).not.toBeNull();
     expect(await loadFirmFor(db.sql, "ub")).toBeNull();

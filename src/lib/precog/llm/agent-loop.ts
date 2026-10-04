@@ -12,6 +12,7 @@ import { callModel, type LlmAccess } from "./guard.server";
 import {
   DailyLimitReached,
   type AgentRunResult,
+  type DailyLimitInfo,
   type ReasoningStep,
   type ToolResult,
 } from "./types";
@@ -35,6 +36,12 @@ import {
  * not asked, or was not called because today's model budget is used up.
  */
 export type ModelStatus = "answered" | "failed" | "not-asked" | "rejected" | "daily-limit";
+
+/** The status of a run, with which daily ceiling was met when it is "daily-limit". */
+export interface ModelOutcome {
+  modelStatus: ModelStatus;
+  dailyLimit?: DailyLimitInfo;
+}
 
 /** A rules-built run and its source tools, retained unchanged by the selection path. */
 export interface LocalAgentRun extends AgentRunResult {
@@ -148,7 +155,7 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Loca
 export async function runGrokAgentLoop<T extends LocalAgentRun>(
   local: T,
   access: LlmAccess,
-): Promise<T & { modelStatus: ModelStatus }> {
+): Promise<T & ModelOutcome> {
   if (access.grok !== "allowed" || !process.env.XAI_API_KEY?.trim()) {
     return { ...local, modelStatus: "not-asked" };
   }
@@ -210,7 +217,9 @@ export async function runGrokAgentLoop<T extends LocalAgentRun>(
       latencyMs: local.latencyMs + Date.now() - started,
     };
   } catch (error) {
-    if (error instanceof DailyLimitReached) return { ...failed(), modelStatus: "daily-limit" };
+    if (error instanceof DailyLimitReached) {
+      return { ...failed(), modelStatus: "daily-limit", dailyLimit: error.dailyLimit };
+    }
     await reportModelFallback(error);
     return failed();
   }

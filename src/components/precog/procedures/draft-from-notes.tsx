@@ -60,7 +60,9 @@ export function DraftFromNotes({
     );
   }
 
-  const reason = result ? ruleBasedReason(result.source, result.grokStatus) : null;
+  const reason = result
+    ? ruleBasedReason(result.source, result.grokStatus, result.dailyLimit)
+    : null;
   return (
     <section
       aria-labelledby="draft-notes-title"

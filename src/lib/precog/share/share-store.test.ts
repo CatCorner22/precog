@@ -123,9 +123,16 @@ describe("insertMapShare", () => {
     expect(await insertMapShare(sql, newShare(tok(MAX_LIVE_SHARES)))).toBe(true);
   });
 
-  it("stores the fields it was given", async () => {
+  it("stores the fields it was given, and lists a map link as a map", async () => {
     const share = { ...newShare(tok(7)), redacted: true, passcodeSalt: "s", passcodeHash: "h" };
     expect(await insertMapShare(sql, share)).toBe(true);
+    const [listed] = await listMapShareSummaries(sql, "u1");
+    expect([listed.kind, listed.reportVersionId, listed.versionNo, listed.businessId]).toEqual([
+      "map",
+      null,
+      null,
+      null,
+    ]);
     const rows = await pg.query<Record<string, unknown>>(
       "select user_id, business_name, industry, payload, redacted, passcode_salt, passcode_hash from map_shares",
     );
@@ -224,16 +231,23 @@ describe("revoking links with the business and the firm", () => {
     ]);
   });
 
-  it("revokes the links that cross the firm when a member is removed", async () => {
+  it("revokes the departing member's links to the firm's clients and keeps colleagues' links", async () => {
     await linkTo(tok(1), "prep", "owner", "own_biz"); // the member's link to a firm client
-    await linkTo(tok(2), "owner", "prep", "prep_biz"); // the owner's link to the member's business
-    await linkTo(tok(3), "prep", "prep", "prep_biz"); // the member's link to their own business
+    await linkTo(tok(2), "owner", "prep", "prep_biz"); // the owner's link to the client the member set up
+    await linkTo(tok(3), "prep", "prep", "prep_biz"); // the member's link to the client they set up
     await linkTo(tok(4), "owner", "owner", "own_biz"); // untouched
     await insertMapShare(sql, newShare(tok(5), "prep")); // made before links named a business
     await removeMember(sql, "owner", "prep");
     const states = [];
     for (const i of [1, 2, 3, 4, 5]) states.push(await revoked(tok(i)));
-    expect(states).toEqual([true, true, false, false, true]);
+    expect(states).toEqual([true, false, true, false, true]);
+    // The client stayed with the firm under the owner, and the kept link follows it.
+    const kept = await pg.query<{ business_owner_id: string; business_id: string }>(
+      "select business_owner_id, business_id from map_shares where token = $1",
+      [tok(2)],
+    );
+    expect(kept.rows).toEqual([{ business_owner_id: "owner", business_id: "prep_biz" }]);
+    expect(await shareStillReachable(sql, tok(2))).toBe(true);
   });
 
   it("does the same when the member leaves", async () => {

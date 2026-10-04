@@ -187,7 +187,11 @@ the home page's Advanced menu links to. The Monthly review is a tab on each
 business's own home page.
 
 - **People at the firm**: the owner invites preparers and reviewers by email;
-  members see the firm's clients and their saves reach the same records.
+  the invitee joins with a Google sign-in or a confirmed email-and-password
+  account under the invited address; members see the firm's clients and their
+  saves reach the same records; a removed member's clients move to the owner's
+  account; the owner can hand the firm to a member; only the owner deletes or
+  restores a client.
 - **Clients**: each client carries its engagement marks (started, map
   completed, report sent, open and accepted findings).
 - **Monthly review log** (the Monthly review tab): five checks per client per month (open the bank
@@ -196,7 +200,9 @@ business's own home page.
   line), each recorded as done, exception or skipped. The card statement
   check applies from October 2026; earlier months keep their four results. The log is append-only: a later result is a new row.
 - **Report versions**: a sent report is a locked version with the profile as
-  it was, the preparer, and the reviewer who reviewed it for issuance.
+  it was, the preparer, and the reviewer who reviewed it for issuance, with
+  the firm's letterhead frozen into each version; a reviewed version can be
+  shared by link.
 - **Billing**: the fixed assessment and the monthly firm plan through Stripe
   Checkout when Stripe is configured; otherwise the firm records its stage by
   hand.
@@ -255,7 +261,8 @@ npm run e2e:warmup        # wait until Vite has finished discovering dependencie
 npm run e2e               # map builder: add a process, keyboard shortcuts, CSV import and undo
 npm run e2e:enhancements  # insurance confirmation, map undo/redo, exception-first setup
 npm run e2e:tabs          # every tab of every industry demo, plus /report, /login, /privacy,
-                          # /terms, /firm and a bad /share link; fails on any page error
+                          # /terms, /welcome, /pricing, /firm and a bad /share link; fails on
+                          # any page error
 npm run e2e:safety        # signed sessions against the compiled build (see "Continuous integration")
 ```
 
@@ -306,8 +313,9 @@ PGLite applies the same files at startup.
 `vercel.json` calls `/api/cron/digest` every Monday at 13:00 UTC with
 `CRON_SECRET` as a bearer token. The run emails the weekly reminders, purges
 businesses deleted more than 30 days ago and share view and failed
-passcode-guess logs past their retention, and re-reads QuickBooks connections
-older than 28 days. Without `CRON_SECRET` every run is refused and none of
+passcode-guess logs past their retention, re-reads QuickBooks connections
+older than 28 days, emails the firm owner once per QuickBooks problem, and
+counts the week's first-time milestones. Without `CRON_SECRET` every run is refused and none of
 this happens; a production build warns about it. The function may run for 300
 seconds; other functions 60 (`vite.config.ts`, checked by `check:functions`
 after each build).
@@ -367,6 +375,8 @@ The process map (How work flows) has a **Spreadsheet** panel in Build mode that 
 The continuity register (Who knows what) imports and exports a spreadsheet with the columns `item`, `kind` (duty / task / know-how), `criticality` (critical / important / nice-to-have), `documented`, `procedure location` (where the written procedure lives — drive path, binder, link), `last confirmed` (re-confirm items after 90 days), `description`, followed by one column per active team member holding that person's level: `expert`, `can do`, `learning`, `aware`, or blank. Rows matched by name to existing items keep their id and process links; columns for people not on the active team are skipped and reported. "Blank template" downloads the grid with the current team as columns.
 Pioneer and the Start-here dashboard also surface the confirmed-recently figure once you enter your own register. Re-confirmation is organised as a check-in per person: the "Confirm it's still true" card groups stale items by who holds them, so one conversation covers everything the register says that person can do (still does it / level changed / no longer), with a separate list for stale items nobody on the active team holds. The weekly action plan, printed report and Pioneer (`get_register_checkins`) advise in the same terms — "check in with Maya: 5 entries, 2 nobody else can run alone" — rather than item by item, and the dashboard tile names the next person to sit down with. When a check-in takes someone off an item or drops them below "can do it alone", a "What this check-in changed" card lists every item whose coverage got worse, who is left, and the cross-training move that repairs it, loggable as a decision.
 Share links can hide people's names while keeping roles, optionally require a passcode, and record a small view log for the owner.
+
+Pages that need no sign-in: `/welcome` (the landing page a first-time visitor with no business is sent to), `/pricing` (the Assessment and the Firm plan, with what free includes), `/login`, `/privacy`, `/terms`, `/share/<token>` (a shared map) and `/share/report/<token>` (a shared locked report version).
 
 ## Demo data
 
