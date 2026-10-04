@@ -33,15 +33,31 @@ export type GrokAccess =
   "allowed" | "unauthenticated" | "rate_limited" | "no_api_key" | "daily_limit";
 
 /**
+ * Which daily ceiling a refused model call met, so the sentence the owner
+ * reads can name their plan and its figure: "user" is the caller's own
+ * allowance under `plan` (`limit` calls a day), "global" is Precog's ceiling
+ * across every account. `paidLimit` is the Firm plan's allowance in force.
+ */
+export interface DailyLimitInfo {
+  scope: "user" | "global";
+  plan: "free" | "paid";
+  limit: number;
+  paidLimit: number;
+}
+
+/**
  * Thrown by callModel when today's model budget is used up, so the caller can
- * say the limit lasts until tomorrow instead of that the model failed.
+ * say the limit lasts until tomorrow instead of that the model failed, and
+ * which ceiling was met.
  */
 export class DailyLimitReached extends Error {
   readonly grok = "daily_limit" satisfies GrokAccess;
+  readonly dailyLimit: DailyLimitInfo;
 
-  constructor() {
+  constructor(dailyLimit: DailyLimitInfo) {
     super("Today's model budget is used up.");
     this.name = "DailyLimitReached";
+    this.dailyLimit = dailyLimit;
   }
 }
 

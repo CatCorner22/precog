@@ -4,7 +4,7 @@
  * AI suggester and to pad AI output so the builder always returns something.
  */
 import type { ProcessIdea, ProcessRisk } from "../types";
-import type { GrokAccess } from "../llm/types";
+import type { DailyLimitInfo, GrokAccess } from "../llm/types";
 
 export interface SuggestionInput {
   processName: string;
@@ -28,6 +28,8 @@ export interface SuggestionResult {
   source: "grok" | "local";
   model?: string;
   grokStatus?: GrokAccess;
+  /** Which daily ceiling was met, when grokStatus is "daily_limit". */
+  dailyLimit?: DailyLimitInfo;
   risks: SuggestedRisk[];
   ideas: SuggestedIdea[];
   controlIds: string[];

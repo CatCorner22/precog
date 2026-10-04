@@ -61,8 +61,12 @@ describe("withGrokFallback", () => {
     vi.stubEnv("XAI_API_KEY", "key");
     expect(
       await withGrokFallback(access("allowed"), local, true, async () => {
-        throw new DailyLimitReached();
+        throw new DailyLimitReached({ scope: "user", plan: "free", limit: 100, paidLimit: 400 });
       }),
-    ).toEqual({ source: "local", grokStatus: "daily_limit" });
+    ).toEqual({
+      source: "local",
+      grokStatus: "daily_limit",
+      dailyLimit: { scope: "user", plan: "free", limit: 100, paidLimit: 400 },
+    });
   });
 });

@@ -4,7 +4,9 @@ import { DEV_USER_ID, authConfigured, getSessionUser } from "@/lib/auth/verify.s
 import { requestIp } from "@/lib/request-ip.server";
 import { trustedClientIpHeaders } from "@/lib/client-ip";
 import { databaseConfigured, getSql } from "@/lib/db";
-import { checkDailyBudget } from "./daily-usage";
+import { reportServerError } from "@/lib/observability/report.server";
+import { loadEntitlements } from "@/lib/precog/firm/entitlements.server";
+import { checkDailyBudget, userDailyLimits, type AiPlan } from "./daily-usage";
 import { grokChat, type GrokChatOptions, type GrokChatResult } from "./grok-client.server";
 import { createAnonymousHeavyGate, LLM_LIMITS, SlidingWindowLimiter } from "./rate-limit";
 import { DailyLimitReached, type GrokAccess } from "./types";
@@ -84,12 +86,12 @@ export async function resolveLlmAccess(
 }
 
 /**
- * The one way to call the model for a request the middleware allowed. Spends
- * one unit of the persisted daily budget first, so only an attempted model
- * call is counted. Throws DailyLimitReached when today's budget is spent.
- * Returns null, and the caller uses its local answer, when the request may
- * not call the model, the budget cannot be read (fails closed), or the
- * upstream call fails.
+ * The one way to call the model for a request the middleware allowed. Reads
+ * the caller's plan, then spends one unit of the persisted daily budget under
+ * it, so only an attempted model call is counted. Throws DailyLimitReached
+ * when today's budget is spent, naming the ceiling met. Returns null, and the
+ * caller uses its local answer, when the request may not call the model, the
+ * budget cannot be read (fails closed), or the upstream call fails.
  */
 export async function callModel(
   access: LlmAccess,
@@ -97,16 +99,55 @@ export async function callModel(
 ): Promise<GrokChatResult | null> {
   const apiKey = process.env.XAI_API_KEY?.trim();
   if (access.grok !== "allowed" || !access.userId || !apiKey) return null;
+  const plan = await aiPlanFor(access.userId);
   const budget = await checkDailyBudget(
     getSql,
     access.userId,
     undefined,
     undefined,
     callerAddress(),
+    plan,
   );
-  if (budget === "spent") throw new DailyLimitReached();
+  if (budget === "spent" || budget === "spent-global") {
+    const { limit, paidLimit } = userDailyLimits(plan);
+    if (budget === "spent-global") await reportGlobalCeilingOnce();
+    throw new DailyLimitReached({
+      scope: budget === "spent-global" ? "global" : "user",
+      plan,
+      limit,
+      paidLimit,
+    });
+  }
   if (budget !== "allowed") return null;
   return grokChat(apiKey, opts);
+}
+
+/**
+ * The AI allowance of the caller's plan (the firm's, for a firm member). An
+ * allowance that cannot be read counts as free, the smaller one, so a
+ * database fault never widens a budget.
+ */
+async function aiPlanFor(userId: string): Promise<AiPlan> {
+  try {
+    return (await loadEntitlements(await getSql(), userId)).aiPlan;
+  } catch (error) {
+    console.error("[llm] could not read the caller's plan; using the free allowance", error);
+    return "free";
+  }
+}
+
+/** The UTC day the global ceiling was last reported from this process, so one day reports once. */
+let globalCeilingReportedOn: string | null = null;
+
+/**
+ * The global ceiling is Precog's whole day of model calls spent, which the
+ * operator wants to hear about once, not on every refused call after it.
+ */
+async function reportGlobalCeilingOnce(): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  if (globalCeilingReportedOn === today) return;
+  globalCeilingReportedOn = today;
+  await reportServerError(new Error("llm global ceiling reached"), "llm-daily-global");
 }
 
 /** The calling address for the daily budget, or null outside a request. */

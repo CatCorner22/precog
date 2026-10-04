@@ -9,6 +9,9 @@ const seams = vi.hoisted(() => ({
   getSessionUser: vi.fn(),
   checkDailyBudget: vi.fn(),
   grokChat: vi.fn(),
+  aiPlan: "free" as "free" | "paid",
+  loadEntitlements: vi.fn(),
+  reportServerError: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/isolation.server", () => ({ assertSameSiteRequest: seams.sameSite }));
@@ -28,8 +31,17 @@ vi.mock("@/lib/db", () => ({
     return Boolean(process.env.DATABASE_URL?.trim());
   },
 }));
-vi.mock("./daily-usage", () => ({ checkDailyBudget: seams.checkDailyBudget }));
+vi.mock("./daily-usage", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./daily-usage")>()),
+  checkDailyBudget: seams.checkDailyBudget,
+}));
 vi.mock("./grok-client.server", () => ({ grokChat: seams.grokChat }));
+vi.mock("@/lib/precog/firm/entitlements.server", () => ({
+  loadEntitlements: seams.loadEntitlements,
+}));
+vi.mock("@/lib/observability/report.server", () => ({
+  reportServerError: seams.reportServerError,
+}));
 
 /** A fresh module per test, so the in-memory limiters start empty. */
 async function guard() {
@@ -51,6 +63,9 @@ beforeEach(() => {
   seams.getSessionUser.mockReset().mockImplementation(async () => seams.user);
   seams.checkDailyBudget.mockReset().mockResolvedValue("allowed");
   seams.grokChat.mockReset().mockResolvedValue({ text: "brief", model: "grok" });
+  seams.aiPlan = "free";
+  seams.loadEntitlements.mockReset().mockImplementation(async () => ({ aiPlan: seams.aiPlan }));
+  seams.reportServerError.mockReset().mockResolvedValue(undefined);
   vi.stubEnv("XAI_API_KEY", "key");
   vi.stubEnv("DATABASE_URL", "postgres://db");
 });
@@ -178,5 +193,79 @@ describe("callModel", () => {
       DailyLimitReached,
     );
     expect(seams.grokChat).not.toHaveBeenCalled();
+  });
+
+  it("spends the budget under the caller's plan: free by default, paid for a paid firm", async () => {
+    const { callModel } = await guard();
+    await callModel({ userId: "u1", grok: "allowed" }, CHAT);
+    expect(seams.loadEntitlements.mock.calls[0]?.[1]).toBe("u1");
+    expect(seams.checkDailyBudget).toHaveBeenLastCalledWith(
+      expect.any(Function),
+      "u1",
+      undefined,
+      undefined,
+      null,
+      "free",
+    );
+    seams.aiPlan = "paid";
+    await callModel({ userId: "u2", grok: "allowed" }, CHAT);
+    expect(seams.checkDailyBudget).toHaveBeenLastCalledWith(
+      expect.any(Function),
+      "u2",
+      undefined,
+      undefined,
+      null,
+      "paid",
+    );
+  });
+
+  it("uses the free allowance when the plan cannot be read, and still calls the model", async () => {
+    const { callModel } = await guard();
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    seams.loadEntitlements.mockRejectedValue(new Error("down"));
+    await expect(callModel({ userId: "u1", grok: "allowed" }, CHAT)).resolves.toEqual({
+      text: "brief",
+      model: "grok",
+    });
+    expect(seams.checkDailyBudget.mock.calls[0]?.[5]).toBe("free");
+    quiet.mockRestore();
+  });
+
+  it("names the ceiling met and the figures in force on the thrown error", async () => {
+    const { callModel } = await guard();
+    seams.checkDailyBudget.mockResolvedValue("spent");
+    await expect(callModel({ userId: "u1", grok: "allowed" }, CHAT)).rejects.toMatchObject({
+      dailyLimit: { scope: "user", plan: "free", limit: 100, paidLimit: 400 },
+    });
+    seams.aiPlan = "paid";
+    await expect(callModel({ userId: "u1", grok: "allowed" }, CHAT)).rejects.toMatchObject({
+      dailyLimit: { scope: "user", plan: "paid", limit: 400, paidLimit: 400 },
+    });
+    seams.checkDailyBudget.mockResolvedValue("spent-global");
+    await expect(callModel({ userId: "u1", grok: "allowed" }, CHAT)).rejects.toMatchObject({
+      dailyLimit: { scope: "global", plan: "paid", limit: 400, paidLimit: 400 },
+    });
+    expect(seams.grokChat).not.toHaveBeenCalled();
+  });
+
+  it("reports the global ceiling once a day, not on every refused call", async () => {
+    const { callModel } = await guard();
+    seams.checkDailyBudget.mockResolvedValue("spent-global");
+    for (let i = 0; i < 3; i += 1) {
+      await expect(callModel({ userId: `u${i}`, grok: "allowed" }, CHAT)).rejects.toMatchObject({
+        dailyLimit: { scope: "global" },
+      });
+    }
+    expect(seams.reportServerError).toHaveBeenCalledTimes(1);
+    expect(seams.reportServerError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "llm global ceiling reached" }),
+      "llm-daily-global",
+    );
+    // The caller's own ceiling is the everyday case and is not reported.
+    seams.checkDailyBudget.mockResolvedValue("spent");
+    await expect(callModel({ userId: "u9", grok: "allowed" }, CHAT)).rejects.toMatchObject({
+      dailyLimit: { scope: "user" },
+    });
+    expect(seams.reportServerError).toHaveBeenCalledTimes(1);
   });
 });
