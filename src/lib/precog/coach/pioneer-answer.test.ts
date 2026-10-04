@@ -2,10 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { utcDateKey } from "../dates";
 import { defaultProfile } from "../practice-profile";
 import {
-  DAILY_LIMIT_WARNING,
   MODEL_FAILED_WARNING,
   PIONEER_FAILED_MESSAGE,
   answerPioneer,
+  dailyLimitWarning,
   readPioneerRequest,
   type PioneerRequestData,
 } from "./pioneer-answer";
@@ -17,9 +17,21 @@ vi.mock("./pioneer-profile", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./pioneer-profile")>();
   return { ...actual, pioneerProfileFrom: vi.fn(actual.pioneerProfileFrom) };
 });
-// The daily model budget lives in the database; these tests are about the brief.
-const budget = vi.hoisted(() => ({ state: "allowed" as "allowed" | "spent" | "unavailable" }));
-vi.mock("../llm/daily-usage", () => ({ checkDailyBudget: async () => budget.state }));
+// The daily model budget and the caller's plan live in the database; these
+// tests are about the brief.
+const budget = vi.hoisted(() => ({
+  state: "allowed" as Awaited<ReturnType<typeof import("../llm/daily-usage").checkDailyBudget>>,
+  aiPlan: "free" as "free" | "paid",
+}));
+vi.mock("../llm/daily-usage", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../llm/daily-usage")>()),
+  checkDailyBudget: async () => budget.state,
+}));
+vi.mock("@/lib/db", () => ({ getSql: async () => ({}), databaseConfigured: false }));
+vi.mock("@/lib/precog/firm/entitlements.server", () => ({
+  loadEntitlements: async () => ({ aiPlan: budget.aiPlan }),
+}));
+vi.mock("@/lib/observability/report.server", () => ({ reportServerError: async () => {} }));
 vi.mock("./local-brief", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./local-brief")>();
   return { ...actual, localBrief: vi.fn(actual.localBrief) };
@@ -114,11 +126,67 @@ describe("answerPioneer", () => {
       if (!res.ok) throw new Error(res.error);
       expect(res.modelStatus).toBe("daily-limit");
       expect(res.source).toBe("local-agent");
-      expect(res.warnings).toContain(DAILY_LIMIT_WARNING);
+      // A free account hears its own figure and the Firm plan's, the figures in force.
+      expect(res.warnings).toContain(
+        "Precog has reached today's AI limit for the free plan (100 calls), so its rules built this brief. Try again tomorrow, or start the Firm plan for 400 a day.",
+      );
       expect(res.warnings).not.toContain(MODEL_FAILED_WARNING);
       expect(fetchMock).not.toHaveBeenCalled();
     } finally {
       budget.state = "allowed";
+    }
+  });
+
+  it("names the paid plan's own figure, and the ceiling across every account", async () => {
+    vi.stubEnv("XAI_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn());
+    budget.aiPlan = "paid";
+    budget.state = "spent";
+    try {
+      const paid = await answerPioneer(request("x"), access("allowed"));
+      if (!paid.ok) throw new Error(paid.error);
+      expect(paid.warnings).toContain(
+        "Precog has reached today's AI limit for your plan (400 calls), so its rules built this brief. Try again tomorrow.",
+      );
+      budget.state = "spent-global";
+      const global = await answerPioneer(request("x"), access("allowed"));
+      if (!global.ok) throw new Error(global.error);
+      expect(global.modelStatus).toBe("daily-limit");
+      expect(global.warnings).toContain(
+        "Precog has reached its AI limit for today across every account, so its rules built this brief. Try again tomorrow.",
+      );
+      // A shared pool (one office address, say) names no figure of the account's own.
+      budget.state = "spent-pool";
+      const pool = await answerPioneer(request("x"), access("allowed"));
+      if (!pool.ok) throw new Error(pool.error);
+      expect(pool.modelStatus).toBe("daily-limit");
+      expect(pool.warnings).toContain(
+        "Precog has reached today's AI limit shared by your account and others, so its rules built this brief. Try again tomorrow.",
+      );
+    } finally {
+      budget.state = "allowed";
+      budget.aiPlan = "free";
+    }
+  });
+
+  it("prints the limits in force, not typed figures", () => {
+    const free = { scope: "user" as const, plan: "free" as const, limit: 100, paidLimit: 400 };
+    expect(dailyLimitWarning(free)).toBe(
+      "Precog has reached today's AI limit for the free plan (100 calls), so its rules built this brief. Try again tomorrow, or start the Firm plan for 400 a day.",
+    );
+    expect(dailyLimitWarning({ ...free, limit: 80, paidLimit: 600 })).toBe(
+      "Precog has reached today's AI limit for the free plan (80 calls), so its rules built this brief. Try again tomorrow, or start the Firm plan for 600 a day.",
+    );
+    expect(dailyLimitWarning({ ...free, plan: "paid", limit: 600, paidLimit: 600 })).toBe(
+      "Precog has reached today's AI limit for your plan (600 calls), so its rules built this brief. Try again tomorrow.",
+    );
+    expect(dailyLimitWarning({ ...free, scope: "global" })).toBe(
+      "Precog has reached its AI limit for today across every account, so its rules built this brief. Try again tomorrow.",
+    );
+    for (const plan of ["free", "paid"] as const) {
+      expect(dailyLimitWarning({ ...free, plan, scope: "pool" })).toBe(
+        "Precog has reached today's AI limit shared by your account and others, so its rules built this brief. Try again tomorrow.",
+      );
     }
   });
 

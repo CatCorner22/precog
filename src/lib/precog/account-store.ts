@@ -34,6 +34,21 @@ interface AccountExport {
   }>;
   /** Businesses deleted for good; only the id and the day are kept. */
   deletedBusinesses: Array<{ businessId: string; deletedAt: string }>;
+  /**
+   * For a firm owner: the firm's client businesses that members set up, as
+   * summaries (the profiles are the members' rows; each one's past versions
+   * download through the history download, which lists them too). Empty for
+   * everyone else.
+   */
+  firmClients: Array<{
+    id: string;
+    name: string;
+    industry: string;
+    ownerUserId: string;
+    revision: number;
+    updatedAt: string;
+    deletedAt: string | null;
+  }>;
   reportVersions: Array<{
     id: string;
     businessId: string;
@@ -46,6 +61,8 @@ interface AccountExport {
     reviewedAt: string | null;
     reviewNote: string;
     sentAt: string | null;
+    /** The firm's name and letterhead as frozen at lock; null before migration 0041 and for a solo business. */
+    firm: { name: string; letterhead: string; logoDataUrl: string | null } | null;
     profile: unknown;
   }>;
   snapshots: Array<{
@@ -67,7 +84,14 @@ interface AccountExport {
     redacted: boolean;
     payload: unknown;
   }>;
-  firm: { name: string; plan: string; updatedAt: string } | null;
+  firm: {
+    name: string;
+    plan: string;
+    letterhead: string;
+    logoDataUrl: string | null;
+    coverPage: boolean;
+    updatedAt: string;
+  } | null;
   /** Firms this account belongs to, its own included. */
   firmMemberships: Array<{ firmUserId: string; role: string; joinedAt: string }>;
   /** People in the firm this account owns. */
@@ -148,6 +172,8 @@ interface AccountExport {
     vendors: unknown;
     employees: unknown;
   }>;
+  /** The account's milestones (first business, first locked version, first report sent, first monthly review). */
+  activity: Array<{ event: string; businessId: string | null; occurredAt: string }>;
 }
 
 /** What account deletion removed that still has to be undone outside the database. */
@@ -161,14 +187,21 @@ interface DeletedAccount {
 /**
  * Reads the account's rows from one consistent snapshot, so a save landing
  * mid-export cannot make one part of the file disagree with another.
+ * `firmUserId` is the firm the caller owns (null otherwise): its members'
+ * client businesses come along as summaries.
  */
-export async function exportAccountRows(sql: Sql, userId: string): Promise<AccountExport> {
+export async function exportAccountRows(
+  sql: Sql,
+  userId: string,
+  firmUserId: string | null = null,
+): Promise<AccountExport> {
   return inTransaction(sql, async (tx) => {
     await tx`set transaction isolation level repeatable read`;
     const [
       user,
       businesses,
       deletedBusinesses,
+      firmClients,
       reportVersions,
       snapshots,
       shares,
@@ -185,10 +218,12 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
       quickBooksSnapshots,
       procedureImages,
       controlExecutions,
+      activity,
     ] = await Promise.all([
       readUser(tx, userId),
       readBusinesses(tx, userId),
       readDeletedBusinesses(tx, userId),
+      readFirmClients(tx, userId, firmUserId),
       readReportVersions(tx, userId),
       readSnapshots(tx, userId),
       readShares(tx, userId),
@@ -208,6 +243,7 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
         businessId: string;
         record: ControlExecution;
       }>`select business_id as "businessId", record from control_execution_log where user_id=${userId} order by created_at,id`,
+      readActivity(tx, userId),
     ]);
     return {
       exportedAt: new Date().toISOString(),
@@ -215,6 +251,7 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
       user,
       businesses,
       deletedBusinesses,
+      firmClients,
       reportVersions,
       snapshots,
       shares,
@@ -230,6 +267,7 @@ export async function exportAccountRows(sql: Sql, userId: string): Promise<Accou
       quickBooksConnections,
       quickBooksSnapshots,
       procedureImages,
+      activity,
     };
   });
 }
@@ -245,24 +283,75 @@ export interface BusinessHistoryExportRow {
   profile: unknown;
 }
 
-/** The account's businesses that have past versions, deleted ones included, by name. */
+/**
+ * The account's businesses that have past versions, deleted ones included,
+ * by name; for a firm owner (`firmUserId` set) the firm's client businesses
+ * its members set up as well, each with the account that holds the row.
+ */
 export async function listAccountHistoryBusinesses(
   sql: Sql,
   userId: string,
-): Promise<Array<{ businessId: string; name: string; versions: number }>> {
-  const rows = await sql<{ business_id: string; name: string; versions: number | string }>`
-    select h.business_id, coalesce(max(b.name), max(h.name)) as name, count(*) as versions
+  firmUserId: string | null = null,
+): Promise<Array<{ businessId: string; name: string; versions: number; ownerUserId: string }>> {
+  const rows = await sql<{
+    business_id: string;
+    user_id: string;
+    name: string;
+    versions: number | string;
+  }>`
+    select h.business_id, h.user_id, coalesce(max(b.name), max(h.name)) as name, count(*) as versions
     from business_history h
     left join businesses b on b.user_id = h.user_id and b.id = h.business_id
     where h.user_id = ${userId}
-    group by h.business_id
-    order by 2, 1
+      or (${firmUserId}::text is not null and b.firm_user_id = ${firmUserId})
+    group by h.business_id, h.user_id
+    order by 3, 1, (h.user_id = ${userId}) desc
   `;
   return rows.map((r) => ({
     businessId: r.business_id,
     name: r.name,
     versions: Number(r.versions),
+    ownerUserId: r.user_id,
   }));
+}
+
+/**
+ * Whose row a history download reads for `businessId`. With `ownerUserId`
+ * named (the list row the caller chose): the caller's own rows when it is
+ * theirs, else that account's row only when it is a member of the firm the
+ * caller owns (`firmUserId`) and the row is that firm's client, so the
+ * owner's and a member's rows under one id download apart. Without it: the
+ * caller's own row when they hold one, else the firm's. The membership is
+ * read here, never trusted from what the client sends. Null when nothing
+ * resolves, and the page is then empty.
+ */
+async function historyOwnerFor(
+  sql: Sql,
+  userId: string,
+  businessId: string,
+  firmUserId: string | null,
+  ownerUserId: string | null,
+): Promise<string | null> {
+  if (ownerUserId === userId) return userId;
+  if (ownerUserId !== null) {
+    if (firmUserId === null) return null;
+    const rows = await sql<{ user_id: string }>`
+      select b.user_id from businesses b
+      join firm_members m on m.firm_user_id = b.firm_user_id and m.member_user_id = b.user_id
+      where b.id = ${businessId} and b.user_id = ${ownerUserId} and b.firm_user_id = ${firmUserId}
+      limit 1
+    `;
+    return rows[0]?.user_id ?? null;
+  }
+  const rows = await sql<{ user_id: string }>`
+    select b.user_id from businesses b
+    where b.id = ${businessId}
+      and (b.user_id = ${userId}
+        or (${firmUserId}::text is not null and b.firm_user_id = ${firmUserId}))
+    order by (b.user_id = ${userId}) desc
+    limit 1
+  `;
+  return rows[0]?.user_id ?? userId;
 }
 
 /**
@@ -277,8 +366,10 @@ export const HISTORY_PAGE_BYTES = 3 * 1024 * 1024;
  * One page of a business's past versions, newest first, below `beforeRevision`
  * when given. A page holds versions until their profiles reach `budgetBytes`,
  * and always at least one (a profile is at most 2 MB, under 2.7 MB encoded).
- * `nextBeforeRevision` is null on the last page. Only the caller's own rows:
- * another account's id returns an empty page.
+ * `nextBeforeRevision` is null on the last page. Only the caller's own rows,
+ * or, for a firm owner (`firmUserId`), a row a member set up for the firm,
+ * named by `ownerUserId` when the owner's and a member's rows share the id
+ * (see historyOwnerFor): another account's id returns an empty page.
  *
  * The walk prints one version at a time and stops at the first one past the
  * budget, so a request measures only its own page and that one extra version,
@@ -286,11 +377,15 @@ export const HISTORY_PAGE_BYTES = 3 * 1024 * 1024;
  */
 export async function exportBusinessHistoryPage(
   sql: Sql,
-  userId: string,
+  callerUserId: string,
   businessId: string,
   beforeRevision: number | null,
   budgetBytes = HISTORY_PAGE_BYTES,
+  firmUserId: string | null = null,
+  ownerUserId: string | null = null,
 ): Promise<{ rows: BusinessHistoryExportRow[]; nextBeforeRevision: number | null }> {
+  const userId = await historyOwnerFor(sql, callerUserId, businessId, firmUserId, ownerUserId);
+  if (userId === null) return { rows: [], nextBeforeRevision: null };
   const rows = await sql<{
     business_id: string;
     revision: number | string;
@@ -359,13 +454,14 @@ export function encodeHistoryPage(rows: BusinessHistoryExportRow[]): string {
  * Removes every row the account owns and then the account itself, in one
  * transaction. Refused (409) while a firm plan is still billing, so Stripe
  * never keeps charging a deleted account, and while the account holds client
- * businesses it set up for someone else's firm, so a departing member cannot
- * take the firm's clients with them.
+ * businesses it set up for someone else's firm: the firm owner removes the
+ * member first, which hands those clients to the firm (see removeMember).
  *
  * Snapshots and the per-user model-usage counts carry no foreign key to the
  * user, so they are deleted explicitly; everything else (businesses and their
  * history, report versions and QuickBooks rows, shares, the firm, reminders,
- * billing, sessions and linked accounts) cascades from the user row. Client
+ * billing, the activity milestones, sessions and linked accounts) cascades
+ * from the user row. Client
  * businesses that members of this account's firm set up stay with those
  * members and leave the firm. The app-wide usage count is not the account's
  * and stays.
@@ -400,7 +496,7 @@ async function refuseWhileBilling(tx: Sql, userId: string): Promise<string | nul
   if (status && ACTIVE_SUBSCRIPTION_STATUSES.has(status)) {
     throw new RequestError(
       409,
-      `Your firm plan is still active. Cancel it with Manage billing on the Firm page, then delete your account. If you cannot, write to ${SUPPORT_EMAIL}.`,
+      `Your firm plan is still active. Cancel it with Manage billing on the Firm page, or make a colleague the firm's owner, then delete your account. If you cannot, write to ${SUPPORT_EMAIL}.`,
     );
   }
   return rows[0]?.stripe_customer_id ?? null;
@@ -419,7 +515,7 @@ async function refuseWhileHoldingFirmClients(tx: Sql, userId: string): Promise<v
   if (!held) return;
   throw new RequestError(
     409,
-    `You set up ${count(Number(held.n), "client business", "client businesses")} for ${held.firm_name}. Deleting your account would delete them too. Ask the firm owner what to keep, delete those businesses yourself, then delete your account. Need help? Write to ${SUPPORT_EMAIL}.`,
+    `You set up ${count(Number(held.n), "client business", "client businesses")} for ${held.firm_name}. Ask the firm owner to remove you from the firm first (your client businesses stay with the firm), then delete your account. Need help? Write to ${SUPPORT_EMAIL}.`,
   );
 }
 
@@ -457,6 +553,36 @@ async function readBusinesses(tx: Sql, userId: string): Promise<AccountExport["b
   }));
 }
 
+async function readFirmClients(
+  tx: Sql,
+  userId: string,
+  firmUserId: string | null,
+): Promise<AccountExport["firmClients"]> {
+  if (!firmUserId) return [];
+  const rows = await tx<{
+    id: string;
+    name: string;
+    industry: string;
+    user_id: string;
+    revision: number | string;
+    updated_at: string;
+    deleted_at: string | null;
+  }>`
+    select id, name, industry, user_id, revision, updated_at, deleted_at
+    from businesses where firm_user_id = ${firmUserId} and user_id <> ${userId}
+    order by updated_at desc
+  `;
+  return rows.map((b) => ({
+    id: b.id,
+    name: b.name,
+    industry: b.industry,
+    ownerUserId: b.user_id,
+    revision: Number(b.revision),
+    updatedAt: toIsoTimestamp(b.updated_at),
+    deletedAt: toIsoTimestampOrNull(b.deleted_at),
+  }));
+}
+
 async function readDeletedBusinesses(
   tx: Sql,
   userId: string,
@@ -484,10 +610,14 @@ async function readReportVersions(
     reviewed_at: string | null;
     review_note: string;
     sent_at: string | null;
+    firm_name: string | null;
+    firm_letterhead: string | null;
+    firm_logo_data_url: string | null;
     profile: unknown;
   }>`
     select id, business_id, version_no, revision, scope_note, prepared_by, prepared_at,
-      reviewed_by, reviewed_at, review_note, sent_at, profile
+      reviewed_by, reviewed_at, review_note, sent_at, firm_name, firm_letterhead,
+      firm_logo_data_url, profile
     from report_versions where user_id = ${userId}
     order by business_id, version_no desc
   `;
@@ -503,6 +633,14 @@ async function readReportVersions(
     reviewedAt: toIsoTimestampOrNull(r.reviewed_at),
     reviewNote: r.review_note,
     sentAt: toIsoTimestampOrNull(r.sent_at),
+    firm:
+      r.firm_name === null
+        ? null
+        : {
+            name: r.firm_name,
+            letterhead: r.firm_letterhead ?? "",
+            logoDataUrl: r.firm_logo_data_url,
+          },
     profile: r.profile,
   }));
 }
@@ -559,13 +697,40 @@ async function readShares(tx: Sql, userId: string): Promise<AccountExport["share
 }
 
 async function readFirm(tx: Sql, userId: string): Promise<AccountExport["firm"]> {
-  const rows = await tx<{ name: string; plan: string; updated_at: string }>`
-    select name, plan, updated_at from firms where user_id = ${userId}
+  const rows = await tx<{
+    name: string;
+    plan: string;
+    letterhead: string;
+    logo_data_url: string | null;
+    cover_page: boolean;
+    updated_at: string;
+  }>`
+    select name, plan, letterhead, logo_data_url, cover_page, updated_at
+    from firms where user_id = ${userId}
   `;
   const firm = rows[0];
   return firm
-    ? { name: firm.name, plan: firm.plan, updatedAt: toIsoTimestamp(firm.updated_at) }
+    ? {
+        name: firm.name,
+        plan: firm.plan,
+        letterhead: firm.letterhead,
+        logoDataUrl: firm.logo_data_url,
+        coverPage: Boolean(firm.cover_page),
+        updatedAt: toIsoTimestamp(firm.updated_at),
+      }
     : null;
+}
+
+async function readActivity(tx: Sql, userId: string): Promise<AccountExport["activity"]> {
+  const rows = await tx<{ event: string; business_id: string | null; occurred_at: string }>`
+    select event, business_id, occurred_at from product_events
+    where user_id = ${userId} order by occurred_at
+  `;
+  return rows.map((r) => ({
+    event: r.event,
+    businessId: r.business_id,
+    occurredAt: toIsoTimestamp(r.occurred_at),
+  }));
 }
 
 async function readFirmMemberships(

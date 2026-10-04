@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Lock, PenLine, Send } from "lucide-react";
+import { Link2, Lock, PenLine, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { usePractice, usePracticeSync } from "@/lib/precog/practice-context";
@@ -17,6 +17,7 @@ import type { FirmRole } from "@/lib/precog/firm/store";
 import { isOwnTeam } from "@/lib/precog/firm/engagement";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
 import { signOffWithNote } from "./report-versions-actions";
+import { ReportSharePanel } from "./report-share-panel";
 
 /**
  * Locking, listing and reviewing report versions for issuance. A version
@@ -25,15 +26,19 @@ import { signOffWithNote } from "./report-versions-actions";
  * "sent" is stamped once.
  */
 export function ReportVersionsPanel() {
-  const { profile, replaceProfile } = usePractice();
+  const { profile, businesses, replaceProfile } = usePractice();
   const { syncStatus } = usePracticeSync();
   const { user, isPending } = useCurrentUserState();
   const [versions, setVersions] = useState<ReportVersionRow[] | null>(null);
   const [role, setRole] = useState<FirmRole | null>(null);
   const [scope, setScope] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sharing, setSharing] = useState<string | null>(null);
   const businessId = profile.businessId ?? null;
   const own = isOwnTeam(profile);
+  // Report links are for a firm's client businesses (share-store.ts); a solo
+  // business shows no Share button rather than a refused one.
+  const firmClient = Boolean(businesses.find((b) => b.id === businessId)?.firmClient);
 
   useEffect(() => {
     if (isPending || !user || !businessId || !own) return;
@@ -194,7 +199,25 @@ export function ReportVersionsPanel() {
                       <Send className="size-3.5" /> Mark sent
                     </Button>
                   )}
+                  {firmClient && v.reviewedAt && v.hasFigures && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setSharing((cur) => (cur === v.id ? null : v.id))}
+                      aria-label={`Share version ${v.versionNo}`}
+                      aria-expanded={sharing === v.id}
+                    >
+                      <Link2 className="size-3.5" /> Share
+                    </Button>
+                  )}
                 </div>
+                {sharing === v.id && (
+                  <ReportSharePanel
+                    versionId={v.id}
+                    versionNo={v.versionNo}
+                    onClose={() => setSharing(null)}
+                  />
+                )}
               </li>
             ))}
           </ul>

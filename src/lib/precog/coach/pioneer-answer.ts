@@ -1,7 +1,13 @@
-import { runGrokAgentLoop, type ModelStatus } from "../llm/agent-loop";
+import { runGrokAgentLoop, type ModelOutcome, type ModelStatus } from "../llm/agent-loop";
 import type { LlmAccess } from "../llm/guard.server";
 import type { ToolContext } from "../llm/tools";
-import type { AgentRunResult, DecisionLink, EvidenceRef, GrokAccess } from "../llm/types";
+import type {
+  AgentRunResult,
+  DailyLimitInfo,
+  DecisionLink,
+  EvidenceRef,
+  GrokAccess,
+} from "../llm/types";
 import { invalidRequest } from "@/lib/request-errors";
 import { resolveClientDate } from "../dates";
 import type { PracticeProfile } from "../practice-profile";
@@ -67,9 +73,25 @@ export const PIONEER_FAILED_MESSAGE =
 export const MODEL_FAILED_WARNING =
   "Grok could not answer this time, so Precog's rules built this brief.";
 
-/** The warning when today's model budget is used up; it lasts until tomorrow. */
-export const DAILY_LIMIT_WARNING =
-  "Precog has reached today's AI limit, so its rules built this brief. Try again tomorrow.";
+/**
+ * The warning when today's model budget is used up; it lasts until tomorrow.
+ * Names the ceiling met and the figures in force: a free account's own
+ * allowance (and the Firm plan's, which is the way past it), a paid
+ * account's own, or Precog's across every account. A ceiling the account
+ * shares with others names no figure, since the account's own was not reached.
+ */
+export function dailyLimitWarning(l: DailyLimitInfo): string {
+  if (l.scope === "global") {
+    return "Precog has reached its AI limit for today across every account, so its rules built this brief. Try again tomorrow.";
+  }
+  if (l.scope === "pool") {
+    return "Precog has reached today's AI limit shared by your account and others, so its rules built this brief. Try again tomorrow.";
+  }
+  if (l.plan === "paid") {
+    return `Precog has reached today's AI limit for your plan (${l.limit} calls), so its rules built this brief. Try again tomorrow.`;
+  }
+  return `Precog has reached today's AI limit for the free plan (${l.limit} calls), so its rules built this brief. Try again tomorrow, or start the Firm plan for ${l.paidLimit} a day.`;
+}
 
 /** Validates the coach request; a profile the schema let through but the builder rejects is a 400. */
 export function readPioneerRequest(input: PioneerCoachInput): PioneerRequestData {
@@ -111,7 +133,7 @@ export async function answerPioneer(
         ? await runGrokAgentLoop(local, access)
         : { ...local, modelStatus: "not-asked" as const };
     const warnings = [...result.brief.chickenLittleWarnings];
-    const why = modelWarning(grok, result.modelStatus);
+    const why = modelWarning(grok, result);
     if (why) warnings.push(why);
 
     return {
@@ -150,14 +172,15 @@ export async function answerPioneer(
  * the owner can do, so no warning: the screen's status line already says the
  * brief was built by this app's rules.
  */
-function modelWarning(grok: GrokAccess, status: ModelStatus): string | null {
+function modelWarning(grok: GrokAccess, outcome: ModelOutcome): string | null {
+  const status = outcome.modelStatus;
   if (grok === "unauthenticated") {
     return "Sign in to have Grok select the most relevant details; Precog's rules built this brief.";
   }
   if (grok === "rate_limited") {
     return "Grok is busy for the moment, so Precog's rules built this brief.";
   }
-  if (status === "daily-limit") return DAILY_LIMIT_WARNING;
+  if (status === "daily-limit" && outcome.dailyLimit) return dailyLimitWarning(outcome.dailyLimit);
   if (status === "rejected") {
     return "The model's response could not be validated and was not shown. This is the unchanged brief from Precog's rules.";
   }

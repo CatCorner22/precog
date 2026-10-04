@@ -9,6 +9,7 @@ import {
 import { toast } from "sonner";
 import type { IndustryId } from "./industry";
 import { deleteBusiness as deleteBusinessRemote, loadBusiness } from "./profile-server";
+import { getEntitlements, type EntitlementsAnswer } from "./firm/entitlements-server";
 import {
   loadPortfolio,
   removePortfolioEntry,
@@ -100,6 +101,10 @@ export function usePortfolio(input: {
   }, []);
   // The business open before "Add a business", which cancelling setup returns to.
   const openBeforeSetup = useRef<string | null>(null);
+  // The plan's client limit, read from the account the first time a signed-in
+  // owner adds a business (never at mount, so a signed-out visitor sends
+  // nothing) and again after each business created.
+  const entitlements = useRef<Promise<EntitlementsAnswer | null> | null>(null);
 
   /** Local portfolio + cloud summaries merged by id; the active business always wins. */
   const businesses = useMemo<BusinessSummary[]>(() => {
@@ -212,8 +217,19 @@ export function usePortfolio(input: {
       // A conflict on the outgoing business must not be lost behind the new
       // one: the banner stays up and the switch waits for the user's choice.
       if (saveConflictRef.current) return { ok: false, reason: CHOOSE_A_VERSION_FIRST };
-      if (cloudUser && atBusinessLimit(businesses.length)) {
-        return { ok: false, reason: businessLimitMessage() };
+      if (cloudUser) {
+        entitlements.current ??= getEntitlements().catch(() => null);
+        const plan = await entitlements.current;
+        if (plan) {
+          if (plan.clientCount >= plan.clientLimit) {
+            return {
+              ok: false,
+              reason: businessLimitMessage({ plan: plan.plan, limit: plan.clientLimit }),
+            };
+          }
+        } else if (atBusinessLimit(businesses.length)) {
+          return { ok: false, reason: businessLimitMessage() };
+        }
       }
       // Written here first: another tab's newer save raises the banner now,
       // before the new business takes this one's place.
@@ -246,6 +262,8 @@ export function usePortfolio(input: {
         const next = newBusinessProfile(industry, name);
         cloudRevision.current.delete(next.businessId as string);
         activateProfile(next);
+        // The count moves once this one is saved, so the next add reads it again.
+        entitlements.current = null;
         return { ok: true };
       } finally {
         setSwitching(false);

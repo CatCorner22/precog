@@ -14,7 +14,7 @@
  */
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { e2eOptions, profileStorageKey, withPage } from "./lib/e2e.mjs";
+import { e2eOptions, openSetup, profileStorageKey, withPage } from "./lib/e2e.mjs";
 import { eventually, stepLogger } from "./lib/steps.mjs";
 import { checkedUrl } from "./browser-guard.mjs";
 
@@ -28,7 +28,7 @@ if (passed) console.log(JSON.stringify({ ok: true, steps: step.names.length }));
 
 async function writeVerifyAndLink(page, errors) {
   step("open the dental sample on Procedures");
-  await page.goto(base, { waitUntil: "networkidle" });
+  await openSetup(page, base, options.timeout);
   await page.getByRole("radio", { name: /^Dental/ }).click();
   await page.getByRole("button", { name: "Explore the sample instead" }).click();
   await page.getByRole("tab", { name: /Procedures/ }).click();

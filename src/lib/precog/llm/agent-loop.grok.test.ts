@@ -7,7 +7,14 @@ import { runGrokAgentLoop, runLocalAgentLoop } from "./agent-loop";
 import type { LlmAccess } from "./guard.server";
 
 // The daily model budget lives in the database; these tests are about the brief.
-vi.mock("./daily-usage", () => ({ checkDailyBudget: async () => "allowed" }));
+vi.mock("./daily-usage", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./daily-usage")>()),
+  checkDailyBudget: async () => "allowed",
+}));
+vi.mock("@/lib/db", () => ({ getSql: async () => ({}), databaseConfigured: false }));
+vi.mock("@/lib/precog/firm/entitlements.server", () => ({
+  loadEntitlements: async () => ({ aiPlan: "free" }),
+}));
 const report = vi.hoisted(() => ({
   error: vi.fn(async (_err: unknown, _at?: string | null) => {}),
 }));

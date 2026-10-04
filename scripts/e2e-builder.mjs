@@ -20,6 +20,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   e2eOptions,
+  openSetup,
   profileStorageKey,
   restingViewport,
   viewportTransform,
@@ -35,7 +36,7 @@ let page;
 await withPage(options, async (p, errors) => {
   page = p;
   step("load app");
-  await page.goto(`${baseUrl}/`, { waitUntil: "networkidle", timeout });
+  await openSetup(page, baseUrl, timeout);
 
   step("load the dental sample");
   await page.getByRole("radio", { name: /^Dental/ }).click();

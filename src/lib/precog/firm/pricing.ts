@@ -1,4 +1,5 @@
 import { formatUsd } from "@/lib/utils";
+import type { Entitlements } from "./entitlements";
 
 export type FirmPlan = "assessment" | "monthly";
 
@@ -71,11 +72,21 @@ export function planAmounts(
 }
 
 /**
- * The sentence the firm page adds to its closed-tools note once Stripe's
- * amounts are known, or null while they are not, so the note never prints a
- * figure Checkout would not charge.
+ * The firm page's note on what the paid plans open, for an account whose
+ * plan closes the tools (Stripe connected). The amounts print only once
+ * Stripe's are known, so the note never prints a figure Checkout would not
+ * charge. After an Assessment's window ended, the note says so and what
+ * stays.
  */
-export function closedToolsNote(amounts: PlanAmounts | null): string | null {
-  if (!amounts) return null;
-  return `Stripe is connected on this deployment; the price is the ${amounts.assessment} assessment and the ${amounts.monthly} plan, not a price per client.`;
+export function closedToolsNote(
+  amounts: PlanAmounts | null,
+  e: Pick<Entitlements, "plan" | "assessmentEndedAt">,
+): string {
+  const monthly = amounts ? ` (${amounts.monthly})` : "";
+  const stays = "The Monthly review on each business's own screen stays open.";
+  if (e.assessmentEndedAt) {
+    return `Your Assessment's 90 days ended on ${e.assessmentEndedAt.slice(0, 10)}. The QuickBooks link and new locked versions are closed; every locked version you already hold stays. Start the Firm plan${monthly} on this page. ${stays}`;
+  }
+  const assessment = amounts ? ` (${amounts.assessment})` : "";
+  return `The QuickBooks link, locked report versions, firm members, owner reminder emails and more than one client business are part of the Firm plan${monthly}. The Assessment${assessment} covers one client with locked versions and the QuickBooks link for 90 days from payment. ${stays}`;
 }

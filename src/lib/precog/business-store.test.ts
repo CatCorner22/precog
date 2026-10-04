@@ -530,6 +530,38 @@ describe("firm access", () => {
     expect([rows[0].saved_by, Number(rows[0].revision)]).toEqual(["user-b", 2]);
   });
 
+  it("lets only the firm owner delete and restore a colleague's client", async () => {
+    await db.seedUser("user-c");
+    await sql`insert into firm_members (firm_user_id, member_user_id, role) values ('user-a', 'user-c', 'preparer')`;
+    await saveBusinessRevision(sql, {
+      ...input("user-c", "biz_c", null, "Client of C"),
+      savedBy: "user-c",
+      firmUserId: "user-a",
+    });
+    const refused = { status: 403, message: "Only the firm owner can delete or restore a client." };
+    await expect(deleteBusinessRow(sql, "user-c", "biz_c", "user-b")).rejects.toMatchObject(
+      refused,
+    );
+    // The owner deletes and restores; the member who set the client up may not.
+    await deleteBusinessRow(sql, "user-c", "biz_c", "user-a");
+    expect(await resolveBusinessOwner(sql, "user-a", "biz_c")).toBeNull();
+    await expect(restoreBusinessRow(sql, "user-c", "biz_c", "user-b")).rejects.toMatchObject(
+      refused,
+    );
+    await expect(restoreBusinessRow(sql, "user-c", "biz_c", "user-c")).rejects.toMatchObject(
+      refused,
+    );
+    expect(await restoreBusinessRow(sql, "user-c", "biz_c", "user-a")).toBe(true);
+    await expect(deleteBusinessRow(sql, "user-c", "biz_c", "user-c")).rejects.toMatchObject(
+      refused,
+    );
+    expect(await resolveBusinessOwner(sql, "user-b", "biz_c")).toBe("user-c");
+    // A business the member kept outside the firm stays theirs to delete and restore.
+    await saveBusinessRevision(sql, input("user-c", "biz_own", null, "Own"));
+    await deleteBusinessRow(sql, "user-c", "biz_own", "user-c");
+    expect(await restoreBusinessRow(sql, "user-c", "biz_own", "user-c")).toBe(true);
+  });
+
   it("prefers the caller's own row when a colleague's business carries the same id", async () => {
     await saveBusinessRevision(sql, {
       ...input("user-a", "same", null, "Theirs"),

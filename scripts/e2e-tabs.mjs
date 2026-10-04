@@ -2,7 +2,8 @@
 /**
  * Headless tab walk: for every industry demo, open every top-level tab, each
  * view of How Precog scores, and the standalone routes (/report, /login,
- * /privacy, /terms, /firm, /share/<bad token>) and fail on any uncaught page
+ * /privacy, /terms, /pricing, /welcome, /firm, /share/<bad token>, /share/report/<bad token>)
+ * and fail on any uncaught page
  * error, React error-boundary card, hydration warning, or console error. This
  * is the check that catches a hydration mismatch and any tab that throws on a
  * template it was not written for.
@@ -15,7 +16,7 @@
  * Usage: node scripts/e2e-tabs.mjs [baseUrl]   (default http://127.0.0.1:8080/)
  * Env:   E2E_TIMEOUT_MS (default 45000), E2E_SCREENSHOT (PNG path on failure)
  */
-import { e2eOptions, withPage } from "./lib/e2e.mjs";
+import { e2eOptions, openSetup, withPage } from "./lib/e2e.mjs";
 
 const options = e2eOptions();
 const { baseUrl, timeout, failureShot } = options;
@@ -54,9 +55,7 @@ await withPage(options, async (page, errors) => {
 
   for (const industry of INDUSTRIES) {
     console.log(`· ${industry}`);
-    await page.goto(`${baseUrl}/`, { waitUntil: "networkidle", timeout });
-    await page.evaluate(() => localStorage.clear());
-    await page.reload({ waitUntil: "networkidle" });
+    await openSetup(page, baseUrl, timeout);
     await page
       .getByRole("radio", { name: new RegExp(`^${industry}`) })
       .first()
@@ -147,7 +146,16 @@ await withPage(options, async (page, errors) => {
   await shellChecks(page);
   await drain("signed-out shell checks");
 
-  for (const path of ["/login", "/privacy", "/terms", "/firm", "/share/not-a-real-token"]) {
+  for (const path of [
+    "/login",
+    "/privacy",
+    "/terms",
+    "/pricing",
+    "/welcome",
+    "/firm",
+    "/share/not-a-real-token",
+    "/share/report/not-a-real-token",
+  ]) {
     await page.goto(`${baseUrl}${path}`, { waitUntil: "networkidle", timeout });
     await drain(path);
   }

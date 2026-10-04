@@ -54,6 +54,7 @@ Every response carries, from `vite.config.ts`:
 
 - Server failures go to Sentry (`SENTRY_DSN`) or to a JSON webhook (`ERROR_REPORT_URL`); the report carries the release id and the route, never prompt text or a key (`src/lib/observability/`).
 - Every model call logs one `[grok] usage` line with token counts and latency, and no prompt text.
+- Precog runs no analytics script; activation counts come from `product_events` (ids and times only).
 - `GET /api/health` runs one database query and answers `{ ok: true }` or a 503; the uptime monitor and the restore procedure both read it ([OPERATIONS.md](./OPERATIONS.md)).
 - Rate limits: model calls are limited per user, per process and per network address, and capped per account per day in the database. These limits are cost and abuse control at the application level; a platform-level limit (Vercel Firewall) in front is the owner's setting.
 

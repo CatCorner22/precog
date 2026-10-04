@@ -88,6 +88,15 @@ describe("Terms", () => {
     expect(html).toContain("Precog helps an owner or advisor describe who holds which duties");
     expect(html).toContain("a month with no recorded loss is not evidence that any control");
   });
+
+  it("says the Assessment fee is credited once and that a departing member's clients move", () => {
+    expect(html).toContain(
+      "An Assessment fee that has not been refunded is credited once, before tax, against the Firm plan&#x27;s invoices when the account that paid it first starts the Firm plan.",
+    );
+    expect(html).toContain(
+      "When a member leaves or is removed, the client businesses they set up move to the firm owner&#x27;s account.",
+    );
+  });
 });
 
 describe("Privacy", () => {
@@ -121,7 +130,9 @@ describe("Privacy", () => {
   });
 
   it("states the model cap, the processors and what deletion refuses", () => {
-    expect(html).toContain("150 unless this deployment sets another limit");
+    expect(html).toContain(
+      "100 on the free plan and 400 on the Firm plan, unless this deployment sets other limits",
+    );
     expect(html).toContain("Precog does not use what you enter to train a model");
     expect(html).toContain("Sentry or the error relay Precog&#x27;s operator sets");
     expect(html).toContain("A security summary with this list is available from [SUPPORT EMAIL].");
@@ -145,6 +156,39 @@ describe("Privacy", () => {
     expect(html).toContain('<td class="py-1.5">35 days</td>');
     expect(html).toContain('<td class="py-1.5">24 hours</td>');
     expect(html).toContain("the last twelve, deleted on disconnect");
+    expect(html).toContain(
+      "When you first set up a business, locked a report version, marked a report sent or recorded a monthly review",
+    );
+    expect(html).toContain('<td class="py-1.5">kept until the account is deleted</td>');
+    expect(html).toContain("A firm&#x27;s letterhead and logo");
+    expect(html).toContain(
+      "until the firm changes them or the account is deleted; each locked version keeps the copy it was printed with",
+    );
+  });
+
+  it("says what Precog notes about an account, who gets a service email, and what moves", () => {
+    expect(html).toContain(
+      "Precog also notes the day you first set up a business, first locked a report version, first marked a report sent and first recorded a monthly review, so Precog&#x27;s operator can see whether new accounts get started. That note holds no names and no text you entered, and no analytics script runs in your browser.",
+    );
+    expect(html).toContain(
+      "When a reading fails or QuickBooks&#x27; permission is about to end, Precog emails the firm owner once per problem, whether or not the weekly digest is on.",
+    );
+    expect(html).toContain(
+      "When a Firm plan payment fails, Precog emails the firm owner once and keeps the plan open for 14 days while the card is retried.",
+    );
+    expect(html).toContain(
+      "the client businesses they set up move to the firm owner&#x27;s account, as the Terms say. The firm owner can hand the firm, its clients, its invitations and its billing to a member; the previous owner stays on as a reviewer.",
+    );
+    expect(html).toContain(
+      "When you sign in, Precog asks before it copies a business you set up while signed out into your account; it never copies one without asking.",
+    );
+    expect(html).toContain(
+      "and the review log and, for a firm owner, a list of the client businesses its members set up; their past versions download through Download history.",
+    );
+    expect(html).toContain(
+      "cancel the plan with Manage billing first, or make a colleague the firm&#x27;s owner. It also refuses while the account holds client businesses it set up for another firm: ask that firm&#x27;s owner to remove you from the firm first (your client businesses stay with the firm), then delete the account.",
+    );
+    expect(html).not.toContain("cannot match to their sign-in");
   });
 });
 

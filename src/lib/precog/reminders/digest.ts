@@ -2,6 +2,8 @@ import type { Sql } from "@/lib/db";
 import { reportServerError } from "@/lib/observability/report.server";
 import { normalizeProfile, type PracticeProfile } from "../practice-profile";
 import { digestTokenFor, loadFirmFor } from "../firm/store";
+import { loadEntitlements } from "../firm/entitlements.server";
+import { EXPIRY_WARNING_DAYS } from "../integrations/qbo/alert-email";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
 import { renderDigest, renderOwnerReminder, type RenderedEmail } from "./email";
 import { NOT_SUPPRESSED } from "./suppression-store";
@@ -88,6 +90,7 @@ export async function runDigest(
           })),
           appUrl: input.appUrl,
           unsubscribeUrl: `${input.appUrl}/api/digest-email?do=stop&token=${recipient.digestToken}`,
+          quickBooks: { needAttention: await quickBooksNeedingAttention(sql, recipient) },
         }),
       );
       for (const client of clients) await logSent(sql, client.row, recipient.email, client.items);
@@ -97,7 +100,24 @@ export async function runDigest(
     }
   }
 
+  // Owner reminder emails are part of the paid plans: the controlling
+  // account's plan (the firm owner's for a firm client) decides, read once
+  // per account per run.
+  const reminderEmailsOpen = new Map<string, Promise<boolean>>();
+  const ownerRemindersOpen = (userId: string): Promise<boolean> => {
+    let open = reminderEmailsOpen.get(userId);
+    if (!open) {
+      open = loadEntitlements(sql, userId).then((e) => e.features.ownerReminders);
+      reminderEmailsOpen.set(userId, open);
+    }
+    return open;
+  };
+
   for (const row of await ownerNoteTargets(sql)) {
+    if (!(await ownerRemindersOpen(row.controlling_user_id))) {
+      outcome.skipped += 1;
+      continue;
+    }
     const ownerItems = await unannounced(
       sql,
       row,
@@ -146,14 +166,18 @@ interface OwnerNoteRow extends BusinessRow {
   firm_name: string | null;
   /** The controlling account's address, when Precog trusts it. */
   reply_to: string | null;
+  /** The account whose plan and switch decide: the firm owner for a firm client. */
+  controlling_user_id: string;
 }
 
 /**
  * An account whose address Precog trusts: confirmed, or signed in through
  * Google or X. A password sign-up that never confirmed its address could
- * have typed anyone's.
+ * have typed anyone's. A SQL fragment over the "user" row aliased `alias`
+ * (a name the caller writes, never user input); the QuickBooks alert reads
+ * the same rule.
  */
-const TRUSTED_EMAIL = (alias: string) => `(
+export const TRUSTED_EMAIL = (alias: string) => `(
   ${alias}."emailVerified"
   or exists (
     select 1 from account a
@@ -212,6 +236,25 @@ async function businessesFor(sql: Sql, recipient: Recipient): Promise<BusinessRo
 }
 
 /**
+ * How many of the recipient's businesses (businessesFor) have a QuickBooks
+ * connection whose last reading failed or whose permission ends within the
+ * alert's warning period; the digest prints the count as one line.
+ */
+async function quickBooksNeedingAttention(sql: Sql, recipient: Recipient): Promise<number> {
+  const rows = await sql<{ n: number }>`
+    select count(*)::int as n
+    from integration_connections c
+    join businesses b on b.user_id = c.user_id and b.id = c.business_id and b.deleted_at is null
+    where c.provider = 'qbo'
+      and (b.user_id = ${recipient.userId}
+        or (${recipient.firmUserId}::text is not null and b.firm_user_id = ${recipient.firmUserId}))
+      and (c.last_error is not null
+        or c.refresh_expires_at <= now() + make_interval(days => ${EXPIRY_WARNING_DAYS}::int))
+  `;
+  return Number(rows[0]?.n ?? 0);
+}
+
+/**
  * Live businesses whose owner confirmed their address, has not stopped the
  * reminders and whose address has not bounced or complained, where the
  * controlling account (the firm owner for a firm client) has owner reminders on.
@@ -220,7 +263,8 @@ async function ownerNoteTargets(sql: Sql): Promise<OwnerNoteRow[]> {
   return sql.query<OwnerNoteRow>(`
     select b.user_id, b.id, b.name, e.owner_email, e.owner_email_token,
       f.name as firm_name,
-      case when ${TRUSTED_EMAIL("cu")} then cu.email end as reply_to
+      case when ${TRUSTED_EMAIL("cu")} then cu.email end as reply_to,
+      coalesce(b.firm_user_id, b.user_id) as controlling_user_id
     from businesses b
     join engagement_marks e on e.user_id = b.user_id and e.business_id = b.id
     left join notification_settings ns on ns.user_id = coalesce(b.firm_user_id, b.user_id)

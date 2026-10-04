@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Copy, UserMinus } from "lucide-react";
+import { Copy, Crown, UserMinus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   inviteFirmMember,
@@ -8,6 +8,7 @@ import {
   removeFirmMember,
   revokeFirmInvite,
   setFirmMemberRole,
+  transferFirmOwnership,
 } from "@/lib/precog/firm/server";
 import type {
   FirmContext,
@@ -16,6 +17,7 @@ import type {
   FirmRole,
   InviteRole,
 } from "@/lib/precog/firm/store";
+import type { MovedBusiness } from "@/lib/precog/business-store";
 import { formatDay } from "@/lib/precog/dates";
 import { fieldCls } from "@/components/ui/field-classes";
 
@@ -39,7 +41,15 @@ export function FirmMembers({
   firm: FirmContext;
   members: FirmMember[];
   invites: FirmInvite[];
-  onChange: (next: { members?: FirmMember[]; invites?: FirmInvite[]; left?: boolean }) => void;
+  onChange: (next: {
+    members?: FirmMember[];
+    invites?: FirmInvite[];
+    left?: boolean;
+    /** A member was removed: who, and the client businesses handed to the owner. */
+    removed?: { name: string; moved: MovedBusiness[] };
+    /** The firm changed owner: the caller's firm as it now stands (they are a reviewer). */
+    firm?: FirmContext | null;
+  }) => void;
 }) {
   const owner = firm.role === "owner";
   const [email, setEmail] = useState("");
@@ -97,22 +107,38 @@ export function FirmMembers({
   async function remove(userId: string, name: string) {
     if (
       !window.confirm(
-        `Remove ${name} from ${firm.name}? They lose access to the firm's clients, their share links to those clients stop working, and the businesses they own leave the firm with them.`,
+        `Remove ${name} from ${firm.name}? They lose access to the firm's clients, their share links to those clients stop working, and the client businesses they set up stay with the firm under your account.`,
       )
     )
       return;
     try {
       const res = await removeFirmMember({ data: { userId } });
-      onChange({ members: res.members });
+      onChange({ members: res.members, removed: { name, moved: res.moved } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Precog did not remove the member.");
+    }
+  }
+
+  async function makeOwner(userId: string, name: string) {
+    if (
+      !window.confirm(
+        `Make ${name} the owner of ${firm.name}? They take the firm's clients, members, invitations and billing, and you stay on as a reviewer. Stripe's receipts and payment emails go to them from now on, and owner reminders for the firm's clients follow their settings. You cannot undo this.`,
+      )
+    )
+      return;
+    try {
+      const res = await transferFirmOwnership({ data: { userId } });
+      toast.success(`${name} now owns ${firm.name}.`);
+      onChange({ firm: res.firm, members: res.members });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Precog did not change the firm's owner.");
     }
   }
 
   async function leave() {
     if (
       !window.confirm(
-        `Leave ${firm.name}? You lose access to the firm's clients, your share links to those clients stop working, and the businesses you own leave the firm with you.`,
+        `Leave ${firm.name}? You lose access to the firm's clients, your share links to those clients stop working, and the client businesses you set up stay with the firm. Businesses you kept outside the firm stay yours.`,
       )
     )
       return;
@@ -129,8 +155,10 @@ export function FirmMembers({
       <h2 className="text-lg font-semibold">People at the firm</h2>
       <p className="mt-1 text-sm text-muted">
         A preparer maps clients, records monthly review results and control checks, and locks
-        reports. A reviewer does the same, reviews control checks, and signs off reports that
-        someone else prepared. Every member sees every client of the firm.
+        reports. A reviewer does the same, reviews control checks, and reviews for issuance reports
+        that someone else prepared. Every member sees every client of the firm. Only the owner
+        deletes or restores a client, invites and removes members, and hands the firm to a
+        colleague.
       </p>
       <ul className="mt-3 divide-y divide-border">
         {members.map((m) => (
@@ -161,14 +189,24 @@ export function FirmMembers({
                 </span>
               )}
               {owner && m.role !== "owner" && (
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
-                  aria-label={`Remove ${m.name || m.email}`}
-                  onClick={() => void remove(m.userId, m.name || m.email)}
-                >
-                  <UserMinus className="size-3.5" aria-hidden /> Remove
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                    aria-label={`Make ${m.name || m.email} the owner`}
+                    onClick={() => void makeOwner(m.userId, m.name || m.email)}
+                  >
+                    <Crown className="size-3.5" aria-hidden /> Make owner
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                    aria-label={`Remove ${m.name || m.email}`}
+                    onClick={() => void remove(m.userId, m.name || m.email)}
+                  >
+                    <UserMinus className="size-3.5" aria-hidden /> Remove
+                  </button>
+                </>
               )}
             </div>
           </li>

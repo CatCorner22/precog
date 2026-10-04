@@ -29,13 +29,31 @@ describe("commercialToolsOpen", () => {
     ).toBe(true);
   });
 
-  it("treats past_due as unpaid even after an assessment", () => {
+  it("keeps a past_due plan open for 14 days from the failed payment", () => {
+    const pastDue = {
+      stripeConfigured: true,
+      subscriptionStatus: "past_due",
+      assessmentPaidAt: null,
+      assessmentRefundedAt: null,
+      pastDueSince: "2026-10-20T00:00:00.000Z",
+    };
+    expect(commercialToolsOpen({ ...pastDue, now: new Date("2026-10-25T00:00:00.000Z") })).toBe(
+      true,
+    );
+    expect(commercialToolsOpen({ ...pastDue, now: new Date("2026-11-04T00:00:00.000Z") })).toBe(
+      false,
+    );
+  });
+
+  it("closes a past_due plan after the grace even after an assessment outside its window", () => {
     expect(
       commercialToolsOpen({
         stripeConfigured: true,
         subscriptionStatus: "past_due",
-        assessmentPaidAt: "2026-09-01T00:00:00.000Z",
+        assessmentPaidAt: "2026-03-01T00:00:00.000Z",
         assessmentRefundedAt: null,
+        pastDueSince: "2026-10-20T00:00:00.000Z",
+        now: new Date("2027-02-01T00:00:00.000Z"),
       }),
     ).toBe(false);
   });
@@ -49,12 +67,14 @@ describe("commercialToolsOpen", () => {
         assessmentRefundedAt: null,
       }),
     ).toBe(true);
+    // An assessment paid before the first deploy counts from that deploy.
     expect(
       commercialToolsOpen({
         stripeConfigured: true,
         subscriptionStatus: null,
         assessmentPaidAt: "2026-09-01T00:00:00.000Z",
         assessmentRefundedAt: null,
+        now: new Date("2026-12-01T00:00:00.000Z"),
       }),
     ).toBe(true);
     expect(
@@ -67,13 +87,22 @@ describe("commercialToolsOpen", () => {
     ).toBe(false);
   });
 
-  it("closes again once the assessment is refunded", () => {
+  it("closes again once the assessment is refunded, or its 90 days are over", () => {
     expect(
       commercialToolsOpen({
         stripeConfigured: true,
         subscriptionStatus: null,
         assessmentPaidAt: "2026-09-01T00:00:00.000Z",
         assessmentRefundedAt: "2026-09-20T00:00:00.000Z",
+      }),
+    ).toBe(false);
+    expect(
+      commercialToolsOpen({
+        stripeConfigured: true,
+        subscriptionStatus: null,
+        assessmentPaidAt: "2026-09-01T00:00:00.000Z",
+        assessmentRefundedAt: null,
+        now: new Date("2027-01-10T00:00:00.000Z"),
       }),
     ).toBe(false);
     // An active plan keeps the tools open whatever happened to the assessment.

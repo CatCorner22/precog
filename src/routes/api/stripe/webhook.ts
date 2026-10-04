@@ -39,6 +39,17 @@ export const Route = createFileRoute("/api/stripe/webhook")({
         ]);
         const sql = await getSql();
         const outcome = await applyBillingEvent(sql, event);
+        if (outcome === "applied") {
+          // The one failed-payment email goes after the change has committed,
+          // so a rolled-back event never emails and a retry sends once.
+          const [{ afterBillingEvent }, { originFrom }] = await Promise.all([
+            import("@/lib/precog/billing/dunning.server"),
+            import("@/lib/request-origin.server"),
+          ]);
+          await afterBillingEvent(sql, event, {
+            origin: originFrom(request.url, request.headers),
+          });
+        }
         return Response.json({ received: true, outcome }, { headers: NO_STORE });
       }, "stripe-webhook"),
       ANY: () => new Response(null, { status: 405, headers: { ...NO_STORE, allow: "POST" } }),

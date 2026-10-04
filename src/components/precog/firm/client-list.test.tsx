@@ -67,6 +67,7 @@ describe("Open report on the client list", () => {
         onOpenReport={() => undefined}
         onRestored={() => undefined}
         onClientsChange={() => undefined}
+        canRestore
       />,
     );
     expect(html.match(/>Open report</g)).toHaveLength(2);
@@ -75,5 +76,35 @@ describe("Open report on the client list", () => {
     expect(html.match(/>Open</g)).toHaveLength(2);
     expect(html).toContain('aria-label="Open the Monthly review for Second Dental"');
     expect(html).toContain('aria-label="Open the Monthly review for Open One"');
+  });
+
+  it("shows the deleted list with Restore only to someone who may restore", () => {
+    const deleted = [
+      {
+        id: "biz_gone",
+        ownerUserId: "u1",
+        name: "Gone Dental",
+        industry: "dental",
+        deletedAt: "2026-09-01T00:00:00.000Z",
+        purgeOn: "2026-10-01T00:00:00.000Z",
+      },
+    ];
+    const render = (canRestore: boolean) =>
+      renderToStaticMarkup(
+        <ClientList
+          clients={[]}
+          deleted={deleted}
+          activeId="biz_1"
+          onOpen={() => undefined}
+          onOpenReport={() => undefined}
+          onRestored={() => undefined}
+          onClientsChange={() => undefined}
+          canRestore={canRestore}
+        />,
+      );
+    expect(render(true)).toContain('aria-label="Restore Gone Dental"');
+    expect(render(true)).toContain("Recently deleted");
+    expect(render(false)).not.toContain("Restore");
+    expect(render(false)).not.toContain("Recently deleted");
   });
 });

@@ -7,6 +7,7 @@ import { defaultProfile, hasUserWork, type PracticeProfile } from "./practice-pr
 import { getIndustryTemplate } from "./templates";
 import { teamSource } from "./team-source";
 import type { Person, ProcessNode } from "./types";
+import type { Plan } from "./firm/entitlements";
 
 export { teamSource, type TeamSource } from "./team-source";
 
@@ -31,9 +32,24 @@ export function newBusinessProfile(industry: IndustryId, name?: string): Practic
  */
 export const MAX_BUSINESSES_PER_ACCOUNT = 50;
 
-/** What the owner is told when the account already holds `limit` businesses. */
-export function businessLimitMessage(limit = MAX_BUSINESSES_PER_ACCOUNT): string {
-  return `Your account already holds ${limit} businesses, the most it can keep. Delete one you no longer need, then try again.`;
+/**
+ * What the owner is told when one more business is refused: by the account's
+ * hard ceiling (a number), or by the plan (free and the Assessment hold one
+ * client business; the Firm plan holds `limit`).
+ */
+export function businessLimitMessage(
+  input: number | { plan: Plan; limit: number } = MAX_BUSINESSES_PER_ACCOUNT,
+): string {
+  if (typeof input === "number") {
+    return `Your account already holds ${input} businesses, the most it can keep. Delete one you no longer need, then try again.`;
+  }
+  if (input.plan === "free") {
+    return `Precog keeps one business per account for free. The Firm plan holds up to ${MAX_BUSINESSES_PER_ACCOUNT} client businesses; start it on the Firm page.`;
+  }
+  if (input.plan === "assessment") {
+    return `The Assessment covers one client business. The Firm plan holds up to ${MAX_BUSINESSES_PER_ACCOUNT}; start it on the Firm page.`;
+  }
+  return `Your firm already holds ${input.limit} client businesses, the most it can keep. Delete one you no longer need, then try again.`;
 }
 
 /** True when a signed-in account already holds as many businesses as it may keep. */

@@ -20,10 +20,13 @@ export function ClientList({
   onOpenReport,
   onRestored,
   onClientsChange,
+  canRestore,
 }: {
   clients: ClientEngagementRow[];
   deleted: DeletedBusinessRow[];
   activeId: string;
+  /** Only the firm owner (or a solo account) restores a deleted client; others see no list. */
+  canRestore: boolean;
   /** Switch to the client and open its Monthly review. */
   onOpen: (id: string) => void;
   onOpenReport: (id: string) => void;
@@ -189,7 +192,7 @@ export function ClientList({
           ))}
         </ul>
       )}
-      {deleted.length > 0 && (
+      {canRestore && deleted.length > 0 && (
         <div className="mt-4 border-t border-border pt-3">
           <h3 className="text-sm font-medium">Recently deleted</h3>
           <ul className="mt-2 divide-y divide-border">

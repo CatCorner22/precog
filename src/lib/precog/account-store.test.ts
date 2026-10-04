@@ -225,13 +225,43 @@ describe("account export covers every table the account owns", () => {
     await pg.query(
       `insert into business_deletion_markers (user_id, business_id) values ('ua', 'biz_gone')`,
     );
+    await pg.query(
+      `update firms set letterhead = '1 Main St', logo_data_url = 'data:image/png;base64,iVBORw0KGgo=', cover_page = false`,
+    );
+    await pg.query(
+      `update report_versions set firm_name = 'Alpha CPA', firm_letterhead = '1 Main St'`,
+    );
+    await pg.query(
+      `insert into product_events (user_id, event, business_id, occurred_at)
+       values ('ua', 'first_business', 'biz_1', '2026-09-01T00:00:00Z'),
+              ('ua', 'first_locked_version', 'biz_1', '2026-09-02T00:00:00Z'),
+              ('ub', 'first_business', 'biz_1', '2026-09-03T00:00:00Z')`,
+    );
 
     const out = await exportAccountRows(sql, "ua");
     expect(out).not.toHaveProperty("businessHistory");
     const history = await exportBusinessHistoryPage(sql, "ua", "biz_1", null);
     expect(history.rows.map((h) => h.name)).toEqual(["Biz before"]);
     expect(out.reportVersions.map((r) => r.scopeNote)).toEqual(["Year-end review"]);
-    expect(out.firm?.name).toBe("Alpha CPA");
+    expect(out.reportVersions[0].firm).toEqual({
+      name: "Alpha CPA",
+      letterhead: "1 Main St",
+      logoDataUrl: null,
+    });
+    expect(out.firm).toMatchObject({
+      name: "Alpha CPA",
+      letterhead: "1 Main St",
+      logoDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+      coverPage: false,
+    });
+    expect(out.activity).toEqual([
+      { event: "first_business", businessId: "biz_1", occurredAt: "2026-09-01T00:00:00.000Z" },
+      {
+        event: "first_locked_version",
+        businessId: "biz_1",
+        occurredAt: "2026-09-02T00:00:00.000Z",
+      },
+    ]);
     expect(out.firmMemberships).toEqual([
       expect.objectContaining({ firmUserId: "ua", role: "owner" }),
     ]);
@@ -253,6 +283,38 @@ describe("account export covers every table the account owns", () => {
     expect(json).not.toContain("INVITE_TOKEN_SECRET");
     expect(json).not.toContain("ACCESS_SECRET");
     expect(json).not.toContain("REFRESH_SECRET");
+  });
+});
+
+describe("a firm owner's export", () => {
+  it("lists the firm's client businesses that members set up as summaries, never their profiles", async () => {
+    await seedFirm("ua", "Alpha CPA");
+    await pg.query(
+      `insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'ub', 'preparer')`,
+    );
+    await pg.exec(`
+      update businesses set firm_user_id = 'ua';
+      update businesses set profile = '{"practiceName":"Member secret"}'::jsonb where user_id = 'ub';
+      insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
+        values ('biz_private', 'ub', 'Private', 'dental', '{}'::jsonb, 1, now());
+    `);
+    const owner = await exportAccountRows(sql, "ua", "ua");
+    expect(owner.businesses.map((b) => b.id)).toEqual(["biz_1"]);
+    expect(owner.firmClients).toEqual([
+      {
+        id: "biz_1",
+        name: "Biz",
+        industry: "dental",
+        ownerUserId: "ub",
+        revision: 1,
+        updatedAt: expect.stringMatching(/Z$/),
+        deletedAt: null,
+      },
+    ]);
+    expect(JSON.stringify(owner)).not.toContain("Member secret");
+    // A member's export, and an owner's without the firm, hold no colleagues' rows.
+    expect((await exportAccountRows(sql, "ub", null)).firmClients).toEqual([]);
+    expect((await exportAccountRows(sql, "ua")).firmClients).toEqual([]);
   });
 });
 
@@ -286,6 +348,11 @@ describe("account deletion safeguards", () => {
       message: expect.stringMatching(/Cancel it with Manage billing/),
     });
     await expect(deleteAccountRows(sql, "ua")).rejects.toMatchObject({
+      message: expect.stringContaining(
+        "on the Firm page, or make a colleague the firm's owner, then delete your account.",
+      ),
+    });
+    await expect(deleteAccountRows(sql, "ua")).rejects.toMatchObject({
       message: expect.stringMatching(
         /then delete your account\. If you cannot, write to \[SUPPORT EMAIL\]\.$/,
       ),
@@ -315,6 +382,11 @@ describe("account deletion safeguards", () => {
     await expect(deleteAccountRows(sql, "ub")).rejects.toMatchObject({
       message: expect.stringMatching(
         /then delete your account\. Need help\? Write to \[SUPPORT EMAIL\]\.$/,
+      ),
+    });
+    await expect(deleteAccountRows(sql, "ub")).rejects.toMatchObject({
+      message: expect.stringContaining(
+        "Ask the firm owner to remove you from the firm first (your client businesses stay with the firm)",
       ),
     });
     expect(await count("businesses", "where user_id = $1", ["ub"])).toBe(1);
@@ -379,7 +451,7 @@ describe("past versions download apart from the account export", () => {
     expect(revisions).toEqual(Array.from({ length: 200 }, (_, i) => 200 - i));
 
     expect(await listAccountHistoryBusinesses(sql, "ua")).toEqual([
-      { businessId: "biz_1", name: "Biz", versions: 200 },
+      { businessId: "biz_1", name: "Biz", versions: 200, ownerUserId: "ua" },
     ]);
   }, 60_000);
 
@@ -424,6 +496,66 @@ describe("past versions download apart from the account export", () => {
     const other = await exportBusinessHistoryPage(sql, "ub", "biz_1", null);
     expect(other).toEqual({ rows: [], nextBeforeRevision: null });
     expect(await listAccountHistoryBusinesses(sql, "ub")).toEqual([]);
+  });
+
+  it("lists and pages a member's firm client for the firm owner, and nobody else's", async () => {
+    await seedFirm("ua", "Alpha CPA");
+    await pg.query(
+      `insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'ub', 'preparer')`,
+    );
+    await pg.exec(`
+      update businesses set firm_user_id = 'ua';
+      insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
+        values ('biz_private', 'ub', 'Private', 'dental', '{}'::jsonb, 1, now());
+      insert into business_history (user_id, business_id, revision, name, industry, profile)
+      values ('ua', 'biz_1', 1, 'Biz', 'dental', '{"notes":"owner"}'::jsonb),
+        ('ub', 'biz_1', 1, 'Biz', 'dental', '{"notes":"member"}'::jsonb),
+        ('ub', 'biz_private', 1, 'Private', 'dental', '{"notes":"private"}'::jsonb);
+    `);
+    // The owner lists their own row and the member's firm client, not the
+    // member's private business; the member lists only their own rows.
+    expect(await listAccountHistoryBusinesses(sql, "ua", "ua")).toEqual([
+      { businessId: "biz_1", name: "Biz", versions: 1, ownerUserId: "ua" },
+      { businessId: "biz_1", name: "Biz", versions: 1, ownerUserId: "ub" },
+    ]);
+    expect((await listAccountHistoryBusinesses(sql, "ub")).map((b) => b.ownerUserId)).toEqual([
+      "ub",
+      "ub",
+    ]);
+    // The owner's own row wins the shared id; a member's firm client pages for the owner.
+    const own = await exportBusinessHistoryPage(sql, "ua", "biz_1", null, undefined, "ua");
+    expect(own.rows.map((r) => r.profile)).toEqual([{ notes: "owner" }]);
+    // The list row names whose history it is, so the member's row under the
+    // shared id downloads apart from the owner's; the member's private
+    // business, a stranger's id and a member who left stay out of reach.
+    const byOwner = (owner: string, id = "biz_1", firm: string | null = "ua") =>
+      exportBusinessHistoryPage(sql, "ua", id, null, undefined, firm, owner).then((p) =>
+        p.rows.map((r) => r.profile),
+      );
+    expect(await byOwner("ua")).toEqual([{ notes: "owner" }]);
+    expect(await byOwner("ub")).toEqual([{ notes: "member" }]);
+    expect(await byOwner("ub", "biz_private")).toEqual([]);
+    expect(await byOwner("uc")).toEqual([]);
+    expect(await byOwner("ub", "biz_1", null)).toEqual([]);
+    await pg.query(`delete from firm_members where member_user_id = 'ub'`);
+    expect(await byOwner("ub")).toEqual([]);
+    await pg.query(
+      `insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'ub', 'preparer')`,
+    );
+    await pg.exec(`delete from businesses where user_id = 'ua'`);
+    const theirs = await exportBusinessHistoryPage(sql, "ua", "biz_1", null, undefined, "ua");
+    expect(theirs.rows.map((r) => r.profile)).toEqual([{ notes: "member" }]);
+    const outside = await exportBusinessHistoryPage(
+      sql,
+      "ua",
+      "biz_private",
+      null,
+      undefined,
+      "ua",
+    );
+    expect(outside.rows).toEqual([]);
+    // Without the firm (a member, or a solo account) the member's row is out of reach.
+    expect((await exportBusinessHistoryPage(sql, "ua", "biz_1", null)).rows).toEqual([]);
   });
 
   it("puts a version larger than the page budget on a page of its own", async () => {

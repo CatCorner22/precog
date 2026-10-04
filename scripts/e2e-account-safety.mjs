@@ -176,7 +176,8 @@ try {
   await oldTab.goto(`${base}/`, { waitUntil: "networkidle" });
   await openBusinessSettings(oldTab);
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
-  await page.waitForURL(base + "/");
+  // Signed out with no business on this device, the home page goes on to the landing page.
+  await page.waitForURL(/\/(welcome)?$/);
   await oldTab
     .getByText(/The signed-in account changed/)
     .first()
