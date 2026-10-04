@@ -215,8 +215,8 @@ describe("account export covers every table the account owns", () => {
     );
     await pg.query(
       `insert into integration_connections (user_id, business_id, provider, realm_id, access_token_enc,
-         refresh_token_enc, access_expires_at, refresh_expires_at)
-       values ('ua', 'biz_1', 'qbo', 'realm_1', 'ACCESS_SECRET', 'REFRESH_SECRET', now(), now())`,
+         refresh_token_enc, access_expires_at, refresh_expires_at, connected_by)
+       values ('ua', 'biz_1', 'qbo', 'realm_1', 'ACCESS_SECRET', 'REFRESH_SECRET', now(), now(), 'ub')`,
     );
     await pg.query(
       `insert into integration_snapshots (user_id, business_id, provider, vendors)
@@ -277,6 +277,7 @@ describe("account export covers every table the account owns", () => {
       subscriptionStatus: "canceled",
     });
     expect(out.quickBooksConnections.map((c) => c.realmId)).toEqual(["realm_1"]);
+    expect(out.quickBooksConnections[0].connectedBy).toBe("ub");
     expect(out.quickBooksSnapshots[0].vendors).toEqual([{ name: "Acme" }]);
     expect(out.deletedBusinesses.map((d) => d.businessId)).toEqual(["biz_gone"]);
     const json = JSON.stringify(out);

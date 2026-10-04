@@ -67,6 +67,7 @@ async function connect(
     refreshTokenEnc: encryptSecret("refresh-1"),
     accessExpiresAt,
     refreshExpiresAt,
+    connectedBy: "own",
   });
   const connection = await loadConnection(sql, "own", "biz_1");
   if (!connection) throw new Error("connection not saved");
@@ -285,6 +286,27 @@ describe("QuickBooks reading", () => {
     expect(await listSnapshots(db.sql, "own", "biz_1", 12)).toHaveLength(1);
   });
 
+  it("records who connected, and who connected again, without changing whose books they are", async () => {
+    const first = await connect(db.sql);
+    expect(first.connectedBy).toBe("own");
+    expect(first.ownerUserId).toBe("own");
+    await saveConnection(db.sql, {
+      ownerUserId: "own",
+      businessId: "biz_1",
+      realmId: "123",
+      accessTokenEnc: encryptSecret("access-3"),
+      refreshTokenEnc: encryptSecret("refresh-3"),
+      accessExpiresAt: "2099-01-01T00:00:00.000Z",
+      refreshExpiresAt: "2099-01-01T00:00:00.000Z",
+      connectedBy: "firm-reviewer",
+    });
+    const again = await loadConnection(db.sql, "own", "biz_1");
+    expect(again).toMatchObject({ ownerUserId: "own", connectedBy: "firm-reviewer" });
+    // A row stored before connected_by was written reads as null.
+    await db.sql`update integration_connections set connected_by = null`;
+    expect((await loadConnection(db.sql, "own", "biz_1"))?.connectedBy).toBeNull();
+  });
+
   it("scopes each connection to its account, even when business ids match", async () => {
     await db.seedUser("two");
     await db.pg.query(
@@ -299,6 +321,7 @@ describe("QuickBooks reading", () => {
       refreshTokenEnc: encryptSecret("refresh-two"),
       accessExpiresAt: "2020-01-01T00:00:00.000Z",
       refreshExpiresAt: "2099-01-01T00:00:00.000Z",
+      connectedBy: "two",
     });
     expect(await loadConnection(db.sql, "own", "biz_1")).toBeNull();
     vi.stubGlobal("fetch", fakeIntuit({ Vendor: [], Employee: [] }).fetchStub);

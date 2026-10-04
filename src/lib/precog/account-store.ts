@@ -164,6 +164,8 @@ interface AccountExport {
     businessId: string;
     realmId: string;
     connectedAt: string;
+    /** The account that finished the connect flow; null before it was recorded. */
+    connectedBy: string | null;
     lastSyncedAt: string | null;
     lastError: string | null;
   }>;
@@ -950,10 +952,11 @@ async function readQuickBooksConnections(
     business_id: string;
     realm_id: string;
     connected_at: string;
+    connected_by: string | null;
     last_synced_at: string | null;
     last_error: string | null;
   }>`
-    select business_id, realm_id, connected_at, last_synced_at, last_error
+    select business_id, realm_id, connected_at, connected_by, last_synced_at, last_error
     from integration_connections where user_id = ${userId} and provider = 'qbo'
     order by business_id
   `;
@@ -961,6 +964,7 @@ async function readQuickBooksConnections(
     businessId: c.business_id,
     realmId: c.realm_id,
     connectedAt: toIsoTimestamp(c.connected_at),
+    connectedBy: c.connected_by,
     lastSyncedAt: toIsoTimestampOrNull(c.last_synced_at),
     lastError: c.last_error,
   }));

@@ -137,6 +137,33 @@ describe("QuickBooks callback", () => {
     const res = await callback({ code: "c", state: await signed(), realmId: "9130" });
     expect(res.headers.get("location")).toBe("/firm?quickbooks=connected");
     expect(await saved()).toBe(1);
+    const stored = await db.current!.sql<{ user_id: string; connected_by: string | null }>`
+      select user_id, connected_by from integration_connections
+    `;
+    expect(stored).toEqual([{ user_id: "owner", connected_by: "owner" }]);
+  });
+
+  it("stores the firm member who connected beside the account that holds the books", async () => {
+    const t = db.current!;
+    await t.clear("firm_members", "firms");
+    await t.pg.exec(`
+      insert into firms (user_id, name) values ('owner', 'North Advisors');
+      insert into firm_members (firm_user_id, member_user_id, role)
+        values ('owner', 'owner', 'owner'), ('owner', 'other', 'reviewer');
+      update businesses set firm_user_id = 'owner' where id = 'biz_1';
+    `);
+    session.userId = "other";
+    const state = await signState(
+      { userId: "other", businessId: "biz_1", issuedAt: Date.now() },
+      stateSecret(),
+    );
+    const res = await callback({ code: "c", state, realmId: "9130" });
+    expect(res.headers.get("location")).toBe("/firm?quickbooks=connected");
+    const stored = await t.sql<{ user_id: string; connected_by: string | null }>`
+      select user_id, connected_by from integration_connections
+    `;
+    expect(stored).toEqual([{ user_id: "owner", connected_by: "other" }]);
+    await t.clear("firm_members", "firms");
   });
 
   it("refuses a connect link finished by another account or by a signed-out browser", async () => {
