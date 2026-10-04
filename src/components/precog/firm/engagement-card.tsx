@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- the texts and the confirm prompt next to the card are tested on their own */
 import { useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { formatDay } from "@/lib/precog/dates";
@@ -30,6 +31,9 @@ export const ENGAGEMENT_ENDED_TOAST = "Engagement ended.";
 export const ENGAGEMENT_REOPENED = "Engagement reopened.";
 /** The toast when a save fails with no message of its own. */
 export const ENGAGEMENT_NOT_SAVED = "Precog did not save the engagement.";
+export const DOWNLOAD_ARCHIVE = "Download engagement archive";
+export const ARCHIVE_DOWNLOADED = "Archive downloaded.";
+export const ARCHIVE_FAILED = "Precog could not build the archive. Try again.";
 
 /** "Status: Active", or "Status: Ended on Oct 4, 2026". */
 export function engagementStatusText(e: Pick<EngagementRecord, "status" | "endedAt">): string {
@@ -63,6 +67,13 @@ interface FormProps {
   busy?: boolean;
   onSave?: (next: EngagementRecord) => void;
   onStatus?: (status: EngagementStatus) => void;
+  /** The owner's archive download; open while ended, since the archive only reads. */
+  onDownloadArchive?: () => void;
+  /**
+   * While the archive builds: the progress line ("" before the versions are
+   * counted, which disables the button and prints nothing); null otherwise.
+   */
+  archiveProgress?: string | null;
 }
 
 /** The engagement fields of the open client; inputs are disabled while it has ended. */
@@ -74,6 +85,8 @@ export function EngagementForm({
   busy = false,
   onSave,
   onStatus,
+  onDownloadArchive,
+  archiveProgress = null,
 }: FormProps) {
   const [draft, setDraft] = useState(engagement);
   useEffect(() => setDraft(engagement), [engagement]);
@@ -188,7 +201,23 @@ export function EngagementForm({
               {END_ENGAGEMENT}
             </Button>
           ))}
+        {isOwner && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={archiveProgress !== null}
+            onClick={() => onDownloadArchive?.()}
+          >
+            {DOWNLOAD_ARCHIVE}
+          </Button>
+        )}
       </div>
+      {archiveProgress ? (
+        <p className="text-xs text-muted" role="status">
+          {archiveProgress}
+        </p>
+      ) : null}
     </form>
   );
 }
@@ -210,6 +239,9 @@ export function EngagementCard({
 }) {
   const [engagement, setEngagement] = useState<EngagementRecord | null>(null);
   const [busy, setBusy] = useState(false);
+  const [archiveProgress, setArchiveProgress] = useState<string | null>(null);
+  // Handed to the archive so the links inside a rendered report resolve.
+  const router = useRouter({ warn: false });
 
   useEffect(() => {
     let cancel = false;
@@ -238,6 +270,27 @@ export function EngagementCard({
     }
   }
 
+  async function downloadArchive() {
+    if (archiveProgress !== null) return;
+    setArchiveProgress("");
+    try {
+      // The report renderer loads on click only, so the firm page stays light.
+      const archive = await import("./engagement-archive");
+      await archive.buildEngagementArchive({
+        businessId,
+        businessName,
+        memberNames: Object.fromEntries(members.map((m) => [m.userId, m.name || m.email])),
+        router,
+        onProgress: (i, n) => setArchiveProgress(archive.archiveProgressText(i, n)),
+      });
+      toast.success(ARCHIVE_DOWNLOADED);
+    } catch {
+      toast.error(ARCHIVE_FAILED);
+    } finally {
+      setArchiveProgress(null);
+    }
+  }
+
   return (
     <EngagementForm
       businessName={businessName}
@@ -245,6 +298,8 @@ export function EngagementCard({
       isOwner={isOwner}
       engagement={engagement}
       busy={busy}
+      archiveProgress={archiveProgress}
+      onDownloadArchive={() => void downloadArchive()}
       onSave={(next) =>
         void run(
           () =>

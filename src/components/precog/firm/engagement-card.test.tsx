@@ -16,6 +16,9 @@ const {
   ENGAGEMENT_NOT_SAVED,
   ENGAGEMENT_REOPENED,
   ENGAGEMENT_SAVED,
+  ARCHIVE_DOWNLOADED,
+  ARCHIVE_FAILED,
+  DOWNLOAD_ARCHIVE,
   EngagementCard,
   EngagementForm,
   NOT_SET,
@@ -144,6 +147,40 @@ describe("the engagement block", () => {
       "End the engagement with Ortiz Dental? The firm's members can then read its map, Monthly review and locked versions but not change them, until the firm owner reopens it.",
     );
     expect(prompt).not.toContain("You cannot undo this.");
+  });
+
+  it("gives the owner alone the archive download, open while ended", () => {
+    expect([DOWNLOAD_ARCHIVE, ARCHIVE_DOWNLOADED, ARCHIVE_FAILED]).toEqual([
+      "Download engagement archive",
+      "Archive downloaded.",
+      "Precog could not build the archive. Try again.",
+    ]);
+    expect(form(active, false)).not.toContain(DOWNLOAD_ARCHIVE);
+    expect(form(ended, false)).not.toContain(DOWNLOAD_ARCHIVE);
+    expect(form(active, true)).toContain(`>${DOWNLOAD_ARCHIVE}</button>`);
+    // Ended: the six edit controls are disabled, the download is not.
+    const html = form(ended, true);
+    expect(html).toContain(`>${DOWNLOAD_ARCHIVE}</button>`);
+    expect(html.match(/disabled=""/g)?.length).toBe(6);
+  });
+
+  it("prints the archive progress and holds the button while it builds", () => {
+    const building = (archiveProgress: string) =>
+      renderToStaticMarkup(
+        <EngagementForm
+          businessName="Ortiz Dental"
+          members={members}
+          isOwner
+          engagement={active}
+          archiveProgress={archiveProgress}
+        />,
+      );
+    const counting = building("");
+    expect(counting.match(/disabled=""/g)?.length).toBe(1);
+    expect(counting).not.toContain("Building the archive");
+    const html = building("Building the archive: version 2 of 3…");
+    expect(html).toContain('role="status">Building the archive: version 2 of 3…</p>');
+    expect(html.match(/disabled=""/g)?.length).toBe(1);
   });
 
   it("renders nothing until the engagement loads", () => {
