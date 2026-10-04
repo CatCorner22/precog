@@ -28,4 +28,11 @@ describe("the invitation page", () => {
       "A preparer maps clients and locks reports; a reviewer also reviews reports for issuance. Only the firm owner deletes or restores a client.",
     );
   });
+
+  it("tells a throttled visitor to wait rather than calling the link closed", () => {
+    expect(source).toContain("Too many opens from this address");
+    expect(source).toContain(
+      "Wait a minute, then check the invitation again. The link itself is unchanged.",
+    );
+  });
 });

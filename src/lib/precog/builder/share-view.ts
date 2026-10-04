@@ -37,6 +37,12 @@ export function shareErrorView(reason: string): ShareErrorView {
         message: "The page could not reach the server. Check the connection and try again.",
         retry: true,
       };
+    case "throttled":
+      return {
+        kind: "message",
+        message: "Too many opens from this address. Wait a minute, then try again.",
+        retry: true,
+      };
     default:
       return { kind: "message", message: "This link is not valid.", retry: false };
   }
