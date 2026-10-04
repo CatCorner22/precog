@@ -88,7 +88,7 @@ describe("the duty-conflict tab's note on duties from job titles", () => {
       </ReadOnlyPracticeProvider>,
     );
     expect(html).toContain(
-      `1 of your 3 people carry the usual duties for their job title. Confirm them under Team: ${people[0].name}.`,
+      `One of your 3 people carries the usual duties for their job title. Confirm them under Team: ${people[0].name}.`,
     );
     expect(html).not.toContain("Check them under Team");
     expect(html).toContain("I checked them: they are right");

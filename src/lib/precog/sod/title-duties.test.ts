@@ -75,7 +75,7 @@ describe("findings that rest on duties guessed from job titles", () => {
       "All 2 of your people carry the usual duties for their job titles.",
     );
     expect(titleDutiesSentence(confirmTitleDutiesFor(people, people[0].id))).toBe(
-      "1 of your 2 people carry the usual duties for their job title.",
+      "One of your 2 people carries the usual duties for their job title.",
     );
   });
 

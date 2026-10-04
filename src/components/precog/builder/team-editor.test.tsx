@@ -36,7 +36,7 @@ describe("Team's per-person Confirm duties", () => {
     const html = render(people);
     expect(html.match(/Usual duties for the title/g)).toHaveLength(1);
     expect(html.match(/>Confirm duties</g)).toHaveLength(1);
-    expect(html).toContain('aria-label="Confirm Ana Ruiz&#x27;s duties"');
+    expect(html).toContain('aria-label="Confirm duties for Ana Ruiz"');
     expect(html).not.toContain("Confirm Ben Cole");
     expect(html).not.toContain("Confirm Cal Diaz");
   });
@@ -51,7 +51,7 @@ describe("Team's per-person Confirm duties", () => {
     const onChange = vi.fn();
     const tree = ConfirmTitleDuties({ people, person: people[0], onChange });
     const [button] = buttons(tree);
-    expect(button.props["aria-label"]).toBe("Confirm Ana Ruiz's duties");
+    expect(button.props["aria-label"]).toBe("Confirm duties for Ana Ruiz");
     button.props.onClick();
     const next = onChange.mock.calls[0][0] as Person[];
     expect(next[0]).not.toHaveProperty("dutiesFromTitle");

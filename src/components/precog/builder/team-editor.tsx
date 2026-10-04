@@ -63,7 +63,7 @@ export function ConfirmTitleDuties({
           toast.success(`${person.name}'s duties confirmed.`);
         }}
         className="shrink-0 text-subtle hover:text-primary"
-        aria-label={`Confirm ${person.name}'s duties`}
+        aria-label={`Confirm duties for ${person.name}`}
       >
         Confirm duties
       </button>

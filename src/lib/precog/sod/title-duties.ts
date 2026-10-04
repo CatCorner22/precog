@@ -28,9 +28,10 @@ export function titleDutiesSentence(people: readonly Person[]): string {
   if (guessed === total) {
     return `All ${total} of your people carry the usual duties for their job titles.`;
   }
-  return `${guessed} of your ${total} people carry the usual duties for their job ${
-    guessed === 1 ? "title" : "titles"
-  }.`;
+  if (guessed === 1) {
+    return `One of your ${total} people carries the usual duties for their job title.`;
+  }
+  return `${guessed} of your ${total} people carry the usual duties for their job titles.`;
 }
 
 /** The team with every "duties from the job title" mark cleared: the owner has checked them. */
