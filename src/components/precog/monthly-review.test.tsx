@@ -3,32 +3,45 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Person } from "@/lib/precog/types";
 import type { ReviewRecord } from "@/lib/precog/firm/reviews";
+import type { ControlExecution } from "@/lib/precog/controls/executions/model";
+import { createHookRuntime, type HookRuntime } from "@/test/hook-runtime";
 import { MonthlyReview } from "./monthly-review";
 import {
+  EVIDENCE_PAGE_LIMIT,
   EVIDENCE_STATUS_LABEL,
   evidenceLogLine,
   evidenceStatuses,
+  readMonthlyEvidence,
+  type EvidencePage,
 } from "./monthly-review-evidence";
 
 const state = vi.hoisted(() => ({
   people: [] as Person[],
   records: [] as ReviewRecord[],
-  user: null as { id: string } | null,
+  user: null as { id: string; isDevFallback?: boolean } | null,
   businessId: undefined as string | undefined,
 }));
 // Called as a plain function (`direct`), the screen keeps its first state and
 // runs no effects, so a test can press its buttons without a DOM renderer.
-const hooks = vi.hoisted(() => ({ direct: false }));
+// Under `hooks.runtime` (src/test/hook-runtime.ts) state persists and effects
+// run as React runs them, so a test sees how often the screen calls the server.
+const hooks = vi.hoisted(() => ({ direct: false, runtime: null as HookRuntime | null }));
 vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react")>();
   return {
     ...actual,
     useState: (init: unknown) =>
-      hooks.direct
-        ? [typeof init === "function" ? (init as () => unknown)() : init, () => undefined]
-        : actual.useState(init),
+      hooks.runtime?.active
+        ? hooks.runtime.useState(init)
+        : hooks.direct
+          ? [typeof init === "function" ? (init as () => unknown)() : init, () => undefined]
+          : actual.useState(init),
     useEffect: (effect: () => void, deps?: unknown[]) =>
-      hooks.direct ? undefined : actual.useEffect(effect, deps),
+      hooks.runtime?.active
+        ? hooks.runtime.useEffect(effect, deps)
+        : hooks.direct
+          ? undefined
+          : actual.useEffect(effect, deps),
   };
 });
 const toast = vi.hoisted(() => ({ success: vi.fn(), warning: vi.fn(), error: vi.fn() }));
@@ -46,14 +59,20 @@ vi.mock("@/lib/precog/practice-context", () => ({
     setMonthlyReviews: vi.fn(),
   }),
 }));
-vi.mock("@/lib/auth/use-current-user", () => ({ useCurrentUser: () => state.user }));
+// A new object on every call, as the real session hook builds one on every render.
+vi.mock("@/lib/auth/use-current-user", () => ({
+  useCurrentUser: () => (state.user ? { isDevFallback: false, ...state.user } : null),
+}));
 vi.mock("@/lib/use-today", () => ({ useToday: () => new Date(2026, 8, 29) }));
 vi.mock("@/lib/precog/firm/server", () => server);
 const evidenceLog = vi.hoisted(() => ({ getControlExecutionLog: vi.fn() }));
 vi.mock("@/lib/precog/controls/executions/server", () => evidenceLog);
-vi.mock("@/lib/precog/integrations/qbo/server", () => ({
+const qbo = vi.hoisted(() => ({
   getQuickBooksStatus: vi.fn(async () => ({ configured: false, connection: null, drift: null })),
 }));
+vi.mock("@/lib/precog/integrations/qbo/server", () => qbo);
+const runtime = createHookRuntime();
+hooks.runtime = runtime;
 
 const owner = (): Person => ({
   id: "owner",
@@ -97,11 +116,15 @@ beforeEach(() => {
   state.user = null;
   state.businessId = undefined;
   server.recordMonthlyReview.mockReset();
+  evidenceLog.getControlExecutionLog.mockReset();
+  qbo.getQuickBooksStatus.mockClear();
+  runtime.reset();
   for (const fn of Object.values(toast)) fn.mockReset();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(2026, 8, 29, 9));
 });
 afterEach(() => {
+  runtime.reset();
   vi.useRealTimers();
 });
 
@@ -270,6 +293,178 @@ describe("monthly review shows the evidence log's state beside a result", () => 
     expect(evidenceLogLine(null, "2026-09", "payroll_headcount")).toBeNull();
     state.people = [owner()];
     expect(view()).not.toContain("Evidence log:");
+  });
+});
+
+/** A page of the month's log as the server answers it. */
+function page(
+  entries: Pick<ControlExecution, "id" | "status">[],
+  nextCursor: string | null = null,
+) {
+  return { entries, more: nextCursor !== null, nextCursor, canReview: false };
+}
+/** Runs other than the monthly ones, newest first, as manual checks fill a busy month. */
+function manualRuns(count: number, from = 0): Pick<ControlExecution, "id" | "status">[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `manual-${from + i}`,
+    status: "awaiting_review" as const,
+  }));
+}
+/** Renders the screen with its effects until nothing changes; returns its markup. */
+async function settle(): Promise<string> {
+  return renderToStaticMarkup(<>{await runtime.settle(() => MonthlyReview())}</>);
+}
+function signIn(user: { id: string; isDevFallback?: boolean } = { id: "owner" }) {
+  state.people = [owner()];
+  state.user = user;
+  state.businessId = "biz_1";
+}
+
+describe("monthly review reads the evidence log for the month", () => {
+  it("reads once, although each render brings a new user object, and prints the run's state", async () => {
+    signIn();
+    evidenceLog.getControlExecutionLog.mockResolvedValue(
+      page([{ id: "2026-09-payroll_headcount", status: "reviewed" }]),
+    );
+    const html = await settle();
+    expect(evidenceLog.getControlExecutionLog).toHaveBeenCalledTimes(1);
+    expect(evidenceLog.getControlExecutionLog).toHaveBeenCalledWith({
+      data: { businessId: "biz_1", expectedAccountId: "owner", period: "2026-09", cursor: null },
+    });
+    expect(qbo.getQuickBooksStatus).toHaveBeenCalledTimes(1);
+    expect(html).toContain("Evidence log: Reviewed");
+    expect(html.match(/Evidence log:/g)).toHaveLength(1);
+    // Two answers, two renders after the first; no render asks again.
+    expect(runtime.renders).toBeLessThanOrEqual(3);
+  });
+
+  it("reads again after a result is recorded, and prints the new state", async () => {
+    signIn();
+    evidenceLog.getControlExecutionLog.mockResolvedValueOnce(page([]));
+    expect(await settle()).not.toContain("Evidence log:");
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: true,
+      evidenceSkippedReason: null,
+    });
+    evidenceLog.getControlExecutionLog.mockResolvedValueOnce(
+      page([{ id: "2026-09-bank_statement", status: "awaiting_review" }]),
+    );
+    const tree = runtime.render(() => MonthlyReview());
+    buttons(tree)
+      .find((b) => b.props.children === "Done")!
+      .props.onClick();
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const html = await settle();
+    expect(server.recordMonthlyReview).toHaveBeenCalledTimes(1);
+    expect(evidenceLog.getControlExecutionLog).toHaveBeenCalledTimes(2);
+    expect(html).toContain("Evidence log: Awaiting review");
+  });
+
+  it("follows the log position past page one to a monthly run recorded early in a busy month", async () => {
+    signIn();
+    evidenceLog.getControlExecutionLog
+      .mockResolvedValueOnce(page(manualRuns(20), "manual-19"))
+      .mockResolvedValueOnce(
+        page([...manualRuns(5, 20), { id: "2026-09-new_vendors", status: "awaiting_retest" }]),
+      );
+    const html = await settle();
+    expect(evidenceLog.getControlExecutionLog).toHaveBeenCalledTimes(2);
+    expect(evidenceLog.getControlExecutionLog).toHaveBeenLastCalledWith({
+      data: {
+        businessId: "biz_1",
+        expectedAccountId: "owner",
+        period: "2026-09",
+        cursor: "manual-19",
+      },
+    });
+    expect(html).toContain("Evidence log: Awaiting retest");
+  });
+
+  it("prints no other business's states while the open business's read is under way", async () => {
+    signIn();
+    evidenceLog.getControlExecutionLog.mockResolvedValueOnce(
+      page([{ id: "2026-09-payroll_headcount", status: "reviewed" }]),
+    );
+    expect(await settle()).toContain("Evidence log: Reviewed");
+    // The next business's runs carry the same ids; its read never answers here.
+    evidenceLog.getControlExecutionLog.mockReturnValueOnce(new Promise(() => undefined));
+    state.businessId = "biz_2";
+    const html = await settle();
+    expect(evidenceLog.getControlExecutionLog).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({ businessId: "biz_2", cursor: null }),
+    });
+    expect(html).not.toContain("Evidence log:");
+  });
+
+  it("does not ask for the shared preview account, which the evidence log refuses", async () => {
+    signIn({ id: "dev-user", isDevFallback: true });
+    const html = await settle();
     expect(evidenceLog.getControlExecutionLog).not.toHaveBeenCalled();
+    expect(html).not.toContain("Evidence log:");
+  });
+
+  it("does not ask when signed out or when the business is not saved", async () => {
+    state.people = [owner()];
+    await settle();
+    signIn();
+    state.businessId = undefined;
+    runtime.reset();
+    await settle();
+    expect(evidenceLog.getControlExecutionLog).not.toHaveBeenCalled();
+    expect(qbo.getQuickBooksStatus).not.toHaveBeenCalled();
+  });
+
+  it("prints nothing when the read fails", async () => {
+    signIn();
+    evidenceLog.getControlExecutionLog.mockRejectedValue(new Error("Failed to fetch"));
+    expect(await settle()).not.toContain("Evidence log:");
+    expect(evidenceLog.getControlExecutionLog).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("readMonthlyEvidence", () => {
+  const ids = ["2026-09-bank_statement", "2026-09-payroll_headcount"];
+
+  it("stops once every monthly run is found", async () => {
+    const read = vi.fn(async (cursor: string | null): Promise<EvidencePage> =>
+      cursor === null
+        ? { entries: [{ id: ids[1], status: "reviewed" }], nextCursor: "a" }
+        : { entries: [{ id: ids[0], status: "needs_correction" }], nextCursor: "b" },
+    );
+    const found = await readMonthlyEvidence(read, ids);
+    expect(read.mock.calls.map(([cursor]) => cursor)).toEqual([null, "a"]);
+    expect(found).toEqual(
+      new Map([
+        [ids[1], "reviewed"],
+        [ids[0], "needs_correction"],
+      ]),
+    );
+  });
+
+  it("stops at the end of the log, keeping what it found", async () => {
+    const read = vi.fn(async (): Promise<EvidencePage> => ({
+      entries: [{ id: ids[0], status: "reviewed" }],
+      nextCursor: null,
+    }));
+    expect(await readMonthlyEvidence(read, ids)).toEqual(new Map([[ids[0], "reviewed"]]));
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers null and reads no further once the screen moved on", async () => {
+    let cancelled = false;
+    const read = vi.fn(async (): Promise<EvidencePage> => {
+      cancelled = true;
+      return { entries: [], nextCursor: "a" };
+    });
+    expect(await readMonthlyEvidence(read, ids, () => cancelled)).toBeNull();
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("never reads more pages than a business's log can hold", async () => {
+    const read = vi.fn(async (): Promise<EvidencePage> => ({ entries: [], nextCursor: "a" }));
+    expect(await readMonthlyEvidence(read, ids)).toEqual(new Map());
+    expect(read).toHaveBeenCalledTimes(EVIDENCE_PAGE_LIMIT);
+    expect(EVIDENCE_PAGE_LIMIT).toBe(250);
   });
 });
