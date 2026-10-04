@@ -37,6 +37,7 @@ const locked: ReportVersionRow = {
   sentAt: null,
   hasFigures: false,
   firm: null,
+  engagement: null,
 };
 
 const team: Person[] = [
@@ -300,6 +301,37 @@ describe("report header, basis block and footer", () => {
         </ReadOnlyPracticeProvider>,
       ),
     ).not.toContain("Cover page");
+  });
+
+  it("prints the engagement frozen into a locked version, on the cover and in the header", () => {
+    const engaged: ReportVersionRow = {
+      ...locked,
+      scopeNote: "Money duties",
+      engagement: { scope: "Duty map", periodStart: "2026-01-01", periodEnd: "2026-12-31" },
+    };
+    const line = "Engagement: Duty map · Jan 1, 2026 to Dec 31, 2026";
+    const html = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={ortiz}>
+        <ControlReport locked={engaged} firm={north} coverPage />
+      </ReadOnlyPracticeProvider>,
+    );
+    const cover = html.slice(html.indexOf('aria-label="Cover page"'), html.indexOf("<header"));
+    expect(textOf(cover)).toContain(`|Scope: Money duties|${line}|`);
+    const head = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
+    expect(textOf(head)).toContain(
+      `Version 1 · Prepared by Ada Park on Sep 26, 2026 · Not yet reviewed · Scope: Money duties · ${line}|`,
+    );
+    // A version without a frozen engagement, and a live report, print no such line.
+    for (const page of [
+      <ControlReport key="locked" locked={locked} firm={north} coverPage />,
+      <ControlReport key="live" firm={north} coverPage />,
+    ]) {
+      expect(
+        renderToStaticMarkup(
+          <ReadOnlyPracticeProvider profile={ortiz}>{page}</ReadOnlyPracticeProvider>,
+        ),
+      ).not.toContain("Engagement:");
+    }
   });
 
   it("repeats the basis in the footer and says the report was prepared with Precog", () => {

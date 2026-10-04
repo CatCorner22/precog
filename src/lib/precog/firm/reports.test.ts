@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import {
+  engagementLine,
   listReportVersions,
   loadReportVersion,
   lockReportVersion,
@@ -346,6 +347,7 @@ describe("versionProvenance", () => {
     sentAt: null,
     hasFigures: false,
     firm: null,
+    engagement: null,
   };
 
   it("says who prepared it and who reviewed it for issuance", () => {
@@ -372,5 +374,66 @@ describe("versionProvenance", () => {
     ).toBe(
       "Version 2 · Prepared by Ada Park on Sep 26, 2026 · Issued by Ada Park on Sep 28, 2026. Not an independent review",
     );
+  });
+});
+
+describe("the engagement frozen at lock", () => {
+  async function lockAs(id: string) {
+    return lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id,
+    });
+  }
+
+  it("copies the scope and period in, and a later edit leaves the version's line as it was", async () => {
+    await db.pg.query(`insert into firms (user_id, name) values ('owner', 'North Advisors')`);
+    await db.pg.query("update businesses set firm_user_id = 'owner'");
+    expect((await lockAs("rv_none")).engagement).toBeNull();
+    await db.pg.query(
+      `insert into engagement_marks (user_id, business_id, scope, period_start, period_end)
+       values ('owner', 'biz_1', 'Duty map and monthly review', '2026-01-01', '2026-12-31')`,
+    );
+    const v = await lockAs("rv_eng");
+    expect(v.engagement).toEqual({
+      scope: "Duty map and monthly review",
+      periodStart: "2026-01-01",
+      periodEnd: "2026-12-31",
+    });
+    expect(engagementLine(v)).toBe(
+      "Engagement: Duty map and monthly review · Jan 1, 2026 to Dec 31, 2026",
+    );
+    await db.pg.query(
+      `update engagement_marks set scope = 'Something else', period_end = '2027-06-30'`,
+    );
+    const kept = await loadReportVersion(db.sql, "owner", "rv_eng");
+    expect(kept && engagementLine(kept.version)).toBe(
+      "Engagement: Duty map and monthly review · Jan 1, 2026 to Dec 31, 2026",
+    );
+    expect((await listReportVersions(db.sql, "owner", "biz_1")).map((r) => r.engagement)).toEqual([
+      v.engagement,
+      null,
+    ]);
+    // An engagement row with an empty scope and no period freezes nothing.
+    await db.pg.query(
+      `update engagement_marks set scope = '', period_start = null, period_end = null`,
+    );
+    expect((await lockAs("rv_empty")).engagement).toBeNull();
+  });
+
+  it("prints each form of the line, and nothing for a version without one", () => {
+    const line = (scope: string, periodStart: string | null, periodEnd: string | null) =>
+      engagementLine({ engagement: { scope, periodStart, periodEnd } });
+    expect(line("Map", "2026-01-01", "2026-12-31")).toBe(
+      "Engagement: Map · Jan 1, 2026 to Dec 31, 2026",
+    );
+    expect(line("Map", null, null)).toBe("Engagement: Map");
+    expect(line("", "2026-01-01", "2026-12-31")).toBe("Engagement: Jan 1, 2026 to Dec 31, 2026");
+    expect(line("", "2026-01-01", null)).toBe("Engagement: from Jan 1, 2026");
+    expect(line("Map", null, "2026-12-31")).toBe("Engagement: Map · to Dec 31, 2026");
+    expect(line("", null, null)).toBeNull();
+    expect(engagementLine({ engagement: null })).toBeNull();
   });
 });
