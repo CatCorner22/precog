@@ -219,6 +219,21 @@ describe("revoking links with the business and the firm", () => {
     expect(await revoked(tok(1))).toBe(true);
   });
 
+  it("shows the firm owner a colleague's revoked and expired links for audit", async () => {
+    await linkTo(tok(1), "prep", "owner", "own_biz");
+    await linkTo(tok(2), "prep", "owner", "own_biz");
+    await pg.query("update map_shares set revoked_at = now() where token = $1", [tok(1)]);
+    await pg.query("update map_shares set expires_at = now() - interval '1 day' where token = $1", [
+      tok(2),
+    ]);
+    const listed = await listMapShareSummaries(sql, "owner");
+    expect(listed.map((l) => [l.token, l.createdBy]).sort()).toEqual([
+      [tok(1), "prep"],
+      [tok(2), "prep"],
+    ]);
+    expect(await listMapShareSummaries(sql, "outsider")).toEqual([]);
+  });
+
   it("revokes every link to a business when it is deleted", async () => {
     await linkTo(tok(1), "prep", "owner", "own_biz");
     await linkTo(tok(2), "owner", "owner", "own_biz");

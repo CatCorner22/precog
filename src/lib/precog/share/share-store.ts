@@ -142,8 +142,8 @@ const SHARE_LIST_JOINS = `left join report_versions rv on rv.id = s.report_versi
  * The owner's links: every live one, however many, then the newest revoked
  * or expired ones. The share panel only offers "revoke" for a listed link, so
  * a live link must never drop off the list behind newer dead ones. A firm
- * owner also sees the links colleagues made on the firm's clients, so they
- * can revoke them.
+ * owner also sees the links colleagues made on the firm's clients, live and
+ * past, so they can revoke the live ones and audit the rest.
  */
 export async function listMapShareSummaries(sql: Sql, userId: string): Promise<ShareSummary[]> {
   const live = await sql.query<ShareListRow>(
@@ -165,7 +165,14 @@ export async function listMapShareSummaries(sql: Sql, userId: string): Promise<S
   const inactive = await sql.query<ShareListRow>(
     `select ${SHARE_LIST_COLUMNS}
      from map_shares s ${SHARE_LIST_JOINS}
-     where s.user_id = $1
+     where (
+         s.user_id = $1
+         or exists (
+           select 1 from businesses b
+           where b.user_id = s.business_owner_id and b.id = s.business_id
+             and b.firm_user_id = $1
+         )
+       )
        and (s.revoked_at is not null or (s.expires_at is not null and s.expires_at <= now()))
      order by s.created_at desc
      limit $2`,
