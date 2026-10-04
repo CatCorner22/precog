@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql, type Sql } from "@/lib/db";
 import { randomHex } from "@/lib/web-crypto";
-import { invalidRequest, requireObject } from "@/lib/request-errors";
+import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
 import { DAY_MS } from "../dates";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { SlidingWindowLimiter } from "../llm/rate-limit";
@@ -130,6 +130,10 @@ export const loadMapShare = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (!/^[a-f0-9]{24,64}$/.test(data.token))
       return { found: false as const, reason: "invalid" as const };
+    const [{ requestIp }] = await Promise.all([import("@/lib/request-ip.server")]);
+    // Every open counts, passcode or not: an unprotected link otherwise
+    // answers unlimited reads, each writing a view row.
+    takeShareViewAllowance(requestIp());
     const sql = await getSql();
     const rows = await sql<ShareRow>`
       select token, payload, created_at, expires_at, revoked_at, redacted, passcode_salt, passcode_hash
@@ -143,9 +147,8 @@ export const loadMapShare = createServerFn({ method: "POST" })
     const expiresAt = toIsoTimestampOrNull(row.expires_at);
     if (expiresAt && new Date(expiresAt).getTime() < Date.now())
       return { found: false as const, reason: "expired" as const };
-    const [{ createHash, timingSafeEqual }, { requestIp }, { getRequest }] = await Promise.all([
+    const [{ createHash, timingSafeEqual }, { getRequest }] = await Promise.all([
       import("node:crypto"),
-      import("@/lib/request-ip.server"),
       import("@tanstack/react-start/server"),
     ]);
     const ip = requestIp();
@@ -200,3 +203,19 @@ type ShareRow = {
 };
 
 const passcodeLimiter = new SlidingWindowLimiter({ limit: 20, windowMs: 60_000 });
+
+/** Opens of any shared map one address may make a minute, passcode or not. */
+export const SHARE_VIEWS_PER_MINUTE = 60;
+const shareViewLimiter = new SlidingWindowLimiter({
+  limit: SHARE_VIEWS_PER_MINUTE,
+  windowMs: 60_000,
+});
+
+/** Refuses (429) an address past its per-minute share-open allowance. */
+export function takeShareViewAllowance(ip: string, limiter = shareViewLimiter): void {
+  if (limiter.take(ip).allowed) return;
+  throw new RequestError(
+    429,
+    `Precog opens at most ${SHARE_VIEWS_PER_MINUTE} shared maps a minute from one address. Wait a minute, then open the link again.`,
+  );
+}

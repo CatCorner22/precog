@@ -57,6 +57,11 @@ vi.mock("@/lib/auth/verify.server", () => ({
     return session.userId;
   },
 }));
+const requestContext = vi.hoisted(() => ({ current: undefined as Request | undefined }));
+vi.mock("@tanstack/react-start/server", () => ({
+  getRequest: () => requestContext.current,
+  getRequestIP: () => "127.0.0.1",
+}));
 
 // A Resend signing secret in its real shape: "whsec_" and a base64 key.
 const RESEND_SECRET = `whsec_${btoa("resend-test-signing-key")}`;
@@ -85,6 +90,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   session.userId = null;
+  requestContext.current = undefined;
   digestStage.fail = false;
   digestStage.sendsFail = false;
   billing.failure = null;
@@ -561,6 +567,20 @@ describe("procedure image", () => {
       expect(res.status).toBe(404);
       expect(res.headers.get("cache-control")).toBe("private, max-age=60");
     }
+  });
+
+  it("answers a sibling app's scripted read as a miss, and serves this app's own read", async () => {
+    session.userId = "owner";
+    requestContext.current = new Request("https://app.example/api/procedure-image", {
+      headers: { "sec-fetch-site": "same-site", "sec-fetch-mode": "cors" },
+    });
+    const blocked = await get("b=biz_1&id=img_one");
+    expect(blocked.status).toBe(404);
+    expect(blocked.headers.get("cache-control")).toBe("private, max-age=60");
+    requestContext.current = new Request("https://app.example/api/procedure-image", {
+      headers: { "sec-fetch-site": "same-origin", "sec-fetch-mode": "cors" },
+    });
+    expect((await get("b=biz_1&id=img_one")).status).toBe(200);
   });
 
   it("refuses other methods", async () => {
