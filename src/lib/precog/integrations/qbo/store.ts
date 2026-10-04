@@ -162,19 +162,21 @@ export async function markSynced(
 
 /**
  * Stamps what the firm owner has now been told about, after the alert was
- * sent or found undeliverable: the current failure episode, the expiry it
- * named, or both. Nothing else on the row moves.
+ * sent or found undeliverable: the current failure episode, the expiry the
+ * alert named (`expiryFor`, the value read before the send, so a refresh
+ * that moves the expiry meanwhile is not marked as announced), or both.
+ * Nothing else on the row moves.
  */
 export async function markAlerted(
   sql: Sql,
   ownerUserId: string,
   businessId: string,
-  covered: { failure: boolean; expiry: boolean },
+  covered: { failure: boolean; expiryFor: string | null },
 ): Promise<void> {
   await sql`
     update integration_connections set
       failure_alerted_at = case when ${covered.failure} then now() else failure_alerted_at end,
-      expiry_alerted_for = case when ${covered.expiry} then refresh_expires_at else expiry_alerted_for end
+      expiry_alerted_for = coalesce(${covered.expiryFor}::timestamptz, expiry_alerted_for)
     where user_id = ${ownerUserId} and business_id = ${businessId} and provider = 'qbo'
   `;
 }

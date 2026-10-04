@@ -14,8 +14,8 @@ const NO_STORE = { "cache-control": "no-store" } as const;
  * cannot stop them, and the alerts run after it, so they name the failures
  * this run just recorded. Each stage runs on its own, so a failure in one is
  * reported in the answer and does not stop the others.
- * Emails that fail inside the digest are reported; the digest counts as a
- * failed stage when it had errors and sent nothing. Vercel calls it with
+ * Emails that fail inside the digest or the alerts are reported; either
+ * counts as a failed stage when it had errors and sent nothing. Vercel calls it with
  * `Authorization: Bearer $CRON_SECRET`; anything else is refused.
  */
 export const Route = createFileRoute("/api/cron/digest")({
@@ -78,13 +78,17 @@ export const Route = createFileRoute("/api/cron/digest")({
           return outcome;
         });
         const synced = await stage("quickbooks", failures, () => qbo.syncDueConnections(sql));
-        const quickbooksAlerts = await stage("quickbooks-alerts", failures, () =>
-          qboAlerts.alertQuickBooksProblems(sql, {
+        const quickbooksAlerts = await stage("quickbooks-alerts", failures, async () => {
+          const outcome = await qboAlerts.alertQuickBooksProblems(sql, {
             today,
             appUrl,
             send: configured ? mailer.sendEmail : async () => undefined,
-          }),
-        );
+          });
+          // alertQuickBooksProblems already reported the sends it gave up on.
+          if (outcome.errors.length > 0 && outcome.emailed === 0)
+            failures.push("quickbooks-alerts");
+          return outcome;
+        });
         const shareLogs = await stage("share-logs", failures, async () => {
           await shareStore.purgeOldShareViews(sql);
           await attempts.purgeOldPasscodeAttempts(sql);

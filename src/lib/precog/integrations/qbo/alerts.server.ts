@@ -29,8 +29,10 @@ export interface QuickBooksAlertOutcome {
  * switch says, with no stop link. An account whose address Precog cannot use
  * (unconfirmed, or bounced or complained) is reported once and its rows are
  * stamped as covered, so one failure episode reports once; the next episode
- * reports again. With mail off nothing is sent and nothing is stamped, so
- * the alerts go out once mail is set up.
+ * reports again. A send the mailer gives up on is reported once per run and
+ * leaves its rows unstamped, so the next run tries again. With mail off
+ * nothing is sent and nothing is stamped, so the alerts go out once mail is
+ * set up.
  *
  * `send` is injected so the stage runs against PGLite in a test with no
  * network; the cron route passes the real mailer.
@@ -74,6 +76,11 @@ export async function alertQuickBooksProblems(
         `quickbooks alert ${userId}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
+  if (outcome.errors.length > 0) {
+    // The rows stay unstamped and the next run tries again, but a provider
+    // that keeps failing is reported, not left to the run's answer alone.
+    await reportServerError(new Error(outcome.errors.join("; ")), "qbo-alert-send");
   }
   return outcome;
 }
@@ -165,7 +172,7 @@ async function stamp(sql: Sql, rows: ProblemRow[]): Promise<void> {
   for (const row of rows) {
     await markAlerted(sql, row.user_id, row.business_id, {
       failure: row.failure_due,
-      expiry: row.expiry_due,
+      expiryFor: row.expiry_due ? row.refresh_expires_at : null,
     });
   }
 }

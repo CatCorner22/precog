@@ -194,9 +194,35 @@ describe("QuickBooks alerts", () => {
       "quickbooks alert solo: provider down",
     ]);
     expect((await stamps()).every((s) => !s.failure && !s.expiry)).toBe(true);
+    expect(report.error).toHaveBeenCalledTimes(1);
+    expect(report.error).toHaveBeenCalledWith(expect.any(Error), "qbo-alert-send");
+    expect((report.error.mock.calls[0][0] as Error).message).toBe(
+      "quickbooks alert adv: provider down; quickbooks alert solo: provider down",
+    );
     const { sent, send } = recorder();
     expect((await run(send)).emailed).toBe(2);
     expect(sent).toHaveLength(2);
+  });
+
+  it("stamps the expiry the alert named, not one a refresh moved meanwhile", async () => {
+    const first = recorder();
+    expect(
+      (
+        await run(async (to, message) => {
+          // A token refresh lands between the select and the stamp.
+          await db.sql`
+            update integration_connections set refresh_expires_at = now() + interval '12 days'
+            where business_id = 'biz_2'
+          `;
+          await first.send(to, message);
+        })
+      ).emailed,
+    ).toBe(2);
+    const { sent, send } = recorder();
+    expect((await run(send)).emailed).toBe(1);
+    expect(sent[0].to).toBe("adv@firm.test");
+    expect(sent[0].text).toContain("QuickBooks' permission for Hill Dental ends on");
+    expect(sent[0].text).not.toContain("Ortiz Dental");
   });
 
   it("sends and stamps nothing while mail is off, so the alerts wait for it", async () => {
