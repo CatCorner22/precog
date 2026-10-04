@@ -1,5 +1,5 @@
 import type { IndustryTemplate } from "../templates";
-import { enrichProcess } from "../process-graph";
+import { enrichProcess, type ProcessMapSnapshot } from "../process-graph";
 import { computeMapHealth, type MapHealthReport } from "../process-health";
 import { validateProcessMap, type MapValidationIssue } from "../process-validation";
 import type { Person, ProcessNode, StaffComposition } from "../types";
@@ -12,6 +12,8 @@ export interface ScoredMap {
   issues: MapValidationIssue[];
   /** Starter processes nobody has touched yet: on the map, not scored. */
   unscoredCount: number;
+  /** Enriched snapshots for the scored processes only, in process order. */
+  snapshots: ProcessMapSnapshot[];
 }
 
 /**
@@ -46,5 +48,6 @@ export function scoreMap(
     health: computeMapHealth(snapshots, issues, { customized: opts.customized }),
     issues,
     unscoredCount: unscored.size,
+    snapshots,
   };
 }
