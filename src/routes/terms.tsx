@@ -96,8 +96,9 @@ function TermsPage() {
           When a firm uses Precog for its client businesses, the firm is Precog's customer and the
           controller of the client data it enters; Precog processes that data on the firm's
           instructions and for no other purpose. Client data a firm member enters belongs to the
-          firm, and stays with the firm when the member leaves. A standard data processing agreement
-          is available on request from {SUPPORT_EMAIL}.
+          firm, and stays with the firm when the member leaves. When a member leaves or is removed,
+          the client businesses they set up move to the firm owner's account. A standard data
+          processing agreement is available on request from {SUPPORT_EMAIL}.
         </p>
       </section>
 
@@ -118,9 +119,11 @@ function TermsPage() {
           The Firm plan renews each month until you cancel it. Cancel any time with Manage billing
           on the Firm page; you keep access to the end of the period you paid for, and a started
           month is not refunded. The Assessment is a one-off payment, and it is not refunded once a
-          report version is locked. Prices are as shown at Checkout, plus applicable sales tax,
-          which Stripe calculates from the billing address you give. Precog tells you by email
-          before a price change applies to your next renewal.
+          report version is locked. An Assessment fee that has not been refunded is credited once,
+          before tax, against the Firm plan's invoices when the account that paid it first starts
+          the Firm plan. Prices are as shown at Checkout, plus applicable sales tax, which Stripe
+          calculates from the billing address you give. Precog tells you by email before a price
+          change applies to your next renewal.
         </p>
       </section>
 
