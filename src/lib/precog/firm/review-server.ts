@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { requireObject } from "@/lib/request-errors";
-import { requireFirmRole, requireReportVersion } from "./access.server";
+import { requireBusinessRole, requireReportVersion } from "./access.server";
 import { assertEngagementOpen } from "./engagement-store";
 import { requestReportVersionReview, returnReportVersion } from "./reports";
 import { idInput } from "./server-inputs";
@@ -10,7 +10,9 @@ import { idInput } from "./server-inputs";
 /**
  * Request and return on a locked version. The preparer, or the firm owner,
  * asks for review; a firm owner or reviewer who did not prepare it returns it
- * with a note. Both are refused on an ended engagement.
+ * with a note. Both need a role in the business's own firm (a business its
+ * owner shared with a firm is the firm's work, not the owner's), and both
+ * are refused on an ended engagement.
  */
 export const requestReportReview = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -18,6 +20,7 @@ export const requestReportReview = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const where = await requireReportVersion(sql, context.userId, data.id);
+    await requireBusinessRole(sql, context.userId, where.ownerUserId, where.businessId, "any");
     await assertEngagementOpen(sql, where.ownerUserId, where.businessId, context.userId);
     const version = await requestReportVersionReview(sql, {
       ownerUserId: where.ownerUserId,
@@ -37,7 +40,10 @@ export const returnReport = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const where = await requireReportVersion(sql, context.userId, data.id);
-    await requireFirmRole(sql, context.userId, ["owner", "reviewer"]);
+    await requireBusinessRole(sql, context.userId, where.ownerUserId, where.businessId, [
+      "owner",
+      "reviewer",
+    ]);
     await assertEngagementOpen(sql, where.ownerUserId, where.businessId, context.userId);
     const version = await returnReportVersion(sql, {
       ownerUserId: where.ownerUserId,

@@ -228,12 +228,14 @@ export async function lockReportVersion(
     // The firm's name and letterhead are copied in as they are today, through
     // the same join `reportFirmName` uses, so a solo business freezes none;
     // the engagement's scope and period likewise (an empty scope as null).
+    // The firm it was locked for is kept, so that firm alone reads it among
+    // firms (a business its owner shares can work with another firm later).
     await tx`
       insert into report_versions
         (id, user_id, business_id, version_no, revision, profile, scope_note, prepared_by,
          scoring_version, layout_version, report_model,
          firm_name, firm_letterhead, firm_logo_data_url,
-         engagement_scope, engagement_period_start, engagement_period_end)
+         engagement_scope, engagement_period_start, engagement_period_end, firm_user_id)
       select
         ${input.id},
         b.user_id,
@@ -254,7 +256,8 @@ export async function lockReportVersion(
         f.logo_data_url,
         nullif(e.scope, ''),
         e.period_start,
-        e.period_end
+        e.period_end,
+        b.firm_user_id
       from businesses b
       left join firms f on f.user_id = b.firm_user_id
       left join engagement_marks e on e.user_id = b.user_id and e.business_id = b.id
@@ -266,16 +269,34 @@ export async function lockReportVersion(
   return row.version;
 }
 
+/**
+ * Which versions a member of the business's firm reads: the ones locked for
+ * that firm, and those locked before Precog kept the firm (migration 0046)
+ * on a business its owner never shared, which only its firm can have
+ * locked. The business's own account reads every version. A SQL fragment
+ * over `report_versions v` and `businesses b`.
+ */
+const FIRM_READS_VERSION = `(v.firm_user_id = b.firm_user_id
+  or (v.firm_user_id is null and b.granted_at is null))`;
+
+/**
+ * The versions of one business, newest first. `viewerUserId` (the caller)
+ * other than the business's own account reads only its firm's versions
+ * (FIRM_READS_VERSION); omitted, every version.
+ */
 export async function listReportVersions(
   sql: Sql,
   ownerUserId: string,
   businessId: string,
+  viewerUserId: string = ownerUserId,
 ): Promise<ReportVersionRow[]> {
   const rows = await sql.query<RawVersion>(
     `select ${VERSION_COLUMNS} from report_versions v ${VERSION_JOINS}
+     join businesses b on b.user_id = v.user_id and b.id = v.business_id
      where v.user_id = $1 and v.business_id = $2
+       and ($3 = v.user_id or ${FIRM_READS_VERSION})
      order by v.version_no desc limit 50`,
-    [ownerUserId, businessId],
+    [ownerUserId, businessId, viewerUserId],
   );
   return rows.map(toRow);
 }
@@ -324,30 +345,33 @@ export async function loadFrozenReport<TModel = unknown>(
 
 /**
  * The business a version belongs to, when `userId` may open it: the version's
- * owner, or a member of the firm that owns the business row. Null otherwise,
- * including for a caller whose own business merely shares the id.
+ * owner, or a member of the firm that owns the business row when the version
+ * is that firm's (FIRM_READS_VERSION). Null otherwise, including for a
+ * caller whose own business merely shares the id.
  */
 export async function reportVersionFor(
   sql: Sql,
   userId: string,
   id: string,
 ): Promise<{ ownerUserId: string; businessId: string } | null> {
-  const rows = await sql<{ user_id: string; business_id: string }>`
-    select v.user_id, v.business_id
+  const rows = await sql.query<{ user_id: string; business_id: string }>(
+    `select v.user_id, v.business_id
     from report_versions v
     join businesses b on b.user_id = v.user_id and b.id = v.business_id
-    where v.id = ${id}
+    where v.id = $1
       and b.deleted_at is null
       and (
-        v.user_id = ${userId}
+        v.user_id = $2
         or (
           b.firm_user_id is not null
           and b.firm_user_id in (
-            select firm_user_id from firm_members where member_user_id = ${userId}
+            select firm_user_id from firm_members where member_user_id = $2
           )
+          and ${FIRM_READS_VERSION}
         )
-      )
-  `;
+      )`,
+    [id, userId],
+  );
   return rows[0] ? { ownerUserId: rows[0].user_id, businessId: rows[0].business_id } : null;
 }
 

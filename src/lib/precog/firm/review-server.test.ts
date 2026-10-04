@@ -270,3 +270,33 @@ describe("an ended engagement", () => {
     });
   });
 });
+
+describe("a business its owner shared with the firm", () => {
+  /** `out` owns biz_g and shared it with the firm; `out` also owns an empty firm of their own. */
+  beforeEach(async () => {
+    await db.pg.exec(`
+      insert into firms (user_id, name) values ('out', 'Out Firm');
+      insert into firm_members (firm_user_id, member_user_id, role) values ('out', 'out', 'owner');
+      insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id, granted_at)
+        values ('biz_g', 'out', 'Granted', 'general', '{}'::jsonb, 1, 'own', now());
+    `);
+    await lockReportVersion(db.sql, {
+      ownerUserId: "out",
+      businessId: "biz_g",
+      preparedBy: "prep",
+      scopeNote: "",
+      id: "rv_g",
+    });
+  });
+
+  it("is the firm's to ask about and return, never its owner's", async () => {
+    const refused = {
+      status: 403,
+      message: "The firm working on this business does that. You can read every version it locked.",
+    };
+    await expect(ask("out", "rv_g")).rejects.toMatchObject(refused);
+    await expect(giveBack("out", "rv_g", "Fix it.")).rejects.toMatchObject(refused);
+    expect((await ask("prep", "rv_g")).version.reviewRequestedFrom).toBe("own");
+    expect((await giveBack("rev", "rv_g", "Fix it.")).version.returnedBy).toBe("rev");
+  });
+});

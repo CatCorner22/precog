@@ -20,6 +20,7 @@ import {
   OWN_BUSINESS_GRANT,
   peekGrant,
 } from "./grant-store";
+import { listReportVersions, lockReportVersion, reportVersionFor } from "./reports";
 import { loadFirmFor } from "./store";
 
 // createReportShare runs as a plain handler against this file's PGlite.
@@ -364,6 +365,66 @@ describe("ending the firm's access", () => {
     const afterEnd = (await db.pg.query<Record<string, unknown>>(ENGAGEMENT)).rows[0];
     expect(afterEnd).toMatchObject(fresh);
     expect(afterEnd.started_at).toBeTruthy();
+  });
+});
+
+describe("a later firm sees only the versions it locked", () => {
+  type Call = (args: {
+    context: { userId: string };
+    data: Record<string, unknown>;
+  }) => Promise<unknown>;
+
+  async function grantTo(firmOwner: string, email: string): Promise<void> {
+    const grant = await invite(email);
+    await acceptGrant(db.sql, grant.token, firmOwner);
+  }
+
+  const lock = (id: string, preparedBy: string) =>
+    lockReportVersion(db.sql, {
+      ownerUserId: "bo",
+      businessId: "biz_1",
+      preparedBy,
+      scopeNote: "",
+      id,
+    });
+
+  it("after a hand-back and a grant to South, South reads none of North's versions", async () => {
+    await grantTo("fo", "fo@example.test");
+    const north = await lock("rv_north", "fm");
+    const stored = await db.pg.query<{ firm_user_id: string }>(
+      "select firm_user_id from report_versions where id = 'rv_north'",
+    );
+    expect(stored.rows[0].firm_user_id).toBe("fo");
+    expect(await reportVersionFor(db.sql, "fm", north.id)).toEqual({
+      ownerUserId: "bo",
+      businessId: "biz_1",
+    });
+    await endGrant(db.sql, { ownerUserId: "bo", businessId: "biz_1", actorUserId: "fo" });
+    // North no longer opens the version it locked; the owner keeps it.
+    expect(await reportVersionFor(db.sql, "fo", north.id)).toBeNull();
+    expect(await reportVersionFor(db.sql, "bo", north.id)).not.toBeNull();
+
+    await grantTo("fo2", "fo2@example.test");
+    expect(await listReportVersions(db.sql, "bo", "biz_1", "fo2")).toEqual([]);
+    expect(await reportVersionFor(db.sql, "fo2", north.id)).toBeNull();
+    const { createReportShare } = await import("../share/share-server");
+    expect(
+      await refusal(
+        (createReportShare as unknown as Call)({
+          context: { userId: "fo2" },
+          data: { versionId: north.id },
+        }),
+      ),
+    ).toMatchObject({ status: 404 });
+
+    const south = await lock("rv_south", "fo2");
+    expect((await listReportVersions(db.sql, "bo", "biz_1", "fo2")).map((v) => v.id)).toEqual([
+      south.id,
+    ]);
+    expect((await listReportVersions(db.sql, "bo", "biz_1")).map((v) => v.id)).toEqual([
+      south.id,
+      north.id,
+    ]);
   });
 });
 

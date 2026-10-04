@@ -19,6 +19,7 @@ import type { StoredReportModel } from "../report/stored-model";
 import type { FirmPlan } from "./pricing";
 import {
   requireBusinessOwner,
+  requireBusinessRole,
   requireFirm,
   requireFirmRole,
   requireReportVersion,
@@ -26,6 +27,7 @@ import {
 import {
   acceptInvite,
   createInvite,
+  digestAddressProblem,
   insertReviewEvent,
   inviteFit,
   leaveFirm as leaveFirmRow,
@@ -57,7 +59,12 @@ import {
 } from "./reports";
 import { loadBillingAccount, planToStore } from "./billing-store";
 import { businessLimitMessage } from "../business-lifecycle";
-import { countClients, loadEntitlements, requireEntitlement } from "./entitlements.server";
+import {
+  countClients,
+  loadEntitlements,
+  requireEntitlement,
+  requireEntitlementForBusiness,
+} from "./entitlements.server";
 import { recordFirst } from "../telemetry/events.server";
 import { assertEngagementOpen, engagementEnded } from "./engagement-store";
 import {
@@ -372,9 +379,14 @@ export const setClientOwnerEmail = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    // The firm's work on its client: a member of the business's own firm.
+    await requireBusinessRole(sql, context.userId, owner, data.businessId, "any");
     await assertEngagementOpen(sql, owner, data.businessId, context.userId);
-    // Clearing an address is always allowed; setting one needs the plan.
-    if (data.email) await requireEntitlement(sql, context.userId, "ownerReminders");
+    // Clearing an address is always allowed; setting one needs the plan of
+    // the firm working on the business (or of the business's own account).
+    if (data.email) {
+      await requireEntitlementForBusiness(sql, owner, data.businessId, "ownerReminders");
+    }
     const { confirmToken, stopped } = await setOwnerEmail(
       sql,
       owner,
@@ -448,10 +460,14 @@ export const lockReport = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    // Only a member of the business's firm locks a firm client; the plan is
+    // the firm's, read after that check, so a business its owner shared with
+    // a firm locks under the firm's plan and only by the firm.
+    await requireBusinessRole(sql, context.userId, owner, data.businessId, "any");
     await assertEngagementOpen(sql, owner, data.businessId, context.userId);
     // Creating a version needs the plan; every version already locked stays
     // readable, reviewable for issuance and markable as sent whatever the plan.
-    await requireEntitlement(sql, context.userId, "lockedVersions");
+    await requireEntitlementForBusiness(sql, owner, data.businessId, "lockedVersions");
     // The figures are built on the preparer's calendar day, the day the
     // locked report prints, and stored so later scoring changes leave them.
     const { freezeReport } = await import("../report/stored-model");
@@ -473,7 +489,9 @@ export const listReports = createServerFn({ method: "GET" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    return { versions: await listReportVersions(sql, owner, data.businessId) };
+    return {
+      versions: await listReportVersions(sql, owner, data.businessId, context.userId),
+    };
   });
 
 export const getReport = createServerFn({ method: "GET" })
@@ -525,9 +543,13 @@ export const signOffReport = createServerFn({ method: "POST" })
     const where = await requireReportVersion(sql, context.userId, data.id);
     const existing = await loadReportVersion(sql, where.ownerUserId, data.id);
     const self = existing?.version.preparedBy === context.userId;
-    if (!(self && data.issueWithoutIndependentReview)) {
-      await requireFirmRole(sql, context.userId, ["owner", "reviewer"]);
-    }
+    await requireBusinessRole(
+      sql,
+      context.userId,
+      where.ownerUserId,
+      where.businessId,
+      self && data.issueWithoutIndependentReview ? "any" : ["owner", "reviewer"],
+    );
     await assertEngagementOpen(sql, where.ownerUserId, where.businessId, context.userId);
     const version = await signOffReportVersion(sql, {
       ownerUserId: where.ownerUserId,
@@ -546,6 +568,7 @@ export const markReportSent = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const where = await requireReportVersion(sql, context.userId, data.id);
+    await requireBusinessRole(sql, context.userId, where.ownerUserId, where.businessId, "any");
     await assertEngagementOpen(sql, where.ownerUserId, where.businessId, context.userId);
     await markReportVersionSent(sql, where.ownerUserId, data.id);
     await recordFirst(sql, context.userId, "first_report_sent", where.businessId);
@@ -650,7 +673,10 @@ export const restoreDeletedClient = createServerFn({ method: "POST" })
     const e = await loadEntitlements(sql, context.userId);
     const held = await countClients(sql, context.userId, firm);
     if (held >= e.clientLimit) {
-      throw new RequestError(402, businessLimitMessage({ plan: e.plan, limit: e.clientLimit }));
+      throw new RequestError(
+        402,
+        businessLimitMessage({ plan: e.plan, limit: e.clientLimit, tier: e.tier }),
+      );
     }
     return {
       restored: await restoreBusinessRow(sql, target.ownerUserId, data.businessId, context.userId),
@@ -669,14 +695,17 @@ export const getNotificationSettings = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const sql = await getSql();
     const { mailConfigured } = await import("../reminders/mailer.server");
-    const [settings, firm] = await Promise.all([
+    const [settings, firm, addressProblem] = await Promise.all([
       loadNotificationSettings(sql, context.userId),
       loadFirmFor(sql, context.userId),
+      digestAddressProblem(sql, context.userId),
     ]);
     return {
       settings,
       mailConfigured: mailConfigured(),
       controlsOwnerReminders: !firm || firm.role === "owner",
+      // Why the digest cannot reach this account's address; null when it can.
+      digestAddressProblem: addressProblem,
     };
   });
 

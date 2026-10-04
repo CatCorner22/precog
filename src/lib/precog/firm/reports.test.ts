@@ -284,6 +284,46 @@ describe("report version access", () => {
     });
   });
 
+  it("stores the firm a version was locked for, and the firm reads only its own", async () => {
+    await db.seedUser("cpa");
+    await db.pg.exec(`
+      insert into firms (user_id, name) values ('cpa', 'North');
+      insert into firm_members (firm_user_id, member_user_id, role)
+        values ('cpa', 'cpa', 'owner'), ('cpa', 'reviewer', 'reviewer');
+      update businesses set firm_user_id = 'cpa';
+    `);
+    await lock("rv_1");
+    const stored = await db.pg.query<{ firm_user_id: string | null }>(
+      "select firm_user_id from report_versions where id = 'rv_1'",
+    );
+    expect(stored.rows[0].firm_user_id).toBe("cpa");
+    expect(await reportVersionFor(db.sql, "reviewer", "rv_1")).not.toBeNull();
+    // Locked for another firm: the business's own account reads it, this firm does not.
+    await db.pg.exec(`update report_versions set firm_user_id = 'elsewhere' where id = 'rv_1'`);
+    expect(await reportVersionFor(db.sql, "reviewer", "rv_1")).toBeNull();
+    expect(await listReportVersions(db.sql, "owner", "biz_1", "reviewer")).toEqual([]);
+    expect(await reportVersionFor(db.sql, "owner", "rv_1")).not.toBeNull();
+    expect((await listReportVersions(db.sql, "owner", "biz_1")).length).toBe(1);
+  });
+
+  it("reads a version locked before the firm was kept for the firm, unless the owner shared the business", async () => {
+    await db.seedUser("cpa");
+    await db.pg.exec(`
+      insert into firms (user_id, name) values ('cpa', 'North');
+      insert into firm_members (firm_user_id, member_user_id, role)
+        values ('cpa', 'cpa', 'owner'), ('cpa', 'reviewer', 'reviewer');
+      update businesses set firm_user_id = 'cpa';
+    `);
+    await lock("rv_1");
+    await db.pg.exec(`update report_versions set firm_user_id = null`);
+    expect(await reportVersionFor(db.sql, "reviewer", "rv_1")).not.toBeNull();
+    expect((await listReportVersions(db.sql, "owner", "biz_1", "reviewer")).length).toBe(1);
+    await db.pg.exec(`update businesses set granted_at = now()`);
+    expect(await reportVersionFor(db.sql, "reviewer", "rv_1")).toBeNull();
+    expect(await listReportVersions(db.sql, "owner", "biz_1", "reviewer")).toEqual([]);
+    expect(await reportVersionFor(db.sql, "owner", "rv_1")).not.toBeNull();
+  });
+
   it("refuses the sent stamp until the version is signed off", async () => {
     await lock("rv_1");
     await expect(markReportVersionSent(db.sql, "owner", "rv_1")).rejects.toMatchObject({

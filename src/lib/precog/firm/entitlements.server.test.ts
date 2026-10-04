@@ -3,7 +3,13 @@ import { openTestDb, type TestDb } from "@/test/pglite";
 import { businessLimitMessage } from "../business-lifecycle";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import { runDigest } from "../reminders/digest";
-import { countClients, loadEntitlements, requireEntitlement } from "./entitlements.server";
+import {
+  countClients,
+  loadEntitlements,
+  loadEntitlementsForBusiness,
+  requireEntitlement,
+  requireEntitlementForBusiness,
+} from "./entitlements.server";
 import { ENTITLEMENTS_FROM, HAND_MARKED_PLANS_UNTIL } from "./entitlements";
 import { loadReportVersion, lockReportVersion } from "./reports";
 import { loadFirmFor, saveFirm } from "./store";
@@ -106,6 +112,30 @@ describe("entitlements on the database", () => {
     await expect(requireEntitlement(db.sql, "member", "members")).resolves.toMatchObject({
       plan: "firm",
     });
+  });
+
+  it("reads the plan of a business from its firm, else from its own account", async () => {
+    withStripe();
+    await db.sql`insert into billing_accounts (user_id, subscription_id, subscription_status)
+      values ('owner', 'sub_1', 'active')`;
+    // `solo` shared biz_g with the paid firm: a lock there follows the firm's plan.
+    await business("biz_g", "solo", "owner");
+    await db.sql`update businesses set granted_at = now() where id = 'biz_g'`;
+    expect((await loadEntitlementsForBusiness(db.sql, "solo", "biz_g")).plan).toBe("firm");
+    await expect(
+      requireEntitlementForBusiness(db.sql, "solo", "biz_g", "lockedVersions"),
+    ).resolves.toMatchObject({ plan: "firm" });
+    // The solo account's own business with no firm keeps the free plan.
+    await business("s1", "solo", null);
+    expect((await loadEntitlementsForBusiness(db.sql, "solo", "s1")).plan).toBe("free");
+    await expect(
+      requireEntitlementForBusiness(db.sql, "solo", "s1", "lockedVersions"),
+    ).rejects.toMatchObject({ status: 402 });
+    // A member's private business is unchanged: the member's firm's plan, as before.
+    await business("m1", "member", null);
+    expect((await loadEntitlementsForBusiness(db.sql, "member", "m1")).plan).toBe(
+      (await loadEntitlements(db.sql, "member")).plan,
+    );
   });
 
   it("counts the firm's live clients for a member, and an account's own outside a firm", async () => {

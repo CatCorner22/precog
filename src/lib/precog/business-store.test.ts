@@ -4,6 +4,7 @@ import { openTestDb, type TestDb } from "@/test/pglite";
 import {
   BusinessLimitError,
   deleteBusinessRow,
+  GRANTED_NOT_FIRMS_TO_DELETE,
   keepVersionBeforeRestore,
   listBusinessHistory,
   listBusinessSummaries,
@@ -25,6 +26,7 @@ import {
 import { imageSweepNeeded } from "./procedures/image-store.server";
 import { ENGAGEMENT_ENDED } from "./firm/engagement-row";
 import { lockReportVersion } from "./firm/reports";
+import { removeMember } from "./firm/store";
 
 /**
  * Runs against an embedded Postgres with every file in migrations/ applied, so
@@ -692,6 +694,67 @@ describe("firm access", () => {
     await saveBusinessRevision(sql, input("user-c", "biz_own", null, "Own"));
     await deleteBusinessRow(sql, "user-c", "biz_own", "user-c");
     expect(await restoreBusinessRow(sql, "user-c", "biz_own", "user-c")).toBe(true);
+  });
+
+  describe("a business its owner shared with the firm", () => {
+    /** `user-c`, outside the firm, owns biz_g and shared it with A & Co. */
+    beforeEach(async () => {
+      await db.seedUser("user-c");
+      await saveBusinessRevision(sql, input("user-c", "biz_g", null, "Granted"));
+      await sql`update businesses set firm_user_id = 'user-a', granted_at = now()
+        where user_id = 'user-c' and id = 'biz_g'`;
+    });
+
+    it("is never the firm's to delete or restore; its owner does both", async () => {
+      expect(GRANTED_NOT_FIRMS_TO_DELETE).toBe(
+        "This business belongs to its owner, who shared it with the firm. Hand it back on its Engagement block instead of deleting it.",
+      );
+      const refused = { status: 403, message: GRANTED_NOT_FIRMS_TO_DELETE };
+      for (const actor of ["user-a", "user-b"]) {
+        await expect(deleteBusinessRow(sql, "user-c", "biz_g", actor)).rejects.toMatchObject(
+          refused,
+        );
+      }
+      await deleteBusinessRow(sql, "user-c", "biz_g", "user-c");
+      // The firm's deleted list leaves it out; the owner's keeps it.
+      expect(await listDeletedBusinesses(sql, "user-a", "user-a")).toEqual([]);
+      expect((await listDeletedBusinesses(sql, "user-c")).map((b) => b.id)).toEqual(["biz_g"]);
+      await expect(restoreBusinessRow(sql, "user-c", "biz_g", "user-a")).rejects.toMatchObject(
+        refused,
+      );
+      expect(await restoreBusinessRow(sql, "user-c", "biz_g", "user-c")).toBe(true);
+    });
+
+    it("is purged at day 31 even with a locked version: it is the owner's, not kept for the firm", async () => {
+      await lockReportVersion(sql, {
+        ownerUserId: "user-c",
+        businessId: "biz_g",
+        preparedBy: "user-b",
+        scopeNote: "",
+        id: "rv_g",
+      });
+      await deleteBusinessRow(sql, "user-c", "biz_g", "user-c");
+      await sql`update businesses set deleted_at = now() - interval '31 days'
+        where user_id = 'user-c' and id = 'biz_g'`;
+      expect(await purgeDeletedBusinesses(sql, 30)).toBe(1);
+      expect(await revisionOf("user-c", "biz_g")).toBeNull();
+    });
+
+    it("stays with a member who shared it when they leave, still shared with the firm", async () => {
+      await sql`insert into firm_members (firm_user_id, member_user_id, role)
+        values ('user-a', 'user-c', 'preparer')`;
+      await saveBusinessRevision(sql, {
+        ...input("user-c", "biz_set_up", null, "Set up for the firm"),
+        savedBy: "user-c",
+        firmUserId: "user-a",
+      });
+      const moved = await removeMember(sql, "user-a", "user-c");
+      expect(moved.map((m) => m.from)).toEqual(["biz_set_up"]);
+      const rows = await sql<{ user_id: string; firm_user_id: string | null; granted: boolean }>`
+        select user_id, firm_user_id, granted_at is not null as granted from businesses
+        where id = 'biz_g'`;
+      expect(rows).toEqual([{ user_id: "user-c", firm_user_id: "user-a", granted: true }]);
+    });
   });
 
   it("prefers the caller's own row when a colleague's business carries the same id", async () => {
