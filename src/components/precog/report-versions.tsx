@@ -108,8 +108,8 @@ export function ReportVersionsPanel() {
       if (!profile.engagement?.reportSentAt) {
         replaceProfile({ ...profile, engagement: { ...profile.engagement, reportSentAt: now } });
       }
-    } catch {
-      toast.error("Could not mark the version sent.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not mark the version sent.");
     } finally {
       setBusy(false);
     }
@@ -183,7 +183,7 @@ export function ReportVersionsPanel() {
                       <PenLine className="size-3.5" /> Review for issuance
                     </Button>
                   )}
-                  {!v.sentAt && (
+                  {!v.sentAt && v.reviewedAt && (
                     <Button
                       size="sm"
                       variant="secondary"
