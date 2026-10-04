@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { importableGuestBusinesses } from "@/lib/precog/guest-import";
+import { readLocal } from "@/lib/precog/local-data";
 import { loadPortfolio, normalizeProfile, savePortfolioEntry } from "@/lib/precog/practice-profile";
 import { ScopedStorage } from "@/lib/precog/workspace-storage";
 
@@ -16,21 +17,34 @@ vi.mock("@/lib/precog/workspace-context", () => ({
 }));
 
 const {
+  BehindGuestImportPrompt,
   GuestImportDialog,
   GuestImportPrompt,
   GUEST_IMPORT_FIRM_NOTE,
   GUEST_IMPORT_NOT_NOW,
   GUEST_IMPORT_NOT_SAVED,
   GUEST_IMPORT_SAVE,
+  declineGuestWork,
   guestImportBody,
+  guestImportNotSavedToast,
   guestImportSavedToast,
   guestImportTitle,
   saveGuestWork,
 } = await import("./guest-import-prompt");
 
-/** One browser's localStorage; guest and the account are ScopedStorage views over it. */
+/**
+ * One browser's localStorage; guest and the account are ScopedStorage views
+ * over it. `quota` is a byte ceiling: a write past it is refused, as a full
+ * browser refuses one.
+ */
 class MemoryStorage {
   data = new Map<string, string>();
+  constructor(private readonly quota = Infinity) {}
+  private get bytes() {
+    let total = 0;
+    for (const [key, value] of this.data) total += key.length + value.length;
+    return total;
+  }
   get length() {
     return this.data.size;
   }
@@ -41,6 +55,9 @@ class MemoryStorage {
     return this.data.get(key) ?? null;
   }
   setItem(key: string, value: string) {
+    const current = this.data.get(key) ?? "";
+    if (this.bytes - current.length + value.length > this.quota)
+      throw new Error("QuotaExceededError");
     this.data.set(key, value);
   }
   removeItem(key: string) {
@@ -48,9 +65,13 @@ class MemoryStorage {
   }
 }
 
-function browser() {
-  const raw = new MemoryStorage();
-  return { guest: new ScopedStorage(raw, null), account: new ScopedStorage(raw, "A") };
+function browser(quota?: number) {
+  const raw = new MemoryStorage(quota);
+  return {
+    raw,
+    guest: new ScopedStorage(raw, null),
+    account: new ScopedStorage(raw, "A"),
+  };
 }
 
 function business(id: string, name: string) {
@@ -134,6 +155,65 @@ describe("the guest-work question after sign-in", () => {
     expect(guestImportSavedToast(["Riverside Dental", "Hillcrest Vet"])).toBe(
       "Copied 2 businesses. Riverside Dental is open.",
     );
+  });
+
+  it("names only the copies that stored, and the one that did not, when the browser fills up", async () => {
+    // Room for the guest work and one copy, not two: the second copy's write
+    // is refused, the first stays in the account and is the one opened.
+    const { raw, guest } = browser();
+    savePortfolioEntry(business("biz_1", "Riverside Dental"), guest);
+    savePortfolioEntry(business("biz_2", "Hillcrest Vet"), guest);
+    const guestBytes = [...raw.data].reduce((n, [k, v]) => n + k.length + v.length, 0);
+    const full = browser(guestBytes * 2);
+    for (const [key, value] of raw.data) full.raw.setItem(key, value);
+    const switchBusiness = vi.fn(async () => ({ ok: true as const }));
+
+    await saveGuestWork(full.guest, full.account, switchBusiness);
+
+    const copies = Object.values(loadPortfolio(full.account));
+    expect(copies.map((p) => p.practiceName)).toEqual(["Riverside Dental"]);
+    expect(switchBusiness).toHaveBeenCalledWith(copies[0].businessId);
+    expect(guestImportNotSavedToast(["Hillcrest Vet"])).toBe(
+      "Hillcrest Vet did not save. Check browser storage, then export your guest work.",
+    );
+    expect(toasts.error).toHaveBeenCalledWith(guestImportNotSavedToast(["Hillcrest Vet"]));
+    expect(toasts.success).toHaveBeenCalledWith(
+      "Riverside Dental is in your account. It syncs from here on.",
+    );
+    // Hillcrest Vet is still guest work to copy; Riverside Dental is not.
+    expect(importableGuestBusinesses(full.guest, full.account).map((p) => p.practiceName)).toEqual([
+      "Hillcrest Vet",
+    ]);
+    expect(guestImportNotSavedToast(["Hillcrest Vet", "Oak Street Books"])).toBe(
+      "Hillcrest Vet and Oak Street Books did not save. Check browser storage, then export your guest work.",
+    );
+  });
+
+  it("remembers Not now per business, so the question stays down and the recovery panel still offers them", () => {
+    const { guest, account } = browser();
+    savePortfolioEntry(business("biz_1", "Riverside Dental"), guest);
+    savePortfolioEntry(business("biz_2", "Hillcrest Vet"), guest);
+
+    declineGuestWork(guest, account);
+
+    expect(readLocal("precog.guest-import.declined.biz_1", account)).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(readLocal("precog.guest-import.declined.biz_2", account)).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(importableGuestBusinesses(guest, account, { includeDeclined: false })).toEqual([]);
+    expect(importableGuestBusinesses(guest, account).map((p) => p.practiceName)).toEqual([
+      "Riverside Dental",
+      "Hillcrest Vet",
+    ]);
+    expect(Object.keys(loadPortfolio(account))).toEqual([]);
+  });
+
+  it("keeps the setup dialog inert while the question is open above it", () => {
+    const setup = <div role="dialog" aria-modal="true" id="setup" />;
+    expect(
+      renderToStaticMarkup(<BehindGuestImportPrompt open>{setup}</BehindGuestImportPrompt>),
+    ).toBe('<div inert=""><div role="dialog" aria-modal="true" id="setup"></div></div>');
+    expect(
+      renderToStaticMarkup(<BehindGuestImportPrompt open={false}>{setup}</BehindGuestImportPrompt>),
+    ).toBe('<div><div role="dialog" aria-modal="true" id="setup"></div></div>');
   });
 
   it("says why when the switch is refused, and when nothing was copied", async () => {

@@ -89,6 +89,14 @@ export function declineGuestBusinesses(guest: StorageLike, account: StorageLike)
     writeLocal(declinedMarker(p.businessId), new Date().toISOString(), account);
 }
 
+/** The id this account's copy of a guest business got, or null when it was never copied. */
+export function copiedGuestBusinessId(
+  guestBusinessId: string | undefined,
+  account: StorageLike,
+): string | null {
+  return readLocal(copiedMarker(guestBusinessId), account);
+}
+
 function copiedMarker(guestBusinessId: string | undefined): string {
   return `precog.guest-import.${guestBusinessId}`;
 }

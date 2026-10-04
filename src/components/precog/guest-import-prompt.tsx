@@ -1,9 +1,16 @@
 /* eslint-disable react-refresh/only-export-components -- the dialog and the wording next to the loader are tested on their own */
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
 import { useWorkspace } from "@/lib/precog/workspace-context";
 import { scopedBrowserStorage, WORKSPACE_PREFIX } from "@/lib/precog/workspace-storage";
 import {
+  copiedGuestBusinessId,
   copyGuestBusinesses,
   declineGuestBusinesses,
   importableGuestBusinesses,
@@ -12,7 +19,7 @@ import { usePracticeActions, usePracticeSync } from "@/lib/precog/practice-conte
 import { getFirm } from "@/lib/precog/firm/server";
 import type { StorageLike } from "@/lib/precog/local-data";
 import type { SwitchResult } from "@/lib/precog/use-portfolio";
-import { count } from "@/lib/precog/text";
+import { count, joinWithAnd } from "@/lib/precog/text";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { buttonClass } from "@/components/ui/button-variants";
 
@@ -28,9 +35,15 @@ export const GUEST_IMPORT_NOT_SAVED =
  * while the sign-in conflict banner is up (the switch would refuse), once
  * every guest business is copied, or once the account said "Not now" to each
  * of them (the recovery panel keeps offering those). The firm question is one
- * read, made once the prompt has something to ask about.
+ * read, made once the prompt has something to ask about. `onOpenChange` tells
+ * the page when the question is up, so the setup dialog under it can be made
+ * inert (BehindGuestImportPrompt) instead of competing for the keyboard.
  */
-export function GuestImportPrompt() {
+export function GuestImportPrompt({
+  onOpenChange,
+}: {
+  onOpenChange?: (open: boolean) => void;
+} = {}) {
   const workspace = useWorkspace();
   const { switchBusiness } = usePracticeActions();
   const { saveConflict } = usePracticeSync();
@@ -63,6 +76,10 @@ export function GuestImportPrompt() {
 
   const open = names.length > 0 && !saveConflict;
   useEffect(() => {
+    onOpenChange?.(open);
+    return () => onOpenChange?.(false);
+  }, [open, onOpenChange]);
+  useEffect(() => {
     if (!open || askedFirm.current) return;
     askedFirm.current = true;
     let cancel = false;
@@ -94,14 +111,34 @@ export function GuestImportPrompt() {
         close();
       }}
       onDecline={() => {
-        declineGuestBusinesses(guest, account);
+        declineGuestWork(guest, account);
         close();
       }}
     />
   );
 }
 
-/** Copies what the prompt offered, opens the first copy and says so; a failed copy or switch says why. */
+/**
+ * Wraps the setup dialog on the home page: inert while the guest-work
+ * question is open above it, so Tab and a screen reader meet only the
+ * question. Without it the two modals compete, and setup's own focus on its
+ * title would pull the keyboard behind the question's backdrop.
+ */
+export function BehindGuestImportPrompt({
+  open,
+  children,
+}: {
+  open: boolean;
+  children: ReactNode;
+}) {
+  return <div inert={open}>{children}</div>;
+}
+
+/**
+ * Copies what the prompt offered, opens the first copy and says so. A copy
+ * that did not store is named, since the copies continue past it (the toast
+ * names only what is in the account); a failed switch says why.
+ */
 export async function saveGuestWork(
   guest: StorageLike,
   account: StorageLike,
@@ -113,12 +150,25 @@ export async function saveGuestWork(
     toast.error(GUEST_IMPORT_NOT_SAVED);
     return;
   }
+  // Each copy is matched to what was offered through the account's copied
+  // marker, so two guest businesses with one name are still told apart.
+  const copyOf = new Map(offered.map((p) => [copiedGuestBusinessId(p.businessId, account), p]));
+  const copied = ids.map((id) => copyOf.get(id)?.practiceName ?? "");
+  const notSaved = offered
+    .filter((p) => !ids.includes(copiedGuestBusinessId(p.businessId, account) ?? ""))
+    .map((p) => p.practiceName);
+  if (notSaved.length > 0) toast.error(guestImportNotSavedToast(notSaved));
   const result = await switchBusiness(ids[0]);
   if (!result.ok) {
     toast.error(result.reason);
     return;
   }
-  toast.success(guestImportSavedToast(offered.map((p) => p.practiceName).slice(0, ids.length)));
+  toast.success(guestImportSavedToast(copied));
+}
+
+/** "Not now": remembers, for this account, each business the prompt offered, so it does not ask again. */
+export function declineGuestWork(guest: StorageLike, account: StorageLike): void {
+  declineGuestBusinesses(guest, account);
 }
 
 /** "Save Riverside Dental to your account?", or the count when there are several. */
@@ -139,6 +189,11 @@ export function guestImportSavedToast(names: string[]): string {
   return names.length === 1
     ? `${names[0]} is in your account. It syncs from here on.`
     : `Copied ${count(names.length, "business", "businesses")}. ${names[0]} is open.`;
+}
+
+/** The businesses whose copy did not store, when others did: the same advice as when none did. */
+export function guestImportNotSavedToast(names: string[]): string {
+  return `${joinWithAnd(names)} did not save. Check browser storage, then export your guest work.`;
 }
 
 /** The dialog itself: the question, the names when there are several, the firm note and the two buttons. */

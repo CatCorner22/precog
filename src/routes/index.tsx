@@ -46,7 +46,10 @@ import { AccountDataControls } from "@/components/precog/account-menu";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
 import { DigestConsentPrompt } from "@/components/precog/digest-consent-prompt";
 import { DigestStateProvider } from "@/components/precog/digest-state";
-import { GuestImportPrompt } from "@/components/precog/guest-import-prompt";
+import {
+  BehindGuestImportPrompt,
+  GuestImportPrompt,
+} from "@/components/precog/guest-import-prompt";
 import {
   CountBadge,
   MoreTabsMenu,
@@ -207,6 +210,20 @@ function Home() {
     }
     onboardingWasOpen.current = showOnboarding;
   }, [showOnboarding]);
+  // The guest-work question sits above setup on a first sign-in (the account
+  // is empty, so setup is open too). While it is up, setup is inert so only
+  // the question takes the keyboard; when it closes with setup still open,
+  // focus goes back to setup's question.
+  const [guestPromptOpen, setGuestPromptOpen] = useState(false);
+  const guestPromptWasOpen = useRef(false);
+  useEffect(() => {
+    if (guestPromptWasOpen.current && !guestPromptOpen && showOnboarding) {
+      requestAnimationFrame(() =>
+        document.getElementById("industry-onboarding-title")?.focus({ preventScroll: true }),
+      );
+    }
+    guestPromptWasOpen.current = guestPromptOpen;
+  }, [guestPromptOpen, showOnboarding]);
 
   // The shell computes only what it shows on every tab: the conflict badge.
   // "Needs attention" counts its own items; each tab runs its own engines.
@@ -236,15 +253,17 @@ function Home() {
   return (
     <div className="min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-bg">
       {showOnboarding && (
-        <Suspense fallback={<SetupLoading />}>
-          <IndustryOnboarding />
-        </Suspense>
+        <BehindGuestImportPrompt open={guestPromptOpen}>
+          <Suspense fallback={<SetupLoading />}>
+            <IndustryOnboarding />
+          </Suspense>
+        </BehindGuestImportPrompt>
       )}
       {/* Guest work from before sign-in: asked outside the inert shell and
           above setup, because on a first sign-in the account is empty and
           setup is open; saving the guest business opens it and closes setup. */}
       <SignedIn>
-        <GuestImportPrompt />
+        <GuestImportPrompt onOpenChange={setGuestPromptOpen} />
       </SignedIn>
       <div inert={showOnboarding}>
         <a
