@@ -1,9 +1,6 @@
 import { resolveTemplate } from "../active-template";
 import { industryMeta, industryNoun } from "../industry";
-import { buildProcessMapGraph } from "../process-graph";
-import { residualScope } from "../scoring/scope";
-import { computeMapHealth } from "../process-health";
-import { validateProcessMap } from "../process-validation";
+import { scoreMap } from "../builder/scored-map";
 import type { PracticeProfile } from "../practice-profile";
 import { evidenceStatus } from "../builder/evidence";
 import type { SharedMapPayload } from "./share-schema";
@@ -17,16 +14,18 @@ export function buildSharePayload(
 ): SharedMapPayload {
   const tpl = resolveTemplate(profile);
   const meta = industryMeta(profile.industry);
-  const { snapshots } = buildProcessMapGraph(tpl, profile.staff, {}, residualScope(profile));
-  const issues = validateProcessMap(
-    tpl.processes,
-    tpl.people,
-    new Set(tpl.controls.map((c) => c.id)),
-    profile.mapLayout ?? {},
-  );
-  const health = computeMapHealth(snapshots, issues, {
+  // Score the map as the map screen scores it: a starter process the owner
+  // has not touched yet stays out of the health figure, its issues, and the
+  // shared process list, so the share matches the map pill.
+  const scored = scoreMap(tpl, tpl.processes, profile.staff, {
+    profile: { industry: profile.industry, customPeople: profile.customPeople },
+    people: tpl.people,
+    layout: profile.mapLayout ?? {},
     customized: Boolean(profile.customProcesses || profile.customPeople),
   });
+  const snapshots = scored.snapshots;
+  const issues = scored.issues;
+  const health = scored.health;
   const nameOf = (id: string) => tpl.people.find((p) => p.id === id)?.name;
 
   const payload: SharedMapPayload = {
