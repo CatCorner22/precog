@@ -5,6 +5,7 @@ import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
 import { businessLimitMessage, MAX_BUSINESSES_PER_ACCOUNT } from "./business-lifecycle";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
 import { revokeBusinessShares } from "./share/share-store";
+import { assertEngagementOpen } from "./firm/engagement-store";
 import { randomHex } from "@/lib/web-crypto";
 import {
   DELETED_RETENTION_DAYS,
@@ -247,7 +248,11 @@ export async function saveBusinessRevision<TProfile = unknown>(
         };
       }
       // The same business saved again (a switch, a flush): nothing to write,
-      // and no identical version pushes a real one out of the history.
+      // and no identical version pushes a real one out of the history. Any
+      // other save (a history restore included) waits on an ended engagement.
+      if (!current.unchanged && current.firm_user_id) {
+        await assertEngagementOpen(tx, input.userId, input.businessId, savedBy);
+      }
       if (current.unchanged) {
         if (input.activate) await setActiveBusiness(tx, activePointer(input, savedBy));
         return {
@@ -822,7 +827,22 @@ export async function listDeletedBusinesses(
   }));
 }
 
-/** Removes businesses deleted more than the retention period ago. Returns how many. */
+/**
+ * A deleted firm client holding a locked report version stays (soft-deleted,
+ * unseen, not restorable after the grace period) until its firm's retention
+ * period has run from the deletion, so the versions, the monthly review log
+ * and the engagement row survive with it. 7 years when the firm is gone.
+ * Appended to each statement over `businesses b` below.
+ */
+const KEPT_FOR_RETENTION = `not (b.firm_user_id is not null
+  and exists (select 1 from report_versions v where v.user_id = b.user_id and v.business_id = b.id)
+  and b.deleted_at >= now() - make_interval(years => coalesce(
+    (select f.retention_years from firms f where f.user_id = b.firm_user_id), 7)))`;
+
+/**
+ * Removes businesses deleted more than the grace period ago, except firm
+ * clients kept for their firm's retention period. Returns how many.
+ */
 export async function purgeDeletedBusinesses(
   sql: Sql,
   retentionDays = DELETED_RETENTION_DAYS,
@@ -830,26 +850,41 @@ export async function purgeDeletedBusinesses(
   if (!Number.isSafeInteger(retentionDays) || retentionDays < 0)
     throw new RequestError(400, "Invalid retention");
   // Lock each owner before rechecking age. A restore and a purge cannot both win.
-  const owners = await sql<{ user_id: string }>`select distinct user_id from businesses
-    where deleted_at is not null and deleted_at < now() - make_interval(days => ${retentionDays}::int)
-    order by user_id`;
+  const owners = await sql.query<{ user_id: string }>(
+    `select distinct b.user_id from businesses b
+    where b.deleted_at is not null and b.deleted_at < now() - make_interval(days => $1::int)
+      and ${KEPT_FOR_RETENTION}
+    order by b.user_id`,
+    [retentionDays],
+  );
   let count = 0;
   for (const { user_id: owner } of owners)
     count += await inTransaction(sql, async (tx) => {
       await lockBusinessOwner(tx, owner);
-      await tx`insert into business_deletion_markers (user_id, business_id, firm_user_id, deleted_at)
-      select user_id, id, firm_user_id, deleted_at from businesses
-      where user_id = ${owner} and deleted_at is not null
-        and deleted_at < now() - make_interval(days => ${retentionDays}::int)
-      on conflict (user_id, business_id) do nothing`;
-      await tx`delete from business_profiles p using businesses b
-      where b.user_id = ${owner} and b.id = coalesce(p.profile->>'businessId', 'biz_default')
+      await tx.query(
+        `insert into business_deletion_markers (user_id, business_id, firm_user_id, deleted_at)
+      select b.user_id, b.id, b.firm_user_id, b.deleted_at from businesses b
+      where b.user_id = $1 and b.deleted_at is not null
+        and b.deleted_at < now() - make_interval(days => $2::int) and ${KEPT_FOR_RETENTION}
+      on conflict (user_id, business_id) do nothing`,
+        [owner, retentionDays],
+      );
+      await tx.query(
+        `delete from business_profiles p using businesses b
+      where b.user_id = $1 and b.id = coalesce(p.profile->>'businessId', 'biz_default')
         and (p.profile->>'ownerUserId' = b.user_id or
           (not (p.profile ? 'ownerUserId') and p.user_id = b.user_id))
-        and b.deleted_at is not null and b.deleted_at < now() - make_interval(days => ${retentionDays}::int)`;
-      const removed = await tx`delete from businesses where user_id = ${owner}
-      and deleted_at is not null and deleted_at < now() - make_interval(days => ${retentionDays}::int)
-      returning id`;
+        and b.deleted_at is not null and b.deleted_at < now() - make_interval(days => $2::int)
+        and ${KEPT_FOR_RETENTION}`,
+        [owner, retentionDays],
+      );
+      const removed = await tx.query<{ id: string }>(
+        `delete from businesses b where b.user_id = $1
+      and b.deleted_at is not null and b.deleted_at < now() - make_interval(days => $2::int)
+      and ${KEPT_FOR_RETENTION}
+      returning b.id`,
+        [owner, retentionDays],
+      );
       return removed.length;
     });
   return count;

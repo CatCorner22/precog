@@ -23,6 +23,8 @@ import {
   MAX_HISTORY_PER_BUSINESS,
 } from "./business-retention";
 import { imageSweepNeeded } from "./procedures/image-store.server";
+import { ENGAGEMENT_ENDED } from "./firm/engagement-row";
+import { lockReportVersion } from "./firm/reports";
 
 /**
  * Runs against an embedded Postgres with every file in migrations/ applied, so
@@ -528,6 +530,108 @@ describe("firm access", () => {
       select saved_by, revision from businesses where user_id = 'user-a' and id = 'biz_1'
     `;
     expect([rows[0].saved_by, Number(rows[0].revision)]).toEqual(["user-b", 2]);
+  });
+
+  it("refuses a firm member's change to a client whose engagement has ended", async () => {
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_1", null, "Client"),
+      firmUserId: "user-a",
+    });
+    await sql`insert into engagement_marks (user_id, business_id, status, ended_at)
+      values ('user-a', 'biz_1', 'ended', now())`;
+    const ended = { status: 409, message: ENGAGEMENT_ENDED };
+    await expect(
+      saveBusinessRevision(sql, { ...input("user-a", "biz_1", 1, "Client v2"), savedBy: "user-b" }),
+    ).rejects.toMatchObject(ended);
+    // The firm owner is a member too; the same save unchanged still goes through.
+    await expect(
+      saveBusinessRevision(sql, input("user-a", "biz_1", 1, "Client v2")),
+    ).rejects.toMatchObject(ended);
+    expect(
+      (
+        await saveBusinessRevision(sql, {
+          ...input("user-a", "biz_1", 1, "Client"),
+          activate: true,
+        })
+      ).ok,
+    ).toBe(true);
+    // Reopened, the member's save lands.
+    await sql`update engagement_marks set status = 'active', ended_at = null`;
+    const saved = await saveBusinessRevision(sql, {
+      ...input("user-a", "biz_1", 1, "Client v2"),
+      savedBy: "user-b",
+    });
+    expect(saved.ok).toBe(true);
+  });
+
+  it("an ended engagement leaves a business with no firm alone", async () => {
+    await saveBusinessRevision(sql, input("user-a", "biz_private", null, "Own"));
+    await sql`insert into engagement_marks (user_id, business_id, status)
+      values ('user-a', 'biz_private', 'ended')`;
+    expect((await saveBusinessRevision(sql, input("user-a", "biz_private", 1, "Own v2"))).ok).toBe(
+      true,
+    );
+  });
+
+  describe("retention of a deleted firm client", () => {
+    async function deletedClient(id: string, withVersion: boolean, firm: string | null = "user-a") {
+      await saveBusinessRevision(sql, { ...input("user-a", id, null, id), firmUserId: firm });
+      if (firm === null) await sql`update businesses set firm_user_id = null where id = ${id}`;
+      if (withVersion) {
+        await lockReportVersion(sql, {
+          ownerUserId: "user-a",
+          businessId: id,
+          preparedBy: "user-a",
+          scopeNote: "",
+          id: `rv_${id}`,
+        });
+      }
+      await deleteBusinessRow(sql, "user-a", id);
+    }
+
+    async function ageDeletion(id: string, interval: string) {
+      await sql.query(
+        `update businesses set deleted_at = now() - $2::interval where user_id = 'user-a' and id = $1`,
+        [id, interval],
+      );
+    }
+
+    it("keeps a client with a locked version past the grace period, until the retention runs out", async () => {
+      await deletedClient("biz_kept", true);
+      await ageDeletion("biz_kept", "31 days");
+      expect(await purgeDeletedBusinesses(sql, 30)).toBe(0);
+      expect(await revisionOf("user-a", "biz_kept")).not.toBeNull();
+      // Unseen and not restorable after the grace period, as before.
+      expect(await listDeletedBusinesses(sql, "user-a", "user-a")).toEqual([]);
+      expect(await restoreBusinessRow(sql, "user-a", "biz_kept")).toBe(false);
+      const versions = await sql`select 1 from report_versions where business_id = 'biz_kept'`;
+      expect(versions.length).toBe(1);
+      const markers =
+        await sql`select 1 from business_deletion_markers where business_id = 'biz_kept'`;
+      expect(markers.length).toBe(1); // the delete's own marker, nothing more
+      await ageDeletion("biz_kept", "8 years");
+      expect(await purgeDeletedBusinesses(sql, 30)).toBe(1);
+      expect(await revisionOf("user-a", "biz_kept")).toBeNull();
+    });
+
+    it("follows the firm's retention period", async () => {
+      await sql`update firms set retention_years = 10 where user_id = 'user-a'`;
+      await deletedClient("biz_ten", true);
+      await ageDeletion("biz_ten", "8 years");
+      expect(await purgeDeletedBusinesses(sql, 30)).toBe(0);
+      await ageDeletion("biz_ten", "10 years 1 day");
+      expect(await purgeDeletedBusinesses(sql, 30)).toBe(1);
+    });
+
+    it("purges a firm client with no version and a solo business at day 31, as before", async () => {
+      await deletedClient("biz_plain", false);
+      await deletedClient("biz_solo", true, null);
+      await ageDeletion("biz_plain", "31 days");
+      await ageDeletion("biz_solo", "31 days");
+      expect(await purgeDeletedBusinesses(sql, 30)).toBe(2);
+      expect(await revisionOf("user-a", "biz_plain")).toBeNull();
+      expect(await revisionOf("user-a", "biz_solo")).toBeNull();
+    });
   });
 
   it("lets only the firm owner delete and restore a colleague's client", async () => {

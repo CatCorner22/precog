@@ -47,10 +47,12 @@ export const uploadProcedureImage = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     assertExpectedAccount(data.expectedAccountId, context.userId);
     takeUploadAllowance(context.userId);
-    const [{ resolveBusinessOwner }, { insertProcedureImage }] = await Promise.all([
-      import("../business-store"),
-      import("./image-store.server"),
-    ]);
+    const [{ resolveBusinessOwner }, { insertProcedureImage }, { assertEngagementOpen }] =
+      await Promise.all([
+        import("../business-store"),
+        import("./image-store.server"),
+        import("../firm/engagement-store"),
+      ]);
     const sql = await getSql();
     const owner = await resolveBusinessOwner(sql, context.userId, data.businessId);
     if (!owner)
@@ -58,6 +60,7 @@ export const uploadProcedureImage = createServerFn({ method: "POST" })
         409,
         "Save the business to your account first, then add the picture again.",
       );
+    await assertEngagementOpen(sql, owner, data.businessId, context.userId);
     return insertProcedureImage(sql, {
       ownerId: owner,
       businessId: data.businessId,

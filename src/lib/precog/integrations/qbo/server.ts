@@ -4,6 +4,7 @@ import { getSql } from "@/lib/db";
 import { RequestError } from "@/lib/request-errors";
 import { requireBusinessOwner, requireIntegrationManager } from "../../firm/access.server";
 import { requireEntitlement } from "../../firm/entitlements.server";
+import { assertEngagementOpen } from "../../firm/engagement-store";
 import { businessInput } from "../../firm/server-inputs";
 import { authorizeUrl, qboCallbackUrl, signState } from "./oauth";
 import { qboClientId, qboConfigured, stateSecret } from "./client.server";
@@ -54,7 +55,8 @@ export const startQuickBooksConnect = createServerFn({ method: "POST" })
       throw new RequestError(409, "QuickBooks is not connected on this deployment");
     const sql = await getSql();
     await assertQuickBooksOpen(sql, context.userId);
-    await requireIntegrationManager(sql, context.userId, data.businessId);
+    const owner = await requireIntegrationManager(sql, context.userId, data.businessId);
+    await assertEngagementOpen(sql, owner, data.businessId, context.userId);
     const state = await signState(
       { userId: context.userId, businessId: data.businessId, issuedAt: Date.now() },
       stateSecret(),
@@ -76,6 +78,7 @@ export const syncQuickBooksNow = createServerFn({ method: "POST" })
     const sql = await getSql();
     await assertQuickBooksOpen(sql, context.userId);
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    await assertEngagementOpen(sql, owner, data.businessId, context.userId);
     const connection = await loadConnection(sql, owner, data.businessId);
     if (!connection) throw new RequestError(404, "This client is not connected to QuickBooks");
     try {

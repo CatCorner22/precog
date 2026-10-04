@@ -59,6 +59,7 @@ import { loadBillingAccount, planToStore } from "./billing-store";
 import { businessLimitMessage } from "../business-lifecycle";
 import { countClients, loadEntitlements, requireEntitlement } from "./entitlements.server";
 import { recordFirst } from "../telemetry/events.server";
+import { assertEngagementOpen, engagementEnded } from "./engagement-store";
 import {
   businessInput,
   EMAIL,
@@ -353,6 +354,8 @@ export const recordEngagement = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    // The page posts its stamps on open; an ended engagement keeps the ones it has.
+    if (await engagementEnded(sql, owner, data.businessId)) return { ok: true as const };
     await upsertEngagementMark(sql, owner, data);
     return { ok: true as const };
   });
@@ -369,6 +372,7 @@ export const setClientOwnerEmail = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    await assertEngagementOpen(sql, owner, data.businessId, context.userId);
     // Clearing an address is always allowed; setting one needs the plan.
     if (data.email) await requireEntitlement(sql, context.userId, "ownerReminders");
     const { confirmToken, stopped } = await setOwnerEmail(
@@ -420,6 +424,7 @@ export const recordMonthlyReview = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    await assertEngagementOpen(sql, owner, data.businessId, context.userId);
     await insertReviewEvent(sql, owner, data, context.userId);
     const { bridgeMonthlyReview } = await import("../controls/review-bridge.server");
     const bridged = await bridgeMonthlyReview(sql, context.userId, data, data.today);
@@ -443,6 +448,7 @@ export const lockReport = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    await assertEngagementOpen(sql, owner, data.businessId, context.userId);
     // Creating a version needs the plan; every version already locked stays
     // readable, reviewable for issuance and markable as sent whatever the plan.
     await requireEntitlement(sql, context.userId, "lockedVersions");
@@ -522,6 +528,7 @@ export const signOffReport = createServerFn({ method: "POST" })
     if (!(self && data.issueWithoutIndependentReview)) {
       await requireFirmRole(sql, context.userId, ["owner", "reviewer"]);
     }
+    await assertEngagementOpen(sql, where.ownerUserId, where.businessId, context.userId);
     const version = await signOffReportVersion(sql, {
       ownerUserId: where.ownerUserId,
       id: data.id,
@@ -539,6 +546,7 @@ export const markReportSent = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const where = await requireReportVersion(sql, context.userId, data.id);
+    await assertEngagementOpen(sql, where.ownerUserId, where.businessId, context.userId);
     await markReportVersionSent(sql, where.ownerUserId, data.id);
     await recordFirst(sql, context.userId, "first_report_sent", where.businessId);
     return { ok: true as const };
