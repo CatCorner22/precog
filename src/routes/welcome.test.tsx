@@ -71,6 +71,11 @@ describe("the landing page", () => {
     expect(html).toContain(">Sign in</a>");
   });
 
+  it("offers the sample to a visitor who is just looking", () => {
+    expect(html).toContain(">Explore a sample business</a>");
+    expect(html).toContain("its team is fictional and every gap says so");
+  });
+
   it("shows Precog's own share picture as the illustration", () => {
     expect(html).toContain('<img src="/og.svg" alt=""');
   });

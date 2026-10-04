@@ -190,10 +190,10 @@ async function shellChecks(page) {
       .trim()
       .split("\n")[0];
 
-  // The retired Dashboard opens Home.
+  // The retired Dashboard opens Start here.
   await home("?tab=command");
-  if ((await selectedTab()) !== "Home") {
-    throw new Error(`?tab=command opened "${await selectedTab()}", not Home`);
+  if ((await selectedTab()) !== "Start here") {
+    throw new Error(`?tab=command opened "${await selectedTab()}", not Start here`);
   }
   if (/[?&]tab=/.test(page.url())) throw new Error(`?tab=command kept a tab: ${page.url()}`);
 

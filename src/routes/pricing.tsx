@@ -73,7 +73,7 @@ function PricingPage() {
         </SignedOut>
         <SignedIn>
           <Link to="/firm" className={buttonClass()}>
-            Open the Firm page
+            Open the Firm workspace
           </Link>
         </SignedIn>
       </div>
