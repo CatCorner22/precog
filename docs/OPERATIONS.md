@@ -31,7 +31,7 @@ Bracketed values such as `[NEON PITR DAYS]` in this file are facts the owner fil
 
 ## Health
 
-`GET /api/health` includes `controlEvidenceLog: true` when migration 0026 is applied.
+`GET /api/health` includes `controlEvidenceLog: true` when migration 0026 is applied, and `migrationsApplied` with the `_migrations` ledger count (null without a ledger). After a deploy, compare the count with the migration files in the release; both answers refresh every five minutes at most.
 
 ## Monitoring
 

@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { jobCatalogEntry } from "../onboarding/job-catalog";
 import { buildOwnTeam, ownerRow } from "../onboarding/own-team";
 import { rowsForJobTitle } from "../onboarding/add-people";
-import { confirmTitleDuties, peopleWithTitleDuties, titleDutiesSentence } from "./title-duties";
+import {
+  confirmTitleDuties,
+  confirmTitleDutiesFor,
+  peopleWithTitleDuties,
+  titleDutiesSentence,
+} from "./title-duties";
 
 describe("findings that rest on duties guessed from job titles", () => {
   it("marks people whose ticks are still the usual ones for their title, and nobody the owner changed", () => {
@@ -35,7 +40,7 @@ describe("findings that rest on duties guessed from job titles", () => {
     ]);
     expect(peopleWithTitleDuties(people).map((p) => p.name)).toEqual(["Olga Owner", "Ben Ochoa"]);
     expect(titleDutiesSentence(people)).toBe(
-      "Duties for 2 of your 5 people are the usual ones for their job titles, not ones you confirmed.",
+      "2 of your 5 people carry the usual duties for their job titles.",
     );
   });
 
@@ -51,10 +56,45 @@ describe("findings that rest on duties guessed from job titles", () => {
   it("clears every mark once the owner says the duties are right", () => {
     const people = buildOwnTeam([{ ...ownerRow(), name: "Olga Owner" }], "general");
     expect(titleDutiesSentence(people)).toBe(
-      "Duties for your one person are the usual ones for their job title, not ones you confirmed.",
+      "Your one person carries the usual duties for their job title.",
     );
     const confirmed = confirmTitleDuties(people);
     expect(confirmed[0]).not.toHaveProperty("dutiesFromTitle");
     expect(titleDutiesSentence(confirmed)).toBe("");
+  });
+
+  it("says when every one of several people carries the usual duties for their title, and when one does", () => {
+    const people = buildOwnTeam(
+      [
+        { ...ownerRow(), name: "Olga Owner" },
+        { ...rowsForJobTitle(jobCatalogEntry("bookkeeper")!, 1, [], "general")[0], name: "Ben" },
+      ],
+      "general",
+    );
+    expect(titleDutiesSentence(people)).toBe(
+      "All 2 of your people carry the usual duties for their job titles.",
+    );
+    expect(titleDutiesSentence(confirmTitleDutiesFor(people, people[0].id))).toBe(
+      "One of your 2 people carries the usual duties for their job title.",
+    );
+  });
+
+  it("clears the mark on one person only when the owner confirms that person's duties", () => {
+    const people = buildOwnTeam(
+      [
+        { ...ownerRow(), name: "Olga Owner" },
+        { ...rowsForJobTitle(jobCatalogEntry("bookkeeper")!, 1, [], "general")[0], name: "Ben" },
+      ],
+      "general",
+    );
+    const [olga, ben] = people;
+    const confirmed = confirmTitleDutiesFor(people, ben.id);
+    expect(confirmed[1]).not.toHaveProperty("dutiesFromTitle");
+    expect(confirmed[1].entitlements).toEqual(ben.entitlements);
+    expect(confirmed[0]).toBe(olga);
+    expect(olga.dutiesFromTitle).toBe(true);
+    // An unknown id, or a person already confirmed, changes nothing.
+    expect(confirmTitleDutiesFor(confirmed, ben.id)[1]).toBe(confirmed[1]);
+    expect(confirmTitleDutiesFor(people, "nobody")).toEqual(people);
   });
 });

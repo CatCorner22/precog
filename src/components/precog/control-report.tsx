@@ -26,7 +26,11 @@ import { PRIORITY_BAND_LABEL, PRIORITY_TOP } from "@/lib/precog/map-vision";
 import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
 import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
-import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/reports";
+import {
+  engagementLine,
+  versionProvenance,
+  type ReportVersionRow,
+} from "@/lib/precog/firm/reports";
 import type { FirmSnapshot } from "@/lib/precog/firm/store";
 import { ReportVersionsPanel } from "@/components/precog/report-versions";
 import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
@@ -97,6 +101,8 @@ export function ControlReport({
   const sample = isSampleBusiness(profile);
   const businessName = printedBusinessName(profile);
   const sentAt = profile.engagement?.reportSentAt;
+  // Printed from the columns frozen at lock only; a live report prints none.
+  const engagement = locked ? engagementLine(locked) : null;
 
   const figures = locked ? lockedFigures(frozen) : null;
   const storedModel = figures && "model" in figures ? figures.model : null;
@@ -231,6 +237,7 @@ export function ControlReport({
               {locked?.scopeNote && (
                 <p className="mt-1 text-sm text-neutral-700">Scope: {locked.scopeNote}</p>
               )}
+              {engagement && <p className="mt-1 text-sm text-neutral-700">{engagement}</p>}
             </div>
           </section>
         )}
@@ -249,6 +256,7 @@ export function ControlReport({
             <p className="mt-1 text-sm font-medium text-neutral-800">
               {versionProvenance(locked)}
               {locked.scopeNote ? ` · Scope: ${locked.scopeNote}` : ""}
+              {engagement ? ` · ${engagement}` : ""}
             </p>
           )}
           {recalculated && (

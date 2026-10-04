@@ -63,6 +63,7 @@ export const Route = createFileRoute("/api/integrations/qbo/callback")({
             refreshTokenEnc: client.encryptSecret(tokens.refreshToken),
             accessExpiresAt: tokens.accessExpiresAt,
             refreshExpiresAt: tokens.refreshExpiresAt,
+            connectedBy: state.userId,
           });
         } catch (err) {
           const { reportServerError } = await import("@/lib/observability/report.server");

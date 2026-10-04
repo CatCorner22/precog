@@ -47,3 +47,25 @@ See [src/lib/precog/controls/review-bridge.ts](../src/lib/precog/controls/review
 Field `integrationDriftSummary` on the business profile holds a compact summary after
 QuickBooks sync or access CSV import so Start here and the weekly plan can surface
 “books vs map” actions without opening `/firm`.
+
+## After phase 5 (October 2026)
+
+Phases 0–5 above are the summer program. What followed, newest last:
+
+- **Streamline, phase 5 wave 2**: ten tabs with an Advanced menu, per-conflict
+  decisions, printed report layout 3.
+- **Streamline, phase 6**: provider split (`profile-actions.ts`), one
+  sample-or-own rule (`teamSource`), ESLint layering rules.
+- **Commercial batch 1**: operator terms, report basis, Stripe refunds and
+  tax, digest consent, Resend bounce handling.
+- **Commercial batch 2**: pricing/landing/welcome pages, entitlements and
+  dunning, Assessment credit, firm roles, telemetry, locked-report delivery,
+  report share links (`/share/report`).
+- **Review follow-throughs**: report/share/map score alignment, scoped
+  decision snapshots, sibling-site guards, attribution gates (sent after
+  sign-off, server-stamped judges, integration-manager roles), billing
+  hardening (grace parity, credit-reversal retry, paid-event retry), health
+  ledger count, shell accessibility.
+- **Commercial batch 3** (draft at the time of writing): plan tiers and
+  annual billing, engagements, grants, review workflow, audit log, operator
+  page, client table.

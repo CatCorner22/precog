@@ -3,8 +3,8 @@ import { ShieldAlert } from "lucide-react";
 import type { IndustryId } from "@/lib/precog/industry";
 import type { OwnTeamRow } from "@/lib/precog/onboarding/own-team";
 import { previewSetup, type SetupPreview } from "@/lib/precog/onboarding/setup-preview";
-import { caseIsVerified, NO_CASE_FOR_RULE, sectorPhrase } from "@/lib/precog/evidence";
-import { UnverifiedMarker } from "@/components/precog/case-card";
+import { NO_CASE_FOR_RULE, sectorPhrase } from "@/lib/precog/evidence";
+import { CaseMarker } from "@/components/precog/case-card";
 import { cn } from "@/lib/utils";
 
 /**
@@ -77,13 +77,8 @@ function PreviewBody({ preview, updating }: { preview: SetupPreview; updating: b
             <span className="font-medium text-fg">The same arrangement</span>{" "}
             {sectorPhrase(study.sector)}: {study.title}
             {lossPhrase ? ` — ${lossPhrase} taken` : ""}
-            {durationPhrase ? ` over ${durationPhrase}` : ""}.{" "}
-            {!caseIsVerified(study) && (
-              <>
-                <UnverifiedMarker />{" "}
-              </>
-            )}
-            Every figure links to its record after setup.
+            {durationPhrase ? ` over ${durationPhrase}` : ""}. <CaseMarker study={study} /> Every
+            figure links to its record after setup.
           </p>
         ) : (
           <p className="mt-2 text-xs text-subtle">{NO_CASE_FOR_RULE}</p>

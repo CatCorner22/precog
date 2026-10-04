@@ -8,6 +8,7 @@ import { getIndustryTemplate } from "./templates";
 import { teamSource } from "./team-source";
 import type { Person, ProcessNode } from "./types";
 import type { Plan } from "./firm/entitlements";
+import type { Tier } from "./firm/pricing";
 
 export { teamSource, type TeamSource } from "./team-source";
 
@@ -32,22 +33,40 @@ export function newBusinessProfile(industry: IndustryId, name?: string): Practic
  */
 export const MAX_BUSINESSES_PER_ACCOUNT = 50;
 
+const TIER_LABELS: Record<Tier, string> = { 1: "Starter", 2: "Practice", 3: "Firm" };
+
 /**
  * What the owner is told when one more business is refused: by the account's
  * hard ceiling (a number), or by the plan (free and the Assessment hold one
- * client business; the Firm plan holds `limit`).
+ * client business; the Firm plan holds `limit`, its tier's number). A
+ * Starter or Practice firm is told to move up a tier: the firm owner in
+ * Manage billing, a member (`asMember`) by asking the owner. The Firm tier
+ * and a tier Precog does not know keep the plain limit text.
  */
 export function businessLimitMessage(
-  input: number | { plan: Plan; limit: number } = MAX_BUSINESSES_PER_ACCOUNT,
+  input:
+    | number
+    | {
+        plan: Plan;
+        limit: number;
+        tier?: Tier | null;
+        asMember?: boolean;
+      } = MAX_BUSINESSES_PER_ACCOUNT,
 ): string {
   if (typeof input === "number") {
     return `Your account already holds ${input} businesses, the most it can keep. Delete one you no longer need, then try again.`;
   }
   if (input.plan === "free") {
-    return `Precog keeps one business per account for free. The Firm plan holds up to ${MAX_BUSINESSES_PER_ACCOUNT} client businesses; start it on the Firm page.`;
+    return "Precog keeps one business per account for free. The Firm plan holds 5, 20 or 50 client businesses by tier; start it on the Firm page.";
   }
   if (input.plan === "assessment") {
-    return `The Assessment covers one client business. The Firm plan holds up to ${MAX_BUSINESSES_PER_ACCOUNT}; start it on the Firm page.`;
+    return "The Assessment covers one client business. The Firm plan holds 5, 20 or 50 by tier; start it on the Firm page.";
+  }
+  if (input.tier === 1 || input.tier === 2) {
+    const holds = `Your firm's ${TIER_LABELS[input.tier]} tier holds ${input.limit} client businesses.`;
+    return input.asMember
+      ? `${holds} Ask the firm owner to move up a tier, or to delete a client the firm no longer needs.`
+      : `${holds} Move up a tier in Manage billing on the Firm page, or delete a client you no longer need.`;
   }
   return `Your firm already holds ${input.limit} client businesses, the most it can keep. Delete one you no longer need, then try again.`;
 }

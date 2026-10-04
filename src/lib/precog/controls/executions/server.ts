@@ -58,5 +58,13 @@ export const recordControlExecution = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     assertExpectedAccount(data.expectedAccountId, context.userId);
-    return executeControlCommand(await getSql(), context.userId, data.businessId, data.command);
+    const sql = await getSql();
+    const [{ resolveBusinessOwner }, { assertEngagementOpen }] = await Promise.all([
+      import("../../business-store"),
+      import("../../firm/engagement-store"),
+    ]);
+    // An ended engagement is read-only for the firm; the store refuses an unknown business.
+    const owner = await resolveBusinessOwner(sql, context.userId, data.businessId);
+    if (owner) await assertEngagementOpen(sql, owner, data.businessId, context.userId);
+    return executeControlCommand(sql, context.userId, data.businessId, data.command);
   });

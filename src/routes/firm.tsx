@@ -7,6 +7,8 @@ import { FirmMembers } from "@/components/precog/firm/firm-members";
 import { removedMemberToasts } from "@/components/precog/firm/firm-members-text";
 import { FirmBilling } from "@/components/precog/firm/firm-billing";
 import { FirmLetterhead } from "@/components/precog/firm/firm-letterhead";
+import { FirmRetention } from "@/components/precog/firm/firm-retention";
+import { EngagementCard } from "@/components/precog/firm/engagement-card";
 import { ClientList } from "@/components/precog/firm/client-list";
 import { openClientReport } from "@/components/precog/firm/open-client-report";
 import { ClientHistory } from "@/components/precog/firm/client-history";
@@ -28,9 +30,8 @@ import { getEntitlements, type EntitlementsAnswer } from "@/lib/precog/firm/enti
 import {
   closedToolsNote,
   planAmounts,
-  type CheckoutPlan,
   type FirmPlan,
-  type PlanPrice,
+  type PlanPrices,
 } from "@/lib/precog/firm/pricing";
 import {
   getFirm,
@@ -103,7 +104,7 @@ function FirmPage() {
   const [invites, setInvites] = useState<FirmInvite[]>([]);
   const [billing, setBilling] = useState<BillingAccount | null>(null);
   const [billingConfigured, setBillingConfigured] = useState(false);
-  const [prices, setPrices] = useState<Record<CheckoutPlan, PlanPrice> | null>(null);
+  const [prices, setPrices] = useState<PlanPrices | null>(null);
   const [entitlements, setEntitlements] = useState<EntitlementsAnswer | null>(null);
   const [name, setName] = useState("");
   const [clients, setClients] = useState<ClientEngagementRow[]>([]);
@@ -372,6 +373,7 @@ function FirmPage() {
           </form>
         )}
         {signedIn && firm && isOwner && <FirmLetterhead firm={firm} onSaved={setFirm} />}
+        {signedIn && firm && isOwner && <FirmRetention />}
       </section>
 
       {signedIn && firm && (
@@ -490,6 +492,15 @@ function FirmPage() {
           >
             Export pilot metrics (CSV)
           </Button>
+        )}
+        {signedIn && firm && savedRow && (
+          <EngagementCard
+            key={savedRow.id}
+            businessId={savedRow.id}
+            businessName={savedRow.name}
+            members={members}
+            isOwner={isOwner}
+          />
         )}
       </section>
 

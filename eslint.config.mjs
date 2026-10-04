@@ -9,8 +9,13 @@ import tseslint from "typescript-eslint";
  * Layering. The library (`src/lib`) never imports a component or a route, and
  * a component or a page route never imports a server-only module. Server-only
  * modules are the `*.server` files plus three that carry no suffix: `lib/db`,
- * `lib/pglite-sql` and `lib/auth/server`. Only `src/routes/api/**` may import
- * those. The patterns keep a leading `**\/` so both the `@/` alias and a
+ * `lib/pglite-sql` and `lib/auth/server`. Server functions (`createServerFn`)
+ * live in `src/lib` (`firm/server.ts`, `profile-server.ts`, `account-server.ts`
+ * and their siblings) and components call them from screens and page routes:
+ * that is the design, not a violation — TanStack splits each function at the
+ * client/server boundary, so the browser never receives the database code.
+ * Only those server-function modules (and `src/routes/api/**`) touch the
+ * database. The patterns keep a leading `**\/` so both the `@/` alias and a
  * relative path match.
  */
 const NO_UPPER_LAYERS = {
@@ -24,10 +29,13 @@ const NO_UPPER_LAYERS = {
 };
 
 const SERVER_ONLY_PATTERNS = [
-  { group: ["**/*.server"], message: "Server-only module: import it from src/routes/api only." },
+  {
+    group: ["**/*.server"],
+    message: "Server-only module: reach it through a server function, not a direct import.",
+  },
   {
     group: ["@/lib/db", "**/lib/db", "**/pglite-sql", "@/lib/auth/server", "**/lib/auth/server"],
-    message: "Server-only module: import it from src/routes/api only.",
+    message: "Server-only module: reach it through a server function, not a direct import.",
   },
 ];
 

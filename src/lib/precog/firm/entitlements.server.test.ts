@@ -166,12 +166,75 @@ describe("entitlements on the database", () => {
     const held = await countClients(db.sql, "owner", firm);
     expect(held >= free.clientLimit).toBe(true);
     expect(businessLimitMessage({ plan: free.plan, limit: free.clientLimit })).toBe(
-      "Precog keeps one business per account for free. The Firm plan holds up to 50 client businesses; start it on the Firm page.",
+      "Precog keeps one business per account for free. The Firm plan holds 5, 20 or 50 client businesses by tier; start it on the Firm page.",
     );
     await db.sql`insert into billing_accounts (user_id, subscription_id, subscription_status)
       values ('owner', 'sub_1', 'active')`;
     const paid = await loadEntitlements(db.sql, "owner");
     expect(held >= paid.clientLimit).toBe(false);
+  });
+
+  describe("the tier from the subscription's price", () => {
+    async function subscribed(priceId: string | null) {
+      await db.sql`insert into billing_accounts
+        (user_id, subscription_id, subscription_status, subscription_price_id)
+        values ('owner', 'sub_1', 'active', ${priceId})`;
+    }
+    async function clients(n: number) {
+      for (let i = 1; i <= n; i++) await business(`c${i}`, "owner", "owner");
+    }
+
+    it("holds the tier's clients for a known tier price, monthly or yearly", async () => {
+      withStripe();
+      vi.stubEnv("STRIPE_PRICE_TIER_1", "price_t1");
+      vi.stubEnv("STRIPE_PRICE_TIER_2", "price_t2");
+      vi.stubEnv("STRIPE_PRICE_TIER_3_ANNUAL", "price_t3y");
+      await subscribed("price_t2");
+      expect(await loadEntitlements(db.sql, "member")).toMatchObject({ tier: 2, clientLimit: 20 });
+      await db.sql`update billing_accounts set subscription_price_id = 'price_t1'`;
+      expect(await loadEntitlements(db.sql, "owner")).toMatchObject({ tier: 1, clientLimit: 5 });
+      await db.sql`update billing_accounts set subscription_price_id = 'price_t3y'`;
+      expect(await loadEntitlements(db.sql, "owner")).toMatchObject({ tier: 3, clientLimit: 50 });
+    });
+
+    it("keeps 50 on the legacy monthly price while the Starter price differs, at six clients or five", async () => {
+      withStripe();
+      vi.stubEnv("STRIPE_PRICE_TIER_1", "price_t1");
+      await subscribed("price_m");
+      await clients(6);
+      expect(await loadEntitlements(db.sql, "owner")).toMatchObject({
+        tier: null,
+        clientLimit: 50,
+      });
+      // Down to five, a legacy firm can still restore a sixth: the same check
+      // restoreDeletedClient runs (held >= clientLimit) passes.
+      await db.sql`update businesses set deleted_at = now() where id = 'c6'`;
+      const e = await loadEntitlements(db.sql, "owner");
+      const held = await countClients(db.sql, "owner", await loadFirmFor(db.sql, "owner"));
+      expect(held).toBe(5);
+      expect(held >= e.clientLimit).toBe(false);
+    });
+
+    it("treats the legacy monthly price as Starter once it is also the Starter price", async () => {
+      withStripe();
+      vi.stubEnv("STRIPE_PRICE_TIER_1", "price_m");
+      await subscribed("price_m");
+      expect(await loadEntitlements(db.sql, "owner")).toMatchObject({ tier: 1, clientLimit: 5 });
+    });
+
+    it("keeps 50 on the legacy price while no Starter price is set, and for a price not seen yet", async () => {
+      withStripe();
+      await subscribed("price_m");
+      expect(await loadEntitlements(db.sql, "owner")).toMatchObject({
+        tier: null,
+        clientLimit: 50,
+      });
+      await db.sql`update billing_accounts set subscription_price_id = null`;
+      expect(await loadEntitlements(db.sql, "owner")).toMatchObject({
+        tier: null,
+        clientLimit: 50,
+      });
+    });
   });
 
   it("skips the owner note of a closed firm and keeps the open one", async () => {

@@ -130,6 +130,17 @@ function productionProblems() {
   return problems;
 }
 
+/** True for a Neon host that is not the pooled one ("ep-…-pooler.….neon.tech"). */
+function isNeonDirectHost(value) {
+  if (!value) return false;
+  try {
+    const host = new URL(value).hostname;
+    return host.endsWith(".neon.tech") && !host.includes("-pooler");
+  } catch {
+    return false;
+  }
+}
+
 function isHttps(value) {
   try {
     return new URL(value).protocol === "https:";
@@ -166,6 +177,12 @@ function featureWarnings() {
     warnings.push(
       "RESEND_WEBHOOK_SECRET is not set, so bounce and complaint events are refused and a bouncing address keeps being emailed every week.",
     );
+  // Neon's direct host takes one connection per serverless instance;
+  // src/lib/db.ts refuses it in production, so say so before the deploy serves.
+  if (isNeonDirectHost(databaseUrl))
+    warnings.push(
+      "DATABASE_URL is Neon's direct host. Use the pooled host (its name ends in -pooler): Precog refuses the direct host in production.",
+    );
   // Features that need every one of their variables (see .env.example).
   const features = [
     [
@@ -176,6 +193,13 @@ function featureWarnings() {
         "STRIPE_PRICE_MONTHLY",
         "STRIPE_WEBHOOK_SECRET",
       ],
+    ],
+    // Each tier and yearly price is optional; a partial set leaves the unset
+    // tiers out of Checkout ("That tier is not offered on this deployment yet").
+    ["Firm plan tiers", ["STRIPE_PRICE_TIER_1", "STRIPE_PRICE_TIER_2", "STRIPE_PRICE_TIER_3"]],
+    [
+      "Yearly prices",
+      ["STRIPE_PRICE_TIER_1_ANNUAL", "STRIPE_PRICE_TIER_2_ANNUAL", "STRIPE_PRICE_TIER_3_ANNUAL"],
     ],
     ["The QuickBooks link", ["QBO_CLIENT_ID", "QBO_CLIENT_SECRET", "INTEGRATION_KEY"]],
     ["Reminder email", ["RESEND_API_KEY", "EMAIL_FROM"]],

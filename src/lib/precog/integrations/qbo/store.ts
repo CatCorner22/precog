@@ -15,6 +15,8 @@ export interface ConnectionRow {
   accessExpiresAt: string;
   refreshExpiresAt: string;
   connectedAt: string;
+  /** The account that finished the connect flow (the business's account, a firm owner or a reviewer); null before it was recorded. */
+  connectedBy: string | null;
   lastSyncedAt: string | null;
   lastError: string | null;
   /** When the last failed reading was recorded; kept across a later success. */
@@ -59,17 +61,19 @@ export async function saveConnection(
     refreshTokenEnc: string;
     accessExpiresAt: string;
     refreshExpiresAt: string;
+    /** The signed-in account that finished the connect flow. */
+    connectedBy: string;
   },
 ): Promise<void> {
   await sql`
     insert into integration_connections (
       user_id, business_id, provider, realm_id, access_token_enc, refresh_token_enc,
-      access_expires_at, refresh_expires_at, connected_at, last_error
+      access_expires_at, refresh_expires_at, connected_at, connected_by, last_error
     )
     values (
       ${input.ownerUserId}, ${input.businessId}, 'qbo', ${input.realmId},
       ${input.accessTokenEnc}, ${input.refreshTokenEnc},
-      ${input.accessExpiresAt}, ${input.refreshExpiresAt}, now(), null
+      ${input.accessExpiresAt}, ${input.refreshExpiresAt}, now(), ${input.connectedBy}, null
     )
     on conflict (user_id, business_id, provider) do update set
       realm_id = excluded.realm_id,
@@ -78,6 +82,7 @@ export async function saveConnection(
       access_expires_at = excluded.access_expires_at,
       refresh_expires_at = excluded.refresh_expires_at,
       connected_at = now(),
+      connected_by = excluded.connected_by,
       last_error = null,
       failure_alerted_at = null
   `;
@@ -289,6 +294,7 @@ interface RawConnection {
   access_expires_at: string;
   refresh_expires_at: string;
   connected_at: string;
+  connected_by: string | null;
   last_synced_at: string | null;
   last_error: string | null;
   last_error_at: string | null;
@@ -306,6 +312,7 @@ function toRow(r: RawConnection): ConnectionRow {
     accessExpiresAt: toIsoTimestamp(r.access_expires_at),
     refreshExpiresAt: toIsoTimestamp(r.refresh_expires_at),
     connectedAt: toIsoTimestamp(r.connected_at),
+    connectedBy: r.connected_by ?? null,
     lastSyncedAt: toIsoTimestampOrNull(r.last_synced_at),
     lastError: r.last_error,
     lastErrorAt: toIsoTimestampOrNull(r.last_error_at),

@@ -32,9 +32,44 @@ import { usePracticeActions, useTemplate } from "@/lib/precog/practice-context";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
 import { OPERATING_DUTIES, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import { isOwnerRole, ownersMarked, ownsBusiness } from "@/lib/precog/sod/owner-role";
+import { confirmTitleDutiesFor } from "@/lib/precog/sod/title-duties";
 import { count, joinWithAnd, stripInvisibleControls, uniqueId, verb } from "@/lib/precog/text";
 import type { Person } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";
+
+/**
+ * The tag on a person whose duties are still their job title's usual ones,
+ * and the button that confirms them as they stand. Confirming clears that
+ * one person's mark; the findings then stop counting them as a guess.
+ */
+export function ConfirmTitleDuties({
+  people,
+  person,
+  onChange,
+}: {
+  people: Person[];
+  person: Person;
+  onChange: (next: Person[]) => void;
+}) {
+  return (
+    <>
+      <span className="shrink-0 rounded border border-warn/40 px-1 text-xs text-warn">
+        Usual duties for the title
+      </span>
+      <button
+        type="button"
+        onClick={() => {
+          onChange(confirmTitleDutiesFor(people, person.id));
+          toast.success(`${person.name}'s duties confirmed.`);
+        }}
+        className="shrink-0 text-subtle hover:text-primary"
+        aria-label={`Confirm duties for ${person.name}`}
+      >
+        Confirm duties
+      </button>
+    </>
+  );
+}
 
 /** The builder's team list: add, import, mark as left, and set each person's duties. */
 export function TeamEditor({
@@ -407,6 +442,9 @@ export function TeamEditor({
                   >
                     left
                   </span>
+                )}
+                {p.active && p.dutiesFromTitle === true && (
+                  <ConfirmTitleDuties people={people} person={p} onChange={onChange} />
                 )}
                 {p.active && (
                   <button

@@ -35,6 +35,7 @@ const locked: ReportVersionRow = {
   sentAt: null,
   hasFigures: true,
   firm: { name: "North Advisors", letterhead: "12 Elm St", logoDataUrl: null },
+  engagement: null,
 };
 
 const team: Person[] = [

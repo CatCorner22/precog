@@ -121,3 +121,26 @@ describe("Home, continuity before anyone is marked", () => {
     expect(continuity).not.toContain("Written and findable");
   });
 });
+
+describe("Start here's note on duties from job titles", () => {
+  it("asks the owner to confirm them on the duty-conflict tab", () => {
+    const profile = defaultProfile("general");
+    const model = buildStartHereModel({
+      profile,
+      template: resolveTemplate(profile),
+      today: new Date(2026, 8, 26),
+    });
+    const html = renderToStaticMarkup(
+      <StartHereExposureSection
+        model={{
+          ...model.exposure,
+          titleDuties: "2 of your 5 people carry the usual duties for their job titles.",
+        }}
+        onOpenDetail={() => {}}
+      />,
+    );
+    expect(html).toContain("2 of your 5 people carry the usual duties for their job titles.");
+    expect(html).toContain("Confirm them in Who controls what.");
+    expect(html).not.toContain("Check them in");
+  });
+});

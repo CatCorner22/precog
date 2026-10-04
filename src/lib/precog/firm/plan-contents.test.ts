@@ -5,6 +5,7 @@ import {
   FIRM_CLIENT_RULE,
   FIRM_INCLUDES,
   FREE_INCLUDES,
+  TIER_TABLE_NOTE,
 } from "./plan-contents";
 
 describe("plan contents", () => {
@@ -37,15 +38,16 @@ describe("plan contents", () => {
     ]);
   });
 
-  it("states the Firm plan's price per client as a price, not a gate", () => {
+  it("states the tier rule the client limit holds", () => {
     expect(FIRM_CLIENT_RULE).toBe(
-      "The Firm plan is priced for up to five client businesses. Running more? Write to Support.",
+      "Each tier holds up to its number of client businesses; move up a tier in Manage billing when you need more.",
     );
+    expect(TIER_TABLE_NOTE).toBe("Yearly is ten months' price.");
   });
 
   it("carries the billing sentence the Plan card prints", () => {
     expect(BILLING_TERMS_SENTENCE).toBe(
-      "The Firm plan renews until you cancel it in Manage billing; cancelling keeps access to the end of the paid period, and a started month is not refunded. The Assessment is not refunded once a report version is locked. Prices are before sales tax, which Checkout adds for your billing address. See the Terms.",
+      "The Firm plan renews until you cancel it in Manage billing; cancelling keeps access to the end of the paid period, and a started month or year is not refunded. The Assessment is not refunded once a report version is locked. Prices are before sales tax, which Checkout adds for your billing address. See the Terms.",
     );
   });
 
@@ -55,6 +57,7 @@ describe("plan contents", () => {
       ...ASSESSMENT_INCLUDES,
       ...FIRM_INCLUDES,
       FIRM_CLIENT_RULE,
+      TIER_TABLE_NOTE,
       BILLING_TERMS_SENTENCE,
     ];
     for (const entry of all) {

@@ -68,6 +68,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { fieldCls } from "@/components/ui/field-classes";
 
 import {
+  cancelSetupConfirm,
   caseCoveragePhrase,
   dutiesHeldByTitle,
   EMPTY_ROW,
@@ -75,6 +76,7 @@ import {
   focusableIn,
   focusSoon,
   ICONS,
+  leaveSetupConfirm,
   nameInputId,
   sharedTitlesWithDuties,
   typedSeat,
@@ -130,6 +132,7 @@ export function IndustryOnboarding() {
   const finishRef = useRef<HTMLButtonElement>(null);
   const gridBoxRef = useRef<HTMLDivElement>(null);
   const [gridOverflows, setGridOverflows] = useState(false);
+  const [gridScrolled, setGridScrolled] = useState(false);
   const [reviewOnly, setReviewOnly] = useState(false);
   const [reviewRowIds, setReviewRowIds] = useState<Set<string>>(() => new Set());
   const [draftSaved, setDraftSaved] = useState<boolean | null>(null);
@@ -206,17 +209,26 @@ export function IndustryOnboarding() {
     titleRef.current?.focus({ preventScroll: true });
   }, [step]);
 
-  // "Scroll sideways" shows whenever the table is wider than its box.
+  // "Scroll sideways" shows whenever the table is wider than its box, until
+  // the owner scrolls it once: on a phone the duty columns hide otherwise,
+  // and the grid gives no other sign they exist.
   useEffect(() => {
     const box = gridBoxRef.current;
     if (!box) return;
     const update = () => setGridOverflows(box.scrollWidth > box.clientWidth + 1);
     update();
+    const onScroll = () => {
+      if (box.scrollLeft > 0) setGridScrolled(true);
+    };
+    box.addEventListener("scroll", onScroll, { passive: true });
     const observer = new ResizeObserver(update);
     observer.observe(box);
     const table = box.querySelector("table");
     if (table) observer.observe(table);
-    return () => observer.disconnect();
+    return () => {
+      box.removeEventListener("scroll", onScroll);
+      observer.disconnect();
+    };
   }, [step]);
 
   /** Tab and Shift+Tab stay inside the dialog while it is open. */
@@ -226,7 +238,13 @@ export function IndustryOnboarding() {
     if (event.key === "Escape" && setupReturnsTo) {
       event.preventDefault();
       const typed = draftHasTypedWork({ businessName, rows, paste });
-      if (!typed || window.confirm(`Leave setup and go back to ${setupReturnsTo.name}?`)) {
+      const ask = leaveSetupConfirm({
+        typed,
+        keepsNothing,
+        draftSaved,
+        returnsToName: setupReturnsTo.name,
+      });
+      if (!ask || window.confirm(ask)) {
         void cancelSetup();
       }
       return;
@@ -508,12 +526,21 @@ export function IndustryOnboarding() {
     ) : null;
 
   // Setting up an added business: the owner can go back without finishing.
+  // The draft restores when storage works; only a browser that keeps
+  // nothing asks first, since going back loses what was typed.
   const cancelLink = setupReturnsTo ? (
     <p className="text-center text-xs">
       <button
         type="button"
         className="text-muted underline underline-offset-2 hover:text-fg"
-        onClick={() => void cancelSetup()}
+        onClick={() => {
+          const ask = cancelSetupConfirm({
+            typed: draftHasTypedWork({ businessName, rows, paste }),
+            keepsNothing,
+            draftSaved,
+          });
+          if (!ask || window.confirm(ask)) void cancelSetup();
+        }}
       >
         Cancel and go back to {setupReturnsTo.name}
       </button>
@@ -754,8 +781,16 @@ export function IndustryOnboarding() {
                   </Button>
                 )}
               </section>
+              {gridOverflows && !gridScrolled ? (
+                <p
+                  role="status"
+                  className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn"
+                >
+                  Scroll sideways for more duties. Names stay on the left; duty names stay on top.
+                </p>
+              ) : null}
               <p className="text-xs text-muted">
-                {gridOverflows
+                {gridOverflows && gridScrolled
                   ? "Scroll sideways for more duties. Names stay on the left; duty names stay on top."
                   : `${rowsInUse} of up to ${OWN_TEAM_MAX} people.`}{" "}
                 A job title&rsquo;s other duties show as small tags under it; remove one with ×, or

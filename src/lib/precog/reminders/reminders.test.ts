@@ -515,7 +515,7 @@ describe("digest run", () => {
     expect(sent.map((s) => s.to).sort()).toEqual(["adv@firm.test", "owner@shop.test"]);
   });
 
-  it("sends the digest only to a confirmed address or a Google or X account", async () => {
+  it("sends the digest only to an address Precog can vouch for", async () => {
     await db.sql`update "user" set "emailVerified" = false where id = 'adv'`;
     const first = recorder();
     const outcome = await run(first.send);
@@ -527,9 +527,37 @@ describe("digest run", () => {
       insert into account (id, "accountId", "providerId", "userId", "createdAt", "updatedAt")
       values ('acc_g', 'g-1', 'grok-google', 'adv', now(), now())
     `;
+    // A Google sign-in whose address the broker did not mark confirmed is not vouched for.
     const second = recorder();
-    expect((await run(second.send)).advisors).toBe(1);
-    expect(second.sent.map((s) => s.to)).toEqual(["adv@firm.test"]);
+    expect((await run(second.send)).advisors).toBe(0);
+    expect(second.sent.map((s) => s.to)).toEqual([]);
+
+    await db.sql`update "user" set "emailVerified" = true where id = 'adv'`;
+    const third = recorder();
+    expect((await run(third.send)).advisors).toBe(1);
+    expect(third.sent.map((s) => s.to)).toEqual(["adv@firm.test"]);
+  });
+
+  it("sends nothing to an X-only account, and its owner notes carry no reply-to", async () => {
+    // A confirmed flag does not help: X sign-ins carry a made-up address.
+    await db.sql`
+      insert into account (id, "accountId", "providerId", "userId", "createdAt", "updatedAt")
+      values ('acc_x', 'x-1', 'grok-x', 'adv', now(), now())
+    `;
+    const { sent, send } = recorder();
+    const outcome = await run(send);
+    expect(outcome).toMatchObject({ advisors: 0, owners: 1, errors: [] });
+    expect(sent.map((s) => s.to)).toEqual(["owner@shop.test"]);
+    expect(sent[0].replyTo).toBeUndefined();
+
+    // The same account with a password sign-in as well is vouched for again.
+    await db.sql`
+      insert into account (id, "accountId", "providerId", "userId", "createdAt", "updatedAt")
+      values ('acc_c', 'adv', 'credential', 'adv', now(), now())
+    `;
+    const again = recorder();
+    expect((await run(again.send)).advisors).toBe(1);
+    expect(again.sent.map((s) => s.to)).toEqual(["adv@firm.test"]);
   });
 
   /** 'adv' becomes the owner of North Advisors with biz_1 as a client, and 'rev' a reviewer. */
@@ -553,6 +581,80 @@ describe("digest run", () => {
     const second = await runDigest(db.sql, { today: TODAY, appUrl: "https://app.example", send });
     expect(second).toMatchObject({ advisors: 0, owners: 0 });
     expect(sent).toHaveLength(2);
+  });
+
+  it("stops before the first recipient once the deadline has passed, and sends it all next time", async () => {
+    const late = recorder();
+    const stopped = await runDigest(db.sql, {
+      today: TODAY,
+      appUrl: "https://app.example",
+      send: late.send,
+      deadline: Date.now() - 1,
+    });
+    // Two digest recipients (adv, quiet) and one owner note are left.
+    expect(stopped).toEqual({
+      advisors: 0,
+      owners: 0,
+      skipped: 0,
+      errors: [],
+      stopped: true,
+      remaining: 3,
+    });
+    expect(late.sent).toEqual([]);
+    expect(await db.sql`select 1 from reminder_log`).toEqual([]);
+
+    const { sent, send } = recorder();
+    const next = await runDigest(db.sql, {
+      today: TODAY,
+      appUrl: "https://app.example",
+      send,
+      deadline: Date.now() + 60_000,
+    });
+    expect(next).toEqual({
+      advisors: 1,
+      owners: 1,
+      skipped: 1,
+      errors: [],
+      stopped: false,
+      remaining: 0,
+    });
+    expect(sent.map((s) => s.to).sort()).toEqual(["adv@firm.test", "owner@shop.test"]);
+  });
+
+  it("names the firm the workspace shows: an owner's own firm, else the first one joined", async () => {
+    await firmWithReviewer();
+    // 'rev' also joins a second firm later, and 'adv' joins it too while owning North.
+    await seedAdvisor("west", "west@firm.test");
+    await db.pg.exec(`
+      insert into firms (user_id, name) values ('west', 'West Partners');
+      insert into firm_members (firm_user_id, member_user_id, role, joined_at)
+        values ('west', 'west', 'owner', now()),
+               ('west', 'rev', 'preparer', now() + interval '1 day'),
+               ('west', 'adv', 'preparer', now() + interval '1 day');
+      update firm_members set joined_at = now() - interval '1 day' where firm_user_id = 'adv';
+      insert into businesses (id, user_id, firm_user_id, name, industry, profile, revision)
+        select 'biz_w', 'west', 'west', 'West Client', 'general', profile, 1
+        from businesses where id = 'biz_1';
+    `);
+    const { sent, send } = recorder();
+    const outcome = await run(send);
+    expect(outcome.errors).toEqual([]);
+    const firstLine = (to: string) => sent.find((s) => s.to === to)?.text.split("\n")[0];
+    expect(firstLine("adv@firm.test")).toBe("North Advisors: weekly digest");
+    expect(firstLine("rev@firm.test")).toBe("North Advisors: weekly digest");
+    expect(firstLine("west@firm.test")).toBe("West Partners: weekly digest");
+    // The digest names the firm's own clients only: rev sees Riverside, not West Client.
+    expect(sent.find((s) => s.to === "rev@firm.test")?.text).not.toContain("West Client");
+    // Each recipient got a stop link with a token minted once.
+    const tokens = await db.sql<{ user_id: string; digest_token: string | null }>`
+      select user_id, digest_token from notification_settings order by user_id
+    `;
+    for (const t of tokens.filter((t) => ["adv", "rev", "west"].includes(t.user_id))) {
+      expect(t.digest_token).toMatch(/^[0-9a-f]{48}$/);
+      expect(sent.find((s) => s.to === `${t.user_id}@firm.test`)?.text).toContain(
+        `token=${t.digest_token}`,
+      );
+    }
   });
 
   it("respects the digest switch", async () => {

@@ -5,6 +5,7 @@ import {
   caseForRule,
   NO_CASE_FOR_RULE,
   UNVERIFIED_CASE,
+  VERIFIED_CASE,
 } from "@/lib/precog/evidence";
 import { CaseCard, RuleCaseCard } from "./case-card";
 
@@ -21,6 +22,28 @@ describe("CaseCard", () => {
     expect(renderToStaticMarkup(<CaseCard study={verified} />)).not.toContain(
       UNVERIFIED_CASE.label,
     );
+  });
+});
+
+describe("CaseCard's verified marker", () => {
+  it("names the check, the day and who made it on a verified record, and never says Unverified", () => {
+    const verified = { ...CASE_LIBRARY[0], verifiedOn: "2026-10-01", verifiedBy: "A. Reviewer" };
+    const html = renderToStaticMarkup(<CaseCard study={verified} />);
+    expect(VERIFIED_CASE.label).toBe("Verified against its source");
+    expect(VERIFIED_CASE.title("2026-10-01", "A. Reviewer")).toBe(
+      "Checked on Oct 1, 2026 by A. Reviewer.",
+    );
+    expect(html).toContain(">Verified against its source<");
+    expect(html).toContain('title="Checked on Oct 1, 2026 by A. Reviewer."');
+    expect(html).toContain('<span class="sr-only">. Checked on Oct 1, 2026 by A. Reviewer.</span>');
+    expect(html).not.toContain(UNVERIFIED_CASE.label);
+    expect(html).not.toContain(UNVERIFIED_CASE.title);
+  });
+
+  it("shows only the Unverified marker on a record nobody has checked", () => {
+    const html = renderToStaticMarkup(<CaseCard study={CASE_LIBRARY[0]} />);
+    expect(html).not.toContain(VERIFIED_CASE.label);
+    expect(html).not.toContain("Checked on");
   });
 });
 

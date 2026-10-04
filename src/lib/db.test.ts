@@ -135,6 +135,40 @@ describe("refusals", () => {
     logged.mockRestore();
   });
 
+  it("refuses Neon's direct host in production, naming the pooled host", async () => {
+    vi.doMock("pg", () => ({ Pool: FakePool, types: { setTypeParser: vi.fn() } }));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const direct =
+      "postgresql://u:p@ep-cool-name-123456.us-east-2.aws.neon.tech/app?sslmode=require";
+    const db = await freshDb({ DATABASE_URL: direct, VERCEL_ENV: "production" });
+    const message =
+      "DATABASE_URL points at Neon's direct host in production. Use the pooled host (its name ends in -pooler) and redeploy.";
+    await expect(db.getSql()).rejects.toThrow(message);
+    await expect(db.getPgPool()).rejects.toThrow(message);
+    expect(logged).toHaveBeenCalledWith(`[db] ${message}`);
+    logged.mockRestore();
+  });
+
+  it("accepts the pooled host in production, and the direct host outside production", async () => {
+    vi.doMock("pg", () => ({ Pool: FakePool, types: { setTypeParser: vi.fn() } }));
+    const pooled =
+      "postgresql://u:p@ep-cool-name-123456-pooler.us-east-2.aws.neon.tech/app?sslmode=require";
+    const direct = "postgresql://u:p@ep-cool-name-123456.us-east-2.aws.neon.tech/app";
+    const prod = await freshDb({ DATABASE_URL: pooled, VERCEL_ENV: "production" });
+    await expect(prod.getPgPool()).resolves.toBeInstanceOf(FakePool);
+    const preview = await freshDb({ DATABASE_URL: direct, VERCEL_ENV: "preview" });
+    await expect(preview.getPgPool()).resolves.toBeInstanceOf(FakePool);
+    const selfHosted = await freshDb({
+      DATABASE_URL: "postgres://u:p@db.example/app",
+      VERCEL_ENV: "production",
+    });
+    await expect(selfHosted.getPgPool()).resolves.toBeInstanceOf(FakePool);
+    expect(prod.isDirectNeonHost(direct)).toBe(true);
+    expect(prod.isDirectNeonHost(pooled)).toBe(false);
+    expect(prod.isDirectNeonHost("postgresql://precog:precog@localhost:5432/precog")).toBe(false);
+    expect(prod.isDirectNeonHost("not a url")).toBe(false);
+  });
+
   it("refuses to run in a browser", async () => {
     vi.stubGlobal("window", {});
     const db = await freshDb(PGLITE_ENV);

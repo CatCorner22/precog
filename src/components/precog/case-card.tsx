@@ -9,6 +9,7 @@ import {
   NO_CASE_FOR_RULE,
   SECTOR_LABEL,
   UNVERIFIED_CASE,
+  VERIFIED_CASE,
   type CaseStudy,
 } from "@/lib/precog/evidence";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +42,7 @@ export function CaseCard({ study }: { study: CaseStudy }) {
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex flex-wrap items-center gap-2">
             <Badge variant="default">{SECTOR_LABEL[study.sector]}</Badge>
-            {!caseIsVerified(study) && <UnverifiedMarker />}
+            <CaseMarker study={study} />
             {hasLoss && (
               <span className="font-mono text-sm font-semibold text-danger">
                 {lossPhrase(study)}
@@ -146,6 +147,25 @@ export function UnverifiedMarker() {
       <span className="sr-only">. {UNVERIFIED_CASE.title}</span>
     </span>
   );
+}
+
+/** The small "Verified against its source" marker on a case a named person has checked. */
+export function VerifiedMarker({ study }: { study: Pick<CaseStudy, "verifiedOn" | "verifiedBy"> }) {
+  const title = VERIFIED_CASE.title(study.verifiedOn ?? "", study.verifiedBy ?? "");
+  return (
+    <span
+      title={title}
+      className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-subtle"
+    >
+      {VERIFIED_CASE.label}
+      <span className="sr-only">. {title}</span>
+    </span>
+  );
+}
+
+/** Exactly one of the two markers: verified once a named person has checked the record. */
+export function CaseMarker({ study }: { study: Pick<CaseStudy, "verifiedOn" | "verifiedBy"> }) {
+  return caseIsVerified(study) ? <VerifiedMarker study={study} /> : <UnverifiedMarker />;
 }
 
 /**

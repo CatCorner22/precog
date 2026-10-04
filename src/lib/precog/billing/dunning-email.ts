@@ -12,7 +12,7 @@ export function renderPaymentFailed(input: {
   closesOn: string | null;
   fixUrl: string;
 }): RenderedEmail {
-  const declined = `The card on the Firm plan for ${input.firmName} was declined on ${input.failedOn}.`;
+  const declined = `The payment for the Firm plan for ${input.firmName} failed on ${input.failedOn}.`;
   const closes =
     "the QuickBooks link, new locked report versions, member invitations and owner reminder emails close until the payment goes through.";
   const retry = input.closesOn
