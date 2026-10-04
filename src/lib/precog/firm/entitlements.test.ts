@@ -139,6 +139,31 @@ describe("entitlementsFor with Stripe", () => {
     });
   });
 
+  it("gives an unpaid subscription the same 14-day grace as past_due", () => {
+    const facts = billing({
+      subscriptionStatus: "unpaid",
+      pastDueSince: "2026-10-20T00:00:00.000Z",
+    });
+    expect(stripe(facts, "2026-10-25")).toMatchObject({
+      plan: "firm",
+      features: allOpen,
+      pastDueSince: "2026-10-20T00:00:00.000Z",
+      graceEndsAt: "2026-11-03T00:00:00.000Z",
+      closedAt: null,
+    });
+    expect(stripe(facts, "2026-11-04")).toMatchObject({
+      plan: "free",
+      features: allClosed,
+      closedAt: "2026-11-03T00:00:00.000Z",
+    });
+    expect(stripe(billing({ subscriptionStatus: "unpaid" }), "2026-12-01")).toMatchObject({
+      plan: "firm",
+      pastDueSince: null,
+      graceEndsAt: null,
+      closedAt: null,
+    });
+  });
+
   it("names the close on a cancellation only when Stripe's retries ran out", () => {
     const after = stripe(
       billing({ subscriptionStatus: "canceled", pastDueSince: "2026-10-20T00:00:00.000Z" }),

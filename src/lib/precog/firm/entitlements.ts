@@ -30,7 +30,7 @@ export interface Entitlements {
   assessmentEndedAt: string | null;
   /** Set only while the stored status is past_due or unpaid, or canceled after Stripe's retries ran out. */
   pastDueSince: string | null;
-  /** pastDueSince + 14 days while past_due and inside the grace; null otherwise or when the start is unknown. */
+  /** pastDueSince + 14 days while past_due or unpaid and inside the grace; null otherwise or when the start is unknown. */
   graceEndsAt: string | null;
   /** graceEndsAt once passed: the day the paid surface closed because the payment failed. Never set for a cancellation the firm asked for. */
   closedAt: string | null;
@@ -85,10 +85,10 @@ function iso(ms: number): string {
  *
  * Without Stripe everything is open (preview, CI, a self-hosted copy), the
  * plan being whatever the owner marked by hand. With Stripe: an active or
- * trialing subscription is the Firm plan; a past_due one stays the Firm plan
- * for PAST_DUE_GRACE_DAYS from the first failed payment (or while the start is
- * unknown), then falls through; a firm marked "monthly" by hand with no
- * billing row keeps the Firm plan until HAND_MARKED_PLANS_UNTIL; a paid
+ * trialing subscription is the Firm plan; a past_due or unpaid one stays the
+ * Firm plan for PAST_DUE_GRACE_DAYS from the first failed payment (or while
+ * the start is unknown), then falls through; a firm marked "monthly" by hand
+ * with no billing row keeps the Firm plan until HAND_MARKED_PLANS_UNTIL; a paid
  * Assessment opens locked versions and QuickBooks for ASSESSMENT_WINDOW_DAYS
  * from the later of its payment and ENTITLEMENTS_FROM; else free. The grace
  * dates show only while the stored status is past_due, unpaid or canceled, so
@@ -117,7 +117,7 @@ export function entitlementsFor(input: {
   const dunning = status !== null && DUNNING_STATUSES.has(status);
   const pastDueSince = dunning ? (billing?.pastDueSince ?? null) : null;
   const graceEnd = pastDueSince ? Date.parse(pastDueSince) + PAST_DUE_GRACE_DAYS * DAY_MS : null;
-  if (status === "past_due" && (graceEnd === null || now < graceEnd)) {
+  if ((status === "past_due" || status === "unpaid") && (graceEnd === null || now < graceEnd)) {
     return firmPlanOpen({
       ...NO_DATES,
       pastDueSince,

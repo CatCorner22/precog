@@ -619,6 +619,26 @@ describe("event order", () => {
       }),
     )!;
 
+  it("stamps the failed-payment start when a subscription goes unpaid directly", async () => {
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e1", "customer.subscription.created", "sub_1", "active", 100),
+    );
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e2", "customer.subscription.updated", "sub_1", "unpaid", 1_700_000_000),
+    );
+    expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
+      subscriptionStatus: "unpaid",
+      pastDueSince: "2023-11-14T22:13:20.000Z",
+    });
+    await applyBillingEvent(
+      db.sql,
+      subEvent("e3", "customer.subscription.updated", "sub_1", "active", 1_701_000_000),
+    );
+    expect((await loadBillingAccount(db.sql, "owner"))?.pastDueSince).toBeNull();
+  });
+
   it("stamps when the plan went past due and clears the episode once a payment goes through", async () => {
     await applyBillingEvent(
       db.sql,
