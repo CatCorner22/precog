@@ -349,6 +349,11 @@ describe("account deletion safeguards", () => {
         /then delete your account\. Need help\? Write to \[SUPPORT EMAIL\]\.$/,
       ),
     });
+    await expect(deleteAccountRows(sql, "ub")).rejects.toMatchObject({
+      message: expect.stringContaining(
+        "Ask the firm owner to remove you from the firm first (your client businesses stay with the firm)",
+      ),
+    });
     expect(await count("businesses", "where user_id = $1", ["ub"])).toBe(1);
     await pg.exec(`update businesses set deleted_at = now() where user_id = 'ub'`);
     await deleteAccountRows(sql, "ub");

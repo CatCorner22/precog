@@ -421,8 +421,8 @@ export function encodeHistoryPage(rows: BusinessHistoryExportRow[]): string {
  * Removes every row the account owns and then the account itself, in one
  * transaction. Refused (409) while a firm plan is still billing, so Stripe
  * never keeps charging a deleted account, and while the account holds client
- * businesses it set up for someone else's firm, so a departing member cannot
- * take the firm's clients with them.
+ * businesses it set up for someone else's firm: the firm owner removes the
+ * member first, which hands those clients to the firm (see removeMember).
  *
  * Snapshots and the per-user model-usage counts carry no foreign key to the
  * user, so they are deleted explicitly; everything else (businesses and their
@@ -481,7 +481,7 @@ async function refuseWhileHoldingFirmClients(tx: Sql, userId: string): Promise<v
   if (!held) return;
   throw new RequestError(
     409,
-    `You set up ${count(Number(held.n), "client business", "client businesses")} for ${held.firm_name}. Deleting your account would delete them too. Ask the firm owner what to keep, delete those businesses yourself, then delete your account. Need help? Write to ${SUPPORT_EMAIL}.`,
+    `You set up ${count(Number(held.n), "client business", "client businesses")} for ${held.firm_name}. Ask the firm owner to remove you from the firm first (your client businesses stay with the firm), then delete your account. Need help? Write to ${SUPPORT_EMAIL}.`,
   );
 }
 
