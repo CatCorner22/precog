@@ -20,7 +20,7 @@ vi.mock("./pioneer-profile", async (importOriginal) => {
 // The daily model budget and the caller's plan live in the database; these
 // tests are about the brief.
 const budget = vi.hoisted(() => ({
-  state: "allowed" as "allowed" | "spent" | "spent-global" | "unavailable",
+  state: "allowed" as Awaited<ReturnType<typeof import("../llm/daily-usage").checkDailyBudget>>,
   aiPlan: "free" as "free" | "paid",
 }));
 vi.mock("../llm/daily-usage", async (importOriginal) => ({
@@ -155,6 +155,14 @@ describe("answerPioneer", () => {
       expect(global.warnings).toContain(
         "Precog has reached its AI limit for today across every account, so its rules built this brief. Try again tomorrow.",
       );
+      // A shared pool (one office address, say) names no figure of the account's own.
+      budget.state = "spent-pool";
+      const pool = await answerPioneer(request("x"), access("allowed"));
+      if (!pool.ok) throw new Error(pool.error);
+      expect(pool.modelStatus).toBe("daily-limit");
+      expect(pool.warnings).toContain(
+        "Precog has reached today's AI limit shared by your account and others, so its rules built this brief. Try again tomorrow.",
+      );
     } finally {
       budget.state = "allowed";
       budget.aiPlan = "free";
@@ -175,6 +183,11 @@ describe("answerPioneer", () => {
     expect(dailyLimitWarning({ ...free, scope: "global" })).toBe(
       "Precog has reached its AI limit for today across every account, so its rules built this brief. Try again tomorrow.",
     );
+    for (const plan of ["free", "paid"] as const) {
+      expect(dailyLimitWarning({ ...free, plan, scope: "pool" })).toBe(
+        "Precog has reached today's AI limit shared by your account and others, so its rules built this brief. Try again tomorrow.",
+      );
+    }
   });
 
   it("returns the plain error envelope when building the brief throws", async () => {

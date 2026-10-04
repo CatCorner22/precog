@@ -33,6 +33,9 @@ function dailyLimitReason(l?: DailyLimitInfo): string {
   if (l.scope === "global") {
     return "Precog has reached its AI limit for today across every account, so these come from built-in rules. Try again tomorrow.";
   }
+  if (l.scope === "pool") {
+    return "Precog has reached today's AI limit shared by your account and others, so these come from built-in rules. Try again tomorrow.";
+  }
   if (l.plan === "paid") {
     return `Precog has reached today's AI limit for your plan (${l.limit} calls), so these come from built-in rules. Try again tomorrow.`;
   }

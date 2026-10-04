@@ -196,13 +196,17 @@ const purgeDailyUsageOccasionally = createDailyUsagePurger();
 
 /**
  * The persisted daily ceiling for one model call: "allowed" (one unit taken),
- * "spent" (the caller's own ceiling under their plan, or a pool it shares, is
- * reached), "spent-global" (Precog's ceiling across every account is reached)
- * or "unavailable". A free account is held to `perUser` and the free pool, a
- * paid one to `perUserPaid` alone. Fails closed: when the count cannot be
- * read or written, the call is refused (the caller falls back to the local,
- * model-free answer), because an unreadable budget is no budget and every
- * model call spends the app owner's quota.
+ * "spent" (the caller's own ceiling under their plan is reached),
+ * "spent-pool" (a ceiling the caller shares with other accounts is reached:
+ * the free pool, the unverified pool or their address's, while their own
+ * count is under its figure), "spent-global" (Precog's ceiling across every
+ * account is reached) or "unavailable". A free account is held to `perUser`
+ * and the free pool, a paid one to `perUserPaid` alone. The database function
+ * answers a refusal with the user's and the global count, so the three are
+ * told apart here without naming which pool was full. Fails closed: when the
+ * count cannot be read or written, the call is refused (the caller falls
+ * back to the local, model-free answer), because an unreadable budget is no
+ * budget and every model call spends the app owner's quota.
  */
 export async function checkDailyBudget(
   loadSql: () => Promise<Sql>,
@@ -211,7 +215,7 @@ export async function checkDailyBudget(
   purge: (sql: Sql) => Promise<boolean> = purgeDailyUsageOccasionally,
   address: string | null = null,
   plan: AiPlan = "free",
-): Promise<"allowed" | "spent" | "spent-global" | "unavailable"> {
+): Promise<"allowed" | "spent" | "spent-pool" | "spent-global" | "unavailable"> {
   try {
     const sql = await loadSql();
     const extra = await extraScopes(sql, userId, address, limits, plan);
@@ -224,7 +228,8 @@ export async function checkDailyBudget(
     }
     await purge(sql);
     if (budget.allowed) return "allowed";
-    return budget.globalCalls >= limits.global ? "spent-global" : "spent";
+    if (budget.globalCalls >= limits.global) return "spent-global";
+    return budget.userCalls >= perUser ? "spent" : "spent-pool";
   } catch (error) {
     console.error("[llm] daily usage check failed; refusing the model call", error);
     return "unavailable";

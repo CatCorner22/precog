@@ -245,7 +245,14 @@ describe("callModel", () => {
     await expect(callModel({ userId: "u1", grok: "allowed" }, CHAT)).rejects.toMatchObject({
       dailyLimit: { scope: "global", plan: "paid", limit: 400, paidLimit: 400 },
     });
+    // A pool the caller shares (address, unverified, free) is its own scope,
+    // so the sentence does not claim the caller's own figure was reached.
+    seams.checkDailyBudget.mockResolvedValue("spent-pool");
+    await expect(callModel({ userId: "u1", grok: "allowed" }, CHAT)).rejects.toMatchObject({
+      dailyLimit: { scope: "pool", plan: "paid", limit: 400, paidLimit: 400 },
+    });
     expect(seams.grokChat).not.toHaveBeenCalled();
+    expect(seams.reportServerError).toHaveBeenCalledTimes(1);
   });
 
   it("reports the global ceiling once a day, not on every refused call", async () => {

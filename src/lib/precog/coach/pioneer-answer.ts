@@ -77,11 +77,15 @@ export const MODEL_FAILED_WARNING =
  * The warning when today's model budget is used up; it lasts until tomorrow.
  * Names the ceiling met and the figures in force: a free account's own
  * allowance (and the Firm plan's, which is the way past it), a paid
- * account's own, or Precog's across every account.
+ * account's own, or Precog's across every account. A ceiling the account
+ * shares with others names no figure, since the account's own was not reached.
  */
 export function dailyLimitWarning(l: DailyLimitInfo): string {
   if (l.scope === "global") {
     return "Precog has reached its AI limit for today across every account, so its rules built this brief. Try again tomorrow.";
+  }
+  if (l.scope === "pool") {
+    return "Precog has reached today's AI limit shared by your account and others, so its rules built this brief. Try again tomorrow.";
   }
   if (l.plan === "paid") {
     return `Precog has reached today's AI limit for your plan (${l.limit} calls), so its rules built this brief. Try again tomorrow.`;

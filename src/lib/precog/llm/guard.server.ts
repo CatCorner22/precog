@@ -9,7 +9,7 @@ import { loadEntitlements } from "@/lib/precog/firm/entitlements.server";
 import { checkDailyBudget, userDailyLimits, type AiPlan } from "./daily-usage";
 import { grokChat, type GrokChatOptions, type GrokChatResult } from "./grok-client.server";
 import { createAnonymousHeavyGate, LLM_LIMITS, SlidingWindowLimiter } from "./rate-limit";
-import { DailyLimitReached, type GrokAccess } from "./types";
+import { DailyLimitReached, type DailyLimitInfo, type GrokAccess } from "./types";
 import { RequestError } from "@/lib/request-errors";
 
 export type LlmAccess = {
@@ -108,19 +108,19 @@ export async function callModel(
     callerAddress(),
     plan,
   );
-  if (budget === "spent" || budget === "spent-global") {
-    const { limit, paidLimit } = userDailyLimits(plan);
-    if (budget === "spent-global") await reportGlobalCeilingOnce();
-    throw new DailyLimitReached({
-      scope: budget === "spent-global" ? "global" : "user",
-      plan,
-      limit,
-      paidLimit,
-    });
-  }
-  if (budget !== "allowed") return null;
-  return grokChat(apiKey, opts);
+  if (budget === "allowed") return grokChat(apiKey, opts);
+  if (budget === "unavailable") return null;
+  const { limit, paidLimit } = userDailyLimits(plan);
+  if (budget === "spent-global") await reportGlobalCeilingOnce();
+  throw new DailyLimitReached({ scope: CEILING_SCOPE[budget], plan, limit, paidLimit });
 }
+
+/** The ceiling a refused budget names, by the budget's answer. */
+const CEILING_SCOPE = {
+  spent: "user",
+  "spent-pool": "pool",
+  "spent-global": "global",
+} as const satisfies Record<string, DailyLimitInfo["scope"]>;
 
 /**
  * The AI allowance of the caller's plan (the firm's, for a firm member). An

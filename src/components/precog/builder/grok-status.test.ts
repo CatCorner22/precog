@@ -30,6 +30,11 @@ describe("ruleBasedReason", () => {
     expect(ruleBasedReason("local", "daily_limit", { ...free, scope: "global" })).toBe(
       "Precog has reached its AI limit for today across every account, so these come from built-in rules. Try again tomorrow.",
     );
+    for (const plan of ["free", "paid"] as const) {
+      expect(ruleBasedReason("local", "daily_limit", { ...free, plan, scope: "pool" })).toBe(
+        "Precog has reached today's AI limit shared by your account and others, so these come from built-in rules. Try again tomorrow.",
+      );
+    }
     // Grok answered: no reason, whatever the detail says.
     expect(ruleBasedReason("grok", "allowed", free)).toBeNull();
   });

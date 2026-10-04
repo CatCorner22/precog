@@ -35,11 +35,14 @@ export type GrokAccess =
 /**
  * Which daily ceiling a refused model call met, so the sentence the owner
  * reads can name their plan and its figure: "user" is the caller's own
- * allowance under `plan` (`limit` calls a day), "global" is Precog's ceiling
- * across every account. `paidLimit` is the Firm plan's allowance in force.
+ * allowance under `plan` (`limit` calls a day), "pool" a ceiling the caller
+ * shares with other accounts (the free pool, the unverified pool or one
+ * office address) met while their own count is under `limit`, "global"
+ * Precog's ceiling across every account. `paidLimit` is the Firm plan's
+ * allowance in force.
  */
 export interface DailyLimitInfo {
-  scope: "user" | "global";
+  scope: "user" | "pool" | "global";
   plan: "free" | "paid";
   limit: number;
   paidLimit: number;
