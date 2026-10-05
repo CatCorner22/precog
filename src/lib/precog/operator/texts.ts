@@ -23,6 +23,8 @@ export const COUNTS_HEADING = "Standing counts";
 export const NO_ROWS = "Nothing to list.";
 export const NOT_A_CUSTOMER_ID = "A Stripe customer id starts with cus_.";
 export const BILLING_NOT_CONNECTED = "Billing is not connected on this deployment";
+/** The plan label on a deployment without Stripe, where every account has every feature. */
+export const PLAN_WITHOUT_BILLING = "Everything open (billing is not connected on this deployment)";
 
 /** The not-found text every unknown address prints (src/routes/__root.tsx), for anyone who is not an operator. */
 export const NOT_FOUND_EYEBROW = "Page not found";
@@ -88,8 +90,15 @@ export interface OperatorCountResult {
  * The account's plan as the firm page's Plan card names it, plus the hand-marked
  * exception: "Free", "Assessment (until 2026-12-30)", "Firm plan · Starter, up
  * to 5 client businesses", "Firm plan (payment overdue, closes 2026-11-02)".
+ * Without billing connected every account has every feature whatever its
+ * stored plan (entitlementsFor), so the label says that instead.
  */
-export function operatorPlanLabel(e: Entitlements, handMarked: boolean): string {
+export function operatorPlanLabel(
+  e: Entitlements,
+  handMarked: boolean,
+  billingConnected: boolean,
+): string {
+  if (!billingConnected) return PLAN_WITHOUT_BILLING;
   if (e.closedAt) return `${PILOT_OFFER.monthlyLabel} (closed ${e.closedAt.slice(0, 10)})`;
   if (e.plan === "firm") {
     const tier = TIERS.find((t) => t.tier === e.tier);

@@ -1,5 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
+import { stripeConfigured } from "../billing/stripe.server";
 import { isHandMarked, loadBillingAccount, subscriptionStatusLabel } from "../firm/billing-store";
 import { loadEntitlements } from "../firm/entitlements.server";
 import { loadFirmFor } from "../firm/store";
@@ -58,7 +59,7 @@ export async function planLabelFor(sql: Sql, userId: string): Promise<string> {
     loadEntitlements(sql, userId),
     isHandMarked(sql, firm?.firmUserId ?? userId),
   ]);
-  return operatorPlanLabel(e, handMarked);
+  return operatorPlanLabel(e, handMarked, stripeConfigured());
 }
 
 /**
@@ -93,9 +94,27 @@ export async function loadOperatorAccount(sql: Sql, user: OperatorUser): Promise
     loadBillingAccount(sql, user.id),
     loadEntitlements(sql, user.id),
     isHandMarked(sql, firm?.firmUserId ?? user.id),
+    // reminder_log also holds the owner reminder emails, sent to a business's
+    // owner address (digest.ts): only a business the account reaches as its
+    // own or its firm's counts, and never a row to that business's owner
+    // address, which may be this account's own on a business it shared.
     sql<{ sent_at: string; recipient: string }>`
-      select sent_at, recipient from reminder_log where recipient = ${user.email}
-      order by sent_at desc limit 1
+      select r.sent_at, r.recipient from reminder_log r
+      where r.recipient = ${user.email}
+        and exists (
+          select 1 from businesses b
+          where b.user_id = r.user_id and b.id = r.business_id
+            and (b.user_id = ${user.id}
+              or b.firm_user_id in (
+                select m.firm_user_id from firm_members m where m.member_user_id = ${user.id}
+              ))
+        )
+        and not exists (
+          select 1 from engagement_marks e
+          where e.user_id = r.user_id and e.business_id = r.business_id
+            and lower(e.owner_email) = lower(r.recipient)
+        )
+      order by r.sent_at desc limit 1
     `,
     sql<{ reason: string }>`
       select reason from email_suppressions where email = lower(trim(${user.email}))
@@ -132,7 +151,7 @@ export async function loadOperatorAccount(sql: Sql, user: OperatorUser): Promise
     },
     stripeCustomerId: billing?.stripeCustomerId ?? null,
     subscriptionLabel: subscriptionStatusLabel(billing?.subscriptionStatus ?? null),
-    planLabel: operatorPlanLabel(entitlements, handMarked),
+    planLabel: operatorPlanLabel(entitlements, handMarked, stripeConfigured()),
     lastDigest: digests[0]
       ? { sentAt: toIsoTimestamp(digests[0].sent_at), recipient: digests[0].recipient }
       : null,

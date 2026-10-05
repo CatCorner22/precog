@@ -248,17 +248,61 @@ describe("findOperatorAccount", () => {
       businesses: { live: 2, deleted: 1 },
       stripeCustomerId: null,
       subscriptionLabel: "None",
-      planLabel: "Free",
+      // Without Stripe every account has every feature and the paid allowance.
+      planLabel: "Everything open (billing is not connected on this deployment)",
       lastDigest: { recipient: "Fay@Firm.test" },
       suppression: "bounced",
       quickBooksFailure: { error: "invalid_grant" },
-      // Without Stripe every account has the paid allowance.
       modelCalls: { today: 37, limit: 400 },
       milestones: [{ event: "first_business" }],
     });
     expect(await log()).toEqual([
       { firm: "fo", actor: "op", event: "operator_lookup", subject: "fo" },
     ]);
+  });
+
+  it("names the stored plan once billing is connected", async () => {
+    stripeOn();
+    const { account } = await call<{ account: import("./texts").OperatorAccount }>(
+      server.findOperatorAccount,
+      "op",
+      { email: "fay@firm.test" },
+    );
+    expect(account.planLabel).toBe("Free");
+    expect(account.modelCalls.limit).toBe(100);
+  });
+
+  it("reads the last weekly digest, never an owner reminder sent to the same address", async () => {
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id, deleted_at)
+       values ('b5', 'hm', 'Elsewhere', 'dental', '{}'::jsonb, 1, 'hm', null)`,
+    );
+    await db.pg.exec(`
+      insert into engagement_marks (user_id, business_id, owner_email)
+        values ('hm', 'b5', 'fay@firm.test'), ('fo', 'b1', 'fay@firm.test');
+      insert into reminder_log (user_id, business_id, item_key, due_on, recipient, sent_at) values
+        ('pp', 'b2', 'k', null, 'Fay@Firm.test', '2026-09-21T12:00:00Z'),
+        ('hm', 'b5', 'k', null, 'Fay@Firm.test', '2026-09-28T12:00:00Z'),
+        ('fo', 'b1', 'k', null, 'Fay@Firm.test', '2026-09-29T12:00:00Z');
+    `);
+    const { account } = await call<{ account: import("./texts").OperatorAccount }>(
+      server.findOperatorAccount,
+      "op",
+      { email: "fay@firm.test" },
+    );
+    // b2 is a client of Fay's firm; b5 is another firm's client and b1 her
+    // own business, each with her address as the owner's.
+    expect(account.lastDigest).toEqual({
+      sentAt: "2026-09-21T12:00:00.000Z",
+      recipient: "Fay@Firm.test",
+    });
+    await db.pg.exec(`delete from reminder_log where business_id = 'b2'`);
+    const again = await call<{ account: import("./texts").OperatorAccount }>(
+      server.findOperatorAccount,
+      "op",
+      { email: "fay@firm.test" },
+    );
+    expect(again.account.lastDigest).toBeNull();
   });
 
   it("writes nothing to any log for a solo account", async () => {
@@ -567,25 +611,48 @@ describe("operator texts", () => {
   };
 
   it("names the plan as the Plan card does, and the hand-marked exception", () => {
-    expect(texts.operatorPlanLabel(base, false)).toBe("Free");
-    expect(texts.operatorPlanLabel({ ...base, plan: "firm", tier: 1, clientLimit: 5 }, false)).toBe(
-      "Firm plan · Starter, up to 5 client businesses",
-    );
-    expect(texts.operatorPlanLabel({ ...base, plan: "firm", clientLimit: 50 }, true)).toBe(
+    expect(texts.operatorPlanLabel(base, false, true)).toBe("Free");
+    expect(
+      texts.operatorPlanLabel({ ...base, plan: "firm", tier: 1, clientLimit: 5 }, false, true),
+    ).toBe("Firm plan · Starter, up to 5 client businesses");
+    expect(texts.operatorPlanLabel({ ...base, plan: "firm", clientLimit: 50 }, true, true)).toBe(
       "Firm plan (marked by hand, no billing row)",
     );
     expect(
       texts.operatorPlanLabel(
         { ...base, plan: "firm", clientLimit: 50, graceEndsAt: "2026-11-02T00:00:00.000Z" },
         false,
+        true,
       ),
     ).toBe("Firm plan (payment overdue, closes 2026-11-02)");
     expect(
       texts.operatorPlanLabel(
         { ...base, plan: "assessment", paidUntil: "2026-12-30T00:00:00.000Z" },
         false,
+        true,
       ),
     ).toBe("Assessment (until 2026-12-30)");
+    expect(
+      texts.operatorPlanLabel(
+        { ...base, assessmentEndedAt: "2026-09-30T00:00:00.000Z" },
+        false,
+        true,
+      ),
+    ).toBe("Assessment (ended 2026-09-30)");
+    expect(
+      texts.operatorPlanLabel(
+        { ...base, closedAt: "2026-10-20T00:00:00.000Z", pastDueSince: "2026-10-06T00:00:00.000Z" },
+        false,
+        true,
+      ),
+    ).toBe("Firm plan (closed 2026-10-20)");
+    // Without billing every plan is open, whatever the firm row says.
+    expect(
+      texts.operatorPlanLabel({ ...base, plan: "assessment", aiPlan: "paid" }, false, false),
+    ).toBe("Everything open (billing is not connected on this deployment)");
+    expect(texts.operatorPlanLabel({ ...base, plan: "firm", clientLimit: 50 }, true, false)).toBe(
+      texts.PLAN_WITHOUT_BILLING,
+    );
     expect(texts.linkedToast("Fay Owner", "cus_1", "Firm plan")).toBe(
       "Linked Fay Owner to Stripe customer cus_1; plan now Firm plan.",
     );
@@ -657,5 +724,32 @@ describe("operator texts", () => {
       "Model calls today: 0 of 100",
       "Milestones: none yet",
     ]);
+    const other = texts.accountLines({
+      userId: "xo",
+      name: "",
+      email: "xo@x.invalid",
+      emailVerified: false,
+      providers: ["grok-x"],
+      createdAt: "2026-09-01",
+      firm: null,
+      businesses: { live: 1, deleted: 0 },
+      stripeCustomerId: null,
+      subscriptionLabel: "None",
+      planLabel: "Free",
+      lastDigest: null,
+      suppression: null,
+      quickBooksFailure: { at: null, error: "invalid_grant" },
+      modelCalls: { today: 0, limit: 100 },
+      milestones: [
+        { event: "first_locked_version", occurredAt: "2026-09-03" },
+        { event: "first_report_sent", occurredAt: "2026-09-04" },
+        { event: "first_monthly_review", occurredAt: "2026-09-05" },
+      ],
+    });
+    expect(other).toContain("Signs in with: X");
+    expect(other).toContain("QuickBooks: last reading failed on an unknown day (invalid_grant)");
+    expect(other).toContain(
+      "Milestones: first locked version Sep 3, 2026; first report sent Sep 4, 2026; first monthly review Sep 5, 2026",
+    );
   });
 });
