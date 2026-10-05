@@ -69,4 +69,19 @@ describe("IndustryOnboarding, first render", () => {
     // The grid comes before the ways to fill it faster.
     expect(html.indexOf("<table")).toBeLessThan(html.indexOf("Fill the table faster"));
   });
+
+  it("makes the duty catalog discoverable and explains the one-person completion choice", () => {
+    const { html, text } = firstRender("Ruiz Dental");
+    expect(html).toMatch(
+      /<summary class="[^"]*border[^"]*">Review suggested duties for \d+ job titles<\/summary>/,
+    );
+    expect(text).toContain(
+      "These duties are starting points to review, not proof of anyone’s actual access.",
+    );
+    expect(text).toContain(
+      "You can continue with one person. Precog will assess that sole-owner setup; add the rest of your team later under Team for a fuller team assessment.",
+    );
+    expect(html).toContain("<button");
+    expect(text).toContain("Show me my gaps");
+  });
 });

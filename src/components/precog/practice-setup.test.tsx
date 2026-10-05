@@ -21,10 +21,10 @@ vi.mock("@tanstack/react-router", async (original) => ({
   }) => <a href={search ? `${to}?${new URLSearchParams(search)}` : to}>{children}</a>,
 }));
 
-const render = (profile: ReturnType<typeof defaultProfile>) =>
+const render = (profile: ReturnType<typeof defaultProfile>, onOpenDualRelease?: () => void) =>
   renderToStaticMarkup(
     <ReadOnlyPracticeProvider profile={profile}>
-      <PracticeSetup />
+      <PracticeSetup onOpenDualRelease={onOpenDualRelease} />
     </ReadOnlyPracticeProvider>,
   );
 
@@ -82,5 +82,15 @@ describe("Business settings card", () => {
     expect(label?.[1]).toBe("Team size");
     expect(html).toMatch(/aria-describedby="[^"]+-note"/);
     expect(html).toContain("An estimate for the sample team.");
+  });
+
+  it("explains payment approval thresholds and gives their control a plain label", () => {
+    const html = render(defaultProfile("general"), () => {});
+    expect(html).toContain(
+      "Dual release means one person starts a payment and another approves it. Precog can use different amounts by payment type; for example, require two people for ACH payments above $1,000.",
+    );
+    expect(html).toMatch(/<button[^>]*>.*Set payment approval thresholds<\/button>/);
+    expect(html).not.toContain("Configure dual-release thresholds");
+    expect(html).not.toContain("should");
   });
 });

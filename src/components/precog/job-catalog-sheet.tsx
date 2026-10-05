@@ -1,5 +1,7 @@
 import { ENTITLEMENTS, isOperatingDuty } from "@/lib/precog/sod/conflict-rules";
 import { JOB_CATALOG, JOB_FAMILY_LABEL, type JobFamily } from "@/lib/precog/onboarding/job-catalog";
+import { buttonClass } from "@/components/ui/button-variants";
+import { cn } from "@/lib/utils";
 
 const LABEL = new Map(ENTITLEMENTS.map((e) => [e.id, e.label] as const));
 
@@ -11,16 +13,29 @@ const LABEL = new Map(ENTITLEMENTS.map((e) => [e.id, e.label] as const));
  * `defaultOpen` starts the sheet expanded, for a caller whose own button
  * already asked to see the catalog (the Team area's "Add a common job").
  */
-export function JobCatalogSheet({ defaultOpen = false }: { defaultOpen?: boolean } = {}) {
+export function JobCatalogSheet({
+  defaultOpen = false,
+  prominent = false,
+}: { defaultOpen?: boolean; prominent?: boolean } = {}) {
   return (
-    <details className="rounded-lg border border-border bg-bg p-2 text-xs" open={defaultOpen}>
-      <summary className="cursor-pointer font-medium">
-        See the {JOB_CATALOG.length} job titles and the duties each one starts with
+    <details
+      className={cn("rounded-lg border border-border bg-bg text-xs", prominent ? "p-3" : "p-2")}
+      open={defaultOpen}
+    >
+      <summary
+        className={
+          prominent
+            ? buttonClass({ variant: "secondary", size: "sm", className: "cursor-pointer" })
+            : "cursor-pointer font-medium"
+        }
+      >
+        Review suggested duties for {JOB_CATALOG.length} job titles
       </summary>
       <p className="mt-2 text-subtle">
-        Duties are Precog's reading of what a title usually holds in a business of two to fifty
-        people, never a fact about yours. Where a title matches one occupation in the U.S. Bureau of
-        Labor Statistics classification (SOC 2018), Precog shows its code.
+        These duties are starting points to review, not proof of anyone&rsquo;s actual access. They
+        are Precog&rsquo;s reading of what a title usually holds in a business of two to fifty
+        people. Where a title matches one occupation in the U.S. Bureau of Labor Statistics
+        classification (SOC 2018), Precog shows its code.
       </p>
       <div className="mt-2 max-h-80 overflow-y-auto">
         {(Object.keys(JOB_FAMILY_LABEL) as JobFamily[]).map((family) => {
