@@ -2,7 +2,16 @@
 import { useWorkspace } from "@/lib/precog/workspace-context";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Bell, BellOff, Download, History, MonitorSmartphone, Trash2 } from "lucide-react";
+import {
+  Bell,
+  BellOff,
+  Download,
+  HardDriveDownload,
+  History,
+  MonitorSmartphone,
+  Trash2,
+} from "lucide-react";
+import { hasWorkspaceRecoveryOffer } from "@/lib/precog/workspace-recovery-offer";
 import {
   deleteAccount,
   exportAccountData,
@@ -21,6 +30,13 @@ import { slug } from "@/lib/precog/text";
 
 /** The sessions dialog, loaded only when the entry is used. */
 const AccountSessionsDialog = lazy(() => import("./account-sessions"));
+const WorkspaceRecoveryDialog = lazy(() => import("./workspace-recovery-dialog"));
+
+/** The account menu entry for local guest copy and legacy export. */
+export const RECOVERY_ENTRY = {
+  label: "Local recovery",
+  title: "Copy guest businesses or export older browser records from this device",
+} as const;
 
 /** The menu entry's label and hover text. */
 export const SESSIONS_ENTRY = {
@@ -320,6 +336,52 @@ function DigestControl({ disabled }: { disabled: boolean }) {
   );
 }
 
+/** Opens guest copy and legacy export without opening a business tab first. */
+function LocalRecoveryControl({ disabled }: { disabled: boolean }) {
+  const workspace = useWorkspace();
+  const [available, setAvailable] = useState(false);
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const recount = () => {
+      setAvailable(hasWorkspaceRecoveryOffer(workspace.accountId, workspace.local));
+    };
+    recount();
+    window.addEventListener("precog:portfolio-change", recount);
+    window.addEventListener("storage", recount);
+    return () => {
+      window.removeEventListener("precog:portfolio-change", recount);
+      window.removeEventListener("storage", recount);
+    };
+  }, [workspace]);
+  if (!available) return null;
+  function close() {
+    setOpen(false);
+    requestAnimationFrame(() => button.current?.focus());
+  }
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+        disabled={disabled}
+        title={RECOVERY_ENTRY.title}
+        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-fg disabled:opacity-50"
+      >
+        <HardDriveDownload className="size-3.5" aria-hidden />
+        {RECOVERY_ENTRY.label}
+      </button>
+      {open && (
+        <Suspense fallback={null}>
+          <WorkspaceRecoveryDialog onClose={close} />
+        </Suspense>
+      )}
+    </>
+  );
+}
+
 /** Export, history, digest, sessions and delete controls for the signed-in account. */
 export function AccountDataControls() {
   const workspace = useWorkspace();
@@ -377,6 +439,7 @@ export function AccountDataControls() {
         onBusy={(running) => setBusy(running ? "history" : null)}
       />
       <DigestControl disabled={busy !== null} />
+      <LocalRecoveryControl disabled={busy !== null} />
       <SessionsControl disabled={busy !== null} />
       <button
         type="button"
