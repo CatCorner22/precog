@@ -89,6 +89,16 @@ import { teamSizeScaleWarning } from "@/lib/precog/continuity/scale-message";
 import { clamp } from "@/lib/precog/number";
 import { DEFAULT_BUSINESS_ID, MAX_BUSINESS_NAME } from "@/lib/precog/business-id";
 import { count } from "@/lib/precog/text";
+import {
+  EMPTY_ONBOARDING_FACTS,
+  OnboardingQuestionShell,
+  adjacentQuestion,
+  type ShellQuestion,
+} from "./onboarding-question-shell";
+import {
+  ONBOARDING_FACTS_VERSION,
+  type OnboardingFacts,
+} from "@/lib/precog/onboarding/decision-model";
 export function IndustryOnboarding() {
   const tabName = useTabName();
   const workspace = useWorkspace();
@@ -104,7 +114,13 @@ export function IndustryOnboarding() {
   // of business; setup starts on its team.
   const typedName = ownBusinessName(profile);
   const [selected, setSelected] = useState<IndustryId>(profile.industry);
-  const [step, setStep] = useState<"industry" | "team">(typedName ? "team" : "industry");
+  const [step, setStep] = useState<"industry" | "questions" | "team">(
+    typedName ? "questions" : "industry",
+  );
+  const [question, setQuestion] = useState<ShellQuestion>("actor");
+  const [facts, setFacts] = useState<OnboardingFacts>(
+    profile.onboardingFacts ?? EMPTY_ONBOARDING_FACTS,
+  );
   const [businessName, setBusinessName] = useState(typedName);
   const [rows, setRowsRaw] = useState<OwnTeamRow[]>(freshRows);
   // Every change keeps each row's stable key, so removing a row never
@@ -157,6 +173,21 @@ export function IndustryOnboarding() {
     setBusinessName(start.draft.businessName);
     setRows(start.draft.rows);
     setStep(start.draft.step);
+    setQuestion(
+      start.draft.currentQuestionId &&
+        ["actor", "workforce", "locations", "setup_method"].includes(start.draft.currentQuestionId)
+        ? (start.draft.currentQuestionId as ShellQuestion)
+        : "actor",
+    );
+    setFacts({
+      schemaVersion: ONBOARDING_FACTS_VERSION,
+      ...(profile.onboardingFacts ?? {}),
+      ...(start.draft.actor ? { actor: start.draft.actor } : {}),
+      ...(start.draft.workforceBand ? { workforceBand: start.draft.workforceBand } : {}),
+      ...(start.draft.locationBand ? { locationBand: start.draft.locationBand } : {}),
+      ...(start.draft.setupMethod ? { setupMethod: start.draft.setupMethod } : {}),
+      ...(start.draft.answers ? { answers: start.draft.answers } : {}),
+    });
     setPaste(start.draft.paste);
     setLeftOut(start.draft.leftOut ?? []);
     setPasteOpen(start.draft.paste.trim().length > 0);
@@ -175,7 +206,22 @@ export function IndustryOnboarding() {
       pendingDraft.current = null;
       setDraftSaved(
         writeSetupDraft(
-          { step, selected, businessName, rows, paste, businessId, leftOut },
+          {
+            step,
+            selected,
+            businessName,
+            rows,
+            paste,
+            businessId,
+            leftOut,
+            schemaVersion: ONBOARDING_FACTS_VERSION,
+            currentQuestionId: question,
+            actor: facts.actor,
+            workforceBand: facts.workforceBand,
+            locationBand: facts.locationBand,
+            setupMethod: facts.setupMethod,
+            answers: facts.answers,
+          },
           workspace.session,
         ),
       );
@@ -183,7 +229,19 @@ export function IndustryOnboarding() {
     pendingDraft.current = write;
     const timer = window.setTimeout(write, DRAFT_WRITE_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [restored, step, selected, businessName, rows, paste, businessId, leftOut, workspace.session]);
+  }, [
+    restored,
+    step,
+    question,
+    facts,
+    selected,
+    businessName,
+    rows,
+    paste,
+    businessId,
+    leftOut,
+    workspace.session,
+  ]);
   useEffect(() => {
     // A reload or closed tab does not unmount the dialog, so write a waiting
     // draft when the page is hidden; otherwise the last edits are lost.
@@ -207,7 +265,7 @@ export function IndustryOnboarding() {
     const card = dialogRef.current?.querySelector<HTMLElement>("[data-onboarding-card]");
     if (card) card.scrollTop = 0;
     titleRef.current?.focus({ preventScroll: true });
-  }, [step]);
+  }, [step, question]);
 
   // "Scroll sideways" shows whenever the table is wider than its box, until
   // the owner scrolls it once: on a phone the duty columns hide otherwise,
@@ -493,7 +551,13 @@ export function IndustryOnboarding() {
     const scaleNote = teamSizeScaleWarning(people.length);
     const onLeave = onLeavePersonIds(rows);
     clearDraft();
-    startOwnBusiness({ industry: selected, practiceName: businessName, people, leftOut });
+    startOwnBusiness({
+      industry: selected,
+      practiceName: businessName,
+      people,
+      leftOut,
+      onboardingFacts: facts,
+    });
     if (scaleNote) toast.warning(scaleNote, { duration: 8000 });
     if (onLeave.length > 0) {
       // The roster gives no return date, so the absence covers today; the
@@ -673,7 +737,8 @@ export function IndustryOnboarding() {
                   onClick={() => {
                     // A nonprofit's first row is its executive director, not an owner.
                     setRows((current) => firstRowForIndustry(current, selected));
-                    setStep("team");
+                    setStep("questions");
+                    setQuestion("actor");
                   }}
                 >
                   Set up my own business
@@ -689,6 +754,29 @@ export function IndustryOnboarding() {
               {cancelLink}
             </CardContent>
           </>
+        ) : step === "questions" ? (
+          <OnboardingQuestionShell
+            ref={titleRef}
+            facts={facts}
+            question={question}
+            onFacts={setFacts}
+            onBack={() => {
+              const previous = adjacentQuestion(question, -1);
+              if (previous) setQuestion(previous);
+              else setStep("industry");
+            }}
+            onContinue={() => {
+              const next = adjacentQuestion(question, 1);
+              if (next) {
+                setQuestion(next);
+                return;
+              }
+              if (facts.setupMethod !== "person_grid") setPasteOpen(true);
+              setStep("team");
+            }}
+            storageNote={storageNote}
+            cancelLink={cancelLink}
+          />
         ) : (
           <>
             <CardHeader>
@@ -716,6 +804,33 @@ export function IndustryOnboarding() {
                     Start over
                   </button>
                 </p>
+              )}
+              {facts.setupMethod && facts.setupMethod !== "person_grid" && (
+                <section
+                  className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-4"
+                  aria-labelledby="roster-start-heading"
+                >
+                  <h3 id="roster-start-heading" className="font-medium">
+                    {facts.setupMethod === "job_groups"
+                      ? "Start the staged job-group path"
+                      : "Start from your roster"}
+                  </h3>
+                  <p className="text-xs text-muted">
+                    {facts.setupMethod === "job_groups"
+                      ? "Grouped-role setup is staged. Paste the existing roster here; Precog groups recognized job titles while keeping named people available for control findings."
+                      : "Paste an HR or payroll export, header row included, or one person per line as Name, Job title. You will review the mapped control participants next."}
+                  </p>
+                  <textarea
+                    className={cn(fieldCls, "min-h-28 w-full font-mono text-xs")}
+                    aria-label="Pasted roster to start setup"
+                    placeholder={"Ana Ruiz, Office Manager\nBen Ochoa, Bookkeeper"}
+                    value={paste}
+                    onChange={(event) => setPaste(event.target.value)}
+                  />
+                  <Button size="sm" onClick={fillFromPaste} disabled={!paste.trim()}>
+                    Fill the table
+                  </Button>
+                </section>
               )}
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-muted">Business name</span>
@@ -1204,7 +1319,14 @@ export function IndustryOnboarding() {
                 >
                   Show me my gaps
                 </Button>
-                <Button className="w-full" variant="secondary" onClick={() => setStep("industry")}>
+                <Button
+                  className="w-full"
+                  variant="secondary"
+                  onClick={() => {
+                    setQuestion("setup_method");
+                    setStep("questions");
+                  }}
+                >
                   Back
                 </Button>
               </div>

@@ -55,18 +55,13 @@ describe("IndustryOnboarding, first render", () => {
     expect(text).not.toContain("Business profile");
   });
 
-  it("opens a named business on its team grid with job-title wording and plural counts", () => {
+  it("opens a named business on the accessible setup questions before its team grid", () => {
     const { html, text } = firstRender("Ruiz Dental");
-    expect(text).toContain("Your business and who does the money work");
-    expect(text).toContain("0 people named · 1 row to review");
-    expect(text).not.toContain("reload recovery");
-    expect(html).toMatch(/<th[^>]*>Job title<\/th>/);
-    expect(text).toContain("Choose a job title");
-    expect(html).not.toMatch(/<option value="owner">/);
-    expect(text).toContain("Add 1 person");
-    expect(html).toContain('role="tooltip"');
-    expect(html).toContain("max-w-3xl lg:max-w-7xl");
-    // The grid comes before the ways to fill it faster.
-    expect(html.indexOf("<table")).toBeLessThan(html.indexOf("Fill the table faster"));
+    expect(text).toContain("Question 1 of 4");
+    expect(text).toContain("What is your role here?");
+    expect(html).toContain('aria-labelledby="industry-onboarding-title"');
+    expect(html).toContain('tabindex="-1"');
+    expect(html.match(/type="radio"/g)).toHaveLength(3);
+    expect(text).not.toContain("Your business and who does the money work");
   });
 });

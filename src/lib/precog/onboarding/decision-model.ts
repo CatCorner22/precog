@@ -127,8 +127,19 @@ const isLarge = (facts: OnboardingFacts) =>
 /** Entry methods in the order Precog offers them for this organization. */
 export function orderedSetupMethods(facts: OnboardingFacts): readonly SetupMethod[] {
   return isLarge(facts)
-    ? ["roster_import", "job_groups", "person_grid"]
+    ? ["roster_import", "job_groups"]
     : ["person_grid", "roster_import", "job_groups"];
+}
+
+/** Change organization size and clear only a setup choice that no longer applies. */
+export function withWorkforceBand(
+  facts: OnboardingFacts,
+  workforceBand: WorkforceBand,
+): OnboardingFacts {
+  const next = { ...facts, workforceBand, workforceCount: undefined };
+  return next.setupMethod && !orderedSetupMethods(next).includes(next.setupMethod)
+    ? { ...next, setupMethod: undefined }
+    : next;
 }
 
 /** Questions in presentation order, with unmet dependent questions omitted. */
