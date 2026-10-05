@@ -124,8 +124,9 @@ export function ClientList({
       <p className="mt-1 text-sm text-muted">
         Last review is the newest monthly result Precog holds for that client. An owner address
         receives the reminders about their own business once its owner confirms it from an email;
-        Precog sends nothing else to it. Sort by any column; Export clients (CSV) downloads the same
-        columns.
+        Precog sends nothing else to it.
+        {clients.length > 0 &&
+          " Sort by any column; Export clients (CSV) downloads the same columns."}
       </p>
       {clients.length === 0 ? (
         <p className="mt-3 text-sm text-muted">
@@ -181,12 +182,12 @@ export function ClientList({
                     {client.id === activeId && (
                       <span className="ml-2 text-xs text-primary">open</span>
                     )}
-                    {client.granted ? (
-                      <span className="ml-2 text-xs text-muted">Client's own</span>
-                    ) : (
-                      client.shared && (
-                        <span className="ml-2 text-xs text-muted">another firm member's</span>
-                      )
+                    {/* A row someone else holds: its owner shared it with the firm, or
+                        another member of the firm saved it. The viewer's own row has no tag. */}
+                    {client.shared && (
+                      <span className="ml-2 text-xs text-muted">
+                        {client.granted ? "Client's own" : "another firm member's"}
+                      </span>
                     )}
                   </td>
                   <td className="py-2 pr-3 text-xs">{clientStatusText(client)}</td>

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import type { ClientEngagementRow } from "@/lib/precog/firm/store";
 import {
   CLIENT_TABLE_CSV_HEADER,
@@ -8,6 +8,7 @@ import {
   clientTotals,
   sortClients,
   thisMonthText,
+  withEngagementStatus,
   type ClientSort,
 } from "./client-table-csv";
 
@@ -108,6 +109,51 @@ describe("client table cells", () => {
       /^Ended Sep (29|30), 2026$/,
     );
     expect(clientStatusText(row({ status: "ended", endedAt: null }))).toBe("Ended");
+  });
+
+  describe("west of UTC", () => {
+    const tz = process.env.TZ;
+    afterAll(() => {
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
+      vi.resetModules();
+    });
+
+    it("prints the same end day in the table and the CSV", async () => {
+      // A fresh copy of the module, so its day format reads the New York clock.
+      process.env.TZ = "America/New_York";
+      vi.resetModules();
+      const m = await import("./client-table-csv");
+      // 9 pm on Sep 30 in New York is already Oct 1 in UTC.
+      const ended = row({ status: "ended", endedAt: "2026-10-01T01:00:00.000Z" });
+      expect(m.clientStatusText(ended)).toBe("Ended Sep 30, 2026");
+      expect(m.clientTableCsv([ended]).split("\n")[1]).toBe(
+        "biz_1,North Dental,ended,2026-09-30,2026-10-03,3,5,2,1,confirmed",
+      );
+    });
+  });
+
+  it("takes the engagement the card returned into that client's row only", () => {
+    const clients = [
+      row(),
+      row({ id: "biz_2", name: "South Clinic" }),
+      row({ ownerUserId: "u2", name: "Same Id Elsewhere" }),
+    ];
+    const ended = withEngagementStatus(clients, clients[0], {
+      status: "ended",
+      endedAt: "2026-10-04T15:00:00.000Z",
+    });
+    expect(ended.map((c) => [c.status, c.endedAt])).toEqual([
+      ["ended", "2026-10-04T15:00:00.000Z"],
+      ["active", null],
+      ["active", null],
+    ]);
+    // The totals stop counting its month as open; reopening counts it again.
+    expect(clientTotals(clients, "2026-10-12")).toMatch(/^3 clients · 3 with/);
+    expect(clientTotals(ended, "2026-10-12")).toMatch(/^3 clients · 2 with/);
+    const reopened = withEngagementStatus(ended, clients[0], { status: "active", endedAt: null });
+    expect(reopened.map((c) => c.status)).toEqual(["active", "active", "active"]);
+    expect(clientStatusText(reopened[0])).toBe("Active");
   });
 
   it("totals clients, open months from the 5th and versions awaiting review", () => {

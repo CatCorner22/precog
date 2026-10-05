@@ -257,7 +257,8 @@ export function EngagementForm({
  * and shows nothing for a business with no firm or when the load fails.
  * For the firm owner, a business its owner shared with the firm also offers
  * the hand-back; `onHandedBack` then refreshes the page's client list (the
- * page reloads when none is given).
+ * page reloads when none is given). `onEngagementChange` hands the page the
+ * engagement each save, end or reopen returned, so its client list follows.
  */
 export function EngagementCard({
   businessId,
@@ -265,12 +266,14 @@ export function EngagementCard({
   members,
   isOwner,
   onHandedBack,
+  onEngagementChange,
 }: {
   businessId: string;
   businessName: string;
   members: readonly FirmMember[];
   isOwner: boolean;
   onHandedBack?: () => void;
+  onEngagementChange?: (engagement: EngagementRecord) => void;
 }) {
   const [engagement, setEngagement] = useState<EngagementRecord | null>(null);
   const [granted, setGranted] = useState(false);
@@ -326,7 +329,9 @@ export function EngagementCard({
   async function run(work: () => Promise<{ engagement: EngagementRecord }>, done: string) {
     setBusy(true);
     try {
-      setEngagement((await work()).engagement);
+      const { engagement: saved } = await work();
+      setEngagement(saved);
+      onEngagementChange?.(saved);
       toast.success(done);
     } catch (err) {
       toast.error(err instanceof Error && err.message ? err.message : ENGAGEMENT_NOT_SAVED);

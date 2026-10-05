@@ -189,14 +189,23 @@ describe("client table", () => {
     ]);
     expect(html).toContain("Client&#x27;s own");
     expect(html.match(/another firm member&#x27;s/g)).toHaveLength(1);
-    expect(html).toContain(">Active<");
-    expect(html).toMatch(/>Ended Sep (29|30), 2026</);
-    expect(html).toContain(">2026-10-03<");
-    expect(html).toContain(">None<");
-    expect(html).toContain(">3 of 5 recorded<");
-    expect(html).toContain(">Done<");
-    expect(html).toContain(">Not counted yet<");
-    expect(html).toContain(">2<");
+    // Status, Last review, This month, Open duty conflicts, Awaiting review,
+    // row by row in the default order (by name).
+    const [member, granted] = cellsOf(html).map((cells) => cells.slice(1, 6));
+    expect(member[0]).toMatch(/^Ended Sep (29|30), 2026$/);
+    expect(member.slice(1)).toEqual(["None", "Done", "Not counted yet", "None"]);
+    expect(granted).toEqual(["Active", "2026-10-03", "3 of 5 recorded", "2", "2"]);
+  });
+
+  it("tags only a row someone else holds", () => {
+    // The viewer's own business, which they shared with a firm: no tag at all.
+    const own = table([{ ...row, granted: true, shared: false }]);
+    expect(own).not.toContain("Client&#x27;s own");
+    expect(own).not.toContain("another firm member&#x27;s");
+    // The same business seen by the firm it was shared with.
+    const firmSide = table([{ ...row, granted: true, shared: true }]);
+    expect(firmSide).toContain("Client&#x27;s own");
+    expect(firmSide).not.toContain("another firm member&#x27;s");
   });
 
   it("prints Not started and the overdue form", () => {
@@ -220,6 +229,16 @@ describe("client table", () => {
     const html = table([]);
     expect(html).not.toContain("Export clients (CSV)</button>");
     expect(html).not.toContain(" clients · ");
+    expect(html).not.toContain("Sort by any column");
+    expect(html).toContain("Precog sends nothing else to it.</p>");
     expect(html).toContain("No saved clients yet.");
   });
 });
+
+/** The text of each body row's cells, tags stripped. */
+function cellsOf(html: string): string[][] {
+  const body = html.slice(html.indexOf("<tbody"));
+  return [...body.matchAll(/<tr[^>]*>(.*?)<\/tr>/g)].map((r) =>
+    [...r[1].matchAll(/<td[^>]*>(.*?)<\/td>/g)].map((c) => c[1].replace(/<[^>]+>/g, "")),
+  );
+}

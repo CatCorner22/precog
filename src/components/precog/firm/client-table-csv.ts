@@ -1,5 +1,6 @@
 import type { ClientEngagementRow } from "@/lib/precog/firm/store";
-import { formatDay } from "@/lib/precog/dates";
+import type { EngagementRecord } from "@/lib/precog/firm/engagement-row";
+import { formatDay, localDateKey } from "@/lib/precog/dates";
 import { MONTHLY_REVIEW_GRACE_DAY, reviewDueOn, reviewItemsFor } from "@/lib/precog/firm/reviews";
 import { csvCell } from "@/lib/precog/import/csv";
 import { count, slug } from "@/lib/precog/text";
@@ -27,10 +28,36 @@ export const CLIENT_COLUMNS: readonly { key: ClientColumn; label: string }[] = [
   { key: "awaiting", label: "Awaiting review" },
 ];
 
+/**
+ * The viewer's local day the engagement ended, YYYY-MM-DD, as the Engagement
+ * card prints it; the table and the CSV both print this day.
+ */
+function endedOn(client: ClientEngagementRow): string | null {
+  return client.endedAt ? localDateKey(new Date(client.endedAt)) : null;
+}
+
 /** "Active", or "Ended Sep 30, 2026". */
 export function clientStatusText(client: ClientEngagementRow): string {
   if (client.status !== "ended") return "Active";
-  return client.endedAt ? `Ended ${formatDay(client.endedAt)}` : "Ended";
+  const day = endedOn(client);
+  return day ? `Ended ${formatDay(day)}` : "Ended";
+}
+
+/**
+ * The rows after the Engagement card ended or reopened one client's
+ * engagement: that row takes the status and end time the server returned, so
+ * the Status column and the totals change with the card.
+ */
+export function withEngagementStatus(
+  clients: readonly ClientEngagementRow[],
+  target: Pick<ClientEngagementRow, "ownerUserId" | "id">,
+  engagement: Pick<EngagementRecord, "status" | "endedAt">,
+): ClientEngagementRow[] {
+  return clients.map((c) =>
+    c.ownerUserId === target.ownerUserId && c.id === target.id
+      ? { ...c, status: engagement.status, endedAt: engagement.endedAt }
+      : c,
+  );
 }
 
 /** The number of monthly checks for the row's month. */
@@ -116,9 +143,10 @@ export const CLIENT_TABLE_CSV_HEADER =
 
 /**
  * The firm's client table as CSV: one line per client, in the order given.
- * Dates are YYYY-MM-DD; an empty cell means none (no review yet, conflicts
- * not counted yet, no owner address). Every cell goes through `csvCell`, so a
- * client named "=SUM(…)" opens as text.
+ * Dates are YYYY-MM-DD, each the same day the table prints; an empty cell
+ * means none (no review yet, conflicts not counted yet, no owner address).
+ * Every cell goes through `csvCell`, so a client named "=SUM(…)" opens as
+ * text.
  */
 export function clientTableCsv(clients: readonly ClientEngagementRow[]): string {
   const lines = clients.map((c) =>
@@ -126,7 +154,7 @@ export function clientTableCsv(clients: readonly ClientEngagementRow[]): string 
       c.id,
       c.name,
       c.status,
-      c.endedAt ? c.endedAt.slice(0, 10) : "",
+      endedOn(c) ?? "",
       c.lastReviewAt ? c.lastReviewAt.slice(0, 10) : "",
       String(c.thisMonthRecorded),
       String(checksFor(c)),
