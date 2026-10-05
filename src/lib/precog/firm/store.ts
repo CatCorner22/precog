@@ -2,7 +2,8 @@ import type { Sql } from "@/lib/db";
 import { inTransaction } from "@/lib/sql-transaction";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import type { FirmPlan } from "./pricing";
-import type { ReviewItemKey, ReviewResult } from "./reviews";
+import { monthKey, type ReviewItemKey, type ReviewResult } from "./reviews";
+import { serverUtcDay } from "../dates";
 import { RequestError } from "@/lib/request-errors";
 import { randomHex } from "@/lib/web-crypto";
 import { revokeDepartingMemberShares } from "../share/share-store";
@@ -77,6 +78,17 @@ export interface ClientEngagementRow {
   ownerEmail: string | null;
   /** Whether reminders reach `ownerEmail`: only after its owner confirms, until they stop them. */
   ownerEmailStatus: OwnerEmailStatus | null;
+  /** The engagement's state; "active" when no engagement row exists yet. */
+  status: "active" | "ended";
+  endedAt: string | null;
+  /** The business is its owner's, shared with the firm (businesses.granted_at). */
+  granted: boolean;
+  /** The month the count below is for, YYYY-MM (the server's UTC month). */
+  period: string;
+  /** How many of the period's monthly checks have a result. */
+  thisMonthRecorded: number;
+  /** Versions this firm locked whose review was requested, neither reviewed nor returned yet. */
+  awaitingReview: number;
 }
 
 /** "unsent": saved before confirmation existed, so no link has gone out yet. */
@@ -728,11 +740,19 @@ export async function setOwnerEmail(
   });
 }
 
+/**
+ * The firm's client table: one row per live business the account or its firm
+ * holds, with the engagement state, the month's monthly checks recorded and
+ * the locked versions awaiting review. `today` (YYYY-MM-DD, the server's UTC
+ * day) picks the month.
+ */
 export async function listClientEngagements(
   sql: Sql,
   userId: string,
   firmUserId: string | null,
+  today: string = serverUtcDay(),
 ): Promise<ClientEngagementRow[]> {
+  const period = monthKey(today);
   const rows = await sql<{
     id: string;
     user_id: string;
@@ -747,18 +767,37 @@ export async function listClientEngagements(
     owner_email_token: string | null;
     owner_email_confirmed_at: string | null;
     owner_email_unsubscribed_at: string | null;
+    status: string | null;
+    ended_at: string | null;
+    granted: boolean;
+    this_month_recorded: number | string | null;
+    awaiting_review: number | string;
   }>`
     select
       b.id, b.user_id, b.name, e.started_at, e.map_completed_at, e.report_sent_at,
       e.open_findings, e.accepted_findings, e.owner_email, e.owner_email_token,
       e.owner_email_confirmed_at, e.owner_email_unsubscribed_at,
+      e.status, e.ended_at, b.granted_at is not null as granted,
+      r.last_review_at, r.this_month_recorded,
       (
-        select max(r.recorded_at) from review_events r
-        where r.user_id = b.user_id and r.business_id = b.id
-      ) as last_review_at
+        select count(*) from report_versions v
+        where v.user_id = b.user_id and v.business_id = b.id
+          -- Only versions this firm locked: after a hand-back and a new
+          -- grant, the earlier firm's versions are not this firm's to review.
+          and (v.firm_user_id = b.firm_user_id or (v.firm_user_id is null and b.granted_at is null))
+          and v.review_requested_at is not null
+          and v.reviewed_at is null
+          and v.returned_at is null
+      ) as awaiting_review
     from businesses b
     left join engagement_marks e
       on e.user_id = b.user_id and e.business_id = b.id
+    left join lateral (
+      select max(x.recorded_at) as last_review_at,
+        count(distinct x.item_key) filter (where x.period = ${period}) as this_month_recorded
+      from review_events x
+      where x.user_id = b.user_id and x.business_id = b.id
+    ) r on true
     where b.deleted_at is null
       and (b.user_id = ${userId} or (${firmUserId}::text is not null and b.firm_user_id = ${firmUserId}))
     order by b.updated_at desc
@@ -784,6 +823,12 @@ export async function listClientEngagements(
           : r.owner_email_token
             ? "waiting"
             : "unsent",
+    status: r.status === "ended" ? "ended" : "active",
+    endedAt: toIsoTimestampOrNull(r.ended_at),
+    granted: Boolean(r.granted),
+    period,
+    thisMonthRecorded: Number(r.this_month_recorded ?? 0),
+    awaitingReview: Number(r.awaiting_review),
   }));
 }
 

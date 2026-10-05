@@ -94,9 +94,17 @@ describe("firm client isolation", () => {
       },
       "ub",
     );
-    const clients = await listClientEngagements(db.sql, "ua", "ua");
+    const clients = await listClientEngagements(db.sql, "ua", "ua", "2026-09-20");
     expect(clients.map((c) => c.name)).toEqual(["Client UA"]);
     expect(clients[0].lastReviewAt).toBeTruthy();
+    expect(clients[0]).toMatchObject({
+      status: "active",
+      endedAt: null,
+      granted: false,
+      period: "2026-09",
+      thisMonthRecorded: 1,
+      awaitingReview: 0,
+    });
     const events = await db.pg.query<{ user_id: string; notes: string; recorded_by: string }>(
       "select user_id, notes, recorded_by from review_events order by user_id",
     );
@@ -620,6 +628,78 @@ describe("client engagement figures", () => {
     });
     const [row] = await listClientEngagements(db.sql, "ua", "ua");
     expect([row.openFindings, row.ownerEmail]).toEqual([0, "owner@client.test"]);
+  });
+
+  async function review(owner: string, period: string, itemKey: string) {
+    await db.pg.query(
+      `insert into review_events (user_id, business_id, period, item_key, owner_name, result, recorded_by)
+       values ($1, 'biz_1', $2, $3, 'Ada', 'done', $1)`,
+      [owner, period, itemKey],
+    );
+  }
+
+  it("counts the month's checks recorded, each check once, for the server's month only", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await review("ua", "2026-10", "bank_statement");
+    await review("ua", "2026-10", "bank_statement");
+    await review("ua", "2026-10", "cleared_checks");
+    await review("ua", "2026-10", "new_vendors");
+    await review("ua", "2026-09", "payroll_headcount");
+    const [row] = await listClientEngagements(db.sql, "ua", "ua", "2026-10-12");
+    expect([row.period, row.thisMonthRecorded]).toEqual(["2026-10", 3]);
+    const [next] = await listClientEngagements(db.sql, "ua", "ua", "2026-11-02");
+    expect([next.period, next.thisMonthRecorded]).toEqual(["2026-11", 0]);
+  });
+
+  it("says when an engagement ended and when the business is its owner's", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await db.pg.query(
+      `insert into engagement_marks (user_id, business_id, status, ended_at)
+       values ('ua', 'biz_1', 'ended', '2026-09-30T12:00:00Z')`,
+    );
+    await db.pg.query(
+      "update businesses set firm_user_id = 'ua', granted_at = now() where user_id = 'uc'",
+    );
+    const rows = await listClientEngagements(db.sql, "ua", "ua");
+    const own = rows.find((r) => r.ownerUserId === "ua")!;
+    const client = rows.find((r) => r.ownerUserId === "uc")!;
+    expect([own.status, own.endedAt, own.granted]).toEqual([
+      "ended",
+      "2026-09-30T12:00:00.000Z",
+      false,
+    ]);
+    expect([client.status, client.endedAt, client.granted, client.shared]).toEqual([
+      "active",
+      null,
+      true,
+      true,
+    ]);
+  });
+
+  it("counts versions awaiting review: requested, neither reviewed nor returned, this firm's only", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await db.pg.query(
+      "update businesses set firm_user_id = 'ua', granted_at = now() where user_id = 'uc'",
+    );
+    await db.pg.query(`
+      insert into report_versions (id, user_id, business_id, version_no, profile, firm_user_id,
+        review_requested_at, reviewed_at, returned_at)
+      values
+        ('a1', 'ua', 'biz_1', 1, '{}'::jsonb, 'ua', now(), null, null),
+        ('a2', 'ua', 'biz_1', 2, '{}'::jsonb, null, now(), null, null),
+        ('a3', 'ua', 'biz_1', 3, '{}'::jsonb, 'ua', now(), now(), null),
+        ('a4', 'ua', 'biz_1', 4, '{}'::jsonb, 'ua', now(), null, now()),
+        ('a5', 'ua', 'biz_1', 5, '{}'::jsonb, 'ua', null, null, null),
+        ('c1', 'uc', 'biz_1', 1, '{}'::jsonb, 'ua', now(), null, null),
+        ('c2', 'uc', 'biz_1', 2, '{}'::jsonb, 'elsewhere', now(), null, null),
+        ('c3', 'uc', 'biz_1', 3, '{}'::jsonb, null, now(), null, null)
+    `);
+    const rows = await listClientEngagements(db.sql, "ua", "ua");
+    // Own client: a1 and a2 (locked before versions named their firm). The
+    // granted client: c1 only; c2 was locked for a previous firm and c3 for
+    // no firm before the grant.
+    expect(rows.find((r) => r.ownerUserId === "ua")!.awaitingReview).toBe(2);
+    expect(rows.find((r) => r.ownerUserId === "uc")!.awaitingReview).toBe(1);
   });
 });
 
