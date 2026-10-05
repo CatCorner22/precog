@@ -219,7 +219,9 @@ describe("firm writers", () => {
       ["role_changed", "fo", "Fay Owner", "rv"],
     ]);
     expect(rows.every((r) => r.firm === "fo")).toBe(true);
-    expect(rows[1].detail).toEqual({ email: "other@example.test", role: "preparer" });
+    // The invited address stays out of the log, as every detail does.
+    expect(rows[1].detail).toEqual({ role: "preparer" });
+    expect(JSON.stringify(rows.map((r) => r.detail))).not.toContain("@");
     expect(rows[5].detail).toEqual({ from: "reviewer", to: "preparer" });
   });
 

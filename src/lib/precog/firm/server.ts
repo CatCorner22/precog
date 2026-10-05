@@ -176,11 +176,12 @@ export const inviteFirmMember = createServerFn({ method: "POST" })
       token: randomHex(24),
     });
     const emailed = await emailInvitation(sql, context.userId, firm.name, invite);
+    // The invited address stays out of the log; the invitation row keeps it.
     await recordAudit(sql, {
       firmUserId: firm.firmUserId,
       actorUserId: context.userId,
       event: "member_invited",
-      detail: { email: invite.email, role: invite.role },
+      detail: { role: invite.role },
     });
     return { invite, emailed };
   });
