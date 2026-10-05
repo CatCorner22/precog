@@ -382,6 +382,7 @@ export function usePortfolio(input: {
       practiceName: string;
       people: Person[];
       answers?: SetupAnswers;
+      onboardingFacts?: import("./onboarding/decision-model").OnboardingFacts;
       leftOut?: Departure[];
     }) => {
       clearHistory();

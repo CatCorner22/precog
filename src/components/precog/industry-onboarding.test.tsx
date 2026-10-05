@@ -24,13 +24,13 @@ vi.mock("@tanstack/react-router", async (original) => ({
   ),
 }));
 
-const { IndustryOnboarding } = await import("./industry-onboarding");
+const { IndustryOnboarding, MappingScopeAttestation } = await import("./industry-onboarding");
 
 /** The first render, as the server draws it, with markup tags removed. */
 function firstRender(
   practiceName: string,
   industry = "dental",
-  initialStep?: "industry" | "money" | "team",
+  initialStep?: "industry" | "questions" | "money" | "team",
 ) {
   practice.profile = { industry, practiceName, businessId: "biz_test" };
   const html = renderToStaticMarkup(<IndustryOnboarding initialStep={initialStep} />);
@@ -59,8 +59,18 @@ describe("IndustryOnboarding, first render", () => {
     expect(text).not.toContain("Business profile");
   });
 
-  it("opens a named business on the money step", () => {
+  it("opens a named business on the accessible setup questions before its team grid", () => {
     const { html, text } = firstRender("Ruiz Dental");
+    expect(text).toContain("Question 1 of 4");
+    expect(text).toContain("What is your role here?");
+    expect(html).toContain('aria-labelledby="industry-onboarding-title"');
+    expect(html).toContain('tabindex="-1"');
+    expect(html.match(/type="radio"/g)).toHaveLength(3);
+    expect(text).not.toContain("Your business and who does the money work");
+  });
+
+  it("opens the money step after the setup questions", () => {
+    const { html, text } = firstRender("Ruiz Dental", "dental", "money");
     expect(text).toContain("How money moves here");
     expect(text).toContain("How money moves");
     expect(text).toContain("What already runs");
@@ -71,7 +81,7 @@ describe("IndustryOnboarding, first render", () => {
   });
 
   it("uses board-member wording for nonprofit setup", () => {
-    const { text } = firstRender("Community Co", "nonprofit");
+    const { text } = firstRender("Community Co", "nonprofit", "money");
     expect(text).toContain("Does a board member open and read the bank statement each month?");
   });
 
@@ -102,5 +112,27 @@ describe("IndustryOnboarding, first render", () => {
     );
     expect(html).toContain("<button");
     expect(text).toContain("Show me my gaps");
+  });
+});
+
+describe("large-roster scope attestation", () => {
+  it("uses a keyboard-native radio group and announces scoped, incomplete coverage", () => {
+    const html = renderToStaticMarkup(
+      <MappingScopeAttestation
+        scope="one_team"
+        unresolvedRows={60}
+        scopedAssessment
+        onChoose={() => {}}
+      />,
+    );
+    const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    expect(html).toContain("<fieldset");
+    expect(html.match(/type="radio"/g)).toHaveLength(3);
+    expect(html).toContain('name="mapping_scope"');
+    expect(html).toContain('role="status"');
+    expect(text).toContain("60 valid roster rows are not in the review grid");
+    expect(text).toContain("Unknown or unresolved people earn no control credit");
+    expect(text).toContain("scoped map");
+    expect(text).toContain("not fully assessed");
   });
 });

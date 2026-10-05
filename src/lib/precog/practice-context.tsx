@@ -140,6 +140,7 @@ export interface PracticeActions {
     practiceName: string;
     people: Person[];
     answers?: SetupAnswers;
+    onboardingFacts?: import("./onboarding/decision-model").OnboardingFacts;
     /** People the pasted roster left out as terminated or inactive. */
     leftOut?: Departure[];
   }) => void;
