@@ -2,6 +2,7 @@ import type { Sql } from "@/lib/db";
 import { inTransaction } from "@/lib/sql-transaction";
 import { RequestError } from "@/lib/request-errors";
 import { isBusinessId } from "../../profile-input";
+import { lockEngagementWriteAccess } from "../../firm/engagement-store";
 import { applyCommand, parseCommand, type Actor, type ControlExecution } from "./model";
 
 const PAGE_SIZE = 20;
@@ -47,28 +48,34 @@ async function access(
       "More than one shared client has this business id. Resolve the duplicate client ids before logging evidence.",
     );
   }
-  // The candidate only identifies a business; it never supplies final authority.
-  // Lock the parent FIRST. A SELECT joining membership before a lock wait can
-  // carry an obsolete role in its statement snapshot under Read Committed.
-  // Shared locks let readers coexist; writes remain serialized per business.
-  const [business] = await sql.query<Pick<Access, "user_id" | "revision" | "firm_user_id">>(
-    `select b.user_id, b.revision, b.firm_user_id from businesses b
-     where b.user_id=$1 and b.id=$2 and b.deleted_at is null
-     ${write ? "for update of b" : "for share of b"}`,
-    [candidate.user_id, businessId],
-  );
+  // The candidate only identifies the row to lock; final authority and the
+  // engagement status are read after that lock wait.
+  const locked = write
+    ? await lockEngagementWriteAccess(sql, candidate.user_id, businessId, actorId)
+    : null;
+  const [business] = locked
+    ? [
+        {
+          user_id: locked.ownerUserId,
+          revision: locked.revision,
+          firm_user_id: locked.firmUserId,
+        },
+      ]
+    : await sql.query<Pick<Access, "user_id" | "revision" | "firm_user_id">>(
+        `select b.user_id, b.revision, b.firm_user_id from businesses b
+         where b.user_id=$1 and b.id=$2 and b.deleted_at is null for share of b`,
+        [candidate.user_id, businessId],
+      );
   if (!business)
     throw new RequestError(404, "This business is no longer available to this account.");
-  // A fresh statement AFTER the parent lock reads the current membership.
-  // FOR SHARE, unlike FOR KEY SHARE, also blocks role updates until commit.
-  // An operation admitted first may finish while a later revocation waits.
-  const members = business.firm_user_id
-    ? await sql<{ role: string }>`select m.role from firm_members m
-        where m.firm_user_id=${business.firm_user_id} and m.member_user_id=${actorId}
-        for share of m`
-    : [];
-  const role = members[0]?.role ?? null;
-  if (business.user_id !== actorId && role === null)
+  const members =
+    locked || !business.firm_user_id
+      ? []
+      : await sql<{ role: string }>`select m.role from firm_members m
+          where m.firm_user_id=${business.firm_user_id} and m.member_user_id=${actorId}
+          for share of m`;
+  const role = locked?.role ?? members[0]?.role ?? null;
+  if (!write && business.user_id !== actorId && role === null)
     throw new RequestError(404, "This business is no longer available to this account.");
   const [user] = await sql<{ name: string }>`select coalesce(nullif(name,''),email) as name
     from "user" where id=${actorId}`;
