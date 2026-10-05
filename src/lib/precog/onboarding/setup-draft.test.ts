@@ -104,15 +104,25 @@ describe("reloading in the middle of setup", () => {
       JSON.stringify({
         ...base,
         schemaVersion: 1,
-        currentQuestionId: "future_question",
+        step: "questions",
+        currentQuestionId: "setup_method",
+        actor: "advisor",
+        workforceBand: "100-249",
+        locationBand: "6-20",
+        setupMethod: "roster_import",
         answers: { runs_payroll: "unknown", holds_inventory: "sometimes" },
       }),
     );
     expect(readSetupDraft(storage)).toMatchObject({
       schemaVersion: 1,
+      step: "questions",
+      currentQuestionId: "setup_method",
+      actor: "advisor",
+      workforceBand: "100-249",
+      locationBand: "6-20",
+      setupMethod: "roster_import",
       answers: { runs_payroll: "unknown" },
     });
-    expect(readSetupDraft(storage)?.currentQuestionId).toBeUndefined();
   });
 });
 

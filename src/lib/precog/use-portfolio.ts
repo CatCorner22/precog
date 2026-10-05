@@ -351,6 +351,7 @@ export function usePortfolio(input: {
       industry: IndustryId;
       practiceName: string;
       people: Person[];
+      onboardingFacts?: import("./onboarding/decision-model").OnboardingFacts;
       leftOut?: Departure[];
     }) => {
       clearHistory();

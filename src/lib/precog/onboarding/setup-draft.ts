@@ -7,7 +7,11 @@ import {
   ONBOARDING_QUESTION_IDS,
   normalizeOnboardingFacts,
   type OnboardingFacts,
+  type OnboardingActor,
   type OnboardingQuestionId,
+  type LocationBand,
+  type SetupMethod,
+  type WorkforceBand,
 } from "./decision-model";
 import { firstRowForIndustry, type OwnTeamRow } from "./own-team";
 
@@ -22,9 +26,13 @@ export const SETUP_DRAFT_KEY = "precog.onboarding-draft.v1";
 export interface SetupDraft {
   /** Absent on legacy drafts; version 1 adds adaptive-onboarding progress. */
   schemaVersion?: typeof ONBOARDING_FACTS_VERSION;
+  actor?: OnboardingActor;
+  workforceBand?: WorkforceBand;
+  locationBand?: LocationBand;
+  setupMethod?: SetupMethod;
   answers?: OnboardingFacts["answers"];
   currentQuestionId?: OnboardingQuestionId;
-  step: "industry" | "team";
+  step: "industry" | "questions" | "team";
   selected: IndustryId;
   businessName: string;
   rows: OwnTeamRow[];
@@ -109,17 +117,25 @@ export function readSetupDraft(storage: StorageLike | null = sessionArea()): Set
     const leftOut = Array.isArray(draft.leftOut) ? draft.leftOut.filter(isDeparture) : [];
     const facts = normalizeOnboardingFacts({
       schemaVersion: draft.schemaVersion,
+      actor: draft.actor,
+      workforceBand: draft.workforceBand,
+      locationBand: draft.locationBand,
+      setupMethod: draft.setupMethod,
       answers: draft.answers,
     });
     return {
       ...(draft.schemaVersion === ONBOARDING_FACTS_VERSION
         ? { schemaVersion: ONBOARDING_FACTS_VERSION }
         : {}),
+      ...(facts?.actor ? { actor: facts.actor } : {}),
+      ...(facts?.workforceBand ? { workforceBand: facts.workforceBand } : {}),
+      ...(facts?.locationBand ? { locationBand: facts.locationBand } : {}),
+      ...(facts?.setupMethod ? { setupMethod: facts.setupMethod } : {}),
       ...(facts?.answers ? { answers: facts.answers } : {}),
       ...(typeof draft.currentQuestionId === "string" && QUESTION_IDS.has(draft.currentQuestionId)
         ? { currentQuestionId: draft.currentQuestionId as OnboardingQuestionId }
         : {}),
-      step: draft.step === "team" ? "team" : "industry",
+      step: draft.step === "team" ? "team" : draft.step === "questions" ? "questions" : "industry",
       selected: draft.selected as IndustryId,
       businessName: draft.businessName.slice(0, MAX_BUSINESS_NAME),
       rows: draft.rows.filter(isRow),
@@ -179,7 +195,7 @@ export function initialSetup(
   const fresh: SetupDraft = {
     schemaVersion: ONBOARDING_FACTS_VERSION,
     currentQuestionId: "actor",
-    step: business.typedName ? "team" : "industry",
+    step: business.typedName ? "questions" : "industry",
     selected: business.industry,
     businessName: business.typedName,
     // A nonprofit's grid starts with its executive director, not an owner.

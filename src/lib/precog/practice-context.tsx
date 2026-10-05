@@ -138,6 +138,7 @@ export interface PracticeActions {
     industry: IndustryId;
     practiceName: string;
     people: Person[];
+    onboardingFacts?: import("./onboarding/decision-model").OnboardingFacts;
     /** People the pasted roster left out as terminated or inactive. */
     leftOut?: Departure[];
   }) => void;
