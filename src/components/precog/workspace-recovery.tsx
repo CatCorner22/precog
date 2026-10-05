@@ -8,7 +8,8 @@ import { count, verb } from "@/lib/precog/text";
 /**
  * Recovery panel: exports older browser records that belong to no account,
  * and copies guest work into the signed-in account. Hidden when there is
- * nothing to offer.
+ * nothing to offer; open while there is, so a failed import's toast never
+ * points at a collapsed box the owner never opens.
  */
 export function WorkspaceRecovery() {
   const workspace = useWorkspace();
@@ -85,7 +86,10 @@ export function WorkspaceRecovery() {
   }
 
   return (
-    <details className="mx-4 mt-2 rounded border border-border bg-panel p-2 text-sm">
+    <details
+      className="mx-4 mt-2 rounded border border-border bg-panel p-2 text-sm"
+      open={legacy || guestCount > 0 || message !== ""}
+    >
       <summary className="cursor-pointer">Local recovery and guest work</summary>
       {legacy && (
         <p className="mt-2">
