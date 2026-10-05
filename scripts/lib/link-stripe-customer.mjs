@@ -5,8 +5,10 @@
  * connected. Plain Node: `src/` cannot be loaded here (its imports have no
  * extensions and use the `@/` alias), so this file speaks SQL and Stripe
  * itself. It runs the same statement and refusals as `setStripeCustomer` in
- * src/lib/precog/firm/billing-store.ts, and scripts/link-stripe-customer.test.mjs
- * pins that both write the same row and print the same texts.
+ * src/lib/precog/firm/billing-store.ts, plus the one /operator's link adds
+ * (a stopped subscription over a running one), and
+ * scripts/link-stripe-customer.test.mjs pins that both write the same row
+ * and print the same texts.
  *
  * `query(text, params)` answers rows; `stripeGet(path)` answers the parsed
  * body, or null when Stripe has no such object; `stripePost(path, form)`
@@ -19,6 +21,11 @@ export function NO_RUNNING_SUBSCRIPTION(customerId) {
 }
 
 export const CUSTOMER_OF_ANOTHER_ACCOUNT = "That customer belongs to another account in Precog.";
+
+/** Copied from src/lib/precog/operator/texts.ts (the test pins the two equal). */
+export function subscriptionStillRunning(subscriptionId) {
+  return `This account's subscription ${subscriptionId} is still running. Cancel it in Stripe, then link.`;
+}
 
 /** The statement setStripeCustomer runs. */
 export const LINK_STATEMENT = `insert into billing_accounts (user_id, stripe_customer_id, updated_at)
@@ -102,9 +109,11 @@ export async function linkCustomer({
       `${memberships[0].email ?? user.id} is a member of ${memberships[0].firm}, not its owner. Link the firm owner's account.`,
     );
   }
-  const stored = await query(`select stripe_customer_id from billing_accounts where user_id = $1`, [
-    user.id,
-  ]);
+  const stored = await query(
+    `select stripe_customer_id, subscription_id, subscription_status
+     from billing_accounts where user_id = $1`,
+    [user.id],
+  );
   const current = stored[0]?.stripe_customer_id ?? null;
   if (current && current !== customerId && !replace) {
     throw new LinkRefused(
@@ -132,6 +141,20 @@ export async function linkCustomer({
       throw new LinkRefused(NO_RUNNING_SUBSCRIPTION(customerId));
   }
   const applied = running ?? subscriptions[0] ?? null;
+  // As /operator's link refuses (applyLinkedSubscription in
+  // src/lib/precog/operator/server.ts): a stopped subscription never goes
+  // over the account's own running one, since the plan would close while
+  // Stripe still charges the old one.
+  const other = stored[0]?.subscription_id ?? null;
+  if (
+    applied &&
+    other !== null &&
+    other !== applied.id &&
+    RUNNING.has(stored[0]?.subscription_status) &&
+    !RUNNING.has(applied.status)
+  ) {
+    throw new LinkRefused(subscriptionStillRunning(other));
+  }
   log(planLine(applied, env));
 
   if (!yes) {
