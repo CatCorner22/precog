@@ -39,8 +39,8 @@ export interface ReportVersionRow {
   /**
    * The firm as frozen at lock; null for a solo business and for versions
    * locked before migration 0041. The versions list carries the name and
-   * letterhead with `logoDataUrl` null (up to REPORT_LIST_LIMIT rows, nothing prints the
-   * logo there); only the single-version load carries the logo.
+   * letterhead with `logoDataUrl` null (up to REPORT_LIST_LIMIT rows,
+   * nothing prints the logo there); only the single-version load carries it.
    */
   firm: FirmSnapshot | null;
   /**
@@ -225,9 +225,10 @@ export async function lockReportVersion(
     `;
     if (!business[0]) throw new ReportVersionError(404, "That client is not on this account");
     const frozen = input.freeze?.(business[0].profile) ?? null;
-    // The firm's name and letterhead are copied in as they are today, through
-    // the business's firm (as `versionFirmName` joins it), so a solo business freezes none;
-    // the engagement's scope and period likewise (an empty scope as null).
+    // The firm's name and letterhead are copied in as they are today, from
+    // the business's firm (the join `versionFirmName` makes), so a solo
+    // business freezes none; the engagement's scope and period likewise (an
+    // empty scope as null).
     // The firm it was locked for is kept, so that firm alone reads it among
     // firms (a business its owner shares can work with another firm later).
     await tx`
