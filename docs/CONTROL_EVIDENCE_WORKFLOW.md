@@ -68,12 +68,20 @@ patient information and full financial account numbers. References display as
 escaped text, not executable markup or automatically clickable URLs.
 
 History is append-only through these APIs, not cryptographically immutable or
-protected against a privileged database administrator. A profile restore cannot
-replace it because it is outside the client-editable profile JSON. Hard business
+protected against a privileged database administrator; the firm activity log
+and locked report versions are protected by database triggers that refuse
+changes from every connection, Precog's included; a privileged database
+administrator can still drop a trigger, and Neon's point-in-time restore is
+the record of that. A profile restore cannot
+replace this history because it is outside the client-editable profile JSON. Hard business
 or owning-account deletion cascades; soft-deleted businesses are inaccessible.
 The owner's account export includes owned logs; a contributor's attribution in
-another owner's retained log remains. Review this privacy/retention behavior
-before commercial release; this file does not establish a legal retention rule.
+another owner's retained log remains. Retention follows the business: the
+weekly run purges a deleted business, and this log with it, after 30 days,
+except a firm's client that holds a locked report version, which is kept for
+the period its firm sets (`firms.retention_years`: 7 to 15 years, 7 unless the
+firm owner picks another) from the day it was deleted. Deleting the owning
+account removes the log at once.
 
 Draft fields use immutable account-scoped session storage and business/check
 keys. They are not cloud saved until submission. Reload restores available draft
@@ -154,8 +162,9 @@ No dependency, framework replacement or model training is required. Apply the
 additive migration only through the authorized release workflow. Older code
 ignores the new table; an application rollback must retain the table/history.
 Do not drop it to roll back the UI. There is no automatic conversion of earlier
-monthly notes. Customer support/data retention decisions must be reviewed before
-commercial launch.
+monthly notes. Data retention follows the firm-set period above; whether the
+floor may go below seven years (`RETENTION_YEARS_MIN` in
+`src/lib/precog/firm/engagement-row.ts`) is the owner's lawyer's question.
 
 Still separate: generic control configuration and source/version lifecycle,
 actual-system access reconciliation, evidence uploads and integrity checking,
