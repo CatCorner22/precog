@@ -383,6 +383,9 @@ describe("share writers", () => {
       versionId: locked.version.id,
     });
     await call(share.revokeMapShare, "fo", { token: link.token });
+    // A repeated revoke (a double click, a retry) writes nothing more.
+    await call(share.revokeMapShare, "fo", { token: link.token });
+    await call(share.revokeMapShare, "pp", { token: link.token });
     await db.pg.exec(`
       insert into map_shares (token, user_id, business_name, industry, payload, expires_at,
         business_owner_id, business_id)
@@ -396,6 +399,33 @@ describe("share writers", () => {
       ["share_revoked", "fo", "biz_1"],
     ]);
     expect(rows[0].detail).toEqual({ kind: "report", versionId: locked.version.id });
+  });
+});
+
+describe("account deletion writer", () => {
+  it("logs a member's departure and a shared client's hand-back in the firm's log", async () => {
+    const first = await createGrant(db.sql, {
+      ownerUserId: "bo",
+      businessId: "biz_g",
+      email: "fo@example.test",
+    });
+    await call(grant.acceptClientGrant, "fo", { token: first.token });
+    await call(account.deleteAccount, "rv", { confirm: "DELETE" });
+    await call(account.deleteAccount, "bo", { confirm: "DELETE" });
+    // An account in no firm, sharing nothing, writes nothing.
+    await call(account.deleteAccount, "so", { confirm: "DELETE" });
+    const rows = await log();
+    expect(rows.map((r) => [r.firm, r.event, r.actor, r.business, r.subject, r.detail])).toEqual([
+      ["fo", "client_granted", "fo", "biz_g", null, {}],
+      ["fo", "member_left", "rv", null, "rv", { reason: "account_deleted" }],
+      ["fo", "client_handed_back", "bo", "biz_g", null, { by: "owner", reason: "account_deleted" }],
+    ]);
+    // The rows outlive the accounts and keep the names they had.
+    expect(rows[1].name).toBe("rv");
+    const gone = await db.sql<{ n: number }>`
+      select count(*)::int as n from "user" where id in ('rv', 'bo', 'so')
+    `;
+    expect(gone[0].n).toBe(0);
   });
 });
 

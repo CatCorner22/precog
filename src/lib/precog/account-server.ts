@@ -116,7 +116,7 @@ export const deleteAccount = createServerFn({ method: "POST" })
     return { confirm: "DELETE" as const };
   })
   .handler(async ({ context }) => {
-    // audit: exempt (the account's own deletion; a firm owner's takes the firm's log with it)
+    // audit: exempt (deleteAccountRows writes member_left and client_handed_back to the other firms the account leaves; its own firm's log goes with it)
     const sql = await getSql();
     const deleted = await deleteAccountRows(sql, context.userId);
     await revokeQuickBooksTokens(deleted.quickBooksRefreshTokens);

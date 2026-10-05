@@ -9,6 +9,7 @@ import {
   MAX_LIVE_SHARES,
   recordShareView,
   revokeShare,
+  revokeShareOnce,
   shareStillReachable,
   type NewMapShare,
   purgeOldShareViews,
@@ -217,6 +218,24 @@ describe("revoking links with the business and the firm", () => {
     expect(await revoked(tok(1))).toBe(false);
     expect(await revokeShare(sql, "owner", tok(1))).toBe(true);
     expect(await revoked(tok(1))).toBe(true);
+  });
+
+  it("says whether a revoke ended a live link or found it revoked already", async () => {
+    await linkTo(tok(1), "prep", "owner", "own_biz");
+    expect(await revokeShareOnce(sql, "outsider", tok(1))).toBe(null);
+    expect(await revokeShareOnce(sql, "prep", tok(1))).toBe("revoked");
+    const first = await pg.query<{ at: string }>(
+      "select revoked_at::text as at from map_shares where token = $1",
+      [tok(1)],
+    );
+    expect(await revokeShareOnce(sql, "owner", tok(1))).toBe("already");
+    expect(await revokeShareOnce(sql, "prep", tok(1))).toBe("already");
+    const again = await pg.query<{ at: string }>(
+      "select revoked_at::text as at from map_shares where token = $1",
+      [tok(1)],
+    );
+    expect(again.rows[0].at).toBe(first.rows[0].at);
+    expect(await revokeShareOnce(sql, "prep", tok(9))).toBe(null);
   });
 
   it("shows the firm owner a colleague's revoked and expired links for audit", async () => {

@@ -10,7 +10,12 @@ import { usageTotalsFor, type UsageTotal } from "./llm/usage-log.server";
 import { count } from "./text";
 import { pictureUrl } from "./procedures/image-pipeline";
 import { resetEngagement } from "./firm/grant-store";
-import { listFirmActivity, withAuditBypass, type FirmActivityRow } from "./firm/audit.server";
+import {
+  insertAudit,
+  listFirmActivity,
+  withAuditBypass,
+  type FirmActivityRow,
+} from "./firm/audit.server";
 
 /**
  * Everything the app holds for one account, in one JSON document the owner can
@@ -525,7 +530,9 @@ export function encodeHistoryPage(rows: BusinessHistoryExportRow[]): string {
  * from the user row. Client
  * businesses that members of this account's firm set up stay with those
  * members and leave the firm. The app-wide usage count is not the account's
- * and stays.
+ * and stays. Another firm the account works in, or that works on a business
+ * it owns, keeps a member_left or client_handed_back row in its activity log;
+ * the log has no key on the actor, so the rows outlive the account.
  */
 export async function deleteAccountRows(sql: Sql, userId: string): Promise<DeletedAccount> {
   return inTransaction(sql, async (tx) => {
@@ -560,6 +567,7 @@ export async function deleteAccountRows(sql: Sql, userId: string): Promise<Delet
       where revoked_at is null and accepted_at is null
         and lower(invited_email) = lower((select email from "user" where id = ${userId}))
     `;
+    await logDeparture(tx, userId);
     await tx`delete from assessment_snapshots where user_id = ${userId}`;
     await tx`delete from llm_daily_usage where scope = ${userScope(userId)}`;
     // A firm owner's account takes its firm's activity log with it; the log
@@ -571,6 +579,45 @@ export async function deleteAccountRows(sql: Sql, userId: string): Promise<Delet
       stripeCustomerId,
     };
   });
+}
+
+/**
+ * Records, in each other firm's activity log, what the account's deletion
+ * takes from it: the account leaving a firm it is a member of, and each
+ * business it owns that it had shared with a firm. Its own firm's log goes
+ * with the account. Inside the deletion's transaction, so the rows and the
+ * deletion commit together.
+ */
+async function logDeparture(tx: Sql, userId: string): Promise<void> {
+  const memberships = await tx<{ firm_user_id: string }>`
+    select m.firm_user_id from firm_members m join firms f on f.user_id = m.firm_user_id
+    where m.member_user_id = ${userId} and m.firm_user_id <> ${userId}
+    order by m.joined_at
+  `;
+  for (const m of memberships) {
+    await insertAudit(tx, {
+      firmUserId: m.firm_user_id,
+      actorUserId: userId,
+      event: "member_left",
+      subjectUserId: userId,
+      detail: { reason: "account_deleted" },
+    });
+  }
+  const shared = await tx<{ id: string; firm_user_id: string }>`
+    select id, firm_user_id from businesses
+    where user_id = ${userId} and firm_user_id is not null and firm_user_id <> ${userId}
+      and granted_at is not null
+    order by id
+  `;
+  for (const b of shared) {
+    await insertAudit(tx, {
+      firmUserId: b.firm_user_id,
+      actorUserId: userId,
+      event: "client_handed_back",
+      businessId: b.id,
+      detail: { by: "owner", reason: "account_deleted" },
+    });
+  }
 }
 
 /** Refuses while the Firm plan runs; otherwise the Stripe customer id to delete, if any. */

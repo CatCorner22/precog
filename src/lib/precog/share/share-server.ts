@@ -26,7 +26,7 @@ import {
   loadSharedReport,
   recordShareView,
   reportShareRefusal,
-  revokeShare,
+  revokeShareOnce,
   ShareLimitError,
   shareStillReachable,
 } from "./share-store";
@@ -236,12 +236,14 @@ export const revokeMapShare = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     // The maker, or the firm owner for a link to one of the firm's clients.
-    const revoked = await revokeShare(sql, context.userId, data.token);
-    const link = revoked
-      ? await sql<{ business_owner_id: string | null; business_id: string | null }>`
+    // Only the call that ended a live link writes the log; a repeat writes nothing.
+    const revoked = await revokeShareOnce(sql, context.userId, data.token);
+    const link =
+      revoked === "revoked"
+        ? await sql<{ business_owner_id: string | null; business_id: string | null }>`
           select business_owner_id, business_id from map_shares where token = ${data.token}
         `
-      : [];
+        : [];
     const owner = link[0]?.business_owner_id;
     const businessId = link[0]?.business_id;
     if (owner && businessId) {

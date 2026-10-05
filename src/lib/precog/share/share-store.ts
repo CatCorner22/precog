@@ -302,9 +302,24 @@ export async function loadReportShareRow(sql: Sql, token: string): Promise<Repor
  * may not revoke it (or it does not exist).
  */
 export async function revokeShare(sql: Sql, userId: string, token: string): Promise<boolean> {
-  const rows = await sql<{ token: string }>`
+  return (await revokeShareOnce(sql, userId, token)) !== null;
+}
+
+/**
+ * revokeShare, saying whether this call ended the link: "revoked" when it was
+ * live until now, "already" when it was revoked before, null when the caller
+ * may not revoke it (or it does not exist). The row lock makes two revokes at
+ * once read one "revoked" and one "already".
+ */
+export async function revokeShareOnce(
+  sql: Sql,
+  userId: string,
+  token: string,
+): Promise<"revoked" | "already" | null> {
+  const rows = await sql<{ was_live: boolean }>`
     update map_shares s set revoked_at = coalesce(s.revoked_at, now())
-    where s.token = ${token}
+    from (select token, revoked_at from map_shares where token = ${token} for update) prev
+    where s.token = prev.token
       and (
         s.user_id = ${userId}
         or exists (
@@ -313,9 +328,11 @@ export async function revokeShare(sql: Sql, userId: string, token: string): Prom
             and b.firm_user_id = ${userId}
         )
       )
-    returning s.token
+    returning prev.revoked_at is null as was_live
   `;
-  return rows.length > 0;
+  const row = rows[0];
+  if (!row) return null;
+  return row.was_live ? "revoked" : "already";
 }
 
 /**
