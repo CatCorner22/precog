@@ -135,14 +135,21 @@ function Home() {
     const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
     const dropKey = () =>
       void navigate({ search: (prev) => ({ ...prev, business: undefined }), replace: true });
+    const matches = businesses.filter((b) => b.id === wantedBusiness);
+    if (matches.length > 1) {
+      switchedTo.current = wantedBusiness;
+      toast.error("This link matches more than one client. Open the client from the switcher.");
+      dropKey();
+      return;
+    }
     if (wantedBusiness === activeId) {
       switchedTo.current = wantedBusiness;
       dropKey();
       return;
     }
-    if (!businesses.some((b) => b.id === wantedBusiness)) return;
+    if (!matches[0]) return;
     switchedTo.current = wantedBusiness;
-    void switchBusiness(wantedBusiness).then((result) => {
+    void switchBusiness(wantedBusiness, matches[0].ownerUserId).then((result) => {
       if (!result.ok) toast.error(result.reason);
       dropKey();
     });

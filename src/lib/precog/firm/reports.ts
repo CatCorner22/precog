@@ -4,7 +4,7 @@ import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { formatDay } from "../dates";
 import { RequestError } from "@/lib/request-errors";
 import type { FirmSnapshot } from "./store";
-import { loadEngagement } from "./engagement-store";
+import { loadEngagement, lockEngagementWriteAccess } from "./engagement-store";
 
 /**
  * Locked report versions. Locking freezes the business as the account holds
@@ -215,23 +215,27 @@ export async function lockReportVersion(
     scopeNote: string;
     id: string;
     freeze?: (profile: unknown) => FrozenReportRow | null;
+    /** Additional server-side admission, evaluated under the same write locks. */
+    authorize?: (tx: Sql) => Promise<void>;
   },
 ): Promise<ReportVersionRow> {
-  const row = await inTransaction(sql, async (tx) => {
-    const business = await tx<{ id: string; profile: unknown }>`
-      select id, profile from businesses
-      where user_id = ${input.ownerUserId} and id = ${input.businessId} and deleted_at is null
-      for update
-    `;
-    if (!business[0]) throw new ReportVersionError(404, "That client is not on this account");
-    const frozen = input.freeze?.(business[0].profile) ?? null;
-    // The firm's name and letterhead are copied in as they are today, from
-    // the business's firm (the join `versionFirmName` makes), so a solo
-    // business freezes none; the engagement's scope and period likewise (an
-    // empty scope as null).
-    // The firm it was locked for is kept, so that firm alone reads it among
-    // firms (a business its owner shares can work with another firm later).
-    await tx`
+  let row;
+  try {
+    row = await inTransaction(sql, async (tx) => {
+      await lockEngagementWriteAccess(tx, input.ownerUserId, input.businessId, input.preparedBy);
+      await input.authorize?.(tx);
+      const business = await tx<{ id: string; profile: unknown }>`
+        select id, profile from businesses
+        where user_id = ${input.ownerUserId} and id = ${input.businessId} and deleted_at is null
+      `;
+      const frozen = input.freeze?.(business[0].profile) ?? null;
+      // The firm's name and letterhead are copied in as they are today, from
+      // the business's firm (the join `versionFirmName` makes), so a solo
+      // business freezes none; the engagement's scope and period likewise (an
+      // empty scope as null).
+      // The firm it was locked for is kept, so that firm alone reads it among
+      // firms (a business its owner shares can work with another firm later).
+      await tx`
       insert into report_versions
         (id, user_id, business_id, version_no, revision, profile, scope_note, prepared_by,
          scoring_version, layout_version, report_model,
@@ -264,8 +268,14 @@ export async function lockReportVersion(
       left join engagement_marks e on e.user_id = b.user_id and e.business_id = b.id
       where b.user_id = ${input.ownerUserId} and b.id = ${input.businessId}
     `;
-    return loadReportVersion(tx, input.ownerUserId, input.id);
-  });
+      return loadReportVersion(tx, input.ownerUserId, input.id);
+    });
+  } catch (error) {
+    if (error instanceof RequestError && error.status === 404) {
+      throw new ReportVersionError(404, "That client is not on this account");
+    }
+    throw error;
+  }
   if (!row) throw new Error("Unable to lock the report");
   return row.version;
 }

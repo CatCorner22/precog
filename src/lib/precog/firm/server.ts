@@ -531,8 +531,10 @@ export const recordMonthlyReview = createServerFn({ method: "POST" })
     // audit: exempt (the monthly review log is its own record)
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    await assertEngagementOpen(sql, owner, data.businessId, context.userId);
     await insertReviewEvent(sql, owner, data, context.userId);
+    // The audit insert commits before optional evidence and telemetry. Each
+    // later write has its own transactional gate; a side-effect failure never
+    // rolls back or re-authorizes the review.
     const { bridgeMonthlyReview } = await import("../controls/review-bridge.server");
     const bridged = await bridgeMonthlyReview(sql, context.userId, data, data.today);
     await recordFirst(sql, context.userId, "first_monthly_review", data.businessId);
@@ -557,12 +559,9 @@ export const lockReport = createServerFn({ method: "POST" })
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
     // Only a member of the business's firm locks a firm client; the plan is
     // the firm's, read after that check, so a business its owner shared with
-    // a firm locks under the firm's plan and only by the firm.
+    // a firm locks under the firm's plan and only by the firm. The ended
+    // engagement and the plan are checked again under the write's locks.
     await requireBusinessRole(sql, context.userId, owner, data.businessId, "any");
-    await assertEngagementOpen(sql, owner, data.businessId, context.userId);
-    // Creating a version needs the plan; every version already locked stays
-    // readable, reviewable for issuance and markable as sent whatever the plan.
-    await requireEntitlementForBusiness(sql, owner, data.businessId, "lockedVersions");
     // The figures are built on the preparer's calendar day, the day the
     // locked report prints, and stored so later scoring changes leave them.
     const { freezeReport } = await import("../report/stored-model");
@@ -573,6 +572,12 @@ export const lockReport = createServerFn({ method: "POST" })
       scopeNote: data.scopeNote,
       id: `rv_${randomHex(12)}`,
       freeze: (profile) => freezeReport(profile, data.today),
+      // Creating a version needs the plan of the business's firm (or of the
+      // business, when it has none); every version already locked stays
+      // readable, reviewable for issuance and markable as sent whatever the plan.
+      authorize: async (tx) => {
+        await requireEntitlementForBusiness(tx, owner, data.businessId, "lockedVersions");
+      },
     });
     await recordFirst(sql, context.userId, "first_locked_version", data.businessId);
     await recordAuditForBusiness(sql, owner, data.businessId, {

@@ -326,7 +326,7 @@ describe.runIf(process.env.PRECOG_LIFECYCLE_POSTGRES === "1")(
           const paused = pausedAfterBusinessLock(db.sql, locked.resolve, release.promise);
           const writing = (
             write === "end"
-              ? setEngagementStatus(paused, "b", "client", "ended")
+              ? setEngagementStatus(paused, "b", "client", "ended", "a")
               : saveEngagement(paused, {
                   ownerUserId: "b",
                   businessId: "client",

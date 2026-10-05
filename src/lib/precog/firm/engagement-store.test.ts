@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { openTestDb, type TestDb } from "@/test/pglite";
+import { inTransaction } from "@/lib/sql-transaction";
 import {
   ENGAGEMENT_ENDED,
   ENGAGEMENT_SCOPE_MAX,
@@ -22,6 +23,7 @@ import {
   loadEngagement,
   loadFirmRetention,
   loadReviewLog,
+  lockEngagementWriteAccess,
   saveEngagement,
   saveFirmRetention,
   setEngagementStatus,
@@ -219,7 +221,7 @@ describe("saveEngagement", () => {
   });
 
   it("refuses a firm member's save once the engagement has ended", async () => {
-    await setEngagementStatus(db.sql, "own", "biz_1", "ended");
+    await setEngagementStatus(db.sql, "own", "biz_1", "ended", "own");
     await expect(save({ scope: "Later" }, "rev")).rejects.toThrow(ENGAGEMENT_ENDED);
     await expect(save({ scope: "Later" }, "own")).rejects.toThrow(ENGAGEMENT_ENDED);
   });
@@ -233,15 +235,16 @@ describe("ending and reopening", () => {
       "own",
       "biz_1",
       "ended",
+      "own",
     );
     expect(changed).toBe(true);
     expect(ended.status).toBe("ended");
     expect(ended.endedAt).not.toBeNull();
     expect(ended.scope).toBe("Map");
     expect(await engagementEnded(db.sql, "own", "biz_1")).toBe(true);
-    const again = await setEngagementStatus(db.sql, "own", "biz_1", "ended");
+    const again = await setEngagementStatus(db.sql, "own", "biz_1", "ended", "own");
     expect([again.engagement.endedAt, again.changed]).toEqual([ended.endedAt, false]);
-    const reopened = await setEngagementStatus(db.sql, "own", "biz_1", "active");
+    const reopened = await setEngagementStatus(db.sql, "own", "biz_1", "active", "own");
     expect([reopened.engagement.status, reopened.engagement.endedAt, reopened.changed]).toEqual([
       "active",
       null,
@@ -249,7 +252,9 @@ describe("ending and reopening", () => {
     ]);
     expect(await engagementEnded(db.sql, "own", "biz_1")).toBe(false);
     // An engagement with no row yet reads as active: reopening it moves nothing.
-    expect((await setEngagementStatus(db.sql, "solo", "biz_s", "active")).changed).toBe(false);
+    expect((await setEngagementStatus(db.sql, "solo", "biz_s", "active", "solo")).changed).toBe(
+      false,
+    );
   });
 
   it("the database refuses a status other than active or ended", async () => {
@@ -263,7 +268,7 @@ describe("ending and reopening", () => {
 
 describe("assertEngagementOpen", () => {
   it("refuses a member of the business's firm on an ended client", async () => {
-    await setEngagementStatus(db.sql, "own", "biz_1", "ended");
+    await setEngagementStatus(db.sql, "own", "biz_1", "ended", "own");
     for (const member of ["own", "rev", "prep"]) {
       await expect(assertEngagementOpen(db.sql, "own", "biz_1", member)).rejects.toMatchObject({
         status: 409,
@@ -278,7 +283,7 @@ describe("assertEngagementOpen", () => {
     await expect(assertEngagementOpen(db.sql, "own", "biz_1", "rev")).resolves.toBeUndefined();
     await save({ scope: "Map" });
     await expect(assertEngagementOpen(db.sql, "own", "biz_1", "rev")).resolves.toBeUndefined();
-    await setEngagementStatus(db.sql, "solo", "biz_s", "ended");
+    await setEngagementStatus(db.sql, "solo", "biz_s", "ended", "solo");
     await expect(assertEngagementOpen(db.sql, "solo", "biz_s", "solo")).resolves.toBeUndefined();
   });
 
@@ -288,12 +293,27 @@ describe("assertEngagementOpen", () => {
       insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id, granted_at)
         values ('biz_o', 'out', 'Own Shop', 'general', '{}'::jsonb, 1, 'own', now());
     `);
-    await setEngagementStatus(db.sql, "out", "biz_o", "ended");
+    await setEngagementStatus(db.sql, "out", "biz_o", "ended", "own");
     await expect(assertEngagementOpen(db.sql, "out", "biz_o", "out")).resolves.toBeUndefined();
     await expect(assertEngagementOpen(db.sql, "out", "biz_o", "rev")).rejects.toMatchObject({
       status: 409,
       message: ENGAGEMENT_ENDED,
     });
+  });
+
+  it("admits under the write lock the owner of a shared business outside the firm, not a member, once ended", async () => {
+    await db.pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id, granted_at)
+        values ('biz_w', 'out', 'Own Shop', 'general', '{}'::jsonb, 1, 'own', now());
+    `);
+    await setEngagementStatus(db.sql, "out", "biz_w", "ended", "own");
+    const owner = await inTransaction(db.sql, (tx) =>
+      lockEngagementWriteAccess(tx, "out", "biz_w", "out"),
+    );
+    expect(owner).toMatchObject({ ownerUserId: "out", firmUserId: "own", role: null });
+    await expect(
+      inTransaction(db.sql, (tx) => lockEngagementWriteAccess(tx, "out", "biz_w", "rev")),
+    ).rejects.toMatchObject({ status: 409, message: ENGAGEMENT_ENDED });
   });
 
   it("refuses an owner who is also a member of the firm, on a business they shared with it", async () => {
@@ -304,7 +324,7 @@ describe("assertEngagementOpen", () => {
       insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id, granted_at)
         values ('biz_p', 'prep', 'Own Shop', 'general', '{}'::jsonb, 1, 'own', now());
     `);
-    await setEngagementStatus(db.sql, "prep", "biz_p", "ended");
+    await setEngagementStatus(db.sql, "prep", "biz_p", "ended", "own");
     for (const actor of ["prep", "rev"]) {
       await expect(assertEngagementOpen(db.sql, "prep", "biz_p", actor)).rejects.toMatchObject({
         status: 409,

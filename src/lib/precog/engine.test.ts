@@ -84,6 +84,23 @@ describe("findKnowledgeRisks", () => {
     expect(risk.soleOwner).toBe(true);
     expect(risk.owners.map((p) => p.id)).toEqual([active.id]);
   });
+
+  it("counts duplicate strong relations for one person as one holder", () => {
+    const item = dental.knowledge.find((k) => k.criticality === "critical")!;
+    const active = dental.people[0];
+    const risk = findKnowledgeRisks({
+      ...dental,
+      relations: [
+        { personId: active.id, knowledgeId: item.id, level: "proficient" },
+        { personId: active.id, knowledgeId: item.id, level: "expert" },
+      ],
+    }).find((candidate) => candidate.knowledgeId === item.id)!;
+
+    expect(risk.ownerCount).toBe(1);
+    expect(risk.soleOwner).toBe(true);
+    expect(risk.riskScore).toBe(85);
+    expect(risk.owners.map((person) => person.id)).toEqual([active.id]);
+  });
 });
 
 describe("runPrecogScenario", () => {

@@ -766,6 +766,35 @@ describe("firm access", () => {
     expect(await resolveBusinessOwner(sql, "user-b", "same")).toBe("user-b");
   });
 
+  it("refuses to choose between two shared clients with the same id", async () => {
+    await db.seedUser("user-c");
+    await sql`insert into firm_members (firm_user_id, member_user_id, role)
+      values ('user-a', 'user-c', 'preparer')`;
+    await saveBusinessRevision(sql, {
+      ...input("user-a", "same", null, "A client"),
+      firmUserId: "user-a",
+    });
+    await saveBusinessRevision(sql, {
+      ...input("user-c", "same", null, "C client"),
+      firmUserId: "user-a",
+    });
+
+    await expect(resolveBusinessOwner(sql, "user-b", "same")).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(await resolveBusinessOwner(sql, "user-b", "same", false, "user-a")).toBe("user-a");
+    expect(await resolveBusinessOwner(sql, "user-b", "same", false, "user-c")).toBe("user-c");
+    expect(await resolveBusinessOwner(sql, "user-b", "same", false, "user-b")).toBeNull();
+    expect(
+      (await listBusinessSummaries(sql, "user-b", "user-a")).map((b) => [b.ownerUserId, b.id]),
+    ).toEqual(
+      expect.arrayContaining([
+        ["user-a", "same"],
+        ["user-c", "same"],
+      ]),
+    );
+  });
+
   it("ignores a dangling pointer when the user has other businesses", async () => {
     await saveBusinessRevision(sql, input("user-a", "biz_1", null, "one"));
     await setActiveBusiness(sql, { ...input("user-a", "biz_1", null, "one") });

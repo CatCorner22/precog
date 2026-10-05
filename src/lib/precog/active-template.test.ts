@@ -41,6 +41,30 @@ describe("resolveTemplate", () => {
     }
   });
 
+  it("normalizes relation pairs while retaining inactive people and first-seen order", () => {
+    const base = getIndustryTemplate("dental");
+    const item = base.knowledge[0];
+    const [active, former] = base.people;
+    const people = [active, { ...former, active: false }];
+    const tpl = resolveTemplate({
+      industry: "dental",
+      customPeople: people,
+      customKnowledge: [item],
+      customRelations: [
+        { personId: active.id, knowledgeId: item.id, level: "basic" },
+        { personId: "missing", knowledgeId: item.id, level: "expert" },
+        { personId: former.id, knowledgeId: item.id, level: "expert" },
+        { personId: active.id, knowledgeId: item.id, level: "proficient" },
+        { personId: active.id, knowledgeId: item.id, level: "proficient" },
+      ],
+    });
+
+    expect(tpl.relations).toEqual([
+      { personId: active.id, knowledgeId: item.id, level: "proficient" },
+      { personId: former.id, knowledgeId: item.id, level: "expert" },
+    ]);
+  });
+
   it("clears the sample business's accepted residual risk for a business with its own people", () => {
     const base = getIndustryTemplate("dental");
     expect(base.controls.some((c) => c.residualRiskAccepted)).toBe(true);

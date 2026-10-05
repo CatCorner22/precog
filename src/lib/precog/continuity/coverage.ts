@@ -16,8 +16,9 @@ import type {
   KnowledgeRelation,
   Person,
 } from "../types";
+import { KNOWLEDGE_LEVEL_ORDER } from "../knowledge-relations";
 
-export const LEVEL_ORDER: KnowledgeLevel[] = ["aware", "basic", "proficient", "expert"];
+export const LEVEL_ORDER: readonly KnowledgeLevel[] = KNOWLEDGE_LEVEL_ORDER;
 export const STRONG_LEVELS = new Set<KnowledgeLevel>(["expert", "proficient"]);
 
 export const LEVEL_LABEL: Record<KnowledgeLevel, string> = {

@@ -6,6 +6,7 @@ import {
   ENGAGEMENT_ENDED,
   isRetentionYears,
   NOT_A_FIRM_CLIENT,
+  OWNER_ONLY_STATUS,
   PICK_MEMBERS,
   PICK_REVIEWER,
   RETENTION_REFUSAL,
@@ -28,6 +29,67 @@ interface RawEngagement {
   ended_at: string | null;
   preparer_user_id: string | null;
   reviewer_user_id: string | null;
+}
+
+export interface EngagementWriteAccess {
+  ownerUserId: string;
+  revision: number;
+  firmUserId: string | null;
+  role: string | null;
+}
+
+/**
+ * Serializes engagement closure with a protected write and rechecks access
+ * after waiting. Every such operation locks in this order:
+ * businesses -> engagement_marks -> firm_members -> child rows.
+ *
+ * The business lock also covers the no-engagement-row case, so a concurrent
+ * first close cannot slip between this check and the write.
+ */
+export async function lockEngagementWriteAccess(
+  tx: Sql,
+  ownerUserId: string,
+  businessId: string,
+  actorUserId: string,
+): Promise<EngagementWriteAccess> {
+  const [business] = await tx<{
+    user_id: string;
+    revision: number | string;
+    firm_user_id: string | null;
+  }>`
+    select user_id, revision, firm_user_id from businesses
+    where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is null
+    for update
+  `;
+  if (!business) throw new RequestError(404, "That client is not on this account");
+  const engagement = await tx<{ status: string }>`
+    select status from engagement_marks
+    where user_id = ${ownerUserId} and business_id = ${businessId}
+    for share
+  `;
+  const members = business.firm_user_id
+    ? await tx<{ role: string }>`
+        select role from firm_members
+        where firm_user_id = ${business.firm_user_id} and member_user_id = ${actorUserId}
+        for share
+      `
+    : [];
+  const role = members[0]?.role ?? null;
+  if (business.user_id !== actorUserId && role === null) {
+    throw new RequestError(404, "That client is not on this account");
+  }
+  // An ended engagement is read-only for the members of the business's firm,
+  // as assertEngagementOpen rules; the business's own account on a business
+  // it shared with that firm (not a member of it) keeps its edits.
+  if (business.firm_user_id !== null && role !== null && engagement[0]?.status === "ended") {
+    throw new RequestError(409, ENGAGEMENT_ENDED);
+  }
+  return {
+    ownerUserId: business.user_id,
+    revision: Number(business.revision),
+    firmUserId: business.firm_user_id,
+    role,
+  };
 }
 
 function toRecord(r: RawEngagement): EngagementRecord {
@@ -201,15 +263,28 @@ export async function setEngagementStatus(
   ownerUserId: string,
   businessId: string,
   status: EngagementStatus,
+  actorUserId: string,
 ): Promise<{ engagement: EngagementRecord; changed: boolean }> {
   return inTransaction(sql, async (tx) => {
-    await tx`
-      select 1 from businesses where user_id = ${ownerUserId} and id = ${businessId} for update
+    // Closure takes the same locks as writers, but may of course observe an
+    // already-ended engagement while reopening it.
+    const [business] = await tx<{ firm_user_id: string | null }>`
+      select firm_user_id from businesses
+      where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is null
+      for update
     `;
-    const before = await tx<{ status: string }>`
-      select status from engagement_marks
-      where user_id = ${ownerUserId} and business_id = ${businessId}
-    `;
+    if (!business) throw new RequestError(404, "That client is not on this account");
+    const before = await tx<{ status: string }>`select status from engagement_marks
+      where user_id = ${ownerUserId} and business_id = ${businessId} for update`;
+    const member = business.firm_user_id
+      ? await tx<{ role: string }>`select role from firm_members
+          where firm_user_id = ${business.firm_user_id} and member_user_id = ${actorUserId}
+          for share`
+      : [];
+    const soloOwner = business.firm_user_id === null && ownerUserId === actorUserId;
+    if (!soloOwner && (business.firm_user_id !== actorUserId || member[0]?.role !== "owner")) {
+      throw new RequestError(403, OWNER_ONLY_STATUS);
+    }
     const rows = await tx<RawEngagement>`
       insert into engagement_marks (user_id, business_id, status, ended_at)
       values (${ownerUserId}, ${businessId}, ${status},

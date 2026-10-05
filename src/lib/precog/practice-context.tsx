@@ -191,14 +191,14 @@ export interface PracticeActions {
   deleteMapVersion: (id: string) => void;
   restoreMapVersion: (id: string) => void;
   /** Opens another business; when it cannot, says why. */
-  switchBusiness: (id: string) => Promise<SwitchResult>;
+  switchBusiness: (id: string, ownerUserId?: string) => Promise<SwitchResult>;
   /**
    * Opens setup for a new business (its name and line of business filled
    * in). Refused, with the reason to show, while a save conflict waits for
    * the owner or when a signed-in account already holds its limit.
    */
   createBusiness: (industry: IndustryId, name?: string) => Promise<SwitchResult>;
-  deleteBusiness: (id: string) => Promise<void>;
+  deleteBusiness: (id: string, ownerUserId?: string) => Promise<void>;
 }
 
 /**

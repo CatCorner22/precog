@@ -869,22 +869,26 @@ export async function insertReviewEvent(
   input: ReviewEventInput,
   recordedBy: string,
 ): Promise<void> {
-  await sql`
-    insert into review_events (
-      user_id, business_id, period, item_key, owner_name, due_on, result, notes, recorded_by
-    )
-    values (
-      ${ownerUserId},
-      ${input.businessId},
-      ${input.period},
-      ${input.itemKey},
-      ${input.ownerName},
-      ${input.dueOn},
-      ${input.result},
-      ${input.notes},
-      ${recordedBy}
-    )
-  `;
+  const { lockEngagementWriteAccess } = await import("./engagement-store");
+  await inTransaction(sql, async (tx) => {
+    await lockEngagementWriteAccess(tx, ownerUserId, input.businessId, recordedBy);
+    await tx`
+      insert into review_events (
+        user_id, business_id, period, item_key, owner_name, due_on, result, notes, recorded_by
+      )
+      values (
+        ${ownerUserId},
+        ${input.businessId},
+        ${input.period},
+        ${input.itemKey},
+        ${input.ownerName},
+        ${input.dueOn},
+        ${input.result},
+        ${input.notes},
+        ${recordedBy}
+      )
+    `;
+  });
 }
 
 /** Drop the audit rows for businesses that no longer exist (run after a purge). */

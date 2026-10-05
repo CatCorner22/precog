@@ -3,12 +3,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
 import { requireBusinessOwner, requireBusinessRole, requireFirmRole } from "./access.server";
-import {
-  OWNER_ONLY_STATUS,
-  parseEngagementInput,
-  RETENTION_REFUSAL,
-  type EngagementStatus,
-} from "./engagement-row";
+import { parseEngagementInput, RETENTION_REFUSAL, type EngagementStatus } from "./engagement-row";
 import {
   loadClientFirm,
   loadEngagement,
@@ -116,18 +111,18 @@ export const setEngagementStatus = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    const firm = await loadClientFirm(sql, owner, data.businessId);
-    if (!firm || firm.firmUserId !== context.userId) {
-      throw new RequestError(403, OWNER_ONLY_STATUS);
-    }
+    // The store checks, under the engagement's locks, that the caller owns the
+    // business's firm (or the business, when it has no firm).
     const { engagement, changed } = await setEngagementStatusRow(
       sql,
       owner,
       data.businessId,
       data.status,
+      context.userId,
     );
     // Ending an ended engagement, or reopening an open one, changes nothing.
-    if (changed) {
+    const firm = changed ? await loadClientFirm(sql, owner, data.businessId) : null;
+    if (firm) {
       await recordAudit(sql, {
         firmUserId: firm.firmUserId,
         actorUserId: context.userId,

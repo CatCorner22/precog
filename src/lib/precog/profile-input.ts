@@ -1,16 +1,12 @@
 import { isIndustryId } from "./industry";
-import type { PracticeProfile } from "./practice-profile";
+import { normalizeDecisions, type PracticeProfile } from "./practice-profile";
 import { malformedList } from "./profile-entries";
 import { RequestError } from "@/lib/request-errors";
-import { DEFAULT_BUSINESS_ID } from "./business-id";
+import { DEFAULT_BUSINESS_ID, isBusinessId } from "./business-id";
+export { isBusinessId } from "./business-id";
 
 /** Largest profile document a single save may carry (bytes of JSON). */
 export const MAX_PROFILE_BYTES = 2 * 1024 * 1024;
-const BUSINESS_ID = /^[A-Za-z0-9_-]{1,64}$/;
-
-export function isBusinessId(value: unknown): value is string {
-  return typeof value === "string" && BUSINESS_ID.test(value);
-}
 
 /**
  * What a profile must satisfy before it is stored as jsonb: an object with a
@@ -43,9 +39,14 @@ export function validateProfileInput(input: unknown): {
     throw new RequestError(400, `Profile has a malformed entry in ${malformed}`);
   }
   const businessId = profile.businessId ?? DEFAULT_BUSINESS_ID;
-  const json = JSON.stringify({ ...profile, businessId });
-  if (new TextEncoder().encode(json).length > MAX_PROFILE_BYTES) {
+  const rawJson = JSON.stringify({ ...profile, businessId });
+  if (new TextEncoder().encode(rawJson).length > MAX_PROFILE_BYTES) {
     throw new RequestError(413, "Profile is too large to save (over 2 MB)");
   }
-  return { profile: { ...profile, businessId }, businessId, json };
+  const json = JSON.stringify({
+    ...profile,
+    businessId,
+    decisions: normalizeDecisions(profile.decisions),
+  });
+  return { profile: JSON.parse(json) as PracticeProfile, businessId, json };
 }

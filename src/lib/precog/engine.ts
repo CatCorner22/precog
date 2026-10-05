@@ -24,6 +24,7 @@ import { scenarioLevels, STAFF_CONDITIONS } from "./scoring/scenario-level";
 import { DEFAULT_WEIGHTS } from "./scoring/weights";
 import { formatUsd } from "../utils";
 import { count } from "./text";
+import { normalizeKnowledgeRelations } from "./knowledge-relations";
 
 /**
  * Index values for knowledge held by too few people. This app's own scale
@@ -70,7 +71,10 @@ const ASSUMED_TIMELINE_RELIEF_SHARE = DEFAULT_WEIGHTS.scenarioStaff.timelineReli
  */
 export function findKnowledgeRisks(tpl: IndustryTemplate): KnowledgeRisk[] {
   if (!registerAssessed(tpl)) return [];
-  const { knowledge, people, relations } = tpl;
+  const { knowledge, people } = tpl;
+  // Hand-built templates can bypass resolveTemplate, so enforce the same
+  // person/item uniqueness at this figure boundary too.
+  const relations = normalizeKnowledgeRelations(tpl.relations);
   const byK = new Map<string, typeof relations>();
   for (const r of relations) {
     if (!byK.has(r.knowledgeId)) byK.set(r.knowledgeId, []);
