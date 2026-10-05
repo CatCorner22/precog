@@ -460,7 +460,9 @@ export const lockReport = createServerFn({ method: "POST" })
       scopeNote: data.scopeNote,
       id: `rv_${randomHex(12)}`,
       freeze: (profile) => freezeReport(profile, data.today),
-      requireLockedVersions: true,
+      authorize: async (tx) => {
+        await requireEntitlement(tx, context.userId, "lockedVersions");
+      },
     });
     await recordFirst(sql, context.userId, "first_locked_version", data.businessId);
     return { version };
