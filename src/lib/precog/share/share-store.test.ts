@@ -220,6 +220,29 @@ describe("revoking links with the business and the firm", () => {
     expect(await revoked(tok(1))).toBe(true);
   });
 
+  it("leaves the links a business's own account made to it out of the firm owner's reach, once shared", async () => {
+    // The outsider shared out_biz with the firm; the firm's preparer works on it.
+    await pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id, granted_at)
+        values ('out_biz', 'outsider', 'Shared', 'dental', '{}'::jsonb, 1, 'owner', now());
+    `);
+    await linkTo(tok(1), "outsider", "outsider", "out_biz"); // the business's own account's link
+    await linkTo(tok(2), "prep", "outsider", "out_biz"); // the firm's link
+    await linkTo(tok(3), "outsider", "outsider", "out_biz");
+    await pg.query("update map_shares set revoked_at = now() where token = $1", [tok(3)]);
+    // The firm owner lists and revokes the firm's link, never the owner's own, live or past.
+    expect((await listMapShareSummaries(sql, "owner")).map((l) => l.token)).toEqual([tok(2)]);
+    expect(await revokeShareOnce(sql, "owner", tok(1))).toBe(null);
+    expect(await revoked(tok(1))).toBe(false);
+    expect(await revokeShareOnce(sql, "owner", tok(2))).toBe("revoked");
+    // The business's own account keeps listing and revoking its links.
+    expect((await listMapShareSummaries(sql, "outsider")).map((l) => l.token).sort()).toEqual([
+      tok(1),
+      tok(3),
+    ]);
+    expect(await revokeShareOnce(sql, "outsider", tok(1))).toBe("revoked");
+  });
+
   it("says whether a revoke ended a live link or found it revoked already", async () => {
     await linkTo(tok(1), "prep", "owner", "own_biz");
     expect(await revokeShareOnce(sql, "outsider", tok(1))).toBe(null);

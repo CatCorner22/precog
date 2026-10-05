@@ -140,24 +140,31 @@ const SHARE_LIST_COLUMNS = `
 const SHARE_LIST_JOINS = `left join report_versions rv on rv.id = s.report_version_id`;
 
 /**
+ * Whether the firm owner `owner` (a query placeholder, such as `$1`) reaches
+ * link `s`: a link to one of the firm's clients, except one the business's
+ * own account made to a business it shared with the firm. That link stays
+ * the account's alone, as ending the firm's access leaves it (endGrant).
+ */
+const firmOwnerReaches = (owner: string) => `exists (
+  select 1 from businesses b
+  where b.user_id = s.business_owner_id and b.id = s.business_id
+    and b.firm_user_id = ${owner}
+    and not (b.granted_at is not null and s.user_id = b.user_id)
+)`;
+
+/**
  * The owner's links: every live one, however many, then the newest revoked
  * or expired ones. The share panel only offers "revoke" for a listed link, so
  * a live link must never drop off the list behind newer dead ones. A firm
  * owner also sees the links colleagues made on the firm's clients, live and
- * past, so they can revoke the live ones and audit the rest.
+ * past, so they can revoke the live ones and audit the rest
+ * (`firmOwnerReaches`).
  */
 export async function listMapShareSummaries(sql: Sql, userId: string): Promise<ShareSummary[]> {
   const live = await sql.query<ShareListRow>(
     `select ${SHARE_LIST_COLUMNS}
      from map_shares s ${SHARE_LIST_JOINS}
-     where (
-         s.user_id = $1
-         or exists (
-           select 1 from businesses b
-           where b.user_id = s.business_owner_id and b.id = s.business_id
-             and b.firm_user_id = $1
-         )
-       )
+     where (s.user_id = $1 or ${firmOwnerReaches("$1")})
        and s.revoked_at is null
        and (s.expires_at is null or s.expires_at > now())
      order by s.created_at desc`,
@@ -166,14 +173,7 @@ export async function listMapShareSummaries(sql: Sql, userId: string): Promise<S
   const inactive = await sql.query<ShareListRow>(
     `select ${SHARE_LIST_COLUMNS}
      from map_shares s ${SHARE_LIST_JOINS}
-     where (
-         s.user_id = $1
-         or exists (
-           select 1 from businesses b
-           where b.user_id = s.business_owner_id and b.id = s.business_id
-             and b.firm_user_id = $1
-         )
-       )
+     where (s.user_id = $1 or ${firmOwnerReaches("$1")})
        and (s.revoked_at is not null or (s.expires_at is not null and s.expires_at <= now()))
      order by s.created_at desc
      limit $2`,
@@ -316,20 +316,14 @@ export async function revokeShareOnce(
   userId: string,
   token: string,
 ): Promise<"revoked" | "already" | null> {
-  const rows = await sql<{ was_live: boolean }>`
-    update map_shares s set revoked_at = coalesce(s.revoked_at, now())
-    from (select token, revoked_at from map_shares where token = ${token} for update) prev
-    where s.token = prev.token
-      and (
-        s.user_id = ${userId}
-        or exists (
-          select 1 from businesses b
-          where b.user_id = s.business_owner_id and b.id = s.business_id
-            and b.firm_user_id = ${userId}
-        )
-      )
-    returning prev.revoked_at is null as was_live
-  `;
+  const rows = await sql.query<{ was_live: boolean }>(
+    `update map_shares s set revoked_at = coalesce(s.revoked_at, now())
+     from (select token, revoked_at from map_shares where token = $1 for update) prev
+     where s.token = prev.token
+       and (s.user_id = $2 or ${firmOwnerReaches("$2")})
+     returning prev.revoked_at is null as was_live`,
+    [token, userId],
+  );
   const row = rows[0];
   if (!row) return null;
   return row.was_live ? "revoked" : "already";
