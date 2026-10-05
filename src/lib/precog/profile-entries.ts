@@ -1,4 +1,5 @@
 import type { SavedProcessBlock } from "./builder/process-blocks";
+import { normalizeKnowledgeRelations } from "./knowledge-relations";
 import type { MapHealthPoint, MapVersion } from "./practice-profile";
 import type { KnowledgeItem, KnowledgeRelation, Person, ProcessNode } from "./types";
 
@@ -57,11 +58,12 @@ export function knowledgeEntries(value: unknown): KnowledgeItem[] | null {
 
 /** Who holds which register item, and how well. */
 export function relationEntries(value: unknown): KnowledgeRelation[] | null {
-  return entries<KnowledgeRelation>(
+  const relations = entries<KnowledgeRelation>(
     value,
     ["personId", "knowledgeId", "level"],
     LIST_LIMITS.relations,
   );
+  return relations && normalizeKnowledgeRelations(relations);
 }
 
 /** Pinned canvas positions: finite x and y, keyed by process id. */
