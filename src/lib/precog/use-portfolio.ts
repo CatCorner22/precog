@@ -236,6 +236,7 @@ export function usePortfolio(input: {
       profileRef,
       saveConflictRef,
       setSwitching,
+      workspace.accountId,
       workspace.local,
     ],
   );
