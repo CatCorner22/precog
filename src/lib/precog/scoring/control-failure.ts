@@ -64,8 +64,8 @@ export const SAFEGUARDS: { id: SafeguardId; label: string }[] = [
   { id: "dual_release", label: "Dual release for payments and deposits" },
   { id: "bank_rec", label: "Independent bank reconciliation" },
   { id: "cameras", label: "Security cameras" },
-  { id: "alarm", label: "Monitored alarm and access control" },
-  { id: "bonded_handlers", label: "Bonded cash handlers" },
+  { id: "alarm", label: "Alarm and access control" },
+  { id: "bonded_handlers", label: "Bonded or background-checked cash handlers" },
 ];
 
 interface EvaluationState {
@@ -103,11 +103,11 @@ export function evaluateControlFailure(
   const scored = !control?.starter;
   const withIt =
     target.kind === "control"
-      ? stateWithControl(tpl, target.id, true, inputs)
+      ? stateWithControl(tpl, target.id, true, mode, inputs)
       : stateWithSafeguard(tpl, target.id, true, inputs);
   const withoutIt =
     target.kind === "control"
-      ? stateWithControl(tpl, target.id, false, inputs)
+      ? stateWithControl(tpl, target.id, false, mode, inputs)
       : stateWithSafeguard(tpl, target.id, false, inputs);
   const inScope = scenariosInScope(tpl, inputs.confirmedScenarioIds);
   const scenarios = scored
@@ -229,6 +229,7 @@ function stateWithControl(
   tpl: IndustryTemplate,
   id: string,
   enabled: boolean,
+  mode: ControlFailureReport["mode"],
   inputs: FailureInputs,
 ): EvaluationState {
   return {
@@ -239,7 +240,8 @@ function stateWithControl(
           ? {
               ...control,
               segregated: enabled,
-              compensatingControls: enabled ? [...control.compensatingControls] : [],
+              compensatingControls:
+                !enabled && mode === "failure" ? [] : [...control.compensatingControls],
             }
           : control,
       ),
@@ -430,7 +432,9 @@ function buildHeadline(
   residual: ControlFailureReport["residual"],
   findings: ControlFailureReport["findings"],
 ): string {
-  const opening = mode === "failure" ? `If ${label} stops` : `Without ${label} today`;
+  const headlineLabel = labelForHeadline(label);
+  const opening =
+    mode === "failure" ? `If ${headlineLabel} stops` : `Without ${headlineLabel} today`;
   const clauses: string[] = [];
   if (worstScenario) {
     const retainedDelta =
@@ -457,11 +461,22 @@ function buildHeadline(
     clauses.push(`average residual ${residual.withIt} → ${residual.withoutIt}`);
   }
   if (findings.length > 0) {
+    const count = findings.length;
+    const conflict = count === 1 ? "duty conflict" : "duty conflicts";
     clauses.push(
-      `${findings.length} duty ${findings.length === 1 ? "conflict loses" : "conflicts lose"} a control in place`,
+      mode === "failure"
+        ? `${count} ${conflict} ${count === 1 ? "loses" : "lose"} a control in place`
+        : `${count} ${conflict} would gain a control in place`,
     );
   }
   return clauses.length
     ? `${opening}: ${clauses.join("; ")}.`
     : `${opening}: no modeled loss, residual or duty-conflict figures move.`;
+}
+
+function labelForHeadline(label: string): string {
+  const second = label[1];
+  return second && second === second.toLowerCase() && second !== second.toUpperCase()
+    ? `${label[0].toLowerCase()}${label.slice(1)}`
+    : label;
 }

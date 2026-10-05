@@ -6,7 +6,9 @@ import { CONFLICT_RULES } from "../sod/conflict-rules";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import type { StaffComposition } from "../types";
 import { DEFAULT_RISK_VARIABLES, mergeStaffIntoVariables } from "./dynamic-variables";
+import { portfolioSummary } from "./residual-engine";
 import { evaluateControlFailure, type FailureInputs } from "./control-failure";
+import { DEFAULT_WEIGHTS } from "./weights";
 
 const dental = getIndustryTemplate("dental");
 
@@ -120,13 +122,32 @@ describe("control failure impact", () => {
 
   it("marks a non-segregated control as a gap", () => {
     const control = dental.controls.find((item) => !item.segregated)!;
+    const inputs = inputsFor(dental);
+    const report = evaluateControlFailure(dental, { kind: "control", id: control.id }, inputs);
+
+    expect(report.mode).toBe("gap");
+    expect(report.residual.withoutIt).toBe(
+      portfolioSummary(dental, inputs.staff, DEFAULT_WEIGHTS, {
+        confirmedScenarioIds: undefined,
+        riskVariables: inputs.riskVariables,
+      }).averageResidual,
+    );
+  });
+
+  it("describes the coverage gained from a missing dual-release safeguard", () => {
+    const inputs = inputsFor(dental);
     const report = evaluateControlFailure(
       dental,
-      { kind: "control", id: control.id },
-      inputsFor(dental),
+      { kind: "safeguard", id: "dual_release" },
+      inputs,
     );
 
     expect(report.mode).toBe("gap");
+    expect(report.headline.startsWith("Without dual release")).toBe(true);
+    if (report.findings.length > 0) {
+      expect(report.headline).toContain("would gain a control in place");
+      expect(report.headline).not.toContain("lose");
+    }
   });
 
   it("leaves unconfirmed own-business scenarios and starter controls unscored", () => {

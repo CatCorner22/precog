@@ -12,13 +12,14 @@ import {
   SAFEGUARDS,
   type FailureTarget,
 } from "@/lib/precog/scoring/control-failure";
-import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
+import { confirmedScenarioIds, withOwnScenarioWording } from "@/lib/precog/scoring/scope";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
 
 export function ControlFailurePanel() {
-  const { profile, template } = usePractice();
+  const { profile, template: baseTemplate } = usePractice();
+  const template = useMemo(() => withOwnScenarioWording(baseTemplate), [baseTemplate]);
   const targets = useMemo<FailureTarget[]>(
     () => [
       ...SAFEGUARDS.map(({ id }) => ({ kind: "safeguard" as const, id })),
@@ -182,7 +183,13 @@ export function ControlFailurePanel() {
             )}
           </PanelSection>
 
-          <PanelSection title="Duty conflicts losing a control in place">
+          <PanelSection
+            title={
+              report.mode === "failure"
+                ? "Duty conflicts that lose a control in place"
+                : "Duty conflicts it would cover"
+            }
+          >
             {report.findings.length ? (
               <ul className="space-y-3">
                 {report.findings.map((finding) => (
@@ -197,7 +204,11 @@ export function ControlFailurePanel() {
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted">No duty conflict loses a control in place.</p>
+              <p className="text-sm text-muted">
+                {report.mode === "failure"
+                  ? "No duty conflict loses a control in place."
+                  : "No duty conflict would gain a control in place."}
+              </p>
             )}
           </PanelSection>
 
