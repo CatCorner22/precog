@@ -42,10 +42,23 @@ const pageSource = flat(readFileSync(new URL("./operator.tsx", import.meta.url),
 const rootSource = flat(readFileSync(new URL("./__root.tsx", import.meta.url), "utf8"));
 
 describe("the operator page", () => {
-  it("is titled for the operator and kept out of search engines", () => {
+  it("keeps the root's title for anyone else, titles the tab only for the operator, and stays out of search engines", () => {
     const meta = route.options.head().meta;
-    expect(meta).toContainEqual({ title: "Operator · Precog" });
+    // Any unknown address keeps the root's title; so does this page's head
+    // (decision 22). The console sets the operator's title once it shows.
+    expect(meta.some((m) => "title" in m)).toBe(false);
     expect(meta).toContainEqual({ name: "robots", content: "noindex, nofollow" });
+    expect(texts.OPERATOR_TITLE).toBe("Operator · Precog");
+    const consoleSource = flat(
+      readFileSync(
+        new URL("../components/precog/operator/operator-console.tsx", import.meta.url),
+        "utf8",
+      ),
+    );
+    expect(consoleSource).toContain("document.title = OPERATOR_TITLE;");
+    expect(consoleSource).toContain(
+      "if (document.title === OPERATOR_TITLE) document.title = before;",
+    );
   });
 
   it("prints the not-found text of any unknown address to a signed-out visitor, with no call", () => {

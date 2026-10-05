@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ import {
   NOT_FOUND_HEADING,
   OPERATOR_COUNTS,
   OPERATOR_HEADING,
+  OPERATOR_TITLE,
   REPLACE_LABEL,
   type OperatorAccount,
   type OperatorCountName,
@@ -185,6 +186,16 @@ export function OperatorConsole() {
   const [found, setFound] = useState<Found>({ kind: "none" });
   const [busy, setBusy] = useState(false);
   const [counts, setCounts] = useState<Partial<Record<OperatorCountName, OperatorCountResult>>>({});
+
+  // The tab title shows only to an operator: the route's head sets none
+  // (decision 22). Put back on leaving unless the next page set its own.
+  useEffect(() => {
+    const before = document.title;
+    document.title = OPERATOR_TITLE;
+    return () => {
+      if (document.title === OPERATOR_TITLE) document.title = before;
+    };
+  }, []);
 
   function find() {
     const address = email.trim();

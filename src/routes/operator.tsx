@@ -7,10 +7,10 @@ import { getOperatorStatus } from "@/lib/precog/operator/server";
 
 export const Route = createFileRoute("/operator")({
   component: OperatorPage,
-  // A literal, not an import: `head` stays in the main chunk, and the page's
-  // texts belong to the page's own chunk.
+  // No title here: the document keeps the root's title, as any unknown
+  // address does (decision 22), and the console sets its own once it shows.
   head: () => ({
-    meta: [{ title: "Operator · Precog" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ name: "robots", content: "noindex, nofollow" }],
   }),
 });
 

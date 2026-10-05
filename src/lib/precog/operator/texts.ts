@@ -8,6 +8,12 @@ import { formatDay } from "../dates";
  * same strings.
  */
 export const OPERATOR_HEADING = "Operator";
+/**
+ * The tab title, set only while the console shows: the route's own head sets
+ * none, so anyone who is not an operator reads the title every unknown
+ * address has (decision 22).
+ */
+export const OPERATOR_TITLE = "Operator · Precog";
 export const FIND_HEADING = "Find an account";
 export const EMAIL_LABEL = "Email address";
 export const FIND_BUTTON = "Find";
