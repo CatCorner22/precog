@@ -853,6 +853,20 @@ describe("digest run", () => {
       });
     });
 
+    it("counts only the versions this firm locked on a business its owner shared with it", async () => {
+      await firmWithPreparer();
+      await db.sql`update businesses set firm_user_id = 'adv', granted_at = now() where id = 'biz_1'`;
+      // Locked for an earlier firm, before a hand-back and this grant.
+      await version("prep", { from: "adv" });
+      await db.sql`update report_versions set firm_user_id = 'earlier' where id = ${`rv_${next}`}`;
+      expect((await lines()).adv).toBeNull();
+      await version("prep", { from: "adv" });
+      await db.sql`update report_versions set firm_user_id = 'adv' where id = ${`rv_${next}`}`;
+      expect((await lines()).adv).toBe(
+        "1 report version awaits your review. See the firm workspace.",
+      );
+    });
+
     it("leaves out versions not requested, reviewed or returned, and a deleted client's", async () => {
       await firmWithPreparer();
       await version("prep", { requested: false });

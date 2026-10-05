@@ -4,6 +4,7 @@ import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import { freezeReport } from "../report/stored-model";
 import { lockReportVersion } from "../firm/reports";
 import { removeMember } from "../firm/store";
+import { BUSINESS_ROLE_REFUSED } from "../firm/access.server";
 import { deleteBusinessRow } from "../business-store";
 import {
   insertMapShare,
@@ -430,6 +431,23 @@ describe("sharing a solo owner's reviewed version", () => {
     await lock("prep", "client", "rv_client");
     await review("rv_client");
     expect((await shareReport("prep", "rv_client")).token).toMatch(/^[0-9a-f]{36}$/);
+  });
+
+  it("refuses the owner of a business shared with a firm, and lets the firm share it under the firm's plan", async () => {
+    withStripe();
+    await db.sql`insert into billing_accounts (user_id, subscription_id, subscription_status)
+      values ('owner', 'sub_1', 'active')`;
+    // Solo's business, shared with the firm; the firm's preparer locked the version.
+    await db.sql`update businesses set firm_user_id = 'owner', granted_at = now() where id = 'solo_biz'`;
+    await lock("solo", "solo_biz", "rv_granted");
+    await db.sql`update report_versions set firm_user_id = 'owner', prepared_by = 'prep' where id = 'rv_granted'`;
+    await review("rv_granted");
+    await expect(shareReport("solo", "rv_granted")).rejects.toMatchObject({
+      status: 403,
+      message: BUSINESS_ROLE_REFUSED,
+    });
+    // The firm shares it, on the firm's plan, though the owner's own plan is free.
+    expect((await shareReport("prep", "rv_granted")).token).toMatch(/^[0-9a-f]{36}$/);
   });
 });
 

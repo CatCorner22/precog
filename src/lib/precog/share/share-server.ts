@@ -10,10 +10,10 @@ import { parseLoadShareInput } from "../public-inputs";
 import { MAX_BUSINESS_NAME } from "../business-id";
 import { resolveBusinessOwner } from "../business-store";
 import { resolveTemplate } from "../active-template";
-import { loadEntitlements, requireEntitlement } from "../firm/entitlements.server";
+import { loadEntitlements, requireEntitlementForBusiness } from "../firm/entitlements.server";
 import { loadFirmFor } from "../firm/store";
 import type { PracticeProfile } from "../practice-profile";
-import { requireReportVersion } from "../firm/access.server";
+import { requireBusinessRole, requireReportVersion } from "../firm/access.server";
 import { checkPasscodeGuess, hashPasscode } from "./share-attempts";
 import { redactSharePayload } from "./share-payload";
 import { parseCreateShareInput, SHARE_PASSCODE_MIN, type SharedMapPayload } from "./share-schema";
@@ -164,6 +164,10 @@ export const createReportShare = createServerFn({ method: "POST" })
     const { randomBytes } = await import("node:crypto");
     const sql = await getSql();
     const where = await requireReportVersion(sql, context.userId, data.versionId);
+    // Issuing a link is the firm's work on a business with a firm (decision
+    // 26): a business its owner shared with a firm reads every version the
+    // firm locked but shares none of them.
+    await requireBusinessRole(sql, context.userId, where.ownerUserId, where.businessId, "any");
     const allowSolo = await soloShareAllowed(sql, where.ownerUserId, where.businessId);
     const refusal = await reportShareRefusal(sql, where.ownerUserId, data.versionId, {
       allowSolo,
@@ -171,7 +175,8 @@ export const createReportShare = createServerFn({ method: "POST" })
     if (refusal) throw new RequestError(409, refusal);
     // Minting a link is a new issuance action, like locking: it needs the
     // plan even though already-issued links keep serving whatever the plan.
-    await requireEntitlement(sql, context.userId, "lockedVersions");
+    // The plan is the business's controller's, as lockReport reads it.
+    await requireEntitlementForBusiness(sql, where.ownerUserId, where.businessId, "lockedVersions");
     const names = await sql<{ name: string; industry: string }>`
       select name, industry from businesses
       where user_id = ${where.ownerUserId} and id = ${where.businessId}

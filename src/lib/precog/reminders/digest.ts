@@ -359,6 +359,9 @@ async function versionsAwaitingReview(
       and m.member_user_id = r.user_id and m.role in ('owner', 'reviewer')
     join businesses b on b.deleted_at is null and b.firm_user_id = r.firm_user_id
     join report_versions v on v.user_id = b.user_id and v.business_id = b.id
+      -- Only versions this firm locked: after a hand-back and a new grant,
+      -- the earlier firm's versions are not this firm's to review.
+      and (v.firm_user_id = b.firm_user_id or (v.firm_user_id is null and b.granted_at is null))
     where v.review_requested_at is not null
       and v.reviewed_at is null
       and v.returned_at is null
