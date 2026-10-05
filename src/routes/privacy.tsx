@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { DELETED_RETENTION_DAYS, HISTORY_RETENTION_DAYS } from "@/lib/precog/business-retention";
 import { formatDay } from "@/lib/precog/dates";
+import { RETENTION_YEARS_MAX, RETENTION_YEARS_MIN } from "@/lib/precog/firm/engagement-row";
 import { LEGAL_EFFECTIVE } from "@/lib/precog/legal";
 import {
   AUTH_BROKER_OPERATOR,
@@ -32,13 +33,19 @@ export const Route = createFileRoute("/privacy")({
  * (src/lib/precog/procedures/image-store.server.ts), UNCONFIRMED_HOLD_HOURS
  * (src/lib/auth/email-password.server.ts), purgeOldDailyUsage's keepDays
  * (src/lib/precog/llm/daily-usage.ts), MAX_HISTORY_PER_BUSINESS
- * (src/lib/precog/business-retention.ts) and the defaults of LLM_DAILY_PER_USER
- * and LLM_DAILY_PER_USER_PAID (src/lib/precog/llm/daily-usage.ts). Change those
+ * (src/lib/precog/business-retention.ts), the defaults of LLM_DAILY_PER_USER
+ * and LLM_DAILY_PER_USER_PAID (src/lib/precog/llm/daily-usage.ts),
+ * LLM_USAGE_RETENTION_MONTHS (src/lib/precog/llm/usage-log.server.ts) and
+ * Better Auth's session length (seven days, refreshed daily; the default
+ * src/lib/auth/server.ts keeps). The retention row's "seven years unless the
+ * firm chose up to fifteen" spells out RETENTION_YEARS_DEFAULT and
+ * RETENTION_YEARS_MAX (src/lib/precog/firm/engagement-row.ts). Change those
  * and this page together.
  */
 const UNREFERENCED_PICTURE_DAYS = 30;
 const UNCONFIRMED_SIGNUP_HOURS = 24;
 const MODEL_CALL_COUNT_DAYS = 35;
+const MODEL_CALL_RECORD_MONTHS = 13;
 const MAX_VERSIONS_PER_BUSINESS = 200;
 const MODEL_CALLS_FREE_PER_DAY = 100;
 const MODEL_CALLS_PAID_PER_DAY = 400;
@@ -58,14 +65,21 @@ const PROCESSORS: ReadonlyArray<readonly [string, string]> = [
 
 /** What Precog keeps, and for how long. */
 const RETENTION: ReadonlyArray<readonly [string, string]> = [
-  ["A deleted business", `${DELETED_RETENTION_DAYS} days, then purged`],
+  [
+    "A deleted business",
+    `${DELETED_RETENTION_DAYS} days, then purged; a firm's client with a locked report version is kept for the firm's retention period (${RETENTION_YEARS_MIN} to ${RETENTION_YEARS_MAX} years), unseen and not restorable after ${DELETED_RETENTION_DAYS} days`,
+  ],
   [
     "Past versions of a business",
     `${HISTORY_RETENTION_DAYS} days and at most ${MAX_VERSIONS_PER_BUSINESS} versions`,
   ],
   [
     "Locked report versions and the monthly review log of a firm's clients",
-    "kept until the business is purged or the account is deleted",
+    `kept while the firm holds the client and, after the firm deletes a client that holds a locked version, for the period the firm sets (seven years unless the firm chose up to fifteen), then purged; deleting the account removes them at once; a business its owner shared with a firm is the owner's, and is purged ${DELETED_RETENTION_DAYS} days after the owner deletes it`,
+  ],
+  [
+    "A firm's activity log (who did what to the firm's file, with names as they were)",
+    "each entry for the period the firm sets from the day it was written, then purged; deleted with the firm owner's account",
   ],
   [
     "When you first set up a business, locked a report version, marked a report sent or recorded a monthly review",
@@ -77,9 +91,14 @@ const RETENTION: ReadonlyArray<readonly [string, string]> = [
   ],
   ["Pictures no step uses", `${UNREFERENCED_PICTURE_DAYS} days`],
   ["An unconfirmed email-and-password sign-up", `${UNCONFIRMED_SIGNUP_HOURS} hours`],
+  ["Signed-in sessions", "seven days from last use; end them from Sessions in the account menu"],
   ["Share view logs", `${SHARE_VIEW_RETENTION_DAYS} days`],
   ["Failed passcode guesses", `${PASSCODE_ATTEMPT_RETENTION_DAYS} days`],
   ["Model-call counts", `${MODEL_CALL_COUNT_DAYS} days`],
+  [
+    "Model-call records (feature, model and token counts; no question or answer)",
+    `${MODEL_CALL_RECORD_MONTHS} months`,
+  ],
   ["QuickBooks readings", "the last twelve, deleted on disconnect"],
 ];
 

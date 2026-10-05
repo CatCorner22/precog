@@ -1,7 +1,12 @@
+import { readFileSync } from "node:fs";
 import type { ComponentType, ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { RETENTION_YEARS_DEFAULT } from "@/lib/precog/firm/engagement-row";
+import {
+  RETENTION_YEARS_DEFAULT,
+  RETENTION_YEARS_MAX,
+  RETENTION_YEARS_MIN,
+} from "@/lib/precog/firm/engagement-row";
 import { TIER_CLIENT_LIMITS } from "@/lib/precog/firm/entitlements";
 import { TIERS } from "@/lib/precog/firm/pricing";
 import { Route as Terms } from "./terms";
@@ -26,6 +31,15 @@ function render(route: unknown): { html: string; title: string | undefined } {
     html: renderToStaticMarkup(<Page />),
     title: options.head().meta.find((m) => m.title)?.title,
   };
+}
+
+/**
+ * A repository file as text. A page route's test may not import a server-only
+ * module (the layering lint), so the figures those modules hold are read from
+ * their source.
+ */
+function repoFile(path: string): string {
+  return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
 
 function headings(html: string): string[] {
@@ -181,7 +195,9 @@ describe("Privacy", () => {
     expect(html).toContain("An unconfirmed email-and-password sign-up");
     expect(html).toContain("30 days, then purged");
     expect(html).toContain("90 days and at most 200 versions");
-    expect(html).toContain("kept until the business is purged or the account is deleted");
+    expect(html).toContain(
+      "kept while the firm holds the client and, after the firm deletes a client that holds a locked version, for the period the firm sets (seven years unless the firm chose up to fifteen), then purged; deleting the account removes them at once; a business its owner shared with a firm is the owner&#x27;s, and is purged 30 days after the owner deletes it",
+    );
     expect(html).toContain('<td class="py-1.5">90 days</td>');
     expect(html).toContain('<td class="py-1.5">30 days</td>');
     expect(html).toContain('<td class="py-1.5">35 days</td>');
@@ -195,6 +211,34 @@ describe("Privacy", () => {
     expect(html).toContain(
       "until the firm changes them or the account is deleted; each locked version keeps the copy it was printed with",
     );
+  });
+
+  it("lists how long a kept client, the activity log, model-call records and sessions last", () => {
+    expect(html).toContain(
+      "30 days, then purged; a firm&#x27;s client with a locked report version is kept for the firm&#x27;s retention period (7 to 15 years), unseen and not restorable after 30 days",
+    );
+    expect(html).toContain(
+      `the firm&#x27;s retention period (${RETENTION_YEARS_MIN} to ${RETENTION_YEARS_MAX} years)`,
+    );
+    // The locked-versions row spells out the default and the most a firm can pick.
+    expect([RETENTION_YEARS_DEFAULT, RETENTION_YEARS_MAX]).toEqual([7, 15]);
+    expect(html).toContain(
+      "A firm&#x27;s activity log (who did what to the firm&#x27;s file, with names as they were)",
+    );
+    expect(html).toContain(
+      "each entry for the period the firm sets from the day it was written, then purged; deleted with the firm owner&#x27;s account",
+    );
+    expect(html).toContain(
+      "Model-call records (feature, model and token counts; no question or answer)",
+    );
+    const usageMonths = /LLM_USAGE_RETENTION_MONTHS = (\d+);/.exec(
+      repoFile("src/lib/precog/llm/usage-log.server.ts"),
+    )?.[1];
+    expect(usageMonths).toBe("13");
+    expect(html).toContain(`<td class="py-1.5">${usageMonths} months</td>`);
+    expect(html).toContain('<td class="py-1.5">13 months</td>');
+    expect(html).toContain("Signed-in sessions");
+    expect(html).toContain("seven days from last use; end them from Sessions in the account menu");
   });
 
   it("says what Precog notes about an account, who gets a service email, and what moves", () => {
