@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { defaultProfile, normalizeProfile, type PracticeProfile } from "../practice-profile";
@@ -20,6 +18,7 @@ import {
   saveNotificationSettings,
   stopDigestByToken,
 } from "../firm/store";
+import { listReportVersions } from "../firm/reports";
 import { INDUSTRIES } from "../industry";
 import { getIndustryTemplate } from "../templates";
 import type { Person } from "../types";
@@ -869,17 +868,20 @@ describe("digest run", () => {
       );
     });
 
-    it("reads which versions are the firm's through the versions list's own rule", async () => {
-      // One definition of the rule (reports.ts), so the digest and the list
-      // the reviewer opens cannot drift apart.
-      const { FIRM_READS_VERSION } = await import("../firm/reports");
-      expect(FIRM_READS_VERSION).toContain("v.firm_user_id = b.firm_user_id");
-      const digest = readFileSync(
-        join(process.cwd(), "src/lib/precog/reminders/digest.ts"),
-        "utf8",
+    it("counts a version that names no firm only while the reviewer's list shows it", async () => {
+      await firmWithPreparer();
+      // Locked before Precog kept the firm, on a business its owner never
+      // shared: only this firm can have locked it.
+      await version("prep", { from: null });
+      expect(await listReportVersions(db.sql, "adv", "biz_1", "rev")).toHaveLength(1);
+      expect((await lines()).rev).toBe(
+        "1 report version awaits your review. See the firm workspace.",
       );
-      expect(digest).toContain("${FIRM_READS_VERSION}");
-      expect(digest).not.toContain("granted_at is null");
+      // Once the owner shared the business, a version naming no firm is one
+      // they locked alone: not in the reviewer's list, and not counted.
+      await db.sql`update businesses set granted_at = now() where id = 'biz_1'`;
+      expect(await listReportVersions(db.sql, "adv", "biz_1", "rev")).toEqual([]);
+      expect((await lines()).rev).toBeNull();
     });
 
     it("leaves out versions not requested, reviewed or returned, and a deleted client's", async () => {
