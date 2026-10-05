@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
@@ -39,12 +40,38 @@ export const SEED_USER_SQL = `insert into "user" (id, name, email, "emailVerifie
  */
 export const AUDIT_BYPASS_SQL = "select set_config('precog.audit_bypass', 'on', true);";
 
+/**
+ * Where the migrated cluster's data directory is kept between test files, as
+ * the tar PGlite dumps: under `.tmp/` in the repository (gitignored) so a CI
+ * run and every worker in it share one file. PRECOG_PGLITE_TEMPLATE_DIR
+ * overrides it; an unwritable directory just means every file migrates.
+ */
+const TEMPLATE_DIR =
+  process.env.PRECOG_PGLITE_TEMPLATE_DIR ??
+  fileURLToPath(new URL("../../.tmp/pglite-template/", import.meta.url));
+
+/** The dump for this exact set of migration files, read once per worker. */
+let templatePromise: Promise<Blob | null> | null = null;
+
+/**
+ * Open a PGlite with every migration applied. `initdb` is the slow part of a
+ * fresh PGlite (one to two seconds; the 50 migration files take a fifth of
+ * that), so the first caller in a run builds the cluster once, dumps its data
+ * directory to disk, and every later caller, in this worker and the others,
+ * loads that dump instead: about a third of a second. The dump is keyed by a
+ * checksum of the migration files, so adding or editing one rebuilds it.
+ */
 export async function openTestDb(): Promise<TestDb> {
-  const pg = new PGlite({ parsers: DB_TYPE_PARSERS });
+  templatePromise ??= loadOrBuildTemplate().catch((err) => {
+    templatePromise = null;
+    console.warn(`[test/pglite] no template, migrating per file: ${(err as Error).message}`);
+    return null;
+  });
+  const template = await templatePromise;
+  const pg = template
+    ? new PGlite({ parsers: DB_TYPE_PARSERS, loadDataDir: template })
+    : await freshMigratedPglite();
   await pg.waitReady;
-  for (const name of await migrationFiles()) {
-    await pg.exec(await readFile(join(MIGRATIONS_DIR, name), "utf8"));
-  }
   return {
     pg,
     sql: pgliteSql(pg),
@@ -66,10 +93,59 @@ export async function openTestDb(): Promise<TestDb> {
   };
 }
 
+/** A fresh cluster with every migration applied, the way each test file did before the template. */
+async function freshMigratedPglite(): Promise<PGlite> {
+  const pg = new PGlite({ parsers: DB_TYPE_PARSERS });
+  await pg.waitReady;
+  for (const name of await migrationFiles()) {
+    await pg.exec(await readFile(join(MIGRATIONS_DIR, name), "utf8"));
+  }
+  return pg;
+}
+
 /**
- * The `exec` the deploy migrator expects, over one PGlite: parameterised
- * statements return their rows, a multi-statement script its last result's.
+ * The migrated cluster's dump for the current migration files: read from
+ * disk when a run already built it, built and written otherwise. Two workers
+ * building at once each write their own temporary file and rename it into
+ * place, so a reader never sees a partial dump.
  */
+async function loadOrBuildTemplate(): Promise<Blob> {
+  const names = await migrationFiles();
+  const hash = createHash("sha256");
+  for (const name of names) {
+    hash
+      .update(name)
+      .update("\0")
+      .update(await readFile(join(MIGRATIONS_DIR, name)))
+      .update("\0");
+  }
+  const path = join(TEMPLATE_DIR, `${hash.digest("hex").slice(0, 16)}.tar`);
+  try {
+    return new Blob([await readFile(path)]);
+  } catch {
+    // Not built yet (or unreadable): build it below.
+  }
+  const pg = await freshMigratedPglite();
+  const dump = await pg.dumpDataDir("none");
+  await pg.close();
+  const bytes = new Uint8Array(await dump.arrayBuffer());
+  try {
+    await mkdir(TEMPLATE_DIR, { recursive: true });
+    const partial = join(
+      TEMPLATE_DIR,
+      `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.partial`,
+    );
+    await writeFile(partial, bytes);
+    await rename(partial, path);
+  } catch (err) {
+    // The dump still serves this worker; the next run builds again.
+    console.warn(
+      `[test/pglite] template not saved under ${TEMPLATE_DIR}: ${(err as Error).message}`,
+    );
+  }
+  return new Blob([bytes]);
+}
+
 /** The migration file names in apply order, validated as the deploy migrator does. */
 export function migrationFiles(): Promise<string[]> {
   return listMigrationFiles(MIGRATIONS_DIR) as Promise<string[]>;
