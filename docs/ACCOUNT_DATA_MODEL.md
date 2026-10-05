@@ -62,12 +62,20 @@ introduced this model is in
   (`/api/cron/digest`), except a firm's client that holds a locked report
   version and that its owner did not share with the firm: that row stays
   soft-deleted (unseen, and not restorable once the grace period is over)
-  until its firm's `retention_years` have passed since the deletion (7 when
-  the firm's row is gone), so its locked versions, monthly review log and
-  engagement row stay with it (`KEPT_FOR_RETENTION` in
-  `src/lib/precog/business-store.ts`). No data is written to keep it; the
-  purge simply skips it. Deleting the account still removes everything at
-  once. After a purge, review-log and engagement rows whose business is gone
+  until its firm's `retention_years` have passed since the deletion, so its
+  locked versions, monthly review log and engagement row stay with it
+  (`KEPT_FOR_RETENTION` in `src/lib/precog/business-store.ts`). No data is
+  written to keep it; the purge simply skips it. Two account deletions end
+  the period early. The account that set up the client (the row's
+  `user_id`) takes it at once through the cascade, kept or not: a member can
+  delete their account once every client they set up is deleted, because
+  `refuseWhileHoldingFirmClients` in `src/lib/precog/account-store.ts`
+  counts only live clients. The firm owner's account deletion clears
+  `firm_user_id` on its members' businesses, deleted ones included
+  (`deleteAccountRows`), so their kept clients stop matching and the next
+  weekly purge removes each once its 30 days have passed; for the same
+  reason the predicate's fallback of 7 years for a missing `firms` row is
+  never reached today. The Terms and Privacy say both. After a purge, review-log and engagement rows whose business is gone
   are deleted too (`deleteOrphanedClientAudit` in
   `src/lib/precog/firm/store.ts`). After the purge a deletion marker remains
   (`migrations/0023_business_deletion_markers.sql`): identity references and

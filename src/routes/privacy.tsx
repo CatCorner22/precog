@@ -75,7 +75,7 @@ const RETENTION: ReadonlyArray<readonly [string, string]> = [
   ],
   [
     "Locked report versions and the monthly review log of a firm's clients",
-    `kept while the firm holds the client and, after the firm deletes a client that holds a locked version, for the period the firm sets (seven years unless the firm chose up to fifteen), then purged; deleting the account removes them at once; a business its owner shared with a firm is the owner's, and is purged ${DELETED_RETENTION_DAYS} days after the owner deletes it`,
+    `kept while the firm holds the client and, after the firm deletes a client that holds a locked version, for the period the firm sets (seven years unless the firm chose up to fifteen), then purged; deleting the account that set up the client removes them at once, and deleting the firm owner's account ends the period, so they are purged once ${DELETED_RETENTION_DAYS} days have passed since the client's deletion; a business its owner shared with a firm is the owner's, and is purged ${DELETED_RETENTION_DAYS} days after the owner deletes it`,
   ],
   [
     "A firm's activity log (who did what to the firm's file, with names as they were)",

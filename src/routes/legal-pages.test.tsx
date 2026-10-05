@@ -7,6 +7,7 @@ import {
   RETENTION_YEARS_MAX,
   RETENTION_YEARS_MIN,
 } from "@/lib/precog/firm/engagement-row";
+import { DELETED_RETENTION_DAYS } from "@/lib/precog/business-retention";
 import { TIER_CLIENT_LIMITS } from "@/lib/precog/firm/entitlements";
 import { TIERS } from "@/lib/precog/firm/pricing";
 import { Route as Terms } from "./terms";
@@ -142,6 +143,18 @@ describe("Terms", () => {
     // "seven years" spells out RETENTION_YEARS_DEFAULT; change it and the Terms together.
     expect(RETENTION_YEARS_DEFAULT).toBe(7);
   });
+
+  it("names the account deletions that end a deleted client's retention", () => {
+    // A member who set up the client takes it with their account (only live
+    // clients refuse the deletion); the firm owner's deletion takes the log
+    // and lets go of the members' clients (deleteAccountRows).
+    expect(html).toContain(
+      "keeps each entry for that period from the day it was written. Deleting the account that set up the client removes its versions and log at once. Deleting the firm owner&#x27;s account removes the activity log at once and ends the retention period for the clients its members set up: each is then purged once 30 days have passed since its deletion.",
+    );
+    expect(html).toContain(
+      `each is then purged once ${DELETED_RETENTION_DAYS} days have passed since its deletion.`,
+    );
+  });
 });
 
 describe("Privacy", () => {
@@ -196,7 +209,7 @@ describe("Privacy", () => {
     expect(html).toContain("30 days, then purged");
     expect(html).toContain("90 days and at most 200 versions");
     expect(html).toContain(
-      "kept while the firm holds the client and, after the firm deletes a client that holds a locked version, for the period the firm sets (seven years unless the firm chose up to fifteen), then purged; deleting the account removes them at once; a business its owner shared with a firm is the owner&#x27;s, and is purged 30 days after the owner deletes it",
+      "kept while the firm holds the client and, after the firm deletes a client that holds a locked version, for the period the firm sets (seven years unless the firm chose up to fifteen), then purged; deleting the account that set up the client removes them at once, and deleting the firm owner&#x27;s account ends the period, so they are purged once 30 days have passed since the client&#x27;s deletion; a business its owner shared with a firm is the owner&#x27;s, and is purged 30 days after the owner deletes it",
     );
     expect(html).toContain('<td class="py-1.5">90 days</td>');
     expect(html).toContain('<td class="py-1.5">30 days</td>');

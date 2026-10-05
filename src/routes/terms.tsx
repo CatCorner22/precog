@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalFooter } from "@/components/precog/legal-footer";
+import { DELETED_RETENTION_DAYS } from "@/lib/precog/business-retention";
 import { formatDay } from "@/lib/precog/dates";
 import { LEGAL_EFFECTIVE } from "@/lib/precog/legal";
 import {
@@ -111,7 +112,11 @@ function TermsPage() {
           After the firm deletes a client that holds a locked report version, Precog keeps the
           client's locked report versions and monthly review log for the retention period the firm
           sets (seven years unless the firm chose longer), then purges them; the firm's activity log
-          keeps each entry for that period from the day it was written.
+          keeps each entry for that period from the day it was written. Deleting the account that
+          set up the client removes its versions and log at once. Deleting the firm owner's account
+          removes the activity log at once and ends the retention period for the clients its members
+          set up: each is then purged once {DELETED_RETENTION_DAYS} days have passed since its
+          deletion.
         </p>
       </section>
 
