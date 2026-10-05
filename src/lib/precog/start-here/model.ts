@@ -7,7 +7,10 @@ import {
   CASE_LIBRARY,
   casesForSodRules,
   citingCaseStats,
+  CONTROL_CATALOG,
+  controlForIndustry,
   tenureExamples,
+  type ControlDefinition,
 } from "../evidence";
 import {
   detectSodConflicts,
@@ -38,6 +41,7 @@ import { localDateKey } from "../dates";
 import { doNextList, doNextSteps, type DoNextItem, type DoNextStep } from "../actions/do-next";
 import { joinWithAnd } from "../text";
 import { formatUsd } from "../../utils";
+import { dutiesOffTeam, setupInPlaceControls } from "../onboarding/setup-answers";
 
 /**
  * What Home shows, one part per section. Each section component reads only
@@ -162,6 +166,8 @@ interface StartHereFirstStepsModel {
   items: DoNextItem[];
   /** The ranked controls on that list, in order. */
   steps: DoNextStep[];
+  /** In-place setup controls that the unfiltered ranked list would have shown. */
+  alreadyInPlace: ControlDefinition[];
   caseById: Map<string, CaseStudy>;
   tips: Benchmark | undefined;
   /** Small organizations with a reporting channel, against larger ones. */
@@ -239,6 +245,7 @@ export function buildStartHereModel({
   const gaps = groupGaps(openConflicts, partialCoverage);
   const topThree = gaps.slice(0, 3);
   const placesOf = locationsById(template.people);
+  const offTeamDuties = dutiesOffTeam(profile.setupAnswers);
   const exposure: StartHereExposureModel = {
     industryId: profile.industry,
     dualRelease: profile.dualRelease,
@@ -255,7 +262,9 @@ export function buildStartHereModel({
     keptApart: separatedPairs(sod.conflicts, sod.assignments),
     ownerHeld: ownerHeldPairs(sod.conflicts),
     titleDuties: isSampleTeam ? "" : titleDutiesSentence(template.people),
-    unheld: sod.summary.unheldDuties.map((d) => entitlementLabel(d)),
+    unheld: sod.summary.unheldDuties
+      .filter((d) => !offTeamDuties.has(d))
+      .map((d) => entitlementLabel(d)),
     placesOf,
     atPlaces: (name, id) => {
       const places = placesOf.get(id);
@@ -285,12 +294,21 @@ export function buildStartHereModel({
   };
 
   const sodOpen = openSeverityCounts(sod.conflicts, profile.dualRelease);
-  const doNext = doNextList({
+  const inPlace = setupInPlaceControls(profile.setupAnswers);
+  const doNextInput = {
     open,
     industry: profile.industry,
     integrationDriftSummary: profile.integrationDriftSummary,
     accessReconciliation: profile.accessReconciliation,
-  });
+  };
+  const doNext = doNextList({ ...doNextInput, inPlace });
+  const alreadyInPlace = [
+    ...new Set(
+      doNextSteps(doNextList(doNextInput))
+        .map((step) => step.control.id)
+        .filter((id) => inPlace.has(id)),
+    ),
+  ].map((id) => controlForIndustry(CONTROL_CATALOG[id], profile.industry));
 
   return {
     preamble: {
@@ -312,6 +330,7 @@ export function buildStartHereModel({
     firstSteps: {
       items: doNext,
       steps: doNextSteps(doNext),
+      alreadyInPlace,
       caseById: new Map(evidence.map((c) => [c.id, c])),
       tips: BENCHMARK_BY_ID["bm-tips"],
       hotlineGap: BENCHMARK_BY_ID["bm-small-org-hotline-gap"],

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StorageLike } from "../local-data";
 import { ownerRow, type OwnTeamRow } from "./own-team";
+import { UNANSWERED } from "./setup-answers";
 import {
   SETUP_DRAFT_KEY,
   draftHasTypedWork,
@@ -68,6 +69,31 @@ describe("reloading in the middle of setup", () => {
     });
   });
 
+  it("round-trips the money step and normalizes saved answers", () => {
+    const answers = { ...UNANSWERED, bankRec: "outside" as const };
+    const back = reload({
+      ...base,
+      step: "money",
+      businessName: "Named Co",
+      setupAnswers: answers,
+    });
+    expect(back.draft.step).toBe("money");
+    expect(back.draft.setupAnswers).toEqual(answers);
+  });
+
+  it("normalizes invalid answer values in a stored draft", () => {
+    const storage = tabStorage();
+    storage.setItem(
+      SETUP_DRAFT_KEY,
+      JSON.stringify({
+        ...base,
+        step: "money",
+        setupAnswers: { cashOrChecks: "sometimes" },
+      }),
+    );
+    expect(readSetupDraft(storage)?.setupAnswers).toEqual(UNANSWERED);
+  });
+
   it("keeps a roster pasted into the box but not yet used to fill the table", () => {
     const pasted = "Ana Ruiz, Office Manager\nBen Ochoa, Bookkeeper\nCal Diaz, Cashier";
     const back = reload({ ...base, step: "team", paste: pasted });
@@ -104,15 +130,29 @@ describe("reloading in the middle of setup", () => {
       JSON.stringify({
         ...base,
         schemaVersion: 1,
-        currentQuestionId: "future_question",
+        step: "questions",
+        currentQuestionId: "setup_method",
+        actor: "advisor",
+        workforceBand: "100-249",
+        locationBand: "6-20",
+        mappingScope: "one_team",
+        setupMethod: "roster_import",
+        unresolvedRows: 60,
         answers: { runs_payroll: "unknown", holds_inventory: "sometimes" },
       }),
     );
     expect(readSetupDraft(storage)).toMatchObject({
       schemaVersion: 1,
+      step: "questions",
+      currentQuestionId: "setup_method",
+      actor: "advisor",
+      workforceBand: "100-249",
+      locationBand: "6-20",
+      mappingScope: "one_team",
+      setupMethod: "roster_import",
+      unresolvedRows: 60,
       answers: { runs_payroll: "unknown" },
     });
-    expect(readSetupDraft(storage)?.currentQuestionId).toBeUndefined();
   });
 });
 
@@ -142,6 +182,7 @@ describe("going back and loading the sample after typing a team", () => {
       freshRows,
     );
     expect(later.restoredEarlier).toBe(true);
+    expect(later.draft.step).toBe("team");
     expect(later.draft.businessName).toBe("Careful Co");
     expect(later.draft.rows.map((r) => r.name)).toEqual(["Olga Owner", "Ana Ruiz"]);
     expect(later.draft.businessId).toBe("biz_later");
@@ -165,7 +206,7 @@ describe("going back and loading the sample after typing a team", () => {
     );
     expect(later.restoredEarlier).toBe(false);
     expect(later.draft).toMatchObject({
-      step: "team",
+      step: "questions",
       selected: "retail",
       businessName: "Second Shop",
     });

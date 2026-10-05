@@ -28,6 +28,7 @@ import type {
   ProcessNode,
   StaffComposition,
 } from "./types";
+import type { SetupAnswers } from "./onboarding/setup-answers";
 import type { RiskVariableState } from "./scoring/dynamic-variables";
 import type { DualReleasePolicy } from "./controls/dual-release";
 import type { AccessReconciliation } from "./firm/reconcile";
@@ -138,6 +139,8 @@ export interface PracticeActions {
     industry: IndustryId;
     practiceName: string;
     people: Person[];
+    answers?: SetupAnswers;
+    onboardingFacts?: import("./onboarding/decision-model").OnboardingFacts;
     /** People the pasted roster left out as terminated or inactive. */
     leftOut?: Departure[];
   }) => void;

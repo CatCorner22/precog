@@ -6,6 +6,7 @@ import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { latestReview, reviewItemsFor, reviewResultLine } from "@/lib/precog/firm/reviews";
 import { industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
+import { dutiesOffTeam } from "@/lib/precog/onboarding/setup-answers";
 import { SEVERITY_RANK, type DetectedConflict } from "@/lib/precog/sod/detect";
 import {
   belowThresholdNote,
@@ -146,7 +147,10 @@ export function ControlReport({
   const sodRows = sod.conflicts
     .slice()
     .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.score - a.score);
-  const unheld = sod.summary.unheldDuties.map((d) => entitlementLabel(d));
+  const offTeamDuties = dutiesOffTeam(profile.setupAnswers);
+  const unheld = sod.summary.unheldDuties
+    .filter((d) => !offTeamDuties.has(d))
+    .map((d) => entitlementLabel(d));
   // People the books show and the map lacks fall outside the findings; say so beside them.
   const sodScope = sodScopeLine(profile.integrationDriftSummary);
   const reviews = reviewItemsFor(month).map((item) => ({

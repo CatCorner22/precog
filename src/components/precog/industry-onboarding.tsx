@@ -89,7 +89,32 @@ import { teamSizeScaleWarning } from "@/lib/precog/continuity/scale-message";
 import { clamp } from "@/lib/precog/number";
 import { DEFAULT_BUSINESS_ID, MAX_BUSINESS_NAME } from "@/lib/precog/business-id";
 import { count } from "@/lib/precog/text";
-export function IndustryOnboarding() {
+import {
+  hiddenDuties,
+  normalizeSetupAnswers,
+  setupEffects,
+  UNANSWERED,
+  type SetupAnswers,
+} from "@/lib/precog/onboarding/setup-answers";
+import { SetupMoneyStep } from "@/components/precog/onboarding/setup-money-step";
+import {
+  EMPTY_ONBOARDING_FACTS,
+  OnboardingQuestionShell,
+  adjacentQuestion,
+  type ShellQuestion,
+} from "./onboarding-question-shell";
+import {
+  ONBOARDING_FACTS_VERSION,
+  requiresMappingScope,
+  withMappingScope,
+  type MappingScope,
+  type OnboardingFacts,
+} from "@/lib/precog/onboarding/decision-model";
+export function IndustryOnboarding({
+  initialStep,
+}: {
+  initialStep?: "industry" | "questions" | "money" | "team";
+} = {}) {
   const tabName = useTabName();
   const workspace = useWorkspace();
   const {
@@ -101,10 +126,17 @@ export function IndustryOnboarding() {
     setupReturnsTo,
   } = usePractice();
   // A business added from the business menu arrives with its name and line
-  // of business; setup starts on its team.
+  // of business; setup starts on the setup questions.
   const typedName = ownBusinessName(profile);
   const [selected, setSelected] = useState<IndustryId>(profile.industry);
-  const [step, setStep] = useState<"industry" | "team">(typedName ? "team" : "industry");
+  const [step, setStep] = useState<"industry" | "questions" | "money" | "team">(
+    initialStep ?? (typedName ? "questions" : "industry"),
+  );
+  const [answers, setAnswers] = useState<SetupAnswers>(UNANSWERED);
+  const [question, setQuestion] = useState<ShellQuestion>("actor");
+  const [facts, setFacts] = useState<OnboardingFacts>(
+    profile.onboardingFacts ?? EMPTY_ONBOARDING_FACTS,
+  );
   const [businessName, setBusinessName] = useState(typedName);
   const [rows, setRowsRaw] = useState<OwnTeamRow[]>(freshRows);
   // Every change keeps each row's stable key, so removing a row never
@@ -137,6 +169,7 @@ export function IndustryOnboarding() {
   const [reviewRowIds, setReviewRowIds] = useState<Set<string>>(() => new Set());
   const [draftSaved, setDraftSaved] = useState<boolean | null>(null);
   const [pasteIssues, setPasteIssues] = useState<ImportIssue[]>([]);
+  const [unresolvedRows, setUnresolvedRows] = useState(0);
   const [finishNote, setFinishNote] = useState("");
   const [restored, setRestored] = useState(false);
   // A team typed in an earlier setup in this tab came back with this one.
@@ -157,8 +190,26 @@ export function IndustryOnboarding() {
     setBusinessName(start.draft.businessName);
     setRows(start.draft.rows);
     setStep(start.draft.step);
+    setAnswers(normalizeSetupAnswers(start.draft.setupAnswers) ?? UNANSWERED);
+    setQuestion(
+      start.draft.currentQuestionId &&
+        ["actor", "workforce", "locations", "setup_method"].includes(start.draft.currentQuestionId)
+        ? (start.draft.currentQuestionId as ShellQuestion)
+        : "actor",
+    );
+    setFacts({
+      schemaVersion: ONBOARDING_FACTS_VERSION,
+      ...(profile.onboardingFacts ?? {}),
+      ...(start.draft.actor ? { actor: start.draft.actor } : {}),
+      ...(start.draft.workforceBand ? { workforceBand: start.draft.workforceBand } : {}),
+      ...(start.draft.locationBand ? { locationBand: start.draft.locationBand } : {}),
+      ...(start.draft.mappingScope ? { mappingScope: start.draft.mappingScope } : {}),
+      ...(start.draft.setupMethod ? { setupMethod: start.draft.setupMethod } : {}),
+      ...(start.draft.answers ? { answers: start.draft.answers } : {}),
+    });
     setPaste(start.draft.paste);
     setLeftOut(start.draft.leftOut ?? []);
+    setUnresolvedRows(start.draft.unresolvedRows ?? 0);
     setPasteOpen(start.draft.paste.trim().length > 0);
     setRestoredEarlier(start.restoredEarlier);
     setKeepsNothing(!canKeepLocalData());
@@ -175,7 +226,25 @@ export function IndustryOnboarding() {
       pendingDraft.current = null;
       setDraftSaved(
         writeSetupDraft(
-          { step, selected, businessName, rows, paste, businessId, leftOut },
+          {
+            step,
+            selected,
+            businessName,
+            rows,
+            paste,
+            businessId,
+            leftOut,
+            setupAnswers: answers,
+            schemaVersion: ONBOARDING_FACTS_VERSION,
+            currentQuestionId: question,
+            actor: facts.actor,
+            workforceBand: facts.workforceBand,
+            locationBand: facts.locationBand,
+            mappingScope: facts.mappingScope,
+            setupMethod: facts.setupMethod,
+            answers: facts.answers,
+            unresolvedRows,
+          },
           workspace.session,
         ),
       );
@@ -183,7 +252,21 @@ export function IndustryOnboarding() {
     pendingDraft.current = write;
     const timer = window.setTimeout(write, DRAFT_WRITE_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [restored, step, selected, businessName, rows, paste, businessId, leftOut, workspace.session]);
+  }, [
+    restored,
+    step,
+    question,
+    facts,
+    selected,
+    businessName,
+    rows,
+    paste,
+    businessId,
+    leftOut,
+    answers,
+    unresolvedRows,
+    workspace.session,
+  ]);
   useEffect(() => {
     // A reload or closed tab does not unmount the dialog, so write a waiting
     // draft when the page is hidden; otherwise the last edits are lost.
@@ -207,7 +290,7 @@ export function IndustryOnboarding() {
     const card = dialogRef.current?.querySelector<HTMLElement>("[data-onboarding-card]");
     if (card) card.scrollTop = 0;
     titleRef.current?.focus({ preventScroll: true });
-  }, [step]);
+  }, [step, question]);
 
   // "Scroll sideways" shows whenever the table is wider than its box, until
   // the owner scrolls it once: on a phone the duty columns hide otherwise,
@@ -276,6 +359,8 @@ export function IndustryOnboarding() {
     setPasteNote("");
     setPasteIssues([]);
     setLeftOut([]);
+    setUnresolvedRows(0);
+    setFacts((current) => ({ ...current, mappingScope: undefined }));
     setQuickNote("");
     setGridStatus(null);
     setBulkTitle("");
@@ -284,6 +369,7 @@ export function IndustryOnboarding() {
     setReviewRowIds(new Set());
     setFinishNote("");
     setBusinessName(typedName);
+    setAnswers(UNANSWERED);
     setRestoredEarlier(false);
   }
 
@@ -292,7 +378,7 @@ export function IndustryOnboarding() {
    * confirms, and the draft stays in this tab for "Set up my own business".
    */
   function loadSample() {
-    const draft = { step, selected, businessName, rows, paste, businessId };
+    const draft = { step, selected, businessName, rows, paste, businessId, answers };
     if (draftHasTypedWork(draft)) {
       const people = namedPeople(draft);
       const what =
@@ -351,11 +437,17 @@ export function IndustryOnboarding() {
   }
   const industry = INDUSTRIES.find((i) => i.id === selected);
   const namedRows = rows.filter((r) => r.name.trim().length > 0);
+  const hidden = useMemo(() => hiddenDuties(answers), [answers]);
+  const visibleCoreDuties = CORE_DUTIES.filter((duty) => !hidden.has(duty));
+  const effects = useMemo(() => setupEffects(answers, selected), [answers, selected]);
 
   // Titles two or more people share, for "untick one duty for all of them".
   const shared = useMemo(() => sharedTitlesWithDuties(rows), [rows]);
   const bulkRole = shared.some((t) => t.role === bulkTitle) ? bulkTitle : (shared[0]?.role ?? "");
-  const bulkDuties = useMemo(() => dutiesHeldByTitle(rows, bulkRole), [rows, bulkRole]);
+  const bulkDuties = useMemo(
+    () => dutiesHeldByTitle(rows, bulkRole).filter((duty) => !hidden.has(duty)),
+    [rows, bulkRole, hidden],
+  );
   const bulkPick = bulkDuty && bulkDuties.includes(bulkDuty) ? bulkDuty : (bulkDuties[0] ?? "");
   const bulkCount = shared.find((t) => t.role === bulkRole)?.count ?? 0;
 
@@ -400,6 +492,9 @@ export function IndustryOnboarding() {
     const applied = applyPaste(rows, result, selected, leftOut);
     setPasteIssues(result.issues);
     setLeftOut(applied.leftOut);
+    setUnresolvedRows(applied.unresolvedRows);
+    // A changed roster needs a fresh statement about what the resulting map covers.
+    setFacts((current) => ({ ...current, mappingScope: undefined }));
     if (applied.rows) {
       setRows(applied.rows);
       setFinishNote("");
@@ -490,10 +585,24 @@ export function IndustryOnboarding() {
     }
     const people = buildOwnTeam(rows, selected);
     if (people.length === 0) return;
+    if (scopeRequired && !facts.mappingScope) {
+      setFinishNote(
+        "Choose what this map covers. Precog cannot treat an unresolved roster as a complete assessment.",
+      );
+      document.querySelector<HTMLElement>('input[name="mapping_scope"]')?.focus();
+      return;
+    }
     const scaleNote = teamSizeScaleWarning(people.length);
     const onLeave = onLeavePersonIds(rows);
     clearDraft();
-    startOwnBusiness({ industry: selected, practiceName: businessName, people, leftOut });
+    startOwnBusiness({
+      industry: selected,
+      practiceName: businessName,
+      people,
+      answers,
+      leftOut,
+      onboardingFacts: facts,
+    });
     if (scaleNote) toast.warning(scaleNote, { duration: 8000 });
     if (onLeave.length > 0) {
       // The roster gives no return date, so the absence covers today; the
@@ -558,6 +667,9 @@ export function IndustryOnboarding() {
       ),
     [rows, selected],
   );
+  const scopeRequired = requiresMappingScope(facts, unresolvedRows);
+  const scopedAssessment =
+    scopeRequired && (unresolvedRows > 0 || facts.mappingScope !== "whole_business");
 
   /** Arrow keys, Home and End move the choice between lines of business, as in any radio group. */
   function moveIndustry(event: ReactKeyboardEvent<HTMLButtonElement>) {
@@ -673,7 +785,8 @@ export function IndustryOnboarding() {
                   onClick={() => {
                     // A nonprofit's first row is its executive director, not an owner.
                     setRows((current) => firstRowForIndustry(current, selected));
-                    setStep("team");
+                    setStep("questions");
+                    setQuestion("actor");
                   }}
                 >
                   Set up my own business
@@ -686,6 +799,63 @@ export function IndustryOnboarding() {
                 The sample team is fictional; every gap on it says so until you enter your own.
               </p>
               <LegalFooter className="justify-center" />
+              {cancelLink}
+            </CardContent>
+          </>
+        ) : step === "questions" ? (
+          <OnboardingQuestionShell
+            ref={titleRef}
+            facts={facts}
+            question={question}
+            onFacts={setFacts}
+            onBack={() => {
+              const previous = adjacentQuestion(question, -1);
+              if (previous) setQuestion(previous);
+              else setStep("industry");
+            }}
+            onContinue={() => {
+              const next = adjacentQuestion(question, 1);
+              if (next) {
+                setQuestion(next);
+                return;
+              }
+              setStep("money");
+            }}
+            storageNote={storageNote}
+            cancelLink={cancelLink}
+          />
+        ) : step === "money" ? (
+          <>
+            <CardHeader>
+              <Badge variant="accent" className="w-fit">
+                {industry?.label}
+              </Badge>
+              <h2 id="industry-onboarding-title" ref={titleRef} tabIndex={-1} className={titleCls}>
+                How money moves here
+              </h2>
+              <CardDescription>
+                A few quick answers tailor the duties and first steps to how this business works.
+                Not sure is fine.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {storageNote}
+              <SetupMoneyStep
+                answers={answers}
+                onChange={setAnswers}
+                industry={selected}
+                onNext={() => {
+                  if (facts.setupMethod !== "person_grid") setPasteOpen(true);
+                  setStep("team");
+                }}
+                onBack={() => {
+                  setQuestion("setup_method");
+                  setStep("questions");
+                }}
+              />
+              <p className="text-center text-xs text-subtle">
+                Nothing leaves this browser until you sign in and choose to sync.
+              </p>
               {cancelLink}
             </CardContent>
           </>
@@ -716,6 +886,33 @@ export function IndustryOnboarding() {
                     Start over
                   </button>
                 </p>
+              )}
+              {facts.setupMethod && facts.setupMethod !== "person_grid" && (
+                <section
+                  className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-4"
+                  aria-labelledby="roster-start-heading"
+                >
+                  <h3 id="roster-start-heading" className="font-medium">
+                    {facts.setupMethod === "job_groups"
+                      ? "Start the staged job-group path"
+                      : "Start from your roster"}
+                  </h3>
+                  <p className="text-xs text-muted">
+                    {facts.setupMethod === "job_groups"
+                      ? "Grouped-role setup is staged. Paste the existing roster here; Precog groups recognized job titles while keeping named people available for control findings."
+                      : "Paste an HR or payroll export, header row included, or one person per line as Name, Job title. You will review the mapped control participants next."}
+                  </p>
+                  <textarea
+                    className={cn(fieldCls, "min-h-28 w-full font-mono text-xs")}
+                    aria-label="Pasted roster to start setup"
+                    placeholder={"Ana Ruiz, Office Manager\nBen Ochoa, Bookkeeper"}
+                    value={paste}
+                    onChange={(event) => setPaste(event.target.value)}
+                  />
+                  <Button size="sm" onClick={fillFromPaste} disabled={!paste.trim()}>
+                    Fill the table
+                  </Button>
+                </section>
               )}
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-muted">Business name</span>
@@ -816,7 +1013,7 @@ export function IndustryOnboarding() {
                       >
                         Job title
                       </th>
-                      {CORE_DUTIES.map((duty) => (
+                      {visibleCoreDuties.map((duty) => (
                         <th
                           key={duty}
                           scope="col"
@@ -942,10 +1139,11 @@ export function IndustryOnboarding() {
                             <AddDutyControl
                               who={who}
                               duties={row.duties}
+                              hidden={hidden}
                               onAdd={(duty) => addDuty(index, duty)}
                             />
                           </td>
-                          {CORE_DUTIES.map((duty) => (
+                          {visibleCoreDuties.map((duty) => (
                             <td key={duty} className="border-b border-border p-0 text-center">
                               <label className="flex min-h-11 w-full items-center justify-center p-1.5">
                                 <input
@@ -1189,7 +1387,54 @@ export function IndustryOnboarding() {
                 </details>
               </section>
 
-              <SetupPreviewCard rows={rows} industry={selected} />
+              {scopeRequired && (
+                <MappingScopeAttestation
+                  scope={facts.mappingScope}
+                  unresolvedRows={unresolvedRows}
+                  scopedAssessment={scopedAssessment}
+                  onChoose={(value) => {
+                    setFacts((current) => withMappingScope(current, value));
+                    setFinishNote("");
+                  }}
+                />
+              )}
+
+              <div className="grid gap-3 xl:grid-cols-2">
+                <SetupPreviewCard rows={rows} industry={selected} answers={answers} />
+                <Card className="border-border bg-elevated/40">
+                  <CardContent className="space-y-3 pt-5">
+                    <h3 className="text-sm font-semibold">What your answers change</h3>
+                    {effects.changed.length > 0 ? (
+                      <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed text-muted">
+                        {effects.changed.map((effect) => (
+                          <li key={effect}>{effect}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-muted">
+                        No duties or safeguards changed based on these answers.
+                      </p>
+                    )}
+                    <details className="rounded-lg border border-border bg-panel/60 p-2.5">
+                      <summary className="cursor-pointer text-xs font-medium">
+                        Assumed, not asked
+                      </summary>
+                      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-relaxed text-muted">
+                        {effects.assumed.map((effect) => (
+                          <li key={effect}>{effect}</li>
+                        ))}
+                      </ul>
+                    </details>
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-primary underline underline-offset-2"
+                      onClick={() => setStep("money")}
+                    >
+                      Change answers
+                    </button>
+                  </CardContent>
+                </Card>
+              </div>
               <p className="rounded-lg border border-border bg-elevated/50 px-3 py-2 text-xs text-muted">
                 You can continue with one person. Precog will assess that sole-owner setup; add the
                 rest of your team later under Team for a fuller team assessment.
@@ -1206,9 +1451,9 @@ export function IndustryOnboarding() {
                   onClick={finish}
                   disabled={namedRows.length === 0}
                 >
-                  Show me my gaps
+                  {scopedAssessment ? "Show scoped findings" : "Show me my gaps"}
                 </Button>
-                <Button className="w-full" variant="secondary" onClick={() => setStep("industry")}>
+                <Button className="w-full" variant="secondary" onClick={() => setStep("money")}>
                   Back
                 </Button>
               </div>
@@ -1222,6 +1467,61 @@ export function IndustryOnboarding() {
         )}
       </Card>
     </div>
+  );
+}
+
+export function MappingScopeAttestation({
+  scope,
+  unresolvedRows,
+  scopedAssessment,
+  onChoose,
+}: {
+  scope?: MappingScope;
+  unresolvedRows: number;
+  scopedAssessment: boolean;
+  onChoose: (scope: MappingScope) => void;
+}) {
+  const options: readonly (readonly [MappingScope, string])[] = [
+    [
+      "whole_business",
+      "This roster includes everyone who handles or controls money across the whole business.",
+    ],
+    [
+      "one_location",
+      "This is a scoped map of one location; the rest of the business is not fully assessed.",
+    ],
+    [
+      "one_team",
+      "This is a scoped map of one team; the rest of the business is not fully assessed.",
+    ],
+  ];
+  return (
+    <fieldset className="space-y-2 rounded-xl border border-warn/40 bg-warn/10 p-4">
+      <legend className="px-1 text-sm font-medium">Confirm what this map covers</legend>
+      <p className="text-xs text-muted">
+        {unresolvedRows > 0
+          ? `${unresolvedRows.toLocaleString("en-US")} valid roster ${unresolvedRows === 1 ? "row is" : "rows are"} not in the review grid. Unknown or unresolved people earn no control credit.`
+          : "A workforce of 100 or more needs an explicit scope before Precog produces findings."}
+      </p>
+      {options.map(([value, label]) => (
+        <label key={value} className="flex items-start gap-2 text-xs">
+          <input
+            type="radio"
+            name="mapping_scope"
+            value={value}
+            checked={scope === value}
+            onChange={() => onChoose(value)}
+            className="mt-0.5 size-4"
+          />
+          <span>{label}</span>
+        </label>
+      ))}
+      {scope && scopedAssessment && (
+        <p role="status" className="text-xs font-medium text-warn">
+          Precog will produce a scoped map. People outside it are not fully assessed.
+        </p>
+      )}
+    </fieldset>
   );
 }
 

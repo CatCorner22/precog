@@ -2,9 +2,10 @@ import { resolveTemplate } from "../active-template";
 import { caseDurationPhrase, caseForRule, lossPhrase } from "../evidence";
 import type { CaseStudy } from "../evidence/types";
 import type { IndustryId } from "../industry";
-import { defaultProfile } from "../practice-profile";
-import { detectSodConflicts, type DetectedConflict } from "../sod/detect";
+import { ownSetupProfile } from "../business-lifecycle";
+import { detectSodConflicts, sodDetectionOptions, type DetectedConflict } from "../sod/detect";
 import { buildOwnTeam, type OwnTeamRow } from "./own-team";
+import type { SetupAnswers } from "./setup-answers";
 
 /**
  * The first finding, while setup is still open: as soon as two duties on one
@@ -34,15 +35,29 @@ export interface SetupPreview {
   } | null;
 }
 
-export function previewSetup(rows: readonly OwnTeamRow[], industry: IndustryId): SetupPreview {
-  const people = buildOwnTeam(rows, industry);
+export function previewSetup(
+  rows: readonly OwnTeamRow[],
+  industry: IndustryId,
+  answers?: SetupAnswers,
+): SetupPreview {
+  const profile = ownSetupProfile({
+    industry,
+    practiceName: "",
+    people: buildOwnTeam(rows, industry),
+    answers,
+  });
+  const people = profile.customPeople ?? [];
   const peopleWithDuties = people.filter((p) =>
     (p.entitlements ?? []).some((e) => e !== "view_reports_only"),
   ).length;
   if (peopleWithDuties === 0) return { peopleWithDuties, conflictCount: 0, first: null };
 
-  const tpl = resolveTemplate({ industry, customPeople: people });
-  const report = detectSodConflicts(tpl, defaultProfile(industry).staff);
+  const tpl = resolveTemplate(profile);
+  const report = detectSodConflicts(
+    tpl,
+    profile.staff,
+    sodDetectionOptions(tpl, profile.dualRelease),
+  );
   // Employees' conflicts first: an owner holding both duties is a different,
   // lesser finding, and not the one to open a demo with.
   const ranked = [...report.conflicts].sort(

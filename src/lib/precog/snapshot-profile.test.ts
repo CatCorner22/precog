@@ -14,6 +14,7 @@ import { buildAssignments } from "./sod/detect";
 import { normalizeRoleAssignments } from "./sod/model-io";
 import { getIndustryTemplate } from "./templates";
 import type { Person } from "./types";
+import { UNANSWERED } from "./onboarding/setup-answers";
 
 const TITLES = ["General Manager", "Bookkeeper", "Server", "Bartender", "Line Cook", "Host"];
 
@@ -70,6 +71,14 @@ function roundTrip(saved: PracticeProfile, current: PracticeProfile) {
 }
 
 describe("restoring an owner's snapshot", () => {
+  it("keeps setup answers through snapshot sanitization", () => {
+    const answers = { ...UNANSWERED, bankRec: "outside" as const };
+    const profile = { ...defaultProfile("general"), setupAnswers: answers };
+    const created = sanitizeSnapshotProfile(snapshotSlice(profile));
+    const loaded = sanitizeSnapshotProfile(JSON.parse(created.json));
+    expect(loaded.profile.setupAnswers).toEqual(answers);
+  });
+
   it("brings back the owner's own business, never the dental sample", () => {
     const owner = ownRestaurant();
     const restored = roundTrip(owner, owner);

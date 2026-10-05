@@ -8,7 +8,7 @@ import type { StartHereModel } from "@/lib/precog/start-here/model";
 import { benchmarkCitation, effortPhrase, lossPhrase } from "@/lib/precog/evidence";
 
 export function StartHereFirstStepsSection({ model }: { model: StartHereModel["firstSteps"] }) {
-  const { items, caseById, tips, hotlineGap, soleKnowledge } = model;
+  const { items, caseById, tips, hotlineGap, soleKnowledge, alreadyInPlace } = model;
   const steps = doNextSteps(items);
   const driftActions = doNextDrift(items);
 
@@ -66,6 +66,12 @@ export function StartHereFirstStepsSection({ model }: { model: StartHereModel["f
                 </li>
               ))}
             </ol>
+          )}
+          {alreadyInPlace.length > 0 && (
+            <p className="mt-3 text-xs text-muted">
+              Left off because you said at setup they already run:{" "}
+              {alreadyInPlace.map((control) => control.label).join(", ")}.
+            </p>
           )}
         </CardContent>
       </Card>

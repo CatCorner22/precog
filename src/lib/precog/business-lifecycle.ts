@@ -7,8 +7,10 @@ import { defaultProfile, hasUserWork, type PracticeProfile } from "./practice-pr
 import { getIndustryTemplate } from "./templates";
 import { teamSource } from "./team-source";
 import type { Person, ProcessNode } from "./types";
+import type { SetupAnswers } from "./onboarding/setup-answers";
 import type { Plan } from "./firm/entitlements";
 import type { Tier } from "./firm/pricing";
+import type { OnboardingFacts } from "./onboarding/decision-model";
 
 export { teamSource, type TeamSource } from "./team-source";
 
@@ -85,12 +87,15 @@ export function ownSetupProfile(input: {
   industry: IndustryId;
   practiceName: string;
   people: Person[];
+  answers?: SetupAnswers;
+  onboardingFacts?: OnboardingFacts;
 }): PracticeProfile {
   return {
     ...ownBusinessProfile(
       { ...defaultProfile(input.industry), decisions: [] },
-      { practiceName: input.practiceName, people: input.people },
+      { practiceName: input.practiceName, people: input.people, answers: input.answers },
     ),
+    ...(input.onboardingFacts ? { onboardingFacts: input.onboardingFacts } : {}),
     engagement: { startedAt: new Date().toISOString() },
   };
 }

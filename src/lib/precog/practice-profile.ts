@@ -54,6 +54,7 @@ import { ACTIVE_PROFILE_KEY, LEGACY_PROFILE_KEY, PORTFOLIO_KEY } from "./storage
 import { stripProcedureLinks } from "./procedures/coverage-link";
 import { normalizePlaces, normalizeProcedures } from "./procedures/normalize";
 import type { Place, Procedure } from "./procedures/types";
+import { normalizeSetupAnswers, type SetupAnswers } from "./onboarding/setup-answers";
 import { normalizeOnboardingFacts, type OnboardingFacts } from "./onboarding/decision-model";
 
 /**
@@ -83,6 +84,8 @@ export interface PracticeProfile {
   customKnowledge?: KnowledgeItem[] | null;
   /** Who holds each register item, at what level. Null/undefined = template relations. */
   customRelations?: KnowledgeRelation[] | null;
+  /** The answers the owner gave while setting up money flow and existing controls. */
+  setupAnswers?: SetupAnswers;
   /** Known leave, so continuity advice can warn ahead of it. */
   plannedAbsences?: PlannedAbsence[];
   /** People who have left, and whether the owner has confirmed their pay and logins are stopped. */
@@ -392,6 +395,7 @@ export function normalizeProfile(
   const today = options.today ?? localDateKey(new Date());
   const customKnowledge = normalizeCustomKnowledge(knowledgeEntries(parsed.customKnowledge), today);
   const customRelations = relationEntries(parsed.customRelations);
+  const setupAnswers = normalizeSetupAnswers(parsed.setupAnswers);
   const onboardingFacts = normalizeOnboardingFacts(parsed.onboardingFacts);
   const dualRelease = mergeDualReleasePolicy(
     resolveTemplate({
@@ -432,6 +436,7 @@ export function normalizeProfile(
     customPeople,
     customKnowledge,
     customRelations,
+    ...(setupAnswers ? { setupAnswers } : {}),
     plannedAbsences: normalizePlannedAbsences(parsed.plannedAbsences),
     leaverAccessChecks: normalizeLeaverAccessChecks(parsed.leaverAccessChecks),
     mapLayout: mapLayoutEntries(parsed.mapLayout),
@@ -459,19 +464,29 @@ export function normalizeProfile(
  */
 function withStaffFromDuties(p: PracticeProfile): PracticeProfile {
   if (!p.customPeople) return p;
-  if (p.staff.segregationSource !== "manual" && p.staff.bankRecSource !== "manual") return p;
+  if (
+    p.staff.segregationSource !== "manual" &&
+    p.staff.bankRecSource !== "manual" &&
+    p.staff.bankRecSource !== "outside"
+  )
+    return p;
   const tpl = resolveTemplate(p);
   const derived = deriveStaffFromTeam(
     tpl,
-    { ...p.staff, segregationSource: "derived", bankRecSource: "derived" },
+    {
+      ...p.staff,
+      segregationSource: "derived",
+      bankRecSource: p.staff.bankRecSource === "outside" ? "outside" : "derived",
+    },
     { dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, tpl) },
   );
+  const outsideReconciler = p.staff.bankRecSource === "outside";
   const staff: StaffComposition = {
     ...p.staff,
     segregationScore: derived.segregationScore,
     segregationSource: "derived",
-    independentBankRec: derived.independentBankRec,
-    bankRecSource: "derived",
+    independentBankRec: outsideReconciler ? true : derived.independentBankRec,
+    bankRecSource: outsideReconciler ? "outside" : "derived",
   };
   return { ...p, staff, riskVariables: mergeStaffIntoVariables(p.riskVariables, staff) };
 }
@@ -643,15 +658,19 @@ function normalizeStaff(value: unknown, base: StaffComposition): StaffCompositio
         ? input.dualControlPayments
         : base.dualControlPayments,
     independentBankRec:
-      typeof input.independentBankRec === "boolean"
-        ? input.independentBankRec
-        : base.independentBankRec,
+      input.bankRecSource === "outside"
+        ? true
+        : typeof input.independentBankRec === "boolean"
+          ? input.independentBankRec
+          : base.independentBankRec,
     // Whether the owner set these by hand survives a reload; without it the
     // next team edit would silently re-derive a figure the owner chose.
     ...(input.segregationSource === "manual" || input.segregationSource === "derived"
       ? { segregationSource: input.segregationSource }
       : {}),
-    ...(input.bankRecSource === "manual" || input.bankRecSource === "derived"
+    ...(input.bankRecSource === "manual" ||
+    input.bankRecSource === "derived" ||
+    input.bankRecSource === "outside"
       ? { bankRecSource: input.bankRecSource }
       : {}),
   };

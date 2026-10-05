@@ -50,7 +50,7 @@ export function deriveStaffFromTeam(
   // Who reconciles follows the team unless the owner set the flag by hand,
   // the same way the segregation score does: marking the reconciler as left
   // must not leave the business credited with an independent reconciliation.
-  if (staff.bankRecSource !== "manual") {
+  if (staff.bankRecSource !== "manual" && staff.bankRecSource !== "outside") {
     next.independentBankRec = independentReconciliationFromTeam(
       tpl.people,
       tpl.roleTemplates,

@@ -2,12 +2,18 @@ import type { Departure } from "../continuity/access-removal";
 import { MAX_BUSINESS_NAME } from "../business-id";
 import { INDUSTRIES, type IndustryId } from "../industry";
 import type { StorageLike } from "../local-data";
+import { normalizeSetupAnswers, type SetupAnswers } from "./setup-answers";
 import {
   ONBOARDING_FACTS_VERSION,
   ONBOARDING_QUESTION_IDS,
   normalizeOnboardingFacts,
   type OnboardingFacts,
+  type OnboardingActor,
   type OnboardingQuestionId,
+  type LocationBand,
+  type MappingScope,
+  type SetupMethod,
+  type WorkforceBand,
 } from "./decision-model";
 import { firstRowForIndustry, type OwnTeamRow } from "./own-team";
 
@@ -22,9 +28,14 @@ export const SETUP_DRAFT_KEY = "precog.onboarding-draft.v1";
 export interface SetupDraft {
   /** Absent on legacy drafts; version 1 adds adaptive-onboarding progress. */
   schemaVersion?: typeof ONBOARDING_FACTS_VERSION;
+  actor?: OnboardingActor;
+  workforceBand?: WorkforceBand;
+  locationBand?: LocationBand;
+  mappingScope?: MappingScope;
+  setupMethod?: SetupMethod;
   answers?: OnboardingFacts["answers"];
   currentQuestionId?: OnboardingQuestionId;
-  step: "industry" | "team";
+  step: "industry" | "questions" | "money" | "team";
   selected: IndustryId;
   businessName: string;
   rows: OwnTeamRow[];
@@ -38,6 +49,9 @@ export interface SetupDraft {
    * cleared once used, so the draft is the only place they survive a reload.
    */
   leftOut?: Departure[];
+  setupAnswers?: SetupAnswers;
+  /** Valid imported rows waiting outside the 60-person review grid. */
+  unresolvedRows?: number;
 }
 
 function sessionArea(): StorageLike | null {
@@ -107,25 +121,45 @@ export function readSetupDraft(storage: StorageLike | null = sessionArea()): Set
     if (typeof draft.businessName !== "string" || !Array.isArray(draft.rows)) return null;
     if (typeof draft.selected !== "string" || !INDUSTRY_IDS.has(draft.selected)) return null;
     const leftOut = Array.isArray(draft.leftOut) ? draft.leftOut.filter(isDeparture) : [];
+    const setupAnswers = normalizeSetupAnswers(draft.setupAnswers);
     const facts = normalizeOnboardingFacts({
       schemaVersion: draft.schemaVersion,
+      actor: draft.actor,
+      workforceBand: draft.workforceBand,
+      locationBand: draft.locationBand,
+      mappingScope: draft.mappingScope,
+      setupMethod: draft.setupMethod,
       answers: draft.answers,
     });
     return {
+      step:
+        draft.step === "team" || draft.step === "money" || draft.step === "questions"
+          ? draft.step
+          : "industry",
       ...(draft.schemaVersion === ONBOARDING_FACTS_VERSION
         ? { schemaVersion: ONBOARDING_FACTS_VERSION }
         : {}),
+      ...(facts?.actor ? { actor: facts.actor } : {}),
+      ...(facts?.workforceBand ? { workforceBand: facts.workforceBand } : {}),
+      ...(facts?.locationBand ? { locationBand: facts.locationBand } : {}),
+      ...(facts?.mappingScope ? { mappingScope: facts.mappingScope } : {}),
+      ...(facts?.setupMethod ? { setupMethod: facts.setupMethod } : {}),
       ...(facts?.answers ? { answers: facts.answers } : {}),
       ...(typeof draft.currentQuestionId === "string" && QUESTION_IDS.has(draft.currentQuestionId)
         ? { currentQuestionId: draft.currentQuestionId as OnboardingQuestionId }
         : {}),
-      step: draft.step === "team" ? "team" : "industry",
       selected: draft.selected as IndustryId,
       businessName: draft.businessName.slice(0, MAX_BUSINESS_NAME),
       rows: draft.rows.filter(isRow),
       paste: typeof draft.paste === "string" ? draft.paste : "",
       ...(typeof draft.businessId === "string" ? { businessId: draft.businessId } : {}),
       ...(leftOut.length > 0 ? { leftOut } : {}),
+      ...(setupAnswers ? { setupAnswers } : {}),
+      ...(typeof draft.unresolvedRows === "number" &&
+      Number.isInteger(draft.unresolvedRows) &&
+      draft.unresolvedRows >= 0
+        ? { unresolvedRows: draft.unresolvedRows }
+        : {}),
     };
   } catch {
     return null;
@@ -168,7 +202,7 @@ export function namedPeople(draft: Pick<SetupDraft, "rows">): number {
  * setup in this tab, one the owner left to load the sample, comes back when
  * it holds typed work, with the name and line of business chosen for this
  * business, and `restoredEarlier` so the dialog can say so and offer to start
- * over. Otherwise setup starts fresh, on the team step when the business
+ * over. Otherwise setup starts fresh, on the setup questions when the business
  * already has a name.
  */
 export function initialSetup(
@@ -179,7 +213,7 @@ export function initialSetup(
   const fresh: SetupDraft = {
     schemaVersion: ONBOARDING_FACTS_VERSION,
     currentQuestionId: "actor",
-    step: business.typedName ? "team" : "industry",
+    step: business.typedName ? "questions" : "industry",
     selected: business.industry,
     businessName: business.typedName,
     // A nonprofit's grid starts with its executive director, not an owner.

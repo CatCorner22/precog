@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { resolveTemplate } from "../active-template";
+import { ownSetupProfile } from "../business-lifecycle";
+import { buildStartHereModel } from "../start-here/model";
 import { previewSetup } from "./setup-preview";
-import type { OwnTeamRow } from "./own-team";
+import { buildOwnTeam, type OwnTeamRow } from "./own-team";
+import { UNANSWERED } from "./setup-answers";
 
 const owner = (): OwnTeamRow => ({ name: "Ada", role: "Owner", duties: ["approve_invoices"] });
 
@@ -48,6 +52,50 @@ describe("setup preview", () => {
       "general",
     );
     expect(preview.first?.conflict.personName).toBe("Bea");
+  });
+
+  it("uses the same answer-aware profile and conflict path as Start here", () => {
+    const rows: OwnTeamRow[] = [
+      owner(),
+      {
+        name: "Bea",
+        role: "Bookkeeper",
+        duties: [
+          "collect_cash",
+          "post_payments",
+          "create_vendor",
+          "approve_invoices",
+          "release_payment",
+          "bank_reconcile",
+        ],
+      },
+    ];
+    const answers = { ...UNANSWERED, cashOrChecks: "no" as const };
+    const preview = previewSetup(rows, "general", answers);
+    const profile = ownSetupProfile({
+      industry: "general",
+      practiceName: "",
+      people: buildOwnTeam(rows, "general"),
+      answers,
+    });
+    const model = buildStartHereModel({
+      profile,
+      template: resolveTemplate(profile),
+      today: new Date(2026, 8, 26),
+    });
+    expect(preview.conflictCount).toBe(model.exposure.openConflicts.length);
+    expect(preview.first?.conflict.ruleId === "rule-collect-post").toBe(false);
+  });
+
+  it("removes the cash conflict from preview when setup says cash is not taken", () => {
+    const rows: OwnTeamRow[] = [
+      owner(),
+      { name: "Bea", role: "Cashier", duties: ["collect_cash", "post_payments"] },
+    ];
+    expect(previewSetup(rows, "general").first?.conflict.ruleId).toBe("rule-collect-post");
+    expect(
+      previewSetup(rows, "general", { ...UNANSWERED, cashOrChecks: "no" }).first?.conflict.ruleId,
+    ).not.toBe("rule-collect-post");
   });
 });
 
