@@ -135,7 +135,8 @@ describe("report versions panel", () => {
     expect(server.listReports).toHaveBeenCalledTimes(1);
     expect(server.listReports).toHaveBeenCalledWith({ data: { businessId: "biz_1" } });
     expect(server.getFirm).toHaveBeenCalledTimes(1);
-    expect(plans.getEntitlements).toHaveBeenCalledTimes(1);
+    // The plan matters only to an account in no firm; a firm member's is not read.
+    expect(plans.getEntitlements).not.toHaveBeenCalled();
     expect(runtime.renders).toBeLessThanOrEqual(3);
   });
 
@@ -235,6 +236,7 @@ describe("report versions panel", () => {
       state.firmClient = false;
       const { labels: names } = await panel("ada", null, [reviewed()]);
       expect(names).toContain("Share version 1");
+      expect(plans.getEntitlements).toHaveBeenCalledTimes(1);
       // Not before the version is reviewed for issuance.
       runtime.reset();
       expect((await panel("ada", null, [version({})])).labels).not.toContain("Share version 1");

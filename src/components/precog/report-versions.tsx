@@ -77,14 +77,17 @@ export function ReportVersionsPanel() {
     let cancel = false;
     void Promise.all([
       listReports({ data: { businessId } }),
-      getFirm(),
-      getEntitlements().catch(() => null),
+      // The plan decides only a solo owner's Share, so an account in a firm
+      // never asks for it.
+      getFirm().then(async (firm) =>
+        firm.firm ? null : await getEntitlements().catch(() => null),
+      ),
     ])
-      .then(([res, firm, plan]) => {
+      .then(([res, plan]) => {
         if (cancel) return;
         setVersions(res.versions);
         setWork(res.work);
-        setSoloPlanOpen(!firm.firm && Boolean(plan?.features.lockedVersions));
+        setSoloPlanOpen(Boolean(plan?.features.lockedVersions));
       })
       .catch(() => {
         if (!cancel) setVersions([]);
