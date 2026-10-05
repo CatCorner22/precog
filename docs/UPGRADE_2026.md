@@ -66,6 +66,11 @@ Phases 0–5 above are the summer program. What followed, newest last:
   sign-off, server-stamped judges, integration-manager roles), billing
   hardening (grace parity, credit-reversal retry, paid-event retry), health
   ledger count, shell accessibility.
+- **Review follow-throughs, wave 2**: share refusal oracle (no token
+  probing), map import size cap, emailed-link lookup throttling, guest
+  recovery surfaced in the account menu and open by default when work
+  exists, deep-link scroll padding cleanup, `docs/SECURITY.md` aligned
+  with those controls.
 - **Commercial batch 3** (draft at the time of writing): plan tiers and
   annual billing, engagements, grants, review workflow, audit log, operator
   page, client table.

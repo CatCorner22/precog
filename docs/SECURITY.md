@@ -42,6 +42,30 @@ Every response carries, from `vite.config.ts`:
 - Secrets live in environment variables only (`.env.example` names each one); none are in the code or the documentation. `scripts/deploy-config.test.mjs` fails when the code reads a variable the example file does not name.
 - A production build refuses to finish without `DATABASE_URL`, a `BETTER_AUTH_SECRET` of 32 or more characters, an https `BETTER_AUTH_URL` and `SUPPORT_EMAIL`, with sign-in turned off, or while `src/lib/precog/legal/operator.ts` still holds a bracketed placeholder (`scripts/migrate.mjs`).
 
+## Segregating money movement and advisor access
+
+Precog is not a bank or a payroll system; it models who can move or hide money
+alone and what evidence a careful owner or CPA expects. The product rules below
+reduce the chance that an advisor, employee or compromised sign-in can take funds
+without someone else noticing. They complement (they do not replace) bank
+dual-control, positive pay, separate approval in the accounting system and
+physical custody rules.
+
+| Risk                                                                          | What Precog does                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One person holds incompatible duties (for example AP entry and check signing) | The power map and duty-conflict engine flag pairs on the team; the printed report and Start here surface open conflicts (`src/lib/precog/sod/detect.ts`, scoped scoring).                                                                                                                           |
+| A CPA or preparer records work and signs off alone                            | Firm roles separate preparer from reviewer; the account that recorded a control-evidence event cannot review it (`docs/CONTROL_EVIDENCE_WORKFLOW.md`). Report versions must be reviewed for issuance before a share link is minted (`reportShareRefusal` in `src/lib/precog/share/share-store.ts`). |
+| Books drift from who the map says can move money                              | QuickBooks read-only sync and access CSV import feed integration drift summaries on the profile (`integrationDriftSummary`); Start here and the weekly plan can route reconciliation without opening every client on `/firm`.                                                                       |
+| Shared reports or maps leak too much                                          | Share links optional passcodes, guess limits, visitor-address hashing and a single public refusal for dead tokens (`src/lib/precog/share/share-server.ts`).                                                                                                                                         |
+| Cross-tenant session riding on a shared host                                  | Same-site request checks on server functions (`assertSameSiteRequest` in `src/lib/auth/isolation.server.ts`).                                                                                                                                                                                       |
+| Silent takeover via emailed links                                             | Owner and digest consent links need unguessable tokens; lookups are rate-limited per address (`src/lib/precog/reminders/email-link-limits.ts`).                                                                                                                                                     |
+| Changes with no trail                                                         | Firm audit log, report version history, control execution log and business history downloads; account export and per-business history export in the account menu.                                                                                                                                   |
+
+**Practices outside the code** the operator and each firm still own: background
+checks, credential rotation, limiting who holds integration manager roles,
+matching modeled duties to actual bank and ERP permissions, and reconciling
+cash and payroll on a fixed cadence whether or not Precog is open.
+
 ## Data handling
 
 - Share passcodes are stored as salted scrypt hashes (`src/lib/precog/share/share-attempts.ts`), guesses are counted per share in the database and the link locks after ten in fifteen minutes; share view logs keep a hash of the visitor address, not the address (`src/lib/precog/share/share-server.ts`), for a fixed retention after which they are deleted.
