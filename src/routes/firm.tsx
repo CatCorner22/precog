@@ -562,7 +562,7 @@ function FirmPage() {
 
       {/* Outside the signed-in blocks: value proof is kept on this device, so a
           signed-out owner still sees and exports it here. */}
-      <section id="value-proof" className="mt-8 scroll-mt-16" aria-labelledby="value-proof-title">
+      <section id="value-proof" className="mt-8" aria-labelledby="value-proof-title">
         <h2 id="value-proof-title" className="mb-3 text-lg font-semibold">
           Value proof (this business)
         </h2>
@@ -571,7 +571,7 @@ function FirmPage() {
         </Suspense>
       </section>
 
-      <section id="history" className="mt-8 scroll-mt-16" aria-labelledby="history-title">
+      <section id="history" className="mt-8" aria-labelledby="history-title">
         <h2 id="history-title" className="mb-3 text-lg font-semibold">
           History
         </h2>

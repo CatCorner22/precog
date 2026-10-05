@@ -33,7 +33,12 @@ import { useBuilderTour } from "@/components/precog/builder/use-builder-tour";
 import { ValidationPanel } from "@/components/precog/builder/validation-panel";
 import { VersionsPanel } from "@/components/precog/builder/versions-panel";
 import { summarizeEvidence } from "@/lib/precog/builder/evidence";
-import { mapBackupJson, parseMapBackup, type MapBackup } from "@/lib/precog/builder/map-backup";
+import {
+  mapBackupJson,
+  mapBackupSizeRefusal,
+  parseMapBackup,
+  type MapBackup,
+} from "@/lib/precog/builder/map-backup";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
 import {
   blocksForIndustry,
@@ -394,6 +399,11 @@ export function ProcessBuilder({
   }
 
   async function importMap(file: File) {
+    const tooLarge = mapBackupSizeRefusal(file.size);
+    if (tooLarge) {
+      toast.error("Import failed", { description: tooLarge });
+      return;
+    }
     let backup: MapBackup;
     try {
       backup = parseMapBackup(JSON.parse(await file.text()));

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -129,6 +130,17 @@ describe("the note when the digest cannot reach the account", () => {
     expect(withProblem(true, null)).not.toContain("cannot reach you");
     expect(withProblem(false, "x_only")).not.toContain("cannot reach you");
     expect(withProblem(true, null)).toContain("Weekly digest: on");
+  });
+});
+
+describe("the local recovery entry", () => {
+  it("offers Local recovery beside the other account controls, opening a dialog", async () => {
+    const { RECOVERY_ENTRY } = await import("./account-menu");
+    expect(RECOVERY_ENTRY.label).toBe("Local recovery");
+    expect(RECOVERY_ENTRY.title).toContain("guest businesses");
+    const source = readFileSync(new URL("./account-menu.tsx", import.meta.url), "utf8");
+    expect(source).toContain("LocalRecoveryControl");
+    expect(source).toContain("WorkspaceRecoveryDialog");
   });
 });
 

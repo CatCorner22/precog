@@ -29,6 +29,7 @@ Every response carries, from `vite.config.ts`:
 - Email-and-password sign-in, when a deployment turns it on (`src/lib/auth/email-password.server.ts`), stores a hash of the password, never the password, and emails a confirmation link; an unconfirmed sign-up is removed after 24 hours.
 - There is no multi-factor sign-in today. A session ends seven days after Better Auth last refreshed it, and Better Auth refreshes a session only when it is used more than a day after its last refresh (its defaults `expiresIn` and `updateAge`), so a session can end about six days after its last use. Sessions in the account menu ends the other sessions or every session at any time, and lists them only within a day of signing in (`/list-sessions` requires a session created within Better Auth's `freshAge`, one day; the dialog says so).
 - The email links (owner reminder consent and stop links, password reset, confirmation) carry long random tokens; a link that does not match one answers a plain "no longer works" page and reveals nothing about the account.
+- Owner and digest email links (`/api/owner-email`, `/api/digest-email`) cap token lookups at sixty opens per network address per minute (`src/lib/precog/reminders/email-link-limits.ts`); excess opens get a generic wait page, not a different error that would help guessing tokens.
 
 ## Authorization
 
@@ -50,9 +51,35 @@ Every response carries, from `vite.config.ts`:
 - Secrets live in environment variables only (`.env.example` names each one); none are in the code or the documentation. `scripts/deploy-config.test.mjs` fails when the code reads a variable the example file does not name.
 - A production build refuses to finish without `DATABASE_URL`, a `BETTER_AUTH_SECRET` of 32 or more characters, an https `BETTER_AUTH_URL` and `SUPPORT_EMAIL`, with sign-in turned off, or while `src/lib/precog/legal/operator.ts` still holds a bracketed placeholder (`scripts/migrate.mjs`).
 
+## Segregating money movement and advisor access
+
+Precog is not a bank or a payroll system; it models who can move or hide money
+alone and what evidence a careful owner or CPA expects. The product rules below
+reduce the chance that an advisor, employee or compromised sign-in can take funds
+without someone else noticing. They complement (they do not replace) bank
+dual-control, positive pay, separate approval in the accounting system and
+physical custody rules.
+
+| Risk                                                                          | What Precog does                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One person holds incompatible duties (for example AP entry and check signing) | The power map and duty-conflict engine flag pairs on the team; the printed report and Start here surface open conflicts (`src/lib/precog/sod/detect.ts`, scoped scoring).                                                                                                                           |
+| A CPA or preparer records work and signs off alone                            | Firm roles separate preparer from reviewer; the account that recorded a control-evidence event cannot review it (`docs/CONTROL_EVIDENCE_WORKFLOW.md`). Report versions must be reviewed for issuance before a share link is minted (`reportShareRefusal` in `src/lib/precog/share/share-store.ts`). |
+| Books drift from who the map says can move money                              | QuickBooks read-only sync and access CSV import feed integration drift summaries on the profile (`integrationDriftSummary`); Start here and the weekly plan can route reconciliation without opening every client on `/firm`.                                                                       |
+| Shared reports or maps leak too much                                          | Share links optional passcodes, guess limits, visitor-address hashing and a single public refusal for dead tokens (`src/lib/precog/share/share-server.ts`).                                                                                                                                         |
+| Cross-tenant session riding on a shared host                                  | Same-site request checks on server functions (`assertSameSiteRequest` in `src/lib/auth/isolation.server.ts`).                                                                                                                                                                                       |
+| Silent takeover via emailed links                                             | Owner and digest consent links need unguessable tokens; lookups are rate-limited per address (`src/lib/precog/reminders/email-link-limits.ts`).                                                                                                                                                     |
+| Changes with no trail                                                         | Firm audit log, report version history, control execution log and business history downloads; account export and per-business history export in the account menu.                                                                                                                                   |
+
+**Practices outside the code** the operator and each firm still own: background
+checks, credential rotation, limiting who holds integration manager roles,
+matching modeled duties to actual bank and ERP permissions, and reconciling
+cash and payroll on a fixed cadence whether or not Precog is open.
+
 ## Data handling
 
 - Share passcodes are stored as salted scrypt hashes (`src/lib/precog/share/share-attempts.ts`), guesses are counted per share in the database and the link locks after ten in fifteen minutes; share view logs keep a hash of the visitor address, not the address (`src/lib/precog/share/share-server.ts`), for a fixed retention after which they are deleted.
+- A dead, revoked, or expired map or report share link answers the same public "unavailable" reason as an unknown token (`src/lib/precog/share/share-server.ts`), so a visitor cannot probe which tokens exist.
+- Map backup import rejects files larger than two megabytes before JSON parsing (`src/lib/precog/builder/map-backup.ts`), so a oversized upload cannot freeze the browser.
 - The model-call cap keeps a one-way hash of the network address, and the count holds no question or reply (`src/lib/precog/llm/`).
 - Before notes reach the model, Precog masks anything that looks like a password, card number or code, and masks the draft that comes back (the Privacy page lists exactly what each feature sends).
 - Precog does not use what you enter to train a model and sends xAI nothing for training.
@@ -65,7 +92,7 @@ Every response carries, from `vite.config.ts`:
 - Every model call logs one `[grok] usage` line with token counts and latency, and no prompt text, and stores one `llm_usage` row (account, feature, model, token counts, outcome and time; no question or answer) for 13 months; the weekly run purges older rows and the account deletion removes the account's (`src/lib/precog/llm/usage-log.server.ts`).
 - Precog runs no analytics script; activation counts come from `product_events` (ids and times only).
 - `GET /api/health` runs one database query and answers `{ ok: true }` or a 503; the uptime monitor and the restore procedure both read it ([OPERATIONS.md](./OPERATIONS.md)).
-- Rate limits: model calls are limited per user, per process and per network address, and capped per account per day in the database. These limits are cost and abuse control at the application level; a platform-level limit (Vercel Firewall) in front is the owner's setting.
+- Rate limits: model calls are limited per user, per process and per network address, and capped per account per day in the database; emailed token links are limited as above. These limits are cost and abuse control at the application level; a platform-level limit (Vercel Firewall) in front is the owner's setting.
 
 ## Backups and recovery
 

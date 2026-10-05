@@ -44,27 +44,23 @@ export function MonthlyArea({
           CSV of transactions.
         </p>
       </div>
-      <section id="checks" className="scroll-mt-40">
+      <section id="checks">
         <MonthlyReview />
       </section>
-      <section id="evidence" className="scroll-mt-40">
+      <section id="evidence">
         <ControlEvidencePanel />
       </section>
-      <section id="calendar" className="scroll-mt-40">
+      <section id="calendar">
         <ControlCalendarCard
           onOpenProcess={(id) => openTab("map", id, true)}
           onOpenJournal={() => openTab("journal")}
           onOpenBuilder={() => openTab("map", null, true)}
         />
       </section>
-      <section id="decisions" aria-label={tabLabel("journal", say)} className="scroll-mt-40">
+      <section id="decisions" aria-label={tabLabel("journal", say)}>
         <DecisionJournal onOpenLinked={openTab} headingLevel={2} />
       </section>
-      <section
-        id="number-patterns"
-        aria-labelledby="number-patterns-heading"
-        className="scroll-mt-40 space-y-3"
-      >
+      <section id="number-patterns" aria-labelledby="number-patterns-heading" className="space-y-3">
         <h2 id="number-patterns-heading" className="text-lg font-semibold">
           Number patterns in a CSV
         </h2>

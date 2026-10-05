@@ -89,6 +89,11 @@ vi.mock("@tanstack/react-start/server", () => ({
   getRequest: () => requestContext.current,
   getRequestIP: () => "127.0.0.1",
 }));
+vi.mock("@/lib/request-ip.server", () => ({ requestIp: () => "127.0.0.1" }));
+const emailLinks = vi.hoisted(() => ({ allowed: true }));
+vi.mock("@/lib/precog/reminders/email-link-limits", () => ({
+  takeEmailLinkAllowance: () => emailLinks.allowed,
+}));
 
 // A Resend signing secret in its real shape: "whsec_" and a base64 key.
 const RESEND_SECRET = `whsec_${btoa("resend-test-signing-key")}`;
@@ -118,6 +123,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   session.userId = null;
   requestContext.current = undefined;
+  emailLinks.allowed = true;
   digestStage.fail = false;
   digestStage.sendsFail = false;
   usagePurge.fail = false;
@@ -590,6 +596,18 @@ describe("owner email links", () => {
     }
     expect(await state()).toEqual({ confirmed: false, stopped: false });
   });
+
+  it("answers 429 without touching the database when the address is throttled", async () => {
+    emailLinks.allowed = false;
+    const get = await handlers(OwnerEmail).GET({ request: new Request(url("confirm")) });
+    expect(get.status).toBe(429);
+    expect(await get.text()).toContain("Wait a minute, then open the link again.");
+    const post = await handlers(OwnerEmail).POST({
+      request: new Request(url("confirm"), { method: "POST" }),
+    });
+    expect(post.status).toBe(429);
+    expect(await state()).toEqual({ confirmed: false, stopped: false });
+  });
 });
 
 describe("digest email links", () => {
@@ -666,6 +684,16 @@ describe("digest email links", () => {
       request: new Request(url(`do=stop&token=${token}`), { method: "PUT" }),
     });
     expect(other.status).toBe(405);
+  });
+
+  it("answers 429 without touching the database when the address is throttled", async () => {
+    emailLinks.allowed = false;
+    const res = await handlers(DigestEmail).GET({
+      request: new Request(url(`do=stop&token=${token}`)),
+    });
+    expect(res.status).toBe(429);
+    expect(await res.text()).toContain("Wait a minute, then open the link again.");
+    expect(await digestOn()).toBe(true);
   });
 });
 

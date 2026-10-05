@@ -432,7 +432,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
         />
       </div>
 
-      <div id="procedure-view" className="scroll-mt-40">
+      <div id="procedure-view">
         {selected ? (
           <ProcedureView
             key={selected.id}

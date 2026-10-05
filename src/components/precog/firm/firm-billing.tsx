@@ -95,7 +95,7 @@ export function FirmBilling({
   }
 
   return (
-    <section id="plan" className="scroll-mt-16 rounded-xl border border-border bg-surface p-4">
+    <section id="plan" className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-lg font-semibold">Plan</h2>
       <p className="mt-1 text-sm text-muted">{planSentence(billingConfigured, billing, amounts)}</p>
       <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
