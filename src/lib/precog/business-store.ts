@@ -130,9 +130,15 @@ export async function resolveBusinessOwner(
   return markers[0]?.user_id ?? null;
 }
 
-/** Serializes creation, update, restore and delete for this owner's portfolio. */
+/**
+ * Serializes creation, update, restore and delete for this owner's portfolio.
+ * `for no key update` still excludes the next holder and the account's
+ * deletion, but not a foreign-key check (`for key share`): a writer that
+ * already holds one of the owner's business rows (ending an engagement, for
+ * example) can then insert a row naming the owner instead of deadlocking.
+ */
 async function lockBusinessOwner(sql: Sql, userId: string): Promise<void> {
-  const owner = await sql`select id from "user" where id = ${userId} for update`;
+  const owner = await sql`select id from "user" where id = ${userId} for no key update`;
   if (!owner.length) throw new RequestError(401, "Unauthorized");
 }
 
@@ -742,6 +748,11 @@ export interface MovedBusiness {
  * not checked: nothing is created, only re-parented. A business the member
  * owns and shared with the firm (`granted_at` set) is the member's own and
  * stays with them; the firm keeps working on it until the grant ends.
+ *
+ * Both accounts are locked, then the member's firm clients, before any of
+ * their rows moves: the business-then-rows order every engagement writer
+ * takes, so the firm owner ending a client's engagement while its member
+ * leaves waits instead of deadlocking.
  */
 export async function transferBusinessesToOwner(
   tx: Sql,
@@ -753,6 +764,7 @@ export async function transferBusinessesToOwner(
     select id, name from businesses
     where user_id = ${member} and firm_user_id = ${owner} and granted_at is null
     order by id
+    for update
   `;
   const moved: MovedBusiness[] = [];
   for (const row of rows) {

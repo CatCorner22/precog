@@ -192,9 +192,9 @@ export async function saveEngagement(
 /**
  * Ends or reopens the engagement; ending stamps `ended_at` once, reopening
  * clears it. `changed` says whether the status moved (no row reads as
- * active). The business row is locked first, as saveEngagement and the
- * client invitation's hand-over lock it, so two requests at once (the row
- * may not exist yet) move the status once.
+ * active). The business row is locked first, as saveEngagement, the client
+ * invitation's hand-over and a member's departure lock it, so two requests
+ * at once (the row may not exist yet) move the status once.
  */
 export async function setEngagementStatus(
   sql: Sql,

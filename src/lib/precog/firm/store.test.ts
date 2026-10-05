@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import type { Sql } from "@/lib/db";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { resolveBusinessOwner } from "../business-store";
 import {
@@ -370,6 +371,37 @@ describe("firm membership edge cases", () => {
     expect(await resolveBusinessOwner(db.sql, "ua", "biz_1", true)).toBe("ua");
     expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBeNull();
   }, 60_000);
+
+  it("locks a departing member's firm clients before it moves any of their rows", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await invite("t1");
+    await acceptInvite(db.sql, "t1", "ub");
+    await db.pg.query("update businesses set firm_user_id = 'ua' where user_id = 'ub'");
+    const statements: string[] = [];
+    const wrap = (inner: Sql): Sql => {
+      const sql = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+        statements.push(strings.join("$"));
+        return inner(strings, ...values);
+      }) as Sql;
+      sql.query = (text, params) => {
+        statements.push(text);
+        return inner.query(text, params);
+      };
+      const begin = inner.transaction?.bind(inner);
+      if (begin) sql.transaction = (work) => begin((tx) => work(wrap(tx)));
+      return sql;
+    };
+    expect(await removeMember(wrap(db.sql), "ua", "ub")).toHaveLength(1);
+    // Ending or saving the engagement locks the business, then writes its
+    // engagement row; the removal takes them in the same order, so the two
+    // wait on each other instead of deadlocking.
+    const businessLock = statements.findIndex(
+      (s) => /from\s+businesses\b/i.test(s) && /for update/i.test(s),
+    );
+    const engagementWrite = statements.findIndex((s) => /update\s+engagement_marks\b/i.test(s));
+    expect(businessLock).toBeGreaterThanOrEqual(0);
+    expect(engagementWrite).toBeGreaterThan(businessLock);
+  });
 
   it("the owner who opens an invitation to their own firm stays the owner", async () => {
     await saveFirm(db.sql, "ua", "North", "assessment");
