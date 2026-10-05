@@ -14,6 +14,8 @@ import type { PracticeProfile } from "./practice-profile";
 interface SaveBusinessRequest {
   profile: PracticeProfile;
   businessId: string;
+  /** Exact owner for a shared client selected from the portfolio. */
+  ownerUserId?: string;
   /** The profile as it is stored. */
   json: string;
   /** The account the browser believes is signed in; a mismatch is refused. */
@@ -42,6 +44,7 @@ export function parseSaveBusinessRequest(input: unknown): SaveBusinessRequest {
     throw invalidRequest();
   return {
     ...checked,
+    ownerUserId: optionalOwnerUserId(raw.ownerUserId),
     expectedAccountId: raw.expectedAccountId,
     industry,
     baseRevision,
@@ -76,20 +79,39 @@ function storedProcedures(
   };
 }
 
-/** One business to open, by id. */
-export function parseOpenBusinessRequest(input: unknown): { id: string; today: string } {
+function optionalOwnerUserId(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !value) throw invalidRequest();
+  return value;
+}
+
+/** One business to open, by composite identity when available. */
+export function parseOpenBusinessRequest(input: unknown): {
+  id: string;
+  ownerUserId?: string;
+  today: string;
+} {
   const raw = requireObject(input);
   if (!isBusinessId(raw.id)) throw new RequestError(400, "Unknown business id");
-  return { id: raw.id, today: resolveClientDate(raw.today) };
+  return {
+    id: raw.id,
+    ownerUserId: optionalOwnerUserId(raw.ownerUserId),
+    today: resolveClientDate(raw.today),
+  };
 }
 
 /** One business to delete, from the account the browser believes is signed in. */
 export function parseDeleteBusinessRequest(input: unknown): {
   id: string;
+  ownerUserId?: string;
   expectedAccountId: string;
 } {
   const raw = requireObject(input);
   if (!isBusinessId(raw.id)) throw new RequestError(400, "Unknown business id");
   if (typeof raw.expectedAccountId !== "string" || !raw.expectedAccountId) throw invalidRequest();
-  return { id: raw.id, expectedAccountId: raw.expectedAccountId };
+  return {
+    id: raw.id,
+    ownerUserId: optionalOwnerUserId(raw.ownerUserId),
+    expectedAccountId: raw.expectedAccountId,
+  };
 }

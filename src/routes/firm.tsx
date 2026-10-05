@@ -288,7 +288,7 @@ function FirmPage() {
       setClients(clientRes.clients);
       setDeleted(deletedRes.deleted);
       const ownBusiness = clientRes.clients.find((c) => !c.shared);
-      if (wasShared && ownBusiness) await switchBusiness(ownBusiness.id);
+      if (wasShared && ownBusiness) await switchBusiness(ownBusiness.id, ownBusiness.ownerUserId);
     } catch {
       toast.error("Precog could not refresh the client list. Reload the page.");
     }

@@ -64,6 +64,8 @@ import { normalizeOnboardingFacts, type OnboardingFacts } from "./onboarding/dec
  * through, and this browser's portfolio of businesses.
  */
 export interface PracticeProfile {
+  /** Account that owns this row when it was opened from a shared portfolio. */
+  ownerUserId?: string;
   practiceName: string;
   industry: IndustryId;
   staff: StaffComposition;
@@ -120,6 +122,8 @@ export interface PracticeProfile {
 /** One line of the business switcher. */
 export interface BusinessSummary {
   id: string;
+  /** Account that owns this row; present on account-backed summaries. */
+  ownerUserId?: string;
   name: string;
   industry: IndustryId;
   updatedAt: string;
@@ -129,6 +133,14 @@ export interface BusinessSummary {
   shared?: boolean;
   /** True for a firm's client business, which the report names the firm on. */
   firmClient?: boolean;
+}
+
+/** Collision-safe identity for account-backed summaries and active selection. */
+export function businessSummaryKey(
+  business: Pick<BusinessSummary, "id" | "ownerUserId">,
+  ownUserId?: string | null,
+): string {
+  return `${business.ownerUserId ?? ownUserId ?? "local"}\u0000${business.id}`;
 }
 
 export interface MapVersion {

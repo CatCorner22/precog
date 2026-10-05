@@ -288,7 +288,10 @@ describe("account bases and stamps shared by the tabs of one browser", () => {
 function portfolioTab(
   workspace: Workspace,
   tab: Awaited<ReturnType<typeof syncTab>>,
-  overrides: { flushActive?: () => Promise<boolean> } = {},
+  overrides: {
+    flushActive?: () => Promise<boolean>;
+    remoteBusinesses?: ReturnType<typeof runPortfolio>["businesses"];
+  } = {},
 ) {
   return runPortfolio({
     workspace,
@@ -309,13 +312,61 @@ function portfolioTab(
     flushLocal: tab.sync.flushLocal,
     flushActive: overrides.flushActive ?? tab.sync.flushActive,
     openedFromAccount: tab.sync.openedFromAccount,
-    remoteBusinesses: [],
+    remoteBusinesses: overrides.remoteBusinesses ?? [],
     setRemoteBusinesses: vi.fn(),
     portfolioVersion: 0,
     bumpPortfolio: vi.fn(),
     setSwitching: vi.fn(),
   });
 }
+
+describe("firm portfolio identity", () => {
+  it("keeps two shared clients with the same business id", async () => {
+    const workspace = browser();
+    const own = business("own", "Own Co");
+    const tab = await syncTab(workspace, own);
+    const summary = {
+      id: "same",
+      industry: "general" as const,
+      updatedAt: own.updatedAt,
+      processCount: 1,
+      healthScore: null,
+      shared: true,
+      firmClient: true,
+    };
+    const portfolio = portfolioTab(workspace, tab, {
+      remoteBusinesses: [
+        { ...summary, name: "A client", ownerUserId: "owner-a" },
+        { ...summary, name: "B client", ownerUserId: "owner-b" },
+      ],
+    });
+
+    expect(portfolio.businesses.filter((b) => b.id === "same").map((b) => b.name)).toEqual([
+      "A client",
+      "B client",
+    ]);
+  });
+
+  it("carries the selected owner through open and save requests", async () => {
+    const workspace = browser();
+    const tab = await syncTab(workspace, business("own", "Own Co"));
+    const shared = { ...business("same", "A client"), ownerUserId: "owner-a" };
+    server.loadBusiness.mockResolvedValueOnce({ found: true, profile: shared, revision: 4 });
+    server.saveBusinessProfile.mockResolvedValue({ ok: true, revision: 5 });
+    const portfolio = portfolioTab(workspace, tab);
+
+    expect(await portfolio.switchBusiness("same", "owner-a")).toEqual({ ok: true });
+    expect(server.loadBusiness).toHaveBeenCalledWith({
+      data: expect.objectContaining({ id: "same", ownerUserId: "owner-a" }),
+    });
+    expect(tab.profileRef.current.ownerUserId).toBe("owner-a");
+    tab.profileRef.current = edit(tab.profileRef.current, { practiceName: "A client updated" });
+    expect(await tab.sync.flushActive()).toBe(true);
+    expect(server.saveBusinessProfile).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({ ownerUserId: "owner-a" }),
+    });
+  });
+});
 
 describe("adding a business while the open one's account save is refused", () => {
   it("keeps the open business, so the banner sits on the business it is about", async () => {
