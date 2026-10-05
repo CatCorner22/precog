@@ -143,7 +143,7 @@ export function setupEffects(
           ? " (the least Precog applies)"
           : "";
     changed.push(
-      `About $${usd.toLocaleString("en-US")} comes in on a typical day, so cash-scheme figures are scaled ×${intensity.toFixed(2)} against Precog's $${referenceUsd.toLocaleString("en-US")} reference day.${clampNote}`,
+      `About $${usd.toLocaleString("en-US")} comes in on a typical day, so cash-scheme figures are scaled ×${intensity.toFixed(2)} against Precog's $${referenceUsd.toLocaleString("en-US")} reference day${clampNote}.`,
     );
   }
   if (a.ownerReadsStatement === "yes")

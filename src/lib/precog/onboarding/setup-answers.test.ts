@@ -100,11 +100,11 @@ describe("setup answer effects", () => {
     const referenceUsd = DEFAULT_WEIGHTS.likelihood.cashReferenceUsd;
     const intensity = Math.min(3, Math.max(0.5, 10000 / referenceUsd));
     expect(effects.changed).toContain(
-      `About $10,000 comes in on a typical day, so cash-scheme figures are scaled ×${intensity.toFixed(2)} against Precog's $${referenceUsd.toLocaleString("en-US")} reference day. (the most Precog applies)`,
+      `About $10,000 comes in on a typical day, so cash-scheme figures are scaled ×${intensity.toFixed(2)} against Precog's $${referenceUsd.toLocaleString("en-US")} reference day (the most Precog applies).`,
     );
     const lowerBand = setupEffects({ ...UNANSWERED, dailyTakings: "under-1k" }, "general");
     expect(lowerBand.changed).toContain(
-      `About $500 comes in on a typical day, so cash-scheme figures are scaled ×0.50 against Precog's $${referenceUsd.toLocaleString("en-US")} reference day. (the least Precog applies)`,
+      `About $500 comes in on a typical day, so cash-scheme figures are scaled ×0.50 against Precog's $${referenceUsd.toLocaleString("en-US")} reference day (the least Precog applies).`,
     );
   });
 
