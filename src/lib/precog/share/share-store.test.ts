@@ -8,7 +8,6 @@ import {
   listMapShareSummaries,
   MAX_LIVE_SHARES,
   recordShareView,
-  revokeShare,
   revokeShareOnce,
   shareStillReachable,
   type NewMapShare,
@@ -214,10 +213,16 @@ describe("revoking links with the business and the firm", () => {
     const listed = await listMapShareSummaries(sql, "owner");
     expect(listed.map((l) => [l.token, l.createdBy])).toEqual([[tok(1), "prep"]]);
     expect(await listMapShareSummaries(sql, "outsider")).toEqual([]);
-    expect(await revokeShare(sql, "outsider", tok(1))).toBe(false);
+    expect(await revokeShareOnce(sql, "outsider", tok(1))).toBe(null);
     expect(await revoked(tok(1))).toBe(false);
-    expect(await revokeShare(sql, "owner", tok(1))).toBe(true);
+    expect(await revokeShareOnce(sql, "owner", tok(1))).toBe("revoked");
     expect(await revoked(tok(1))).toBe(true);
+  });
+
+  it("revokes through revokeShareOnce alone, the call the share panel's revoke makes", async () => {
+    const store = await import("./share-store");
+    expect(Object.keys(store)).toContain("revokeShareOnce");
+    expect(Object.keys(store)).not.toContain("revokeShare");
   });
 
   it("leaves the links a business's own account made to it out of the firm owner's reach, once shared", async () => {

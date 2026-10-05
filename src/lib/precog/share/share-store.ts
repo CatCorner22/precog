@@ -298,18 +298,11 @@ export async function loadReportShareRow(sql: Sql, token: string): Promise<Repor
 
 /**
  * Revokes one link for the account that made it, or for the firm owner when
- * the link copies one of the firm's clients. Returns false when the caller
- * may not revoke it (or it does not exist).
- */
-export async function revokeShare(sql: Sql, userId: string, token: string): Promise<boolean> {
-  return (await revokeShareOnce(sql, userId, token)) !== null;
-}
-
-/**
- * revokeShare, saying whether this call ended the link: "revoked" when it was
- * live until now, "already" when it was revoked before, null when the caller
- * may not revoke it (or it does not exist). The row lock makes two revokes at
- * once read one "revoked" and one "already".
+ * the link copies one of the firm's clients (`firmOwnerReaches`), and says
+ * whether this call ended the link: "revoked" when it was live until now,
+ * "already" when it was revoked before, null when the caller may not revoke
+ * it (or it does not exist). The row lock makes two revokes at once read one
+ * "revoked" and one "already".
  */
 export async function revokeShareOnce(
   sql: Sql,
