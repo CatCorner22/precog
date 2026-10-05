@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { useRecordDisplayedAccount } from "@/lib/auth/use-record-displayed-account";
 import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
 import { emailAndPasswordEnabled } from "@/lib/auth/email-password";
 import { acceptClientGrant, peekClientGrant } from "@/lib/precog/firm/grant-server";
@@ -42,6 +43,9 @@ type PeekState =
 function ClientInvitePage() {
   const { token } = Route.useParams();
   const { user, isPending } = useCurrentUserState();
+  // The link opens outside the business workspace: record the account before
+  // the signed-in acceptance, or it answers 409.
+  useRecordDisplayedAccount(user?.id);
   const navigate = useNavigate();
   const [state, setState] = useState<PeekState>(
     TOKEN.test(token) ? { kind: "loading" } : { kind: "closed", message: GRANT_CLOSED },

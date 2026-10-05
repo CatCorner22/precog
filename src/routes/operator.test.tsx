@@ -90,9 +90,11 @@ describe("the operator page", () => {
     expect(pageSource).toContain("void getOperatorStatus()");
     // The page records the account it shows before asking, as the business
     // workspace does on its pages; without it every signed-in call on a
-    // direct load answers 409 "The signed-in account changed".
-    expect(pageSource).toContain(
-      "setDisplayedAccount(userId); let cancel = false; void getOperatorStatus()",
+    // direct load answers 409 "The signed-in account changed". The shared
+    // hook's layout effect runs before the status call's effect.
+    expect(pageSource).toContain("useRecordDisplayedAccount(userId);");
+    expect(pageSource.indexOf("useRecordDisplayedAccount(userId);")).toBeLessThan(
+      pageSource.indexOf("void getOperatorStatus()"),
     );
     expect(pageSource).toContain(".catch(() => null)");
     expect(pageSource).toContain("[userId]");

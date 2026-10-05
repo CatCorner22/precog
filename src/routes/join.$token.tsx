@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { useRecordDisplayedAccount } from "@/lib/auth/use-record-displayed-account";
 import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
 import { emailAndPasswordEnabled } from "@/lib/auth/email-password";
 import { acceptFirmInvite, checkFirmInvite, peekFirmInvite } from "@/lib/precog/firm/server";
@@ -21,6 +22,9 @@ export const Route = createFileRoute("/join/$token")({
 function JoinPage() {
   const { token } = Route.useParams();
   const { user, isPending } = useCurrentUserState();
+  // The link opens outside the business workspace: record the account before
+  // JoinAs checks the fit, or every signed-in call answers 409.
+  useRecordDisplayedAccount(user?.id);
   const navigate = useNavigate();
   const [invite, setInvite] = useState<
     { firmName: string; role: string; email: string } | null | "loading" | "throttled"
