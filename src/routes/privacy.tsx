@@ -285,7 +285,10 @@ function PrivacyPage() {
           returns, reviews for issuance and sends; QuickBooks connections; owner reminder addresses;
           the letterhead; exports; plan changes; and Precog's operator's lookups and changes. Edits
           to a business's map, Monthly review results and QuickBooks readings are kept in the
-          business's own history and logs, not in the activity log.
+          business's own history and logs, not in the activity log. The log keeps the name of each
+          person who acted (their address when the account has no name) and the address of each
+          colleague the firm invited, for the period the firm sets, even after that person deletes
+          their own account.
         </p>
         <p>
           Precog's operator can look up one account at a time by its exact address, to answer a

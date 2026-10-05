@@ -278,6 +278,12 @@ describe("Privacy", () => {
     expect(html).toContain(
       "Edits to a business&#x27;s map, Monthly review results and QuickBooks readings are kept in the business&#x27;s own history and logs, not in the activity log.",
     );
+    // insertAudit stores the actor's name or, without one, their address, and
+    // member_invited the invited address; the rows have no key on the person,
+    // and logDeparture writes a deleted account's name into other firms' logs.
+    expect(html).toContain(
+      "not in the activity log. The log keeps the name of each person who acted (their address when the account has no name) and the address of each colleague the firm invited, for the period the firm sets, even after that person deletes their own account.",
+    );
     expect(html).toContain(
       "Precog&#x27;s operator can look up one account at a time by its exact address, to answer a support request or link a Stripe customer; on a firm&#x27;s account, each lookup and change is written to the firm&#x27;s activity log.",
     );
