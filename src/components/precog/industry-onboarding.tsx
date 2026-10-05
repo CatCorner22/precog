@@ -1069,6 +1069,7 @@ export function IndustryOnboarding() {
                 <h3 id="fill-faster-heading" className="text-sm font-medium">
                   Fill the table faster
                 </h3>
+                <JobCatalogSheet prominent />
                 <details
                   className="rounded-xl border border-border bg-elevated/50 p-3"
                   open={pasteOpen}
@@ -1184,12 +1185,15 @@ export function IndustryOnboarding() {
                         {quickEntry.description} {quickEntry.note}
                       </p>
                     )}
-                    <JobCatalogSheet />
                   </div>
                 </details>
               </section>
 
               <SetupPreviewCard rows={rows} industry={selected} />
+              <p className="rounded-lg border border-border bg-elevated/50 px-3 py-2 text-xs text-muted">
+                You can continue with one person. Precog will assess that sole-owner setup; add the
+                rest of your team later under Team for a fuller team assessment.
+              </p>
               {finishNote && (
                 <p className="text-xs text-danger" role="alert">
                   {finishNote}

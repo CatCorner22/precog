@@ -235,6 +235,11 @@ export function PracticeSetup({
           />
           Two people approve every payment (dual release)
         </label>
+        <p className="text-xs text-muted">
+          Dual release means one person starts a payment and another approves it. Precog can use
+          different amounts by payment type; for example, require two people for ACH payments above
+          $1,000.
+        </p>
         {ownTeam ? (
           <div className="text-sm">
             <p>
@@ -256,8 +261,8 @@ export function PracticeSetup({
         )}
         {onOpenDualRelease && (
           <Button size="sm" variant="secondary" onClick={onOpenDualRelease}>
-            <ShieldCheck className="size-3.5" />
-            Configure dual-release thresholds
+            <ShieldCheck className="size-3.5" aria-hidden />
+            Set payment approval thresholds
           </Button>
         )}
         {ownTeam ? (
