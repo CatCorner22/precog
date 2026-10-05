@@ -84,13 +84,29 @@ export interface ReviewButtons {
   reviewOrReturn: boolean;
 }
 
+/**
+ * What the versions panel says, in place of Lock and the version buttons, to
+ * the account that shared its business with a firm: the firm does that work
+ * (the server refuses it to that account with BUSINESS_ROLE_REFUSED).
+ */
+export const SHARED_BUSINESS_NOTE =
+  "The firm working on this business locks, reviews, sends and shares its report versions. Open any version to read it.";
+
 export function reviewButtonsFor(input: {
   version: Pick<ReportVersionRow, "preparedBy" | "reviewedAt" | "reviewRequestedAt" | "returnedAt">;
   viewerId: string;
+  /** The viewer's role in the business's firm (in their own firm for a business with none). */
   role: FirmRole | null;
   firmClient: boolean;
+  /**
+   * The viewer reads the versions and does none of the firm's work on the
+   * business: its own account, after sharing it with a firm. No button, even
+   * on a version that account prepared alone before sharing.
+   */
+  readOnly?: boolean;
 }): ReviewButtons {
   const { version: v, viewerId, role, firmClient } = input;
+  if (input.readOnly) return { ask: false, issueAlone: false, reviewOrReturn: false };
   const open = !v.reviewedAt && !v.returnedAt;
   const prepared = v.preparedBy === viewerId;
   return {

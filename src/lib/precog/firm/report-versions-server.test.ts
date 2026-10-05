@@ -259,3 +259,50 @@ describe("the firm a version names when it froze none", () => {
     expect((await open("rev", "rv_old")).firm?.name).toBe("North Advisors");
   });
 });
+
+describe("the versions list tells the panel what work the caller does on the business", () => {
+  /**
+   * `bo` shared biz_b with North and owns an empty firm of their own; `so`
+   * owns biz_s and is in no firm; `prep` keeps a private business, prep_own.
+   */
+  beforeEach(async () => {
+    for (const id of ["bo", "so"]) await db.seedUser(id);
+    await db.pg.exec(`
+      insert into firms (user_id, name) values ('bo', 'Bo Firm');
+      insert into firm_members (firm_user_id, member_user_id, role) values ('bo', 'bo', 'owner');
+      insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id, granted_at)
+        values ('biz_b', 'bo', 'Bo Shop', 'general', '{}'::jsonb, 1, 'own', now()),
+          ('biz_s', 'so', 'Solo Shop', 'general', '{}'::jsonb, 1, null, null),
+          ('prep_own', 'prep', 'Prep Own', 'general', '{}'::jsonb, 1, null, null);
+    `);
+  });
+
+  type Listed = { versions: { id: string }[]; work: { firm: boolean; role: string | null } };
+  const list = (userId: string, businessId: string) =>
+    call(server.listReports, userId, { businessId }) as Promise<Listed>;
+
+  it("gives the business's own account, which shared it, no role, though it owns a firm", async () => {
+    await lockReportVersion(db.sql, {
+      ownerUserId: "bo",
+      businessId: "biz_b",
+      preparedBy: "prep",
+      scopeNote: "",
+      id: "rv_1",
+    });
+    const own = await list("bo", "biz_b");
+    expect(own.work).toEqual({ firm: true, role: null });
+    // It reads every version all the same.
+    expect(own.versions.map((v) => v.id)).toEqual(["rv_1"]);
+  });
+
+  it("gives a member of the business's firm their role there", async () => {
+    expect((await list("rev", "biz_b")).work).toEqual({ firm: true, role: "reviewer" });
+    expect((await list("prep", "biz_1")).work).toEqual({ firm: true, role: "preparer" });
+    expect((await list("own", "biz_1")).work).toEqual({ firm: true, role: "owner" });
+  });
+
+  it("gives a business with no firm the caller's own firm role, or none", async () => {
+    expect((await list("so", "biz_s")).work).toEqual({ firm: false, role: null });
+    expect((await list("prep", "prep_own")).work).toEqual({ firm: false, role: "preparer" });
+  });
+});

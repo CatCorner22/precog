@@ -73,6 +73,24 @@ export async function requireBusinessRole(
   businessId: string,
   roles: readonly FirmRole[] | "any",
 ): Promise<void> {
+  const row = await businessFirmRole(sql, callerUserId, ownerUserId, businessId);
+  if (row.firmUserId === null) {
+    if (roles !== "any") await requireFirmRole(sql, callerUserId, roles);
+    return;
+  }
+  if (row.role === null) throw new RequestError(403, BUSINESS_ROLE_REFUSED);
+  if (roles !== "any" && !roles.includes(row.role)) {
+    throw new RequestError(403, `Only a firm ${roles.join(" or ")} can do that`);
+  }
+}
+
+/** The business's firm and the caller's role in that firm (null when not a member), or a 404. */
+async function businessFirmRole(
+  sql: Sql,
+  callerUserId: string,
+  ownerUserId: string,
+  businessId: string,
+): Promise<{ firmUserId: string | null; role: FirmRole | null }> {
   const rows = await sql<{ firm_user_id: string | null; role: string | null }>`
     select b.firm_user_id, m.role
     from businesses b
@@ -82,14 +100,32 @@ export async function requireBusinessRole(
   `;
   const row = rows[0];
   if (!row) throw new RequestError(404, "That client is not on this account");
-  if (row.firm_user_id === null) {
-    if (roles !== "any") await requireFirmRole(sql, callerUserId, roles);
-    return;
-  }
-  if (row.role === null) throw new RequestError(403, BUSINESS_ROLE_REFUSED);
-  if (roles !== "any" && !roles.includes(row.role as FirmRole)) {
-    throw new RequestError(403, `Only a firm ${roles.join(" or ")} can do that`);
-  }
+  return { firmUserId: row.firm_user_id, role: row.role as FirmRole | null };
+}
+
+/**
+ * The work the caller does on one business, as requireBusinessRole judges
+ * it, for the versions panel to offer only what the server allows. `firm`:
+ * the business has a firm. `role`: on a business with a firm, the caller's
+ * role in that firm, null when they are not a member of it (the business's
+ * own account, which shared it with the firm, reads the versions and does
+ * none of the firm's work); on a business with no firm, the caller's role in
+ * their own firm, null in none.
+ */
+export interface BusinessWork {
+  firm: boolean;
+  role: FirmRole | null;
+}
+
+export async function businessWork(
+  sql: Sql,
+  callerUserId: string,
+  ownerUserId: string,
+  businessId: string,
+): Promise<BusinessWork> {
+  const row = await businessFirmRole(sql, callerUserId, ownerUserId, businessId);
+  if (row.firmUserId !== null) return { firm: true, role: row.role };
+  return { firm: false, role: (await loadFirmFor(sql, callerUserId))?.role ?? null };
 }
 
 /**

@@ -26,22 +26,30 @@ import {
   reviewButtonsFor,
   REVIEW_WORKFLOW_TEXT,
   reviewRequestedToast,
+  SHARED_BUSINESS_NOTE,
   signOffWithNote,
 } from "./report-versions-actions";
 import { ReportSharePanel } from "./report-share-panel";
+
+/** The work the caller does on the business, as the versions list reports it (businessWork). */
+type BusinessWork = Awaited<ReturnType<typeof listReports>>["work"];
 
 /**
  * Locking, listing and reviewing report versions for issuance. A version
  * freezes the saved business under a number and the preparer's name; the
  * preparer asks for review; a reviewer of the firm who did not prepare it
  * reviews it for issuance or returns it with a note; "sent" is stamped once.
+ * The business's own account, once it shares the business with a firm, reads
+ * the versions here and the firm does that work (SHARED_BUSINESS_NOTE).
  */
 export function ReportVersionsPanel() {
   const { profile, businesses, replaceProfile } = usePractice();
   const { syncStatus } = usePracticeSync();
   const { user, isPending } = useCurrentUserState();
   const [versions, setVersions] = useState<ReportVersionRow[] | null>(null);
-  const [role, setRole] = useState<FirmRole | null>(null);
+  // The caller's role in the business's own firm (not in whatever firm they
+  // belong to), as the server checks it; null until the list loads.
+  const [work, setWork] = useState<BusinessWork | null>(null);
   // The account is in no firm and its plan allows locked versions.
   const [soloPlanOpen, setSoloPlanOpen] = useState(false);
   const [scope, setScope] = useState("");
@@ -55,6 +63,10 @@ export function ReportVersionsPanel() {
   // a refused one. The server refuses anyway when the panel is wrong.
   const firmClient = Boolean(businesses.find((b) => b.id === businessId)?.firmClient);
   const canShareSolo = !firmClient && soloPlanOpen;
+  const role: FirmRole | null = work?.role ?? null;
+  // A business its owner shared with a firm, seen by that owner: the server
+  // refuses them Lock, review, Mark sent and Share (requireBusinessRole).
+  const readOnly = work?.firm === true && work.role === null;
   // Keyed on the account id, never on `user`: the session hook builds a new
   // user object on every render, so an effect keyed on it would load again
   // after each answer it set, and keep calling the server.
@@ -71,7 +83,7 @@ export function ReportVersionsPanel() {
       .then(([res, firm, plan]) => {
         if (cancel) return;
         setVersions(res.versions);
-        setRole(firm.firm?.role ?? null);
+        setWork(res.work);
         setSoloPlanOpen(!firm.firm && Boolean(plan?.features.lockedVersions));
       })
       .catch(() => {
@@ -186,33 +198,40 @@ export function ReportVersionsPanel() {
 
   const viewerId = user.id;
   const buttonsFor = (version: ReportVersionRow) =>
-    reviewButtonsFor({ version, viewerId, role, firmClient });
+    reviewButtonsFor({ version, viewerId, role, firmClient, readOnly });
 
   return (
     <section className="print:hidden mx-auto max-w-4xl px-6 pt-6" aria-label="Report versions">
       <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm">
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="min-w-[16rem] flex-1 text-xs text-neutral-600">
-            Scope note for the next locked version (optional)
-            <input
-              className="mt-1 w-full rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900"
-              value={scope}
-              onChange={(e) => setScope(e.target.value)}
-              placeholder="Money duties as mapped on the date above; excludes clinical systems."
-              maxLength={600}
-            />
-          </label>
-          <Button size="sm" onClick={() => void lock()} disabled={busy}>
-            <Lock className="size-3.5" /> Lock this version
-          </Button>
-        </div>
-        <p className="mt-2 text-xs text-neutral-500">
-          Locking freezes the business as you have saved it to your account, with your name and
-          today's date. A firm reviewer who did not prepare it reviews it for issuance.{" "}
-          {REVIEW_WORKFLOW_TEXT.explainer} A one-person firm may issue the file; that line says it
-          is not an independent review. Duty ticks are starting duties, not system access. Precog
-          sets the sent stamp only once.
-        </p>
+        {readOnly ? (
+          <p className="text-xs text-neutral-600">{SHARED_BUSINESS_NOTE}</p>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="min-w-[16rem] flex-1 text-xs text-neutral-600">
+                Scope note for the next locked version (optional)
+                <input
+                  className="mt-1 w-full rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900"
+                  value={scope}
+                  onChange={(e) => setScope(e.target.value)}
+                  placeholder="Money duties as mapped on the date above; excludes clinical systems."
+                  maxLength={600}
+                />
+              </label>
+              {/* Held until the list says what this account may do here. */}
+              <Button size="sm" onClick={() => void lock()} disabled={busy || versions === null}>
+                <Lock className="size-3.5" /> Lock this version
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-neutral-500">
+              Locking freezes the business as you have saved it to your account, with your name and
+              today's date. A firm reviewer who did not prepare it reviews it for issuance.{" "}
+              {REVIEW_WORKFLOW_TEXT.explainer} A one-person firm may issue the file; that line says
+              it is not an independent review. Duty ticks are starting duties, not system access.
+              Precog sets the sent stamp only once.
+            </p>
+          </>
+        )}
         {versions && versions.length > 0 && (
           <ul className="mt-3 divide-y divide-neutral-200">
             {versions.map((v) => (
@@ -280,7 +299,7 @@ export function ReportVersionsPanel() {
                       </Button>
                     </>
                   )}
-                  {!v.sentAt && v.reviewedAt && (
+                  {!readOnly && !v.sentAt && v.reviewedAt && (
                     <Button
                       size="sm"
                       variant="secondary"
@@ -291,7 +310,7 @@ export function ReportVersionsPanel() {
                       <Send className="size-3.5" /> Mark sent
                     </Button>
                   )}
-                  {(firmClient || canShareSolo) && v.reviewedAt && v.hasFigures && (
+                  {!readOnly && (firmClient || canShareSolo) && v.reviewedAt && v.hasFigures && (
                     <Button
                       size="sm"
                       variant="secondary"

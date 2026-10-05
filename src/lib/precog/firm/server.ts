@@ -18,6 +18,7 @@ import type { PracticeProfile } from "../practice-profile";
 import type { StoredReportModel } from "../report/stored-model";
 import type { FirmPlan } from "./pricing";
 import {
+  businessWork,
   requireBusinessOwner,
   requireBusinessRole,
   requireFirm,
@@ -573,15 +574,22 @@ export const lockReport = createServerFn({ method: "POST" })
     return { version };
   });
 
+/**
+ * The versions the caller reads on one business, and the work they do on it
+ * (businessWork): the versions panel offers Lock, review, Mark sent and
+ * Share only to an account the server lets do them.
+ */
 export const listReports = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .validator(businessInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    return {
-      versions: await listReportVersions(sql, owner, data.businessId, context.userId),
-    };
+    const [versions, work] = await Promise.all([
+      listReportVersions(sql, owner, data.businessId, context.userId),
+      businessWork(sql, context.userId, owner, data.businessId),
+    ]);
+    return { versions, work };
   });
 
 export const getReport = createServerFn({ method: "GET" })

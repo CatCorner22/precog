@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReportVersionRow } from "@/lib/precog/firm/reports";
 import { createHookRuntime, type HookRuntime } from "@/test/hook-runtime";
 import { ReportVersionsPanel } from "./report-versions";
+import { SHARED_BUSINESS_NOTE } from "./report-versions-actions";
 
 // The panel runs as a plain function under src/test/hook-runtime.ts: state
 // persists and effects run as React runs them, so a test sees how often the
@@ -101,16 +102,19 @@ function labels(node: ReactNode): string[] {
 /**
  * The panel for `viewer` (with `role` at the firm, or null in no firm) over
  * `versions`, after its loads settle. `lockedVersions` is what the viewer's
- * plan answers.
+ * plan answers. `work` is what the versions list says the viewer does on the
+ * business: by default the viewer's role, in the business's firm for a firm
+ * client (listReports in firm/server.ts).
  */
 async function panel(
   viewer: string,
   role: string | null,
   versions: ReportVersionRow[],
   lockedVersions = true,
+  work: { firm: boolean; role: string | null } = { firm: state.firmClient, role },
 ) {
   state.userId = viewer;
-  server.listReports.mockResolvedValue({ versions });
+  server.listReports.mockResolvedValue({ versions, work });
   server.getFirm.mockResolvedValue({ firm: role ? { role } : null });
   plans.getEntitlements.mockResolvedValue({ features: { lockedVersions } });
   const tree = await runtime.settle(() => ReportVersionsPanel());
@@ -133,6 +137,55 @@ describe("report versions panel", () => {
     expect(server.getFirm).toHaveBeenCalledTimes(1);
     expect(plans.getEntitlements).toHaveBeenCalledTimes(1);
     expect(runtime.renders).toBeLessThanOrEqual(3);
+  });
+
+  describe("on a business its owner shared with a firm, for that owner", () => {
+    const open = () => version({ id: "rv_3", versionNo: 3 });
+    const reviewed = () =>
+      version({
+        id: "rv_2",
+        versionNo: 2,
+        reviewedBy: "bea",
+        reviewedAt: "2026-10-06T09:00:00.000Z",
+      });
+    // Locked by the owner alone, before the business was shared.
+    const ownEarlier = () => version({ id: "rv_1", versionNo: 1, preparedBy: "bo" });
+    const versions = () => [open(), reviewed(), ownEarlier()];
+
+    it("offers Open alone, and says the firm does the work", async () => {
+      const { labels: names, html } = await panel("bo", null, versions(), true, {
+        firm: true,
+        role: null,
+      });
+      expect(names).toEqual([
+        "Report versions",
+        "Open version 3",
+        "Open version 2",
+        "Open version 1",
+      ]);
+      expect(html).not.toContain("Lock this version");
+      expect(html).toContain(SHARED_BUSINESS_NOTE);
+    });
+
+    it("offers no review although the owner runs a firm of their own", async () => {
+      const { labels: names, html } = await panel("bo", "owner", versions(), true, {
+        firm: true,
+        role: null,
+      });
+      expect(names.filter((n) => !n.startsWith("Open version") && n !== "Report versions")).toEqual(
+        [],
+      );
+      expect(html).not.toContain("Lock this version");
+    });
+
+    it("keeps every button for the firm's own reviewer", async () => {
+      const { labels: names, html } = await panel("bea", "reviewer", versions());
+      expect(html).toContain("Lock this version");
+      expect(names).toContain("Review version 3 for issuance");
+      expect(names).toContain("Mark version 2 as sent");
+      expect(names).toContain("Share version 2");
+      expect(html).not.toContain(SHARED_BUSINESS_NOTE);
+    });
   });
 
   it("gives a reviewer who did not prepare a version Review for issuance and Return to preparer", async () => {

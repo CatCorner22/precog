@@ -8,6 +8,7 @@ import {
   reviewButtonsFor,
   REVIEW_WORKFLOW_TEXT,
   reviewRequestedToast,
+  SHARED_BUSINESS_NOTE,
   signOffWithNote,
 } from "./report-versions-actions";
 
@@ -78,6 +79,9 @@ describe("request-and-return wording", () => {
     expect(reviewRequestedToast("Bea Lin")).toBe("Review requested from Bea Lin.");
     expect(reviewRequestedToast(null)).toBe("Review requested from the firm's reviewers.");
     expect(returnedNoteLine("Add the payroll duties.")).toBe("Returned: Add the payroll duties.");
+    expect(SHARED_BUSINESS_NOTE).toBe(
+      "The firm working on this business locks, reviews, sends and shares its report versions. Open any version to read it.",
+    );
   });
 });
 
@@ -134,6 +138,22 @@ describe("request-and-return buttons", () => {
     expect(
       reviewButtonsFor({ version: requested, viewerId: "bea", role: "reviewer", firmClient: true }),
     ).toEqual({ ask: false, issueAlone: false, reviewOrReturn: true });
+  });
+
+  it("offers nothing to an account that reads the versions and does none of the firm's work", () => {
+    // The business's own account after sharing it with a firm: no role in that
+    // firm, even on a version it prepared alone before sharing.
+    for (const viewerId of ["ada", "bo"]) {
+      expect(
+        reviewButtonsFor({
+          version: fresh,
+          viewerId,
+          role: null,
+          firmClient: true,
+          readOnly: true,
+        }),
+      ).toEqual(none);
+    }
   });
 
   it("shows no review button on a returned or a reviewed version, to anyone", () => {
