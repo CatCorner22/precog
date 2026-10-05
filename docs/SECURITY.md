@@ -83,7 +83,7 @@ Write to the mailbox in the `SUPPORT_EMAIL` environment variable, which is the S
 
 ## Proposed sign-in changes awaiting the operator's go-ahead (not applied)
 
-`src/lib/auth/server.ts` stays unedited by repository rule (`AGENTS.project.md`: "Do not rewrite `src/lib/auth/server.ts`"). None of the lines below is in the code. Each needs the operator's explicit go-ahead before anyone applies it, and each can be taken alone.
+`src/lib/auth/server.ts` stays unedited by repository rule (`AGENTS.project.md`: "Do not rewrite `src/lib/auth/server.ts`"). None of the lines below is in the code. Each needs the operator's explicit go-ahead before anyone applies it, and each can be taken alone, except that the database storage comes with the `"/get-session": false` rule.
 
 ```diff
 -  session: { cookieCache: { enabled: true, maxAge: 300 } },
@@ -98,6 +98,7 @@ Write to the mailbox in the `SUPPORT_EMAIL` environment variable, which is the S
      customRules: {
        "/sign-in/email": { window: 60, max: 5 },
        "/sign-up/email": { window: 60, max: 5 },
++      "/get-session": false,
      },
    },
 +  user: { changeEmail: { enabled: true } },
@@ -112,7 +113,8 @@ Write to the mailbox in the `SUPPORT_EMAIL` environment variable, which is the S
 What each line does:
 
 - `session.expiresIn` and `updateAge`: write down the session length Precog already has (Better Auth's defaults: seven days from the last refresh, refreshed when a session last refreshed more than a day ago is used), so a later change is a visible edit. Nothing changes for a user.
-- `rateLimit.storage: "database"` and `modelName: "authRateLimit"`: the limit of five email sign-ins or sign-ups a minute from one address counts in Postgres instead of in each serverless instance's memory, so it holds across instances. It costs one read and one write per request on those two paths only. Better Auth runs its limiter in production only.
+- `rateLimit.storage: "database"` and `modelName: "authRateLimit"`: the limit of five email sign-ins or sign-ups a minute from one address counts in Postgres instead of in each serverless instance's memory, so it holds across instances. Better Auth runs its limiter in production only, but there on every `/api/auth` request, not only on those two paths: a path with no rule of its own is limited to 100 requests in 10 seconds per address (Better Auth's defaults). With database storage every limited request therefore reads and writes one `"authRateLimit"` row, the client's frequent `/get-session` included, which the cookie cache otherwise answers without the database.
+- `"/get-session": false`: takes the session check out of the limiter (Better Auth skips a path whose rule is `false`), so it stays off the database as today; it also drops the in-memory limit of 100 checks in 10 seconds per address that path has now. Every other auth request (sign-in and sign-up, sign-out, the Google and X callback, the Sessions dialog's list and sign-outs) still costs at least one read and one write. Take this line with the database storage, never the storage without it; alone it changes only that in-memory limit.
 - `user.changeEmail`: lets an account change its sign-in address through Better Auth's change-email flow, which confirms by email. It needs a screen for it, and a decision on how a firm's invitations, the client invitations and the digest follow the new address.
 - `twoFactor(…)`: optional two-step sign-in with an authenticator app (TOTP) and one-time recovery codes (Better Auth's `backupCodes`), for Google and X accounts too (`allowPasswordless`); Better Auth stores the secret and the codes encrypted under `BETTER_AUTH_SECRET`. It needs `twoFactorClient` in `src/lib/auth/client.ts`, a `/login/two-factor` page for the code, a Security dialog to turn it on, and a test of the live-preview sign-in popup with a two-step account. `tanstackStartCookies()` stays last.
 
