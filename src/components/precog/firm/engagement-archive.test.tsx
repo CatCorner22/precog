@@ -1,9 +1,8 @@
-import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ControlReport } from "@/components/precog/control-report";
 import { defaultProfile, type PracticeProfile } from "@/lib/precog/practice-profile";
-import type { ReportVersionRow } from "@/lib/precog/firm/reports";
+import { REPORT_LIST_LIMIT, type ReportVersionRow } from "@/lib/precog/firm/reports";
 import type { EngagementRecord } from "@/lib/precog/firm/engagement-row";
 import type { ReviewLogRow } from "@/lib/precog/firm/engagement-store";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
@@ -41,7 +40,6 @@ const {
   ARCHIVE_SECTION_ENGAGEMENT,
   ARCHIVE_SECTION_REVIEWS,
   ARCHIVE_SECTION_VERSIONS,
-  REPORT_LIST_LIMIT,
   archiveFileName,
   archiveProgressText,
   archiveVersionLimitNote,
@@ -400,14 +398,9 @@ describe("the engagement archive", () => {
   });
 
   it("says it may leave out older versions when the list comes back full", async () => {
+    // The cap the list the archive reads stops at (reports.ts,
+    // listReportVersions, pinned in reports.test.ts).
     expect(REPORT_LIST_LIMIT).toBe(50);
-    // The same cap as the list the archive reads (listReportVersions).
-    const reports = readFileSync(
-      new URL("../../../lib/precog/firm/reports.ts", import.meta.url),
-      "utf8",
-    );
-    const listing = /export async function listReportVersions[\s\S]*?\n}/.exec(reports)?.[0];
-    expect(listing).toContain(`limit ${REPORT_LIST_LIMIT}`);
 
     const quick = { render: () => "<p>printed</p>" };
     const many = (n: number) => Array.from({ length: n }, (_, i) => version(i + 1, false));

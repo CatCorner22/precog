@@ -39,7 +39,7 @@ export interface ReportVersionRow {
   /**
    * The firm as frozen at lock; null for a solo business and for versions
    * locked before migration 0041. The versions list carries the name and
-   * letterhead with `logoDataUrl` null (up to 50 rows, nothing prints the
+   * letterhead with `logoDataUrl` null (up to REPORT_LIST_LIMIT rows, nothing prints the
    * logo there); only the single-version load carries the logo.
    */
   firm: FirmSnapshot | null;
@@ -282,9 +282,16 @@ export const FIRM_READS_VERSION = `(v.firm_user_id = b.firm_user_id
   or (v.firm_user_id is null and b.granted_at is null))`;
 
 /**
- * The versions of one business, newest first. `viewerUserId` (the caller)
- * other than the business's own account reads only its firm's versions
- * (FIRM_READS_VERSION); omitted, every version.
+ * The most versions `listReportVersions` returns, newest first. The
+ * engagement archive, which reads that list, says it may leave older ones
+ * out when it receives this many.
+ */
+export const REPORT_LIST_LIMIT = 50;
+
+/**
+ * The newest REPORT_LIST_LIMIT versions of one business, newest first.
+ * `viewerUserId` (the caller) other than the business's own account reads
+ * only its firm's versions (FIRM_READS_VERSION); omitted, every version.
  */
 export async function listReportVersions(
   sql: Sql,
@@ -297,7 +304,7 @@ export async function listReportVersions(
      join businesses b on b.user_id = v.user_id and b.id = v.business_id
      where v.user_id = $1 and v.business_id = $2
        and ($3 = v.user_id or ${FIRM_READS_VERSION})
-     order by v.version_no desc limit 50`,
+     order by v.version_no desc limit ${REPORT_LIST_LIMIT}`,
     [ownerUserId, businessId, viewerUserId],
   );
   return rows.map(toRow);

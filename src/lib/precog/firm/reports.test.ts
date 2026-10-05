@@ -6,6 +6,7 @@ import {
   loadReportVersion,
   lockReportVersion,
   markReportVersionSent,
+  REPORT_LIST_LIMIT,
   reportVersionFor,
   ReportVersionError,
   REVIEW_BEFORE_SENT,
@@ -384,6 +385,18 @@ describe("report version access", () => {
   it("two locks at once get consecutive numbers", async () => {
     const [a, b] = await Promise.all([lock("rv_a"), lock("rv_b")]);
     expect([a.versionNo, b.versionNo].sort()).toEqual([1, 2]);
+  });
+
+  it("lists the newest REPORT_LIST_LIMIT versions, the cap the engagement archive reads", async () => {
+    expect(REPORT_LIST_LIMIT).toBe(50);
+    await db.pg.query(
+      `insert into report_versions (id, user_id, business_id, version_no, profile)
+       select 'rv_' || n, 'owner', 'biz_1', n, '{}'::jsonb from generate_series(1, $1::int) n`,
+      [REPORT_LIST_LIMIT + 1],
+    );
+    const listed = await listReportVersions(db.sql, "owner", "biz_1");
+    expect(listed).toHaveLength(REPORT_LIST_LIMIT);
+    expect([listed[0].versionNo, listed.at(-1)?.versionNo]).toEqual([REPORT_LIST_LIMIT + 1, 2]);
   });
 });
 

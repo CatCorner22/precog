@@ -9,7 +9,11 @@ import type { EngagementRecord } from "@/lib/precog/firm/engagement-row";
 import type { ReviewLogRow } from "@/lib/precog/firm/engagement-store";
 import { getEngagement } from "@/lib/precog/firm/engagement-server";
 import { REVIEW_ITEMS, RESULT_LABEL, isReviewResult } from "@/lib/precog/firm/reviews";
-import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/reports";
+import {
+  REPORT_LIST_LIMIT,
+  versionProvenance,
+  type ReportVersionRow,
+} from "@/lib/precog/firm/reports";
 import { getReport, listReports } from "@/lib/precog/firm/server";
 import type { FirmSnapshot } from "@/lib/precog/firm/store";
 import type { PracticeProfile } from "@/lib/precog/practice-profile";
@@ -41,13 +45,11 @@ export const ARCHIVE_FORMER_MEMBER = "A former member of the firm";
 export const ARCHIVE_RECORDER_UNKNOWN = "Not recorded";
 
 /**
- * The most versions `listReports` returns, newest first (`listReportVersions`
- * in reports.ts, `limit 50`). An archive that receives this many cannot tell
- * whether older ones exist, so it says it may leave them out.
+ * "This archive holds the newest 50 locked versions. Any older locked version
+ * is not in it." `listReports` returns at most REPORT_LIST_LIMIT versions
+ * (reports.ts), so an archive that receives that many cannot tell whether
+ * older ones exist, and says it may leave them out.
  */
-export const REPORT_LIST_LIMIT = 50;
-
-/** "This archive holds the newest 50 locked versions. Any older locked version is not in it." */
 export function archiveVersionLimitNote(limit: number = REPORT_LIST_LIMIT): string {
   return `This archive holds the newest ${limit} locked versions. Any older locked version is not in it.`;
 }
