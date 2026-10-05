@@ -2,6 +2,13 @@ import type { Departure } from "../continuity/access-removal";
 import { MAX_BUSINESS_NAME } from "../business-id";
 import { INDUSTRIES, type IndustryId } from "../industry";
 import type { StorageLike } from "../local-data";
+import {
+  ONBOARDING_FACTS_VERSION,
+  ONBOARDING_QUESTION_IDS,
+  normalizeOnboardingFacts,
+  type OnboardingFacts,
+  type OnboardingQuestionId,
+} from "./decision-model";
 import { firstRowForIndustry, type OwnTeamRow } from "./own-team";
 
 /**
@@ -13,6 +20,10 @@ import { firstRowForIndustry, type OwnTeamRow } from "./own-team";
 export const SETUP_DRAFT_KEY = "precog.onboarding-draft.v1";
 
 export interface SetupDraft {
+  /** Absent on legacy drafts; version 1 adds adaptive-onboarding progress. */
+  schemaVersion?: typeof ONBOARDING_FACTS_VERSION;
+  answers?: OnboardingFacts["answers"];
+  currentQuestionId?: OnboardingQuestionId;
   step: "industry" | "team";
   selected: IndustryId;
   businessName: string;
@@ -38,6 +49,7 @@ function sessionArea(): StorageLike | null {
 }
 
 const INDUSTRY_IDS = new Set<string>(INDUSTRIES.map((i) => i.id));
+const QUESTION_IDS = new Set<string>(ONBOARDING_QUESTION_IDS);
 
 const optional = (value: unknown, type: "string" | "boolean") =>
   value === undefined || typeof value === type;
@@ -95,7 +107,18 @@ export function readSetupDraft(storage: StorageLike | null = sessionArea()): Set
     if (typeof draft.businessName !== "string" || !Array.isArray(draft.rows)) return null;
     if (typeof draft.selected !== "string" || !INDUSTRY_IDS.has(draft.selected)) return null;
     const leftOut = Array.isArray(draft.leftOut) ? draft.leftOut.filter(isDeparture) : [];
+    const facts = normalizeOnboardingFacts({
+      schemaVersion: draft.schemaVersion,
+      answers: draft.answers,
+    });
     return {
+      ...(draft.schemaVersion === ONBOARDING_FACTS_VERSION
+        ? { schemaVersion: ONBOARDING_FACTS_VERSION }
+        : {}),
+      ...(facts?.answers ? { answers: facts.answers } : {}),
+      ...(typeof draft.currentQuestionId === "string" && QUESTION_IDS.has(draft.currentQuestionId)
+        ? { currentQuestionId: draft.currentQuestionId as OnboardingQuestionId }
+        : {}),
       step: draft.step === "team" ? "team" : "industry",
       selected: draft.selected as IndustryId,
       businessName: draft.businessName.slice(0, MAX_BUSINESS_NAME),
@@ -154,6 +177,8 @@ export function initialSetup(
   freshRows: () => OwnTeamRow[],
 ): { draft: SetupDraft; restoredEarlier: boolean } {
   const fresh: SetupDraft = {
+    schemaVersion: ONBOARDING_FACTS_VERSION,
+    currentQuestionId: "actor",
     step: business.typedName ? "team" : "industry",
     selected: business.industry,
     businessName: business.typedName,

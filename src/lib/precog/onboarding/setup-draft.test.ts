@@ -93,6 +93,26 @@ describe("reloading in the middle of setup", () => {
     expect(back.draft.businessName).toBe("Old Co");
     expect(back.draft.paste).toBe("");
     expect(namedPeople(back.draft)).toBe(1);
+    expect(back.draft.schemaVersion).toBeUndefined();
+    expect(back.draft.answers).toBeUndefined();
+  });
+
+  it("keeps valid adaptive progress and safely drops unknown enum values", () => {
+    const storage = tabStorage();
+    storage.setItem(
+      SETUP_DRAFT_KEY,
+      JSON.stringify({
+        ...base,
+        schemaVersion: 1,
+        currentQuestionId: "future_question",
+        answers: { runs_payroll: "unknown", holds_inventory: "sometimes" },
+      }),
+    );
+    expect(readSetupDraft(storage)).toMatchObject({
+      schemaVersion: 1,
+      answers: { runs_payroll: "unknown" },
+    });
+    expect(readSetupDraft(storage)?.currentQuestionId).toBeUndefined();
   });
 });
 
