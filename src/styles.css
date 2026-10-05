@@ -32,7 +32,8 @@
   }
   html {
     color-scheme: dark;
-    /* Keeps a focused element from sliding under the sticky header. */
+    /* The one scroll offset for anchor jumps and scrollIntoView: sections
+       carry no own margin, so a target never stacks two offsets. */
     scroll-padding-top: calc(var(--grok-banner-h, 0px) + 8rem);
   }
   /* Every control shows where keyboard focus is, in forced colours too. */
