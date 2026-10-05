@@ -22,7 +22,7 @@ import {
   peekGrant,
 } from "./grant-store";
 import { listReportVersions, lockReportVersion, reportVersionFor } from "./reports";
-import { loadFirmFor } from "./store";
+import { loadFirmFor, saveFirm } from "./store";
 
 // createReportShare runs as a plain handler against this file's PGlite.
 const ref = vi.hoisted(() => ({ db: null as null | { sql: unknown } }));
@@ -170,6 +170,30 @@ describe("inviting a firm", () => {
     for (let i = 1; i < MAX_GRANTS_PER_BUSINESS_PER_DAY; i += 1) await invite("fo@example.test");
     expect((await peekGrant(db.sql, first.token))?.status).toBe("used");
     expect(await refusal(invite("fo@example.test"))).toEqual({ status: 429, message: GRANT_LIMIT });
+  });
+
+  it("reads an invitation as used once the business works with a firm, however it got one", async () => {
+    const grant = await invite("fo@example.test");
+    await db.pg.exec(`update businesses set firm_user_id = 'fo2' where id = 'biz_1'`);
+    expect((await peekGrant(db.sql, grant.token))?.status).toBe("used");
+    expect(await refusal(acceptGrant(db.sql, grant.token, "fo"))).toEqual({
+      status: 409,
+      message: GRANT_CLOSED,
+    });
+  });
+
+  it("closes the business's open invitation when its owner starts a firm of their own", async () => {
+    const grant = await invite("fo@example.test");
+    // saveFirm makes the owner's businesses the new firm's clients.
+    await saveFirm(db.sql, "bo", "Ortiz Books", null);
+    expect((await business()).firm_user_id).toBe("bo");
+    expect((await peekGrant(db.sql, grant.token))?.status).toBe("used");
+    expect(await loadGrantFor(db.sql, "bo", "biz_1")).toBeNull();
+    const stored = await db.pg.query<{ revoked: boolean }>(
+      "select revoked_at is not null as revoked from business_firm_grants where token = $1",
+      [grant.token],
+    );
+    expect(stored.rows).toEqual([{ revoked: true }]);
   });
 
   it("reads an expired invitation as expired", async () => {

@@ -210,6 +210,14 @@ export async function saveFirm(
     update businesses set firm_user_id = ${userId}
     where user_id = ${userId} and firm_user_id is null
   `;
+  // A business that works with a firm cannot take another (acceptGrant), so
+  // the invitations its owner sent to other firms close with it.
+  await sql`
+    update business_firm_grants g set revoked_at = now()
+    from businesses b
+    where g.business_owner_id = ${userId} and g.accepted_at is null and g.revoked_at is null
+      and b.user_id = g.business_owner_id and b.id = g.business_id and b.firm_user_id is not null
+  `;
   const saved = await loadFirmFor(sql, userId);
   if (!saved) throw new Error("Unable to save the firm");
   return saved;

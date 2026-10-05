@@ -107,7 +107,11 @@ export async function createGrant(
   });
 }
 
-/** The invitation as anyone holding the link sees it; null for an unknown token. */
+/**
+ * The invitation as anyone holding the link sees it; null for an unknown
+ * token. A business that already works with a firm, however it came to,
+ * reads as used, as acceptGrant refuses it.
+ */
 export async function peekGrant(sql: Sql, token: string): Promise<GrantPeek | null> {
   const rows = await sql<{
     business_name: string;
@@ -119,7 +123,8 @@ export async function peekGrant(sql: Sql, token: string): Promise<GrantPeek | nu
   }>`
     select b.name as business_name, u.name as owner_name, u.email as owner_email,
       g.invited_email,
-      (g.accepted_at is not null or g.revoked_at is not null) as used,
+      (g.accepted_at is not null or g.revoked_at is not null or b.firm_user_id is not null)
+        as used,
       g.expires_at <= now() as expired
     from business_firm_grants g
     join businesses b on b.user_id = g.business_owner_id and b.id = g.business_id
