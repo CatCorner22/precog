@@ -10,6 +10,7 @@ import { FirmLetterhead } from "@/components/precog/firm/firm-letterhead";
 import { FirmRetention } from "@/components/precog/firm/firm-retention";
 import { EngagementCard } from "@/components/precog/firm/engagement-card";
 import { ClientList } from "@/components/precog/firm/client-list";
+import { clientTableCsv, clientTableFileName } from "@/components/precog/firm/client-table-csv";
 import { openClientReport } from "@/components/precog/firm/open-client-report";
 import { ClientHistory } from "@/components/precog/firm/client-history";
 import { QuickBooksPanel } from "@/components/precog/firm/quickbooks-panel";
@@ -537,6 +538,9 @@ function FirmPage() {
                 .catch(() => undefined);
             }}
             onClientsChange={setClients}
+            onExport={(rows) =>
+              downloadText(clientTableFileName(firm?.name ?? ""), clientTableCsv(rows), "text/csv")
+            }
             canRestore={!firm || isOwner}
           />
           <NotificationSettingsPanel signedIn={signedIn} />

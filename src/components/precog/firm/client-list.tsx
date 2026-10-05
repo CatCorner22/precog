@@ -1,16 +1,26 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { RotateCcw } from "lucide-react";
+import { ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
+import { localDateKey } from "@/lib/precog/dates";
 import { restoreDeletedClient, setClientOwnerEmail } from "@/lib/precog/firm/server";
 import type { ClientEngagementRow } from "@/lib/precog/firm/store";
 import type { DeletedBusinessRow } from "@/lib/precog/business-store";
 import { fieldCls } from "@/components/ui/field-classes";
 import { cn } from "@/lib/utils";
-import { count } from "@/lib/precog/text";
+import {
+  CLIENT_COLUMNS,
+  clientStatusText,
+  clientTotals,
+  sortClients,
+  thisMonthText,
+  type ClientSort,
+} from "./client-table-csv";
 
 /**
- * Every client the firm holds, with the stage each is at, the owner's
- * address for reminders, and the businesses deleted within the grace period.
+ * Every client the firm holds as a sortable table: the engagement's state,
+ * the last monthly result, this month's checks, open duty conflicts and the
+ * versions awaiting review, the owner's address for reminders, and the
+ * businesses deleted within the grace period.
  */
 export function ClientList({
   clients,
@@ -20,7 +30,9 @@ export function ClientList({
   onOpenReport,
   onRestored,
   onClientsChange,
+  onExport,
   canRestore,
+  today = localDateKey(new Date()),
 }: {
   clients: ClientEngagementRow[];
   deleted: DeletedBusinessRow[];
@@ -32,7 +44,12 @@ export function ClientList({
   onOpenReport: (id: string) => void;
   onRestored: (id: string) => void;
   onClientsChange: (clients: ClientEngagementRow[]) => void;
+  /** Download the table as CSV, in the order it is sorted. */
+  onExport: (clients: ClientEngagementRow[]) => void;
+  /** YYYY-MM-DD; the viewer's day unless a test fixes it. */
+  today?: string;
 }) {
+  const [sort, setSort] = useState<ClientSort>({ key: "client", dir: "asc" });
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
 
@@ -86,111 +103,178 @@ export function ClientList({
     }
   }
 
+  const sorted = sortClients(clients, sort, today);
+  const totals = clientTotals(clients, today);
+
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
-      <h2 className="text-lg font-semibold">Clients</h2>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-lg font-semibold">Clients</h2>
+        {clients.length > 0 && (
+          <button
+            type="button"
+            className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+            onClick={() => onExport(sorted)}
+          >
+            Export clients (CSV)
+          </button>
+        )}
+      </div>
+      {clients.length > 0 && <p className="mt-1 text-sm font-medium">{totals}</p>}
       <p className="mt-1 text-sm text-muted">
         Last review is the newest monthly result Precog holds for that client. An owner address
         receives the reminders about their own business once its owner confirms it from an email;
-        Precog sends nothing else to it.
+        Precog sends nothing else to it. Sort by any column; Export clients (CSV) downloads the same
+        columns.
       </p>
       {clients.length === 0 ? (
         <p className="mt-3 text-sm text-muted">
           No saved clients yet. Save a business to list it here.
         </p>
       ) : (
-        <ul className="mt-3 divide-y divide-border">
-          {clients.map((client) => (
-            <li key={`${client.ownerUserId}/${client.id}`} className="py-2 text-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium">
-                    {client.name}
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[44rem] text-left text-sm">
+            <thead>
+              <tr className="border-b border-border text-xs text-muted">
+                {CLIENT_COLUMNS.map((col) => (
+                  <th
+                    key={col.key}
+                    scope="col"
+                    className="py-1.5 pr-3 font-medium"
+                    aria-sort={
+                      sort.key === col.key
+                        ? sort.dir === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                    }
+                  >
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 hover:text-fg"
+                      onClick={() =>
+                        setSort((cur) =>
+                          cur.key === col.key
+                            ? { key: col.key, dir: cur.dir === "asc" ? "desc" : "asc" }
+                            : { key: col.key, dir: "asc" },
+                        )
+                      }
+                    >
+                      {col.label}
+                      {sort.key === col.key &&
+                        (sort.dir === "asc" ? (
+                          <ArrowUp className="size-3" aria-hidden />
+                        ) : (
+                          <ArrowDown className="size-3" aria-hidden />
+                        ))}
+                    </button>
+                  </th>
+                ))}
+                <th scope="col" className="py-1.5" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {sorted.map((client) => (
+                <tr key={`${client.ownerUserId}/${client.id}`} className="align-top">
+                  <td className="py-2 pr-3">
+                    <span className="font-medium">{client.name}</span>
                     {client.id === activeId && (
                       <span className="ml-2 text-xs text-primary">open</span>
                     )}
-                    {client.shared && (
-                      <span className="ml-2 text-xs text-muted">another firm member's</span>
+                    {client.granted ? (
+                      <span className="ml-2 text-xs text-muted">Client's own</span>
+                    ) : (
+                      client.shared && (
+                        <span className="ml-2 text-xs text-muted">another firm member's</span>
+                      )
                     )}
-                  </p>
-                  <p className="text-xs text-muted">
-                    Last review: {client.lastReviewAt ? client.lastReviewAt.slice(0, 10) : "none"} ·
-                    Report {client.reportSentAt ? "sent" : "not sent"} ·{" "}
-                    {conflictsText(client.openFindings)}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {editing === client.id ? (
-                    <form
-                      className="flex items-center gap-1.5"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        void saveEmail(client);
-                      }}
-                    >
-                      <input
-                        className={cn(fieldCls, "py-1 text-xs")}
-                        type="email"
-                        autoFocus
-                        value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
-                        placeholder="owner@business.com"
-                        aria-label={`Owner email for ${client.name}`}
-                      />
+                  </td>
+                  <td className="py-2 pr-3 text-xs">{clientStatusText(client)}</td>
+                  <td className="py-2 pr-3 text-xs">
+                    {client.lastReviewAt ? client.lastReviewAt.slice(0, 10) : "None"}
+                  </td>
+                  <td className="py-2 pr-3 text-xs">{thisMonthText(client, today)}</td>
+                  <td className="py-2 pr-3 text-xs">
+                    {client.openFindings === null ? "Not counted yet" : client.openFindings}
+                  </td>
+                  <td className="py-2 pr-3 text-xs">
+                    {client.awaitingReview > 0 ? client.awaitingReview : "None"}
+                  </td>
+                  <td className="py-2">
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      {editing === client.id ? (
+                        <form
+                          className="flex items-center gap-1.5"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            void saveEmail(client);
+                          }}
+                        >
+                          <input
+                            className={cn(fieldCls, "py-1 text-xs")}
+                            type="email"
+                            autoFocus
+                            value={draft}
+                            onChange={(e) => setDraft(e.target.value)}
+                            placeholder="owner@business.com"
+                            aria-label={`Owner email for ${client.name}`}
+                          />
+                          <button
+                            type="submit"
+                            className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-md px-2 py-1 text-xs text-muted hover:text-fg"
+                            onClick={() => setEditing(null)}
+                          >
+                            Cancel
+                          </button>
+                        </form>
+                      ) : (
+                        <button
+                          type="button"
+                          className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                          aria-label={
+                            client.ownerEmail
+                              ? `Change the owner email for ${client.name} (${client.ownerEmail})`
+                              : `Add an owner email for ${client.name}`
+                          }
+                          onClick={() => {
+                            setEditing(client.id);
+                            setDraft(client.ownerEmail ?? "");
+                          }}
+                        >
+                          {client.ownerEmail
+                            ? `Owner: ${client.ownerEmail}${ownerStatusText(client.ownerEmailStatus)}`
+                            : "Add owner email"}
+                        </button>
+                      )}
                       <button
-                        type="submit"
+                        type="button"
                         className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                        aria-label={`Open the Monthly review for ${client.name}`}
+                        onClick={() => onOpen(client.id)}
                       >
-                        Save
+                        Open
                       </button>
                       <button
                         type="button"
-                        className="rounded-md px-2 py-1 text-xs text-muted hover:text-fg"
-                        onClick={() => setEditing(null)}
+                        className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                        aria-label={`Open the report for ${client.name}`}
+                        onClick={() => onOpenReport(client.id)}
                       >
-                        Cancel
+                        Open report
                       </button>
-                    </form>
-                  ) : (
-                    <button
-                      type="button"
-                      className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
-                      aria-label={
-                        client.ownerEmail
-                          ? `Change the owner email for ${client.name} (${client.ownerEmail})`
-                          : `Add an owner email for ${client.name}`
-                      }
-                      onClick={() => {
-                        setEditing(client.id);
-                        setDraft(client.ownerEmail ?? "");
-                      }}
-                    >
-                      {client.ownerEmail
-                        ? `Owner: ${client.ownerEmail}${ownerStatusText(client.ownerEmailStatus)}`
-                        : "Add owner email"}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
-                    aria-label={`Open the Monthly review for ${client.name}`}
-                    onClick={() => onOpen(client.id)}
-                  >
-                    Open
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
-                    aria-label={`Open the report for ${client.name}`}
-                    onClick={() => onOpenReport(client.id)}
-                  >
-                    Open report
-                  </button>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {canRestore && deleted.length > 0 && (
         <div className="mt-4 border-t border-border pt-3">
@@ -232,11 +316,4 @@ function ownerStatusText(status: ClientEngagementRow["ownerEmailStatus"]): strin
   if (status === "waiting") return " (not confirmed yet)";
   if (status === "stopped") return " (owner stopped reminders)";
   return "";
-}
-
-/** The open-conflict count, or a plain statement that nobody has counted them yet. */
-function conflictsText(openFindings: number | null): string {
-  if (openFindings === null)
-    return "duty conflicts not counted yet (open the client to count them)";
-  return count(openFindings, "open duty conflict");
 }
