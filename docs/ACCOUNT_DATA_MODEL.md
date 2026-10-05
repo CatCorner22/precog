@@ -152,8 +152,9 @@ introduced this model is in
   to null when that account is deleted, and read as not set once the person
   has left the firm). An ended engagement is read-only for the firm's
   members (`assertEngagementOpen`, called from every save and change path);
-  the business's own account is unaffected, and reads, exports, the archive
-  and deletion stay open. Locking a version copies the scope and period
+  the business's own account is unaffected when it is not a member of that
+  firm (an owner who is one is refused like any member), and reads,
+  exports, the archive and deletion stay open. Locking a version copies the scope and period
   into `report_versions.engagement_scope`, `engagement_period_start` and
   `engagement_period_end`, which the version prints from; versions locked
   before 0045 hold nulls and print no engagement line.
