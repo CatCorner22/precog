@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { openSafetyDb, type SafetyDb } from "@/test/safety-db";
+import { AUDIT_BYPASS_SQL } from "@/test/pglite";
 import { inTransaction } from "@/lib/sql-transaction";
 import {
   BusinessUnavailableError,
@@ -26,7 +27,11 @@ beforeAll(async () => {
 }, 60_000);
 afterAll(() => db.close());
 beforeEach(async () => {
-  await db.pg.exec('drop trigger if exists fail_pointer on business_profiles; delete from "user";');
+  // Under the audit bypass, on PGlite and on real Postgres: a firm owner's
+  // user row cascades into the activity log.
+  await db.pg.exec(
+    `begin; ${AUDIT_BYPASS_SQL} drop trigger if exists fail_pointer on business_profiles; delete from "user"; commit;`,
+  );
   await db.seedUser("a");
   await db.seedUser("b");
 });

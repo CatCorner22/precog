@@ -227,8 +227,13 @@ describe("report versions", () => {
       null,
     ]);
     // A version stored before the snapshot columns existed reads as null.
-    await db.pg.query("update report_versions set firm_name = null where id = 'rv_firm'");
-    expect((await loadReportVersion(db.sql, "owner", "rv_firm"))?.version.firm).toBeNull();
+    // Inserted as such: the frozen-column trigger (migration 0048) refuses
+    // clearing firm_name on a locked version.
+    await db.pg.query(
+      `insert into report_versions (id, user_id, business_id, version_no, profile, firm_name)
+       values ('rv_old', 'owner', 'biz_1', 9, '{}'::jsonb, null)`,
+    );
+    expect((await loadReportVersion(db.sql, "owner", "rv_old"))?.version.firm).toBeNull();
   });
 
   it("refuses to lock a deleted or foreign business", async () => {

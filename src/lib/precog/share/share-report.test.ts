@@ -150,11 +150,17 @@ beforeEach(async () => {
   );
 });
 
-async function lock(ownerUserId: string, businessId: string, id: string, withFigures = true) {
+async function lock(
+  ownerUserId: string,
+  businessId: string,
+  id: string,
+  withFigures = true,
+  preparedBy = ownerUserId,
+) {
   return lockReportVersion(db.sql, {
     ownerUserId,
     businessId,
-    preparedBy: ownerUserId,
+    preparedBy,
     scopeNote: "",
     id,
     freeze: withFigures ? (profile) => freezeReport(profile, "2026-09-26") : undefined,
@@ -439,8 +445,10 @@ describe("sharing a solo owner's reviewed version", () => {
       values ('owner', 'sub_1', 'active')`;
     // Solo's business, shared with the firm; the firm's preparer locked the version.
     await db.sql`update businesses set firm_user_id = 'owner', granted_at = now() where id = 'solo_biz'`;
-    await lock("solo", "solo_biz", "rv_granted");
-    await db.sql`update report_versions set firm_user_id = 'owner', prepared_by = 'prep' where id = 'rv_granted'`;
+    // Locked with its preparer: a locked version's preparer never changes
+    // afterwards (the frozen-column trigger, migration 0048).
+    await lock("solo", "solo_biz", "rv_granted", true, "prep");
+    await db.sql`update report_versions set firm_user_id = 'owner' where id = 'rv_granted'`;
     await review("rv_granted");
     await expect(shareReport("solo", "rv_granted")).rejects.toMatchObject({
       status: 403,

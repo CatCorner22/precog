@@ -2,7 +2,7 @@ import type { PGlite } from "@electric-sql/pglite";
 import { toCrossJSON } from "seroval";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Sql } from "@/lib/db";
-import { openTestDb, type TestDb } from "@/test/pglite";
+import { AUDIT_BYPASS_SQL, openTestDb, type TestDb } from "@/test/pglite";
 import {
   deleteAccountRows,
   encodeHistoryPage,
@@ -45,8 +45,9 @@ beforeAll(async () => {
 afterAll(() => db.close());
 
 beforeEach(async () => {
+  // Under the audit bypass: a firm owner's user row cascades into the log.
   await pg.exec(
-    'delete from llm_daily_usage; delete from map_share_attempts; delete from map_share_views; delete from map_shares; delete from assessment_snapshots; delete from businesses; delete from business_profiles; delete from billing_accounts; delete from firms; delete from "session"; delete from "user";',
+    `begin; ${AUDIT_BYPASS_SQL} delete from llm_daily_usage; delete from map_share_attempts; delete from map_share_views; delete from map_shares; delete from assessment_snapshots; delete from businesses; delete from business_profiles; delete from billing_accounts; delete from firms; delete from "session"; delete from "user"; commit;`,
   );
   for (const id of ["ua", "ub"]) {
     await pg.query(
@@ -198,9 +199,12 @@ describe("account export covers every table the account owns", () => {
       `insert into business_history (user_id, business_id, revision, name, industry, profile)
        values ('ua', 'biz_1', 0, 'Biz before', 'dental', '{}'::jsonb)`,
     );
+    // Inserted with the firm's name and letterhead frozen at lock: the
+    // frozen-column trigger (migration 0048) refuses a later update of them.
     await pg.query(
-      `insert into report_versions (id, user_id, business_id, version_no, profile, scope_note)
-       values ('rv_1', 'ua', 'biz_1', 1, '{}'::jsonb, 'Year-end review')`,
+      `insert into report_versions
+         (id, user_id, business_id, version_no, profile, scope_note, firm_name, firm_letterhead)
+       values ('rv_1', 'ua', 'biz_1', 1, '{}'::jsonb, 'Year-end review', 'Alpha CPA', '1 Main St')`,
     );
     await pg.query(
       `insert into notification_settings (user_id, weekly_digest, owner_reminders) values ('ua', false, true)`,
@@ -227,9 +231,6 @@ describe("account export covers every table the account owns", () => {
     );
     await pg.query(
       `update firms set letterhead = '1 Main St', logo_data_url = 'data:image/png;base64,iVBORw0KGgo=', cover_page = false`,
-    );
-    await pg.query(
-      `update report_versions set firm_name = 'Alpha CPA', firm_letterhead = '1 Main St'`,
     );
     await pg.query(
       `insert into product_events (user_id, event, business_id, occurred_at)

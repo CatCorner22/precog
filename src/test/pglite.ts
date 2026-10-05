@@ -32,6 +32,13 @@ export const MIGRATIONS_DIR = fileURLToPath(new URL("../../migrations/", import.
 export const SEED_USER_SQL = `insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
   values ($1, $1, $2, true, now(), now())`;
 
+/**
+ * Lets the rest of the transaction delete activity-log rows, as the account
+ * deletion does (src/lib/precog/firm/audit.server.ts). Shared with the test
+ * cleanups that delete users who may hold log rows.
+ */
+export const AUDIT_BYPASS_SQL = "select set_config('precog.audit_bypass', 'on', true);";
+
 export async function openTestDb(): Promise<TestDb> {
   const pg = new PGlite({ parsers: DB_TYPE_PARSERS });
   await pg.waitReady;
@@ -45,7 +52,15 @@ export async function openTestDb(): Promise<TestDb> {
       await pg.query(SEED_USER_SQL, [id, email]);
     },
     clear: async (...tables) => {
-      await pg.exec(tables.map((t) => `delete from ${t};`).join(" "));
+      // Under the audit bypass (migration 0048): deleting a user cascades
+      // into its firm's activity log, which refuses every other delete.
+      const deletes = tables.map((t) => `delete from ${t};`).join(" ");
+      try {
+        await pg.exec(`begin; ${AUDIT_BYPASS_SQL} ${deletes} commit;`);
+      } catch (err) {
+        await pg.exec("rollback;");
+        throw err;
+      }
     },
     close: () => pg.close(),
   };
