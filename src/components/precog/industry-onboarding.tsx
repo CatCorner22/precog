@@ -172,7 +172,7 @@ export function IndustryOnboarding({
     setBusinessName(start.draft.businessName);
     setRows(start.draft.rows);
     setStep(start.draft.step);
-    setAnswers(normalizeSetupAnswers(start.draft.answers) ?? UNANSWERED);
+    setAnswers(normalizeSetupAnswers(start.draft.setupAnswers) ?? UNANSWERED);
     setPaste(start.draft.paste);
     setLeftOut(start.draft.leftOut ?? []);
     setPasteOpen(start.draft.paste.trim().length > 0);
@@ -191,7 +191,7 @@ export function IndustryOnboarding({
       pendingDraft.current = null;
       setDraftSaved(
         writeSetupDraft(
-          { step, selected, businessName, rows, paste, businessId, leftOut, answers },
+          { step, selected, businessName, rows, paste, businessId, leftOut, setupAnswers: answers },
           workspace.session,
         ),
       );
@@ -1133,6 +1133,7 @@ export function IndustryOnboarding({
                 <h3 id="fill-faster-heading" className="text-sm font-medium">
                   Fill the table faster
                 </h3>
+                <JobCatalogSheet prominent />
                 <details
                   className="rounded-xl border border-border bg-elevated/50 p-3"
                   open={pasteOpen}
@@ -1248,7 +1249,6 @@ export function IndustryOnboarding({
                         {quickEntry.description} {quickEntry.note}
                       </p>
                     )}
-                    <JobCatalogSheet />
                   </div>
                 </details>
               </section>
@@ -1289,6 +1289,10 @@ export function IndustryOnboarding({
                   </CardContent>
                 </Card>
               </div>
+              <p className="rounded-lg border border-border bg-elevated/50 px-3 py-2 text-xs text-muted">
+                You can continue with one person. Precog will assess that sole-owner setup; add the
+                rest of your team later under Team for a fuller team assessment.
+              </p>
               {finishNote && (
                 <p className="text-xs text-danger" role="alert">
                   {finishNote}

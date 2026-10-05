@@ -56,6 +56,7 @@ import { stripProcedureLinks } from "./procedures/coverage-link";
 import { normalizePlaces, normalizeProcedures } from "./procedures/normalize";
 import type { Place, Procedure } from "./procedures/types";
 import { normalizeSetupAnswers, type SetupAnswers } from "./onboarding/setup-answers";
+import { normalizeOnboardingFacts, type OnboardingFacts } from "./onboarding/decision-model";
 
 /**
  * One business: what it is, the owner's own team, map and register (or null
@@ -64,6 +65,8 @@ import { normalizeSetupAnswers, type SetupAnswers } from "./onboarding/setup-ans
  * through, and this browser's portfolio of businesses.
  */
 export interface PracticeProfile {
+  /** Account that owns this row when it was opened from a shared portfolio. */
+  ownerUserId?: string;
   practiceName: string;
   industry: IndustryId;
   staff: StaffComposition;
@@ -72,6 +75,8 @@ export interface PracticeProfile {
   decisions: DecisionEntry[];
   /** False on first visit until the user picks an industry template. */
   onboardingComplete?: boolean;
+  /** Organization-level setup facts; never used as mapped-team scoring inputs. */
+  onboardingFacts?: OnboardingFacts;
   /** User-built process map. Null/undefined = use the industry template as-is. */
   customProcesses?: ProcessNode[] | null;
   /** The user's real team. Null/undefined = template demo people. */
@@ -120,6 +125,8 @@ export interface PracticeProfile {
 /** One line of the business switcher. */
 export interface BusinessSummary {
   id: string;
+  /** Account that owns this row; present on account-backed summaries. */
+  ownerUserId?: string;
   name: string;
   industry: IndustryId;
   updatedAt: string;
@@ -129,6 +136,14 @@ export interface BusinessSummary {
   shared?: boolean;
   /** True for a firm's client business, which the report names the firm on. */
   firmClient?: boolean;
+}
+
+/** Collision-safe identity for account-backed summaries and active selection. */
+export function businessSummaryKey(
+  business: Pick<BusinessSummary, "id" | "ownerUserId">,
+  ownUserId?: string | null,
+): string {
+  return `${business.ownerUserId ?? ownUserId ?? "local"}\u0000${business.id}`;
 }
 
 export interface MapVersion {
@@ -380,6 +395,7 @@ export function normalizeProfile(
   const customKnowledge = normalizeCustomKnowledge(knowledgeEntries(parsed.customKnowledge), today);
   const customRelations = relationEntries(parsed.customRelations);
   const setupAnswers = normalizeSetupAnswers(parsed.setupAnswers);
+  const onboardingFacts = normalizeOnboardingFacts(parsed.onboardingFacts);
   const dualRelease = mergeDualReleasePolicy(
     resolveTemplate({
       industry,
@@ -414,6 +430,7 @@ export function normalizeProfile(
       typeof parsed.onboardingComplete === "boolean"
         ? parsed.onboardingComplete
         : (options.onboardingCompleteFallback ?? true),
+    ...(onboardingFacts ? { onboardingFacts } : {}),
     customProcesses,
     customPeople,
     customKnowledge,

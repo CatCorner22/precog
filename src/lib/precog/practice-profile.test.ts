@@ -3,6 +3,9 @@ import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate } from "./templates";
 import { soleOwnerCriticalCount } from "./continuity/coverage";
 import { INDUSTRIES } from "./industry";
+import { scoreMap } from "./builder/scored-map";
+import { buildOwnTeam, ownBusinessProfile } from "./onboarding/own-team";
+import { ONBOARDING_FACTS_VERSION } from "./onboarding/decision-model";
 import {
   DECISION_KIND_LABEL,
   DECISION_KIND_LABEL_PRINTED_V1,
@@ -78,6 +81,66 @@ describe("a sample business shows one sole-owner figure", () => {
   });
 });
 
+describe("onboarding facts stay separate from mapped-team scoring", () => {
+  it("keeps old profiles compatible and normalizes new facts without changing sample pins", () => {
+    const old = defaultProfile("restaurant");
+    const normalizedOld = normalizeProfile(JSON.parse(JSON.stringify(old)));
+    expect(normalizedOld).not.toHaveProperty("onboardingFacts");
+    expect(normalizedOld.staff).toEqual(old.staff);
+    expect(normalizedOld.staff.soleOwnerKnowledgeCount).toBe(3);
+
+    const withFacts = normalizeProfile({
+      ...old,
+      onboardingFacts: {
+        schemaVersion: ONBOARDING_FACTS_VERSION,
+        actor: "advisor",
+        workforceBand: "100-249",
+        workforceCount: 120,
+        locationBand: "2-5",
+        mappingScope: "one_location",
+        setupMethod: "roster_import",
+        answers: { runs_payroll: "unknown" },
+      },
+    });
+    expect(normalizeProfile(JSON.parse(JSON.stringify(withFacts))).onboardingFacts).toEqual(
+      withFacts.onboardingFacts,
+    );
+    expect(withFacts.staff).toEqual(old.staff);
+    expect(withFacts.staff.teamSize).toBe(old.staff.teamSize);
+  });
+
+  it("does not move a mapped team's score when organization workforce facts are added", () => {
+    const people = buildOwnTeam([
+      { name: "Ana Ruiz", role: "Owner", duties: ["bank_reconcile"] },
+      { name: "Ben Ochoa", role: "Manager", duties: ["post_payments"] },
+    ]);
+    const base = ownBusinessProfile(defaultProfile("general"), {
+      practiceName: "Ruiz Services",
+      people,
+    });
+    const tpl = resolveTemplate(base);
+    const processes = tpl.processes.map((process, index) =>
+      index === 0 ? { ...process, ownerPersonIds: [people[0].id] } : process,
+    );
+    const score = (profile: typeof base) =>
+      scoreMap(tpl, processes, profile.staff, {
+        profile,
+        people,
+        customized: true,
+      }).health.score;
+    const withFacts = normalizeProfile({
+      ...base,
+      onboardingFacts: {
+        schemaVersion: 1,
+        workforceBand: "100-249",
+        workforceCount: 120,
+      },
+    });
+    expect(withFacts.staff.teamSize).toBe(2);
+    expect(score(withFacts)).toBe(score(base));
+  });
+});
+
 describe("normalizeProfile treats a stored copy as untrusted input", () => {
   const own = (extra: Record<string, unknown>) =>
     ({
@@ -124,6 +187,25 @@ describe("normalizeProfile treats a stored copy as untrusted input", () => {
     expect(loaded.mapVersions?.map((v) => [v.id, v.people.length])).toEqual([["v2", 1]]);
     expect(loaded.mapHealthHistory?.map((h) => h.score)).toEqual([70]);
     expect(loaded.mapLayout).toEqual({ a: { x: 1, y: 2 } });
+  });
+
+  it("normalizes duplicate relations once and keeps that result on a storage round trip", () => {
+    const stored = own({
+      customRelations: [
+        { personId: "a", knowledgeId: "k", level: "aware" },
+        { personId: "b", knowledgeId: "k", level: "expert" },
+        { personId: "a", knowledgeId: "k", level: "basic" },
+        { personId: "a", knowledgeId: "k", level: "proficient" },
+      ],
+    });
+    const loaded = normalizeProfile(stored);
+    expect(loaded.customRelations).toEqual([
+      { personId: "a", knowledgeId: "k", level: "proficient" },
+      { personId: "b", knowledgeId: "k", level: "expert" },
+    ]);
+
+    const again = normalizeProfile(JSON.parse(JSON.stringify(loaded)));
+    expect(again.customRelations).toEqual(loaded.customRelations);
   });
 
   it("clamps staff figures and filters unknown decision kinds", () => {

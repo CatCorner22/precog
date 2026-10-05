@@ -1,4 +1,5 @@
 import type { IndustryId } from "./industry";
+import { normalizeKnowledgeRelations } from "./knowledge-relations";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import type { ControlItem, KnowledgeItem, KnowledgeRelation, Person, ProcessNode } from "./types";
 import { CONFLICT_RULES } from "./sod/conflict-rules";
@@ -111,7 +112,9 @@ export function resolveTemplate(source: TemplateSource): IndustryTemplate {
   const rawRelations = relationOverrides ?? base.relations;
   const relations =
     peopleOverrides || knowledgeOverrides || relationOverrides
-      ? rawRelations.filter((r) => ids.has(r.personId) && knowledgeIds.has(r.knowledgeId))
+      ? normalizeKnowledgeRelations(
+          rawRelations.filter((r) => ids.has(r.personId) && knowledgeIds.has(r.knowledgeId)),
+        )
       : rawRelations;
   const processes = (processOverrides ?? base.processes).map((p) => ({
     ...p,

@@ -273,6 +273,7 @@ export function useCloudSync(input: {
                 profile: current,
                 industry: current.industry,
                 baseRevision,
+                ownerUserId: current.ownerUserId,
                 today: localDateKey(new Date()),
               },
             }),

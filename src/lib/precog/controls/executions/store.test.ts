@@ -247,7 +247,7 @@ function changingMembershipAtParentLock(mutate: (tx: Sql) => Promise<unknown>): 
       let injected = false;
       const intercepted = toSql(async <T>(text: string, values: unknown[]): Promise<T[]> => {
         const rows = await tx.query<T>(text, values);
-        if (!injected && /for (?:update|share) of b/i.test(text)) {
+        if (!injected && /from businesses[\s\S]*for (?:update|share)/i.test(text)) {
           injected = true;
           await mutate(tx);
         }

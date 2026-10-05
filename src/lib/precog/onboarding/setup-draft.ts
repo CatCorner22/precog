@@ -3,6 +3,13 @@ import { MAX_BUSINESS_NAME } from "../business-id";
 import { INDUSTRIES, type IndustryId } from "../industry";
 import type { StorageLike } from "../local-data";
 import { normalizeSetupAnswers, type SetupAnswers } from "./setup-answers";
+import {
+  ONBOARDING_FACTS_VERSION,
+  ONBOARDING_QUESTION_IDS,
+  normalizeOnboardingFacts,
+  type OnboardingFacts,
+  type OnboardingQuestionId,
+} from "./decision-model";
 import { firstRowForIndustry, type OwnTeamRow } from "./own-team";
 
 /**
@@ -14,6 +21,10 @@ import { firstRowForIndustry, type OwnTeamRow } from "./own-team";
 export const SETUP_DRAFT_KEY = "precog.onboarding-draft.v1";
 
 export interface SetupDraft {
+  /** Absent on legacy drafts; version 1 adds adaptive-onboarding progress. */
+  schemaVersion?: typeof ONBOARDING_FACTS_VERSION;
+  answers?: OnboardingFacts["answers"];
+  currentQuestionId?: OnboardingQuestionId;
   step: "industry" | "money" | "team";
   selected: IndustryId;
   businessName: string;
@@ -26,9 +37,9 @@ export interface SetupDraft {
    * People a pasted roster marked terminated or inactive, whose pay and
    * logins finishing asks the owner to confirm are stopped. The paste is
    * cleared once used, so the draft is the only place they survive a reload.
-   */
+  */
   leftOut?: Departure[];
-  answers?: SetupAnswers;
+  setupAnswers?: SetupAnswers;
 }
 
 function sessionArea(): StorageLike | null {
@@ -40,6 +51,7 @@ function sessionArea(): StorageLike | null {
 }
 
 const INDUSTRY_IDS = new Set<string>(INDUSTRIES.map((i) => i.id));
+const QUESTION_IDS = new Set<string>(ONBOARDING_QUESTION_IDS);
 
 const optional = (value: unknown, type: "string" | "boolean") =>
   value === undefined || typeof value === type;
@@ -97,16 +109,27 @@ export function readSetupDraft(storage: StorageLike | null = sessionArea()): Set
     if (typeof draft.businessName !== "string" || !Array.isArray(draft.rows)) return null;
     if (typeof draft.selected !== "string" || !INDUSTRY_IDS.has(draft.selected)) return null;
     const leftOut = Array.isArray(draft.leftOut) ? draft.leftOut.filter(isDeparture) : [];
-    const answers = normalizeSetupAnswers(draft.answers);
+    const setupAnswers = normalizeSetupAnswers(draft.setupAnswers);
+    const facts = normalizeOnboardingFacts({
+      schemaVersion: draft.schemaVersion,
+      answers: draft.answers,
+    });
     return {
       step: draft.step === "team" || draft.step === "money" ? draft.step : "industry",
+      ...(draft.schemaVersion === ONBOARDING_FACTS_VERSION
+        ? { schemaVersion: ONBOARDING_FACTS_VERSION }
+        : {}),
+      ...(facts?.answers ? { answers: facts.answers } : {}),
+      ...(typeof draft.currentQuestionId === "string" && QUESTION_IDS.has(draft.currentQuestionId)
+        ? { currentQuestionId: draft.currentQuestionId as OnboardingQuestionId }
+        : {}),
       selected: draft.selected as IndustryId,
       businessName: draft.businessName.slice(0, MAX_BUSINESS_NAME),
       rows: draft.rows.filter(isRow),
       paste: typeof draft.paste === "string" ? draft.paste : "",
       ...(typeof draft.businessId === "string" ? { businessId: draft.businessId } : {}),
       ...(leftOut.length > 0 ? { leftOut } : {}),
-      ...(answers ? { answers } : {}),
+      ...(setupAnswers ? { setupAnswers } : {}),
     };
   } catch {
     return null;
@@ -158,6 +181,8 @@ export function initialSetup(
   freshRows: () => OwnTeamRow[],
 ): { draft: SetupDraft; restoredEarlier: boolean } {
   const fresh: SetupDraft = {
+    schemaVersion: ONBOARDING_FACTS_VERSION,
+    currentQuestionId: "actor",
     step: business.typedName ? "money" : "industry",
     selected: business.industry,
     businessName: business.typedName,

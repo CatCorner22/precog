@@ -75,10 +75,10 @@ describe("reloading in the middle of setup", () => {
       ...base,
       step: "money",
       businessName: "Named Co",
-      answers,
+      setupAnswers: answers,
     });
     expect(back.draft.step).toBe("money");
-    expect(back.draft.answers).toEqual(answers);
+    expect(back.draft.setupAnswers).toEqual(answers);
   });
 
   it("normalizes invalid answer values in a stored draft", () => {
@@ -88,10 +88,10 @@ describe("reloading in the middle of setup", () => {
       JSON.stringify({
         ...base,
         step: "money",
-        answers: { cashOrChecks: "sometimes" },
+        setupAnswers: { cashOrChecks: "sometimes" },
       }),
     );
-    expect(readSetupDraft(storage)?.answers).toEqual(UNANSWERED);
+    expect(readSetupDraft(storage)?.setupAnswers).toEqual(UNANSWERED);
   });
 
   it("keeps a roster pasted into the box but not yet used to fill the table", () => {
@@ -119,6 +119,26 @@ describe("reloading in the middle of setup", () => {
     expect(back.draft.businessName).toBe("Old Co");
     expect(back.draft.paste).toBe("");
     expect(namedPeople(back.draft)).toBe(1);
+    expect(back.draft.schemaVersion).toBeUndefined();
+    expect(back.draft.answers).toBeUndefined();
+  });
+
+  it("keeps valid adaptive progress and safely drops unknown enum values", () => {
+    const storage = tabStorage();
+    storage.setItem(
+      SETUP_DRAFT_KEY,
+      JSON.stringify({
+        ...base,
+        schemaVersion: 1,
+        currentQuestionId: "future_question",
+        answers: { runs_payroll: "unknown", holds_inventory: "sometimes" },
+      }),
+    );
+    expect(readSetupDraft(storage)).toMatchObject({
+      schemaVersion: 1,
+      answers: { runs_payroll: "unknown" },
+    });
+    expect(readSetupDraft(storage)?.currentQuestionId).toBeUndefined();
   });
 });
 

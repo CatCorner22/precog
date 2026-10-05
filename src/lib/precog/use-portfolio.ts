@@ -12,6 +12,7 @@ import { deleteBusiness as deleteBusinessRemote, loadBusiness } from "./profile-
 import { getEntitlements, type EntitlementsAnswer } from "./firm/entitlements-server";
 import {
   loadPortfolio,
+  businessSummaryKey,
   removePortfolioEntry,
   savePortfolioEntry,
   summarizeBusiness,
@@ -107,22 +108,33 @@ export function usePortfolio(input: {
   // nothing) and again after each business created.
   const entitlements = useRef<Promise<EntitlementsAnswer | null> | null>(null);
 
-  /** Local portfolio + cloud summaries merged by id; the active business always wins. */
+  /** Local portfolio + cloud summaries merged by owner and id; the active business always wins. */
   const businesses = useMemo<BusinessSummary[]>(() => {
     const byId = new Map<string, BusinessSummary>();
-    for (const b of remoteBusinesses) byId.set(b.id, b);
+    for (const b of remoteBusinesses) byId.set(businessSummaryKey(b, workspace.accountId), b);
     for (const p of Object.values(loadPortfolio(workspace.local))) {
       // An unfinished setup saved by an older version is the sample, not a business.
       if (p.onboardingComplete === false) continue;
       const s = summarizeBusiness(p);
-      const existing = byId.get(s.id);
+      const key = businessSummaryKey(s, workspace.accountId);
+      const existing = byId.get(key);
       if (!existing || new Date(s.updatedAt) >= new Date(existing.updatedAt))
-        byId.set(s.id, { ...s, shared: existing?.shared, firmClient: existing?.firmClient });
+        byId.set(key, {
+          ...s,
+          ownerUserId: existing?.ownerUserId,
+          shared: existing?.shared,
+          firmClient: existing?.firmClient,
+        });
     }
     const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
-    const active = byId.get(activeId);
-    byId.set(activeId, {
+    const activeKey = businessSummaryKey(
+      { id: activeId, ownerUserId: profile.ownerUserId },
+      workspace.accountId,
+    );
+    const active = byId.get(activeKey);
+    byId.set(activeKey, {
       ...summarizeBusiness(profile),
+      ownerUserId: profile.ownerUserId ?? active?.ownerUserId,
       shared: active?.shared,
       firmClient: active?.firmClient,
     });
@@ -138,8 +150,16 @@ export function usePortfolio(input: {
   ]);
 
   const switchBusiness = useCallback(
-    async (id: string): Promise<SwitchResult> => {
-      if (id === (profileRef.current.businessId ?? DEFAULT_BUSINESS_ID)) return { ok: true };
+    async (id: string, ownerUserId?: string): Promise<SwitchResult> => {
+      const current = profileRef.current;
+      if (
+        businessSummaryKey({ id, ownerUserId }, workspace.accountId) ===
+        businessSummaryKey(
+          { id: current.businessId ?? DEFAULT_BUSINESS_ID, ownerUserId: current.ownerUserId },
+          workspace.accountId,
+        )
+      )
+        return { ok: true };
       setSwitching(true);
       try {
         if (!(await flushActive()))
@@ -151,13 +171,14 @@ export function usePortfolio(input: {
           };
         if (!mounted.current) return { ok: false, reason: "The page closed before the switch." };
         const remote = cloudUser
-          ? await loadBusiness({ data: { id, today: localDateKey(new Date()) } }).catch(
-              () => "unreachable" as const,
-            )
+          ? await loadBusiness({
+              data: { id, ownerUserId, today: localDateKey(new Date()) },
+            }).catch(() => "unreachable" as const)
           : null;
+        const ownOrLocal = !ownerUserId || ownerUserId === workspace.accountId;
         const copy = pickSwitchCopy({
-          stored: loadPortfolio(workspace.local)[id],
-          open: localStore.peek(id)?.profile ?? null,
+          stored: ownOrLocal ? loadPortfolio(workspace.local)[id] : undefined,
+          open: ownOrLocal ? (localStore.peek(id)?.profile ?? null) : null,
           account:
             remote === "unreachable" || remote === null
               ? remote
@@ -167,12 +188,19 @@ export function usePortfolio(input: {
                   ? { found: false }
                   : null,
           seenRevision: cloudRevision.current.get(id),
-          heldByAccount: cloudRevision.current.has(id) || remoteBusinesses.some((b) => b.id === id),
+          heldByAccount:
+            cloudRevision.current.has(id) ||
+            remoteBusinesses.some((b) => b.id === id && b.ownerUserId === ownerUserId),
           accountTook: (stamp) => accountTook(id, stamp),
         });
         if (!copy.ok) return copy;
         if (!mounted.current) return { ok: false, reason: "The page closed before the switch." };
-        const opened = { ...copy.profile, businessId: id, onboardingComplete: true };
+        const opened = {
+          ...copy.profile,
+          businessId: id,
+          ownerUserId: ownerUserId ?? copy.profile.ownerUserId,
+          onboardingComplete: true,
+        };
         if (copy.accountMovedOn) {
           // This device's copy opens with the banner up, as when a save is
           // refused: the owner chooses, and the other copy is kept.
@@ -209,6 +237,7 @@ export function usePortfolio(input: {
       profileRef,
       saveConflictRef,
       setSwitching,
+      workspace.accountId,
       workspace.local,
     ],
   );
@@ -299,7 +328,7 @@ export function usePortfolio(input: {
   const cancelSetup = useCallback(async () => {
     if (!setupReturnsTo) return;
     openBeforeSetup.current = null;
-    const result = await switchBusiness(setupReturnsTo.id);
+    const result = await switchBusiness(setupReturnsTo.id, setupReturnsTo.ownerUserId);
     if (!result.ok)
       toast.error(`Could not open ${setupReturnsTo.name}`, { description: result.reason });
   }, [setupReturnsTo, switchBusiness]);
@@ -367,15 +396,28 @@ export function usePortfolio(input: {
   );
 
   const deleteBusiness = useCallback(
-    async (id: string) => {
-      const activeId = profileRef.current.businessId ?? DEFAULT_BUSINESS_ID;
-      if (id === activeId) return;
+    async (id: string, ownerUserId?: string) => {
+      const active = profileRef.current;
+      if (
+        businessSummaryKey({ id, ownerUserId }, workspace.accountId) ===
+        businessSummaryKey(
+          { id: active.businessId ?? DEFAULT_BUSINESS_ID, ownerUserId: active.ownerUserId },
+          workspace.accountId,
+        )
+      )
+        return;
       if (cloudUser)
-        await deleteBusinessRemote({ data: { id, expectedAccountId: workspace.accountId ?? "" } });
+        await deleteBusinessRemote({
+          data: { id, ownerUserId, expectedAccountId: workspace.accountId ?? "" },
+        });
       if (!mounted.current) return;
-      removePortfolioEntry(id, workspace.local);
-      removeValueProof(id, workspace.local);
-      setRemoteBusinesses((cur) => cur.filter((b) => b.id !== id));
+      if (!ownerUserId || ownerUserId === workspace.accountId) {
+        removePortfolioEntry(id, workspace.local);
+        removeValueProof(id, workspace.local);
+      }
+      setRemoteBusinesses((cur) =>
+        cur.filter((b) => !(b.id === id && b.ownerUserId === ownerUserId)),
+      );
       bumpPortfolio();
     },
     [cloudUser, profileRef, setRemoteBusinesses, bumpPortfolio, workspace],
