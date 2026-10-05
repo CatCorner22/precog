@@ -29,6 +29,7 @@ Every response carries, from `vite.config.ts`:
 - Email-and-password sign-in, when a deployment turns it on (`src/lib/auth/email-password.server.ts`), stores a hash of the password, never the password, and emails a confirmation link; an unconfirmed sign-up is removed after 24 hours.
 - There is no multi-factor sign-in today.
 - The email links (owner reminder consent and stop links, password reset, confirmation) carry long random tokens; a link that does not match one answers a plain "no longer works" page and reveals nothing about the account.
+- Owner and digest email links (`/api/owner-email`, `/api/digest-email`) cap token lookups at sixty opens per network address per minute (`src/lib/precog/reminders/email-link-limits.ts`); excess opens get a generic wait page, not a different error that would help guessing tokens.
 
 ## Authorization
 
@@ -44,6 +45,8 @@ Every response carries, from `vite.config.ts`:
 ## Data handling
 
 - Share passcodes are stored as salted scrypt hashes (`src/lib/precog/share/share-attempts.ts`), guesses are counted per share in the database and the link locks after ten in fifteen minutes; share view logs keep a hash of the visitor address, not the address (`src/lib/precog/share/share-server.ts`), for a fixed retention after which they are deleted.
+- A dead, revoked, or expired map or report share link answers the same public "unavailable" reason as an unknown token (`src/lib/precog/share/share-server.ts`), so a visitor cannot probe which tokens exist.
+- Map backup import rejects files larger than two megabytes before JSON parsing (`src/lib/precog/builder/map-backup.ts`), so a oversized upload cannot freeze the browser.
 - The model-call cap keeps a one-way hash of the network address, and the count holds no question or reply (`src/lib/precog/llm/`).
 - Before notes reach the model, Precog masks anything that looks like a password, card number or code, and masks the draft that comes back (the Privacy page lists exactly what each feature sends).
 - Precog does not use what you enter to train a model and sends xAI nothing for training.
@@ -56,7 +59,7 @@ Every response carries, from `vite.config.ts`:
 - Every model call logs one `[grok] usage` line with token counts and latency, and no prompt text.
 - Precog runs no analytics script; activation counts come from `product_events` (ids and times only).
 - `GET /api/health` runs one database query and answers `{ ok: true }` or a 503; the uptime monitor and the restore procedure both read it ([OPERATIONS.md](./OPERATIONS.md)).
-- Rate limits: model calls are limited per user, per process and per network address, and capped per account per day in the database. These limits are cost and abuse control at the application level; a platform-level limit (Vercel Firewall) in front is the owner's setting.
+- Rate limits: model calls are limited per user, per process and per network address, and capped per account per day in the database; emailed token links are limited as above. These limits are cost and abuse control at the application level; a platform-level limit (Vercel Firewall) in front is the owner's setting.
 
 ## Backups and recovery
 
