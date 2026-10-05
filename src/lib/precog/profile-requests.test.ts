@@ -84,4 +84,24 @@ describe("open and delete requests", () => {
   it("reads the id to open", () => {
     expect(parseOpenBusinessRequest({ id: "biz_1" }).id).toBe("biz_1");
   });
+
+  it("carries an explicit owner through open, save and delete requests", () => {
+    expect(parseOpenBusinessRequest({ id: "biz_1", ownerUserId: "owner-a" }).ownerUserId).toBe(
+      "owner-a",
+    );
+    expect(
+      parseSaveBusinessRequest({
+        expectedAccountId: "u1",
+        profile,
+        ownerUserId: "owner-a",
+      }).ownerUserId,
+    ).toBe("owner-a");
+    expect(
+      parseDeleteBusinessRequest({
+        id: "biz_1",
+        expectedAccountId: "u1",
+        ownerUserId: "owner-a",
+      }).ownerUserId,
+    ).toBe("owner-a");
+  });
 });

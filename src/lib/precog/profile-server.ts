@@ -36,7 +36,11 @@ export const loadBusinessProfile = createServerFn({ method: "GET" })
     if (!active) return { found: false as const, profile: null, revision: null };
     return {
       found: true as const,
-      profile: { ...mergeProfile(active, data.today), businessId: active.businessId },
+      profile: {
+        ...mergeProfile(active, data.today),
+        businessId: active.businessId,
+        ownerUserId: active.ownerUserId,
+      },
       updatedAt: active.updated_at,
       revision: active.revision,
     };
@@ -50,6 +54,7 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       profile: PracticeProfile;
       industry?: IndustryId;
       baseRevision?: number | null;
+      ownerUserId?: string;
       today?: string;
     }) => parseSaveBusinessRequest(input),
   )
@@ -62,7 +67,7 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
     // A firm member saving a colleague's client writes the colleague's row;
     // a new business is created under the saver and joins their firm.
     const [owner, firm, saver] = await Promise.all([
-      resolveBusinessOwner(sql, context.userId, businessId, true),
+      resolveBusinessOwner(sql, context.userId, businessId, true, data.ownerUserId),
       loadFirmFor(sql, context.userId),
       sql<{ name: string | null; email: string | null }>`
         select name, email from "user" where id = ${context.userId}`,
@@ -196,10 +201,12 @@ export const listBusinesses = createServerFn({ method: "GET" })
 
 export const loadBusiness = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .validator((input: { id: string; today?: string }) => parseOpenBusinessRequest(input))
+  .validator((input: { id: string; ownerUserId?: string; today?: string }) =>
+    parseOpenBusinessRequest(input),
+  )
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const owner = await resolveBusinessOwner(sql, context.userId, data.id);
+    const owner = await resolveBusinessOwner(sql, context.userId, data.id, false, data.ownerUserId);
     const rows = owner
       ? await sql<BusinessRow>`
           select id, name, industry, profile, updated_at, revision
@@ -211,20 +218,24 @@ export const loadBusiness = createServerFn({ method: "GET" })
     if (!row) return { found: false as const, profile: null, revision: null };
     return {
       found: true as const,
-      profile: { ...mergeProfile(row, data.today), businessId: row.id },
+      profile: {
+        ...mergeProfile(row, data.today),
+        businessId: row.id,
+        ownerUserId: owner as string,
+      },
       revision: Number(row.revision),
     };
   });
 
 export const deleteBusiness = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { id: string; expectedAccountId: string }) =>
+  .validator((input: { id: string; ownerUserId?: string; expectedAccountId: string }) =>
     parseDeleteBusinessRequest(input),
   )
   .handler(async ({ context, data }) => {
     assertExpectedAccount(data.expectedAccountId, context.userId);
     const sql = await getSql();
-    const owner = await resolveBusinessOwner(sql, context.userId, data.id);
+    const owner = await resolveBusinessOwner(sql, context.userId, data.id, false, data.ownerUserId);
     if (owner) await deleteBusinessRow(sql, owner, data.id, context.userId);
     return { ok: true as const };
   });

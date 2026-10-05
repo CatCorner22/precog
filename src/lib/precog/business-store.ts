@@ -90,20 +90,30 @@ export class BusinessUnavailableError extends RequestError {
   }
 }
 
+export class AmbiguousBusinessIdentityError extends RequestError {
+  constructor() {
+    super(409, "More than one client has this link. Open the client from the business switcher.");
+  }
+}
+
 /**
  * The owner of the business `userId` may work on: their own row first, else
- * a row that belongs to their firm. Null when there is no such live row.
+ * a row that belongs to their firm. An explicit owner makes the composite
+ * identity exact. A legacy id-only lookup refuses two shared matches rather
+ * than selecting whichever row Postgres happens to return.
  */
 export async function resolveBusinessOwner(
   sql: Sql,
   userId: string,
   businessId: string,
   includeDeleted = false,
+  expectedOwnerUserId?: string,
 ): Promise<string | null> {
   const rows = await sql<{ user_id: string }>`
     select b.user_id
     from businesses b
     where b.id = ${businessId}
+      and (${expectedOwnerUserId ?? null}::text is null or b.user_id = ${expectedOwnerUserId ?? null})
       and (b.deleted_at is null or ${includeDeleted})
       and (
         b.user_id = ${userId}
@@ -115,19 +125,27 @@ export async function resolveBusinessOwner(
         )
       )
     order by (b.user_id = ${userId}) desc
-    limit 1
   `;
-  if (rows[0]) return rows[0].user_id;
+  const own = rows.find((row) => row.user_id === userId);
+  if (own) return own.user_id;
+  if (rows.length === 1) return rows[0].user_id;
+  if (rows.length > 1) throw new AmbiguousBusinessIdentityError();
   if (!includeDeleted) return null;
   const markers = await sql<{ user_id: string }>`
     select d.user_id from business_deletion_markers d
-    where d.business_id = ${businessId} and (
+    where d.business_id = ${businessId}
+      and (${expectedOwnerUserId ?? null}::text is null or d.user_id = ${expectedOwnerUserId ?? null})
+      and (
       d.user_id = ${userId} or d.firm_user_id in (
         select firm_user_id from firm_members where member_user_id = ${userId}
       )
-    ) order by (d.user_id = ${userId}) desc limit 1
+    ) order by (d.user_id = ${userId}) desc
   `;
-  return markers[0]?.user_id ?? null;
+  const ownMarker = markers.find((row) => row.user_id === userId);
+  if (ownMarker) return ownMarker.user_id;
+  if (markers.length === 1) return markers[0].user_id;
+  if (markers.length > 1) throw new AmbiguousBusinessIdentityError();
+  return null;
 }
 
 /** Serializes creation, update, restore and delete for this owner's portfolio. */
@@ -541,6 +559,7 @@ export async function setActiveBusiness(sql: Sql, input: ActivePointer): Promise
 
 interface ActiveBusiness<TProfile = unknown> {
   businessId: string;
+  ownerUserId: string;
   name: string;
   industry: string;
   profile: TProfile;
@@ -615,6 +634,7 @@ export async function loadActiveBusiness<
   if (authoritative) {
     return {
       businessId,
+      ownerUserId: owner as string,
       name: authoritative.name,
       industry: authoritative.industry,
       profile: authoritative.profile,
@@ -624,6 +644,7 @@ export async function loadActiveBusiness<
   }
   return {
     businessId,
+    ownerUserId: userId,
     name: active.name,
     industry: active.industry,
     profile: active.profile,
