@@ -10,6 +10,7 @@ import {
   type OnboardingActor,
   type OnboardingQuestionId,
   type LocationBand,
+  type MappingScope,
   type SetupMethod,
   type WorkforceBand,
 } from "./decision-model";
@@ -29,6 +30,7 @@ export interface SetupDraft {
   actor?: OnboardingActor;
   workforceBand?: WorkforceBand;
   locationBand?: LocationBand;
+  mappingScope?: MappingScope;
   setupMethod?: SetupMethod;
   answers?: OnboardingFacts["answers"];
   currentQuestionId?: OnboardingQuestionId;
@@ -46,6 +48,8 @@ export interface SetupDraft {
    * cleared once used, so the draft is the only place they survive a reload.
    */
   leftOut?: Departure[];
+  /** Valid imported rows waiting outside the 60-person review grid. */
+  unresolvedRows?: number;
 }
 
 function sessionArea(): StorageLike | null {
@@ -120,6 +124,7 @@ export function readSetupDraft(storage: StorageLike | null = sessionArea()): Set
       actor: draft.actor,
       workforceBand: draft.workforceBand,
       locationBand: draft.locationBand,
+      mappingScope: draft.mappingScope,
       setupMethod: draft.setupMethod,
       answers: draft.answers,
     });
@@ -130,6 +135,7 @@ export function readSetupDraft(storage: StorageLike | null = sessionArea()): Set
       ...(facts?.actor ? { actor: facts.actor } : {}),
       ...(facts?.workforceBand ? { workforceBand: facts.workforceBand } : {}),
       ...(facts?.locationBand ? { locationBand: facts.locationBand } : {}),
+      ...(facts?.mappingScope ? { mappingScope: facts.mappingScope } : {}),
       ...(facts?.setupMethod ? { setupMethod: facts.setupMethod } : {}),
       ...(facts?.answers ? { answers: facts.answers } : {}),
       ...(typeof draft.currentQuestionId === "string" && QUESTION_IDS.has(draft.currentQuestionId)
@@ -142,6 +148,11 @@ export function readSetupDraft(storage: StorageLike | null = sessionArea()): Set
       paste: typeof draft.paste === "string" ? draft.paste : "",
       ...(typeof draft.businessId === "string" ? { businessId: draft.businessId } : {}),
       ...(leftOut.length > 0 ? { leftOut } : {}),
+      ...(typeof draft.unresolvedRows === "number" &&
+      Number.isInteger(draft.unresolvedRows) &&
+      draft.unresolvedRows >= 0
+        ? { unresolvedRows: draft.unresolvedRows }
+        : {}),
     };
   } catch {
     return null;

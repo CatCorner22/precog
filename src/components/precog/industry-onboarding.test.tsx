@@ -24,7 +24,7 @@ vi.mock("@tanstack/react-router", async (original) => ({
   ),
 }));
 
-const { IndustryOnboarding } = await import("./industry-onboarding");
+const { IndustryOnboarding, MappingScopeAttestation } = await import("./industry-onboarding");
 
 /** The first render, as the server draws it, with markup tags removed. */
 function firstRender(practiceName: string) {
@@ -63,5 +63,27 @@ describe("IndustryOnboarding, first render", () => {
     expect(html).toContain('tabindex="-1"');
     expect(html.match(/type="radio"/g)).toHaveLength(3);
     expect(text).not.toContain("Your business and who does the money work");
+  });
+});
+
+describe("large-roster scope attestation", () => {
+  it("uses a keyboard-native radio group and announces scoped, incomplete coverage", () => {
+    const html = renderToStaticMarkup(
+      <MappingScopeAttestation
+        scope="one_team"
+        unresolvedRows={60}
+        scopedAssessment
+        onChoose={() => {}}
+      />,
+    );
+    const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    expect(html).toContain("<fieldset");
+    expect(html.match(/type="radio"/g)).toHaveLength(3);
+    expect(html).toContain('name="mapping_scope"');
+    expect(html).toContain('role="status"');
+    expect(text).toContain("60 valid roster rows are not in the review grid");
+    expect(text).toContain("Unknown or unresolved people earn no control credit");
+    expect(text).toContain("scoped map");
+    expect(text).toContain("not fully assessed");
   });
 });

@@ -5,7 +5,9 @@ import {
   onboardingCompletion,
   orderedOnboardingQuestions,
   orderedSetupMethods,
+  requiresMappingScope,
   withComplexityAnswer,
+  withMappingScope,
   withWorkforceBand,
   workforceBandForCount,
   type OnboardingFacts,
@@ -52,6 +54,24 @@ describe("adaptive onboarding branches", () => {
     expect(
       withWorkforceBand({ ...small, setupMethod: "roster_import" }, "100-249").setupMethod,
     ).toBe("roster_import");
+  });
+
+  it("requires scope for a 100+ workforce or any roster held outside the review grid", () => {
+    expect(requiresMappingScope(factsFor(120))).toBe(true);
+    expect(requiresMappingScope(factsFor(12), 60)).toBe(true);
+    expect(requiresMappingScope(factsFor(12), 0)).toBe(false);
+  });
+
+  it("changing scope preserves independent setup and complexity answers", () => {
+    const current = {
+      ...factsFor(120),
+      setupMethod: "roster_import" as const,
+      answers: { runs_payroll: "unknown" as const },
+    };
+    expect(withMappingScope(current, "one_team")).toEqual({
+      ...current,
+      mappingScope: "one_team",
+    });
   });
 
   it("invalidates a dependent answer when its parent changes to no", () => {

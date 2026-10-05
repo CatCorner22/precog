@@ -97,6 +97,9 @@ import {
 } from "./onboarding-question-shell";
 import {
   ONBOARDING_FACTS_VERSION,
+  requiresMappingScope,
+  withMappingScope,
+  type MappingScope,
   type OnboardingFacts,
 } from "@/lib/precog/onboarding/decision-model";
 export function IndustryOnboarding() {
@@ -153,6 +156,7 @@ export function IndustryOnboarding() {
   const [reviewRowIds, setReviewRowIds] = useState<Set<string>>(() => new Set());
   const [draftSaved, setDraftSaved] = useState<boolean | null>(null);
   const [pasteIssues, setPasteIssues] = useState<ImportIssue[]>([]);
+  const [unresolvedRows, setUnresolvedRows] = useState(0);
   const [finishNote, setFinishNote] = useState("");
   const [restored, setRestored] = useState(false);
   // A team typed in an earlier setup in this tab came back with this one.
@@ -185,11 +189,13 @@ export function IndustryOnboarding() {
       ...(start.draft.actor ? { actor: start.draft.actor } : {}),
       ...(start.draft.workforceBand ? { workforceBand: start.draft.workforceBand } : {}),
       ...(start.draft.locationBand ? { locationBand: start.draft.locationBand } : {}),
+      ...(start.draft.mappingScope ? { mappingScope: start.draft.mappingScope } : {}),
       ...(start.draft.setupMethod ? { setupMethod: start.draft.setupMethod } : {}),
       ...(start.draft.answers ? { answers: start.draft.answers } : {}),
     });
     setPaste(start.draft.paste);
     setLeftOut(start.draft.leftOut ?? []);
+    setUnresolvedRows(start.draft.unresolvedRows ?? 0);
     setPasteOpen(start.draft.paste.trim().length > 0);
     setRestoredEarlier(start.restoredEarlier);
     setKeepsNothing(!canKeepLocalData());
@@ -219,8 +225,10 @@ export function IndustryOnboarding() {
             actor: facts.actor,
             workforceBand: facts.workforceBand,
             locationBand: facts.locationBand,
+            mappingScope: facts.mappingScope,
             setupMethod: facts.setupMethod,
             answers: facts.answers,
+            unresolvedRows,
           },
           workspace.session,
         ),
@@ -240,6 +248,7 @@ export function IndustryOnboarding() {
     paste,
     businessId,
     leftOut,
+    unresolvedRows,
     workspace.session,
   ]);
   useEffect(() => {
@@ -334,6 +343,8 @@ export function IndustryOnboarding() {
     setPasteNote("");
     setPasteIssues([]);
     setLeftOut([]);
+    setUnresolvedRows(0);
+    setFacts((current) => ({ ...current, mappingScope: undefined }));
     setQuickNote("");
     setGridStatus(null);
     setBulkTitle("");
@@ -458,6 +469,9 @@ export function IndustryOnboarding() {
     const applied = applyPaste(rows, result, selected, leftOut);
     setPasteIssues(result.issues);
     setLeftOut(applied.leftOut);
+    setUnresolvedRows(applied.unresolvedRows);
+    // A changed roster needs a fresh statement about what the resulting map covers.
+    setFacts((current) => ({ ...current, mappingScope: undefined }));
     if (applied.rows) {
       setRows(applied.rows);
       setFinishNote("");
@@ -548,6 +562,13 @@ export function IndustryOnboarding() {
     }
     const people = buildOwnTeam(rows, selected);
     if (people.length === 0) return;
+    if (scopeRequired && !facts.mappingScope) {
+      setFinishNote(
+        "Choose what this map covers. Precog cannot treat an unresolved roster as a complete assessment.",
+      );
+      document.querySelector<HTMLElement>('input[name="mapping_scope"]')?.focus();
+      return;
+    }
     const scaleNote = teamSizeScaleWarning(people.length);
     const onLeave = onLeavePersonIds(rows);
     clearDraft();
@@ -622,6 +643,9 @@ export function IndustryOnboarding() {
       ),
     [rows, selected],
   );
+  const scopeRequired = requiresMappingScope(facts, unresolvedRows);
+  const scopedAssessment =
+    scopeRequired && (unresolvedRows > 0 || facts.mappingScope !== "whole_business");
 
   /** Arrow keys, Home and End move the choice between lines of business, as in any radio group. */
   function moveIndustry(event: ReactKeyboardEvent<HTMLButtonElement>) {
@@ -1304,6 +1328,18 @@ export function IndustryOnboarding() {
                 </details>
               </section>
 
+              {scopeRequired && (
+                <MappingScopeAttestation
+                  scope={facts.mappingScope}
+                  unresolvedRows={unresolvedRows}
+                  scopedAssessment={scopedAssessment}
+                  onChoose={(value) => {
+                    setFacts((current) => withMappingScope(current, value));
+                    setFinishNote("");
+                  }}
+                />
+              )}
+
               <SetupPreviewCard rows={rows} industry={selected} />
               {finishNote && (
                 <p className="text-xs text-danger" role="alert">
@@ -1317,7 +1353,7 @@ export function IndustryOnboarding() {
                   onClick={finish}
                   disabled={namedRows.length === 0}
                 >
-                  Show me my gaps
+                  {scopedAssessment ? "Show scoped findings" : "Show me my gaps"}
                 </Button>
                 <Button
                   className="w-full"
@@ -1340,6 +1376,61 @@ export function IndustryOnboarding() {
         )}
       </Card>
     </div>
+  );
+}
+
+export function MappingScopeAttestation({
+  scope,
+  unresolvedRows,
+  scopedAssessment,
+  onChoose,
+}: {
+  scope?: MappingScope;
+  unresolvedRows: number;
+  scopedAssessment: boolean;
+  onChoose: (scope: MappingScope) => void;
+}) {
+  const options: readonly (readonly [MappingScope, string])[] = [
+    [
+      "whole_business",
+      "This roster includes everyone who handles or controls money across the whole business.",
+    ],
+    [
+      "one_location",
+      "This is a scoped map of one location; the rest of the business is not fully assessed.",
+    ],
+    [
+      "one_team",
+      "This is a scoped map of one team; the rest of the business is not fully assessed.",
+    ],
+  ];
+  return (
+    <fieldset className="space-y-2 rounded-xl border border-warn/40 bg-warn/10 p-4">
+      <legend className="px-1 text-sm font-medium">Confirm what this map covers</legend>
+      <p className="text-xs text-muted">
+        {unresolvedRows > 0
+          ? `${unresolvedRows.toLocaleString("en-US")} valid roster ${unresolvedRows === 1 ? "row is" : "rows are"} not in the review grid. Unknown or unresolved people earn no control credit.`
+          : "A workforce of 100 or more needs an explicit scope before Precog produces findings."}
+      </p>
+      {options.map(([value, label]) => (
+        <label key={value} className="flex items-start gap-2 text-xs">
+          <input
+            type="radio"
+            name="mapping_scope"
+            value={value}
+            checked={scope === value}
+            onChange={() => onChoose(value)}
+            className="mt-0.5 size-4"
+          />
+          <span>{label}</span>
+        </label>
+      ))}
+      {scope && scopedAssessment && (
+        <p role="status" className="text-xs font-medium text-warn">
+          Precog will produce a scoped map. People outside it are not fully assessed.
+        </p>
+      )}
+    </fieldset>
   );
 }
 

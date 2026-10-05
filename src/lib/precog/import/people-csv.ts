@@ -20,6 +20,10 @@ import { ROLE_TEMPLATES } from "../sod/role-templates";
 export interface PeopleImportResult {
   people: Person[];
   issues: ImportIssue[];
+  /** Candidate roster rows the importer actually examined. */
+  rowsRead: number;
+  /** Examined rows that could not become a person because required data was invalid. */
+  invalid: number;
   /** How each row's job title was read, for the review table after an import. */
   titles: TitleMapping[];
   /**
@@ -160,9 +164,11 @@ export function parsePeopleRows(
   const people: Person[] = [];
   const titles: TitleMapping[] = [];
   let duplicates = 0;
+  let invalid = 0;
   for (const { cells, row } of kept) {
     const read = readPerson(context, cells, row);
     if (read === "duplicate") duplicates += 1;
+    if (read === "skip") invalid += 1;
     if (typeof read === "string") continue;
     if ("position" in read) {
       titles.push(read.position);
@@ -176,6 +182,8 @@ export function parsePeopleRows(
   return {
     people,
     issues,
+    rowsRead: kept.length,
+    invalid,
     titles,
     removed,
     skipped,
@@ -296,6 +304,8 @@ export function emptyResult(issues: ImportIssue[], removed: Person[]): PeopleImp
   return {
     people: [],
     issues,
+    rowsRead: 0,
+    invalid: 0,
     titles: [],
     removed,
     skipped: 0,

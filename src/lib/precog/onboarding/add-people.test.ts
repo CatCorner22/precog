@@ -18,8 +18,11 @@ describe("applyPaste", () => {
       "general",
     );
     expect(applied.rows?.map((r) => r.name)).toEqual(["", "Ana Ruiz", "Ben Cole"]);
-    expect(applied.note).toBe(
-      "Added 2 people. Found 1 title in the catalog and ticked their duties; 1 title is not in the catalog: tick those duties below. The Owner row stays at the top with its duties ticked: type your name in it. Check every row: a title is a starting point, not a fact about your business.",
+    expect(applied.note).toContain(
+      "Rows read: 2. Duplicate or invalid rows: 0. Rows mapped now: 2. Rows still requiring action: 0.",
+    );
+    expect(applied.note).toContain(
+      "Added 2 people. Found 1 title in the catalog and ticked their duties",
     );
     expect(applied.keepPaste).toBe(false);
   });
@@ -58,7 +61,10 @@ describe("applyPaste", () => {
     );
     expect(applied.rows).toBeNull();
     expect(applied.keepPaste).toBe(true);
-    expect(applied.note).toBe(
+    expect(applied.note).toContain(
+      "Rows read: 2. Duplicate or invalid rows: 0. Rows mapped now: 0. Rows still requiring action: 0.",
+    );
+    expect(applied.note).toContain(
       "The paste marks all 2 people as having left, so the table adds none of them: Bo Chen and Al Wu.",
     );
     expect(applied.leftOut.map((who) => who.name)).toEqual(["Bo Chen", "Al Wu"]);
