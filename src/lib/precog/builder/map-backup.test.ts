@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { mapBackupJson, parseMapBackup } from "./map-backup";
+import {
+  mapBackupJson,
+  mapBackupSizeRefusal,
+  MAX_MAP_BACKUP_BYTES,
+  parseMapBackup,
+} from "./map-backup";
 import { resolveTemplate } from "../active-template";
 import { defaultProfile } from "../practice-profile";
 import { enrichProcess } from "../process-graph";
@@ -64,5 +69,13 @@ describe("parseMapBackup", () => {
     expect(() => parseMapBackup({ processes: [] })).toThrow(/no processes/);
     expect(() => parseMapBackup("text")).toThrow(/no processes/);
     expect(() => parseMapBackup({ processes: [{ name: "No id" }] })).toThrow(/id and a name/);
+  });
+
+  it("refuses a file past the import size with its size and the limit", () => {
+    expect(mapBackupSizeRefusal(1024)).toBeNull();
+    expect(mapBackupSizeRefusal(MAX_MAP_BACKUP_BYTES)).toBeNull();
+    expect(mapBackupSizeRefusal(MAX_MAP_BACKUP_BYTES + 1)).toBe(
+      "This file is too large to import (3 MB; the limit is 2 MB). Export a smaller map, or split it first.",
+    );
   });
 });
