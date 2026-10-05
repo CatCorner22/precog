@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- navigation helpers share this small shell */
 import { forwardRef, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
