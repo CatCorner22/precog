@@ -77,7 +77,15 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       const e = await loadEntitlements(sql, context.userId);
       const held = await countClients(sql, context.userId, firm);
       if (held >= e.clientLimit) {
-        throw new RequestError(402, businessLimitMessage({ plan: e.plan, limit: e.clientLimit }));
+        throw new RequestError(
+          402,
+          businessLimitMessage({
+            plan: e.plan,
+            limit: e.clientLimit,
+            tier: e.tier,
+            asMember: firm !== null && firm.role !== "owner",
+          }),
+        );
       }
     }
 

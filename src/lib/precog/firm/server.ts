@@ -776,7 +776,12 @@ export const restoreDeletedClient = createServerFn({ method: "POST" })
     if (held >= e.clientLimit) {
       throw new RequestError(
         402,
-        businessLimitMessage({ plan: e.plan, limit: e.clientLimit, tier: e.tier }),
+        businessLimitMessage({
+          plan: e.plan,
+          limit: e.clientLimit,
+          tier: e.tier,
+          asMember: firm !== null && firm.role !== "owner",
+        }),
       );
     }
     const restored = await restoreBusinessRow(
