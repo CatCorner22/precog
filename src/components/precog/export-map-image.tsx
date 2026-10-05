@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { getViewportForBounds, useReactFlow } from "@xyflow/react";
-import { toPng } from "html-to-image";
 import { toast } from "sonner";
 import { ImageDown, Loader2 } from "lucide-react";
 import { downloadUrl } from "@/lib/download";
@@ -27,6 +26,8 @@ export function ExportMapImageButton({
     try {
       const bounds = getNodesBounds(getNodes());
       const vp = getViewportForBounds(bounds, EXPORT_W, EXPORT_H, 0.3, 2, 0.08);
+      // html-to-image is only needed when someone exports, so it stays out of the map's first load.
+      const { toPng } = await import("html-to-image");
       const dataUrl = await toPng(viewport, {
         backgroundColor: background,
         width: EXPORT_W,

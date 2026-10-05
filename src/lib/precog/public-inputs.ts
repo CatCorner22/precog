@@ -1,5 +1,5 @@
 import { POLICY_FIELDS } from "./scoring/insurance-record";
-import { z } from "zod";
+import * as z from "zod/mini";
 import { invalidRequest } from "@/lib/request-errors";
 import type { ReviewInput } from "./builder/review";
 import type { SuggestionInput } from "./builder/suggest";
@@ -20,32 +20,40 @@ import { PIONEER_LIST_CAPS } from "./coach/pioneer-caps";
  * request the app itself sends is read exactly as before.
  */
 
-function parse<T extends z.ZodType>(schema: T, input: unknown): z.output<T> {
-  const parsed = schema.safeParse(input);
+function parse<T extends z.ZodMiniType>(schema: T, input: unknown): z.output<T> {
+  const parsed = z.safeParse(schema, input);
   if (!parsed.success) throw invalidRequest();
   return parsed.data;
 }
 
 /** A text field: a string, number or boolean, read as text and cut to `max` characters. */
 const text = (max: number) =>
-  z.union([z.string(), z.number(), z.boolean()]).transform((v) => String(v).slice(0, max));
+  z.pipe(
+    z.union([z.string(), z.number(), z.boolean()]),
+    z.transform((v) => String(v).slice(0, max)),
+  );
 
 /** Any JS number, NaN and infinities included, as the earlier validators passed it through. */
 const anyNumber = z.custom<number>((v) => typeof v === "number");
 
 /** A number field: any number (NaN and infinities are clamped by the caller), or numeric text. */
-const numeric = z.union([anyNumber, z.string(), z.boolean()]).transform((v) => Number(v));
+const numeric = z.pipe(
+  z.union([anyNumber, z.string(), z.boolean()]),
+  z.transform((v) => Number(v)),
+);
 
 /**
  * A list that keeps its first `keep` entries (as the earlier validators did)
  * and refuses more than `hardMax`, checking only the entries it keeps.
  */
-function list<T extends z.ZodType>(item: T, keep: number, hardMax = 5_000) {
-  return z
-    .array(z.unknown())
-    .max(hardMax)
-    .transform((entries) => entries.slice(0, keep))
-    .pipe(z.array(item));
+function list<T extends z.ZodMiniType>(item: T, keep: number, hardMax = 5_000) {
+  return z.pipe(
+    z.pipe(
+      z.array(z.unknown()).check(z.maxLength(hardMax)),
+      z.transform((entries) => entries.slice(0, keep)),
+    ),
+    z.array(item),
+  );
 }
 
 /** The earlier `Math.max(min, Math.min(max, Number(x) || fallback))`, unchanged. */
@@ -55,8 +63,8 @@ const bound = (value: number | null | undefined, min: number, max: number, fallb
 // ---------------------------------------------------------------- loadMapShare
 
 const loadShareSchema = z.object({
-  token: z.string().max(256),
-  passcode: z.string().max(256).nullish(),
+  token: z.string().check(z.maxLength(256)),
+  passcode: z.nullish(z.string().check(z.maxLength(256))),
 });
 
 export function parseLoadShareInput(input: unknown): { token: string; passcode?: string } {
@@ -67,13 +75,13 @@ export function parseLoadShareInput(input: unknown): { token: string; passcode?:
 // ----------------------------------------------------------- suggestForProcess
 
 const suggestionSchema = z.object({
-  processName: text(80).nullish(),
-  description: text(400).nullish(),
-  industryLabel: text(60).nullish(),
-  existingRiskTitles: list(text(200), 20).nullish(),
-  existingIdeaTitles: list(text(200), 20).nullish(),
-  availableControls: list(z.object({ id: text(80), name: text(80) }), 30).nullish(),
-  ownerRoles: list(text(80), 10).nullish(),
+  processName: z.nullish(text(80)),
+  description: z.nullish(text(400)),
+  industryLabel: z.nullish(text(60)),
+  existingRiskTitles: z.nullish(list(text(200), 20)),
+  existingIdeaTitles: z.nullish(list(text(200), 20)),
+  availableControls: z.nullish(list(z.object({ id: text(80), name: text(80) }), 30)),
+  ownerRoles: z.nullish(list(text(80), 10)),
 });
 
 export function parseSuggestionInput(input: unknown): SuggestionInput {
@@ -92,11 +100,11 @@ export function parseSuggestionInput(input: unknown): SuggestionInput {
 // --------------------------------------------------------- draftProcedureSteps
 
 const procedureDraftSchema = z.object({
-  title: text(120).nullish(),
-  placeName: text(80).nullish(),
-  module: text(120).nullish(),
-  notes: text(DRAFT_NOTES_MAX).nullish(),
-  industryLabel: text(60).nullish(),
+  title: z.nullish(text(120)),
+  placeName: z.nullish(text(80)),
+  module: z.nullish(text(120)),
+  notes: z.nullish(text(DRAFT_NOTES_MAX)),
+  industryLabel: z.nullish(text(60)),
 });
 
 export function parseProcedureDraftInput(input: unknown): ProcedureDraftInput {
@@ -112,40 +120,40 @@ export function parseProcedureDraftInput(input: unknown): ProcedureDraftInput {
 
 // ------------------------------------------------------------------- reviewMap
 
+const optNumeric = z.nullish(numeric);
+
 const reviewProcessSchema = z.object({
   id: text(60),
   name: text(80),
-  stage: numeric.nullish(),
-  owners: list(text(60), 6).nullish(),
-  controls: list(text(80), 8).nullish(),
-  riskTitles: list(text(80).nullish(), 4).nullish(),
-  fraudRisks: numeric.nullish(),
-  heat: numeric.nullish(),
-  dependencyCount: numeric.nullish(),
-  openSodGaps: numeric.nullish(),
+  stage: optNumeric,
+  owners: z.nullish(list(text(60), 6)),
+  controls: z.nullish(list(text(80), 8)),
+  riskTitles: z.nullish(list(z.nullish(text(80)), 4)),
+  fraudRisks: optNumeric,
+  heat: optNumeric,
+  dependencyCount: optNumeric,
+  openSodGaps: optNumeric,
 });
 
 const reviewSchema = z.object({
-  businessName: text(80).nullish(),
-  industryLabel: text(60).nullish(),
-  teamSize: numeric.nullish(),
-  health: z
-    .object({
-      score: numeric.nullish(),
-      band: text(30).nullish(),
-      dimensions: list(
-        z.object({ label: text(30), score: numeric.nullish(), hint: text(80).nullish() }),
-        6,
-      ).nullish(),
-    })
-    .nullish(),
-  processes: list(reviewProcessSchema, 40).nullish(),
-  issues: list(text(160), 10).nullish(),
-  overburdened: list(
-    z.object({ name: text(60), role: text(80), flags: list(text(80), 4).nullish() }),
-    4,
-  ).nullish(),
-  unownedProcesses: list(text(80), 10).nullish(),
+  businessName: z.nullish(text(80)),
+  industryLabel: z.nullish(text(60)),
+  teamSize: optNumeric,
+  health: z.nullish(
+    z.object({
+      score: optNumeric,
+      band: z.nullish(text(30)),
+      dimensions: z.nullish(
+        list(z.object({ label: text(30), score: optNumeric, hint: z.nullish(text(80)) }), 6),
+      ),
+    }),
+  ),
+  processes: z.nullish(list(reviewProcessSchema, 40)),
+  issues: z.nullish(list(text(160), 10)),
+  overburdened: z.nullish(
+    list(z.object({ name: text(60), role: text(80), flags: z.nullish(list(text(80), 4)) }), 4),
+  ),
+  unownedProcesses: z.nullish(list(text(80), 10)),
 });
 
 export function parseReviewInput(input: unknown): ReviewInput {
@@ -190,9 +198,11 @@ export function parseReviewInput(input: unknown): ReviewInput {
 /** Largest lists Pioneer reads; pioneerProfileFrom applies the same caps. */
 export { PIONEER_LIST_CAPS };
 
-const optString = z.string().nullish();
-const stringList = z.array(z.unknown()).nullish();
-const objectList = z.array(z.looseObject({})).nullish();
+const optString = z.nullish(z.string());
+const optBoolean = z.nullish(z.boolean());
+const optNumber = z.nullish(anyNumber);
+const stringList = z.nullish(z.array(z.unknown()));
+const objectList = z.nullish(z.array(z.looseObject({})));
 
 /**
  * Entries of the custom lists: an object with a string id, and the fields the
@@ -203,12 +213,12 @@ const personSchema = z.looseObject({
   id: z.string(),
   name: optString,
   role: optString,
-  active: z.boolean().nullish(),
-  tenureYears: anyNumber.nullish(),
+  active: optBoolean,
+  tenureYears: optNumber,
   lastDay: optString,
   entitlements: stringList,
   department: optString,
-  owner: z.boolean().nullish(),
+  owner: optBoolean,
 });
 
 const processSchema = z.looseObject({
@@ -218,7 +228,7 @@ const processSchema = z.looseObject({
   description: optString,
   dependencies: stringList,
   controlIds: stringList,
-  stage: anyNumber.nullish(),
+  stage: optNumber,
   ownerPersonIds: stringList,
   risks: objectList,
   ideas: objectList,
@@ -228,7 +238,7 @@ const processSchema = z.looseObject({
   evidence: objectList,
   cadence: optString,
   systems: stringList,
-  documented: z.boolean().nullish(),
+  documented: optBoolean,
   procedureLocation: optString,
 });
 
@@ -240,7 +250,7 @@ const knowledgeSchema = z.looseObject({
   description: optString,
   linkedProcessIds: stringList,
   kind: optString,
-  documented: z.boolean().nullish(),
+  documented: optBoolean,
   procedureLocation: optString,
   confirmedAt: optString,
 });
@@ -252,52 +262,52 @@ const relationSchema = z.looseObject({
 });
 
 const staffSchema = z.looseObject({
-  teamSize: anyNumber.nullish(),
-  soleOwnerKnowledgeCount: anyNumber.nullish(),
-  avgTenureYears: anyNumber.nullish(),
-  segregationScore: anyNumber.nullish(),
-  dualControlPayments: z.boolean().nullish(),
-  independentBankRec: z.boolean().nullish(),
+  teamSize: optNumber,
+  soleOwnerKnowledgeCount: optNumber,
+  avgTenureYears: optNumber,
+  segregationScore: optNumber,
+  dualControlPayments: optBoolean,
+  independentBankRec: optBoolean,
   segregationSource: optString,
   bankRecSource: optString,
 });
 
+const insuranceSchema = z.object({
+  status: z.enum(["unknown", "none", "reported"]),
+  confirmedFields: z.array(z.enum(POLICY_FIELDS)).check(z.maxLength(POLICY_FIELDS.length)),
+  modeledScenarioIds: z.array(z.string().check(z.maxLength(100))).check(z.maxLength(500)),
+  source: z.optional(z.string().check(z.maxLength(240))),
+  reviewedOn: z.optional(z.string().check(z.maxLength(10))),
+});
+
+const riskVariablesSchema = z.catchall(
+  z.object({ insurance: z.nullish(insuranceSchema) }),
+  z.nullable(z.union([anyNumber, z.boolean()])),
+);
+
 const pioneerProfileSchema = z.looseObject({
   industry: optString,
   practiceName: optString,
-  staff: staffSchema.nullish(),
-  riskVariables: z
-    .object({
-      insurance: z
-        .object({
-          status: z.enum(["unknown", "none", "reported"]),
-          confirmedFields: z.array(z.enum(POLICY_FIELDS)).max(POLICY_FIELDS.length),
-          modeledScenarioIds: z.array(z.string().max(100)).max(500),
-          source: z.string().max(240).optional(),
-          reviewedOn: z.string().max(10).optional(),
-        })
-        .nullish(),
-    })
-    .catchall(z.union([anyNumber, z.boolean()]).nullable())
-    .nullish(),
-  dualRelease: z.looseObject({}).nullish(),
-  customProcesses: list(processSchema, PIONEER_LIST_CAPS.nodes).nullish(),
-  customPeople: list(personSchema, PIONEER_LIST_CAPS.nodes).nullish(),
-  customKnowledge: list(knowledgeSchema, PIONEER_LIST_CAPS.nodes).nullish(),
+  staff: z.nullish(staffSchema),
+  riskVariables: z.nullish(riskVariablesSchema),
+  dualRelease: z.nullish(z.looseObject({})),
+  customProcesses: z.nullish(list(processSchema, PIONEER_LIST_CAPS.nodes)),
+  customPeople: z.nullish(list(personSchema, PIONEER_LIST_CAPS.nodes)),
+  customKnowledge: z.nullish(list(knowledgeSchema, PIONEER_LIST_CAPS.nodes)),
   // Refused past 5,000 (the list default) before any entry is parsed; Precog
   // sends at most the 2,500 Pioneer keeps.
-  customRelations: list(relationSchema, PIONEER_LIST_CAPS.relations).nullish(),
+  customRelations: z.nullish(list(relationSchema, PIONEER_LIST_CAPS.relations)),
   // Journal entries and absences are rebuilt field by field downstream.
-  decisions: list(z.unknown(), PIONEER_LIST_CAPS.decisions).nullish(),
-  plannedAbsences: list(z.unknown(), PIONEER_LIST_CAPS.absences).nullish(),
+  decisions: z.nullish(list(z.unknown(), PIONEER_LIST_CAPS.decisions)),
+  plannedAbsences: z.nullish(list(z.unknown(), PIONEER_LIST_CAPS.absences)),
   // Links only (id, title, register items); rebuilt field by field downstream.
-  procedureLinks: list(z.unknown(), PIONEER_LIST_CAPS.procedures).nullish(),
+  procedureLinks: z.nullish(list(z.unknown(), PIONEER_LIST_CAPS.procedures)),
 });
 
 const pioneerSchema = z.object({
-  question: z.string().nullish(),
-  profile: pioneerProfileSchema.nullish(),
-  today: z.string().max(40).nullish(),
+  question: z.nullish(z.string()),
+  profile: z.nullish(pioneerProfileSchema),
+  today: z.nullish(z.string().check(z.maxLength(40))),
 });
 
 interface PioneerRequest {
