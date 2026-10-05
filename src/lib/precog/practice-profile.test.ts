@@ -189,6 +189,25 @@ describe("normalizeProfile treats a stored copy as untrusted input", () => {
     expect(loaded.mapLayout).toEqual({ a: { x: 1, y: 2 } });
   });
 
+  it("normalizes duplicate relations once and keeps that result on a storage round trip", () => {
+    const stored = own({
+      customRelations: [
+        { personId: "a", knowledgeId: "k", level: "aware" },
+        { personId: "b", knowledgeId: "k", level: "expert" },
+        { personId: "a", knowledgeId: "k", level: "basic" },
+        { personId: "a", knowledgeId: "k", level: "proficient" },
+      ],
+    });
+    const loaded = normalizeProfile(stored);
+    expect(loaded.customRelations).toEqual([
+      { personId: "a", knowledgeId: "k", level: "proficient" },
+      { personId: "b", knowledgeId: "k", level: "expert" },
+    ]);
+
+    const again = normalizeProfile(JSON.parse(JSON.stringify(loaded)));
+    expect(again.customRelations).toEqual(loaded.customRelations);
+  });
+
   it("clamps staff figures and filters unknown decision kinds", () => {
     const loaded = normalizeProfile(
       own({
