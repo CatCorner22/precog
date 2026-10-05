@@ -189,13 +189,13 @@ export function engagementArchiveDocument(input: ArchiveInput): string {
         .map((cells) => `<tr>${cells}</tr>`)
         .join("")}</tbody></table>`
     : `<p>${esc(ARCHIVE_NO_REVIEWS)}</p>`;
+  // The rendered report's own header prints the version's provenance line,
+  // as the version's page does, so the archive adds no second one.
   const versions = input.versions.length
     ? input.versions
         .map(
           (v) =>
-            `<article class="archive-version" data-version="${v.version.versionNo}"><p class="archive-provenance">${esc(
-              versionProvenance(v.version),
-            )}</p>${v.markup}</article>`,
+            `<article class="archive-version" data-version="${v.version.versionNo}">${v.markup}</article>`,
         )
         .join("")
     : `<p>${esc(ARCHIVE_NO_VERSIONS)}</p>`;
@@ -228,8 +228,7 @@ export function engagementArchiveDocument(input: ArchiveInput): string {
     ".archive-head{max-width:56rem;margin:2rem auto;padding:0 1.5rem;font-family:system-ui,sans-serif;color:#171717}",
     ".archive-head table{border-collapse:collapse;width:100%;font-size:.875rem}",
     ".archive-head th,.archive-head td{border:1px solid #d4d4d4;padding:.35rem .5rem;text-align:left;vertical-align:top}",
-    ".archive-version{break-before:page;border-top:2px solid #d4d4d4;margin-top:2rem}",
-    ".archive-provenance{max-width:56rem;margin:1rem auto;padding:0 1.5rem;font:600 .875rem system-ui,sans-serif}</style>",
+    ".archive-version{break-before:page;border-top:2px solid #d4d4d4;margin-top:2rem}</style>",
     "</head><body>",
     '<div class="archive-head">',
     `<h1>Engagement archive: ${esc(business)}</h1>`,

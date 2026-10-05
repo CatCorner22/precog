@@ -284,14 +284,16 @@ describe("the engagement archive", () => {
         .join(""),
     );
 
-    // One rendered version per locked version, each after its provenance line.
+    // One rendered version per locked version. Each prints its provenance
+    // line once, in the report's own header, as the version's page prints it.
     expect(html.match(/<article class="archive-version"/g)).toHaveLength(2);
-    expect(html).toContain(
-      '<p class="archive-provenance">Version 1 · Prepared by Ada Park on Jan 2, 2026 · Reviewed for issuance by Ben Ortiz on Jan 3, 2026</p>',
-    );
-    expect(html).toContain(
-      '<p class="archive-provenance">Version 2 · Prepared by Ada Park on Feb 2, 2026 · Not yet reviewed</p>',
-    );
+    const printed = html.replace(/<script type="application\/json"[\s\S]*?<\/script>/, "");
+    for (const line of [
+      "Version 1 · Prepared by Ada Park on Jan 2, 2026 · Reviewed for issuance by Ben Ortiz on Jan 3, 2026",
+      "Version 2 · Prepared by Ada Park on Feb 2, 2026 · Not yet reviewed",
+    ]) {
+      expect(printed.split(line).length - 1).toBe(1);
+    }
     expect(html.match(/North Advisors/g)?.length).toBeGreaterThanOrEqual(2);
     // Printed as a share link prints it: no toolbar back into Precog.
     expect(html).not.toContain("Back to Precog");
@@ -393,7 +395,7 @@ describe("the engagement archive", () => {
 
     const { saved } = await build([v], { frozen: () => null, reportProfile: whole });
     const html = saved[0].html;
-    expect(html).toContain(`</p>${own}</article>`);
+    expect(html).toContain(`data-version="1">${own}</article>`);
     expect(archiveJson(html).versions[0].model).toBeNull();
   });
 
