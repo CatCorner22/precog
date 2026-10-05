@@ -109,7 +109,9 @@ describe("reloading in the middle of setup", () => {
         actor: "advisor",
         workforceBand: "100-249",
         locationBand: "6-20",
+        mappingScope: "one_team",
         setupMethod: "roster_import",
+        unresolvedRows: 60,
         answers: { runs_payroll: "unknown", holds_inventory: "sometimes" },
       }),
     );
@@ -120,7 +122,9 @@ describe("reloading in the middle of setup", () => {
       actor: "advisor",
       workforceBand: "100-249",
       locationBand: "6-20",
+      mappingScope: "one_team",
       setupMethod: "roster_import",
+      unresolvedRows: 60,
       answers: { runs_payroll: "unknown" },
     });
   });

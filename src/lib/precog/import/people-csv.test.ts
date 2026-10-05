@@ -72,6 +72,8 @@ describe("parsePeopleCsv", () => {
     expect(parsePeopleCsv("role,active\nManager,true", dental)).toEqual({
       people: [],
       issues: [{ row: 0, message: "Missing a name column (header: role, active)" }],
+      rowsRead: 0,
+      invalid: 0,
       titles: [],
       removed: [],
       skipped: 0,
@@ -154,6 +156,17 @@ describe("parsePeopleCsv", () => {
       message: "This import reads the first 2 rows; it did not read 1 more row",
     });
     expect(result.dropped).toBe(1);
+  });
+
+  it("reports exactly how many roster rows were examined, duplicated, and invalid", () => {
+    const result = parsePeopleCsv(
+      "name,role\nAna Ruiz,Owner\nAna Ruiz,Owner\n,Bookkeeper\nBen Cole,Cashier",
+      dental,
+    );
+    expect(result.rowsRead).toBe(4);
+    expect(result.duplicates).toBe(1);
+    expect(result.invalid).toBe(1);
+    expect(result.people.map((person) => person.name)).toEqual(["Ana Ruiz", "Ben Cole"]);
   });
 
   it("round-trips people through CSV", () => {
