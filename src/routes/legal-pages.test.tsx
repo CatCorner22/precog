@@ -121,6 +121,16 @@ describe("Terms", () => {
     );
   });
 
+  it("says, where it describes the firm workspace, that the plan can be yearly and paid by bank", () => {
+    expect(html).toContain(
+      "a pilot offer (a fixed assessment that can convert to a monthly or yearly Firm plan)",
+    );
+    expect(html).toContain(
+      "A firm can pay for the assessment or the Firm plan through Stripe’s checkout. Stripe takes the card or bank account; Precog never sees the card or account number.",
+    );
+    expect(html).not.toContain("Stripe takes the card;");
+  });
+
   it("says the Assessment fee is credited once and that a departing member's clients move", () => {
     expect(html).toContain(
       "An Assessment fee that has not been refunded is credited once, before tax, against the Firm plan&#x27;s invoices when the account that paid it first starts the Firm plan.",

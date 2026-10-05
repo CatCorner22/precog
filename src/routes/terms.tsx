@@ -65,10 +65,10 @@ function TermsPage() {
         </p>
         <p>
           The firm workspace records a pilot offer (a fixed assessment that can convert to a monthly
-          firm plan), time to a complete map, how many gaps received a decision, and whether you
-          marked a report sent. A firm can pay for the assessment or the firm plan through Stripe’s
-          checkout. Stripe takes the card; Precog never sees a card number. An invoice you mark by
-          hand is your own record.
+          or yearly Firm plan), time to a complete map, how many gaps received a decision, and
+          whether you marked a report sent. A firm can pay for the assessment or the Firm plan
+          through Stripe’s checkout. Stripe takes the card or bank account; Precog never sees the
+          card or account number. An invoice you mark by hand is your own record.
         </p>
         <p>
           You are responsible for the accuracy of what you enter, for who you share a link with, and
