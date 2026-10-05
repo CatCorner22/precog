@@ -241,6 +241,15 @@ describe("Privacy", () => {
     expect(html).toContain("seven days from last use; end them from Sessions in the account menu");
   });
 
+  it("says how long a session lasts and what each model call leaves behind", () => {
+    expect(html).toContain(
+      "The session cookie stays with Precog. A session lasts seven days from its last use; Sessions in the account menu lists your signed-in devices and ends them.",
+    );
+    expect(html).toContain(
+      "The count holds no question or reply. Precog also keeps, for each model call, the feature, the model and the token counts, without the question or the answer, for 13 months.",
+    );
+  });
+
   it("says what Precog notes about an account, who gets a service email, and what moves", () => {
     expect(html).toContain(
       "Precog also notes the day you first set up a business, first locked a report version, first marked a report sent and first recorded a monthly review, so Precog&#x27;s operator can see whether new accounts get started. That note holds no names and no text you entered, and no analytics script runs in your browser.",

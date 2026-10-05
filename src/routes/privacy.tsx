@@ -178,10 +178,11 @@ function PrivacyPage() {
           Sign-in uses Google or X through Precog’s auth broker, operated by {AUTH_BROKER_OPERATOR},
           or an email and password that Precog keeps. For an email account the database holds your
           name, your email address, and a hash of the password, never the password itself. The
-          session cookie stays with Precog. A signed-in save stores the business profile, assessment
-          snapshots, and firm workspace (firm name, client list, engagement stamps, and the monthly
-          review log) in the database, tied to your account. Another customer’s account cannot read
-          them.
+          session cookie stays with Precog. A session lasts seven days from its last use; Sessions
+          in the account menu lists your signed-in devices and ends them. A signed-in save stores
+          the business profile, assessment snapshots, and firm workspace (firm name, client list,
+          engagement stamps, and the monthly review log) in the database, tied to your account.
+          Another customer’s account cannot read them.
         </p>
         <p>
           Precog also notes the day you first set up a business, first locked a report version,
@@ -312,8 +313,9 @@ function PrivacyPage() {
         <p>
           Precog counts model calls per account, per day, and, where it can tell, per network
           address, which it keeps only as a one-way hash, to cap their use. The count holds no
-          question or reply. Do not paste patient, customer, or account numbers into notes or
-          questions.
+          question or reply. Precog also keeps, for each model call, the feature, the model and the
+          token counts, without the question or the answer, for {MODEL_CALL_RECORD_MONTHS} months.
+          Do not paste patient, customer, or account numbers into notes or questions.
         </p>
         <p>
           Precog does not use what you enter to train a model, and sends xAI nothing for training.
