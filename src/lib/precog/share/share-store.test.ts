@@ -265,6 +265,19 @@ describe("revoking links with the business and the firm", () => {
     expect(await shareStillReachable(sql, tok(2))).toBe(true);
   });
 
+  it("keeps a departing member's links to their own business they shared with the firm", async () => {
+    await pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id, granted_at)
+        values ('prep_own', 'prep', 'Prep Own', 'dental', '{}'::jsonb, 1, 'owner', now());
+    `);
+    await linkTo(tok(1), "prep", "prep", "prep_own"); // the member's link to their own shared business
+    await linkTo(tok(2), "prep", "prep", "prep_biz"); // the member's link to a client they set up
+    await removeMember(sql, "owner", "prep");
+    expect([await revoked(tok(1)), await revoked(tok(2))]).toEqual([false, true]);
+    // The shared business stays the member's, so the link still serves.
+    expect(await shareStillReachable(sql, tok(1))).toBe(true);
+  });
+
   it("does the same when the member leaves", async () => {
     await linkTo(tok(1), "prep", "owner", "own_biz");
     await leaveFirm(sql, "owner", "prep");

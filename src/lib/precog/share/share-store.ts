@@ -370,7 +370,9 @@ export async function revokeBusinessShares(
  * the firm's clients, the ones they set up included (those stay with the
  * firm, and the member loses access), and the member's links made before
  * links recorded their business (which cannot be told apart). Colleagues'
- * links to the clients the member set up keep working. Run before the
+ * links to the clients the member set up keep working, and so do the
+ * member's links to their own business they shared with the firm, which
+ * stays theirs (decision 29). Run before the
  * member's clients are handed to the owner, while the rows still name them.
  */
 export async function revokeDepartingMemberShares(
@@ -388,6 +390,9 @@ export async function revokeDepartingMemberShares(
           select 1 from businesses b
           where b.user_id = s.business_owner_id and b.id = s.business_id
             and b.firm_user_id = ${firmUserId}
+            -- The member's own business, shared with the firm, stays theirs
+            -- when they go, and so do their links to it.
+            and not (b.granted_at is not null and b.user_id = ${memberUserId})
         )
       )
   `;
