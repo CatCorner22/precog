@@ -296,30 +296,46 @@ export async function loadReportShareRow(sql: Sql, token: string): Promise<Repor
   };
 }
 
+/** What a revoke did, and the business the link copies (null on a link made before links recorded it). */
+export interface RevokedShare {
+  outcome: "revoked" | "already";
+  businessOwnerId: string | null;
+  businessId: string | null;
+}
+
 /**
  * Revokes one link for the account that made it, or for the firm owner when
  * the link copies one of the firm's clients (`firmOwnerReaches`), and says
  * whether this call ended the link: "revoked" when it was live until now,
  * "already" when it was revoked before, null when the caller may not revoke
  * it (or it does not exist). The row lock makes two revokes at once read one
- * "revoked" and one "already".
+ * "revoked" and one "already". The business comes from the row the update
+ * touched, for the activity log.
  */
 export async function revokeShareOnce(
   sql: Sql,
   userId: string,
   token: string,
-): Promise<"revoked" | "already" | null> {
-  const rows = await sql.query<{ was_live: boolean }>(
+): Promise<RevokedShare | null> {
+  const rows = await sql.query<{
+    was_live: boolean;
+    business_owner_id: string | null;
+    business_id: string | null;
+  }>(
     `update map_shares s set revoked_at = coalesce(s.revoked_at, now())
      from (select token, revoked_at from map_shares where token = $1 for update) prev
      where s.token = prev.token
        and (s.user_id = $2 or ${firmOwnerReaches("$2")})
-     returning prev.revoked_at is null as was_live`,
+     returning prev.revoked_at is null as was_live, s.business_owner_id, s.business_id`,
     [token, userId],
   );
   const row = rows[0];
   if (!row) return null;
-  return row.was_live ? "revoked" : "already";
+  return {
+    outcome: row.was_live ? "revoked" : "already",
+    businessOwnerId: row.business_owner_id,
+    businessId: row.business_id,
+  };
 }
 
 /**

@@ -16,7 +16,8 @@ import {
   shareStillReachable,
   type NewMapShare,
 } from "./share-store";
-import { createReportShare } from "./share-server";
+import { toSql } from "@/lib/sql-transaction";
+import { createReportShare, revokeMapShare } from "./share-server";
 
 // createReportShare runs as a plain handler: the validator, then the handler
 // with the caller's id, against this file's PGlite.
@@ -47,6 +48,10 @@ type ShareCall = (args: {
 }) => Promise<{ token: string }>;
 const shareReport = (userId: string, versionId: string) =>
   (createReportShare as unknown as ShareCall)({ context: { userId }, data: { versionId } });
+type RevokeCall = (args: {
+  context: { userId: string };
+  data: { token: string };
+}) => Promise<{ ok: true }>;
 
 let db: TestDb;
 
@@ -352,6 +357,38 @@ describe("sharing a locked report version", () => {
     );
     expect(revoked.rows[0].r).toBe(true);
     expect(await shareStillReachable(db.sql, token(1))).toBe(false);
+  });
+
+  it("revokes a link from the share panel in one statement, and logs only the call that ended it", async () => {
+    await lock("prep", "client", "rv_1");
+    await review("rv_1");
+    await reportLink(token(1), "prep", "rv_1");
+    /** The statements one revoke runs that read or write map_shares. */
+    const revokeAs = async (userId: string) => {
+      const texts: string[] = [];
+      ref.db = {
+        sql: toSql(async (text, params) => {
+          texts.push(text);
+          return db.sql.query(text, params);
+        }),
+      };
+      try {
+        await (revokeMapShare as unknown as RevokeCall)({
+          context: { userId },
+          data: { token: token(1) },
+        });
+      } finally {
+        ref.db = db;
+      }
+      return texts.filter((t) => /\bmap_shares\b/.test(t));
+    };
+    expect(await revokeAs("owner")).toHaveLength(1);
+    // A repeat (a double click, a retry) changes nothing and logs nothing.
+    expect(await revokeAs("prep")).toHaveLength(1);
+    const logged = await db.pg.query<{ actor_user_id: string; business_id: string }>(
+      "select actor_user_id, business_id from firm_audit_log where event = 'share_revoked'",
+    );
+    expect(logged.rows).toEqual([{ actor_user_id: "owner", business_id: "client" }]);
   });
 
   it("revokes a departing member's report links", async () => {

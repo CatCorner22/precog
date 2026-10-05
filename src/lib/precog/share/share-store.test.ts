@@ -207,15 +207,18 @@ describe("revoking links with the business and the firm", () => {
         [token],
       )
     ).rows[0].r;
+  /** What revoking `token` as `userId` says: "revoked", "already" or null. */
+  const revoke = async (userId: string, token: string) =>
+    (await revokeShareOnce(sql, userId, token))?.outcome ?? null;
 
   it("lets the firm owner list and revoke a colleague's link to a firm client, and nobody else", async () => {
     await linkTo(tok(1), "prep", "owner", "own_biz");
     const listed = await listMapShareSummaries(sql, "owner");
     expect(listed.map((l) => [l.token, l.createdBy])).toEqual([[tok(1), "prep"]]);
     expect(await listMapShareSummaries(sql, "outsider")).toEqual([]);
-    expect(await revokeShareOnce(sql, "outsider", tok(1))).toBe(null);
+    expect(await revoke("outsider", tok(1))).toBe(null);
     expect(await revoked(tok(1))).toBe(false);
-    expect(await revokeShareOnce(sql, "owner", tok(1))).toBe("revoked");
+    expect(await revoke("owner", tok(1))).toBe("revoked");
     expect(await revoked(tok(1))).toBe(true);
   });
 
@@ -237,33 +240,53 @@ describe("revoking links with the business and the firm", () => {
     await pg.query("update map_shares set revoked_at = now() where token = $1", [tok(3)]);
     // The firm owner lists and revokes the firm's link, never the owner's own, live or past.
     expect((await listMapShareSummaries(sql, "owner")).map((l) => l.token)).toEqual([tok(2)]);
-    expect(await revokeShareOnce(sql, "owner", tok(1))).toBe(null);
+    expect(await revoke("owner", tok(1))).toBe(null);
     expect(await revoked(tok(1))).toBe(false);
-    expect(await revokeShareOnce(sql, "owner", tok(2))).toBe("revoked");
+    expect(await revoke("owner", tok(2))).toBe("revoked");
     // The business's own account keeps listing and revoking its links.
     expect((await listMapShareSummaries(sql, "outsider")).map((l) => l.token).sort()).toEqual([
       tok(1),
       tok(3),
     ]);
-    expect(await revokeShareOnce(sql, "outsider", tok(1))).toBe("revoked");
+    expect(await revoke("outsider", tok(1))).toBe("revoked");
   });
 
   it("says whether a revoke ended a live link or found it revoked already", async () => {
     await linkTo(tok(1), "prep", "owner", "own_biz");
-    expect(await revokeShareOnce(sql, "outsider", tok(1))).toBe(null);
-    expect(await revokeShareOnce(sql, "prep", tok(1))).toBe("revoked");
+    expect(await revoke("outsider", tok(1))).toBe(null);
+    expect(await revoke("prep", tok(1))).toBe("revoked");
     const first = await pg.query<{ at: string }>(
       "select revoked_at::text as at from map_shares where token = $1",
       [tok(1)],
     );
-    expect(await revokeShareOnce(sql, "owner", tok(1))).toBe("already");
-    expect(await revokeShareOnce(sql, "prep", tok(1))).toBe("already");
+    expect(await revoke("owner", tok(1))).toBe("already");
+    expect(await revoke("prep", tok(1))).toBe("already");
     const again = await pg.query<{ at: string }>(
       "select revoked_at::text as at from map_shares where token = $1",
       [tok(1)],
     );
     expect(again.rows[0].at).toBe(first.rows[0].at);
-    expect(await revokeShareOnce(sql, "prep", tok(9))).toBe(null);
+    expect(await revoke("prep", tok(9))).toBe(null);
+  });
+
+  it("hands back the business the revoked link copies, for the activity log", async () => {
+    await linkTo(tok(1), "prep", "owner", "own_biz");
+    await insertMapShare(sql, newShare(tok(2), "prep")); // made before links named a business
+    expect(await revokeShareOnce(sql, "owner", tok(1))).toEqual({
+      outcome: "revoked",
+      businessOwnerId: "owner",
+      businessId: "own_biz",
+    });
+    expect(await revokeShareOnce(sql, "prep", tok(1))).toEqual({
+      outcome: "already",
+      businessOwnerId: "owner",
+      businessId: "own_biz",
+    });
+    expect(await revokeShareOnce(sql, "prep", tok(2))).toEqual({
+      outcome: "revoked",
+      businessOwnerId: null,
+      businessId: null,
+    });
   });
 
   it("shows the firm owner a colleague's revoked and expired links for audit", async () => {

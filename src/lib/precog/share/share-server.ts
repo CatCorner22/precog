@@ -238,16 +238,8 @@ export const revokeMapShare = createServerFn({ method: "POST" })
     // The maker, or the firm owner for a link to one of the firm's clients.
     // Only the call that ended a live link writes the log; a repeat writes nothing.
     const revoked = await revokeShareOnce(sql, context.userId, data.token);
-    const link =
-      revoked === "revoked"
-        ? await sql<{ business_owner_id: string | null; business_id: string | null }>`
-          select business_owner_id, business_id from map_shares where token = ${data.token}
-        `
-        : [];
-    const owner = link[0]?.business_owner_id;
-    const businessId = link[0]?.business_id;
-    if (owner && businessId) {
-      await recordAuditForBusiness(sql, owner, businessId, {
+    if (revoked?.outcome === "revoked" && revoked.businessOwnerId && revoked.businessId) {
+      await recordAuditForBusiness(sql, revoked.businessOwnerId, revoked.businessId, {
         actorUserId: context.userId,
         event: "share_revoked",
       });
