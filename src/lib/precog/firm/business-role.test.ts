@@ -31,6 +31,7 @@ vi.mock("@/lib/observability/report.server", () => ({
 
 const server = await import("./server");
 const review = await import("./review-server");
+const engagement = await import("./engagement-server");
 
 type Call = (args: {
   context: { userId: string };
@@ -119,6 +120,29 @@ describe("the firm's work on a business needs a role in that business's firm", (
     expect(await refusal(call(review.requestReportReview, "bo", { id: v.id }))).toEqual(refused);
     await call(server.signOffReport, "rv", { id: v.id });
     expect(await refusal(call(server.markReportSent, "bo", { id: v.id }))).toEqual(refused);
+  });
+
+  it("refuses that owner a change to the firm's engagement, and lets a firm member make it", async () => {
+    const fields = {
+      businessId: "biz_1",
+      scope: "Rewritten by the owner",
+      periodStart: null,
+      periodEnd: null,
+      preparerUserId: null,
+      reviewerUserId: null,
+    };
+    expect(await refusal(call(engagement.saveEngagement, "bo", fields))).toEqual({
+      status: 403,
+      message: BUSINESS_ROLE_REFUSED,
+    });
+    expect(
+      (await db.pg.query("select scope from engagement_marks where business_id = 'biz_1'")).rows,
+    ).toEqual([]);
+    const saved = (await call(engagement.saveEngagement, "pp", {
+      ...fields,
+      scope: "Monthly close",
+    })) as { engagement: { scope: string } };
+    expect(saved.engagement.scope).toBe("Monthly close");
   });
 
   it("refuses that owner review and return although they own an empty firm of their own", async () => {

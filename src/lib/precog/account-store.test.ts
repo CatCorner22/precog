@@ -715,6 +715,31 @@ describe("a business its owner shared with a firm", () => {
     expect(open.rows).toEqual([{ revoked: true }]);
   });
 
+  it("revokes the links the firm's members made on it when the firm owner deletes their account", async () => {
+    await pg.query(
+      `insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+       values ('uc', 'uc', 'uc@example.test', true, now(), now())`,
+    );
+    await pg.exec(`
+      insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'uc', 'preparer');
+      update map_shares set business_owner_id = 'ub', business_id = 'biz_1' where user_id = 'ub';
+      insert into map_shares (token, user_id, business_name, industry, payload, expires_at,
+          passcode_hash, passcode_salt, business_owner_id, business_id)
+        values ('${"uc".repeat(12)}', 'uc', 'Biz', 'dental', '{"v":1}'::jsonb,
+          now() + interval '1 day', 'hash', 'salt', 'ub', 'biz_1');
+    `);
+    await deleteAccountRows(sql, "ua");
+    const links = await pg.query<{ user_id: string; revoked: boolean }>(
+      `select user_id, revoked_at is not null as revoked from map_shares
+       where business_owner_id = 'ub' and business_id = 'biz_1' order by user_id`,
+    );
+    // The member's link is revoked; the owner's own link stays live.
+    expect(links.rows).toEqual([
+      { user_id: "ub", revoked: false },
+      { user_id: "uc", revoked: true },
+    ]);
+  });
+
   it("exports when the business was shared and the invitations, never their tokens", async () => {
     const data = await exportAccountRows(sql, "ub");
     expect(data.businesses.map((b) => [b.id, b.grantedAt])).toEqual([

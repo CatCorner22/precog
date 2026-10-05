@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
-import { requireBusinessOwner, requireFirmRole } from "./access.server";
+import { requireBusinessOwner, requireBusinessRole, requireFirmRole } from "./access.server";
 import {
   OWNER_ONLY_STATUS,
   parseEngagementInput,
@@ -79,6 +79,9 @@ export const saveEngagement = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    // The engagement is the firm's work: a granted business's own account,
+    // outside the firm, reads it and does not change it (decision 26).
+    await requireBusinessRole(sql, context.userId, owner, data.businessId, "any");
     const { businessId, ...fields } = data;
     return {
       engagement: await saveEngagementRow(sql, {
