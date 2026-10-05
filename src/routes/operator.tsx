@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { OperatorConsole, OperatorNotFound } from "@/components/precog/operator/operator-console";
+import { setDisplayedAccount } from "@/lib/auth/identity-change";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getOperatorStatus } from "@/lib/precog/operator/server";
 
@@ -26,6 +27,10 @@ function OperatorPage() {
 
   useEffect(() => {
     if (!userId) return;
+    // Every signed-in call carries the account this tab shows and is refused
+    // (409) when it differs. The business workspace records it on its pages;
+    // this page never mounts that workspace, so it records the account itself.
+    setDisplayedAccount(userId);
     let cancel = false;
     void getOperatorStatus()
       .then((res) => {

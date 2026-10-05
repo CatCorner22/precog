@@ -75,6 +75,12 @@ describe("the operator page", () => {
     // The first render, before the status call answers, is the not-found text.
     expect(renderToStaticMarkup(<Page />)).toContain("There is no page at this address");
     expect(pageSource).toContain("void getOperatorStatus()");
+    // The page records the account it shows before asking, as the business
+    // workspace does on its pages; without it every signed-in call on a
+    // direct load answers 409 "The signed-in account changed".
+    expect(pageSource).toContain(
+      "setDisplayedAccount(userId); let cancel = false; void getOperatorStatus()",
+    );
     expect(pageSource).toContain(".catch(() => null)");
     expect(pageSource).toContain("[userId]");
     expect(pageSource).toContain(
