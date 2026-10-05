@@ -666,7 +666,7 @@ export function normalizeDecisions(value: unknown): DecisionEntry[] {
     return [
       {
         id: text(entry.id, 80),
-        createdAt: storedDate(entry.createdAt) ?? "",
+        createdAt: storedDate(entry.createdAt) ? entry.createdAt : "",
         subject: text(entry.subject, MAX_DECISION_SUBJECT),
         kind: entry.kind,
         note: text(entry.note, MAX_DECISION_NOTE),
