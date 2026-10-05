@@ -67,7 +67,7 @@ const PROCESSORS: ReadonlyArray<readonly [string, string]> = [
 const RETENTION: ReadonlyArray<readonly [string, string]> = [
   [
     "A deleted business",
-    `${DELETED_RETENTION_DAYS} days, then purged; a firm's client with a locked report version is kept for the firm's retention period (${RETENTION_YEARS_MIN} to ${RETENTION_YEARS_MAX} years), unseen and not restorable after ${DELETED_RETENTION_DAYS} days`,
+    `${DELETED_RETENTION_DAYS} days, then purged; a firm's client with a locked report version, unless its owner shared it with the firm, is kept for the firm's retention period (${RETENTION_YEARS_MIN} to ${RETENTION_YEARS_MAX} years), unseen and not restorable after ${DELETED_RETENTION_DAYS} days`,
   ],
   [
     "Past versions of a business",

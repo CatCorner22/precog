@@ -223,7 +223,7 @@ business's own home page.
   downloads it in Export data. Each entry is purged after the firm's
   retention period (7 to 15 years, 7 unless the firm owner picks another on
   the Firm page), which also keeps a deleted client that holds a locked
-  version.
+  version, unless its owner shared it with the firm.
 - **Billing**: the fixed assessment and the Firm plan through Stripe
   Checkout when Stripe is configured: three tiers by client businesses
   (Starter 1–5, Practice 6–20, Firm 21–50), each monthly or yearly at ten
@@ -338,11 +338,12 @@ PGLite applies the same files at startup.
 `vercel.json` calls `/api/cron/digest` every Monday at 13:00 UTC with
 `CRON_SECRET` as a bearer token. The run emails the weekly reminders, purges
 businesses deleted more than 30 days ago (a firm's client that holds a locked
-report version waits for the firm's retention period), model-call records
-older than 13 months, activity-log entries past their firm's retention
-period, and share view and failed passcode-guess logs past their retention,
-re-reads QuickBooks connections older than 28 days, emails the firm owner
-once per QuickBooks problem, and counts the week's first-time milestones.
+report version, unless its owner shared it with the firm, waits for the firm's
+retention period), model-call records older than 13 months, activity-log
+entries past their firm's retention period, and share view and failed
+passcode-guess logs past their retention, re-reads QuickBooks connections
+older than 28 days, emails the firm owner once per QuickBooks problem, and
+counts the week's first-time milestones.
 The digest, QuickBooks and alert stages each stop at a deadline inside the
 300 seconds; the answer then says `partial: true` and the next run picks up
 the rest. Without `CRON_SECRET` every run is refused and none of

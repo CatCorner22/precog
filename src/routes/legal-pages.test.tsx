@@ -228,7 +228,7 @@ describe("Privacy", () => {
 
   it("lists how long a kept client, the activity log, model-call records and sessions last", () => {
     expect(html).toContain(
-      "30 days, then purged; a firm&#x27;s client with a locked report version is kept for the firm&#x27;s retention period (7 to 15 years), unseen and not restorable after 30 days",
+      "30 days, then purged; a firm&#x27;s client with a locked report version, unless its owner shared it with the firm, is kept for the firm&#x27;s retention period (7 to 15 years), unseen and not restorable after 30 days",
     );
     expect(html).toContain(
       `the firm&#x27;s retention period (${RETENTION_YEARS_MIN} to ${RETENTION_YEARS_MAX} years)`,

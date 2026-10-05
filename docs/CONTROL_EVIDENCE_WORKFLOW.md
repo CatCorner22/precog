@@ -78,12 +78,13 @@ or owning-account deletion cascades; soft-deleted businesses are inaccessible.
 The owner's account export includes owned logs; a contributor's attribution in
 another owner's retained log remains. Retention follows the business: the
 weekly run purges a deleted business, and this log with it, after 30 days,
-except a firm's client that holds a locked report version, which is kept for
-the period its firm sets (`firms.retention_years`: 7 to 15 years, 7 unless the
-firm owner picks another) from the day it was deleted. Deleting the owning
-account removes the log at once; deleting the firm owner's account ends the
-firm's period for the clients its members set up, which are then purged once
-30 days have passed since their deletion.
+except a firm's client that holds a locked report version and that its owner
+did not share with the firm, which is kept for the period its firm sets
+(`firms.retention_years`: 7 to 15 years, 7 unless the firm owner picks
+another) from the day it was deleted. Deleting the owning account removes the
+log at once; deleting the firm owner's account ends the firm's period for the
+clients its members set up, which are then purged once 30 days have passed
+since their deletion.
 
 Draft fields use immutable account-scoped session storage and business/check
 keys. They are not cloud saved until submission. Reload restores available draft
