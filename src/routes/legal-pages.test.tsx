@@ -261,7 +261,11 @@ describe("Privacy", () => {
     expect(html).toContain(`<td class="py-1.5">${usageMonths} months</td>`);
     expect(html).toContain('<td class="py-1.5">13 months</td>');
     expect(html).toContain("Signed-in sessions");
-    expect(html).toContain("seven days from last use; end them from Sessions in the account menu");
+    expect(html).toContain(
+      "seven days after Precog last refreshed the session, at most once a day while it is in use; end them from Sessions in the account menu",
+    );
+    expect(html).not.toContain("from last use");
+    expect(html).not.toContain("from its last use");
   });
 
   it("says what a firm invited by a business owner keeps, and what the activity log records", () => {
@@ -335,7 +339,7 @@ describe("Privacy", () => {
 
   it("says how long a session lasts and what each model call leaves behind", () => {
     expect(html).toContain(
-      "The session cookie stays with Precog. A session lasts seven days from its last use; Sessions in the account menu lists your signed-in devices and ends them.",
+      "The session cookie stays with Precog. A session ends seven days after Precog last refreshed it, which Precog does at most once a day while you use it; Sessions in the account menu ends your other sessions, or every session, and lists your signed-in devices within a day of signing in.",
     );
     expect(html).toContain(
       "The count holds no question or reply. Precog also keeps, for each model call, the feature, the model and the token counts, without the question or the answer, for 13 months.",

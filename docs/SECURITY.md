@@ -27,7 +27,7 @@ Every response carries, from `vite.config.ts`:
 
 - Google and X sign-in go through Precog's auth broker; Precog's own Better Auth (`src/lib/auth/server.ts`) holds the session. Session cookies are Better Auth's: http-only, secure and SameSite=Lax; server functions additionally refuse cross-site requests (`assertSameSiteRequest` in `src/lib/auth/middleware.ts`).
 - Email-and-password sign-in, when a deployment turns it on (`src/lib/auth/email-password.server.ts`), stores a hash of the password, never the password, and emails a confirmation link; an unconfirmed sign-up is removed after 24 hours.
-- There is no multi-factor sign-in today; Sessions in the account menu lists and ends sessions (seven days from last use).
+- There is no multi-factor sign-in today. A session ends seven days after Better Auth last refreshed it, and Better Auth refreshes a session only when it is used more than a day after its last refresh (its defaults `expiresIn` and `updateAge`), so a session can end about six days after its last use. Sessions in the account menu ends the other sessions or every session at any time, and lists them only within a day of signing in (`/list-sessions` requires a session created within Better Auth's `freshAge`, one day; the dialog says so).
 - The email links (owner reminder consent and stop links, password reset, confirmation) carry long random tokens; a link that does not match one answers a plain "no longer works" page and reveals nothing about the account.
 
 ## Authorization
@@ -111,7 +111,7 @@ Write to the mailbox in the `SUPPORT_EMAIL` environment variable, which is the S
 
 What each line does:
 
-- `session.expiresIn` and `updateAge`: write down the session length Precog already has (Better Auth's defaults: seven days, extended when a session older than a day is used), so a later change is a visible edit. Nothing changes for a user.
+- `session.expiresIn` and `updateAge`: write down the session length Precog already has (Better Auth's defaults: seven days from the last refresh, refreshed when a session last refreshed more than a day ago is used), so a later change is a visible edit. Nothing changes for a user.
 - `rateLimit.storage: "database"` and `modelName: "authRateLimit"`: the limit of five email sign-ins or sign-ups a minute from one address counts in Postgres instead of in each serverless instance's memory, so it holds across instances. It costs one read and one write per request on those two paths only. Better Auth runs its limiter in production only.
 - `user.changeEmail`: lets an account change its sign-in address through Better Auth's change-email flow, which confirms by email. It needs a screen for it, and a decision on how a firm's invitations, the client invitations and the digest follow the new address.
 - `twoFactor(…)`: optional two-step sign-in with an authenticator app (TOTP) and one-time recovery codes (Better Auth's `backupCodes`), for Google and X accounts too (`allowPasswordless`); Better Auth stores the secret and the codes encrypted under `BETTER_AUTH_SECRET`. It needs `twoFactorClient` in `src/lib/auth/client.ts`, a `/login/two-factor` page for the code, a Security dialog to turn it on, and a test of the live-preview sign-in popup with a two-step account. `tanstackStartCookies()` stays last.

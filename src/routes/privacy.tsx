@@ -91,7 +91,10 @@ const RETENTION: ReadonlyArray<readonly [string, string]> = [
   ],
   ["Pictures no step uses", `${UNREFERENCED_PICTURE_DAYS} days`],
   ["An unconfirmed email-and-password sign-up", `${UNCONFIRMED_SIGNUP_HOURS} hours`],
-  ["Signed-in sessions", "seven days from last use; end them from Sessions in the account menu"],
+  [
+    "Signed-in sessions",
+    "seven days after Precog last refreshed the session, at most once a day while it is in use; end them from Sessions in the account menu",
+  ],
   ["Share view logs", `${SHARE_VIEW_RETENTION_DAYS} days`],
   ["Failed passcode guesses", `${PASSCODE_ATTEMPT_RETENTION_DAYS} days`],
   ["Model-call counts", `${MODEL_CALL_COUNT_DAYS} days`],
@@ -178,11 +181,12 @@ function PrivacyPage() {
           Sign-in uses Google or X through Precog’s auth broker, operated by {AUTH_BROKER_OPERATOR},
           or an email and password that Precog keeps. For an email account the database holds your
           name, your email address, and a hash of the password, never the password itself. The
-          session cookie stays with Precog. A session lasts seven days from its last use; Sessions
-          in the account menu lists your signed-in devices and ends them. A signed-in save stores
-          the business profile, assessment snapshots, and firm workspace (firm name, client list,
-          engagement stamps, and the monthly review log) in the database, tied to your account.
-          Another customer’s account cannot read them.
+          session cookie stays with Precog. A session ends seven days after Precog last refreshed
+          it, which Precog does at most once a day while you use it; Sessions in the account menu
+          ends your other sessions, or every session, and lists your signed-in devices within a day
+          of signing in. A signed-in save stores the business profile, assessment snapshots, and
+          firm workspace (firm name, client list, engagement stamps, and the monthly review log) in
+          the database, tied to your account. Another customer’s account cannot read them.
         </p>
         <p>
           Precog also notes the day you first set up a business, first locked a report version,
