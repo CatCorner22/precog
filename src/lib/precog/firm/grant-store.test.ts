@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Sql } from "@/lib/db";
+import { inTransaction } from "@/lib/sql-transaction";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { businessLimitMessage } from "../business-lifecycle";
 import { countClients, loadEntitlements } from "./entitlements.server";
@@ -14,6 +15,7 @@ import {
   GRANT_LIMIT,
   GRANT_TTL_DAYS,
   grantMismatch,
+  handBackGranted,
   loadGrantFor,
   MAX_GRANTS_PER_BUSINESS_PER_DAY,
   NOT_GRANTED,
@@ -357,6 +359,37 @@ describe("ending the firm's access", () => {
       { token: "t_member", revoked: true },
       { token: "t_owner", revoked: false },
     ]);
+  });
+
+  it("hands back through the one helper endGrant and the account deletion share", async () => {
+    await granted();
+    await db.pg.exec(`
+      update engagement_marks set scope = 'Old scope', status = 'ended', ended_at = now()
+        where user_id = 'bo' and business_id = 'biz_1';
+      insert into map_shares (token, user_id, payload, business_owner_id, business_id) values
+        ('t_owner', 'bo', '{}', 'bo', 'biz_1'), ('t_firm', 'fm', '{}', 'bo', 'biz_1');
+      insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id)
+        values ('biz_c', 'fm', 'Member client', 'general', '{}'::jsonb, 1, 'fo');
+    `);
+    await inTransaction(db.sql, async (tx) => {
+      await handBackGranted(tx, "bo", "biz_1");
+      // A firm client its owner never shared is not the helper's to move.
+      await handBackGranted(tx, "fm", "biz_c");
+    });
+    expect(await business()).toEqual({ firm_user_id: null, granted_at: null });
+    const engagement = (await db.pg.query<Record<string, unknown>>(ENGAGEMENT)).rows[0];
+    expect(engagement).toMatchObject({ scope: "", status: "active", ended_at: null });
+    const links = await db.pg.query<{ token: string; revoked: boolean }>(
+      "select token, revoked_at is not null as revoked from map_shares order by token",
+    );
+    expect(links.rows).toEqual([
+      { token: "t_firm", revoked: true },
+      { token: "t_owner", revoked: false },
+    ]);
+    const member = await db.pg.query<{ firm_user_id: string | null }>(
+      "select firm_user_id from businesses where id = 'biz_c'",
+    );
+    expect(member.rows).toEqual([{ firm_user_id: "fo" }]);
   });
 
   it("accepting and ending start the engagement afresh and keep its stamps", async () => {

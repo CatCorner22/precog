@@ -9,7 +9,7 @@ import { userScope } from "./llm/daily-usage";
 import { usageTotalsFor, type UsageTotal } from "./llm/usage-log.server";
 import { count } from "./text";
 import { pictureUrl } from "./procedures/image-pipeline";
-import { resetEngagement } from "./firm/grant-store";
+import { handBackGranted } from "./firm/grant-store";
 import {
   insertAudit,
   listFirmActivity,
@@ -542,26 +542,19 @@ export async function deleteAccountRows(sql: Sql, userId: string): Promise<Delet
       select refresh_token_enc from integration_connections where user_id = ${userId}
     `;
     // Members' and owners' businesses leave the deleted firm. A business its
-    // owner shared with the firm goes back to the owner with a fresh
-    // engagement and without the links the firm's members made on it, as a
-    // hand-back leaves it, and invitations still waiting on this address close.
+    // owner shared with the firm goes back to the owner as a hand-back leaves
+    // it (handBackGranted), and invitations still waiting on this address close.
     const granted = await tx<{ user_id: string; id: string }>`
       select user_id, id from businesses
       where firm_user_id = ${userId} and user_id <> ${userId} and granted_at is not null
       for update
     `;
+    for (const row of granted) await handBackGranted(tx, row.user_id, row.id);
+    // The client businesses members set up for the firm stay theirs.
     await tx`
       update businesses set firm_user_id = null, granted_at = null
       where firm_user_id = ${userId} and user_id <> ${userId}
     `;
-    for (const row of granted) {
-      await resetEngagement(tx, row.user_id, row.id);
-      await tx`
-        update map_shares set revoked_at = now()
-        where business_owner_id = ${row.user_id} and business_id = ${row.id}
-          and user_id <> ${row.user_id} and revoked_at is null
-      `;
-    }
     await tx`
       update business_firm_grants set revoked_at = now()
       where revoked_at is null and accepted_at is null

@@ -252,19 +252,35 @@ export async function endGrant(
       return { firmUserId: null };
     }
     if (!row.granted) throw new RequestError(409, NOT_GRANTED);
-    await tx`
-      update businesses set firm_user_id = null, granted_at = null
-      where user_id = ${input.ownerUserId} and id = ${input.businessId} and granted_at is not null
-    `;
-    await resetEngagement(tx, input.ownerUserId, input.businessId);
-    await tx`
-      update map_shares set revoked_at = now()
-      where business_owner_id = ${input.ownerUserId} and business_id = ${input.businessId}
-        and user_id <> ${input.ownerUserId} and revoked_at is null
-    `;
+    await handBackGranted(tx, input.ownerUserId, input.businessId);
     await revokeOpenGrants(tx, input.ownerUserId, input.businessId);
     return { firmUserId: row.firm_user_id };
   });
+}
+
+/**
+ * Hands a business its owner shared back from the firm working on it,
+ * inside the caller's transaction: the row leaves the firm (only a granted
+ * row moves), the engagement starts afresh, and the links others made on
+ * it are revoked (the owner's own stay). endGrant and the firm owner's
+ * account deletion (deleteAccountRows) share it; open invitations are the
+ * caller's.
+ */
+export async function handBackGranted(
+  tx: Sql,
+  ownerUserId: string,
+  businessId: string,
+): Promise<void> {
+  await tx`
+    update businesses set firm_user_id = null, granted_at = null
+    where user_id = ${ownerUserId} and id = ${businessId} and granted_at is not null
+  `;
+  await resetEngagement(tx, ownerUserId, businessId);
+  await tx`
+    update map_shares set revoked_at = now()
+    where business_owner_id = ${ownerUserId} and business_id = ${businessId}
+      and user_id <> ${ownerUserId} and revoked_at is null
+  `;
 }
 
 /** The business's grant for its owner's card: the firm working on it, the open invitation, or null. */
