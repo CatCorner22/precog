@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -90,6 +91,17 @@ describe("the weekly digest switch in the header", () => {
     server.fail = true;
     expect(await toggleDigest({ weeklyDigest: true, ownerReminders: true })).toBeNull();
     expect(toasts.error).toHaveBeenCalledWith("Precog did not save the reminder settings.");
+  });
+});
+
+describe("the local recovery entry", () => {
+  it("offers Local recovery beside the other account controls, opening a dialog", async () => {
+    const { RECOVERY_ENTRY } = await import("./account-menu");
+    expect(RECOVERY_ENTRY.label).toBe("Local recovery");
+    expect(RECOVERY_ENTRY.title).toContain("guest businesses");
+    const source = readFileSync(new URL("./account-menu.tsx", import.meta.url), "utf8");
+    expect(source).toContain("LocalRecoveryControl");
+    expect(source).toContain("WorkspaceRecoveryDialog");
   });
 });
 
