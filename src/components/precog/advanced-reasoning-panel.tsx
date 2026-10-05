@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import { runAdvancedReasoning } from "@/lib/precog/llm/reasoning/engine";
+import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GitBranch, Network, Search, Sparkles } from "lucide-react";
@@ -17,9 +18,16 @@ import { GitBranch, Network, Search, Sparkles } from "lucide-react";
  */
 export function AdvancedReasoningPanel() {
   const { profile, template } = usePractice();
+  const scope = useMemo(
+    () => ({
+      confirmedScenarioIds: confirmedScenarioIds(profile.decisions, profile.industry),
+      riskVariables: profile.riskVariables,
+    }),
+    [profile.decisions, profile.industry, profile.riskVariables],
+  );
   const report = useMemo(
-    () => runAdvancedReasoning(template, profile.staff, profile.riskVariables),
-    [template, profile.staff, profile.riskVariables],
+    () => runAdvancedReasoning(template, profile.staff, profile.riskVariables, scope),
+    [template, profile.staff, profile.riskVariables, scope],
   );
   const causal = [...report.causal].sort(
     (a, b) => Math.abs(b.netToDecision) - Math.abs(a.netToDecision),

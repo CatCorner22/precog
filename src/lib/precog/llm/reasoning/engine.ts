@@ -8,8 +8,9 @@
 import type { StaffComposition } from "../../types";
 import type { RiskVariableState } from "../../scoring/dynamic-variables";
 import type { IndustryTemplate } from "../../templates";
-import { portfolioSummary } from "../../scoring/residual-engine";
+import { portfolioSummary, type ResidualScope } from "../../scoring/residual-engine";
 import { rankDangerousScenarios } from "../../engine";
+import { DEFAULT_WEIGHTS } from "../../scoring/weights";
 import { summarizeCausalInfluence, type CausalNodeId } from "./causal-graph";
 import { beamSearchLevers } from "./beam-search";
 import { runCounterfactuals, type ReasoningBaseline } from "./counterfactual";
@@ -42,15 +43,16 @@ export function runAdvancedReasoning(
   tpl: IndustryTemplate,
   staff: StaffComposition,
   riskVars: RiskVariableState,
+  scope: ResidualScope = {},
 ): AdvancedReasoningReport {
-  const baseline = reasoningBaseline(tpl, staff, riskVars);
+  const baseline = reasoningBaseline(tpl, staff, riskVars, scope);
   const causal = summarizeCausalInfluence(INTERVENTIONS).map((c) => ({
     intervention: c.intervention,
     netToDecision: Math.round(c.netToDecision * 1000) / 1000,
     topPath: c.topPaths[0]?.narrative ?? "no path",
   }));
-  const beam = beamSearchLevers(tpl, staff, riskVars, { beamWidth: 4, depth: 3 });
-  const cf = runCounterfactuals(tpl, staff, riskVars, baseline);
+  const beam = beamSearchLevers(tpl, staff, riskVars, { beamWidth: 4, depth: 3 }, scope);
+  const cf = runCounterfactuals(tpl, staff, riskVars, baseline, undefined, scope);
   const checks = verifyNext(staff, riskVars);
 
   const recommendedSequence = beam.best.labels;
@@ -87,14 +89,22 @@ export function runAdvancedReasoning(
 }
 
 /** The residual and the most dangerous scenario as the business stands, computed once per report. */
-function reasoningBaseline(
+export function reasoningBaseline(
   tpl: IndustryTemplate,
   staff: StaffComposition,
   riskVars: RiskVariableState,
+  scope: ResidualScope = {},
 ): ReasoningBaseline {
-  const ranked = rankDangerousScenarios(tpl, { staff, riskVariables: riskVars });
+  const ranked = rankDangerousScenarios(tpl, {
+    staff,
+    riskVariables: riskVars,
+    confirmedScenarioIds: scope.confirmedScenarioIds,
+  });
   return {
-    residual: portfolioSummary(tpl, staff).averageResidual,
+    residual: portfolioSummary(tpl, staff, DEFAULT_WEIGHTS, {
+      confirmedScenarioIds: scope.confirmedScenarioIds,
+      riskVariables: riskVars,
+    }).averageResidual,
     topScenarioId: ranked[0]?.scenario.id ?? null,
   };
 }

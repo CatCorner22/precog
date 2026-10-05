@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "../../active-template";
 import { INDUSTRIES } from "../../industry";
 import { defaultProfile, type PracticeProfile } from "../../practice-profile";
+import { DEFAULT_RISK_VARIABLES } from "../../scoring/dynamic-variables";
+import type { Person } from "../../types";
 import { beamSearchLevers } from "./beam-search";
 import { summarizeCausalInfluence } from "./causal-graph";
-import { runAdvancedReasoning } from "./engine";
+import { reasoningBaseline, runAdvancedReasoning } from "./engine";
+import { runCounterfactuals } from "./counterfactual";
 import { verifyNext } from "./verify-next";
 
 function reasoning(profile: PracticeProfile) {
@@ -83,6 +86,33 @@ describe("runAdvancedReasoning", () => {
     const on = reasoning(withControls(base, true));
     expect(on.recommendedSequence).not.toEqual(off.recommendedSequence);
     expect(on.evoi.topObservation).not.toBe(off.evoi.topObservation);
+  });
+});
+
+describe("counterfactual scenario scope", () => {
+  const own = resolveTemplate({
+    industry: "dental",
+    customPeople: [
+      { id: "own-1", name: "Ana Ruiz", role: "Owner", active: true, entitlements: [] } as Person,
+    ],
+  });
+  const staff = own.staffComposition;
+  const riskVars = DEFAULT_RISK_VARIABLES;
+
+  it("does not price unconfirmed starter scenarios", () => {
+    const scope = { confirmedScenarioIds: new Set<string>() };
+    const baseline = reasoningBaseline(own, staff, riskVars, scope);
+    const report = runCounterfactuals(own, staff, riskVars, baseline, undefined, scope);
+
+    expect(report.counterfactuals.every((c) => c.delta.annualCor === 0)).toBe(true);
+  });
+
+  it("prices a confirmed vendor scenario and its response to a lever", () => {
+    const scope = { confirmedScenarioIds: new Set(["sc-vendor-fraud"]) };
+    const baseline = reasoningBaseline(own, staff, riskVars, scope);
+    const report = runCounterfactuals(own, staff, riskVars, baseline, undefined, scope);
+
+    expect(report.counterfactuals.some((c) => c.delta.annualCor !== 0)).toBe(true);
   });
 });
 

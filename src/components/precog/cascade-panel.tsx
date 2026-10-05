@@ -10,7 +10,7 @@ import {
   type MetricSnapshot,
 } from "@/lib/precog/scoring/variable-cascade";
 import { insuranceFigureNote } from "@/lib/precog/scoring/dynamic-variables";
-import { isOwnBusiness } from "@/lib/precog/scoring/scope";
+import { confirmedScenarioIds, isOwnBusiness } from "@/lib/precog/scoring/scope";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatUsd, formatUsdDelta, cn } from "@/lib/utils";
@@ -19,16 +19,28 @@ import { GitBranch } from "lucide-react";
 export function CascadePanel() {
   const { profile, template } = usePractice();
   const [leverId, setLeverId] = useState<CascadeLeverId>("enable_dual_control");
+  const confirmed = useMemo(
+    () => confirmedScenarioIds(profile.decisions, profile.industry),
+    [profile.decisions, profile.industry],
+  );
+  const scope = useMemo(() => ({ confirmedScenarioIds: confirmed }), [confirmed]);
 
   const all = useMemo(
-    () => simulateAllCascades(template, profile.riskVariables, profile.staff),
-    [template, profile.riskVariables, profile.staff],
+    () => simulateAllCascades(template, profile.riskVariables, profile.staff, undefined, scope),
+    [template, profile.riskVariables, profile.staff, scope],
   );
 
   const selected = useMemo(
     () =>
-      simulateCascadeLever(template, leverId, profile.riskVariables, profile.staff, all.scenarioId),
-    [template, leverId, profile.riskVariables, profile.staff, all.scenarioId],
+      simulateCascadeLever(
+        template,
+        leverId,
+        profile.riskVariables,
+        profile.staff,
+        all.scenarioId,
+        scope,
+      ),
+    [template, leverId, profile.riskVariables, profile.staff, all.scenarioId, scope],
   );
   const waiting = CASCADE_LEVERS.filter((l) => leverUnavailableReason(l.id, profile.riskVariables));
   const policyNote = insuranceFigureNote(
@@ -55,6 +67,7 @@ export function CascadePanel() {
             Insurance figures here: {policyNote}.
           </p>
         )}
+        {all.scopeNote && <p className="mt-2 max-w-2xl text-xs text-subtle">{all.scopeNote}</p>}
       </section>
 
       <Card>
