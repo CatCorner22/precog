@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { RouterContextProvider, type AnyRouter } from "@tanstack/react-router";
 import { ControlReport } from "@/components/precog/control-report";
 import { downloadText } from "@/lib/download";
+import { escapeHtml } from "@/lib/precog/reminders/email";
 import { formatDay, formatMonth, localDateKey } from "@/lib/precog/dates";
 import type { EngagementRecord } from "@/lib/precog/firm/engagement-row";
 import type { ReviewLogRow } from "@/lib/precog/firm/engagement-store";
@@ -97,18 +98,6 @@ export interface ArchiveInput {
   styles: string;
 }
 
-const ESCAPES: Record<string, string> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-};
-
-function esc(text: string): string {
-  return text.replace(/[&<>"']/g, (c) => ESCAPES[c]);
-}
-
 /** JSON that cannot close the script element it sits in. */
 function scriptJson(value: unknown): string {
   return JSON.stringify(value)
@@ -169,11 +158,11 @@ function resultCell(r: Pick<ReviewLogRow, "result" | "ownerName">): string {
 export function engagementArchiveDocument(input: ArchiveInput): string {
   const business = input.businessName.trim() || "Business";
   const engagement = engagementRows(input.engagement, input.memberNames)
-    .map(([k, v]) => `<tr><th scope="row">${esc(k)}</th><td>${esc(v)}</td></tr>`)
+    .map(([k, v]) => `<tr><th scope="row">${escapeHtml(k)}</th><td>${escapeHtml(v)}</td></tr>`)
     .join("");
   const reviews = input.reviews.length
     ? `<table class="archive-table"><thead><tr>${ARCHIVE_REVIEW_HEADERS.map(
-        (h) => `<th scope="col">${esc(h)}</th>`,
+        (h) => `<th scope="col">${escapeHtml(h)}</th>`,
       ).join("")}</tr></thead><tbody>${input.reviews
         .map((r) =>
           [
@@ -185,12 +174,12 @@ export function engagementArchiveDocument(input: ArchiveInput): string {
             r.recordedByName ?? ARCHIVE_RECORDER_UNKNOWN,
             formatDay(r.recordedAt),
           ]
-            .map((cell) => `<td>${esc(cell)}</td>`)
+            .map((cell) => `<td>${escapeHtml(cell)}</td>`)
             .join(""),
         )
         .map((cells) => `<tr>${cells}</tr>`)
         .join("")}</tbody></table>`
-    : `<p>${esc(ARCHIVE_NO_REVIEWS)}</p>`;
+    : `<p>${escapeHtml(ARCHIVE_NO_REVIEWS)}</p>`;
   // The rendered report's own header prints the version's provenance line,
   // as the version's page does, so the archive adds no second one.
   const versions = input.versions.length
@@ -200,7 +189,7 @@ export function engagementArchiveDocument(input: ArchiveInput): string {
             `<article class="archive-version" data-version="${v.version.versionNo}">${v.markup}</article>`,
         )
         .join("")
-    : `<p>${esc(ARCHIVE_NO_VERSIONS)}</p>`;
+    : `<p>${escapeHtml(ARCHIVE_NO_VERSIONS)}</p>`;
   const limitReached = input.versionLimitReached ?? false;
   const data = {
     engagement: input.engagement,
@@ -220,7 +209,7 @@ export function engagementArchiveDocument(input: ArchiveInput): string {
     "<!doctype html>",
     '<html lang="en"><head><meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    `<title>Engagement archive · ${esc(business)} · Precog</title>`,
+    `<title>Engagement archive · ${escapeHtml(business)} · Precog</title>`,
     `<style>${input.styles.replace(/<\/style/gi, "<\\/style")}</style>`,
     // After the page's sheets, so a dark theme or Preflight's reset headings never reach the archive.
     "<style>:root,html,body{color-scheme:light;background:#fff;color:#171717;margin:0}",
@@ -233,11 +222,11 @@ export function engagementArchiveDocument(input: ArchiveInput): string {
     ".archive-version{break-before:page;border-top:2px solid #d4d4d4;margin-top:2rem}</style>",
     "</head><body>",
     '<div class="archive-head">',
-    `<h1>Engagement archive: ${esc(business)}</h1>`,
-    `<h2>${esc(ARCHIVE_SECTION_ENGAGEMENT)}</h2><table><tbody>${engagement}</tbody></table>`,
-    `<h2>${esc(ARCHIVE_SECTION_REVIEWS)}</h2>${reviews}`,
-    `<h2>${esc(ARCHIVE_SECTION_VERSIONS)}</h2>`,
-    limitReached ? `<p class="archive-limit">${esc(archiveVersionLimitNote())}</p>` : "",
+    `<h1>Engagement archive: ${escapeHtml(business)}</h1>`,
+    `<h2>${escapeHtml(ARCHIVE_SECTION_ENGAGEMENT)}</h2><table><tbody>${engagement}</tbody></table>`,
+    `<h2>${escapeHtml(ARCHIVE_SECTION_REVIEWS)}</h2>${reviews}`,
+    `<h2>${escapeHtml(ARCHIVE_SECTION_VERSIONS)}</h2>`,
+    limitReached ? `<p class="archive-limit">${escapeHtml(archiveVersionLimitNote())}</p>` : "",
     "</div>",
     versions,
     `<script type="application/json" id="precog-archive">${scriptJson(data)}</script>`,

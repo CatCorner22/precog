@@ -1,4 +1,5 @@
 import { env } from "@/lib/env.server";
+import { ACTIVE_SUBSCRIPTION_STATUSES } from "../firm/billing-store";
 import { RequestError } from "@/lib/request-errors";
 import { stripeHasNoCustomer } from "./texts";
 
@@ -11,9 +12,6 @@ export interface StripeSubscription {
   currentPeriodEnd: number | null;
   priceId: string | null;
 }
-
-/** Statuses that keep the Firm plan running. */
-export const RUNNING_STATUSES = new Set(["active", "trialing", "past_due"]);
 
 /**
  * The customer's subscriptions, newest first (one Stripe read of up to 100,
@@ -68,6 +66,6 @@ export function subscriptionToApply(subscriptions: StripeSubscription[]): {
   running: StripeSubscription | null;
   applied: StripeSubscription | null;
 } {
-  const running = subscriptions.find((s) => RUNNING_STATUSES.has(s.status)) ?? null;
+  const running = subscriptions.find((s) => ACTIVE_SUBSCRIPTION_STATUSES.has(s.status)) ?? null;
   return { running, applied: running ?? subscriptions[0] ?? null };
 }
