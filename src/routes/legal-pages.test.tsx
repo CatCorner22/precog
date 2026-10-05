@@ -349,7 +349,7 @@ describe("Privacy", () => {
 
   it("says which accounts get the weekly digest, and that an X sign-in has no address", () => {
     expect(html).toContain(
-      "An account with a confirmed address or a Google sign-in, and a business of its own or of its firm, gets a weekly digest at its sign-in address listing what is due. An X sign-in carries no address Precog can email.",
+      "An account whose address Precog can vouch for (a confirmed email-and-password address, or a confirmed Google address) and a business of its own or of its firm gets a weekly digest at its sign-in address listing what is due. An X sign-in carries no address Precog can email.",
     );
     expect(html).not.toContain("or a Google or X sign-in");
   });

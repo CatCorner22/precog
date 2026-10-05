@@ -219,15 +219,16 @@ function PrivacyPage() {
         <p>
           Precog sends email through Resend. For an email account, Precog emails a link to confirm
           your address and, when you ask, a link to set a new password. Precog may remove a new
-          sign-up that nobody confirms within a day. An account with a confirmed address or a Google
-          sign-in, and a business of its own or of its firm, gets a weekly digest at its sign-in
-          address listing what is due. An X sign-in carries no address Precog can email. Precog
-          sends it only after you say yes, once, when you sign in; turn it off any time from Weekly
-          digest in the header or under Reminders in the firm workspace, or with the stop link in
-          every digest. When you enter a client owner’s address on their client card, Precog emails
-          the owner once to ask whether they agree to reminders, and sends that address nothing more
-          until the owner agrees. Each reminder has a link that stops them. When a firm owner
-          invites a colleague, or a business owner invites a firm, Precog emails the invitation.
+          sign-up that nobody confirms within a day. An account whose address Precog can vouch for
+          (a confirmed email-and-password address, or a confirmed Google address) and a business of
+          its own or of its firm gets a weekly digest at its sign-in address listing what is due. An
+          X sign-in carries no address Precog can email. Precog sends it only after you say yes,
+          once, when you sign in; turn it off any time from Weekly digest in the header or under
+          Reminders in the firm workspace, or with the stop link in every digest. When you enter a
+          client owner’s address on their client card, Precog emails the owner once to ask whether
+          they agree to reminders, and sends that address nothing more until the owner agrees. Each
+          reminder has a link that stops them. When a firm owner invites a colleague, or a business
+          owner invites a firm, Precog emails the invitation.
         </p>
         <p>
           Shared map links are separate. Anyone with the link can open that frozen map until it
