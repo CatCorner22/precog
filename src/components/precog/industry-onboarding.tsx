@@ -89,7 +89,19 @@ import { teamSizeScaleWarning } from "@/lib/precog/continuity/scale-message";
 import { clamp } from "@/lib/precog/number";
 import { DEFAULT_BUSINESS_ID, MAX_BUSINESS_NAME } from "@/lib/precog/business-id";
 import { count } from "@/lib/precog/text";
-export function IndustryOnboarding() {
+import {
+  hiddenDuties,
+  normalizeSetupAnswers,
+  setupEffects,
+  UNANSWERED,
+  type SetupAnswers,
+} from "@/lib/precog/onboarding/setup-answers";
+import { SetupMoneyStep } from "@/components/precog/onboarding/setup-money-step";
+export function IndustryOnboarding({
+  initialStep,
+}: {
+  initialStep?: "industry" | "money" | "team";
+} = {}) {
   const tabName = useTabName();
   const workspace = useWorkspace();
   const {
@@ -101,10 +113,13 @@ export function IndustryOnboarding() {
     setupReturnsTo,
   } = usePractice();
   // A business added from the business menu arrives with its name and line
-  // of business; setup starts on its team.
+  // of business; setup starts on money questions.
   const typedName = ownBusinessName(profile);
   const [selected, setSelected] = useState<IndustryId>(profile.industry);
-  const [step, setStep] = useState<"industry" | "team">(typedName ? "team" : "industry");
+  const [step, setStep] = useState<"industry" | "money" | "team">(
+    initialStep ?? (typedName ? "money" : "industry"),
+  );
+  const [answers, setAnswers] = useState<SetupAnswers>(UNANSWERED);
   const [businessName, setBusinessName] = useState(typedName);
   const [rows, setRowsRaw] = useState<OwnTeamRow[]>(freshRows);
   // Every change keeps each row's stable key, so removing a row never
@@ -157,6 +172,7 @@ export function IndustryOnboarding() {
     setBusinessName(start.draft.businessName);
     setRows(start.draft.rows);
     setStep(start.draft.step);
+    setAnswers(normalizeSetupAnswers(start.draft.answers) ?? UNANSWERED);
     setPaste(start.draft.paste);
     setLeftOut(start.draft.leftOut ?? []);
     setPasteOpen(start.draft.paste.trim().length > 0);
@@ -175,7 +191,7 @@ export function IndustryOnboarding() {
       pendingDraft.current = null;
       setDraftSaved(
         writeSetupDraft(
-          { step, selected, businessName, rows, paste, businessId, leftOut },
+          { step, selected, businessName, rows, paste, businessId, leftOut, answers },
           workspace.session,
         ),
       );
@@ -183,7 +199,18 @@ export function IndustryOnboarding() {
     pendingDraft.current = write;
     const timer = window.setTimeout(write, DRAFT_WRITE_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [restored, step, selected, businessName, rows, paste, businessId, leftOut, workspace.session]);
+  }, [
+    restored,
+    step,
+    selected,
+    businessName,
+    rows,
+    paste,
+    businessId,
+    leftOut,
+    answers,
+    workspace.session,
+  ]);
   useEffect(() => {
     // A reload or closed tab does not unmount the dialog, so write a waiting
     // draft when the page is hidden; otherwise the last edits are lost.
@@ -284,6 +311,7 @@ export function IndustryOnboarding() {
     setReviewRowIds(new Set());
     setFinishNote("");
     setBusinessName(typedName);
+    setAnswers(UNANSWERED);
     setRestoredEarlier(false);
   }
 
@@ -292,7 +320,7 @@ export function IndustryOnboarding() {
    * confirms, and the draft stays in this tab for "Set up my own business".
    */
   function loadSample() {
-    const draft = { step, selected, businessName, rows, paste, businessId };
+    const draft = { step, selected, businessName, rows, paste, businessId, answers };
     if (draftHasTypedWork(draft)) {
       const people = namedPeople(draft);
       const what =
@@ -351,11 +379,17 @@ export function IndustryOnboarding() {
   }
   const industry = INDUSTRIES.find((i) => i.id === selected);
   const namedRows = rows.filter((r) => r.name.trim().length > 0);
+  const hidden = useMemo(() => hiddenDuties(answers), [answers]);
+  const visibleCoreDuties = CORE_DUTIES.filter((duty) => !hidden.has(duty));
+  const effects = useMemo(() => setupEffects(answers, selected), [answers, selected]);
 
   // Titles two or more people share, for "untick one duty for all of them".
   const shared = useMemo(() => sharedTitlesWithDuties(rows), [rows]);
   const bulkRole = shared.some((t) => t.role === bulkTitle) ? bulkTitle : (shared[0]?.role ?? "");
-  const bulkDuties = useMemo(() => dutiesHeldByTitle(rows, bulkRole), [rows, bulkRole]);
+  const bulkDuties = useMemo(
+    () => dutiesHeldByTitle(rows, bulkRole).filter((duty) => !hidden.has(duty)),
+    [rows, bulkRole, hidden],
+  );
   const bulkPick = bulkDuty && bulkDuties.includes(bulkDuty) ? bulkDuty : (bulkDuties[0] ?? "");
   const bulkCount = shared.find((t) => t.role === bulkRole)?.count ?? 0;
 
@@ -493,7 +527,7 @@ export function IndustryOnboarding() {
     const scaleNote = teamSizeScaleWarning(people.length);
     const onLeave = onLeavePersonIds(rows);
     clearDraft();
-    startOwnBusiness({ industry: selected, practiceName: businessName, people, leftOut });
+    startOwnBusiness({ industry: selected, practiceName: businessName, people, answers, leftOut });
     if (scaleNote) toast.warning(scaleNote, { duration: 8000 });
     if (onLeave.length > 0) {
       // The roster gives no return date, so the absence covers today; the
@@ -673,7 +707,7 @@ export function IndustryOnboarding() {
                   onClick={() => {
                     // A nonprofit's first row is its executive director, not an owner.
                     setRows((current) => firstRowForIndustry(current, selected));
-                    setStep("team");
+                    setStep("money");
                   }}
                 >
                   Set up my own business
@@ -686,6 +720,35 @@ export function IndustryOnboarding() {
                 The sample team is fictional; every gap on it says so until you enter your own.
               </p>
               <LegalFooter className="justify-center" />
+              {cancelLink}
+            </CardContent>
+          </>
+        ) : step === "money" ? (
+          <>
+            <CardHeader>
+              <Badge variant="accent" className="w-fit">
+                {industry?.label}
+              </Badge>
+              <h2 id="industry-onboarding-title" ref={titleRef} tabIndex={-1} className={titleCls}>
+                How money moves here
+              </h2>
+              <CardDescription>
+                A few quick answers tailor the duties and first steps to how this business works.
+                Not sure is fine.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {storageNote}
+              <SetupMoneyStep
+                answers={answers}
+                onChange={setAnswers}
+                industry={selected}
+                onNext={() => setStep("team")}
+                onBack={() => setStep("industry")}
+              />
+              <p className="text-center text-xs text-subtle">
+                Nothing leaves this browser until you sign in and choose to sync.
+              </p>
               {cancelLink}
             </CardContent>
           </>
@@ -816,7 +879,7 @@ export function IndustryOnboarding() {
                       >
                         Job title
                       </th>
-                      {CORE_DUTIES.map((duty) => (
+                      {visibleCoreDuties.map((duty) => (
                         <th
                           key={duty}
                           scope="col"
@@ -942,10 +1005,11 @@ export function IndustryOnboarding() {
                             <AddDutyControl
                               who={who}
                               duties={row.duties}
+                              hidden={hidden}
                               onAdd={(duty) => addDuty(index, duty)}
                             />
                           </td>
-                          {CORE_DUTIES.map((duty) => (
+                          {visibleCoreDuties.map((duty) => (
                             <td key={duty} className="border-b border-border p-0 text-center">
                               <label className="flex min-h-11 w-full items-center justify-center p-1.5">
                                 <input
@@ -1189,7 +1253,42 @@ export function IndustryOnboarding() {
                 </details>
               </section>
 
-              <SetupPreviewCard rows={rows} industry={selected} />
+              <div className="grid gap-3 xl:grid-cols-2">
+                <SetupPreviewCard rows={rows} industry={selected} answers={answers} />
+                <Card className="border-border bg-elevated/40">
+                  <CardContent className="space-y-3 pt-5">
+                    <h3 className="text-sm font-semibold">What your answers change</h3>
+                    {effects.changed.length > 0 ? (
+                      <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed text-muted">
+                        {effects.changed.map((effect) => (
+                          <li key={effect}>{effect}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-muted">
+                        No duties or safeguards changed based on these answers.
+                      </p>
+                    )}
+                    <details className="rounded-lg border border-border bg-panel/60 p-2.5">
+                      <summary className="cursor-pointer text-xs font-medium">
+                        Assumed, not asked
+                      </summary>
+                      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-relaxed text-muted">
+                        {effects.assumed.map((effect) => (
+                          <li key={effect}>{effect}</li>
+                        ))}
+                      </ul>
+                    </details>
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-primary underline underline-offset-2"
+                      onClick={() => setStep("money")}
+                    >
+                      Change answers
+                    </button>
+                  </CardContent>
+                </Card>
+              </div>
               {finishNote && (
                 <p className="text-xs text-danger" role="alert">
                   {finishNote}
@@ -1204,7 +1303,7 @@ export function IndustryOnboarding() {
                 >
                   Show me my gaps
                 </Button>
-                <Button className="w-full" variant="secondary" onClick={() => setStep("industry")}>
+                <Button className="w-full" variant="secondary" onClick={() => setStep("money")}>
                   Back
                 </Button>
               </div>

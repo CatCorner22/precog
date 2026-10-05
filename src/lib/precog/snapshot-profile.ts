@@ -12,6 +12,7 @@ import {
 } from "./profile-entries";
 import { applyAssignmentsToPeople } from "./sod/apply-assignments";
 import { buildAssignments, type RoleAssignment } from "./sod/detect";
+import { normalizeSetupAnswers } from "./onboarding/setup-answers";
 
 /**
  * What a snapshot leaves out and a restore keeps from the open business: the
@@ -88,6 +89,7 @@ export function sanitizeSnapshotProfile(value: unknown): {
     customProcesses: processEntries(value.customProcesses),
     customKnowledge: knowledgeEntries(value.customKnowledge),
     customRelations: relationEntries(value.customRelations),
+    setupAnswers: normalizeSetupAnswers(value.setupAnswers),
     plannedAbsences: Array.isArray(value.plannedAbsences)
       ? (value.plannedAbsences as PracticeProfile["plannedAbsences"])
       : undefined,

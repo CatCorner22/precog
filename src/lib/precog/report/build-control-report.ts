@@ -36,6 +36,7 @@ import { buildWeeklyActions } from "../weekly-actions/build";
 import { buildProcessMapGraph } from "../process-graph";
 import { scoreMap } from "../builder/scored-map";
 import { registerAssessed } from "../continuity/register-state";
+import { setupInPlaceControls } from "../onboarding/setup-answers";
 import {
   continuityFollowThrough,
   decisionLog,
@@ -168,10 +169,13 @@ export function buildControlReportModel({
   // Ranked as Start here ranks its "Do these first" list, so the screen and
   // the printed report lead with the same step: first by how many of the
   // open findings each control answers.
-  const steps = rankFirstSteps(recommendedStepsForRules(openRuleIds, profile.industry), open).slice(
-    0,
-    6,
-  );
+  const inPlace = setupInPlaceControls(profile.setupAnswers);
+  const steps = rankFirstSteps(
+    recommendedStepsForRules(openRuleIds, profile.industry).filter(
+      (step) => !inPlace.has(step.control.id),
+    ),
+    open,
+  ).slice(0, 6);
   // Count, median and detection routes describe only the cases whose records
   // show these gaps. Cases that merely share a scheme are listed but never
   // counted, so when no case shows the gaps the report gives no loss figure.

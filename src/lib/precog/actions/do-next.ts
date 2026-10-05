@@ -1,4 +1,5 @@
 import { recommendedStepsForRules } from "../evidence";
+import type { ControlId } from "../evidence/controls";
 import type { IndustryId } from "../industry";
 import { rankFirstSteps, type OpenFinding } from "../coach/first-steps";
 import type { AccessReconciliation } from "../firm/reconcile";
@@ -32,6 +33,8 @@ export interface DoNextInput {
   industry: IndustryId;
   integrationDriftSummary: IntegrationDriftSummary | null | undefined;
   accessReconciliation: AccessReconciliation | null | undefined;
+  /** Controls the owner said at setup already run here. */
+  inPlace?: ReadonlySet<ControlId>;
 }
 
 /**
@@ -45,9 +48,13 @@ export function doNextList({
   industry,
   integrationDriftSummary,
   accessReconciliation,
+  inPlace,
 }: DoNextInput): DoNextItem[] {
   const ruleIds = [...new Set(open.map((f) => f.ruleId))];
-  const steps = rankFirstSteps(recommendedStepsForRules(ruleIds, industry), open)
+  const recommended = recommendedStepsForRules(ruleIds, industry).filter(
+    (step) => !inPlace?.has(step.control.id),
+  );
+  const steps = rankFirstSteps(recommended, open)
     .slice(0, DO_NEXT_STEPS_MAX)
     .map((step): DoNextItem => ({ kind: "step", id: step.control.id, step }));
   const drift = buildDriftActions({ summary: integrationDriftSummary, accessReconciliation })

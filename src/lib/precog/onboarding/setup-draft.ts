@@ -2,6 +2,7 @@ import type { Departure } from "../continuity/access-removal";
 import { MAX_BUSINESS_NAME } from "../business-id";
 import { INDUSTRIES, type IndustryId } from "../industry";
 import type { StorageLike } from "../local-data";
+import { normalizeSetupAnswers, type SetupAnswers } from "./setup-answers";
 import { firstRowForIndustry, type OwnTeamRow } from "./own-team";
 
 /**
@@ -13,7 +14,7 @@ import { firstRowForIndustry, type OwnTeamRow } from "./own-team";
 export const SETUP_DRAFT_KEY = "precog.onboarding-draft.v1";
 
 export interface SetupDraft {
-  step: "industry" | "team";
+  step: "industry" | "money" | "team";
   selected: IndustryId;
   businessName: string;
   rows: OwnTeamRow[];
@@ -27,6 +28,7 @@ export interface SetupDraft {
    * cleared once used, so the draft is the only place they survive a reload.
    */
   leftOut?: Departure[];
+  answers?: SetupAnswers;
 }
 
 function sessionArea(): StorageLike | null {
@@ -95,14 +97,16 @@ export function readSetupDraft(storage: StorageLike | null = sessionArea()): Set
     if (typeof draft.businessName !== "string" || !Array.isArray(draft.rows)) return null;
     if (typeof draft.selected !== "string" || !INDUSTRY_IDS.has(draft.selected)) return null;
     const leftOut = Array.isArray(draft.leftOut) ? draft.leftOut.filter(isDeparture) : [];
+    const answers = normalizeSetupAnswers(draft.answers);
     return {
-      step: draft.step === "team" ? "team" : "industry",
+      step: draft.step === "team" || draft.step === "money" ? draft.step : "industry",
       selected: draft.selected as IndustryId,
       businessName: draft.businessName.slice(0, MAX_BUSINESS_NAME),
       rows: draft.rows.filter(isRow),
       paste: typeof draft.paste === "string" ? draft.paste : "",
       ...(typeof draft.businessId === "string" ? { businessId: draft.businessId } : {}),
       ...(leftOut.length > 0 ? { leftOut } : {}),
+      ...(answers ? { answers } : {}),
     };
   } catch {
     return null;
@@ -145,7 +149,7 @@ export function namedPeople(draft: Pick<SetupDraft, "rows">): number {
  * setup in this tab, one the owner left to load the sample, comes back when
  * it holds typed work, with the name and line of business chosen for this
  * business, and `restoredEarlier` so the dialog can say so and offer to start
- * over. Otherwise setup starts fresh, on the team step when the business
+ * over. Otherwise setup starts fresh, on the money step when the business
  * already has a name.
  */
 export function initialSetup(
@@ -154,7 +158,7 @@ export function initialSetup(
   freshRows: () => OwnTeamRow[],
 ): { draft: SetupDraft; restoredEarlier: boolean } {
   const fresh: SetupDraft = {
-    step: business.typedName ? "team" : "industry",
+    step: business.typedName ? "money" : "industry",
     selected: business.industry,
     businessName: business.typedName,
     // A nonprofit's grid starts with its executive director, not an owner.

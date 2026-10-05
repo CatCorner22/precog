@@ -27,9 +27,13 @@ vi.mock("@tanstack/react-router", async (original) => ({
 const { IndustryOnboarding } = await import("./industry-onboarding");
 
 /** The first render, as the server draws it, with markup tags removed. */
-function firstRender(practiceName: string) {
-  practice.profile = { industry: "dental", practiceName, businessId: "biz_test" };
-  const html = renderToStaticMarkup(<IndustryOnboarding />);
+function firstRender(
+  practiceName: string,
+  industry = "dental",
+  initialStep?: "industry" | "money" | "team",
+) {
+  practice.profile = { industry, practiceName, businessId: "biz_test" };
+  const html = renderToStaticMarkup(<IndustryOnboarding initialStep={initialStep} />);
   return { html, text: html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") };
 }
 
@@ -55,8 +59,24 @@ describe("IndustryOnboarding, first render", () => {
     expect(text).not.toContain("Business profile");
   });
 
-  it("opens a named business on its team grid with job-title wording and plural counts", () => {
+  it("opens a named business on the money step", () => {
     const { html, text } = firstRender("Ruiz Dental");
+    expect(text).toContain("How money moves here");
+    expect(text).toContain("How money moves");
+    expect(text).toContain("What already runs");
+    expect(text).toContain("Next: your team");
+    expect(text).toContain("Skip these questions");
+    expect(html.match(/role="radiogroup"/g)).toHaveLength(11);
+    expect(text).not.toContain("Your business and who does the money work");
+  });
+
+  it("uses board-member wording for nonprofit setup", () => {
+    const { text } = firstRender("Community Co", "nonprofit");
+    expect(text).toContain("Does a board member open and read the bank statement each month?");
+  });
+
+  it("opens a named business on its team grid with job-title wording and plural counts", () => {
+    const { html, text } = firstRender("Ruiz Dental", "dental", "team");
     expect(text).toContain("Your business and who does the money work");
     expect(text).toContain("0 people named · 1 row to review");
     expect(text).not.toContain("reload recovery");
@@ -66,7 +86,6 @@ describe("IndustryOnboarding, first render", () => {
     expect(text).toContain("Add 1 person");
     expect(html).toContain('role="tooltip"');
     expect(html).toContain("max-w-3xl lg:max-w-7xl");
-    // The grid comes before the ways to fill it faster.
     expect(html.indexOf("<table")).toBeLessThan(html.indexOf("Fill the table faster"));
   });
 });

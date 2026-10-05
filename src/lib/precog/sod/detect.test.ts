@@ -16,6 +16,7 @@ import { segregationHealthIndex } from "./score";
 import { ROLE_TEMPLATES } from "./role-templates";
 import { sodMatrix } from "./rule-match";
 import { defaultDualReleasePolicy, mitigatedSodRuleIds } from "../controls/dual-release";
+import { openFindings } from "./open-findings";
 
 const dental = getIndustryTemplate("dental");
 
@@ -874,6 +875,24 @@ describe("owner logic by line of business", () => {
   it("still reads the founder of a business as its owner", () => {
     const report = detectAssignments({ assignments: founder(), industry: "general" });
     expect(report.summary.ownerHeld).toBe(2);
+  });
+
+  it("does not count the owner's invoice-entry and payment-release pair as open", () => {
+    const assignments = [clerk(["enter_invoices", "release_payment"], "Owner")];
+    const report = detectAssignments({ assignments, industry: "general" });
+    const ownerPair = report.conflicts.filter((conflict) => conflict.ruleId === "rule-invoice-pay");
+    expect(ownerPair).toMatchObject([{ ownerHeld: true, dualReleaseMitigated: false }]);
+    expect(openFindings(ownerPair, new Map())).toEqual([]);
+
+    const employeeReport = detectAssignments({
+      assignments: [clerk(["enter_invoices", "release_payment"], "Bookkeeper")],
+      industry: "general",
+    });
+    const employeePair = employeeReport.conflicts.filter(
+      (conflict) => conflict.ruleId === "rule-invoice-pay",
+    );
+    expect(employeePair).toMatchObject([{ ownerHeld: false, dualReleaseMitigated: false }]);
+    expect(openFindings(employeePair, new Map())).toEqual(employeePair);
   });
 
   it("names the board treasurer as the reader in a nonprofit's advice, never a partner", () => {

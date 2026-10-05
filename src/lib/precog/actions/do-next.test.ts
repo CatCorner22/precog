@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "../active-template";
 import { INDUSTRIES } from "../industry";
 import { defaultProfile } from "../practice-profile";
+import { UNANSWERED } from "../onboarding/setup-answers";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "../sod/open-findings";
 import { buildStartHereModel } from "../start-here/model";
@@ -91,6 +92,23 @@ describe("doNextList", () => {
     );
     const answers = steps.map((s) => s.answers);
     expect(answers).toEqual([...answers].sort((a, b) => b - a));
+  });
+
+  it("leaves the setup-reported statement control off the list and names it", () => {
+    const { profile, template } = sample("general");
+    const withSetupAnswer = {
+      ...profile,
+      setupAnswers: { ...UNANSWERED, ownerReadsStatement: "yes" as const },
+    };
+    const home = buildStartHereModel({
+      profile: withSetupAnswer,
+      template,
+      today: TODAY,
+    }).firstSteps;
+    expect(home.steps.map((step) => step.control.id)).not.toContain("owner-opens-bank-statement");
+    expect(home.alreadyInPlace.map((control) => control.id)).toContain(
+      "owner-opens-bank-statement",
+    );
   });
 
   it("lists only drift items when no duty conflict is open", () => {

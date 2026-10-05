@@ -30,6 +30,7 @@ import {
 } from "./business-lifecycle";
 import type { Departure } from "./continuity/access-removal";
 import type { Person } from "./types";
+import type { SetupAnswers } from "./onboarding/setup-answers";
 import { pickSwitchCopy, type LocalProfileStore } from "./save-conflict";
 import type { SaveConflictState } from "./use-cloud-sync";
 import type { ProfileAction } from "./profile-reducer";
@@ -351,6 +352,7 @@ export function usePortfolio(input: {
       industry: IndustryId;
       practiceName: string;
       people: Person[];
+      answers?: SetupAnswers;
       leftOut?: Departure[];
     }) => {
       clearHistory();
