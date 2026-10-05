@@ -92,9 +92,13 @@ export async function loadFirmRetention(sql: Sql, firmUserId: string): Promise<n
 
 /**
  * Refuses (409) a change by a member of the business's firm while its
- * engagement has ended. The business's account outside the firm, the
- * account of a business its owner shared with the firm, and every business
- * with no firm, pass. Reads, exports and deletion never call this.
+ * engagement has ended. Anyone outside that firm passes (the access checks
+ * decide for them), so the account of a business its owner shared with the
+ * firm keeps changing it from outside the firm; and every business with no
+ * firm passes. An owner who is also a member of the firm is refused like
+ * any member: the firm's work (a lock, a send, a review for issuance) would
+ * otherwise go on under the firm's name after its owner ended it. Reads,
+ * exports and deletion never call this.
  */
 export async function assertEngagementOpen(
   tx: Sql,
@@ -109,9 +113,6 @@ export async function assertEngagementOpen(
     join firm_members m on m.firm_user_id = b.firm_user_id and m.member_user_id = ${actorUserId}
     where b.user_id = ${ownerUserId} and b.id = ${businessId}
       and b.firm_user_id is not null and e.status = 'ended'
-      -- A business its owner shared with a firm stays the owner's to change,
-      -- even when the owner is also a member of that firm.
-      and not (b.granted_at is not null and b.user_id = ${actorUserId})
   `;
   if (rows.length) throw new RequestError(409, ENGAGEMENT_ENDED);
 }
