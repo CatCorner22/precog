@@ -132,7 +132,7 @@ never a fact about the business, and the app says so at the point of use.
 | **Decision journal**    | Document accept / remediate / monitor / insure with review dates; each entry snapshots scores when logged and again at review (then-vs-now), including register coverage and documentation state for decisions logged from the continuity planner; if a cross-training decision closed as done later loses its stand-in, the journal and Start here flag it as slipped with one-click reopen. Slips are step-aware: documentation slips apply to write-it-down steps, while coverage slips apply to cross-training and hand-off steps. Closing a register step as done is register-aware: if the register does not yet show the outcome, the journal offers "Done — Chris can now do it alone" / "Done — it's written down at …", which updates and re-confirms the register entry as it closes ("Done anyway" closes without touching it). Open register steps also feed back into advice: the weekly plan, printed report and Pioneer report a step already logged as "In progress: Chris on PMS admin — review 12 Oct" (or "Review overdue: can Chris run it alone yet?" once the date passes) instead of recommending it again                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | **Pioneer advisor**     | Tool-grounded AI brief (Grok when configured; local fallback always) that cites the prosecuted cases matching your open gaps. Its continuity context includes documentation gaps so Pioneer can advise on writing or locating procedures alongside cross-training                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | **Printed report**      | Findings, recommended controls, and the cases cited with publisher and URL, for an accountant, lender, or insurer. The continuity section reports weighted documentation debt and its top write/locate actions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| **Cloud sync**          | Sign in to persist your business profile across devices                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Cloud sync**          | Sign in to persist your business profile across devices; Sessions in the account menu lists where the account is signed in (a session lasts seven days from its last use) and signs out the other sessions or every session                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 Cloud saves carry a per-business revision, so edits made in another tab or device are
 identified before they can overwrite local work. The app asks whether to load the remote
@@ -193,7 +193,18 @@ business's own home page.
   account; the owner can hand the firm to a member; only the owner deletes or
   restores a client.
 - **Clients**: each client carries its engagement marks (started, map
-  completed, report sent, open and accepted findings).
+  completed, report sent, open and accepted findings) and, on its Engagement
+  block, the engagement itself: scope, period, preparer, reviewer and status.
+  An ended engagement is read-only for the firm's members until the firm
+  owner reopens it. "Download engagement archive" saves one HTML file built
+  in the browser: the engagement, the monthly review log and every locked
+  version's stored figures, each version printed as it was locked.
+- **Client invitations**: a business owner invites their accountant's firm
+  from "Your accountant" on Start here; the firm owner accepts at
+  `/join/client/<token>`, and the business joins the firm's client list while
+  staying the owner's. Either side ends the access ("End the firm's access",
+  "Hand back to its owner"); the firm then loses the business and the
+  versions it locked, and the owner keeps them.
 - **Monthly review log** (the Monthly review tab): five checks per client per month (open the bank
   statement, read the cleared-check images, compare payroll to who still
   works there, review new vendors, read the company card statement line by
@@ -201,11 +212,24 @@ business's own home page.
   check applies from October 2026; earlier months keep their four results. The log is append-only: a later result is a new row.
 - **Report versions**: a sent report is a locked version with the profile as
   it was, the preparer, and the reviewer who reviewed it for issuance, with
-  the firm's letterhead frozen into each version; a reviewed version can be
-  shared by link.
-- **Billing**: the fixed assessment and the monthly firm plan through Stripe
-  Checkout when Stripe is configured; otherwise the firm records its stage by
-  hand.
+  the firm's letterhead and the engagement's scope and period frozen into
+  each version; a reviewed version can be shared by link. The preparer asks
+  for review ("Ask for review": the engagement's reviewer, else the firm
+  owner); a reviewer reviews it for issuance or returns it with a note
+  ("Return to preparer"), and the preparer locks a new version. The weekly
+  digest counts the versions awaiting each recipient's review.
+- **Activity log**: who did what to the firm's file (named events, with each
+  person's name as it was), insert-only in the database; the firm owner
+  downloads it in Export data. Each entry is purged after the firm's
+  retention period (7 to 15 years, 7 unless the firm owner picks another on
+  the Firm page), which also keeps a deleted client that holds a locked
+  version.
+- **Billing**: the fixed assessment and the Firm plan through Stripe
+  Checkout when Stripe is configured: three tiers by client businesses
+  (Starter 1–5, Practice 6–20, Firm 21–50), each monthly or yearly at ten
+  months' price, paid by card or US bank account (ACH). A firm invoiced net 30
+  is linked to its Stripe customer with `npm run link:stripe-customer` or on
+  `/operator`. Without Stripe the firm records its stage by hand.
 - **QuickBooks link** (read-only): reads the connected company's vendors and
   employees and compares them with the people on the duty map.
 - **Reminders**: a weekly email digest to advisors, off until the account
@@ -261,8 +285,8 @@ npm run e2e:warmup        # wait until Vite has finished discovering dependencie
 npm run e2e               # map builder: add a process, keyboard shortcuts, CSV import and undo
 npm run e2e:enhancements  # insurance confirmation, map undo/redo, exception-first setup
 npm run e2e:tabs          # every tab of every industry demo, plus /report, /login, /privacy,
-                          # /terms, /welcome, /pricing, /firm and a bad /share link; fails on
-                          # any page error
+                          # /terms, /welcome, /pricing, /firm, a bad /share and /share/report
+                          # link and /join/client/not-a-real-token; fails on any page error
 npm run e2e:safety        # signed sessions against the compiled build (see "Continuous integration")
 ```
 
@@ -283,8 +307,9 @@ sign-in (required in production), the public app URL, the assistants and
 their daily ceilings, the scheduled job (`CRON_SECRET`), reminder email
 (Resend, with `RESEND_WEBHOOK_SECRET` for its bounce and complaint webhook,
 so a bouncing or complaining address is not emailed again), billing
-(Stripe), the QuickBooks link, error reporting (Sentry or a webhook) and
-hosting outside Vercel. `scripts/deploy-config.test.mjs` fails
+(Stripe, with a price id per tier and interval), the QuickBooks link, the
+operator page (`PRECOG_OPERATOR_IDS`), error reporting (Sentry or a webhook)
+and hosting outside Vercel. `scripts/deploy-config.test.mjs` fails
 when the code reads a variable the file does not name.
 
 ### Database migrations
@@ -312,10 +337,15 @@ PGLite applies the same files at startup.
 
 `vercel.json` calls `/api/cron/digest` every Monday at 13:00 UTC with
 `CRON_SECRET` as a bearer token. The run emails the weekly reminders, purges
-businesses deleted more than 30 days ago and share view and failed
-passcode-guess logs past their retention, re-reads QuickBooks connections
-older than 28 days, emails the firm owner once per QuickBooks problem, and
-counts the week's first-time milestones. Without `CRON_SECRET` every run is refused and none of
+businesses deleted more than 30 days ago (a firm's client that holds a locked
+report version waits for the firm's retention period), model-call records
+older than 13 months, activity-log entries past their firm's retention
+period, and share view and failed passcode-guess logs past their retention,
+re-reads QuickBooks connections older than 28 days, emails the firm owner
+once per QuickBooks problem, and counts the week's first-time milestones.
+The digest, QuickBooks and alert stages each stop at a deadline inside the
+300 seconds; the answer then says `partial: true` and the next run picks up
+the rest. Without `CRON_SECRET` every run is refused and none of
 this happens; a production build warns about it. The function may run for 300
 seconds; other functions 60 (`vite.config.ts`, checked by `check:functions`
 after each build).
@@ -376,7 +406,7 @@ The continuity register (Who knows what) imports and exports a spreadsheet with 
 Pioneer and the Start here also surface the confirmed-recently figure once you enter your own register. Re-confirmation is organised as a check-in per person: the "Confirm it's still true" card groups stale items by who holds them, so one conversation covers everything the register says that person can do (still does it / level changed / no longer), with a separate list for stale items nobody on the active team holds. The weekly action plan, printed report and Pioneer (`get_register_checkins`) advise in the same terms — "check in with Maya: 5 entries, 2 nobody else can run alone" — rather than item by item, and Start here names the next person to sit down with. When a check-in takes someone off an item or drops them below "can do it alone", a "What this check-in changed" card lists every item whose coverage got worse, who is left, and the cross-training move that repairs it, loggable as a decision.
 Share links can hide people's names while keeping roles, optionally require a passcode, and record a small view log for the owner.
 
-Pages that need no sign-in: `/welcome` (the landing page a first-time visitor with no business is sent to), `/pricing` (the Assessment and the Firm plan, with what free includes), `/login`, `/privacy`, `/terms`, `/share/<token>` (a shared map) and `/share/report/<token>` (a shared locked report version).
+Pages that need no sign-in: `/welcome` (the landing page a first-time visitor with no business is sent to), `/pricing` (the Assessment and the Firm plan, with what free includes), `/login`, `/privacy`, `/terms`, `/share/<token>` (a shared map), `/share/report/<token>` (a shared locked report version) and `/join/client/<token>` (a business owner's invitation to a firm; it names the business before sign-in, and the firm owner signs in to accept). `/operator` is the page of Precog's operator: it answers as an unknown page to anyone whose user id is not in `PRECOG_OPERATOR_IDS` (see `docs/OPERATIONS.md`, "Operator").
 
 ## Demo data
 
