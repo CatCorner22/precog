@@ -153,7 +153,7 @@ export interface AcceptedGrant {
  * The firm owner accepts: the business joins the firm's client list. Only
  * the owner of a firm whose confirmed address is the invited one may accept,
  * and only while the firm's plan holds one more client. The engagement row
- * starts afresh, keeping its stamps, counts and the owner's address.
+ * starts afresh (resetEngagement), keeping its stamps and counts.
  */
 export async function acceptGrant(sql: Sql, token: string, userId: string): Promise<AcceptedGrant> {
   return inTransaction(sql, async (tx) => {
@@ -311,9 +311,13 @@ export async function loadGrantFor(
 
 /**
  * Starts the business's engagement afresh for a new firm, or for none:
- * scope, period, preparer and reviewer cleared, active. The row's stamps,
- * finding counts and owner address stay. A firm that later works on the
- * business never inherits another firm's engagement.
+ * scope, period, preparer and reviewer cleared, active, and the owner-note
+ * address cleared with its token and confirmation, since the owner agreed
+ * to notes from the firm that asked (a member of a firm can set one, and
+ * the notes carry that firm's reply-to). The row's stamps and finding
+ * counts stay. A firm that later works on the business never inherits
+ * another firm's engagement or address; an owner who stopped notes to an
+ * address stays stopped (owner_email_stops).
  */
 export async function resetEngagement(
   tx: Sql,
@@ -326,7 +330,9 @@ export async function resetEngagement(
     on conflict (user_id, business_id) do update set
       scope = '', period_start = null, period_end = null,
       preparer_user_id = null, reviewer_user_id = null,
-      status = 'active', ended_at = null
+      status = 'active', ended_at = null,
+      owner_email = null, owner_email_token = null,
+      owner_email_confirmed_at = null, owner_email_unsubscribed_at = null
   `;
 }
 

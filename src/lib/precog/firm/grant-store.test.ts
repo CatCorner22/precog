@@ -361,6 +361,46 @@ describe("ending the firm's access", () => {
     ]);
   });
 
+  it("drops the owner-note address a firm set when the firm working on the business changes", async () => {
+    // The address the weekly owner note goes to, as ownerNoteTargets (digest.ts) selects it.
+    const noteAddress = async () =>
+      (
+        await db.pg.query<{ owner_email: string }>(
+          `select owner_email from engagement_marks
+           where user_id = 'bo' and business_id = 'biz_1' and owner_email is not null
+             and owner_email_token is not null and owner_email_confirmed_at is not null
+             and owner_email_unsubscribed_at is null`,
+        )
+      ).rows.map((r) => r.owner_email);
+    const confirmed = `update engagement_marks set owner_email = 'rosa@ortiz.test',
+        owner_email_token = 'tok_note', owner_email_confirmed_at = now()
+      where user_id = 'bo' and business_id = 'biz_1'`;
+    await granted();
+    await db.pg.exec(confirmed);
+    expect(await noteAddress()).toEqual(["rosa@ortiz.test"]);
+    // North's access ends: its address no longer receives the business's notes.
+    await endGrant(db.sql, { ownerUserId: "bo", businessId: "biz_1", actorUserId: "bo" });
+    expect(await noteAddress()).toEqual([]);
+    // An address in place when another firm accepts does not carry over to it.
+    await db.pg.exec(confirmed);
+    const next = await invite("fo2@example.test");
+    await acceptGrant(db.sql, next.token, "fo2");
+    expect(await noteAddress()).toEqual([]);
+    const row = (
+      await db.pg.query<Record<string, unknown>>(
+        `select owner_email, owner_email_token, owner_email_confirmed_at,
+           owner_email_unsubscribed_at
+         from engagement_marks where user_id = 'bo' and business_id = 'biz_1'`,
+      )
+    ).rows[0];
+    expect(row).toEqual({
+      owner_email: null,
+      owner_email_token: null,
+      owner_email_confirmed_at: null,
+      owner_email_unsubscribed_at: null,
+    });
+  });
+
   it("hands back through the one helper endGrant and the account deletion share", async () => {
     await granted();
     await db.pg.exec(`
@@ -392,7 +432,7 @@ describe("ending the firm's access", () => {
     expect(member.rows).toEqual([{ firm_user_id: "fo" }]);
   });
 
-  it("accepting and ending start the engagement afresh and keep its stamps", async () => {
+  it("accepting and ending start the engagement afresh, address included, and keep its stamps", async () => {
     const filled = `insert into engagement_marks (user_id, business_id, scope, period_start,
         period_end, status, ended_at, preparer_user_id, reviewer_user_id, started_at,
         owner_email, accepted_findings)
@@ -410,7 +450,7 @@ describe("ending the firm's access", () => {
       ended_at: null,
       preparer_user_id: null,
       reviewer_user_id: null,
-      owner_email: "rosa@ortiz.test",
+      owner_email: null,
       accepted_findings: 3,
     };
     await db.pg.exec(filled);
