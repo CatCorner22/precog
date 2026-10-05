@@ -226,7 +226,8 @@ function PrivacyPage() {
           the firm workspace, or with the stop link in every digest. When you enter a client owner’s
           address on their client card, Precog emails the owner once to ask whether they agree to
           reminders, and sends that address nothing more until the owner agrees. Each reminder has a
-          link that stops them. When a firm owner invites a colleague, Precog emails the invitation.
+          link that stops them. When a firm owner invites a colleague, or a business owner invites a
+          firm, Precog emails the invitation.
         </p>
         <p>
           Shared map links are separate. Anyone with the link can open that frozen map until it

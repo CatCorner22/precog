@@ -304,6 +304,12 @@ describe("Privacy", () => {
     for (const phrase of Object.values(words)) expect(list).toContain(phrase);
   });
 
+  it("says Precog emails a business owner's invitation to a firm", () => {
+    expect(html).toContain(
+      "When a firm owner invites a colleague, or a business owner invites a firm, Precog emails the invitation.",
+    );
+  });
+
   it("says how long a session lasts and what each model call leaves behind", () => {
     expect(html).toContain(
       "The session cookie stays with Precog. A session lasts seven days from its last use; Sessions in the account menu lists your signed-in devices and ends them.",
