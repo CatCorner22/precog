@@ -37,7 +37,7 @@ export interface SetupDraft {
    * People a pasted roster marked terminated or inactive, whose pay and
    * logins finishing asks the owner to confirm are stopped. The paste is
    * cleared once used, so the draft is the only place they survive a reload.
-  */
+   */
   leftOut?: Departure[];
   setupAnswers?: SetupAnswers;
 }
