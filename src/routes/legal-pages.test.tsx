@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import type { ComponentType, ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -290,11 +290,22 @@ describe("Privacy", () => {
   });
 
   it("names, for every event the activity log accepts, the words that list it", () => {
-    // The log's check list (migration 0048, AUDIT_EVENTS in audit.server.ts);
-    // a new event needs a migration, and this map fails until Privacy names it.
-    const migration = repoFile("migrations/0048_firm_audit_log.sql");
-    const check = migration.slice(migration.indexOf("check (event in ("));
-    const events = [...check.slice(0, check.indexOf("))")).matchAll(/'([a-z_]+)'/g)].map(
+    // The events Precog's writers can name (AUDIT_EVENTS in audit.server.ts)
+    // and the events the table accepts (the check list of the newest migration
+    // that sets one) are one list, and this map fails until Privacy names each.
+    const source = repoFile("src/lib/precog/firm/audit.server.ts");
+    const declared = source.slice(source.indexOf("AUDIT_EVENTS = ["));
+    const events = [...declared.slice(0, declared.indexOf("]")).matchAll(/"([a-z_]+)"/g)].map(
+      (m) => m[1],
+    );
+    const checks = readdirSync(new URL("../../migrations/", import.meta.url))
+      .filter((file) => file.endsWith(".sql"))
+      .sort()
+      .map((file) => repoFile(`migrations/${file}`))
+      .filter((text) => text.includes("firm_audit_log") && text.includes("check (event in ("));
+    const latest = checks.at(-1) ?? "";
+    const check = latest.slice(latest.lastIndexOf("check (event in ("));
+    const accepted = [...check.slice(0, check.indexOf("))")).matchAll(/'([a-z_]+)'/g)].map(
       (m) => m[1],
     );
     const words: Record<string, string> = {
@@ -331,9 +342,15 @@ describe("Privacy", () => {
       operator_linked_stripe: "lookups and changes",
       operator_lifted_cap: "lookups and changes",
     };
-    expect(events).toHaveLength(32);
+    expect(events.length).toBeGreaterThanOrEqual(32);
+    expect([...accepted].sort()).toEqual([...events].sort());
     expect(Object.keys(words).sort()).toEqual([...events].sort());
-    const list = html.slice(html.indexOf("Precog writes these events"));
+    // Only the list itself: the paragraph's first sentence, so a short phrase
+    // ("removed", "returns") cannot match a later sentence or section.
+    const start = html.indexOf("Precog writes these events");
+    const paragraph = html.slice(start, html.indexOf("</p>", start));
+    const list = paragraph.slice(0, paragraph.indexOf(". ") + 1);
+    expect(list).toMatch(/^Precog writes these events.*lookups and changes\.$/s);
     for (const phrase of Object.values(words)) expect(list).toContain(phrase);
   });
 
