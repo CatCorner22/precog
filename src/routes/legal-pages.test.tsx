@@ -1,6 +1,8 @@
 import type { ComponentType, ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { TIER_CLIENT_LIMITS } from "@/lib/precog/firm/entitlements";
+import { TIERS } from "@/lib/precog/firm/pricing";
 import { Route as Terms } from "./terms";
 import { Route as Privacy } from "./privacy";
 
@@ -75,10 +77,12 @@ describe("Terms", () => {
     expect(html).toContain("These terms are governed by the law of [STATE], and its courts");
   });
 
-  it("says the plan renews each month and keeps the six original paragraphs", () => {
-    expect(html).toContain("The Firm plan renews each month until you cancel it.");
-    expect(html).not.toMatch(/yearly|each year/);
-    expect(html).toContain("a started month is not refunded");
+  it("says the plan renews each month or each year and keeps the six original paragraphs", () => {
+    expect(html).toContain(
+      "The Firm plan renews each month or each year, as you chose at Checkout, until you cancel it.",
+    );
+    expect(html).toContain("renews each month or each year");
+    expect(html).toContain("a started month or year is not refunded");
     expect(html).toContain("not refunded once a report version is locked");
     expect(html).toContain("An email-and-password sign-up that is not confirmed within 24 hours");
     expect(html).toContain("A standard data processing agreement is available on request from");
@@ -87,6 +91,18 @@ describe("Terms", () => {
     expect(html).toContain("A case names the defendant as the record names them.");
     expect(html).toContain("Precog helps an owner or advisor describe who holds which duties");
     expect(html).toContain("a month with no recorded loss is not evidence that any control");
+  });
+
+  it("names each tier's client limit, as the code enforces it, and the two ways to pay", () => {
+    expect(html).toContain(
+      "The Firm plan&#x27;s tier sets how many client businesses the firm can keep: Starter up to 5, Practice up to 20, Firm up to 50; the firm owner moves up a tier in Manage billing.",
+    );
+    // The sentence above spells out TIERS and TIER_CLIENT_LIMITS; change them and it together.
+    const limits = TIERS.map((t) => `${t.label} up to ${TIER_CLIENT_LIMITS[t.tier]}`).join(", ");
+    expect(html).toContain(`client businesses the firm can keep: ${limits};`);
+    expect(html).toContain(
+      "You can pay by card or by US bank account; a bank payment that later fails is treated as a failed payment.",
+    );
   });
 
   it("says the Assessment fee is credited once and that a departing member's clients move", () => {

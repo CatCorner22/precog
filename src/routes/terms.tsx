@@ -116,14 +116,18 @@ function TermsPage() {
       <section className={sectionCls}>
         <h2 className={headingCls}>Billing</h2>
         <p>
-          The Firm plan renews each month until you cancel it. Cancel any time with Manage billing
-          on the Firm page; you keep access to the end of the period you paid for, and a started
-          month is not refunded. The Assessment is a one-off payment, and it is not refunded once a
-          report version is locked. An Assessment fee that has not been refunded is credited once,
-          before tax, against the Firm plan's invoices when the account that paid it first starts
-          the Firm plan. Prices are as shown at Checkout, plus applicable sales tax, which Stripe
-          calculates from the billing address you give. Precog tells you by email before a price
-          change applies to your next renewal.
+          The Firm plan renews each month or each year, as you chose at Checkout, until you cancel
+          it. Cancel any time with Manage billing on the Firm page; you keep access to the end of
+          the period you paid for, and a started month or year is not refunded. The Firm plan's tier
+          sets how many client businesses the firm can keep: Starter up to 5, Practice up to 20,
+          Firm up to 50; the firm owner moves up a tier in Manage billing. The Assessment is a
+          one-off payment, and it is not refunded once a report version is locked. An Assessment fee
+          that has not been refunded is credited once, before tax, against the Firm plan's invoices
+          when the account that paid it first starts the Firm plan. Prices are as shown at Checkout,
+          plus applicable sales tax, which Stripe calculates from the billing address you give. You
+          can pay by card or by US bank account; a bank payment that later fails is treated as a
+          failed payment. Precog tells you by email before a price change applies to your next
+          renewal.
         </p>
       </section>
 
