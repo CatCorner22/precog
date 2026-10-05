@@ -77,8 +77,9 @@ const QUERIES: Record<OperatorCountName, (sql: Sql) => Promise<Row[]>> = {
   `,
   "weekly-activation": async (sql) => {
     const today = serverUtcDay();
-    const weeks = [];
-    for (let i = 0; i < 8; i += 1) weeks.push(await weeklyActivation(sql, shiftDay(today, -7 * i)));
+    const weeks = await Promise.all(
+      Array.from({ length: 8 }, (_, i) => weeklyActivation(sql, shiftDay(today, -7 * i))),
+    );
     return weeks.map((w) => ({
       week_ending: w.weekEnding,
       signed_up: w.signedUp,

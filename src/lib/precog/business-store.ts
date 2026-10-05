@@ -194,7 +194,7 @@ async function authorizeBusinessDestroyer(
   owner: string,
   actor: string,
   firm: string | null,
-  granted = false,
+  granted: boolean,
 ) {
   if (owner === actor && (firm === null || firm === owner || granted)) return;
   const member = await sql<{ role: string }>`

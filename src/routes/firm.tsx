@@ -28,7 +28,7 @@ import {
   pilotMetrics,
   pilotMetricsCsv,
 } from "@/lib/precog/firm/engagement";
-import { downloadText } from "@/lib/download";
+import { downloadCsv, downloadText } from "@/lib/download";
 import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { PaymentOverdueBanner } from "@/components/precog/payment-overdue-banner";
 import { getEntitlements, type EntitlementsAnswer } from "@/lib/precog/firm/entitlements-server";
@@ -546,7 +546,7 @@ function FirmPage() {
             }}
             onClientsChange={setClients}
             onExport={(rows) =>
-              downloadText(clientTableFileName(firm?.name ?? ""), clientTableCsv(rows), "text/csv")
+              downloadCsv(clientTableFileName(firm?.name ?? ""), clientTableCsv(rows))
             }
             canRestore={!firm || isOwner}
           />

@@ -91,8 +91,10 @@ export async function runDigest(
   };
 
   const everyone = await recipients(sql);
-  const quickBooksCounts = await quickBooksNeedingAttention(sql, everyone);
-  const reviewCounts = await versionsAwaitingReview(sql, everyone);
+  const [quickBooksCounts, reviewCounts] = await Promise.all([
+    quickBooksNeedingAttention(sql, everyone),
+    versionsAwaitingReview(sql, everyone),
+  ]);
   for (const [index, recipient] of everyone.entries()) {
     if (!beforeDeadline(input.deadline)) {
       outcome.stopped = true;
