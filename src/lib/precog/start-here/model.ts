@@ -41,7 +41,7 @@ import { localDateKey } from "../dates";
 import { doNextList, doNextSteps, type DoNextItem, type DoNextStep } from "../actions/do-next";
 import { joinWithAnd } from "../text";
 import { formatUsd } from "../../utils";
-import { setupInPlaceControls } from "../onboarding/setup-answers";
+import { dutiesOffTeam, setupInPlaceControls } from "../onboarding/setup-answers";
 
 /**
  * What Home shows, one part per section. Each section component reads only
@@ -245,6 +245,7 @@ export function buildStartHereModel({
   const gaps = groupGaps(openConflicts, partialCoverage);
   const topThree = gaps.slice(0, 3);
   const placesOf = locationsById(template.people);
+  const offTeamDuties = dutiesOffTeam(profile.setupAnswers);
   const exposure: StartHereExposureModel = {
     industryId: profile.industry,
     dualRelease: profile.dualRelease,
@@ -261,7 +262,9 @@ export function buildStartHereModel({
     keptApart: separatedPairs(sod.conflicts, sod.assignments),
     ownerHeld: ownerHeldPairs(sod.conflicts),
     titleDuties: isSampleTeam ? "" : titleDutiesSentence(template.people),
-    unheld: sod.summary.unheldDuties.map((d) => entitlementLabel(d)),
+    unheld: sod.summary.unheldDuties
+      .filter((d) => !offTeamDuties.has(d))
+      .map((d) => entitlementLabel(d)),
     placesOf,
     atPlaces: (name, id) => {
       const places = placesOf.get(id);

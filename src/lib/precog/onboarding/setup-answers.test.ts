@@ -4,6 +4,7 @@ import { DEFAULT_RISK_VARIABLES } from "../scoring/dynamic-variables";
 import { DEFAULT_WEIGHTS } from "../scoring/weights";
 import {
   UNANSWERED,
+  dutiesOffTeam,
   hiddenDuties,
   normalizeSetupAnswers,
   setupEffects,
@@ -42,6 +43,20 @@ describe("setup answer normalization", () => {
 });
 
 describe("duties and controls from setup answers", () => {
+  it("excludes duties explicitly placed outside the team or not done", () => {
+    expect(dutiesOffTeam({ ...UNANSWERED, bankRec: "outside" })).toEqual(
+      new Set(["bank_reconcile"]),
+    );
+    expect(dutiesOffTeam({ ...UNANSWERED, bankRec: "nobody" })).toEqual(new Set());
+    expect(dutiesOffTeam({ ...UNANSWERED, payroll: "none" })).toEqual(
+      new Set(["enter_payroll", "approve_payroll"]),
+    );
+    expect(dutiesOffTeam({ ...UNANSWERED, cashOrChecks: "no" })).toEqual(
+      new Set(["collect_cash", "prepare_deposit"]),
+    );
+    expect(dutiesOffTeam(undefined)).toEqual(new Set());
+  });
+
   it("hides only the duty groups explicitly reported absent", () => {
     expect(hiddenDuties({ ...UNANSWERED, cashOrChecks: "no" })).toEqual(
       new Set(["collect_cash", "prepare_deposit"]),

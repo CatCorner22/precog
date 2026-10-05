@@ -59,6 +59,22 @@ export function normalizeSetupAnswers(value: unknown): SetupAnswers | undefined 
   };
 }
 
+/** Duties the setup answers place outside the team (or that the business doesn't do), so an empty seat for them is expected. */
+export function dutiesOffTeam(a: SetupAnswers | undefined): ReadonlySet<EntitlementId> {
+  const duties = new Set<EntitlementId>();
+  if (!a) return duties;
+  if (a.payroll === "none") {
+    duties.add("enter_payroll");
+    duties.add("approve_payroll");
+  }
+  if (a.bankRec === "outside") duties.add("bank_reconcile");
+  if (a.cashOrChecks === "no") {
+    duties.add("collect_cash");
+    duties.add("prepare_deposit");
+  }
+  return duties;
+}
+
 export const DAILY_TAKINGS_USD = {
   "under-1k": 500,
   "1k-5k": 2500,

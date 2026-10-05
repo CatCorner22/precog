@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { dutiesOffTeam } from "@/lib/precog/onboarding/setup-answers";
 import {
   AlertTriangle,
   Grid3x3,
@@ -61,6 +62,8 @@ export function SodPanel({
   );
   // The findings cover only the people on the map; say so when the books show more.
   const scope = sodScopeLine(profile.integrationDriftSummary);
+  const offTeamDuties = dutiesOffTeam(profile.setupAnswers);
+  const unheldDuties = report.summary.unheldDuties.filter((d) => !offTeamDuties.has(d));
 
   return (
     <div className="space-y-4">
@@ -136,11 +139,11 @@ export function SodPanel({
           {say("Duties kept apart", "Duty separation")} reads {level}. {belowNote}
         </p>
       )}
-      {report.summary.unheldDuties.length > 0 && (
+      {unheldDuties.length > 0 && (
         <p className="rounded-md border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-muted">
           You have marked nobody still working here for:{" "}
-          {report.summary.unheldDuties.map(entitlementLabel).join(", ")}. Somebody does each of
-          these in every business that handles money; mark who, or the map cannot see that seat.
+          {unheldDuties.map(entitlementLabel).join(", ")}. Somebody does each of these in every
+          business that handles money; mark who, or the map cannot see that seat.
         </p>
       )}
       {scope && (
