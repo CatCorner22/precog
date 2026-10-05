@@ -356,7 +356,7 @@ describe("Privacy", () => {
       "the database keeps the Stripe customer and subscription ids, the price the subscription runs on, the plan status, and the date the firm paid for the assessment. The card or bank account itself goes to Stripe; Precog never sees the card or account number.",
     );
     expect(html).toContain(
-      "the client businesses they set up move to the firm owner&#x27;s account, as the Terms say. The firm owner can hand the firm, its clients, its invitations and its billing to a member; the previous owner stays on as a reviewer.",
+      "the client businesses they set up move to the firm owner&#x27;s account, as the Terms say. A business a member shared with the firm from their own account stays theirs, and so do their links to it. The firm owner can hand the firm, its clients, its invitations and its billing to a member; the previous owner stays on as a reviewer.",
     );
     expect(html).toContain(
       "When you sign in, Precog asks before it copies a business you set up while signed out into your account; it never copies one without asking.",

@@ -263,8 +263,9 @@ function PrivacyPage() {
           Every member of a firm can open every client business the firm holds, including its
           evidence log. When a member is removed or leaves, the shared map links they made on the
           firm's clients are revoked, and the client businesses they set up move to the firm owner's
-          account, as the Terms say. The firm owner can hand the firm, its clients, its invitations
-          and its billing to a member; the previous owner stays on as a reviewer.
+          account, as the Terms say. A business a member shared with the firm from their own account
+          stays theirs, and so do their links to it. The firm owner can hand the firm, its clients,
+          its invitations and its billing to a member; the previous owner stays on as a reviewer.
         </p>
         <p>
           When a business owner invites a firm, the firm works on that business as a client until
