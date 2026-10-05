@@ -457,6 +457,41 @@ describe("sharing a solo owner's reviewed version", () => {
     // The firm shares it, on the firm's plan, though the owner's own plan is free.
     expect((await shareReport("prep", "rv_granted")).token).toMatch(/^[0-9a-f]{36}$/);
   });
+
+  it("names no firm on a version the owner locked alone, after the business is shared with a firm", async () => {
+    withoutStripe();
+    await reviewedSoloVersion();
+    const { token: tok } = await shareReport("solo", "rv_solo");
+    const row = await loadReportShareRow(db.sql, tok);
+    expect((await loadSharedReport(db.sql, row!, "2026-10-01"))?.firm).toBeNull();
+    await db.sql`update businesses set firm_user_id = 'owner', granted_at = now() where id = 'solo_biz'`;
+    // The link still prints the version as its owner issued it, with no preparer firm.
+    expect((await loadSharedReport(db.sql, row!, "2026-10-01"))?.firm).toBeNull();
+    // A version the firm locks from then on names the firm, as frozen at lock.
+    await lock("solo", "solo_biz", "rv_firm", true, "prep");
+    await review("rv_firm");
+    const firmVersion = { ownerUserId: "solo", businessId: "solo_biz", reportVersionId: "rv_firm" };
+    expect((await loadSharedReport(db.sql, firmVersion, "2026-10-01"))?.firm?.name).toBe(
+      "North Advisors",
+    );
+  });
+
+  it("names the firm's current name on a client's version locked before the firm was frozen in", async () => {
+    // Inserted as such: the frozen-column trigger (migration 0048) refuses
+    // clearing firm_name on a locked version.
+    await db.pg.query(
+      `insert into report_versions
+         (id, user_id, business_id, version_no, profile, firm_name, reviewed_by, reviewed_at)
+       values ('rv_old', 'prep', 'client', 1, $1::jsonb, null, 'owner', now())`,
+      [JSON.stringify(client)],
+    );
+    const old = { ownerUserId: "prep", businessId: "client", reportVersionId: "rv_old" };
+    expect((await loadSharedReport(db.sql, old, "2026-10-01"))?.firm).toEqual({
+      name: "North Advisors",
+      letterhead: "",
+      logoDataUrl: null,
+    });
+  });
 });
 
 async function mapLink(tok: string): Promise<NewMapShare> {

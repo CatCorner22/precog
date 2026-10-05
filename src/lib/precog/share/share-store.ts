@@ -4,7 +4,7 @@ import { RequestError } from "@/lib/request-errors";
 import {
   loadFrozenReport,
   loadReportVersion,
-  reportFirmName,
+  versionFirmName,
   withoutReviewRouting,
   type FrozenReportRow,
   type ReportVersionRow,
@@ -450,7 +450,10 @@ export async function recordShareView(
 export interface SharedReport {
   version: ReportVersionRow;
   frozen: FrozenReportRow<StoredReportModel> | null;
-  /** The firm as frozen at lock, else its live name alone (a version locked before 0041). */
+  /**
+   * The firm as frozen at lock, else its live name alone for a version locked
+   * before 0041 that the firm reads (`versionFirmName`).
+   */
   firm: FirmSnapshot | null;
   /** The slice of the business the printed report reads (report-share-profile.ts). */
   profile: PracticeProfile;
@@ -478,7 +481,7 @@ export async function loadSharedReport(
   if (!loaded || !loaded.version.reviewedAt) return null;
   const [frozen, name] = await Promise.all([
     loadFrozenReport<StoredReportModel>(sql, row.ownerUserId, row.reportVersionId),
-    reportFirmName(sql, row.ownerUserId, row.businessId),
+    versionFirmName(sql, row.ownerUserId, row.reportVersionId),
   ]);
   const merged = mergeProfile(
     {

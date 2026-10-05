@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { Sql } from "@/lib/db";
 import { toSql } from "@/lib/sql-transaction";
 import { openTestDb, type TestDb } from "@/test/pglite";
+import { defaultProfile } from "../practice-profile";
 import {
   ALREADY_REVIEWED,
   lockReportVersion,
@@ -203,5 +204,58 @@ describe("a reviewer acting between the read and the write", () => {
       "select event from firm_audit_log where business_id = 'biz_1' order by id",
     );
     expect(events.rows.map((r) => r.event)).not.toContain("version_reviewed");
+  });
+});
+
+describe("the firm a version names when it froze none", () => {
+  /** `bo` owns biz_b, outside any firm until it is shared with North below. */
+  beforeEach(async () => {
+    await db.seedUser("bo");
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision) values
+         ('biz_b', 'bo', 'Bo Shop', 'dental', $1::jsonb, 1)`,
+      [JSON.stringify({ ...defaultProfile("dental"), practiceName: "Bo Shop" })],
+    );
+  });
+
+  type Loaded = { firm: { name: string } | null };
+  const open = (userId: string, id: string) =>
+    call(server.getReport, userId, { id, today: "2026-10-05" }) as Promise<Loaded>;
+
+  it("names no firm on a version its owner locked alone, after the business is shared", async () => {
+    await lockReportVersion(db.sql, {
+      ownerUserId: "bo",
+      businessId: "biz_b",
+      preparedBy: "bo",
+      scopeNote: "",
+      id: "rv_alone",
+    });
+    expect((await open("bo", "rv_alone")).firm).toBeNull();
+    await db.pg.exec(
+      "update businesses set firm_user_id = 'own', granted_at = now() where id = 'biz_b'",
+    );
+    expect((await open("bo", "rv_alone")).firm).toBeNull();
+    // A version the firm locks from then on prints the firm as frozen.
+    await lockReportVersion(db.sql, {
+      ownerUserId: "bo",
+      businessId: "biz_b",
+      preparedBy: "prep",
+      scopeNote: "",
+      id: "rv_firm",
+    });
+    expect((await open("bo", "rv_firm")).firm?.name).toBe("North Advisors");
+    expect((await open("prep", "rv_firm")).firm?.name).toBe("North Advisors");
+  });
+
+  it("names the firm's current name on a version locked before the firm was frozen in", async () => {
+    // Inserted as such: the frozen-column trigger (migration 0048) refuses
+    // clearing firm_name on a locked version.
+    await db.pg.query(
+      `insert into report_versions (id, user_id, business_id, version_no, profile, firm_name)
+       values ('rv_old', 'own', 'biz_1', 1, $1::jsonb, null)`,
+      [JSON.stringify({ ...defaultProfile("dental"), practiceName: "Client" })],
+    );
+    expect((await open("own", "rv_old")).firm?.name).toBe("North Advisors");
+    expect((await open("rev", "rv_old")).firm?.name).toBe("North Advisors");
   });
 });

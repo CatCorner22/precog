@@ -6,11 +6,11 @@ import {
   loadReportVersion,
   lockReportVersion,
   markReportVersionSent,
-  reportFirmName,
   reportVersionFor,
   ReportVersionError,
   REVIEW_BEFORE_SENT,
   signOffReportVersion,
+  versionFirmName,
   versionProvenance,
   withoutReviewRouting,
   type ReportVersionRow,
@@ -179,11 +179,21 @@ describe("report versions", () => {
 
   it("names the firm only for a firm client, never for a solo business", async () => {
     await db.pg.query(`insert into firms (user_id, name) values ('owner', 'North Advisors')`);
+    await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_1",
+    });
     // The owner holds a firms row, but the business is not a firm client.
-    expect(await reportFirmName(db.sql, "owner", "biz_1")).toBeNull();
+    expect(await versionFirmName(db.sql, "owner", "rv_1")).toBeNull();
     await db.pg.query("update businesses set firm_user_id = 'owner'");
-    expect(await reportFirmName(db.sql, "owner", "biz_1")).toBe("North Advisors");
-    expect(await reportFirmName(db.sql, "owner", "biz_missing")).toBeNull();
+    expect(await versionFirmName(db.sql, "owner", "rv_1")).toBe("North Advisors");
+    expect(await versionFirmName(db.sql, "owner", "rv_missing")).toBeNull();
+    // Shared with that firm by its owner, the version locked alone is not the firm's.
+    await db.pg.query("update businesses set granted_at = now()");
+    expect(await versionFirmName(db.sql, "owner", "rv_1")).toBeNull();
   });
 
   it("freezes the firm's name and letterhead into a firm client's version, and null for a solo one", async () => {

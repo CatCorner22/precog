@@ -226,7 +226,7 @@ export async function lockReportVersion(
     if (!business[0]) throw new ReportVersionError(404, "That client is not on this account");
     const frozen = input.freeze?.(business[0].profile) ?? null;
     // The firm's name and letterhead are copied in as they are today, through
-    // the same join `reportFirmName` uses, so a solo business freezes none;
+    // the business's firm (as `versionFirmName` joins it), so a solo business freezes none;
     // the engagement's scope and period likewise (an empty scope as null).
     // The firm it was locked for is kept, so that firm alone reads it among
     // firms (a business its owner shares can work with another firm later).
@@ -602,20 +602,25 @@ export async function returnReportVersion(
 }
 
 /**
- * The name of the firm a business is a client of, for the report's
- * "Prepared for … by …" line; null for a solo business, even when its owner
- * holds a `firms` row of their own (the join is on `firm_user_id` alone).
+ * The firm's name for the "Prepared for … by …" line of a version that froze
+ * none (locked before migration 0041): the name of the business's firm
+ * today, only when that firm reads the version (FIRM_READS_VERSION). Null for
+ * a solo business, even when its owner holds a `firms` row of their own (the
+ * join is on `firm_user_id` alone), and for a version the owner locked alone
+ * before sharing the business with a firm, which that firm never prepared.
  */
-export async function reportFirmName(
+export async function versionFirmName(
   sql: Sql,
   ownerUserId: string,
-  businessId: string,
+  versionId: string,
 ): Promise<string | null> {
-  const rows = await sql<{ name: string }>`
-    select f.name from businesses b
-    join firms f on f.user_id = b.firm_user_id
-    where b.user_id = ${ownerUserId} and b.id = ${businessId}
-  `;
+  const rows = await sql.query<{ name: string }>(
+    `select f.name from report_versions v
+     join businesses b on b.user_id = v.user_id and b.id = v.business_id
+     join firms f on f.user_id = b.firm_user_id
+     where v.user_id = $1 and v.id = $2 and ${FIRM_READS_VERSION}`,
+    [ownerUserId, versionId],
+  );
   return rows[0]?.name ?? null;
 }
 

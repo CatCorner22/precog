@@ -54,8 +54,8 @@ import {
   loadReportVersion,
   lockReportVersion,
   markReportVersionSent,
-  reportFirmName,
   signOffReportVersion,
+  versionFirmName,
 } from "./reports";
 import { loadBillingAccount, planToStore } from "./billing-store";
 import { businessLimitMessage } from "../business-lifecycle";
@@ -597,11 +597,13 @@ export const getReport = createServerFn({ method: "GET" })
     if (!loaded) throw new RequestError(404, "That report version does not exist");
     const [frozen, name, coverPage] = await Promise.all([
       loadFrozenReport<StoredReportModel>(sql, where.ownerUserId, data.id),
-      reportFirmName(sql, where.ownerUserId, where.businessId),
+      versionFirmName(sql, where.ownerUserId, data.id),
       reportCoverPage(sql, where.ownerUserId, where.businessId),
     ]);
     // A version locked before the snapshot existed prints the firm's current
-    // name only; the cover-page switch is the firm's, live.
+    // name only, and only when that firm reads it (never a version the owner
+    // locked alone before sharing the business); the cover-page switch is
+    // the firm's, live, and prints nothing without a firm.
     return {
       version: loaded.version,
       frozen,
