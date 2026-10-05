@@ -16,6 +16,7 @@ export const Route = createFileRoute("/api/digest-email")({
       GET: withReporting(async ({ request }) => {
         const token = parse(request.url);
         if (!token) return gone();
+        if (await throttled()) return throttledPage();
         const { getSql } = await import("@/lib/db");
         const sql = await getSql();
         const rows = await sql<{ one: number }>`
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/api/digest-email")({
       POST: withReporting(async ({ request }) => {
         const token = parse(request.url);
         if (!token) return gone();
+        if (await throttled()) return throttledPage();
         const { getSql } = await import("@/lib/db");
         const { stopDigestByToken } = await import("@/lib/precog/firm/store");
         if (!(await stopDigestByToken(await getSql(), token))) return gone();
@@ -63,6 +65,28 @@ function parse(url: string): string | null {
 function gone(): Response {
   return page(404, "This link no longer works", [
     "The link may have changed since Precog sent the email. Turn the weekly digest off from the header after you sign in.",
+  ]);
+}
+
+/** Whether the caller's address already opened enough emailed links this minute. */
+async function throttled(): Promise<boolean> {
+  try {
+    const [{ requestIp }, limits] = await Promise.all([
+      import("@/lib/request-ip.server"),
+      import("@/lib/precog/reminders/email-link-limits"),
+    ]);
+    return !limits.takeEmailLinkAllowance(requestIp());
+  } catch {
+    // The allowance must never break the link flow (no request context in
+    // scripts and tests, or a limiter fault): the tokens stay unguessable
+    // either way.
+    return false;
+  }
+}
+
+function throttledPage(): Response {
+  return page(429, "Too many tries", [
+    "Too many opens from this address. Wait a minute, then open the link again.",
   ]);
 }
 
