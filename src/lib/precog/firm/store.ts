@@ -185,42 +185,47 @@ export async function saveFirm(
   name: string,
   plan: FirmPlan | null,
 ): Promise<FirmContext> {
-  const current = await loadFirmFor(sql, userId);
-  if (current && current.firmUserId !== userId) {
-    throw new FirmMembershipError(
-      `You are a member of ${current.name}. Leave it before starting a firm of your own.`,
-    );
-  }
-  await sql`
-    insert into firms (user_id, name, plan, updated_at)
-    values (${userId}, ${name}, coalesce(${plan}::text, 'assessment'), now())
-    on conflict (user_id) do update set
-      name = excluded.name,
-      plan = coalesce(${plan}::text, firms.plan),
-      updated_at = now()
-  `;
-  // The owner's membership row always says owner, whatever wrote it last.
-  await sql`
-    insert into firm_members (firm_user_id, member_user_id, role)
-    values (${userId}, ${userId}, 'owner')
-    on conflict (firm_user_id, member_user_id) do update set role = 'owner'
-  `;
-  // The owner's own businesses become the firm's clients.
-  await sql`
-    update businesses set firm_user_id = ${userId}
-    where user_id = ${userId} and firm_user_id is null
-  `;
-  // A business that works with a firm cannot take another (acceptGrant), so
-  // the invitations its owner sent to other firms close with it.
-  await sql`
-    update business_firm_grants g set revoked_at = now()
-    from businesses b
-    where g.business_owner_id = ${userId} and g.accepted_at is null and g.revoked_at is null
-      and b.user_id = g.business_owner_id and b.id = g.business_id and b.firm_user_id is not null
-  `;
-  const saved = await loadFirmFor(sql, userId);
-  if (!saved) throw new Error("Unable to save the firm");
-  return saved;
+  // One transaction: the firm row, the owner's membership, the client
+  // attachments and the grant revocations land together or not at all, so a
+  // failure part-way never leaves a firm with no owner on its member list.
+  return inTransaction(sql, async (tx) => {
+    const current = await loadFirmFor(tx, userId);
+    if (current && current.firmUserId !== userId) {
+      throw new FirmMembershipError(
+        `You are a member of ${current.name}. Leave it before starting a firm of your own.`,
+      );
+    }
+    await tx`
+      insert into firms (user_id, name, plan, updated_at)
+      values (${userId}, ${name}, coalesce(${plan}::text, 'assessment'), now())
+      on conflict (user_id) do update set
+        name = excluded.name,
+        plan = coalesce(${plan}::text, firms.plan),
+        updated_at = now()
+    `;
+    // The owner's membership row always says owner, whatever wrote it last.
+    await tx`
+      insert into firm_members (firm_user_id, member_user_id, role)
+      values (${userId}, ${userId}, 'owner')
+      on conflict (firm_user_id, member_user_id) do update set role = 'owner'
+    `;
+    // The owner's own businesses become the firm's clients.
+    await tx`
+      update businesses set firm_user_id = ${userId}
+      where user_id = ${userId} and firm_user_id is null
+    `;
+    // A business that works with a firm cannot take another (acceptGrant), so
+    // the invitations its owner sent to other firms close with it.
+    await tx`
+      update business_firm_grants g set revoked_at = now()
+      from businesses b
+      where g.business_owner_id = ${userId} and g.accepted_at is null and g.revoked_at is null
+        and b.user_id = g.business_owner_id and b.id = g.business_id and b.firm_user_id is not null
+    `;
+    const saved = await loadFirmFor(tx, userId);
+    if (!saved) throw new Error("Unable to save the firm");
+    return saved;
+  });
 }
 
 /**

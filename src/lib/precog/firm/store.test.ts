@@ -130,6 +130,29 @@ describe("firm membership", () => {
     expect(rows[0].firm_user_id).toBe("ua");
   });
 
+  it("a failure part-way through saving the firm leaves no firm and no member row", async () => {
+    // Fails the third statement (attaching the owner's businesses), after the
+    // firm row and the owner's membership were written inside the transaction.
+    const needle = "update businesses set firm_user_id";
+    const failing = (inner: Sql): Sql => {
+      const wrapped = (async <T>(strings: TemplateStringsArray, ...values: unknown[]) => {
+        if (strings.join("").includes(needle)) throw new Error("injected failure");
+        return inner<T>(strings, ...values);
+      }) as Sql;
+      wrapped.query = inner.query;
+      wrapped.transaction = (work) => inner.transaction!((tx) => work(failing(tx)));
+      return wrapped;
+    };
+    await expect(saveFirm(failing(db.sql), "ua", "North", "assessment")).rejects.toThrow(
+      "injected failure",
+    );
+    expect(await db.sql`select user_id from firms where user_id = 'ua'`).toEqual([]);
+    expect(await listMembers(db.sql, "ua")).toEqual([]);
+    expect(await loadFirmFor(db.sql, "ua")).toBeNull();
+    // The next attempt starts clean and completes.
+    expect((await saveFirm(db.sql, "ua", "North", "assessment")).role).toBe("owner");
+  });
+
   it("an invitation admits a member with the given role, once, and shares the clients", async () => {
     await saveFirm(db.sql, "ua", "North Advisors", "assessment");
     const invite = await createInvite(db.sql, {
