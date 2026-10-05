@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Sql } from "@/lib/db";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { businessLimitMessage } from "../business-lifecycle";
 import { countClients, loadEntitlements } from "./entitlements.server";
@@ -365,6 +366,61 @@ describe("ending the firm's access", () => {
     const afterEnd = (await db.pg.query<Record<string, unknown>>(ENGAGEMENT)).rows[0];
     expect(afterEnd).toMatchObject(fresh);
     expect(afterEnd.started_at).toBeTruthy();
+  });
+});
+
+describe("the order the client invitation's writers lock rows in", () => {
+  /** The table each `for update` statement locks, in order, transactions included. */
+  function recorder(): { sql: Sql; locks: string[] } {
+    const locks: string[] = [];
+    const note = (text: string) => {
+      if (/for update/i.test(text)) locks.push(/from\s+("?\w+"?)/i.exec(text)?.[1] ?? "?");
+    };
+    const wrap = (inner: Sql): Sql => {
+      const sql = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+        note(strings.join("$"));
+        return inner(strings, ...values);
+      }) as Sql;
+      sql.query = (text, params) => {
+        note(text);
+        return inner.query(text, params);
+      };
+      const begin = inner.transaction?.bind(inner);
+      if (begin) sql.transaction = (work) => begin((tx) => work(wrap(tx)));
+      return sql;
+    };
+    return { sql: wrap(db.sql), locks };
+  }
+
+  it("takes the business before the invitation in acceptGrant, as createGrant and endGrant do", async () => {
+    const created = recorder();
+    const grant = await createGrant(created.sql, {
+      ownerUserId: "bo",
+      businessId: "biz_1",
+      email: "fo@example.test",
+    });
+    const accepted = recorder();
+    await acceptGrant(accepted.sql, grant.token, "fo");
+    const ended = recorder();
+    await endGrant(ended.sql, { ownerUserId: "bo", businessId: "biz_1", actorUserId: "bo" });
+    // A re-send or a close (businesses, then the open invitations) racing an
+    // acceptance would otherwise wait on each other's rows.
+    expect([created.locks[0], accepted.locks[0], ended.locks[0]]).toEqual([
+      "businesses",
+      "businesses",
+      "businesses",
+    ]);
+    expect(accepted.locks).toEqual(["businesses", "business_firm_grants"]);
+  });
+
+  it("still refuses an invitation closed while the acceptance waited for the business", async () => {
+    const grant = await invite("fo@example.test");
+    await endGrant(db.sql, { ownerUserId: "bo", businessId: "biz_1", actorUserId: "bo" });
+    expect(await refusal(acceptGrant(db.sql, grant.token, "fo"))).toEqual({
+      status: 409,
+      message: GRANT_CLOSED,
+    });
+    expect((await business()).firm_user_id).toBeNull();
   });
 });
 

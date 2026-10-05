@@ -152,6 +152,22 @@ export interface AcceptedGrant {
  */
 export async function acceptGrant(sql: Sql, token: string, userId: string): Promise<AcceptedGrant> {
   return inTransaction(sql, async (tx) => {
+    // The business row first, then the invitation, the order createGrant and
+    // endGrant lock them in (they lock the business, then close its open
+    // invitations), so a re-send or a close racing this waits instead of
+    // deadlocking. The invitation is read again under its lock: one closed
+    // while this waited is refused.
+    const target = await tx<{ business_owner_id: string; business_id: string }>`
+      select business_owner_id, business_id from business_firm_grants
+      where token = ${token} and kind = 'grant'
+    `;
+    if (!target[0]) throw new FirmMembershipError(GRANT_CLOSED);
+    const businesses = await tx<{ name: string; firm_user_id: string | null }>`
+      select name, firm_user_id from businesses
+      where user_id = ${target[0].business_owner_id} and id = ${target[0].business_id}
+        and deleted_at is null
+      for update
+    `;
     const grants = await tx<{
       business_owner_id: string;
       business_id: string;
@@ -172,12 +188,6 @@ export async function acceptGrant(sql: Sql, token: string, userId: string): Prom
       throw new FirmMembershipError(grantMismatch(maskEmail(grant.invited_email)));
     }
     if (fit === "confirm") throw new FirmMembershipError(GRANT_CONFIRM);
-    const businesses = await tx<{ name: string; firm_user_id: string | null }>`
-      select name, firm_user_id from businesses
-      where user_id = ${grant.business_owner_id} and id = ${grant.business_id}
-        and deleted_at is null
-      for update
-    `;
     const business = businesses[0];
     if (!business || business.firm_user_id) throw new FirmMembershipError(GRANT_CLOSED);
     // A granted business counts toward the firm's client limit and tier.
