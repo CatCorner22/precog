@@ -18,7 +18,7 @@ import {
 } from "../firm/billing-store";
 import { setFirmPlan } from "../firm/store";
 import { billingChangeFor, type StripeEvent } from "./stripe";
-import { recordAuditForAccount } from "../firm/audit.server";
+import { recordAudit } from "../firm/audit.server";
 
 /**
  * Applies one verified Stripe event to the account it concerns. Idempotent:
@@ -163,23 +163,26 @@ export async function applyBillingEvent(
         stored: storedSubscriptionId,
       };
     }
-    if (status !== before) {
-      planChanges.push({ userId, from: before, to: status, priceId: change.priceId });
-    }
     // The plan on the firm row follows the subscription status as stored,
     // which a late checkout event does not overwrite.
-    await setFirmPlan(
+    const ownsFirm = await setFirmPlan(
       tx,
       userId,
       ACTIVE_SUBSCRIPTION_STATUSES.has(status) ? "monthly" : "assessment",
     );
+    // Only the firm the account owns changes plan; a firm it merely joined
+    // does not, so its log takes nothing.
+    if (ownsFirm && status !== before) {
+      planChanges.push({ userId, from: before, to: status, priceId: change.priceId });
+    }
     return "applied";
   });
   if (reversal) await reverseAssessmentCredit(sql, reversal);
   if (secondSubscription) await reportSecondSubscription(secondSubscription);
   // The firm's log takes a moved status once the change has committed; Stripe acted, so no actor.
   for (const { userId, ...detail } of planChanges) {
-    await recordAuditForAccount(sql, userId, {
+    await recordAudit(sql, {
+      firmUserId: userId,
       actorUserId: null,
       event: "plan_changed",
       detail,

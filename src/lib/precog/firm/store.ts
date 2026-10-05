@@ -215,9 +215,16 @@ export async function saveFirm(
   return saved;
 }
 
-/** Sets the plan alone, as the billing webhook does. */
-export async function setFirmPlan(sql: Sql, firmUserId: string, plan: FirmPlan): Promise<void> {
-  await sql`update firms set plan = ${plan}, updated_at = now() where user_id = ${firmUserId}`;
+/**
+ * Sets the plan alone, as the billing webhook does. True when `firmUserId`
+ * owns a firm whose row took it; false for an account that owns none.
+ */
+export async function setFirmPlan(sql: Sql, firmUserId: string, plan: FirmPlan): Promise<boolean> {
+  const rows = await sql<{ user_id: string }>`
+    update firms set plan = ${plan}, updated_at = now() where user_id = ${firmUserId}
+    returning user_id
+  `;
+  return rows.length > 0;
 }
 
 export async function listMembers(sql: Sql, firmUserId: string): Promise<FirmMember[]> {

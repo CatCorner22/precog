@@ -530,6 +530,36 @@ describe("webhook writer", () => {
       ["fo", "plan_changed", null, "", { from: "active", to: "past_due", priceId: "price_t1" }],
     ]);
   });
+
+  it("logs nothing in the firm a member joined when the member's own subscription moves", async () => {
+    // A member with a billing row of their own (a checkout started before
+    // joining, or a former owner after a transfer) owns no firm to move.
+    await db.pg.exec(
+      `insert into billing_accounts (user_id, stripe_customer_id) values ('pp', 'cus_pp')`,
+    );
+    const before = await db.sql<{ plan: string }>`select plan from firms where user_id = 'fo'`;
+    await applyBillingEvent(
+      db.sql,
+      parseStripeEvent(
+        JSON.stringify({
+          id: "e_pp",
+          type: "customer.subscription.updated",
+          created: 100,
+          data: {
+            object: {
+              id: "sub_pp",
+              status: "active",
+              customer: "cus_pp",
+              metadata: { userId: "pp" },
+              items: { data: [{ price: { id: "price_t1" } }] },
+            },
+          },
+        }),
+      )!,
+    );
+    expect(await log()).toEqual([]);
+    expect(await db.sql`select plan from firms where user_id = 'fo'`).toEqual(before);
+  });
 });
 
 it("reported no failed write in any of the above", () => {
