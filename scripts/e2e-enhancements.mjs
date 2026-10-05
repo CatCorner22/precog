@@ -146,6 +146,7 @@ async function exceptionFirstSetup(page, errors) {
   step("setup: exception-first review retains every imported person");
   await openSetup(page, base, options.timeout);
   await page.getByRole("button", { name: "Set up my own business", exact: true }).click();
+  await page.getByRole("button", { name: "Skip these questions", exact: true }).click();
   await page.getByLabel("Business name", { exact: true }).fill("Review Workflow Example");
   await page
     .getByText("Paste your team from Workday, SAP, Oracle, or your payroll export", { exact: true })
@@ -211,6 +212,7 @@ async function refusedDraftStorage(page, errors) {
   });
   await openSetup(page, base, options.timeout);
   await page.getByRole("button", { name: "Set up my own business", exact: true }).click();
+  await page.getByRole("button", { name: "Skip these questions", exact: true }).click();
   await page.getByLabel("Business name", { exact: true }).fill("Unsaved draft example");
   await page.getByText(/This browser will not keep your progress/).waitFor();
   noErrors(errors);

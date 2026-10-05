@@ -181,7 +181,7 @@ export interface StaffComposition {
   dualControlPayments: boolean;
   independentBankRec: boolean;
   /** "manual" when the owner set the bank-reconciliation flag by hand. Absent or "derived" = read from the team's duties when the team changes. */
-  bankRecSource?: "derived" | "manual";
+  bankRecSource?: "derived" | "manual" | "outside";
 }
 
 /**

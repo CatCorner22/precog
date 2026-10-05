@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StorageLike } from "../local-data";
 import { ownerRow, type OwnTeamRow } from "./own-team";
+import { UNANSWERED } from "./setup-answers";
 import {
   SETUP_DRAFT_KEY,
   draftHasTypedWork,
@@ -66,6 +67,31 @@ describe("reloading in the middle of setup", () => {
       selected: "retail",
       businessName: "Reload Test Shop",
     });
+  });
+
+  it("round-trips the money step and normalizes saved answers", () => {
+    const answers = { ...UNANSWERED, bankRec: "outside" as const };
+    const back = reload({
+      ...base,
+      step: "money",
+      businessName: "Named Co",
+      setupAnswers: answers,
+    });
+    expect(back.draft.step).toBe("money");
+    expect(back.draft.setupAnswers).toEqual(answers);
+  });
+
+  it("normalizes invalid answer values in a stored draft", () => {
+    const storage = tabStorage();
+    storage.setItem(
+      SETUP_DRAFT_KEY,
+      JSON.stringify({
+        ...base,
+        step: "money",
+        setupAnswers: { cashOrChecks: "sometimes" },
+      }),
+    );
+    expect(readSetupDraft(storage)?.setupAnswers).toEqual(UNANSWERED);
   });
 
   it("keeps a roster pasted into the box but not yet used to fill the table", () => {
@@ -142,6 +168,7 @@ describe("going back and loading the sample after typing a team", () => {
       freshRows,
     );
     expect(later.restoredEarlier).toBe(true);
+    expect(later.draft.step).toBe("team");
     expect(later.draft.businessName).toBe("Careful Co");
     expect(later.draft.rows.map((r) => r.name)).toEqual(["Olga Owner", "Ana Ruiz"]);
     expect(later.draft.businessId).toBe("biz_later");
@@ -165,7 +192,7 @@ describe("going back and loading the sample after typing a team", () => {
     );
     expect(later.restoredEarlier).toBe(false);
     expect(later.draft).toMatchObject({
-      step: "team",
+      step: "money",
       selected: "retail",
       businessName: "Second Shop",
     });

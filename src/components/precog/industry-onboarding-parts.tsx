@@ -34,13 +34,15 @@ export function SeatNote({ seat }: { seat: SeatReading | undefined }) {
 export function AddDutyControl({
   who,
   duties,
+  hidden,
   onAdd,
 }: {
   who: string;
   duties: readonly EntitlementId[];
+  hidden?: ReadonlySet<EntitlementId>;
   onAdd: (duty: EntitlementId) => void;
 }) {
-  const options = addableDuties(duties);
+  const options = addableDuties(duties).filter((duty) => !hidden?.has(duty));
   const [pick, setPick] = useState<EntitlementId | "">("");
   if (options.length === 0) return null;
   const chosen = pick && options.includes(pick) ? pick : "";

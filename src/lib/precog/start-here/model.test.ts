@@ -3,7 +3,9 @@ import { resolveTemplate } from "../active-template";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import type { IndustryTemplate } from "../templates";
 import { gapBadge } from "../coach/first-steps";
+import { UNANSWERED } from "../onboarding/setup-answers";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
+import { entitlementLabel } from "../sod/conflict-rules";
 import { buildControlReportModel } from "../report/build-control-report";
 import { buildStartHereModel, LONG_SERVICE_YEARS } from "./model";
 
@@ -98,6 +100,26 @@ describe("buildStartHereModel on the dental sample", () => {
     );
     const reused = buildStartHereModel({ profile, template, today: TODAY, sod });
     expect(reused.exposure.openConflicts).toEqual(model.exposure.openConflicts);
+  });
+});
+
+describe("buildStartHereModel unheld duties", () => {
+  it("omits an outside bank reconciliation but keeps a nobody-reconciles gap", () => {
+    const { profile: baseProfile, template: baseTemplate } = sample();
+    const template = team(baseTemplate, [
+      { id: "owner", name: "Owner", duties: ["schedule_patients"] },
+    ]);
+    const profile = { ...baseProfile, customPeople: template.people };
+    const unheldWithBankRec = (bankRec: "outside" | "nobody") =>
+      buildStartHereModel({
+        profile: { ...profile, setupAnswers: { ...UNANSWERED, bankRec } },
+        template,
+        today: TODAY,
+      }).exposure.unheld;
+    const bankReconciliation = entitlementLabel("bank_reconcile");
+
+    expect(unheldWithBankRec("outside")).not.toContain(bankReconciliation);
+    expect(unheldWithBankRec("nobody")).toContain(bankReconciliation);
   });
 });
 

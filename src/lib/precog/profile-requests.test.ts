@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { clientErrorStatus } from "@/lib/request-errors";
 import { defaultProfile } from "./practice-profile";
+import { mergeProfile } from "./profile-merge";
+import { UNANSWERED } from "./onboarding/setup-answers";
 import {
   parseDeleteBusinessRequest,
   parseOpenBusinessRequest,
@@ -19,6 +21,23 @@ function statusOf(run: () => unknown): number | null {
 }
 
 describe("a save request", () => {
+  it("keeps setup answers through save and profile-load normalization", () => {
+    const answers = { ...UNANSWERED, bankRec: "outside" as const };
+    const profile = { ...defaultProfile("general"), setupAnswers: answers };
+    const saved = parseSaveBusinessRequest({ expectedAccountId: "u1", profile });
+    expect(JSON.parse(saved.json).setupAnswers).toEqual(answers);
+    expect(
+      mergeProfile(
+        {
+          name: saved.profile.practiceName,
+          industry: saved.profile.industry,
+          profile: JSON.parse(saved.json),
+        },
+        saved.today,
+      ).setupAnswers,
+    ).toEqual(answers);
+  });
+
   it("reads a well-formed save", () => {
     const parsed = parseSaveBusinessRequest({
       expectedAccountId: "u1",

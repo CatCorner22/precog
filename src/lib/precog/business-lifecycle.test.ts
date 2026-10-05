@@ -16,11 +16,15 @@ import {
   unfinishedBusinessToKeep,
 } from "./business-lifecycle";
 import { getIndustryTemplate } from "./templates";
+import { resolveTemplate } from "./active-template";
+import { detectSodConflicts, sodDetectionOptions } from "./sod/detect";
 import { memoryStorage } from "@/test/memory-storage";
 import { ownBusinessProfile } from "./onboarding/own-team";
+import { UNANSWERED, type SetupAnswers } from "./onboarding/setup-answers";
 import {
   defaultProfile,
   loadPortfolio,
+  normalizeProfile,
   parseStoredProfile,
   savePortfolioEntry,
   type PracticeProfile,
@@ -118,6 +122,21 @@ describe("two tabs that both finish setup", () => {
   });
 });
 
+describe("the own-business knowledge register at setup", () => {
+  it("starts with the industry's sample entries and no people assigned", () => {
+    const profile = ownSetupProfile({
+      industry: "general",
+      practiceName: "Own Co",
+      people: ownTeam,
+    });
+    const template = resolveTemplate(profile);
+    expect(template.knowledge.map((item) => item.id)).toEqual(
+      getIndustryTemplate("general").knowledge.map((item) => item.id),
+    );
+    expect(template.relations).toEqual([]);
+  });
+});
+
 describe("Add a business from the business menu", () => {
   it("opens setup under the owner's name instead of the sample's people", () => {
     const added = newBusinessProfile("general", "  Own Plumbing LLC ");
@@ -147,6 +166,88 @@ describe("Add a business from the business menu", () => {
     const added = newBusinessProfile("retail", "   ");
     expect(added.practiceName).toBe(getIndustryTemplate("retail").businessName);
     expect(ownBusinessName(added)).toBe("");
+  });
+
+  it("derives the own profile from setup answers and preserves outside reconciliation", () => {
+    const answers: SetupAnswers = {
+      ...UNANSWERED,
+      cashOrChecks: "no",
+      bankRec: "outside",
+      ownerReadsStatement: "yes",
+      bankSecondApproval: "yes",
+      dailyTakings: "5k-20k",
+    };
+    const people: Person[] = [
+      {
+        id: "own-cash",
+        name: "Casey Owner",
+        role: "Owner",
+        active: true,
+        entitlements: ["collect_cash", "post_payments"],
+      },
+      {
+        id: "own-books",
+        name: "Alex Books",
+        role: "Bookkeeper",
+        active: true,
+        entitlements: ["release_payment", "bank_reconcile"],
+      },
+    ];
+    const profile = ownBusinessProfile(defaultProfile("general"), {
+      practiceName: "Own Co",
+      people,
+      answers,
+    });
+    const template = resolveTemplate(profile);
+    const report = detectSodConflicts(
+      template,
+      profile.staff,
+      sodDetectionOptions(template, profile.dualRelease),
+    );
+
+    expect(report.conflicts.some((conflict) => conflict.ruleId === "rule-collect-post")).toBe(
+      false,
+    );
+    expect(profile.customPeople?.[0].entitlements).not.toContain("collect_cash");
+    expect(profile.customPeople?.[1].entitlements).not.toContain("bank_reconcile");
+    expect(profile.staff).toMatchObject({
+      independentBankRec: true,
+      bankRecSource: "outside",
+      dualControlPayments: true,
+    });
+    expect(profile.dualRelease.enabled).toBe(true);
+    expect(profile.riskVariables).toMatchObject({
+      dailyCashExposure: 10000,
+      hasDualControl: true,
+      hasIndependentBankRec: true,
+    });
+
+    const cashDecisions = profile.decisions.filter(
+      (decision) => decision.linkedTab === "control-in-place" && decision.linkedId === "c-sod-cash",
+    );
+    const cashDecisionTexts = cashDecisions.map((decision) => decision.note);
+    expect(cashDecisionTexts).toEqual(
+      expect.arrayContaining([
+        "The owner opens and reads the bank statement each month (answered at setup).",
+        "An outside bookkeeper or CPA reconciles the bank account each month (answered at setup).",
+      ]),
+    );
+    const cashControl = template.controls.find((control) => control.id === "c-sod-cash");
+    expect(cashControl?.compensatingControls).toEqual(expect.arrayContaining(cashDecisionTexts));
+
+    const restored = normalizeProfile(JSON.parse(JSON.stringify(profile)));
+    expect(restored.staff).toMatchObject({ independentBankRec: true, bankRecSource: "outside" });
+    expect(restored.setupAnswers).toEqual(answers);
+    expect(restored.customPeople?.[1].entitlements).not.toContain("bank_reconcile");
+  });
+
+  it("keeps an unanswered setup identical to today's profile derivation", () => {
+    const base = defaultProfile("general");
+    const input = { practiceName: "Own Co", people: ownTeam };
+    const withoutAnswers = ownBusinessProfile(base, input);
+    const withUnanswered = ownBusinessProfile(base, { ...input, answers: UNANSWERED });
+    const { setupAnswers: _setupAnswers, ...profileWithoutAnswers } = withUnanswered;
+    expect(profileWithoutAnswers).toEqual(withoutAnswers);
   });
 
   it("stops at the account's business limit", () => {

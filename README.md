@@ -22,6 +22,9 @@ You can set up the whole team in one paste instead of one person at a time.
 In onboarding, open "Paste your team from Workday, SAP, Oracle, or your
 payroll export"; in the team register, use "Paste roster" or "Import CSV".
 
+Adaptive setup asks how money moves, applies answers to the live preview and
+saved profile, and lists the duties and controls changed alongside its remaining assumptions.
+
 The importer reads the worker exports these systems produce, header row
 included, and a plain list with one person per line as `Name, Title`:
 

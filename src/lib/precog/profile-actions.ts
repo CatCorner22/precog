@@ -597,7 +597,11 @@ function withStaffFromTeam(p: PracticeProfile, tpl: IndustryTemplate): PracticeP
     p,
     deriveStaffFromTeam(
       tpl,
-      { ...p.staff, segregationSource: "derived", bankRecSource: "derived" },
+      {
+        ...p.staff,
+        segregationSource: "derived",
+        bankRecSource: p.staff.bankRecSource === "outside" ? "outside" : "derived",
+      },
       { dualReleaseMitigatedRuleIds: mitigatedSodRuleIds(p.dualRelease, tpl) },
     ),
   );

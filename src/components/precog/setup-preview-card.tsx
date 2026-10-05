@@ -3,6 +3,7 @@ import { ShieldAlert } from "lucide-react";
 import type { IndustryId } from "@/lib/precog/industry";
 import type { OwnTeamRow } from "@/lib/precog/onboarding/own-team";
 import { previewSetup, type SetupPreview } from "@/lib/precog/onboarding/setup-preview";
+import type { SetupAnswers } from "@/lib/precog/onboarding/setup-answers";
 import { NO_CASE_FOR_RULE, sectorPhrase } from "@/lib/precog/evidence";
 import { CaseMarker } from "@/components/precog/case-card";
 import { cn } from "@/lib/utils";
@@ -20,13 +21,18 @@ import { cn } from "@/lib/utils";
 export function SetupPreviewCard({
   rows,
   industry,
+  answers,
 }: {
   rows: readonly OwnTeamRow[];
   industry: IndustryId;
+  answers?: SetupAnswers;
 }) {
   // Keep typing urgent; expensive conflict/case matching may render later.
   const deferredRows = useDeferredValue(rows);
-  const preview = useMemo(() => previewSetup(deferredRows, industry), [deferredRows, industry]);
+  const preview = useMemo(
+    () => previewSetup(deferredRows, industry, answers),
+    [deferredRows, industry, answers],
+  );
   const updating = deferredRows !== rows;
   const announcement = useFindingAnnouncement(preview);
 

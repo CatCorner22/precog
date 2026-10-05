@@ -2,6 +2,7 @@ import type { Departure } from "../continuity/access-removal";
 import { MAX_BUSINESS_NAME } from "../business-id";
 import { INDUSTRIES, type IndustryId } from "../industry";
 import type { StorageLike } from "../local-data";
+import { normalizeSetupAnswers, type SetupAnswers } from "./setup-answers";
 import {
   ONBOARDING_FACTS_VERSION,
   ONBOARDING_QUESTION_IDS,
@@ -24,7 +25,7 @@ export interface SetupDraft {
   schemaVersion?: typeof ONBOARDING_FACTS_VERSION;
   answers?: OnboardingFacts["answers"];
   currentQuestionId?: OnboardingQuestionId;
-  step: "industry" | "team";
+  step: "industry" | "money" | "team";
   selected: IndustryId;
   businessName: string;
   rows: OwnTeamRow[];
@@ -38,6 +39,7 @@ export interface SetupDraft {
    * cleared once used, so the draft is the only place they survive a reload.
    */
   leftOut?: Departure[];
+  setupAnswers?: SetupAnswers;
 }
 
 function sessionArea(): StorageLike | null {
@@ -107,11 +109,13 @@ export function readSetupDraft(storage: StorageLike | null = sessionArea()): Set
     if (typeof draft.businessName !== "string" || !Array.isArray(draft.rows)) return null;
     if (typeof draft.selected !== "string" || !INDUSTRY_IDS.has(draft.selected)) return null;
     const leftOut = Array.isArray(draft.leftOut) ? draft.leftOut.filter(isDeparture) : [];
+    const setupAnswers = normalizeSetupAnswers(draft.setupAnswers);
     const facts = normalizeOnboardingFacts({
       schemaVersion: draft.schemaVersion,
       answers: draft.answers,
     });
     return {
+      step: draft.step === "team" || draft.step === "money" ? draft.step : "industry",
       ...(draft.schemaVersion === ONBOARDING_FACTS_VERSION
         ? { schemaVersion: ONBOARDING_FACTS_VERSION }
         : {}),
@@ -119,13 +123,13 @@ export function readSetupDraft(storage: StorageLike | null = sessionArea()): Set
       ...(typeof draft.currentQuestionId === "string" && QUESTION_IDS.has(draft.currentQuestionId)
         ? { currentQuestionId: draft.currentQuestionId as OnboardingQuestionId }
         : {}),
-      step: draft.step === "team" ? "team" : "industry",
       selected: draft.selected as IndustryId,
       businessName: draft.businessName.slice(0, MAX_BUSINESS_NAME),
       rows: draft.rows.filter(isRow),
       paste: typeof draft.paste === "string" ? draft.paste : "",
       ...(typeof draft.businessId === "string" ? { businessId: draft.businessId } : {}),
       ...(leftOut.length > 0 ? { leftOut } : {}),
+      ...(setupAnswers ? { setupAnswers } : {}),
     };
   } catch {
     return null;
@@ -168,7 +172,7 @@ export function namedPeople(draft: Pick<SetupDraft, "rows">): number {
  * setup in this tab, one the owner left to load the sample, comes back when
  * it holds typed work, with the name and line of business chosen for this
  * business, and `restoredEarlier` so the dialog can say so and offer to start
- * over. Otherwise setup starts fresh, on the team step when the business
+ * over. Otherwise setup starts fresh, on the money step when the business
  * already has a name.
  */
 export function initialSetup(
@@ -179,7 +183,7 @@ export function initialSetup(
   const fresh: SetupDraft = {
     schemaVersion: ONBOARDING_FACTS_VERSION,
     currentQuestionId: "actor",
-    step: business.typedName ? "team" : "industry",
+    step: business.typedName ? "money" : "industry",
     selected: business.industry,
     businessName: business.typedName,
     // A nonprofit's grid starts with its executive director, not an owner.

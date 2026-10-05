@@ -249,6 +249,12 @@ describe("casesForControl", () => {
 });
 
 describe("recommendedStepsForRules", () => {
+  it("recommends the owner statement control for invoice entry combined with payment release", () => {
+    expect(
+      recommendedStepsForRules(["rule-invoice-pay"], "general").map((step) => step.control.id),
+    ).toContain("owner-opens-bank-statement");
+  });
+
   it("counts a case once per control even when the case phrases the control twice", () => {
     const steps = recommendedStepsForRules(
       CONFLICT_RULES.map((r) => r.id),
