@@ -1,4 +1,5 @@
 import type { DualReleasePolicy } from "../controls/dual-release";
+import { staffFlagsFromDualRelease } from "../controls/dual-release-summary";
 import { casesForControl, casesForSodRules, isOwnSector, type CaseStudy } from "../evidence";
 import { runPrecogScenario } from "../engine";
 import { CONFLICT_RULES } from "../sod/conflict-rules";
@@ -19,6 +20,7 @@ export interface FailureInputs {
   staff: StaffComposition;
   riskVariables: RiskVariableState;
   dualRelease: DualReleasePolicy;
+  today?: string;
   confirmedScenarioIds?: ReadonlySet<string>;
 }
 
@@ -47,6 +49,7 @@ export interface ControlFailureReport {
     withoutIt: number;
     rows: { id: string; name: string; withIt: number; withoutIt: number }[];
   };
+  findingsKind: "lose" | "linked";
   findings: {
     id: string;
     title: string;
@@ -103,11 +106,11 @@ export function evaluateControlFailure(
   const scored = !control?.starter;
   const withIt =
     target.kind === "control"
-      ? stateWithControl(tpl, target.id, true, mode, inputs)
+      ? stateWithControl(tpl, target.id, true, inputs)
       : stateWithSafeguard(tpl, target.id, true, inputs);
   const withoutIt =
     target.kind === "control"
-      ? stateWithControl(tpl, target.id, false, mode, inputs)
+      ? stateWithControl(tpl, target.id, false, inputs)
       : stateWithSafeguard(tpl, target.id, false, inputs);
   const inScope = scenariosInScope(tpl, inputs.confirmedScenarioIds);
   const scenarios = scored
@@ -151,7 +154,12 @@ export function evaluateControlFailure(
             .slice(0, 8),
         }
       : { withIt: 0, withoutIt: 0, rows: [] };
-  const findings = scored ? findingsLosingControls(withIt, withoutIt) : [];
+  const findingsKind = target.kind === "control" ? "linked" : "lose";
+  const findings = scored
+    ? findingsKind === "linked"
+      ? findingsLinkedToControl(tpl, target.id, inputs.staff, inputs.dualRelease)
+      : findingsLosingControls(withIt, withoutIt)
+    : [];
   const linkedScenarios =
     target.kind === "control" ? linkedScenarioFigures(tpl, target.id, inScope, inputs) : [];
   const processes = target.kind === "control" ? exposedProcesses(tpl.processes, target.id) : [];
@@ -172,16 +180,27 @@ export function evaluateControlFailure(
       'This control comes from the industry sample. Nobody has confirmed it runs here, so Precog does not count it yet. Confirm it with "This runs here" in Controls.',
     );
   }
+  if (
+    target.kind === "safeguard" &&
+    target.id === "dual_release" &&
+    mode === "gap" &&
+    !withIt.staff.dualControlPayments
+  ) {
+    notes.push(
+      "Switching dual release on would not cover payments as it is set up: turn on an ACH or check rule with two different people allowed to sign.",
+    );
+  }
 
   return {
     target,
     label,
     mode,
     scored,
-    headline: buildHeadline(label, mode, scenarios[0], residual, findings),
+    headline: buildHeadline(label, mode, scenarios[0], residual, findings, findingsKind),
     scenarios,
     linkedScenarios,
     residual,
+    findingsKind,
     findings,
     processes,
     cases,
@@ -201,8 +220,12 @@ function stateWithSafeguard(
   const dualRelease = { ...inputs.dualRelease };
   switch (id) {
     case "dual_release":
-      staff.dualControlPayments = enabled;
       dualRelease.enabled = enabled;
+      staff.dualControlPayments = staffFlagsFromDualRelease(
+        dualRelease,
+        tpl,
+        inputs.today,
+      ).dualControlPayments;
       break;
     case "bank_rec":
       staff.independentBankRec = enabled;
@@ -229,7 +252,6 @@ function stateWithControl(
   tpl: IndustryTemplate,
   id: string,
   enabled: boolean,
-  mode: ControlFailureReport["mode"],
   inputs: FailureInputs,
 ): EvaluationState {
   return {
@@ -240,8 +262,7 @@ function stateWithControl(
           ? {
               ...control,
               segregated: enabled,
-              compensatingControls:
-                !enabled && mode === "failure" ? [] : [...control.compensatingControls],
+              compensatingControls: [...control.compensatingControls],
             }
           : control,
       ),
@@ -288,7 +309,6 @@ function scenarioFigures(state: EvaluationState, scenarioId: string): Figures {
 
 function figuresDiffer(a: Figures, b: Figures): boolean {
   return (
-    Math.abs(a.grossExpected - b.grossExpected) >= 1 ||
     Math.abs(a.retainedExpected - b.retainedExpected) >= 1 ||
     Math.abs(a.expectedAnnualCostOfRisk - b.expectedAnnualCostOfRisk) >= 1 ||
     Math.abs(a.p50Days - b.p50Days) >= 1
@@ -300,6 +320,31 @@ function portfolioFor(state: EvaluationState, confirmedScenarioIds?: ReadonlySet
     confirmedScenarioIds,
     riskVariables: state.riskVariables,
   });
+}
+
+function findingsLinkedToControl(
+  tpl: IndustryTemplate,
+  controlId: string,
+  staff: StaffComposition,
+  dualRelease: DualReleasePolicy,
+): ControlFailureReport["findings"] {
+  const linkedRuleIds = new Set(
+    CONFLICT_RULES.filter((rule) => rule.linkedControlId === controlId).map((rule) => rule.id),
+  );
+  return detectSodConflicts(tpl, staff, sodDetectionOptions(tpl, dualRelease)).conflicts.flatMap(
+    (finding) =>
+      linkedRuleIds.has(finding.ruleId)
+        ? [
+            {
+              id: finding.id,
+              title: finding.title,
+              personName: finding.personName,
+              severity: finding.severity,
+              lostInPlace: finding.controlsInPlace,
+            },
+          ]
+        : [],
+  );
 }
 
 function findingsLosingControls(
@@ -431,6 +476,7 @@ function buildHeadline(
   worstScenario: ControlFailureReport["scenarios"][number] | undefined,
   residual: ControlFailureReport["residual"],
   findings: ControlFailureReport["findings"],
+  findingsKind: ControlFailureReport["findingsKind"],
 ): string {
   const headlineLabel = labelForHeadline(label);
   const opening =
@@ -463,11 +509,19 @@ function buildHeadline(
   if (findings.length > 0) {
     const count = findings.length;
     const conflict = count === 1 ? "duty conflict" : "duty conflicts";
-    clauses.push(
-      mode === "failure"
-        ? `${count} ${conflict} ${count === 1 ? "loses" : "lose"} a control in place`
-        : `${count} ${conflict} would gain a control in place`,
-    );
+    if (findingsKind === "linked") {
+      clauses.push(
+        mode === "failure"
+          ? `${count} ${conflict} ${count === 1 ? "relies" : "rely"} on it`
+          : `${count} ${conflict} it would guard`,
+      );
+    } else {
+      clauses.push(
+        mode === "failure"
+          ? `${count} ${conflict} ${count === 1 ? "loses" : "lose"} a control in place`
+          : `${count} ${conflict} would gain a control in place`,
+      );
+    }
   }
   return clauses.length
     ? `${opening}: ${clauses.join("; ")}.`
