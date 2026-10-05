@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { GitBranch, GitCompare, LineChart, SlidersHorizontal } from "lucide-react";
+import { GitBranch, GitCompare, LineChart, ShieldOff, SlidersHorizontal } from "lucide-react";
 import { runPrecogScenario } from "@/lib/precog/engine";
 import type { StaffComposition } from "@/lib/precog/types";
 import {
@@ -9,6 +9,7 @@ import {
 import { isOwnBusiness, withOwnScenarioWording } from "@/lib/precog/scoring/scope";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { CascadePanel } from "@/components/precog/cascade-panel";
+import { ControlFailurePanel } from "@/components/precog/control-failure-panel";
 import { ScenarioCompare } from "@/components/precog/scenario-compare";
 import { Button } from "@/components/ui/button";
 import { applyWhatIf, pickScenario } from "./scenario-page";
@@ -16,7 +17,7 @@ import type { StaffWhatIf } from "./staff-what-if";
 import { SingleScenarioView } from "./scenario-single-view";
 import { ScenarioVariablesView } from "./scenario-variables-view";
 
-export type ScenarioView = "single" | "compare" | "variables" | "cascades";
+export type ScenarioView = "single" | "compare" | "variables" | "cascades" | "failure";
 
 /**
  * What could happen: one scenario's assumed figures, a comparison of options,
@@ -153,6 +154,8 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
           whatIfActive={whatIf !== null}
           onShowCascades={() => setView("cascades")}
         />
+      ) : view === "failure" ? (
+        <ControlFailurePanel />
       ) : (
         <SingleScenarioView
           tpl={tpl}
@@ -177,4 +180,5 @@ const VIEWS: { id: ScenarioView; label: string; Icon: typeof LineChart }[] = [
   { id: "compare", label: "Compare what-ifs", Icon: GitCompare },
   { id: "variables", label: "Settings and insurance", Icon: SlidersHorizontal },
   { id: "cascades", label: "What else moves", Icon: GitBranch },
+  { id: "failure", label: "If a control fails", Icon: ShieldOff },
 ];

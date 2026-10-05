@@ -151,6 +151,10 @@ hidden or closed, and if the browser refuses local storage (private mode, quota)
 badge says so instead of the page failing. The open tab is part of the URL (`/?tab=map`),
 so refresh, back, and shared links keep the view.
 
+### If a control fails
+
+The “If a control fails” view in What could happen compares a safeguard or control as recorded today with the same item switched off, or switched on when it is missing. It reuses Precog’s scenario, residual-risk and duty-conflict engines and shows related processes and real cases. This is a what-if only; it does not change or save the business profile.
+
 ## Control evidence log
 
 On the Firm page, signed-in users can record a monthly check with its scope,
