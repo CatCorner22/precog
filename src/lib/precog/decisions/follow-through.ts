@@ -8,11 +8,12 @@ import {
 } from "../continuity/documentation";
 import type { DualReleasePolicy } from "../controls/dual-release";
 import type { IndustryId } from "../industry";
-import type {
-  ContinuitySnapshot,
-  DecisionEntry,
-  DecisionReview,
-  DecisionSnapshot,
+import {
+  MAX_DECISION_REVIEWS,
+  type ContinuitySnapshot,
+  type DecisionEntry,
+  type DecisionReview,
+  type DecisionSnapshot,
 } from "../practice-profile";
 import { portfolioSummary, type ResidualScope } from "../scoring/residual-engine";
 import { DEFAULT_WEIGHTS, SCORING_VERSION } from "../scoring/weights";
@@ -321,7 +322,7 @@ export function applyDecisionReview(
   review: DecisionReview,
   extendDays = 90,
 ): DecisionEntry {
-  const reviews = [...(d.reviews ?? []), review];
+  const reviews = [...(d.reviews ?? []), review].slice(-MAX_DECISION_REVIEWS);
   if (review.outcome === "still_open") {
     return {
       ...d,

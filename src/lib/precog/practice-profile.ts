@@ -27,7 +27,6 @@ import {
 } from "./controls/dual-release";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
 import { isDemoName, isIndustryId, type IndustryId } from "./industry";
-import { isBusinessId } from "./profile-input";
 import { normalizeEngagement, type EngagementStamp } from "./firm/engagement";
 import { normalizeReviewRecords, type ReviewRecord } from "./firm/reviews";
 import { normalizeAccessReconciliation, type AccessReconciliation } from "./firm/reconcile";
@@ -50,7 +49,7 @@ import {
   relationEntries,
   savedBlockEntries,
 } from "./profile-entries";
-import { DEFAULT_BUSINESS_ID, MAX_BUSINESS_NAME } from "./business-id";
+import { DEFAULT_BUSINESS_ID, isBusinessId, MAX_BUSINESS_NAME } from "./business-id";
 import { ACTIVE_PROFILE_KEY, LEGACY_PROFILE_KEY, PORTFOLIO_KEY } from "./storage-keys";
 import { stripProcedureLinks } from "./procedures/coverage-link";
 import { normalizePlaces, normalizeProcedures } from "./procedures/normalize";
@@ -200,6 +199,8 @@ export const MAX_DECISIONS = 100;
 export const MAX_DECISION_SUBJECT = 120;
 /** Longest decision note, in characters. */
 export const MAX_DECISION_NOTE = 800;
+/** Most reviews retained for one decision; newest reviews carry its current meaning. */
+export const MAX_DECISION_REVIEWS = 100;
 
 export interface DecisionEntry {
   id: string;
@@ -639,35 +640,108 @@ function normalizeStaff(value: unknown, base: StaffComposition): StaffCompositio
   };
 }
 
-/** Journal entries of a known kind, bounded by the same caps the journal form applies. */
-function normalizeDecisions(value: unknown): DecisionEntry[] {
+const DECISION_STATUSES = ["open", "closed"] as const;
+const REVIEW_OUTCOMES = ["done", "still_open", "no_longer_relevant"] as const;
+const CONTINUITY_STEPS: readonly ContinuityStep[] = ["cover", "handoff", "document", "locate"];
+const COVERAGE_STATUSES: readonly CoverageStatus[] = ["uncovered", "single", "thin", "covered"];
+const DOCUMENTATION_STATES: readonly DocumentationState[] = ["none", "unlocated", "located"];
+
+/** Journal entries of a known kind, rebuilt deeply so every downstream reader gets safe history. */
+export function normalizeDecisions(value: unknown): DecisionEntry[] {
   if (!Array.isArray(value)) return [];
-  return (value as Partial<DecisionEntry>[]).slice(0, MAX_DECISIONS).flatMap((entry) => {
-    const known = typeof entry?.kind === "string" && Object.hasOwn(DECISION_KIND_LABEL, entry.kind);
-    if (!isRecord(entry) || !known || !entry.kind) return [];
-    // A malformed disposition is dropped on its own; the entry stays.
-    const { disposition: rawDisposition, ...rest } = entry;
-    const disposition = normalizeDisposition(rawDisposition);
+  return value.slice(0, MAX_DECISIONS).flatMap((entry) => {
+    if (
+      !isRecord(entry) ||
+      !isEnum(entry.kind, Object.keys(DECISION_KIND_LABEL) as DecisionKind[])
+    ) {
+      return [];
+    }
+    const snapshot = normalizeDecisionSnapshot(entry.snapshot);
+    const reviews = Array.isArray(entry.reviews)
+      ? entry.reviews
+          .slice(-MAX_DECISION_REVIEWS)
+          .flatMap((review) => normalizeDecisionReview(review) ?? [])
+      : undefined;
+    const disposition = normalizeDisposition(entry.disposition);
     return [
       {
-        ...rest,
-        id: String(entry.id ?? "").slice(0, 80),
-        createdAt: String(entry.createdAt ?? "").slice(0, 40),
-        subject: String(entry.subject ?? "").slice(0, MAX_DECISION_SUBJECT),
+        id: text(entry.id, 80),
+        createdAt: storedDate(entry.createdAt) ?? "",
+        subject: text(entry.subject, MAX_DECISION_SUBJECT),
         kind: entry.kind,
-        note: String(entry.note ?? "").slice(0, MAX_DECISION_NOTE),
-        reviewBy: entry.reviewBy ? String(entry.reviewBy).slice(0, 40) : undefined,
-        residualAtDecision: Number.isFinite(entry.residualAtDecision)
-          ? entry.residualAtDecision
-          : undefined,
-        linkedTab: entry.linkedTab ? String(entry.linkedTab).slice(0, 80) : undefined,
-        linkedId: entry.linkedId ? String(entry.linkedId).slice(0, 80) : undefined,
-        reviews: Array.isArray(entry.reviews) ? entry.reviews.slice(0, 100) : undefined,
-        status: entry.status === "open" || entry.status === "closed" ? entry.status : undefined,
+        note: text(entry.note, MAX_DECISION_NOTE),
+        ...(calendarDate(entry.reviewBy) ? { reviewBy: entry.reviewBy } : {}),
+        ...(finite(entry.residualAtDecision)
+          ? { residualAtDecision: entry.residualAtDecision }
+          : {}),
+        ...(optionalText(entry.linkedTab) ? { linkedTab: text(entry.linkedTab, 80) } : {}),
+        ...(optionalText(entry.linkedId) ? { linkedId: text(entry.linkedId, 80) } : {}),
+        ...(isIndustryId(entry.linkedIndustry) ? { linkedIndustry: entry.linkedIndustry } : {}),
+        ...(isEnum(entry.linkedStep, CONTINUITY_STEPS) ? { linkedStep: entry.linkedStep } : {}),
+        ...(optionalText(entry.linkedPersonId)
+          ? { linkedPersonId: text(entry.linkedPersonId, 120) }
+          : {}),
+        ...(optionalText(entry.linkedAbsenceId)
+          ? { linkedAbsenceId: text(entry.linkedAbsenceId, 60) }
+          : {}),
+        ...(snapshot ? { snapshot } : {}),
+        ...(reviews?.length ? { reviews } : {}),
+        ...(isEnum(entry.status, DECISION_STATUSES) ? { status: entry.status } : {}),
         ...(disposition ? { disposition } : {}),
       },
     ];
   });
+}
+
+function normalizeDecisionReview(value: unknown): DecisionReview | undefined {
+  if (!isRecord(value) || !storedDate(value.at) || !isEnum(value.outcome, REVIEW_OUTCOMES)) {
+    return undefined;
+  }
+  const snapshot = normalizeDecisionSnapshot(value.snapshot);
+  if (!snapshot) return undefined;
+  return {
+    at: value.at,
+    outcome: value.outcome,
+    ...(optionalText(value.note) ? { note: text(value.note, MAX_DECISION_NOTE) } : {}),
+    snapshot,
+  };
+}
+
+function normalizeDecisionSnapshot(value: unknown): DecisionSnapshot | undefined {
+  if (
+    !isRecord(value) ||
+    !storedDate(value.at) ||
+    !optionalText(value.scoringVersion) ||
+    !finite(value.averageResidual) ||
+    !finite(value.sodOpenConflicts) ||
+    !finite(value.segregationHealth)
+  ) {
+    return undefined;
+  }
+  const continuity = normalizeContinuitySnapshot(value.continuity);
+  return {
+    at: value.at,
+    scoringVersion: text(value.scoringVersion, 40),
+    averageResidual: value.averageResidual,
+    ...(finite(value.subjectResidual) ? { subjectResidual: value.subjectResidual } : {}),
+    sodOpenConflicts: value.sodOpenConflicts,
+    segregationHealth: value.segregationHealth,
+    ...(continuity ? { continuity } : {}),
+  };
+}
+
+function normalizeContinuitySnapshot(value: unknown): ContinuitySnapshot | undefined {
+  if (!isRecord(value) || !finite(value.coverageIndex) || !finite(value.singlePoints)) {
+    return undefined;
+  }
+  return {
+    coverageIndex: value.coverageIndex,
+    singlePoints: value.singlePoints,
+    ...(isEnum(value.itemStatus, COVERAGE_STATUSES) ? { itemStatus: value.itemStatus } : {}),
+    ...(isEnum(value.itemDocumentation, DOCUMENTATION_STATES)
+      ? { itemDocumentation: value.itemDocumentation }
+      : {}),
+  };
 }
 
 /** A "Not valid" judgement with a known reason and a date, capped; anything else is dropped. */
@@ -677,20 +751,50 @@ function normalizeDisposition(value: unknown): DecisionDisposition | undefined {
   if (typeof reason !== "string" || !Object.hasOwn(DISPOSITION_REASON_LABEL, reason)) {
     return undefined;
   }
-  if (typeof value.at !== "string" || !value.at) return undefined;
+  if (!storedDate(value.at)) return undefined;
   const by = value.by;
   const validBy =
     isRecord(by) && typeof by.userId === "string" && by.userId && typeof by.name === "string"
       ? { userId: by.userId.slice(0, 80), name: by.name.slice(0, 120) }
       : undefined;
-  const note = typeof value.note === "string" ? value.note.slice(0, MAX_DISPOSITION_NOTE) : "";
+  const note = text(value.note, MAX_DISPOSITION_NOTE);
   return {
     verdict: "not_valid",
     reason: reason as DispositionReason,
     ...(note ? { note } : {}),
     ...(validBy ? { by: validBy } : {}),
-    at: value.at.slice(0, 40),
+    at: value.at,
   };
+}
+
+function isEnum<T extends string>(value: unknown, values: readonly T[]): value is T {
+  return typeof value === "string" && values.includes(value as T);
+}
+
+function finite(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function text(value: unknown, max: number): string {
+  return typeof value === "string" ? value.slice(0, max) : "";
+}
+
+function optionalText(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function storedDate(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 40) return false;
+  const day = value.slice(0, 10);
+  return (
+    isCalendarDate(day) &&
+    (value.length === 10 || value[10] === "T") &&
+    Number.isFinite(Date.parse(value))
+  );
+}
+
+function calendarDate(value: unknown): value is string {
+  return typeof value === "string" && isCalendarDate(value);
 }
 
 // ── Ids ────────────────────────────────────────────────────────────────────
