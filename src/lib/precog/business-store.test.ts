@@ -749,7 +749,7 @@ describe("firm access", () => {
         firmUserId: "user-a",
       });
       const moved = await removeMember(sql, "user-a", "user-c");
-      expect(moved.map((m) => m.from)).toEqual(["biz_set_up"]);
+      expect(moved?.map((m) => m.from)).toEqual(["biz_set_up"]);
       const rows = await sql<{ user_id: string; firm_user_id: string | null; granted: boolean }>`
         select user_id, firm_user_id, granted_at is not null as granted from businesses
         where id = 'biz_g'`;

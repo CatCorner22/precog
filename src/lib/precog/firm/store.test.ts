@@ -17,6 +17,7 @@ import {
   MAX_OWNER_EMAIL_REQUESTS_PER_DAY,
   peekInvite,
   removeMember,
+  revokeInvite,
   saveFirm,
   saveFirmLetterhead,
   setMemberRole,
@@ -194,9 +195,32 @@ describe("firm membership", () => {
     expect((await loadFirmFor(db.sql, "ub"))?.role).toBe("reviewer");
     await expect(removeMember(db.sql, "ua", "ua")).rejects.toBeInstanceOf(FirmMembershipError);
     await expect(leaveFirm(db.sql, "ua", "ua")).rejects.toBeInstanceOf(FirmMembershipError);
-    await removeMember(db.sql, "ua", "ub");
+    expect(await removeMember(db.sql, "ua", "ub")).toEqual([]);
     expect(await loadFirmFor(db.sql, "ub")).toBeNull();
     expect((await listMembers(db.sql, "ua")).map((m) => m.userId)).toEqual(["ua"]);
+    // Someone no longer a member: nothing changes, and null says so.
+    expect(await removeMember(db.sql, "ua", "ub")).toBeNull();
+    expect(await leaveFirm(db.sql, "ua", "ub")).toBeNull();
+  });
+
+  it("revokes an open invitation once and never an accepted one", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    for (const token of ["t1", "t2"]) {
+      await createInvite(db.sql, {
+        firmUserId: "ua",
+        email: `${token === "t1" ? "ub" : "uc"}@example.test`,
+        role: "preparer",
+        token,
+      });
+    }
+    await acceptInvite(db.sql, "t2", "uc");
+    expect(await revokeInvite(db.sql, "ua", "t1")).toBe(true);
+    expect(await revokeInvite(db.sql, "ua", "t1")).toBe(false);
+    expect(await revokeInvite(db.sql, "ua", "t2")).toBe(false);
+    const kept = await db.pg.query<{ token: string; accepted_by: string }>(
+      "select token, accepted_by from firm_invites order by token",
+    );
+    expect(kept.rows).toEqual([{ token: "t2", accepted_by: "uc" }]);
   });
 });
 
@@ -251,7 +275,7 @@ describe("firm membership edge cases", () => {
     expect(moved).toEqual([
       { from: "biz_1", to: expect.stringMatching(MOVED_ID), name: "Client UB" },
     ]);
-    const to = moved[0].to;
+    const to = moved?.[0].to ?? "";
     // The owner's own biz_1 holds the id, so the moved one took a new address.
     expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBe("ua");
     expect(await resolveBusinessOwner(db.sql, "ua", to)).toBe("ua");
@@ -292,7 +316,7 @@ describe("firm membership edge cases", () => {
     expect(left).toEqual([
       { from: "biz_1", to: expect.stringMatching(MOVED_ID), name: "Client UC" },
     ]);
-    expect(await resolveBusinessOwner(db.sql, "ua", left[0].to)).toBe("ua");
+    expect(await resolveBusinessOwner(db.sql, "ua", left?.[0].to ?? "")).toBe("ua");
     expect(await resolveBusinessOwner(db.sql, "uc", "biz_1")).toBeNull();
   }, 60_000);
 
@@ -317,8 +341,8 @@ describe("firm membership edge cases", () => {
     await acceptInvite(db.sql, "t2", "uc");
     await db.pg.query("update businesses set firm_user_id = 'ua' where user_id = 'uc'");
     const moved = await leaveFirm(db.sql, "ua", "uc");
-    expect(moved[0].to).toMatch(MOVED_ID);
-    expect(await resolveBusinessOwner(db.sql, "ua", moved[0].to)).toBe("ua");
+    expect(moved?.[0].to).toMatch(MOVED_ID);
+    expect(await resolveBusinessOwner(db.sql, "ua", moved?.[0].to ?? "")).toBe("ua");
     expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBeNull();
   }, 60_000);
 

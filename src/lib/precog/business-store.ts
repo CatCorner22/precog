@@ -645,20 +645,21 @@ export async function loadActiveBusiness<
  * drops the pointer too, so a later load cannot bring the deleted business
  * back from the pointer's frozen copy. The row and its history, reviews and
  * report versions stay until `purgeDeletedBusinesses` runs after the grace
- * period, so a deletion can be undone.
+ * period, so a deletion can be undone. True when this call deleted a live
+ * business; false when there was none or it was deleted already.
  */
 export async function deleteBusinessRow(
   sql: Sql,
   ownerUserId: string,
   businessId: string,
   pointerUserId = ownerUserId,
-): Promise<void> {
-  await inTransaction(sql, async (tx) => {
+): Promise<boolean> {
+  return inTransaction(sql, async (tx) => {
     await lockBusinessOwner(tx, ownerUserId);
     const rows = await tx<{ firm_user_id: string | null; granted: boolean }>`select firm_user_id,
         granted_at is not null as granted from businesses
       where user_id = ${ownerUserId} and id = ${businessId} for update`;
-    if (!rows.length) return; // Repeated delete is harmless, never creates a marker for another row.
+    if (!rows.length) return false; // Repeated delete is harmless, never creates a marker for another row.
     await authorizeBusinessDestroyer(
       tx,
       ownerUserId,
@@ -669,14 +670,19 @@ export async function deleteBusinessRow(
     await tx`insert into business_deletion_markers (user_id, business_id, firm_user_id)
       values (${ownerUserId}, ${businessId}, ${rows[0].firm_user_id})
       on conflict (user_id, business_id) do nothing`;
-    await tx`update businesses set deleted_at = now(), revision = revision + 1, updated_at = now()
-      where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is null`;
+    // Under the row's lock: true only for the call that took the business
+    // from live to deleted, so a repeat or a racing second delete says false.
+    const deleted = await tx`update businesses
+      set deleted_at = now(), revision = revision + 1, updated_at = now()
+      where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is null
+      returning id`;
     // Its public share links stop working now, not when the row is purged.
     await revokeBusinessShares(tx, ownerUserId, businessId);
     // Remove exact v2 pointers, including colleagues; legacy pointers only when ownership is known.
     await tx`delete from business_profiles where coalesce(profile->>'businessId', 'biz_default') = ${businessId}
       and (profile->>'ownerUserId' = ${ownerUserId}
         or (not (profile ? 'ownerUserId') and user_id in (${ownerUserId}, ${pointerUserId})))`;
+    return deleted.length > 0;
   });
 }
 

@@ -188,24 +188,41 @@ export async function saveEngagement(
   });
 }
 
-/** Ends or reopens the engagement; ending stamps `ended_at` once, reopening clears it. */
+/**
+ * Ends or reopens the engagement; ending stamps `ended_at` once, reopening
+ * clears it. `changed` says whether the status moved (no row reads as
+ * active). The business row is locked first, as saveEngagement and the
+ * client invitation's hand-over lock it, so two requests at once (the row
+ * may not exist yet) move the status once.
+ */
 export async function setEngagementStatus(
   sql: Sql,
   ownerUserId: string,
   businessId: string,
   status: EngagementStatus,
-): Promise<EngagementRecord> {
-  const rows = await sql<RawEngagement>`
-    insert into engagement_marks (user_id, business_id, status, ended_at)
-    values (${ownerUserId}, ${businessId}, ${status},
-      case when ${status}::text = 'ended' then now() else null end)
-    on conflict (user_id, business_id) do update set
-      status = excluded.status,
-      ended_at = case when excluded.status = 'ended'
-        then coalesce(engagement_marks.ended_at, now()) else null end
-    returning scope, period_start, period_end, status, ended_at, preparer_user_id, reviewer_user_id
-  `;
-  return toRecord(rows[0]);
+): Promise<{ engagement: EngagementRecord; changed: boolean }> {
+  return inTransaction(sql, async (tx) => {
+    await tx`
+      select 1 from businesses where user_id = ${ownerUserId} and id = ${businessId} for update
+    `;
+    const before = await tx<{ status: string }>`
+      select status from engagement_marks
+      where user_id = ${ownerUserId} and business_id = ${businessId}
+    `;
+    const rows = await tx<RawEngagement>`
+      insert into engagement_marks (user_id, business_id, status, ended_at)
+      values (${ownerUserId}, ${businessId}, ${status},
+        case when ${status}::text = 'ended' then now() else null end)
+      on conflict (user_id, business_id) do update set
+        status = excluded.status,
+        ended_at = case when excluded.status = 'ended'
+          then coalesce(engagement_marks.ended_at, now()) else null end
+      returning scope, period_start, period_end, status, ended_at, preparer_user_id, reviewer_user_id
+    `;
+    const engagement = toRecord(rows[0]);
+    const from = before[0]?.status === "ended" ? "ended" : "active";
+    return { engagement, changed: from !== engagement.status };
+  });
 }
 
 /** Sets how long the firm keeps a deleted client's records; 7 to 15 years in Precog. */

@@ -236,12 +236,9 @@ export const deleteBusiness = createServerFn({ method: "POST" })
     const sql = await getSql();
     const owner = await resolveBusinessOwner(sql, context.userId, data.id);
     if (!owner) return { ok: true as const };
-    // A repeated delete changes nothing and writes no second row.
-    const live = await sql`
-      select 1 from businesses where user_id = ${owner} and id = ${data.id} and deleted_at is null
-    `;
-    await deleteBusinessRow(sql, owner, data.id, context.userId);
-    if (live.length) {
+    // A repeated or racing delete changes nothing and writes no second row:
+    // only the call that took the business from live to deleted logs it.
+    if (await deleteBusinessRow(sql, owner, data.id, context.userId)) {
       await recordAuditForBusiness(sql, owner, data.id, {
         actorUserId: context.userId,
         event: "client_deleted",

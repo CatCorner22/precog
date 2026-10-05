@@ -192,12 +192,14 @@ export const revokeFirmInvite = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
-    await revokeInvite(sql, firm.firmUserId, data.token);
-    await recordAudit(sql, {
-      firmUserId: firm.firmUserId,
-      actorUserId: context.userId,
-      event: "invite_revoked",
-    });
+    // A repeated revoke, or one of an accepted invitation, changes nothing.
+    if (await revokeInvite(sql, firm.firmUserId, data.token)) {
+      await recordAudit(sql, {
+        firmUserId: firm.firmUserId,
+        actorUserId: context.userId,
+        event: "invite_revoked",
+      });
+    }
     return { ok: true as const };
   });
 
@@ -291,15 +293,18 @@ export const removeFirmMember = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
+    // Null when the account was no longer a member: nothing moved, nothing to log.
     const moved = await removeMember(sql, firm.firmUserId, data.userId);
-    await recordAudit(sql, {
-      firmUserId: firm.firmUserId,
-      actorUserId: context.userId,
-      event: "member_removed",
-      subjectUserId: data.userId,
-    });
-    await recordHandOvers(sql, firm.firmUserId, context.userId, data.userId, moved);
-    return { members: await listMembers(sql, firm.firmUserId), moved };
+    if (moved) {
+      await recordAudit(sql, {
+        firmUserId: firm.firmUserId,
+        actorUserId: context.userId,
+        event: "member_removed",
+        subjectUserId: data.userId,
+      });
+      await recordHandOvers(sql, firm.firmUserId, context.userId, data.userId, moved);
+    }
+    return { members: await listMembers(sql, firm.firmUserId), moved: moved ?? [] };
   });
 
 /**
@@ -366,14 +371,17 @@ export const leaveFirm = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const sql = await getSql();
     const firm = await requireFirm(sql, context.userId);
+    // Null when a removal or a second leave got there first: nothing to log.
     const moved = await leaveFirmRow(sql, firm.firmUserId, context.userId);
-    await recordAudit(sql, {
-      firmUserId: firm.firmUserId,
-      actorUserId: context.userId,
-      event: "member_left",
-      subjectUserId: context.userId,
-    });
-    await recordHandOvers(sql, firm.firmUserId, context.userId, context.userId, moved);
+    if (moved) {
+      await recordAudit(sql, {
+        firmUserId: firm.firmUserId,
+        actorUserId: context.userId,
+        event: "member_left",
+        subjectUserId: context.userId,
+      });
+      await recordHandOvers(sql, firm.firmUserId, context.userId, context.userId, moved);
+    }
     return { ok: true as const };
   });
 

@@ -228,6 +228,9 @@ describe("firm writers", () => {
   it("logs a removal with each client it hands over, and a member leaving", async () => {
     await call(server.removeFirmMember, "fo", { userId: "pp" });
     await call(server.leaveFirm, "rv");
+    // Removing someone who is no longer a member changes nothing and logs nothing.
+    await call(server.removeFirmMember, "fo", { userId: "pp" });
+    await call(server.removeFirmMember, "fo", { userId: "rv" });
     const rows = await log();
     expect(rows.map((r) => [r.event, r.actor, r.business, r.subject])).toEqual([
       ["member_removed", "fo", null, "pp"],
@@ -272,6 +275,39 @@ describe("firm writers", () => {
     expect(await log()).toHaveLength(4);
   });
 
+  it("logs a revoke once, and never revokes an invitation already accepted", async () => {
+    const open = await call<{ invite: { token: string } }>(server.inviteFirmMember, "fo", {
+      email: "other@example.test",
+      role: "preparer",
+    });
+    await call(server.revokeFirmInvite, "fo", { token: open.invite.token });
+    await call(server.revokeFirmInvite, "fo", { token: open.invite.token });
+    const used = await call<{ invite: { token: string } }>(server.inviteFirmMember, "fo", {
+      email: "nm@example.test",
+      role: "reviewer",
+    });
+    await call(server.acceptFirmInvite, "nm", { token: used.invite.token });
+    await call(server.revokeFirmInvite, "fo", { token: used.invite.token });
+    expect((await log()).map((r) => r.event)).toEqual([
+      "member_invited",
+      "invite_revoked",
+      "member_invited",
+      "member_joined",
+    ]);
+    // The accepted invitation keeps its record of who joined by it.
+    expect(
+      await db.sql`select accepted_by from firm_invites where token = ${used.invite.token}`,
+    ).toEqual([{ accepted_by: "nm" }]);
+  });
+
+  it("logs one client_deleted when two deletes of the same client race", async () => {
+    await Promise.all([
+      call(profile.deleteBusiness, "fo", { id: "biz_f", expectedAccountId: "fo" }),
+      call(profile.deleteBusiness, "fo", { id: "biz_f", expectedAccountId: "fo" }),
+    ]);
+    expect((await log()).map((r) => [r.event, r.business])).toEqual([["client_deleted", "biz_f"]]);
+  });
+
   it("logs a client deleted and restored, once each", async () => {
     await call(profile.deleteBusiness, "fo", { id: "biz_f", expectedAccountId: "fo" });
     await call(profile.deleteBusiness, "fo", { id: "biz_f", expectedAccountId: "fo" });
@@ -307,6 +343,10 @@ describe("engagement writers", () => {
       preparerUserId: null,
       reviewerUserId: null,
     });
+    // Reopening an engagement that never ended, and ending it twice, change
+    // nothing the second time and log nothing for it.
+    await call(engagement.setEngagementStatus, "fo", { businessId: "biz_1", status: "active" });
+    await call(engagement.setEngagementStatus, "fo", { businessId: "biz_1", status: "ended" });
     await call(engagement.setEngagementStatus, "fo", { businessId: "biz_1", status: "ended" });
     await call(engagement.setEngagementStatus, "fo", { businessId: "biz_1", status: "active" });
     await call(engagement.saveFirmRetention, "fo", { years: 10 });

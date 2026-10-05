@@ -273,13 +273,14 @@ export async function setMemberRole(
 /**
  * Removes a member. The client businesses they set up for the firm stay with
  * it, under the owner's account (see `transferBusinessesToOwner`); the
- * businesses they kept outside the firm stay theirs. Returns what moved.
+ * businesses they kept outside the firm stay theirs. Returns what moved, or
+ * null when the account was not a member and nothing changed.
  */
 export async function removeMember(
   sql: Sql,
   firmUserId: string,
   memberUserId: string,
-): Promise<MovedBusiness[]> {
+): Promise<MovedBusiness[] | null> {
   if (memberUserId === firmUserId) throw new FirmMembershipError("Nobody can remove the owner.");
   return detachMember(sql, firmUserId, memberUserId);
 }
@@ -351,8 +352,18 @@ export async function listInvites(sql: Sql, firmUserId: string): Promise<FirmInv
   }));
 }
 
-export async function revokeInvite(sql: Sql, firmUserId: string, token: string): Promise<void> {
-  await sql`delete from firm_invites where firm_user_id = ${firmUserId} and token = ${token}`;
+/**
+ * Withdraws an invitation nobody accepted yet. True when one went; false for
+ * an unknown token, one revoked already, or one accepted, whose row stays as
+ * the record of who joined by it.
+ */
+export async function revokeInvite(sql: Sql, firmUserId: string, token: string): Promise<boolean> {
+  const rows = await sql<{ token: string }>`
+    delete from firm_invites
+    where firm_user_id = ${firmUserId} and token = ${token} and accepted_at is null
+    returning token
+  `;
+  return rows.length > 0;
 }
 
 /**
@@ -495,13 +506,14 @@ export async function acceptInvite(
 
 /**
  * A member leaves; the client businesses they set up stay with the firm, as
- * on removal. The owner cannot leave. Returns what moved.
+ * on removal. The owner cannot leave. Returns what moved, or null when the
+ * account was no longer a member.
  */
 export async function leaveFirm(
   sql: Sql,
   firmUserId: string,
   userId: string,
-): Promise<MovedBusiness[]> {
+): Promise<MovedBusiness[] | null> {
   if (firmUserId === userId) throw new FirmMembershipError("The owner cannot leave the firm.");
   return detachMember(sql, firmUserId, userId);
 }
@@ -509,20 +521,24 @@ export async function leaveFirm(
 /**
  * Ends a membership and hands the member's firm clients (live and deleted)
  * to the owner's account. The member's share links to the firm's clients,
- * their own included, are revoked first, while the rows still name them;
- * colleagues' links to those clients keep working, since the clients stay.
+ * their own included, are revoked before the hand-over, while the rows still
+ * name them; colleagues' links to those clients keep working, since the
+ * clients stay. Null, with nothing changed, when the account was not a
+ * member (a repeated removal, or one that raced another).
  */
 async function detachMember(
   sql: Sql,
   firmUserId: string,
   memberUserId: string,
-): Promise<MovedBusiness[]> {
+): Promise<MovedBusiness[] | null> {
   return inTransaction(sql, async (tx) => {
-    await revokeDepartingMemberShares(tx, firmUserId, memberUserId);
-    await tx`
+    const removed = await tx<{ member_user_id: string }>`
       delete from firm_members
       where firm_user_id = ${firmUserId} and member_user_id = ${memberUserId} and role <> 'owner'
+      returning member_user_id
     `;
+    if (!removed.length) return null;
+    await revokeDepartingMemberShares(tx, firmUserId, memberUserId);
     return transferBusinessesToOwner(tx, { firmUserId, memberUserId });
   });
 }

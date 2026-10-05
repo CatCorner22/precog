@@ -120,13 +120,21 @@ export const setEngagementStatus = createServerFn({ method: "POST" })
     if (!firm || firm.firmUserId !== context.userId) {
       throw new RequestError(403, OWNER_ONLY_STATUS);
     }
-    const engagement = await setEngagementStatusRow(sql, owner, data.businessId, data.status);
-    await recordAudit(sql, {
-      firmUserId: firm.firmUserId,
-      actorUserId: context.userId,
-      event: data.status === "ended" ? "engagement_ended" : "engagement_reopened",
-      businessId: data.businessId,
-    });
+    const { engagement, changed } = await setEngagementStatusRow(
+      sql,
+      owner,
+      data.businessId,
+      data.status,
+    );
+    // Ending an ended engagement, or reopening an open one, changes nothing.
+    if (changed) {
+      await recordAudit(sql, {
+        firmUserId: firm.firmUserId,
+        actorUserId: context.userId,
+        event: data.status === "ended" ? "engagement_ended" : "engagement_reopened",
+        businessId: data.businessId,
+      });
+    }
     return { engagement };
   });
 

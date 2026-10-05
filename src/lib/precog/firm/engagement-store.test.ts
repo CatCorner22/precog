@@ -228,16 +228,28 @@ describe("saveEngagement", () => {
 describe("ending and reopening", () => {
   it("ends with a stamp kept on a second end, and reopening clears it", async () => {
     await save({ scope: "Map" });
-    const ended = await setEngagementStatus(db.sql, "own", "biz_1", "ended");
+    const { engagement: ended, changed } = await setEngagementStatus(
+      db.sql,
+      "own",
+      "biz_1",
+      "ended",
+    );
+    expect(changed).toBe(true);
     expect(ended.status).toBe("ended");
     expect(ended.endedAt).not.toBeNull();
     expect(ended.scope).toBe("Map");
     expect(await engagementEnded(db.sql, "own", "biz_1")).toBe(true);
     const again = await setEngagementStatus(db.sql, "own", "biz_1", "ended");
-    expect(again.endedAt).toBe(ended.endedAt);
+    expect([again.engagement.endedAt, again.changed]).toEqual([ended.endedAt, false]);
     const reopened = await setEngagementStatus(db.sql, "own", "biz_1", "active");
-    expect([reopened.status, reopened.endedAt]).toEqual(["active", null]);
+    expect([reopened.engagement.status, reopened.engagement.endedAt, reopened.changed]).toEqual([
+      "active",
+      null,
+      true,
+    ]);
     expect(await engagementEnded(db.sql, "own", "biz_1")).toBe(false);
+    // An engagement with no row yet reads as active: reopening it moves nothing.
+    expect((await setEngagementStatus(db.sql, "solo", "biz_s", "active")).changed).toBe(false);
   });
 
   it("the database refuses a status other than active or ended", async () => {
