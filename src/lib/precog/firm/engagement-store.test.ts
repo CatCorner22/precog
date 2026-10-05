@@ -219,7 +219,7 @@ describe("saveEngagement", () => {
   });
 
   it("refuses a firm member's save once the engagement has ended", async () => {
-    await setEngagementStatus(db.sql, "own", "biz_1", "ended");
+    await setEngagementStatus(db.sql, "own", "biz_1", "ended", "own");
     await expect(save({ scope: "Later" }, "rev")).rejects.toThrow(ENGAGEMENT_ENDED);
     await expect(save({ scope: "Later" }, "own")).rejects.toThrow(ENGAGEMENT_ENDED);
   });
@@ -228,14 +228,14 @@ describe("saveEngagement", () => {
 describe("ending and reopening", () => {
   it("ends with a stamp kept on a second end, and reopening clears it", async () => {
     await save({ scope: "Map" });
-    const ended = await setEngagementStatus(db.sql, "own", "biz_1", "ended");
+    const ended = await setEngagementStatus(db.sql, "own", "biz_1", "ended", "own");
     expect(ended.status).toBe("ended");
     expect(ended.endedAt).not.toBeNull();
     expect(ended.scope).toBe("Map");
     expect(await engagementEnded(db.sql, "own", "biz_1")).toBe(true);
-    const again = await setEngagementStatus(db.sql, "own", "biz_1", "ended");
+    const again = await setEngagementStatus(db.sql, "own", "biz_1", "ended", "own");
     expect(again.endedAt).toBe(ended.endedAt);
-    const reopened = await setEngagementStatus(db.sql, "own", "biz_1", "active");
+    const reopened = await setEngagementStatus(db.sql, "own", "biz_1", "active", "own");
     expect([reopened.status, reopened.endedAt]).toEqual(["active", null]);
     expect(await engagementEnded(db.sql, "own", "biz_1")).toBe(false);
   });
@@ -251,7 +251,7 @@ describe("ending and reopening", () => {
 
 describe("assertEngagementOpen", () => {
   it("refuses a member of the business's firm on an ended client", async () => {
-    await setEngagementStatus(db.sql, "own", "biz_1", "ended");
+    await setEngagementStatus(db.sql, "own", "biz_1", "ended", "own");
     for (const member of ["own", "rev", "prep"]) {
       await expect(assertEngagementOpen(db.sql, "own", "biz_1", member)).rejects.toMatchObject({
         status: 409,
@@ -266,7 +266,7 @@ describe("assertEngagementOpen", () => {
     await expect(assertEngagementOpen(db.sql, "own", "biz_1", "rev")).resolves.toBeUndefined();
     await save({ scope: "Map" });
     await expect(assertEngagementOpen(db.sql, "own", "biz_1", "rev")).resolves.toBeUndefined();
-    await setEngagementStatus(db.sql, "solo", "biz_s", "ended");
+    await setEngagementStatus(db.sql, "solo", "biz_s", "ended", "solo");
     await expect(assertEngagementOpen(db.sql, "solo", "biz_s", "solo")).resolves.toBeUndefined();
   });
 });

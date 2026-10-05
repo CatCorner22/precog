@@ -4,6 +4,9 @@ import { openSafetyDb, type SafetyDb } from "@/test/safety-db";
 import { inTransaction, toSql } from "@/lib/sql-transaction";
 import type { Sql } from "@/lib/db";
 import { executeControlCommand } from "./store";
+import { insertReviewEvent } from "../../firm/store";
+import { lockReportVersion } from "../../firm/reports";
+import { setEngagementStatus } from "../../firm/engagement-store";
 
 function signal() {
   let resolve!: () => void;
@@ -17,6 +20,32 @@ function taggedSql(sql: Sql, tag: string): Sql {
     sql.query<T>(`/* ${tag} */ ${text}`, params),
   );
   wrapped.transaction = (work) => inTransaction(sql, (tx) => work(taggedSql(tx, tag)));
+  return wrapped;
+}
+function pausedAfterBusinessLock(
+  sql: Sql,
+  tag: string,
+  locked: ReturnType<typeof signal>,
+  release: ReturnType<typeof signal>,
+): Sql {
+  const wrapped = toSql(<T>(text: string, params: unknown[]) =>
+    sql.query<T>(`/* ${tag} */ ${text}`, params),
+  );
+  wrapped.transaction = (work) =>
+    inTransaction(sql, (tx) => {
+      let paused = false;
+      const inner = toSql(async <T>(text: string, params: unknown[]) => {
+        const rows = await tx.query<T>(`/* ${tag} */ ${text}`, params);
+        if (!paused && /select firm_user_id from businesses[\s\S]*for update/i.test(text)) {
+          paused = true;
+          locked.resolve();
+          await release.promise;
+        }
+        return rows;
+      });
+      inner.transaction = (nested) => nested(inner);
+      return work(inner);
+    });
   return wrapped;
 }
 const record = {
@@ -113,6 +142,84 @@ describe.runIf(process.env.PRECOG_LIFECYCLE_POSTGRES === "1")(
         }>`select revision from control_execution_log
         where user_id='owner' and business_id='biz_race' and id='check'`;
         expect(saved.revision).toBe(1);
+      });
+    }
+
+    for (const flow of ["control execution", "monthly review", "report lock"] as const) {
+      it(`commits no ${flow} after a waiting engagement close`, async () => {
+        const locked = signal();
+        const release = signal();
+        const closeTag = `close_${randomUUID().replaceAll("-", "")}`;
+        const writeTag = `write_${randomUUID().replaceAll("-", "")}`;
+        const closing = setEngagementStatus(
+          pausedAfterBusinessLock(db.sql, closeTag, locked, release),
+          "owner",
+          "biz_race",
+          "ended",
+          "owner",
+        );
+        await locked.promise;
+        const writerSql = taggedSql(db.sql, writeTag);
+        const writing =
+          flow === "control execution"
+            ? executeControlCommand(writerSql, "prep", "biz_race", {
+                ...record,
+                runId: "after-close",
+              })
+            : flow === "monthly review"
+              ? insertReviewEvent(
+                  writerSql,
+                  "owner",
+                  {
+                    businessId: "biz_race",
+                    period: "2026-09",
+                    itemKey: "bank_reconciliation",
+                    ownerName: "Owner",
+                    dueOn: null,
+                    result: "done",
+                    notes: "",
+                  },
+                  "prep",
+                )
+              : lockReportVersion(writerSql, {
+                  ownerUserId: "owner",
+                  businessId: "biz_race",
+                  preparedBy: "prep",
+                  scopeNote: "",
+                  id: "rv_after_close",
+                });
+        const outcome = writing.then(
+          (value) => ({ value, error: null }),
+          (error) => ({ value: null, error }),
+        );
+        try {
+          await expect
+            .poll(
+              async () => {
+                const [row] = await db.sql<{ n: number }>`select count(*)::int as n
+                  from pg_stat_activity
+                  where query like ${`/* ${writeTag} */%`} and wait_event_type='Lock'`;
+                return row.n;
+              },
+              { timeout: 5_000, interval: 20 },
+            )
+            .toBeGreaterThan(0);
+        } finally {
+          release.resolve();
+          await closing;
+        }
+        expect((await outcome).error).toMatchObject({ status: 409 });
+        const table =
+          flow === "control execution"
+            ? "control_execution_log"
+            : flow === "monthly review"
+              ? "review_events"
+              : "report_versions";
+        const [saved] = await db.sql.query<{ n: number }>(
+          `select count(*)::int as n from ${table} where user_id=$1 and business_id=$2`,
+          ["owner", "biz_race"],
+        );
+        expect(saved.n).toBe(flow === "control execution" ? 1 : 0);
       });
     }
   },

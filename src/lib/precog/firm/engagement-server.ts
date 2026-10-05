@@ -3,12 +3,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
 import { requireBusinessOwner, requireFirmRole } from "./access.server";
-import {
-  OWNER_ONLY_STATUS,
-  parseEngagementInput,
-  RETENTION_REFUSAL,
-  type EngagementStatus,
-} from "./engagement-row";
+import { parseEngagementInput, RETENTION_REFUSAL, type EngagementStatus } from "./engagement-row";
 import {
   loadClientFirm,
   loadEngagement,
@@ -101,12 +96,14 @@ export const setEngagementStatus = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    const firm = await loadClientFirm(sql, owner, data.businessId);
-    if (!firm || firm.firmUserId !== context.userId) {
-      throw new RequestError(403, OWNER_ONLY_STATUS);
-    }
     return {
-      engagement: await setEngagementStatusRow(sql, owner, data.businessId, data.status),
+      engagement: await setEngagementStatusRow(
+        sql,
+        owner,
+        data.businessId,
+        data.status,
+        context.userId,
+      ),
     };
   });
 

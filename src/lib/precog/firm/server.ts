@@ -424,8 +424,10 @@ export const recordMonthlyReview = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    await assertEngagementOpen(sql, owner, data.businessId, context.userId);
     await insertReviewEvent(sql, owner, data, context.userId);
+    // The audit insert commits before optional evidence and telemetry. Each
+    // later write has its own transactional gate; a side-effect failure never
+    // rolls back or re-authorizes the review.
     const { bridgeMonthlyReview } = await import("../controls/review-bridge.server");
     const bridged = await bridgeMonthlyReview(sql, context.userId, data, data.today);
     await recordFirst(sql, context.userId, "first_monthly_review", data.businessId);
@@ -448,10 +450,6 @@ export const lockReport = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    await assertEngagementOpen(sql, owner, data.businessId, context.userId);
-    // Creating a version needs the plan; every version already locked stays
-    // readable, reviewable for issuance and markable as sent whatever the plan.
-    await requireEntitlement(sql, context.userId, "lockedVersions");
     // The figures are built on the preparer's calendar day, the day the
     // locked report prints, and stored so later scoring changes leave them.
     const { freezeReport } = await import("../report/stored-model");
@@ -462,6 +460,7 @@ export const lockReport = createServerFn({ method: "POST" })
       scopeNote: data.scopeNote,
       id: `rv_${randomHex(12)}`,
       freeze: (profile) => freezeReport(profile, data.today),
+      requireLockedVersions: true,
     });
     await recordFirst(sql, context.userId, "first_locked_version", data.businessId);
     return { version };

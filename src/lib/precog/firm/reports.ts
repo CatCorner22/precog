@@ -4,6 +4,8 @@ import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { formatDay } from "../dates";
 import { RequestError } from "@/lib/request-errors";
 import type { FirmSnapshot } from "./store";
+import { lockEngagementWriteAccess } from "./engagement-store";
+import { requireEntitlement } from "./entitlements.server";
 
 /**
  * Locked report versions. Locking freezes the business as the account holds
@@ -165,13 +167,18 @@ export async function lockReportVersion(
     scopeNote: string;
     id: string;
     freeze?: (profile: unknown) => FrozenReportRow | null;
+    /** The server facade sets this so the paid gate is checked under the write locks. */
+    requireLockedVersions?: boolean;
   },
 ): Promise<ReportVersionRow> {
   const row = await inTransaction(sql, async (tx) => {
+    await lockEngagementWriteAccess(tx, input.ownerUserId, input.businessId, input.preparedBy);
+    if (input.requireLockedVersions) {
+      await requireEntitlement(tx, input.preparedBy, "lockedVersions");
+    }
     const business = await tx<{ id: string; profile: unknown }>`
       select id, profile from businesses
       where user_id = ${input.ownerUserId} and id = ${input.businessId} and deleted_at is null
-      for update
     `;
     if (!business[0]) throw new ReportVersionError(404, "That client is not on this account");
     const frozen = input.freeze?.(business[0].profile) ?? null;
