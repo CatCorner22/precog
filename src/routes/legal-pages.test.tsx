@@ -321,7 +321,10 @@ describe("Privacy", () => {
       "When a reading fails or QuickBooks&#x27; permission is about to end, Precog emails the firm owner once per problem, whether or not the weekly digest is on.",
     );
     expect(html).toContain(
-      "When a Firm plan payment fails, Precog emails the firm owner once and keeps the plan open for 14 days while the card is retried.",
+      "When a Firm plan payment fails, Precog emails the firm owner once and keeps the plan open for 14 days while Stripe retries the payment.",
+    );
+    expect(html).toContain(
+      "the database keeps the Stripe customer and subscription ids, the price the subscription runs on, the plan status, and the date the firm paid for the assessment. The card or bank account itself goes to Stripe; Precog never sees the card or account number.",
     );
     expect(html).toContain(
       "the client businesses they set up move to the firm owner&#x27;s account, as the Terms say. The firm owner can hand the firm, its clients, its invitations and its billing to a member; the previous owner stays on as a reviewer.",

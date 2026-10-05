@@ -198,9 +198,10 @@ function PrivacyPage() {
         </p>
         <p>
           When a firm pays through Stripe, the database keeps the Stripe customer and subscription
-          ids, the plan status, and the date the firm paid for the assessment. The card itself goes
-          to Stripe; Precog never sees the card number. When a Firm plan payment fails, Precog
-          emails the firm owner once and keeps the plan open for 14 days while the card is retried.
+          ids, the price the subscription runs on, the plan status, and the date the firm paid for
+          the assessment. The card or bank account itself goes to Stripe; Precog never sees the card
+          or account number. When a Firm plan payment fails, Precog emails the firm owner once and
+          keeps the plan open for 14 days while Stripe retries the payment.
         </p>
         <p>
           Deleting your account deletes the Stripe customer record. Stripe keeps the invoices,
