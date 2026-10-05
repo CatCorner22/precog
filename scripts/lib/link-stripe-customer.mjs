@@ -112,8 +112,10 @@ export async function linkCustomer({
     );
   }
 
+  // Up to 100 (Stripe's largest page), so a running subscription behind
+  // failed or abandoned attempts is still seen.
   const list = await stripeGet(
-    `/subscriptions?customer=${encodeURIComponent(customerId)}&status=all&limit=3`,
+    `/subscriptions?customer=${encodeURIComponent(customerId)}&status=all&limit=100`,
   );
   const subscriptions = [...(list?.data ?? [])].sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
   const running = subscriptions.find((s) => RUNNING.has(s.status)) ?? null;

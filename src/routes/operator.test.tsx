@@ -143,6 +143,21 @@ describe("the operator console", () => {
     expect(details).toContain("Lift today&#x27;s cap");
   });
 
+  it("starts the link form empty for each account found, clears it after a link and shows the account as the link left it", () => {
+    const consoleSource = flat(
+      readFileSync(
+        new URL("../components/precog/operator/operator-console.tsx", import.meta.url),
+        "utf8",
+      ),
+    );
+    // Keyed on the account: a customer id or a Replace tick typed for one
+    // account never stays armed on the next.
+    expect(consoleSource).toContain("<LinkCustomerForm key={found.account.userId}");
+    expect(consoleSource).toContain('if (!linked) return; setCustomerId(""); setReplace(false);');
+    // The card is replaced by the account the link answers, Subscription line included.
+    expect(consoleSource).toContain('setFound({ kind: "found", account: res.account });');
+  });
+
   it("prints a one-cell count as a figure, a table otherwise, and an empty one as nothing to list", () => {
     const figure = renderToStaticMarkup(
       <ui.CountResultView

@@ -16,15 +16,17 @@ export interface StripeSubscription {
 export const RUNNING_STATUSES = new Set(["active", "trialing", "past_due"]);
 
 /**
- * The customer's newest subscriptions, newest first (one Stripe read). A
- * customer Stripe does not have is a 409 naming it. Called only when
- * billing is connected; the secret key never leaves the server.
+ * The customer's subscriptions, newest first (one Stripe read of up to 100,
+ * Stripe's largest page, so a running subscription behind failed or
+ * abandoned attempts is still seen). A customer Stripe does not have is a
+ * 409 naming it. Called only when billing is connected; the secret key never
+ * leaves the server.
  */
 export async function listCustomerSubscriptions(customerId: string): Promise<StripeSubscription[]> {
   const key = env("STRIPE_SECRET_KEY");
   if (!key) throw new Error("Stripe is not configured");
   const res = await fetch(
-    `https://api.stripe.com/v1/subscriptions?customer=${encodeURIComponent(customerId)}&status=all&limit=3`,
+    `https://api.stripe.com/v1/subscriptions?customer=${encodeURIComponent(customerId)}&status=all&limit=100`,
     {
       method: "GET",
       headers: { authorization: `Bearer ${key}`, "stripe-version": "2024-06-20" },

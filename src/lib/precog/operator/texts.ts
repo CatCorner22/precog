@@ -40,6 +40,11 @@ export function stripeHasNoCustomer(customerId: string): string {
   return `Stripe has no customer ${customerId}.`;
 }
 
+/** Replace with a customer that has no running subscription while the account's own still runs. */
+export function subscriptionStillRunning(subscriptionId: string): string {
+  return `This account's subscription ${subscriptionId} is still running. Cancel it in Stripe, then link.`;
+}
+
 export function linkedToast(name: string, customerId: string, planLabel: string): string {
   return `Linked ${name} to Stripe customer ${customerId}; plan now ${planLabel}.`;
 }

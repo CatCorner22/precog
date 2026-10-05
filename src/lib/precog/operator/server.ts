@@ -1,12 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { getSql } from "@/lib/db";
+import { getSql, type Sql } from "@/lib/db";
 import { reportServerError } from "@/lib/observability/report.server";
 import { RequestError, invalidRequest, requireObject } from "@/lib/request-errors";
 import { inTransaction } from "@/lib/sql-transaction";
 import {
   ACTIVE_SUBSCRIPTION_STATUSES,
   isHandMarked,
+  loadBillingAccount,
   NO_RUNNING_SUBSCRIPTION,
   recordSubscription,
   setStripeCustomer,
@@ -17,12 +18,17 @@ import { stripeConfigured, updateCustomer } from "../billing/stripe.server";
 import { userScope } from "../llm/daily-usage";
 import { requireOperator } from "./access.server";
 import { runCount } from "./counts.server";
-import { findUserByEmail, findUserById, loadOperatorAccount, planLabelFor } from "./lookup.server";
-import { listCustomerSubscriptions, subscriptionToApply } from "./stripe-read.server";
+import { findUserByEmail, findUserById, loadOperatorAccount } from "./lookup.server";
+import {
+  listCustomerSubscriptions,
+  subscriptionToApply,
+  type StripeSubscription,
+} from "./stripe-read.server";
 import {
   BILLING_NOT_CONNECTED,
   NOT_A_CUSTOMER_ID,
   noAccountWithId,
+  subscriptionStillRunning,
   type OperatorAccount,
   type OperatorCountResult,
 } from "./texts";
@@ -100,12 +106,73 @@ export const runOperatorCount = createServerFn({ method: "POST" })
   });
 
 /**
+ * Stores the linked customer's subscription as the account's, as the link
+ * script does (scripts/lib/link-stripe-customer.mjs), and moves the firm row
+ * with it. Another subscription the account still stores as running (the
+ * replaced customer's) is let go first: recordSubscription would keep it as
+ * the one the firm pays for, so cancelling it in Stripe would later close
+ * the firm and put the replaced customer back. Its later events find this
+ * one running and change nothing. A customer with no running subscription
+ * never goes over a running one, since the plan would close while Stripe
+ * still charges the old one: refused (409), naming it.
+ */
+async function applyLinkedSubscription(
+  tx: Sql,
+  userId: string,
+  customerId: string,
+  applied: StripeSubscription,
+): Promise<void> {
+  const stored = await loadBillingAccount(tx, userId);
+  const other = stored?.subscriptionId ?? null;
+  const status = stored?.subscriptionStatus ?? null;
+  if (
+    other !== null &&
+    other !== applied.id &&
+    status &&
+    ACTIVE_SUBSCRIPTION_STATUSES.has(status)
+  ) {
+    if (!ACTIVE_SUBSCRIPTION_STATUSES.has(applied.status)) {
+      throw new RequestError(409, subscriptionStillRunning(other));
+    }
+    // The replaced subscription's dunning state is not the new one's.
+    await tx`
+      update billing_accounts
+      set subscription_status = null, past_due_since = null,
+        payment_failed_email_sent_at = null, payment_failed_invoice_url = null,
+        updated_at = now()
+      where user_id = ${userId}
+    `;
+  }
+  // Stamped with the link time: an event Stripe sent before the link
+  // (refused then, retried now) is older, so the webhook skips it.
+  const recorded = await recordSubscription(tx, {
+    userId,
+    stripeCustomerId: customerId,
+    subscriptionId: applied.id,
+    status: applied.status,
+    currentPeriodEnd:
+      applied.currentPeriodEnd === null
+        ? null
+        : new Date(applied.currentPeriodEnd * 1000).toISOString(),
+    eventAt: new Date().toISOString(),
+    priceId: applied.priceId,
+  });
+  await setFirmPlan(
+    tx,
+    userId,
+    ACTIVE_SUBSCRIPTION_STATUSES.has(recorded.status) ? "monthly" : "assessment",
+  );
+}
+
+/**
  * Links a Stripe customer set up outside Checkout (a net-30 invoice
  * subscription, a firm marked by hand) to an account, and applies the
- * customer's running subscription at once. Refuses a customer with no
- * running subscription unless Replace is ticked on an account that is not
- * marked by hand (decision 36), and every refusal setStripeCustomer makes.
- * Without billing connected nothing is called and nothing written.
+ * customer's running subscription at once (applyLinkedSubscription).
+ * Refuses a customer with no running subscription unless Replace is ticked
+ * on an account that is not marked by hand (decision 36), and every refusal
+ * setStripeCustomer makes. Without billing connected nothing is called and
+ * nothing written. Answers the account as the lookup reads it after the
+ * link, so the page shows every line as it now stands.
  */
 export const linkStripeCustomerForAccount = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -114,7 +181,12 @@ export const linkStripeCustomerForAccount = createServerFn({ method: "POST" })
     async ({
       context,
       data,
-    }): Promise<{ outcome: "linked" | "unchanged"; name: string; planLabel: string }> => {
+    }): Promise<{
+      outcome: "linked" | "unchanged";
+      name: string;
+      planLabel: string;
+      account: OperatorAccount;
+    }> => {
       requireOperator(context.userId);
       const raw = requireObject(data);
       const userId = stringField(raw, "userId", 200);
@@ -135,27 +207,7 @@ export const linkStripeCustomerForAccount = createServerFn({ method: "POST" })
 
       const outcome = await inTransaction(sql, async (tx) => {
         const linked = await setStripeCustomer(tx, userId, customerId, { replace });
-        if (applied) {
-          // Stamped with the link time: an event Stripe sent before the link
-          // (refused then, retried now) is older, so the webhook skips it.
-          const { status } = await recordSubscription(tx, {
-            userId,
-            stripeCustomerId: customerId,
-            subscriptionId: applied.id,
-            status: applied.status,
-            currentPeriodEnd:
-              applied.currentPeriodEnd === null
-                ? null
-                : new Date(applied.currentPeriodEnd * 1000).toISOString(),
-            eventAt: new Date().toISOString(),
-            priceId: applied.priceId,
-          });
-          await setFirmPlan(
-            tx,
-            userId,
-            ACTIVE_SUBSCRIPTION_STATUSES.has(status) ? "monthly" : "assessment",
-          );
-        }
+        if (applied) await applyLinkedSubscription(tx, userId, customerId, applied);
         const firm = await loadFirmFor(tx, userId);
         if (firm) {
           await insertAudit(tx, {
@@ -175,11 +227,8 @@ export const linkStripeCustomerForAccount = createServerFn({ method: "POST" })
       } catch (err) {
         await reportServerError(err, "operator-link-metadata");
       }
-      return {
-        outcome,
-        name: user.name || user.email,
-        planLabel: await planLabelFor(sql, userId),
-      };
+      const account = await loadOperatorAccount(sql, user);
+      return { outcome, name: user.name || user.email, planLabel: account.planLabel, account };
     },
   );
 

@@ -15,21 +15,15 @@ export interface OperatorUser {
   createdAt: string;
 }
 
-/** The account using exactly this address (compared lower-cased), or null. Never a list. */
-export async function findUserByEmail(sql: Sql, email: string): Promise<OperatorUser | null> {
-  const rows = await sql<{
-    id: string;
-    name: string | null;
-    email: string;
-    emailVerified: boolean;
-    createdAt: string;
-  }>`
-    select id, name, email, "emailVerified", "createdAt" from "user"
-    where lower(email) = lower(${email})
-    order by "createdAt" asc
-    limit 1
-  `;
-  const row = rows[0];
+type UserRow = {
+  id: string;
+  name: string | null;
+  email: string;
+  emailVerified: boolean;
+  createdAt: string;
+};
+
+function toOperatorUser(row: UserRow | undefined): OperatorUser | null {
   if (!row) return null;
   return {
     id: row.id,
@@ -40,26 +34,23 @@ export async function findUserByEmail(sql: Sql, email: string): Promise<Operator
   };
 }
 
-/** The account with this id, or null. */
-export async function findUserById(
-  sql: Sql,
-  userId: string,
-): Promise<{ id: string; name: string; email: string } | null> {
-  const rows = await sql<{ id: string; name: string | null; email: string }>`
-    select id, name, email from "user" where id = ${userId}
+/** The account using exactly this address (compared lower-cased), or null. Never a list. */
+export async function findUserByEmail(sql: Sql, email: string): Promise<OperatorUser | null> {
+  const rows = await sql<UserRow>`
+    select id, name, email, "emailVerified", "createdAt" from "user"
+    where lower(email) = lower(${email})
+    order by "createdAt" asc
+    limit 1
   `;
-  const row = rows[0];
-  return row ? { id: row.id, name: row.name ?? "", email: row.email } : null;
+  return toOperatorUser(rows[0]);
 }
 
-/** The plan label the operator page prints for an account (operatorPlanLabel). */
-export async function planLabelFor(sql: Sql, userId: string): Promise<string> {
-  const firm = await loadFirmFor(sql, userId);
-  const [e, handMarked] = await Promise.all([
-    loadEntitlements(sql, userId),
-    isHandMarked(sql, firm?.firmUserId ?? userId),
-  ]);
-  return operatorPlanLabel(e, handMarked, stripeConfigured());
+/** The account with this id, or null. */
+export async function findUserById(sql: Sql, userId: string): Promise<OperatorUser | null> {
+  const rows = await sql<UserRow>`
+    select id, name, email, "emailVerified", "createdAt" from "user" where id = ${userId}
+  `;
+  return toOperatorUser(rows[0]);
 }
 
 /**

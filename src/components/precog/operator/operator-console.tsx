@@ -85,13 +85,18 @@ export function AccountDetails({
   );
 }
 
-/** The Link a Stripe customer form for the found account. */
+/**
+ * The Link a Stripe customer form for the found account. The console keys it
+ * on the account, so a customer id and a Replace tick never carry over to the
+ * next account found; both clear after a link goes through.
+ */
 export function LinkCustomerForm({
   busy = false,
   onLink,
 }: {
   busy?: boolean;
-  onLink?: (customerId: string, replace: boolean) => void;
+  /** Resolves true when the link went through. */
+  onLink?: (customerId: string, replace: boolean) => Promise<boolean>;
 }) {
   const [customerId, setCustomerId] = useState("");
   const [replace, setReplace] = useState(false);
@@ -100,7 +105,11 @@ export function LinkCustomerForm({
       className="mt-4 space-y-2"
       onSubmit={(e) => {
         e.preventDefault();
-        onLink?.(customerId.trim(), replace);
+        void onLink?.(customerId.trim(), replace).then((linked) => {
+          if (!linked) return;
+          setCustomerId("");
+          setReplace(false);
+        });
       }}
     >
       <h3 className="text-base font-semibold">{LINK_HEADING}</h3>
@@ -189,17 +198,19 @@ export function OperatorConsole() {
       .finally(() => setBusy(false));
   }
 
-  function link(account: OperatorAccount, customerId: string, replace: boolean) {
+  function link(account: OperatorAccount, customerId: string, replace: boolean): Promise<boolean> {
     setBusy(true);
-    void linkStripeCustomerForAccount({ data: { userId: account.userId, customerId, replace } })
+    return linkStripeCustomerForAccount({ data: { userId: account.userId, customerId, replace } })
       .then((res) => {
         toast.success(linkedToast(res.name, customerId, res.planLabel));
-        setFound({
-          kind: "found",
-          account: { ...account, stripeCustomerId: customerId, planLabel: res.planLabel },
-        });
+        // Every line as the link left it: plan, subscription and customer.
+        setFound({ kind: "found", account: res.account });
+        return true;
       })
-      .catch((err: unknown) => toast.error(errorText(err)))
+      .catch((err: unknown) => {
+        toast.error(errorText(err));
+        return false;
+      })
       .finally(() => setBusy(false));
   }
 
@@ -261,6 +272,7 @@ export function OperatorConsole() {
               onLift={() => lift(found.account)}
             />
             <LinkCustomerForm
+              key={found.account.userId}
               busy={busy}
               onLink={(customerId, replace) => link(found.account, customerId, replace)}
             />

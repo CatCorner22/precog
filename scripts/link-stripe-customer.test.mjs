@@ -44,7 +44,7 @@ function stripeFake(subscriptions = {}) {
         if (customer[1] === "cus_1") return { id: "cus_1", email: "billing@firm.test" };
         return customer[1] === "cus_2" ? { id: "cus_2" } : null;
       }
-      const list = path.match(/^\/subscriptions\?customer=(cus_[a-z0-9]+)&status=all&limit=3$/);
+      const list = path.match(/^\/subscriptions\?customer=(cus_[a-z0-9]+)&status=all&limit=100$/);
       if (list) return { data: subscriptions[list[1]] ?? [] };
       throw new Error(`unexpected GET ${path}`);
     },

@@ -43,6 +43,7 @@ vi.mock("../firm/audit.server", async (importOriginal) => {
 
 const server = await import("./server");
 const texts = await import("./texts");
+const { applyBillingEvent } = await import("../billing/webhook");
 
 type Call = (args: { context: { userId: string }; data: unknown }) => Promise<unknown>;
 const call = <T = unknown>(fn: unknown, userId: string, data: unknown = {}) =>
@@ -126,11 +127,17 @@ function stripeOn() {
   vi.stubEnv("STRIPE_PRICE_MONTHLY", "price_m");
 }
 
-/** Stripe answering the subscription list with `subscriptions`, and any POST with {}. */
+/**
+ * Stripe answering the subscription list with `subscriptions` (given newest
+ * first, cut at the request's limit, as Stripe pages), and any POST with {}.
+ */
 function stripeAnswers(subscriptions: Record<string, unknown>[]) {
   const fetchMock = vi.fn(async (url: string, init?: { method?: string }) => {
     if (init?.method === "GET" && url.includes("/v1/subscriptions?customer=")) {
-      return new Response(JSON.stringify({ data: subscriptions }), { status: 200 });
+      const limit = Number(new URL(url).searchParams.get("limit") ?? 10);
+      return new Response(JSON.stringify({ data: subscriptions.slice(0, limit) }), {
+        status: 200,
+      });
     }
     return new Response("{}", { status: 200 });
   });
@@ -359,7 +366,19 @@ describe("linkStripeCustomerForAccount", () => {
       customerId: "cus_1",
       replace: false,
     });
-    expect(answer).toEqual({ outcome: "linked", name: "Fay Owner", planLabel: "Firm plan" });
+    // The account comes back as the lookup now reads it, so the page shows
+    // the subscription and the customer the link stored.
+    expect(answer).toMatchObject({
+      outcome: "linked",
+      name: "Fay Owner",
+      planLabel: "Firm plan",
+      account: {
+        userId: "fo",
+        stripeCustomerId: "cus_1",
+        subscriptionLabel: "Active",
+        planLabel: "Firm plan",
+      },
+    });
     const rows = await db.sql<{ subscription_id: string; subscription_status: string }>`
       select subscription_id, subscription_status from billing_accounts where user_id = 'fo'
     `;
@@ -371,9 +390,134 @@ describe("linkStripeCustomerForAccount", () => {
       { firm: "fo", actor: "op", event: "operator_linked_stripe", subject: "fo" },
     ]);
     expect(info).toHaveBeenCalledWith("[operator] link", "fo", "by", "op");
+    // Stripe's largest page, so a running subscription behind failed attempts is seen.
+    const list = fetchMock.mock.calls.find(([, init]) => init?.method === "GET");
+    expect(list?.[0]).toBe(
+      "https://api.stripe.com/v1/subscriptions?customer=cus_1&status=all&limit=100",
+    );
     // After the commit, the customer names the account.
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
     expect(post?.[0]).toBe("https://api.stripe.com/v1/customers/cus_1");
+  });
+
+  it("finds a running subscription behind newer ones that are not running", async () => {
+    stripeOn();
+    const failed = (id: string, created: number) => ({
+      ...RUNNING,
+      id,
+      status: "incomplete_expired",
+      created,
+    });
+    stripeAnswers([
+      failed("sub_f1", 1_790_000_300),
+      failed("sub_f2", 1_790_000_200),
+      failed("sub_f3", 1_790_000_100),
+      RUNNING,
+    ]);
+    await call(server.linkStripeCustomerForAccount, "op", { userId: "fo", customerId: "cus_1" });
+    const rows = await db.sql<{ subscription_id: string; subscription_status: string }>`
+      select subscription_id, subscription_status from billing_accounts where user_id = 'fo'
+    `;
+    expect(rows[0]).toEqual({ subscription_id: "sub_1", subscription_status: "active" });
+  });
+
+  describe("on Replace while the account's own subscription still runs", () => {
+    beforeEach(async () => {
+      await db.pg.exec(`
+        insert into billing_accounts
+          (user_id, stripe_customer_id, subscription_id, subscription_status,
+            subscription_event_at, current_period_end)
+          values ('fo', 'cus_old', 'sub_old', 'active', now() - interval '1 day',
+            now() + interval '20 days');
+        update firms set plan = 'monthly' where user_id = 'fo';
+      `);
+    });
+
+    async function stored() {
+      const rows = await db.sql<{
+        stripe_customer_id: string;
+        subscription_id: string;
+        subscription_status: string;
+      }>`
+        select stripe_customer_id, subscription_id, subscription_status
+        from billing_accounts where user_id = 'fo'
+      `;
+      const plan = await db.sql<{ plan: string }>`select plan from firms where user_id = 'fo'`;
+      return { ...rows[0], plan: plan[0].plan };
+    }
+
+    it("stores the new customer's running subscription, so cancelling the old one changes nothing", async () => {
+      stripeOn();
+      stripeAnswers([{ ...RUNNING, id: "sub_new" }]);
+      const answer = await call<{ account: { subscriptionLabel: string } }>(
+        server.linkStripeCustomerForAccount,
+        "op",
+        { userId: "fo", customerId: "cus_new", replace: true },
+      );
+      expect(answer.account.subscriptionLabel).toBe("Active");
+      const linked = {
+        stripe_customer_id: "cus_new",
+        subscription_id: "sub_new",
+        subscription_status: "active",
+        plan: "monthly",
+      };
+      expect(await stored()).toEqual(linked);
+
+      // Moving a card-paying firm to invoices: the operator then cancels the
+      // old subscription in Stripe. Its cancellation names the account
+      // through the subscription's metadata, since no account holds cus_old.
+      const now = Math.floor(Date.now() / 1000);
+      expect(
+        await applyBillingEvent(db.sql, {
+          id: "evt_old_cancel",
+          type: "customer.subscription.deleted",
+          created: now + 60,
+          data: {
+            object: {
+              id: "sub_old",
+              status: "canceled",
+              customer: "cus_old",
+              metadata: { userId: "fo" },
+            },
+          },
+        }),
+      ).toBe("applied");
+      expect(await stored()).toEqual(linked);
+
+      // The new subscription's next event still finds the account by its customer.
+      expect(
+        await applyBillingEvent(db.sql, {
+          id: "evt_new_renewed",
+          type: "customer.subscription.updated",
+          created: now + 120,
+          data: { object: { id: "sub_new", status: "active", customer: "cus_new" } },
+        }),
+      ).toBe("applied");
+      expect(await stored()).toEqual(linked);
+    });
+
+    it("refuses a customer with no running subscription, naming the one still running", async () => {
+      stripeOn();
+      stripeAnswers([{ ...RUNNING, id: "sub_new", status: "canceled" }]);
+      await expect(
+        call(server.linkStripeCustomerForAccount, "op", {
+          userId: "fo",
+          customerId: "cus_new",
+          replace: true,
+        }),
+      ).rejects.toMatchObject({
+        status: 409,
+        message:
+          "This account's subscription sub_old is still running. Cancel it in Stripe, then link.",
+      });
+      expect(await stored()).toEqual({
+        stripe_customer_id: "cus_old",
+        subscription_id: "sub_old",
+        subscription_status: "active",
+        plan: "monthly",
+      });
+      expect(await log()).toEqual([]);
+    });
   });
 
   it("links a solo account with no log row", async () => {
