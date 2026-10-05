@@ -253,6 +253,25 @@ describe("own business scope", () => {
     expect(unassessed).toBeLessThan(allShared);
   });
 
+  it("does not turn duplicate rows for one holder into knowledge redundancy", () => {
+    const relation = { personId: "own-1", knowledgeId: "k1", level: "expert" as const };
+    const effectiveness = (relations: (typeof relation)[]) => {
+      const tpl = resolveTemplate({
+        industry: "dental",
+        customPeople: people,
+        customRelations: relations,
+      });
+      return portfolioSummary(tpl, tpl.staffComposition).all.find(
+        (row) => row.id === "ctrl-c-sod-cash",
+      )!.controlEffectiveness;
+    };
+
+    expect(effectiveness([relation, relation])).toBe(effectiveness([relation]));
+    expect(effectiveness([relation, { ...relation, personId: "own-2" }])).toBeGreaterThan(
+      effectiveness([relation]),
+    );
+  });
+
   it("scores sample scenarios only once the owner confirms one", () => {
     const none = portfolioSummary(own, own.staffComposition);
     expect(none.all.filter((s) => s.category === "scenario")).toEqual([]);
