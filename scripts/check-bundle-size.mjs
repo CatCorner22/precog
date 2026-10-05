@@ -119,7 +119,8 @@
  * questions and roster scope step (#200, #202), which measure 811.3 KB on
  * main alone. With commercial batch 3 on top the total measures 827.1 KB
  * in 131 chunks, against 820.4 KB for batch 3 on the earlier main. Total
- * budget raised from 825 KB to 832 KB.
+ * budget raised from 825 KB to 832 KB. The control failure panel (#205)
+ * then brings the total to 830.8 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
