@@ -90,8 +90,10 @@ export const exportBusinessHistory = createServerFn({ method: "GET" })
       await ownedFirm(sql, context.userId),
       data.ownerUserId,
     );
-    // One row per download: its first page.
-    if (data.beforeRevision === null) {
+    // One row per download: its first page, when it holds a version. An
+    // empty first page (a business the caller cannot read, or one with no
+    // past versions) downloaded nothing.
+    if (data.beforeRevision === null && page.rows.length > 0) {
       await recordAuditForAccount(sql, context.userId, {
         actorUserId: context.userId,
         event: "export_run",

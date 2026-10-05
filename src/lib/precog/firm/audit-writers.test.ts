@@ -463,6 +463,25 @@ describe("export writers", () => {
     ]);
   });
 
+  it("logs no history download that returned no versions", async () => {
+    await db.pg.exec(`
+      insert into business_history (user_id, business_id, revision, name, industry, profile)
+        values ('so', 'biz_s', 0, 'Before', 'dental', '{}'::jsonb),
+               ('bo', 'biz_g', 0, 'Before', 'dental', '{}'::jsonb);
+    `);
+    // Another account's business, one that does not exist, and one the
+    // caller's firm does not work on: each page is empty, so nothing ran.
+    for (const data of [
+      { businessId: "biz_s" },
+      { businessId: "biz_nope" },
+      { businessId: "biz_g", ownerUserId: "bo" },
+    ]) {
+      const page = await call<{ base64: string }>(account.exportBusinessHistory, "pp", data);
+      expect(JSON.parse(Buffer.from(page.base64, "base64").toString("utf8"))).toEqual([]);
+    }
+    expect(await log()).toEqual([]);
+  });
+
   it("puts the firm's log in the firm owner's export, newest first", async () => {
     await call(server.saveFirmLetterhead, "fo", {
       letterhead: "1 Main St",
