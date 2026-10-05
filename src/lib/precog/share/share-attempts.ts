@@ -1,11 +1,13 @@
 import type { Sql } from "@/lib/db";
+import {
+  PASSCODE_ATTEMPT_LIMIT,
+  PASSCODE_ATTEMPT_RETENTION_DAYS,
+  PASSCODE_ATTEMPT_WINDOW_MINUTES,
+} from "./share-limits";
 
-/** Passcode guesses allowed per share within one window before the link locks. */
-export const PASSCODE_ATTEMPT_LIMIT = 10;
-/** Length, in minutes, of the window the guesses are counted over. */
-export const PASSCODE_ATTEMPT_WINDOW_MINUTES = 15;
-/** Failed-guess log rows (which carry an IP hash) are kept this many days. */
-export const PASSCODE_ATTEMPT_RETENTION_DAYS = 30;
+// The figures live in ./share-limits so pages can quote them without this
+// module; server code keeps importing them from here.
+export { PASSCODE_ATTEMPT_LIMIT, PASSCODE_ATTEMPT_RETENTION_DAYS, PASSCODE_ATTEMPT_WINDOW_MINUTES };
 /** Bytes of scrypt output stored per passcode. */
 const PASSCODE_KEY_BYTES = 32;
 
