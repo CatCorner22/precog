@@ -146,6 +146,7 @@ async function exceptionFirstSetup(page, errors) {
   step("setup: exception-first review retains every imported person");
   await openSetup(page, base, options.timeout);
   await page.getByRole("button", { name: "Set up my own business", exact: true }).click();
+  await answerSetupQuestions(page);
   await page.getByRole("button", { name: "Skip these questions", exact: true }).click();
   await page.getByLabel("Business name", { exact: true }).fill("Review Workflow Example");
   await page
@@ -212,6 +213,7 @@ async function refusedDraftStorage(page, errors) {
   });
   await openSetup(page, base, options.timeout);
   await page.getByRole("button", { name: "Set up my own business", exact: true }).click();
+  await answerSetupQuestions(page);
   await page.getByRole("button", { name: "Skip these questions", exact: true }).click();
   await page.getByLabel("Business name", { exact: true }).fill("Unsaved draft example");
   await page.getByText(/This browser will not keep your progress/).waitFor();
@@ -232,4 +234,22 @@ async function waitProfile(page, predicate, message) {
 function noErrors(errors) {
   assert.deepEqual(errors.page, [], "uncaught browser errors");
   assert.deepEqual(errors.console, [], "unexpected browser console errors");
+}
+
+/**
+ * Answers the four setup questions (role, workforce, locations, how to start)
+ * that come before the money questions, choosing a small team entered person
+ * by person so the team step opens as it did before the questions.
+ */
+async function answerSetupQuestions(page) {
+  for (const answer of [
+    "I lead or own this business",
+    "2–6 people",
+    "1 location",
+    "Enter people now",
+  ]) {
+    // A label holds the answer and, for how to start, a line of detail after it.
+    await page.getByRole("radio", { name: new RegExp(`^${answer}`) }).check();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+  }
 }

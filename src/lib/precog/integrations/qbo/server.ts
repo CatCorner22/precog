@@ -17,6 +17,7 @@ import {
   type ConnectionStatus,
 } from "./store";
 import { recordReadingFailure, removeConnection, syncConnection } from "./sync.server";
+import { recordAuditForBusiness } from "../../firm/audit.server";
 
 interface QuickBooksStatus {
   configured: boolean;
@@ -55,6 +56,7 @@ export const startQuickBooksConnect = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(businessInput)
   .handler(async ({ context, data }) => {
+    // audit: exempt (starts the connect flow; the callback logs the connection)
     if (!qboConfigured())
       throw new RequestError(409, "QuickBooks is not connected on this deployment");
     const sql = await getSql();
@@ -79,6 +81,7 @@ export const syncQuickBooksNow = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(businessInput)
   .handler(async ({ context, data }) => {
+    // audit: exempt (a reading, not a change to the file)
     const sql = await getSql();
     await assertQuickBooksOpen(sql, context.userId);
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
@@ -101,6 +104,12 @@ export const disconnectQuickBooks = createServerFn({ method: "POST" })
     const sql = await getSql();
     const owner = await requireIntegrationManager(sql, context.userId, data.businessId);
     const connection = await loadConnection(sql, owner, data.businessId);
-    if (connection) await removeConnection(sql, connection);
+    if (connection) {
+      await removeConnection(sql, connection);
+      await recordAuditForBusiness(sql, owner, data.businessId, {
+        actorUserId: context.userId,
+        event: "quickbooks_disconnected",
+      });
+    }
     return { ok: true as const };
   });

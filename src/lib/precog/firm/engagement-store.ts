@@ -6,6 +6,7 @@ import {
   ENGAGEMENT_ENDED,
   isRetentionYears,
   NOT_A_FIRM_CLIENT,
+  OWNER_ONLY_STATUS,
   PICK_MEMBERS,
   PICK_REVIEWER,
   RETENTION_REFUSAL,
@@ -77,7 +78,10 @@ export async function lockEngagementWriteAccess(
   if (business.user_id !== actorUserId && role === null) {
     throw new RequestError(404, "That client is not on this account");
   }
-  if (business.firm_user_id !== null && engagement[0]?.status === "ended") {
+  // An ended engagement is read-only for the members of the business's firm,
+  // as assertEngagementOpen rules; the business's own account on a business
+  // it shared with that firm (not a member of it) keeps its edits.
+  if (business.firm_user_id !== null && role !== null && engagement[0]?.status === "ended") {
     throw new RequestError(409, ENGAGEMENT_ENDED);
   }
   return {
@@ -150,8 +154,13 @@ export async function loadFirmRetention(sql: Sql, firmUserId: string): Promise<n
 
 /**
  * Refuses (409) a change by a member of the business's firm while its
- * engagement has ended. The business's account outside the firm, and every
- * business with no firm, pass. Reads, exports and deletion never call this.
+ * engagement has ended. Anyone outside that firm passes (the access checks
+ * decide for them), so the account of a business its owner shared with the
+ * firm keeps changing it from outside the firm; and every business with no
+ * firm passes. An owner who is also a member of the firm is refused like
+ * any member: the firm's work (a lock, a send, a review for issuance) would
+ * otherwise go on under the firm's name after its owner ended it. Reads,
+ * exports and deletion never call this.
  */
 export async function assertEngagementOpen(
   tx: Sql,
@@ -242,14 +251,20 @@ export async function saveEngagement(
   });
 }
 
-/** Ends or reopens the engagement; ending stamps `ended_at` once, reopening clears it. */
+/**
+ * Ends or reopens the engagement; ending stamps `ended_at` once, reopening
+ * clears it. `changed` says whether the status moved (no row reads as
+ * active). The business row is locked first, as saveEngagement, the client
+ * invitation's hand-over and a member's departure lock it, so two requests
+ * at once (the row may not exist yet) move the status once.
+ */
 export async function setEngagementStatus(
   sql: Sql,
   ownerUserId: string,
   businessId: string,
   status: EngagementStatus,
   actorUserId: string,
-): Promise<EngagementRecord> {
+): Promise<{ engagement: EngagementRecord; changed: boolean }> {
   return inTransaction(sql, async (tx) => {
     // Closure takes the same locks as writers, but may of course observe an
     // already-ended engagement while reopening it.
@@ -259,7 +274,7 @@ export async function setEngagementStatus(
       for update
     `;
     if (!business) throw new RequestError(404, "That client is not on this account");
-    await tx`select status from engagement_marks
+    const before = await tx<{ status: string }>`select status from engagement_marks
       where user_id = ${ownerUserId} and business_id = ${businessId} for update`;
     const member = business.firm_user_id
       ? await tx<{ role: string }>`select role from firm_members
@@ -268,7 +283,7 @@ export async function setEngagementStatus(
       : [];
     const soloOwner = business.firm_user_id === null && ownerUserId === actorUserId;
     if (!soloOwner && (business.firm_user_id !== actorUserId || member[0]?.role !== "owner")) {
-      throw new RequestError(403, "Only the firm owner can end or reopen an engagement.");
+      throw new RequestError(403, OWNER_ONLY_STATUS);
     }
     const rows = await tx<RawEngagement>`
       insert into engagement_marks (user_id, business_id, status, ended_at)
@@ -280,7 +295,9 @@ export async function setEngagementStatus(
           then coalesce(engagement_marks.ended_at, now()) else null end
       returning scope, period_start, period_end, status, ended_at, preparer_user_id, reviewer_user_id
     `;
-    return toRecord(rows[0]);
+    const engagement = toRecord(rows[0]);
+    const from = before[0]?.status === "ended" ? "ended" : "active";
+    return { engagement, changed: from !== engagement.status };
   });
 }
 

@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { DELETED_RETENTION_DAYS, HISTORY_RETENTION_DAYS } from "@/lib/precog/business-retention";
 import { formatDay } from "@/lib/precog/dates";
+import { RETENTION_YEARS_MAX, RETENTION_YEARS_MIN } from "@/lib/precog/firm/engagement-row";
 import { LEGAL_EFFECTIVE } from "@/lib/precog/legal";
 import {
   AUTH_BROKER_OPERATOR,
@@ -32,13 +33,19 @@ export const Route = createFileRoute("/privacy")({
  * (src/lib/precog/procedures/image-store.server.ts), UNCONFIRMED_HOLD_HOURS
  * (src/lib/auth/email-password.server.ts), purgeOldDailyUsage's keepDays
  * (src/lib/precog/llm/daily-usage.ts), MAX_HISTORY_PER_BUSINESS
- * (src/lib/precog/business-retention.ts) and the defaults of LLM_DAILY_PER_USER
- * and LLM_DAILY_PER_USER_PAID (src/lib/precog/llm/daily-usage.ts). Change those
+ * (src/lib/precog/business-retention.ts), the defaults of LLM_DAILY_PER_USER
+ * and LLM_DAILY_PER_USER_PAID (src/lib/precog/llm/daily-usage.ts),
+ * LLM_USAGE_RETENTION_MONTHS (src/lib/precog/llm/usage-log.server.ts) and
+ * Better Auth's session length (seven days, refreshed daily; the default
+ * src/lib/auth/server.ts keeps). The retention row's "seven years unless the
+ * firm chose up to fifteen" spells out RETENTION_YEARS_DEFAULT and
+ * RETENTION_YEARS_MAX (src/lib/precog/firm/engagement-row.ts). Change those
  * and this page together.
  */
 const UNREFERENCED_PICTURE_DAYS = 30;
 const UNCONFIRMED_SIGNUP_HOURS = 24;
 const MODEL_CALL_COUNT_DAYS = 35;
+const MODEL_CALL_RECORD_MONTHS = 13;
 const MAX_VERSIONS_PER_BUSINESS = 200;
 const MODEL_CALLS_FREE_PER_DAY = 100;
 const MODEL_CALLS_PAID_PER_DAY = 400;
@@ -58,14 +65,21 @@ const PROCESSORS: ReadonlyArray<readonly [string, string]> = [
 
 /** What Precog keeps, and for how long. */
 const RETENTION: ReadonlyArray<readonly [string, string]> = [
-  ["A deleted business", `${DELETED_RETENTION_DAYS} days, then purged`],
+  [
+    "A deleted business",
+    `${DELETED_RETENTION_DAYS} days, then purged; a firm's client with a locked report version, unless its owner shared it with the firm, is kept for the firm's retention period (${RETENTION_YEARS_MIN} to ${RETENTION_YEARS_MAX} years), unseen and not restorable after ${DELETED_RETENTION_DAYS} days`,
+  ],
   [
     "Past versions of a business",
     `${HISTORY_RETENTION_DAYS} days and at most ${MAX_VERSIONS_PER_BUSINESS} versions`,
   ],
   [
     "Locked report versions and the monthly review log of a firm's clients",
-    "kept until the business is purged or the account is deleted",
+    `kept while the firm holds the client and, after the firm deletes a client that holds a locked version, for the period the firm sets (seven years unless the firm chose up to fifteen), then purged; deleting the account that set up the client removes them at once, and deleting the firm owner's account ends the period, so they are purged once ${DELETED_RETENTION_DAYS} days have passed since the client's deletion; a business its owner shared with a firm is the owner's, and is purged ${DELETED_RETENTION_DAYS} days after the owner deletes it`,
+  ],
+  [
+    "A firm's activity log (who did what to the firm's file, with names as they were)",
+    "each entry for the period the firm sets from the day it was written, then purged; deleted with the firm owner's account",
   ],
   [
     "When you first set up a business, locked a report version, marked a report sent or recorded a monthly review",
@@ -77,9 +91,17 @@ const RETENTION: ReadonlyArray<readonly [string, string]> = [
   ],
   ["Pictures no step uses", `${UNREFERENCED_PICTURE_DAYS} days`],
   ["An unconfirmed email-and-password sign-up", `${UNCONFIRMED_SIGNUP_HOURS} hours`],
+  [
+    "Signed-in sessions",
+    "seven days after Precog last refreshed the session, at most once a day while it is in use; end them from Sessions in the account menu",
+  ],
   ["Share view logs", `${SHARE_VIEW_RETENTION_DAYS} days`],
   ["Failed passcode guesses", `${PASSCODE_ATTEMPT_RETENTION_DAYS} days`],
   ["Model-call counts", `${MODEL_CALL_COUNT_DAYS} days`],
+  [
+    "Model-call records (feature, model and token counts; no question or answer)",
+    `${MODEL_CALL_RECORD_MONTHS} months`,
+  ],
   ["QuickBooks readings", "the last twelve, deleted on disconnect"],
 ];
 
@@ -159,10 +181,12 @@ function PrivacyPage() {
           Sign-in uses Google or X through Precog’s auth broker, operated by {AUTH_BROKER_OPERATOR},
           or an email and password that Precog keeps. For an email account the database holds your
           name, your email address, and a hash of the password, never the password itself. The
-          session cookie stays with Precog. A signed-in save stores the business profile, assessment
-          snapshots, and firm workspace (firm name, client list, engagement stamps, and the monthly
-          review log) in the database, tied to your account. Another customer’s account cannot read
-          them.
+          session cookie stays with Precog. A session ends seven days after Precog last refreshed
+          it, which Precog does at most once a day while you use it; Sessions in the account menu
+          ends your other sessions, or every session, and lists your signed-in devices within a day
+          of signing in. A signed-in save stores the business profile, assessment snapshots, and
+          firm workspace (firm name, client list, engagement stamps, and the monthly review log) in
+          the database, tied to your account. Another customer’s account cannot read them.
         </p>
         <p>
           Precog also notes the day you first set up a business, first locked a report version,
@@ -178,9 +202,10 @@ function PrivacyPage() {
         </p>
         <p>
           When a firm pays through Stripe, the database keeps the Stripe customer and subscription
-          ids, the plan status, and the date the firm paid for the assessment. The card itself goes
-          to Stripe; Precog never sees the card number. When a Firm plan payment fails, Precog
-          emails the firm owner once and keeps the plan open for 14 days while the card is retried.
+          ids, the price the subscription runs on, the plan status, and the date the firm paid for
+          the assessment. The card or bank account itself goes to Stripe; Precog never sees the card
+          or account number. When a Firm plan payment fails, Precog emails the firm owner once and
+          keeps the plan open for 14 days while Stripe retries the payment.
         </p>
         <p>
           Deleting your account deletes the Stripe customer record. Stripe keeps the invoices,
@@ -198,14 +223,16 @@ function PrivacyPage() {
         <p>
           Precog sends email through Resend. For an email account, Precog emails a link to confirm
           your address and, when you ask, a link to set a new password. Precog may remove a new
-          sign-up that nobody confirms within a day. An account with a confirmed address, or a
-          Google or X sign-in, and a business of its own or of its firm gets a weekly digest at its
-          sign-in address listing what is due. Precog sends it only after you say yes, once, when
-          you sign in; turn it off any time from Weekly digest in the header or under Reminders in
-          the firm workspace, or with the stop link in every digest. When you enter a client owner’s
-          address on their client card, Precog emails the owner once to ask whether they agree to
-          reminders, and sends that address nothing more until the owner agrees. Each reminder has a
-          link that stops them. When a firm owner invites a colleague, Precog emails the invitation.
+          sign-up that nobody confirms within a day. An account whose address Precog can vouch for
+          (a confirmed email-and-password address, or a confirmed Google address) and a business of
+          its own or of its firm gets a weekly digest at its sign-in address listing what is due. An
+          X sign-in carries no address Precog can email. Precog sends it only after you say yes,
+          once, when you sign in; turn it off any time from Weekly digest in the header or under
+          Reminders in the firm workspace, or with the stop link in every digest. When you enter a
+          client owner’s address on their client card, Precog emails the owner once to ask whether
+          they agree to reminders, and sends that address nothing more until the owner agrees. Each
+          reminder has a link that stops them. When a firm owner invites a colleague, or a business
+          owner invites a firm, Precog emails the invitation.
         </p>
         <p>
           Shared map links are separate. Anyone with the link can open that frozen map until it
@@ -240,8 +267,32 @@ function PrivacyPage() {
           Every member of a firm can open every client business the firm holds, including its
           evidence log. When a member is removed or leaves, the shared map links they made on the
           firm's clients are revoked, and the client businesses they set up move to the firm owner's
-          account, as the Terms say. The firm owner can hand the firm, its clients, its invitations
-          and its billing to a member; the previous owner stays on as a reviewer.
+          account, as the Terms say. A business a member shared with the firm from their own account
+          stays theirs, and so do their links to it. The firm owner can hand the firm, its clients,
+          its invitations and its billing to a member; the previous owner stays on as a reviewer.
+        </p>
+        <p>
+          When a business owner invites a firm, the firm works on that business as a client until
+          either of them ends the access; the business stays the owner's. When the access ends, the
+          firm can no longer open the business or the report versions it locked; the owner keeps
+          them.
+        </p>
+        <p>
+          Precog writes these events to the firm's activity log, which the firm owner can export:
+          members invited, joining, leaving, removed and their roles; ownership transfers; clients
+          deleted, restored, handed over, shared by their owners and handed back; engagements saved,
+          ended and reopened; the retention period; share links; locked versions, review requests,
+          returns, reviews for issuance and sends; QuickBooks connections; owner reminder addresses;
+          the letterhead; exports; plan changes; and Precog's operator's lookups and changes. Edits
+          to a business's map, Monthly review results and QuickBooks readings are kept in the
+          business's own history and logs, not in the activity log. The log keeps the name of each
+          person who acted (their address when the account has no name), for the period the firm
+          sets, even after that person deletes their own account.
+        </p>
+        <p>
+          Precog's operator can look up one account at a time by its exact address, to answer a
+          support request or link a Stripe customer; on a firm's account, each lookup and change is
+          written to the firm's activity log.
         </p>
       </section>
 
@@ -293,8 +344,9 @@ function PrivacyPage() {
         <p>
           Precog counts model calls per account, per day, and, where it can tell, per network
           address, which it keeps only as a one-way hash, to cap their use. The count holds no
-          question or reply. Do not paste patient, customer, or account numbers into notes or
-          questions.
+          question or reply. Precog also keeps, for each model call, the feature, the model and the
+          token counts, without the question or the answer, for {MODEL_CALL_RECORD_MONTHS} months.
+          Do not paste patient, customer, or account numbers into notes or questions.
         </p>
         <p>
           Precog does not use what you enter to train a model, and sends xAI nothing for training.

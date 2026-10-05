@@ -148,9 +148,15 @@ export async function resolveBusinessOwner(
   return null;
 }
 
-/** Serializes creation, update, restore and delete for this owner's portfolio. */
+/**
+ * Serializes creation, update, restore and delete for this owner's portfolio.
+ * `for no key update` still excludes the next holder and the account's
+ * deletion, but not a foreign-key check (`for key share`): a writer that
+ * already holds one of the owner's business rows (ending an engagement, for
+ * example) can then insert a row naming the owner instead of deadlocking.
+ */
 async function lockBusinessOwner(sql: Sql, userId: string): Promise<void> {
-  const owner = await sql`select id from "user" where id = ${userId} for update`;
+  const owner = await sql`select id from "user" where id = ${userId} for no key update`;
   if (!owner.length) throw new RequestError(401, "Unauthorized");
 }
 
@@ -169,26 +175,34 @@ async function authorizeBusinessWriter(
   if (!member.length) throw new BusinessUnavailableError();
 }
 
+/** The refusal when a firm tries to delete or restore a business its owner shared with it. */
+export const GRANTED_NOT_FIRMS_TO_DELETE =
+  "This business belongs to its owner, who shared it with the firm. Hand it back on its Engagement block instead of deleting it.";
+
 /**
  * Delete and restore are not a member's save. A firm's client is the firm
  * owner's to delete or restore, a member's own client businesses included:
  * they stay with the firm when the member leaves, so a preparer or a
  * reviewer is refused even on a row they set up. The account that owns a
  * row outside any firm (or whose firm is gone) does both; someone outside
- * the firm meets the usual refusal.
+ * the firm meets the usual refusal. A business its owner shared with a firm
+ * (`granted`) stays the owner's: its own account deletes and restores it,
+ * and the firm, its owner included, is refused.
  */
 async function authorizeBusinessDestroyer(
   sql: Sql,
   owner: string,
   actor: string,
   firm: string | null,
+  granted: boolean,
 ) {
-  if (owner === actor && (firm === null || firm === owner)) return;
+  if (owner === actor && (firm === null || firm === owner || granted)) return;
   const member = await sql<{ role: string }>`
     select role from firm_members
     where member_user_id = ${actor} and firm_user_id = ${firm} for share
   `;
   const role = member[0]?.role;
+  if (role && granted) throw new RequestError(403, GRANTED_NOT_FIRMS_TO_DELETE);
   if (role === "owner") return;
   if (!role) {
     if (owner === actor) return; // The row's firm is gone: the row is its account's alone.
@@ -658,31 +672,44 @@ export async function loadActiveBusiness<
  * drops the pointer too, so a later load cannot bring the deleted business
  * back from the pointer's frozen copy. The row and its history, reviews and
  * report versions stay until `purgeDeletedBusinesses` runs after the grace
- * period, so a deletion can be undone.
+ * period, so a deletion can be undone. True when this call deleted a live
+ * business; false when there was none or it was deleted already.
  */
 export async function deleteBusinessRow(
   sql: Sql,
   ownerUserId: string,
   businessId: string,
   pointerUserId = ownerUserId,
-): Promise<void> {
-  await inTransaction(sql, async (tx) => {
+): Promise<boolean> {
+  return inTransaction(sql, async (tx) => {
     await lockBusinessOwner(tx, ownerUserId);
-    const rows = await tx<{ firm_user_id: string | null }>`select firm_user_id from businesses
+    const rows = await tx<{ firm_user_id: string | null; granted: boolean }>`select firm_user_id,
+        granted_at is not null as granted from businesses
       where user_id = ${ownerUserId} and id = ${businessId} for update`;
-    if (!rows.length) return; // Repeated delete is harmless, never creates a marker for another row.
-    await authorizeBusinessDestroyer(tx, ownerUserId, pointerUserId, rows[0].firm_user_id);
+    if (!rows.length) return false; // Repeated delete is harmless, never creates a marker for another row.
+    await authorizeBusinessDestroyer(
+      tx,
+      ownerUserId,
+      pointerUserId,
+      rows[0].firm_user_id,
+      rows[0].granted,
+    );
     await tx`insert into business_deletion_markers (user_id, business_id, firm_user_id)
       values (${ownerUserId}, ${businessId}, ${rows[0].firm_user_id})
       on conflict (user_id, business_id) do nothing`;
-    await tx`update businesses set deleted_at = now(), revision = revision + 1, updated_at = now()
-      where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is null`;
+    // Under the row's lock: true only for the call that took the business
+    // from live to deleted, so a repeat or a racing second delete says false.
+    const deleted = await tx`update businesses
+      set deleted_at = now(), revision = revision + 1, updated_at = now()
+      where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is null
+      returning id`;
     // Its public share links stop working now, not when the row is purged.
     await revokeBusinessShares(tx, ownerUserId, businessId);
     // Remove exact v2 pointers, including colleagues; legacy pointers only when ownership is known.
     await tx`delete from business_profiles where coalesce(profile->>'businessId', 'biz_default') = ${businessId}
       and (profile->>'ownerUserId' = ${ownerUserId}
         or (not (profile ? 'ownerUserId') and user_id in (${ownerUserId}, ${pointerUserId})))`;
+    return deleted.length > 0;
   });
 }
 
@@ -695,11 +722,18 @@ export async function restoreBusinessRow(
 ): Promise<boolean> {
   return inTransaction(sql, async (tx) => {
     await lockBusinessOwner(tx, ownerUserId);
-    const rows = await tx<{ firm_user_id: string | null }>`select firm_user_id from businesses
+    const rows = await tx<{ firm_user_id: string | null; granted: boolean }>`select firm_user_id,
+        granted_at is not null as granted from businesses
       where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is not null
         and deleted_at >= now() - make_interval(days => ${DELETED_RETENTION_DAYS}::int) for update`;
     if (!rows.length) return false;
-    await authorizeBusinessDestroyer(tx, ownerUserId, actorUserId, rows[0].firm_user_id);
+    await authorizeBusinessDestroyer(
+      tx,
+      ownerUserId,
+      actorUserId,
+      rows[0].firm_user_id,
+      rows[0].granted,
+    );
     const held = await tx<{ n: number | string }>`select count(*) as n from businesses
       where user_id = ${ownerUserId} and deleted_at is null`;
     if (Number(held[0]?.n ?? 0) >= limit) throw new BusinessLimitError(limit);
@@ -732,7 +766,14 @@ export interface MovedBusiness {
  *
  * Markers of the member's purged firm clients move too, so a stale device
  * cannot bring one back under the owner. The owner's per-account ceiling is
- * not checked: nothing is created, only re-parented.
+ * not checked: nothing is created, only re-parented. A business the member
+ * owns and shared with the firm (`granted_at` set) is the member's own and
+ * stays with them; the firm keeps working on it until the grant ends.
+ *
+ * Both accounts are locked, then the member's firm clients, before any of
+ * their rows moves: the business-then-rows order every engagement writer
+ * takes, so the firm owner ending a client's engagement while its member
+ * leaves waits instead of deadlocking.
  */
 export async function transferBusinessesToOwner(
   tx: Sql,
@@ -742,8 +783,9 @@ export async function transferBusinessesToOwner(
   for (const id of [owner, member].sort()) await lockBusinessOwner(tx, id);
   const rows = await tx<{ id: string; name: string }>`
     select id, name from businesses
-    where user_id = ${member} and firm_user_id = ${owner}
+    where user_id = ${member} and firm_user_id = ${owner} and granted_at is null
     order by id
+    for update
   `;
   const moved: MovedBusiness[] = [];
   for (const row of rows) {
@@ -820,7 +862,11 @@ export interface DeletedBusinessRow {
   purgeOn: string;
 }
 
-/** Businesses the caller or their firm deleted within the grace period. */
+/**
+ * Businesses the caller or their firm deleted within the grace period. A
+ * business its owner shared with the firm is listed for its owner only:
+ * the firm cannot restore it.
+ */
 export async function listDeletedBusinesses(
   sql: Sql,
   userId: string,
@@ -839,7 +885,8 @@ export async function listDeletedBusinesses(
     from businesses
     where deleted_at is not null
       and deleted_at >= now() - make_interval(days => ${DELETED_RETENTION_DAYS}::int)
-      and (user_id = ${userId} or (${firmUserId}::text is not null and firm_user_id = ${firmUserId}))
+      and (user_id = ${userId} or (${firmUserId}::text is not null
+        and firm_user_id = ${firmUserId} and granted_at is null))
     order by deleted_at desc
   `;
   return rows.map((r) => ({
@@ -857,9 +904,11 @@ export async function listDeletedBusinesses(
  * unseen, not restorable after the grace period) until its firm's retention
  * period has run from the deletion, so the versions, the monthly review log
  * and the engagement row survive with it. 7 years when the firm is gone.
- * Appended to each statement over `businesses b` below.
+ * A business its owner shared with a firm is the owner's, so it is purged
+ * after the grace period like any other. Appended to each statement over
+ * `businesses b` below.
  */
-const KEPT_FOR_RETENTION = `not (b.firm_user_id is not null
+const KEPT_FOR_RETENTION = `not (b.firm_user_id is not null and b.granted_at is null
   and exists (select 1 from report_versions v where v.user_id = b.user_id and v.business_id = b.id)
   and b.deleted_at >= now() - make_interval(years => coalesce(
     (select f.retention_years from firms f where f.user_id = b.firm_user_id), 7)))`;

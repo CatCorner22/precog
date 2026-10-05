@@ -3,7 +3,12 @@ import { openTestDb, type TestDb } from "@/test/pglite";
 import { defaultProfile, normalizeProfile, type PracticeProfile } from "../practice-profile";
 import { reportServerError } from "@/lib/observability/report.server";
 import { dueItemsFor, forAudience, type ReminderItem } from "./due-items";
-import { renderDigest, renderOwnerEmailConfirm, renderOwnerReminder } from "./email";
+import {
+  awaitingReviewLine,
+  renderDigest,
+  renderOwnerEmailConfirm,
+  renderOwnerReminder,
+} from "./email";
 import { DIGEST_OMITTED_PROFILE_KEYS, runDigest } from "./digest";
 import {
   answerDigestAsk,
@@ -13,6 +18,7 @@ import {
   saveNotificationSettings,
   stopDigestByToken,
 } from "../firm/store";
+import { listReportVersions } from "../firm/reports";
 import { INDUSTRIES } from "../industry";
 import { getIndustryTemplate } from "../templates";
 import type { Person } from "../types";
@@ -110,6 +116,19 @@ describe("due items", () => {
     expect(items[0].overdue).toBe(true);
     expect(forAudience(items, "owner").map((i) => i.key)).not.toContain("monthly:2026-09");
     expect(dueItemsFor(defaultProfile("general"), TODAY)).toEqual([]);
+  });
+
+  it("names the monthly review to the owner audience when the business has no firm", () => {
+    const items = dueItemsFor(profileWithDues(), TODAY, { hasFirm: false });
+    const monthly = items.find((i) => i.key === "monthly:2026-09");
+    expect(monthly?.advisorOnly).toBe(false);
+    expect(forAudience(items, "owner").map((i) => i.key)).toContain("monthly:2026-09");
+    // Saying the business has a firm keeps the advisor-only rule, as the default does.
+    expect(
+      forAudience(dueItemsFor(profileWithDues(), TODAY, { hasFirm: true }), "owner").map(
+        (i) => i.key,
+      ),
+    ).not.toContain("monthly:2026-09");
   });
 
   it("finds the same items in the profile the digest reads, without the map's history fields", () => {
@@ -263,6 +282,45 @@ describe("email rendering", () => {
       }).text,
     );
     expect(two.subject).toBe(render(0).subject);
+  });
+
+  it("adds one line about versions awaiting the recipient's review, after QuickBooks, and none at zero", () => {
+    const items = dueItemsFor(profileWithDues(), TODAY);
+    const render = (awaiting: number, needAttention = 0) =>
+      renderDigest({
+        firmName: "North Advisors",
+        clients: [{ businessId: "biz_1", businessName: "Riverside Plumbing", items }],
+        appUrl: "https://app.example",
+        unsubscribeUrl: STOP_URL,
+        quickBooks: { needAttention },
+        reviews: { awaiting },
+      });
+    expect(render(1).text).toContain(
+      "\n1 report version awaits your review. See the firm workspace.\n\nOpen the firm workspace:",
+    );
+    expect(render(1).html).toContain(
+      '<p style="margin-top:16px">1 report version awaits your review. See the firm workspace.</p>',
+    );
+    expect(render(3).text).toContain(
+      "3 report versions await your review. See the firm workspace.",
+    );
+    expect(awaitingReviewLine(2)).toBe(
+      "2 report versions await your review. See the firm workspace.",
+    );
+    const both = render(2, 1).text;
+    expect(both.indexOf("QuickBooks needs attention")).toBeLessThan(
+      both.indexOf("2 report versions await"),
+    );
+    expect(render(0).text).not.toContain("await");
+    expect(render(0).text).toBe(
+      renderDigest({
+        firmName: "North Advisors",
+        clients: [{ businessId: "biz_1", businessName: "Riverside Plumbing", items }],
+        appUrl: "https://app.example",
+        unsubscribeUrl: STOP_URL,
+      }).text,
+    );
+    expect(render(2).subject).toBe(render(0).subject);
   });
 
   it("names the business in the subject for an owner outside a firm", () => {
@@ -713,6 +771,156 @@ describe("digest run", () => {
     // biz_2 belongs to an account outside the firm, with nothing due: no digest, no count.
     expect(sent.map((s) => s.to)).not.toContain("quiet@firm.test");
     expect(sent.find((s) => s.to === "owner@shop.test")?.text).not.toContain("QuickBooks");
+  });
+
+  describe("versions awaiting review", () => {
+    /** Firm "adv" with reviewer `rev` and preparer `prep`; each gets a digest. */
+    async function firmWithPreparer() {
+      await firmWithReviewer();
+      await seedAdvisor("prep", "prep@firm.test");
+      await db.pg.query(
+        `insert into firm_members (firm_user_id, member_user_id, role) values ('adv', 'prep', 'preparer')`,
+      );
+    }
+    let next = 0;
+    async function version(
+      preparedBy: string,
+      fields: { from?: string | null; requested?: boolean; reviewed?: boolean; returned?: boolean },
+    ) {
+      next += 1;
+      await db.pg.query(
+        `insert into report_versions (id, user_id, business_id, version_no, profile, prepared_by,
+           review_requested_at, review_requested_from, reviewed_at, returned_at)
+         values ($1, 'adv', 'biz_1', $2, '{}'::jsonb, $3,
+           case when $4 then now() end, $5,
+           case when $6 then now() end, case when $7 then now() end)`,
+        [
+          `rv_${next}`,
+          next,
+          preparedBy,
+          fields.requested !== false,
+          fields.from ?? null,
+          fields.reviewed === true,
+          fields.returned === true,
+        ],
+      );
+    }
+    async function lines() {
+      await db.clear("reminder_log");
+      const { sent, send } = recorder();
+      await run(send);
+      const line = (to: string) =>
+        sent
+          .find((s) => s.to === to)
+          ?.text.split("\n")
+          .find((l) => l.includes("your review")) ?? null;
+      return {
+        adv: line("adv@firm.test"),
+        rev: line("rev@firm.test"),
+        prep: line("prep@firm.test"),
+      };
+    }
+
+    it("counts a request only for the reviewer it went to, never for the preparer", async () => {
+      await firmWithPreparer();
+      await version("prep", { from: "rev" });
+      await version("prep", { from: "rev" });
+      expect(await lines()).toEqual({
+        adv: null,
+        rev: "2 report versions await your review. See the firm workspace.",
+        prep: null,
+      });
+    });
+
+    it("counts an unassigned request for the owner and every reviewer who did not prepare it", async () => {
+      await firmWithPreparer();
+      await version("prep", { from: null });
+      await version("rev", { from: null });
+      expect(await lines()).toEqual({
+        adv: "2 report versions await your review. See the firm workspace.",
+        rev: "1 report version awaits your review. See the firm workspace.",
+        prep: null,
+      });
+    });
+
+    it("treats a request to someone no longer an owner or reviewer as unassigned", async () => {
+      await firmWithPreparer();
+      await version("prep", { from: "rev" });
+      await db.pg.query(`update firm_members set role = 'preparer' where member_user_id = 'rev'`);
+      expect(await lines()).toEqual({
+        adv: "1 report version awaits your review. See the firm workspace.",
+        rev: null,
+        prep: null,
+      });
+    });
+
+    it("counts only the versions this firm locked on a business its owner shared with it", async () => {
+      await firmWithPreparer();
+      await db.sql`update businesses set firm_user_id = 'adv', granted_at = now() where id = 'biz_1'`;
+      // Locked for an earlier firm, before a hand-back and this grant.
+      await version("prep", { from: "adv" });
+      await db.sql`update report_versions set firm_user_id = 'earlier' where id = ${`rv_${next}`}`;
+      expect((await lines()).adv).toBeNull();
+      await version("prep", { from: "adv" });
+      await db.sql`update report_versions set firm_user_id = 'adv' where id = ${`rv_${next}`}`;
+      expect((await lines()).adv).toBe(
+        "1 report version awaits your review. See the firm workspace.",
+      );
+    });
+
+    it("counts a version that names no firm only while the reviewer's list shows it", async () => {
+      await firmWithPreparer();
+      // Locked before Precog kept the firm, on a business its owner never
+      // shared: only this firm can have locked it.
+      await version("prep", { from: null });
+      expect(await listReportVersions(db.sql, "adv", "biz_1", "rev")).toHaveLength(1);
+      expect((await lines()).rev).toBe(
+        "1 report version awaits your review. See the firm workspace.",
+      );
+      // Once the owner shared the business, a version naming no firm is one
+      // they locked alone: not in the reviewer's list, and not counted.
+      await db.sql`update businesses set granted_at = now() where id = 'biz_1'`;
+      expect(await listReportVersions(db.sql, "adv", "biz_1", "rev")).toEqual([]);
+      expect((await lines()).rev).toBeNull();
+    });
+
+    it("leaves out versions not requested, reviewed or returned, and a deleted client's", async () => {
+      await firmWithPreparer();
+      await version("prep", { requested: false });
+      await version("prep", { from: "adv", reviewed: true });
+      await version("prep", { from: "adv", returned: true });
+      expect((await lines()).adv).toBeNull();
+      await version("prep", { from: "adv" });
+      expect((await lines()).adv).toBe(
+        "1 report version awaits your review. See the firm workspace.",
+      );
+      // A client deleted since: nothing due is announced for it either.
+      await db.sql`update businesses set deleted_at = now() where id = 'biz_1'`;
+      expect((await lines()).adv).toBeNull();
+    });
+  });
+
+  it("names the monthly review in the owner's note for a business with no firm, and not for a firm client", async () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "");
+    try {
+      const solo = recorder();
+      expect((await run(solo.send)).owners).toBe(1);
+      const soloNote = solo.sent.find((s) => s.to === "owner@shop.test");
+      expect(soloNote?.text).toContain("Monthly review for 2026-09");
+
+      await db.sql`delete from reminder_log`;
+      await firmWithReviewer();
+      const firm = recorder();
+      expect((await run(firm.send)).owners).toBe(1);
+      const firmNote = firm.sent.find((s) => s.to === "owner@shop.test");
+      expect(firmNote?.text).not.toContain("Monthly review for 2026-09");
+      // The firm's own digest still names it.
+      expect(firm.sent.find((s) => s.to === "adv@firm.test")?.text).toContain(
+        "Monthly review for 2026-09",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("follows the firm owner's switch for the client's owner, not a member's", async () => {

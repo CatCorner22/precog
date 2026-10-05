@@ -118,6 +118,7 @@ function Home() {
   const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const noBusiness =
     profile.onboardingComplete === false && businesses.every((b) => b.id === activeId);
+  const activeSummary = businesses.find((b) => b.id === activeId);
   const wantsLanding = ready && !isPending && !user && noBusiness && !search.start;
   useEffect(() => {
     if (wantsLanding) void navigate({ to: "/welcome", replace: true });
@@ -406,7 +407,24 @@ function Home() {
               onReset={() => openTab("start")}
             >
               <Suspense fallback={<TabLoading />}>
-                {tab === "start" && <StartHere onOpenDetail={openTab} sod={sodReport} />}
+                {tab === "start" && (
+                  <>
+                    {/* The business's own account invites its accountant's firm here;
+                        the card loads only after sign-in and stays empty otherwise. */}
+                    {!noBusiness && !activeSummary?.shared && (
+                      <SignedIn>
+                        <Suspense fallback={null}>
+                          <YourAccountantCard
+                            key={activeId}
+                            businessId={activeId}
+                            businessName={profile.practiceName}
+                          />
+                        </Suspense>
+                      </SignedIn>
+                    )}
+                    <StartHere onOpenDetail={openTab} sod={sodReport} />
+                  </>
+                )}
                 {tab === "team" && <TeamArea />}
                 {tab === "map" && (
                   <ProcessMap
@@ -629,6 +647,11 @@ const TeamArea = lazy(() =>
 );
 const MonthlyArea = lazy(() =>
   import("@/components/precog/monthly-area").then((module) => ({ default: module.MonthlyArea })),
+);
+const YourAccountantCard = lazy(() =>
+  import("@/components/precog/your-accountant-card").then((module) => ({
+    default: module.YourAccountantCard,
+  })),
 );
 const ScoresArea = lazy(() =>
   import("@/components/precog/scores-area").then((module) => ({ default: module.ScoresArea })),

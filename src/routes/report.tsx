@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ControlReport } from "@/components/precog/control-report";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
-import { getFirm, getReport } from "@/lib/precog/firm/server";
+import { getFirm, getReport, listReports } from "@/lib/precog/firm/server";
 import type { ReportVersionRow } from "@/lib/precog/firm/reports";
 import type { FirmSnapshot } from "@/lib/precog/firm/store";
 import type { FrozenReport } from "@/lib/precog/report/stored-model";
@@ -37,8 +37,11 @@ function ReportPage() {
 
 /**
  * The current report. The letterhead and the "Prepared for … by …" line name
- * the viewer's firm only for a firm client (a member belongs to one firm, so
- * a firm client they can see is their firm's); a signed-out visitor or a solo
+ * the viewer's firm only for a firm client the viewer works on as a member of
+ * that business's firm (a member belongs to one firm, so it is the viewer's
+ * own). The business's own account on a business it shared with a firm is
+ * not a member: it prints no firm, even one it runs itself, and is not
+ * offered "Mark report sent", the firm's work. A signed-out visitor or a solo
  * business makes no server call and prints no firm.
  */
 function LiveReport() {
@@ -49,18 +52,24 @@ function LiveReport() {
   const businessId = profile.businessId ?? null;
   const firmClient = Boolean(businesses.find((b) => b.id === businessId)?.firmClient);
   const [firm, setFirm] = useState<{ snapshot: FirmSnapshot; coverPage: boolean } | null>(null);
+  const [sharedOwner, setSharedOwner] = useState(false);
 
   useEffect(() => {
-    if (!userId || !firmClient) {
+    setSharedOwner(false);
+    if (!userId || !firmClient || !businessId) {
       setFirm(null);
       return;
     }
     let cancel = false;
-    void getFirm()
-      .then((res) => {
+    void Promise.all([getFirm(), listReports({ data: { businessId } })])
+      .then(([res, { work }]) => {
         if (cancel) return;
+        // The business's firm has the viewer in no role: its own account, which
+        // shared it with that firm.
+        const outside = work.firm && work.role === null;
+        setSharedOwner(outside);
         setFirm(
-          res.firm
+          res.firm && !outside
             ? {
                 snapshot: {
                   name: res.firm.name,
@@ -78,9 +87,15 @@ function LiveReport() {
     return () => {
       cancel = true;
     };
-  }, [userId, firmClient]);
+  }, [userId, firmClient, businessId]);
 
-  return <ControlReport firm={firm?.snapshot ?? null} coverPage={firm?.coverPage ?? false} />;
+  return (
+    <ControlReport
+      firm={firm?.snapshot ?? null}
+      coverPage={firm?.coverPage ?? false}
+      sharedOwner={sharedOwner}
+    />
+  );
 }
 
 /**

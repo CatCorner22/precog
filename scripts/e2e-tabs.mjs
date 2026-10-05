@@ -2,7 +2,8 @@
 /**
  * Headless tab walk: for every industry demo, open every top-level tab, each
  * view of How Precog scores, and the standalone routes (/report, /login,
- * /privacy, /terms, /pricing, /welcome, /firm, /share/<bad token>, /share/report/<bad token>)
+ * /privacy, /terms, /pricing, /welcome, /firm, /share/<bad token>, /share/report/<bad token>,
+ * /join/client/<bad token>)
  * and fail on any uncaught page
  * error, React error-boundary card, hydration warning, or console error. This
  * is the check that catches a hydration mismatch and any tab that throws on a
@@ -155,6 +156,7 @@ await withPage(options, async (page, errors) => {
     "/firm",
     "/share/not-a-real-token",
     "/share/report/not-a-real-token",
+    "/join/client/not-a-real-token",
   ]) {
     await page.goto(`${baseUrl}${path}`, { waitUntil: "networkidle", timeout });
     await drain(path);

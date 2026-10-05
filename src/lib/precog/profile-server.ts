@@ -21,6 +21,7 @@ import { assertVerificationsAllowed } from "./procedures/verify-guard";
 import { stampDispositions } from "./decisions/disposition-stamp";
 import { resolveClientDate } from "./dates";
 import { recordFirst } from "./telemetry/events.server";
+import { recordAuditForBusiness } from "./firm/audit.server";
 import {
   parseDeleteBusinessRequest,
   parseOpenBusinessRequest,
@@ -59,6 +60,7 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
     }) => parseSaveBusinessRequest(input),
   )
   .handler(async ({ context, data }) => {
+    // audit: exempt (a profile save is kept in the business's own history)
     const sql = await getSql();
     assertExpectedAccount(data.expectedAccountId, context.userId);
     const name = data.profile.practiceName.trim().slice(0, MAX_BUSINESS_NAME) || "My Business";
@@ -80,7 +82,15 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       const e = await loadEntitlements(sql, context.userId);
       const held = await countClients(sql, context.userId, firm);
       if (held >= e.clientLimit) {
-        throw new RequestError(402, businessLimitMessage({ plan: e.plan, limit: e.clientLimit }));
+        throw new RequestError(
+          402,
+          businessLimitMessage({
+            plan: e.plan,
+            limit: e.clientLimit,
+            tier: e.tier,
+            asMember: firm !== null && firm.role !== "owner",
+          }),
+        );
       }
     }
 
@@ -236,6 +246,14 @@ export const deleteBusiness = createServerFn({ method: "POST" })
     assertExpectedAccount(data.expectedAccountId, context.userId);
     const sql = await getSql();
     const owner = await resolveBusinessOwner(sql, context.userId, data.id, false, data.ownerUserId);
-    if (owner) await deleteBusinessRow(sql, owner, data.id, context.userId);
+    if (!owner) return { ok: true as const };
+    // A repeated or racing delete changes nothing and writes no second row:
+    // only the call that took the business from live to deleted logs it.
+    if (await deleteBusinessRow(sql, owner, data.id, context.userId)) {
+      await recordAuditForBusiness(sql, owner, data.id, {
+        actorUserId: context.userId,
+        event: "client_deleted",
+      });
+    }
     return { ok: true as const };
   });

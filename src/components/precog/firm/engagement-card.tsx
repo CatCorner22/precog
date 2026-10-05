@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- the texts and the confirm prompt next to the card are tested on their own */
 import { useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { formatDay } from "@/lib/precog/dates";
@@ -13,6 +14,7 @@ import {
   saveEngagement,
   setEngagementStatus,
 } from "@/lib/precog/firm/engagement-server";
+import { endFirmAccess, getBusinessGrant } from "@/lib/precog/firm/grant-server";
 import type { FirmMember } from "@/lib/precog/firm/store";
 
 export const ENGAGEMENT_HEADING = "Engagement";
@@ -30,6 +32,21 @@ export const ENGAGEMENT_ENDED_TOAST = "Engagement ended.";
 export const ENGAGEMENT_REOPENED = "Engagement reopened.";
 /** The toast when a save fails with no message of its own. */
 export const ENGAGEMENT_NOT_SAVED = "Precog did not save the engagement.";
+export const DOWNLOAD_ARCHIVE = "Download engagement archive";
+export const ARCHIVE_DOWNLOADED = "Archive downloaded.";
+export const ARCHIVE_FAILED = "Precog could not build the archive. Try again.";
+export const HAND_BACK = "Hand back to its owner";
+/** The toast when the hand-back fails with no message of its own. */
+export const HAND_BACK_FAILED = "Precog could not hand the business back.";
+
+/** The question before the firm owner hands a business back to the owner who shared it. */
+export function handBackPrompt(business: string): string {
+  return `Hand ${business} back to its owner? The firm loses access to its map and Monthly review and can no longer open the versions it locked; the owner keeps them. Download the engagement archive first if the firm needs a copy.`;
+}
+
+export function handedBackToast(business: string): string {
+  return `${business} is back with its owner.`;
+}
 
 /** "Status: Active", or "Status: Ended on Oct 4, 2026". */
 export function engagementStatusText(e: Pick<EngagementRecord, "status" | "endedAt">): string {
@@ -63,6 +80,15 @@ interface FormProps {
   busy?: boolean;
   onSave?: (next: EngagementRecord) => void;
   onStatus?: (status: EngagementStatus) => void;
+  /** The owner's archive download; open while ended, since the archive only reads. */
+  onDownloadArchive?: () => void;
+  /**
+   * While the archive builds: the progress line ("" before the versions are
+   * counted, which disables the button and prints nothing); null otherwise.
+   */
+  archiveProgress?: string | null;
+  /** The owner's hand-back of a business its owner shared with the firm; absent otherwise. */
+  onHandBack?: () => void;
 }
 
 /** The engagement fields of the open client; inputs are disabled while it has ended. */
@@ -74,6 +100,9 @@ export function EngagementForm({
   busy = false,
   onSave,
   onStatus,
+  onDownloadArchive,
+  archiveProgress = null,
+  onHandBack,
 }: FormProps) {
   const [draft, setDraft] = useState(engagement);
   useEffect(() => setDraft(engagement), [engagement]);
@@ -188,6 +217,36 @@ export function EngagementForm({
               {END_ENGAGEMENT}
             </Button>
           ))}
+        {isOwner && (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={archiveProgress !== null}
+              onClick={() => onDownloadArchive?.()}
+            >
+              {DOWNLOAD_ARCHIVE}
+            </Button>
+            {/* Mounted before the first message, so a screen reader announces it as it changes. */}
+            <span className="self-center text-xs text-muted" role="status">
+              {archiveProgress || ""}
+            </span>
+          </>
+        )}
+        {isOwner && onHandBack && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => {
+              if (window.confirm(handBackPrompt(businessName))) onHandBack();
+            }}
+          >
+            {HAND_BACK}
+          </Button>
+        )}
       </div>
     </form>
   );
@@ -196,20 +255,32 @@ export function EngagementForm({
 /**
  * The open client's engagement on the firm page. Loads after sign-in only,
  * and shows nothing for a business with no firm or when the load fails.
+ * For the firm owner, a business its owner shared with the firm also offers
+ * the hand-back; `onHandedBack` then refreshes the page's client list (the
+ * page reloads when none is given). `onEngagementChange` hands the page the
+ * engagement each save, end or reopen returned, so its client list follows.
  */
 export function EngagementCard({
   businessId,
   businessName,
   members,
   isOwner,
+  onHandedBack,
+  onEngagementChange,
 }: {
   businessId: string;
   businessName: string;
   members: readonly FirmMember[];
   isOwner: boolean;
+  onHandedBack?: () => void;
+  onEngagementChange?: (engagement: EngagementRecord) => void;
 }) {
   const [engagement, setEngagement] = useState<EngagementRecord | null>(null);
+  const [granted, setGranted] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [archiveProgress, setArchiveProgress] = useState<string | null>(null);
+  // Handed to the archive so the links inside a rendered report resolve.
+  const router = useRouter({ warn: false });
 
   useEffect(() => {
     let cancel = false;
@@ -224,17 +295,69 @@ export function EngagementCard({
     };
   }, [businessId]);
 
+  useEffect(() => {
+    let cancel = false;
+    setGranted(false);
+    if (!isOwner) return;
+    void getBusinessGrant({ data: { businessId } })
+      .then((res) => {
+        if (!cancel) setGranted(res.grant !== null && "firmName" in res.grant);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancel = true;
+    };
+  }, [businessId, isOwner]);
+
   if (!engagement) return null;
+
+  async function handBack() {
+    setBusy(true);
+    try {
+      await endFirmAccess({ data: { businessId } });
+      toast.success(handedBackToast(businessName));
+      setEngagement(null);
+      if (onHandedBack) onHandedBack();
+      else window.location.reload();
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : HAND_BACK_FAILED);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function run(work: () => Promise<{ engagement: EngagementRecord }>, done: string) {
     setBusy(true);
     try {
-      setEngagement((await work()).engagement);
+      const { engagement: saved } = await work();
+      setEngagement(saved);
+      onEngagementChange?.(saved);
       toast.success(done);
     } catch (err) {
       toast.error(err instanceof Error && err.message ? err.message : ENGAGEMENT_NOT_SAVED);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function downloadArchive() {
+    if (archiveProgress !== null) return;
+    setArchiveProgress("");
+    try {
+      // The report renderer loads on click only, so the firm page stays light.
+      const archive = await import("./engagement-archive");
+      await archive.buildEngagementArchive({
+        businessId,
+        businessName,
+        memberNames: Object.fromEntries(members.map((m) => [m.userId, m.name || m.email])),
+        router,
+        onProgress: (i, n) => setArchiveProgress(archive.archiveProgressText(i, n)),
+      });
+      toast.success(ARCHIVE_DOWNLOADED);
+    } catch {
+      toast.error(ARCHIVE_FAILED);
+    } finally {
+      setArchiveProgress(null);
     }
   }
 
@@ -245,6 +368,9 @@ export function EngagementCard({
       isOwner={isOwner}
       engagement={engagement}
       busy={busy}
+      archiveProgress={archiveProgress}
+      onDownloadArchive={() => void downloadArchive()}
+      onHandBack={granted ? () => void handBack() : undefined}
       onSave={(next) =>
         void run(
           () =>

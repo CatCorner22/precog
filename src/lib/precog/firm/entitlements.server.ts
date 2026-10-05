@@ -41,6 +41,36 @@ export async function requireEntitlement(
 }
 
 /**
+ * The plan that pays for work on one business: its firm's when it has one
+ * (a business its owner shared with a firm follows the firm's plan), else
+ * its own account's. Called only after requireBusinessRole, so the caller is
+ * a member of that firm or the business is the caller's own.
+ */
+export async function loadEntitlementsForBusiness(
+  sql: Sql,
+  ownerUserId: string,
+  businessId: string,
+): Promise<Entitlements> {
+  const rows = await sql<{ controller: string }>`
+    select coalesce(firm_user_id, user_id) as controller from businesses
+    where user_id = ${ownerUserId} and id = ${businessId}
+  `;
+  return loadEntitlements(sql, rows[0]?.controller ?? ownerUserId);
+}
+
+/** requireEntitlement keyed on the business's controlling account (loadEntitlementsForBusiness). */
+export async function requireEntitlementForBusiness(
+  sql: Sql,
+  ownerUserId: string,
+  businessId: string,
+  feature: Exclude<Feature, "moreClients">,
+): Promise<Entitlements> {
+  const e = await loadEntitlementsForBusiness(sql, ownerUserId, businessId);
+  if (!e.features[feature]) throw new RequestError(402, entitlementRefusal(feature, e));
+  return e;
+}
+
+/**
  * Live businesses the plan's client limit counts: the firm's clients when the
  * account is in a firm (whoever created them), else the account's own.
  */

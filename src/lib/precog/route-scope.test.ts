@@ -15,6 +15,8 @@ describe("needsPractice", () => {
     "/share/$token",
     "/share/report/$token",
     "/join/$token",
+    "/join/client/$token",
+    "/operator",
     "/threat",
   ])("%s renders without it", (id) => {
     expect(needsPractice(["__root__", id])).toBe(false);
@@ -38,6 +40,8 @@ describe("isPracticePath", () => {
     "/share/abc",
     "/share/report/abc",
     "/join/abc",
+    "/join/client/abc",
+    "/operator",
     "/reports",
     "/threat",
   ])("%s does not", (path) => {

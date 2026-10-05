@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
-import { requireBusinessOwner, requireFirmRole } from "./access.server";
+import { requireBusinessOwner, requireBusinessRole, requireFirmRole } from "./access.server";
 import { parseEngagementInput, RETENTION_REFUSAL, type EngagementStatus } from "./engagement-row";
 import {
   loadClientFirm,
@@ -14,6 +14,7 @@ import {
   setEngagementStatus as setEngagementStatusRow,
 } from "./engagement-store";
 import { businessInput } from "./server-inputs";
+import { recordAudit, recordAuditForBusiness } from "./audit.server";
 
 /**
  * The engagement of one client business: scope, period, preparer, reviewer
@@ -51,6 +52,14 @@ export const getEngagement = createServerFn({ method: "GET" })
       loadEngagement(sql, owner, data.businessId),
       data.withReviews ? loadReviewLog(sql, owner, data.businessId) : Promise.resolve(null),
     ]);
+    // The review log is read for the engagement archive download.
+    if (data.withReviews) {
+      await recordAuditForBusiness(sql, owner, data.businessId, {
+        actorUserId: context.userId,
+        event: "export_run",
+        detail: { kind: "engagement_archive" },
+      });
+    }
     return {
       firmClient: firm !== null,
       engagement,
@@ -74,15 +83,21 @@ export const saveEngagement = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
+    // The engagement is the firm's work: a granted business's own account,
+    // outside the firm, reads it and does not change it (decision 26).
+    await requireBusinessRole(sql, context.userId, owner, data.businessId, "any");
     const { businessId, ...fields } = data;
-    return {
-      engagement: await saveEngagementRow(sql, {
-        ownerUserId: owner,
-        businessId,
-        actorUserId: context.userId,
-        ...fields,
-      }),
-    };
+    const engagement = await saveEngagementRow(sql, {
+      ownerUserId: owner,
+      businessId,
+      actorUserId: context.userId,
+      ...fields,
+    });
+    await recordAuditForBusiness(sql, owner, businessId, {
+      actorUserId: context.userId,
+      event: "engagement_saved",
+    });
+    return { engagement };
   });
 
 /** Ends or reopens a client's engagement; the firm owner's alone. */
@@ -96,15 +111,26 @@ export const setEngagementStatus = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    return {
-      engagement: await setEngagementStatusRow(
-        sql,
-        owner,
-        data.businessId,
-        data.status,
-        context.userId,
-      ),
-    };
+    // The store checks, under the engagement's locks, that the caller owns the
+    // business's firm (or the business, when it has no firm).
+    const { engagement, changed } = await setEngagementStatusRow(
+      sql,
+      owner,
+      data.businessId,
+      data.status,
+      context.userId,
+    );
+    // Ending an ended engagement, or reopening an open one, changes nothing.
+    const firm = changed ? await loadClientFirm(sql, owner, data.businessId) : null;
+    if (firm) {
+      await recordAudit(sql, {
+        firmUserId: firm.firmUserId,
+        actorUserId: context.userId,
+        event: data.status === "ended" ? "engagement_ended" : "engagement_reopened",
+        businessId: data.businessId,
+      });
+    }
+    return { engagement };
   });
 
 /** How long the firm keeps a deleted client's records; the firm owner's alone. */
@@ -120,5 +146,12 @@ export const saveFirmRetention = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
-    return { retentionYears: await saveFirmRetentionRow(sql, firm.firmUserId, data.years) };
+    const retentionYears = await saveFirmRetentionRow(sql, firm.firmUserId, data.years);
+    await recordAudit(sql, {
+      firmUserId: firm.firmUserId,
+      actorUserId: context.userId,
+      event: "retention_changed",
+      detail: { years: retentionYears },
+    });
+    return { retentionYears };
   });

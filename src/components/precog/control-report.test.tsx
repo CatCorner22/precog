@@ -38,6 +38,13 @@ const locked: ReportVersionRow = {
   hasFigures: false,
   firm: null,
   engagement: null,
+  reviewRequestedAt: null,
+  reviewRequestedFrom: null,
+  reviewRequestedFromName: null,
+  returnedAt: null,
+  returnedBy: null,
+  returnedByName: null,
+  returnNote: "",
 };
 
 const team: Person[] = [
@@ -381,6 +388,19 @@ describe("a shared report", () => {
       </ReadOnlyPracticeProvider>,
     );
     expect(live).toContain("Mark report sent");
+  });
+
+  it("offers the owner of a business shared with a firm no sent stamp on the live report", () => {
+    const owner = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={ortiz}>
+        <ControlReport sharedOwner />
+      </ReadOnlyPracticeProvider>,
+    );
+    expect(owner).not.toContain("Mark report sent");
+    expect(owner).not.toContain("Report marked sent");
+    // The way back and Print stay.
+    expect(owner).toContain("Back to Precog");
+    expect(owner).toContain("Print / Save as PDF");
   });
 });
 

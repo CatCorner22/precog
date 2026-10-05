@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import type { Sql } from "@/lib/db";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { resolveBusinessOwner } from "../business-store";
 import {
@@ -17,6 +18,7 @@ import {
   MAX_OWNER_EMAIL_REQUESTS_PER_DAY,
   peekInvite,
   removeMember,
+  revokeInvite,
   saveFirm,
   saveFirmLetterhead,
   setMemberRole,
@@ -94,9 +96,17 @@ describe("firm client isolation", () => {
       },
       "ub",
     );
-    const clients = await listClientEngagements(db.sql, "ua", "ua");
+    const clients = await listClientEngagements(db.sql, "ua", "ua", "2026-09-20");
     expect(clients.map((c) => c.name)).toEqual(["Client UA"]);
     expect(clients[0].lastReviewAt).toBeTruthy();
+    expect(clients[0]).toMatchObject({
+      status: "active",
+      endedAt: null,
+      granted: false,
+      period: "2026-09",
+      thisMonthRecorded: 1,
+      awaitingReview: 0,
+    });
     const events = await db.pg.query<{ user_id: string; notes: string; recorded_by: string }>(
       "select user_id, notes, recorded_by from review_events order by user_id",
     );
@@ -180,13 +190,38 @@ describe("firm membership", () => {
       token: "t1",
     });
     await acceptInvite(db.sql, "t1", "ub");
-    await setMemberRole(db.sql, "ua", "ub", "reviewer");
+    // The role held before comes back, for the activity log; nobody changed, null.
+    expect(await setMemberRole(db.sql, "ua", "ub", "reviewer")).toBe("preparer");
+    expect(await setMemberRole(db.sql, "ua", "uc", "reviewer")).toBeNull();
     expect((await loadFirmFor(db.sql, "ub"))?.role).toBe("reviewer");
     await expect(removeMember(db.sql, "ua", "ua")).rejects.toBeInstanceOf(FirmMembershipError);
     await expect(leaveFirm(db.sql, "ua", "ua")).rejects.toBeInstanceOf(FirmMembershipError);
-    await removeMember(db.sql, "ua", "ub");
+    expect(await removeMember(db.sql, "ua", "ub")).toEqual([]);
     expect(await loadFirmFor(db.sql, "ub")).toBeNull();
     expect((await listMembers(db.sql, "ua")).map((m) => m.userId)).toEqual(["ua"]);
+    // Someone no longer a member: nothing changes, and null says so.
+    expect(await removeMember(db.sql, "ua", "ub")).toBeNull();
+    expect(await leaveFirm(db.sql, "ua", "ub")).toBeNull();
+  });
+
+  it("revokes an open invitation once and never an accepted one", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    for (const token of ["t1", "t2"]) {
+      await createInvite(db.sql, {
+        firmUserId: "ua",
+        email: `${token === "t1" ? "ub" : "uc"}@example.test`,
+        role: "preparer",
+        token,
+      });
+    }
+    await acceptInvite(db.sql, "t2", "uc");
+    expect(await revokeInvite(db.sql, "ua", "t1")).toBe(true);
+    expect(await revokeInvite(db.sql, "ua", "t1")).toBe(false);
+    expect(await revokeInvite(db.sql, "ua", "t2")).toBe(false);
+    const kept = await db.pg.query<{ token: string; accepted_by: string }>(
+      "select token, accepted_by from firm_invites order by token",
+    );
+    expect(kept.rows).toEqual([{ token: "t2", accepted_by: "uc" }]);
   });
 });
 
@@ -241,7 +276,7 @@ describe("firm membership edge cases", () => {
     expect(moved).toEqual([
       { from: "biz_1", to: expect.stringMatching(MOVED_ID), name: "Client UB" },
     ]);
-    const to = moved[0].to;
+    const to = moved?.[0].to ?? "";
     // The owner's own biz_1 holds the id, so the moved one took a new address.
     expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBe("ua");
     expect(await resolveBusinessOwner(db.sql, "ua", to)).toBe("ua");
@@ -282,7 +317,7 @@ describe("firm membership edge cases", () => {
     expect(left).toEqual([
       { from: "biz_1", to: expect.stringMatching(MOVED_ID), name: "Client UC" },
     ]);
-    expect(await resolveBusinessOwner(db.sql, "ua", left[0].to)).toBe("ua");
+    expect(await resolveBusinessOwner(db.sql, "ua", left?.[0].to ?? "")).toBe("ua");
     expect(await resolveBusinessOwner(db.sql, "uc", "biz_1")).toBeNull();
   }, 60_000);
 
@@ -307,8 +342,8 @@ describe("firm membership edge cases", () => {
     await acceptInvite(db.sql, "t2", "uc");
     await db.pg.query("update businesses set firm_user_id = 'ua' where user_id = 'uc'");
     const moved = await leaveFirm(db.sql, "ua", "uc");
-    expect(moved[0].to).toMatch(MOVED_ID);
-    expect(await resolveBusinessOwner(db.sql, "ua", moved[0].to)).toBe("ua");
+    expect(moved?.[0].to).toMatch(MOVED_ID);
+    expect(await resolveBusinessOwner(db.sql, "ua", moved?.[0].to ?? "")).toBe("ua");
     expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBeNull();
   }, 60_000);
 
@@ -336,6 +371,37 @@ describe("firm membership edge cases", () => {
     expect(await resolveBusinessOwner(db.sql, "ua", "biz_1", true)).toBe("ua");
     expect(await resolveBusinessOwner(db.sql, "ua", "biz_1")).toBeNull();
   }, 60_000);
+
+  it("locks a departing member's firm clients before it moves any of their rows", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await invite("t1");
+    await acceptInvite(db.sql, "t1", "ub");
+    await db.pg.query("update businesses set firm_user_id = 'ua' where user_id = 'ub'");
+    const statements: string[] = [];
+    const wrap = (inner: Sql): Sql => {
+      const sql = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+        statements.push(strings.join("$"));
+        return inner(strings, ...values);
+      }) as Sql;
+      sql.query = (text, params) => {
+        statements.push(text);
+        return inner.query(text, params);
+      };
+      const begin = inner.transaction?.bind(inner);
+      if (begin) sql.transaction = (work) => begin((tx) => work(wrap(tx)));
+      return sql;
+    };
+    expect(await removeMember(wrap(db.sql), "ua", "ub")).toHaveLength(1);
+    // Ending or saving the engagement locks the business, then writes its
+    // engagement row; the removal takes them in the same order, so the two
+    // wait on each other instead of deadlocking.
+    const businessLock = statements.findIndex(
+      (s) => /from\s+businesses\b/i.test(s) && /for update/i.test(s),
+    );
+    const engagementWrite = statements.findIndex((s) => /update\s+engagement_marks\b/i.test(s));
+    expect(businessLock).toBeGreaterThanOrEqual(0);
+    expect(engagementWrite).toBeGreaterThan(businessLock);
+  });
 
   it("the owner who opens an invitation to their own firm stays the owner", async () => {
     await saveFirm(db.sql, "ua", "North", "assessment");
@@ -471,6 +537,61 @@ describe("firm ownership transfer", () => {
     });
   });
 
+  it("keeps the retention period and repoints client invitations and locked versions", async () => {
+    await db.pg.exec(`
+      update firms set retention_years = 10 where user_id = 'ua';
+      update businesses set firm_user_id = 'ua', granted_at = now() where user_id = 'uc';
+      insert into business_firm_grants (token, business_owner_id, business_id, invited_email,
+          firm_user_id, expires_at, accepted_by, accepted_at)
+        values ('g1', 'uc', 'biz_1', 'ua@example.test', 'ua', now() + interval '1 day', 'ua', now());
+      insert into report_versions (id, user_id, business_id, version_no, profile, firm_user_id)
+        values ('rv_1', 'uc', 'biz_1', 1, '{}'::jsonb, 'ua'),
+          ('rv_2', 'ub', 'biz_1', 1, '{}'::jsonb, 'elsewhere');
+    `);
+    await transferFirmOwnership(db.sql, "ua", "ub");
+    const firm = await db.pg.query<{ retention_years: number }>(
+      "select retention_years from firms where user_id = 'ub'",
+    );
+    expect(firm.rows).toEqual([{ retention_years: 10 }]);
+    const grants = await db.pg.query<{ firm_user_id: string | null }>(
+      "select firm_user_id from business_firm_grants",
+    );
+    expect(grants.rows).toEqual([{ firm_user_id: "ub" }]);
+    const versions = await db.pg.query<{ id: string; firm_user_id: string | null }>(
+      "select id, firm_user_id from report_versions order by id",
+    );
+    expect(versions.rows).toEqual([
+      { id: "rv_1", firm_user_id: "ub" },
+      { id: "rv_2", firm_user_id: "elsewhere" },
+    ]);
+  });
+
+  it("moves the firm's activity log with it, and leaves it when the transfer is refused", async () => {
+    await db.pg.exec(`
+      insert into firm_audit_log (firm_user_id, actor_user_id, actor_name, event)
+        values ('ua', 'ua', 'ua', 'letterhead_changed'), ('ua', 'ub', 'ub', 'version_locked');
+    `);
+    await db.pg.query("update billing_accounts set subscription_status = 'past_due'");
+    await expect(transferFirmOwnership(db.sql, "ua", "ub")).rejects.toThrow(/overdue/);
+    const kept = await db.pg.query<{ firm_user_id: string }>(
+      "select firm_user_id from firm_audit_log order by id",
+    );
+    expect(kept.rows).toEqual([{ firm_user_id: "ua" }, { firm_user_id: "ua" }]);
+    await db.pg.query("update billing_accounts set subscription_status = 'active'");
+    await transferFirmOwnership(db.sql, "ua", "ub");
+    const moved = await db.pg.query<{ firm_user_id: string; event: string }>(
+      "select firm_user_id, event from firm_audit_log order by id",
+    );
+    expect(moved.rows).toEqual([
+      { firm_user_id: "ub", event: "letterhead_changed" },
+      { firm_user_id: "ub", event: "version_locked" },
+    ]);
+    // Outside the transfer the log still refuses a change.
+    await expect(
+      db.pg.query("update firm_audit_log set firm_user_id = 'ua'"),
+    ).rejects.toMatchObject({ code: "42501" });
+  });
+
   it("refuses a non-member, a firm owner, and the owner themselves", async () => {
     await expect(transferFirmOwnership(db.sql, "ua", "uc")).rejects.toThrow(
       "uc is not a member of North.",
@@ -563,6 +684,78 @@ describe("client engagement figures", () => {
     });
     const [row] = await listClientEngagements(db.sql, "ua", "ua");
     expect([row.openFindings, row.ownerEmail]).toEqual([0, "owner@client.test"]);
+  });
+
+  async function review(owner: string, period: string, itemKey: string) {
+    await db.pg.query(
+      `insert into review_events (user_id, business_id, period, item_key, owner_name, result, recorded_by)
+       values ($1, 'biz_1', $2, $3, 'Ada', 'done', $1)`,
+      [owner, period, itemKey],
+    );
+  }
+
+  it("counts the month's checks recorded, each check once, for the server's month only", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await review("ua", "2026-10", "bank_statement");
+    await review("ua", "2026-10", "bank_statement");
+    await review("ua", "2026-10", "cleared_checks");
+    await review("ua", "2026-10", "new_vendors");
+    await review("ua", "2026-09", "payroll_headcount");
+    const [row] = await listClientEngagements(db.sql, "ua", "ua", "2026-10-12");
+    expect([row.period, row.thisMonthRecorded]).toEqual(["2026-10", 3]);
+    const [next] = await listClientEngagements(db.sql, "ua", "ua", "2026-11-02");
+    expect([next.period, next.thisMonthRecorded]).toEqual(["2026-11", 0]);
+  });
+
+  it("says when an engagement ended and when the business is its owner's", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await db.pg.query(
+      `insert into engagement_marks (user_id, business_id, status, ended_at)
+       values ('ua', 'biz_1', 'ended', '2026-09-30T12:00:00Z')`,
+    );
+    await db.pg.query(
+      "update businesses set firm_user_id = 'ua', granted_at = now() where user_id = 'uc'",
+    );
+    const rows = await listClientEngagements(db.sql, "ua", "ua");
+    const own = rows.find((r) => r.ownerUserId === "ua")!;
+    const client = rows.find((r) => r.ownerUserId === "uc")!;
+    expect([own.status, own.endedAt, own.granted]).toEqual([
+      "ended",
+      "2026-09-30T12:00:00.000Z",
+      false,
+    ]);
+    expect([client.status, client.endedAt, client.granted, client.shared]).toEqual([
+      "active",
+      null,
+      true,
+      true,
+    ]);
+  });
+
+  it("counts versions awaiting review: requested, neither reviewed nor returned, this firm's only", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await db.pg.query(
+      "update businesses set firm_user_id = 'ua', granted_at = now() where user_id = 'uc'",
+    );
+    await db.pg.query(`
+      insert into report_versions (id, user_id, business_id, version_no, profile, firm_user_id,
+        review_requested_at, reviewed_at, returned_at)
+      values
+        ('a1', 'ua', 'biz_1', 1, '{}'::jsonb, 'ua', now(), null, null),
+        ('a2', 'ua', 'biz_1', 2, '{}'::jsonb, null, now(), null, null),
+        ('a3', 'ua', 'biz_1', 3, '{}'::jsonb, 'ua', now(), now(), null),
+        ('a4', 'ua', 'biz_1', 4, '{}'::jsonb, 'ua', now(), null, now()),
+        ('a5', 'ua', 'biz_1', 5, '{}'::jsonb, 'ua', null, null, null),
+        ('c1', 'uc', 'biz_1', 1, '{}'::jsonb, 'ua', now(), null, null),
+        ('c2', 'uc', 'biz_1', 2, '{}'::jsonb, 'elsewhere', now(), null, null),
+        ('c3', 'uc', 'biz_1', 3, '{}'::jsonb, null, now(), null, null)
+    `);
+    const rows = await listClientEngagements(db.sql, "ua", "ua");
+    // Own client: a1 and a2 (locked before versions named their firm). The
+    // granted client: c1 only; c2 was locked for a previous firm and c3 for
+    // no firm before the grant.
+    expect(rows.find((r) => r.ownerUserId === "ua")!.awaitingReview).toBe(2);
+    expect(rows.find((r) => r.ownerUserId === "uc")!.awaitingReview).toBe(1);
   });
 });
 

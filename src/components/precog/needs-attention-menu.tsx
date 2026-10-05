@@ -3,7 +3,7 @@ import { BellDot, ChevronDown } from "lucide-react";
 import { openAccessChecks } from "@/lib/precog/continuity/access-removal";
 import { localDateKey } from "@/lib/precog/dates";
 import { continuitySlips, decisionsDue } from "@/lib/precog/decisions/follow-through";
-import { latestReview, monthKey, monthlyReviewTasks } from "@/lib/precog/firm/reviews";
+import { openMonthlyChecks } from "@/lib/precog/firm/reviews";
 import { usePracticeState, useTemplate } from "@/lib/precog/practice-context";
 import { count, verb } from "@/lib/precog/text";
 import { useToday } from "@/lib/use-today";
@@ -19,7 +19,8 @@ interface AttentionItem {
 /**
  * Everything that waits on the owner, behind one header button: decisions
  * past their review date, decisions undone since they were marked done,
- * people who left whose access is unchecked, and this month's open checks.
+ * people who left whose access is unchecked, and this month's open checks
+ * (from the 5th, as the reminders count them).
  * Hidden when nothing waits. The list exists only while it is open, so the
  * tab walk's count of the Advanced menu never sees these items.
  */
@@ -37,10 +38,13 @@ export function NeedsAttentionMenu({ onOpen }: { onOpen: (tab: string) => void }
       profile.industry,
       tpl.people,
     ).length;
-    const period = monthKey(day);
-    const monthly = monthlyReviewTasks(day, tpl.people, tpl.roleTemplates).filter(
-      (task) => !latestReview(profile.monthlyReviews ?? [], task.key, period),
-    ).length;
+    // From the 5th, as the reminders count them (MONTHLY_REVIEW_GRACE_DAY).
+    const monthly = openMonthlyChecks(
+      day,
+      tpl.people,
+      tpl.roleTemplates,
+      profile.monthlyReviews ?? [],
+    );
     return [
       {
         id: "overdue",

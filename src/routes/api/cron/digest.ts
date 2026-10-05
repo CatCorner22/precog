@@ -12,8 +12,9 @@ const NO_STORE = { "cache-control": "no-store" } as const;
  * shared-map view logs and failed passcode guesses past their retention are
  * purged, then the week's first-time milestones are counted into the answer,
  * and any Assessment-credit reversal a webhook parked is retried against
- * Stripe (model-call records past their 13 months are dropped after the
- * purge, on their own, so a failure there is reported but fails no stage):
+ * Stripe (model-call records past their 13 months, and activity-log rows past
+ * their firm's retention period, are dropped after the purge, each on its
+ * own, so a failure there is reported but fails no stage):
  * the emails run before QuickBooks, so a slow or failing QuickBooks pass
  * cannot stop them, and the alerts run after it, so they name the failures
  * this run just recorded. Each stage runs on its own, so a failure in one is
@@ -46,6 +47,7 @@ export const Route = createFileRoute("/api/cron/digest")({
           telemetry,
           usageLog,
           billingWebhook,
+          audit,
         ] = await Promise.all([
           import("@/lib/db"),
           import("@/lib/precog/reminders/digest"),
@@ -59,6 +61,7 @@ export const Route = createFileRoute("/api/cron/digest")({
           import("@/lib/precog/telemetry/events.server"),
           import("@/lib/precog/llm/usage-log.server"),
           import("@/lib/precog/billing/webhook"),
+          import("@/lib/precog/firm/audit.server"),
         ]);
         const sql = await getSql();
         const { originFrom } = await import("@/lib/request-origin.server");
@@ -70,6 +73,7 @@ export const Route = createFileRoute("/api/cron/digest")({
         const deadline = (name: CronStage) => Date.now() + CRON_STAGE_BUDGET_MS[name];
 
         const modelUsage: { purged: number | null } = { purged: null };
+        let auditPurged: number | null = null;
         const purged = await stage("purge", failures, async () => {
           const count = await store.purgeDeletedBusinesses(sql);
           if (count > 0) await firmStore.deleteOrphanedClientAudit(sql);
@@ -81,6 +85,13 @@ export const Route = createFileRoute("/api/cron/digest")({
         } catch (err) {
           const { reportServerError } = await import("@/lib/observability/report.server");
           await reportServerError(err, "cron-model-usage-purge");
+        }
+        // Activity-log rows past their firm's retention, the same way.
+        try {
+          auditPurged = await audit.purgeExpiredAudit(sql);
+        } catch (err) {
+          const { reportServerError } = await import("@/lib/observability/report.server");
+          await reportServerError(err, "cron-audit-purge");
         }
         const digest = await stage("digest", failures, async () => {
           const outcome = await runDigest(sql, {
@@ -145,6 +156,7 @@ export const Route = createFileRoute("/api/cron/digest")({
             shareLogs,
             activation,
             modelUsage,
+            auditPurged,
             creditReversals,
             failures,
           },

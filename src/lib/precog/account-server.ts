@@ -11,6 +11,7 @@ import {
 } from "./account-store";
 import { isBusinessId } from "./profile-input";
 import { loadFirmFor } from "./firm/store";
+import { recordAuditForAccount } from "./firm/audit.server";
 import { decryptSecret, qboConfigured, revokeToken } from "./integrations/qbo/client.server";
 
 /**
@@ -22,9 +23,13 @@ export const exportAccountData = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const sql = await getSql();
     const firmUserId = await ownedFirm(sql, context.userId);
-    return {
-      json: JSON.stringify(await exportAccountRows(sql, context.userId, firmUserId), null, 2),
-    };
+    const json = JSON.stringify(await exportAccountRows(sql, context.userId, firmUserId), null, 2);
+    await recordAuditForAccount(sql, context.userId, {
+      actorUserId: context.userId,
+      event: "export_run",
+      detail: { kind: "account" },
+    });
+    return { json };
   });
 
 /** The firm the account owns, whose members' clients its export and history list hold; null otherwise. */
@@ -85,6 +90,17 @@ export const exportBusinessHistory = createServerFn({ method: "GET" })
       await ownedFirm(sql, context.userId),
       data.ownerUserId,
     );
+    // One row per download: its first page, when it holds a version. An
+    // empty first page (a business the caller cannot read, or one with no
+    // past versions) downloaded nothing.
+    if (data.beforeRevision === null && page.rows.length > 0) {
+      await recordAuditForAccount(sql, context.userId, {
+        actorUserId: context.userId,
+        event: "export_run",
+        businessId: data.businessId,
+        detail: { kind: "history" },
+      });
+    }
     return { base64: encodeHistoryPage(page.rows), nextBeforeRevision: page.nextBeforeRevision };
   });
 
@@ -102,6 +118,7 @@ export const deleteAccount = createServerFn({ method: "POST" })
     return { confirm: "DELETE" as const };
   })
   .handler(async ({ context }) => {
+    // audit: exempt (deleteAccountRows writes member_left and client_handed_back to the other firms the account leaves; its own firm's log goes with it)
     const sql = await getSql();
     const deleted = await deleteAccountRows(sql, context.userId);
     await revokeQuickBooksTokens(deleted.quickBooksRefreshTokens);

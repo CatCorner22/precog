@@ -25,6 +25,7 @@ export const Route = createFileRoute("/api/integrations/qbo/callback")({
           { getSql },
           { resolveBusinessOwner },
           { requireUserId },
+          { recordAuditForBusiness },
         ] = await Promise.all([
           import("@/lib/precog/integrations/qbo/oauth"),
           import("@/lib/precog/integrations/qbo/client.server"),
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/api/integrations/qbo/callback")({
           import("@/lib/db"),
           import("@/lib/precog/business-store"),
           import("@/lib/auth/verify.server"),
+          import("@/lib/precog/firm/audit.server"),
         ]);
         if (!client.qboConfigured()) return back("not-configured");
         if (url.searchParams.get("error")) return back("declined");
@@ -70,6 +72,11 @@ export const Route = createFileRoute("/api/integrations/qbo/callback")({
           await reportServerError(err, "qbo-callback");
           return back("failed");
         }
+        // The firm's log, when the business has a firm; best effort, after the save.
+        await recordAuditForBusiness(sql, owner, state.businessId, {
+          actorUserId: state.userId,
+          event: "quickbooks_connected",
+        });
         return back("connected");
       },
       ANY: () => new Response(null, { status: 405, headers: { ...NO_STORE, allow: "GET" } }),

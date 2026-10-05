@@ -2,13 +2,15 @@ import type { Sql } from "@/lib/db";
 import { inTransaction } from "@/lib/sql-transaction";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import type { FirmPlan } from "./pricing";
-import type { ReviewItemKey, ReviewResult } from "./reviews";
+import { monthKey, type ReviewItemKey, type ReviewResult } from "./reviews";
+import { serverUtcDay } from "../dates";
 import { RequestError } from "@/lib/request-errors";
 import { randomHex } from "@/lib/web-crypto";
 import { revokeDepartingMemberShares } from "../share/share-store";
 import { transferBusinessesToOwner, type MovedBusiness } from "../business-store";
 import { SUPPORT_EMAIL } from "../legal/operator";
 import { TRUSTED_EMAIL, VOUCHED_EMAIL, X_ACCOUNT } from "./vouched-email";
+import { withAuditBypass } from "./audit.server";
 
 /**
  * A firm is keyed by its owner's account: `firms.user_id` is both the owner
@@ -76,6 +78,17 @@ export interface ClientEngagementRow {
   ownerEmail: string | null;
   /** Whether reminders reach `ownerEmail`: only after its owner confirms, until they stop them. */
   ownerEmailStatus: OwnerEmailStatus | null;
+  /** The engagement's state; "active" when no engagement row exists yet. */
+  status: "active" | "ended";
+  endedAt: string | null;
+  /** The business is its owner's, shared with the firm (businesses.granted_at). */
+  granted: boolean;
+  /** The month the count below is for, YYYY-MM (the server's UTC month). */
+  period: string;
+  /** How many of the period's monthly checks have a result. */
+  thisMonthRecorded: number;
+  /** Versions this firm locked whose review was requested, neither reviewed nor returned yet. */
+  awaitingReview: number;
 }
 
 /** "unsent": saved before confirmation existed, so no link has gone out yet. */
@@ -197,14 +210,29 @@ export async function saveFirm(
     update businesses set firm_user_id = ${userId}
     where user_id = ${userId} and firm_user_id is null
   `;
+  // A business that works with a firm cannot take another (acceptGrant), so
+  // the invitations its owner sent to other firms close with it.
+  await sql`
+    update business_firm_grants g set revoked_at = now()
+    from businesses b
+    where g.business_owner_id = ${userId} and g.accepted_at is null and g.revoked_at is null
+      and b.user_id = g.business_owner_id and b.id = g.business_id and b.firm_user_id is not null
+  `;
   const saved = await loadFirmFor(sql, userId);
   if (!saved) throw new Error("Unable to save the firm");
   return saved;
 }
 
-/** Sets the plan alone, as the billing webhook does. */
-export async function setFirmPlan(sql: Sql, firmUserId: string, plan: FirmPlan): Promise<void> {
-  await sql`update firms set plan = ${plan}, updated_at = now() where user_id = ${firmUserId}`;
+/**
+ * Sets the plan alone, as the billing webhook does. True when `firmUserId`
+ * owns a firm whose row took it; false for an account that owns none.
+ */
+export async function setFirmPlan(sql: Sql, firmUserId: string, plan: FirmPlan): Promise<boolean> {
+  const rows = await sql<{ user_id: string }>`
+    update firms set plan = ${plan}, updated_at = now() where user_id = ${firmUserId}
+    returning user_id
+  `;
+  return rows.length > 0;
 }
 
 export async function listMembers(sql: Sql, firmUserId: string): Promise<FirmMember[]> {
@@ -230,29 +258,37 @@ export async function listMembers(sql: Sql, firmUserId: string): Promise<FirmMem
   }));
 }
 
+/** Sets a member's role; returns the role they held before, or null when nobody changed. */
 export async function setMemberRole(
   sql: Sql,
   firmUserId: string,
   memberUserId: string,
   role: InviteRole,
-): Promise<void> {
+): Promise<FirmRole | null> {
   if (memberUserId === firmUserId) throw new FirmMembershipError("The owner's role cannot change.");
-  await sql`
-    update firm_members set role = ${role}
-    where firm_user_id = ${firmUserId} and member_user_id = ${memberUserId} and role <> 'owner'
+  // The joined row is read before the update, so it carries the old role.
+  const rows = await sql<{ from_role: string }>`
+    update firm_members m set role = ${role}
+    from firm_members o
+    where m.firm_user_id = ${firmUserId} and m.member_user_id = ${memberUserId}
+      and m.role <> 'owner'
+      and o.firm_user_id = m.firm_user_id and o.member_user_id = m.member_user_id
+    returning o.role as from_role
   `;
+  return rows[0] ? asRole(rows[0].from_role) : null;
 }
 
 /**
  * Removes a member. The client businesses they set up for the firm stay with
  * it, under the owner's account (see `transferBusinessesToOwner`); the
- * businesses they kept outside the firm stay theirs. Returns what moved.
+ * businesses they kept outside the firm stay theirs. Returns what moved, or
+ * null when the account was not a member and nothing changed.
  */
 export async function removeMember(
   sql: Sql,
   firmUserId: string,
   memberUserId: string,
-): Promise<MovedBusiness[]> {
+): Promise<MovedBusiness[] | null> {
   if (memberUserId === firmUserId) throw new FirmMembershipError("Nobody can remove the owner.");
   return detachMember(sql, firmUserId, memberUserId);
 }
@@ -324,8 +360,18 @@ export async function listInvites(sql: Sql, firmUserId: string): Promise<FirmInv
   }));
 }
 
-export async function revokeInvite(sql: Sql, firmUserId: string, token: string): Promise<void> {
-  await sql`delete from firm_invites where firm_user_id = ${firmUserId} and token = ${token}`;
+/**
+ * Withdraws an invitation nobody accepted yet. True when one went; false for
+ * an unknown token, one revoked already, or one accepted, whose row stays as
+ * the record of who joined by it.
+ */
+export async function revokeInvite(sql: Sql, firmUserId: string, token: string): Promise<boolean> {
+  const rows = await sql<{ token: string }>`
+    delete from firm_invites
+    where firm_user_id = ${firmUserId} and token = ${token} and accepted_at is null
+    returning token
+  `;
+  return rows.length > 0;
 }
 
 /**
@@ -366,7 +412,7 @@ export function maskEmail(email: string): string {
  */
 export type InviteFit = "match" | "mismatch" | "confirm";
 
-async function accountFit(
+export async function accountFit(
   sql: Sql,
   userId: string,
   invitedEmail: string,
@@ -468,13 +514,14 @@ export async function acceptInvite(
 
 /**
  * A member leaves; the client businesses they set up stay with the firm, as
- * on removal. The owner cannot leave. Returns what moved.
+ * on removal. The owner cannot leave. Returns what moved, or null when the
+ * account was no longer a member.
  */
 export async function leaveFirm(
   sql: Sql,
   firmUserId: string,
   userId: string,
-): Promise<MovedBusiness[]> {
+): Promise<MovedBusiness[] | null> {
   if (firmUserId === userId) throw new FirmMembershipError("The owner cannot leave the firm.");
   return detachMember(sql, firmUserId, userId);
 }
@@ -482,20 +529,24 @@ export async function leaveFirm(
 /**
  * Ends a membership and hands the member's firm clients (live and deleted)
  * to the owner's account. The member's share links to the firm's clients,
- * their own included, are revoked first, while the rows still name them;
- * colleagues' links to those clients keep working, since the clients stay.
+ * their own included, are revoked before the hand-over, while the rows still
+ * name them; colleagues' links to those clients keep working, since the
+ * clients stay. Null, with nothing changed, when the account was not a
+ * member (a repeated removal, or one that raced another).
  */
 async function detachMember(
   sql: Sql,
   firmUserId: string,
   memberUserId: string,
-): Promise<MovedBusiness[]> {
+): Promise<MovedBusiness[] | null> {
   return inTransaction(sql, async (tx) => {
-    await revokeDepartingMemberShares(tx, firmUserId, memberUserId);
-    await tx`
+    const removed = await tx<{ member_user_id: string }>`
       delete from firm_members
       where firm_user_id = ${firmUserId} and member_user_id = ${memberUserId} and role <> 'owner'
+      returning member_user_id
     `;
+    if (!removed.length) return null;
+    await revokeDepartingMemberShares(tx, firmUserId, memberUserId);
     return transferBusinessesToOwner(tx, { firmUserId, memberUserId });
   });
 }
@@ -505,8 +556,11 @@ async function detachMember(
  * keyed by its owner's account, so the move is a new `firms` row under the
  * new owner, every row that names the firm repointed (members, invitations,
  * client businesses, deletion markers, which are `on delete set null` and so
- * go before the old row), the billing row moved, and the old `firms` row
- * deleted last. The new owner's role becomes owner and the old owner's
+ * go before the old row), the billing row moved, the client invitations it
+ * accepted and the versions locked for it repointed, and the old `firms` row
+ * deleted last. The firm's settings (letterhead, cover page, retention) move,
+ * and so does its activity log (under the audit bypass, the third of its
+ * three sites). The new owner's role becomes owner and the old owner's
  * reviewer. Refused while the firm's payment is overdue or disputed, for a
  * non-member, for someone who owns a firm, and for someone who already has
  * a billing record (impossible through the product; Support untangles it).
@@ -528,8 +582,9 @@ export async function transferFirmOwnership(
       letterhead: string;
       logo_data_url: string | null;
       cover_page: boolean;
+      retention_years: number | string;
     }>`
-      select name, plan, letterhead, logo_data_url, cover_page
+      select name, plan, letterhead, logo_data_url, cover_page, retention_years
       from firms where user_id = ${firmUserId} for update
     `;
     const firm = firms[0];
@@ -561,9 +616,10 @@ export async function transferFirmOwnership(
       );
     }
     await tx`
-      insert into firms (user_id, name, plan, letterhead, logo_data_url, cover_page, updated_at)
+      insert into firms
+        (user_id, name, plan, letterhead, logo_data_url, cover_page, retention_years, updated_at)
       values (${newOwnerUserId}, ${firm.name}, ${firm.plan}, ${firm.letterhead},
-        ${firm.logo_data_url}, ${firm.cover_page}, now())
+        ${firm.logo_data_url}, ${firm.cover_page}, ${Number(firm.retention_years)}, now())
     `;
     await tx`update firm_members set firm_user_id = ${newOwnerUserId} where firm_user_id = ${firmUserId}`;
     await tx`
@@ -578,6 +634,23 @@ export async function transferFirmOwnership(
       where firm_user_id = ${firmUserId}
     `;
     await tx`update billing_accounts set user_id = ${newOwnerUserId}, updated_at = now() where user_id = ${firmUserId}`;
+    // Client invitations accepted by the firm, and the versions locked for it,
+    // follow the firm (its id is its owner's), before the old row goes.
+    await tx`
+      update business_firm_grants set firm_user_id = ${newOwnerUserId}
+      where firm_user_id = ${firmUserId}
+    `;
+    await tx`
+      update report_versions set firm_user_id = ${newOwnerUserId}
+      where firm_user_id = ${firmUserId}
+    `;
+    // The log is keyed by the firm's id too; it follows the firm, so the
+    // firm's history outlives the previous owner's account.
+    await withAuditBypass(tx);
+    await tx`
+      update firm_audit_log set firm_user_id = ${newOwnerUserId}
+      where firm_user_id = ${firmUserId}
+    `;
     await tx`delete from firms where user_id = ${firmUserId}`;
   });
 }
@@ -698,11 +771,19 @@ export async function setOwnerEmail(
   });
 }
 
+/**
+ * The firm's client table: one row per live business the account or its firm
+ * holds, with the engagement state, the month's monthly checks recorded and
+ * the locked versions awaiting review. `today` (YYYY-MM-DD, the server's UTC
+ * day) picks the month.
+ */
 export async function listClientEngagements(
   sql: Sql,
   userId: string,
   firmUserId: string | null,
+  today: string = serverUtcDay(),
 ): Promise<ClientEngagementRow[]> {
+  const period = monthKey(today);
   const rows = await sql<{
     id: string;
     user_id: string;
@@ -717,18 +798,37 @@ export async function listClientEngagements(
     owner_email_token: string | null;
     owner_email_confirmed_at: string | null;
     owner_email_unsubscribed_at: string | null;
+    status: string | null;
+    ended_at: string | null;
+    granted: boolean;
+    this_month_recorded: number | string | null;
+    awaiting_review: number | string;
   }>`
     select
       b.id, b.user_id, b.name, e.started_at, e.map_completed_at, e.report_sent_at,
       e.open_findings, e.accepted_findings, e.owner_email, e.owner_email_token,
       e.owner_email_confirmed_at, e.owner_email_unsubscribed_at,
+      e.status, e.ended_at, b.granted_at is not null as granted,
+      r.last_review_at, r.this_month_recorded,
       (
-        select max(r.recorded_at) from review_events r
-        where r.user_id = b.user_id and r.business_id = b.id
-      ) as last_review_at
+        select count(*) from report_versions v
+        where v.user_id = b.user_id and v.business_id = b.id
+          -- Only versions this firm locked: after a hand-back and a new
+          -- grant, the earlier firm's versions are not this firm's to review.
+          and (v.firm_user_id = b.firm_user_id or (v.firm_user_id is null and b.granted_at is null))
+          and v.review_requested_at is not null
+          and v.reviewed_at is null
+          and v.returned_at is null
+      ) as awaiting_review
     from businesses b
     left join engagement_marks e
       on e.user_id = b.user_id and e.business_id = b.id
+    left join lateral (
+      select max(x.recorded_at) as last_review_at,
+        count(distinct x.item_key) filter (where x.period = ${period}) as this_month_recorded
+      from review_events x
+      where x.user_id = b.user_id and x.business_id = b.id
+    ) r on true
     where b.deleted_at is null
       and (b.user_id = ${userId} or (${firmUserId}::text is not null and b.firm_user_id = ${firmUserId}))
     order by b.updated_at desc
@@ -754,6 +854,12 @@ export async function listClientEngagements(
           : r.owner_email_token
             ? "waiting"
             : "unsent",
+    status: r.status === "ended" ? "ended" : "active",
+    endedAt: toIsoTimestampOrNull(r.ended_at),
+    granted: Boolean(r.granted),
+    period,
+    thisMonthRecorded: Number(r.this_month_recorded ?? 0),
+    awaitingReview: Number(r.awaiting_review),
   }));
 }
 

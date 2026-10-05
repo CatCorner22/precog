@@ -31,6 +31,7 @@ import {
 import {
   addPastedRows,
   addRowsByTitle,
+  applyPaste,
   mergeTeamRows,
   pasteSummary,
   pastedRows,
@@ -439,7 +440,7 @@ describe("setup grid: pasting, adding and reading titles", () => {
       ownerRow: "none",
       onLeaveNames: [],
     });
-    expect(note).toMatch(/^Added 1 person and updated 3 people already in the table\./);
+    expect(note).toContain("Added 1 person and updated 3 people already in the table.");
   });
 
   it("an owner who typed 'Dale Hutchins' and pastes a QuickBooks list with 'Hutchins, Dale' appears once", () => {
@@ -473,6 +474,9 @@ describe("setup grid: pasting, adding and reading titles", () => {
       onLeaveNames: [],
     });
     expect(summary.note).toContain("Added 59 of the 5,000 people.");
+    expect(summary.note).toContain("Rows read: 250.");
+    expect(summary.note).toContain("Rows mapped now: 59.");
+    expect(summary.note).toContain("Rows still requiring action: 4,941.");
     expect(summary.note).toContain("one paste reads the first 250 rows");
     expect(summary.note).toContain("this table holds 60 people");
     expect(summary.note).toContain("How work flows > Build > Team");
@@ -501,7 +505,7 @@ describe("setup grid: pasting, adding and reading titles", () => {
       ownerRow: "kept",
       onLeaveNames: [],
     });
-    expect(summary.note).toMatch(/^Added none of the 2 people\./);
+    expect(summary.note).toContain("Added none of the 2 people.");
     expect(summary.note).not.toContain("Owner row");
     expect(summary.note).toContain("How work flows > Build > Team");
     expect(summary.note).not.toContain("Who controls what");
@@ -511,6 +515,40 @@ describe("setup grid: pasting, adding and reading titles", () => {
       added: 0,
       notAdded: 5,
     });
+  });
+
+  it("maps all 12 valid roster rows when the review grid has room", () => {
+    const result = parseRoster(
+      [
+        "Name,Title",
+        ...Array.from({ length: 12 }, (_, index) => `Person ${index + 1},Cashier`),
+      ].join("\n"),
+      tpl,
+    );
+    const outcome = applyPaste([], result, "general");
+    expect(outcome.rows).toHaveLength(12);
+    expect(outcome.unresolvedRows).toBe(0);
+    expect(outcome.note).toContain("Rows read: 12.");
+    expect(outcome.note).toContain("Rows mapped now: 12.");
+    expect(outcome.note).toContain("Rows still requiring action: 0.");
+  });
+
+  it("holds 60 of 120 valid rows for review and reports every unresolved row", () => {
+    const result = parseRoster(
+      [
+        "Name,Title",
+        ...Array.from({ length: 120 }, (_, index) => `Person ${index + 1},Cashier`),
+      ].join("\n"),
+      tpl,
+    );
+    const outcome = applyPaste([], result, "general");
+    expect(outcome.rows).toHaveLength(OWN_TEAM_MAX);
+    expect(outcome.unresolvedRows).toBe(60);
+    expect(outcome.note).toContain("Rows read: 120.");
+    expect(outcome.note).toContain("Duplicate or invalid rows: 0.");
+    expect(outcome.note).toContain("Rows mapped now: 60.");
+    expect(outcome.note).toContain("Rows still requiring action: 60.");
+    expect(outcome.keepPaste).toBe(true);
   });
 
   it("a terminated cashier left out of the paste is named, and a person on leave is kept", () => {

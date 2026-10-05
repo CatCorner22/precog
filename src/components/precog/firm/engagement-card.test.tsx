@@ -8,6 +8,10 @@ vi.mock("@/lib/precog/firm/engagement-server", () => ({
   saveEngagement: vi.fn(),
   setEngagementStatus: vi.fn(),
 }));
+vi.mock("@/lib/precog/firm/grant-server", () => ({
+  endFirmAccess: vi.fn(),
+  getBusinessGrant: vi.fn(),
+}));
 
 const {
   END_ENGAGEMENT,
@@ -16,6 +20,9 @@ const {
   ENGAGEMENT_NOT_SAVED,
   ENGAGEMENT_REOPENED,
   ENGAGEMENT_SAVED,
+  ARCHIVE_DOWNLOADED,
+  ARCHIVE_FAILED,
+  DOWNLOAD_ARCHIVE,
   EngagementCard,
   EngagementForm,
   NOT_SET,
@@ -28,6 +35,10 @@ const {
   SCOPE_LABEL,
   endEngagementPrompt,
   engagementStatusText,
+  HAND_BACK,
+  HAND_BACK_FAILED,
+  handBackPrompt,
+  handedBackToast,
 } = await import("./engagement-card");
 
 const members: FirmMember[] = [
@@ -144,6 +155,77 @@ describe("the engagement block", () => {
       "End the engagement with Ortiz Dental? The firm's members can then read its map, Monthly review and locked versions but not change them, until the firm owner reopens it.",
     );
     expect(prompt).not.toContain("You cannot undo this.");
+  });
+
+  it("gives the owner alone the archive download, open while ended", () => {
+    expect([DOWNLOAD_ARCHIVE, ARCHIVE_DOWNLOADED, ARCHIVE_FAILED]).toEqual([
+      "Download engagement archive",
+      "Archive downloaded.",
+      "Precog could not build the archive. Try again.",
+    ]);
+    expect(form(active, false)).not.toContain(DOWNLOAD_ARCHIVE);
+    expect(form(ended, false)).not.toContain(DOWNLOAD_ARCHIVE);
+    expect(form(active, true)).toContain(`>${DOWNLOAD_ARCHIVE}</button>`);
+    // Ended: the six edit controls are disabled, the download is not.
+    const html = form(ended, true);
+    expect(html).toContain(`>${DOWNLOAD_ARCHIVE}</button>`);
+    expect(html.match(/disabled=""/g)?.length).toBe(6);
+  });
+
+  it("prints the archive progress in a status line that is there before it, and holds the button", () => {
+    const building = (archiveProgress: string | null) =>
+      renderToStaticMarkup(
+        <EngagementForm
+          businessName="Ortiz Dental"
+          members={members}
+          isOwner
+          engagement={active}
+          archiveProgress={archiveProgress}
+        />,
+      );
+    // The archive's status line is the second on the block (the first is the
+    // engagement's status); it is mounted empty, so its first message is
+    // announced as a change, not inserted with the element.
+    const archiveStatus = (html: string) =>
+      [...html.matchAll(/role="status"[^>]*>([^<]*)</g)].map((m) => m[1])[1];
+    const idle = building(null);
+    expect(archiveStatus(idle)).toBe("");
+    expect(idle).not.toContain('disabled=""');
+    const counting = building("");
+    expect(archiveStatus(counting)).toBe("");
+    expect(counting.match(/disabled=""/g)?.length).toBe(1);
+    const html = building("Building the archive: version 2 of 3…");
+    expect(archiveStatus(html)).toBe("Building the archive: version 2 of 3…");
+    expect(html.match(/disabled=""/g)?.length).toBe(1);
+    // A member who is not the owner has no download and no archive status line.
+    expect(form(active, false).match(/role="status"/g)).toHaveLength(1);
+  });
+
+  it("offers the hand-back to the owner alone, on a business its owner shared", () => {
+    const withHandBack = (isOwner: boolean, onHandBack?: () => void) =>
+      renderToStaticMarkup(
+        <EngagementForm
+          businessName="Ortiz Dental"
+          members={members}
+          isOwner={isOwner}
+          engagement={active}
+          onHandBack={onHandBack}
+        />,
+      );
+    expect(HAND_BACK).toBe("Hand back to its owner");
+    expect(withHandBack(true, () => undefined)).toContain(`>${HAND_BACK}</button>`);
+    // A client the firm set up itself has no hand-back; a member never sees one.
+    expect(withHandBack(true)).not.toContain(HAND_BACK);
+    expect(withHandBack(false, () => undefined)).not.toContain(HAND_BACK);
+  });
+
+  it("asks before handing back, saying the firm loses the versions it locked", () => {
+    expect(handBackPrompt("Ortiz Dental")).toBe(
+      "Hand Ortiz Dental back to its owner? The firm loses access to its map and Monthly review and can no longer open the versions it locked; the owner keeps them. Download the engagement archive first if the firm needs a copy.",
+    );
+    expect(handBackPrompt("Ortiz Dental")).not.toContain("You cannot undo this.");
+    expect(handedBackToast("Ortiz Dental")).toBe("Ortiz Dental is back with its owner.");
+    expect(HAND_BACK_FAILED).toBe("Precog could not hand the business back.");
   });
 
   it("renders nothing until the engagement loads", () => {

@@ -42,6 +42,13 @@ export const PAGE_BUDGETS_KB = {
   "/pricing": 173,
   "/welcome": 157,
   "/share/report/x": 162,
+  // Batch 3, set on 2026-10-05 from the compiled build: the firm workspace
+  // signed out (301.4 KB; its client table, engagement block and archive
+  // button load with it), the operator page as anyone else sees it (157.1 KB)
+  // and the client invitation page's closed-link state (155.1 KB).
+  "/firm": 332,
+  "/operator": 173,
+  "/join/client/x": 171,
 };
 
 /** The gzipped size of one file's bytes, as check-bundle-size.mjs counts it. */

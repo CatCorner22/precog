@@ -10,6 +10,11 @@ import { FirmLetterhead } from "@/components/precog/firm/firm-letterhead";
 import { FirmRetention } from "@/components/precog/firm/firm-retention";
 import { EngagementCard } from "@/components/precog/firm/engagement-card";
 import { ClientList } from "@/components/precog/firm/client-list";
+import {
+  clientTableCsv,
+  clientTableFileName,
+  withEngagementStatus,
+} from "@/components/precog/firm/client-table-csv";
 import { openClientReport } from "@/components/precog/firm/open-client-report";
 import { ClientHistory } from "@/components/precog/firm/client-history";
 import { QuickBooksPanel } from "@/components/precog/firm/quickbooks-panel";
@@ -23,7 +28,7 @@ import {
   pilotMetrics,
   pilotMetricsCsv,
 } from "@/lib/precog/firm/engagement";
-import { downloadText } from "@/lib/download";
+import { downloadCsv, downloadText } from "@/lib/download";
 import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { PaymentOverdueBanner } from "@/components/precog/payment-overdue-banner";
 import { getEntitlements, type EntitlementsAnswer } from "@/lib/precog/firm/entitlements-server";
@@ -112,6 +117,9 @@ function FirmPage() {
   const [loaded, setLoaded] = useState(false);
   const [awaitingStripe, setAwaitingStripe] = useState(false);
   const signedIn = Boolean(user) && !isPending;
+  // The hook builds a new user object on every render, so the effects below
+  // key on the id: keyed on the object, each answer re-ran the load.
+  const userId = user?.id ?? null;
 
   const own = isOwnTeam(profile);
   const metrics = useMemo(() => {
@@ -168,7 +176,7 @@ function FirmPage() {
 
   useEffect(() => {
     if (isPending) return;
-    if (!user) {
+    if (!userId) {
       setLoaded(true);
       return;
     }
@@ -203,7 +211,7 @@ function FirmPage() {
     return () => {
       cancel = true;
     };
-  }, [user, isPending]);
+  }, [userId, isPending]);
 
   // Post only for a business saved to the account, and only when what the
   // client list holds for it differs from what this page measures.
@@ -216,7 +224,7 @@ function FirmPage() {
       savedRow.openFindings !== metrics.openFindings ||
       savedRow.acceptedFindings !== metrics.acceptedFindings);
   useEffect(() => {
-    if (!user || !loaded || !profile.businessId || !own || !engagementStale) return;
+    if (!userId || !loaded || !profile.businessId || !own || !engagementStale) return;
     const posted = {
       startedAt: profile.engagement?.startedAt ?? null,
       mapCompletedAt: profile.engagement?.mapCompletedAt ?? null,
@@ -231,7 +239,7 @@ function FirmPage() {
       )
       .catch(() => undefined);
   }, [
-    user,
+    userId,
     loaded,
     own,
     engagementStale,
@@ -246,7 +254,7 @@ function FirmPage() {
   // Stripe's confirmation reaches the webhook after the browser comes back,
   // so the plan is read again for a short while until it shows the payment.
   useEffect(() => {
-    if (search.billing !== "success" || !user || !loaded) return;
+    if (search.billing !== "success" || !userId || !loaded) return;
     const before = billingSignature(billing);
     let cancel = false;
     let tries = 0;
@@ -275,7 +283,7 @@ function FirmPage() {
     };
     // Poll once per return from checkout; `billing` is the value to compare against.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search.billing, user, loaded]);
+  }, [search.billing, userId, loaded]);
 
   async function leftFirm() {
     const wasShared = clients.some((c) => c.id === profile.businessId && c.shared);
@@ -500,6 +508,9 @@ function FirmPage() {
             businessName={savedRow.name}
             members={members}
             isOwner={isOwner}
+            onEngagementChange={(engagement) =>
+              setClients((cur) => withEngagementStatus(cur, savedRow, engagement))
+            }
           />
         )}
       </section>
@@ -534,6 +545,9 @@ function FirmPage() {
                 .catch(() => undefined);
             }}
             onClientsChange={setClients}
+            onExport={(rows) =>
+              downloadCsv(clientTableFileName(firm?.name ?? ""), clientTableCsv(rows))
+            }
             canRestore={!firm || isOwner}
           />
           <NotificationSettingsPanel signedIn={signedIn} />

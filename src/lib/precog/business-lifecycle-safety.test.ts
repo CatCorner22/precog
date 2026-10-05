@@ -1,6 +1,9 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import type { Sql } from "@/lib/db";
 import { openSafetyDb, type SafetyDb } from "@/test/safety-db";
-import { inTransaction } from "@/lib/sql-transaction";
+import { AUDIT_BYPASS_SQL } from "@/test/pglite";
+import { inTransaction, toSql } from "@/lib/sql-transaction";
 import {
   BusinessUnavailableError,
   saveBusinessRevision,
@@ -10,6 +13,10 @@ import {
   loadActiveBusiness,
   resolveBusinessOwner,
 } from "./business-store";
+import { deleteAccountRows } from "./account-store";
+import { saveEngagement, setEngagementStatus } from "./firm/engagement-store";
+import { lockReportVersion } from "./firm/reports";
+import { removeMember } from "./firm/store";
 
 let db: SafetyDb;
 const input = (businessId: string, baseRevision: number | null, name = "Practice") => ({
@@ -26,7 +33,11 @@ beforeAll(async () => {
 }, 60_000);
 afterAll(() => db.close());
 beforeEach(async () => {
-  await db.pg.exec('drop trigger if exists fail_pointer on business_profiles; delete from "user";');
+  // Under the audit bypass, on PGlite and on real Postgres: a firm owner's
+  // user row cascades into the activity log.
+  await db.pg.exec(
+    `begin; ${AUDIT_BYPASS_SQL} drop trigger if exists fail_pointer on business_profiles; delete from "user"; commit;`,
+  );
   await db.seedUser("a");
   await db.seedUser("b");
 });
@@ -223,3 +234,152 @@ describe("transactional business safety", () => {
     expect((await counts()).businesses).toBe(0);
   });
 });
+describe("the activity log and locked versions on the database (migration 0048)", () => {
+  it("lets a firm owner whose firm has activity-log rows delete their account", async () => {
+    await db.pg.exec(`
+      insert into firms (user_id, name) values ('a', 'Firm');
+      insert into firm_members (firm_user_id, member_user_id, role) values ('a', 'a', 'owner');
+      insert into firm_audit_log (firm_user_id, actor_user_id, event)
+        values ('a', 'a', 'letterhead_changed'), ('a', 'b', 'member_left');
+    `);
+    await deleteAccountRows(db.sql, "a");
+    const left = await db.sql<{ n: number }>`select count(*)::int as n from firm_audit_log`;
+    expect(left[0].n).toBe(0);
+  });
+  it("hands a departing member's client with a locked version to the owner through the frozen trigger", async () => {
+    await db.pg.exec(`
+      insert into firms (user_id, name) values ('a', 'Firm');
+      insert into firm_members (firm_user_id, member_user_id, role)
+        values ('a', 'a', 'owner'), ('a', 'b', 'preparer');
+    `);
+    await saveBusinessRevision(db.sql, { ...input("client", null), userId: "b", firmUserId: "a" });
+    await lockReportVersion(db.sql, {
+      ownerUserId: "b",
+      businessId: "client",
+      preparedBy: "b",
+      scopeNote: "Year end",
+      id: "rv_1",
+    });
+    await removeMember(db.sql, "a", "b");
+    const versions = await db.sql<{ user_id: string; business_id: string; scope_note: string }>`
+      select user_id, business_id, scope_note from report_versions
+    `;
+    expect(versions).toEqual([{ user_id: "a", business_id: "client", scope_note: "Year end" }]);
+    await expect(
+      db.sql`update report_versions set scope_note = 'Changed' where id = 'rv_1'`,
+    ).rejects.toThrow("a locked report version keeps what it printed");
+  });
+});
+
+// Real connections only: the embedded database runs one statement at a time,
+// so neither side could wait on the other. CI runs this block on PostgreSQL.
+describe.runIf(process.env.PRECOG_LIFECYCLE_POSTGRES === "1")(
+  "a member's departure while the firm owner changes a client that member set up",
+  () => {
+    function signal() {
+      let resolve!: () => void;
+      const promise = new Promise<void>((done) => {
+        resolve = done;
+      });
+      return { promise, resolve };
+    }
+    /** Marks every statement, so the test can see this request wait on a lock. */
+    function taggedSql(sql: Sql, tag: string): Sql {
+      const wrapped = toSql(<T>(text: string, params: unknown[]) =>
+        sql.query<T>(`/* ${tag} */ ${text}`, params),
+      );
+      wrapped.transaction = (work) => inTransaction(sql, (tx) => work(taggedSql(tx, tag)));
+      return wrapped;
+    }
+    /** Holds each transaction just after it locks a business row, until `release`. */
+    function pausedAfterBusinessLock(sql: Sql, locked: () => void, release: Promise<void>): Sql {
+      const wrapped = toSql(async <T>(text: string, params: unknown[]) => {
+        const rows = await sql.query<T>(text, params);
+        if (/from businesses\b[\s\S]*for update/i.test(text)) {
+          locked();
+          await release;
+        }
+        return rows;
+      });
+      wrapped.transaction = (work) =>
+        inTransaction(sql, (tx) => work(pausedAfterBusinessLock(tx, locked, release)));
+      return wrapped;
+    }
+
+    beforeEach(async () => {
+      await db.pg.exec(`
+        insert into firms (user_id, name) values ('a', 'Firm');
+        insert into firm_members (firm_user_id, member_user_id, role)
+          values ('a', 'a', 'owner'), ('a', 'b', 'preparer');
+        insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id)
+          values ('client', 'b', 'Client', 'general', '{}'::jsonb, 1, 'a');
+      `);
+    });
+
+    for (const write of ["end", "save"] as const) {
+      for (const first of [false, true]) {
+        it(`${write === "end" ? "ending" : "saving"} the engagement${first ? " for the first time" : ""} and the removal both finish`, async () => {
+          if (!first)
+            await db.sql`insert into engagement_marks (user_id, business_id) values ('b', 'client')`;
+          const locked = signal();
+          const release = signal();
+          const paused = pausedAfterBusinessLock(db.sql, locked.resolve, release.promise);
+          const writing = (
+            write === "end"
+              ? setEngagementStatus(paused, "b", "client", "ended", "a")
+              : saveEngagement(paused, {
+                  ownerUserId: "b",
+                  businessId: "client",
+                  actorUserId: "a",
+                  scope: "Year end",
+                  periodStart: null,
+                  periodEnd: null,
+                  preparerUserId: null,
+                  reviewerUserId: null,
+                })
+          ).then(
+            () => null,
+            (error: unknown) => error,
+          );
+          await locked.promise;
+          const tag = `departure_${randomUUID().replaceAll("-", "")}`;
+          const removal = removeMember(taggedSql(db.sql, tag), "a", "b").then(
+            (moved) => ({ moved, error: null }),
+            (error: unknown) => ({ moved: null, error }),
+          );
+          try {
+            await expect
+              .poll(
+                async () => {
+                  const [row] = await db.sql<{ n: number }>`select count(*)::int as n
+                    from pg_stat_activity
+                    where query like ${`/* ${tag} */%`} and wait_event_type = 'Lock'`;
+                  return row.n;
+                },
+                { timeout: 5_000, interval: 20 },
+              )
+              .toBeGreaterThan(0);
+          } finally {
+            release.resolve();
+          }
+          // Before the fix one of the two died with 40P01 (deadlock detected).
+          expect(await writing).toBeNull();
+          expect(await removal).toEqual({
+            moved: [{ from: "client", to: "client", name: "Client" }],
+            error: null,
+          });
+          const marks = await db.sql<{ user_id: string; status: string; scope: string }>`
+            select user_id, status, scope from engagement_marks where business_id = 'client'
+          `;
+          expect(marks).toEqual([
+            {
+              user_id: "a",
+              status: write === "end" ? "ended" : "active",
+              scope: write === "save" ? "Year end" : "",
+            },
+          ]);
+        });
+      }
+    }
+  },
+);

@@ -15,11 +15,13 @@ import { entitlementsFor } from "../src/lib/precog/firm/entitlements";
 import { loadFirmFor, saveFirm } from "../src/lib/precog/firm/store";
 import { parseStripeEvent } from "../src/lib/precog/billing/stripe";
 import { applyBillingEvent } from "../src/lib/precog/billing/webhook";
+import { subscriptionStillRunning as OPERATOR_STILL_RUNNING } from "../src/lib/precog/operator/texts";
 import {
   linkCustomer,
   LinkRefused,
   NO_RUNNING_SUBSCRIPTION,
   planLine,
+  subscriptionStillRunning,
 } from "./lib/link-stripe-customer.mjs";
 
 const ENV = { STRIPE_PRICE_TIER_1: "price_t1", STRIPE_PRICE_TIER_2_ANNUAL: "price_t2y" };
@@ -44,7 +46,7 @@ function stripeFake(subscriptions = {}) {
         if (customer[1] === "cus_1") return { id: "cus_1", email: "billing@firm.test" };
         return customer[1] === "cus_2" ? { id: "cus_2" } : null;
       }
-      const list = path.match(/^\/subscriptions\?customer=(cus_[a-z0-9]+)&status=all&limit=3$/);
+      const list = path.match(/^\/subscriptions\?customer=(cus_[a-z0-9]+)&status=all&limit=100$/);
       if (list) return { data: subscriptions[list[1]] ?? [] };
       throw new Error(`unexpected GET ${path}`);
     },
@@ -287,6 +289,36 @@ describe("linking a Stripe customer from the script", () => {
       return rest;
     };
     expect(await full("solo")).toEqual(await full("other"));
+  });
+
+  it("refuses Replace onto a stopped subscription while the account's own still runs, as /operator does", async () => {
+    expect(subscriptionStillRunning("sub_old")).toBe(OPERATOR_STILL_RUNNING("sub_old"));
+    await setStripeCustomer(db.sql, "owner", "cus_2");
+    await db.pg.query(
+      `update billing_accounts set subscription_id = 'sub_old', subscription_status = 'active',
+         subscription_price_id = 'price_t1' where user_id = 'owner'`,
+    );
+    const before = await row("owner");
+    const stopped = stripeFake({ cus_1: [{ ...running("canceled"), id: "sub_new" }] });
+    for (const yes of [false, true]) {
+      await expect(
+        run({ account: "owner", customerId: "cus_1", yes, replace: true }, stopped),
+      ).rejects.toThrow(new LinkRefused(OPERATOR_STILL_RUNNING("sub_old")));
+    }
+    expect(await row("owner")).toEqual(before);
+    expect(stopped.posts).toEqual([]);
+    expect((await loadFirmFor(db.sql, "owner"))?.plan).toBe("monthly");
+    // A customer whose subscription runs replaces the running one.
+    const { result } = await run(
+      { account: "owner", customerId: "cus_1", yes: true, replace: true },
+      stripeFake({ cus_1: [{ ...running(), id: "sub_new" }] }),
+    );
+    expect(result.outcome).toBe("linked");
+    expect(await row("owner")).toMatchObject({
+      stripe_customer_id: "cus_1",
+      subscription_id: "sub_new",
+      subscription_status: "active",
+    });
   });
 
   it("names the tier from the price, and only a running subscription as a Firm plan", () => {

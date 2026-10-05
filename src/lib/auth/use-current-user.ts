@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { authClient, authEnabled } from "./client";
 
 /** Normalized user shape used across the app, auth on or off. */
@@ -50,25 +51,42 @@ type CurrentUserState = {
  *   if (isPending) return null;                          // still resolving — don't redirect yet
  *   if (!user) return <Navigate to="/login" />;          // definitely signed out
  *
- * `authEnabled` is a module-level constant fixed at load, so the guarded hook
- * call keeps a stable hook order across every render of a given component.
+ * `authEnabled` is a module-level constant fixed at load, so the implementation
+ * is chosen once and keeps a stable hook order across every render.
  */
-export function useCurrentUserState(): CurrentUserState {
-  if (!authEnabled) return { user: DEV_USER, isPending: false };
+export const useCurrentUserState: () => CurrentUserState = authEnabled
+  ? useSessionUserState
+  : useDevUserState;
+
+function useDevUserState(): CurrentUserState {
+  return { user: DEV_USER, isPending: false };
+}
+
+/**
+ * The signed-in user, the same object from one render to the next while its
+ * fields stay the same: an effect keyed on `user` then runs once per account,
+ * not on every render (a session refetch builds a new `data.user`).
+ */
+function useSessionUserState(): CurrentUserState {
   const { data, isPending } = authClient.useSession();
-  const user = data?.user;
-  return {
-    user: user
-      ? {
-          id: user.id,
-          displayName: user.name ?? null,
-          primaryEmail: user.email ?? null,
-          profileImageUrl: user.image ?? null,
-          isDevFallback: false,
-        }
-      : null,
-    isPending,
-  };
+  const id = data?.user?.id ?? null;
+  const name = data?.user?.name ?? null;
+  const email = data?.user?.email ?? null;
+  const image = data?.user?.image ?? null;
+  const user = useMemo<AppUser | null>(
+    () =>
+      id
+        ? {
+            id,
+            displayName: name,
+            primaryEmail: email,
+            profileImageUrl: image,
+            isDevFallback: false,
+          }
+        : null,
+    [id, name, email, image],
+  );
+  return { user, isPending };
 }
 
 /**

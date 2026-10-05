@@ -9,6 +9,13 @@ import { userScope } from "./llm/daily-usage";
 import { usageTotalsFor, type UsageTotal } from "./llm/usage-log.server";
 import { count } from "./text";
 import { pictureUrl } from "./procedures/image-pipeline";
+import { handBackGranted } from "./firm/grant-store";
+import {
+  insertAudit,
+  listFirmActivity,
+  withAuditBypass,
+  type FirmActivityRow,
+} from "./firm/audit.server";
 
 /**
  * Everything the app holds for one account, in one JSON document the owner can
@@ -31,7 +38,22 @@ interface AccountExport {
     revision: number;
     updatedAt: string;
     deletedAt: string | null;
+    /** When the account shared the business with a firm (migration 0046); null otherwise. */
+    grantedAt: string | null;
     profile: unknown;
+  }>;
+  /**
+   * The account's invitations to firms to work on its businesses, accepted
+   * or not, with the firm's name once one accepted. Never the link's token.
+   */
+  firmGrants: Array<{
+    businessId: string;
+    invitedEmail: string;
+    createdAt: string;
+    expiresAt: string;
+    acceptedAt: string | null;
+    revokedAt: string | null;
+    firmName: string | null;
   }>;
   /** Businesses deleted for good; only the id and the day are kept. */
   deletedBusinesses: Array<{ businessId: string; deletedAt: string }>;
@@ -64,6 +86,15 @@ interface AccountExport {
     sentAt: string | null;
     /** The firm's name and letterhead as frozen at lock; null before migration 0041 and for a solo business. */
     firm: { name: string; letterhead: string; logoDataUrl: string | null } | null;
+    /** The engagement's scope and period as frozen at lock; null before migration 0045 or when empty. */
+    engagement: { scope: string; periodStart: string | null; periodEnd: string | null } | null;
+    /** Request and return (migration 0047); null and empty when never asked or returned. */
+    reviewRequestedAt: string | null;
+    reviewRequestedBy: string | null;
+    reviewRequestedFrom: string | null;
+    returnedAt: string | null;
+    returnedBy: string | null;
+    returnNote: string;
     profile: unknown;
   }>;
   snapshots: Array<{
@@ -91,6 +122,8 @@ interface AccountExport {
     letterhead: string;
     logoDataUrl: string | null;
     coverPage: boolean;
+    /** How long the firm keeps a deleted client's records, in years. */
+    retentionYears: number;
     updatedAt: string;
   } | null;
   /** Firms this account belongs to, its own included. */
@@ -114,6 +147,14 @@ interface AccountExport {
     acceptedFindings: number;
     /** The client owner's email, kept for reminders. */
     ownerEmail: string | null;
+    /** The engagement (migration 0045): what the firm was engaged to do, for when, by whom. */
+    scope: string;
+    periodStart: string | null;
+    periodEnd: string | null;
+    status: string;
+    endedAt: string | null;
+    preparerUserId: string | null;
+    reviewerUserId: string | null;
   }>;
   reviews: Array<{
     businessId: string;
@@ -159,6 +200,8 @@ interface AccountExport {
     assessmentRefundedAt: string | null;
     assessmentDisputedAt: string | null;
     currentPeriodEnd: string | null;
+    /** The Stripe price the subscription runs on (migration 0050); null until an event names it. */
+    subscriptionPriceId: string | null;
   } | null;
   quickBooksConnections: Array<{
     businessId: string;
@@ -179,6 +222,11 @@ interface AccountExport {
   activity: Array<{ event: string; businessId: string | null; occurredAt: string }>;
   /** Model calls the account made, per feature: calls and tokens, never the text. */
   modelUsage: UsageTotal[];
+  /**
+   * For a firm owner: the firm's activity log (migration 0048), newest
+   * first, with each actor's name as it was. Empty for everyone else.
+   */
+  firmActivity: FirmActivityRow[];
 }
 
 /** What account deletion removed that still has to be undone outside the database. */
@@ -205,6 +253,7 @@ export async function exportAccountRows(
     const [
       user,
       businesses,
+      firmGrants,
       deletedBusinesses,
       firmClients,
       reportVersions,
@@ -225,9 +274,11 @@ export async function exportAccountRows(
       controlExecutions,
       activity,
       modelUsage,
+      firmActivity,
     ] = await Promise.all([
       readUser(tx, userId),
       readBusinesses(tx, userId),
+      readFirmGrants(tx, userId),
       readDeletedBusinesses(tx, userId),
       readFirmClients(tx, userId, firmUserId),
       readReportVersions(tx, userId),
@@ -251,12 +302,14 @@ export async function exportAccountRows(
       }>`select business_id as "businessId", record from control_execution_log where user_id=${userId} order by created_at,id`,
       readActivity(tx, userId),
       usageTotalsFor(tx, userId),
+      firmUserId ? listFirmActivity(tx, firmUserId) : Promise.resolve([]),
     ]);
     return {
       exportedAt: new Date().toISOString(),
       controlExecutions,
       user,
       businesses,
+      firmGrants,
       deletedBusinesses,
       firmClients,
       reportVersions,
@@ -276,6 +329,7 @@ export async function exportAccountRows(
       procedureImages,
       activity,
       modelUsage,
+      firmActivity,
     };
   });
 }
@@ -326,8 +380,9 @@ export async function listAccountHistoryBusinesses(
 /**
  * Whose row a history download reads for `businessId`. With `ownerUserId`
  * named (the list row the caller chose): the caller's own rows when it is
- * theirs, else that account's row only when it is a member of the firm the
- * caller owns (`firmUserId`) and the row is that firm's client, so the
+ * theirs, else that account's row only when it is that firm's client and the
+ * account is a member of the firm the caller owns (`firmUserId`) or shared
+ * the business with it (a granted business), so the
  * owner's and a member's rows under one id download apart. Without it: the
  * caller's own row when they hold one, else the firm's. The membership is
  * read here, never trusted from what the client sends. Null when nothing
@@ -345,8 +400,9 @@ async function historyOwnerFor(
     if (firmUserId === null) return null;
     const rows = await sql<{ user_id: string }>`
       select b.user_id from businesses b
-      join firm_members m on m.firm_user_id = b.firm_user_id and m.member_user_id = b.user_id
+      left join firm_members m on m.firm_user_id = b.firm_user_id and m.member_user_id = b.user_id
       where b.id = ${businessId} and b.user_id = ${ownerUserId} and b.firm_user_id = ${firmUserId}
+        and (m.member_user_id is not null or b.granted_at is not null)
       limit 1
     `;
     return rows[0]?.user_id ?? null;
@@ -468,12 +524,15 @@ export function encodeHistoryPage(rows: BusinessHistoryExportRow[]): string {
  * Snapshots and the per-user model-usage counts carry no foreign key to the
  * user, so they are deleted explicitly; everything else (businesses and their
  * history, report versions and QuickBooks rows, shares, the firm, reminders,
- * billing, the activity milestones, the model-call records, sessions and
+ * billing, the activity milestones, the firm's activity log, the
+ * model-call records, sessions and
  * linked accounts) cascades
  * from the user row. Client
  * businesses that members of this account's firm set up stay with those
  * members and leave the firm. The app-wide usage count is not the account's
- * and stays.
+ * and stays. Another firm the account works in, or that works on a business
+ * it owns, keeps a member_left or client_handed_back row in its activity log;
+ * the log has no key on the actor, so the rows outlive the account.
  */
 export async function deleteAccountRows(sql: Sql, userId: string): Promise<DeletedAccount> {
   return inTransaction(sql, async (tx) => {
@@ -482,18 +541,76 @@ export async function deleteAccountRows(sql: Sql, userId: string): Promise<Delet
     const connections = await tx<{ refresh_token_enc: string }>`
       select refresh_token_enc from integration_connections where user_id = ${userId}
     `;
+    // Members' and owners' businesses leave the deleted firm. A business its
+    // owner shared with the firm goes back to the owner as a hand-back leaves
+    // it (handBackGranted), and invitations still waiting on this address close.
+    const granted = await tx<{ user_id: string; id: string }>`
+      select user_id, id from businesses
+      where firm_user_id = ${userId} and user_id <> ${userId} and granted_at is not null
+      for update
+    `;
+    for (const row of granted) await handBackGranted(tx, row.user_id, row.id);
+    // The client businesses members set up for the firm stay theirs.
     await tx`
-      update businesses set firm_user_id = null
+      update businesses set firm_user_id = null, granted_at = null
       where firm_user_id = ${userId} and user_id <> ${userId}
     `;
+    await tx`
+      update business_firm_grants set revoked_at = now()
+      where revoked_at is null and accepted_at is null
+        and lower(invited_email) = lower((select email from "user" where id = ${userId}))
+    `;
+    await logDeparture(tx, userId);
     await tx`delete from assessment_snapshots where user_id = ${userId}`;
     await tx`delete from llm_daily_usage where scope = ${userScope(userId)}`;
+    // A firm owner's account takes its firm's activity log with it; the log
+    // refuses that delete outside the bypass (migration 0048).
+    await withAuditBypass(tx);
     await tx`delete from "user" where "id" = ${userId}`;
     return {
       quickBooksRefreshTokens: connections.map((c) => c.refresh_token_enc),
       stripeCustomerId,
     };
   });
+}
+
+/**
+ * Records, in each other firm's activity log, what the account's deletion
+ * takes from it: the account leaving a firm it is a member of, and each
+ * business it owns that it had shared with a firm. Its own firm's log goes
+ * with the account. Inside the deletion's transaction, so the rows and the
+ * deletion commit together.
+ */
+async function logDeparture(tx: Sql, userId: string): Promise<void> {
+  const memberships = await tx<{ firm_user_id: string }>`
+    select m.firm_user_id from firm_members m join firms f on f.user_id = m.firm_user_id
+    where m.member_user_id = ${userId} and m.firm_user_id <> ${userId}
+    order by m.joined_at
+  `;
+  for (const m of memberships) {
+    await insertAudit(tx, {
+      firmUserId: m.firm_user_id,
+      actorUserId: userId,
+      event: "member_left",
+      subjectUserId: userId,
+      detail: { reason: "account_deleted" },
+    });
+  }
+  const shared = await tx<{ id: string; firm_user_id: string }>`
+    select id, firm_user_id from businesses
+    where user_id = ${userId} and firm_user_id is not null and firm_user_id <> ${userId}
+      and granted_at is not null
+    order by id
+  `;
+  for (const b of shared) {
+    await insertAudit(tx, {
+      firmUserId: b.firm_user_id,
+      actorUserId: userId,
+      event: "client_handed_back",
+      businessId: b.id,
+      detail: { by: "owner", reason: "account_deleted" },
+    });
+  }
 }
 
 /** Refuses while the Firm plan runs; otherwise the Stripe customer id to delete, if any. */
@@ -516,6 +633,7 @@ async function refuseWhileHoldingFirmClients(tx: Sql, userId: string): Promise<v
     select f.name as firm_name, count(*) as n
     from businesses b join firms f on f.user_id = b.firm_user_id
     where b.user_id = ${userId} and b.firm_user_id <> ${userId} and b.deleted_at is null
+      and b.granted_at is null
     group by f.name
     order by count(*) desc
     limit 1
@@ -546,9 +664,10 @@ async function readBusinesses(tx: Sql, userId: string): Promise<AccountExport["b
     revision: number | string;
     updated_at: string;
     deleted_at: string | null;
+    granted_at: string | null;
     profile: unknown;
   }>`
-    select id, name, industry, revision, updated_at, deleted_at, profile
+    select id, name, industry, revision, updated_at, deleted_at, granted_at, profile
     from businesses where user_id = ${userId} order by updated_at desc
   `;
   return rows.map((b) => ({
@@ -558,7 +677,36 @@ async function readBusinesses(tx: Sql, userId: string): Promise<AccountExport["b
     revision: Number(b.revision),
     updatedAt: toIsoTimestamp(b.updated_at),
     deletedAt: toIsoTimestampOrNull(b.deleted_at),
+    grantedAt: toIsoTimestampOrNull(b.granted_at),
     profile: b.profile,
+  }));
+}
+
+async function readFirmGrants(tx: Sql, userId: string): Promise<AccountExport["firmGrants"]> {
+  const rows = await tx<{
+    business_id: string;
+    invited_email: string;
+    created_at: string;
+    expires_at: string;
+    accepted_at: string | null;
+    revoked_at: string | null;
+    firm_name: string | null;
+  }>`
+    select g.business_id, g.invited_email, g.created_at, g.expires_at, g.accepted_at,
+      g.revoked_at, f.name as firm_name
+    from business_firm_grants g
+    left join firms f on f.user_id = g.firm_user_id
+    where g.business_owner_id = ${userId}
+    order by g.created_at desc
+  `;
+  return rows.map((g) => ({
+    businessId: g.business_id,
+    invitedEmail: g.invited_email,
+    createdAt: toIsoTimestamp(g.created_at),
+    expiresAt: toIsoTimestamp(g.expires_at),
+    acceptedAt: toIsoTimestampOrNull(g.accepted_at),
+    revokedAt: toIsoTimestampOrNull(g.revoked_at),
+    firmName: g.firm_name,
   }));
 }
 
@@ -622,11 +770,22 @@ async function readReportVersions(
     firm_name: string | null;
     firm_letterhead: string | null;
     firm_logo_data_url: string | null;
+    engagement_scope: string | null;
+    engagement_period_start: string | null;
+    engagement_period_end: string | null;
+    review_requested_at: string | null;
+    review_requested_by: string | null;
+    review_requested_from: string | null;
+    returned_at: string | null;
+    returned_by: string | null;
+    return_note: string;
     profile: unknown;
   }>`
     select id, business_id, version_no, revision, scope_note, prepared_by, prepared_at,
       reviewed_by, reviewed_at, review_note, sent_at, firm_name, firm_letterhead,
-      firm_logo_data_url, profile
+      firm_logo_data_url, engagement_scope, engagement_period_start, engagement_period_end,
+      review_requested_at, review_requested_by, review_requested_from, returned_at,
+      returned_by, return_note, profile
     from report_versions where user_id = ${userId}
     order by business_id, version_no desc
   `;
@@ -650,6 +809,22 @@ async function readReportVersions(
             letterhead: r.firm_letterhead ?? "",
             logoDataUrl: r.firm_logo_data_url,
           },
+    engagement:
+      r.engagement_scope === null &&
+      r.engagement_period_start === null &&
+      r.engagement_period_end === null
+        ? null
+        : {
+            scope: r.engagement_scope ?? "",
+            periodStart: r.engagement_period_start,
+            periodEnd: r.engagement_period_end,
+          },
+    reviewRequestedAt: toIsoTimestampOrNull(r.review_requested_at),
+    reviewRequestedBy: r.review_requested_by,
+    reviewRequestedFrom: r.review_requested_from,
+    returnedAt: toIsoTimestampOrNull(r.returned_at),
+    returnedBy: r.returned_by,
+    returnNote: r.return_note,
     profile: r.profile,
   }));
 }
@@ -712,9 +887,10 @@ async function readFirm(tx: Sql, userId: string): Promise<AccountExport["firm"]>
     letterhead: string;
     logo_data_url: string | null;
     cover_page: boolean;
+    retention_years: number | string;
     updated_at: string;
   }>`
-    select name, plan, letterhead, logo_data_url, cover_page, updated_at
+    select name, plan, letterhead, logo_data_url, cover_page, retention_years, updated_at
     from firms where user_id = ${userId}
   `;
   const firm = rows[0];
@@ -725,6 +901,7 @@ async function readFirm(tx: Sql, userId: string): Promise<AccountExport["firm"]>
         letterhead: firm.letterhead,
         logoDataUrl: firm.logo_data_url,
         coverPage: Boolean(firm.cover_page),
+        retentionYears: Number(firm.retention_years),
         updatedAt: toIsoTimestamp(firm.updated_at),
       }
     : null;
@@ -800,9 +977,17 @@ async function readEngagements(tx: Sql, userId: string): Promise<AccountExport["
     open_findings: number | string | null;
     accepted_findings: number | string;
     owner_email: string | null;
+    scope: string;
+    period_start: string | null;
+    period_end: string | null;
+    status: string;
+    ended_at: string | null;
+    preparer_user_id: string | null;
+    reviewer_user_id: string | null;
   }>`
     select business_id, started_at, map_completed_at, report_sent_at, open_findings,
-      accepted_findings, owner_email
+      accepted_findings, owner_email, scope, period_start, period_end, status, ended_at,
+      preparer_user_id, reviewer_user_id
     from engagement_marks where user_id = ${userId}
   `;
   return rows.map((e) => ({
@@ -813,6 +998,13 @@ async function readEngagements(tx: Sql, userId: string): Promise<AccountExport["
     openFindings: e.open_findings === null ? null : Number(e.open_findings),
     acceptedFindings: Number(e.accepted_findings),
     ownerEmail: e.owner_email ?? null,
+    scope: e.scope,
+    periodStart: e.period_start,
+    periodEnd: e.period_end,
+    status: e.status,
+    endedAt: toIsoTimestampOrNull(e.ended_at),
+    preparerUserId: e.preparer_user_id,
+    reviewerUserId: e.reviewer_user_id,
   }));
 }
 
@@ -923,10 +1115,11 @@ async function readBilling(tx: Sql, userId: string): Promise<AccountExport["bill
     assessment_refunded_at: string | null;
     assessment_disputed_at: string | null;
     current_period_end: string | null;
+    subscription_price_id: string | null;
   }>`
     select stripe_customer_id, subscription_id, subscription_status, assessment_paid_at,
       assessment_payment_intent, assessment_refunded_at, assessment_disputed_at,
-      current_period_end
+      current_period_end, subscription_price_id
     from billing_accounts where user_id = ${userId}
   `;
   const b = rows[0];
@@ -940,6 +1133,7 @@ async function readBilling(tx: Sql, userId: string): Promise<AccountExport["bill
         assessmentRefundedAt: toIsoTimestampOrNull(b.assessment_refunded_at),
         assessmentDisputedAt: toIsoTimestampOrNull(b.assessment_disputed_at),
         currentPeriodEnd: toIsoTimestampOrNull(b.current_period_end),
+        subscriptionPriceId: b.subscription_price_id,
       }
     : null;
 }

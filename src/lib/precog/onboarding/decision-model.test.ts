@@ -5,7 +5,10 @@ import {
   onboardingCompletion,
   orderedOnboardingQuestions,
   orderedSetupMethods,
+  requiresMappingScope,
   withComplexityAnswer,
+  withMappingScope,
+  withWorkforceBand,
   workforceBandForCount,
   type OnboardingFacts,
 } from "./decision-model";
@@ -24,7 +27,7 @@ describe("adaptive onboarding branches", () => {
     const small = factsFor(12);
     const large = factsFor(120);
     expect(orderedSetupMethods(small)).toEqual(["person_grid", "roster_import", "job_groups"]);
-    expect(orderedSetupMethods(large)).toEqual(["roster_import", "job_groups", "person_grid"]);
+    expect(orderedSetupMethods(large)).toEqual(["roster_import", "job_groups"]);
     expect(orderedOnboardingQuestions(small).map((question) => question.id)).not.toEqual(
       orderedOnboardingQuestions(large).map((question) => question.id),
     );
@@ -33,6 +36,42 @@ describe("adaptive onboarding branches", () => {
         .map((question) => question.id)
         .slice(0, 5),
     ).toEqual(["actor", "workforce", "locations", "setup_method", "mapping_scope"]);
+  });
+
+  it("changing size clears only a setup method that is no longer available", () => {
+    const small = {
+      ...factsFor(12),
+      setupMethod: "person_grid" as const,
+      answers: { runs_payroll: "yes" as const },
+    };
+    expect(withWorkforceBand(small, "100-249")).toMatchObject({
+      workforceBand: "100-249",
+      setupMethod: undefined,
+      actor: "business_leader",
+      locationBand: "1",
+      answers: { runs_payroll: "yes" },
+    });
+    expect(
+      withWorkforceBand({ ...small, setupMethod: "roster_import" }, "100-249").setupMethod,
+    ).toBe("roster_import");
+  });
+
+  it("requires scope for a 100+ workforce or any roster held outside the review grid", () => {
+    expect(requiresMappingScope(factsFor(120))).toBe(true);
+    expect(requiresMappingScope(factsFor(12), 60)).toBe(true);
+    expect(requiresMappingScope(factsFor(12), 0)).toBe(false);
+  });
+
+  it("changing scope preserves independent setup and complexity answers", () => {
+    const current = {
+      ...factsFor(120),
+      setupMethod: "roster_import" as const,
+      answers: { runs_payroll: "unknown" as const },
+    };
+    expect(withMappingScope(current, "one_team")).toEqual({
+      ...current,
+      mappingScope: "one_team",
+    });
   });
 
   it("invalidates a dependent answer when its parent changes to no", () => {

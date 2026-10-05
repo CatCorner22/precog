@@ -57,6 +57,9 @@ describe("overBudget", () => {
       "/pricing",
       "/welcome",
       "/share/report/x",
+      "/firm",
+      "/operator",
+      "/join/client/x",
     ]);
     for (const budget of Object.values(PAGE_BUDGETS_KB)) {
       expect(Number.isInteger(budget) && budget > 0).toBe(true);

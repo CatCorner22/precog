@@ -114,6 +114,13 @@
  * batch. Total budget raised once, from 800 KB to 825 KB, so every wave's
  * verify holds; the PR states the total after the last wave, and the budget
  * is lowered then if the batch lands well under it.
+ *
+ * 2026-10-05: main gains the money-flow setup step (#201) and the setup
+ * questions and roster scope step (#200, #202), which measure 811.3 KB on
+ * main alone. With commercial batch 3 on top the total measures 827.1 KB
+ * in 131 chunks, against 820.4 KB for batch 3 on the earlier main. Total
+ * budget raised from 825 KB to 832 KB. The control failure panel (#205)
+ * then brings the total to 830.8 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -122,7 +129,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 825 * 1024,
+  totalGzipBytes: 832 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

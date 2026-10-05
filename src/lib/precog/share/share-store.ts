@@ -4,7 +4,8 @@ import { RequestError } from "@/lib/request-errors";
 import {
   loadFrozenReport,
   loadReportVersion,
-  reportFirmName,
+  versionFirmName,
+  withoutReviewRouting,
   type FrozenReportRow,
   type ReportVersionRow,
 } from "../firm/reports";
@@ -139,24 +140,31 @@ const SHARE_LIST_COLUMNS = `
 const SHARE_LIST_JOINS = `left join report_versions rv on rv.id = s.report_version_id`;
 
 /**
+ * Whether the firm owner `owner` (a query placeholder, such as `$1`) reaches
+ * link `s`: a link to one of the firm's clients, except one the business's
+ * own account made to a business it shared with the firm. That link stays
+ * the account's alone, as ending the firm's access leaves it (endGrant).
+ */
+const firmOwnerReaches = (owner: string) => `exists (
+  select 1 from businesses b
+  where b.user_id = s.business_owner_id and b.id = s.business_id
+    and b.firm_user_id = ${owner}
+    and not (b.granted_at is not null and s.user_id = b.user_id)
+)`;
+
+/**
  * The owner's links: every live one, however many, then the newest revoked
  * or expired ones. The share panel only offers "revoke" for a listed link, so
  * a live link must never drop off the list behind newer dead ones. A firm
  * owner also sees the links colleagues made on the firm's clients, live and
- * past, so they can revoke the live ones and audit the rest.
+ * past, so they can revoke the live ones and audit the rest
+ * (`firmOwnerReaches`).
  */
 export async function listMapShareSummaries(sql: Sql, userId: string): Promise<ShareSummary[]> {
   const live = await sql.query<ShareListRow>(
     `select ${SHARE_LIST_COLUMNS}
      from map_shares s ${SHARE_LIST_JOINS}
-     where (
-         s.user_id = $1
-         or exists (
-           select 1 from businesses b
-           where b.user_id = s.business_owner_id and b.id = s.business_id
-             and b.firm_user_id = $1
-         )
-       )
+     where (s.user_id = $1 or ${firmOwnerReaches("$1")})
        and s.revoked_at is null
        and (s.expires_at is null or s.expires_at > now())
      order by s.created_at desc`,
@@ -165,14 +173,7 @@ export async function listMapShareSummaries(sql: Sql, userId: string): Promise<S
   const inactive = await sql.query<ShareListRow>(
     `select ${SHARE_LIST_COLUMNS}
      from map_shares s ${SHARE_LIST_JOINS}
-     where (
-         s.user_id = $1
-         or exists (
-           select 1 from businesses b
-           where b.user_id = s.business_owner_id and b.id = s.business_id
-             and b.firm_user_id = $1
-         )
-       )
+     where (s.user_id = $1 or ${firmOwnerReaches("$1")})
        and (s.revoked_at is not null or (s.expires_at is not null and s.expires_at <= now()))
      order by s.created_at desc
      limit $2`,
@@ -199,11 +200,13 @@ export async function listMapShareSummaries(sql: Sql, userId: string): Promise<S
 
 /**
  * Why a locked version cannot be shared as an issued report, or null when it
- * can: report links are for a firm's client businesses, only a version
- * reviewed for issuance, and only one that stores the figures it printed (a
- * version without them recalculates with today's scoring, which is not what
- * was issued). The caller has already checked that `ownerUserId` may open
- * the version.
+ * can: report links are for a firm's client businesses (or, with
+ * `allowSolo`, a business whose owner is in no firm and whose plan allows
+ * locked versions; the caller decides that), only a version reviewed for
+ * issuance, and only one that stores the figures it printed (a version
+ * without them recalculates with today's scoring, which is not what was
+ * issued). The caller has already checked that `ownerUserId` may open the
+ * version.
  */
 export const REPORT_SHARE_REFUSAL = {
   solo: "Report links are for a firm's client businesses. Add the business to your firm to share its report.",
@@ -216,6 +219,7 @@ export async function reportShareRefusal(
   sql: Sql,
   ownerUserId: string,
   versionId: string,
+  { allowSolo = false }: { allowSolo?: boolean } = {},
 ): Promise<string | null> {
   const rows = await sql<{ firm_client: boolean; reviewed: boolean; has_figures: boolean }>`
     select b.firm_user_id is not null as firm_client,
@@ -227,7 +231,7 @@ export async function reportShareRefusal(
   `;
   const row = rows[0];
   if (!row) return "That report version does not exist";
-  if (!row.firm_client) return REPORT_SHARE_REFUSAL.solo;
+  if (!row.firm_client && !allowSolo) return REPORT_SHARE_REFUSAL.solo;
   if (!row.reviewed) return REPORT_SHARE_REFUSAL.unreviewed;
   if (!row.has_figures) return REPORT_SHARE_REFUSAL.noFigures;
   return null;
@@ -292,26 +296,46 @@ export async function loadReportShareRow(sql: Sql, token: string): Promise<Repor
   };
 }
 
+/** What a revoke did, and the business the link copies (null on a link made before links recorded it). */
+export interface RevokedShare {
+  outcome: "revoked" | "already";
+  businessOwnerId: string | null;
+  businessId: string | null;
+}
+
 /**
  * Revokes one link for the account that made it, or for the firm owner when
- * the link copies one of the firm's clients. Returns false when the caller
- * may not revoke it (or it does not exist).
+ * the link copies one of the firm's clients (`firmOwnerReaches`), and says
+ * whether this call ended the link: "revoked" when it was live until now,
+ * "already" when it was revoked before, null when the caller may not revoke
+ * it (or it does not exist). The row lock makes two revokes at once read one
+ * "revoked" and one "already". The business comes from the row the update
+ * touched, for the activity log.
  */
-export async function revokeShare(sql: Sql, userId: string, token: string): Promise<boolean> {
-  const rows = await sql<{ token: string }>`
-    update map_shares s set revoked_at = coalesce(s.revoked_at, now())
-    where s.token = ${token}
-      and (
-        s.user_id = ${userId}
-        or exists (
-          select 1 from businesses b
-          where b.user_id = s.business_owner_id and b.id = s.business_id
-            and b.firm_user_id = ${userId}
-        )
-      )
-    returning s.token
-  `;
-  return rows.length > 0;
+export async function revokeShareOnce(
+  sql: Sql,
+  userId: string,
+  token: string,
+): Promise<RevokedShare | null> {
+  const rows = await sql.query<{
+    was_live: boolean;
+    business_owner_id: string | null;
+    business_id: string | null;
+  }>(
+    `update map_shares s set revoked_at = coalesce(s.revoked_at, now())
+     from (select token, revoked_at from map_shares where token = $1 for update) prev
+     where s.token = prev.token
+       and (s.user_id = $2 or ${firmOwnerReaches("$2")})
+     returning prev.revoked_at is null as was_live, s.business_owner_id, s.business_id`,
+    [token, userId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    outcome: row.was_live ? "revoked" : "already",
+    businessOwnerId: row.business_owner_id,
+    businessId: row.business_id,
+  };
 }
 
 /**
@@ -366,7 +390,9 @@ export async function revokeBusinessShares(
  * the firm's clients, the ones they set up included (those stay with the
  * firm, and the member loses access), and the member's links made before
  * links recorded their business (which cannot be told apart). Colleagues'
- * links to the clients the member set up keep working. Run before the
+ * links to the clients the member set up keep working, and so do the
+ * member's links to their own business they shared with the firm, which
+ * stays theirs (decision 29). Run before the
  * member's clients are handed to the owner, while the rows still name them.
  */
 export async function revokeDepartingMemberShares(
@@ -384,6 +410,9 @@ export async function revokeDepartingMemberShares(
           select 1 from businesses b
           where b.user_id = s.business_owner_id and b.id = s.business_id
             and b.firm_user_id = ${firmUserId}
+            -- The member's own business, shared with the firm, stays theirs
+            -- when they go, and so do their links to it.
+            and not (b.granted_at is not null and b.user_id = ${memberUserId})
         )
       )
   `;
@@ -424,7 +453,10 @@ export async function recordShareView(
 export interface SharedReport {
   version: ReportVersionRow;
   frozen: FrozenReportRow<StoredReportModel> | null;
-  /** The firm as frozen at lock, else its live name alone (a version locked before 0041). */
+  /**
+   * The firm as frozen at lock, else its live name alone for a version locked
+   * before 0041 that the firm reads (`versionFirmName`).
+   */
   firm: FirmSnapshot | null;
   /** The slice of the business the printed report reads (report-share-profile.ts). */
   profile: PracticeProfile;
@@ -434,7 +466,8 @@ export interface SharedReport {
  * The version a report link prints, as `getReport` loads it for a signed-in
  * viewer, with the profile cut down to what the report reads: the link hands
  * the version's names, duties and review results to whoever holds it, and
- * nothing the business wrote for itself. Null when the version is gone or
+ * nothing the business wrote for itself, nor the firm's review routing
+ * (withoutReviewRouting). Null when the version is gone or
  * not reviewed for issuance: a link never prints what issuance never cleared,
  * even if the review was cleared after the link was minted.
  */
@@ -451,7 +484,7 @@ export async function loadSharedReport(
   if (!loaded || !loaded.version.reviewedAt) return null;
   const [frozen, name] = await Promise.all([
     loadFrozenReport<StoredReportModel>(sql, row.ownerUserId, row.reportVersionId),
-    reportFirmName(sql, row.ownerUserId, row.businessId),
+    versionFirmName(sql, row.ownerUserId, row.reportVersionId),
   ]);
   const merged = mergeProfile(
     {
@@ -462,7 +495,9 @@ export async function loadSharedReport(
     today,
   );
   return {
-    version: loaded.version,
+    // Who a review was requested from, who returned it and the return note
+    // are the firm's own working notes: a public link never names them.
+    version: withoutReviewRouting(loaded.version),
     frozen,
     firm: loaded.version.firm ?? (name ? { name, letterhead: "", logoDataUrl: null } : null),
     profile: shareReportProfile({ ...merged, businessId: row.businessId }),

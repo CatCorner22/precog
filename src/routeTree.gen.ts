@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FirmRouteImport } from './routes/firm'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as OperatorRouteImport } from './routes/operator'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ReportRouteImport } from './routes/report'
@@ -29,6 +30,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCronDigestRouteImport } from './routes/api/cron/digest'
 import { Route as ApiResendWebhookRouteImport } from './routes/api/resend/webhook'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
+import { Route as JoinClientTokenRouteImport } from './routes/join/client/$token'
 import { Route as ShareReportTokenRouteImport } from './routes/share.report.$token'
 import { Route as ApiIntegrationsQboCallbackRouteImport } from './routes/api/integrations/qbo/callback'
 
@@ -45,6 +47,11 @@ const FirmRoute = FirmRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperatorRoute = OperatorRouteImport.update({
+  id: '/operator',
+  path: '/operator',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PricingRoute = PricingRouteImport.update({
@@ -132,6 +139,11 @@ const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   path: '/api/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JoinClientTokenRoute = JoinClientTokenRouteImport.update({
+  id: '/join/client/$token',
+  path: '/join/client/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShareReportTokenRoute = ShareReportTokenRouteImport.update({
   id: '/share/report/$token',
   path: '/share/report/$token',
@@ -148,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
+  '/operator': typeof OperatorRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
@@ -165,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/digest': typeof ApiCronDigestRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/join/client/$token': typeof JoinClientTokenRoute
   '/share/report/$token': typeof ShareReportTokenRoute
   '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
@@ -172,6 +186,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
+  '/operator': typeof OperatorRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
@@ -189,6 +204,7 @@ export interface FileRoutesByTo {
   '/api/cron/digest': typeof ApiCronDigestRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/join/client/$token': typeof JoinClientTokenRoute
   '/share/report/$token': typeof ShareReportTokenRoute
   '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
@@ -197,6 +213,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/firm': typeof FirmRoute
   '/login': typeof LoginRoute
+  '/operator': typeof OperatorRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/report': typeof ReportRoute
@@ -214,6 +231,7 @@ export interface FileRoutesById {
   '/api/cron/digest': typeof ApiCronDigestRoute
   '/api/resend/webhook': typeof ApiResendWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/join/client/$token': typeof JoinClientTokenRoute
   '/share/report/$token': typeof ShareReportTokenRoute
   '/api/integrations/qbo/callback': typeof ApiIntegrationsQboCallbackRoute
 }
@@ -223,6 +241,7 @@ export interface FileRouteTypes {
     | '/'
     | '/firm'
     | '/login'
+    | '/operator'
     | '/pricing'
     | '/privacy'
     | '/report'
@@ -240,6 +259,7 @@ export interface FileRouteTypes {
     | '/api/cron/digest'
     | '/api/resend/webhook'
     | '/api/stripe/webhook'
+    | '/join/client/$token'
     | '/share/report/$token'
     | '/api/integrations/qbo/callback'
   fileRoutesByTo: FileRoutesByTo
@@ -247,6 +267,7 @@ export interface FileRouteTypes {
     | '/'
     | '/firm'
     | '/login'
+    | '/operator'
     | '/pricing'
     | '/privacy'
     | '/report'
@@ -264,6 +285,7 @@ export interface FileRouteTypes {
     | '/api/cron/digest'
     | '/api/resend/webhook'
     | '/api/stripe/webhook'
+    | '/join/client/$token'
     | '/share/report/$token'
     | '/api/integrations/qbo/callback'
   id:
@@ -271,6 +293,7 @@ export interface FileRouteTypes {
     | '/'
     | '/firm'
     | '/login'
+    | '/operator'
     | '/pricing'
     | '/privacy'
     | '/report'
@@ -288,6 +311,7 @@ export interface FileRouteTypes {
     | '/api/cron/digest'
     | '/api/resend/webhook'
     | '/api/stripe/webhook'
+    | '/join/client/$token'
     | '/share/report/$token'
     | '/api/integrations/qbo/callback'
   fileRoutesById: FileRoutesById
@@ -296,6 +320,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   FirmRoute: typeof FirmRoute
   LoginRoute: typeof LoginRoute
+  OperatorRoute: typeof OperatorRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   ReportRoute: typeof ReportRoute
@@ -313,6 +338,7 @@ export interface RootRouteChildren {
   ApiCronDigestRoute: typeof ApiCronDigestRoute
   ApiResendWebhookRoute: typeof ApiResendWebhookRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
+  JoinClientTokenRoute: typeof JoinClientTokenRoute
   ShareReportTokenRoute: typeof ShareReportTokenRoute
   ApiIntegrationsQboCallbackRoute: typeof ApiIntegrationsQboCallbackRoute
 }
@@ -338,6 +364,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operator': {
+      id: '/operator'
+      path: '/operator'
+      fullPath: '/operator'
+      preLoaderRoute: typeof OperatorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pricing': {
@@ -459,6 +492,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/join/client/$token': {
+      id: '/join/client/$token'
+      path: '/join/client/$token'
+      fullPath: '/join/client/$token'
+      preLoaderRoute: typeof JoinClientTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/share/report/$token': {
       id: '/share/report/$token'
       path: '/share/report/$token'
@@ -480,6 +520,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   FirmRoute: FirmRoute,
   LoginRoute: LoginRoute,
+  OperatorRoute: OperatorRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   ReportRoute: ReportRoute,
@@ -497,6 +538,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronDigestRoute: ApiCronDigestRoute,
   ApiResendWebhookRoute: ApiResendWebhookRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
+  JoinClientTokenRoute: JoinClientTokenRoute,
   ShareReportTokenRoute: ShareReportTokenRoute,
   ApiIntegrationsQboCallbackRoute: ApiIntegrationsQboCallbackRoute,
 }

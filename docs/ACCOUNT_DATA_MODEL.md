@@ -59,7 +59,25 @@ introduced this model is in
   Deleting also removes the business's active pointers in the same
   transaction.
 - The weekly scheduled job purges businesses past their grace period
-  (`/api/cron/digest`). After the purge a deletion marker remains
+  (`/api/cron/digest`), except a firm's client that holds a locked report
+  version and that its owner did not share with the firm: that row stays
+  soft-deleted (unseen, and not restorable once the grace period is over)
+  until its firm's `retention_years` have passed since the deletion, so its
+  locked versions, monthly review log and engagement row stay with it
+  (`KEPT_FOR_RETENTION` in `src/lib/precog/business-store.ts`). No data is
+  written to keep it; the purge simply skips it. Two account deletions end
+  the period early. The account that set up the client (the row's
+  `user_id`) takes it at once through the cascade, kept or not: a member can
+  delete their account once every client they set up is deleted, because
+  `refuseWhileHoldingFirmClients` in `src/lib/precog/account-store.ts`
+  counts only live clients. The firm owner's account deletion clears
+  `firm_user_id` on its members' businesses, deleted ones included
+  (`deleteAccountRows`), so their kept clients stop matching and the next
+  weekly purge removes each once its 30 days have passed; for the same
+  reason the predicate's fallback of 7 years for a missing `firms` row is
+  never reached today. The Terms and Privacy say both. After a purge, review-log and engagement rows whose business is gone
+  are deleted too (`deleteOrphanedClientAudit` in
+  `src/lib/precog/firm/store.ts`). After the purge a deletion marker remains
   (`migrations/0023_business_deletion_markers.sql`): identity references and
   the deletion time, no profile. It stops a client with no revision from
   recreating a deleted id. Restoring removes the marker; deleting the account
@@ -98,12 +116,20 @@ introduced this model is in
   gets a new id (`<old id>-<8 hex>`); the owner's Firm page names it, and the
   member's open tab meets the usual "no longer available" refusal on its next
   save. The owner's per-account ceiling is not checked (nothing is created).
+  A business the member owns and shared with the firm (`granted_at` set) does
+  not move: it stays the member's, the firm keeps working on it, and the
+  member's own links on it survive. The firm's activity-log rows are not
+  repointed: they stay with the firm and keep the business id they were
+  written with.
 - The firm owner can hand the firm to a member (`transferFirmOwnership` in
-  `src/lib/precog/firm/store.ts`): a new `firms` row under the new owner,
+  `src/lib/precog/firm/store.ts`): a new `firms` row under the new owner
+  (name, plan, letterhead, logo, cover page and retention period carried),
   every row that names the firm repointed (members, invitations, client
-  businesses, deletion markers, the billing row), the old row deleted last;
-  the new owner's role becomes owner and the old owner's reviewer. Refused
-  while the firm's payment is overdue or disputed.
+  businesses, deletion markers, the billing row, accepted client
+  invitations, `report_versions.firm_user_id`, and the activity log under
+  the bypass, so the firm's history outlives the previous owner's account),
+  the old row deleted last; the new owner's role becomes owner and the old
+  owner's reviewer. Refused while the firm's payment is overdue or disputed.
 - `product_events` (migration 0042) keeps one row per account and milestone
   (first business, first locked version, first report sent, first monthly
   review): the account id, the business id with no foreign key, and a time.
@@ -117,6 +143,82 @@ introduced this model is in
 - A shared locked report is a `map_shares` row with `report_version_id` set
   (migration 0040), so it dies with the version and with the account like a
   shared map does.
+
+## Firm clients after batch 3 (migrations 0045 to 0050)
+
+- Engagement (0045): the client's `engagement_marks` row also holds the
+  engagement: `scope`, `period_start`, `period_end`, `status` (`active` or
+  `ended`), `ended_at`, `preparer_user_id` and `reviewer_user_id` (both set
+  to null when that account is deleted, and read as not set once the person
+  has left the firm). An ended engagement is read-only for the firm's
+  members (`assertEngagementOpen`, called from every save and change path);
+  the business's own account is unaffected when it is not a member of that
+  firm (an owner who is one is refused like any member), and reads,
+  exports, the archive and deletion stay open. Locking a version copies the scope and period
+  into `report_versions.engagement_scope`, `engagement_period_start` and
+  `engagement_period_end`, which the version prints from; versions locked
+  before 0045 hold nulls and print no engagement line.
+- Retention (0045): `firms.retention_years`, default 7. The database allows
+  1 to 50; Precog lets a firm owner pick 7 to 15 (`RETENTION_YEARS_MIN` and
+  `RETENTION_YEARS_MAX` in `src/lib/precog/firm/engagement-row.ts`), so a
+  lower floor is a constant change, not a constraint change. It sets how
+  long a deleted client holding a locked version is kept (above) and how
+  long each activity-log entry lives.
+- Client invitations (0046): `business_firm_grants` holds a business
+  owner's invitation to a firm (token, invited address, 14 days to accept,
+  who accepted and when, revoked). On acceptance `businesses.firm_user_id`
+  becomes the firm and `businesses.granted_at` is stamped; `user_id` never
+  changes, so the business stays the owner's. Ending the access, by the
+  owner or by the firm owner, clears both columns, revokes the links the
+  firm's members made on the business and resets the engagement (scope,
+  period, preparer, reviewer, status). A firm owner's account deletion hands
+  back every business shared with that firm the same way; the business
+  owner's account deletion removes the business with the account, and the
+  firm's log records it as handed back. A shared business counts toward the
+  firm's client limit, never moves in a member hand-over, cannot be deleted
+  or restored by the firm, and is purged 30 days after its owner deletes it.
+- Versions a firm locked (0046): `report_versions.firm_user_id` (no foreign
+  key, so the value outlives the firm owner's account) is the firm a
+  version was locked for. A firm member reads a version only when it equals
+  the business's `firm_user_id`, or it is null (locked before 0046) on a
+  business that was never shared (`FIRM_READS_VERSION` in
+  `src/lib/precog/firm/reports.ts`). So after a hand-back, or a later
+  invitation to another firm, a firm reads none of the versions another
+  firm locked. The business's own account reads every version.
+- Request and return (0047): `review_requested_at`, `review_requested_by`,
+  `review_requested_from`, `returned_at`, `returned_by` and `return_note`
+  (1 to 600 characters) on `report_versions`, all stamps. The request goes to
+  the engagement's reviewer when they can review it now, else the firm
+  owner, else to every member who can (owner or reviewer, and not its
+  preparer). A returned version stays as it was locked; the preparer locks a
+  new one.
+- Activity log (0048): `firm_audit_log`, one row per event (the event list
+  is the table's check constraint), keyed by the firm owner's account
+  (`firm_user_id`, cascading with it) with the actor's id and their name as
+  it was (no foreign key on the actor, so a departed member's rows still
+  read). A trigger refuses every `update` and `delete`, Precog's included,
+  unless the transaction set `precog.audit_bypass` (a custom setting any
+  connection can set, so the trigger stops mistakes); Precog sets it in the
+  firm owner's account deletion, the retention purge and the ownership
+  transfer, which repoints the rows to the new owner. A member hand-over
+  repoints nothing. The weekly run deletes each row once it is older than
+  its firm's `retention_years` (7 when the firm's row is gone), each by its
+  own age, not by a client's deletion date (`purgeExpiredAudit` in
+  `src/lib/precog/firm/audit.server.ts`). The firm owner's account export
+  carries the log as `firmActivity`. The same migration freezes what a
+  locked version printed: a second trigger refuses any update of those
+  columns, with no bypass. It has no delete trigger: the purge and the
+  account deletion remove versions through the cascade from `businesses`,
+  and a direct delete is not refused either.
+- Model-call records (0049): `llm_usage`, one row per call (account,
+  feature, model, prompt and completion tokens, outcome, time; no text),
+  deleted with the account and purged after 13 months by the weekly run;
+  the view `llm_usage_daily` sums them by day, feature and model, and the
+  account export carries the account's totals per feature (`modelUsage`).
+- Tier price (0050): `billing_accounts.subscription_price_id`, the Stripe
+  price a subscription runs on, which names its tier and so its client
+  limit; null until the next subscription event, and a running plan with a
+  null price keeps 50 clients.
 
 ## Releasing changes to this model
 
@@ -137,6 +239,12 @@ when rolling forward to a fix.
   migration applied.
 - `src/lib/precog/account-store.test.ts`: deleting an account removes what it
   owns and leaves other accounts intact.
+- `src/lib/precog/firm/grant-store.test.ts`, `engagement-store.test.ts`,
+  `business-role.test.ts` and `audit.server.test.ts`: client invitations
+  and their hand-back, the engagement and its read-only state, the firm's
+  role on a shared business, and the activity log's triggers and purge;
+  `audit-writers.test.ts` fails when a firm-changing server function writes
+  no log row and names no reason.
 - `src/lib/precog/business-lifecycle-safety.test.ts`: the same lifecycle
   against PGLite on every `npm test`, and in CI against a disposable Postgres
   schema with up to eight connections (simultaneous updates, the business

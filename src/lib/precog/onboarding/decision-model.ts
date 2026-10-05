@@ -124,11 +124,34 @@ const isLarge = (facts: OnboardingFacts) =>
     ? facts.workforceCount >= 100
     : facts.workforceBand === "100-249" || facts.workforceBand === "250+";
 
+/** Large organizations and imports held outside the review grid need an explicit scope statement. */
+export const requiresMappingScope = (facts: OnboardingFacts, unresolvedRows = 0) =>
+  isLarge(facts) || unresolvedRows > 0;
+
+/** Scope is independent of size, setup method, and complexity answers. */
+export function withMappingScope(
+  facts: OnboardingFacts,
+  mappingScope: MappingScope,
+): OnboardingFacts {
+  return { ...facts, mappingScope };
+}
+
 /** Entry methods in the order Precog offers them for this organization. */
 export function orderedSetupMethods(facts: OnboardingFacts): readonly SetupMethod[] {
   return isLarge(facts)
-    ? ["roster_import", "job_groups", "person_grid"]
+    ? ["roster_import", "job_groups"]
     : ["person_grid", "roster_import", "job_groups"];
+}
+
+/** Change organization size and clear only a setup choice that no longer applies. */
+export function withWorkforceBand(
+  facts: OnboardingFacts,
+  workforceBand: WorkforceBand,
+): OnboardingFacts {
+  const next = { ...facts, workforceBand, workforceCount: undefined };
+  return next.setupMethod && !orderedSetupMethods(next).includes(next.setupMethod)
+    ? { ...next, setupMethod: undefined }
+    : next;
 }
 
 /** Questions in presentation order, with unmet dependent questions omitted. */

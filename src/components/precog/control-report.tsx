@@ -82,12 +82,15 @@ export function ControlReport({
   firm = null,
   coverPage = false,
   shared = false,
+  sharedOwner = false,
 }: {
   locked?: ReportVersionRow | null;
   frozen?: Pick<FrozenReport, "layoutVersion" | "model"> | null;
   firm?: FirmSnapshot | null;
   coverPage?: boolean;
   shared?: boolean;
+  /** The viewer is the business's own account on a business it shared with a firm: the firm marks the report sent. */
+  sharedOwner?: boolean;
 }) {
   const { profile, mapCustomized, markReportSent } = usePractice();
   const tpl = useTemplate();
@@ -195,7 +198,8 @@ export function ControlReport({
                   Back to the current report
                 </Link>
               ) : (
-                !sample && (
+                !sample &&
+                !sharedOwner && (
                   <>
                     <span role="status" className="text-xs text-neutral-600">
                       {sentAt ? `Marked sent on ${formatDay(sentAt)}` : ""}

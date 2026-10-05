@@ -14,6 +14,9 @@ import {
 } from "@/lib/precog/firm/reviews";
 import { recordMonthlyReview } from "@/lib/precog/firm/server";
 import { getQuickBooksStatus } from "@/lib/precog/integrations/qbo/server";
+import { getControlExecutionLog } from "@/lib/precog/controls/executions/server";
+import type { ExecutionStatus } from "@/lib/precog/controls/executions/model";
+import { evidenceLogLine, monthlyRunIds, readMonthlyEvidence } from "./monthly-review-evidence";
 import { monthlyWorkpaperFacts, type WorkpaperFact } from "@/lib/precog/firm/workpaper";
 import { clientErrorStatus } from "@/lib/request-errors";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
@@ -28,14 +31,37 @@ export function MonthlyReview() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [facts, setFacts] = useState<WorkpaperFact[] | null>(null);
+  // The evidence log's state of each monthly run this month, read when signed
+  // in and again after a result is recorded; null until read or on failure.
+  // `read` names the account, business and month it was read for, so another
+  // business's states never print while its own read is under way.
+  const [evidence, setEvidence] = useState<{
+    read: string;
+    statuses: Map<string, ExecutionStatus>;
+  } | null>(null);
+  const [evidenceRead, setEvidenceRead] = useState(0);
+  const period = tasks[0]?.period ?? null;
+  // The month's run ids as one string, so the effect below keys on a value.
+  const itemKeys = tasks.map((t) => t.key);
+  const runIds = period ? monthlyRunIds(period, itemKeys).join(" ") : "";
+  // The effects key on the account id, never on `user`: the session hook
+  // builds a new user object on every render, so an effect keyed on it would
+  // run again after each answer it set, and keep calling the server.
+  const userId = user?.id ?? null;
+  // The shared preview account (auth off) is refused by the evidence log, as
+  // the Control evidence panel says; the monthly review does not ask.
+  const evidenceAccountId = user && !user.isDevFallback ? user.id : null;
+  const businessId = profile.businessId ?? null;
+  const evidenceFor = `${evidenceAccountId} ${businessId} ${period}`;
+  const evidenceShown = evidence?.read === evidenceFor ? evidence.statuses : null;
 
   useEffect(() => {
-    if (!user || !profile.businessId) {
+    if (!userId || !businessId) {
       setFacts(monthlyWorkpaperFacts(null));
       return;
     }
     let cancel = false;
-    void getQuickBooksStatus({ data: { businessId: profile.businessId } })
+    void getQuickBooksStatus({ data: { businessId } })
       .then((status) => {
         if (!cancel) setFacts(monthlyWorkpaperFacts(status.drift));
       })
@@ -45,7 +71,32 @@ export function MonthlyReview() {
     return () => {
       cancel = true;
     };
-  }, [user, profile.businessId]);
+  }, [userId, businessId]);
+
+  useEffect(() => {
+    if (!evidenceAccountId || !businessId || !period || !runIds) {
+      setEvidence(null);
+      return;
+    }
+    let cancel = false;
+    void readMonthlyEvidence(
+      (cursor) =>
+        getControlExecutionLog({
+          data: { businessId, expectedAccountId: evidenceAccountId, period, cursor },
+        }),
+      runIds.split(" "),
+      () => cancel,
+    )
+      .then((statuses) => {
+        if (!cancel && statuses) setEvidence({ read: evidenceFor, statuses });
+      })
+      .catch(() => {
+        if (!cancel) setEvidence(null);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [evidenceAccountId, businessId, period, runIds, evidenceFor, evidenceRead]);
 
   async function save(
     key: (typeof tasks)[number]["key"],
@@ -74,6 +125,7 @@ export function MonthlyReview() {
           today: localDateKey(new Date()),
         },
       }).then((res) => {
+        setEvidenceRead((n) => n + 1);
         if (result === "skipped") {
           toast.success("Skipped for this month on this business.");
           return;
@@ -149,6 +201,7 @@ export function MonthlyReview() {
       <ul className="mt-4 space-y-4">
         {tasks.map((task) => {
           const latest = latestReview(records, task.key, task.period);
+          const logLine = evidenceLogLine(evidenceShown, task.period, task.key);
           return (
             <li key={task.key} className="rounded-lg border border-border p-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -169,6 +222,7 @@ export function MonthlyReview() {
                   {latest.notes ? ` — ${latest.notes}` : ""}
                 </p>
               )}
+              {logLine && <p className="mt-1 text-xs text-muted">{logLine}</p>}
               <label className="mt-2 block text-xs text-muted">
                 Note
                 <input

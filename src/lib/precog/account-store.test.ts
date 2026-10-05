@@ -1,8 +1,10 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { PGlite } from "@electric-sql/pglite";
 import { toCrossJSON } from "seroval";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Sql } from "@/lib/db";
-import { openTestDb, type TestDb } from "@/test/pglite";
+import { AUDIT_BYPASS_SQL, openTestDb, type TestDb } from "@/test/pglite";
 import {
   deleteAccountRows,
   encodeHistoryPage,
@@ -45,8 +47,9 @@ beforeAll(async () => {
 afterAll(() => db.close());
 
 beforeEach(async () => {
+  // Under the audit bypass: a firm owner's user row cascades into the log.
   await pg.exec(
-    'delete from llm_daily_usage; delete from map_share_attempts; delete from map_share_views; delete from map_shares; delete from assessment_snapshots; delete from businesses; delete from business_profiles; delete from billing_accounts; delete from firms; delete from "session"; delete from "user";',
+    `begin; ${AUDIT_BYPASS_SQL} delete from llm_daily_usage; delete from map_share_attempts; delete from map_share_views; delete from map_shares; delete from assessment_snapshots; delete from businesses; delete from business_profiles; delete from billing_accounts; delete from firms; delete from "session"; delete from "user"; commit;`,
   );
   for (const id of ["ua", "ub"]) {
     await pg.query(
@@ -160,6 +163,25 @@ describe("account deletion", () => {
     expect(await count("assessment_snapshots", "where user_id = $1", ["ub"])).toBe(1);
     expect(await count("map_shares", "where user_id = $1", ["ub"])).toBe(1);
   });
+
+  it("takes a firm owner's activity log with the account, under the bypass, and no one else's", async () => {
+    await seedFirm("ua", "Alpha CPA");
+    await seedFirm("ub", "Beta CPA");
+    await pg.exec(`
+      insert into firm_audit_log (firm_user_id, actor_user_id, event)
+        values ('ua', 'ua', 'letterhead_changed'), ('ua', 'ub', 'export_run'),
+          ('ub', 'ua', 'member_joined');
+    `);
+    await deleteAccountRows(sql, "ua");
+    expect(await count('"user"', "where id = $1", ["ua"])).toBe(0);
+    expect(await count("firm_audit_log", "where firm_user_id = $1", ["ua"])).toBe(0);
+    // Another firm's rows naming the deleted account as actor stay, as written.
+    expect(await count("firm_audit_log", "where firm_user_id = $1", ["ub"])).toBe(1);
+    // The bypass ended with the deletion's transaction.
+    await expect(pg.query("delete from firm_audit_log")).rejects.toMatchObject({
+      code: "42501",
+    });
+  });
 });
 
 describe("account deletion and model usage", () => {
@@ -198,9 +220,12 @@ describe("account export covers every table the account owns", () => {
       `insert into business_history (user_id, business_id, revision, name, industry, profile)
        values ('ua', 'biz_1', 0, 'Biz before', 'dental', '{}'::jsonb)`,
     );
+    // Inserted with the firm's name and letterhead frozen at lock: the
+    // frozen-column trigger (migration 0048) refuses a later update of them.
     await pg.query(
-      `insert into report_versions (id, user_id, business_id, version_no, profile, scope_note)
-       values ('rv_1', 'ua', 'biz_1', 1, '{}'::jsonb, 'Year-end review')`,
+      `insert into report_versions
+         (id, user_id, business_id, version_no, profile, scope_note, firm_name, firm_letterhead)
+       values ('rv_1', 'ua', 'biz_1', 1, '{}'::jsonb, 'Year-end review', 'Alpha CPA', '1 Main St')`,
     );
     await pg.query(
       `insert into notification_settings (user_id, weekly_digest, owner_reminders) values ('ua', false, true)`,
@@ -227,9 +252,6 @@ describe("account export covers every table the account owns", () => {
     );
     await pg.query(
       `update firms set letterhead = '1 Main St', logo_data_url = 'data:image/png;base64,iVBORw0KGgo=', cover_page = false`,
-    );
-    await pg.query(
-      `update report_versions set firm_name = 'Alpha CPA', firm_letterhead = '1 Main St'`,
     );
     await pg.query(
       `insert into product_events (user_id, event, business_id, occurred_at)
@@ -287,6 +309,68 @@ describe("account export covers every table the account owns", () => {
   });
 });
 
+describe("account export of the batch 3 columns", () => {
+  it("carries the price, the retention, the engagement and each version's request and return", async () => {
+    await seedFirm("ua", "Alpha CPA");
+    await pg.query(
+      `insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'ub', 'reviewer')`,
+    );
+    await pg.query(`update firms set retention_years = 9 where user_id = 'ua'`);
+    await pg.query(
+      `insert into billing_accounts (user_id, subscription_id, subscription_status, subscription_price_id)
+       values ('ua', 'sub_1', 'active', 'price_tier_2')`,
+    );
+    await pg.query(
+      `insert into engagement_marks (user_id, business_id, scope, period_start, period_end, status,
+         ended_at, preparer_user_id, reviewer_user_id)
+       values ('ua', 'biz_1', 'Duty map', '2026-01-01', '2026-12-31', 'ended',
+         '2026-10-01T00:00:00Z', 'ua', 'ub')`,
+    );
+    await pg.query(
+      `insert into report_versions (id, user_id, business_id, version_no, profile, prepared_by,
+         engagement_scope, engagement_period_start, engagement_period_end,
+         review_requested_at, review_requested_by, review_requested_from,
+         returned_at, returned_by, return_note)
+       values ('rv_1', 'ua', 'biz_1', 1, '{}'::jsonb, 'ua', 'Duty map', '2026-01-01', null,
+         '2026-10-02T00:00:00Z', 'ua', 'ub', '2026-10-03T00:00:00Z', 'ub', 'Add payroll.'),
+         ('rv_2', 'ua', 'biz_1', 2, '{}'::jsonb, 'ua', null, null, null,
+         null, null, null, null, null, '')`,
+    );
+
+    const out = await exportAccountRows(sql, "ua");
+    expect(out.billing?.subscriptionPriceId).toBe("price_tier_2");
+    expect(out.firm?.retentionYears).toBe(9);
+    expect(out.engagements[0]).toMatchObject({
+      scope: "Duty map",
+      periodStart: "2026-01-01",
+      periodEnd: "2026-12-31",
+      status: "ended",
+      endedAt: "2026-10-01T00:00:00.000Z",
+      preparerUserId: "ua",
+      reviewerUserId: "ub",
+    });
+    const [v2, v1] = out.reportVersions;
+    expect(v1).toMatchObject({
+      engagement: { scope: "Duty map", periodStart: "2026-01-01", periodEnd: null },
+      reviewRequestedAt: "2026-10-02T00:00:00.000Z",
+      reviewRequestedBy: "ua",
+      reviewRequestedFrom: "ub",
+      returnedAt: "2026-10-03T00:00:00.000Z",
+      returnedBy: "ub",
+      returnNote: "Add payroll.",
+    });
+    expect(v2).toMatchObject({
+      engagement: null,
+      reviewRequestedAt: null,
+      reviewRequestedBy: null,
+      reviewRequestedFrom: null,
+      returnedAt: null,
+      returnedBy: null,
+      returnNote: "",
+    });
+  });
+});
+
 describe("account export of model calls", () => {
   it("lists the account's model calls per feature as totals, never the text, and nobody else's", async () => {
     await pg.query(
@@ -334,6 +418,41 @@ describe("a firm owner's export", () => {
     expect((await exportAccountRows(sql, "ub", null)).firmClients).toEqual([]);
     expect((await exportAccountRows(sql, "ua")).firmClients).toEqual([]);
   });
+
+  it("holds the firm's activity log, newest first, for the firm owner only", async () => {
+    await seedFirm("ua", "Alpha CPA");
+    await pg.query(
+      `insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'ub', 'preparer')`,
+    );
+    await pg.exec(`
+      insert into firm_audit_log (firm_user_id, actor_user_id, actor_name, event, business_id,
+          subject_user_id, detail, occurred_at)
+        values ('ua', 'ua', 'Ann Alpha', 'member_invited', null, null,
+            '{"role":"preparer"}'::jsonb, '2026-09-01T00:00:00Z'),
+          ('ua', 'ub', 'Ben Beta', 'version_locked', 'biz_1', null,
+            '{"versionNo":1}'::jsonb, '2026-09-02T00:00:00Z');
+    `);
+    const owner = await exportAccountRows(sql, "ua", "ua");
+    expect(owner.firmActivity).toEqual([
+      {
+        actorName: "Ben Beta",
+        event: "version_locked",
+        businessId: "biz_1",
+        subjectUserId: null,
+        detail: { versionNo: 1 },
+        occurredAt: "2026-09-02T00:00:00.000Z",
+      },
+      {
+        actorName: "Ann Alpha",
+        event: "member_invited",
+        businessId: null,
+        subjectUserId: null,
+        detail: { role: "preparer" },
+        occurredAt: "2026-09-01T00:00:00.000Z",
+      },
+    ]);
+    expect((await exportAccountRows(sql, "ub", null)).firmActivity).toEqual([]);
+  });
 });
 
 describe("account deletion safeguards", () => {
@@ -344,8 +463,13 @@ describe("account deletion safeguards", () => {
       create trigger refuse_user_delete before delete on "user"
         for each row when (old.id = 'ua') execute function refuse_user_delete();
     `);
+    await seedFirm("ua", "Alpha CPA");
+    await pg.query(
+      `insert into firm_audit_log (firm_user_id, actor_user_id, event) values ('ua', 'ua', 'letterhead_changed')`,
+    );
     try {
       await expect(deleteAccountRows(sql, "ua")).rejects.toThrow(/connection lost/);
+      expect(await count("firm_audit_log", "where firm_user_id = $1", ["ua"])).toBe(1);
       expect(await count("assessment_snapshots", "where user_id = $1", ["ua"])).toBe(1);
       expect(await count("businesses", "where user_id = $1", ["ua"])).toBe(1);
       expect(await count('"user"', "where id = $1", ["ua"])).toBe(1);
@@ -588,5 +712,127 @@ describe("past versions download apart from the account export", () => {
     const rest = await exportBusinessHistoryPage(sql, "ua", "biz_1", 3, 10_000);
     expect(rest.rows.map((r) => r.revision)).toEqual([2, 1]);
     expect(rest.nextBeforeRevision).toBeNull();
+  });
+});
+
+describe("a business its owner shared with a firm", () => {
+  /** `ub`, outside the firm, shared biz_1 with `ua`'s Alpha CPA through grant g1. */
+  beforeEach(async () => {
+    await seedFirm("ua", "Alpha CPA");
+    await pg.exec(`
+      update businesses set firm_user_id = 'ua', granted_at = '2026-10-01T12:00:00Z'
+        where user_id = 'ub';
+      insert into business_firm_grants (token, business_owner_id, business_id, invited_email,
+          firm_user_id, created_at, expires_at, accepted_by, accepted_at)
+        values ('g1', 'ub', 'biz_1', 'ua@example.test', 'ua', '2026-09-30T12:00:00Z',
+          '2026-10-14T12:00:00Z', 'ua', '2026-10-01T12:00:00Z');
+      insert into engagement_marks (user_id, business_id, scope, status, ended_at,
+          reviewer_user_id, started_at)
+        values ('ub', 'biz_1', 'Duty map', 'ended', now(), 'ua', '2026-10-02T00:00:00Z');
+    `);
+  });
+
+  it("lets its owner delete their account; the member refusal stays for a firm's own client", async () => {
+    await deleteAccountRows(sql, "ub");
+    expect(await count('"user"', "where id = $1", ["ub"])).toBe(0);
+  });
+
+  it("downloads the shared business's history for the firm owner", async () => {
+    await pg.exec(`
+      insert into business_history (user_id, business_id, revision, name, industry, profile)
+      values ('ub', 'biz_1', 1, 'Biz', 'dental', '{"notes":"shared"}'::jsonb)
+    `);
+    const page = await exportBusinessHistoryPage(sql, "ua", "biz_1", null, undefined, "ua", "ub");
+    expect(page.rows.map((r) => r.profile)).toEqual([{ notes: "shared" }]);
+    // Handed back, it is out of the firm owner's reach.
+    await pg.exec(
+      `update businesses set firm_user_id = null, granted_at = null where user_id = 'ub'`,
+    );
+    const after = await exportBusinessHistoryPage(sql, "ua", "biz_1", null, undefined, "ua", "ub");
+    expect(after.rows).toEqual([]);
+  });
+
+  it("hands the business back when the firm owner deletes their account, and closes invitations to them", async () => {
+    await pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision)
+        values ('biz_2', 'ub', 'Second', 'dental', '{}'::jsonb, 1);
+      insert into business_firm_grants (token, business_owner_id, business_id, invited_email, expires_at)
+        values ('g2', 'ub', 'biz_2', 'UA@example.test', now() + interval '1 day');
+    `);
+    await deleteAccountRows(sql, "ua");
+    const rows = await pg.query<{ firm_user_id: string | null; granted_at: string | null }>(
+      `select firm_user_id, granted_at from businesses where user_id = 'ub' and id = 'biz_1'`,
+    );
+    expect(rows.rows).toEqual([{ firm_user_id: null, granted_at: null }]);
+    const engagement = await pg.query<Record<string, unknown>>(
+      `select scope, status, ended_at, reviewer_user_id, started_at is not null as started
+       from engagement_marks where user_id = 'ub' and business_id = 'biz_1'`,
+    );
+    expect(engagement.rows).toEqual([
+      { scope: "", status: "active", ended_at: null, reviewer_user_id: null, started: true },
+    ]);
+    const open = await pg.query<{ revoked: boolean }>(
+      `select revoked_at is not null as revoked from business_firm_grants where token = 'g2'`,
+    );
+    expect(open.rows).toEqual([{ revoked: true }]);
+  });
+
+  it("revokes the links the firm's members made on it when the firm owner deletes their account", async () => {
+    await pg.query(
+      `insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+       values ('uc', 'uc', 'uc@example.test', true, now(), now())`,
+    );
+    await pg.exec(`
+      insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'uc', 'preparer');
+      update map_shares set business_owner_id = 'ub', business_id = 'biz_1' where user_id = 'ub';
+      insert into map_shares (token, user_id, business_name, industry, payload, expires_at,
+          passcode_hash, passcode_salt, business_owner_id, business_id)
+        values ('${"uc".repeat(12)}', 'uc', 'Biz', 'dental', '{"v":1}'::jsonb,
+          now() + interval '1 day', 'hash', 'salt', 'ub', 'biz_1');
+    `);
+    await deleteAccountRows(sql, "ua");
+    const links = await pg.query<{ user_id: string; revoked: boolean }>(
+      `select user_id, revoked_at is not null as revoked from map_shares
+       where business_owner_id = 'ub' and business_id = 'biz_1' order by user_id`,
+    );
+    // The member's link is revoked; the owner's own link stays live.
+    expect(links.rows).toEqual([
+      { user_id: "ub", revoked: false },
+      { user_id: "uc", revoked: true },
+    ]);
+  });
+
+  it("exports when the business was shared and the invitations, never their tokens", async () => {
+    const data = await exportAccountRows(sql, "ub");
+    expect(data.businesses.map((b) => [b.id, b.grantedAt])).toEqual([
+      ["biz_1", "2026-10-01T12:00:00.000Z"],
+    ]);
+    expect(data.firmGrants).toEqual([
+      {
+        businessId: "biz_1",
+        invitedEmail: "ua@example.test",
+        createdAt: "2026-09-30T12:00:00.000Z",
+        expiresAt: "2026-10-14T12:00:00.000Z",
+        acceptedAt: "2026-10-01T12:00:00.000Z",
+        revokedAt: null,
+        firmName: "Alpha CPA",
+      },
+    ]);
+    expect(JSON.stringify(data)).not.toContain('"g1"');
+    expect((await exportAccountRows(sql, "ua")).firmGrants).toEqual([]);
+  });
+});
+
+describe("the export's column notes", () => {
+  it("name the migration that adds the subscription's price", () => {
+    const source = readFileSync(join(process.cwd(), "src/lib/precog/account-store.ts"), "utf8");
+    const note = source.match(/The Stripe price the subscription runs on \(migration (\d{4})\)/);
+    expect(note?.[1]).toBeDefined();
+    const dir = join(process.cwd(), "migrations");
+    const file = readdirSync(dir).find((f) => f.startsWith(`${note?.[1]}_`));
+    expect(file).toBeDefined();
+    expect(readFileSync(join(dir, file ?? ""), "utf8")).toContain(
+      "add column if not exists subscription_price_id",
+    );
   });
 });

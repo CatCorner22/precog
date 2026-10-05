@@ -123,6 +123,30 @@ export function reviewDueOn(period: string): string {
 }
 
 /**
+ * The day of the month from which the month's checks count as open. Before
+ * it, the screens and the reminders stay quiet about them: the first days of
+ * a month usually close the month before.
+ */
+export const MONTHLY_REVIEW_GRACE_DAY = 5;
+
+/**
+ * How many of this month's checks have no result yet, counted from
+ * MONTHLY_REVIEW_GRACE_DAY; 0 before it. `day` is YYYY-MM-DD.
+ */
+export function openMonthlyChecks(
+  day: string,
+  people: readonly Person[],
+  roleDuties: Readonly<Record<string, readonly string[]>>,
+  reviews: readonly ReviewRecord[],
+): number {
+  if (Number(day.slice(8, 10)) < MONTHLY_REVIEW_GRACE_DAY) return 0;
+  const period = monthKey(day);
+  return monthlyReviewTasks(day, people, roleDuties).filter(
+    (task) => !latestReview(reviews, task.key, period),
+  ).length;
+}
+
+/**
  * The monthly checks for the period, each with a suggested owner who does not hold the
  * duties it checks. Ownership never turns self-review into independent
  * review. Recorded separate duties rank before provisional title suggestions;

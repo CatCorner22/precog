@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalFooter } from "@/components/precog/legal-footer";
+import { DELETED_RETENTION_DAYS } from "@/lib/precog/business-retention";
 import { formatDay } from "@/lib/precog/dates";
 import { LEGAL_EFFECTIVE } from "@/lib/precog/legal";
 import {
@@ -64,10 +65,10 @@ function TermsPage() {
         </p>
         <p>
           The firm workspace records a pilot offer (a fixed assessment that can convert to a monthly
-          firm plan), time to a complete map, how many gaps received a decision, and whether you
-          marked a report sent. A firm can pay for the assessment or the firm plan through Stripe’s
-          checkout. Stripe takes the card; Precog never sees a card number. An invoice you mark by
-          hand is your own record.
+          or yearly Firm plan), time to a complete map, how many gaps received a decision, and
+          whether you marked a report sent. A firm can pay for the assessment or the Firm plan
+          through Stripe’s checkout. Stripe takes the card or bank account; Precog never sees the
+          card or account number. An invoice you mark by hand is your own record.
         </p>
         <p>
           You are responsible for the accuracy of what you enter, for who you share a link with, and
@@ -97,8 +98,25 @@ function TermsPage() {
           controller of the client data it enters; Precog processes that data on the firm's
           instructions and for no other purpose. Client data a firm member enters belongs to the
           firm, and stays with the firm when the member leaves. When a member leaves or is removed,
-          the client businesses they set up move to the firm owner's account. A standard data
-          processing agreement is available on request from {SUPPORT_EMAIL}.
+          the client businesses they set up move to the firm owner's account. A business a member
+          shared with the firm from their own account stays theirs. A standard data processing
+          agreement is available on request from {SUPPORT_EMAIL}.
+        </p>
+        <p>
+          A business its owner shares with a firm stays the owner's; the firm acts for the owner
+          under its engagement. When the owner ends the firm's access, or deletes the business or
+          their account, the firm loses access to the business and to the report versions it locked
+          for it.
+        </p>
+        <p>
+          After the firm deletes a client that holds a locked report version, Precog keeps the
+          client's locked report versions and monthly review log for the retention period the firm
+          sets (seven years unless the firm chose longer), then purges them; the firm's activity log
+          keeps each entry for that period from the day it was written. Deleting the account that
+          set up the client removes its versions and log at once. Deleting the firm owner's account
+          removes the activity log at once and ends the retention period for the clients its members
+          set up: each is then purged once {DELETED_RETENTION_DAYS} days have passed since its
+          deletion.
         </p>
       </section>
 
@@ -116,14 +134,18 @@ function TermsPage() {
       <section className={sectionCls}>
         <h2 className={headingCls}>Billing</h2>
         <p>
-          The Firm plan renews each month until you cancel it. Cancel any time with Manage billing
-          on the Firm page; you keep access to the end of the period you paid for, and a started
-          month is not refunded. The Assessment is a one-off payment, and it is not refunded once a
-          report version is locked. An Assessment fee that has not been refunded is credited once,
-          before tax, against the Firm plan's invoices when the account that paid it first starts
-          the Firm plan. Prices are as shown at Checkout, plus applicable sales tax, which Stripe
-          calculates from the billing address you give. Precog tells you by email before a price
-          change applies to your next renewal.
+          The Firm plan renews each month or each year, as you chose at Checkout, until you cancel
+          it. Cancel any time with Manage billing on the Firm page; you keep access to the end of
+          the period you paid for, and a started month or year is not refunded. The Firm plan's tier
+          sets how many client businesses the firm can keep: Starter up to 5, Practice up to 20,
+          Firm up to 50; the firm owner moves up a tier in Manage billing. The Assessment is a
+          one-off payment, and it is not refunded once a report version is locked. An Assessment fee
+          that has not been refunded is credited once, before tax, against the Firm plan's invoices
+          when the account that paid it first starts the Firm plan. Prices are as shown at Checkout,
+          plus applicable sales tax, which Stripe calculates from the billing address you give. You
+          can pay by card or by US bank account; a bank payment that later fails is treated as a
+          failed payment. Precog tells you by email before a price change applies to your next
+          renewal.
         </p>
       </section>
 

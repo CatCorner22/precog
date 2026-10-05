@@ -25,12 +25,14 @@ import {
 } from "./own-team";
 
 /** What pasting a roster did: the new grid (null when unchanged), the note, and who it left out. */
-interface PasteOutcome {
+export interface PasteOutcome {
   rows: OwnTeamRow[] | null;
   /** The note under "Fill the table". */
   note: string;
   /** Anyone not added keeps the paste in the box, to add later. */
   keepPaste: boolean;
+  /** Valid roster rows not represented in the interactive grid. */
+  unresolvedRows: number;
   /**
    * Everyone a paste so far marked terminated or inactive, each person once:
    * finishing asks the owner to confirm their pay and logins are stopped.
@@ -78,11 +80,26 @@ export function applyPaste(
     departures.push({ name: person.name, role: person.role });
   }
   if (incoming.length === 0) {
-    const note =
+    const detail =
       result.people.length > 0
         ? `The paste marks all ${count(result.people.length, "person", "people")} as having left, so the table adds none of them: ${joinWithAnd(inactiveNames, 5)}.`
         : (result.issues[0]?.message ?? "No names found. One person per line: Name, Title.");
-    return { rows: null, note, keepPaste: true, leftOut: departures };
+    const note = `${importCounts({
+      added: 0,
+      matched: 0,
+      notAdded: 0,
+      dropped: result.dropped,
+      rowsRead: result.rowsRead,
+      duplicates: result.duplicates,
+      invalid: result.invalid,
+    })} ${detail}`;
+    return {
+      rows: null,
+      note,
+      keepPaste: true,
+      unresolvedRows: result.dropped,
+      leftOut: departures,
+    };
   }
   const { kept, ownerRow } = rowsKeptForAdding(
     rows,
@@ -99,6 +116,9 @@ export function applyPaste(
     matched: outcome.matched,
     notAdded: outcome.notAdded,
     dropped: result.dropped ?? 0,
+    rowsRead: result.rowsRead,
+    duplicates: result.duplicates,
+    invalid: result.invalid,
     recognised,
     partial: titlesRead.filter((t) => t.catalogTitle && t.confidence === "partial").length,
     unmatched: titlesRead.length - recognised,
@@ -106,7 +126,12 @@ export function applyPaste(
     ownerRow,
     onLeaveNames: incoming.filter((r) => r.onLeave && inGrid.has(r.name)).map((r) => r.name),
   });
-  return { rows: outcome.rows, ...summary, leftOut: departures };
+  return {
+    rows: outcome.rows,
+    ...summary,
+    unresolvedRows: outcome.notAdded + result.dropped,
+    leftOut: departures,
+  };
 }
 
 /**
@@ -244,6 +269,9 @@ export function pasteSummary(input: {
   added: number;
   matched: number;
   notAdded: number;
+  rowsRead?: number;
+  duplicates?: number;
+  invalid?: number;
   /** Rows past the importer's read limit that were not read at all. */
   dropped: number;
   /** The importer's row limit, named when rows were dropped. */
@@ -263,6 +291,7 @@ export function pasteSummary(input: {
   const leftOut = notAdded + dropped;
   const keepPaste = leftOut > 0 || changed === 0;
   const sentences = [
+    importCounts(input),
     headline(input, max),
     changed > 0 ? titlesSentence(input) : "",
     input.inactiveNames.length > 0
@@ -278,6 +307,22 @@ export function pasteSummary(input: {
       : "",
   ];
   return { note: sentences.filter(Boolean).join(" "), keepPaste };
+}
+
+/** Exact accounting for a roster paste; no valid row disappears behind a success headline. */
+function importCounts(input: {
+  added: number;
+  matched: number;
+  notAdded: number;
+  dropped: number;
+  rowsRead?: number;
+  duplicates?: number;
+  invalid?: number;
+}): string {
+  const mapped = input.added + input.matched;
+  const rejected = (input.duplicates ?? 0) + (input.invalid ?? 0);
+  const read = input.rowsRead ?? mapped + input.notAdded + rejected;
+  return `Rows read: ${read.toLocaleString("en-US")}. Duplicate or invalid rows: ${rejected.toLocaleString("en-US")}. Rows mapped now: ${mapped.toLocaleString("en-US")}. Rows still requiring action: ${(input.notAdded + input.dropped).toLocaleString("en-US")}.`;
 }
 
 /**
@@ -398,7 +443,7 @@ function headline(
     ].filter(Boolean);
     return [
       `Added ${added === 0 && matched === 0 ? "none" : added} of the ${pasted.toLocaleString("en-US")} people${updated}.`,
-      `Could not add ${leftOut.toLocaleString("en-US")} because ${limits.join(" and ")}. The paste stays in the box: add ${added + matched === 0 ? "them" : "the rest"} in ${MORE_PEOPLE_PLACE} after setup.`,
+      `Could not add ${leftOut.toLocaleString("en-US")} because ${limits.join(" and ")}. The paste stays in the box: filter it to the people who handle or control money and import again, or attest below that this is a scoped map. You can add the rest later in ${MORE_PEOPLE_PLACE}.`,
     ].join(" ");
   }
   if (added === 0 && matched > 0) {

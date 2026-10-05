@@ -2,6 +2,7 @@ import type { Sql } from "@/lib/db";
 import { reportServerError } from "@/lib/observability/report.server";
 import { normalizeProfile, type PracticeProfile } from "../practice-profile";
 import { digestTokenFor } from "../firm/store";
+import { FIRM_READS_VERSION } from "../firm/reports";
 import { randomHex } from "@/lib/web-crypto";
 import { beforeDeadline } from "../cron/budget";
 import { loadEntitlements } from "../firm/entitlements.server";
@@ -74,7 +75,11 @@ export async function runDigest(
       try {
         const profile = await profileFor(sql, row);
         // Deleted since the run listed it: nothing to announce.
-        items = profile ? dueItemsFor(normalizeProfile(profile), input.today) : [];
+        items = profile
+          ? dueItemsFor(normalizeProfile(profile), input.today, {
+              hasFirm: row.firm_user_id !== null,
+            })
+          : [];
       } catch (err) {
         items = null;
         outcome.errors.push(`business ${row.id}: ${errorText(err)}`);
@@ -86,7 +91,10 @@ export async function runDigest(
   };
 
   const everyone = await recipients(sql);
-  const quickBooksCounts = await quickBooksNeedingAttention(sql, everyone);
+  const [quickBooksCounts, reviewCounts] = await Promise.all([
+    quickBooksNeedingAttention(sql, everyone),
+    versionsAwaitingReview(sql, everyone),
+  ]);
   for (const [index, recipient] of everyone.entries()) {
     if (!beforeDeadline(input.deadline)) {
       outcome.stopped = true;
@@ -117,6 +125,7 @@ export async function runDigest(
           appUrl: input.appUrl,
           unsubscribeUrl: `${input.appUrl}/api/digest-email?do=stop&token=${recipient.digestToken}`,
           quickBooks: { needAttention: quickBooksCounts.get(recipient.userId) ?? 0 },
+          reviews: { awaiting: reviewCounts.get(recipient.userId) ?? 0 },
         }),
       );
       for (const client of clients) await logSent(sql, client.row, recipient.email, client.items);
@@ -190,6 +199,8 @@ interface BusinessRow {
   user_id: string;
   id: string;
   name: string;
+  /** The firm working on the business; null for an owner's own business. */
+  firm_user_id: string | null;
 }
 
 interface OwnerNoteRow extends BusinessRow {
@@ -288,7 +299,7 @@ async function mintDigestTokens(sql: Sql, userIds: string[]): Promise<Map<string
 
 async function businessesFor(sql: Sql, recipient: Recipient): Promise<BusinessRow[]> {
   return sql<BusinessRow>`
-    select b.user_id, b.id, b.name
+    select b.user_id, b.id, b.name, b.firm_user_id
     from businesses b
     where b.deleted_at is null
       and (b.user_id = ${recipient.userId}
@@ -327,13 +338,56 @@ async function quickBooksNeedingAttention(
 }
 
 /**
+ * For every recipient, how many locked versions of their firm's live clients
+ * await their review for issuance: requested, neither reviewed nor returned,
+ * not prepared by them, while they are the firm's owner or a reviewer; and
+ * requested from them, or from nobody in particular, or from someone who is
+ * no longer an owner or reviewer of the firm (so a request never waits on a
+ * person who cannot act). One grouped query per run; a recipient with none
+ * is absent. The line rides on a digest that goes anyway.
+ */
+async function versionsAwaitingReview(
+  sql: Sql,
+  everyone: readonly Recipient[],
+): Promise<Map<string, number>> {
+  const members = everyone.filter((r) => r.firmUserId !== null);
+  if (members.length === 0) return new Map();
+  const rows = await sql.query<{ user_id: string; n: number }>(
+    `select r.user_id, count(*)::int as n
+    from unnest($1::text[], $2::text[]) as r(user_id, firm_user_id)
+    join firm_members m on m.firm_user_id = r.firm_user_id
+      and m.member_user_id = r.user_id and m.role in ('owner', 'reviewer')
+    join businesses b on b.deleted_at is null and b.firm_user_id = r.firm_user_id
+    join report_versions v on v.user_id = b.user_id and v.business_id = b.id
+      -- Only versions this firm locked: after a hand-back and a new grant,
+      -- the earlier firm's versions are not this firm's to review.
+      and ${FIRM_READS_VERSION}
+    where v.review_requested_at is not null
+      and v.reviewed_at is null
+      and v.returned_at is null
+      and v.prepared_by is distinct from r.user_id
+      and (v.review_requested_from = r.user_id
+        or v.review_requested_from is null
+        or not exists (
+          select 1 from firm_members f
+          where f.firm_user_id = r.firm_user_id
+            and f.member_user_id = v.review_requested_from
+            and f.role in ('owner', 'reviewer')
+        ))
+    group by r.user_id`,
+    [members.map((r) => r.userId), members.map((r) => r.firmUserId)],
+  );
+  return new Map(rows.map((r) => [r.user_id, Number(r.n)]));
+}
+
+/**
  * Live businesses whose owner confirmed their address, has not stopped the
  * reminders and whose address has not bounced or complained, where the
  * controlling account (the firm owner for a firm client) has owner reminders on.
  */
 async function ownerNoteTargets(sql: Sql): Promise<OwnerNoteRow[]> {
   return sql.query<OwnerNoteRow>(`
-    select b.user_id, b.id, b.name, e.owner_email, e.owner_email_token,
+    select b.user_id, b.id, b.name, b.firm_user_id, e.owner_email, e.owner_email_token,
       f.name as firm_name,
       case when ${TRUSTED_EMAIL("cu")} then cu.email end as reply_to,
       coalesce(b.firm_user_id, b.user_id) as controlling_user_id

@@ -6,11 +6,14 @@ import {
   loadReportVersion,
   lockReportVersion,
   markReportVersionSent,
-  reportFirmName,
+  REPORT_LIST_LIMIT,
   reportVersionFor,
   ReportVersionError,
+  REVIEW_BEFORE_SENT,
   signOffReportVersion,
+  versionFirmName,
   versionProvenance,
+  withoutReviewRouting,
   type ReportVersionRow,
 } from "./reports";
 
@@ -177,11 +180,21 @@ describe("report versions", () => {
 
   it("names the firm only for a firm client, never for a solo business", async () => {
     await db.pg.query(`insert into firms (user_id, name) values ('owner', 'North Advisors')`);
+    await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_1",
+    });
     // The owner holds a firms row, but the business is not a firm client.
-    expect(await reportFirmName(db.sql, "owner", "biz_1")).toBeNull();
+    expect(await versionFirmName(db.sql, "owner", "rv_1")).toBeNull();
     await db.pg.query("update businesses set firm_user_id = 'owner'");
-    expect(await reportFirmName(db.sql, "owner", "biz_1")).toBe("North Advisors");
-    expect(await reportFirmName(db.sql, "owner", "biz_missing")).toBeNull();
+    expect(await versionFirmName(db.sql, "owner", "rv_1")).toBe("North Advisors");
+    expect(await versionFirmName(db.sql, "owner", "rv_missing")).toBeNull();
+    // Shared with that firm by its owner, the version locked alone is not the firm's.
+    await db.pg.query("update businesses set granted_at = now()");
+    expect(await versionFirmName(db.sql, "owner", "rv_1")).toBeNull();
   });
 
   it("freezes the firm's name and letterhead into a firm client's version, and null for a solo one", async () => {
@@ -225,8 +238,13 @@ describe("report versions", () => {
       null,
     ]);
     // A version stored before the snapshot columns existed reads as null.
-    await db.pg.query("update report_versions set firm_name = null where id = 'rv_firm'");
-    expect((await loadReportVersion(db.sql, "owner", "rv_firm"))?.version.firm).toBeNull();
+    // Inserted as such: the frozen-column trigger (migration 0048) refuses
+    // clearing firm_name on a locked version.
+    await db.pg.query(
+      `insert into report_versions (id, user_id, business_id, version_no, profile, firm_name)
+       values ('rv_old', 'owner', 'biz_1', 9, '{}'::jsonb, null)`,
+    );
+    expect((await loadReportVersion(db.sql, "owner", "rv_old"))?.version.firm).toBeNull();
   });
 
   it("refuses to lock a deleted or foreign business", async () => {
@@ -282,6 +300,46 @@ describe("report version access", () => {
     });
   });
 
+  it("stores the firm a version was locked for, and the firm reads only its own", async () => {
+    await db.seedUser("cpa");
+    await db.pg.exec(`
+      insert into firms (user_id, name) values ('cpa', 'North');
+      insert into firm_members (firm_user_id, member_user_id, role)
+        values ('cpa', 'cpa', 'owner'), ('cpa', 'reviewer', 'reviewer');
+      update businesses set firm_user_id = 'cpa';
+    `);
+    await lock("rv_1");
+    const stored = await db.pg.query<{ firm_user_id: string | null }>(
+      "select firm_user_id from report_versions where id = 'rv_1'",
+    );
+    expect(stored.rows[0].firm_user_id).toBe("cpa");
+    expect(await reportVersionFor(db.sql, "reviewer", "rv_1")).not.toBeNull();
+    // Locked for another firm: the business's own account reads it, this firm does not.
+    await db.pg.exec(`update report_versions set firm_user_id = 'elsewhere' where id = 'rv_1'`);
+    expect(await reportVersionFor(db.sql, "reviewer", "rv_1")).toBeNull();
+    expect(await listReportVersions(db.sql, "owner", "biz_1", "reviewer")).toEqual([]);
+    expect(await reportVersionFor(db.sql, "owner", "rv_1")).not.toBeNull();
+    expect((await listReportVersions(db.sql, "owner", "biz_1")).length).toBe(1);
+  });
+
+  it("reads a version locked before the firm was kept for the firm, unless the owner shared the business", async () => {
+    await db.seedUser("cpa");
+    await db.pg.exec(`
+      insert into firms (user_id, name) values ('cpa', 'North');
+      insert into firm_members (firm_user_id, member_user_id, role)
+        values ('cpa', 'cpa', 'owner'), ('cpa', 'reviewer', 'reviewer');
+      update businesses set firm_user_id = 'cpa';
+    `);
+    await lock("rv_1");
+    await db.pg.exec(`update report_versions set firm_user_id = null`);
+    expect(await reportVersionFor(db.sql, "reviewer", "rv_1")).not.toBeNull();
+    expect((await listReportVersions(db.sql, "owner", "biz_1", "reviewer")).length).toBe(1);
+    await db.pg.exec(`update businesses set granted_at = now()`);
+    expect(await reportVersionFor(db.sql, "reviewer", "rv_1")).toBeNull();
+    expect(await listReportVersions(db.sql, "owner", "biz_1", "reviewer")).toEqual([]);
+    expect(await reportVersionFor(db.sql, "owner", "rv_1")).not.toBeNull();
+  });
+
   it("refuses the sent stamp until the version is signed off", async () => {
     await lock("rv_1");
     await expect(markReportVersionSent(db.sql, "owner", "rv_1")).rejects.toMatchObject({
@@ -328,6 +386,18 @@ describe("report version access", () => {
     const [a, b] = await Promise.all([lock("rv_a"), lock("rv_b")]);
     expect([a.versionNo, b.versionNo].sort()).toEqual([1, 2]);
   });
+
+  it("lists the newest REPORT_LIST_LIMIT versions, the cap the engagement archive reads", async () => {
+    expect(REPORT_LIST_LIMIT).toBe(50);
+    await db.pg.query(
+      `insert into report_versions (id, user_id, business_id, version_no, profile)
+       select 'rv_' || n, 'owner', 'biz_1', n, '{}'::jsonb from generate_series(1, $1::int) n`,
+      [REPORT_LIST_LIMIT + 1],
+    );
+    const listed = await listReportVersions(db.sql, "owner", "biz_1");
+    expect(listed).toHaveLength(REPORT_LIST_LIMIT);
+    expect([listed[0].versionNo, listed.at(-1)?.versionNo]).toEqual([REPORT_LIST_LIMIT + 1, 2]);
+  });
 });
 
 describe("versionProvenance", () => {
@@ -348,6 +418,13 @@ describe("versionProvenance", () => {
     hasFigures: false,
     firm: null,
     engagement: null,
+    reviewRequestedAt: null,
+    reviewRequestedFrom: null,
+    reviewRequestedFromName: null,
+    returnedAt: null,
+    returnedBy: null,
+    returnedByName: null,
+    returnNote: "",
   };
 
   it("says who prepared it and who reviewed it for issuance", () => {
@@ -374,6 +451,91 @@ describe("versionProvenance", () => {
     ).toBe(
       "Version 2 · Prepared by Ada Park on Sep 26, 2026 · Issued by Ada Park on Sep 28, 2026. Not an independent review",
     );
+  });
+
+  it("says who a review was requested from, or that the firm's reviewers may take it", () => {
+    const requested = {
+      ...base,
+      reviewRequestedAt: "2026-10-06T12:00:00.000Z",
+      reviewRequestedFrom: "bea",
+      reviewRequestedFromName: "Bea Lin",
+    };
+    expect(versionProvenance(requested)).toBe(
+      "Version 2 · Prepared by Ada Park on Sep 26, 2026 · Review requested from Bea Lin on Oct 6, 2026",
+    );
+    expect(
+      versionProvenance({ ...requested, reviewRequestedFrom: null, reviewRequestedFromName: null }),
+    ).toBe(
+      "Version 2 · Prepared by Ada Park on Sep 26, 2026 · Review requested from the firm's reviewers on Oct 6, 2026",
+    );
+    // Once reviewed, the review line replaces the request.
+    expect(
+      versionProvenance({
+        ...requested,
+        reviewedBy: "bea",
+        reviewedByName: "Bea Lin",
+        reviewedAt: "2026-10-07T12:00:00.000Z",
+      }),
+    ).toBe(
+      "Version 2 · Prepared by Ada Park on Sep 26, 2026 · Reviewed for issuance by Bea Lin on Oct 7, 2026",
+    );
+  });
+
+  it("says who returned a version and when", () => {
+    expect(
+      versionProvenance({
+        ...base,
+        reviewRequestedAt: "2026-10-06T12:00:00.000Z",
+        reviewRequestedFrom: "bea",
+        reviewRequestedFromName: "Bea Lin",
+        returnedAt: "2026-10-07T12:00:00.000Z",
+        returnedBy: "bea",
+        returnedByName: "Bea Lin",
+        returnNote: "Add the payroll duties.",
+      }),
+    ).toBe("Version 2 · Prepared by Ada Park on Sep 26, 2026 · Returned by Bea Lin on Oct 7, 2026");
+  });
+
+  it("hands a report link no request-and-return routing, and prints the same line", () => {
+    const reviewed = {
+      ...base,
+      reviewRequestedAt: "2026-10-06T12:00:00.000Z",
+      reviewRequestedFrom: "own",
+      reviewRequestedFromName: "Olu Firm-Owner",
+      reviewedBy: "bea",
+      reviewedByName: "Bea Lin",
+      reviewedAt: "2026-10-07T12:00:00.000Z",
+    };
+    const shared = withoutReviewRouting(reviewed);
+    expect(shared).toEqual({
+      ...reviewed,
+      reviewRequestedAt: null,
+      reviewRequestedFrom: null,
+      reviewRequestedFromName: null,
+      returnedAt: null,
+      returnedBy: null,
+      returnedByName: null,
+      returnNote: "",
+    });
+    expect(JSON.stringify(shared)).not.toMatch(/"own"|Olu/);
+    expect(versionProvenance(shared)).toBe(versionProvenance(reviewed));
+  });
+});
+
+describe("the sent stamp's refusal", () => {
+  it("asks for the review for issuance first, in those words", async () => {
+    await lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy: "owner",
+      scopeNote: "",
+      id: "rv_1",
+    });
+    await expect(markReportVersionSent(db.sql, "owner", "rv_1")).rejects.toMatchObject({
+      status: 409,
+      message: "Review this version for issuance before marking it sent.",
+    });
+    expect(REVIEW_BEFORE_SENT).toBe("Review this version for issuance before marking it sent.");
   });
 });
 
