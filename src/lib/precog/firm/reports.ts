@@ -274,9 +274,11 @@ export async function lockReportVersion(
  * that firm, and those locked before Precog kept the firm (migration 0046)
  * on a business its owner never shared, which only its firm can have
  * locked. The business's own account reads every version. A SQL fragment
- * over `report_versions v` and `businesses b`.
+ * over `report_versions v` and `businesses b`, for `sql.query` text (never
+ * a tagged template, which would send it as a bound value); the digest's
+ * count of versions awaiting review reads the same rule.
  */
-const FIRM_READS_VERSION = `(v.firm_user_id = b.firm_user_id
+export const FIRM_READS_VERSION = `(v.firm_user_id = b.firm_user_id
   or (v.firm_user_id is null and b.granted_at is null))`;
 
 /**

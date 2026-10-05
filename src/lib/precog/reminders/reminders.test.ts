@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { defaultProfile, normalizeProfile, type PracticeProfile } from "../practice-profile";
@@ -865,6 +867,19 @@ describe("digest run", () => {
       expect((await lines()).adv).toBe(
         "1 report version awaits your review. See the firm workspace.",
       );
+    });
+
+    it("reads which versions are the firm's through the versions list's own rule", async () => {
+      // One definition of the rule (reports.ts), so the digest and the list
+      // the reviewer opens cannot drift apart.
+      const { FIRM_READS_VERSION } = await import("../firm/reports");
+      expect(FIRM_READS_VERSION).toContain("v.firm_user_id = b.firm_user_id");
+      const digest = readFileSync(
+        join(process.cwd(), "src/lib/precog/reminders/digest.ts"),
+        "utf8",
+      );
+      expect(digest).toContain("${FIRM_READS_VERSION}");
+      expect(digest).not.toContain("granted_at is null");
     });
 
     it("leaves out versions not requested, reviewed or returned, and a deleted client's", async () => {

@@ -2,6 +2,7 @@ import type { Sql } from "@/lib/db";
 import { reportServerError } from "@/lib/observability/report.server";
 import { normalizeProfile, type PracticeProfile } from "../practice-profile";
 import { digestTokenFor } from "../firm/store";
+import { FIRM_READS_VERSION } from "../firm/reports";
 import { randomHex } from "@/lib/web-crypto";
 import { beforeDeadline } from "../cron/budget";
 import { loadEntitlements } from "../firm/entitlements.server";
@@ -349,19 +350,16 @@ async function versionsAwaitingReview(
 ): Promise<Map<string, number>> {
   const members = everyone.filter((r) => r.firmUserId !== null);
   if (members.length === 0) return new Map();
-  const rows = await sql<{ user_id: string; n: number }>`
-    select r.user_id, count(*)::int as n
-    from unnest(
-      ${members.map((r) => r.userId)}::text[],
-      ${members.map((r) => r.firmUserId)}::text[]
-    ) as r(user_id, firm_user_id)
+  const rows = await sql.query<{ user_id: string; n: number }>(
+    `select r.user_id, count(*)::int as n
+    from unnest($1::text[], $2::text[]) as r(user_id, firm_user_id)
     join firm_members m on m.firm_user_id = r.firm_user_id
       and m.member_user_id = r.user_id and m.role in ('owner', 'reviewer')
     join businesses b on b.deleted_at is null and b.firm_user_id = r.firm_user_id
     join report_versions v on v.user_id = b.user_id and v.business_id = b.id
       -- Only versions this firm locked: after a hand-back and a new grant,
       -- the earlier firm's versions are not this firm's to review.
-      and (v.firm_user_id = b.firm_user_id or (v.firm_user_id is null and b.granted_at is null))
+      and ${FIRM_READS_VERSION}
     where v.review_requested_at is not null
       and v.reviewed_at is null
       and v.returned_at is null
@@ -374,8 +372,9 @@ async function versionsAwaitingReview(
             and f.member_user_id = v.review_requested_from
             and f.role in ('owner', 'reviewer')
         ))
-    group by r.user_id
-  `;
+    group by r.user_id`,
+    [members.map((r) => r.userId), members.map((r) => r.firmUserId)],
+  );
   return new Map(rows.map((r) => [r.user_id, Number(r.n)]));
 }
 
