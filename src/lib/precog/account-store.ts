@@ -200,7 +200,7 @@ interface AccountExport {
     assessmentRefundedAt: string | null;
     assessmentDisputedAt: string | null;
     currentPeriodEnd: string | null;
-    /** The Stripe price the subscription runs on (migration 0044); null until an event names it. */
+    /** The Stripe price the subscription runs on (migration 0050); null until an event names it. */
     subscriptionPriceId: string | null;
   } | null;
   quickBooksConnections: Array<{

@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { PGlite } from "@electric-sql/pglite";
 import { toCrossJSON } from "seroval";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -818,5 +820,19 @@ describe("a business its owner shared with a firm", () => {
     ]);
     expect(JSON.stringify(data)).not.toContain('"g1"');
     expect((await exportAccountRows(sql, "ua")).firmGrants).toEqual([]);
+  });
+});
+
+describe("the export's column notes", () => {
+  it("name the migration that adds the subscription's price", () => {
+    const source = readFileSync(join(process.cwd(), "src/lib/precog/account-store.ts"), "utf8");
+    const note = source.match(/The Stripe price the subscription runs on \(migration (\d{4})\)/);
+    expect(note?.[1]).toBeDefined();
+    const dir = join(process.cwd(), "migrations");
+    const file = readdirSync(dir).find((f) => f.startsWith(`${note?.[1]}_`));
+    expect(file).toBeDefined();
+    expect(readFileSync(join(dir, file ?? ""), "utf8")).toContain(
+      "add column if not exists subscription_price_id",
+    );
   });
 });
