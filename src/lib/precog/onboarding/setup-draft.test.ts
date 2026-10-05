@@ -175,7 +175,7 @@ describe("going back and loading the sample after typing a team", () => {
     );
     expect(later.restoredEarlier).toBe(false);
     expect(later.draft).toMatchObject({
-      step: "team",
+      step: "questions",
       selected: "retail",
       businessName: "Second Shop",
     });

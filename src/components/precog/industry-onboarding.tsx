@@ -265,7 +265,7 @@ export function IndustryOnboarding() {
     const card = dialogRef.current?.querySelector<HTMLElement>("[data-onboarding-card]");
     if (card) card.scrollTop = 0;
     titleRef.current?.focus({ preventScroll: true });
-  }, [step]);
+  }, [step, question]);
 
   // "Scroll sideways" shows whenever the table is wider than its box, until
   // the owner scrolls it once: on a phone the duty columns hide otherwise,
