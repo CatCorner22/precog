@@ -171,21 +171,22 @@ export async function lockReportVersion(
     requireLockedVersions?: boolean;
   },
 ): Promise<ReportVersionRow> {
-  const row = await inTransaction(sql, async (tx) => {
-    await lockEngagementWriteAccess(tx, input.ownerUserId, input.businessId, input.preparedBy);
-    if (input.requireLockedVersions) {
-      await requireEntitlement(tx, input.preparedBy, "lockedVersions");
-    }
-    const business = await tx<{ id: string; profile: unknown }>`
-      select id, profile from businesses
-      where user_id = ${input.ownerUserId} and id = ${input.businessId} and deleted_at is null
-    `;
-    if (!business[0]) throw new ReportVersionError(404, "That client is not on this account");
-    const frozen = input.freeze?.(business[0].profile) ?? null;
-    // The firm's name and letterhead are copied in as they are today, through
-    // the same join `reportFirmName` uses, so a solo business freezes none;
-    // the engagement's scope and period likewise (an empty scope as null).
-    await tx`
+  let row;
+  try {
+    row = await inTransaction(sql, async (tx) => {
+      await lockEngagementWriteAccess(tx, input.ownerUserId, input.businessId, input.preparedBy);
+      if (input.requireLockedVersions) {
+        await requireEntitlement(tx, input.preparedBy, "lockedVersions");
+      }
+      const business = await tx<{ id: string; profile: unknown }>`
+        select id, profile from businesses
+        where user_id = ${input.ownerUserId} and id = ${input.businessId} and deleted_at is null
+      `;
+      const frozen = input.freeze?.(business[0].profile) ?? null;
+      // The firm's name and letterhead are copied in as they are today, through
+      // the same join `reportFirmName` uses, so a solo business freezes none;
+      // the engagement's scope and period likewise (an empty scope as null).
+      await tx`
       insert into report_versions
         (id, user_id, business_id, version_no, revision, profile, scope_note, prepared_by,
          scoring_version, layout_version, report_model,
@@ -217,8 +218,14 @@ export async function lockReportVersion(
       left join engagement_marks e on e.user_id = b.user_id and e.business_id = b.id
       where b.user_id = ${input.ownerUserId} and b.id = ${input.businessId}
     `;
-    return loadReportVersion(tx, input.ownerUserId, input.id);
-  });
+      return loadReportVersion(tx, input.ownerUserId, input.id);
+    });
+  } catch (error) {
+    if (error instanceof RequestError && error.status === 404) {
+      throw new ReportVersionError(404, "That client is not on this account");
+    }
+    throw error;
+  }
   if (!row) throw new Error("Unable to lock the report");
   return row.version;
 }

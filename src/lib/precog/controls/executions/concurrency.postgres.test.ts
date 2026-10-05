@@ -173,7 +173,7 @@ describe.runIf(process.env.PRECOG_LIFECYCLE_POSTGRES === "1")(
                   {
                     businessId: "biz_race",
                     period: "2026-09",
-                    itemKey: "bank_reconciliation",
+                    itemKey: "bank_statement",
                     ownerName: "Owner",
                     dueOn: null,
                     result: "done",
