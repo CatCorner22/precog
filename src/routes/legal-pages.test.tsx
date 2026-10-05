@@ -241,6 +241,69 @@ describe("Privacy", () => {
     expect(html).toContain("seven days from last use; end them from Sessions in the account menu");
   });
 
+  it("says what a firm invited by a business owner keeps, and what the activity log records", () => {
+    expect(html).toContain(
+      "When a business owner invites a firm, the firm works on that business as a client until either of them ends the access; the business stays the owner&#x27;s. When the access ends, the firm can no longer open the business or the report versions it locked; the owner keeps them.",
+    );
+    expect(html).toContain(
+      "Precog writes these events to the firm&#x27;s activity log, which the firm owner can export: members invited, joining, leaving, removed and their roles; ownership transfers; clients deleted, restored, handed over, shared by their owners and handed back; engagements saved, ended and reopened; the retention period; share links; locked versions, review requests, returns, reviews for issuance and sends; QuickBooks connections; owner reminder addresses; the letterhead; exports; plan changes; and Precog&#x27;s operator&#x27;s lookups and changes.",
+    );
+    expect(html).toContain(
+      "Edits to a business&#x27;s map, Monthly review results and QuickBooks readings are kept in the business&#x27;s own history and logs, not in the activity log.",
+    );
+    expect(html).toContain(
+      "Precog&#x27;s operator can look up one account at a time by its exact address, to answer a support request or link a Stripe customer; on a firm&#x27;s account, each lookup and change is written to the firm&#x27;s activity log.",
+    );
+  });
+
+  it("names, for every event the activity log accepts, the words that list it", () => {
+    // The log's check list (migration 0048, AUDIT_EVENTS in audit.server.ts);
+    // a new event needs a migration, and this map fails until Privacy names it.
+    const migration = repoFile("migrations/0048_firm_audit_log.sql");
+    const check = migration.slice(migration.indexOf("check (event in ("));
+    const events = [...check.slice(0, check.indexOf("))")).matchAll(/'([a-z_]+)'/g)].map(
+      (m) => m[1],
+    );
+    const words: Record<string, string> = {
+      member_invited: "members invited",
+      invite_revoked: "members invited",
+      member_joined: "joining",
+      member_left: "leaving",
+      member_removed: "removed",
+      role_changed: "their roles",
+      ownership_transferred: "ownership transfers",
+      letterhead_changed: "the letterhead",
+      retention_changed: "the retention period",
+      client_deleted: "clients deleted",
+      client_restored: "restored",
+      client_handed_over: "handed over",
+      client_granted: "shared by their owners",
+      client_handed_back: "handed back",
+      engagement_saved: "engagements saved",
+      engagement_ended: "ended and reopened",
+      engagement_reopened: "ended and reopened",
+      share_created: "share links",
+      share_revoked: "share links",
+      version_locked: "locked versions",
+      version_review_requested: "review requests",
+      version_returned: "returns",
+      version_reviewed: "reviews for issuance",
+      version_sent: "and sends",
+      owner_email_set: "owner reminder addresses",
+      quickbooks_connected: "QuickBooks connections",
+      quickbooks_disconnected: "QuickBooks connections",
+      export_run: "exports",
+      plan_changed: "plan changes",
+      operator_lookup: "operator&#x27;s lookups",
+      operator_linked_stripe: "lookups and changes",
+      operator_lifted_cap: "lookups and changes",
+    };
+    expect(events).toHaveLength(32);
+    expect(Object.keys(words).sort()).toEqual([...events].sort());
+    const list = html.slice(html.indexOf("Precog writes these events"));
+    for (const phrase of Object.values(words)) expect(list).toContain(phrase);
+  });
+
   it("says how long a session lasts and what each model call leaves behind", () => {
     expect(html).toContain(
       "The session cookie stays with Precog. A session lasts seven days from its last use; Sessions in the account menu lists your signed-in devices and ends them.",

@@ -263,6 +263,27 @@ function PrivacyPage() {
           account, as the Terms say. The firm owner can hand the firm, its clients, its invitations
           and its billing to a member; the previous owner stays on as a reviewer.
         </p>
+        <p>
+          When a business owner invites a firm, the firm works on that business as a client until
+          either of them ends the access; the business stays the owner's. When the access ends, the
+          firm can no longer open the business or the report versions it locked; the owner keeps
+          them.
+        </p>
+        <p>
+          Precog writes these events to the firm's activity log, which the firm owner can export:
+          members invited, joining, leaving, removed and their roles; ownership transfers; clients
+          deleted, restored, handed over, shared by their owners and handed back; engagements saved,
+          ended and reopened; the retention period; share links; locked versions, review requests,
+          returns, reviews for issuance and sends; QuickBooks connections; owner reminder addresses;
+          the letterhead; exports; plan changes; and Precog's operator's lookups and changes. Edits
+          to a business's map, Monthly review results and QuickBooks readings are kept in the
+          business's own history and logs, not in the activity log.
+        </p>
+        <p>
+          Precog's operator can look up one account at a time by its exact address, to answer a
+          support request or link a Stripe customer; on a firm's account, each lookup and change is
+          written to the firm's activity log.
+        </p>
       </section>
 
       <section className={sectionCls}>
