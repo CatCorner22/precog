@@ -102,7 +102,7 @@ export function normalizeOnboardingFacts(value: unknown): OnboardingFacts | unde
     COMPLEXITY_QUESTION_IDS.flatMap((id) =>
       isOneOf(rawAnswers[id], COMPLEXITY_ANSWERS) ? [[id, rawAnswers[id]]] : [],
     ),
-  ) as OnboardingFacts["answers"];
+  ) as NonNullable<OnboardingFacts["answers"]>;
   return {
     schemaVersion: ONBOARDING_FACTS_VERSION,
     ...(isOneOf(raw.actor, ACTORS) ? { actor: raw.actor } : {}),
