@@ -375,6 +375,29 @@ export async function reportVersionFor(
   return rows[0] ? { ownerUserId: rows[0].user_id, businessId: rows[0].business_id } : null;
 }
 
+/**
+ * The refusal when a guarded write matched no row because someone acted
+ * between the read and the write: the version is read again and refused as
+ * the read would have refused it then, `reviewed` for a version reviewed
+ * meanwhile and VERSION_RETURNED for one returned meanwhile.
+ */
+async function refusalAfterRace(
+  sql: Sql,
+  ownerUserId: string,
+  id: string,
+  reviewed: string,
+): Promise<ReportVersionError> {
+  const now = await loadReportVersion(sql, ownerUserId, id);
+  if (!now) return new ReportVersionError(404, "That report version does not exist");
+  return new ReportVersionError(
+    409,
+    now.version.returnedAt && !now.version.reviewedAt ? VERSION_RETURNED : reviewed,
+  );
+}
+
+/** The sign-off's own refusal of a version already reviewed for issuance. */
+const SOMEONE_REVIEWED = "Someone has already reviewed this version for issuance";
+
 export async function signOffReportVersion(
   sql: Sql,
   input: {
@@ -388,9 +411,7 @@ export async function signOffReportVersion(
 ): Promise<ReportVersionRow> {
   const current = await loadReportVersion(sql, input.ownerUserId, input.id);
   if (!current) throw new ReportVersionError(404, "That report version does not exist");
-  if (current.version.reviewedAt) {
-    throw new ReportVersionError(409, "Someone has already reviewed this version for issuance");
-  }
+  if (current.version.reviewedAt) throw new ReportVersionError(409, SOMEONE_REVIEWED);
   if (current.version.returnedAt) throw new ReportVersionError(409, VERSION_RETURNED);
   const self = current.version.preparedBy === input.reviewedBy;
   if (self) {
@@ -417,12 +438,18 @@ export async function signOffReportVersion(
     }
   }
   const note = self ? `Not an independent review. ${input.note}`.trim().slice(0, 600) : input.note;
-  await sql`
+  const rows = await sql`
     update report_versions
     set reviewed_by = ${input.reviewedBy}, reviewed_at = now(), review_note = ${note}
     where user_id = ${input.ownerUserId} and id = ${input.id}
       and reviewed_at is null and returned_at is null
+    returning id
   `;
+  // Another reviewer acted between the read and the write. Throwing here
+  // keeps signOffReport from logging a review that was never stored.
+  if (!rows.length) {
+    throw await refusalAfterRace(sql, input.ownerUserId, input.id, SOMEONE_REVIEWED);
+  }
   const updated = await loadReportVersion(sql, input.ownerUserId, input.id);
   if (!updated) throw new Error("Unable to record the review");
   return updated.version;
@@ -530,7 +557,9 @@ export async function requestReportVersionReview(
     returning id
   `;
   // A reviewer acted between the read and the write.
-  if (!rows.length) throw new ReportVersionError(409, ALREADY_REVIEWED);
+  if (!rows.length) {
+    throw await refusalAfterRace(sql, input.ownerUserId, input.id, ALREADY_REVIEWED);
+  }
   const updated = await loadReportVersion(sql, input.ownerUserId, input.id);
   if (!updated) throw new Error("Unable to record the request");
   return updated.version;
@@ -564,7 +593,9 @@ export async function returnReportVersion(
     returning id
   `;
   // Another reviewer acted between the read and the write.
-  if (!rows.length) throw new ReportVersionError(409, ALREADY_REVIEWED);
+  if (!rows.length) {
+    throw await refusalAfterRace(sql, input.ownerUserId, input.id, ALREADY_REVIEWED);
+  }
   const updated = await loadReportVersion(sql, input.ownerUserId, input.id);
   if (!updated) throw new Error("Unable to record the return");
   return updated.version;
