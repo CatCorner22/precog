@@ -55,6 +55,7 @@ import { ACTIVE_PROFILE_KEY, LEGACY_PROFILE_KEY, PORTFOLIO_KEY } from "./storage
 import { stripProcedureLinks } from "./procedures/coverage-link";
 import { normalizePlaces, normalizeProcedures } from "./procedures/normalize";
 import type { Place, Procedure } from "./procedures/types";
+import { normalizeOnboardingFacts, type OnboardingFacts } from "./onboarding/decision-model";
 
 /**
  * One business: what it is, the owner's own team, map and register (or null
@@ -71,6 +72,8 @@ export interface PracticeProfile {
   decisions: DecisionEntry[];
   /** False on first visit until the user picks an industry template. */
   onboardingComplete?: boolean;
+  /** Organization-level setup facts; never used as mapped-team scoring inputs. */
+  onboardingFacts?: OnboardingFacts;
   /** User-built process map. Null/undefined = use the industry template as-is. */
   customProcesses?: ProcessNode[] | null;
   /** The user's real team. Null/undefined = template demo people. */
@@ -376,6 +379,7 @@ export function normalizeProfile(
   const today = options.today ?? localDateKey(new Date());
   const customKnowledge = normalizeCustomKnowledge(knowledgeEntries(parsed.customKnowledge), today);
   const customRelations = relationEntries(parsed.customRelations);
+  const onboardingFacts = normalizeOnboardingFacts(parsed.onboardingFacts);
   const dualRelease = mergeDualReleasePolicy(
     resolveTemplate({
       industry,
@@ -410,6 +414,7 @@ export function normalizeProfile(
       typeof parsed.onboardingComplete === "boolean"
         ? parsed.onboardingComplete
         : (options.onboardingCompleteFallback ?? true),
+    ...(onboardingFacts ? { onboardingFacts } : {}),
     customProcesses,
     customPeople,
     customKnowledge,
