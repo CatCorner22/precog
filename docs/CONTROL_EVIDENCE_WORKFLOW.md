@@ -68,13 +68,16 @@ patient information and full financial account numbers. References display as
 escaped text, not executable markup or automatically clickable URLs.
 
 History is append-only through these APIs, not cryptographically immutable or
-protected against a privileged database administrator; the firm activity log
-and locked report versions are protected by database triggers that refuse
-changes from every connection, Precog's included; a privileged database
-administrator can still drop a trigger, and Neon's point-in-time restore is
-the record of that. A profile restore cannot
-replace this history because it is outside the client-editable profile JSON. Hard business
-or owning-account deletion cascades; soft-deleted businesses are inaccessible.
+protected against a privileged database administrator. Database triggers
+refuse, from any connection, Precog's included, an update or delete of the firm
+activity log unless the transaction sets its bypass setting (which any
+connection can set), and an update of what a locked report version printed;
+they stop mistakes, not someone who means to change the rows. A locked version
+can still be deleted, directly or with its business, and a privileged database
+administrator can drop a trigger; Neon's point-in-time restore is the record
+of the database as it was. A profile restore cannot replace this history
+because it is outside the client-editable profile JSON. Hard business or
+owning-account deletion cascades; soft-deleted businesses are inaccessible.
 The owner's account export includes owned logs; a contributor's attribution in
 another owner's retained log remains. Retention follows the business: the
 weekly run purges a deleted business, and this log with it, after 30 days,

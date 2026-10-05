@@ -196,7 +196,8 @@ introduced this model is in
   (`firm_user_id`, cascading with it) with the actor's id and their name as
   it was (no foreign key on the actor, so a departed member's rows still
   read). A trigger refuses every `update` and `delete`, Precog's included,
-  unless the transaction set `precog.audit_bypass`; Precog sets it in the
+  unless the transaction set `precog.audit_bypass` (a custom setting any
+  connection can set, so the trigger stops mistakes); Precog sets it in the
   firm owner's account deletion, the retention purge and the ownership
   transfer, which repoints the rows to the new owner. A member hand-over
   repoints nothing. The weekly run deletes each row once it is older than
@@ -204,8 +205,10 @@ introduced this model is in
   own age, not by a client's deletion date (`purgeExpiredAudit` in
   `src/lib/precog/firm/audit.server.ts`). The firm owner's account export
   carries the log as `firmActivity`. The same migration freezes what a
-  locked version printed: a second trigger refuses any change to those
-  columns, with no bypass.
+  locked version printed: a second trigger refuses any update of those
+  columns, with no bypass. It has no delete trigger: the purge and the
+  account deletion remove versions through the cascade from `businesses`,
+  and a direct delete is not refused either.
 - Model-call records (0049): `llm_usage`, one row per call (account,
   feature, model, prompt and completion tokens, outcome, time; no text),
   deleted with the account and purged after 13 months by the weekly run;
