@@ -6,6 +6,7 @@ import { requireBusinessRole, requireReportVersion } from "./access.server";
 import { assertEngagementOpen } from "./engagement-store";
 import { requestReportVersionReview, returnReportVersion } from "./reports";
 import { idInput } from "./server-inputs";
+import { recordAuditForBusiness } from "./audit.server";
 
 /**
  * Request and return on a locked version. The preparer, or the firm owner,
@@ -26,6 +27,12 @@ export const requestReportReview = createServerFn({ method: "POST" })
       ownerUserId: where.ownerUserId,
       id: data.id,
       requestedBy: context.userId,
+    });
+    await recordAuditForBusiness(sql, where.ownerUserId, where.businessId, {
+      actorUserId: context.userId,
+      event: "version_review_requested",
+      subjectUserId: version.reviewRequestedFrom,
+      detail: { versionId: data.id, versionNo: version.versionNo },
     });
     return { version };
   });
@@ -50,6 +57,13 @@ export const returnReport = createServerFn({ method: "POST" })
       id: data.id,
       returnedBy: context.userId,
       note: data.note,
+    });
+    // The note itself stays on the version.
+    await recordAuditForBusiness(sql, where.ownerUserId, where.businessId, {
+      actorUserId: context.userId,
+      event: "version_returned",
+      subjectUserId: version.preparedBy,
+      detail: { versionId: data.id, versionNo: version.versionNo },
     });
     return { version };
   });

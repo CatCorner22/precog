@@ -10,6 +10,7 @@ import { usageTotalsFor, type UsageTotal } from "./llm/usage-log.server";
 import { count } from "./text";
 import { pictureUrl } from "./procedures/image-pipeline";
 import { resetEngagement } from "./firm/grant-store";
+import { listFirmActivity, withAuditBypass, type FirmActivityRow } from "./firm/audit.server";
 
 /**
  * Everything the app holds for one account, in one JSON document the owner can
@@ -216,6 +217,11 @@ interface AccountExport {
   activity: Array<{ event: string; businessId: string | null; occurredAt: string }>;
   /** Model calls the account made, per feature: calls and tokens, never the text. */
   modelUsage: UsageTotal[];
+  /**
+   * For a firm owner: the firm's activity log (migration 0048), newest
+   * first, with each actor's name as it was. Empty for everyone else.
+   */
+  firmActivity: FirmActivityRow[];
 }
 
 /** What account deletion removed that still has to be undone outside the database. */
@@ -263,6 +269,7 @@ export async function exportAccountRows(
       controlExecutions,
       activity,
       modelUsage,
+      firmActivity,
     ] = await Promise.all([
       readUser(tx, userId),
       readBusinesses(tx, userId),
@@ -290,6 +297,7 @@ export async function exportAccountRows(
       }>`select business_id as "businessId", record from control_execution_log where user_id=${userId} order by created_at,id`,
       readActivity(tx, userId),
       usageTotalsFor(tx, userId),
+      firmUserId ? listFirmActivity(tx, firmUserId) : Promise.resolve([]),
     ]);
     return {
       exportedAt: new Date().toISOString(),
@@ -316,6 +324,7 @@ export async function exportAccountRows(
       procedureImages,
       activity,
       modelUsage,
+      firmActivity,
     };
   });
 }
@@ -510,7 +519,8 @@ export function encodeHistoryPage(rows: BusinessHistoryExportRow[]): string {
  * Snapshots and the per-user model-usage counts carry no foreign key to the
  * user, so they are deleted explicitly; everything else (businesses and their
  * history, report versions and QuickBooks rows, shares, the firm, reminders,
- * billing, the activity milestones, the model-call records, sessions and
+ * billing, the activity milestones, the firm's activity log, the
+ * model-call records, sessions and
  * linked accounts) cascades
  * from the user row. Client
  * businesses that members of this account's firm set up stay with those
@@ -552,6 +562,9 @@ export async function deleteAccountRows(sql: Sql, userId: string): Promise<Delet
     `;
     await tx`delete from assessment_snapshots where user_id = ${userId}`;
     await tx`delete from llm_daily_usage where scope = ${userScope(userId)}`;
+    // A firm owner's account takes its firm's activity log with it; the log
+    // refuses that delete outside the bypass (migration 0048).
+    await withAuditBypass(tx);
     await tx`delete from "user" where "id" = ${userId}`;
     return {
       quickBooksRefreshTokens: connections.map((c) => c.refresh_token_enc),

@@ -9,6 +9,7 @@ import { revokeDepartingMemberShares } from "../share/share-store";
 import { transferBusinessesToOwner, type MovedBusiness } from "../business-store";
 import { SUPPORT_EMAIL } from "../legal/operator";
 import { TRUSTED_EMAIL, VOUCHED_EMAIL, X_ACCOUNT } from "./vouched-email";
+import { withAuditBypass } from "./audit.server";
 
 /**
  * A firm is keyed by its owner's account: `firms.user_id` is both the owner
@@ -230,17 +231,24 @@ export async function listMembers(sql: Sql, firmUserId: string): Promise<FirmMem
   }));
 }
 
+/** Sets a member's role; returns the role they held before, or null when nobody changed. */
 export async function setMemberRole(
   sql: Sql,
   firmUserId: string,
   memberUserId: string,
   role: InviteRole,
-): Promise<void> {
+): Promise<FirmRole | null> {
   if (memberUserId === firmUserId) throw new FirmMembershipError("The owner's role cannot change.");
-  await sql`
-    update firm_members set role = ${role}
-    where firm_user_id = ${firmUserId} and member_user_id = ${memberUserId} and role <> 'owner'
+  // The joined row is read before the update, so it carries the old role.
+  const rows = await sql<{ from_role: string }>`
+    update firm_members m set role = ${role}
+    from firm_members o
+    where m.firm_user_id = ${firmUserId} and m.member_user_id = ${memberUserId}
+      and m.role <> 'owner'
+      and o.firm_user_id = m.firm_user_id and o.member_user_id = m.member_user_id
+    returning o.role as from_role
   `;
+  return rows[0] ? asRole(rows[0].from_role) : null;
 }
 
 /**
@@ -507,7 +515,9 @@ async function detachMember(
  * client businesses, deletion markers, which are `on delete set null` and so
  * go before the old row), the billing row moved, the client invitations it
  * accepted and the versions locked for it repointed, and the old `firms` row
- * deleted last. The firm's settings (letterhead, cover page, retention) move. The new owner's role becomes owner and the old owner's
+ * deleted last. The firm's settings (letterhead, cover page, retention) move,
+ * and so does its activity log (under the audit bypass, the third of its
+ * three sites). The new owner's role becomes owner and the old owner's
  * reviewer. Refused while the firm's payment is overdue or disputed, for a
  * non-member, for someone who owns a firm, and for someone who already has
  * a billing record (impossible through the product; Support untangles it).
@@ -589,6 +599,13 @@ export async function transferFirmOwnership(
     `;
     await tx`
       update report_versions set firm_user_id = ${newOwnerUserId}
+      where firm_user_id = ${firmUserId}
+    `;
+    // The log is keyed by the firm's id too; it follows the firm, so the
+    // firm's history outlives the previous owner's account.
+    await withAuditBypass(tx);
+    await tx`
+      update firm_audit_log set firm_user_id = ${newOwnerUserId}
       where firm_user_id = ${firmUserId}
     `;
     await tx`delete from firms where user_id = ${firmUserId}`;

@@ -12,6 +12,7 @@ import {
   type CreatedGrant,
 } from "./grant-store";
 import { businessInput, EMAIL, tokenInput } from "./server-inputs";
+import { recordAudit } from "./audit.server";
 
 /** The refusal when someone other than the business's own account invites a firm to it. */
 export const ONLY_OWNER_INVITES =
@@ -32,6 +33,7 @@ export const inviteFirmToBusiness = createServerFn({ method: "POST" })
     return { ...businessInput(input), email: email.slice(0, 200) };
   })
   .handler(async ({ context, data }) => {
+    // audit: exempt (the business owner's invitation; the firm's log takes the acceptance)
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
     if (owner !== context.userId) throw new RequestError(403, ONLY_OWNER_INVITES);
@@ -94,6 +96,12 @@ export const acceptClientGrant = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const accepted = await acceptGrant(sql, data.token, context.userId);
+    await recordAudit(sql, {
+      firmUserId: accepted.firmUserId,
+      actorUserId: context.userId,
+      event: "client_granted",
+      businessId: accepted.businessId,
+    });
     return { businessName: accepted.businessName, businessId: accepted.businessId };
   });
 
@@ -108,11 +116,21 @@ export const endFirmAccess = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    await endGrant(sql, {
+    const ended = await endGrant(sql, {
       ownerUserId: owner,
       businessId: data.businessId,
       actorUserId: context.userId,
     });
+    // Only a business a firm worked on is handed back; a closed invitation is not.
+    if (ended.firmUserId) {
+      await recordAudit(sql, {
+        firmUserId: ended.firmUserId,
+        actorUserId: context.userId,
+        event: "client_handed_back",
+        businessId: data.businessId,
+        detail: { by: context.userId === owner ? "owner" : "firm" },
+      });
+    }
     return { ok: true as const };
   });
 

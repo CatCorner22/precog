@@ -18,6 +18,7 @@ import { checkPasscodeGuess, hashPasscode } from "./share-attempts";
 import { redactSharePayload } from "./share-payload";
 import { parseCreateShareInput, SHARE_PASSCODE_MIN, type SharedMapPayload } from "./share-schema";
 import { clamp } from "../number";
+import { recordAuditForBusiness } from "../firm/audit.server";
 import {
   insertMapShare,
   listMapShareSummaries,
@@ -99,6 +100,11 @@ export const createMapShare = createServerFn({ method: "POST" })
       businessId: data.businessId,
     });
     if (!stored) throw new ShareLimitError();
+    await recordAuditForBusiness(sql, businessOwnerId, data.businessId, {
+      actorUserId: context.userId,
+      event: "share_created",
+      detail: { kind: "map", namesHidden: hideNames },
+    });
     return { token, expiresAt: expires, hasPasscode: passcodeHash !== null };
   });
 
@@ -201,6 +207,11 @@ export const createReportShare = createServerFn({ method: "POST" })
       reportVersionId: data.versionId,
     });
     if (!stored) throw new ShareLimitError();
+    await recordAuditForBusiness(sql, where.ownerUserId, where.businessId, {
+      actorUserId: context.userId,
+      event: "share_created",
+      detail: { kind: "report", versionId: data.versionId },
+    });
     return { token, expiresAt: expires, hasPasscode: passcodeHash !== null };
   });
 
@@ -225,7 +236,20 @@ export const revokeMapShare = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     // The maker, or the firm owner for a link to one of the firm's clients.
-    await revokeShare(sql, context.userId, data.token);
+    const revoked = await revokeShare(sql, context.userId, data.token);
+    const link = revoked
+      ? await sql<{ business_owner_id: string | null; business_id: string | null }>`
+          select business_owner_id, business_id from map_shares where token = ${data.token}
+        `
+      : [];
+    const owner = link[0]?.business_owner_id;
+    const businessId = link[0]?.business_id;
+    if (owner && businessId) {
+      await recordAuditForBusiness(sql, owner, businessId, {
+        actorUserId: context.userId,
+        event: "share_revoked",
+      });
+    }
     return { ok: true as const };
   });
 
@@ -300,6 +324,7 @@ const TOKEN_SHAPE = /^[a-f0-9]{24,64}$/;
 export const loadMapShare = createServerFn({ method: "POST" })
   .validator((input: { token: string; passcode?: string }) => parseLoadShareInput(input))
   .handler(async ({ data }) => {
+    // audit: exempt (a visitor opening a link; the link keeps its own view log)
     if (!TOKEN_SHAPE.test(data.token))
       return { found: false as const, reason: "unavailable" as const };
     const { requestIp } = await import("@/lib/request-ip.server");
@@ -346,6 +371,7 @@ export const loadMapShare = createServerFn({ method: "POST" })
 export const loadReportShare = createServerFn({ method: "POST" })
   .validator((input: { token: string; passcode?: string }) => parseLoadShareInput(input))
   .handler(async ({ data }) => {
+    // audit: exempt (a visitor opening a link; the link keeps its own view log)
     if (!TOKEN_SHAPE.test(data.token))
       return { found: false as const, reason: "unavailable" as const };
     // The same per-address allowance as a shared map: a report link is public too.

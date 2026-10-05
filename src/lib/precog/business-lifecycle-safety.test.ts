@@ -11,6 +11,9 @@ import {
   loadActiveBusiness,
   resolveBusinessOwner,
 } from "./business-store";
+import { deleteAccountRows } from "./account-store";
+import { lockReportVersion } from "./firm/reports";
+import { removeMember } from "./firm/store";
 
 let db: SafetyDb;
 const input = (businessId: string, baseRevision: number | null, name = "Practice") => ({
@@ -226,5 +229,41 @@ describe("transactional business safety", () => {
       saveBusinessRevision(db.sql, { ...input("one", null), userId: "b", firmUserId: "a" }),
     ).rejects.toThrow();
     expect((await counts()).businesses).toBe(0);
+  });
+});
+describe("the activity log and locked versions on the database (migration 0048)", () => {
+  it("lets a firm owner whose firm has activity-log rows delete their account", async () => {
+    await db.pg.exec(`
+      insert into firms (user_id, name) values ('a', 'Firm');
+      insert into firm_members (firm_user_id, member_user_id, role) values ('a', 'a', 'owner');
+      insert into firm_audit_log (firm_user_id, actor_user_id, event)
+        values ('a', 'a', 'letterhead_changed'), ('a', 'b', 'member_left');
+    `);
+    await deleteAccountRows(db.sql, "a");
+    const left = await db.sql<{ n: number }>`select count(*)::int as n from firm_audit_log`;
+    expect(left[0].n).toBe(0);
+  });
+  it("hands a departing member's client with a locked version to the owner through the frozen trigger", async () => {
+    await db.pg.exec(`
+      insert into firms (user_id, name) values ('a', 'Firm');
+      insert into firm_members (firm_user_id, member_user_id, role)
+        values ('a', 'a', 'owner'), ('a', 'b', 'preparer');
+    `);
+    await saveBusinessRevision(db.sql, { ...input("client", null), userId: "b", firmUserId: "a" });
+    await lockReportVersion(db.sql, {
+      ownerUserId: "b",
+      businessId: "client",
+      preparedBy: "b",
+      scopeNote: "Year end",
+      id: "rv_1",
+    });
+    await removeMember(db.sql, "a", "b");
+    const versions = await db.sql<{ user_id: string; business_id: string; scope_note: string }>`
+      select user_id, business_id, scope_note from report_versions
+    `;
+    expect(versions).toEqual([{ user_id: "a", business_id: "client", scope_note: "Year end" }]);
+    await expect(
+      db.sql`update report_versions set scope_note = 'Changed' where id = 'rv_1'`,
+    ).rejects.toThrow("a locked report version keeps what it printed");
   });
 });

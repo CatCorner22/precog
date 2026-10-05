@@ -67,6 +67,7 @@ import {
 } from "./entitlements.server";
 import { recordFirst } from "../telemetry/events.server";
 import { assertEngagementOpen, engagementEnded } from "./engagement-store";
+import { recordAudit, recordAuditForBusiness } from "./audit.server";
 import {
   businessInput,
   EMAIL,
@@ -115,6 +116,7 @@ export const saveFirmProfile = createServerFn({ method: "POST" })
     return { name: raw.name.trim().slice(0, 120), plan: raw.plan as FirmPlan };
   })
   .handler(async ({ context, data }) => {
+    // audit: exempt (the firm's name and workspace settings; the letterhead has its own event)
     const sql = await getSql();
     // With Stripe connected the plan follows the webhook alone; without it
     // the owner records the stage by hand.
@@ -140,7 +142,13 @@ export const saveFirmLetterhead = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     await requireFirmRole(sql, context.userId, ["owner"]);
-    return { firm: await saveFirmLetterheadRow(sql, context.userId, data) };
+    const firm = await saveFirmLetterheadRow(sql, context.userId, data);
+    await recordAudit(sql, {
+      firmUserId: context.userId,
+      actorUserId: context.userId,
+      event: "letterhead_changed",
+    });
+    return { firm };
   });
 
 /**
@@ -167,6 +175,12 @@ export const inviteFirmMember = createServerFn({ method: "POST" })
       token: randomHex(24),
     });
     const emailed = await emailInvitation(sql, context.userId, firm.name, invite);
+    await recordAudit(sql, {
+      firmUserId: firm.firmUserId,
+      actorUserId: context.userId,
+      event: "member_invited",
+      detail: { email: invite.email, role: invite.role },
+    });
     return { invite, emailed };
   });
 
@@ -177,6 +191,11 @@ export const revokeFirmInvite = createServerFn({ method: "POST" })
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
     await revokeInvite(sql, firm.firmUserId, data.token);
+    await recordAudit(sql, {
+      firmUserId: firm.firmUserId,
+      actorUserId: context.userId,
+      event: "invite_revoked",
+    });
     return { ok: true as const };
   });
 
@@ -223,7 +242,15 @@ export const acceptFirmInvite = createServerFn({ method: "POST" })
   .validator(tokenInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    return { firm: (await acceptInvite(sql, data.token, context.userId)).firm };
+    const { firm } = await acceptInvite(sql, data.token, context.userId);
+    await recordAudit(sql, {
+      firmUserId: firm.firmUserId,
+      actorUserId: context.userId,
+      event: "member_joined",
+      subjectUserId: context.userId,
+      detail: { role: firm.role },
+    });
+    return { firm };
   });
 
 export const setFirmMemberRole = createServerFn({ method: "POST" })
@@ -237,7 +264,16 @@ export const setFirmMemberRole = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
-    await setMemberRole(sql, firm.firmUserId, data.userId, data.role);
+    const from = await setMemberRole(sql, firm.firmUserId, data.userId, data.role);
+    if (from !== null && from !== data.role) {
+      await recordAudit(sql, {
+        firmUserId: firm.firmUserId,
+        actorUserId: context.userId,
+        event: "role_changed",
+        subjectUserId: data.userId,
+        detail: { from, to: data.role },
+      });
+    }
     return { members: await listMembers(sql, firm.firmUserId) };
   });
 
@@ -254,6 +290,13 @@ export const removeFirmMember = createServerFn({ method: "POST" })
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
     const moved = await removeMember(sql, firm.firmUserId, data.userId);
+    await recordAudit(sql, {
+      firmUserId: firm.firmUserId,
+      actorUserId: context.userId,
+      event: "member_removed",
+      subjectUserId: data.userId,
+    });
+    await recordHandOvers(sql, firm.firmUserId, context.userId, data.userId, moved);
     return { members: await listMembers(sql, firm.firmUserId), moved };
   });
 
@@ -269,6 +312,13 @@ export const transferFirmOwnership = createServerFn({ method: "POST" })
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
     await transferFirmOwnershipRows(sql, firm.firmUserId, data.userId);
+    // The firm's id is now the new owner's; its log moved with it.
+    await recordAudit(sql, {
+      firmUserId: data.userId,
+      actorUserId: context.userId,
+      event: "ownership_transferred",
+      subjectUserId: data.userId,
+    });
     await repointStripeOwner(sql, data.userId);
     return {
       firm: await loadFirmFor(sql, context.userId),
@@ -314,9 +364,36 @@ export const leaveFirm = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const sql = await getSql();
     const firm = await requireFirm(sql, context.userId);
-    await leaveFirmRow(sql, firm.firmUserId, context.userId);
+    const moved = await leaveFirmRow(sql, firm.firmUserId, context.userId);
+    await recordAudit(sql, {
+      firmUserId: firm.firmUserId,
+      actorUserId: context.userId,
+      event: "member_left",
+      subjectUserId: context.userId,
+    });
+    await recordHandOvers(sql, firm.firmUserId, context.userId, context.userId, moved);
     return { ok: true as const };
   });
+
+/** One client_handed_over row per business a departing member's exit moved to the owner. */
+async function recordHandOvers(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  firmUserId: string,
+  actorUserId: string,
+  memberUserId: string,
+  moved: { from: string; to: string }[],
+): Promise<void> {
+  for (const business of moved) {
+    await recordAudit(sql, {
+      firmUserId,
+      actorUserId,
+      event: "client_handed_over",
+      businessId: business.to,
+      subjectUserId: memberUserId,
+      detail: { from: business.from },
+    });
+  }
+}
 
 // ── Clients ─────────────────────────────────────────────────────────────────
 
@@ -359,6 +436,7 @@ export const recordEngagement = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ context, data }) => {
+    // audit: exempt (page-open stamp, not a change)
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
     // The page posts its stamps on open; an ended engagement keeps the ones it has.
@@ -399,6 +477,12 @@ export const setClientOwnerEmail = createServerFn({ method: "POST" })
       : confirmToken && data.email
         ? await emailOwnerConfirmation(sql, owner, data.businessId, data.email, confirmToken)
         : ("none" as const);
+    // The address itself stays out of the log.
+    await recordAuditForBusiness(sql, owner, data.businessId, {
+      actorUserId: context.userId,
+      event: "owner_email_set",
+      detail: { cleared: data.email === null },
+    });
     return { ok: true as const, confirmation };
   });
 
@@ -434,6 +518,7 @@ export const recordMonthlyReview = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ context, data }) => {
+    // audit: exempt (the monthly review log is its own record)
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
     await assertEngagementOpen(sql, owner, data.businessId, context.userId);
@@ -480,6 +565,11 @@ export const lockReport = createServerFn({ method: "POST" })
       freeze: (profile) => freezeReport(profile, data.today),
     });
     await recordFirst(sql, context.userId, "first_locked_version", data.businessId);
+    await recordAuditForBusiness(sql, owner, data.businessId, {
+      actorUserId: context.userId,
+      event: "version_locked",
+      detail: { versionId: version.id, versionNo: version.versionNo },
+    });
     return { version };
   });
 
@@ -558,6 +648,11 @@ export const signOffReport = createServerFn({ method: "POST" })
       note: data.note,
       issueWithoutIndependentReview: data.issueWithoutIndependentReview,
     });
+    await recordAuditForBusiness(sql, where.ownerUserId, where.businessId, {
+      actorUserId: context.userId,
+      event: "version_reviewed",
+      detail: { versionId: data.id, versionNo: version.versionNo },
+    });
     return { version };
   });
 
@@ -572,6 +667,11 @@ export const markReportSent = createServerFn({ method: "POST" })
     await assertEngagementOpen(sql, where.ownerUserId, where.businessId, context.userId);
     await markReportVersionSent(sql, where.ownerUserId, data.id);
     await recordFirst(sql, context.userId, "first_report_sent", where.businessId);
+    await recordAuditForBusiness(sql, where.ownerUserId, where.businessId, {
+      actorUserId: context.userId,
+      event: "version_sent",
+      detail: { versionId: data.id },
+    });
     return { ok: true as const };
   });
 
@@ -609,6 +709,7 @@ export const keepHistoryBeforeRestore = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(businessInput)
   .handler(async ({ context, data }) => {
+    // audit: exempt (a copy kept before a restore; the business's history is its own record)
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
     await keepVersionBeforeRestore(sql, owner, data.businessId, context.userId);
@@ -678,9 +779,19 @@ export const restoreDeletedClient = createServerFn({ method: "POST" })
         businessLimitMessage({ plan: e.plan, limit: e.clientLimit, tier: e.tier }),
       );
     }
-    return {
-      restored: await restoreBusinessRow(sql, target.ownerUserId, data.businessId, context.userId),
-    };
+    const restored = await restoreBusinessRow(
+      sql,
+      target.ownerUserId,
+      data.businessId,
+      context.userId,
+    );
+    if (restored) {
+      await recordAuditForBusiness(sql, target.ownerUserId, data.businessId, {
+        actorUserId: context.userId,
+        event: "client_restored",
+      });
+    }
+    return { restored };
   });
 
 // ── Reminders ───────────────────────────────────────────────────────────────
@@ -716,6 +827,7 @@ export const updateNotificationSettings = createServerFn({ method: "POST" })
     return { weeklyDigest: raw.weeklyDigest === true, ownerReminders: raw.ownerReminders === true };
   })
   .handler(async ({ context, data }) => {
+    // audit: exempt (a member's own switches)
     const sql = await getSql();
     await saveNotificationSettings(sql, context.userId, data);
     return { settings: data };

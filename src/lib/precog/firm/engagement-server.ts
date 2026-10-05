@@ -19,6 +19,7 @@ import {
   setEngagementStatus as setEngagementStatusRow,
 } from "./engagement-store";
 import { businessInput } from "./server-inputs";
+import { recordAudit, recordAuditForBusiness } from "./audit.server";
 
 /**
  * The engagement of one client business: scope, period, preparer, reviewer
@@ -56,6 +57,14 @@ export const getEngagement = createServerFn({ method: "GET" })
       loadEngagement(sql, owner, data.businessId),
       data.withReviews ? loadReviewLog(sql, owner, data.businessId) : Promise.resolve(null),
     ]);
+    // The review log is read for the engagement archive download.
+    if (data.withReviews) {
+      await recordAuditForBusiness(sql, owner, data.businessId, {
+        actorUserId: context.userId,
+        event: "export_run",
+        detail: { kind: "engagement_archive" },
+      });
+    }
     return {
       firmClient: firm !== null,
       engagement,
@@ -83,14 +92,17 @@ export const saveEngagement = createServerFn({ method: "POST" })
     // outside the firm, reads it and does not change it (decision 26).
     await requireBusinessRole(sql, context.userId, owner, data.businessId, "any");
     const { businessId, ...fields } = data;
-    return {
-      engagement: await saveEngagementRow(sql, {
-        ownerUserId: owner,
-        businessId,
-        actorUserId: context.userId,
-        ...fields,
-      }),
-    };
+    const engagement = await saveEngagementRow(sql, {
+      ownerUserId: owner,
+      businessId,
+      actorUserId: context.userId,
+      ...fields,
+    });
+    await recordAuditForBusiness(sql, owner, businessId, {
+      actorUserId: context.userId,
+      event: "engagement_saved",
+    });
+    return { engagement };
   });
 
 /** Ends or reopens a client's engagement; the firm owner's alone. */
@@ -108,9 +120,14 @@ export const setEngagementStatus = createServerFn({ method: "POST" })
     if (!firm || firm.firmUserId !== context.userId) {
       throw new RequestError(403, OWNER_ONLY_STATUS);
     }
-    return {
-      engagement: await setEngagementStatusRow(sql, owner, data.businessId, data.status),
-    };
+    const engagement = await setEngagementStatusRow(sql, owner, data.businessId, data.status);
+    await recordAudit(sql, {
+      firmUserId: firm.firmUserId,
+      actorUserId: context.userId,
+      event: data.status === "ended" ? "engagement_ended" : "engagement_reopened",
+      businessId: data.businessId,
+    });
+    return { engagement };
   });
 
 /** How long the firm keeps a deleted client's records; the firm owner's alone. */
@@ -126,5 +143,12 @@ export const saveFirmRetention = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
-    return { retentionYears: await saveFirmRetentionRow(sql, firm.firmUserId, data.years) };
+    const retentionYears = await saveFirmRetentionRow(sql, firm.firmUserId, data.years);
+    await recordAudit(sql, {
+      firmUserId: firm.firmUserId,
+      actorUserId: context.userId,
+      event: "retention_changed",
+      detail: { years: retentionYears },
+    });
+    return { retentionYears };
   });

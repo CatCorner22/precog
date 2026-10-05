@@ -180,7 +180,9 @@ describe("firm membership", () => {
       token: "t1",
     });
     await acceptInvite(db.sql, "t1", "ub");
-    await setMemberRole(db.sql, "ua", "ub", "reviewer");
+    // The role held before comes back, for the activity log; nobody changed, null.
+    expect(await setMemberRole(db.sql, "ua", "ub", "reviewer")).toBe("preparer");
+    expect(await setMemberRole(db.sql, "ua", "uc", "reviewer")).toBeNull();
     expect((await loadFirmFor(db.sql, "ub"))?.role).toBe("reviewer");
     await expect(removeMember(db.sql, "ua", "ua")).rejects.toBeInstanceOf(FirmMembershipError);
     await expect(leaveFirm(db.sql, "ua", "ua")).rejects.toBeInstanceOf(FirmMembershipError);
@@ -498,6 +500,32 @@ describe("firm ownership transfer", () => {
       { id: "rv_1", firm_user_id: "ub" },
       { id: "rv_2", firm_user_id: "elsewhere" },
     ]);
+  });
+
+  it("moves the firm's activity log with it, and leaves it when the transfer is refused", async () => {
+    await db.pg.exec(`
+      insert into firm_audit_log (firm_user_id, actor_user_id, actor_name, event)
+        values ('ua', 'ua', 'ua', 'letterhead_changed'), ('ua', 'ub', 'ub', 'version_locked');
+    `);
+    await db.pg.query("update billing_accounts set subscription_status = 'past_due'");
+    await expect(transferFirmOwnership(db.sql, "ua", "ub")).rejects.toThrow(/overdue/);
+    const kept = await db.pg.query<{ firm_user_id: string }>(
+      "select firm_user_id from firm_audit_log order by id",
+    );
+    expect(kept.rows).toEqual([{ firm_user_id: "ua" }, { firm_user_id: "ua" }]);
+    await db.pg.query("update billing_accounts set subscription_status = 'active'");
+    await transferFirmOwnership(db.sql, "ua", "ub");
+    const moved = await db.pg.query<{ firm_user_id: string; event: string }>(
+      "select firm_user_id, event from firm_audit_log order by id",
+    );
+    expect(moved.rows).toEqual([
+      { firm_user_id: "ub", event: "letterhead_changed" },
+      { firm_user_id: "ub", event: "version_locked" },
+    ]);
+    // Outside the transfer the log still refuses a change.
+    await expect(
+      db.pg.query("update firm_audit_log set firm_user_id = 'ua'"),
+    ).rejects.toMatchObject({ code: "42501" });
   });
 
   it("refuses a non-member, a firm owner, and the owner themselves", async () => {

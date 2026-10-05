@@ -170,6 +170,8 @@ describe("QuickBooks callback", () => {
       select user_id, connected_by from integration_connections
     `;
     expect(stored).toEqual([{ user_id: "owner", connected_by: "owner" }]);
+    // A business with no firm has no activity log.
+    expect(await db.current!.sql`select id from firm_audit_log`).toEqual([]);
   });
 
   it("stores the firm member who connected beside the account that holds the books", async () => {
@@ -192,6 +194,13 @@ describe("QuickBooks callback", () => {
       select user_id, connected_by from integration_connections
     `;
     expect(stored).toEqual([{ user_id: "owner", connected_by: "other" }]);
+    // The firm's activity log names the member who connected.
+    const logged = await t.sql<{ firm_user_id: string; actor_user_id: string; event: string }>`
+      select firm_user_id, actor_user_id, event from firm_audit_log
+    `;
+    expect(logged).toEqual([
+      { firm_user_id: "owner", actor_user_id: "other", event: "quickbooks_connected" },
+    ]);
     await t.clear("firm_members", "firms");
   });
 
@@ -258,6 +267,12 @@ describe("scheduled run", () => {
        values ('owner', 'coach', 'm1', 'ok', now() - interval '14 months'),
               ('owner', 'coach', 'm1', 'ok', now() - interval '1 day')`,
     );
+    // No firms row: the default seven years. One row past it, one inside.
+    await t.pg.query(
+      `insert into firm_audit_log (firm_user_id, event, occurred_at)
+       values ('owner', 'member_joined', now() - interval '8 years'),
+              ('owner', 'member_left', now() - interval '6 years')`,
+    );
     const res = await run("Bearer cron-secret-value");
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
@@ -267,6 +282,7 @@ describe("scheduled run", () => {
       shareLogs: true,
       activation: { signedUp: 1 },
       modelUsage: { purged: 1 },
+      auditPurged: 1,
       failures: [],
     });
     const left = await t.pg.query<{ n: string }>(`select count(*)::text as n from map_share_views`);

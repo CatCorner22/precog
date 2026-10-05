@@ -161,6 +161,25 @@ describe("account deletion", () => {
     expect(await count("assessment_snapshots", "where user_id = $1", ["ub"])).toBe(1);
     expect(await count("map_shares", "where user_id = $1", ["ub"])).toBe(1);
   });
+
+  it("takes a firm owner's activity log with the account, under the bypass, and no one else's", async () => {
+    await seedFirm("ua", "Alpha CPA");
+    await seedFirm("ub", "Beta CPA");
+    await pg.exec(`
+      insert into firm_audit_log (firm_user_id, actor_user_id, event)
+        values ('ua', 'ua', 'letterhead_changed'), ('ua', 'ub', 'export_run'),
+          ('ub', 'ua', 'member_joined');
+    `);
+    await deleteAccountRows(sql, "ua");
+    expect(await count('"user"', "where id = $1", ["ua"])).toBe(0);
+    expect(await count("firm_audit_log", "where firm_user_id = $1", ["ua"])).toBe(0);
+    // Another firm's rows naming the deleted account as actor stay, as written.
+    expect(await count("firm_audit_log", "where firm_user_id = $1", ["ub"])).toBe(1);
+    // The bypass ended with the deletion's transaction.
+    await expect(pg.query("delete from firm_audit_log")).rejects.toMatchObject({
+      code: "42501",
+    });
+  });
 });
 
 describe("account deletion and model usage", () => {
@@ -397,6 +416,41 @@ describe("a firm owner's export", () => {
     expect((await exportAccountRows(sql, "ub", null)).firmClients).toEqual([]);
     expect((await exportAccountRows(sql, "ua")).firmClients).toEqual([]);
   });
+
+  it("holds the firm's activity log, newest first, for the firm owner only", async () => {
+    await seedFirm("ua", "Alpha CPA");
+    await pg.query(
+      `insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'ub', 'preparer')`,
+    );
+    await pg.exec(`
+      insert into firm_audit_log (firm_user_id, actor_user_id, actor_name, event, business_id,
+          subject_user_id, detail, occurred_at)
+        values ('ua', 'ua', 'Ann Alpha', 'member_invited', null, null,
+            '{"role":"preparer"}'::jsonb, '2026-09-01T00:00:00Z'),
+          ('ua', 'ub', 'Ben Beta', 'version_locked', 'biz_1', null,
+            '{"versionNo":1}'::jsonb, '2026-09-02T00:00:00Z');
+    `);
+    const owner = await exportAccountRows(sql, "ua", "ua");
+    expect(owner.firmActivity).toEqual([
+      {
+        actorName: "Ben Beta",
+        event: "version_locked",
+        businessId: "biz_1",
+        subjectUserId: null,
+        detail: { versionNo: 1 },
+        occurredAt: "2026-09-02T00:00:00.000Z",
+      },
+      {
+        actorName: "Ann Alpha",
+        event: "member_invited",
+        businessId: null,
+        subjectUserId: null,
+        detail: { role: "preparer" },
+        occurredAt: "2026-09-01T00:00:00.000Z",
+      },
+    ]);
+    expect((await exportAccountRows(sql, "ub", null)).firmActivity).toEqual([]);
+  });
 });
 
 describe("account deletion safeguards", () => {
@@ -407,8 +461,13 @@ describe("account deletion safeguards", () => {
       create trigger refuse_user_delete before delete on "user"
         for each row when (old.id = 'ua') execute function refuse_user_delete();
     `);
+    await seedFirm("ua", "Alpha CPA");
+    await pg.query(
+      `insert into firm_audit_log (firm_user_id, actor_user_id, event) values ('ua', 'ua', 'letterhead_changed')`,
+    );
     try {
       await expect(deleteAccountRows(sql, "ua")).rejects.toThrow(/connection lost/);
+      expect(await count("firm_audit_log", "where firm_user_id = $1", ["ua"])).toBe(1);
       expect(await count("assessment_snapshots", "where user_id = $1", ["ua"])).toBe(1);
       expect(await count("businesses", "where user_id = $1", ["ua"])).toBe(1);
       expect(await count('"user"', "where id = $1", ["ua"])).toBe(1);

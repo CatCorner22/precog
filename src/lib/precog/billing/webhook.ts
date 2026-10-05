@@ -18,6 +18,7 @@ import {
 } from "../firm/billing-store";
 import { setFirmPlan } from "../firm/store";
 import { billingChangeFor, type StripeEvent } from "./stripe";
+import { recordAuditForAccount } from "../firm/audit.server";
 
 /**
  * Applies one verified Stripe event to the account it concerns. Idempotent:
@@ -58,6 +59,14 @@ export async function applyBillingEvent(
     assessmentPaidAt: string | null;
   } | null = null;
   let secondSubscription: { userId: string; ignored: string; stored: string | null } | null = null;
+  // A list, not a nullable let: assignments inside the transaction's
+  // callback are invisible to narrowing after it.
+  const planChanges: {
+    userId: string;
+    from: string | null;
+    to: string;
+    priceId: string | null;
+  }[] = [];
   const outcome = await inTransaction(sql, async (tx) => {
     if (!(await claimBillingEvent(tx, event.id, event.type))) return "duplicate";
     const change = billingChangeFor(event);
@@ -133,6 +142,7 @@ export async function applyBillingEvent(
         `Stripe subscription ${change.subscriptionId} names no account (customer ${change.customerId ?? "unknown"})`,
       );
     }
+    const before = (await loadBillingAccount(tx, userId))?.subscriptionStatus ?? null;
     const { status, ignoredOther, storedSubscriptionId } = await recordSubscription(tx, {
       userId,
       stripeCustomerId: change.customerId,
@@ -153,6 +163,9 @@ export async function applyBillingEvent(
         stored: storedSubscriptionId,
       };
     }
+    if (status !== before) {
+      planChanges.push({ userId, from: before, to: status, priceId: change.priceId });
+    }
     // The plan on the firm row follows the subscription status as stored,
     // which a late checkout event does not overwrite.
     await setFirmPlan(
@@ -164,6 +177,14 @@ export async function applyBillingEvent(
   });
   if (reversal) await reverseAssessmentCredit(sql, reversal);
   if (secondSubscription) await reportSecondSubscription(secondSubscription);
+  // The firm's log takes a moved status once the change has committed; Stripe acted, so no actor.
+  for (const { userId, ...detail } of planChanges) {
+    await recordAuditForAccount(sql, userId, {
+      actorUserId: null,
+      event: "plan_changed",
+      detail,
+    });
+  }
   return outcome;
 }
 
