@@ -97,8 +97,21 @@ function TermsPage() {
           controller of the client data it enters; Precog processes that data on the firm's
           instructions and for no other purpose. Client data a firm member enters belongs to the
           firm, and stays with the firm when the member leaves. When a member leaves or is removed,
-          the client businesses they set up move to the firm owner's account. A standard data
-          processing agreement is available on request from {SUPPORT_EMAIL}.
+          the client businesses they set up move to the firm owner's account. A business a member
+          shared with the firm from their own account stays theirs. A standard data processing
+          agreement is available on request from {SUPPORT_EMAIL}.
+        </p>
+        <p>
+          A business its owner shares with a firm stays the owner's; the firm acts for the owner
+          under its engagement. When the owner ends the firm's access, or deletes the business or
+          their account, the firm loses access to the business and to the report versions it locked
+          for it.
+        </p>
+        <p>
+          After the firm deletes a client that holds a locked report version, Precog keeps the
+          client's locked report versions and monthly review log for the retention period the firm
+          sets (seven years unless the firm chose longer), then purges them; the firm's activity log
+          keeps each entry for that period from the day it was written.
         </p>
       </section>
 

@@ -1,6 +1,7 @@
 import type { ComponentType, ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { RETENTION_YEARS_DEFAULT } from "@/lib/precog/firm/engagement-row";
 import { TIER_CLIENT_LIMITS } from "@/lib/precog/firm/entitlements";
 import { TIERS } from "@/lib/precog/firm/pricing";
 import { Route as Terms } from "./terms";
@@ -112,6 +113,20 @@ describe("Terms", () => {
     expect(html).toContain(
       "When a member leaves or is removed, the client businesses they set up move to the firm owner&#x27;s account.",
     );
+  });
+
+  it("says a shared business stays its owner's and what the firm keeps after a deletion", () => {
+    expect(html).toContain(
+      "When a member leaves or is removed, the client businesses they set up move to the firm owner&#x27;s account. A business a member shared with the firm from their own account stays theirs.",
+    );
+    expect(html).toContain(
+      "A business its owner shares with a firm stays the owner&#x27;s; the firm acts for the owner under its engagement. When the owner ends the firm&#x27;s access, or deletes the business or their account, the firm loses access to the business and to the report versions it locked for it.",
+    );
+    expect(html).toContain(
+      "After the firm deletes a client that holds a locked report version, Precog keeps the client&#x27;s locked report versions and monthly review log for the retention period the firm sets (seven years unless the firm chose longer), then purges them; the firm&#x27;s activity log keeps each entry for that period from the day it was written.",
+    );
+    // "seven years" spells out RETENTION_YEARS_DEFAULT; change it and the Terms together.
+    expect(RETENTION_YEARS_DEFAULT).toBe(7);
   });
 });
 
