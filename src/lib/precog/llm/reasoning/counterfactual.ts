@@ -7,7 +7,8 @@ import type { StaffComposition } from "../../types";
 import type { RiskVariableState } from "../../scoring/dynamic-variables";
 import { simulateCascadeLever, type CascadeLeverId } from "../../scoring/variable-cascade";
 import type { IndustryTemplate } from "../../templates";
-import { portfolioSummary } from "../../scoring/residual-engine";
+import { portfolioSummary, type ResidualScope } from "../../scoring/residual-engine";
+import { DEFAULT_WEIGHTS } from "../../scoring/weights";
 import { runPrecogScenario } from "../../engine";
 
 interface CounterfactualResult {
@@ -52,13 +53,20 @@ export function runCounterfactuals(
   vars: RiskVariableState,
   baseline: ReasoningBaseline,
   leverIds: CascadeLeverId[] = DEFAULT_LEVERS,
+  scope: ResidualScope = {},
 ): CounterfactualResult {
   const factualCor = annualCostOfRisk(tpl, baseline.topScenarioId, staff, vars);
 
   const counterfactuals = leverIds.map((leverId) => {
-    const sim = simulateCascadeLever(tpl, leverId, vars, staff);
+    const sim = simulateCascadeLever(tpl, leverId, vars, staff, undefined, {
+      confirmedScenarioIds: scope.confirmedScenarioIds,
+    });
     const delta = {
-      residual: portfolioSummary(tpl, sim.staffAfter).averageResidual - baseline.residual,
+      residual:
+        portfolioSummary(tpl, sim.staffAfter, DEFAULT_WEIGHTS, {
+          confirmedScenarioIds: scope.confirmedScenarioIds,
+          riskVariables: sim.variablesAfter,
+        }).averageResidual - baseline.residual,
       annualCor:
         annualCostOfRisk(tpl, baseline.topScenarioId, sim.staffAfter, sim.variablesAfter) -
         factualCor,

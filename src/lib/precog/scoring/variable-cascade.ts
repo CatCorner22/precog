@@ -398,7 +398,7 @@ function snapshot(
 ): MetricSnapshot {
   const result = runPrecogScenario(tpl, scenarioId, { staff, riskVariables: vars });
   if (!result?.dynamic) throw new Error(`Unknown scenario ${scenarioId}`);
-  const portfolio = portfolioSummary(tpl, staff, undefined, scope);
+  const portfolio = portfolioSummary(tpl, staff, undefined, { ...scope, riskVariables: vars });
   const d = result.dynamic;
   return {
     likelihoodMultiplier: d.likelihoodMultiplier,

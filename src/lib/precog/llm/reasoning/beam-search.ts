@@ -7,6 +7,7 @@
 import type { StaffComposition } from "../../types";
 import type { IndustryTemplate } from "../../templates";
 import type { RiskVariableState } from "../../scoring/dynamic-variables";
+import type { ResidualScope } from "../../scoring/residual-engine";
 import {
   CASCADE_LEVERS,
   simulateCascadeLever,
@@ -35,6 +36,7 @@ export function beamSearchLevers(
   staff: StaffComposition,
   vars: RiskVariableState,
   opts: { beamWidth?: number; depth?: number } = {},
+  scope: ResidualScope = {},
 ): BeamSearchResult {
   const beamWidth = opts.beamWidth ?? 4;
   const depth = opts.depth ?? 3;
@@ -57,7 +59,9 @@ export function beamSearchLevers(
     for (const node of beam) {
       for (const id of BEAM_LEVERS) {
         if (node.sequence.includes(id) || alreadyOn(id, node.vars)) continue;
-        const sim = simulateCascadeLever(tpl, id, node.vars, node.staff);
+        const sim = simulateCascadeLever(tpl, id, node.vars, node.staff, undefined, {
+          confirmedScenarioIds: scope.confirmedScenarioIds,
+        });
         // The first simulation's "before" is the untouched starting point.
         baseline ??= {
           residual: sim.before.residualAverage,

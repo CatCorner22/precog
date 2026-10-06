@@ -573,8 +573,8 @@ function leadingIndicators({ tpl, staff, riskVars, scope }: ToolInputs): ToolOut
   };
 }
 
-function advancedReasoning({ tpl, staff, riskVars }: ToolInputs): ToolOutput {
-  const report = runAdvancedReasoning(tpl, staff, riskVars);
+function advancedReasoning({ tpl, staff, riskVars, scope }: ToolInputs): ToolOutput {
+  const report = runAdvancedReasoning(tpl, staff, riskVars, scope);
   return {
     ok: true,
     summary: `Lever ordering: ${report.recommendedSequence.join(" → ") || "status quo"} · verify next: ${report.evoi.topObservation}`,
