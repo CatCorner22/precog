@@ -276,3 +276,61 @@ describe("processesToCsv", () => {
     expect(blank.processes).toHaveLength(3);
   });
 });
+
+describe("processesToCsv: names with list separators", () => {
+  const general = getIndustryTemplate("general");
+  const base = {
+    processes: general.processes,
+    people: general.people,
+    controls: general.controls,
+  };
+  const roundTrip = (map: typeof base) =>
+    parseProcessCsv(processesToCsv(map.processes, map.people, map.controls), map);
+
+  it("keeps the dependency on a process whose name has a semicolon or a pipe", () => {
+    for (const name of ["Payroll; weekly", "A/P | vendors", 'The "Rush; order" desk']) {
+      const processes = structuredClone(base.processes);
+      processes[0].name = name;
+      processes[1].dependencies = [processes[0].id];
+      const r = roundTrip({ ...base, processes });
+      expect(r.issues, name).toEqual([]);
+      expect(r.updated, name).toEqual([]);
+      expect(r.processes.find((p) => p.id === processes[1].id)!.dependencies, name).toEqual([
+        processes[0].id,
+      ]);
+    }
+  });
+
+  it("keeps an owner whose name has a semicolon", () => {
+    const people = structuredClone(base.people);
+    people[0].name = "Lee; Ann";
+    const processes = structuredClone(base.processes);
+    processes[0].ownerPersonIds = [people[0].id, people[1].id];
+    const r = roundTrip({ ...base, people, processes });
+    expect(r.issues).toEqual([]);
+    expect(r.processes[0].ownerPersonIds).toEqual([people[0].id, people[1].id]);
+  });
+
+  it("keeps an input, output and system with a separator as one item", () => {
+    const processes = structuredClone(base.processes);
+    processes[0].inputs = ["Invoice; PO", "Receipt"];
+    processes[0].outputs = ["Paid | filed"];
+    processes[0].systems = ["Bank; portal"];
+    const r = roundTrip({ ...base, processes });
+    expect(r.updated).toEqual([]);
+    expect(r.processes[0].inputs).toEqual(["Invoice; PO", "Receipt"]);
+    expect(r.processes[0].outputs).toEqual(["Paid | filed"]);
+  });
+
+  it("still reads lists from earlier exports and hand-typed quotes", () => {
+    const r = parseProcessCsv(
+      [
+        "process,inputs,outputs",
+        'Daily deposit,Invoice; PO | W-9,"""Rush"" orders; Day-end report"',
+      ].join("\n"),
+      base,
+    );
+    expect(r.added[0].inputs).toEqual(["Invoice", "PO", "W-9"]);
+    expect(r.added[0].outputs).toEqual(['"Rush" orders', "Day-end report"]);
+  });
+});

@@ -386,15 +386,15 @@ export function processesToCsv(
         p.name,
         p.stage === undefined ? "" : String(p.stage),
         p.description,
-        (p.ownerPersonIds ?? []).map(personName).join("; "),
-        p.dependencies.map(processName).join("; "),
-        p.controlIds.map(controlName).join("; "),
+        joinList((p.ownerPersonIds ?? []).map(personName)),
+        joinList(p.dependencies.map(processName)),
+        joinList(p.controlIds.map(controlName)),
         p.cadence ?? "",
-        (p.systems ?? []).join("; "),
+        joinList(p.systems ?? []),
         p.documented === undefined ? "" : p.documented ? "yes" : "no",
         p.procedureLocation ?? "",
-        (p.inputs ?? []).join("; "),
-        (p.outputs ?? []).join("; "),
+        joinList(p.inputs ?? []),
+        joinList(p.outputs ?? []),
       ]
         .map(csvCell)
         .join(","),
@@ -465,11 +465,63 @@ export function processTemplateCsv(tpl?: Pick<IndustryTemplate, "people" | "cont
 
 const LIST_SEPARATOR = /[;|]/;
 
+/**
+ * Joins list items with "; ". An item that holds a separator, or starts with
+ * a double quote, goes in double quotes with inner quotes doubled, so a name
+ * like "Payroll; weekly" reads back as one item.
+ */
+function joinList(items: readonly string[]): string {
+  return items
+    .map((item) =>
+      LIST_SEPARATOR.test(item) || item.trimStart().startsWith('"')
+        ? `"${item.replaceAll('"', '""')}"`
+        : item,
+    )
+    .join("; ");
+}
+
+/**
+ * Splits a list cell on ";" or "|". An item wrapped in double quotes keeps
+ * its separators (`joinList` writes them so). Anything else, such as a quote
+ * in the middle of an item, reads as plain text, so files exported before
+ * quoting existed still import as they did.
+ */
 function splitList(value: string): string[] {
-  return value
-    .split(LIST_SEPARATOR)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const items: string[] = [];
+  let start = 0;
+  while (start <= value.length) {
+    let at = start;
+    while (at < value.length && /\s/.test(value[at])) at++;
+    if (value[at] === '"') {
+      let text = "";
+      let end = at + 1;
+      let closed = false;
+      while (end < value.length) {
+        if (value[end] === '"') {
+          if (value[end + 1] === '"') {
+            text += '"';
+            end += 2;
+            continue;
+          }
+          closed = true;
+          end++;
+          break;
+        }
+        text += value[end++];
+      }
+      while (closed && end < value.length && /\s/.test(value[end])) end++;
+      if (closed && (end === value.length || LIST_SEPARATOR.test(value[end]))) {
+        items.push(text.trim());
+        start = end + 1;
+        continue;
+      }
+    }
+    let end = at;
+    while (end < value.length && !LIST_SEPARATOR.test(value[end])) end++;
+    items.push(value.slice(at, end).trim());
+    start = end + 1;
+  }
+  return items.filter(Boolean);
 }
 
 /**
