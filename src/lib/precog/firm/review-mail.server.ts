@@ -11,7 +11,10 @@ import { TRUSTED_EMAIL } from "./vouched-email";
  *   names, or to every owner and reviewer of the firm who did not prepare
  *   the version when it names none;
  * - "Returned: <client> version N", with the note, to the preparer.
- * Nobody receives an email about their own action. Only an address Precog
+ * Nobody receives an email about their own action. On a business with a
+ * firm, only a current member of that firm receives one: a preparer who
+ * left the firm, or was removed from it, never learns the client's name or
+ * the note this way. Only an address Precog
  * vouches for (TRUSTED_EMAIL, as for the weekly digest) receives one, and an
  * address on the suppression list (bounced or complained) receives none. Without email set
  * up nothing is sent. A failure is reported and never fails the request the
@@ -92,7 +95,10 @@ export async function mailReviewRequested(
       requesterName,
       link: versionLink(o.origin(), version.id),
     });
-    await sendEach(sql, to, message, o);
+    await sendEach(sql, { ownerUserId: input.ownerUserId, businessId: version.businessId }, to, {
+      message,
+      o,
+    });
   });
 }
 
@@ -113,7 +119,12 @@ export async function mailReturned(
       note: version.returnNote,
       link: versionLink(o.origin(), version.id),
     });
-    await sendEach(sql, [version.preparedBy], message, o);
+    await sendEach(
+      sql,
+      { ownerUserId: input.ownerUserId, businessId: version.businessId },
+      [version.preparedBy],
+      { message, o },
+    );
   });
 }
 
@@ -143,20 +154,31 @@ async function guarded(
   }
 }
 
-/** Sends to each account's trusted, unsuppressed address; one failure does not stop the rest. */
+/**
+ * Sends to each account's trusted, unsuppressed address, among the accounts
+ * still members of the business's firm (any account when the business has
+ * no firm); one failure does not stop the rest. Membership is read as the
+ * email goes out, so someone who left after the version was locked, or
+ * after the request named them, receives nothing.
+ */
 async function sendEach(
   sql: Sql,
+  business: { ownerUserId: string; businessId: string },
   userIds: string[],
-  message: RenderedEmail,
-  o: ResolvedOptions,
+  mail: { message: RenderedEmail; o: ResolvedOptions },
 ): Promise<void> {
+  const { message, o } = mail;
   const rows = await sql.query<{ email: string }>(
     `select u.email from "user" u
+     join businesses b on b.user_id = $2 and b.id = $3
      where u.id = any($1::text[])
+       and (b.firm_user_id is null or exists (
+         select 1 from firm_members m
+         where m.firm_user_id = b.firm_user_id and m.member_user_id = u.id))
        and position('@' in u.email) > 0
        and ${TRUSTED_EMAIL("u")}
        and ${NOT_SUPPRESSED("u.email")}`,
-    [userIds],
+    [userIds, business.ownerUserId, business.businessId],
   );
   for (const row of rows) {
     try {

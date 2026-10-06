@@ -12,7 +12,7 @@ const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 const exportPages = vi.hoisted(() => ({
   fetch: vi.fn(async (_input: { data: unknown }): Promise<unknown> => null),
 }));
-const downloads = vi.hoisted(() => ({ downloadText: vi.fn() }));
+const downloads = vi.hoisted(() => ({ downloadText: vi.fn(), downloadUrl: vi.fn() }));
 vi.mock("@/lib/download", () => downloads);
 
 vi.mock("@/lib/precog/firm/server", () => ({
@@ -44,9 +44,14 @@ const {
   DigestSwitch,
   digestSwitchLabel,
   downloadAccountExport,
+  EXPORT_FAILED,
+  EXPORT_PART_RETRIES,
+  EXPORT_RETRY_LABEL,
+  showExportFailure,
   toggleDigest,
 } = await import("./account-menu");
-const { exportProgressLabel } = await import("@/lib/precog/account-export");
+const { assembleAccountExport, EXPORT_CHANGED, ExportChangedError, exportProgressLabel } =
+  await import("@/lib/precog/account-export");
 
 describe("Export data", () => {
   const encode = (page: unknown) => Buffer.from(JSON.stringify(page), "utf8").toString("base64");
@@ -68,46 +73,181 @@ describe("Export data", () => {
     activity: [],
     modelUsage: [],
   };
-  const business = (id: string) => ({ id, name: "Café ✓", profile: { note: '"<x>"' } });
-
-  it("fetches the parts in order, shows how far it got, and saves one file", async () => {
-    const parts = [
-      { section: "firm" },
-      { section: "businesses", first: "k2", last: "k2" },
-      { section: "businesses", first: "k1", last: "k1" },
-    ];
+  const firm = { firm: null, firmMembers: [], firmInvites: [], firmClients: [] };
+  const business = (id: string, updatedAt: string) => ({
+    id,
+    name: "Café ✓",
+    updatedAt,
+    profile: { note: '"<x>"' },
+  });
+  const asOf = "2026-10-06T12:00:00.123456Z";
+  // In id order, as the plan lists businesses; the file puts the newest saved first.
+  const parts = [
+    { section: "firm" },
+    { section: "businesses", first: "biz_1", last: "biz_1", count: 1, asOf },
+    { section: "businesses", first: "biz_2", last: "biz_2", count: 1, asOf },
+  ];
+  const rowsFor: Record<string, unknown[]> = {
+    biz_1: [business("biz_1", "2026-10-01T00:00:00.000Z")],
+    biz_2: [business("biz_2", "2026-10-05T00:00:00.000Z")],
+  };
+  /** The server as a stand-in: `fail` decides, per call, whether a part fails and how. */
+  function serve(fail: (part: { section: string; first?: string }) => unknown = () => null) {
+    exportPages.fetch.mockReset();
     exportPages.fetch.mockImplementation(async ({ data }: { data: unknown }) => {
       const part = data as { section: string; first?: string };
+      const error = fail(part);
+      if (error) throw error;
       if (part.section === "account") {
         return { base64: encode({ section: "account", data: account }), parts };
       }
       if (part.section === "firm") {
-        const firm = { firm: null, firmMembers: [], firmInvites: [], firmClients: [] };
         return { base64: encode({ section: "firm", data: firm }), parts: null };
       }
-      const rows = [business(part.first === "k2" ? "biz_2" : "biz_1")];
-      return { base64: encode({ section: "businesses", rows }), parts: null };
+      return {
+        base64: encode({ section: "businesses", rows: rowsFor[part.first ?? ""] }),
+        parts: null,
+      };
     });
+  }
+  /** Runs a download that saves into `saved` and records every wait. */
+  async function run(saved: Array<[string, Blob]> = [], waits: number[] = []) {
     const progress: string[] = [];
-    await downloadAccountExport((done, total) => progress.push(exportProgressLabel(done, total)));
-    expect(exportPages.fetch.mock.calls.map(([input]) => input.data)).toEqual([
-      { section: "account" },
-      ...parts,
-    ]);
+    await downloadAccountExport((done, total) => progress.push(exportProgressLabel(done, total)), {
+      save: (name, file) => saved.push([name, file]),
+      wait: async (ms) => {
+        waits.push(ms);
+      },
+    });
+    return progress;
+  }
+  const asked = () => exportPages.fetch.mock.calls.map(([input]) => input.data);
+
+  beforeEach(() => {
+    downloads.downloadText.mockClear();
+    downloads.downloadUrl.mockClear();
+    toasts.error.mockClear();
+  });
+
+  it("fetches the parts in order, shows how far it got, and saves one file built from pieces", async () => {
+    serve();
+    const saved: Array<[string, Blob]> = [];
+    const progress = await run(saved);
+    expect(asked()).toEqual([{ section: "account" }, ...parts]);
     expect(progress).toEqual([
       "Preparing your download: 1 of 4 parts",
       "Preparing your download: 2 of 4 parts",
       "Preparing your download: 3 of 4 parts",
       "Preparing your download: 4 of 4 parts",
     ]);
-    expect(downloads.downloadText).toHaveBeenCalledTimes(1);
-    const [name, text, type] = downloads.downloadText.mock.calls[0];
+    expect(saved).toHaveLength(1);
+    const [name, blob] = saved[0];
     expect(name).toMatch(/^precog-account-\d{4}-\d{2}-\d{2}\.json$/);
-    expect(type).toBe("application/json");
-    const file = JSON.parse(text as string);
+    expect(blob.type).toBe("application/json");
+    const text = await blob.text();
+    const file = JSON.parse(text);
     expect(file.user).toEqual(account.user);
-    expect(file.businesses).toEqual([business("biz_2"), business("biz_1")]);
+    expect(file.businesses).toEqual([rowsFor.biz_2[0], rowsFor.biz_1[0]]);
     expect(file.reportLogos).toEqual([]);
+    // The same text the single string held, pretty-printed alike.
+    const pages = [
+      { section: "account" as const, data: account },
+      { section: "firm" as const, data: firm },
+      { section: "businesses" as const, rows: rowsFor.biz_1 },
+      { section: "businesses" as const, rows: rowsFor.biz_2 },
+    ];
+    expect(text).toBe(
+      JSON.stringify(
+        assembleAccountExport(pages as Parameters<typeof assembleAccountExport>[0]),
+        null,
+        2,
+      ),
+    );
+  });
+
+  it("saves through an object URL by default", async () => {
+    serve();
+    await downloadAccountExport(() => {}, { wait: async () => {} });
+    expect(downloads.downloadUrl).toHaveBeenCalledTimes(1);
+    const [name, url] = downloads.downloadUrl.mock.calls[0] as [string, string];
+    expect(name).toMatch(/^precog-account-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(url).toMatch(/^blob:/);
+    expect(downloads.downloadText).not.toHaveBeenCalled();
+  });
+
+  it("asks for a part that failed up to two more times, then carries on", async () => {
+    expect(EXPORT_PART_RETRIES).toBe(2);
+    let failures = 0;
+    serve((part) =>
+      part.first === "biz_2" && failures++ < 2 ? new Error("Failed to fetch") : null,
+    );
+    const saved: Array<[string, Blob]> = [];
+    const waits: number[] = [];
+    await run(saved, waits);
+    expect(asked().filter((p) => (p as { first?: string }).first === "biz_2")).toHaveLength(3);
+    // Only the part that failed is asked for again, never the whole export.
+    expect(asked().filter((p) => (p as { section: string }).section === "account")).toHaveLength(1);
+    expect(waits).toEqual([1_000, 2_000]);
+    expect(saved).toHaveLength(1);
+  });
+
+  it("gives up on a part after three tries, and never asks again after a refusal", async () => {
+    serve((part) => (part.first === "biz_2" ? new Error("Server answered 500") : null));
+    const saved: Array<[string, Blob]> = [];
+    await expect(run(saved)).rejects.toThrow("Server answered 500");
+    expect(asked().filter((p) => (p as { first?: string }).first === "biz_2")).toHaveLength(3);
+    expect(saved).toEqual([]);
+
+    const refused = Object.assign(new Error(EXPORT_CHANGED), { status: 409 });
+    serve((part) => (part.first === "biz_1" ? refused : null));
+    await expect(run(saved)).rejects.toBe(refused);
+    expect(asked().filter((p) => (p as { first?: string }).first === "biz_1")).toHaveLength(1);
+    expect(saved).toEqual([]);
+  });
+
+  it("saves nothing when a part comes back with fewer or more rows than the plan counted", async () => {
+    const saved: Array<[string, Blob]> = [];
+    for (const rows of [[], [rowsFor.biz_2[0], rowsFor.biz_2[0]]]) {
+      serve();
+      exportPages.fetch.mockImplementation(async ({ data }: { data: unknown }) => {
+        const part = data as { section: string; first?: string };
+        if (part.section === "account") {
+          return { base64: encode({ section: "account", data: account }), parts };
+        }
+        if (part.section === "firm") {
+          return { base64: encode({ section: "firm", data: firm }), parts: null };
+        }
+        const sent = part.first === "biz_2" ? rows : rowsFor.biz_1;
+        return { base64: encode({ section: "businesses", rows: sent }), parts: null };
+      });
+      await expect(run(saved)).rejects.toBeInstanceOf(ExportChangedError);
+    }
+    expect(saved).toEqual([]);
+  });
+
+  it("says why nothing was saved, with a button that starts the export again", () => {
+    expect(EXPORT_CHANGED).toBe(
+      "Your data changed while Precog prepared the download, so Precog did not save the file. Try again.",
+    );
+    expect(EXPORT_FAILED).toBe("The export failed. Try again in a moment.");
+    expect(EXPORT_RETRY_LABEL).toBe("Try again");
+    const retry = vi.fn();
+    showExportFailure(new ExportChangedError(), retry);
+    showExportFailure(Object.assign(new Error(EXPORT_CHANGED), { status: 409 }), retry);
+    showExportFailure(new Error("Failed to fetch"), retry);
+    const calls = toasts.error.mock.calls as unknown as Array<
+      [string, { action: { label: string; onClick: () => void } }]
+    >;
+    expect(calls.map(([message]) => message)).toEqual([
+      EXPORT_CHANGED,
+      EXPORT_CHANGED,
+      EXPORT_FAILED,
+    ]);
+    for (const [, options] of calls) {
+      expect(options.action.label).toBe("Try again");
+      options.action.onClick();
+    }
+    expect(retry).toHaveBeenCalledTimes(3);
   });
 });
 

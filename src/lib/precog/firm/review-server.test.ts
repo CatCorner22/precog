@@ -368,6 +368,30 @@ describe("the review emails", () => {
     );
   });
 
+  it("never emails a return to a preparer who left the firm or was removed from it", async () => {
+    await lock("rv_1", "prep");
+    await db.pg.query(`delete from firm_members where member_user_id = 'prep'`);
+    const { version } = await giveBack("rev", "rv_1", "Ask Ada about the Quokka ledger.");
+    expect(version.returnedAt).toBeTruthy();
+    expect(mail.sendEmail).not.toHaveBeenCalled();
+    expect(mail.reportServerError).not.toHaveBeenCalled();
+  });
+
+  it("emails the preparer of a business with no firm without asking about membership", async () => {
+    // A version locked while the business was a firm client, prepared by a
+    // member; the business has no firm now, so there is no firm to be in.
+    await db.pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision)
+        values ('biz_solo', 'own', 'Solo Client', 'general', '{}'::jsonb, 1);
+      insert into report_versions (id, user_id, business_id, version_no, profile, prepared_by)
+        values ('rv_solo', 'own', 'biz_solo', 1, '{}'::jsonb, 'out');
+    `);
+    await giveBack("own", "rv_solo", "Add the payroll duties.");
+    expect(sent()).toEqual([
+      { to: "out@example.test", subject: "Returned: Solo Client version 1" },
+    ]);
+  });
+
   it("skips an address on the suppression list", async () => {
     await db.pg.query(
       "insert into email_suppressions (email, reason) values ('prep@example.test', 'bounced')",

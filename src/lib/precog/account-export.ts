@@ -275,19 +275,88 @@ export type FirmExportPart = Pick<
 >;
 
 /**
- * Which part to send. A paged part names its first and last row by the
- * section's sort key, as the first part's list gives them.
+ * The vendors and the employees one part of a QuickBooks reading holds, each
+ * as [from, to): the element positions from `from` up to, not including, `to`.
  */
-export type ExportPartRequest =
-  | { section: "account" }
-  | { section: "firm" }
-  | { section: PagedExportSection; first: string; last: string };
+export interface ExportSlice {
+  vendors: [number, number];
+  employees: [number, number];
+}
 
-/** One part as the server sends it (base64 JSON on the wire; see decodeExportPage). */
+/** A paged part, as the first part's list gives it; the browser sends it back unchanged. */
+export interface PagedPartRequest {
+  section: PagedExportSection;
+  /** The part's first and last row by the section's sort key, both included. */
+  first: string;
+  last: string;
+  /**
+   * How many rows the plan counted between them: the server never sends
+   * more, and the download refuses a part that comes back with fewer.
+   */
+  count: number;
+  /**
+   * When the plan was made, to the microsecond: a row written after it (a
+   * version locked, a reading taken) stays out of the part.
+   */
+  asOf: string;
+  /**
+   * A QuickBooks reading too large for one part comes in several, each with
+   * the slice of its vendors and employees it holds; a part whose slice does
+   * not start at the first vendor and employee continues the reading before it.
+   */
+  slice?: ExportSlice;
+}
+
+/** Which part to send. */
+export type ExportPartRequest = { section: "account" } | { section: "firm" } | PagedPartRequest;
+
+/**
+ * One part as the server sends it (base64 JSON on the wire; see
+ * decodeExportPage). `continues` marks a part that holds one more slice of
+ * the QuickBooks reading the part before it began.
+ */
 export type ExportPage =
   | { section: "account"; data: AccountExportPart }
   | { section: "firm"; data: FirmExportPart }
-  | { [S in PagedExportSection]: { section: S; rows: AccountExportFile[S] } }[PagedExportSection];
+  | {
+      [S in PagedExportSection]: { section: S; rows: AccountExportFile[S]; continues?: true };
+    }[PagedExportSection];
+
+/**
+ * What the download says when the data changed while it ran, so that a
+ * part came back with fewer or more rows than the plan counted: the file
+ * would be incomplete, so it is not saved. The server refuses a part with
+ * the same words (409).
+ */
+export const EXPORT_CHANGED =
+  "Your data changed while Precog prepared the download, so Precog did not save the file. Try again.";
+
+/** The refusal of a download whose data changed under it (EXPORT_CHANGED). */
+export class ExportChangedError extends Error {
+  constructor() {
+    super(EXPORT_CHANGED);
+    this.name = "ExportChangedError";
+  }
+}
+
+/** Whether a part continues the QuickBooks reading the part before it began. */
+export function continuesReading(part: ExportPartRequest): boolean {
+  return "slice" in part && part.slice !== undefined
+    ? part.slice.vendors[0] > 0 || part.slice.employees[0] > 0
+    : false;
+}
+
+/**
+ * Whether a part came back as the plan made it: the section asked for, and
+ * for a paged part exactly the rows the plan counted, continuing a reading
+ * when it was planned to. Anything else means the data changed during the
+ * download (a row deleted, or moved to another account).
+ */
+export function partArrivedWhole(part: ExportPartRequest, page: ExportPage): boolean {
+  if (page.section !== part.section) return false;
+  if (!("count" in part) || !("rows" in page)) return !("count" in part) && !("rows" in page);
+  return page.rows.length === part.count && (page.continues === true) === continuesReading(part);
+}
 
 /** A part as the server function returns it: the page's JSON in base64. */
 export function decodeExportPage(base64: string): ExportPage {
@@ -303,7 +372,10 @@ export function exportProgressLabel(done: number, total: number): string {
 /**
  * Joins the parts, in the order they were fetched, into one file with the
  * sections in the order the single export wrote them. The account part
- * comes first; each paged section's rows follow one another.
+ * comes first; each paged section's rows follow one another, a QuickBooks
+ * reading's slices join back into the one reading, and the businesses go
+ * newest saved first (their parts come in id order: the id never changes,
+ * so a save during the download cannot move a business out of its part).
  */
 export function assembleAccountExport(pages: ExportPage[]): AccountExportFile {
   const first = pages[0];
@@ -315,8 +387,10 @@ export function assembleAccountExport(pages: ExportPage[]): AccountExportFile {
   for (const page of pages.slice(1)) {
     if (page.section === "account") throw new Error("The export has one account part");
     if (page.section === "firm") firm = page.data;
-    else (rows[page.section] as unknown[]).push(...page.rows);
+    else if (page.continues) continueReading(rows.quickBooksSnapshots, page);
+    else for (const row of page.rows) (rows[page.section] as unknown[]).push(row);
   }
+  rows.businesses.sort(newestSavedFirst);
   const a = first.data;
   return {
     exportedAt: a.exportedAt,
@@ -346,6 +420,72 @@ export function assembleAccountExport(pages: ExportPage[]): AccountExportFile {
     modelUsage: a.modelUsage,
     firmActivity: rows.firmActivity,
   };
+}
+
+/** Newest saved first, then the higher id: the order the export has always written. */
+function newestSavedFirst(
+  a: AccountExportFile["businesses"][number],
+  b: AccountExportFile["businesses"][number],
+): number {
+  if (a.updatedAt !== b.updatedAt) return a.updatedAt < b.updatedAt ? 1 : -1;
+  return a.id === b.id ? 0 : a.id < b.id ? 1 : -1;
+}
+
+/**
+ * Adds one more slice of a QuickBooks reading to the reading the parts
+ * before it began. A slice that names another reading, or comes first,
+ * means the parts no longer line up with the plan.
+ */
+function continueReading(
+  readings: AccountExportFile["quickBooksSnapshots"],
+  page: Extract<ExportPage, { rows: unknown }>,
+): void {
+  const reading = readings.at(-1);
+  const [slice, ...more] = page.rows as AccountExportFile["quickBooksSnapshots"];
+  if (
+    page.section !== "quickBooksSnapshots" ||
+    !reading ||
+    !slice ||
+    more.length > 0 ||
+    slice.businessId !== reading.businessId ||
+    slice.takenAt !== reading.takenAt ||
+    !Array.isArray(reading.vendors) ||
+    !Array.isArray(reading.employees) ||
+    !Array.isArray(slice.vendors) ||
+    !Array.isArray(slice.employees)
+  ) {
+    throw new ExportChangedError();
+  }
+  reading.vendors = [...(reading.vendors as unknown[]), ...(slice.vendors as unknown[])];
+  reading.employees = [...(reading.employees as unknown[]), ...(slice.employees as unknown[])];
+}
+
+/**
+ * The file as JSON text in pieces, one per row of each list, that join to
+ * exactly `JSON.stringify(file, null, 2)`: the browser builds the download
+ * from the pieces, so no single string has to hold the whole file.
+ */
+export function exportFileChunks(file: AccountExportFile): string[] {
+  const chunks = ["{"];
+  let written = 0;
+  for (const [key, value] of Object.entries(file)) {
+    const head = `${written ? "," : ""}\n  ${JSON.stringify(key)}: `;
+    if (Array.isArray(value) && value.length > 0) {
+      chunks.push(`${head}[`);
+      value.forEach((item: unknown, i) => {
+        const text = JSON.stringify(item, null, 2) ?? "null";
+        chunks.push(`${i ? "," : ""}\n    ${text.replace(/\n/g, "\n    ")}`);
+      });
+      chunks.push("\n  ]");
+    } else {
+      const text = JSON.stringify(value, null, 2);
+      if (text === undefined) continue;
+      chunks.push(head + text.replace(/\n/g, "\n  "));
+    }
+    written += 1;
+  }
+  chunks.push(written ? "\n}" : "}");
+  return chunks;
 }
 
 /** The file with each version's logo written back in place, as the single export held it. */

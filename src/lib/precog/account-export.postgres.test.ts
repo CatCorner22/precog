@@ -4,11 +4,30 @@ import { openSafetyDb, type SafetyDb } from "@/test/safety-db";
 import {
   assembleAccountExport,
   inlineReportLogos,
+  partArrivedWhole,
   type ExportPage,
   type ExportPartRequest,
 } from "./account-export";
 import { exportAccountPage, exportAccountRows } from "./account-store";
 import { removeMember } from "./firm/store";
+
+/** Every part of the plan `first` made, each checked against its plan as the browser checks it. */
+async function fetchRest(
+  db: SafetyDb,
+  first: { page: ExportPage; parts: ExportPartRequest[] | null },
+  budget?: number,
+): Promise<ExportPage[]> {
+  const pages: ExportPage[] = [first.page];
+  for (const part of first.parts ?? []) {
+    const { page } = await exportAccountPage(db.sql, "ua", null, part, budget);
+    expect(partArrivedWhole(part, page)).toBe(true);
+    if (budget !== undefined) {
+      expect(Buffer.byteLength(JSON.stringify(page))).toBeLessThanOrEqual(budget);
+    }
+    pages.push(page);
+  }
+  return pages;
+}
 
 // A skip in the ordinary embedded suite is explicit; these run the paged
 // export's byte-order keys and the departure's set-based statements on a
@@ -67,6 +86,67 @@ describe.runIf(process.env.PRECOG_LIFECYCLE_POSTGRES === "1")(
       const { exportedAt: singleAt, ...single } = await exportAccountRows(db.sql, "ua", "ua");
       expect(typeof pagedAt).toBe(typeof singleAt);
       expect(paged).toEqual(single);
+    }, 60_000);
+
+    it("never drops a business saved on another connection while its download runs", async () => {
+      await db.pg.exec(`
+        insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
+          select 'Biz_' || g, 'ua', 'Client ' || g, 'dental', '{}'::jsonb, 1,
+            now() - g * interval '1 hour'
+          from generate_series(1, 6) as g;
+      `);
+      const ids = ["Biz_1", "Biz_2", "Biz_3", "Biz_4", "Biz_5", "Biz_6"];
+      for (let round = 0; round < 8; round += 1) {
+        const first = await exportAccountPage(db.sql, "ua", null, { section: "account" });
+        let saving = true;
+        let saved = 0;
+        const saves = (async () => {
+          while (saving) {
+            const id = ids[saved % ids.length];
+            await db.sql`
+              update businesses set profile = ${JSON.stringify({ save: saved })}::jsonb,
+                revision = revision + 1, updated_at = clock_timestamp()
+              where user_id = 'ua' and id = ${id}
+            `;
+            saved += 1;
+          }
+        })();
+        let pages: ExportPage[];
+        try {
+          pages = await fetchRest(db, first);
+        } finally {
+          saving = false;
+          await saves;
+        }
+        expect(saved).toBeGreaterThan(0);
+        const file = assembleAccountExport(pages);
+        expect(file.businesses.map((b) => b.id).sort()).toEqual(ids);
+        const times = file.businesses.map((b) => b.updatedAt);
+        expect(times).toEqual([...times].sort().reverse());
+      }
+    }, 60_000);
+
+    it("cuts a QuickBooks reading past the budget into slices that join to the single export", async () => {
+      await db.pg.exec(`
+        insert into businesses (id, user_id, name, industry, profile, revision)
+          values ('Biz_1', 'ua', 'Client', 'dental', '{}'::jsonb, 1);
+        insert into integration_snapshots (user_id, business_id, provider, vendors, employees)
+        select 'ua', 'Biz_1', 'qbo',
+          (select jsonb_agg(jsonb_build_object('id', g::text, 'name', 'Vendör "' || g || '" ' ||
+              repeat('v', g % 50), 'active', true) order by g) from generate_series(1, 3000) as g),
+          (select jsonb_agg(jsonb_build_object('id', g::text, 'name', 'Employee ' || g,
+              'releasedOn', null) order by g) from generate_series(1, 3000) as g);
+      `);
+      const budget = 64 * 1024;
+      const first = await exportAccountPage(db.sql, "ua", null, { section: "account" }, budget);
+      const slices = (first.parts ?? []).filter((p) => p.section === "quickBooksSnapshots");
+      expect(slices.length).toBeGreaterThan(4);
+      const file = assembleAccountExport(await fetchRest(db, first, budget));
+      const { exportedAt: pagedAt, ...paged } = inlineReportLogos(file);
+      const { exportedAt: singleAt, ...single } = await exportAccountRows(db.sql, "ua");
+      expect(typeof pagedAt).toBe(typeof singleAt);
+      expect(paged).toEqual(single);
+      expect(paged.quickBooksSnapshots[0].vendors).toHaveLength(3000);
     }, 60_000);
 
     it("moves all of a departing member's clients and their rows in set-based statements", async () => {

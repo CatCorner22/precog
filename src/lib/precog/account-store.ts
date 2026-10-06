@@ -13,6 +13,8 @@ import { handBackGranted } from "./firm/grant-store";
 import { insertAudits, withAuditBypass, type FirmActivityRow } from "./firm/audit.server";
 import {
   assembleAccountExport,
+  continuesReading,
+  EXPORT_CHANGED,
   inlineReportLogos,
   PAGED_EXPORT_SECTIONS,
   type AccountExport,
@@ -20,8 +22,10 @@ import {
   type AccountExportPart,
   type ExportPage,
   type ExportPartRequest,
+  type ExportSlice,
   type FirmExportPart,
   type PagedExportSection,
+  type PagedPartRequest,
 } from "./account-export";
 
 /** What account deletion removed that still has to be undone outside the database. */
@@ -47,6 +51,7 @@ export async function exportAccountRows(
 ): Promise<AccountExport> {
   return inTransaction(sql, async (tx) => {
     await tx`set transaction isolation level repeatable read`;
+    // Every row, each QuickBooks reading uncut: one read, from one snapshot.
     const [account, firm, ...sections] = await Promise.all([
       readAccountPart(tx, userId),
       readFirmPart(tx, userId, firmUserId),
@@ -72,11 +77,18 @@ export async function exportAccountRows(
  * and lists every other part: the firm part, then each paged section's rows
  * in pages that hold up to `budgetBytes` of JSON each (a row larger than
  * that gets a page of its own: a profile is at most 2 MB, a snapshot about
- * 2.5 MB), each business alone. Each part reads its own snapshot, so a
- * save landing during the download shows in the parts read after it; the
- * plan comes from the same snapshot as the first part. Only the caller's own rows, and for a
- * firm owner (`firmUserId`) the firm's: the keys in a request only choose
- * among those, so a made-up key reads nothing that is not the caller's.
+ * 2.5 MB), each business alone, and a QuickBooks reading larger than that
+ * in slices (planPages). The plan comes from the same snapshot as the first
+ * part and names, for each part, the rows it counted and the plan's time.
+ * Each later part reads its own snapshot, so a save landing during the
+ * download shows in the parts read after it, while a row written after the
+ * plan stays out, and a part never sends more rows than the plan counted:
+ * when a row with an older time moved into its range (409, EXPORT_CHANGED),
+ * or its rows grew past what one response carries (the same refusal), the
+ * download starts again. A part that comes back short is the browser's to
+ * refuse (partArrivedWhole). Only the caller's own rows, and for a firm
+ * owner (`firmUserId`) the firm's: the keys in a request only choose among
+ * those, so a made-up key reads nothing that is not the caller's.
  */
 export async function exportAccountPage(
   sql: Sql,
@@ -88,12 +100,17 @@ export async function exportAccountPage(
   if (request.section === "account") {
     return inTransaction(sql, async (tx) => {
       await tx`set transaction isolation level repeatable read`;
+      // Read once the plan's snapshot is taken: every row the plan counts
+      // was written before this time, by the database's own clock.
+      const [{ as_of: asOf }] = await tx<{ as_of: string }>`
+        select to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as as_of
+      `;
       const [data, planned] = await Promise.all([
         readAccountPart(tx, userId),
         Promise.all(
           PAGED_EXPORT_SECTIONS.map(async (section) => {
             const scope = scopeOf(section, userId, firmUserId);
-            return scope === null ? [] : planPages(tx, section, scope, budgetBytes);
+            return scope === null ? [] : planPages(tx, section, scope, budgetBytes, asOf);
           }),
         ),
       ]);
@@ -108,15 +125,25 @@ export async function exportAccountPage(
     };
   }
   const scope = scopeOf(request.section, userId, firmUserId);
-  const rows =
-    scope === null
-      ? []
-      : await readPagedRows(sql, request.section, scope, {
-          first: request.first,
-          last: request.last,
-        });
-  return { page: { section: request.section, rows } as ExportPage, parts: null };
+  const rows = scope === null ? [] : await readPagedRows(sql, request.section, scope, request);
+  const page = {
+    section: request.section,
+    rows,
+    ...(continuesReading(request) ? { continues: true } : {}),
+  } as ExportPage;
+  if (Buffer.byteLength(JSON.stringify(page), "utf8") > EXPORT_PART_MAX_BYTES) {
+    throw new RequestError(409, EXPORT_CHANGED);
+  }
+  return { page, parts: null };
 }
+
+/**
+ * The most JSON one paged part may send: base64 makes it 4/3 larger, about
+ * 4.3 MB, under Vercel's 4.5 MB response limit with room for the
+ * transport's own JSON. A part the plan sized at HISTORY_PAGE_BYTES stays
+ * under it unless its rows grew after the plan.
+ */
+export const EXPORT_PART_MAX_BYTES = 3.25 * 1024 * 1024;
 
 /** An export part as the server function sends it: its JSON in base64 (see encodeHistoryPage). */
 export function encodeExportPage(page: ExportPage): string {
@@ -178,10 +205,15 @@ async function readFirmPart(
 
 /**
  * A section whose rows page by size. `from` is the table and its filter,
- * with `$1` the scope's id (the account's, or the owned firm's). `key` is a
- * text unique within the section that sorts the rows, byte by byte, in the
- * export's order (`desc` reverses it); a page names its first and last key.
- * `alone` puts each row on a page of its own.
+ * with `$1` the scope's id (the account's, or the owned firm's) and `$2`
+ * the plan's time (BORN), null to read every row. `key` is a text unique
+ * within the section that sorts the rows, byte by byte, in the export's
+ * order (`desc` reverses it); a page names its first and last key. A key is
+ * made of columns that never change once the row is written, so a row
+ * changed during the download stays in the part the plan put it in.
+ * `alone` puts each row on a page of its own. `slices` names the jsonb
+ * arrays a row too large for one page is cut into pages by (planPages), and
+ * gives the columns with those arrays cut to the elements from `$p` on.
  */
 interface PagedSection<T> {
   scope: "account" | "firm";
@@ -190,6 +222,7 @@ interface PagedSection<T> {
   desc: boolean;
   alone?: boolean;
   columns: string;
+  slices?: { arrays: readonly ["vendors", "employees"]; columns(p: number): string };
   map(row: Record<string, unknown>): T;
 }
 
@@ -203,18 +236,41 @@ const TS = (column: string) => `to_char(${column} at time zone 'UTC', 'YYYYMMDDH
 const NUM = (expression: string) => `lpad((${expression})::text, 20, '0')`;
 /** Between key parts: below every printable character, so a shorter id sorts first. */
 const SEP = " || chr(1) || ";
+/**
+ * The row was written by the plan's time (`$2`), by the column the database
+ * stamps when the row is written and never changes after. A part leaves out
+ * a row written after its plan; the plan itself, and the single export,
+ * pass null and read every row.
+ */
+const BORN = (column: string) => `($2::timestamptz is null or ${column} <= $2::timestamptz)`;
 
 /** What a row adds to its page beyond its JSON as Postgres prints it: commas and a picture's address. */
 const ROW_OVERHEAD_BYTES = 256;
 /** A page's own JSON around its rows. */
-const PAGE_OVERHEAD_BYTES = 64;
+const PAGE_OVERHEAD_BYTES = 128;
+
+/**
+ * A QuickBooks reading's columns; from parameter `$p` on, the vendors and
+ * the employees cut to [from, to) element positions (`$p` to `$p+3`).
+ */
+function quickBooksColumns(p: number | null): string {
+  const cut = (array: string, at: number) =>
+    p === null
+      ? array
+      : `coalesce((select jsonb_agg(e order by n) from jsonb_array_elements(${array})
+          with ordinality as t(e, n) where n > $${at}::int and n <= $${at + 1}::int), '[]'::jsonb)
+          as ${array}`;
+  return `business_id, taken_at, ${cut("vendors", p ?? 0)}, ${cut("employees", (p ?? 0) + 2)}`;
+}
 
 const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][number]> } = {
+  // In id order: the file puts them newest saved first (assembleAccountExport),
+  // and a save, a removal or a restore during the download moves the time.
   businesses: paged({
     scope: "account",
-    from: "businesses where user_id = $1",
-    key: `${TS("updated_at")}${SEP}id`,
-    desc: true,
+    from: `businesses where user_id = $1 and ${BORN("created_at")}`,
+    key: "id",
+    desc: false,
     alone: true,
     columns: "id, name, industry, revision, updated_at, deleted_at, granted_at, profile",
     map: (b: {
@@ -239,7 +295,7 @@ const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][numb
   }),
   reportVersions: paged({
     scope: "account",
-    from: "report_versions where user_id = $1",
+    from: `report_versions where user_id = $1 and ${BORN("prepared_at")}`,
     key: `business_id${SEP}lpad((2147483647 - version_no)::text, 10, '0')`,
     desc: false,
     columns: `id, business_id, version_no, revision, scope_note, prepared_by, prepared_at,
@@ -313,7 +369,7 @@ const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][numb
   reportLogos: paged({
     scope: "account",
     from: `(select distinct firm_logo_data_url from report_versions
-      where user_id = $1 and firm_logo_data_url is not null) l`,
+      where user_id = $1 and firm_logo_data_url is not null and ${BORN("prepared_at")}) l`,
     key: "md5(firm_logo_data_url)",
     desc: false,
     columns: "md5(firm_logo_data_url) as id, firm_logo_data_url as data_url",
@@ -321,7 +377,7 @@ const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][numb
   }),
   snapshots: paged({
     scope: "account",
-    from: "assessment_snapshots where user_id = $1",
+    from: `assessment_snapshots where user_id = $1 and ${BORN("created_at")}`,
     key: `${TS("created_at")}${SEP}id`,
     desc: true,
     columns: `id, title, practice_name, created_at, profile_json, power_map_json,
@@ -348,7 +404,7 @@ const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][numb
   }),
   shares: paged({
     scope: "account",
-    from: "map_shares where user_id = $1",
+    from: `map_shares where user_id = $1 and ${BORN("created_at")}`,
     key: `${TS("created_at")}${SEP}token`,
     desc: true,
     columns: "token, business_name, created_at, expires_at, revoked_at, redacted, payload",
@@ -372,7 +428,7 @@ const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][numb
   }),
   controlExecutions: paged({
     scope: "account",
-    from: "control_execution_log where user_id = $1",
+    from: `control_execution_log where user_id = $1 and ${BORN("created_at")}`,
     key: `${TS("created_at")}${SEP}id${SEP}business_id`,
     desc: false,
     columns: "business_id, record",
@@ -383,11 +439,14 @@ const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][numb
   }),
   quickBooksSnapshots: paged({
     scope: "account",
-    from: "integration_snapshots where user_id = $1 and provider = 'qbo'",
+    from: `integration_snapshots where user_id = $1 and provider = 'qbo' and ${BORN("taken_at")}`,
     // Newest first within each business: the time counted down from a far one.
     key: `business_id${SEP}${NUM("99999999999999999 - (extract(epoch from taken_at) * 1000000)::bigint")}${SEP}${NUM("id")}`,
     desc: false,
-    columns: "business_id, taken_at, vendors, employees",
+    columns: quickBooksColumns(null),
+    // One reading holds up to 20,000 vendors and 20,000 employees
+    // (sync.server.ts), several megabytes: past the budget, it is cut.
+    slices: { arrays: ["vendors", "employees"], columns: quickBooksColumns },
     map: (s: { business_id: string; taken_at: string; vendors: unknown; employees: unknown }) => ({
       businessId: s.business_id,
       takenAt: toIsoTimestamp(s.taken_at),
@@ -397,7 +456,7 @@ const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][numb
   }),
   procedureImages: paged({
     scope: "account",
-    from: "procedure_images where user_id = $1",
+    from: `procedure_images where user_id = $1 and ${BORN("created_at")}`,
     key: `business_id${SEP}${TS("created_at")}${SEP}id`,
     desc: false,
     columns: `id, business_id, content_type, byte_size, width, height, sha256, uploaded_by,
@@ -429,7 +488,7 @@ const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][numb
   }),
   reviews: paged({
     scope: "account",
-    from: "review_events where user_id = $1",
+    from: `review_events where user_id = $1 and ${BORN("recorded_at")}`,
     key: `${TS("recorded_at")}${SEP}${NUM("id")}`,
     desc: true,
     columns: `business_id, period, item_key, owner_name, due_on, result, notes, recorded_at,
@@ -458,7 +517,7 @@ const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][numb
   }),
   remindersSent: paged({
     scope: "account",
-    from: "reminder_log where user_id = $1",
+    from: `reminder_log where user_id = $1 and ${BORN("sent_at")}`,
     key: `${TS("sent_at")}${SEP}${NUM("id")}`,
     desc: true,
     columns: "business_id, item_key, due_on::text as due_on, recipient, sent_at",
@@ -479,7 +538,7 @@ const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][numb
   // The firm owner's copy of the firm's activity log (migration 0048), newest first.
   firmActivity: paged({
     scope: "firm",
-    from: "firm_audit_log where firm_user_id = $1",
+    from: `firm_audit_log where firm_user_id = $1 and ${BORN("occurred_at")}`,
     key: `${TS("occurred_at")}${SEP}${NUM("id")}`,
     desc: true,
     columns: "actor_name, event, business_id, subject_user_id, detail, occurred_at",
@@ -510,10 +569,15 @@ function scopeOf(
   return PAGED[section].scope === "firm" ? firmUserId : userId;
 }
 
-/** The section's rows with their keys, as one query; the caller adds the order and range. */
-function sectionQuery(section: PagedExportSection): string {
+/**
+ * The section's rows with their keys, as one query; the caller adds the
+ * order and range. With `slicesAt`, a sliced section's arrays are cut by
+ * the parameters from there on.
+ */
+function sectionQuery(section: PagedExportSection, slicesAt: number | null = null): string {
   const s = PAGED[section];
-  return `select ${s.key} as k, ${s.columns} from ${s.from}`;
+  const columns = slicesAt !== null && s.slices ? s.slices.columns(slicesAt) : s.columns;
+  return `select ${s.key} as k, ${columns} from ${s.from}`;
 }
 
 /** Ascending or descending by key, compared byte by byte so Postgres and the plan agree. */
@@ -521,54 +585,135 @@ function keyOrder(section: PagedExportSection): string {
   return `order by x.k collate "C" ${PAGED[section].desc ? "desc" : "asc"}`;
 }
 
+/** A planned row: its key and size, and for a sliced section its arrays' lengths and largest element. */
+interface PlannedRow {
+  k: string;
+  n: number | string;
+  vendors_length?: number | string | null;
+  vendors_max?: number | string | null;
+  employees_length?: number | string | null;
+  employees_max?: number | string | null;
+}
+
 /**
- * The section's pages: each one's first and last key, holding rows until
- * their JSON as Postgres prints it (larger than the file's, never smaller)
- * would pass `budgetBytes`, and always at least one row.
+ * The section's pages: each one's first and last key and how many rows it
+ * holds, rows added until their JSON as Postgres prints it (larger than
+ * the file's, never smaller) would pass `budgetBytes`, and always at least
+ * one row. A row of a sliced section past the budget is cut into pages of
+ * whole elements instead (sliceRow), so no page carries more than the
+ * budget whatever the reading holds. Every page carries the plan's time.
  */
 async function planPages(
   tx: Sql,
   section: PagedExportSection,
   scope: string,
   budgetBytes: number,
-): Promise<ExportPartRequest[]> {
-  const rows = await tx.query<{ k: string; n: number | string }>(
-    `select x.k, octet_length(row_to_json(x)::text) as n from (${sectionQuery(section)}) x
-     ${keyOrder(section)}`,
-    [scope],
+  asOf: string,
+): Promise<PagedPartRequest[]> {
+  const s = PAGED[section];
+  // An element's size as Postgres prints it, which the file's JSON never passes.
+  const measures = (s.slices?.arrays ?? []).map(
+    (a) => `, case when jsonb_typeof(x.${a}) = 'array' then jsonb_array_length(x.${a}) end
+        as ${a}_length,
+      case when jsonb_typeof(x.${a}) = 'array' then (select max(octet_length(e::text))
+        from jsonb_array_elements(x.${a}) e) end as ${a}_max`,
   );
-  const parts: Array<{ section: PagedExportSection; first: string; last: string }> = [];
+  const rows = await tx.query<PlannedRow>(
+    `select x.k, octet_length(row_to_json(x)::text) as n${measures.join("")}
+     from (${sectionQuery(section)}) x ${keyOrder(section)}`,
+    [scope, null],
+  );
+  const parts: PagedPartRequest[] = [];
   let used = 0;
   for (const row of rows) {
     const bytes = Number(row.n) + ROW_OVERHEAD_BYTES;
     const page = parts.at(-1);
-    if (page && !PAGED[section].alone && used + bytes <= budgetBytes) {
+    const slices =
+      s.slices && PAGE_OVERHEAD_BYTES + bytes > budgetBytes ? sliceRow(row, budgetBytes) : null;
+    if (slices) {
+      for (const slice of slices)
+        parts.push({ section, first: row.k, last: row.k, count: 1, asOf, slice });
+    } else if (page && !page.slice && !s.alone && used + bytes <= budgetBytes) {
       page.last = row.k;
+      page.count += 1;
       used += bytes;
+      continue;
     } else {
-      parts.push({ section, first: row.k, last: row.k });
-      used = PAGE_OVERHEAD_BYTES + bytes;
+      parts.push({ section, first: row.k, last: row.k, count: 1, asOf });
     }
+    used = PAGE_OVERHEAD_BYTES + bytes;
   }
   return parts;
 }
 
-/** The section's rows from `range.first` to `range.last`, both included; every row without one. */
+/**
+ * A QuickBooks reading past the budget, as slices of whole elements: the
+ * vendors in order, then the employees, each slice holding as many as fit
+ * the budget when every element is as large as the reading's largest (an
+ * element larger than the budget gets a slice of its own). Null when either
+ * array is not an array, which the reading's writer never stores: the row
+ * then goes on a page of its own, as before.
+ */
+function sliceRow(row: PlannedRow, budgetBytes: number): ExportSlice[] | null {
+  if (row.vendors_length == null || row.employees_length == null) return null;
+  const room = budgetBytes - PAGE_OVERHEAD_BYTES - ROW_OVERHEAD_BYTES;
+  const arrays = [
+    { length: Number(row.vendors_length), each: Number(row.vendors_max ?? 0) + 1 },
+    { length: Number(row.employees_length), each: Number(row.employees_max ?? 0) + 1 },
+  ];
+  const at = [0, 0];
+  const slices: ExportSlice[] = [];
+  do {
+    let left = room;
+    const from = [...at];
+    for (const [i, a] of arrays.entries()) {
+      // The employees start once every vendor has a slice.
+      if (i === 1 && at[0] < arrays[0].length) break;
+      const fit = Math.min(a.length - at[i], Math.max(0, Math.floor(left / a.each)));
+      at[i] += fit;
+      left -= fit * a.each;
+    }
+    // A slice always holds at least one element, however large.
+    if (at[0] === from[0] && at[1] === from[1]) {
+      if (at[0] < arrays[0].length) at[0] += 1;
+      else if (at[1] < arrays[1].length) at[1] += 1;
+    }
+    slices.push({ vendors: [from[0], at[0]], employees: [from[1], at[1]] });
+  } while (at[0] < arrays[0].length || at[1] < arrays[1].length);
+  return slices;
+}
+
+/**
+ * The section's rows a part names: from `part.first` to `part.last`, both
+ * included, written by `part.asOf`, its slice of a QuickBooks reading cut
+ * in Postgres, and never more than the plan counted: one more refuses the
+ * part (409, EXPORT_CHANGED). Every row, uncut, without a part.
+ */
 async function readPagedRows<S extends PagedExportSection>(
   tx: Sql,
   section: S,
   scope: string,
-  range: { first: string; last: string } | null,
+  part: PagedPartRequest | null,
 ): Promise<AccountExportFile[S]> {
   const s = PAGED[section];
-  const bounds = !range ? [] : s.desc ? [range.last, range.first] : [range.first, range.last];
+  if (!part) {
+    const all = await tx.query<Record<string, unknown>>(
+      `select * from (${sectionQuery(section)}) x ${keyOrder(section)}`,
+      [scope, null],
+    );
+    return all.map((row) => s.map(row)) as AccountExportFile[S];
+  }
+  if (part.slice && !s.slices) throw new RequestError(400, "Unknown export part");
+  const [low, high] = s.desc ? [part.last, part.first] : [part.first, part.last];
+  const slice = part.slice ? [...part.slice.vendors, ...part.slice.employees] : [];
   const rows = await tx.query<Record<string, unknown>>(
-    range
-      ? `select * from (${sectionQuery(section)}) x
-         where x.k collate "C" >= $2 and x.k collate "C" <= $3 ${keyOrder(section)}`
-      : `select * from (${sectionQuery(section)}) x ${keyOrder(section)}`,
-    [scope, ...bounds],
+    `select * from (${sectionQuery(section, part.slice ? 6 : null)}) x
+     where x.k collate "C" >= $3 and x.k collate "C" <= $4 ${keyOrder(section)} limit $5`,
+    [scope, part.asOf, low, high, part.count + 1, ...slice],
   );
+  // A row with an older time moved into the range (for example a departing
+  // member's versions handed to the firm owner): the plan no longer holds.
+  if (rows.length > part.count) throw new RequestError(409, EXPORT_CHANGED);
   return rows.map((row) => s.map(row)) as AccountExportFile[S];
 }
 

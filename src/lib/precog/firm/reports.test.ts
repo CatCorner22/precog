@@ -23,6 +23,7 @@ import {
   versionProvenance,
   WITHDRAW_AFTER_SENT,
   WITHDRAW_REFUSED,
+  WITHDRAW_ROLE_REFUSED,
   withdrawReportVersionReview,
   withoutReviewRouting,
   type ReportVersionRow,
@@ -832,5 +833,95 @@ describe("review rules", () => {
         withdrawnBy: "reviewer",
       }),
     ).rejects.toMatchObject({ status: 409 });
+  });
+
+  const withdrawAs = (by: string, id: string, ownerUserId = "owner") =>
+    withdrawReportVersionReview(db.sql, { ownerUserId, id, withdrawnBy: by });
+  const reviewedBy = async (id: string, ownerUserId = "owner") =>
+    (await loadReportVersion(db.sql, ownerUserId, id))?.version.reviewedBy ?? null;
+
+  it("refuses the signer once their role no longer reviews, and the firm owner still withdraws", async () => {
+    expect(WITHDRAW_ROLE_REFUSED).toBe(
+      "Your role at the firm no longer lets you withdraw this review. Ask the firm owner to withdraw it.",
+    );
+    await lock("rv_1");
+    await signOff("rv_1", "reviewer");
+    await db.pg.query(
+      `update firm_members set role = 'preparer' where member_user_id = 'reviewer'`,
+    );
+    await expect(withdrawAs("reviewer", "rv_1")).rejects.toMatchObject({
+      status: 403,
+      message: WITHDRAW_ROLE_REFUSED,
+    });
+    expect(await reviewedBy("rv_1")).toBe("reviewer");
+    // Removed from the firm, likewise.
+    await db.pg.query(`delete from firm_members where member_user_id = 'reviewer'`);
+    await expect(withdrawAs("reviewer", "rv_1")).rejects.toMatchObject({
+      status: 403,
+      message: WITHDRAW_ROLE_REFUSED,
+    });
+    expect(await reviewedBy("rv_1")).toBe("reviewer");
+    expect((await withdrawAs("owner", "rv_1")).withdrawnReviewer).toBe("reviewer");
+  });
+
+  it("lets a person who issued a version alone withdraw it while still a member, whatever their role", async () => {
+    // Issued alone (preparer and reviewer the same person), for example by a
+    // firm owner who has since handed the firm on and holds another role.
+    await lock("rv_1", "prep");
+    const issueAlone = () =>
+      db.pg.query(
+        `update report_versions set reviewed_by = prepared_by, reviewed_at = now(),
+           review_note = 'Not an independent review.' where id = 'rv_1'`,
+      );
+    await issueAlone();
+    expect((await withdrawAs("prep", "rv_1")).withdrawnReviewer).toBe("prep");
+    expect(await reviewedBy("rv_1")).toBeNull();
+    // No longer a member, they cannot.
+    await issueAlone();
+    await db.pg.query(`delete from firm_members where member_user_id = 'prep'`);
+    await expect(withdrawAs("prep", "rv_1")).rejects.toMatchObject({
+      status: 403,
+      message: WITHDRAW_ROLE_REFUSED,
+    });
+    expect(await reviewedBy("rv_1")).toBe("prep");
+  });
+
+  it("lets a business's own account withdraw a review it issued alone outside any firm", async () => {
+    await db.seedUser("solo");
+    await db.pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision)
+        values ('biz_s', 'solo', 'Solo', 'general', '{}'::jsonb, 1);
+    `);
+    const lockSolo = (id: string) =>
+      lockReportVersion(db.sql, {
+        ownerUserId: "solo",
+        businessId: "biz_s",
+        preparedBy: "solo",
+        scopeNote: "",
+        id,
+      });
+    const issueSolo = (id: string) =>
+      signOffReportVersion(db.sql, {
+        ownerUserId: "solo",
+        id,
+        reviewedBy: "solo",
+        note: "",
+        issueWithoutIndependentReview: true,
+      });
+    await lockSolo("rv_s1");
+    await issueSolo("rv_s1");
+    expect((await withdrawAs("solo", "rv_s1", "solo")).withdrawnReviewer).toBe("solo");
+    // Shared with the firm later, the version stays the account's own: the
+    // firm does not read it, so its role rules do not reach it.
+    await lockSolo("rv_s2");
+    await issueSolo("rv_s2");
+    await db.pg.query(
+      `update businesses set firm_user_id = 'owner', granted_at = now() where id = 'biz_s'`,
+    );
+    await expect(withdrawAs("owner", "rv_s2", "solo")).rejects.toMatchObject({
+      status: 403,
+      message: WITHDRAW_REFUSED,
+    });
+    expect((await withdrawAs("solo", "rv_s2", "solo")).withdrawnReviewer).toBe("solo");
   });
 });

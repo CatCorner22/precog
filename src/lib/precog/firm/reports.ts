@@ -127,6 +127,9 @@ export const WITHDRAW_AFTER_SENT =
   "This version was already sent, so its review cannot be withdrawn.";
 export const WITHDRAW_REFUSED =
   "Only the firm owner or the person who reviewed this version can withdraw its review.";
+/** The refusal of a signer whose role at the firm no longer reviews (see withdrawReportVersionReview). */
+export const WITHDRAW_ROLE_REFUSED =
+  "Your role at the firm no longer lets you withdraw this review. Ask the firm owner to withdraw it.";
 export const NOTHING_TO_WITHDRAW =
   "This version has not been reviewed for issuance, so there is no review to withdraw.";
 
@@ -612,9 +615,16 @@ async function businessFirm(
 /**
  * Withdraws the review for issuance of a version not yet sent: clears who
  * reviewed it, when, and both notes, so the version reads as locked and
- * unreviewed again and can be reviewed (or returned) anew. The owner of the
- * business's firm or the person who reviewed it may withdraw; anyone else
- * is refused (403, WITHDRAW_REFUSED). A sent version is refused (409,
+ * unreviewed again and can be reviewed (or returned) anew. On a version
+ * that is its firm's work (FIRM_READS_VERSION), the firm owner may
+ * withdraw, and so may the person who reviewed it while they still hold
+ * the owner or reviewer role there; someone who issued it alone (its
+ * preparer) may while they are still a member, whatever their role. Any
+ * other signer is refused (403, WITHDRAW_ROLE_REFUSED), for example a
+ * reviewer since made a preparer or removed. On any other version (a
+ * business with no firm, or a version its owner locked before sharing the
+ * business with a firm) the person who reviewed it may. Anyone else is
+ * refused (403, WITHDRAW_REFUSED). A sent version is refused (409,
  * WITHDRAW_AFTER_SENT), and an unreviewed one (409, NOTHING_TO_WITHDRAW).
  * A firm member is refused on an ended engagement (assertEngagementOpen).
  * The business row is share-locked first, then the version row, the order
@@ -641,30 +651,44 @@ export async function withdrawReportVersionReview(
       for share
     `;
     if (!business[0]) throw new ReportVersionError(404, "That report version does not exist");
-    const firmUserId = business[0].firm_user_id;
     await assertEngagementOpen(tx, input.ownerUserId, businessId, input.withdrawnBy);
-    const owners = firmUserId
-      ? await tx`
-          select 1 from firm_members
-          where firm_user_id = ${firmUserId} and member_user_id = ${input.withdrawnBy}
-            and role = 'owner'
-        `
-      : [];
-    const rows = await tx<{
+    const rows = await tx.query<{
       reviewed_by: string | null;
+      prepared_by: string | null;
       reviewed_at: string | null;
       sent_at: string | null;
-    }>`
-      select reviewed_by, reviewed_at, sent_at from report_versions
-      where user_id = ${input.ownerUserId} and id = ${input.id}
-      for update
-    `;
+      firm_version: boolean;
+    }>(
+      `select v.reviewed_by, v.prepared_by, v.reviewed_at, v.sent_at,
+         (b.firm_user_id is not null and ${FIRM_READS_VERSION}) as firm_version
+       from report_versions v
+       join businesses b on b.user_id = v.user_id and b.id = v.business_id
+       where v.user_id = $1 and v.id = $2
+       for update of v`,
+      [input.ownerUserId, input.id],
+    );
     const row = rows[0];
     if (!row) throw new ReportVersionError(404, "That report version does not exist");
-    const firmOwner = firmUserId === input.withdrawnBy && owners.length > 0;
+    // The firm whose work the version is; null when it is the account's own.
+    const firmUserId = row.firm_version ? business[0].firm_user_id : null;
+    const roles = firmUserId
+      ? await tx<{ role: string }>`
+          select role from firm_members
+          where firm_user_id = ${firmUserId} and member_user_id = ${input.withdrawnBy}
+        `
+      : [];
+    const role = roles[0]?.role ?? null;
+    const firmOwner = firmUserId === input.withdrawnBy && role === "owner";
     if (!firmOwner && row.reviewed_by !== input.withdrawnBy) {
       throw new ReportVersionError(403, WITHDRAW_REFUSED);
     }
+    const issuedAlone = row.prepared_by === row.reviewed_by;
+    const mayWithdraw =
+      firmUserId === null ||
+      role === "owner" ||
+      role === "reviewer" ||
+      (issuedAlone && role !== null);
+    if (!firmOwner && !mayWithdraw) throw new ReportVersionError(403, WITHDRAW_ROLE_REFUSED);
     if (row.sent_at) throw new ReportVersionError(409, WITHDRAW_AFTER_SENT);
     if (!row.reviewed_at) throw new ReportVersionError(409, NOTHING_TO_WITHDRAW);
     await tx`
@@ -888,14 +912,16 @@ export function versionProvenance(v: ReportVersionRow): string {
 /**
  * The version as a report link hands it to whoever holds the link: without
  * the firm's own request-and-return routing (who a review was asked of, by
- * account id and name, and any return and its note). A link opens only a
- * version reviewed for issuance, whose printed line names the preparer and
- * the reviewer alone, so the link carries nothing more. For the share loader
- * (`share/share-store.ts` `loadSharedReport`).
+ * account id and name, and any return and its note) and without the note
+ * saying why someone reviewed in the assigned reviewer's place. A link opens
+ * only a version reviewed for issuance, whose printed line names the
+ * preparer and the reviewer alone, so the link carries nothing more. For the
+ * share loader (`share/share-store.ts` `loadSharedReport`).
  */
 export function withoutReviewRouting(v: ReportVersionRow): ReportVersionRow {
   return {
     ...v,
+    reviewOverrideNote: null,
     reviewRequestedAt: null,
     reviewRequestedFrom: null,
     reviewRequestedFromName: null,
