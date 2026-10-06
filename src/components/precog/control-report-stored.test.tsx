@@ -84,6 +84,11 @@ function storedNow(raw: unknown): StoredReportModel {
 }
 
 describe("a locked version prints the same report from either stored shape", () => {
+  it("does not add live warning signs to the stored report layout", () => {
+    const profile = defaultProfile("dental");
+    expect(renderLocked(profile, storedNow(profile))).not.toContain("Warning signs to watch");
+  });
+
   it.each(INDUSTRIES.map((industry) => industry.id))("%s sample", (industry) => {
     const profile = defaultProfile(industry);
     const full = renderLocked(profile, storedInFull(profile));

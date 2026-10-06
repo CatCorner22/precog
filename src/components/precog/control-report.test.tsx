@@ -15,6 +15,7 @@ import {
   serializeReportModel,
 } from "@/lib/precog/report/stored-model";
 import { SCORING_VERSION } from "@/lib/precog/scoring/weights";
+import { scenarioUnfolding } from "@/lib/precog/scenario-unfolding";
 import { ControlReport } from "./control-report";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -76,6 +77,13 @@ const render = (profile: PracticeProfile) =>
     </ReadOnlyPracticeProvider>,
   );
 
+const renderLive = (profile: PracticeProfile) =>
+  renderToStaticMarkup(
+    <ReadOnlyPracticeProvider profile={profile}>
+      <ControlReport />
+    </ReadOnlyPracticeProvider>,
+  );
+
 /** A locked version printing the figures stored for `profile` under `layoutVersion`. */
 const renderStored = (profile: PracticeProfile, layoutVersion: number) =>
   renderToStaticMarkup(
@@ -101,6 +109,34 @@ const between = (text: string, from: string, to: string) => {
 };
 
 describe("printed control report", () => {
+  it("prints the top Dental sample scenario's warning signs in the live report", () => {
+    const profile = defaultProfile("dental");
+    const model = buildReportModelForProfile(profile, "2026-09-26");
+    const scenario = model.threat.targetDeck.find((target) => target.kind === "scenario");
+    expect(scenario?.processId).toBeDefined();
+    const unfolding = scenarioUnfolding(scenario!.processId!);
+    expect(unfolding).not.toBeNull();
+
+    const html = renderLive(profile);
+    expect(html).toContain("Warning signs to watch");
+    expect(html).toContain(
+      "What you can notice before a loss surfaces, for the scenarios at the top of the priority stack.",
+    );
+    expect(html).toContain(scenario!.label);
+    expect(html).toContain(unfolding!.warningSigns[0]);
+  });
+
+  it("omits scenario warning signs for an own business with no confirmed scenario", () => {
+    const own: PracticeProfile = {
+      ...defaultProfile("dental"),
+      practiceName: "Ortiz Dental Studio",
+      customPeople: team,
+    };
+    const model = buildReportModelForProfile(own, "2026-09-26");
+    expect(model.threat.targetDeck.some((target) => target.kind === "scenario")).toBe(false);
+    expect(renderLive(own)).not.toContain("Warning signs to watch");
+  });
+
   it("prints no Coverage check KPI beside the duty separation figure", () => {
     const html = render(defaultProfile("dental"));
     expect(textOf(html)).toContain("|Duty separation|");
