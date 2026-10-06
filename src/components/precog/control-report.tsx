@@ -46,6 +46,7 @@ import type { FirmSnapshot } from "@/lib/precog/firm/store";
 import { OpenVersionReview, ReportVersionsPanel } from "@/components/precog/report-versions";
 import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
 import { fixFirstOf } from "@/lib/precog/threat-scoring";
+import { scenarioUnfolding } from "@/lib/precog/scenario-unfolding";
 import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import {
   lockedFigures,
@@ -169,6 +170,17 @@ export function ControlReport({
       ? recalculationNote(figures.reason, formatDay(localDateKey(new Date())))
       : null;
   const { threat, portfolio, sod, sodOpen, sodLevel, mapHealth, healthDelta, decisionLog } = data;
+  const warningScenarios = !storedModel
+    ? threat.targetDeck
+        .flatMap((target) => {
+          // A scenario is usually grouped into the duty conflict it plays out.
+          const unfolding = target.scenario ? scenarioUnfolding(target.scenario.id) : null;
+          return unfolding && target.scenario
+            ? [{ target, title: target.scenario.title, unfolding }]
+            : [];
+        })
+        .slice(0, 3)
+    : [];
   const { byConflict: responses, notValid } = data.responses;
   // The day a logged decision accepted each finding's risk, for layout 5's
   // status column; layouts 1 to 4 read only the control's setting.
@@ -542,6 +554,27 @@ export function ControlReport({
             </p>
           )}
         </Section>
+
+        {warningScenarios.length > 0 && (
+          <Section title="Warning signs to watch">
+            <p className="mb-3 text-sm text-neutral-700">
+              What you can notice before a loss surfaces, for the scenarios at the top of the
+              priority stack.
+            </p>
+            <div className="space-y-3">
+              {warningScenarios.map(({ target, title, unfolding }) => (
+                <div key={target.id}>
+                  <p className="font-medium">{title}</p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-neutral-700">
+                    {unfolding.warningSigns.map((sign) => (
+                      <li key={sign}>{sign}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
 
         <Section title="Segregation of duties">
           <p className="text-sm text-neutral-700">

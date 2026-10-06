@@ -1,8 +1,10 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveTemplate } from "@/lib/precog/active-template";
+import { controlFailureModes } from "@/lib/precog/control-failure-modes";
 import { defaultProfile, type PracticeProfile } from "@/lib/precog/practice-profile";
 import type { IndustryTemplate } from "@/lib/precog/templates";
+import { renderToStaticMarkup } from "react-dom/server";
 import { SodControlsSection } from "./sod-controls-section";
 
 const state = vi.hoisted(() => ({
@@ -53,8 +55,12 @@ describe("control-failure links from the Controls view", () => {
     const control = resolveTemplate(profile).controls.find((item) => item.id === "c-sod-ap")!;
     const onNavigate = vi.fn();
     const tree = SodControlsSection({ onNavigate });
+    const html = renderToStaticMarkup(tree);
     const button = findButton(tree, `What if ${control.name} fails?`);
 
+    expect(html).toContain("How this fails in practice");
+    for (const mode of controlFailureModes(control.id)) expect(html).toContain(mode);
+    expect(html).toContain("See what this failure would cost");
     expect(button).not.toBeNull();
     button?.props.onClick();
 

@@ -10,6 +10,8 @@ import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import type { PracticeProfile } from "../practice-profile";
 import { firstName } from "../text";
 import { buildStartHereModel } from "../start-here/model";
+import { scenarioUnfolding } from "../scenario-unfolding";
+import { describeScenarioFigures, type ScenarioRunData } from "./scenario-tools";
 import { formatUsd } from "@/lib/utils";
 
 const dental = getIndustryTemplate("dental");
@@ -562,6 +564,22 @@ describe("get_case_evidence", () => {
       expect((result.data as { matchingCases: number }).matchingCases).toBe(startHere.count);
     });
   }
+});
+
+describe("run_precog_scenario warning signs", () => {
+  it("carries the Dental sample's top scenario unfolding without changing its summary", () => {
+    const result = executeTool("run_precog_scenario", {
+      profile: defaultProfile("dental"),
+    });
+    expect(result.ok).toBe(true);
+    const data = result.data as ScenarioRunData & { unfolds: readonly string[] };
+    const unfolding = scenarioUnfolding(data.scenarioId);
+
+    expect(unfolding).not.toBeNull();
+    expect(data.unfolds).toEqual(unfolding!.steps);
+    expect(data.warningSigns).toEqual(unfolding!.warningSigns);
+    expect(result.summary).toBe(`${data.title}: ${describeScenarioFigures(data)}`);
+  });
 });
 
 describe("executeTool when a tool throws", () => {

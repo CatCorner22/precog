@@ -59,6 +59,12 @@ interface ThreatTarget extends PriorityTarget {
   kinds?: string[];
   /** The ids of the rows grouped into this one, the leading row's first. */
   members?: string[];
+  /**
+   * The scenario grouped into this row, when one is: its id, for its warning
+   * signs, and its title. A scenario usually joins the duty conflict it plays
+   * out, so its row leads with the conflict.
+   */
+  scenario?: { id: string; title: string };
   residual?: number;
   /**
    * The scenario's assumed loss after insurance (the retained loss) under the
@@ -155,6 +161,7 @@ export function buildThreatAssessment(input: {
         id: item.id,
         kind: item.category,
         label: item.name,
+        processId: scenarioRow?.scenario.id,
         priority: scored.priority,
         band,
         heat: item.residual,
@@ -350,10 +357,14 @@ interface KeyedTarget<T> {
 interface Grouped {
   kinds: string[];
   members: string[];
+  scenario?: { id: string; title: string };
 }
 
 type Groupable = Pick<PriorityTarget, "label" | "priority"> &
-  Partial<Pick<PriorityTarget, "id" | "kind">> & { expectedLoss?: number; p50Days?: number };
+  Partial<Pick<PriorityTarget, "id" | "kind" | "processId">> & {
+    expectedLoss?: number;
+    p50Days?: number;
+  };
 
 /** Rows shown on the list: one per weakness, highest priority first, at most ten. */
 export function rankTargets<T extends Groupable>(
@@ -404,9 +415,13 @@ function groupTargets<T extends Groupable>(rows: readonly KeyedTarget<T>[]): (T 
   return groups.map(({ rows: [lead, ...rest] }) => {
     const loss =
       lead.expectedLoss === undefined ? rest.find((m) => m.expectedLoss !== undefined) : undefined;
+    const scenario = [lead, ...rest].find((m) => m.kind === "scenario" && m.processId);
     return {
       ...lead,
       ...(loss ? { expectedLoss: loss.expectedLoss, p50Days: loss.p50Days } : {}),
+      ...(scenario?.processId
+        ? { scenario: { id: scenario.processId, title: scenario.label } }
+        : {}),
       kinds: [...new Set([lead, ...rest].flatMap((m) => (m.kind ? [m.kind] : [])))],
       members: [...new Set([lead, ...rest].map((m) => m.id ?? m.label))],
     };
