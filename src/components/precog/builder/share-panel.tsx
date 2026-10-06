@@ -6,7 +6,7 @@ import { Copy, Link2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { inputCls, labelCls } from "@/components/ui/field-classes";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { SHARE_PASSCODE_MIN, type SharedMapPayload } from "@/lib/precog/share/share-schema";
+import { madeByLabel, SHARE_NOTE_MAX, SHARE_PASSCODE_MIN } from "@/lib/precog/share/share-schema";
 import { createMapShare, listMapShares, revokeMapShare } from "@/lib/precog/share/share-server";
 import type { ShareSummary } from "@/lib/precog/share/share-store";
 import { formatDayShort } from "@/lib/precog/dates";
@@ -15,15 +15,15 @@ import { cn } from "@/lib/utils";
 
 /**
  * Read-only share links for an advisor or lender: create one, and see,
- * copy or revoke every live link. Revoked and expired links fold away.
+ * copy or revoke every live link, the ones a firm made on the account's own
+ * business included. Revoked and expired links fold away. Precog builds the
+ * shared page from the business as last saved, never from this browser.
  */
 export function SharePanel({
   businessId,
-  buildPayload,
 }: {
   /** The business the link copies; deleting it revokes the link. */
   businessId: string;
-  buildPayload: (note?: string, redactNames?: boolean) => SharedMapPayload;
 }) {
   const { user, isPending } = useCurrentUserState();
   const [note, setNote] = useState("");
@@ -59,7 +59,8 @@ export function SharePanel({
   }, [userId]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const urlFor = (token: string) => `${origin}/share/${token}`;
+  const urlFor = (link: Pick<ShareSummary, "token" | "kind">) =>
+    `${origin}/share/${link.kind === "report" ? "report/" : ""}${link.token}`;
 
   async function create() {
     setBusy(true);
@@ -67,7 +68,7 @@ export function SharePanel({
       const res = await createMapShare({
         data: {
           businessId,
-          payload: buildPayload(note, redactNames),
+          note,
           expiresInDays: days,
           redacted: redactNames,
           passcode,
@@ -85,6 +86,7 @@ export function SharePanel({
           views: 0,
           lastViewedAt: null,
           createdBy: null,
+          createdByFirm: null,
           kind: "map",
           businessId,
           reportVersionId: null,
@@ -93,7 +95,7 @@ export function SharePanel({
         ...(cur ?? []),
       ]);
       setPasscode("");
-      await copy(urlFor(res.token));
+      await copy(urlFor({ token: res.token, kind: "map" }));
       toast.success("Share link created and copied", { description: `Expires in ${days} days.` });
     } catch (e) {
       toast.error("Couldn't create link", {
@@ -126,6 +128,7 @@ export function SharePanel({
     toast("Link revoked");
   }
 
+  const latestLink = latest ? { token: latest, kind: "map" as const } : null;
   const now = new Date().toISOString();
   const live = (links ?? []).filter((l) => isLive(l, now));
   const inactive = (links ?? []).filter((l) => !isLive(l, now));
@@ -163,13 +166,13 @@ export function SharePanel({
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5 text-xs">
       <p className="text-muted">
         Create a read-only snapshot for an advisor, lender, or board member — no sign-in needed to
-        view. The link does not show edits you make later; create a new link when you want to share
-        an update.
+        view. The link copies the map as last saved to your account and does not show edits you make
+        later; create a new link when you want to share an update.
       </p>
       <textarea
         className={cn(inputCls, "min-h-[44px] resize-y")}
         aria-label="Note to the reader (optional)"
-        maxLength={NOTE_MAX}
+        maxLength={SHARE_NOTE_MAX}
         placeholder="Optional note to the reader (for example: 'Draft for our Q3 lender review — please focus on cash controls.')"
         value={note}
         onChange={(e) => setNote(e.target.value)}
@@ -214,19 +217,19 @@ export function SharePanel({
           Create link
         </Button>
       </div>
-      {latest && (
+      {latestLink && (
         <div className="flex items-center gap-1.5 rounded-md border border-ok/40 bg-ok/10 px-2 py-1.5">
-          <code className="min-w-0 flex-1 truncate text-xs text-fg">{urlFor(latest)}</code>
+          <code className="min-w-0 flex-1 truncate text-xs text-fg">{urlFor(latestLink)}</code>
           <button
             type="button"
-            onClick={() => void copy(urlFor(latest))}
+            onClick={() => void copy(urlFor(latestLink))}
             className="text-primary hover:underline"
             title="Copy"
           >
             <Copy className="size-3" />
           </button>
           <a
-            href={urlFor(latest)}
+            href={urlFor(latestLink)}
             target="_blank"
             rel="noreferrer"
             className="text-primary hover:underline"
@@ -246,9 +249,14 @@ export function SharePanel({
           <ul className="mt-1 space-y-1">
             {live.map((l) => (
               <ShareRow key={l.token} link={l}>
+                {l.kind === "report" && (
+                  <span className="rounded bg-elevated px-1 text-xs text-subtle">
+                    {l.versionNo ? `report, version ${l.versionNo}` : "report"}
+                  </span>
+                )}
                 {l.createdBy && (
                   <span className="rounded bg-elevated px-1 text-xs text-subtle">
-                    made by {l.createdBy}
+                    {madeByLabel(l)}
                   </span>
                 )}
                 {l.redacted && (
@@ -264,7 +272,7 @@ export function SharePanel({
                 </span>
                 <button
                   type="button"
-                  onClick={() => void copy(urlFor(l.token))}
+                  onClick={() => void copy(urlFor(l))}
                   className="text-xs text-primary hover:underline"
                 >
                   Copy
@@ -295,6 +303,7 @@ export function SharePanel({
             <ul className="mt-1 space-y-1">
               {inactive.map((l) => (
                 <ShareRow key={l.token} link={l} faded>
+                  {l.createdBy && <span className="text-xs text-subtle">{madeByLabel(l)}</span>}
                   <span className="text-xs text-subtle">{l.revoked ? "revoked" : "expired"}</span>
                 </ShareRow>
               ))}
@@ -336,6 +345,3 @@ function ShareRow({
 function isLive(link: ShareSummary, nowIso: string): boolean {
   return !link.revoked && (!link.expiresAt || link.expiresAt > nowIso);
 }
-
-/** The server's limit on the note (share-schema.ts). */
-const NOTE_MAX = 2_000;

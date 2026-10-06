@@ -17,7 +17,17 @@ import {
   type NewMapShare,
 } from "./share-store";
 import { toSql } from "@/lib/sql-transaction";
-import { createReportShare, revokeMapShare } from "./share-server";
+import {
+  createMapShare,
+  createReportShare,
+  loadMapShare,
+  loadReportShare,
+  MAP_SHARE_UNSAVED,
+  revokeMapShare,
+} from "./share-server";
+import { buildSharePayload } from "./share-payload";
+import type { ProcessNode } from "../types";
+import type { ReviewRecord } from "../firm/reviews";
 
 // createReportShare runs as a plain handler: the validator, then the handler
 // with the caller's id, against this file's PGlite.
@@ -41,6 +51,9 @@ vi.mock("@tanstack/react-start", () => ({
 }));
 vi.mock("@/lib/auth/middleware", () => ({ authMiddleware: {} }));
 vi.mock("@/lib/db", () => ({ getSql: async () => ref.db?.sql }));
+// The public loaders read the caller's address and user agent for the view log.
+vi.mock("@/lib/request-ip.server", () => ({ requestIp: () => "203.0.113.9" }));
+vi.mock("@tanstack/react-start/server", () => ({ getRequest: () => null }));
 
 type ShareCall = (args: {
   context: { userId: string };
@@ -546,3 +559,261 @@ async function mapLink(tok: string): Promise<NewMapShare> {
     businessId: "client",
   };
 }
+
+/** Free text the business wrote for itself that no printed report shows. */
+const PRIVATE_NOTES = [
+  "bank login kept in the front drawer",
+  "risk note: Maria skips the count",
+  "idea note: buy a safe",
+  "evidence note: binder 4",
+  "waste note: double entry",
+  "Quokka banking portal",
+  "Shared drive > Payroll > Procedure",
+  "Risk title the report never prints",
+  "cash short $400, spoke to Maria",
+  "an earlier draft of this month's note",
+] as const;
+
+/** A process on the client's map carrying every kind of private note. */
+const notedProcess: ProcessNode = {
+  id: "proc_payroll",
+  name: "Run payroll",
+  layer: "process",
+  description: "Ada runs it; bank login kept in the front drawer.",
+  dependencies: [],
+  controlIds: [],
+  stage: 2,
+  ownerPersonIds: ["a"],
+  risks: [
+    {
+      id: "risk_count",
+      title: "Risk title the report never prints",
+      kind: "fraud",
+      severity: 4,
+      likelihood: 3,
+      note: "risk note: Maria skips the count",
+    },
+  ],
+  ideas: [
+    {
+      id: "idea_safe",
+      title: "Lock the drawer",
+      category: "control",
+      effort: "low",
+      impact: "high",
+      note: "idea note: buy a safe",
+      status: "backlog",
+    },
+  ],
+  wastes: [{ id: "w1", kind: "muda_rework", label: "Rework", note: "waste note: double entry" }],
+  evidence: [
+    { id: "e1", label: "Payroll register", frequency: "monthly", note: "evidence note: binder 4" },
+  ],
+  systems: ["Quokka banking portal"],
+  inputs: ["Timesheets"],
+  outputs: ["Pay stubs"],
+  procedureLocation: "Shared drive > Payroll > Procedure",
+};
+
+/** This month's result (printed), an earlier draft for the same check, and a past month's note. */
+function reviewsFor(now: Date): ReviewRecord[] {
+  const period = now.toISOString().slice(0, 7);
+  return [
+    {
+      key: "bank_statement",
+      period,
+      result: "done",
+      ownerName: "Ada Park",
+      notes: "Two deposits in transit.",
+      recordedAt: now.toISOString(),
+    },
+    {
+      key: "bank_statement",
+      period,
+      result: "exception",
+      ownerName: "Ada Park",
+      notes: "an earlier draft of this month's note",
+      recordedAt: now.toISOString(),
+    },
+    {
+      key: "bank_statement",
+      period: "2025-01",
+      result: "exception",
+      ownerName: "Ada Park",
+      notes: "cash short $400, spoke to Maria",
+      recordedAt: "2025-01-31T12:00:00.000Z",
+    },
+  ];
+}
+
+const noted = (): PracticeProfile => ({
+  ...client,
+  customProcesses: [notedProcess],
+  monthlyReviews: reviewsFor(new Date()),
+});
+
+type LoadCall = (args: { data: { token: string } }) => Promise<Record<string, unknown>>;
+
+describe("what a public report link sends", () => {
+  beforeEach(async () => {
+    await db.pg.query("update businesses set profile = $1::jsonb where id = 'client'", [
+      JSON.stringify(noted()),
+    ]);
+  });
+
+  it("sends no process note, description or past monthly note, and keeps this month's printed result", async () => {
+    await lock("prep", "client", "rv_1");
+    await review("rv_1");
+    await reportLink(token(1), "prep", "rv_1");
+    const row = await loadReportShareRow(db.sql, token(1));
+    const shared = await loadSharedReport(db.sql, row!, "2026-10-01");
+    const text = JSON.stringify(shared);
+    for (const secret of PRIVATE_NOTES) expect(text).not.toContain(secret);
+    // What the report prints still travels: the process, its owner, its counts, this month's result.
+    const [process] = shared?.profile.customProcesses ?? [];
+    expect(process).toMatchObject({ id: "proc_payroll", name: "Run payroll", stage: 2 });
+    expect(process.ownerPersonIds).toEqual(["a"]);
+    expect(process.risks).toHaveLength(1);
+    expect(process.ideas).toHaveLength(1);
+    expect(shared?.profile.monthlyReviews?.map((r) => r.notes)).toEqual([
+      "Two deposits in transit.",
+    ]);
+  });
+
+  it("strips the notes from a link made before this change, as the public page loads it", async () => {
+    await lock("prep", "client", "rv_1");
+    await review("rv_1");
+    // An older row whose stored payload carries a whole profile, notes and all.
+    await insertMapShare(db.sql, {
+      token: token(1),
+      userId: "prep",
+      businessName: "Ortiz Dental Studio",
+      industry: "dental",
+      payloadJson: JSON.stringify({ profile: noted() }),
+      expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      redacted: false,
+      passcodeSalt: null,
+      passcodeHash: null,
+      businessOwnerId: "prep",
+      businessId: "client",
+      reportVersionId: "rv_1",
+    });
+    const res = await (loadReportShare as unknown as LoadCall)({ data: { token: token(1) } });
+    expect(res.found).toBe(true);
+    const text = JSON.stringify(res);
+    for (const secret of PRIVATE_NOTES) expect(text).not.toContain(secret);
+    expect(text).toContain("Two deposits in transit.");
+  });
+});
+
+type MapShareCall = (args: {
+  context: { userId: string };
+  data: Record<string, unknown>;
+}) => Promise<{ token: string }>;
+const shareMap = (userId: string, data: Record<string, unknown>) =>
+  (createMapShare as unknown as MapShareCall)({ context: { userId }, data });
+const storedPayload = async (tok: string) =>
+  (
+    await db.pg.query<{ payload: Record<string, unknown> }>(
+      "select payload from map_shares where token = $1",
+      [tok],
+    )
+  ).rows[0].payload;
+
+describe("a map link", () => {
+  it("is built on the server from the saved business, whatever the browser sends", async () => {
+    const forged = {
+      ...buildSharePayload(defaultProfile("dental"), []),
+      businessName: "Acme Plumbing LLC",
+      note: "Reviewed by our CPA",
+    };
+    forged.health = { ...forged.health, score: 98, bandLabel: "Strong" };
+    const { token: tok } = await shareMap("prep", {
+      businessId: "client",
+      payload: forged,
+      note: "For the bank",
+    });
+    const payload = await storedPayload(tok);
+    expect(payload.businessName).toBe("Ortiz Dental Studio");
+    expect(payload.note).toBe("For the bank");
+    expect(JSON.stringify(payload)).not.toContain("Acme Plumbing");
+    // The firm's work on its client names the firm; the date is the business's last save.
+    expect(payload.sharedBy).toBe("North Advisors");
+    expect(Date.parse(String(payload.savedAt))).not.toBeNaN();
+    const roster = (payload.people as { name: string }[]).map((p) => p.name);
+    expect(roster).toEqual(["Ada Park", "Ben Ortiz"]);
+  });
+
+  it("names the account on its own business, and no one when names are hidden", async () => {
+    const own = await shareMap("solo", { businessId: "solo_biz" });
+    expect((await storedPayload(own.token)).sharedBy).toBe("solo");
+    const hidden = await shareMap("solo", { businessId: "solo_biz", redacted: true });
+    const payload = await storedPayload(hidden.token);
+    expect(payload.sharedBy).toBe("the business's own account");
+    expect(payload.namesHidden).toBe(true);
+    expect(JSON.stringify(payload)).not.toContain("Ada Park");
+  });
+
+  it("is refused for a business the caller cannot reach, with no fallback to the caller", async () => {
+    for (const businessId of ["biz_x", "client"]) {
+      await expect(shareMap("solo", { businessId })).rejects.toMatchObject({
+        status: 403,
+        message: MAP_SHARE_UNSAVED,
+      });
+    }
+    expect(MAP_SHARE_UNSAVED).toBe("Save this business to your account before sharing it.");
+    const rows = await db.pg.query<{ n: number }>("select count(*)::int as n from map_shares");
+    expect(rows.rows[0].n).toBe(0);
+  });
+
+  it("still serves a link an older build stored as the browser sent it", async () => {
+    const old = buildSharePayload(defaultProfile("dental"), []);
+    await insertMapShare(db.sql, {
+      ...(await mapLink(token(1))),
+      payloadJson: JSON.stringify(old),
+    });
+    const res = await (loadMapShare as unknown as LoadCall)({ data: { token: token(1) } });
+    expect(res).toMatchObject({ found: true, payload: JSON.parse(JSON.stringify(old)) });
+    expect(res.payload).not.toHaveProperty("sharedBy");
+  });
+});
+
+describe("links a firm makes on a business its owner shared with the firm", () => {
+  beforeEach(async () => {
+    await db.sql`update businesses set firm_user_id = 'owner', granted_at = now() where id = 'solo_biz'`;
+  });
+
+  it("are listed for the business's own account with who made them, and the owner revokes them", async () => {
+    const map = await shareMap("prep", { businessId: "solo_biz" });
+    await lock("solo", "solo_biz", "rv_granted", true, "prep");
+    await review("rv_granted");
+    await reportLink(token(1), "prep", "rv_granted", "solo_biz");
+
+    const listed = await listMapShareSummaries(db.sql, "solo");
+    expect(listed.map((l) => [l.token, l.kind, l.createdBy, l.createdByFirm]).sort()).toEqual(
+      [
+        [token(1), "report", "prep", "North Advisors"],
+        [map.token, "map", "prep", "North Advisors"],
+      ].sort(),
+    );
+    // The firm made the map link in the firm's name.
+    expect((await storedPayload(map.token)).sharedBy).toBe("North Advisors");
+
+    for (const tok of [token(1), map.token]) {
+      await (revokeMapShare as unknown as RevokeCall)({
+        context: { userId: "solo" },
+        data: { token: tok },
+      });
+    }
+    const states = await db.pg.query<{ r: boolean }>(
+      "select revoked_at is not null as r from map_shares order by token",
+    );
+    expect(states.rows.map((r) => r.r)).toEqual([true, true]);
+    const logged = await db.pg.query<{ actor_user_id: string }>(
+      "select actor_user_id from firm_audit_log where event = 'share_revoked'",
+    );
+    expect(logged.rows.map((r) => r.actor_user_id)).toEqual(["solo", "solo"]);
+    // Another account still reaches none of them.
+    expect(await listMapShareSummaries(db.sql, "nobody")).toEqual([]);
+  });
+});

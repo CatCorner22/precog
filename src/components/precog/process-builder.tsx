@@ -56,15 +56,13 @@ import type { MapReview } from "@/lib/precog/builder/review";
 import { reviewMap } from "@/lib/precog/builder/review-server";
 import { scoreMap } from "@/lib/precog/builder/scored-map";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
-import { buildSharePayload } from "@/lib/precog/share/share-payload";
 import { healthDelta, type HealthDelta } from "@/lib/precog/builder/what-if";
 import { analyzeWorkload, LOAD_BANDS } from "@/lib/precog/builder/workload";
-import { formatDayShort, localDateKey } from "@/lib/precog/dates";
-import { trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
+import { formatDayShort } from "@/lib/precog/dates";
 import { downloadText } from "@/lib/download";
 import { industryMeta } from "@/lib/precog/industry";
 import type { MapValidationIssue } from "@/lib/precog/process-validation";
-import { buildProcessMapGraph, enrichProcess, processMapContext } from "@/lib/precog/process-graph";
+import { enrichProcess, processMapContext } from "@/lib/precog/process-graph";
 import { residualScope } from "@/lib/precog/scoring/scope";
 import { validateProcessMap } from "@/lib/precog/process-validation";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
@@ -72,7 +70,6 @@ import { teamSource } from "@/lib/precog/team-source";
 import { useTabName } from "@/lib/precog/presentation";
 import { count, slug, uniqueId } from "@/lib/precog/text";
 import type { ProcessNode } from "@/lib/precog/types";
-import { buildWeeklyActions } from "@/lib/precog/weekly-actions/build";
 import { cn } from "@/lib/utils";
 
 /**
@@ -601,34 +598,8 @@ export function ProcessBuilder({
         )}
 
         {isOpen("share") && (
-          <SharePanel
-            businessId={profile.businessId ?? DEFAULT_BUSINESS_ID}
-            buildPayload={(note, redactNames) => {
-              const { snapshots } = buildProcessMapGraph(
-                tpl,
-                profile.staff,
-                {},
-                residualScope(profile),
-              );
-              // The same inputs the weekly action plan reads, so a shared list
-              // matches the one the owner sees.
-              const actions = buildWeeklyActions({
-                tpl,
-                staff: profile.staff,
-                dualRelease: profile.dualRelease,
-                mapSnapshots: snapshots,
-                today: localDateKey(new Date()),
-                trackFreshness: trackRegisterFreshness(profile, tpl),
-                mapAssessed: mapReady,
-                decisions: profile.decisions,
-                plannedAbsences: profile.plannedAbsences,
-                procedures: profile.procedures,
-                integrationDriftSummary: profile.integrationDriftSummary,
-                accessReconciliation: profile.accessReconciliation,
-              });
-              return buildSharePayload(profile, actions, note, redactNames);
-            }}
-          />
+          // The server builds the shared page from the saved business (share-server.ts).
+          <SharePanel businessId={profile.businessId ?? DEFAULT_BUSINESS_ID} />
         )}
 
         {evidenceSummary.total > 0 &&

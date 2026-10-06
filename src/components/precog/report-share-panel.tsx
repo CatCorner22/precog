@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Copy, Link2, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { inputCls, labelCls } from "@/components/ui/field-classes";
-import { SHARE_PASSCODE_MIN } from "@/lib/precog/share/share-schema";
+import { madeByLabel, SHARE_PASSCODE_MIN } from "@/lib/precog/share/share-schema";
 import { createReportShare, listMapShares, revokeMapShare } from "@/lib/precog/share/share-server";
 import type { ShareSummary } from "@/lib/precog/share/share-store";
 import { formatDayShort } from "@/lib/precog/dates";
@@ -17,8 +17,9 @@ import {
 /**
  * Read-only links to one locked report version: an expiry, an optional
  * passcode, "Create link" (copied to the clipboard), and the live links of
- * this version with Revoke. Map links are the map builder's panel's and are
- * not listed here.
+ * this version with Revoke, each a colleague made named with who made it.
+ * Map links are the map builder's panel's and are not listed here; that
+ * panel also lists the links a firm made on the account's own business.
  */
 export function ReportSharePanel({
   versionId,
@@ -83,6 +84,7 @@ export function ReportSharePanel({
           views: 0,
           lastViewedAt: null,
           createdBy: null,
+          createdByFirm: null,
           kind: "report",
           businessId: null,
           reportVersionId: versionId,
@@ -210,7 +212,7 @@ export function ReportSharePanel({
                 </span>
                 {l.createdBy && (
                   <span className="rounded bg-neutral-200 px-1 text-neutral-700">
-                    made by {l.createdBy}
+                    {madeByLabel(l)}
                   </span>
                 )}
                 {l.hasPasscode && (

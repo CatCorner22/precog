@@ -87,9 +87,27 @@ function SharePage() {
     );
   }
 
-  const { payload, expiresAt, redacted } = state;
+  return (
+    <SharedMapView payload={state.payload} expiresAt={state.expiresAt} redacted={state.redacted} />
+  );
+}
+
+/**
+ * The page a map link prints, from its stored payload: one the server built
+ * from the saved business, or one an older build stored as the browser sent
+ * it (no `sharedBy`), which still prints, with a line saying so.
+ */
+export function SharedMapView({
+  payload,
+  expiresAt,
+  redacted,
+}: {
+  payload: SharedMapPayload;
+  expiresAt: string | null;
+  redacted: boolean;
+}) {
   const stages = [...new Set(payload.processes.map((p) => p.stage))].sort((a, b) => a - b);
-  // The payload comes from the owner's browser; a malformed stamp is left out, not printed.
+  // An older link's payload came from the owner's browser; a malformed stamp is left out, not printed.
   const generated = Number.isNaN(Date.parse(payload.generatedAt)) ? null : payload.generatedAt;
   // A link shared before map completeness replaced map health still scores
   // heat ("calm"), so it keeps its own label and form.
@@ -124,6 +142,7 @@ function SharePage() {
             {payload.industryLabel} · {payload.people.length}-person {payload.teamLabel} ·{" "}
             {payload.health.processCount} processes
           </p>
+          <p className="mt-1 text-sm text-neutral-600">{sharedByLine(payload)}</p>
           {payload.note && (
             <p className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-800">
               {payload.note}
@@ -323,6 +342,24 @@ function SharePage() {
       </article>
     </div>
   );
+}
+
+/** Says the figures are the business's own as last saved, when the page carries them. */
+export const LEGACY_SHARE_LINE =
+  "Shared before Precog built links from the saved business: the person who made this link sent these figures.";
+
+/**
+ * Who made the link and when the business it copies was last saved, as
+ * "Shared by North Advisors · saved Oct 3, 2026". A link made before Precog
+ * built links from the saved business carries neither, and says so.
+ */
+export function sharedByLine(payload: Pick<SharedMapPayload, "sharedBy" | "savedAt">): string {
+  if (!payload.sharedBy) return LEGACY_SHARE_LINE;
+  const saved =
+    payload.savedAt && !Number.isNaN(Date.parse(payload.savedAt))
+      ? ` · saved ${formatDay(payload.savedAt)}`
+      : "";
+  return `Shared by ${payload.sharedBy}${saved}`;
 }
 
 function ValueStreamSvg({
