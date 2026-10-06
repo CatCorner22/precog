@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { CONTROL_CATALOG } from "../evidence/controls";
 import { INDUSTRIES } from "../industry";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
+import { controlMeasures } from "../sod/control-measures";
 import { getIndustryTemplate } from "../templates";
 import { findLikelySecrets } from "./credential-guard";
 import { verifyProcedure, withProcedureEdit } from "./lifecycle";
@@ -129,15 +131,15 @@ describe("the blueprint's evidence and fallbacks folded into the library", () =>
     "lib-bank-rec": { evidence: "Reconciliation sign-off", fallback: /does not post/ },
     "lib-vendor-bank-change": {
       evidence: "Contact verification record",
-      fallback: /separate authorized reviewer/,
+      fallback: /vendor change log every week/,
     },
-    "lib-release-payments": { evidence: "Release log", fallback: /separate authorized reviewer/ },
+    "lib-release-payments": { evidence: "Release log", fallback: /payment report/ },
     "lib-payroll": { evidence: "Change report", fallback: /change report/ },
     "lib-cash-deposit": { evidence: "Processor settlement detail", fallback: /ties out/ },
     "lib-refund-review": { evidence: "Refund register", fallback: /refund and void listing/ },
     "lib-cycle-count": { evidence: "Count sheets", fallback: /once a year/ },
     "lib-receiving": { evidence: "Receiving log" },
-    "lib-leaver-access": { evidence: "User list export", fallback: /Twice a year/ },
+    "lib-leaver-access": { evidence: "Completed offboarding checklist", fallback: /Twice a year/ },
     "lib-card-review": { evidence: "Card statements", fallback: /every card statement/ },
     "lib-trust-rec": { evidence: "Three-way reconciliation", fallback: /trust account/ },
     "lib-tip-report": { evidence: "Tip pool sheet", fallback: /card tips/ },
@@ -271,5 +273,159 @@ describe("a procedure started from a recommendation", () => {
         ).toEqual([]);
       }
     }
+  });
+});
+
+describe("what a started procedure keeps from its recommendation", () => {
+  it("keeps the fallback for its line of business, the evidence to keep and the source", () => {
+    for (const { id } of INDUSTRIES) {
+      for (const row of libraryRows(getIndustryTemplate(id), [], id)) {
+        const r = row.recommendation;
+        const started = procedureFromLibrary(row, id, TODAY);
+        const reloaded = normalizeProcedure(
+          JSON.parse(JSON.stringify(withProcedureEdit(null, started, TODAY))),
+          TODAY,
+        );
+        for (const p of [started, reloaded]) {
+          expect(p?.fallback, `${id} ${r.id}`).toBe(ifYouCannotSeparateFor(r, id));
+          expect(p?.evidenceToKeep, `${id} ${r.id}`).toEqual(r.evidenceToKeep);
+          expect(p?.source, `${id} ${r.id}`).toBe(r.source);
+        }
+      }
+    }
+  });
+
+  it("keeps a retail stock count's own stricter fallback", () => {
+    const row = libraryRows(getIndustryTemplate("retail"), [], "retail").find(
+      (r) => r.recommendation.id === "lib-cycle-count",
+    )!;
+    expect(procedureFromLibrary(row, "retail", TODAY).fallback).toBe(
+      "Do a full count every quarter, with a second person present who does not keep the stock.",
+    );
+  });
+
+  it("fits every recommendation inside the stored limits for them", () => {
+    for (const r of RECOMMENDED_PROCEDURES) {
+      const fallbacks = [
+        r.ifYouCannotSeparate ?? "",
+        ...Object.values(r.ifYouCannotSeparateByIndustry ?? {}),
+      ];
+      for (const text of fallbacks)
+        expect(text.length, r.id).toBeLessThanOrEqual(PROCEDURE_LIMITS.fallback);
+      expect(r.source.length, r.id).toBeLessThanOrEqual(PROCEDURE_LIMITS.source);
+      expect(r.evidenceToKeep?.length ?? 0, r.id).toBeLessThanOrEqual(PROCEDURE_LIMITS.evidence);
+      for (const e of r.evidenceToKeep ?? [])
+        expect(e.length, e).toBeLessThanOrEqual(PROCEDURE_LIMITS.evidenceItem);
+    }
+  });
+});
+
+describe("the stored fallback, evidence and source", () => {
+  const base = { id: "p1", industry: "general", title: "Reconcile", steps: [] };
+
+  it("loads an older procedure without them as before", () => {
+    const p = normalizeProcedure(base, TODAY)!;
+    expect(p).not.toHaveProperty("fallback");
+    expect(p).not.toHaveProperty("evidenceToKeep");
+    expect(p).not.toHaveProperty("source");
+  });
+
+  it("bounds them: 600 characters of text, at most 12 records of 120 characters", () => {
+    const p = normalizeProcedure(
+      {
+        ...base,
+        fallback: "f".repeat(700),
+        source: "s".repeat(700),
+        evidenceToKeep: [
+          "  Deposit slip  ",
+          "",
+          42,
+          "e".repeat(200),
+          ...Array.from({ length: 20 }, (_, i) => `Record ${i}`),
+        ],
+      },
+      TODAY,
+    )!;
+    expect(p.fallback).toHaveLength(600);
+    expect(p.source).toHaveLength(600);
+    expect(p.evidenceToKeep).toHaveLength(12);
+    expect(p.evidenceToKeep?.[0]).toBe("Deposit slip");
+    expect(p.evidenceToKeep?.[1]).toHaveLength(120);
+  });
+
+  it("drops a list or text of the wrong type", () => {
+    const p = normalizeProcedure(
+      { ...base, fallback: 3, source: ["x"], evidenceToKeep: "Deposit slip" },
+      TODAY,
+    )!;
+    expect(p).not.toHaveProperty("fallback");
+    expect(p).not.toHaveProperty("source");
+    expect(p).not.toHaveProperty("evidenceToKeep");
+  });
+});
+
+describe("the fallbacks a business with one person on the work can follow", () => {
+  it("never relies only on a separate reviewer the business may not have", () => {
+    for (const r of RECOMMENDED_PROCEDURES) {
+      const fallbacks = [
+        r.ifYouCannotSeparate ?? "",
+        ...Object.values(r.ifYouCannotSeparateByIndustry ?? {}),
+      ];
+      for (const text of fallbacks)
+        expect(text, r.id).not.toMatch(/separate (?:authorized )?reviewer/i);
+    }
+  });
+
+  it("gives releasing payments a weekly bank-side review and bank protections", () => {
+    const release = RECOMMENDED_PROCEDURES.find((p) => p.id === "lib-release-payments")!;
+    expect(release.ifYouCannotSeparate).toBe(
+      "If one person prepares and releases payments: each week someone who does neither, for example the person who runs the business or a board officer, reads the bank's payment report and the cleared-check images, and the bank alerts that person to every new payee and every payment over a set amount. Ask your bank for payee alerts and Positive Pay with payee match.",
+    );
+  });
+
+  it("ends the vendor bank change fallback with a weekly change-log read and payee alerts", () => {
+    const change = RECOMMENDED_PROCEDURES.find((p) => p.id === "lib-vendor-bank-change")!;
+    expect(change.ifYouCannotSeparate).toMatch(
+      / If no second person can approve, someone who did not make the change reads the vendor change log every week, and the bank alerts that person to each new payee\.$/,
+    );
+  });
+});
+
+describe("one value where the catalogs used to disagree", () => {
+  const lib = (id: string) => RECOMMENDED_PROCEDURES.find((p) => p.id === id)!;
+
+  it("reconciles the bank by the 10th in the library and in Measures", () => {
+    expect(lib("lib-bank-rec").trigger).toMatch(/by the 10th\b/);
+    for (const { id } of INDUSTRIES) {
+      const text = JSON.stringify(controlMeasures(id).bank_reconcile);
+      expect(text, id).toContain("Reconcile the bank by the 10th of the next month");
+      expect(text, id).not.toMatch(/\b15th\b/);
+    }
+  });
+
+  it("reviews every refund, void and write-off, as the catalog approves every one", () => {
+    const refund = lib("lib-refund-review");
+    const words = [refund.purpose, ...refund.steps.map((s) => s.text)].join(" ");
+    expect(words).not.toMatch(/\blimit\b/i);
+    expect(refund.steps[1].text).toBe("Read every refund, void and write-off on the report.");
+    expect(CONTROL_CATALOG["void-refund-second-approval"].label).toMatch(/\bevery void\b/);
+  });
+
+  it("counts controlled drugs weekly in the library and in the catalog", () => {
+    const count = CONTROL_CATALOG["controlled-substance-count"];
+    expect(lib("lib-controlled-count").cadence).toBe("weekly");
+    expect(count.cadence).toBe("weekly");
+    expect(count.label).toContain("against the log each week");
+    expect(count.why).toContain("A weekly two-person count");
+    expect(count.why).toContain("21 CFR 1304.11");
+    expect(`${count.label} ${count.why}`).not.toMatch(/\bdaily\b|each day/i);
+  });
+
+  it("lists the leaver's own offboarding records as the evidence to keep", () => {
+    expect(lib("lib-leaver-access").evidenceToKeep).toEqual([
+      "Completed offboarding checklist",
+      "Disabled-account list or screenshots",
+      "Returned keys and cards log",
+    ]);
   });
 });
