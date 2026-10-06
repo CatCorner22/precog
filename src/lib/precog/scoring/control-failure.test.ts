@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { formatEstimateUsd } from "@/lib/utils";
 import { resolveTemplate } from "../active-template";
 import { defaultDualReleasePolicy } from "../controls/dual-release-policy";
 import { staffFlagsFromDualRelease } from "../controls/dual-release-summary";
+import { INDUSTRIES } from "../industry";
 import { defaultProfile } from "../practice-profile";
 import { withDualRelease, withStaff } from "../profile-actions";
 import { getIndustryTemplate } from "../templates";
@@ -15,6 +17,7 @@ import {
   DUAL_RELEASE_GAP_LEAD as GAP_LEAD,
   DUAL_RELEASE_INOPERABLE_LEAD as INOPERABLE_LEAD,
   evaluateControlFailure,
+  SAFEGUARDS,
   type FailureInputs,
 } from "./control-failure";
 import { confirmedScenarioIds } from "./scope";
@@ -445,5 +448,76 @@ describe("one dual-release reading for today and the what-if", () => {
     }
     // Dual release closes, or the owner holds, some linked pairs in this sample.
     expect(linkedAll).toBeGreaterThan(linkedOpen);
+  });
+});
+
+describe("the headline's change figures", () => {
+  /** Every sample's report for each safeguard, as the "If a control fails" panel builds it. */
+  function reports() {
+    return INDUSTRIES.flatMap(({ id }) => {
+      const profile = defaultProfile(id);
+      const tpl = resolveTemplate(profile);
+      return SAFEGUARDS.map((safeguard) =>
+        evaluateControlFailure(
+          tpl,
+          { kind: "safeguard", id: safeguard.id },
+          {
+            staff: profile.staff,
+            riskVariables: profile.riskVariables,
+            dualRelease: profile.dualRelease,
+            today: "2026-10-06",
+            confirmedScenarioIds: confirmedScenarioIds(profile.decisions, profile.industry),
+          },
+        ),
+      );
+    });
+  }
+
+  /** The dollars a figure prints beside the headline: "about $29,000" is 29,000. */
+  const printed = (n: number) => Number(formatEstimateUsd(n).replace(/[^\d.-]/g, ""));
+
+  it("subtract the rounded figures printed beside them, so a reader's subtraction matches", () => {
+    let checked = 0;
+    for (const report of reports()) {
+      const [worst] = report.scenarios;
+      if (!worst) continue;
+      const retained = /about \$([\d,]+) (more|less) retained loss on /.exec(report.headline);
+      const retainedChange =
+        printed(worst.withoutIt.retainedExpected) - printed(worst.withIt.retainedExpected);
+      expect(retained ? Number(retained[1].replace(/,/g, "")) : 0, report.headline).toBe(
+        Math.abs(retainedChange),
+      );
+      const cost = /annual cost of risk (rises|falls) about \$([\d,]+)/.exec(report.headline);
+      const costChange =
+        printed(worst.withoutIt.expectedAnnualCostOfRisk) -
+        printed(worst.withIt.expectedAnnualCostOfRisk);
+      expect(cost ? Number(cost[2].replace(/,/g, "")) : 0, report.headline).toBe(
+        Math.abs(costChange),
+      );
+      checked += 1;
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
+
+  it("reads about $8,000 between about $29,000 and about $37,000 on the dental sample", () => {
+    const profile = defaultProfile("dental");
+    const report = evaluateControlFailure(
+      resolveTemplate(profile),
+      { kind: "safeguard", id: "dual_release" },
+      {
+        staff: profile.staff,
+        riskVariables: profile.riskVariables,
+        dualRelease: profile.dualRelease,
+        today: "2026-10-06",
+        confirmedScenarioIds: confirmedScenarioIds(profile.decisions, profile.industry),
+      },
+    );
+    const [worst] = report.scenarios;
+    expect(formatEstimateUsd(worst.withIt.retainedExpected)).toBe("about $29,000");
+    expect(formatEstimateUsd(worst.withoutIt.retainedExpected)).toBe("about $37,000");
+    expect(report.headline).toContain(
+      "about $8,000 more retained loss on Front desk lead leaves with sole denial knowledge",
+    );
+    expect(report.headline).toContain("annual cost of risk rises about $1,300");
   });
 });

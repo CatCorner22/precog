@@ -1,5 +1,6 @@
 import type { IndustryId } from "./industry";
 import { normalizeProfile, type PracticeProfile } from "./practice-profile";
+import { withRelations } from "./profile-actions";
 import { isRecord } from "./profile-entries";
 
 /**
@@ -129,7 +130,9 @@ export type SectionMerge =
  * side that changed it, otherwise from this device. A section both sides
  * changed differently is an overlap, and nothing is merged. A change of
  * industry on either side changes what every section means, so it never
- * merges. The merged copy carries `stamp` as its edit time.
+ * merges. The merged copy carries `stamp` as its edit time, and its staff
+ * figures are read from it again when its team, map or register came from
+ * the two devices (`withStaffReadAgain`).
  */
 export function mergeSections(
   base: PracticeProfile,
@@ -151,7 +154,17 @@ export function mergeSections(
   return { kind: "merged", profile: withSections(local, remote, fromRemote, stamp), fromRemote };
 }
 
-/** `local` with each of `sections` replaced whole by `remote`'s, stamped `stamp`. */
+/**
+ * The parts of a business whose edits read the staff figures again from the
+ * team, the map, the register and the dual-release policy (profile-actions
+ * `withPeople`, `withProcesses`, `withKnowledge`, `withRelations`).
+ */
+const STAFF_SOURCES = ["customPeople", "customProcesses", "customKnowledge", "customRelations"];
+
+/**
+ * `local` with each of `sections` replaced whole by `remote`'s, stamped
+ * `stamp`, its staff figures read again where they need to be.
+ */
 function withSections(
   local: PracticeProfile,
   remote: PracticeProfile,
@@ -166,7 +179,35 @@ function withSections(
     if (value !== undefined) merged[key] = value;
   }
   merged.updatedAt = stamp;
-  return merged as unknown as PracticeProfile;
+  return withStaffReadAgain(merged as unknown as PracticeProfile, local, remote, sections);
+}
+
+/**
+ * The staff figures (who knows what alone, the duty separation score, the
+ * team's size) are worked out from the team, the map, the register and the
+ * dual-release policy, and stored with the team. Taken whole from one copy,
+ * they can disagree with what the merged copy took from the other: Sam
+ * leaving on this device while the other device adds an item Dana and Sam
+ * both know leaves Dana alone on it, which neither copy counted. So when the
+ * two copies hold a different team, map or register and the merge takes a
+ * section from the other device, the figures are read again from the merged
+ * copy, as an edit of the team or the register reads them: the same figures
+ * the two devices' edits give when made one after the other on one device,
+ * the other device's first. A figure set by hand stays where such an edit
+ * keeps it (on the sample team; an own team's come from its duties).
+ */
+function withStaffReadAgain(
+  merged: PracticeProfile,
+  mine: PracticeProfile,
+  theirs: PracticeProfile,
+  taken: readonly ProfileSection[],
+): PracticeProfile {
+  if (taken.length === 0) return merged;
+  if (STAFF_SOURCES.every((key) => sameValue(fields(mine)[key], fields(theirs)[key])))
+    return merged;
+  // Setting the register's own relations changes nothing else: it reads the
+  // staff figures again from the merged copy (profile-actions withContinuityStaff).
+  return withRelations(merged, merged.customRelations ?? null);
 }
 
 /**

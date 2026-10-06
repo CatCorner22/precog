@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { toast } from "sonner";
 import { memoryStorage } from "@/test/memory-storage";
 import { PRECOG_UPDATED_MESSAGE } from "./stale-deploy";
@@ -7,6 +7,7 @@ import { AccountLineage, LocalProfileStore } from "./save-conflict";
 import {
   defaultProfile,
   loadPortfolio,
+  normalizeProfile,
   rememberRemovedBusiness,
   removedBusinessIds,
   summarizeBusiness,
@@ -16,6 +17,11 @@ import {
 import type { Workspace } from "./workspace-context";
 import type { SaveConflictState } from "./use-cloud-sync";
 import type { KnowledgeItem } from "./types";
+import { resolveTemplate } from "./active-template";
+import { makeProfileEdits } from "./practice-edits";
+import { withPeople } from "./profile-actions";
+import { profileReducer, type ProfileAction } from "./profile-reducer";
+import { useMapHistory } from "./use-map-history";
 
 // The hooks run as plain functions: refs are plain objects, callbacks are
 // themselves, and effects run once, in order, when `effects.run()` is called.
@@ -147,9 +153,16 @@ async function syncTab(
     load?: { found: true; profile: PracticeProfile; revision: number; updatedAt: string };
     /** Not signed in: nothing loads from or saves to an account. */
     guest?: boolean;
+    /** The open business, the reducer's dispatch and the map history, for a tab that applies its updates. */
+    store?: {
+      profileRef: { current: PracticeProfile };
+      setProfile: Mock<(action: ProfileAction) => void>;
+      clearHistory: () => void;
+    };
   } = {},
 ) {
-  const profileRef = { current: open };
+  const profileRef = options.store?.profileRef ?? { current: open };
+  profileRef.current = open;
   const activated: PracticeProfile[] = [];
   const lineage = new AccountLineage();
   lineage.start(open.businessId as string, open.updatedAt);
@@ -162,7 +175,7 @@ async function syncTab(
       options.load ?? { found: false, profile: null, revision: null },
     );
   server.listBusinesses.mockResolvedValueOnce([]);
-  const setProfile = vi.fn();
+  const setProfile = options.store?.setProfile ?? vi.fn();
   const sync = runCloudSync({
     workspace,
     profile: open,
@@ -180,7 +193,7 @@ async function syncTab(
       profileRef.current = next;
       lineage.start(next.businessId as string, next.updatedAt);
     },
-    clearHistory: vi.fn(),
+    clearHistory: options.store?.clearHistory ?? vi.fn(),
   });
   effects.run();
   // The bootstrap reopened the stored copy, which is `open` itself.
@@ -432,6 +445,66 @@ describe("a save refused because another device saved the business (PERF-8)", ()
     expect(tab.sync.saveConflictRef.current).toMatchObject({ revision: 7 });
     expect(tab.sync.saveConflictRef.current?.remote.practiceName).toBe("A Co renamed");
     expect(shown(tab, tab.profileRef.current)).toBeUndefined();
+  });
+
+  it("clears the map's undo once the merge takes the other device's team, so Undo keeps their person", async () => {
+    const today = "2026-09-23";
+    const own = normalizeProfile(
+      withPeople(
+        { ...defaultProfile("dental"), businessId: "biz_a", practiceName: "A Co" },
+        [
+          { id: "p_owner", name: "Dana Reyes", role: "Owner", active: true, owner: true },
+          { id: "p_front", name: "Sam Lee", role: "Front desk", active: true },
+        ],
+        today,
+      ),
+      { today },
+    );
+    // The provider's own pieces: the reducer, the map history and the edits.
+    const profileRef = { current: own };
+    const setProfile = vi.fn((action: ProfileAction) => {
+      profileRef.current = profileReducer(profileRef.current, action);
+    });
+    const history = useMapHistory(profileRef, setProfile);
+    const edits = makeProfileEdits({
+      setProfile,
+      profileRef,
+      pushUndo: history.pushUndo,
+      clearHistory: history.clearHistory,
+    });
+    const tab = await syncTab(browser(), own, {
+      load: { found: true, profile: own, revision: 4, updatedAt: own.updatedAt },
+      store: { profileRef, setProfile, clearHistory: history.clearHistory },
+    });
+    const opened = tab.profileRef.current;
+    // Here: a process moves on the map (Undo can take it back).
+    const processId = resolveTemplate(opened).processes[0].id;
+    edits.setMapLayout({ [processId]: { x: 40, y: 80 } });
+    expect(profileRef.current.mapLayout).toEqual({ [processId]: { x: 40, y: 80 } });
+    // There: another device adds Ari to the team.
+    const theirs = edit(
+      withPeople(
+        opened,
+        [
+          ...(opened.customPeople ?? []),
+          { id: "p_ari", name: "Ari Cole", role: "Hygienist", active: true },
+        ],
+        today,
+      ),
+      {},
+    );
+    refusedWith(theirs);
+    server.saveBusinessProfile.mockResolvedValueOnce({ ok: true, revision: 6 });
+
+    expect(await tab.sync.flushActive()).toBe(true);
+    const merged = profileRef.current;
+    expect(merged.customPeople?.map((p) => p.name)).toEqual(["Dana Reyes", "Sam Lee", "Ari Cole"]);
+    expect(merged.mapLayout).toEqual({ [processId]: { x: 40, y: 80 } });
+
+    // Undo would put back the team as it stood before the move, without Ari.
+    history.undoMap();
+    expect(profileRef.current.customPeople?.map((p) => p.name)).toContain("Ari Cole");
+    expect(profileRef.current).toBe(merged);
   });
 });
 

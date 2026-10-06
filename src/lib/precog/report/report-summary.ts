@@ -123,11 +123,12 @@ interface ConcentrationMove {
  * The concentration move (sod/verdict `concentrationHeadline`) counted in the
  * conflict table's rows: how many of the open conflicts the person holds, and
  * how many of those moving the one duty closes. The headline picks the person
- * and the duty; the figures share the open count's denominator, so "12 of the
- * 20" reads against the 20 the sentence before it prints.
+ * and the duty in those rows too, so the person named holds the largest
+ * share and at least half of the open count the sentence before it prints
+ * ("12 of the 20"); with no such person there is no move, never "5 of the 13".
  */
 export function concentrationMove(open: readonly DetectedConflict[]): ConcentrationMove | null {
-  const headline = concentrationHeadline(open);
+  const headline = concentrationHeadline(open, "finding");
   if (!headline) return null;
   const held = open.filter((c) => c.personId === headline.personId);
   const closed = held.filter(

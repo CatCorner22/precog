@@ -10,6 +10,7 @@ import { detectSodConflicts, sodDetectionOptions, type DetectedConflict } from "
 import {
   belowThresholdNote,
   conflictStatus,
+  conflictStatusPrintedV4,
   dualReleaseSplit,
   openFindings,
   openSodHint,
@@ -77,6 +78,24 @@ describe("conflictStatus", () => {
     const reduced = finding({ residualRiskAccepted: true, dualReleaseMitigated: true });
     expect(conflictStatus(reduced, partial)).toBe(
       "Reduced, not closed; risk accepted (no decision logged)",
+    );
+  });
+
+  it("keeps the words report layouts 1 to 4 printed: no date and no note", () => {
+    const accepted = finding({ residualRiskAccepted: true });
+    expect(conflictStatusPrintedV4(accepted, new Map())).toBe("Open, risk accepted");
+    expect(conflictStatusPrintedV4({ ...accepted, dualReleaseMitigated: true }, partial)).toBe(
+      "Reduced, not closed; risk accepted",
+    );
+    expect(conflictStatusPrintedV4(finding({}), new Map())).toBe("Open");
+    expect(conflictStatusPrintedV4(finding({ dualReleaseMitigated: true }), partial)).toBe(
+      "Reduced, not closed",
+    );
+    expect(conflictStatusPrintedV4(finding({ dualReleaseMitigated: true }), new Map())).toBe(
+      "Covered by dual release",
+    );
+    expect(conflictStatusPrintedV4(finding({ ownerHeld: true }), new Map())).toBe(
+      "Owner's own duties",
     );
   });
 

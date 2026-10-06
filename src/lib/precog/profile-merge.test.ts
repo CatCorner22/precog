@@ -7,8 +7,18 @@ import { pioneerProfileFrom } from "./coach/pioneer-profile";
 import { defaultProfile, normalizeProfile, type PracticeProfile } from "./practice-profile";
 import { mergeProfile, mergeSections, sameValue, withAccountSections } from "./profile-merge";
 import { validateProfileInput } from "./profile-input";
-import { withMonthlyReviews, withPeople, withProcedure } from "./profile-actions";
+import {
+  withDualRelease,
+  withKnowledge,
+  withMonthlyReviews,
+  withPeople,
+  withProcedure,
+  withRelations,
+  withStaff,
+} from "./profile-actions";
 import { newProcedure, newStep } from "./procedures/lifecycle";
+import { resolveTemplate } from "./active-template";
+import type { KnowledgeItem, KnowledgeRelation } from "./types";
 
 /**
  * The server half of the manual-override round trip: what the client saves
@@ -320,6 +330,148 @@ describe("merging edits two devices made on top of one version (PERF-8)", () => 
     expect(withAccountSections(touched, local, remote, ["procedures"], STAMP)).toBeNull();
     const other = { ...later, businessId: "biz_other" };
     expect(withAccountSections(other, local, remote, ["procedures"], STAMP)).toBeNull();
+  });
+
+  describe("staff figures, read from the merged copy", () => {
+    const NOW = new Date(`${TODAY}T11:00:00.000Z`);
+    const critical = (id: string, name: string): KnowledgeItem => ({
+      id,
+      name,
+      criticality: "critical",
+      category: "process",
+      description: "",
+      linkedProcessIds: [],
+    });
+    const bothKnow = (knowledgeId: string): KnowledgeRelation[] => [
+      { personId: "p_owner", knowledgeId, level: "expert" },
+      { personId: "p_front", knowledgeId, level: "proficient" },
+    ];
+
+    /** The opened version with the owner's own register: Dana and Sam both run payroll alone. */
+    function withRegister(): PracticeProfile {
+      const base = opened();
+      const items = withKnowledge(base, [critical("k-payroll", "Run payroll")]);
+      return normalizeProfile(withRelations(items, bothKnow("k-payroll")), { today: TODAY });
+    }
+
+    it("counts the know-how one person holds from the merged team and register", () => {
+      const base = withRegister();
+      expect(base.staff.soleOwnerKnowledgeCount).toBe(0);
+      // Here: Sam leaves, so Dana alone runs payroll.
+      const local = withPeople(
+        base,
+        (base.customPeople ?? []).map((p) => (p.id === "p_front" ? { ...p, active: false } : p)),
+        TODAY,
+      );
+      expect(local.staff.soleOwnerKnowledgeCount).toBe(1);
+      // There: the bank login goes on the register, which both still hold.
+      const withBank = withKnowledge(base, [
+        ...(base.customKnowledge ?? []),
+        critical("k-bank", "Bank login"),
+      ]);
+      const remote = served(
+        withRelations(withBank, [...(withBank.customRelations ?? []), ...bothKnow("k-bank")]),
+      );
+      expect(remote.staff.soleOwnerKnowledgeCount).toBe(0);
+
+      const merge = mergeSections(base, local, remote, STAMP);
+      expect(merge.kind).toBe("merged");
+      if (merge.kind !== "merged") return;
+      expect(merge.fromRemote).toEqual(["register"]);
+      // With Sam gone, Dana alone runs payroll and the bank login: 2, as the
+      // same two edits made on one device give.
+      const oneDevice = withRelations(
+        withKnowledge(local, remote.customKnowledge ?? null),
+        remote.customRelations ?? null,
+      );
+      expect(oneDevice.staff.soleOwnerKnowledgeCount).toBe(2);
+      expect(merge.profile.staff).toEqual(oneDevice.staff);
+      expect(merge.profile.riskVariables).toEqual(oneDevice.riskVariables);
+      // The merge applied to an edit made since reads them again too.
+      const later = { ...local, practiceName: "Smile Dental Co" };
+      const applied = withAccountSections(later, local, remote, ["register"], STAMP);
+      expect(applied?.staff.soleOwnerKnowledgeCount).toBe(2);
+    });
+
+    it("reads the duty separation score with the other device's dual release", () => {
+      const sample = defaultProfile("dental");
+      const own = withPeople(
+        { ...sample, businessId: "biz_merge", practiceName: "Smile Dental" },
+        [
+          { id: "p_owner", name: "Dana Reyes", role: "Owner", active: true, owner: true },
+          {
+            id: "p_books",
+            name: "Sam Lee",
+            role: "Bookkeeper",
+            active: true,
+            entitlements: ["approve_writeoffs", "post_adjustments", "release_payment"],
+          },
+        ],
+        TODAY,
+      );
+      const base = normalizeProfile(
+        withDualRelease(own, { ...own.dualRelease, enabled: true }, NOW),
+        { today: TODAY },
+      );
+      // Here: a new hire.
+      const local = addPerson(base, "Ari");
+      // There: write-offs no longer need two people.
+      const policy = {
+        ...base.dualRelease,
+        rules: base.dualRelease.rules.map((r) =>
+          r.channel === "writeoff" ? { ...r, enabled: false } : r,
+        ),
+      };
+      const remote = served(withDualRelease(base, policy, NOW));
+      expect(remote.staff).toEqual(base.staff);
+
+      const merge = mergeSections(base, local, remote, STAMP);
+      expect(merge.kind).toBe("merged");
+      if (merge.kind !== "merged") return;
+      expect(merge.fromRemote).toEqual(["settings"]);
+      // The same two edits on one device, the policy first, as the hire re-reads it.
+      const oneDevice = addPerson(withDualRelease(base, policy, NOW), "Ari");
+      expect(oneDevice.staff.segregationScore).not.toBe(local.staff.segregationScore);
+      expect(merge.profile.staff).toEqual(oneDevice.staff);
+    });
+
+    it("keeps a figure set by hand on the sample team, as an edit of its register does", () => {
+      const sample = { ...defaultProfile("dental"), businessId: "biz_sample" };
+      const base = normalizeProfile(withStaff(sample, { ...sample.staff, segregationScore: 95 }), {
+        today: TODAY,
+      });
+      expect(base.staff.segregationSource).toBe("manual");
+      const local = withKnowledge(base, [
+        ...resolveTemplate(base).knowledge,
+        critical("k-extra", "Close the month"),
+      ]);
+      const remote = served(
+        withMonthlyReviews(base, [
+          {
+            key: "bank_statement",
+            period: "2026-08",
+            result: "done",
+            ownerName: "Pat Kim",
+            notes: "",
+            recordedAt: `${TODAY}T09:00:00.000Z`,
+          },
+        ]),
+      );
+      const merge = mergeSections(base, local, remote, STAMP);
+      expect(merge.kind).toBe("merged");
+      if (merge.kind !== "merged") return;
+      expect(merge.profile.staff.segregationScore).toBe(95);
+      expect(merge.profile.staff.segregationSource).toBe("manual");
+      expect(merge.profile.staff).toEqual(local.staff);
+    });
+
+    it("leaves them alone when neither device edited the team, the map or the register", () => {
+      const base = opened();
+      const local = { ...base, practiceName: "Smile Dental Co" };
+      const remote = served(withProcedure(base, procedure, TODAY));
+      const merge = mergeSections(base, local, remote, STAMP);
+      expect(merge.kind === "merged" && merge.profile.staff).toBe(local.staff);
+    });
   });
 
   it("compares as the account stores JSON", () => {

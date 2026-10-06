@@ -58,6 +58,26 @@ export function conflictStatus(
 }
 
 /**
+ * The status column as report layouts 1 to 4 printed it, so a version locked
+ * then prints as it did: a risk the control's settings accept reads "risk
+ * accepted", with no day and no note, and a logged decision is not read.
+ */
+export function conflictStatusPrintedV4(
+  c: Pick<
+    DetectedConflict,
+    "ruleId" | "ownerHeld" | "residualRiskAccepted" | "dualReleaseMitigated"
+  >,
+  partial: ReadonlyMap<string, number>,
+): string {
+  if (c.ownerHeld) return "Owner's own duties";
+  if (c.dualReleaseMitigated && !partial.has(c.ruleId)) return "Covered by dual release";
+  if (c.dualReleaseMitigated) {
+    return c.residualRiskAccepted ? "Reduced, not closed; risk accepted" : "Reduced, not closed";
+  }
+  return c.residualRiskAccepted ? "Open, risk accepted" : "Open";
+}
+
+/**
  * The findings dual release touches, split as the status column reads them:
  * covered at every amount ("Covered by dual release"), or reduced but still
  * open because one person acts alone below the threshold ("Reduced, not

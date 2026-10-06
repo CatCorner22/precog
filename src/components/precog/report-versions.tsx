@@ -419,9 +419,17 @@ export function ReportVersionsPanel() {
  * the viewer reviews in the assigned reviewer's place. A sign-off goes
  * through a dialog naming the version, its preparer and whether the review
  * is independent. Nothing shows to a signed-out visitor or to an account
- * that only reads the versions.
+ * that only reads the versions. After a sign-off, a return or a withdrawal,
+ * `onChange` receives the version as it now reads, so the page above it
+ * prints that provenance rather than the one it opened with.
  */
-export function OpenVersionReview({ version }: { version: ReportVersionRow }) {
+export function OpenVersionReview({
+  version,
+  onChange,
+}: {
+  version: ReportVersionRow;
+  onChange?: (version: ReportVersionRow) => void;
+}) {
   const { user, isPending } = useCurrentUserState();
   const [versions, setVersions] = useState<ReportVersionRow[] | null>(null);
   const [work, setWork] = useState<BusinessWork | null>(null);
@@ -495,8 +503,10 @@ export function OpenVersionReview({ version }: { version: ReportVersionRow }) {
         supersededBy: newer,
       })
     : null;
-  const replace = (next: ReportVersionRow) =>
+  const replace = (next: ReportVersionRow) => {
     setVersions((cur) => (cur ?? []).map((v) => (v.id === next.id ? next : v)));
+    onChange?.(next);
+  };
 
   if (!buttons.reviewOrReturn && !buttons.issueAlone && !issueAloneReason && !withdrawable) {
     // Nothing for this viewer to do here; still say when a newer version exists.

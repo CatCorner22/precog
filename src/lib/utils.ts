@@ -31,20 +31,45 @@ export function roundToTwoFigures(n: number): number {
 }
 
 /**
+ * The whole dollars a scenario estimate prints: two significant figures,
+ * then whole dollars with halves away from zero, as formatUsd rounds them.
+ * An amount under half a dollar either way is 0 (never -0), checked before
+ * the two-figure step, which would carry 0.499 up to 0.50 and so to $1.
+ */
+function estimateDollars(n: number): number {
+  if (!Number.isFinite(n)) return n;
+  if (Math.abs(n) < 0.5) return 0;
+  const rounded = roundToTwoFigures(n);
+  return Math.sign(rounded) * Math.round(Math.abs(rounded));
+}
+
+/**
  * A scenario's assumed dollars, rounded so the precision does not imply a
- * calculation: "about $32,000". An amount that rounds to nothing is "$0".
- * Every screen, report and brief that prints scenario loss, retained or
- * transferred dollars uses this, so they all read the same figure.
+ * calculation: "about $32,000". An amount that rounds to no whole dollar is
+ * "$0", with no "about" and no sign. Every screen, report and brief that
+ * prints scenario loss, retained or transferred dollars uses this, so they
+ * all read the same figure.
  */
 export function formatEstimateUsd(n: number): string {
-  const text = formatUsd(roundToTwoFigures(n));
-  return text === "$0" ? text : `about ${text}`;
+  const dollars = estimateDollars(n);
+  return dollars === 0 ? "$0" : `about ${formatUsd(dollars)}`;
 }
 
 /** A change in scenario dollars, rounded as formatEstimateUsd: "about -$1,200", "about +$300", "$0". */
 export function formatEstimateUsdDelta(n: number): string {
-  const text = formatUsdDelta(roundToTwoFigures(n));
-  return text === "$0" ? text : `about ${text}`;
+  const dollars = estimateDollars(n);
+  return dollars === 0 ? "$0" : `about ${formatUsdDelta(dollars)}`;
+}
+
+/**
+ * The change from one scenario dollar figure to another as their printed
+ * estimates give it: "about $29,000" to "about $37,000" is 8,000, where the
+ * exact figures (28,753 and 36,533) differ by 7,780. A line that prints this
+ * beside the two figures then matches a reader's subtraction. It is not
+ * rounded again: two rounded figures can differ by any whole amount.
+ */
+export function estimateUsdChange(from: number, to: number): number {
+  return estimateDollars(to) - estimateDollars(from);
 }
 
 /** A range of scenario dollars, both ends rounded: "about $14,000 – $75,000". */

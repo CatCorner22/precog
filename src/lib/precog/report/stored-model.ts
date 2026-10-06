@@ -79,8 +79,11 @@ export interface FrozenReport {
  * unless `ControlReport` still prints that layout with its own labels.
  *
  * Layout 5: the monthly checks for the oldest month still open on the
- * report's day, named with their due day, and the priority bands in the
- * urgency words ("Fix first", "Fix soon", "Worth doing", "Watch").
+ * report's day, named with their due day; the priority bands in the
+ * urgency words ("Fix first", "Fix soon", "Worth doing", "Watch"); each
+ * fix-first count named with its own scale ("Fix first on the priority
+ * list", "N fix first on the residual index"); and, in the status column,
+ * the day a logged decision accepted a finding's risk.
  * Layout 4: the published benchmark the evidence section leads with, stored
  * (`benchmark`), and dual release's covered count without the owner's own
  * pairs, as the executive summary counts them.

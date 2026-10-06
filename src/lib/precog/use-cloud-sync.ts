@@ -382,6 +382,11 @@ export function useCloudSync(input: {
    * section taken from the other device; then the open business stays as it
    * is, still built on its old base, and its next save asks. The save effect
    * records the new base once the merge shows (see `acceptedMerges`).
+   *
+   * A merge that takes a section from the other device clears the map's
+   * undo and redo first, as taking another tab's save does: a step holds the
+   * team, the processes and the layout together, and putting one back would
+   * drop the other device's change to any of them.
    */
   const acceptMerge = useCallback(
     (
@@ -400,6 +405,7 @@ export function useCloudSync(input: {
         saved,
         tookTheirs: merge.fromRemote.length > 0,
       };
+      if (accepted.tookTheirs) clearHistory();
       setProfile({
         derive: (state) => {
           if (saveConflictRef.current) return state;
@@ -420,7 +426,7 @@ export function useCloudSync(input: {
         },
       });
     },
-    [rememberStamp, setProfile],
+    [clearHistory, rememberStamp, setProfile],
   );
 
   const saveCloud = useCallback(

@@ -7,7 +7,7 @@ import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "../sod/open-findings";
 import type { IndustryTemplate } from "../templates";
 import type { ProcessNode, StaffComposition } from "../types";
-import { formatEstimateUsd } from "@/lib/utils";
+import { estimateUsdChange, formatUsd } from "@/lib/utils";
 import { mergeStaffIntoVariables, type RiskVariableState } from "./dynamic-variables";
 import { portfolioSummary } from "./residual-engine";
 import { scenariosInScope } from "./scope";
@@ -529,23 +529,29 @@ function buildHeadline(
     mode === "failure" ? `If ${headlineLabel} stops` : `Without ${headlineLabel} today`;
   const clauses: string[] = [];
   if (worstScenario) {
-    const retainedDelta =
-      worstScenario.withoutIt.retainedExpected - worstScenario.withIt.retainedExpected;
-    if (Math.abs(retainedDelta) >= 1) {
+    // Each dollar change is the difference of the two rounded figures the
+    // scenario table prints beside it ("about $29,000" and "about $37,000"
+    // give "about $8,000"), so a reader's subtraction matches it.
+    const retainedDelta = estimateUsdChange(
+      worstScenario.withIt.retainedExpected,
+      worstScenario.withoutIt.retainedExpected,
+    );
+    if (retainedDelta !== 0) {
       clauses.push(
-        `${formatEstimateUsd(Math.abs(retainedDelta))} ${retainedDelta > 0 ? "more" : "less"} retained loss on ${worstScenario.title}`,
+        `about ${formatUsd(Math.abs(retainedDelta))} ${retainedDelta > 0 ? "more" : "less"} retained loss on ${worstScenario.title}`,
       );
     }
     const daysDelta = worstScenario.withoutIt.p50Days - worstScenario.withIt.p50Days;
     if (Math.abs(daysDelta) >= 1) {
       clauses.push(`found about ${Math.abs(daysDelta)} days ${daysDelta > 0 ? "later" : "sooner"}`);
     }
-    const costDelta =
-      worstScenario.withoutIt.expectedAnnualCostOfRisk -
-      worstScenario.withIt.expectedAnnualCostOfRisk;
-    if (Math.abs(costDelta) >= 1) {
+    const costDelta = estimateUsdChange(
+      worstScenario.withIt.expectedAnnualCostOfRisk,
+      worstScenario.withoutIt.expectedAnnualCostOfRisk,
+    );
+    if (costDelta !== 0) {
       clauses.push(
-        `annual cost of risk ${costDelta > 0 ? "rises" : "falls"} ${formatEstimateUsd(Math.abs(costDelta))}`,
+        `annual cost of risk ${costDelta > 0 ? "rises" : "falls"} about ${formatUsd(Math.abs(costDelta))}`,
       );
     }
   }

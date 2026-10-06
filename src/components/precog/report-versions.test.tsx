@@ -553,6 +553,75 @@ describe("the open version's review controls", () => {
     );
   });
 
+  describe("hands the page the version as it reads after each action", () => {
+    const signed = () =>
+      version({
+        reviewedBy: "bea",
+        reviewedByName: "Bea Lin",
+        reviewedAt: "2026-10-06T09:00:00.000Z",
+      });
+
+    /** The controls on `open` for `viewer`, reporting each changed version to `onChange`. */
+    async function watched(viewer: string, role: string, open: ReportVersionRow) {
+      const onChange = vi.fn();
+      state.userId = viewer;
+      server.listReports.mockResolvedValue({
+        versions: [open],
+        work: { firm: true, role },
+        review: rules(),
+      });
+      server.getFirm.mockResolvedValue({ firm: { role }, members: [] });
+      const render = () => OpenVersionReview({ version: open, onChange });
+      return { onChange, render, tree: await runtime.settle(render) };
+    }
+
+    it("after a sign-off", async () => {
+      server.signOffReport.mockResolvedValue({ version: signed() });
+      const { onChange, render, tree } = await watched("bea", "reviewer", version({}));
+      expect(onChange).not.toHaveBeenCalled();
+      click(tree, "Review version 1 for issuance");
+      clickText(await runtime.settle(render), "Review for issuance", "dialog");
+      await runtime.settle(render);
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith(signed());
+    });
+
+    it("after a withdrawal", async () => {
+      server.withdrawReportReview.mockResolvedValue({ version: version({}) });
+      const { onChange, render, tree } = await watched("bea", "reviewer", signed());
+      click(tree, "Withdraw the review of version 1");
+      clickText(await runtime.settle(render), "Withdraw review", "alertdialog");
+      await runtime.settle(render);
+      expect(onChange).toHaveBeenCalledWith(version({}));
+    });
+
+    it("after a return", async () => {
+      const returned = version({
+        returnedAt: "2026-10-07T09:00:00.000Z",
+        returnedBy: "bea",
+        returnedByName: "Bea Lin",
+        returnNote: "Add the payroll duties.",
+      });
+      vi.stubGlobal("window", { prompt: () => "Add the payroll duties." });
+      const returnReport = vi.mocked(
+        (await import("@/lib/precog/firm/review-server")).returnReport,
+      );
+      try {
+        returnReport.mockResolvedValue({ version: returned });
+        const { onChange, render, tree } = await watched("bea", "reviewer", version({}));
+        click(tree, "Return version 1 to its preparer");
+        await runtime.settle(render);
+        expect(returnReport).toHaveBeenCalledWith({
+          data: { id: "rv_1", note: "Add the payroll duties." },
+        });
+        expect(onChange).toHaveBeenCalledWith(returned);
+      } finally {
+        returnReport.mockReset();
+        vi.unstubAllGlobals();
+      }
+    });
+  });
+
   it("shows nothing to an account that only reads the versions", async () => {
     state.userId = "bo";
     server.listReports.mockResolvedValue({
