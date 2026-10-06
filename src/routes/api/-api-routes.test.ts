@@ -23,6 +23,7 @@ const budgets = vi.hoisted(() => ({
   digest: 150_000,
   quickbooks: 90_000,
   "quickbooks-alerts": 30_000,
+  "credit-reversals": 10_000,
 }));
 const report = vi.hoisted(() => ({
   error: vi.fn(async (_err: unknown, _at?: string | null) => {}),
@@ -127,7 +128,12 @@ afterEach(() => {
   digestStage.fail = false;
   digestStage.sendsFail = false;
   usagePurge.fail = false;
-  Object.assign(budgets, { digest: 150_000, quickbooks: 90_000, "quickbooks-alerts": 30_000 });
+  Object.assign(budgets, {
+    digest: 150_000,
+    quickbooks: 90_000,
+    "quickbooks-alerts": 30_000,
+    "credit-reversals": 10_000,
+  });
   billing.failure = null;
   report.error.mockClear();
 });

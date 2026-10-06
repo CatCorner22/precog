@@ -231,42 +231,79 @@ export async function markAssessmentCreditUsed(
 }
 
 /**
- * Records that the posted credit is being taken back: the amount goes to
- * zero so a second refund or lost dispute on the same payment reverses
- * nothing twice. The stamp stays, so the refunded payment is never credited
- * again; only a new payment clears it (recordAssessmentPayment). A failed
- * reversal clears, since this call means Stripe just took the credit back.
+ * Marks the posted credit as being taken back, inside the refund's or lost
+ * dispute's transaction, and returns what to reverse; null when there is
+ * nothing to reverse or a reversal is already under way. The amount stays
+ * until Stripe confirms (markAssessmentCreditReversed), so a crash between
+ * the commit and the Stripe call leaves the row pending for the scheduled
+ * run instead of zeroed with nothing parked. The conditional update holds
+ * the row, so a second refund or lost dispute of the same payment, even one
+ * delivered in parallel, reverses nothing twice. The used stamp stays, so
+ * the refunded payment is never credited again; only a new payment clears
+ * it (recordAssessmentPayment).
+ */
+export async function markAssessmentCreditReversalPending(
+  sql: Sql,
+  userId: string,
+): Promise<{ customerId: string; creditCents: number; assessmentPaidAt: string | null } | null> {
+  const rows = await sql<{
+    stripe_customer_id: string;
+    assessment_credit_cents: number | string;
+    assessment_paid_at: string | null;
+  }>`
+    update billing_accounts
+    set assessment_credit_reversal_pending_at = now(), updated_at = now()
+    where user_id = ${userId}
+      and assessment_credit_used_at is not null
+      and stripe_customer_id is not null
+      and coalesce(assessment_credit_cents, 0) > 0
+      and assessment_credit_reversal_pending_at is null
+      and assessment_credit_reversal_failed_at is null
+    returning stripe_customer_id, assessment_credit_cents, assessment_paid_at
+  `;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    customerId: row.stripe_customer_id,
+    creditCents: Number(row.assessment_credit_cents),
+    assessmentPaidAt: toIsoTimestampOrNull(row.assessment_paid_at),
+  };
+}
+
+/**
+ * Records that Stripe took the credit back (or already had): the amount goes
+ * to zero and the pending and failed marks clear.
  */
 export async function markAssessmentCreditReversed(sql: Sql, userId: string): Promise<void> {
   await sql`
     update billing_accounts
-    set assessment_credit_cents = 0, assessment_credit_reversal_failed_at = null, updated_at = now()
+    set assessment_credit_cents = 0, assessment_credit_reversal_pending_at = null,
+      assessment_credit_reversal_failed_at = null, updated_at = now()
     where user_id = ${userId}
   `;
 }
 
 /**
- * Records that the Stripe-side reversal failed after the ledger already
- * zeroed the amount: the amount comes back so the row agrees with the
- * customer balance Stripe still holds, and the failure time marks the row
- * for the weekly retry (retryFailedCreditReversals). The Stripe call carries
- * a deterministic idempotency key, so a retry posts nothing twice.
+ * Records that every inline attempt at the Stripe-side reversal failed. The
+ * amount and the pending mark stay (the row agrees with the balance Stripe
+ * still holds), and the failure time lets the scheduled run retry it without
+ * waiting out the hour a pending row gets.
  */
-export async function markAssessmentCreditReversalFailed(
-  sql: Sql,
-  userId: string,
-  creditCents: number,
-): Promise<void> {
+export async function markAssessmentCreditReversalFailed(sql: Sql, userId: string): Promise<void> {
   await sql`
     update billing_accounts
-    set assessment_credit_cents = ${creditCents},
-      assessment_credit_reversal_failed_at = now(), updated_at = now()
+    set assessment_credit_reversal_failed_at = now(), updated_at = now()
     where user_id = ${userId}
   `;
 }
 
-/** Accounts whose credit reversal failed and still needs taking back, oldest failure first. */
-export async function listFailedCreditReversals(
+/**
+ * Accounts whose credit reversal still needs taking back, oldest first: a
+ * reversal whose inline attempts failed, and one pending for more than an
+ * hour (its webhook died between the commit and Stripe's answer). A row
+ * parked before migration 0053 has a failure time and no pending mark.
+ */
+export async function listPendingCreditReversals(
   sql: Sql,
 ): Promise<
   { userId: string; customerId: string; creditCents: number; assessmentPaidAt: string | null }[]
@@ -279,9 +316,13 @@ export async function listFailedCreditReversals(
   }>`
     select user_id, stripe_customer_id, assessment_credit_cents, assessment_paid_at
     from billing_accounts
-    where assessment_credit_reversal_failed_at is not null
+    where (
+        assessment_credit_reversal_failed_at is not null
+        or assessment_credit_reversal_pending_at < now() - interval '1 hour'
+      )
       and coalesce(assessment_credit_cents, 0) > 0
-    order by assessment_credit_reversal_failed_at asc
+    order by coalesce(assessment_credit_reversal_pending_at, assessment_credit_reversal_failed_at) asc,
+      user_id asc
   `;
   return rows.flatMap((r) =>
     r.stripe_customer_id && r.assessment_credit_cents !== null
@@ -356,6 +397,11 @@ export async function recordAssessmentPayment(
         when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
           then null
         else billing_accounts.assessment_credit_reversal_failed_at
+      end,
+      assessment_credit_reversal_pending_at = case
+        when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
+          then null
+        else billing_accounts.assessment_credit_reversal_pending_at
       end,
       assessment_payment_intent = coalesce(excluded.assessment_payment_intent, billing_accounts.assessment_payment_intent),
       updated_at = now()

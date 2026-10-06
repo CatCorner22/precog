@@ -300,22 +300,101 @@ export async function creditCustomerBalance(
   );
 }
 
+/** The description every Assessment-credit reversal carries on the customer balance. */
+const REVERSAL_DESCRIPTION = "Assessment credit reversed";
+
+/**
+ * The `reversal_for` metadata of an Assessment-credit reversal: the account
+ * and the Assessment payment (its paid-at time) whose credit it takes back.
+ * The scheduled run finds an earlier reversal by it (findCreditReversal).
+ */
+export function creditReversalTag(userId: string, assessmentPaidAt: string | null): string {
+  return `${userId}:${assessmentPaidAt ?? "unknown"}`;
+}
+
 /**
  * Takes a posted credit back (a refunded Assessment keeps no credit). Keyed
  * on the Assessment payment like the credit, so a later payment's reversal
- * is not swallowed by this one's cached answer.
+ * is not swallowed by this one's cached answer, and tagged with
+ * creditReversalTag, so a retry after Stripe has forgotten the key (about a
+ * day) finds the reversal instead of posting it again.
  */
-export async function reverseCustomerBalance(
-  customerId: string,
-  amountCents: number,
-  assessmentPaidAt: string | null,
-): Promise<void> {
+export async function reverseCustomerBalance(input: {
+  userId: string;
+  customerId: string;
+  amountCents: number;
+  assessmentPaidAt: string | null;
+}): Promise<void> {
   await stripeRequest(
     "POST",
-    `/customers/${encodeURIComponent(customerId)}/balance_transactions`,
-    { amount: amountCents, currency: "usd", description: "Assessment credit reversed" },
-    `credit-reversal-${customerId}-${assessmentPaidAt ?? "unknown"}`,
+    `/customers/${encodeURIComponent(input.customerId)}/balance_transactions`,
+    {
+      amount: input.amountCents,
+      currency: "usd",
+      description: REVERSAL_DESCRIPTION,
+      metadata: { reversal_for: creditReversalTag(input.userId, input.assessmentPaidAt) },
+    },
+    `credit-reversal-${input.customerId}-${input.assessmentPaidAt ?? "unknown"}`,
   );
+}
+
+/** Pages of 100 read before findCreditReversal gives up rather than guess. */
+const REVERSAL_LOOKUP_PAGES = 20;
+
+type BalanceTransaction = {
+  id: string;
+  amount: number;
+  created: number;
+  description: string | null;
+  metadata: Record<string, string> | null;
+};
+
+/**
+ * True when the customer's balance already holds the reversal of this
+ * Assessment payment's credit: a transaction tagged with its
+ * creditReversalTag, or (posted before the tag existed) an untagged
+ * "Assessment credit reversed" of the same amount created after the payment.
+ * Reads newest first and stops at transactions older than the payment.
+ * Throws when Stripe cannot answer or the history is longer than it reads,
+ * so the caller posts nothing on a guess.
+ */
+export async function findCreditReversal(input: {
+  userId: string;
+  customerId: string;
+  amountCents: number;
+  assessmentPaidAt: string | null;
+}): Promise<boolean> {
+  const tag = creditReversalTag(input.userId, input.assessmentPaidAt);
+  const paidAtSeconds = input.assessmentPaidAt
+    ? Math.floor(Date.parse(input.assessmentPaidAt) / 1000)
+    : null;
+  let after: string | null = null;
+  for (let page = 0; page < REVERSAL_LOOKUP_PAGES; page += 1) {
+    const query = new URLSearchParams({ limit: "100" });
+    if (after) query.set("starting_after", after);
+    const list = await stripeRequest<{ data?: BalanceTransaction[]; has_more?: boolean }>(
+      "GET",
+      `/customers/${encodeURIComponent(input.customerId)}/balance_transactions?${query}`,
+    );
+    if (!Array.isArray(list.data)) throw new Error("Stripe balance transactions unreadable");
+    for (const txn of list.data) {
+      const reversalFor = txn.metadata?.reversal_for;
+      if (reversalFor === tag) return true;
+      if (
+        reversalFor === undefined &&
+        txn.description === REVERSAL_DESCRIPTION &&
+        txn.amount === input.amountCents &&
+        (paidAtSeconds === null || txn.created >= paidAtSeconds)
+      ) {
+        return true;
+      }
+    }
+    const oldest = list.data.at(-1);
+    if (!list.has_more || !oldest) return false;
+    if (paidAtSeconds !== null && oldest.created < paidAtSeconds) return false;
+    after = oldest.id;
+  }
+  throw new Error(`Stripe balance history of ${input.customerId} too long to search`);
 }
 
 export const ASSESSMENT_PRICE_UNKNOWN =
