@@ -129,6 +129,29 @@ describe("priority findings", () => {
     expect(a.priorityFindings.some((f) => f.severity === "weak")).toBe(critical < 8);
   });
 
+  it("reads the sample's cash pair as unaddressed: no sample accepts a risk without a logged decision", () => {
+    const tpl = getIndustryTemplate("dental");
+    const a = assessCoso(tpl, tpl.staffComposition);
+    const cash = a.components.flatMap((c) => c.findings).find((f) => f.id === "ca-c-sod-cash")!;
+    expect(cash.severity).toBe("critical");
+    expect(cash.detail).toBe(
+      "A sentence is written down, not a tested control: Owner compares the deposit slip to the day sheet weekly",
+    );
+    expect(a.components.flatMap((c) => c.principles).find((p) => p.number === 5)!.note).toBe(
+      "The business has not recorded a residual-risk decision on any duty conflict.",
+    );
+    expect(a.priorityFindings.map((f) => f.id)).toEqual([
+      "ce-spof",
+      "ra-top",
+      "ra-fraud",
+      "ca-c-cash",
+      "ca-c-sod-cash",
+      "ca-c-sod-billing",
+      "ca-c-sod-ap",
+      "ca-c-payroll",
+    ]);
+  });
+
   it("drops the fraud-driver finding when no driver is active", () => {
     const allSeparated = {
       ...generalSample,

@@ -5,6 +5,7 @@ import type { MatrixLayerId, PrecogResult, ScenarioTemplate } from "@/lib/precog
 import {
   insuranceBasis,
   insuranceFigureNote,
+  NOT_INSURED_LOSS,
   scenarioFlags,
   type RiskVariableState,
 } from "@/lib/precog/scoring/dynamic-variables";
@@ -70,6 +71,8 @@ export function SingleScenarioView({
   if (!result) return null;
   const scenarioIsStarter = ownBusiness && !confirmed.has(scenario.id);
   const noPolicy = insuranceBasis(riskVariables, ownBusiness) === "none";
+  // A crime policy pays nothing toward a scenario that is not theft or fraud.
+  const insuredLoss = scenarioFlags(scenario.id).fraudRelated;
   const policyNote = insuranceFigureNote(riskVariables, ownBusiness, scenario.id);
   const withPolicyNote = (text: string) => (policyNote ? `${text} · ${policyNote}` : text);
   const teamLabel = industryNoun(profile.industry);
@@ -168,11 +171,15 @@ export function SingleScenarioView({
                 size="lg"
                 label={`Assumed loss retained by ${teamLabel}`}
                 value={formatUsd(result.retainedImpact.expected)}
-                hint={withPolicyNote(
-                  noPolicy
-                    ? "all of the assumed loss"
-                    : `assumed range ${formatUsd(result.retainedImpact.low)} – ${formatUsd(result.retainedImpact.high)}`,
-                )}
+                hint={
+                  insuredLoss
+                    ? withPolicyNote(
+                        noPolicy
+                          ? "all of the assumed loss"
+                          : `assumed range ${formatUsd(result.retainedImpact.low)} – ${formatUsd(result.retainedImpact.high)}`,
+                      )
+                    : `all of the assumed loss · ${NOT_INSURED_LOSS}`
+                }
               />
               <FigureTile
                 size="lg"
@@ -197,9 +204,13 @@ export function SingleScenarioView({
                 <Badge variant="default">
                   Time until found ×{dynamic.detectionLagMultiplier.toFixed(2)}
                 </Badge>
-                <Badge variant="ok">
-                  Paid by insurance {formatUsd(dynamic.transferredExpected)}
-                </Badge>
+                {insuredLoss ? (
+                  <Badge variant="ok">
+                    Paid by insurance {formatUsd(dynamic.transferredExpected)}
+                  </Badge>
+                ) : (
+                  <Badge variant="default">{NOT_INSURED_LOSS}</Badge>
+                )}
               </div>
             )}
 

@@ -4,6 +4,7 @@ import { casesForControl, casesForSodRules, isOwnSector, type CaseStudy } from "
 import { runPrecogScenario } from "../engine";
 import { CONFLICT_RULES } from "../sod/conflict-rules";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
+import { openFindings, partialDualReleaseCoverage } from "../sod/open-findings";
 import type { IndustryTemplate } from "../templates";
 import type { ProcessNode, StaffComposition } from "../types";
 import { formatUsd } from "@/lib/utils";
@@ -79,6 +80,47 @@ interface EvaluationState {
 }
 
 const DUAL_RELEASE_LOST = "Dual-release policy active on related channel";
+
+/** The dual-release note's opening when the staff flag is on but no payment rule can run. */
+export const DUAL_RELEASE_INOPERABLE_LEAD =
+  "Your setup says payments need two people, but no payment rule can run as set up, so the duty-conflict check does not count dual release on payments. The risk figures here and in the report still credit the setting.";
+/** The dual-release note's opening when switching it on would not cover payments. */
+export const DUAL_RELEASE_GAP_LEAD =
+  "Switching dual release on would not cover payments as it is set up.";
+
+type DualReleaseBlocker = "no_rule" | "waiver" | "no_second";
+
+const BLOCKER_TEXT: Record<DualReleaseBlocker, string> = {
+  no_rule: "No ACH or check rule is on; turn one on for dual release to count.",
+  waiver:
+    "A waiver lets one person release every payment; end the waiver for dual release to count.",
+  no_second: "Name a second person allowed to sign; one person cannot approve their own payment.",
+};
+
+/**
+ * Why dual release, switched on, would still not cover payments: the same
+ * reading staffFlagsFromDualRelease gives, taken apart by cause. Empty when a
+ * payment rule can run.
+ */
+function dualReleaseBlockers(
+  tpl: IndustryTemplate,
+  policy: DualReleasePolicy,
+  today?: string,
+): DualReleaseBlocker[] {
+  const on = { ...policy, enabled: true };
+  const covers = (candidate: DualReleasePolicy, team?: IndustryTemplate) =>
+    staffFlagsFromDualRelease(candidate, team, today).dualControlPayments;
+  if (covers(on, tpl)) return [];
+  const noWaivers = { ...on, exceptions: [] };
+  if (!covers(noWaivers)) return ["no_rule"];
+  const blockers: DualReleaseBlocker[] = [];
+  // Every enabled payment channel is emptied by a blanket waiver.
+  if (!covers(on)) blockers.push("waiver");
+  // No enabled payment channel has someone to start a release and a different person to second it.
+  if (!covers(noWaivers, tpl)) blockers.push("no_second");
+  // Otherwise one channel is waived and the other has no second signer.
+  return blockers.length > 0 ? blockers : ["waiver", "no_second"];
+}
 
 export function evaluateControlFailure(
   tpl: IndustryTemplate,
@@ -180,15 +222,12 @@ export function evaluateControlFailure(
       'This control comes from the industry sample. Nobody has confirmed it runs here, so Precog does not count it yet. Confirm it with "This runs here" in Controls.',
     );
   }
-  if (
-    target.kind === "safeguard" &&
-    target.id === "dual_release" &&
-    mode === "gap" &&
-    !withIt.staff.dualControlPayments
-  ) {
-    notes.push(
-      "Switching dual release on would not cover payments as it is set up: turn on an ACH or check rule with two different people allowed to sign.",
-    );
+  if (target.kind === "safeguard" && target.id === "dual_release") {
+    const blockers = dualReleaseBlockers(tpl, inputs.dualRelease, inputs.today);
+    if (blockers.length > 0) {
+      const lead = mode === "failure" ? DUAL_RELEASE_INOPERABLE_LEAD : DUAL_RELEASE_GAP_LEAD;
+      notes.push([lead, ...blockers.map((blocker) => BLOCKER_TEXT[blocker])].join(" "));
+    }
   }
 
   return {
@@ -220,6 +259,10 @@ function stateWithSafeguard(
   const dualRelease = { ...inputs.dualRelease };
   switch (id) {
     case "dual_release":
+      // With the staff flag on, "with it" is today as the scores read it: the
+      // residual and scenario engines credit the flag, so recomputing it from
+      // the policy would give a "today" the report does not show.
+      if (enabled && inputs.staff.dualControlPayments) break;
       dualRelease.enabled = enabled;
       staff.dualControlPayments = staffFlagsFromDualRelease(
         dualRelease,
@@ -331,7 +374,10 @@ function findingsLinkedToControl(
   const linkedRuleIds = new Set(
     CONFLICT_RULES.filter((rule) => rule.linkedControlId === controlId).map((rule) => rule.id),
   );
-  return detectSodConflicts(tpl, staff, sodDetectionOptions(tpl, dualRelease)).conflicts.flatMap(
+  const conflicts = detectSodConflicts(tpl, staff, sodDetectionOptions(tpl, dualRelease)).conflicts;
+  // Counted as every other screen counts them: not the owner's own pairs, not
+  // the pairs dual release closes at every amount.
+  return openFindings(conflicts, partialDualReleaseCoverage(dualRelease, conflicts)).flatMap(
     (finding) =>
       linkedRuleIds.has(finding.ruleId)
         ? [

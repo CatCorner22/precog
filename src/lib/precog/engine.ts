@@ -14,6 +14,7 @@ import {
   evaluateDynamicRisk,
   insuranceFigureNote,
   mergeStaffIntoVariables,
+  NOT_INSURED_LOSS,
   type RiskVariableState,
 } from "./scoring/dynamic-variables";
 import { scenarioFlags } from "./scoring/scenario-kind";
@@ -206,8 +207,13 @@ export function runPrecogScenario(
   crimeModifiers.push(
     `Assumed multipliers from your settings: likelihood ×${dynamic.likelihoodSeverity.likelihoodMultiplier.toFixed(2)} · severity ×${dynamic.likelihoodSeverity.grossSeverityMultiplier.toFixed(2)} · detection lag ×${dynamic.likelihoodSeverity.detectionLagMultiplier.toFixed(2)}.`,
   );
+  // A crime policy pays only for theft and fraud: evaluateDynamicRisk models no
+  // recovery for any other scenario, and the line says why.
+  const insuranceBasisLine = flags.fraudRelated
+    ? (insuranceFigureNote(entered, ownBusiness, scenarioId) ?? "Conditional scenario calculation.")
+    : `${NOT_INSURED_LOSS}, so Precog models no recovery.`;
   crimeModifiers.push(
-    `Insurance: ${insuranceFigureNote(entered, ownBusiness, scenarioId) ?? "Conditional scenario calculation."} Modeled retained loss ${formatUsd(dynamic.transfer.retainedExpected)}; modeled annual premium ${formatUsd(dynamic.transfer.premiumAnnualNet)}.`,
+    `Insurance: ${insuranceBasisLine} Modeled retained loss ${formatUsd(dynamic.transfer.retainedExpected)}; modeled annual premium ${formatUsd(dynamic.transfer.premiumAnnualNet)}.`,
   );
 
   const served = industryMeta(tpl.id).customerLabel;

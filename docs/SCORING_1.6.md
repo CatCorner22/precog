@@ -106,3 +106,7 @@ Since Phase 1, locking a report version stores the figures it printed. A version
 ## What is not in this release
 
 New duty-conflict rules and changes to rule severities wait for a CPA's sign-off. Scoring 1.6.0 changes how Precog counts, bands and shows the existing rules; it adds no rule and moves no severity.
+
+## Notes after release
+
+- _6 October 2026:_ #207 changed which measures the control-failure view lists; no figure moved (`residual-engine.ts` adds no compensating credit). The follow-up fix moves the dual-release what-if as listed in its commit: with the staff flag on and no payment rule able to run, the "with it" residual now equals the one the report prints, and "N duty conflicts rely on it" counts only open conflicts, as every other screen does.
