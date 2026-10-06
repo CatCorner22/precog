@@ -97,6 +97,17 @@ export async function openSetup(page, baseUrl, timeout) {
   await page.getByRole("radiogroup").waitFor({ timeout });
 }
 
+/** The sample entry shared by every guest smoke; also checks its accessible name. */
+export async function exploreSample(page, industry) {
+  await page
+    .getByRole("radio", { name: new RegExp(`^${industry}`) })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "Explore the fictional sample", exact: true }).waitFor();
+  await page.getByTestId("explore-sample-business").click();
+  await page.locator("nav[data-tab-count]").waitFor();
+}
+
 /** Waits until `locator` matches exactly `count` elements (Playwright's count() does not wait). */
 export async function waitForCount(locator, count, label = "locator") {
   let seen;
