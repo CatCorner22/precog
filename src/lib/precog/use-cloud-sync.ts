@@ -28,6 +28,9 @@ import {
   makeBusinessId,
   normalizeProfile,
   PORTFOLIO_KEY,
+  readStoredActiveProfile,
+  readStoredProfile,
+  removedBusinessIds,
   savePortfolioEntry,
   summarizeBusiness,
   type BusinessSummary,
@@ -84,6 +87,15 @@ const LOAD_FAILED_TOAST = "account-unreachable";
 const CLOUD_BASES_KEY = "precog.cloud-bases.v1";
 /** The `updatedAt` stamp of each business's copy the account last acknowledged. */
 const CLOUD_STAMPS_KEY = "precog.cloud-stamps.v1";
+/** Wait before writing the open business to this browser again after the browser refused it. */
+const LOCAL_RETRY_MS = 15_000;
+/** Wait before writing the open business again after another tab cleared it. */
+const CLEARED_REWRITE_MS = 50;
+/** The notice that this browser did not keep the latest changes, up until a write goes through. */
+const LOCAL_FAILED_TOAST = "local-save-failed";
+/** That notice when browser storage is full. */
+export const LOCAL_FULL_MESSAGE =
+  "Precog could not save your latest changes on this device because browser storage is full. Download a recovery copy, then remove a business you no longer need.";
 
 /**
  * Keeping the open business saved: in this browser on every edit, in the
@@ -237,14 +249,55 @@ export function useCloudSync(input: {
   const listRefusedShown = useRef(false);
   // flushLocal, defined further down, for the update notice.
   const flushLocalRef = useRef<() => boolean>(() => false);
+  // The open business holds changes this browser refused to keep: the next
+  // pagehide, the retry timer and the next edit write it again.
+  const dirtySinceFailure = useRef(false);
+  const localRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Whether an account save is waiting on the debounce timer.
+  const cloudSaveWaiting = useRef(false);
 
   const cloudUser = Boolean(authEnabled && userId && !userIsDevFallback);
 
-  const raiseConflict = useCallback((conflict: SaveConflictState) => {
-    saveConflictRef.current = conflict;
-    setSaveConflict(conflict);
-    setSyncStatus("conflict");
+  // Closing the tab asks first while work is held only in this tab: another
+  // tab's copy waits for the owner's choice, an account save has not gone
+  // out yet, or this browser refused the latest changes.
+  const unloadGuarded = useRef(false);
+  const onBeforeUnload = useRef((event: BeforeUnloadEvent) => {
+    event.preventDefault();
+    // Older browsers show the prompt only when returnValue is set.
+    event.returnValue = "";
+  });
+  const guardUnload = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const held =
+      mounted.current &&
+      (saveConflictRef.current?.reason === "other-tab" ||
+        dirtySinceFailure.current ||
+        (saveTimer.current !== null && cloudSaveWaiting.current));
+    if (held === unloadGuarded.current) return;
+    unloadGuarded.current = held;
+    if (held) window.addEventListener("beforeunload", onBeforeUnload.current);
+    else window.removeEventListener("beforeunload", onBeforeUnload.current);
   }, []);
+  useEffect(
+    () => () => {
+      // The mount effect above has already marked this workspace closed.
+      if (localRetryTimer.current) clearTimeout(localRetryTimer.current);
+      localRetryTimer.current = null;
+      guardUnload();
+    },
+    [guardUnload],
+  );
+
+  const raiseConflict = useCallback(
+    (conflict: SaveConflictState) => {
+      saveConflictRef.current = conflict;
+      setSaveConflict(conflict);
+      setSyncStatus("conflict");
+      guardUnload();
+    },
+    [guardUnload],
+  );
 
   const saveCloud = useCallback(
     async (current: PracticeProfile) => {
@@ -410,6 +463,86 @@ export function useCloudSync(input: {
     [raiseConflict],
   );
 
+  /**
+   * What one write of the open business to this browser did. A refused
+   * write says so on the badge and in a notice that stays until a write goes
+   * through, and is tried again: on the next edit, on pagehide, and after
+   * a short wait.
+   */
+  const noteLocalWrite = useCallback(
+    (version: PracticeProfile, kind: "saved" | "failed") => {
+      lastLocalWrite.current = kind;
+      if (kind === "saved") {
+        storedProfile.current = version;
+        if (dirtySinceFailure.current) {
+          dirtySinceFailure.current = false;
+          if (localRetryTimer.current) clearTimeout(localRetryTimer.current);
+          localRetryTimer.current = null;
+          toast.dismiss(LOCAL_FAILED_TOAST);
+        }
+      } else if (mounted.current) {
+        const firstFailure = !dirtySinceFailure.current;
+        dirtySinceFailure.current = true;
+        // A stored copy Precog could not open is kept, not written over; its
+        // own notice says so, so this one is not shown.
+        if (firstFailure && !storedCopyUnreadable(workspace.local))
+          toast.error(
+            canKeepLocalData(workspace.local)
+              ? LOCAL_FULL_MESSAGE
+              : "Precog could not save your latest changes on this device because this browser is not keeping data for this site. Download a recovery copy before closing this page.",
+            {
+              id: LOCAL_FAILED_TOAST,
+              duration: Infinity,
+              dismissible: false,
+              action: {
+                label: "Download a recovery copy",
+                onClick: () => downloadRecoveryCopy(workspace, profileRef.current),
+              },
+            },
+          );
+        if (!localRetryTimer.current)
+          localRetryTimer.current = setTimeout(() => {
+            localRetryTimer.current = null;
+            retryLocalRef.current();
+          }, LOCAL_RETRY_MS);
+      }
+      if (mounted.current && !cloudUser) setSyncStatus(localStatus(kind));
+      guardUnload();
+    },
+    [cloudUser, guardUnload, profileRef, workspace],
+  );
+
+  /** Write the open business to this browser now. Another tab's newer copy stops it and raises the banner. */
+  const writeOpenLocally = useCallback(
+    (version: PracticeProfile): "saved" | "failed" | "conflict" => {
+      const result = localStore.write(version);
+      if (result.kind === "conflict") {
+        raiseTabConflict(result.theirs);
+        return "conflict";
+      }
+      noteLocalWrite(version, result.kind);
+      return result.kind;
+    },
+    [localStore, noteLocalWrite, raiseTabConflict],
+  );
+
+  // The retry after a refused write, and the rewrite after another tab
+  // cleared this browser's storage: the open business, then its list entry.
+  const rewriteOpen = useCallback(() => {
+    if (!mounted.current || saveConflictRef.current?.reason === "other-tab") return;
+    if (localWriteTimer.current) {
+      clearTimeout(localWriteTimer.current);
+      localWriteTimer.current = null;
+    }
+    pendingLocalWrite.current = null;
+    const cur = profileRef.current;
+    if (writeOpenLocally(cur) === "saved" && cur.onboardingComplete !== false) keepInList(cur);
+  }, [keepInList, profileRef, writeOpenLocally]);
+  const retryLocalRef = useRef<() => void>(() => undefined);
+  retryLocalRef.current = () => {
+    if (dirtySinceFailure.current) rewriteOpen();
+  };
+
   // Bootstrap: local first, then cloud when signed in
   useEffect(() => {
     syncedStamps.current = storedStamps(workspace.local);
@@ -473,6 +606,8 @@ export function useCloudSync(input: {
         // Cloud rows skip the client normaliser on the way in unless we run it here.
         const remoteProfile = normalizeProfile(res.profile);
         const id = remoteProfile.businessId ?? DEFAULT_BUSINESS_ID;
+        // The account revision this device's copy was built on, before this load moves it.
+        const builtOn = cloudRevision.current.get(id);
         if (res.revision !== null) rememberRevision(id, res.revision);
 
         if (failures > 0) {
@@ -503,6 +638,21 @@ export function useCloudSync(input: {
         // never silently attached to the account during sign-in.
         if (id !== localId && hasUserWork(local) && !savePortfolioEntry(local, workspace.local))
           offerCopyDownload(local, `This browser did not keep a copy of ${local.practiceName}`);
+
+        // Edited here on top of the very revision the account still holds
+        // (the tab closed before its account save went out): the edits save
+        // over it without asking, as a switch does.
+        if (
+          id === localId &&
+          local.onboardingComplete !== false &&
+          hasUserWork(local) &&
+          res.revision !== null &&
+          builtOn === res.revision &&
+          local.updatedAt !== remoteProfile.updatedAt
+        ) {
+          saveOpenBusiness(local);
+          return;
+        }
 
         // Same business, edited here before signing in (also over a legacy
         // account copy with no revision yet): let the owner choose instead of
@@ -660,9 +810,7 @@ export function useCloudSync(input: {
       adopted.current = null;
       localStore.accept(took.rev, profile.updatedAt);
       lineage.add(profile.businessId ?? DEFAULT_BUSINESS_ID, profile.updatedAt);
-      storedProfile.current = profile;
-      lastLocalWrite.current = "saved";
-      if (!cloudUser) setSyncStatus("local");
+      noteLocalWrite(profile, "saved");
       toast("Updated with changes saved in another tab.");
       return;
     }
@@ -672,7 +820,9 @@ export function useCloudSync(input: {
     if (profile === loadedFromStorage.current) {
       loadedFromStorage.current = null;
       storedProfile.current = profile;
+      if (!cloudUser) setSyncStatus(localStatus(lastLocalWrite.current));
     } else {
+      // The badge changes once the write is done, from what the write did.
       pendingLocalWrite.current = profile;
       if (localWriteTimer.current) clearTimeout(localWriteTimer.current);
       localWriteTimer.current = setTimeout(() => {
@@ -680,16 +830,9 @@ export function useCloudSync(input: {
         const cur = pendingLocalWrite.current;
         if (!cur) return;
         pendingLocalWrite.current = null;
-        const result = localStore.write(cur);
-        if (result.kind === "conflict") {
-          raiseTabConflict(result.theirs);
-          return;
-        }
-        lastLocalWrite.current = result.kind;
-        if (result.kind === "saved") storedProfile.current = cur;
+        writeOpenLocally(cur);
       }, LOCAL_PROFILE_DEBOUNCE_MS);
     }
-    if (!cloudUser) setSyncStatus(localStatus(lastLocalWrite.current));
     // A business whose setup is not finished is the sample behind the setup
     // dialog: kept as the open business for a reload, but not listed or synced.
     if (profile.onboardingComplete === false) return;
@@ -705,9 +848,16 @@ export function useCloudSync(input: {
     if (!skipCloud) setSyncStatus("saving");
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    cloudSaveWaiting.current = !skipCloud;
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
-      keepInList(profile);
+      cloudSaveWaiting.current = false;
+      guardUnload();
+      // A tab waiting for the owner's choice writes nothing: its copy in the
+      // list would replace the other tab's saved one.
+      if (saveConflictRef.current?.reason === "other-tab") return;
+      // Only a version this browser took as the open business is listed.
+      if (storedProfile.current === profile) keepInList(profile);
       const { updatedAt: _savedAt, ...row } = summarizeBusiness(profile);
       const listed = JSON.stringify(row);
       if (listed !== listedRow.current) {
@@ -717,10 +867,15 @@ export function useCloudSync(input: {
       if (skipCloud || saveConflictRef.current) return;
       void saveCloud(profile).catch(reportCloudError);
     }, SAVE_DEBOUNCE_MS);
+    guardUnload();
 
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       if (localWriteTimer.current) clearTimeout(localWriteTimer.current);
+      saveTimer.current = null;
+      localWriteTimer.current = null;
+      cloudSaveWaiting.current = false;
+      guardUnload();
     };
   }, [
     profile,
@@ -730,7 +885,9 @@ export function useCloudSync(input: {
     saveCloud,
     localStore,
     lineage,
-    raiseTabConflict,
+    writeOpenLocally,
+    noteLocalWrite,
+    guardUnload,
     reportCloudError,
     keepInList,
   ]);
@@ -741,7 +898,24 @@ export function useCloudSync(input: {
   useEffect(() => {
     if (!ready) return;
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== workspace.local?.physicalKey(ACTIVE_PROFILE_KEY)) return;
+      const activeKey = workspace.local?.physicalKey(ACTIVE_PROFILE_KEY);
+      // Another tab cleared this browser's storage, or removed the open
+      // business: this tab's copy is no longer kept here, so it is written
+      // again at once, and the badge says what that write did. Not while an
+      // account change locks the tab (a sign-out or an account deletion
+      // clears its copies, then announces the change: the short wait lets
+      // that news arrive first), nor for a business removed on this device.
+      if (event.key === null || (event.key === activeKey && event.newValue === null)) {
+        storedProfile.current = null;
+        setTimeout(() => {
+          if (identityLockReason() !== null) return;
+          const id = profileRef.current.businessId ?? DEFAULT_BUSINESS_ID;
+          if (removedBusinessIds(workspace.local).has(id)) return;
+          rewriteOpen();
+        }, CLEARED_REWRITE_MS);
+        return;
+      }
+      if (event.key !== activeKey) return;
       const current = profileRef.current;
       const tabConflict = saveConflictRef.current?.reason === "other-tab";
       const unsaved = storedProfile.current !== current;
@@ -763,7 +937,16 @@ export function useCloudSync(input: {
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [ready, localStore, raiseTabConflict, profileRef, setProfile, clearHistory, workspace.local]);
+  }, [
+    ready,
+    localStore,
+    raiseTabConflict,
+    rewriteOpen,
+    profileRef,
+    setProfile,
+    clearHistory,
+    workspace.local,
+  ]);
 
   // A pending debounced save must not die with the tab. On hide, write the
   // portfolio now and push the cloud copy immediately (best effort: the
@@ -771,24 +954,26 @@ export function useCloudSync(input: {
   useEffect(() => {
     if (!ready) return;
     const flush = () => {
-      if (localWriteTimer.current) {
-        clearTimeout(localWriteTimer.current);
-        localWriteTimer.current = null;
+      const otherTab = () => saveConflictRef.current?.reason === "other-tab";
+      // An edit waiting for its write, or one this browser refused before:
+      // written now. Another tab's newer copy stops it and raises the banner.
+      const unwritten = localWriteTimer.current !== null || dirtySinceFailure.current;
+      if (localWriteTimer.current) clearTimeout(localWriteTimer.current);
+      localWriteTimer.current = null;
+      if (unwritten && !otherTab()) {
         const pending = pendingLocalWrite.current ?? profileRef.current;
         pendingLocalWrite.current = null;
-        const result = localStore.write(pending);
-        if (result.kind !== "conflict") {
-          lastLocalWrite.current = result.kind;
-          if (result.kind === "saved") storedProfile.current = pending;
-        }
+        writeOpenLocally(pending);
       }
       if (!saveTimer.current) return;
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
-      if (saveConflictRef.current?.reason === "other-tab") return;
+      cloudSaveWaiting.current = false;
+      guardUnload();
+      if (otherTab()) return;
       const cur = profileRef.current;
       if (cur.onboardingComplete === false) return;
-      keepInList(cur);
+      if (storedProfile.current === cur) keepInList(cur);
       if (cloudUser && cloudLoadedFor.current === userId && !saveConflictRef.current) {
         void saveCloud(cur).catch(reportCloudError);
       }
@@ -802,7 +987,17 @@ export function useCloudSync(input: {
       window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [ready, userId, cloudUser, saveCloud, reportCloudError, profileRef, keepInList, localStore]);
+  }, [
+    ready,
+    userId,
+    cloudUser,
+    saveCloud,
+    reportCloudError,
+    profileRef,
+    keepInList,
+    writeOpenLocally,
+    guardUnload,
+  ]);
 
   /**
    * Write the open business to this browser, now. False when another tab's
@@ -814,18 +1009,10 @@ export function useCloudSync(input: {
   const flushLocal = useCallback(() => {
     if (saveConflictRef.current?.reason === "other-tab") return false;
     const cur = profileRef.current;
-    if (storedProfile.current !== cur) {
-      const result = localStore.write(cur);
-      if (result.kind === "conflict") {
-        raiseTabConflict(result.theirs);
-        return false;
-      }
-      lastLocalWrite.current = result.kind;
-      if (result.kind === "saved") storedProfile.current = cur;
-    }
+    if (storedProfile.current !== cur && writeOpenLocally(cur) === "conflict") return false;
     if (keepInList(cur)) return true;
     return acknowledged.current.get(cur.businessId ?? DEFAULT_BUSINESS_ID) === cur;
-  }, [localStore, raiseTabConflict, profileRef, keepInList]);
+  }, [writeOpenLocally, profileRef, keepInList]);
   flushLocalRef.current = flushLocal;
 
   /**
@@ -921,6 +1108,7 @@ export function useCloudSync(input: {
       const id = conflict.businessId;
       saveConflictRef.current = null;
       setSaveConflict(null);
+      guardUnload();
       const cur = profileRef.current;
       const canSaveOpen =
         cloudUser && cloudLoadedFor.current === userId && cur.onboardingComplete !== false;
@@ -972,7 +1160,7 @@ export function useCloudSync(input: {
           if (latest) {
             localStore.accept(latest.rev, theirs.updatedAt);
             loadedFromStorage.current = theirs;
-            lastLocalWrite.current = "saved";
+            noteLocalWrite(theirs, "saved");
           }
           activateProfile(theirs);
           toast("Loaded the copy saved in the other tab.", {
@@ -984,8 +1172,7 @@ export function useCloudSync(input: {
         // The owner chose this tab's version over theirs, in the account too.
         lineage.add(id, theirs.updatedAt);
         const result = localStore.write(mine, { force: true });
-        lastLocalWrite.current = result.kind === "saved" ? "saved" : "failed";
-        if (result.kind === "saved") storedProfile.current = mine;
+        noteLocalWrite(mine, result.kind === "saved" ? "saved" : "failed");
         keepInList(mine);
         toast("Kept this tab's copy.", {
           description: copyNote(kept, theirs, "the other tab's"),
@@ -1041,6 +1228,8 @@ export function useCloudSync(input: {
       keepAsCopy,
       keepInList,
       copyNote,
+      guardUnload,
+      noteLocalWrite,
       rememberStamp,
       reportCloudError,
       profileRef,
@@ -1099,6 +1288,12 @@ export function useCloudSync(input: {
 /** What the badge says for a business kept on this device only. */
 function localStatus(lastLocalWrite: "saved" | "failed" | "none"): SyncStatus {
   return lastLocalWrite === "failed" ? "local-error" : "local";
+}
+
+/** Whether the open business stored on this device is one this build could not read. */
+function storedCopyUnreadable(storage: Workspace["local"]): boolean {
+  const read = readStoredProfile(readStoredActiveProfile(storage));
+  return read.unreadable !== null || read.damaged;
 }
 
 /** The account revision each business was last saved or loaded at, as this browser stores it. */

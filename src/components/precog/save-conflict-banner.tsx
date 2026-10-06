@@ -11,7 +11,7 @@ export function SaveConflictBanner() {
   const when = savedWhen(saveConflict.remoteUpdatedAt);
 
   const situation = otherTab
-    ? `Another tab in this browser saved changes to this business ${when}. This tab has stopped saving so neither copy is overwritten.`
+    ? `Another tab in this browser saved changes to this business ${when}. This tab has stopped saving so neither copy is overwritten. Changes you make in this tab are not saved until you choose which copy to keep.`
     : saveConflict.reason === "sign-in"
       ? `This device has work on this business from before you signed in, and your account holds a different copy (saved ${when}). Nothing has been overwritten yet.`
       : saveConflict.reason === "unreachable"

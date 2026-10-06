@@ -21,6 +21,7 @@ import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import { deriveStaffFromTeam } from "./sod/derive-staff";
 import { soleOwnerCriticalCount } from "./continuity/coverage";
 import type { ContinuityStep } from "./decisions/follow-through";
+import { trimDecisions } from "./decisions/trim";
 import {
   applyDecisionReview,
   captureDecisionSnapshot,
@@ -267,7 +268,33 @@ export function withDecision(
     ...(input.disposition ? { disposition: input.disposition } : {}),
     snapshot,
   };
-  return { ...p, decisions: [entry, ...p.decisions].slice(0, MAX_DECISIONS) };
+  return { ...p, decisions: withinDecisionCap([entry, ...p.decisions], p.industry) };
+}
+
+/** The journal (newest first) within MAX_DECISIONS, trimmed as `trimDecisions` trims. */
+function withinDecisionCap(entries: DecisionEntry[], industry: IndustryId): DecisionEntry[] {
+  return trimDecisions(entries, MAX_DECISIONS, industry).kept;
+}
+
+/**
+ * How many older entries the journal loses when `added` (newest first) are
+ * logged on `p`: what `withDecision` and `withLeaversConfirmed` trim, read
+ * before the edit so the owner can be told.
+ */
+export function decisionsTrimmedBy(
+  p: PracticeProfile,
+  added: readonly Pick<DecisionEntry, "kind" | "linkedId" | "disposition">[],
+): number {
+  if (p.decisions.length + added.length <= MAX_DECISIONS) return 0;
+  const incoming = added.map((d) => ({ ...d, linkedIndustry: p.industry }));
+  return trimDecisions([...incoming, ...p.decisions], MAX_DECISIONS, p.industry).dropped;
+}
+
+/** What the owner is told when logging decisions trimmed `dropped` older ones. */
+export function decisionsTrimmedNotice(dropped: number): string {
+  const cap = MAX_DECISIONS.toLocaleString("en-US");
+  const older = dropped === 1 ? "1 older one" : `${dropped.toLocaleString("en-US")} older ones`;
+  return `Precog kept the newest ${cap} decisions and removed ${older} that no current finding uses. Download a recovery copy first if you need them.`;
 }
 
 export function withoutDecision(p: PracticeProfile, id: string): PracticeProfile {
@@ -315,7 +342,7 @@ export function withLeaversConfirmed(
   return {
     ...p,
     leaverAccessChecks: checks,
-    decisions: [...decisions, ...p.decisions].slice(0, MAX_DECISIONS),
+    decisions: withinDecisionCap([...decisions, ...p.decisions], p.industry),
   };
 }
 

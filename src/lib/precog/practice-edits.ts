@@ -29,6 +29,8 @@ import type { ProfileAction } from "./profile-reducer";
 import type { PracticeActions } from "./practice-context";
 import {
   currentPeople,
+  decisionsTrimmedBy,
+  decisionsTrimmedNotice,
   makeMapVersion,
   resolveUpdate,
   withAccessReconciliation,
@@ -128,8 +130,15 @@ export function makeProfileEdits({
     setProfile((p) => withDualRelease(p, resolveUpdate(v, p.dualRelease), new Date()));
   };
 
+  /** Told once, outside the update: logging these entries trims older ones from the journal. */
+  const noteTrimmedDecisions = (added: Parameters<typeof decisionsTrimmedBy>[1]) => {
+    const dropped = decisionsTrimmedBy(profileRef.current, added);
+    if (dropped > 0) toast(decisionsTrimmedNotice(dropped), { duration: Infinity });
+  };
+
   const addDecision = (input: DecisionInput) => {
     const id = makeDecisionId();
+    noteTrimmedDecisions([input]);
     setProfile((p) => withDecision(p, input, id, new Date()));
   };
 
@@ -148,6 +157,12 @@ export function makeProfileEdits({
 
   const confirmLeaverAccess = (checkIds: string[]) => {
     if (checkIds.length === 0) return;
+    const ids = new Set(checkIds);
+    noteTrimmedDecisions(
+      (profileRef.current.leaverAccessChecks ?? [])
+        .filter((check) => ids.has(check.id) && !check.confirmedOn)
+        .map(() => ({ kind: "remediate" as const })),
+    );
     setProfile((p) => withLeaversConfirmed(p, checkIds, localDateKey(new Date())));
   };
 
