@@ -33,10 +33,42 @@ export function toSql(run: QueryRunner): Sql {
   return sql;
 }
 
+export interface TransactionOptions {
+  /**
+   * Run the whole unit once more when Postgres picks it as a deadlock victim
+   * (SQLSTATE 40P01). The victim's statements were all rolled back, so `work`
+   * starts again from nothing; a second deadlock reaches the caller. Ignored
+   * when `sql` is already a transaction: a nested unit cannot restart, since
+   * the deadlock aborted the outer one.
+   */
+  retryOnDeadlock?: boolean;
+}
+
+/** The handles `transactionScope` gives its work: a call on one joins that unit. */
+const openUnits = new WeakSet<Sql>();
+
 /** Never pretend independent pool queries form a transaction. */
-export function inTransaction<T>(sql: Sql, work: (tx: Sql) => Promise<T>): Promise<T> {
+export function inTransaction<T>(
+  sql: Sql,
+  work: (tx: Sql) => Promise<T>,
+  options: TransactionOptions = {},
+): Promise<T> {
   if (!sql.transaction) throw new Error("This operation requires a transaction-capable SQL client");
-  return sql.transaction(work);
+  const run = (): Promise<T> => sql.transaction!(work);
+  if (!options.retryOnDeadlock || openUnits.has(sql)) return run();
+  return run().catch((error: unknown) => {
+    if (!isDeadlock(error)) throw error;
+    return run();
+  });
+}
+
+/** SQLSTATE 40P01 on the error or anywhere along its `cause` chain. */
+export function isDeadlock(error: unknown): boolean {
+  for (let e = error, depth = 0; e && typeof e === "object" && depth < 8; depth += 1) {
+    if ((e as { code?: unknown }).code === "40P01") return true;
+    e = (e as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
 /** Nested operations join; a caught nested failure still rolls back the outer unit. */
@@ -58,6 +90,7 @@ export async function transactionScope<T>(
       throw error;
     }
   });
+  openUnits.add(tx);
   tx.transaction = async (nested) => {
     if (!active) throw new Error("Transaction is already closed");
     try {
