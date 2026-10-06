@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
   records: [] as ReviewRecord[],
   user: null as { id: string; isDevFallback?: boolean } | null,
   businessId: undefined as string | undefined,
+  today: new Date(2026, 8, 29),
 }));
 // Called as a plain function (`direct`), the screen keeps its first state and
 // runs no effects, so a test can press its buttons without a DOM renderer.
@@ -63,7 +64,7 @@ vi.mock("@/lib/precog/practice-context", () => ({
 vi.mock("@/lib/auth/use-current-user", () => ({
   useCurrentUser: () => (state.user ? { isDevFallback: false, ...state.user } : null),
 }));
-vi.mock("@/lib/use-today", () => ({ useToday: () => new Date(2026, 8, 29) }));
+vi.mock("@/lib/use-today", () => ({ useToday: () => state.today }));
 vi.mock("@/lib/precog/firm/server", () => server);
 const evidenceLog = vi.hoisted(() => ({ getControlExecutionLog: vi.fn() }));
 vi.mock("@/lib/precog/controls/executions/server", () => evidenceLog);
@@ -115,6 +116,7 @@ beforeEach(() => {
   state.records = [];
   state.user = null;
   state.businessId = undefined;
+  state.today = new Date(2026, 8, 29);
   server.recordMonthlyReview.mockReset();
   evidenceLog.getControlExecutionLog.mockReset();
   qbo.getQuickBooksStatus.mockClear();
@@ -257,6 +259,88 @@ describe("monthly review tells the owner where the result went", () => {
     );
     expect(toast.success).not.toHaveBeenCalled();
     expect(JSON.stringify(toast.warning.mock.calls)).not.toContain("signed in");
+  });
+  it("says the evidence log took a correction when the result changed", async () => {
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: true,
+      evidenceStatus: "corrected",
+      evidenceSkippedReason: null,
+    });
+    await press("Exception");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Recorded the correction in the control evidence log.",
+    );
+  });
+  it("names the month a check was skipped for", async () => {
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: false,
+      evidenceStatus: null,
+      evidenceSkippedReason: null,
+    });
+    await press("Skipped");
+    expect(toast.success).toHaveBeenCalledWith("Skipped for September 2026 on this business.");
+  });
+});
+
+describe("monthly review records last month until its due day", () => {
+  it("offers September, due October 10, and October from Oct 1 to Oct 10, September first", () => {
+    for (const day of [1, 3, 10]) {
+      state.today = new Date(2026, 9, day);
+      const html = view();
+      expect(html).toContain('aria-label="Month to record"');
+      expect(html).toMatch(/aria-pressed="true"[^>]*>September \(due October 10\)<\/button>/);
+      expect(html).toMatch(/aria-pressed="false"[^>]*>October<\/button>/);
+      // September's four checks, each due Oct 10; October's card statement check is not among them.
+      expect(html.match(/2026-09 · due Oct 10, 2026/g)).toHaveLength(4);
+      expect(html).not.toContain("Read the company card statement");
+    }
+  });
+
+  it("offers this month alone from the 11th", () => {
+    state.today = new Date(2026, 9, 11);
+    const html = view();
+    expect(html).not.toContain("Month to record");
+    expect(html.match(/2026-10 · due Nov 10, 2026/g)).toHaveLength(5);
+  });
+
+  it("records against the month chosen", async () => {
+    vi.setSystemTime(new Date(2026, 9, 3, 9));
+    state.today = new Date(2026, 9, 3);
+    signIn();
+    evidenceLog.getControlExecutionLog.mockResolvedValue(page([]));
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: true,
+      evidenceStatus: "recorded",
+      evidenceSkippedReason: null,
+    });
+    await settle();
+    const click = (label: string) =>
+      buttons(runtime.render(() => MonthlyReview()))
+        .find((b) => b.props.children === label)!
+        .props.onClick();
+    click("Done");
+    await vi.waitFor(() => expect(server.recordMonthlyReview).toHaveBeenCalledTimes(1));
+    expect(server.recordMonthlyReview).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({
+        period: "2026-09",
+        dueOn: "2026-10-10",
+        today: "2026-10-03",
+      }),
+    });
+    click("October");
+    expect(await settle()).toMatch(/aria-pressed="true"[^>]*>October<\/button>/);
+    click("Done");
+    await vi.waitFor(() => expect(server.recordMonthlyReview).toHaveBeenCalledTimes(2));
+    expect(server.recordMonthlyReview).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({ period: "2026-10", dueOn: "2026-11-10" }),
+    });
+    // The evidence log is read for the month on screen.
+    expect(evidenceLog.getControlExecutionLog).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({ period: "2026-10" }),
+    });
   });
 });
 

@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   appendReview,
+  clientTablePeriods,
   latestReview,
   MAX_REVIEW_RECORDS,
   monthlyReviewTasks,
   normalizeReviewRecords,
+  openPeriods,
+  periodMonthName,
+  periodStanding,
+  periodWithDue,
   recordReview,
+  reportPeriod,
+  reviewDueText,
   reviewResultLine,
   reviewTrimNotice,
   trimReviewRecords,
@@ -340,5 +347,55 @@ describe("monthly results past the cap", () => {
       "Precog keeps up to 1,200 monthly results, so it removed 1 earlier result that a later one replaced for the same check and month.",
     );
     expect(reviewTrimNotice(next)).not.toMatch(/older/);
+  });
+});
+
+describe("open periods", () => {
+  it("keeps last month open until its due day, the 10th", () => {
+    expect(openPeriods("2026-10-01")).toEqual(["2026-09", "2026-10"]);
+    expect(openPeriods("2026-10-10")).toEqual(["2026-09", "2026-10"]);
+    expect(openPeriods("2026-10-11")).toEqual(["2026-10"]);
+    expect(openPeriods("2027-01-03")).toEqual(["2026-12", "2027-01"]);
+    expect(reportPeriod("2026-10-03")).toBe("2026-09");
+    expect(reportPeriod("2026-10-11")).toBe("2026-10");
+  });
+
+  it("names a period with its due day", () => {
+    expect(periodWithDue("2026-09")).toBe("September 2026 (due October 10)");
+    expect(periodWithDue("2026-12")).toBe("December 2026 (due January 10)");
+    expect(periodMonthName("2026-09")).toBe("September");
+    expect(reviewDueText("2026-09")).toBe("October 10");
+  });
+
+  it("builds the tasks for the period asked for", () => {
+    const tasks = monthlyReviewTasks("2026-10-03", people, {}, "2026-09");
+    expect([tasks[0].period, tasks[0].dueOn]).toEqual(["2026-09", "2026-10-10"]);
+    // September has no card statement check; it starts in October.
+    expect(tasks.map((t) => t.key)).not.toContain("card_statement");
+    expect(monthlyReviewTasks("2026-10-03", people)[0].period).toBe("2026-10");
+  });
+
+  it("covers last month and this month for every calendar within a day of the server's", () => {
+    expect(clientTablePeriods("2026-10-06")).toEqual(["2026-09", "2026-10"]);
+    expect(clientTablePeriods("2026-11-01")).toEqual(["2026-09", "2026-10", "2026-11"]);
+    expect(clientTablePeriods("2026-10-31")).toEqual(["2026-09", "2026-10", "2026-11"]);
+    expect(clientTablePeriods("2027-01-01")).toEqual(["2026-11", "2026-12", "2027-01"]);
+  });
+
+  it("counts only Done toward completion and marks a month overdue after its due day", () => {
+    const months = [{ period: "2026-09", done: 2, exceptions: 1, skipped: 1 }];
+    expect(periodStanding(months, "2026-09", "2026-10-10")).toEqual({
+      period: "2026-09",
+      total: 4,
+      done: 2,
+      exceptions: 1,
+      skipped: 1,
+      overdue: false,
+    });
+    expect(periodStanding(months, "2026-09", "2026-10-11").overdue).toBe(true);
+    expect(periodStanding([{ ...months[0], done: 4 }], "2026-09", "2026-10-11").overdue).toBe(
+      false,
+    );
+    expect(periodStanding([], "2026-10", "2026-10-11")).toMatchObject({ done: 0, total: 5 });
   });
 });

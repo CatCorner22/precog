@@ -797,3 +797,46 @@ describe("report layout 3", () => {
     expect(html).not.toContain("Awaiting a second person");
   });
 });
+
+describe("printed monthly review", () => {
+  const september: PracticeProfile = {
+    ...defaultProfile("dental"),
+    monthlyReviews: [
+      {
+        key: "bank_statement",
+        period: "2026-09",
+        result: "exception",
+        ownerName: "Ada Park",
+        notes: "Check 1043 payable to cash",
+        recordedAt: "2026-10-02T15:00:00.000Z",
+      },
+    ],
+  };
+  const lockedOn = (preparedAt: string) =>
+    renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={september}>
+        <ControlReport locked={{ ...locked, preparedAt }} />
+      </ReadOnlyPracticeProvider>,
+    );
+  const monthly = (html: string) => {
+    const text = textOf(html);
+    return text.slice(text.indexOf("|Monthly review|"), text.indexOf("|Priority stack|"));
+  };
+
+  it("prints last month, named with its due day, on a report locked before the 10th", () => {
+    const section = monthly(lockedOn("2026-10-03T16:00:00.000Z"));
+    expect(section).toContain("|Monthly checks for September 2026 (due October 10)|");
+    expect(section).toContain(
+      "|Open the bank statement: Exception — Ada Park: Check 1043 payable to cash|",
+    );
+    expect(section).toContain("|Read the cleared-check images: not recorded|");
+    // September has four checks; the card statement check starts in October.
+    expect(section).not.toContain("Read the company card statement");
+  });
+
+  it("prints this month once last month's due day has passed", () => {
+    const section = monthly(lockedOn("2026-10-12T16:00:00.000Z"));
+    expect(section).toContain("|Monthly checks for October 2026 (due November 10)|");
+    expect(section).toContain("|No monthly review results recorded for October 2026.");
+  });
+});

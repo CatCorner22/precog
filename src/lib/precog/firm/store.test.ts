@@ -26,6 +26,7 @@ import {
   transferFirmOwnership,
   upsertEngagementMark,
 } from "./store";
+import { periodStanding } from "./reviews";
 import {
   confirmOwnerEmail,
   findOwnerConsent,
@@ -117,8 +118,11 @@ describe("firm client isolation", () => {
       status: "active",
       endedAt: null,
       granted: false,
-      period: "2026-09",
-      thisMonthRecorded: 1,
+      // The other account's Exception for the same business id stays out.
+      months: [
+        { period: "2026-08", done: 0, exceptions: 0, skipped: 0 },
+        { period: "2026-09", done: 1, exceptions: 0, skipped: 0 },
+      ],
       awaitingReview: 0,
     });
     const events = await db.pg.query<{ user_id: string; notes: string; recorded_by: string }>(
@@ -776,25 +780,66 @@ describe("client engagement figures", () => {
     expect([row.openFindings, row.ownerEmail]).toEqual([0, "owner@client.test"]);
   });
 
-  async function review(owner: string, period: string, itemKey: string) {
+  async function review(
+    owner: string,
+    period: string,
+    itemKey: string,
+    result: "done" | "exception" | "skipped" = "done",
+  ) {
     await db.pg.query(
       `insert into review_events (user_id, business_id, period, item_key, owner_name, result, recorded_by)
-       values ($1, 'biz_1', $2, $3, 'Ada', 'done', $1)`,
-      [owner, period, itemKey],
+       values ($1, 'biz_1', $2, $3, 'Ada', $4, $1)`,
+      [owner, period, itemKey, result],
     );
   }
 
-  it("counts the month's checks recorded, each check once, for the server's month only", async () => {
+  it("counts each check once a month, for last month and this month only", async () => {
     await saveFirm(db.sql, "ua", "North", "assessment");
     await review("ua", "2026-10", "bank_statement");
     await review("ua", "2026-10", "bank_statement");
     await review("ua", "2026-10", "cleared_checks");
     await review("ua", "2026-10", "new_vendors");
     await review("ua", "2026-09", "payroll_headcount");
+    await review("ua", "2026-08", "payroll_headcount");
     const [row] = await listClientEngagements(db.sql, "ua", "ua", "2026-10-12");
-    expect([row.period, row.thisMonthRecorded]).toEqual(["2026-10", 3]);
+    expect(row.months).toEqual([
+      { period: "2026-09", done: 1, exceptions: 0, skipped: 0 },
+      { period: "2026-10", done: 3, exceptions: 0, skipped: 0 },
+    ]);
     const [next] = await listClientEngagements(db.sql, "ua", "ua", "2026-11-02");
-    expect([next.period, next.thisMonthRecorded]).toEqual(["2026-11", 0]);
+    expect(next.months).toEqual([
+      { period: "2026-10", done: 3, exceptions: 0, skipped: 0 },
+      { period: "2026-11", done: 0, exceptions: 0, skipped: 0 },
+    ]);
+  });
+
+  it("counts only Done toward completion, and Exceptions and Skips apart", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await review("ua", "2026-09", "bank_statement", "skipped");
+    await review("ua", "2026-09", "cleared_checks", "exception");
+    await review("ua", "2026-09", "payroll_headcount", "skipped");
+    await review("ua", "2026-09", "new_vendors", "exception");
+    // A later result replaces the earlier one for the same check and month.
+    await review("ua", "2026-09", "new_vendors", "done");
+    await review("ua", "2026-10", "bank_statement", "exception");
+    const [row] = await listClientEngagements(db.sql, "ua", "ua", "2026-10-11");
+    expect(row.months).toEqual([
+      { period: "2026-09", done: 1, exceptions: 1, skipped: 2 },
+      { period: "2026-10", done: 0, exceptions: 1, skipped: 0 },
+    ]);
+    // Before, every check with any result counted, so this month read Done.
+    expect(periodStanding(row.months, "2026-09", "2026-10-10")).toMatchObject({
+      done: 1,
+      total: 4,
+      overdue: false,
+    });
+    // After September's due day, the 10th, its open checks are overdue.
+    expect(periodStanding(row.months, "2026-09", "2026-10-11").overdue).toBe(true);
+    expect(periodStanding(row.months, "2026-10", "2026-10-11")).toMatchObject({
+      done: 0,
+      exceptions: 1,
+      overdue: false,
+    });
   });
 
   it("says when an engagement ended and when the business is its owner's", async () => {

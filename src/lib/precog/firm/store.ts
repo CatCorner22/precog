@@ -2,7 +2,12 @@ import type { Sql } from "@/lib/db";
 import { inTransaction } from "@/lib/sql-transaction";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import type { FirmPlan } from "./pricing";
-import { monthKey, type ReviewItemKey, type ReviewResult } from "./reviews";
+import {
+  clientTablePeriods,
+  type PeriodResults,
+  type ReviewItemKey,
+  type ReviewResult,
+} from "./reviews";
 import { serverUtcDay } from "../dates";
 import { RequestError } from "@/lib/request-errors";
 import { randomHex } from "@/lib/web-crypto";
@@ -83,10 +88,13 @@ export interface ClientEngagementRow {
   endedAt: string | null;
   /** The business is its owner's, shared with the firm (businesses.granted_at). */
   granted: boolean;
-  /** The month the count below is for, YYYY-MM (the server's UTC month). */
-  period: string;
-  /** How many of the period's monthly checks have a result. */
-  thisMonthRecorded: number;
+  /**
+   * The monthly checks by month, oldest first, for last month and this month
+   * on any calendar within a day of the server's (see `clientTablePeriods`).
+   * Each check counts once, by its latest result; `periodStanding` picks the
+   * viewer's two months from them.
+   */
+  months: PeriodResults[];
   /** Versions this firm locked whose review was requested, neither reviewed nor returned yet. */
   awaitingReview: number;
 }
@@ -906,9 +914,10 @@ export async function setOwnerEmail(
 
 /**
  * The firm's client table: one row per live business the account or its firm
- * holds, with the engagement state, the month's monthly checks recorded and
- * the locked versions awaiting review. `today` (YYYY-MM-DD, the server's UTC
- * day) picks the month.
+ * holds, with the engagement state, the monthly checks' latest results by
+ * month and the locked versions awaiting review. `today` (YYYY-MM-DD, the
+ * server's UTC day) picks the months: last month and this month on any
+ * calendar within a day of it, so the viewer's own day finds both.
  */
 export async function listClientEngagements(
   sql: Sql,
@@ -916,7 +925,54 @@ export async function listClientEngagements(
   firmUserId: string | null,
   today: string = serverUtcDay(),
 ): Promise<ClientEngagementRow[]> {
-  const period = monthKey(today);
+  const periods = clientTablePeriods(today);
+  const first = periods[0];
+  const last = periods[periods.length - 1];
+  // Each check counts once a month, by its latest result: a check marked
+  // Exception and then Done is Done, and one marked Done and then Skipped is
+  // Skipped.
+  const counts = await sql<{
+    user_id: string;
+    business_id: string;
+    period: string;
+    done: number | string;
+    exceptions: number | string;
+    skipped: number | string;
+  }>`
+    select l.user_id, l.business_id, l.period,
+      count(*) filter (where l.result = 'done') as done,
+      count(*) filter (where l.result = 'exception') as exceptions,
+      count(*) filter (where l.result = 'skipped') as skipped
+    from (
+      select distinct on (x.user_id, x.business_id, x.period, x.item_key)
+        x.user_id, x.business_id, x.period, x.result
+      from review_events x
+      join businesses b on b.user_id = x.user_id and b.id = x.business_id
+      where b.deleted_at is null
+        and (b.user_id = ${userId} or (${firmUserId}::text is not null and b.firm_user_id = ${firmUserId}))
+        and x.period >= ${first} and x.period <= ${last}
+      order by x.user_id, x.business_id, x.period, x.item_key, x.recorded_at desc, x.id desc
+    ) l
+    group by l.user_id, l.business_id, l.period
+  `;
+  const byBusiness = new Map<string, Map<string, PeriodResults>>();
+  for (const c of counts) {
+    const key = `${c.user_id}\u0000${c.business_id}`;
+    const months = byBusiness.get(key) ?? new Map<string, PeriodResults>();
+    months.set(c.period, {
+      period: c.period,
+      done: Number(c.done),
+      exceptions: Number(c.exceptions),
+      skipped: Number(c.skipped),
+    });
+    byBusiness.set(key, months);
+  }
+  const monthsFor = (ownerUserId: string, businessId: string): PeriodResults[] => {
+    const found = byBusiness.get(`${ownerUserId}\u0000${businessId}`);
+    return periods.map(
+      (period) => found?.get(period) ?? { period, done: 0, exceptions: 0, skipped: 0 },
+    );
+  };
   const rows = await sql<{
     id: string;
     user_id: string;
@@ -934,7 +990,6 @@ export async function listClientEngagements(
     status: string | null;
     ended_at: string | null;
     granted: boolean;
-    this_month_recorded: number | string | null;
     awaiting_review: number | string;
   }>`
     select
@@ -942,7 +997,7 @@ export async function listClientEngagements(
       e.open_findings, e.accepted_findings, e.owner_email, e.owner_email_token,
       e.owner_email_confirmed_at, e.owner_email_unsubscribed_at,
       e.status, e.ended_at, b.granted_at is not null as granted,
-      r.last_review_at, r.this_month_recorded,
+      r.last_review_at,
       (
         select count(*) from report_versions v
         where v.user_id = b.user_id and v.business_id = b.id
@@ -957,8 +1012,7 @@ export async function listClientEngagements(
     left join engagement_marks e
       on e.user_id = b.user_id and e.business_id = b.id
     left join lateral (
-      select max(x.recorded_at) as last_review_at,
-        count(distinct x.item_key) filter (where x.period = ${period}) as this_month_recorded
+      select max(x.recorded_at) as last_review_at
       from review_events x
       where x.user_id = b.user_id and x.business_id = b.id
     ) r on true
@@ -990,8 +1044,7 @@ export async function listClientEngagements(
     status: r.status === "ended" ? "ended" : "active",
     endedAt: toIsoTimestampOrNull(r.ended_at),
     granted: Boolean(r.granted),
-    period,
-    thisMonthRecorded: Number(r.this_month_recorded ?? 0),
+    months: monthsFor(r.user_id, r.id),
     awaitingReview: Number(r.awaiting_review),
   }));
 }

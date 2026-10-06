@@ -3,7 +3,14 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Printer } from "lucide-react";
 import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
-import { latestReview, reviewItemsFor, reviewResultLine } from "@/lib/precog/firm/reviews";
+import {
+  latestReview,
+  periodMonthYear,
+  periodWithDue,
+  reportPeriod,
+  reviewItemsFor,
+  reviewResultLine,
+} from "@/lib/precog/firm/reviews";
 import { industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import { dutiesOffTeam } from "@/lib/precog/onboarding/setup-answers";
@@ -98,7 +105,9 @@ export function ControlReport({
   const industry = industryMeta(profile.industry);
   const generated = locked ? new Date(locked.preparedAt) : new Date();
   const today = localDateKey(generated);
-  const month = today.slice(0, 7);
+  // The monthly checks print for the oldest month still open on the report's
+  // day: last month until its due day (the 10th), then this month.
+  const month = reportPeriod(today);
   const trackFreshness = trackRegisterFreshness(profile, tpl);
   const mapReady = mapAssessed(profile);
   const mapNote = mapNotAssessedNote(profile);
@@ -420,7 +429,8 @@ export function ControlReport({
           </ol>
         </Section>
 
-        <Section title={`Monthly review · ${monthLabel(month)}`}>
+        <Section title="Monthly review">
+          <p className="mb-1 text-sm font-medium">Monthly checks for {periodWithDue(month)}</p>
           {reviews.some((r) => r.latest) ? (
             <ul className="space-y-1 text-sm">
               {reviews.map(({ item, latest }) => (
@@ -431,7 +441,7 @@ export function ControlReport({
             </ul>
           ) : (
             <p className="text-sm text-neutral-700">
-              No monthly review results recorded for {monthLabel(month)}.
+              No monthly review results recorded for {periodMonthYear(month)}.
             </p>
           )}
         </Section>
@@ -768,11 +778,3 @@ const SEVERITY_LABEL: Record<DetectedConflict["severity"], string> = {
   medium: "Medium",
   family: "Related duties",
 };
-
-const MONTH = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
-
-/** "2026-09" as "September 2026". */
-function monthLabel(period: string): string {
-  const [year, month] = period.split("-").map(Number);
-  return year && month ? MONTH.format(new Date(year, month - 1, 1)) : period;
-}
