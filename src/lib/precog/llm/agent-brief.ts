@@ -891,7 +891,10 @@ export function localSynthesize(
       ? [
           `- Early signs of "${scenario.title}": ${scenario.warningSigns
             .slice(0, 3)
-            .map((sign) => sign.replace(/\.$/, ""))
+            .map((sign, i) => {
+              const text = sign.replace(/\.$/, "");
+              return i === 0 ? text : text.charAt(0).toLowerCase() + text.slice(1);
+            })
             .join("; ")}.`,
         ]
       : []),

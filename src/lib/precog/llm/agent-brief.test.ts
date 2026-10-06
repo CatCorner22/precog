@@ -31,7 +31,7 @@ describe("Pioneer early scenario signs", () => {
     );
 
     expect(brief.markdown).toContain(
-      '- Early signs of "Vendor fraud": First sign; Second sign; Third sign.',
+      '- Early signs of "Vendor fraud": First sign; second sign; third sign.',
     );
     expect(brief.markdown).not.toContain("Fourth sign");
     expect(warnings).toEqual([NO_ALERT_WARNING]);
