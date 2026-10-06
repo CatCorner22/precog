@@ -18,7 +18,7 @@ export const CONTROL_FAILURE_MODES: Readonly<Record<string, readonly string[]>> 
   "c-sod-ap": [
     "The person who releases bills also creates vendors and approves their invoices.",
     "A vendor change receives approval from the person who requested it.",
-    "An urgent invoice skips a separate vendor check and remains active after payment.",
+    "A vendor's bank details change by email and nobody calls the vendor to confirm.",
   ],
   "c-sod-ar": [
     "The person entering a receivable write-off also records its approval.",
@@ -52,7 +52,7 @@ export const CONTROL_FAILURE_MODES: Readonly<Record<string, readonly string[]>> 
   ],
   "c-clinical": [
     "The chart closes with required fields blank because the reviewer checks only its status.",
-    "The closeout check trusts a completion mark instead of reading the required chart details.",
+    "Charts left open at day's end are closed in a batch the next week without review.",
     "A late chart is marked complete without checking each required element.",
   ],
   "c-controlled": [
@@ -107,7 +107,7 @@ export const CONTROL_FAILURE_MODES: Readonly<Record<string, readonly string[]>> 
   ],
   "c-materials": [
     "The person who orders materials also signs for their arrival at the job.",
-    "The project manager compares job costs only after charges shift between jobs.",
+    "Material charges are moved to another job, so no single job looks over its estimate.",
     "A delivery note is accepted without counting the materials at the site.",
   ],
   "c-ro-cash": [
@@ -118,7 +118,7 @@ export const CONTROL_FAILURE_MODES: Readonly<Record<string, readonly string[]>> 
   "c-dms-edits": [
     "The monthly report is filtered so voided or deleted transactions no longer appear.",
     "The reviewer reads change totals without sorting edits by the user who made them.",
-    "An unusual edit is highlighted but nobody asks its listed user what changed.",
+    "An unusual edit is flagged, but nobody asks the person who made it why.",
   ],
   "c-parts-count": [
     "The stock count is performed by someone who also orders the parts.",
@@ -142,7 +142,7 @@ export const CONTROL_FAILURE_MODES: Readonly<Record<string, readonly string[]>> 
   ],
   "c-je-review": [
     "A journal entry is approved from its description without the supporting record.",
-    "The owner reviews entries prepared by the accountant who also posts them.",
+    "The reviewer also posts some of the entries they are meant to read.",
     "An entry with missing support carries into the next close without follow-up.",
   ],
   "c-gift-log": [
