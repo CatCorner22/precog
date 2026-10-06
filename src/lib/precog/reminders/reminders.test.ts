@@ -681,13 +681,13 @@ describe("digest run", () => {
 
   it("names the firm the workspace shows: an owner's own firm, else the first one joined", async () => {
     await firmWithReviewer();
-    // 'rev' also joins a second firm later, and 'adv' joins it too while owning North.
+    // 'adv' joins a second firm while owning North. 'rev' cannot join it too:
+    // an account holds one membership that is not an owner row (migration 0051).
     await seedAdvisor("west", "west@firm.test");
     await db.pg.exec(`
       insert into firms (user_id, name) values ('west', 'West Partners');
       insert into firm_members (firm_user_id, member_user_id, role, joined_at)
         values ('west', 'west', 'owner', now()),
-               ('west', 'rev', 'preparer', now() + interval '1 day'),
                ('west', 'adv', 'preparer', now() + interval '1 day');
       update firm_members set joined_at = now() - interval '1 day' where firm_user_id = 'adv';
       insert into businesses (id, user_id, firm_user_id, name, industry, profile, revision)

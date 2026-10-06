@@ -14,9 +14,8 @@ import {
   saveBusinessRevision,
 } from "./business-store";
 import { loadFirmFor } from "./firm/store";
-import { countClients, loadEntitlements } from "./firm/entitlements.server";
+import { loadEntitlements } from "./firm/entitlements.server";
 import { businessLimitMessage } from "./business-lifecycle";
-import { RequestError } from "@/lib/request-errors";
 import { assertVerificationsAllowed } from "./procedures/verify-guard";
 import { stampDispositions } from "./decisions/disposition-stamp";
 import { resolveClientDate } from "./dates";
@@ -76,22 +75,21 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
     ]);
 
     // A new business counts against the plan's client limit (one on the
-    // free plan and the Assessment); the store's per-owner ceiling is the
-    // hard limit after it.
+    // free plan and the Assessment). The store counts inside the save, under
+    // the firm's lock, so saves at the same moment cannot all pass; its
+    // per-owner ceiling is the hard limit after it.
+    let clientLimit: { limit: number; message: string } | undefined;
     if (owner === null) {
       const e = await loadEntitlements(sql, context.userId);
-      const held = await countClients(sql, context.userId, firm);
-      if (held >= e.clientLimit) {
-        throw new RequestError(
-          402,
-          businessLimitMessage({
-            plan: e.plan,
-            limit: e.clientLimit,
-            tier: e.tier,
-            asMember: firm !== null && firm.role !== "owner",
-          }),
-        );
-      }
+      clientLimit = {
+        limit: e.clientLimit,
+        message: businessLimitMessage({
+          plan: e.plan,
+          limit: e.clientLimit,
+          tier: e.tier,
+          asMember: firm !== null && firm.role !== "owner",
+        }),
+      };
     }
 
     // Revision check and write are a single compare-and-swap statement; see
@@ -126,6 +124,7 @@ export const saveBusinessProfile = createServerFn({ method: "POST" })
       baseRevision: data.baseRevision,
       savedBy: context.userId,
       firmUserId: firm?.firmUserId ?? null,
+      clientLimit,
       activate: true,
       // A new verification must come from someone allowed to record one.
       checkWrite: (previous) =>

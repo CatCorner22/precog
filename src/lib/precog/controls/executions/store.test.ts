@@ -230,7 +230,9 @@ describe("account-scoped control execution log", () => {
   });
   it("refuses ambiguous shared business IDs instead of choosing the wrong client", async () => {
     await db.sql`insert into firms(user_id,name) values ('outsider','Other firm')`;
-    await db.sql`insert into firm_members(firm_user_id,member_user_id,role) values ('outsider','reviewer','reviewer')`;
+    // One non-owner membership per account (migration 0051), so the second
+    // way in is an owner row, which that index leaves out.
+    await db.sql`insert into firm_members(firm_user_id,member_user_id,role) values ('outsider','reviewer','owner')`;
     await db.sql`insert into businesses(user_id,id,name,industry,profile,firm_user_id) values ('outsider','biz_1','Other client','general','{}','outsider')`;
     await expect(run("reviewer")).rejects.toMatchObject({ status: 409 });
     await expect(
