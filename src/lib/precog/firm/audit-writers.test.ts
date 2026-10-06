@@ -382,7 +382,7 @@ describe("firm writers", () => {
 
 describe("engagement writers", () => {
   it("logs saves, ending and reopening, the retention period and the archive download", async () => {
-    await call(engagement.saveEngagement, "pp", {
+    await call(engagement.saveEngagement, "fo", {
       businessId: "biz_1",
       scope: "Monthly close",
       periodStart: null,
@@ -402,7 +402,7 @@ describe("engagement writers", () => {
     await call(engagement.getEngagement, "rv", { businessId: "biz_1" });
     const rows = await log();
     expect(rows.map((r) => [r.event, r.actor, r.business])).toEqual([
-      ["engagement_saved", "pp", "biz_1"],
+      ["engagement_saved", "fo", "biz_1"],
       ["engagement_ended", "fo", "biz_1"],
       ["engagement_reopened", "fo", "biz_1"],
       ["retention_changed", "fo", null],

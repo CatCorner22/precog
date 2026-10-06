@@ -33,6 +33,7 @@ const locked: ReportVersionRow = {
   reviewedByName: "Ben Ortiz",
   reviewedAt: "2026-09-27T12:00:00.000Z",
   reviewNote: "",
+  reviewOverrideNote: null,
   sentAt: null,
   hasFigures: true,
   firm: { name: "North Advisors", letterhead: "12 Elm St", logoDataUrl: null },

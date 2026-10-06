@@ -1,11 +1,19 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import {
+  assignedReviewerFor,
   engagementLine,
+  ISSUE_ALONE_ALLOWED,
+  ISSUE_ALONE_REFUSED,
+  issueAloneFor,
   listReportVersions,
   loadReportVersion,
   lockReportVersion,
   markReportVersionSent,
+  NOT_INDEPENDENT,
+  NOTHING_TO_WITHDRAW,
+  OVERRIDE_NOTE_MIN,
+  OVERRIDE_NOTE_REQUIRED,
   REPORT_LIST_LIMIT,
   reportVersionFor,
   ReportVersionError,
@@ -13,6 +21,9 @@ import {
   signOffReportVersion,
   versionFirmName,
   versionProvenance,
+  WITHDRAW_AFTER_SENT,
+  WITHDRAW_REFUSED,
+  withdrawReportVersionReview,
   withoutReviewRouting,
   type ReportVersionRow,
 } from "./reports";
@@ -414,6 +425,7 @@ describe("versionProvenance", () => {
     reviewedByName: null,
     reviewedAt: null,
     reviewNote: "",
+    reviewOverrideNote: null,
     sentAt: null,
     hasFigures: false,
     firm: null,
@@ -597,5 +609,228 @@ describe("the engagement frozen at lock", () => {
     expect(line("Map", null, "2026-12-31")).toBe("Engagement: Map · to Dec 31, 2026");
     expect(line("", null, null)).toBeNull();
     expect(engagementLine({ engagement: null })).toBeNull();
+  });
+});
+
+/**
+ * The review rules (CPA-8, CPA-13): the engagement's assigned reviewer, sole
+ * issuance when nobody else at the firm can review, and withdrawing a review
+ * before the version is sent. Firm "owner" (owner `owner`, reviewer
+ * `reviewer`, preparer `prep`) holds `biz_1`.
+ */
+describe("review rules", () => {
+  beforeEach(async () => {
+    await db.seedUser("prep");
+    await db.pg.exec(`
+      insert into firms (user_id, name) values ('owner', 'North');
+      insert into firm_members (firm_user_id, member_user_id, role) values
+        ('owner', 'owner', 'owner'), ('owner', 'reviewer', 'reviewer'), ('owner', 'prep', 'preparer');
+      update businesses set firm_user_id = 'owner';
+    `);
+  });
+
+  const lock = (id: string, preparedBy = "prep") =>
+    lockReportVersion(db.sql, {
+      ownerUserId: "owner",
+      businessId: "biz_1",
+      preparedBy,
+      scopeNote: "",
+      id,
+    });
+  const signOff = (id: string, reviewedBy: string, extra: { overrideNote?: string } = {}) =>
+    signOffReportVersion(db.sql, { ownerUserId: "owner", id, reviewedBy, note: "", ...extra });
+  const assign = (reviewer: string) =>
+    db.pg.query(
+      `insert into engagement_marks (user_id, business_id, reviewer_user_id)
+       values ('owner', 'biz_1', $1)`,
+      [reviewer],
+    );
+
+  it("pins the new refusals and the stamp", () => {
+    expect(NOT_INDEPENDENT).toBe("Not an independent review");
+    expect(OVERRIDE_NOTE_MIN).toBe(10);
+    expect(OVERRIDE_NOTE_REQUIRED).toBe(
+      "Someone else at the firm is this client's assigned reviewer. To review this version in their place, add a note of at least 10 characters saying why.",
+    );
+    expect(ISSUE_ALONE_REFUSED).toBe(
+      "A different person at the firm must review this report for issuance",
+    );
+    expect(ISSUE_ALONE_ALLOWED).toBe(
+      'No one else at the firm holds the owner or reviewer role, so you can issue this version alone. It prints as "Not an independent review".',
+    );
+    expect(WITHDRAW_AFTER_SENT).toBe(
+      "This version was already sent, so its review cannot be withdrawn.",
+    );
+    expect(WITHDRAW_REFUSED).toBe(
+      "Only the firm owner or the person who reviewed this version can withdraw its review.",
+    );
+    expect(NOTHING_TO_WITHDRAW).toBe(
+      "This version has not been reviewed for issuance, so there is no review to withdraw.",
+    );
+  });
+
+  it("refuses a review in the assigned reviewer's place without a note, and stores the note", async () => {
+    await assign("reviewer");
+    await lock("rv_1");
+    expect(
+      await assignedReviewerFor(db.sql, {
+        ownerUserId: "owner",
+        businessId: "biz_1",
+        preparedBy: "prep",
+      }),
+    ).toBe("reviewer");
+    await expect(signOff("rv_1", "owner")).rejects.toMatchObject({
+      status: 400,
+      message: OVERRIDE_NOTE_REQUIRED,
+    });
+    // Nine characters after trimming is still too short.
+    await expect(signOff("rv_1", "owner", { overrideNote: "  Too short  " })).rejects.toMatchObject(
+      { status: 400, message: OVERRIDE_NOTE_REQUIRED },
+    );
+    await expect(signOff("rv_1", "owner", { overrideNote: "x".repeat(601) })).rejects.toMatchObject(
+      { status: 400, message: "Keep the note to 600 characters or fewer." },
+    );
+    expect((await loadReportVersion(db.sql, "owner", "rv_1"))?.version.reviewedAt).toBeNull();
+    const signed = await signOff("rv_1", "owner", {
+      overrideNote: "  Reviewer is on leave this month.  ",
+    });
+    expect([signed.reviewedBy, signed.reviewOverrideNote]).toEqual([
+      "owner",
+      "Reviewer is on leave this month.",
+    ]);
+    const listed = await listReportVersions(db.sql, "owner", "biz_1");
+    expect(listed[0].reviewOverrideNote).toBe("Reviewer is on leave this month.");
+  });
+
+  it("needs no note from the assigned reviewer, nor when nobody who can review is assigned", async () => {
+    await assign("reviewer");
+    await lock("rv_1");
+    const byAssigned = await signOff("rv_1", "reviewer", { overrideNote: "Not needed here." });
+    expect(byAssigned.reviewOverrideNote).toBeNull();
+    // The assigned reviewer, demoted to preparer, can no longer review: no note.
+    await db.pg.query(
+      `update firm_members set role = 'preparer' where member_user_id = 'reviewer'`,
+    );
+    await lock("rv_2");
+    expect((await signOff("rv_2", "owner")).reviewOverrideNote).toBeNull();
+    // On a version the assigned reviewer prepared, someone else reviews it without a note.
+    await db.pg.query(
+      `update firm_members set role = 'reviewer' where member_user_id = 'reviewer'`,
+    );
+    await lock("rv_3", "reviewer");
+    expect((await signOff("rv_3", "owner")).reviewOverrideNote).toBeNull();
+  });
+
+  it("lets the owner of an owner-plus-preparer firm issue alone, stamped as not independent", async () => {
+    await db.pg.query(`delete from firm_members where member_user_id = 'reviewer'`);
+    await lock("rv_1", "owner");
+    const where = { ownerUserId: "owner", businessId: "biz_1" };
+    expect(await issueAloneFor(db.sql, { ...where, preparedBy: "owner" })).toEqual({
+      canIssueAlone: true,
+      reason: ISSUE_ALONE_ALLOWED,
+    });
+    // The preparer-role colleague cannot: the owner can review their work.
+    expect(await issueAloneFor(db.sql, { ...where, preparedBy: "prep" })).toEqual({
+      canIssueAlone: false,
+      reason: ISSUE_ALONE_REFUSED,
+    });
+    // The owner still cannot review their own version without saying so.
+    await expect(signOff("rv_1", "owner")).rejects.toMatchObject({
+      message: "The preparer cannot review their own report for issuance",
+    });
+    const issued = await signOffReportVersion(db.sql, {
+      ownerUserId: "owner",
+      id: "rv_1",
+      reviewedBy: "owner",
+      note: "Checked twice.",
+      issueWithoutIndependentReview: true,
+    });
+    expect(issued.reviewNote).toBe("Not an independent review. Checked twice.");
+    expect(versionProvenance(issued)).toMatch(/Not an independent review$/);
+  });
+
+  it("refuses sole issuance while another member holds the reviewer role", async () => {
+    await lock("rv_1", "owner");
+    expect(
+      await issueAloneFor(db.sql, {
+        ownerUserId: "owner",
+        businessId: "biz_1",
+        preparedBy: "owner",
+      }),
+    ).toEqual({ canIssueAlone: false, reason: ISSUE_ALONE_REFUSED });
+    await expect(
+      signOffReportVersion(db.sql, {
+        ownerUserId: "owner",
+        id: "rv_1",
+        reviewedBy: "owner",
+        note: "",
+        issueWithoutIndependentReview: true,
+      }),
+    ).rejects.toMatchObject({ status: 409, message: ISSUE_ALONE_REFUSED });
+  });
+
+  it("withdraws a review before the version is sent, and refuses after", async () => {
+    await assign("reviewer");
+    await lock("rv_1");
+    await signOff("rv_1", "owner", { overrideNote: "Reviewer is on leave this month." });
+    const withdraw = (by: string, id = "rv_1") =>
+      withdrawReportVersionReview(db.sql, { ownerUserId: "owner", id, withdrawnBy: by });
+    // Neither the preparer nor another reviewer may withdraw it.
+    await expect(withdraw("prep")).rejects.toMatchObject({
+      status: 403,
+      message: WITHDRAW_REFUSED,
+    });
+    await expect(withdraw("reviewer")).rejects.toMatchObject({
+      status: 403,
+      message: WITHDRAW_REFUSED,
+    });
+    // The signer withdraws; the version reads as unreviewed and can be reviewed again.
+    const { version, withdrawnReviewer } = await withdraw("owner");
+    expect(withdrawnReviewer).toBe("owner");
+    expect([
+      version.reviewedBy,
+      version.reviewedAt,
+      version.reviewNote,
+      version.reviewOverrideNote,
+    ]).toEqual([null, null, "", null]);
+    await expect(withdraw("owner")).rejects.toMatchObject({
+      status: 409,
+      message: NOTHING_TO_WITHDRAW,
+    });
+    await expect(markReportVersionSent(db.sql, "owner", "rv_1")).rejects.toMatchObject({
+      message: REVIEW_BEFORE_SENT,
+    });
+    // The assigned reviewer reviews it; the firm owner may withdraw that review too.
+    await signOff("rv_1", "reviewer");
+    expect((await withdraw("owner")).withdrawnReviewer).toBe("reviewer");
+    await signOff("rv_1", "reviewer");
+    await markReportVersionSent(db.sql, "owner", "rv_1");
+    await expect(withdraw("reviewer")).rejects.toMatchObject({
+      status: 409,
+      message: WITHDRAW_AFTER_SENT,
+    });
+    await expect(withdraw("owner")).rejects.toMatchObject({
+      status: 409,
+      message: WITHDRAW_AFTER_SENT,
+    });
+    const sent = await loadReportVersion(db.sql, "owner", "rv_1");
+    expect([sent?.version.reviewedBy, Boolean(sent?.version.sentAt)]).toEqual(["reviewer", true]);
+    await expect(withdraw("owner", "rv_missing")).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("refuses a withdrawal on an ended engagement", async () => {
+    await lock("rv_1");
+    await signOff("rv_1", "reviewer");
+    await db.pg.query(
+      `insert into engagement_marks (user_id, business_id, status, ended_at)
+       values ('owner', 'biz_1', 'ended', now())`,
+    );
+    await expect(
+      withdrawReportVersionReview(db.sql, {
+        ownerUserId: "owner",
+        id: "rv_1",
+        withdrawnBy: "reviewer",
+      }),
+    ).rejects.toMatchObject({ status: 409 });
   });
 });

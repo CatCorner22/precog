@@ -32,6 +32,7 @@ export const AUDIT_EVENTS = [
   "version_review_requested",
   "version_returned",
   "version_reviewed",
+  "version_review_withdrawn",
   "version_sent",
   "owner_email_set",
   "quickbooks_connected",
