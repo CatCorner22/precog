@@ -1,4 +1,5 @@
 import { CheckCircle2, ShieldOff } from "lucide-react";
+import { controlFailureModes } from "@/lib/precog/control-failure-modes";
 import { confirmControlEntry, inPlaceEntry } from "@/lib/precog/control-entries";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { teamSource } from "@/lib/precog/team-source";
@@ -34,6 +35,16 @@ export function SodControlsSection({ onNavigate }: { onNavigate?: NavFn }) {
               {c.residualRiskAccepted && <Badge variant="warn">Residual risk accepted</Badge>}
             </div>
             <p className="mt-1 text-muted">{c.description}</p>
+            <div className="mt-2">
+              <p className="text-xs font-medium tracking-wide text-subtle uppercase">
+                How this fails in practice
+              </p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-muted">
+                {controlFailureModes(c.id).map((mode) => (
+                  <li key={mode}>{mode}</li>
+                ))}
+              </ul>
+            </div>
             {onNavigate && (
               <Button
                 size="sm"
@@ -42,7 +53,7 @@ export function SodControlsSection({ onNavigate }: { onNavigate?: NavFn }) {
                 onClick={() => onNavigate("precog", `failure:control:${c.id}`)}
               >
                 <ShieldOff className="size-3.5" aria-hidden />
-                What if this fails?
+                See what this failure would cost
               </Button>
             )}
             {c.starter && (

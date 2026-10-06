@@ -65,6 +65,12 @@ export function ScenarioRunner({ item, onNavigate }: { item?: string | null; onN
     onNavigate?.("precog", `failure:${key}`);
   }
 
+  function openFailure(key: string) {
+    setView("failure");
+    setFailureTarget(key);
+    onNavigate?.("precog", `failure:${key}`);
+  }
+
   const mitigationIds = useMemo(
     () => mitigations.filter((id) => scenario.mitigations.some((m) => m.id === id)),
     [mitigations, scenario],
@@ -185,6 +191,7 @@ export function ScenarioRunner({ item, onNavigate }: { item?: string | null; onN
           onClearMitigations={() => setMitigations([])}
           onView={changeView}
           staffWhatIf={staffWhatIf}
+          onOpenFailure={openFailure}
         />
       )}
     </div>
