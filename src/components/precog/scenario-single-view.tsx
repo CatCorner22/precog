@@ -14,7 +14,7 @@ import { usePractice } from "@/lib/precog/practice-context";
 import { useTabName } from "@/lib/precog/presentation";
 import { DEFAULT_FRAUD_STATS } from "@/lib/precog/templates/shared-controls";
 import { ILLUSTRATIVE_LABEL, ILLUSTRATIVE_RANK_NOTE } from "@/lib/precog/scoring/scenario-level";
-import { CaseCard } from "@/components/precog/case-card";
+import { CaseCard, UnverifiedListNote } from "@/components/precog/case-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -346,6 +346,7 @@ function RealCasesCard({ cases }: { cases: ScenarioCases }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        <UnverifiedListNote studies={cases.shown} />
         {cases.shown.map((c) => (
           <div key={c.id}>
             {cases.ownSectorIds.has(c.id) && (

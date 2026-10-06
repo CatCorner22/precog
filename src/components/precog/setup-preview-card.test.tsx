@@ -66,6 +66,9 @@ describe("SetupPreviewCard's case", () => {
     expect(html).toContain("The same arrangement");
     expect(html).toContain(UNVERIFIED_CASE.label);
     expect(html).toContain(UNVERIFIED_CASE.title);
+    // A screen reader hears the marker as one sentence, with no stray ". " ahead of it.
+    expect(html).toContain(`>${UNVERIFIED_CASE.label}. ${UNVERIFIED_CASE.title}</span>`);
+    expect(html).not.toContain(`>. ${UNVERIFIED_CASE.title}`);
     expect(html).not.toContain("A related arrangement");
   });
 
