@@ -214,13 +214,13 @@ function FirmPage() {
   }, [userId, isPending]);
 
   // Post only for a business saved to the account, and only when what the
-  // client list holds for it differs from what this page measures.
+  // client list holds for it differs from what this page measures. The sent
+  // date is not measured here: the server sets it on a reviewed version.
   const savedRow = clients.find((c) => c.id === profile.businessId);
   const engagementStale =
     savedRow !== undefined &&
     (savedRow.startedAt !== (profile.engagement?.startedAt ?? null) ||
       savedRow.mapCompletedAt !== (profile.engagement?.mapCompletedAt ?? null) ||
-      savedRow.reportSentAt !== (profile.engagement?.reportSentAt ?? null) ||
       savedRow.openFindings !== metrics.openFindings ||
       savedRow.acceptedFindings !== metrics.acceptedFindings);
   useEffect(() => {
@@ -228,7 +228,6 @@ function FirmPage() {
     const posted = {
       startedAt: profile.engagement?.startedAt ?? null,
       mapCompletedAt: profile.engagement?.mapCompletedAt ?? null,
-      reportSentAt: profile.engagement?.reportSentAt ?? null,
       openFindings: metrics.openFindings,
       acceptedFindings: metrics.acceptedFindings,
     };
@@ -246,7 +245,6 @@ function FirmPage() {
     profile.businessId,
     profile.engagement?.startedAt,
     profile.engagement?.mapCompletedAt,
-    profile.engagement?.reportSentAt,
     metrics.openFindings,
     metrics.acceptedFindings,
   ]);

@@ -288,12 +288,6 @@ describe("report header, basis block and footer", () => {
     expect(textOf(cover)).toContain(
       "Version 1 · Prepared by Ada Park on Sep 26, 2026 · Not yet reviewed",
     );
-    const live = renderToStaticMarkup(
-      <ReadOnlyPracticeProvider profile={ortiz}>
-        <ControlReport firm={north} coverPage />
-      </ReadOnlyPracticeProvider>,
-    );
-    expect(textOf(live.slice(0, live.indexOf("<header")))).toMatch(/\|generated [A-Z][a-z]{2} \d/);
     expect(
       renderToStaticMarkup(
         <ReadOnlyPracticeProvider profile={ortiz}>
@@ -341,6 +335,49 @@ describe("report header, basis block and footer", () => {
     }
   });
 
+  it("marks an unlocked report on firm letterhead as a draft, with no cover", () => {
+    const live = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={ortiz}>
+        <ControlReport firm={north} coverPage />
+      </ReadOnlyPracticeProvider>,
+    );
+    expect(live).not.toContain("Cover page");
+    const top = live.slice(live.indexOf("<article"), live.indexOf("<header"));
+    expect(top).toContain('aria-label="Draft"');
+    expect(textOf(top)).toContain("|DRAFT: not locked or reviewed by North Advisors|");
+    // Each later printed page repeats it in the top margin, escaped for CSS.
+    expect(top).toContain("@top-center");
+    expect(top).toContain('content: "DRAFT\\3a  not locked or reviewed by North Advisors"');
+  });
+
+  it("escapes the firm name in the draft's page header", () => {
+    const html = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={ortiz}>
+        <ControlReport firm={{ ...north, name: 'Bad "</style><b>x' }} />
+      </ReadOnlyPracticeProvider>,
+    );
+    const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+    expect(style).toContain("Bad \\22 \\3c \\2f style\\3e \\3c b\\3e x");
+    expect(html.match(/<\/style>/g)).toHaveLength(1);
+  });
+
+  it("prints a locked version's cover and no draft banner, and no banner without a firm", () => {
+    const html = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={ortiz}>
+        <ControlReport locked={locked} firm={north} coverPage />
+      </ReadOnlyPracticeProvider>,
+    );
+    expect(html).toContain('aria-label="Cover page"');
+    expect(html).not.toContain("DRAFT");
+    expect(html).not.toContain("@top-center");
+    const solo = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={ortiz}>
+        <ControlReport />
+      </ReadOnlyPracticeProvider>,
+    );
+    expect(solo).not.toContain("DRAFT");
+  });
+
   it("repeats the basis in the footer and says the report was prepared with Precog", () => {
     const html = render(ortiz);
     const footer = html.slice(html.indexOf("<footer"), html.indexOf("</footer>"));
@@ -381,26 +418,24 @@ describe("a shared report", () => {
     );
     expect(signedIn).toContain("Back to Precog");
     expect(signedIn).toContain("Back to the current report");
-    // The live report without `shared` still offers the sent stamp.
-    const live = renderToStaticMarkup(
-      <ReadOnlyPracticeProvider profile={ortiz}>
-        <ControlReport />
-      </ReadOnlyPracticeProvider>,
-    );
-    expect(live).toContain("Mark report sent");
   });
 
-  it("offers the owner of a business shared with a firm no sent stamp on the live report", () => {
-    const owner = renderToStaticMarkup(
-      <ReadOnlyPracticeProvider profile={ortiz}>
-        <ControlReport sharedOwner />
-      </ReadOnlyPracticeProvider>,
-    );
-    expect(owner).not.toContain("Mark report sent");
-    expect(owner).not.toContain("Report marked sent");
-    // The way back and Print stay.
-    expect(owner).toContain("Back to Precog");
-    expect(owner).toContain("Print / Save as PDF");
+  it("offers no sent stamp on the live report, to a firm member or anyone else", () => {
+    // Only a reviewed version is marked sent, from the versions panel.
+    const sentOn = { ...ortiz, engagement: { reportSentAt: "2026-09-28T12:00:00.000Z" } };
+    for (const page of [<ControlReport key="firm" firm={north} />, <ControlReport key="guest" />]) {
+      for (const profile of [ortiz, sentOn]) {
+        const live = renderToStaticMarkup(
+          <ReadOnlyPracticeProvider profile={profile}>{page}</ReadOnlyPracticeProvider>,
+        );
+        expect(live).not.toContain("Mark report sent");
+        expect(live).not.toContain("Report marked sent");
+        expect(live).not.toContain("Marked sent on");
+        // The way back and Print stay.
+        expect(live).toContain("Back to Precog");
+        expect(live).toContain("Print / Save as PDF");
+      }
+    }
   });
 });
 

@@ -48,7 +48,7 @@ const ownFirm = {
 async function liveProps() {
   const live = Page().type as () => ReactElement;
   const tree = await runtime.settle(live);
-  return tree.props as { firm: unknown; coverPage: boolean; sharedOwner: boolean };
+  return tree.props as { firm: unknown; coverPage: boolean };
 }
 
 beforeEach(() => {
@@ -62,15 +62,17 @@ afterEach(() => {
 describe("the live report names a firm", () => {
   it("not for the business's own account on a business it shared with another firm, even one it runs", async () => {
     server.listReports.mockResolvedValue({ versions: [], work: { firm: true, role: null } });
-    expect(await liveProps()).toMatchObject({ firm: null, coverPage: false, sharedOwner: true });
+    const props = await liveProps();
+    expect(props).toMatchObject({ firm: null, coverPage: false });
+    // The live report offers no one a sent stamp, so the page hands it no such flag.
+    expect(props).not.toHaveProperty("sharedOwner");
   });
 
-  it("for a member of the business's firm, with its letterhead and the sent stamp", async () => {
+  it("for a member of the business's firm, with its letterhead", async () => {
     server.listReports.mockResolvedValue({ versions: [], work: { firm: true, role: "preparer" } });
     expect(await liveProps()).toMatchObject({
       firm: { name: "Owner's Own Firm", letterhead: "1 Elm St", logoDataUrl: null },
       coverPage: true,
-      sharedOwner: false,
     });
   });
 });
