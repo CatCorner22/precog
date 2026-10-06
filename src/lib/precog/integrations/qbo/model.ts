@@ -1,8 +1,8 @@
 import { nameKey } from "../../text";
 
 /**
- * QuickBooks Online, reduced to what a duty map needs: who is paid (vendors)
- * and who is employed (employees), and what changed between two readings.
+ * QuickBooks Online vendor and employee name lists, reduced to what a duty
+ * map compares, and what changed between two readings. Not payment evidence.
  * Pure: the network calls live in `client.server.ts`.
  */
 export interface QboVendor {
@@ -20,6 +20,9 @@ export interface QboEmployee {
   active: boolean;
   releasedOn: string | null;
 }
+
+export const PAYMENT_STATUS_NOTE =
+  "Payment status not checked. Check the payroll register for the covered period.";
 
 export interface QboSnapshot {
   takenAt: string;
@@ -44,8 +47,9 @@ export interface IntegrationDrift {
   /** Employees in the books who are not on the duty map, by name. */
   employeesNotOnMap: QboEmployee[];
   /**
-   * Employees payroll still pays whose name matches only people marked as
-   * left on the map: the ghost-employee signal, shown first.
+   * Legacy response field name, retained for existing clients. These are
+   * active employee-list records matching only people marked left on the
+   * map, not evidence of payroll payments.
    */
   leftButStillPaid: QboEmployee[];
   /** People on the duty map with no employee record in the books. */
@@ -145,11 +149,11 @@ export function diffSnapshots(
   const leftNames = new Set(
     mapPeople.filter((p) => p.active === false).map((p) => nameKey(p.name)),
   );
-  const paidOffMap = current.employees.filter(
+  const activeOffMap = current.employees.filter(
     (e) => e.active && !e.releasedOn && !mapNames.has(nameKey(e.name)),
   );
-  const leftButStillPaid = paidOffMap.filter((e) => leftNames.has(nameKey(e.name)));
-  const employeesNotOnMap = paidOffMap.filter((e) => !leftNames.has(nameKey(e.name)));
+  const leftButStillActive = activeOffMap.filter((e) => leftNames.has(nameKey(e.name)));
+  const employeesNotOnMap = activeOffMap.filter((e) => !leftNames.has(nameKey(e.name)));
   const peopleNotInBooks = mapPeople
     .filter((p) => p.active !== false && !bookNames.has(nameKey(p.name)))
     .map((p) => p.name);
@@ -162,7 +166,7 @@ export function diffSnapshots(
     employeesAdded,
     employeesReleased,
     employeesNotOnMap,
-    leftButStillPaid,
+    leftButStillPaid: leftButStillActive,
     peopleNotInBooks,
   };
 }

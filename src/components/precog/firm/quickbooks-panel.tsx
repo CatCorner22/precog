@@ -11,6 +11,7 @@ import {
 } from "@/lib/precog/integrations/qbo/server";
 import {
   driftIsEmpty,
+  PAYMENT_STATUS_NOTE,
   VENDOR_FIELD_LABEL,
   type IntegrationDrift,
 } from "@/lib/precog/integrations/qbo/model";
@@ -121,8 +122,9 @@ export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
       <h2 className="text-lg font-semibold">QuickBooks Online</h2>
       <p className="mt-1 text-sm text-muted">
         A read-only connection. Precog reads the vendor and employee lists once a month and says
-        what changed: new or altered vendors, people paid who are not in Duty assignments, and
-        people released from payroll whose sign-ins still need confirming.
+        what changed: new or altered vendors, active employee records not in Duty assignments, and
+        employee records made inactive or given a release date. This reading does not establish
+        payroll payments or sign-in access.
       </p>
       {status === null ? (
         <p className="mt-3 text-sm text-muted">Checking the connection…</p>
@@ -170,12 +172,13 @@ export function QuickBooksPanel({ signedIn }: { signedIn: boolean }) {
   );
 }
 
-function DriftList({ drift }: { drift: IntegrationDrift }) {
+export function DriftList({ drift }: { drift: IntegrationDrift }) {
   if (driftIsEmpty(drift)) {
     return (
       <p className="mt-3 text-sm text-muted">
-        Nothing changed{drift.since ? ` since ${drift.since.slice(0, 10)}` : ""}, and the books
-        match Duty assignments.
+        No changes in the vendor and employee lists
+        {drift.since ? ` since ${drift.since.slice(0, 10)}` : ""}, and the active employee names
+        match Duty assignments. {PAYMENT_STATUS_NOTE}
       </p>
     );
   }
@@ -183,15 +186,15 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
   const lines: { label: string; text: string; warn?: boolean }[] = [];
   if (drift.leftButStillPaid.length) {
     lines.push({
-      label: "Left but still paid",
-      text: `${names(drift.leftButStillPaid)} — Precog has them as left, but payroll still pays them. Confirm someone has stopped their pay and removed their sign-ins.`,
+      label: "Marked left here; still active in QuickBooks",
+      text: `${names(drift.leftButStillPaid)} — marked left on the duty map, but still active in the QuickBooks employee list. Confirm the employee record and review sign-in removal separately.`,
       warn: true,
     });
   }
   if (drift.employeesReleased.length) {
     lines.push({
-      label: "Released from payroll",
-      text: `${names(drift.employeesReleased)} — confirm someone has removed their sign-ins and mark them as left on the map.`,
+      label: "Employee record inactive or released",
+      text: `${names(drift.employeesReleased)} — confirm employment status and review sign-in removal separately before updating the map.`,
       warn: true,
     });
   }
@@ -213,15 +216,15 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
     lines.push({ label: "New employees", text: names(drift.employeesAdded) });
   if (drift.employeesNotOnMap.length) {
     lines.push({
-      label: "Paid but not in Duty assignments",
+      label: "Active employee record not in Duty assignments",
       text: `${names(drift.employeesNotOnMap)} — add them, or confirm they hold no money duties.`,
       warn: true,
     });
   }
   if (drift.peopleNotInBooks.length) {
     lines.push({
-      label: "On the map but not in payroll",
-      text: `${drift.peopleNotInBooks.join(", ")} — contractors, or people who have left.`,
+      label: "On the map but no active employee record",
+      text: `${drift.peopleNotInBooks.join(", ")} — confirm whether an employee record is expected, for example for contractors.`,
     });
   }
   return (
@@ -244,6 +247,7 @@ function DriftList({ drift }: { drift: IntegrationDrift }) {
           </div>
         ))}
       </dl>
+      <p className="mt-2 text-xs text-muted">{PAYMENT_STATUS_NOTE}</p>
     </>
   );
 }

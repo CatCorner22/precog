@@ -21,7 +21,7 @@ describe("QuickBooks alert email", () => {
     });
     expect(mail.subject).toBe("Precog: QuickBooks needs attention for Ortiz Dental");
     expect(mail.text).toContain(
-      "Precog could not read the QuickBooks books of Ortiz Dental on Oct 6, 2026: QuickBooks no longer accepts this connection. Disconnect and connect again. Until it is read again, the monthly check of vendors and payroll runs on the reading of Sep 1, 2026.",
+      "Precog could not read the QuickBooks books of Ortiz Dental on Oct 6, 2026: QuickBooks no longer accepts this connection. Disconnect and connect again. Until it is read again, the vendor and employee-list comparison uses the reading of Sep 1, 2026. Payment status is not checked by this reading.",
     );
     expect(mail.text).toContain(`Open the firm workspace: ${LINK}`);
     expect(mail.text).toContain(

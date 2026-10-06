@@ -38,7 +38,7 @@ export function buildDriftActions(input: {
   if (summary?.qboEmployeesNotOnMap) {
     actions.push({
       id: "drift-qbo-employees",
-      title: "Match payroll names to your team map",
+      title: "Match QuickBooks employee names to your team map",
       why: `${summary.qboEmployeesNotOnMap} people appear in QuickBooks but not on your duty map. Add or map them before relying on segregation checks.`,
       tab: "firm",
       priority: PRIORITY,
