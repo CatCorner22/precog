@@ -30,7 +30,7 @@ import {
   scenarioConfirmation,
   type ScenarioCases,
 } from "./scenario-page";
-import type { ScenarioView } from "./scenario-runner";
+import type { ScenarioView } from "./scenario-link";
 import { StaffWhatIfCard, type StaffWhatIf } from "./staff-what-if";
 
 /** One scenario: its assumed figures, the real cases behind it, staffing to try, and mitigations. */

@@ -31,6 +31,10 @@ describe("parseHomeSearch", () => {
       tab: "precog",
       item: "embezzlement",
     });
+    expect(parseHomeSearch({ tab: "precog", item: "failure:control:c-sod-ap" })).toEqual({
+      tab: "precog",
+      item: "failure:control:c-sod-ap",
+    });
     expect(parseHomeSearch({ tab: "knowledge", item: " k1 " })).toEqual({
       tab: "knowledge",
       item: "k1",
@@ -75,6 +79,10 @@ describe("parseHomeSearch", () => {
       item: "coverage",
     });
     expect(parseHomeSearch({ tab: "intel" })).toEqual({ tab: "scores", item: "patterns" });
+    expect(parseHomeSearch({ tab: "control-failure" })).toEqual({
+      tab: "precog",
+      item: "failure",
+    });
   });
 
   it("opens Home for the retired Dashboard and Procedures for the retired blueprint", () => {
@@ -138,6 +146,10 @@ describe("resolveNavTarget", () => {
     expect(resolveNavTarget("control")).toEqual({ tab: "sod", item: "controls" });
     expect(resolveNavTarget("control-in-place", "c1")).toEqual({ tab: "sod", item: "controls" });
     expect(resolveNavTarget("layers", "source")).toEqual({ tab: "sod", item: "controls" });
+  });
+
+  it("opens the control-failure report from its alias", () => {
+    expect(resolveNavTarget("control-failure")).toEqual({ tab: "precog", item: "failure" });
   });
 
   it("opens the retired Dashboard on Home and the retired blueprint on Procedures", () => {

@@ -1,8 +1,9 @@
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ShieldOff } from "lucide-react";
 import { confirmControlEntry, inPlaceEntry } from "@/lib/precog/control-entries";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { teamSource } from "@/lib/precog/team-source";
 import { useTabName } from "@/lib/precog/presentation";
+import type { NavFn } from "@/lib/precog/navigation";
 import { LAYER_META } from "@/lib/precog/templates/layer-meta";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import { InPlaceForm } from "./in-place-form";
  * sample ones the owner can confirm with "This runs here", and the controls
  * already in place against a duty gap.
  */
-export function SodControlsSection() {
+export function SodControlsSection({ onNavigate }: { onNavigate?: NavFn }) {
   const tabName = useTabName();
   const { profile, addDecision } = usePractice();
   const { controls } = useTemplate();
@@ -33,6 +34,15 @@ export function SodControlsSection() {
               {c.residualRiskAccepted && <Badge variant="warn">Residual risk accepted</Badge>}
             </div>
             <p className="mt-1 text-muted">{c.description}</p>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={`What if ${c.name} fails?`}
+              onClick={() => onNavigate?.("precog", `failure:control:${c.id}`)}
+            >
+              <ShieldOff className="size-3.5" aria-hidden />
+              What if this fails?
+            </Button>
             {c.starter && (
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <p className="text-xs text-subtle">

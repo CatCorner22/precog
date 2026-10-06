@@ -8,16 +8,16 @@ import {
 } from "@/lib/precog/scoring/dynamic-variables";
 import { isOwnBusiness, withOwnScenarioWording } from "@/lib/precog/scoring/scope";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import type { NavFn } from "@/lib/precog/navigation";
 import { CascadePanel } from "@/components/precog/cascade-panel";
 import { ControlFailurePanel } from "@/components/precog/control-failure-panel";
 import { ScenarioCompare } from "@/components/precog/scenario-compare";
 import { Button } from "@/components/ui/button";
 import { applyWhatIf, pickScenario } from "./scenario-page";
+import { parseScenarioItem, scenarioItem, type ScenarioView } from "./scenario-link";
 import type { StaffWhatIf } from "./staff-what-if";
 import { SingleScenarioView } from "./scenario-single-view";
 import { ScenarioVariablesView } from "./scenario-variables-view";
-
-export type ScenarioView = "single" | "compare" | "variables" | "cascades" | "failure";
 
 /**
  * What could happen: one scenario's assumed figures, a comparison of options,
@@ -28,30 +28,43 @@ export type ScenarioView = "single" | "compare" | "variables" | "cascades" | "fa
  * screen; "Apply to my business" saves it. Settings and insurance are the
  * owner's own policy terms and save as they are edited.
  */
-export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: string | null }) {
+export function ScenarioRunner({ item, onNavigate }: { item?: string | null; onNavigate?: NavFn }) {
   const baseTpl = useTemplate();
   // The owner's own business reads the starter scenarios in role words, not
   // the sample team's names; ids and figures are unchanged.
   const tpl = withOwnScenarioWording(baseTpl);
   const ownBusiness = isOwnBusiness(baseTpl);
   const { profile, setStaff, setRiskVariables } = usePractice();
-  const [view, setView] = useState<ScenarioView>("single");
-  const [picked, setPicked] = useState(initialScenarioId ?? null);
+  const linked = parseScenarioItem(item);
+  const [view, setView] = useState<ScenarioView>(linked.view);
+  const [picked, setPicked] = useState(linked.scenarioId);
+  const [failureTarget, setFailureTarget] = useState(linked.failureTarget);
   const [mitigations, setMitigations] = useState<string[]>([]);
   const [whatIf, setWhatIf] = useState<StaffComposition | null>(null);
 
-  // A deep link to another scenario replaces the pick. Adjusting state while
-  // rendering (not in an effect) avoids one render with the old scenario.
-  const [linkedId, setLinkedId] = useState(initialScenarioId);
-  if (initialScenarioId !== linkedId) {
-    setLinkedId(initialScenarioId);
-    if (initialScenarioId) {
-      setPicked(initialScenarioId);
+  // Adjust during render so a changed link never shows the previous view.
+  const [linkedItem, setLinkedItem] = useState(item);
+  if (item !== linkedItem) {
+    setLinkedItem(item);
+    setView(linked.view);
+    if (linked.scenarioId) {
+      setPicked(linked.scenarioId);
       setMitigations([]);
     }
+    setFailureTarget(linked.failureTarget);
   }
 
   const scenario = pickScenario(tpl.scenarios, picked);
+  function changeView(nextView: ScenarioView) {
+    setView(nextView);
+    onNavigate?.("precog", scenarioItem(nextView, scenario.id, failureTarget));
+  }
+
+  function changeFailureTarget(key: string) {
+    setFailureTarget(key);
+    onNavigate?.("precog", `failure:${key}`);
+  }
+
   const mitigationIds = useMemo(
     () => mitigations.filter((id) => scenario.mitigations.some((m) => m.id === id)),
     [mitigations, scenario],
@@ -126,7 +139,7 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
             size="sm"
             variant={view === id ? "default" : "secondary"}
             aria-pressed={view === id}
-            onClick={() => setView(id)}
+            onClick={() => changeView(id)}
           >
             <Icon className="size-3.5" />
             {label}
@@ -152,10 +165,13 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
           result={result}
           ownBusiness={ownBusiness}
           whatIfActive={whatIf !== null}
-          onShowCascades={() => setView("cascades")}
+          onShowCascades={() => changeView("cascades")}
         />
       ) : view === "failure" ? (
-        <ControlFailurePanel />
+        <ControlFailurePanel
+          initialTarget={failureTarget ?? undefined}
+          onTargetChange={changeFailureTarget}
+        />
       ) : (
         <SingleScenarioView
           tpl={tpl}
@@ -167,7 +183,7 @@ export function ScenarioRunner({ initialScenarioId }: { initialScenarioId?: stri
           onPick={pick}
           onToggleMitigation={toggleMitigation}
           onClearMitigations={() => setMitigations([])}
-          onView={setView}
+          onView={changeView}
           staffWhatIf={staffWhatIf}
         />
       )}
