@@ -502,12 +502,13 @@ describe("the order the client invitation's writers lock rows in", () => {
     await endGrant(ended.sql, { ownerUserId: "bo", businessId: "biz_1", actorUserId: "bo" });
     // A re-send or a close (businesses, then the open invitations) racing an
     // acceptance would otherwise wait on each other's rows.
-    expect([created.locks[0], accepted.locks[0], ended.locks[0]]).toEqual([
+    // acceptGrant takes the firm's row before both, as every firm write does.
+    expect([created.locks[0], accepted.locks[1], ended.locks[0]]).toEqual([
       "businesses",
       "businesses",
       "businesses",
     ]);
-    expect(accepted.locks).toEqual(["businesses", "business_firm_grants"]);
+    expect(accepted.locks).toEqual(["firms", "businesses", "business_firm_grants"]);
   });
 
   it("still refuses an invitation closed while the acceptance waited for the business", async () => {
