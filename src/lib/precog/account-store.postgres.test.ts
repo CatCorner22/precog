@@ -75,10 +75,17 @@ describe.runIf(process.env.PRECOG_LIFECYCLE_POSTGRES === "1")(
           select count(*)::int as n from "user" where id = 'o'
         `;
         if (deleted.error === null) {
-          // The account went first: the webhook found it gone and failed, so
-          // Stripe retries it and nothing records a running subscription.
+          // The account went first: the webhook finds it gone, records no
+          // running subscription and acknowledges the event (S08a), so
+          // Stripe does not retry an event for an account that no longer
+          // exists.
           expect(user.n).toBe(0);
-          expect(billed.error).not.toBeNull();
+          expect(billed.error).toBeNull();
+          expect(billed.value).toBe("account deleted");
+          const [billing] = await db.sql<{ n: number }>`
+            select count(*)::int as n from billing_accounts where user_id = 'o'
+          `;
+          expect(billing.n).toBe(0);
         } else {
           // The webhook went first: the deletion saw the running plan.
           expect(message(deleted.error)).toMatch(/Your firm plan is still active/);
