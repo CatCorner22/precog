@@ -204,7 +204,8 @@ export function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
 
 /**
  * The tabs that open on one item: a scenario, a register entry, a procedure
- * or a process. On Who controls what, How Precog scores and Monthly
+ * (or a recommended one, `lib:<library id>`, passed through as given) or a
+ * process. On Who controls what, How Precog scores and Monthly
  * review, the item names a view or a section.
  */
 const ITEM_TABS: ReadonlySet<TabId> = new Set([

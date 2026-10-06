@@ -31,6 +31,13 @@ import { PROCEDURE_LIMITS } from "@/lib/precog/procedures/normalize";
 import { placeSuggestions } from "@/lib/precog/procedures/places";
 import { unwrittenProcedureRows } from "@/lib/precog/procedures/starter";
 import { libraryRows, procedureFromLibrary } from "@/lib/precog/procedures/library";
+import {
+  libraryIdFromItem,
+  rankLibraryRowsByConflicts,
+  writtenProcedureFor,
+} from "@/lib/precog/procedures/rule-procedures";
+import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
+import { openFindings, partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import type { Place, PlaceKind, Procedure, ProcedureStatus } from "@/lib/precog/procedures/types";
 import { uid } from "@/lib/precog/text";
 import { useToday } from "@/lib/use-today";
@@ -84,7 +91,9 @@ const FILTER_LABEL: Record<Filter, string> = {
  * The Procedures tab: every written procedure grouped by the platform or
  * place it is done in, the register items nothing is written for yet, and the
  * editor. `initialItem` opens a procedure by id, or the procedure for a
- * register item (starting one when there is none).
+ * register item (starting one when there is none). `lib:<library id>` (a
+ * conflict card's link) highlights that recommended procedure ready to start,
+ * or opens the business's own procedure for it when there is one.
  */
 export function ProceduresPanel({ initialItem }: { initialItem?: string | null }) {
   const { profile } = usePractice();
@@ -119,11 +128,13 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
   const [editing, setEditing] = useState<{ procedure: Procedure; isNew: boolean } | null>(() =>
     openFor(initialItem),
   );
+  const linkedLibraryId = libraryIdFromItem(initialItem);
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     if (!initialItem) return null;
-    const match =
-      procedures.find((p) => p.id === initialItem) ??
-      procedures.find((p) => p.knowledgeIds.includes(initialItem));
+    const match = linkedLibraryId
+      ? writtenProcedureFor(linkedLibraryId, procedures, tpl.knowledge, industry)
+      : (procedures.find((p) => p.id === initialItem) ??
+        procedures.find((p) => p.knowledgeIds.includes(initialItem)));
     return match?.id ?? null;
   });
   const [filter, setFilter] = useState<Filter>("all");
@@ -172,9 +183,22 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
     () => unwrittenProcedureRows(tpl.knowledge, procedures, industry),
     [tpl.knowledge, procedures, industry],
   );
+  // Open duty conflicts rank the recommendations: those an open critical
+  // conflict leads to come first, then those an open high one leads to.
+  const openConflicts = useMemo(() => {
+    const report = detectSodConflicts(
+      tpl,
+      profile.staff,
+      sodDetectionOptions(tpl, profile.dualRelease),
+    );
+    return openFindings(
+      report.conflicts,
+      partialDualReleaseCoverage(profile.dualRelease, report.conflicts),
+    );
+  }, [tpl, profile.staff, profile.dualRelease]);
   const recommended = useMemo(
-    () => libraryRows(tpl, procedures, industry),
-    [tpl, procedures, industry],
+    () => rankLibraryRowsByConflicts(libraryRows(tpl, procedures, industry), openConflicts),
+    [tpl, procedures, industry, openConflicts],
   );
   const selected = procedures.find((p) => p.id === selectedId) ?? null;
   const counts = {
@@ -361,6 +385,7 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
           itemName={itemName}
           nameOf={nameOf}
           disabled={procedures.length >= PROCEDURE_LIMITS.procedures}
+          highlightId={linkedLibraryId}
           onStart={(row) =>
             setEditing({ procedure: procedureFromLibrary(row, industry, today), isNew: true })
           }
