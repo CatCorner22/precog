@@ -70,7 +70,7 @@ const HEADER_ALIASES: Record<(typeof REGISTER_CSV_COLUMNS)[number], readonly str
   description: ["description", "notes", "details"],
 };
 
-const KIND_ALIASES: Record<string, KnowledgeKind> = {
+export const KIND_ALIASES: Readonly<Record<string, KnowledgeKind>> = {
   duty: "duty",
   duties: "duty",
   responsibility: "duty",
@@ -82,7 +82,7 @@ const KIND_ALIASES: Record<string, KnowledgeKind> = {
   skill: "knowledge",
 };
 
-const CRITICALITY_ALIASES: Record<string, Criticality> = {
+export const CRITICALITY_ALIASES: Readonly<Record<string, Criticality>> = {
   critical: "critical",
   businessstopswithoutit: "critical",
   stops: "critical",

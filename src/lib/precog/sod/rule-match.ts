@@ -124,9 +124,12 @@ export const SUBSUMED_DEFAULTS: Readonly<Record<string, readonly string[]>> = ((
   return byRule;
 })();
 
-/** A pair in a fixed order, so (a, b) and (b, a) name one pair. */
+/**
+ * A pair in a fixed order, so (a, b) and (b, a) name one pair. An id that is
+ * not a string (a damaged stored duty list) is ordered by its text, never thrown on.
+ */
 export function canonicalPair(a: EntitlementId, b: EntitlementId): [EntitlementId, EntitlementId] {
-  return a.localeCompare(b) <= 0 ? [a, b] : [b, a];
+  return String(a).localeCompare(String(b)) <= 0 ? [a, b] : [b, a];
 }
 
 /** The id a family finding carries: the two families, sorted. */

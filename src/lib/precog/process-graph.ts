@@ -16,7 +16,9 @@ import { DEFAULT_WEIGHTS } from "./scoring/weights";
 import type { KnowledgeRisk, StaffComposition } from "./types";
 import type { ProcessIdea, ProcessNode, ProcessRisk, ProcessWaste } from "./types";
 
-function normalizeIoToken(s: string): string {
+/** Lowercase words of an input or output; "" for a stored value that is not text. */
+function normalizeIoToken(s: unknown): string {
+  if (typeof s !== "string") return "";
   return s
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
@@ -30,7 +32,7 @@ function inferFeedEdges(processes: ProcessNode[]): MapGraphEdge[] {
   const outputIndex = new Map<string, string[]>();
 
   for (const p of processes) {
-    for (const out of p.outputs ?? []) {
+    for (const out of listOf(p.outputs)) {
       const tok = normalizeIoToken(out);
       if (tok.length < 3) continue;
       const list = outputIndex.get(tok) ?? [];
@@ -40,7 +42,7 @@ function inferFeedEdges(processes: ProcessNode[]): MapGraphEdge[] {
   }
 
   for (const target of processes) {
-    for (const inp of target.inputs ?? []) {
+    for (const inp of listOf(target.inputs)) {
       const tok = normalizeIoToken(inp);
       if (tok.length < 3) continue;
 
@@ -138,8 +140,19 @@ export interface ProcessMapSnapshot {
   heat: number;
 }
 
+/** The list a stored process field holds, or an empty one when it holds something else. */
+function listOf<T>(value: readonly T[] | undefined): readonly T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function isObject<T>(value: T): value is T & object {
+  return typeof value === "object" && value !== null;
+}
+
+/** 4–100; 0 for a risk whose levels are not numbers. */
 function riskHeat(r: ProcessRisk) {
-  return r.severity * r.likelihood * 4; // 4–100
+  const heat = r.severity * r.likelihood * 4;
+  return Number.isFinite(heat) ? heat : 0;
 }
 
 /**
@@ -173,9 +186,11 @@ export function enrichProcess(
   context: ProcessMapContext = processMapContext(tpl, staff),
 ): ProcessMapSnapshot {
   const { controls, knowledge, people, scenarios } = tpl;
-  const risks = process.risks ?? [];
-  const ideas = process.ideas ?? [];
-  const wastes = process.wastes ?? [];
+  // Objects only: profile-entries rebuilds a business's own lists, and this
+  // keeps any other source of a damaged list from throwing below.
+  const risks = listOf(process.risks).filter(isObject);
+  const ideas = listOf(process.ideas).filter(isObject);
+  const wastes = listOf(process.wastes).filter(isObject);
   const controlGaps = process.controlIds
     .map((id) => controls.find((c) => c.id === id))
     .filter(Boolean)

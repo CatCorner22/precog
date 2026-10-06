@@ -210,6 +210,20 @@ describe("executive summary", () => {
     );
   });
 
+  it("leaves out a figure that is not a number rather than print NaN%", () => {
+    const lines = executiveSummary({
+      openConflicts: [],
+      firstStep: null,
+      registerReady: true,
+      coverageIndex: Number.NaN,
+      singlePoints: 2,
+      mapHealth: { score: Number.NaN, bandLabel: "Partial" },
+      topPriority: null,
+    });
+    expect(lines.join(" ")).not.toContain("NaN");
+    expect(lines).toHaveLength(1);
+  });
+
   it("writes its own caveats instead of the threat screen's demo-priors line", () => {
     expect(REPORT_CAVEATS).not.toMatch(/demo priors/);
   });

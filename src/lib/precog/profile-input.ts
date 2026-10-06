@@ -5,6 +5,14 @@ import { RequestError } from "@/lib/request-errors";
 import { DEFAULT_BUSINESS_ID, isBusinessId } from "./business-id";
 export { isBusinessId } from "./business-id";
 
+/**
+ * What a save gets back when one of its lists holds something the readers
+ * cannot use (see malformedList). The owner's own device rebuilds such a copy
+ * when it reads it, so a reload sends a readable one.
+ */
+export const UNREADABLE_PROFILE_MESSAGE =
+  "This business has data Precog cannot read. Reload the page and try again.";
+
 /** Largest profile document a single save may carry (bytes of JSON). */
 export const MAX_PROFILE_BYTES = 2 * 1024 * 1024;
 
@@ -12,9 +20,11 @@ export const MAX_PROFILE_BYTES = 2 * 1024 * 1024;
  * What a profile must satisfy before it is stored as jsonb: an object with a
  * string name, a known industry, lists whose every entry passes the checks
  * the client's normaliser applies (see profile-entries), under the size cap.
- * A stored row is therefore always one every reader can open, the advisor's
- * view and the nightly digest included. Scalars are bounded by
- * `normalizeProfile` on the way back out.
+ * The team, the processes and the register must come back from those checks
+ * unchanged, duty lists, risks and register words included, so a stored row
+ * reads back as it was saved, in the advisor's view and the nightly digest
+ * too. Decisions are trimmed here, not compared (see normalizeDecisions).
+ * Scalars are bounded by `normalizeProfile` on the way back out.
  */
 export function validateProfileInput(input: unknown): {
   profile: PracticeProfile;
@@ -34,9 +44,8 @@ export function validateProfileInput(input: unknown): {
   if (profile.businessId !== undefined && !isBusinessId(profile.businessId)) {
     throw new RequestError(400, "Business id must be 1–64 letters, digits, '_' or '-'");
   }
-  const malformed = malformedList(input as Record<string, unknown>);
-  if (malformed) {
-    throw new RequestError(400, `Profile has a malformed entry in ${malformed}`);
+  if (malformedList(input as Record<string, unknown>)) {
+    throw new RequestError(400, UNREADABLE_PROFILE_MESSAGE);
   }
   const businessId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const rawJson = JSON.stringify({ ...profile, businessId });
