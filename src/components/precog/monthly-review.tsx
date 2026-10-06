@@ -153,8 +153,7 @@ export function MonthlyReview() {
         }
         if (res.evidenceSkippedReason === "already_recorded") {
           toast.success("Saved on this business.", {
-            description:
-              "The evidence log keeps the first result for this check and month. The monthly log keeps this one.",
+            description: "The evidence log already holds this result for this check and month.",
           });
           return;
         }

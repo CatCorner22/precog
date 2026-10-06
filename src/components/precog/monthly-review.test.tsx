@@ -220,7 +220,7 @@ describe("monthly review tells the owner where the result went", () => {
       description: "Precog does not add monthly notes to the evidence log on this deployment.",
     });
   });
-  it("says the evidence log keeps the first result for the check and month", async () => {
+  it("says the evidence log already holds this result for the check and month", async () => {
     server.recordMonthlyReview.mockResolvedValue({
       ok: true,
       evidenceBridged: false,
@@ -228,8 +228,7 @@ describe("monthly review tells the owner where the result went", () => {
     });
     await press("Done");
     expect(toast.success).toHaveBeenCalledWith("Saved on this business.", {
-      description:
-        "The evidence log keeps the first result for this check and month. The monthly log keeps this one.",
+      description: "The evidence log already holds this result for this check and month.",
     });
   });
   it("gives a plain description, not the server's error, when the entry failed", async () => {
@@ -449,6 +448,17 @@ describe("readMonthlyEvidence", () => {
     }));
     expect(await readMonthlyEvidence(read, ids)).toEqual(new Map([[ids[0], "reviewed"]]));
     expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the state of the newest entry when a later result corrected the first", async () => {
+    const read = vi.fn(async (): Promise<EvidencePage> => ({
+      entries: [
+        { id: `${ids[0]}-v2`, status: "needs_correction" },
+        { id: ids[0], status: "awaiting_review" },
+      ],
+      nextCursor: null,
+    }));
+    expect(await readMonthlyEvidence(read, ids)).toEqual(new Map([[ids[0], "needs_correction"]]));
   });
 
   it("answers null and reads no further once the screen moved on", async () => {

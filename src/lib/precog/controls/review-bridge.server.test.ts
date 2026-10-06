@@ -58,6 +58,7 @@ describe("monthly review bridge to the control evidence log", () => {
   it("records Done on the day it is recorded, as inquiry awaiting review", async () => {
     expect(await bridgeMonthlyReview(db.sql, "owner", review(), TODAY)).toEqual({
       evidenceBridged: true,
+      evidenceStatus: "recorded",
       evidenceSkippedReason: null,
     });
     const rows = await logRows();
@@ -94,23 +95,123 @@ describe("monthly review bridge to the control evidence log", () => {
     });
   });
 
-  it("keeps the first result and refuses a later one for the same check and month", async () => {
+  it("keeps one entry when a later result matches the latest entry", async () => {
     await bridgeMonthlyReview(db.sql, "owner", review(), TODAY);
-    // The screen clears the note after a save, so even a second Done differs.
-    for (const later of [
-      review({ result: "exception", notes: "Found an unknown payee." }),
-      review({ notes: "" }),
-    ]) {
-      expect(await bridgeMonthlyReview(db.sql, "owner", later, TODAY)).toEqual({
+    // The screen clears the note after a save, so a repeated Done differs in its note only.
+    for (const repeat of [review({ notes: "" }), review()]) {
+      expect(await bridgeMonthlyReview(db.sql, "owner", repeat, "2026-04-16")).toEqual({
         evidenceBridged: false,
+        evidenceStatus: null,
         evidenceSkippedReason: "already_recorded",
       });
     }
     const rows = await logRows();
     expect(rows).toHaveLength(1);
     expect(rows[0].record.history).toHaveLength(1);
-    expect(rows[0].record.history[0].command).toMatchObject({ result: "no_exception" });
-    // An expected refusal is not a failure of ours.
+    expect(report.error).not.toHaveBeenCalled();
+  });
+
+  it("writes a correcting entry for each changed result, so Done -> Exception -> Done ends on Done", async () => {
+    const steps = [
+      { result: "done" as const, day: "2026-04-15", notes: "Opened the April statement." },
+      { result: "exception" as const, day: "2026-04-17", notes: "Found an unknown payee." },
+      { result: "done" as const, day: "2026-04-20", notes: "" },
+    ];
+    const statuses = [];
+    for (const step of steps) {
+      const outcome = await bridgeMonthlyReview(
+        db.sql,
+        "owner",
+        review({ result: step.result, notes: step.notes }),
+        step.day,
+      );
+      expect(outcome.evidenceBridged).toBe(true);
+      statuses.push(outcome.evidenceStatus);
+    }
+    expect(statuses).toEqual(["recorded", "corrected", "corrected"]);
+
+    const rows = await logRows();
+    const byId = new Map(rows.map((r) => [r.id, r.record]));
+    expect([...byId.keys()].sort()).toEqual([
+      "2026-04-bank_statement",
+      "2026-04-bank_statement-v2",
+      "2026-04-bank_statement-v3",
+    ]);
+    const work = (id: string) => byId.get(id)!.history[0].command;
+    expect(work("2026-04-bank_statement")).toMatchObject({
+      commandId: "monthly-bridge-2026-04-bank_statement",
+      result: "no_exception",
+      note: "Opened the April statement.",
+    });
+    expect(work("2026-04-bank_statement-v2")).toMatchObject({
+      commandId: "monthly-bridge-2026-04-bank_statement-v2",
+      result: "exception",
+      performedOn: "2026-04-17",
+      note: "Corrects the entry of Apr 15, 2026: now Exception. Found an unknown payee.",
+      evidenceRefs: ["Found an unknown payee."],
+      followUpOwner: "Alex Owner",
+    });
+    // The latest entry is Done again, and its note names the entry it corrects.
+    expect(work("2026-04-bank_statement-v3")).toMatchObject({
+      result: "no_exception",
+      performedOn: "2026-04-20",
+      note: "Corrects the entry of Apr 17, 2026: now Done.",
+      evidenceRefs: ["No evidence reference given"],
+    });
+    expect(byId.get("2026-04-bank_statement-v3")!.status).toBe("awaiting_review");
+    // A repeated Done after the correction adds nothing.
+    expect(
+      (await bridgeMonthlyReview(db.sql, "owner", review({ notes: "" }), "2026-04-21"))
+        .evidenceSkippedReason,
+    ).toBe("already_recorded");
+    expect(await logRows()).toHaveLength(3);
+    expect(report.error).not.toHaveBeenCalled();
+  });
+
+  it("corrects only its own check and month", async () => {
+    await bridgeMonthlyReview(db.sql, "owner", review(), TODAY);
+    const other = await bridgeMonthlyReview(
+      db.sql,
+      "owner",
+      review({ itemKey: "card_statement", result: "exception", notes: "Late fee." }),
+      TODAY,
+    );
+    expect(other.evidenceStatus).toBe("recorded");
+    expect((await logRows()).map((r) => r.id).sort()).toEqual([
+      "2026-04-bank_statement",
+      "2026-04-card_statement",
+    ]);
+  });
+
+  it("corrects the entry another save wrote between its read and its write", async () => {
+    await bridgeMonthlyReview(db.sql, "owner", review(), TODAY);
+    // Another save writes Exception as the next entry between this save's read and its write.
+    const store = await vi.importActual<typeof import("./executions/store")>("./executions/store");
+    vi.mocked(executeControlCommand).mockImplementationOnce(async (sql, actor, biz, command) => {
+      await bridgeMonthlyReview(
+        sql,
+        actor,
+        review({ result: "exception", notes: "Concurrent." }),
+        "2026-04-16",
+      );
+      return store.executeControlCommand(sql, actor, biz, command);
+    });
+    const outcome = await bridgeMonthlyReview(
+      db.sql,
+      "owner",
+      review({ result: "exception", notes: "Mine." }),
+      "2026-04-16",
+    );
+    // The other save already holds Exception as the latest entry.
+    expect(outcome).toEqual({
+      evidenceBridged: false,
+      evidenceStatus: null,
+      evidenceSkippedReason: "already_recorded",
+    });
+    expect((await logRows()).map((r) => r.id).sort()).toEqual([
+      "2026-04-bank_statement",
+      "2026-04-bank_statement-v2",
+    ]);
     expect(report.error).not.toHaveBeenCalled();
   });
 
@@ -120,6 +221,7 @@ describe("monthly review bridge to the control evidence log", () => {
     );
     expect(await bridgeMonthlyReview(db.sql, "owner", review(), TODAY)).toEqual({
       evidenceBridged: false,
+      evidenceStatus: null,
       evidenceSkippedReason: "This check changed. Reload the log.",
     });
     expect(report.error).not.toHaveBeenCalled();
@@ -129,6 +231,7 @@ describe("monthly review bridge to the control evidence log", () => {
     // A day before the period starts, which a client clock far behind the server's can send.
     expect(await bridgeMonthlyReview(db.sql, "owner", review(), "2026-03-31")).toEqual({
       evidenceBridged: false,
+      evidenceStatus: null,
       evidenceSkippedReason:
         "Performance must fall on or after the period starts, and cannot be in the future.",
     });
@@ -142,12 +245,13 @@ describe("monthly review bridge to the control evidence log", () => {
   it("writes nothing for Skipped or when the bridge is turned off", async () => {
     expect(
       await bridgeMonthlyReview(db.sql, "owner", review({ result: "skipped" }), TODAY),
-    ).toEqual({ evidenceBridged: false, evidenceSkippedReason: null });
+    ).toEqual({ evidenceBridged: false, evidenceStatus: null, evidenceSkippedReason: null });
     const previous = process.env.VITE_EVIDENCE_BRIDGE;
     process.env.VITE_EVIDENCE_BRIDGE = "false";
     try {
       expect(await bridgeMonthlyReview(db.sql, "owner", review(), TODAY)).toEqual({
         evidenceBridged: false,
+        evidenceStatus: null,
         evidenceSkippedReason: "bridge_disabled",
       });
     } finally {
@@ -162,6 +266,7 @@ describe("monthly review bridge to the control evidence log", () => {
     vi.mocked(executeControlCommand).mockRejectedValueOnce(failure);
     expect(await bridgeMonthlyReview(db.sql, "owner", review(), TODAY)).toEqual({
       evidenceBridged: false,
+      evidenceStatus: null,
       evidenceSkippedReason: "bridge_failed",
     });
     expect(report.error).toHaveBeenCalledWith(failure, "monthly-review-bridge");
@@ -173,6 +278,7 @@ describe("monthly review bridge to the control evidence log", () => {
     vi.mocked(controlExecutionLogReady).mockRejectedValueOnce(failure);
     await expect(bridgeMonthlyReview(db.sql, "owner", review(), TODAY)).resolves.toEqual({
       evidenceBridged: false,
+      evidenceStatus: null,
       evidenceSkippedReason: "bridge_failed",
     });
     expect(report.error).toHaveBeenCalledWith(failure, "monthly-review-bridge");

@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   bridgeEnabled,
   bridgeRecordCommand,
+  correctionNote,
   executionRunId,
   monthlyBridgeCommandId,
+  monthlyChainRunId,
+  monthlyEntryVersion,
   NO_EVIDENCE_REFERENCE,
+  supersedingRunId,
 } from "./review-bridge";
 import { parseCommand } from "./executions/model";
 import type { ReviewItemKey } from "../firm/reviews";
@@ -95,6 +99,53 @@ describe("review-bridge", () => {
     const key: ReviewItemKey = "cleared_checks";
     expect(executionRunId("2026-04", key)).toBe("2026-04-cleared_checks");
     expect(monthlyBridgeCommandId("2026-04", key)).toBe("monthly-bridge-2026-04-cleared_checks");
+  });
+
+  it("numbers the monthly chain by the entry each one supersedes", () => {
+    const key: ReviewItemKey = "bank_statement";
+    expect(supersedingRunId("2026-04", key, "2026-04-bank_statement")).toBe(
+      "2026-04-bank_statement-v2",
+    );
+    expect(supersedingRunId("2026-04", key, "2026-04-bank_statement-v2")).toBe(
+      "2026-04-bank_statement-v3",
+    );
+    expect(() => supersedingRunId("2026-04", key, "check-abc")).toThrow();
+    expect(monthlyEntryVersion("2026-04-bank_statement", "2026-04", key)).toBe(1);
+    expect(monthlyEntryVersion("2026-04-bank_statement-v12", "2026-04", key)).toBe(12);
+    for (const other of [
+      "2026-04-bank_statement-v1",
+      "2026-04-bank_statement-v02",
+      "2026-04-bank_statement-x",
+      "2026-05-bank_statement",
+      "2026-04-card_statement",
+    ])
+      expect(monthlyEntryVersion(other, "2026-04", key)).toBeNull();
+    expect(monthlyChainRunId("2026-04-bank_statement-v3")).toBe("2026-04-bank_statement");
+    expect(monthlyChainRunId("2026-04-bank_statement")).toBe("2026-04-bank_statement");
+  });
+
+  it("builds a correcting entry that names the entry it corrects and passes the record schema", () => {
+    expect(correctionNote("2026-04-15", "exception")).toBe(
+      "Corrects the entry of Apr 15, 2026: now Exception.",
+    );
+    const cmd = bridgeRecordCommand({
+      businessId: "biz_a",
+      period: "2026-04",
+      itemKey: "bank_statement",
+      ownerName: "Alex Owner",
+      dueOn: "2026-05-10",
+      result: "exception",
+      notes: "Unknown payee.",
+      performedOn: "2026-04-17",
+      baseRevision: 0,
+      supersedes: { runId: "2026-04-bank_statement", performedOn: "2026-04-15" },
+    });
+    expect(cmd).toMatchObject({
+      runId: "2026-04-bank_statement-v2",
+      commandId: "monthly-bridge-2026-04-bank_statement-v2",
+      note: "Corrects the entry of Apr 15, 2026: now Exception. Unknown payee.",
+    });
+    expect(parseCommand(cmd)).toMatchObject({ runId: "2026-04-bank_statement-v2" });
   });
 
   it("respects VITE_EVIDENCE_BRIDGE disable flag", () => {
