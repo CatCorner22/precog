@@ -76,12 +76,18 @@ export function executiveSummary(input: SummaryInput): string[] {
     }
   }
   if (input.firstStep) lines.push(`First step: ${midSentence(input.firstStep)}.`);
-  lines.push(
-    input.registerReady
-      ? `${input.coverageIndex}% of the work on the register (weighted by how critical it is) has two or more people who can run it alone; ${count(input.singlePoints, "critical or important item")} ${input.singlePoints === 1 ? "relies" : "rely"} on one person or nobody.`
-      : "Precog has not assessed continuity yet: the register of duties and know-how marks nobody.",
-  );
-  if (input.mapHealth) {
+  // A figure that is not a number (a damaged register) leaves its sentence
+  // out rather than print "NaN%".
+  if (!input.registerReady) {
+    lines.push(
+      "Precog has not assessed continuity yet: the register of duties and know-how marks nobody.",
+    );
+  } else if (Number.isFinite(input.coverageIndex)) {
+    lines.push(
+      `${input.coverageIndex}% of the work on the register (weighted by how critical it is) has two or more people who can run it alone; ${count(input.singlePoints, "critical or important item")} ${input.singlePoints === 1 ? "relies" : "rely"} on one person or nobody.`,
+    );
+  }
+  if (input.mapHealth && Number.isFinite(input.mapHealth.score)) {
     lines.push(
       `Map completeness ${input.mapHealth.score}% (${input.mapHealth.bandLabel.toLowerCase()}).`,
     );

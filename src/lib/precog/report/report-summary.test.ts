@@ -150,6 +150,19 @@ describe("executive summary", () => {
     ]);
   });
 
+  it("leaves out a figure that is not a number rather than print NaN%", () => {
+    const lines = executiveSummary({
+      openConflicts: [],
+      firstStep: null,
+      registerReady: true,
+      coverageIndex: Number.NaN,
+      singlePoints: 2,
+      mapHealth: { score: Number.NaN, bandLabel: "Partial" },
+      topPriority: null,
+    });
+    expect(lines).toEqual(["No open duty conflicts: no one person holds two conflicting duties."]);
+  });
+
   it("writes its own caveats instead of the threat screen's demo-priors line", () => {
     expect(REPORT_CAVEATS).not.toMatch(/demo priors/);
   });
