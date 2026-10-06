@@ -20,6 +20,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   e2eOptions,
+  exploreSample,
   openSetup,
   profileStorageKey,
   restingViewport,
@@ -39,8 +40,7 @@ await withPage(options, async (p, errors) => {
   await openSetup(page, baseUrl, timeout);
 
   step("load the dental sample");
-  await page.getByRole("radio", { name: /^Dental/ }).click();
-  await page.getByRole("button", { name: "Explore the fictional sample" }).click();
+  await exploreSample(page, "Dental");
   // How work flows sits under Advanced; its address opens it directly, and
   // the sample chosen above stays the open business.
   await page.locator("nav[data-tab-count]").waitFor();
