@@ -380,7 +380,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-controlled-count",
     title: "Count controlled drugs against the log",
     purpose:
-      "Shows the practice can account for every controlled drug and finds a loss the day it happens. Done when each count matches the log and both counters have signed it.",
+      "Use this only where the office dispenses controlled drugs. Shows the practice can account for every one and finds a loss the day it happens. Done when each count matches the log and both counters have signed it.",
     trigger: "Every Friday at close, and on the biennial inventory date",
     cadence: "weekly",
     industries: ["dental"],
@@ -405,7 +405,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-trust-rec",
     title: "Reconcile the client trust account three ways",
     purpose:
-      "Shows each client's money is still there and nobody used it for another client or the firm. Done when the bank, the trust ledger and the client ledgers agree and a second person has signed.",
+      "Use this only when the firm holds client money. Shows each client's money is still there and nobody used it for another client or the firm. Done when the bank, the trust ledger and the client ledgers agree and a second person has signed.",
     trigger: "When the trust account's monthly statement arrives",
     cadence: "monthly",
     industries: ["professional_services"],
@@ -466,7 +466,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-lien-waiver",
     title: "Collect lien waivers before paying a subcontractor",
     purpose:
-      "Stops an unpaid subcontractor or supplier putting a lien on the client's property. Done when a waiver for each payment is on file with the job.",
+      "Use this only when the business pays a subcontractor or a supplier who can file a lien. Stops an unpaid subcontractor or supplier putting a lien on the client's property. Done when a waiver for each payment is on file with the job.",
     trigger: "Before each payment to a subcontractor or supplier",
     cadence: "ad-hoc",
     industries: ["construction"],
@@ -527,7 +527,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-deal-jacket",
     title: "Audit deal jackets and title fees",
     purpose:
-      "Shows each sold vehicle's paperwork is complete and each title fee collected reached the state. Done when you have checked and signed off every deal from last week.",
+      "Use this only when the business sells vehicles. Shows each sold vehicle's paperwork is complete and each title fee collected reached the state. Done when you have checked and signed off every deal from last week.",
     trigger: "Every Monday, for the deals delivered the week before",
     cadence: "weekly",
     industries: ["automotive"],
@@ -553,6 +553,64 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     evidenceToKeep: ["Deal jacket checklist", "Remittance log", "Contracts-in-transit schedule"],
     ifYouCannotSeparate:
       "The dealer principal reviews the fees, payoffs and rebates on each deal every month.",
+  },
+  {
+    id: "lib-platform-settlement",
+    title: "Reconcile a delivery or marketplace payout",
+    purpose:
+      "Shows each delivery or marketplace payout equals its orders after fees and refunds. Done when the amount the platform paid matches the bank deposit and each difference has a cause.",
+    trigger: "When a delivery or marketplace platform pays, and again at month end",
+    cadence: "weekly",
+    industries: ["retail", "restaurant"],
+    dutyIds: ["prepare_deposit"],
+    covers: /\b(?:delivery apps?|marketplace|platform payouts?)\b/i,
+    prerequisites: ["The platform payout report", "The bank deposit for that payout"],
+    steps: [
+      { text: "Open the platform payout report for the period." },
+      { text: "List the gross orders, the fees, the refunds and the amount paid." },
+      { text: "Open the bank deposit for that payout." },
+      { text: "Compare the amount paid with the bank deposit." },
+      { text: "List each amount that differs." },
+      {
+        text: "Find the cause of each difference.",
+        caution: "Never record the net deposit as the gross sales.",
+      },
+      { text: "Sign and date the comparison." },
+    ],
+    source:
+      "Application control design: a platform payout is a settlement, not gross sales. Reconcile orders, fees, refunds and the deposit, and confirm the platform's payout report.",
+    evidenceToKeep: ["Payout report", "Bank deposit", "Difference list"],
+    ifYouCannotSeparate:
+      "A second person who does not run the platform account compares each payout with the bank deposit every month.",
+  },
+  {
+    id: "lib-certified-payroll",
+    title: "Check certified payroll on a covered job",
+    purpose:
+      "Use this only when a contract requires certified payroll. Shows the hours and pay on that job match the payroll. Done when a second person signs the certified payroll for the week after the hours match the field records.",
+    trigger: "Each pay week on a job that requires certified payroll",
+    cadence: "weekly",
+    industries: ["construction"],
+    dutyIds: ["enter_payroll", "approve_payroll"],
+    covers: /\bcertified payroll\b/i,
+    prerequisites: ["The contract's certified-payroll requirement", "Field hours for the week"],
+    steps: [
+      { text: "Open the contract and confirm it requires certified payroll." },
+      { text: "Collect each worker's hours on that job for the week." },
+      { text: "Compare those hours with the payroll for the same week." },
+      { text: "List each hour or rate that differs." },
+      {
+        text: "Correct each difference in the payroll.",
+        caution: "Never sign certified payroll whose hours differ from the field records.",
+      },
+      { text: "Sign and date the certified payroll." },
+      { text: "File the signed payroll with the job." },
+    ],
+    source:
+      "U.S. Department of Labor, Davis-Bacon and Related Acts: a contractor on a covered federally funded or assisted construction contract submits weekly certified payroll (form WH-347). A job that is not covered skips this procedure. https://www.dol.gov/agencies/whd/government-contracts/construction",
+    evidenceToKeep: ["Certified payroll", "Field hours", "Signed payroll"],
+    ifYouCannotSeparate:
+      "A second person who does not enter payroll compares the certified payroll with the field hours.",
   },
 ];
 

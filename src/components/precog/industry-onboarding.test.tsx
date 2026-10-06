@@ -44,7 +44,7 @@ describe("IndustryOnboarding, first render", () => {
     expect(html).toContain('role="radiogroup" aria-labelledby="industry-onboarding-title"');
     expect(html.match(/role="radio"/g)).toHaveLength(8);
     expect(html.match(/aria-checked="true"/g)).toHaveLength(1);
-    expect(text).toContain("Explore the sample instead");
+    expect(text).toContain("Explore the fictional sample");
     expect(text).not.toMatch(/\bdemo\b/i);
     expect(text).not.toMatch(/switch industry/);
   });

@@ -1,5 +1,6 @@
 import type { EntitlementId } from "../sod/conflict-rules";
 import { ENTITLEMENTS } from "../sod/conflict-rules";
+import type { IndustryId } from "../industry";
 
 /**
  * Common job titles and the money duties each one typically holds in a
@@ -2620,3 +2621,40 @@ export const INDUSTRY_SEATS: Record<
 };
 
 const BY_ID = new Map(JOB_CATALOG.map((e) => [e.id, e]));
+
+/** Families every line of business uses: the people who move the money. */
+const SHARED_JOB_FAMILIES: readonly JobFamily[] = [
+  "leadership",
+  "finance",
+  "office",
+  "it",
+  "people",
+];
+
+/**
+ * Families that belong to one line of business. Hotels, property, and schools
+ * stay off a restaurant or a clinic until the owner asks for every title.
+ */
+const PACK_JOB_FAMILIES: Record<IndustryId, readonly JobFamily[]> = {
+  dental: ["clinical"],
+  retail: ["retail", "sales"],
+  professional_services: ["professional", "legal"],
+  restaurant: ["food"],
+  construction: ["trades"],
+  automotive: ["automotive"],
+  nonprofit: ["nonprofit", "education"],
+  general: ["sales", "professional", "property", "marketing"],
+};
+
+/**
+ * Job titles to offer while setting up this line of business. Pass `all` to
+ * include every family, including ones this line does not use.
+ */
+export function jobsForIndustry(industry: IndustryId, all = false): readonly JobCatalogEntry[] {
+  if (all) return JOB_CATALOG;
+  const families = new Set<JobFamily>([
+    ...SHARED_JOB_FAMILIES,
+    ...(PACK_JOB_FAMILIES[industry] ?? []),
+  ]);
+  return JOB_CATALOG.filter((job) => families.has(job.family));
+}

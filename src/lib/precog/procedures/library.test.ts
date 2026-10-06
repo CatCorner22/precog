@@ -174,8 +174,13 @@ describe("which recommendations a business is shown", () => {
       libraryRows(getIndustryTemplate(industry), [], industry).map((r) => r.recommendation.id);
     expect(shown("professional_services")).toContain("lib-trust-rec");
     expect(shown("dental")).toContain("lib-controlled-count");
+    expect(shown("retail")).toContain("lib-platform-settlement");
+    expect(shown("restaurant")).toContain("lib-platform-settlement");
+    expect(shown("construction")).toContain("lib-certified-payroll");
     expect(shown("general")).not.toContain("lib-trust-rec");
     expect(shown("general")).not.toContain("lib-controlled-count");
+    expect(shown("general")).not.toContain("lib-platform-settlement");
+    expect(shown("general")).not.toContain("lib-certified-payroll");
     for (const { id } of INDUSTRIES) expect(shown(id)).toContain("lib-bank-rec");
   });
 
