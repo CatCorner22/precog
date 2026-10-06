@@ -670,6 +670,39 @@ describe("control effort", () => {
   });
 });
 
+describe("the controlled-drug count", () => {
+  const count = CONTROL_CATALOG["controlled-substance-count"];
+  const linked = CASE_LIBRARY.flatMap((c) =>
+    c.wouldHaveCaughtIt
+      .filter((w) => w.control === "controlled-substance-count")
+      .map((w) => ({ id: c.id, asApplied: w.asApplied })),
+  );
+
+  it("keeps the case's own count, and does not say that case counted weekly", () => {
+    // The case reads its count as at open and close; the record stays as written.
+    expect(linked).toEqual([
+      {
+        id: "case-littleton-oral-surgery-fentanyl",
+        asApplied:
+          "Two people count the fentanyl and other scheduled drugs against the log at open and close, and inspect caps and seals",
+      },
+    ]);
+    expect(count.label).toBe(
+      "Two people count controlled substances against the log at least once a week and inspect vials and seals for tampering",
+    );
+    expect(`${count.label} ${count.why}`).not.toMatch(/\beach week\b|\bA weekly\b/);
+  });
+
+  it("names weekly as Precog's suggestion, not the practice's policy or a DEA rule", () => {
+    expect(count.why).toContain(
+      "Precog suggests a weekly count, and a practice may count more often, for example at open and close.",
+    );
+    expect(count.why).not.toContain("the practice's own policy");
+    expect(count.why).toContain("every two years (21 CFR 1304.11)");
+    expect(effortPhrase(count)).toBe("An hour to set up, then weekly");
+  });
+});
+
 describe("shared evidence wording", () => {
   it("states a floor loss as 'at least' and an exact loss as the figure", () => {
     expect(lossPhrase({ lossUsd: 1_000_000, lossIsFloor: true })).toBe("at least $1,000,000");

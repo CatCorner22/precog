@@ -21,7 +21,7 @@ import type { DeepLinkTarget } from "@/lib/precog/coso";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatUsd, cn, formatPct } from "@/lib/utils";
+import { cn, formatEstimateUsd, formatPct } from "@/lib/utils";
 import { FigureTile } from "./figure-tile";
 
 /** Rows shown before "Show all". */
@@ -261,7 +261,7 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
                   )}
                   {active.expectedLoss != null && (
                     <p className="text-xs text-subtle">
-                      {ILLUSTRATIVE_LABEL}: a loss of {formatUsd(active.expectedLoss)}
+                      {ILLUSTRATIVE_LABEL}: a loss of {formatEstimateUsd(active.expectedLoss)}
                       {active.p50Days != null
                         ? ` and about ${active.p50Days} days until found`
                         : ""}

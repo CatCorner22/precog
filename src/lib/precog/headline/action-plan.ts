@@ -36,6 +36,13 @@ export interface PlanWeeklyAction {
   id: string;
   title: string;
   effort: "low" | "medium" | "high";
+  /**
+   * The duty pair the action splits. A split names everyone who holds the
+   * pair; a hand-off also names the person (`personId`) and answers only
+   * their finding on it.
+   */
+  ruleId?: string;
+  personId?: string;
 }
 
 interface ActionPlanOptions {
@@ -153,14 +160,22 @@ export function rankedActionPlan(
   }
 
   for (const action of options.weekly ?? []) {
-    const ruleId = action.id.startsWith("sod-") ? action.id.slice(4) : null;
+    // A split ("sod-<rule>") or a hand-off on a hot process carries its pair,
+    // so it shares the pair's key with the concentration move and ranks by the
+    // pair's severity.
+    const ruleId = action.ruleId ?? (action.id.startsWith("sod-") ? action.id.slice(4) : null);
     const controls = (WEEKLY_CONTROLS[action.id] ?? []).filter((id) => !running(id));
     if (WEEKLY_CONTROLS[action.id] && controls.length === 0) continue;
-    const hits = ruleId ? open.filter((c) => c.ruleId === ruleId) : answered(controls);
+    const hits = ruleId
+      ? open.filter(
+          (c) => c.ruleId === ruleId && (!action.personId || c.personId === action.personId),
+        )
+      : answered(controls);
     // A pair with no open conflict left (dual release covers it at every amount) needs no split.
     if (ruleId && hits.length === 0) continue;
     candidates.push({
-      who: reader,
+      // A hand-off is about the person whose duty moves, as the concentration move is.
+      who: action.personId ? hits[0].personName : reader,
       what: action.title,
       minutes: EFFORT_MINUTES[action.effort],
       closes: hits.length,

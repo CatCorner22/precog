@@ -12,9 +12,10 @@ import {
   type DetectedConflict,
 } from "@/lib/precog/sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
-import type { DutyFamily } from "@/lib/precog/sod/conflict-rules";
-import { entitlementFamily } from "@/lib/precog/sod/rule-match";
+import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
+import { entitlementProcesses } from "@/lib/precog/sod/rule-match";
 import { soleOwnerId } from "@/lib/precog/sod/owner-role";
+import { concentrationHeadline } from "@/lib/precog/sod/verdict";
 import type { DualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import { checkInPlan, CONFIRMATION_MAX_AGE_DAYS } from "@/lib/precog/continuity/staleness";
 import {
@@ -86,6 +87,15 @@ interface WeeklyAction {
   processId?: string;
   /** The prosecuted cases this action rests on, where the library has any. */
   evidence?: ActionEvidence;
+  /**
+   * The duty pair (conflict rule) the action splits, so the one action plan
+   * (headline/action-plan) lists it once with any other step on that pair.
+   */
+  ruleId?: string;
+  /** For a hand-off: the person who holds both duties of the pair. */
+  personId?: string;
+  /** For a hand-off: the duty a second person takes. */
+  handedDuty?: EntitlementId;
 }
 
 interface ActionEvidence {
@@ -406,6 +416,7 @@ function sodSplitActions(ctx: WeeklyContext): WeeklyAction[] {
     tab: "sod",
     priority: PRIORITY.sodSplit,
     evidence: evidenceFor(casesForSodRules([c.ruleId])),
+    ruleId: c.ruleId,
   }));
 }
 
@@ -897,20 +908,27 @@ function mapActions(ctx: WeeklyContext): WeeklyAction[] {
   }
   const snapshots = input.mapSnapshots ?? [];
   const open = openFindings(conflicts, partialDualReleaseCoverage(input.dualRelease, conflicts));
+  // The report's concentration sentence ("moving one duty, X, ... closes N"):
+  // a hand-off for that person moves the same duty, so the two never disagree.
+  const moved = concentrationHeadline(open);
   // Each pair and each hand-off is named once across the week's actions.
   const named = new Set(splitConflicts(ctx).map((c) => c.ruleId));
   const handedOff = new Set<string>();
   const hot: WeeklyAction[] = [];
   for (const snap of snapshots.filter((s) => s.heat >= HEAT_BANDS.hot)) {
     if (hot.length >= MAX_PER_SOURCE) break;
-    const c = open
+    const pick = open
       .filter((x) => x.processIds.includes(snap.process.id) && !named.has(x.ruleId))
       .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.score - a.score)
-      .find((x) => !handedOff.has(handOffKey(x)));
-    if (!c) continue;
-    named.add(c.ruleId);
-    handedOff.add(handOffKey(c));
-    hot.push(hotProcessAction(snap, c));
+      .map((x) => ({ c: x, handed: handOff(x, moved) }))
+      .find(
+        (x): x is { c: DetectedConflict; handed: EntitlementId } =>
+          x.handed !== null && !handedOff.has(`${x.c.personId}:${x.handed}`),
+      );
+    if (!pick) continue;
+    named.add(pick.c.ruleId);
+    handedOff.add(`${pick.c.personId}:${pick.handed}`);
+    hot.push(hotProcessAction(snap, pick.c, pick.handed));
   }
   const unowned: WeeklyAction[] = snapshots
     .filter((s) => !s.owners.length)
@@ -935,48 +953,100 @@ const SEVERITY_RANK: Record<DetectedConflict["severity"], number> = {
 };
 
 /**
- * Which of a conflict's two duties a second person takes: the check before
- * the act, so the bank reconciliation moves before the deposit and the
- * approval before the entry it approves.
+ * Which of a conflict's two duties a second person takes, first choice first.
+ * The check before the act comes first: someone else reconciles, reviews,
+ * approves or confirms the delivery, so the bank reconciliation moves before
+ * the deposit and the approval before the entry it approves. A pair with no
+ * check hands off the power to change who or what the records hold
+ * (suppliers, employee records, system access, write-offs, manual journal
+ * entries), else the money itself. A routine entry (recording payments
+ * received, entering payroll or bills, issuing invoices or claims) is never
+ * handed off: a second person who only makes entries checks nothing, so a
+ * pair of two routine entries gives no hand-off.
  */
-const HAND_OFF_ORDER: readonly DutyFamily[] = [
-  "reconciliation",
-  "authorization",
-  "master_data",
-  "recording",
-  "custody",
+export const HAND_OFF_ORDER: readonly EntitlementId[] = [
+  // The check.
+  "bank_reconcile",
+  "review_card_statement",
+  "review_audit_logs",
+  "approve_writeoffs",
+  "approve_invoices",
+  "approve_vendor",
+  "approve_payroll",
+  "approve_expenses",
+  "receive_goods",
+  // The power to change who or what the records hold.
+  "create_vendor",
+  "edit_payroll_master",
+  "pms_admin_roles",
+  "manage_user_access",
+  "edit_patient_master",
+  "change_fee_schedule",
+  "post_adjustments",
+  "post_journal_entries",
+  // The money.
+  "release_payment",
+  "sign_checks",
+  "initiate_ach",
+  "issue_refunds",
+  "prepare_deposit",
+  "collect_cash",
+  "hold_company_card",
+  "order_supplies",
+  "manage_backups",
+  "export_bulk_data",
 ];
 
-/** The duty a second person takes, and the one the holder keeps, as labels. */
-function handOff(c: DetectedConflict): { kept: string; handed: string; handedId: string } {
-  return HAND_OFF_ORDER.indexOf(entitlementFamily(c.entitlementA)) <
-    HAND_OFF_ORDER.indexOf(entitlementFamily(c.entitlementB))
-    ? { kept: c.labelB, handed: c.labelA, handedId: c.entitlementA }
-    : { kept: c.labelA, handed: c.labelB, handedId: c.entitlementB };
-}
-
-/** One person handing one duty to someone else: two pairs that end in the same hand-off are one action. */
-function handOffKey(c: DetectedConflict): string {
-  return `${c.personId}:${handOff(c).handedId}`;
+/**
+ * The duty a second person takes from the person who holds both: the duty
+ * the report's concentration sentence moves for that person when the pair
+ * has it, so the week's step and that sentence move the same duty; else the
+ * first of the two in HAND_OFF_ORDER. Null when neither is in it.
+ */
+function handOff(
+  c: DetectedConflict,
+  moved: { personId: string; duty: EntitlementId } | null,
+): EntitlementId | null {
+  if (moved?.personId === c.personId && [c.entitlementA, c.entitlementB].includes(moved.duty)) {
+    return moved.duty;
+  }
+  const rank = (duty: EntitlementId) => {
+    const i = HAND_OFF_ORDER.indexOf(duty);
+    return i === -1 ? Infinity : i;
+  };
+  const first = rank(c.entitlementA) <= rank(c.entitlementB) ? c.entitlementA : c.entitlementB;
+  return rank(first) === Infinity ? null : first;
 }
 
 /**
  * A hot process as the control its worst open conflict needs: someone other
- * than the person who holds both duties takes the check, for example "Have
- * someone other than Dana reconcile the bank account".
+ * than the person who holds both duties takes one of them, for example "Have
+ * someone other than Dana reconcile the bank account". The reason names the
+ * process only when both duties belong to it.
  */
-function hotProcessAction(snap: ProcessMapSnapshot, c: DetectedConflict): WeeklyAction {
+function hotProcessAction(
+  snap: ProcessMapSnapshot,
+  c: DetectedConflict,
+  handedDuty: EntitlementId,
+): WeeklyAction {
   const first = firstName(c.personName);
-  const { kept, handed } = handOff(c);
+  const [handed, kept] =
+    handedDuty === c.entitlementA ? [c.labelA, c.labelB] : [c.labelB, c.labelA];
+  const inProcess = [c.entitlementA, c.entitlementB].every((duty) =>
+    entitlementProcesses(duty).includes(snap.process.id),
+  );
   return {
     id: `map-heat-${snap.process.id}`,
     title: `Have someone other than ${first} ${midSentence(handed)}`,
-    why: `In ${snap.process.name}, ${first} can both ${midSentence(kept)} and ${midSentence(handed)}. ${c.why}`,
+    why: `${inProcess ? `In ${snap.process.name}, ` : ""}${first} can both ${midSentence(kept)} and ${midSentence(handed)}. ${c.why}`,
     effort: "medium",
     tab: "map",
     processId: snap.process.id,
     priority: Math.min(92, snap.heat + 5),
     evidence: evidenceFor(casesForSodRules([c.ruleId])),
+    ruleId: c.ruleId,
+    personId: c.personId,
+    handedDuty,
   };
 }
 

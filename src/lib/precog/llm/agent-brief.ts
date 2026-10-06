@@ -1,7 +1,7 @@
 import type { EvidenceRef, PioneerDecision, StructuredBrief, ToolResult } from "./types";
 import { readSpofData } from "./spof-data";
 import { describeScenarioFigures, type ScenarioRunData } from "./scenario-tools";
-import { formatUsd, formatUsdDelta } from "@/lib/utils";
+import { formatEstimateUsd, formatEstimateUsdDelta, formatUsd, formatUsdDelta } from "@/lib/utils";
 import { joinWithAnd, verb, count } from "../text";
 import { clamp } from "../number";
 import { lossPhrase } from "../evidence";
@@ -291,15 +291,17 @@ export function extractVariableCascades(tools: ToolResult[]): string[] {
     ];
   }
 
+  // Scenario retained dollars read as rounded estimates, as on every screen;
+  // the tool's data keeps the exact figures for any arithmetic.
   const lines: string[] = [];
   if (cas.baseline) {
     lines.push(
-      `Baseline: likelihood ×${cas.baseline.likelihoodMultiplier.toFixed(2)}, premium ${formatUsd(cas.baseline.premiumAnnualNet)}, assumed retained ${formatUsd(cas.baseline.retainedExpected)}, risk index ${cas.baseline.residualAverage}.`,
+      `Baseline: likelihood ×${cas.baseline.likelihoodMultiplier.toFixed(2)}, premium ${formatUsd(cas.baseline.premiumAnnualNet)}, assumed retained ${formatEstimateUsd(cas.baseline.retainedExpected)}, risk index ${cas.baseline.residualAverage}.`,
     );
   }
   for (const row of cas.topByCostOfRisk.slice(0, 4)) {
     lines.push(
-      `**If you ${row.label}**: assumed retained ${formatUsdDelta(row.deltaRetained)}, premium ${formatUsdDelta(row.deltaPremium)}, risk index ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}, assumed days until found ${row.deltaP50 >= 0 ? "+" : ""}${Math.round(row.deltaP50)}. Also: ${row.affects.slice(0, 3).join("; ")}. ${row.secondOrderNotes[0] ?? ""}`.trim(),
+      `**If you ${row.label}**: assumed retained ${formatEstimateUsdDelta(row.deltaRetained)}, premium ${formatUsdDelta(row.deltaPremium)}, risk index ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}, assumed days until found ${row.deltaP50 >= 0 ? "+" : ""}${Math.round(row.deltaP50)}. Also: ${row.affects.slice(0, 3).join("; ")}. ${row.secondOrderNotes[0] ?? ""}`.trim(),
     );
   }
   return lines;
@@ -333,7 +335,7 @@ export function chickenLittleCritique(tools: ToolResult[]): string[] {
     scenario.timelineDays.p50 < WARNING_RULES.scenarioDaysUntilFound
   ) {
     warnings.push(
-      `"${scenario.title}" assumes ${formatUsd(scenario.retained.expected)} retained, found about ${scenario.timelineDays.p50} days in (a scenario assumption, not a forecast; Precog warns above ${formatUsd(WARNING_RULES.scenarioRetainedUsd)} found within ${WARNING_RULES.scenarioDaysUntilFound} days).`,
+      `"${scenario.title}" assumes ${formatEstimateUsd(scenario.retained.expected)} retained, found about ${scenario.timelineDays.p50} days in (a scenario assumption, not a forecast; Precog warns above ${formatUsd(WARNING_RULES.scenarioRetainedUsd)} found within ${WARNING_RULES.scenarioDaysUntilFound} days).`,
     );
   }
   const leave = tools.find((t) => t.tool === "get_planned_absences")?.data as

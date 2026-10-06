@@ -149,6 +149,31 @@ describe("buildThreatAssessment for the sample", () => {
   });
 });
 
+describe("a scenario row's retained dollars", () => {
+  const reasonsFor = (industry: IndustryId) => {
+    const p = defaultProfile(industry);
+    return buildThreatAssessment({
+      tpl: resolveTemplate(p),
+      practiceName: "x",
+      staff: p.staff,
+      riskVariables: p.riskVariables,
+      dualRelease: p.dualRelease,
+    }).targetDeck.flatMap((t) => t.reasons);
+  };
+
+  it("prints the retained loss as a rounded estimate, never to the dollar", () => {
+    expect(reasonsFor("professional_services")).toContain(
+      "Retained about $5,000 (Precog default, enter your policy)",
+    );
+    for (const { id } of INDUSTRIES) {
+      for (const reason of reasonsFor(id as IndustryId).filter((r) => /retained/i.test(r))) {
+        expect(reason, id).toMatch(/^Retained (about \$\d{1,3}(,\d{3})*|\$0)\b/);
+        expect(reason, id).not.toContain("~");
+      }
+    }
+  });
+});
+
 describe("next steps for a residual row", () => {
   const steps = (industry: "dental" | "construction" | "retail", name: string) => {
     const tpl = getIndustryTemplate(industry);

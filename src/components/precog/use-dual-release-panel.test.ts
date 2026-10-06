@@ -16,7 +16,7 @@ describe("a typed payment threshold (ST-INPUT-6)", () => {
   });
 
   it("keeps an amount above the most Precog stores at that most, and says so", () => {
-    expect(readThreshold("1e12")).toEqual({
+    expect(readThreshold("1000000000000")).toEqual({
       value: DUAL_RELEASE_MAX_USD,
       note: "Kept at $1,000,000,000, the most this figure accepts.",
     });
@@ -28,6 +28,18 @@ describe("a typed payment threshold (ST-INPUT-6)", () => {
     expect(readThreshold("12.75")).toEqual({ value: 12.75 });
     expect(readThreshold("$2,500")).toEqual({ value: 2500 });
     expect(readThreshold("0")).toEqual({ value: 0 });
+  });
+
+  it("reads commas and a dollar sign as the owner means them", () => {
+    expect(readThreshold("1,000")).toEqual({ value: 1000 });
+    expect(readThreshold("$500")).toEqual({ value: 500 });
+    expect(readThreshold(" $1,250.50 ")).toEqual({ value: 1250.5 });
+  });
+
+  it("reads only digits with up to two decimals, never a hex or exponent figure", () => {
+    for (const typed of ["0x10", "1e3", "1e12", "12.555", ".5", "5.", "1 000", "-5", ""]) {
+      expect(readThreshold(typed), typed).toEqual({ error: "Enter an amount of $0 or more." });
+    }
   });
 
   it("saves 12.50 as 12.50, not 13, through the profile", () => {

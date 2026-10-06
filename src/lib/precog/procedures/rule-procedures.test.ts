@@ -65,6 +65,33 @@ describe("the written procedure each duty-conflict rule leads to", () => {
     }
   });
 
+  it("leads system administration plus recording payments received to the bank reconciliation", () => {
+    // Its steps tick each deposit on the bank statement against a deposit in
+    // the books: the check on what was recorded as received, made against a
+    // record the system's administrator cannot edit.
+    expect(libraryIdsForRule("rule-admin-pay")).toEqual(["lib-bank-rec", "lib-leaver-access"]);
+    expect(conflictProcedureLink("rule-admin-pay", [], [], "general")).toEqual({
+      title: "Reconcile the bank account",
+      item: "lib:lib-bank-rec",
+      started: false,
+    });
+    const steps = LIBRARY.get("lib-bank-rec")!.steps.map((s) => s.text);
+    expect(steps).toContain(
+      "Tick each deposit on the statement that matches a deposit in the books.",
+    );
+  });
+
+  it("never leads a pair about money coming in to the vendor payment procedure", () => {
+    const paysOut = new Set(["release_payment", "initiate_ach", "sign_checks"]);
+    const incoming = CONFLICT_RULES.filter(
+      (r) => [r.a, r.b].includes("post_payments") && ![r.a, r.b].some((d) => paysOut.has(d)),
+    );
+    expect(incoming.map((r) => r.id)).toContain("rule-admin-pay");
+    for (const rule of incoming) {
+      expect(RULE_PROCEDURE[rule.id].primary, rule.id).not.toBe("lib-release-payments");
+    }
+  });
+
   it("returns nothing for an unknown rule", () => {
     expect(procedureForConflict("rule-nope")).toBeUndefined();
     expect(libraryIdsForRule("rule-nope")).toEqual([]);

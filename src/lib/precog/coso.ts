@@ -17,7 +17,7 @@ import { openFindings, partialDualReleaseCoverage } from "./sod/open-findings";
 import type { AccessReconciliation } from "./firm/reconcile";
 import { formatDay } from "./dates";
 import { withLiveThreshold } from "./controls/dual-release-wording";
-import { formatUsd } from "../utils";
+import { formatEstimateUsd } from "../utils";
 import { count, joinWithAnd } from "./text";
 import { tabLabel } from "./navigation";
 
@@ -271,7 +271,7 @@ export function assessCoso(
               {
                 id: "ra-top",
                 label: `Top residual scenario: ${topScenario.scenario.title}`,
-                detail: `Scenario assumes a loss of ${formatUsd(topScenario.result.financialImpact.expected)} and about ${topScenario.result.timelineDays.p50} assumed days until found (assumed range ${topScenario.result.timelineDays.p95Low}–${topScenario.result.timelineDays.p95High} days). An assumption written into the scenario, not a forecast.`,
+                detail: `Scenario assumes a loss of ${formatEstimateUsd(topScenario.result.financialImpact.expected)} and about ${topScenario.result.timelineDays.p50} assumed days until found (assumed range ${topScenario.result.timelineDays.p95Low}–${topScenario.result.timelineDays.p95High} days). An assumption written into the scenario, not a forecast.`,
                 severity: "critical" as HealthLevel,
                 link: {
                   type: "precog" as const,

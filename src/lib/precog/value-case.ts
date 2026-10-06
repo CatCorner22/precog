@@ -6,7 +6,7 @@ import {
 } from "./value-evidence";
 import { formatDay } from "./dates";
 import { count, joinWithAnd } from "./text";
-import { formatUsd, formatPct } from "../utils";
+import { formatEstimateUsd, formatUsd, formatPct } from "../utils";
 import { boundedNumber } from "./number";
 
 export const VALUE_CASE_STORAGE_KEY = "precog-value-case-v1";
@@ -302,7 +302,8 @@ export function modeledTileValues(
   const { modeled } = calculateValueCase(inputs);
   return {
     riskReduction: formatUsd(modeled.base),
-    lossBaseline: formatUsd(modeled.expectedLossBefore),
+    // An assumed loss, so it reads as every scenario loss does: "about $16,000".
+    lossBaseline: formatEstimateUsd(modeled.expectedLossBefore),
     entered: true,
   };
 }

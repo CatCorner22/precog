@@ -271,6 +271,55 @@ describe("rankedActionPlan", () => {
     expect(whats.some((w) => /camera|premium credit/i.test(w))).toBe(false);
   });
 
+  it("keys a week's hand-off by its duty pair and ranks it by that pair", () => {
+    for (const { name, profile } of variants) {
+      const { report } = screens(profile);
+      const plan = rankedActionPlan(profile, report.sod, {
+        partial: report.partialCoverage,
+        weekly: report.actions,
+      });
+      expect(
+        plan.some((s) => s.keys.some((k) => k.startsWith("weekly:map-heat-"))),
+        name,
+      ).toBe(false);
+      const open = openConflictHeadline(report.sod, report.partialCoverage).findings;
+      for (const action of report.actions.filter((a) => a.id.startsWith("map-heat-"))) {
+        const pair = open.find((c) => c.ruleId === action.ruleId && c.personId === action.personId);
+        expect(pair, `${name}: ${action.title}`).toBeDefined();
+        const step = plan.find((s) => s.what === action.title);
+        if (!step) {
+          // Merged into the step that already stands for the pair.
+          expect(plan.some((s) => s.keys.includes(`pair:${action.ruleId}`))).toBe(true);
+          continue;
+        }
+        expect(step.keys, `${name}: ${action.title}`).toEqual([`pair:${action.ruleId}`]);
+        // The step is about the person whose duty moves, as the concentration move is.
+        expect(step.who, `${name}: ${action.title}`).toBe(pair!.personName);
+        const severity = pair!.severity;
+        expect(step.tier, `${name}: ${action.title}`).toBe(
+          severity === "critical" || severity === "high" ? severity : "other",
+        );
+        expect(step.closes, `${name}: ${action.title}`).toBe(1);
+      }
+    }
+  });
+
+  it("merges the week's hand-off into the concentration move on the same pair", () => {
+    const profile = defaultProfile("dental");
+    const { report } = screens(profile);
+    const plan = rankedActionPlan(profile, report.sod, {
+      partial: report.partialCoverage,
+      weekly: report.actions,
+    });
+    const handOff = report.actions.find((a) => a.id === "map-heat-proc-claims");
+    expect(handOff?.title).toBe("Have someone other than Maya enter write-offs");
+    expect(plan[0].what).toBe(
+      "Move enter write-offs from Maya to someone who holds none of Maya's other duties",
+    );
+    expect(plan[0].keys).toContain("pair:rule-writeoff");
+    expect(plan.map((s) => s.what)).not.toContain(handOff?.title);
+  });
+
   it("names the board treasurer for a business with no owner", () => {
     const profile = defaultProfile("nonprofit");
     const { report } = screens(profile);

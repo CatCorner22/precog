@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatUsd } from "@/lib/utils";
+import { formatUsdTyped } from "@/lib/utils";
 import { Lock, UserCheck } from "lucide-react";
 import type { ReleaseChannel } from "@/lib/precog/controls/dual-release";
 import { DualReleaseEvalResult } from "@/components/precog/dual-release-parts";
@@ -107,8 +107,8 @@ export function DualReleaseSimulatorCard({ model }: { model: DualReleasePanelMod
         </div>
         {activeRule && (
           <p className="text-xs text-subtle">
-            Every payment above {formatUsd(activeRule.thresholdUsd)} needs two people. Who may sign
-            second: {secondsLine}.
+            Every payment above {formatUsdTyped(activeRule.thresholdUsd)} needs two people. Who may
+            sign second: {secondsLine}.
           </p>
         )}
         <Button size="sm" onClick={runEval}>

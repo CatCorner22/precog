@@ -4,7 +4,26 @@ import { INDUSTRIES, type IndustryId } from "@/lib/precog/industry";
 import { defaultProfile } from "@/lib/precog/practice-profile";
 import { buildProcessMapGraph, type ProcessMapSnapshot } from "@/lib/precog/process-graph";
 import { HEAT_BANDS } from "@/lib/precog/scoring/bands";
-import { buildWeeklyActions } from "./build";
+import {
+  CONFLICT_RULES,
+  entitlementLabel,
+  OPERATING_DUTIES,
+  type EntitlementId,
+} from "@/lib/precog/sod/conflict-rules";
+import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
+import { openFindings, partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
+import { entitlementFamily, entitlementProcesses } from "@/lib/precog/sod/rule-match";
+import { concentrationHeadline } from "@/lib/precog/sod/verdict";
+import { midSentence } from "@/lib/precog/text";
+import { buildWeeklyActions, HAND_OFF_ORDER } from "./build";
+
+/** Entries a second person only repeats: never handed off as the check. */
+const ROUTINE_ENTRIES: readonly EntitlementId[] = [
+  "post_payments",
+  "enter_payroll",
+  "enter_invoices",
+  "submit_claims",
+];
 
 function actionsFor(industry: IndustryId, edit = (s: ProcessMapSnapshot[]) => s) {
   const profile = defaultProfile(industry);
@@ -19,12 +38,29 @@ function actionsFor(industry: IndustryId, edit = (s: ProcessMapSnapshot[]) => s)
   });
 }
 
+/** The duty the report's concentration sentence moves, and whose. */
+function concentrationFor(industry: IndustryId) {
+  const profile = defaultProfile(industry);
+  const tpl = resolveTemplate(profile);
+  const { conflicts } = detectSodConflicts(
+    tpl,
+    profile.staff,
+    sodDetectionOptions(tpl, profile.dualRelease),
+  );
+  return concentrationHeadline(
+    openFindings(conflicts, partialDualReleaseCoverage(profile.dualRelease, conflicts)),
+  );
+}
+
+const hotActions = (industry: IndustryId) =>
+  actionsFor(industry).filter((a) => a.id.startsWith("map-heat-"));
+
 describe("a hot process in the week's actions", () => {
   it("reads as the control its worst open conflict needs, for the person who holds it", () => {
     const cash = actionsFor("restaurant").find((a) => a.id === "map-heat-proc-cash");
     expect(cash?.title).toBe("Have someone other than Keisha approve write-offs and voids");
     expect(cash?.why).toMatch(
-      /^In Cash, tips & deposits, Keisha can both prepare bank deposit and approve write-offs and voids\. /,
+      /^Keisha can both prepare bank deposit and approve write-offs and voids\. /,
     );
     expect(cash?.effort).toBe("medium");
   });
@@ -32,6 +68,88 @@ describe("a hot process in the week's actions", () => {
   it("hands the check to someone else, not the act", () => {
     const cash = actionsFor("professional_services").find((a) => a.id === "map-heat-proc-cash");
     expect(cash?.title).toBe("Have someone other than Greg reconcile the bank account");
+    expect(cash?.why).toMatch(
+      /^In Operating cash & bank reconciliation, Greg can both record payments received and reconcile the bank account\. /,
+    );
+  });
+
+  it("carries the duty pair, the person and the duty it hands off", () => {
+    for (const { id } of INDUSTRIES) {
+      for (const a of hotActions(id as IndustryId)) {
+        const rule = CONFLICT_RULES.find((r) => r.id === a.ruleId);
+        expect(rule, `${id}: ${a.id}`).toBeDefined();
+        expect([rule!.a, rule!.b], `${id}: ${a.id}`).toContain(a.handedDuty);
+        expect(a.personId, `${id}: ${a.id}`).toBeTruthy();
+        expect(a.title.endsWith(midSentence(entitlementLabel(a.handedDuty!))), a.title).toBe(true);
+      }
+    }
+  });
+
+  it("hands off the duty the concentration sentence moves for that person", () => {
+    // Dental: "moving one duty, enter write-offs" from Maya.
+    expect(concentrationFor("dental")).toMatchObject({ personName: "Maya Chen" });
+    expect(concentrationFor("dental")?.duty).toBe("post_adjustments");
+    const claims = actionsFor("dental").find((a) => a.id === "map-heat-proc-claims");
+    expect(claims?.title).toBe("Have someone other than Maya enter write-offs");
+    // General: "moving one duty, release payments" from Maya.
+    expect(concentrationFor("general")?.duty).toBe("release_payment");
+    const ap = actionsFor("general").find((a) => a.id === "map-heat-proc-ap");
+    expect(ap?.title).toBe("Have someone other than Maya release payments");
+    for (const { id } of INDUSTRIES) {
+      const move = concentrationFor(id as IndustryId);
+      for (const a of hotActions(id as IndustryId)) {
+        const rule = CONFLICT_RULES.find((r) => r.id === a.ruleId)!;
+        if (move && a.personId === move.personId && [rule.a, rule.b].includes(move.duty)) {
+          expect(a.handedDuty, `${id}: ${a.id}`).toBe(move.duty);
+        }
+      }
+    }
+  });
+
+  it("names a process only when both duties of the pair belong to it", () => {
+    // Entering payroll is not part of the restaurant's food and beverage bills.
+    const bills = actionsFor("restaurant").find((a) => a.id === "map-heat-proc-ap");
+    expect(bills?.why).not.toContain("Food & beverage bills");
+    for (const { id } of INDUSTRIES) {
+      const tpl = resolveTemplate(defaultProfile(id as IndustryId));
+      for (const a of hotActions(id as IndustryId)) {
+        const rule = CONFLICT_RULES.find((r) => r.id === a.ruleId)!;
+        const inside = [rule.a, rule.b].every((d) =>
+          entitlementProcesses(d).includes(a.processId!),
+        );
+        const name = tpl.processes.find((p) => p.id === a.processId)!.name;
+        expect(a.why.startsWith(`In ${name}, `), `${id}: ${a.why}`).toBe(inside);
+      }
+    }
+  });
+
+  it("never hands off a routine entry as the check", () => {
+    for (const { id } of INDUSTRIES) {
+      const move = concentrationFor(id as IndustryId);
+      for (const a of hotActions(id as IndustryId)) {
+        expect(a.title, id).not.toMatch(/ (enter payroll|record payments received)$/);
+        const isTheMove = move?.personId === a.personId && move?.duty === a.handedDuty;
+        if (!isTheMove) {
+          expect(ROUTINE_ENTRIES, `${id}: ${a.title}`).not.toContain(a.handedDuty);
+        }
+      }
+    }
+  });
+
+  it("ranks every duty but a routine entry, checks first, so no duty drops out unnoticed", () => {
+    expect(new Set(HAND_OFF_ORDER).size).toBe(HAND_OFF_ORDER.length);
+    for (const duty of OPERATING_DUTIES) {
+      expect(HAND_OFF_ORDER.includes(duty.id) !== ROUTINE_ENTRIES.includes(duty.id), duty.id).toBe(
+        true,
+      );
+    }
+    // Every reconciliation and review, and every approval, comes before any other duty.
+    const checks = OPERATING_DUTIES.filter(
+      (d) =>
+        entitlementFamily(d.id) === "reconciliation" ||
+        (entitlementFamily(d.id) === "authorization" && d.id.startsWith("approve_")),
+    ).map((d) => d.id);
+    expect(HAND_OFF_ORDER.slice(0, checks.length).sort()).toEqual([...checks].sort());
   });
 
   it("never prints tool words, a heat figure or the same hand-off twice, in any sample", () => {

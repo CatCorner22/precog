@@ -27,14 +27,19 @@ import {
 } from "./dual-release-panel-actions";
 
 /**
- * Read a typed payment threshold. A blank, non-numeric or negative entry is
+ * Read a typed payment threshold. Commas and a leading "$" are dropped, and
+ * only digits with up to two decimals are read, so "1,000" is 1000 and
+ * "0x10" or "1e3" is not an amount. A blank, non-numeric or negative entry is
  * an error and saves nothing; an amount above the most Precog stores saves
  * that most, with a note saying so. Cents are kept as typed.
  */
 export function readThreshold(draft: string): { value: number; note?: string } | { error: string } {
-  const text = draft.trim().replaceAll(",", "").replace(/^\$/, "");
-  const typed = text ? Number(text) : NaN;
-  if (!Number.isFinite(typed) || typed < 0) return { error: "Enter an amount of $0 or more." };
+  const text = draft
+    .trim()
+    .replace(/^\$\s*/, "")
+    .replaceAll(",", "");
+  if (!/^\d+(\.\d{1,2})?$/.test(text)) return { error: "Enter an amount of $0 or more." };
+  const typed = Number(text);
   if (typed > DUAL_RELEASE_MAX_USD) {
     return {
       value: DUAL_RELEASE_MAX_USD,

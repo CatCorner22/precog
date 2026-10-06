@@ -33,7 +33,7 @@ import {
   type RiskVariableState,
 } from "./scoring/dynamic-variables";
 import type { DualReleasePolicy } from "./controls/dual-release";
-import { formatUsd } from "../utils";
+import { formatEstimateUsd } from "../utils";
 import { count } from "./text";
 
 type ThreatDomain = "control" | "sod" | "knowledge" | "scenario" | "portfolio";
@@ -279,7 +279,7 @@ export function buildThreatAssessment(input: {
         impactHint: scored.impactHint,
         reasons: [
           `about ${row.result.timelineDays.p50} assumed days until found`,
-          `Retained ~${formatUsd(retainedLoss(row.result))}${policyNote ? ` (${policyNote})` : ""}`,
+          `Retained ${formatEstimateUsd(retainedLoss(row.result))}${policyNote ? ` (${policyNote})` : ""}`,
         ],
         immediate: scored.immediate,
         domain: "scenario",

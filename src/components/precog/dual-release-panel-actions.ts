@@ -81,7 +81,10 @@ export function exceptionFromForm(
     label: label.slice(0, 80),
     channels: form.channels,
     action: form.action,
-    thresholdUsd: setsThreshold ? Math.max(0, Math.round(form.thresholdUsd)) : undefined,
+    // To the cent, as the channel thresholds are: 999.50 stays 999.50.
+    thresholdUsd: setsThreshold
+      ? Math.max(0, Math.round(form.thresholdUsd * 100) / 100)
+      : undefined,
     payeeContains: form.payee.trim() || undefined,
     personId: form.personId || undefined,
     role: form.role || undefined,

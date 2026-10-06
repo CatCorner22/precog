@@ -420,8 +420,8 @@ describe("one value where the catalogs used to disagree", () => {
     const count = CONTROL_CATALOG["controlled-substance-count"];
     expect(lib("lib-controlled-count").cadence).toBe("weekly");
     expect(count.cadence).toBe("weekly");
-    expect(count.label).toContain("against the log each week");
-    expect(count.why).toContain("A weekly two-person count");
+    expect(count.label).toContain("against the log at least once a week");
+    expect(count.why).toContain("Precog suggests a weekly count");
     expect(count.why).toContain("21 CFR 1304.11");
     expect(`${count.label} ${count.why}`).not.toMatch(/\bdaily\b|each day/i);
   });

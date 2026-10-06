@@ -98,11 +98,10 @@ export function ThresholdInput({
   return (
     <label className="block text-xs text-muted">
       Two people above this amount (USD)
+      {/* A text field: a number field hands "1,000" or "$500" over as empty. */}
       <input
-        type="number"
+        type="text"
         inputMode="decimal"
-        min={0}
-        step="any"
         disabled={disabled}
         aria-invalid={message?.error ?? false}
         value={draft ?? String(value)}
