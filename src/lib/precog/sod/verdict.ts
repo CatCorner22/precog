@@ -9,9 +9,9 @@ interface ConcentrationHeadline {
   personId: string;
   personName: string;
   role: string;
-  /** Distinct open gaps this person holds. */
+  /** Open gaps this person holds, in the unit counted. */
   gaps: number;
-  /** Distinct open gaps across the team. */
+  /** Open gaps across the team, in the unit counted. */
   totalGaps: number;
   /** The duty whose move to someone else closes the most of this person's gaps. */
   duty: EntitlementId;
@@ -21,27 +21,39 @@ interface ConcentrationHeadline {
 }
 
 /**
+ * What one open gap is when the shares are counted. "gap": a rule held
+ * together anywhere on the team, once however many people hold it (Start
+ * here's "N of the M open gaps"). "finding": one person's hold of one rule,
+ * a row of the report's conflict table, so the share reads against the open
+ * duty conflicts the report counts.
+ */
+export type ConcentrationUnit = "gap" | "finding";
+
+/**
  * The person who holds at least half of the open gaps (and at least three),
- * with the one duty whose move closes the most of them. Null when no one does:
- * the gaps are spread across the team and each is its own fix.
+ * with the one duty whose move closes the most of them, every figure counted
+ * in `unit`. Null when no one does: the gaps are spread across the team and
+ * each is its own fix. The person named always holds the largest share.
  *
  * `open` is the open findings as sod/open-findings counts them, so the
  * headline, Start here and the printed report count the same gaps.
  */
 export function concentrationHeadline(
   open: readonly DetectedConflict[],
+  unit: ConcentrationUnit = "gap",
 ): ConcentrationHeadline | null {
-  const totalGaps = new Set(open.map(gapKey)).size;
+  const keyOf = unit === "finding" ? (c: DetectedConflict) => c.id : gapKey;
+  const totalGaps = new Set(open.map(keyOf)).size;
   const byPerson = new Map<string, DetectedConflict[]>();
   for (const c of open) byPerson.set(c.personId, [...(byPerson.get(c.personId) ?? []), c]);
   let best: ConcentrationHeadline | null = null;
   for (const held of byPerson.values()) {
-    const gaps = new Set(held.map(gapKey)).size;
+    const gaps = new Set(held.map(keyOf)).size;
     if (gaps < 3 || gaps * 2 < totalGaps) continue;
     const perDuty = new Map<EntitlementId, Set<string>>();
     for (const c of held) {
       for (const duty of [c.entitlementA, c.entitlementB]) {
-        perDuty.set(duty, (perDuty.get(duty) ?? new Set()).add(gapKey(c)));
+        perDuty.set(duty, (perDuty.get(duty) ?? new Set()).add(keyOf(c)));
       }
     }
     // Ties go to the bank reconciliation: moving it to someone independent is

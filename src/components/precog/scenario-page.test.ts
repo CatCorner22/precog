@@ -81,8 +81,9 @@ describe("baseline changes", () => {
     expect(deltaTone(-1200)).toBe("ok");
     expect(deltaTone(300)).toBe("danger");
     expect(formatMoneyChange(0)).toBe("no change");
-    expect(formatMoneyChange(-1200)).toBe("-$1,200");
-    expect(formatMoneyChange(300)).toBe("+$300");
+    expect(formatMoneyChange(-1200)).toBe("about -$1,200");
+    expect(formatMoneyChange(300)).toBe("about +$300");
+    expect(formatMoneyChange(-1_234)).toBe("about -$1,200");
     expect(formatDaysChange(-56)).toBe("-56 days");
     expect(formatDaysChange(1)).toBe("+1 day");
     expect(formatDaysChange(0)).toBe("no change");

@@ -14,17 +14,27 @@ import {
 import { hasWorkspaceRecoveryOffer } from "@/lib/precog/workspace-recovery-offer";
 import {
   deleteAccount,
-  exportAccountData,
+  exportAccountDataPage,
   exportBusinessHistory,
   listHistoryDownloads,
   SIGN_IN_AGAIN_TO_DELETE,
 } from "@/lib/precog/account-server";
+import {
+  assembleAccountExport,
+  decodeExportPage,
+  EXPORT_CHANGED,
+  ExportChangedError,
+  exportFileChunks,
+  exportProgressLabel,
+  partArrivedWhole,
+  type ExportPartRequest,
+} from "@/lib/precog/account-export";
 import { getNotificationSettings, updateNotificationSettings } from "@/lib/precog/firm/server";
 import type { NotificationSettings } from "@/lib/precog/firm/store";
 import { useDigestState, weeklyDigestAfter } from "@/components/precog/digest-state";
 import { signOut } from "@/lib/auth/client";
 import { clearLocalCopies } from "@/lib/precog/local-data";
-import { downloadText } from "@/lib/download";
+import { downloadText, downloadUrl } from "@/lib/download";
 import { localDateKey } from "@/lib/precog/dates";
 import { clientErrorStatus } from "@/lib/request-errors";
 import { slug } from "@/lib/precog/text";
@@ -123,6 +133,93 @@ async function downloadBusinessHistory(business: HistoryBusiness): Promise<void>
     JSON.stringify(file, null, 2),
     "application/json",
   );
+}
+
+/** How many more times the download asks for one part after a failure that may pass. */
+export const EXPORT_PART_RETRIES = 2;
+/** The wait before the first retry of a part; the next one waits twice as long. */
+const EXPORT_RETRY_WAIT_MS = 1_000;
+
+/** How the export download reaches the disk and waits between tries; tests pass their own. */
+export interface ExportDownloadOptions {
+  save?: (fileName: string, file: Blob) => void;
+  wait?: (ms: number) => Promise<void>;
+}
+
+/** Saves a file built in the browser: one object URL, one click, released. */
+function saveBlob(fileName: string, file: Blob): void {
+  const url = URL.createObjectURL(file);
+  downloadUrl(fileName, url);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Asks for one part, and again up to EXPORT_PART_RETRIES more times when
+ * the failure may pass (the network, the server). A refusal (4xx) answers
+ * the same way again, so it fails at once: signed out, or the data changed.
+ */
+async function fetchPart(
+  part: ExportPartRequest,
+  wait: (ms: number) => Promise<void>,
+): Promise<{ base64: string; parts: ExportPartRequest[] | null }> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await exportAccountDataPage({ data: part });
+    } catch (error) {
+      if (attempt >= EXPORT_PART_RETRIES || clientErrorStatus(error) !== null) throw error;
+      await wait(EXPORT_RETRY_WAIT_MS * 2 ** attempt);
+    }
+  }
+}
+
+/**
+ * Fetches the account export's parts in order, reporting each one done
+ * against the total the first part names, and saves them joined as one
+ * file, built from pieces (exportFileChunks) rather than one string. A part
+ * that fails is asked for again (fetchPart). A part that comes back with
+ * fewer or more rows than the plan counted means the data changed during
+ * the download: nothing is saved (ExportChangedError), and the person tries
+ * again for a file that holds everything.
+ */
+export async function downloadAccountExport(
+  onProgress: (done: number, total: number) => void,
+  options: ExportDownloadOptions = {},
+): Promise<void> {
+  const save = options.save ?? saveBlob;
+  const wait = options.wait ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const first = await fetchPart({ section: "account" }, wait);
+  const rest = first.parts ?? [];
+  const total = rest.length + 1;
+  const pages = [decodeExportPage(first.base64)];
+  onProgress(1, total);
+  for (const part of rest) {
+    const page = decodeExportPage((await fetchPart(part, wait)).base64);
+    if (!partArrivedWhole(part, page)) throw new ExportChangedError();
+    pages.push(page);
+    onProgress(pages.length, total);
+  }
+  const file = new Blob(exportFileChunks(assembleAccountExport(pages)), {
+    type: "application/json",
+  });
+  save(`precog-account-${localDateKey(new Date())}.json`, file);
+}
+
+/** The button on a failed export's message, which starts the download again. */
+export const EXPORT_RETRY_LABEL = "Try again";
+/** The message when an export fails for any other reason. */
+export const EXPORT_FAILED = "The export failed. Try again in a moment.";
+
+/**
+ * Says why the export saved nothing, with a button that starts it again: the
+ * data changed during the download (a part came back short or long, or the
+ * server refused one), or the export failed.
+ */
+export function showExportFailure(error: unknown, retry: () => void): void {
+  const changed = error instanceof ExportChangedError || clientErrorStatus(error) === 409;
+  toast.error(changed ? EXPORT_CHANGED : EXPORT_FAILED, {
+    duration: 15_000,
+    action: { label: EXPORT_RETRY_LABEL, onClick: retry },
+  });
 }
 
 /**
@@ -457,16 +554,24 @@ export function showDeletionFailure(error: unknown): void {
 export function AccountDataControls() {
   const workspace = useWorkspace();
   const [busy, setBusy] = useState<"export" | "history" | "delete" | null>(null);
+  const [exportProgress, setExportProgress] = useState<string | null>(null);
+  // The failure message's Try again stays clickable while a new export runs.
+  const exporting = useRef(false);
 
   async function exportAll() {
+    if (exporting.current) return;
+    exporting.current = true;
     setBusy("export");
     try {
-      const { json } = await exportAccountData();
-      downloadText(`precog-account-${localDateKey(new Date())}.json`, json, "application/json");
+      await downloadAccountExport((done, total) =>
+        setExportProgress(exportProgressLabel(done, total)),
+      );
       toast.success("Your data is downloading as one JSON file.");
-    } catch {
-      toast.error("The export failed. Try again in a moment.");
+    } catch (error) {
+      showExportFailure(error, () => void exportAll());
     } finally {
+      exporting.current = false;
+      setExportProgress(null);
       setBusy(null);
     }
   }
@@ -501,6 +606,11 @@ export function AccountDataControls() {
         <Download className="size-3.5" aria-hidden />
         Export data
       </button>
+      {exportProgress && (
+        <span role="status" className="px-2 text-xs text-muted">
+          {exportProgress}
+        </span>
+      )}
       <HistoryDownloads
         disabled={busy !== null}
         onBusy={(running) => setBusy(running ? "history" : null)}

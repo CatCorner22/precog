@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
   records: [] as ReviewRecord[],
   user: null as { id: string; isDevFallback?: boolean } | null,
   businessId: undefined as string | undefined,
+  today: new Date(2026, 8, 29),
 }));
 // Called as a plain function (`direct`), the screen keeps its first state and
 // runs no effects, so a test can press its buttons without a DOM renderer.
@@ -63,7 +64,7 @@ vi.mock("@/lib/precog/practice-context", () => ({
 vi.mock("@/lib/auth/use-current-user", () => ({
   useCurrentUser: () => (state.user ? { isDevFallback: false, ...state.user } : null),
 }));
-vi.mock("@/lib/use-today", () => ({ useToday: () => new Date(2026, 8, 29) }));
+vi.mock("@/lib/use-today", () => ({ useToday: () => state.today }));
 vi.mock("@/lib/precog/firm/server", () => server);
 const evidenceLog = vi.hoisted(() => ({ getControlExecutionLog: vi.fn() }));
 vi.mock("@/lib/precog/controls/executions/server", () => evidenceLog);
@@ -102,12 +103,30 @@ async function press(label: string) {
     expect(Object.values(toast).some((fn) => fn.mock.calls.length > 0)).toBe(true),
   );
 }
-type Button = { props: { children: unknown; onClick: () => void } };
+type Button = { props: { children: unknown; onClick: () => void; disabled?: boolean } };
 function buttons(node: ReactNode): Button[] {
-  if (Array.isArray(node)) return node.flatMap(buttons);
+  return elements(node, "button") as unknown as Button[];
+}
+type Input = {
+  props: {
+    "aria-label": string;
+    value: string;
+    onChange: (event: { target: { value: string } }) => void;
+  };
+};
+/** The note field of the check titled `title`. */
+function noteField(node: ReactNode, title: string): Input {
+  const found = (elements(node, "input") as unknown as Input[]).find(
+    (input) => input.props["aria-label"] === `Note for ${title}`,
+  );
+  if (!found) throw new Error(`No note field for ${title}`);
+  return found;
+}
+function elements(node: ReactNode, type: string): ReactNode[] {
+  if (Array.isArray(node)) return node.flatMap((child) => elements(child, type));
   if (!isValidElement<{ children?: ReactNode }>(node)) return [];
-  const own = node.type === "button" ? [node as unknown as Button] : [];
-  return [...own, ...buttons(node.props.children)];
+  const own = node.type === type ? [node] : [];
+  return [...own, ...elements(node.props.children, type)];
 }
 
 beforeEach(() => {
@@ -115,6 +134,7 @@ beforeEach(() => {
   state.records = [];
   state.user = null;
   state.businessId = undefined;
+  state.today = new Date(2026, 8, 29);
   server.recordMonthlyReview.mockReset();
   evidenceLog.getControlExecutionLog.mockReset();
   qbo.getQuickBooksStatus.mockClear();
@@ -220,7 +240,7 @@ describe("monthly review tells the owner where the result went", () => {
       description: "Precog does not add monthly notes to the evidence log on this deployment.",
     });
   });
-  it("says the evidence log keeps the first result for the check and month", async () => {
+  it("says the evidence log already holds this result for the check and month", async () => {
     server.recordMonthlyReview.mockResolvedValue({
       ok: true,
       evidenceBridged: false,
@@ -228,8 +248,7 @@ describe("monthly review tells the owner where the result went", () => {
     });
     await press("Done");
     expect(toast.success).toHaveBeenCalledWith("Saved on this business.", {
-      description:
-        "The evidence log keeps the first result for this check and month. The monthly log keeps this one.",
+      description: "The evidence log already holds this result for this check and month.",
     });
   });
   it("gives a plain description, not the server's error, when the entry failed", async () => {
@@ -258,6 +277,183 @@ describe("monthly review tells the owner where the result went", () => {
     );
     expect(toast.success).not.toHaveBeenCalled();
     expect(JSON.stringify(toast.warning.mock.calls)).not.toContain("signed in");
+  });
+  it("says the evidence log took a correction when the result changed", async () => {
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: true,
+      evidenceStatus: "corrected",
+      evidenceSkippedReason: null,
+    });
+    await press("Exception");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Recorded the correction in the control evidence log.",
+    );
+  });
+  it("names the month a check was skipped for", async () => {
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: false,
+      evidenceStatus: null,
+      evidenceSkippedReason: null,
+    });
+    await press("Skipped");
+    expect(toast.success).toHaveBeenCalledWith("Skipped for September 2026 on this business.");
+  });
+  it("says the evidence log withdrew the check when a recorded check is skipped", async () => {
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: true,
+      evidenceStatus: "withdrawn",
+      evidenceSkippedReason: null,
+    });
+    await press("Skipped");
+    expect(toast.success).toHaveBeenCalledWith("Skipped for September 2026 on this business.", {
+      description: "Precog marked the check withdrawn as skipped in the control evidence log.",
+    });
+  });
+  it("warns when a skip could not withdraw the check's evidence entry", async () => {
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: false,
+      evidenceStatus: null,
+      evidenceSkippedReason: "bridge_failed",
+    });
+    await press("Skipped");
+    expect(toast.warning).toHaveBeenCalledWith(
+      "Saved on this business, but not in the evidence log.",
+      { description: "Precog could not add the entry. Press the result again later." },
+    );
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+  it("says a later result for the check replaced this one in the evidence log", async () => {
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: false,
+      evidenceStatus: null,
+      evidenceSkippedReason: "superseded",
+    });
+    await press("Exception");
+    expect(toast.success).toHaveBeenCalledWith("Saved on this business.", {
+      description:
+        "A later result for this check and month replaced this one, so the control evidence log follows that result.",
+    });
+  });
+});
+
+describe("monthly review records last month until its due day", () => {
+  it("offers September, due October 10, and October from Oct 1 to Oct 10, September first", () => {
+    for (const day of [1, 3, 10]) {
+      state.today = new Date(2026, 9, day);
+      const html = view();
+      expect(html).toContain('aria-label="Month to record"');
+      expect(html).toMatch(/aria-pressed="true"[^>]*>September \(due October 10\)<\/button>/);
+      expect(html).toMatch(/aria-pressed="false"[^>]*>October<\/button>/);
+      // September's four checks, each due Oct 10; October's card statement check is not among them.
+      expect(html.match(/2026-09 · due Oct 10, 2026/g)).toHaveLength(4);
+      expect(html).not.toContain("Read the company card statement");
+    }
+  });
+
+  it("offers this month alone from the 11th", () => {
+    state.today = new Date(2026, 9, 11);
+    const html = view();
+    expect(html).not.toContain("Month to record");
+    expect(html.match(/2026-10 · due Nov 10, 2026/g)).toHaveLength(5);
+  });
+
+  it("records against the month chosen", async () => {
+    vi.setSystemTime(new Date(2026, 9, 3, 9));
+    state.today = new Date(2026, 9, 3);
+    signIn();
+    evidenceLog.getControlExecutionLog.mockResolvedValue(page([]));
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: true,
+      evidenceStatus: "recorded",
+      evidenceSkippedReason: null,
+    });
+    await settle();
+    const click = (label: string) =>
+      buttons(runtime.render(() => MonthlyReview()))
+        .find((b) => b.props.children === label)!
+        .props.onClick();
+    click("Done");
+    await vi.waitFor(() => expect(server.recordMonthlyReview).toHaveBeenCalledTimes(1));
+    expect(server.recordMonthlyReview).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({
+        period: "2026-09",
+        dueOn: "2026-10-10",
+        today: "2026-10-03",
+      }),
+    });
+    click("October");
+    expect(await settle()).toMatch(/aria-pressed="true"[^>]*>October<\/button>/);
+    click("Done");
+    await vi.waitFor(() => expect(server.recordMonthlyReview).toHaveBeenCalledTimes(2));
+    expect(server.recordMonthlyReview).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({ period: "2026-10", dueOn: "2026-11-10" }),
+    });
+    // The evidence log is read for the month on screen.
+    expect(evidenceLog.getControlExecutionLog).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({ period: "2026-10" }),
+    });
+  });
+
+  it("keeps a note and a save under way with the month they belong to", async () => {
+    vi.setSystemTime(new Date(2026, 9, 3, 9));
+    state.today = new Date(2026, 9, 3);
+    signIn();
+    evidenceLog.getControlExecutionLog.mockResolvedValue(page([]));
+    await settle();
+    const render = () => runtime.render(() => MonthlyReview());
+    const click = (label: string) =>
+      buttons(render())
+        .find((b) => b.props.children === label)!
+        .props.onClick();
+    const bank = "Open the bank statement";
+    // A note typed under September stays with September.
+    noteField(render(), bank).props.onChange({ target: { value: "September statement read." } });
+    click("October");
+    await settle();
+    expect(noteField(render(), bank).props.value).toBe("");
+    // October's Done carries October's own (empty) note, not September's.
+    let answer!: (value: unknown) => void;
+    server.recordMonthlyReview.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    click("Done");
+    await vi.waitFor(() => expect(server.recordMonthlyReview).toHaveBeenCalledTimes(1));
+    expect(server.recordMonthlyReview).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({ period: "2026-10", itemKey: "bank_statement", notes: "" }),
+    });
+    // While October's save is under way only October's check waits on it.
+    expect(buttons(render()).find((b) => b.props.children === "Done")!.props.disabled).toBe(true);
+    click("September (due October 10)");
+    await settle();
+    expect(noteField(render(), bank).props.value).toBe("September statement read.");
+    expect(buttons(render()).find((b) => b.props.children === "Done")!.props.disabled).toBe(false);
+    answer({
+      ok: true,
+      evidenceBridged: true,
+      evidenceStatus: "recorded",
+      evidenceSkippedReason: null,
+    });
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalled());
+    // September's note is still there to send with September's result.
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: true,
+      evidenceStatus: "recorded",
+      evidenceSkippedReason: null,
+    });
+    click("Done");
+    await vi.waitFor(() => expect(server.recordMonthlyReview).toHaveBeenCalledTimes(2));
+    expect(server.recordMonthlyReview).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({
+        period: "2026-09",
+        itemKey: "bank_statement",
+        notes: "September statement read.",
+      }),
+    });
   });
 });
 
@@ -449,6 +645,17 @@ describe("readMonthlyEvidence", () => {
     }));
     expect(await readMonthlyEvidence(read, ids)).toEqual(new Map([[ids[0], "reviewed"]]));
     expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the state of the newest entry when a later result corrected the first", async () => {
+    const read = vi.fn(async (): Promise<EvidencePage> => ({
+      entries: [
+        { id: `${ids[0]}-v2`, status: "needs_correction" },
+        { id: ids[0], status: "awaiting_review" },
+      ],
+      nextCursor: null,
+    }));
+    expect(await readMonthlyEvidence(read, ids)).toEqual(new Map([[ids[0], "needs_correction"]]));
   });
 
   it("answers null and reads no further once the screen moved on", async () => {

@@ -101,11 +101,15 @@ describe("modeled tiles and cash apart from time", () => {
   it("shows the modeled figures once the owner enters exposure or probability", () => {
     expect(modeledTileValues({ ...DEFAULT_VALUE_CASE, annualExposure: 400_000 })).toEqual({
       riskReduction: formatUsd(400_000 * 0.04 * 0.35),
-      lossBaseline: formatUsd(16_000),
+      lossBaseline: "about $16,000",
       entered: true,
     });
     expect(modeledTileValues(DEFAULT_VALUE_CASE, ["eventProbability"]).lossBaseline).toBe(
-      "$10,000",
+      "about $10,000",
+    );
+    // An assumed loss, rounded as every scenario figure is: never to the dollar.
+    expect(modeledTileValues({ ...DEFAULT_VALUE_CASE, annualExposure: 312_345 }).lossBaseline).toBe(
+      "about $12,000",
     );
   });
 

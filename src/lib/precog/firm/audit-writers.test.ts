@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { defaultProfile } from "../practice-profile";
+import { assembleAccountExport, decodeExportPage, type ExportPartRequest } from "../account-export";
 import { createGrant } from "./grant-store";
 import { lockReportVersion } from "./reports";
 
@@ -51,6 +52,21 @@ const { parseStripeEvent } = await import("../billing/stripe");
 type Call = (args: { context: { userId: string }; data: unknown }) => Promise<unknown>;
 const call = <T = unknown>(fn: unknown, userId: string, data: unknown = {}) =>
   (fn as Call)({ context: { userId }, data }) as Promise<T>;
+
+/** The whole account export, its parts fetched in order as the browser does. */
+async function exportAll(userId: string) {
+  const first = await call<{ base64: string; parts: ExportPartRequest[] | null }>(
+    account.exportAccountDataPage,
+    userId,
+    { section: "account" },
+  );
+  const pages = [decodeExportPage(first.base64)];
+  for (const part of first.parts ?? []) {
+    const sent = await call<{ base64: string }>(account.exportAccountDataPage, userId, part);
+    pages.push(decodeExportPage(sent.base64));
+  }
+  return assembleAccountExport(pages);
+}
 
 // ── Every POST server function writes the log or says why not ─────────────
 
@@ -366,7 +382,7 @@ describe("firm writers", () => {
 
 describe("engagement writers", () => {
   it("logs saves, ending and reopening, the retention period and the archive download", async () => {
-    await call(engagement.saveEngagement, "pp", {
+    await call(engagement.saveEngagement, "fo", {
       businessId: "biz_1",
       scope: "Monthly close",
       periodStart: null,
@@ -386,7 +402,7 @@ describe("engagement writers", () => {
     await call(engagement.getEngagement, "rv", { businessId: "biz_1" });
     const rows = await log();
     expect(rows.map((r) => [r.event, r.actor, r.business])).toEqual([
-      ["engagement_saved", "pp", "biz_1"],
+      ["engagement_saved", "fo", "biz_1"],
       ["engagement_ended", "fo", "biz_1"],
       ["engagement_reopened", "fo", "biz_1"],
       ["retention_changed", "fo", null],
@@ -524,9 +540,9 @@ describe("export writers", () => {
       insert into business_history (user_id, business_id, revision, name, industry, profile)
         values ('pp', 'biz_1', 0, 'Before', 'dental', '{}'::jsonb);
     `);
-    await call(account.exportAccountData, "pp");
+    await exportAll("pp");
     await call(account.exportBusinessHistory, "pp", { businessId: "biz_1" });
-    await call(account.exportAccountData, "so");
+    await exportAll("so");
     const rows = await log();
     expect(rows.map((r) => [r.firm, r.event, r.actor, r.business, r.detail])).toEqual([
       ["fo", "export_run", "pp", null, { kind: "account" }],
@@ -560,14 +576,14 @@ describe("export writers", () => {
       coverPage: true,
     });
     await call(engagement.saveFirmRetention, "fo", { years: 9 });
-    const owner = JSON.parse((await call<{ json: string }>(account.exportAccountData, "fo")).json);
+    const owner = await exportAll("fo");
     expect(
       owner.firmActivity.map((r: { event: string; actorName: string }) => [r.event, r.actorName]),
     ).toEqual([
       ["retention_changed", "Fay Owner"],
       ["letterhead_changed", "Fay Owner"],
     ]);
-    const member = JSON.parse((await call<{ json: string }>(account.exportAccountData, "pp")).json);
+    const member = await exportAll("pp");
     expect(member.firmActivity).toEqual([]);
   });
 });

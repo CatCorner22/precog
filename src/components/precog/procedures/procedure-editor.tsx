@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fieldCls } from "@/components/ui/field-classes";
 import { secretKindsIn, SECRET_WARNING } from "@/lib/precog/procedures/credential-guard";
+import { LIBRARY_NOTES_TITLE, libraryNotes } from "@/lib/precog/procedures/export";
 import { newStep, stepHasContent, withoutDraftMarks } from "@/lib/precog/procedures/lifecycle";
 import type { ProcedureDraft } from "@/lib/precog/procedures/draft";
 import { industryMeta } from "@/lib/precog/industry";
@@ -415,6 +416,8 @@ export function ProcedureEditor({
           />
         </div>
 
+        <LibraryNotesBox procedure={draft} />
+
         {secrets.length > 0 && (
           <div
             role="alert"
@@ -626,5 +629,45 @@ function DutiesField({
         <DutyConflictNote key={w.name} name={w.name} conflicts={w.conflicts} />
       ))}
     </fieldset>
+  );
+}
+
+/**
+ * What the procedure kept from the recommendation it was started from:
+ * shown, never edited, so the fallback, the records to keep and the source
+ * stay as Precog's library wrote them. Nothing for a procedure without them.
+ */
+export function LibraryNotesBox({
+  procedure,
+}: {
+  procedure: Pick<Procedure, "fallback" | "evidenceToKeep" | "source">;
+}) {
+  const notes = libraryNotes(procedure);
+  if (notes.length === 0) return null;
+  return (
+    <section
+      aria-label={LIBRARY_NOTES_TITLE}
+      className="space-y-2 rounded-lg border border-border p-3 text-xs [overflow-wrap:anywhere]"
+    >
+      <h3 className="font-medium uppercase tracking-wide text-muted">{LIBRARY_NOTES_TITLE}</h3>
+      {notes.map((note) => (
+        <div key={note.heading}>
+          <p className="font-medium">{note.heading}</p>
+          {note.list ? (
+            <ul className="mt-0.5 list-disc space-y-0.5 pl-5">
+              {note.lines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : (
+            note.lines.map((line) => (
+              <p key={line} className="mt-0.5">
+                {line}
+              </p>
+            ))
+          )}
+        </div>
+      ))}
+    </section>
   );
 }

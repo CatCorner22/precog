@@ -6,228 +6,27 @@ import { ACTIVE_SUBSCRIPTION_STATUSES } from "./firm/billing-store";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "./iso-time";
 import { SUPPORT_EMAIL } from "./legal/operator";
 import { userScope } from "./llm/daily-usage";
-import { usageTotalsFor, type UsageTotal } from "./llm/usage-log.server";
+import { usageTotalsFor } from "./llm/usage-log.server";
 import { count } from "./text";
 import { pictureUrl } from "./procedures/image-pipeline";
 import { handBackGranted } from "./firm/grant-store";
+import { insertAudits, withAuditBypass, type FirmActivityRow } from "./firm/audit.server";
 import {
-  insertAudit,
-  listFirmActivity,
-  withAuditBypass,
-  type FirmActivityRow,
-} from "./firm/audit.server";
-
-/**
- * Everything the app holds for one account, in one JSON document the owner can
- * keep. Left out on purpose: share passcode hashes and salts, invite link
- * tokens, and the encrypted QuickBooks tokens. Step pictures are listed with
- * everything stored about them and the address that serves each one, not
- * their bytes: hundreds of them, inline, would make one very large response.
- * Past versions of each business download separately (exportBusinessHistoryPage):
- * up to 200 versions of up to 2 MB each would pass Vercel's 4.5 MB response limit.
- */
-interface AccountExport {
-  exportedAt: string;
-  /** Server-recorded control work and review history; no evidence-file contents. */
-  controlExecutions: Array<{ businessId: string; record: ControlExecution }>;
-  user: { id: string; name: string; email: string; createdAt: string } | null;
-  businesses: Array<{
-    id: string;
-    name: string;
-    industry: string;
-    revision: number;
-    updatedAt: string;
-    deletedAt: string | null;
-    /** When the account shared the business with a firm (migration 0046); null otherwise. */
-    grantedAt: string | null;
-    profile: unknown;
-  }>;
-  /**
-   * The account's invitations to firms to work on its businesses, accepted
-   * or not, with the firm's name once one accepted. Never the link's token.
-   */
-  firmGrants: Array<{
-    businessId: string;
-    invitedEmail: string;
-    createdAt: string;
-    expiresAt: string;
-    acceptedAt: string | null;
-    revokedAt: string | null;
-    firmName: string | null;
-  }>;
-  /** Businesses deleted for good; only the id and the day are kept. */
-  deletedBusinesses: Array<{ businessId: string; deletedAt: string }>;
-  /**
-   * For a firm owner: the firm's client businesses that members set up, as
-   * summaries (the profiles are the members' rows; each one's past versions
-   * download through the history download, which lists them too). Empty for
-   * everyone else.
-   */
-  firmClients: Array<{
-    id: string;
-    name: string;
-    industry: string;
-    ownerUserId: string;
-    revision: number;
-    updatedAt: string;
-    deletedAt: string | null;
-  }>;
-  reportVersions: Array<{
-    id: string;
-    businessId: string;
-    versionNo: number;
-    revision: number | null;
-    scopeNote: string;
-    preparedBy: string | null;
-    preparedAt: string;
-    reviewedBy: string | null;
-    reviewedAt: string | null;
-    reviewNote: string;
-    sentAt: string | null;
-    /** The firm's name and letterhead as frozen at lock; null before migration 0041 and for a solo business. */
-    firm: { name: string; letterhead: string; logoDataUrl: string | null } | null;
-    /** The engagement's scope and period as frozen at lock; null before migration 0045 or when empty. */
-    engagement: { scope: string; periodStart: string | null; periodEnd: string | null } | null;
-    /** Request and return (migration 0047); null and empty when never asked or returned. */
-    reviewRequestedAt: string | null;
-    reviewRequestedBy: string | null;
-    reviewRequestedFrom: string | null;
-    returnedAt: string | null;
-    returnedBy: string | null;
-    returnNote: string;
-    profile: unknown;
-  }>;
-  snapshots: Array<{
-    id: string;
-    title: string;
-    practiceName: string;
-    createdAt: string;
-    profile: unknown;
-    powerMap: unknown;
-    valueCase: unknown;
-    valueEvidence: unknown;
-  }>;
-  shares: Array<{
-    token: string;
-    businessName: string;
-    createdAt: string;
-    expiresAt: string | null;
-    revokedAt: string | null;
-    redacted: boolean;
-    payload: unknown;
-  }>;
-  firm: {
-    name: string;
-    plan: string;
-    letterhead: string;
-    logoDataUrl: string | null;
-    coverPage: boolean;
-    /** How long the firm keeps a deleted client's records, in years. */
-    retentionYears: number;
-    updatedAt: string;
-  } | null;
-  /** Firms this account belongs to, its own included. */
-  firmMemberships: Array<{ firmUserId: string; role: string; joinedAt: string }>;
-  /** People in the firm this account owns. */
-  firmMembers: Array<{ userId: string; email: string; role: string; joinedAt: string }>;
-  firmInvites: Array<{
-    email: string;
-    role: string;
-    createdAt: string;
-    expiresAt: string;
-    acceptedAt: string | null;
-  }>;
-  engagements: Array<{
-    businessId: string;
-    startedAt: string | null;
-    mapCompletedAt: string | null;
-    reportSentAt: string | null;
-    /** Null when the count was never recorded (migration 0024), not zero. */
-    openFindings: number | null;
-    acceptedFindings: number;
-    /** The client owner's email, kept for reminders. */
-    ownerEmail: string | null;
-    /** The engagement (migration 0045): what the firm was engaged to do, for when, by whom. */
-    scope: string;
-    periodStart: string | null;
-    periodEnd: string | null;
-    status: string;
-    endedAt: string | null;
-    preparerUserId: string | null;
-    reviewerUserId: string | null;
-  }>;
-  reviews: Array<{
-    businessId: string;
-    period: string;
-    itemKey: string;
-    ownerName: string;
-    dueOn: string | null;
-    result: string;
-    notes: string;
-    recordedAt: string;
-    recordedBy: string | null;
-  }>;
-  /** Pictures attached to procedure steps; `path` serves the picture while the account exists. */
-  procedureImages: Array<{
-    id: string;
-    businessId: string;
-    contentType: string;
-    byteSize: number;
-    width: number;
-    height: number;
-    sha256: string;
-    uploadedBy: string | null;
-    createdAt: string;
-    /** When no step named it any more; it is deleted 30 days after. */
-    unreferencedSince: string | null;
-    path: string;
-  }>;
-  reminderSettings: { weeklyDigest: boolean; ownerReminders: boolean } | null;
-  remindersSent: Array<{
-    businessId: string;
-    itemKey: string;
-    dueOn: string | null;
-    recipient: string;
-    sentAt: string;
-  }>;
-  /** What Stripe last reported; no card details are stored here. */
-  billing: {
-    stripeCustomerId: string | null;
-    subscriptionId: string | null;
-    subscriptionStatus: string | null;
-    assessmentPaidAt: string | null;
-    assessmentPaymentIntentId: string | null;
-    assessmentRefundedAt: string | null;
-    assessmentDisputedAt: string | null;
-    currentPeriodEnd: string | null;
-    /** The Stripe price the subscription runs on (migration 0050); null until an event names it. */
-    subscriptionPriceId: string | null;
-  } | null;
-  quickBooksConnections: Array<{
-    businessId: string;
-    realmId: string;
-    connectedAt: string;
-    /** The account that finished the connect flow; null before it was recorded. */
-    connectedBy: string | null;
-    lastSyncedAt: string | null;
-    lastError: string | null;
-  }>;
-  quickBooksSnapshots: Array<{
-    businessId: string;
-    takenAt: string;
-    vendors: unknown;
-    employees: unknown;
-  }>;
-  /** The account's milestones (first business, first locked version, first report sent, first monthly review). */
-  activity: Array<{ event: string; businessId: string | null; occurredAt: string }>;
-  /** Model calls the account made, per feature: calls and tokens, never the text. */
-  modelUsage: UsageTotal[];
-  /**
-   * For a firm owner: the firm's activity log (migration 0048), newest
-   * first, with each actor's name as it was. Empty for everyone else.
-   */
-  firmActivity: FirmActivityRow[];
-}
+  assembleAccountExport,
+  continuesReading,
+  EXPORT_CHANGED,
+  inlineReportLogos,
+  PAGED_EXPORT_SECTIONS,
+  type AccountExport,
+  type AccountExportFile,
+  type AccountExportPart,
+  type ExportPage,
+  type ExportPartRequest,
+  type ExportSlice,
+  type FirmExportPart,
+  type PagedExportSection,
+  type PagedPartRequest,
+} from "./account-export";
 
 /** What account deletion removed that still has to be undone outside the database. */
 interface DeletedAccount {
@@ -238,10 +37,12 @@ interface DeletedAccount {
 }
 
 /**
- * Reads the account's rows from one consistent snapshot, so a save landing
- * mid-export cannot make one part of the file disagree with another.
- * `firmUserId` is the firm the caller owns (null otherwise): its members'
- * client businesses come along as summaries.
+ * The whole export in one read, from one consistent snapshot, with each
+ * version's logo in place: what the paged download (exportAccountPage)
+ * assembles to once its logos are written back (inlineReportLogos). Too
+ * large for one response once a firm has real volume, so no server function
+ * sends it. `firmUserId` is the firm the caller owns (null otherwise): its
+ * members' client businesses come along as summaries, and its activity log.
  */
 export async function exportAccountRows(
   sql: Sql,
@@ -250,88 +51,670 @@ export async function exportAccountRows(
 ): Promise<AccountExport> {
   return inTransaction(sql, async (tx) => {
     await tx`set transaction isolation level repeatable read`;
-    const [
-      user,
-      businesses,
-      firmGrants,
-      deletedBusinesses,
-      firmClients,
-      reportVersions,
-      snapshots,
-      shares,
-      firm,
-      firmMemberships,
-      firmMembers,
-      firmInvites,
-      engagements,
-      reviews,
-      reminderSettings,
-      remindersSent,
-      billing,
-      quickBooksConnections,
-      quickBooksSnapshots,
-      procedureImages,
-      controlExecutions,
-      activity,
-      modelUsage,
-      firmActivity,
-    ] = await Promise.all([
-      readUser(tx, userId),
-      readBusinesses(tx, userId),
-      readFirmGrants(tx, userId),
-      readDeletedBusinesses(tx, userId),
-      readFirmClients(tx, userId, firmUserId),
-      readReportVersions(tx, userId),
-      readSnapshots(tx, userId),
-      readShares(tx, userId),
-      readFirm(tx, userId),
-      readFirmMemberships(tx, userId),
-      readFirmMembers(tx, userId),
-      readFirmInvites(tx, userId),
-      readEngagements(tx, userId),
-      readReviews(tx, userId),
-      readReminderSettings(tx, userId),
-      readRemindersSent(tx, userId),
-      readBilling(tx, userId),
-      readQuickBooksConnections(tx, userId),
-      readQuickBooksSnapshots(tx, userId),
-      readProcedureImages(tx, userId),
-      tx<{
-        businessId: string;
-        record: ControlExecution;
-      }>`select business_id as "businessId", record from control_execution_log where user_id=${userId} order by created_at,id`,
-      readActivity(tx, userId),
-      usageTotalsFor(tx, userId),
-      firmUserId ? listFirmActivity(tx, firmUserId) : Promise.resolve([]),
+    // Every row, each QuickBooks reading uncut: one read, from one snapshot.
+    const [account, firm, ...sections] = await Promise.all([
+      readAccountPart(tx, userId),
+      readFirmPart(tx, userId, firmUserId),
+      ...PAGED_EXPORT_SECTIONS.map(async (section) => {
+        const scope = scopeOf(section, userId, firmUserId);
+        const rows = scope === null ? [] : await readPagedRows(tx, section, scope, null);
+        return { section, rows } as ExportPage;
+      }),
     ]);
-    return {
-      exportedAt: new Date().toISOString(),
-      controlExecutions,
-      user,
-      businesses,
-      firmGrants,
-      deletedBusinesses,
-      firmClients,
-      reportVersions,
-      snapshots,
-      shares,
-      firm,
-      firmMemberships,
-      firmMembers,
-      firmInvites,
-      engagements,
-      reviews,
-      reminderSettings,
-      remindersSent,
-      billing,
-      quickBooksConnections,
-      quickBooksSnapshots,
-      procedureImages,
-      activity,
-      modelUsage,
-      firmActivity,
-    };
+    return inlineReportLogos(
+      assembleAccountExport([
+        { section: "account", data: account },
+        { section: "firm", data: firm },
+        ...sections,
+      ]),
+    );
   });
+}
+
+/**
+ * One part of the account export, for the download that joins them in the
+ * browser. The first part (`account`) holds the account's small sections
+ * and lists every other part: the firm part, then each paged section's rows
+ * in pages that hold up to `budgetBytes` of JSON each (a row larger than
+ * that gets a page of its own: a profile is at most 2 MB, a snapshot about
+ * 2.5 MB), each business alone, and a QuickBooks reading larger than that
+ * in slices (planPages). The plan comes from the same snapshot as the first
+ * part and names, for each part, the rows it counted and the plan's time.
+ * Each later part reads its own snapshot, so a save landing during the
+ * download shows in the parts read after it, while a row written after the
+ * plan stays out, and a part never sends more rows than the plan counted:
+ * when a row with an older time moved into its range (409, EXPORT_CHANGED),
+ * or its rows grew past what one response carries (the same refusal), the
+ * download starts again. A part that comes back short is the browser's to
+ * refuse (partArrivedWhole). Only the caller's own rows, and for a firm
+ * owner (`firmUserId`) the firm's: the keys in a request only choose among
+ * those, so a made-up key reads nothing that is not the caller's.
+ */
+export async function exportAccountPage(
+  sql: Sql,
+  userId: string,
+  firmUserId: string | null,
+  request: ExportPartRequest,
+  budgetBytes = HISTORY_PAGE_BYTES,
+): Promise<{ page: ExportPage; parts: ExportPartRequest[] | null }> {
+  if (request.section === "account") {
+    return inTransaction(sql, async (tx) => {
+      await tx`set transaction isolation level repeatable read`;
+      // Read once the plan's snapshot is taken: every row the plan counts
+      // was written before this time, by the database's own clock.
+      const [{ as_of: asOf }] = await tx<{ as_of: string }>`
+        select to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as as_of
+      `;
+      const [data, planned] = await Promise.all([
+        readAccountPart(tx, userId),
+        Promise.all(
+          PAGED_EXPORT_SECTIONS.map(async (section) => {
+            const scope = scopeOf(section, userId, firmUserId);
+            return scope === null ? [] : planPages(tx, section, scope, budgetBytes, asOf);
+          }),
+        ),
+      ]);
+      const parts: ExportPartRequest[] = [{ section: "firm" }, ...planned.flat()];
+      return { page: { section: "account", data }, parts };
+    });
+  }
+  if (request.section === "firm") {
+    return {
+      page: { section: "firm", data: await readFirmPart(sql, userId, firmUserId) },
+      parts: null,
+    };
+  }
+  const scope = scopeOf(request.section, userId, firmUserId);
+  const rows = scope === null ? [] : await readPagedRows(sql, request.section, scope, request);
+  const page = {
+    section: request.section,
+    rows,
+    ...(continuesReading(request) ? { continues: true } : {}),
+  } as ExportPage;
+  if (Buffer.byteLength(JSON.stringify(page), "utf8") > EXPORT_PART_MAX_BYTES) {
+    throw new RequestError(409, EXPORT_CHANGED);
+  }
+  return { page, parts: null };
+}
+
+/**
+ * The most JSON one paged part may send: base64 makes it 4/3 larger, about
+ * 4.3 MB, under Vercel's 4.5 MB response limit with room for the
+ * transport's own JSON. A part the plan sized at HISTORY_PAGE_BYTES stays
+ * under it unless its rows grew after the plan.
+ */
+export const EXPORT_PART_MAX_BYTES = 3.25 * 1024 * 1024;
+
+/** An export part as the server function sends it: its JSON in base64 (see encodeHistoryPage). */
+export function encodeExportPage(page: ExportPage): string {
+  return Buffer.from(JSON.stringify(page), "utf8").toString("base64");
+}
+
+async function readAccountPart(tx: Sql, userId: string): Promise<AccountExportPart> {
+  const [
+    user,
+    firmGrants,
+    deletedBusinesses,
+    firmMemberships,
+    engagements,
+    reminderSettings,
+    billing,
+    quickBooksConnections,
+    activity,
+    modelUsage,
+  ] = await Promise.all([
+    readUser(tx, userId),
+    readFirmGrants(tx, userId),
+    readDeletedBusinesses(tx, userId),
+    readFirmMemberships(tx, userId),
+    readEngagements(tx, userId),
+    readReminderSettings(tx, userId),
+    readBilling(tx, userId),
+    readQuickBooksConnections(tx, userId),
+    readActivity(tx, userId),
+    usageTotalsFor(tx, userId),
+  ]);
+  return {
+    exportedAt: new Date().toISOString(),
+    user,
+    firmGrants,
+    deletedBusinesses,
+    firmMemberships,
+    engagements,
+    reminderSettings,
+    billing,
+    quickBooksConnections,
+    activity,
+    modelUsage,
+  };
+}
+
+async function readFirmPart(
+  tx: Sql,
+  userId: string,
+  firmUserId: string | null,
+): Promise<FirmExportPart> {
+  const [firm, firmMembers, firmInvites, firmClients] = await Promise.all([
+    readFirm(tx, userId),
+    readFirmMembers(tx, userId),
+    readFirmInvites(tx, userId),
+    readFirmClients(tx, userId, firmUserId),
+  ]);
+  return { firm, firmMembers, firmInvites, firmClients };
+}
+
+/**
+ * A section whose rows page by size. `from` is the table and its filter,
+ * with `$1` the scope's id (the account's, or the owned firm's) and `$2`
+ * the plan's time (BORN), null to read every row. `key` is a text unique
+ * within the section that sorts the rows, byte by byte, in the export's
+ * order (`desc` reverses it); a page names its first and last key. A key is
+ * made of columns that never change once the row is written, so a row
+ * changed during the download stays in the part the plan put it in.
+ * `alone` puts each row on a page of its own. `slices` names the jsonb
+ * arrays a row too large for one page is cut into pages by (planPages), and
+ * gives the columns with those arrays cut to the elements from `$p` on.
+ */
+interface PagedSection<T> {
+  scope: "account" | "firm";
+  from: string;
+  key: string;
+  desc: boolean;
+  alone?: boolean;
+  columns: string;
+  slices?: { arrays: readonly ["vendors", "employees"]; columns(p: number): string };
+  map(row: Record<string, unknown>): T;
+}
+
+function paged<R, T>(section: Omit<PagedSection<T>, "map"> & { map(row: R): T }): PagedSection<T> {
+  return section as PagedSection<T>;
+}
+
+/** A timestamp as a key part: fixed width, so it sorts as text in time order. */
+const TS = (column: string) => `to_char(${column} at time zone 'UTC', 'YYYYMMDDHH24MISSUS')`;
+/** A non-negative whole number as a key part. */
+const NUM = (expression: string) => `lpad((${expression})::text, 20, '0')`;
+/** Between key parts: below every printable character, so a shorter id sorts first. */
+const SEP = " || chr(1) || ";
+/**
+ * The row was written by the plan's time (`$2`), by the column the database
+ * stamps when the row is written and never changes after. A part leaves out
+ * a row written after its plan; the plan itself, and the single export,
+ * pass null and read every row.
+ */
+const BORN = (column: string) => `($2::timestamptz is null or ${column} <= $2::timestamptz)`;
+
+/** What a row adds to its page beyond its JSON as Postgres prints it: commas and a picture's address. */
+const ROW_OVERHEAD_BYTES = 256;
+/** A page's own JSON around its rows. */
+const PAGE_OVERHEAD_BYTES = 128;
+
+/**
+ * A QuickBooks reading's columns; from parameter `$p` on, the vendors and
+ * the employees cut to [from, to) element positions (`$p` to `$p+3`).
+ */
+function quickBooksColumns(p: number | null): string {
+  const cut = (array: string, at: number) =>
+    p === null
+      ? array
+      : `coalesce((select jsonb_agg(e order by n) from jsonb_array_elements(${array})
+          with ordinality as t(e, n) where n > $${at}::int and n <= $${at + 1}::int), '[]'::jsonb)
+          as ${array}`;
+  return `business_id, taken_at, ${cut("vendors", p ?? 0)}, ${cut("employees", (p ?? 0) + 2)}`;
+}
+
+const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][number]> } = {
+  // In id order: the file puts them newest saved first (assembleAccountExport),
+  // and a save, a removal or a restore during the download moves the time.
+  businesses: paged({
+    scope: "account",
+    from: `businesses where user_id = $1 and ${BORN("created_at")}`,
+    key: "id",
+    desc: false,
+    alone: true,
+    columns: "id, name, industry, revision, updated_at, deleted_at, granted_at, profile",
+    map: (b: {
+      id: string;
+      name: string;
+      industry: string;
+      revision: number | string;
+      updated_at: string;
+      deleted_at: string | null;
+      granted_at: string | null;
+      profile: unknown;
+    }) => ({
+      id: b.id,
+      name: b.name,
+      industry: b.industry,
+      revision: Number(b.revision),
+      updatedAt: toIsoTimestamp(b.updated_at),
+      deletedAt: toIsoTimestampOrNull(b.deleted_at),
+      grantedAt: toIsoTimestampOrNull(b.granted_at),
+      profile: b.profile,
+    }),
+  }),
+  reportVersions: paged({
+    scope: "account",
+    from: `report_versions where user_id = $1 and ${BORN("prepared_at")}`,
+    key: `business_id${SEP}lpad((2147483647 - version_no)::text, 10, '0')`,
+    desc: false,
+    columns: `id, business_id, version_no, revision, scope_note, prepared_by, prepared_at,
+      reviewed_by, reviewed_at, review_note, review_override_note, sent_at, firm_name,
+      firm_letterhead, md5(firm_logo_data_url) as firm_logo_id, engagement_scope, engagement_period_start,
+      engagement_period_end, review_requested_at, review_requested_by, review_requested_from,
+      returned_at, returned_by, return_note, profile`,
+    map: (r: {
+      id: string;
+      business_id: string;
+      version_no: number | string;
+      revision: number | string | null;
+      scope_note: string;
+      prepared_by: string | null;
+      prepared_at: string;
+      reviewed_by: string | null;
+      reviewed_at: string | null;
+      review_note: string;
+      review_override_note: string | null;
+      sent_at: string | null;
+      firm_name: string | null;
+      firm_letterhead: string | null;
+      firm_logo_id: string | null;
+      engagement_scope: string | null;
+      engagement_period_start: string | null;
+      engagement_period_end: string | null;
+      review_requested_at: string | null;
+      review_requested_by: string | null;
+      review_requested_from: string | null;
+      returned_at: string | null;
+      returned_by: string | null;
+      return_note: string;
+      profile: unknown;
+    }) => ({
+      id: r.id,
+      businessId: r.business_id,
+      versionNo: Number(r.version_no),
+      revision: r.revision === null ? null : Number(r.revision),
+      scopeNote: r.scope_note,
+      preparedBy: r.prepared_by,
+      preparedAt: toIsoTimestamp(r.prepared_at),
+      reviewedBy: r.reviewed_by,
+      reviewedAt: toIsoTimestampOrNull(r.reviewed_at),
+      reviewNote: r.review_note,
+      reviewOverrideNote: r.review_override_note,
+      sentAt: toIsoTimestampOrNull(r.sent_at),
+      firm:
+        r.firm_name === null
+          ? null
+          : { name: r.firm_name, letterhead: r.firm_letterhead ?? "", logoId: r.firm_logo_id },
+      engagement:
+        r.engagement_scope === null &&
+        r.engagement_period_start === null &&
+        r.engagement_period_end === null
+          ? null
+          : {
+              scope: r.engagement_scope ?? "",
+              periodStart: r.engagement_period_start,
+              periodEnd: r.engagement_period_end,
+            },
+      reviewRequestedAt: toIsoTimestampOrNull(r.review_requested_at),
+      reviewRequestedBy: r.review_requested_by,
+      reviewRequestedFrom: r.review_requested_from,
+      returnedAt: toIsoTimestampOrNull(r.returned_at),
+      returnedBy: r.returned_by,
+      returnNote: r.return_note,
+      profile: r.profile,
+    }),
+  }),
+  // Each distinct logo the account's versions froze, once, named by its digest.
+  reportLogos: paged({
+    scope: "account",
+    from: `(select distinct firm_logo_data_url from report_versions
+      where user_id = $1 and firm_logo_data_url is not null and ${BORN("prepared_at")}) l`,
+    key: "md5(firm_logo_data_url)",
+    desc: false,
+    columns: "md5(firm_logo_data_url) as id, firm_logo_data_url as data_url",
+    map: (l: { id: string; data_url: string }) => ({ id: l.id, dataUrl: l.data_url }),
+  }),
+  snapshots: paged({
+    scope: "account",
+    from: `assessment_snapshots where user_id = $1 and ${BORN("created_at")}`,
+    key: `${TS("created_at")}${SEP}id`,
+    desc: true,
+    columns: `id, title, practice_name, created_at, profile_json, power_map_json,
+      value_case_json, value_evidence_json`,
+    map: (s: {
+      id: string;
+      title: string;
+      practice_name: string;
+      created_at: string;
+      profile_json: unknown;
+      power_map_json: unknown;
+      value_case_json: unknown;
+      value_evidence_json: unknown;
+    }) => ({
+      id: s.id,
+      title: s.title,
+      practiceName: s.practice_name,
+      createdAt: toIsoTimestamp(s.created_at),
+      profile: s.profile_json,
+      powerMap: s.power_map_json,
+      valueCase: s.value_case_json,
+      valueEvidence: s.value_evidence_json,
+    }),
+  }),
+  shares: paged({
+    scope: "account",
+    from: `map_shares where user_id = $1 and ${BORN("created_at")}`,
+    key: `${TS("created_at")}${SEP}token`,
+    desc: true,
+    columns: "token, business_name, created_at, expires_at, revoked_at, redacted, payload",
+    map: (s: {
+      token: string;
+      business_name: string;
+      created_at: string;
+      expires_at: string | null;
+      revoked_at: string | null;
+      redacted: boolean;
+      payload: unknown;
+    }) => ({
+      token: s.token,
+      businessName: s.business_name,
+      createdAt: toIsoTimestamp(s.created_at),
+      expiresAt: toIsoTimestampOrNull(s.expires_at),
+      revokedAt: toIsoTimestampOrNull(s.revoked_at),
+      redacted: Boolean(s.redacted),
+      payload: s.payload,
+    }),
+  }),
+  controlExecutions: paged({
+    scope: "account",
+    from: `control_execution_log where user_id = $1 and ${BORN("created_at")}`,
+    key: `${TS("created_at")}${SEP}id${SEP}business_id`,
+    desc: false,
+    columns: "business_id, record",
+    map: (c: { business_id: string; record: ControlExecution }) => ({
+      businessId: c.business_id,
+      record: c.record,
+    }),
+  }),
+  quickBooksSnapshots: paged({
+    scope: "account",
+    from: `integration_snapshots where user_id = $1 and provider = 'qbo' and ${BORN("taken_at")}`,
+    // Newest first within each business: the time counted down from a far one.
+    key: `business_id${SEP}${NUM("99999999999999999 - (extract(epoch from taken_at) * 1000000)::bigint")}${SEP}${NUM("id")}`,
+    desc: false,
+    columns: quickBooksColumns(null),
+    // One reading holds up to 20,000 vendors and 20,000 employees
+    // (sync.server.ts), several megabytes: past the budget, it is cut.
+    slices: { arrays: ["vendors", "employees"], columns: quickBooksColumns },
+    map: (s: { business_id: string; taken_at: string; vendors: unknown; employees: unknown }) => ({
+      businessId: s.business_id,
+      takenAt: toIsoTimestamp(s.taken_at),
+      vendors: s.vendors,
+      employees: s.employees,
+    }),
+  }),
+  procedureImages: paged({
+    scope: "account",
+    from: `procedure_images where user_id = $1 and ${BORN("created_at")}`,
+    key: `business_id${SEP}${TS("created_at")}${SEP}id`,
+    desc: false,
+    columns: `id, business_id, content_type, byte_size, width, height, sha256, uploaded_by,
+      created_at, unreferenced_since`,
+    map: (i: {
+      id: string;
+      business_id: string;
+      content_type: string;
+      byte_size: number | string;
+      width: number;
+      height: number;
+      sha256: string;
+      uploaded_by: string | null;
+      created_at: string;
+      unreferenced_since: string | null;
+    }) => ({
+      id: i.id,
+      businessId: i.business_id,
+      contentType: i.content_type,
+      byteSize: Number(i.byte_size),
+      width: Number(i.width),
+      height: Number(i.height),
+      sha256: i.sha256,
+      uploadedBy: i.uploaded_by ?? null,
+      createdAt: toIsoTimestamp(i.created_at),
+      unreferencedSince: toIsoTimestampOrNull(i.unreferenced_since),
+      path: pictureUrl(i.business_id, i.id),
+    }),
+  }),
+  reviews: paged({
+    scope: "account",
+    from: `review_events where user_id = $1 and ${BORN("recorded_at")}`,
+    key: `${TS("recorded_at")}${SEP}${NUM("id")}`,
+    desc: true,
+    columns: `business_id, period, item_key, owner_name, due_on, result, notes, recorded_at,
+      recorded_by`,
+    map: (r: {
+      business_id: string;
+      period: string;
+      item_key: string;
+      owner_name: string;
+      due_on: string | null;
+      result: string;
+      notes: string;
+      recorded_at: string;
+      recorded_by: string | null;
+    }) => ({
+      businessId: r.business_id,
+      period: r.period,
+      itemKey: r.item_key,
+      ownerName: r.owner_name,
+      dueOn: r.due_on ?? null,
+      result: r.result,
+      notes: r.notes,
+      recordedAt: toIsoTimestamp(r.recorded_at),
+      recordedBy: r.recorded_by ?? null,
+    }),
+  }),
+  remindersSent: paged({
+    scope: "account",
+    from: `reminder_log where user_id = $1 and ${BORN("sent_at")}`,
+    key: `${TS("sent_at")}${SEP}${NUM("id")}`,
+    desc: true,
+    columns: "business_id, item_key, due_on::text as due_on, recipient, sent_at",
+    map: (r: {
+      business_id: string;
+      item_key: string;
+      due_on: string | null;
+      recipient: string;
+      sent_at: string;
+    }) => ({
+      businessId: r.business_id,
+      itemKey: r.item_key,
+      dueOn: r.due_on,
+      recipient: r.recipient,
+      sentAt: toIsoTimestamp(r.sent_at),
+    }),
+  }),
+  // The firm owner's copy of the firm's activity log (migration 0048), newest first.
+  firmActivity: paged({
+    scope: "firm",
+    from: `firm_audit_log where firm_user_id = $1 and ${BORN("occurred_at")}`,
+    key: `${TS("occurred_at")}${SEP}${NUM("id")}`,
+    desc: true,
+    columns: "actor_name, event, business_id, subject_user_id, detail, occurred_at",
+    map: (r: {
+      actor_name: string;
+      event: string;
+      business_id: string | null;
+      subject_user_id: string | null;
+      detail: unknown;
+      occurred_at: string;
+    }): FirmActivityRow => ({
+      actorName: r.actor_name,
+      event: r.event,
+      businessId: r.business_id,
+      subjectUserId: r.subject_user_id,
+      detail: r.detail,
+      occurredAt: toIsoTimestamp(r.occurred_at),
+    }),
+  }),
+};
+
+/** Whose rows a section reads: the account's, or the firm's it owns; null for none. */
+function scopeOf(
+  section: PagedExportSection,
+  userId: string,
+  firmUserId: string | null,
+): string | null {
+  return PAGED[section].scope === "firm" ? firmUserId : userId;
+}
+
+/**
+ * The section's rows with their keys, as one query; the caller adds the
+ * order and range. With `slicesAt`, a sliced section's arrays are cut by
+ * the parameters from there on.
+ */
+function sectionQuery(section: PagedExportSection, slicesAt: number | null = null): string {
+  const s = PAGED[section];
+  const columns = slicesAt !== null && s.slices ? s.slices.columns(slicesAt) : s.columns;
+  return `select ${s.key} as k, ${columns} from ${s.from}`;
+}
+
+/** Ascending or descending by key, compared byte by byte so Postgres and the plan agree. */
+function keyOrder(section: PagedExportSection): string {
+  return `order by x.k collate "C" ${PAGED[section].desc ? "desc" : "asc"}`;
+}
+
+/** A planned row: its key and size, and for a sliced section its arrays' lengths and largest element. */
+interface PlannedRow {
+  k: string;
+  n: number | string;
+  vendors_length?: number | string | null;
+  vendors_max?: number | string | null;
+  employees_length?: number | string | null;
+  employees_max?: number | string | null;
+}
+
+/**
+ * The section's pages: each one's first and last key and how many rows it
+ * holds, rows added until their JSON as Postgres prints it (larger than
+ * the file's, never smaller) would pass `budgetBytes`, and always at least
+ * one row. A row of a sliced section past the budget is cut into pages of
+ * whole elements instead (sliceRow), so no page carries more than the
+ * budget whatever the reading holds. Every page carries the plan's time.
+ */
+async function planPages(
+  tx: Sql,
+  section: PagedExportSection,
+  scope: string,
+  budgetBytes: number,
+  asOf: string,
+): Promise<PagedPartRequest[]> {
+  const s = PAGED[section];
+  // An element's size as Postgres prints it, which the file's JSON never passes.
+  const measures = (s.slices?.arrays ?? []).map(
+    (a) => `, case when jsonb_typeof(x.${a}) = 'array' then jsonb_array_length(x.${a}) end
+        as ${a}_length,
+      case when jsonb_typeof(x.${a}) = 'array' then (select max(octet_length(e::text))
+        from jsonb_array_elements(x.${a}) e) end as ${a}_max`,
+  );
+  const rows = await tx.query<PlannedRow>(
+    `select x.k, octet_length(row_to_json(x)::text) as n${measures.join("")}
+     from (${sectionQuery(section)}) x ${keyOrder(section)}`,
+    [scope, null],
+  );
+  const parts: PagedPartRequest[] = [];
+  let used = 0;
+  for (const row of rows) {
+    const bytes = Number(row.n) + ROW_OVERHEAD_BYTES;
+    const page = parts.at(-1);
+    const slices =
+      s.slices && PAGE_OVERHEAD_BYTES + bytes > budgetBytes ? sliceRow(row, budgetBytes) : null;
+    if (slices) {
+      for (const slice of slices)
+        parts.push({ section, first: row.k, last: row.k, count: 1, asOf, slice });
+    } else if (page && !page.slice && !s.alone && used + bytes <= budgetBytes) {
+      page.last = row.k;
+      page.count += 1;
+      used += bytes;
+      continue;
+    } else {
+      parts.push({ section, first: row.k, last: row.k, count: 1, asOf });
+    }
+    used = PAGE_OVERHEAD_BYTES + bytes;
+  }
+  return parts;
+}
+
+/**
+ * A QuickBooks reading past the budget, as slices of whole elements: the
+ * vendors in order, then the employees, each slice holding as many as fit
+ * the budget when every element is as large as the reading's largest (an
+ * element larger than the budget gets a slice of its own). Null when either
+ * array is not an array, which the reading's writer never stores: the row
+ * then goes on a page of its own, as before.
+ */
+function sliceRow(row: PlannedRow, budgetBytes: number): ExportSlice[] | null {
+  if (row.vendors_length == null || row.employees_length == null) return null;
+  const room = budgetBytes - PAGE_OVERHEAD_BYTES - ROW_OVERHEAD_BYTES;
+  const arrays = [
+    { length: Number(row.vendors_length), each: Number(row.vendors_max ?? 0) + 1 },
+    { length: Number(row.employees_length), each: Number(row.employees_max ?? 0) + 1 },
+  ];
+  const at = [0, 0];
+  const slices: ExportSlice[] = [];
+  do {
+    let left = room;
+    const from = [...at];
+    for (const [i, a] of arrays.entries()) {
+      // The employees start once every vendor has a slice.
+      if (i === 1 && at[0] < arrays[0].length) break;
+      const fit = Math.min(a.length - at[i], Math.max(0, Math.floor(left / a.each)));
+      at[i] += fit;
+      left -= fit * a.each;
+    }
+    // A slice always holds at least one element, however large.
+    if (at[0] === from[0] && at[1] === from[1]) {
+      if (at[0] < arrays[0].length) at[0] += 1;
+      else if (at[1] < arrays[1].length) at[1] += 1;
+    }
+    slices.push({ vendors: [from[0], at[0]], employees: [from[1], at[1]] });
+  } while (at[0] < arrays[0].length || at[1] < arrays[1].length);
+  return slices;
+}
+
+/**
+ * The section's rows a part names: from `part.first` to `part.last`, both
+ * included, written by `part.asOf`, its slice of a QuickBooks reading cut
+ * in Postgres, and never more than the plan counted: one more refuses the
+ * part (409, EXPORT_CHANGED). Every row, uncut, without a part.
+ */
+async function readPagedRows<S extends PagedExportSection>(
+  tx: Sql,
+  section: S,
+  scope: string,
+  part: PagedPartRequest | null,
+): Promise<AccountExportFile[S]> {
+  const s = PAGED[section];
+  if (!part) {
+    const all = await tx.query<Record<string, unknown>>(
+      `select * from (${sectionQuery(section)}) x ${keyOrder(section)}`,
+      [scope, null],
+    );
+    return all.map((row) => s.map(row)) as AccountExportFile[S];
+  }
+  if (part.slice && !s.slices) throw new RequestError(400, "Unknown export part");
+  const [low, high] = s.desc ? [part.last, part.first] : [part.first, part.last];
+  const slice = part.slice ? [...part.slice.vendors, ...part.slice.employees] : [];
+  const rows = await tx.query<Record<string, unknown>>(
+    `select * from (${sectionQuery(section, part.slice ? 6 : null)}) x
+     where x.k collate "C" >= $3 and x.k collate "C" <= $4 ${keyOrder(section)} limit $5`,
+    [scope, part.asOf, low, high, part.count + 1, ...slice],
+  );
+  // A row with an older time moved into the range (for example a departing
+  // member's versions handed to the firm owner): the plan no longer holds.
+  if (rows.length > part.count) throw new RequestError(409, EXPORT_CHANGED);
+  return rows.map((row) => s.map(row)) as AccountExportFile[S];
 }
 
 /** One earlier saved version of a business, as the history download writes it. */
@@ -603,30 +986,28 @@ async function logDeparture(tx: Sql, userId: string): Promise<void> {
     where m.member_user_id = ${userId} and m.firm_user_id <> ${userId}
     order by m.joined_at
   `;
-  for (const m of memberships) {
-    await insertAudit(tx, {
-      firmUserId: m.firm_user_id,
-      actorUserId: userId,
-      event: "member_left",
-      subjectUserId: userId,
-      detail: { reason: "account_deleted" },
-    });
-  }
   const shared = await tx<{ id: string; firm_user_id: string }>`
     select id, firm_user_id from businesses
     where user_id = ${userId} and firm_user_id is not null and firm_user_id <> ${userId}
       and granted_at is not null
     order by id
   `;
-  for (const b of shared) {
-    await insertAudit(tx, {
+  await insertAudits(tx, [
+    ...memberships.map((m) => ({
+      firmUserId: m.firm_user_id,
+      actorUserId: userId,
+      event: "member_left" as const,
+      subjectUserId: userId,
+      detail: { reason: "account_deleted" },
+    })),
+    ...shared.map((b) => ({
       firmUserId: b.firm_user_id,
       actorUserId: userId,
-      event: "client_handed_back",
+      event: "client_handed_back" as const,
       businessId: b.id,
       detail: { by: "owner", reason: "account_deleted" },
-    });
-  }
+    })),
+  ]);
 }
 
 /** Refuses while the Firm plan runs; otherwise the Stripe customer id to delete, if any. */
@@ -684,32 +1065,6 @@ async function readUser(tx: Sql, userId: string): Promise<AccountExport["user"]>
   return u
     ? { id: u.id, name: u.name, email: u.email, createdAt: toIsoTimestamp(u.createdAt) }
     : null;
-}
-
-async function readBusinesses(tx: Sql, userId: string): Promise<AccountExport["businesses"]> {
-  const rows = await tx<{
-    id: string;
-    name: string;
-    industry: string;
-    revision: number | string;
-    updated_at: string;
-    deleted_at: string | null;
-    granted_at: string | null;
-    profile: unknown;
-  }>`
-    select id, name, industry, revision, updated_at, deleted_at, granted_at, profile
-    from businesses where user_id = ${userId} order by updated_at desc
-  `;
-  return rows.map((b) => ({
-    id: b.id,
-    name: b.name,
-    industry: b.industry,
-    revision: Number(b.revision),
-    updatedAt: toIsoTimestamp(b.updated_at),
-    deletedAt: toIsoTimestampOrNull(b.deleted_at),
-    grantedAt: toIsoTimestampOrNull(b.granted_at),
-    profile: b.profile,
-  }));
 }
 
 async function readFirmGrants(tx: Sql, userId: string): Promise<AccountExport["firmGrants"]> {
@@ -779,135 +1134,6 @@ async function readDeletedBusinesses(
     where user_id = ${userId} order by deleted_at desc
   `;
   return rows.map((m) => ({ businessId: m.business_id, deletedAt: toIsoTimestamp(m.deleted_at) }));
-}
-
-async function readReportVersions(
-  tx: Sql,
-  userId: string,
-): Promise<AccountExport["reportVersions"]> {
-  const rows = await tx<{
-    id: string;
-    business_id: string;
-    version_no: number | string;
-    revision: number | string | null;
-    scope_note: string;
-    prepared_by: string | null;
-    prepared_at: string;
-    reviewed_by: string | null;
-    reviewed_at: string | null;
-    review_note: string;
-    sent_at: string | null;
-    firm_name: string | null;
-    firm_letterhead: string | null;
-    firm_logo_data_url: string | null;
-    engagement_scope: string | null;
-    engagement_period_start: string | null;
-    engagement_period_end: string | null;
-    review_requested_at: string | null;
-    review_requested_by: string | null;
-    review_requested_from: string | null;
-    returned_at: string | null;
-    returned_by: string | null;
-    return_note: string;
-    profile: unknown;
-  }>`
-    select id, business_id, version_no, revision, scope_note, prepared_by, prepared_at,
-      reviewed_by, reviewed_at, review_note, sent_at, firm_name, firm_letterhead,
-      firm_logo_data_url, engagement_scope, engagement_period_start, engagement_period_end,
-      review_requested_at, review_requested_by, review_requested_from, returned_at,
-      returned_by, return_note, profile
-    from report_versions where user_id = ${userId}
-    order by business_id, version_no desc
-  `;
-  return rows.map((r) => ({
-    id: r.id,
-    businessId: r.business_id,
-    versionNo: Number(r.version_no),
-    revision: r.revision === null ? null : Number(r.revision),
-    scopeNote: r.scope_note,
-    preparedBy: r.prepared_by,
-    preparedAt: toIsoTimestamp(r.prepared_at),
-    reviewedBy: r.reviewed_by,
-    reviewedAt: toIsoTimestampOrNull(r.reviewed_at),
-    reviewNote: r.review_note,
-    sentAt: toIsoTimestampOrNull(r.sent_at),
-    firm:
-      r.firm_name === null
-        ? null
-        : {
-            name: r.firm_name,
-            letterhead: r.firm_letterhead ?? "",
-            logoDataUrl: r.firm_logo_data_url,
-          },
-    engagement:
-      r.engagement_scope === null &&
-      r.engagement_period_start === null &&
-      r.engagement_period_end === null
-        ? null
-        : {
-            scope: r.engagement_scope ?? "",
-            periodStart: r.engagement_period_start,
-            periodEnd: r.engagement_period_end,
-          },
-    reviewRequestedAt: toIsoTimestampOrNull(r.review_requested_at),
-    reviewRequestedBy: r.review_requested_by,
-    reviewRequestedFrom: r.review_requested_from,
-    returnedAt: toIsoTimestampOrNull(r.returned_at),
-    returnedBy: r.returned_by,
-    returnNote: r.return_note,
-    profile: r.profile,
-  }));
-}
-
-async function readSnapshots(tx: Sql, userId: string): Promise<AccountExport["snapshots"]> {
-  const rows = await tx<{
-    id: string;
-    title: string;
-    practice_name: string;
-    created_at: string;
-    profile_json: unknown;
-    power_map_json: unknown;
-    value_case_json: unknown;
-    value_evidence_json: unknown;
-  }>`
-    select id, title, practice_name, created_at, profile_json, power_map_json,
-      value_case_json, value_evidence_json
-    from assessment_snapshots where user_id = ${userId} order by created_at desc
-  `;
-  return rows.map((s) => ({
-    id: s.id,
-    title: s.title,
-    practiceName: s.practice_name,
-    createdAt: toIsoTimestamp(s.created_at),
-    profile: s.profile_json,
-    powerMap: s.power_map_json,
-    valueCase: s.value_case_json,
-    valueEvidence: s.value_evidence_json,
-  }));
-}
-
-async function readShares(tx: Sql, userId: string): Promise<AccountExport["shares"]> {
-  const rows = await tx<{
-    token: string;
-    business_name: string;
-    created_at: string;
-    expires_at: string | null;
-    revoked_at: string | null;
-    redacted: boolean;
-    payload: unknown;
-  }>`
-    select token, business_name, created_at, expires_at, revoked_at, redacted, payload
-    from map_shares where user_id = ${userId} order by created_at desc
-  `;
-  return rows.map((s) => ({
-    token: s.token,
-    businessName: s.business_name,
-    createdAt: toIsoTimestamp(s.created_at),
-    expiresAt: toIsoTimestampOrNull(s.expires_at),
-    revokedAt: toIsoTimestampOrNull(s.revoked_at),
-    redacted: Boolean(s.redacted),
-    payload: s.payload,
-  }));
 }
 
 async function readFirm(tx: Sql, userId: string): Promise<AccountExport["firm"]> {
@@ -1038,70 +1264,6 @@ async function readEngagements(tx: Sql, userId: string): Promise<AccountExport["
   }));
 }
 
-async function readReviews(tx: Sql, userId: string): Promise<AccountExport["reviews"]> {
-  const rows = await tx<{
-    business_id: string;
-    period: string;
-    item_key: string;
-    owner_name: string;
-    due_on: string | null;
-    result: string;
-    notes: string;
-    recorded_at: string;
-    recorded_by: string | null;
-  }>`
-    select business_id, period, item_key, owner_name, due_on, result, notes, recorded_at,
-      recorded_by
-    from review_events where user_id = ${userId} order by recorded_at desc
-  `;
-  return rows.map((r) => ({
-    businessId: r.business_id,
-    period: r.period,
-    itemKey: r.item_key,
-    ownerName: r.owner_name,
-    dueOn: r.due_on ?? null,
-    result: r.result,
-    notes: r.notes,
-    recordedAt: toIsoTimestamp(r.recorded_at),
-    recordedBy: r.recorded_by ?? null,
-  }));
-}
-
-async function readProcedureImages(
-  tx: Sql,
-  userId: string,
-): Promise<AccountExport["procedureImages"]> {
-  const rows = await tx<{
-    id: string;
-    business_id: string;
-    content_type: string;
-    byte_size: number | string;
-    width: number;
-    height: number;
-    sha256: string;
-    uploaded_by: string | null;
-    created_at: string;
-    unreferenced_since: string | null;
-  }>`
-    select id, business_id, content_type, byte_size, width, height, sha256, uploaded_by,
-      created_at, unreferenced_since
-    from procedure_images where user_id = ${userId} order by business_id, created_at, id
-  `;
-  return rows.map((i) => ({
-    id: i.id,
-    businessId: i.business_id,
-    contentType: i.content_type,
-    byteSize: Number(i.byte_size),
-    width: Number(i.width),
-    height: Number(i.height),
-    sha256: i.sha256,
-    uploadedBy: i.uploaded_by ?? null,
-    createdAt: toIsoTimestamp(i.created_at),
-    unreferencedSince: toIsoTimestampOrNull(i.unreferenced_since),
-    path: pictureUrl(i.business_id, i.id),
-  }));
-}
-
 async function readReminderSettings(
   tx: Sql,
   userId: string,
@@ -1113,26 +1275,6 @@ async function readReminderSettings(
   return s
     ? { weeklyDigest: Boolean(s.weekly_digest), ownerReminders: Boolean(s.owner_reminders) }
     : null;
-}
-
-async function readRemindersSent(tx: Sql, userId: string): Promise<AccountExport["remindersSent"]> {
-  const rows = await tx<{
-    business_id: string;
-    item_key: string;
-    due_on: string | null;
-    recipient: string;
-    sent_at: string;
-  }>`
-    select business_id, item_key, due_on::text as due_on, recipient, sent_at
-    from reminder_log where user_id = ${userId} order by sent_at desc
-  `;
-  return rows.map((r) => ({
-    businessId: r.business_id,
-    itemKey: r.item_key,
-    dueOn: r.due_on,
-    recipient: r.recipient,
-    sentAt: toIsoTimestamp(r.sent_at),
-  }));
 }
 
 async function readBilling(tx: Sql, userId: string): Promise<AccountExport["billing"]> {
@@ -1191,27 +1333,5 @@ async function readQuickBooksConnections(
     connectedBy: c.connected_by,
     lastSyncedAt: toIsoTimestampOrNull(c.last_synced_at),
     lastError: c.last_error,
-  }));
-}
-
-async function readQuickBooksSnapshots(
-  tx: Sql,
-  userId: string,
-): Promise<AccountExport["quickBooksSnapshots"]> {
-  const rows = await tx<{
-    business_id: string;
-    taken_at: string;
-    vendors: unknown;
-    employees: unknown;
-  }>`
-    select business_id, taken_at, vendors, employees
-    from integration_snapshots where user_id = ${userId} and provider = 'qbo'
-    order by business_id, taken_at desc
-  `;
-  return rows.map((s) => ({
-    businessId: s.business_id,
-    takenAt: toIsoTimestamp(s.taken_at),
-    vendors: s.vendors,
-    employees: s.employees,
   }));
 }

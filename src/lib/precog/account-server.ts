@@ -4,11 +4,13 @@ import { getSql } from "@/lib/db";
 import { RequestError, requireObject } from "@/lib/request-errors";
 import {
   deleteAccountRows,
+  encodeExportPage,
   encodeHistoryPage,
-  exportAccountRows,
+  exportAccountPage,
   exportBusinessHistoryPage,
   listAccountHistoryBusinesses,
 } from "./account-store";
+import { PAGED_EXPORT_SECTIONS, type ExportPartRequest, type ExportSlice } from "./account-export";
 import { isBusinessId } from "./profile-input";
 import { loadFirmFor, trustedEmailAddress } from "./firm/store";
 import { recordAuditForAccount } from "./firm/audit.server";
@@ -18,22 +20,90 @@ import { escapeHtml, type RenderedEmail } from "./reminders/email";
 import { decryptSecret, qboConfigured, revokeToken } from "./integrations/qbo/client.server";
 
 /**
- * Everything the account holds, for the owner to keep. Serialised here because
- * the stored JSON columns have no static shape the transport layer can check.
+ * One part of everything the account holds, for the owner to keep (see
+ * exportAccountPage): the first part (`account`) lists the others, which the
+ * browser fetches in order and joins into one file (assembleAccountExport).
+ * Each part is sent as base64 JSON, as a history page is, so its size on the
+ * wire stays under Vercel's 4.5 MB response limit whatever the rows hold; a
+ * part whose rows changed past its plan is refused (409, EXPORT_CHANGED) and
+ * the browser saves nothing. One export_run row per download, on its first part.
  */
-export const exportAccountData = createServerFn({ method: "GET" })
+export const exportAccountDataPage = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .handler(async ({ context }) => {
+  .validator(parseExportPartRequest)
+  .handler(async ({ context, data }) => {
     const sql = await getSql();
     const firmUserId = await ownedFirm(sql, context.userId);
-    const json = JSON.stringify(await exportAccountRows(sql, context.userId, firmUserId), null, 2);
-    await recordAuditForAccount(sql, context.userId, {
-      actorUserId: context.userId,
-      event: "export_run",
-      detail: { kind: "account" },
-    });
-    return { json };
+    const { page, parts } = await exportAccountPage(sql, context.userId, firmUserId, data);
+    if (data.section === "account") {
+      await recordAuditForAccount(sql, context.userId, {
+        actorUserId: context.userId,
+        event: "export_run",
+        detail: { kind: "account" },
+      });
+    }
+    return { base64: encodeExportPage(page), parts };
   });
+
+/** The longest sort key a part may name; an id, a timestamp and a number fit well inside. */
+const MAX_EXPORT_KEY_LENGTH = 1024;
+/** The most rows a part may count; a part of the smallest rows holds far fewer. */
+const MAX_EXPORT_PART_ROWS = 100_000;
+/** The furthest element position a slice may name; a reading holds up to 20,000 of each. */
+const MAX_EXPORT_SLICE_AT = 10_000_000;
+/** A plan's time as the plan writes it: UTC, to the microsecond. */
+const PLAN_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
+
+/**
+ * Checks an export part request. Its keys, count, time and slice only
+ * choose among the caller's own rows, and a part never sends more than
+ * it counts, so a made-up request reads nothing that is not the caller's.
+ */
+export function parseExportPartRequest(input: unknown): ExportPartRequest {
+  const raw = requireObject(input);
+  if (raw.section === "account" || raw.section === "firm") return { section: raw.section };
+  const section = PAGED_EXPORT_SECTIONS.find((s) => s === raw.section);
+  const key = (value: unknown) =>
+    typeof value === "string" && value.length <= MAX_EXPORT_KEY_LENGTH ? value : null;
+  const first = key(raw.first);
+  const last = key(raw.last);
+  const count = raw.count;
+  const asOf = raw.asOf;
+  const slice = parseExportSlice(raw.slice);
+  if (
+    !section ||
+    first === null ||
+    last === null ||
+    typeof count !== "number" ||
+    !Number.isInteger(count) ||
+    count < 1 ||
+    count > MAX_EXPORT_PART_ROWS ||
+    typeof asOf !== "string" ||
+    !PLAN_TIME.test(asOf) ||
+    Number.isNaN(Date.parse(asOf)) ||
+    slice === null ||
+    (slice !== undefined && section !== "quickBooksSnapshots")
+  ) {
+    throw new RequestError(400, "Unknown export part");
+  }
+  return { section, first, last, count, asOf, ...(slice ? { slice } : {}) };
+}
+
+/** A part's slice of a QuickBooks reading: undefined when it names none, null when malformed. */
+function parseExportSlice(value: unknown): ExportSlice | null | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== "object") return null;
+  const range = (r: unknown): [number, number] | null =>
+    Array.isArray(r) &&
+    r.length === 2 &&
+    r.every((n) => Number.isInteger(n) && n >= 0 && n <= MAX_EXPORT_SLICE_AT) &&
+    r[0] <= r[1]
+      ? [r[0] as number, r[1] as number]
+      : null;
+  const vendors = range((value as Record<string, unknown>).vendors);
+  const employees = range((value as Record<string, unknown>).employees);
+  return vendors && employees ? { vendors, employees } : null;
+}
 
 /** The firm the account owns, whose members' clients its export and history list hold; null otherwise. */
 async function ownedFirm(sql: Awaited<ReturnType<typeof getSql>>, userId: string) {

@@ -116,10 +116,25 @@ const row: ClientEngagementRow = {
   status: "active",
   endedAt: null,
   granted: false,
-  period: "2026-10",
-  thisMonthRecorded: 0,
+  months: [
+    { period: "2026-09", done: 4, exceptions: 0, skipped: 0 },
+    { period: "2026-10", done: 0, exceptions: 0, skipped: 0 },
+  ],
   awaitingReview: 0,
 };
+
+/** The row with September's and October's counts. */
+function counted(
+  september: { done: number; exceptions?: number; skipped?: number },
+  october: { done: number; exceptions?: number; skipped?: number },
+): Pick<ClientEngagementRow, "months"> {
+  return {
+    months: [
+      { period: "2026-09", exceptions: 0, skipped: 0, ...september },
+      { period: "2026-10", exceptions: 0, skipped: 0, ...october },
+    ],
+  };
+}
 
 function table(clients: ClientEngagementRow[], today = "2026-10-12") {
   return renderToStaticMarkup(
@@ -139,7 +154,7 @@ function table(clients: ClientEngagementRow[], today = "2026-10-12") {
 }
 
 describe("client table", () => {
-  it("heads each column, sorted by Client first", () => {
+  it("heads each column, sorted by Exceptions first", () => {
     const html = table([row]);
     const headers = [...html.matchAll(/<th scope="col"[^>]*>(.*?)<\/th>/g)].map((m) =>
       m[1].replace(/<[^>]+>/g, ""),
@@ -148,21 +163,26 @@ describe("client table", () => {
       "Client",
       "Status",
       "Last review",
+      "Last month",
       "This month",
+      "Exceptions",
+      "Skipped",
       "Open duty conflicts",
       "Awaiting review",
       "",
     ]);
-    expect(html.match(/aria-sort="ascending"/g)).toHaveLength(1);
-    expect(html).toMatch(/aria-sort="ascending"[^>]*><button[^>]*>Client/);
-    expect(html.match(/aria-sort="none"/g)).toHaveLength(5);
+    expect(html.match(/aria-sort="descending"/g)).toHaveLength(1);
+    expect(html).toMatch(/aria-sort="descending"[^>]*><button[^>]*>Exceptions/);
+    expect(html.match(/aria-sort="none"/g)).toHaveLength(8);
   });
 
-  it("lists the rows by name until another column is chosen", () => {
+  it("lists the clients with exceptions first, then the rest by name, until another column is chosen", () => {
     const html = table([
       { ...row, id: "z", name: "Zinc Works" },
       { ...row, id: "a", name: "Acme Dental" },
+      { ...row, id: "m", name: "Mill Clinic", ...counted({ done: 3, exceptions: 1 }, { done: 0 }) },
     ]);
+    expect(html.indexOf("Mill Clinic")).toBeLessThan(html.indexOf("Acme Dental"));
     expect(html.indexOf("Acme Dental")).toBeLessThan(html.indexOf("Zinc Works"));
   });
 
@@ -173,7 +193,7 @@ describe("client table", () => {
         granted: true,
         shared: true,
         lastReviewAt: "2026-10-03T15:00:00.000Z",
-        thisMonthRecorded: 3,
+        ...counted({ done: 2, skipped: 2 }, { done: 3, exceptions: 1, skipped: 1 }),
         awaitingReview: 2,
       },
       {
@@ -184,17 +204,36 @@ describe("client table", () => {
         status: "ended",
         endedAt: "2026-09-30T12:00:00.000Z",
         openFindings: null,
-        thisMonthRecorded: 5,
+        ...counted({ done: 4 }, { done: 5 }),
       },
     ]);
     expect(html).toContain("Client&#x27;s own");
     expect(html.match(/another firm member&#x27;s/g)).toHaveLength(1);
-    // Status, Last review, This month, Open duty conflicts, Awaiting review,
-    // row by row in the default order (by name).
-    const [member, granted] = cellsOf(html).map((cells) => cells.slice(1, 6));
+    // Status, Last review, Last month, This month, Exceptions, Skipped, Open
+    // duty conflicts, Awaiting review, row by row in the default order (the
+    // client with exceptions first).
+    const [granted, member] = cellsOf(html).map((cells) => cells.slice(1, 9));
+    // Every September check has a result (two Done, two Skipped), so no Overdue badge.
+    expect(granted).toEqual([
+      "Active",
+      "2026-10-03",
+      "2 of 4 done",
+      "3 of 5 done",
+      "1 this month",
+      "2 last month, 1 this month",
+      "2",
+      "2",
+    ]);
     expect(member[0]).toMatch(/^Ended Sep (29|30), 2026$/);
-    expect(member.slice(1)).toEqual(["None", "Done", "Not counted yet", "None"]);
-    expect(granted).toEqual(["Active", "2026-10-03", "3 of 5 recorded", "2", "2"]);
+    expect(member.slice(1)).toEqual([
+      "None",
+      "4 of 4 done",
+      "5 of 5 done",
+      "None",
+      "None",
+      "Not counted yet",
+      "None",
+    ]);
   });
 
   it("tags only a row someone else holds", () => {
@@ -208,19 +247,23 @@ describe("client table", () => {
     expect(firmSide).not.toContain("another firm member&#x27;s");
   });
 
-  it("prints Not started and the overdue form", () => {
-    expect(table([row])).toContain(">Not started<");
-    expect(table([{ ...row, thisMonthRecorded: 1 }], "2026-11-11")).toContain(">4 overdue<");
+  it("badges last month Overdue only after its due day, the 10th", () => {
+    const open = { ...row, ...counted({ done: 1 }, { done: 0 }) };
+    expect(table([open], "2026-10-10")).toContain(">1 of 4 done<");
+    expect(table([open], "2026-10-10")).not.toContain("Overdue<");
+    expect(table([open], "2026-10-11")).toMatch(/>1 of 4 done<span[^>]*>Overdue<\/span>/);
+    expect(table([row], "2026-10-11")).not.toContain("Overdue<");
   });
 
   it("totals the table, offers the CSV and says how to sort", () => {
     const html = table([
-      { ...row, thisMonthRecorded: 2, awaitingReview: 1 },
-      { ...row, id: "b2", name: "Other", thisMonthRecorded: 5, awaitingReview: 2 },
+      { ...row, ...counted({ done: 4 }, { done: 2 }), awaitingReview: 1 },
+      { ...row, id: "b2", name: "Other", ...counted({ done: 4 }, { done: 5 }), awaitingReview: 2 },
     ]);
     expect(html).toContain(
-      "2 clients · 1 with this month&#x27;s review open · 3 versions awaiting review",
+      "2 clients · 1 with this month&#x27;s review open · 0 with last month overdue · 0 with exceptions · 3 versions awaiting review",
     );
+    expect(html).toContain("Last month and This month count Done checks only;");
     expect(html).toContain(">Export clients (CSV)<");
     expect(html).toContain("Sort by any column; Export clients (CSV) downloads the same columns.");
   });

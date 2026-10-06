@@ -119,7 +119,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     ],
     source: `${PAYMENT_DESTINATION_CHANGE.source.publisher}: ${PAYMENT_DESTINATION_CHANGE.source.document}, ${PAYMENT_DESTINATION_CHANGE.source.url}. ${PAYMENT_DESTINATION_CHANGE.source.scope}`,
     evidenceToKeep: [...PAYMENT_DESTINATION_CHANGE.evidence, "Approved supplier list"],
-    ifYouCannotSeparate: `${PAYMENT_DESTINATION_CHANGE.verification} ${PAYMENT_DESTINATION_CHANGE.monitoring} Arrange a separate authorized reviewer where the person who usually approves also prepares or changes the payment.`,
+    ifYouCannotSeparate: `${PAYMENT_DESTINATION_CHANGE.verification} ${PAYMENT_DESTINATION_CHANGE.monitoring} If no second person can approve, someone who did not make the change reads the vendor change log every week, and the bank alerts that person to each new payee.`,
   },
   {
     id: "lib-release-payments",
@@ -151,8 +151,11 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     ],
     source: GREEN_BOOK_10,
     evidenceToKeep: ["Approved supplier list", "Match report", "Release log"],
+    // Detective, not a second approver: a business with one person on
+    // payments has nobody to approve the batch. The last sentence points to
+    // the bank-side setup until the library holds a procedure for it.
     ifYouCannotSeparate:
-      "Arrange a separate authorized reviewer where the person who usually approves the batch also prepares or releases it.",
+      "If one person prepares and releases payments: each week someone who does neither, for example the person who runs the business or a board officer, reads the bank's payment report and the cleared-check images, and the bank alerts that person to every new payee and every payment over a set amount. Ask your bank for payee alerts and Positive Pay with payee match.",
   },
   {
     id: "lib-payroll",
@@ -220,7 +223,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-refund-review",
     title: "Review refunds, voids and write-offs",
     purpose:
-      "Finds refunds or write-offs that hide a diverted payment. Done when a second person who did not make them has checked each one over the limit.",
+      "Finds refunds or write-offs that hide a diverted payment. Done when a second person who did not make them has checked each one.",
     trigger: "Every Monday, for the week before",
     cadence: "weekly",
     dutyIds: ["issue_refunds", "approve_writeoffs", "post_adjustments"],
@@ -228,8 +231,8 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     prerequisites: ["Access to the refunds, voids and adjustments report"],
     steps: [
       { text: "Run the refunds, voids and adjustments report for last week." },
-      { text: "Mark each entry over the approval limit." },
-      { text: "Check that each marked entry has a reason and an approval." },
+      { text: "Read every refund, void and write-off on the report." },
+      { text: "Check that each entry has a reason and an approval." },
       {
         text: "Ask the person who made any entry without a reason to explain it.",
         caution: "The reviewer must not be the person who made the refunds or adjustments.",
@@ -325,7 +328,11 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     ],
     source:
       "NIST SP 800-53, control PS-4 (Personnel Termination): disable access and retrieve property when employment ends.",
-    evidenceToKeep: ["User list export", "Access review sign-off", "Audit log sample"],
+    evidenceToKeep: [
+      "Completed offboarding checklist",
+      "Disabled-account list or screenshots",
+      "Returned keys and cards log",
+    ],
     ifYouCannotSeparate:
       "Twice a year, someone who is not a system administrator reviews the list of everyone's access.",
   },
@@ -380,7 +387,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     id: "lib-controlled-count",
     title: "Count controlled drugs against the log",
     purpose:
-      "Use this only where the office dispenses controlled drugs. Shows the practice can account for every one and finds a loss the day it happens. Done when each count matches the log and both counters have signed it.",
+      "Use this only where the office dispenses controlled drugs. Shows the practice can account for every one and finds a loss within the week. Done when each count matches the log and both counters have signed it.",
     trigger: "Every Friday at close, and on the biennial inventory date",
     cadence: "weekly",
     industries: ["dental"],
@@ -668,7 +675,9 @@ export function libraryRows(
  * A new procedure started from a recommendation: its purpose, trigger,
  * prerequisites and duties filled in, its steps marked as suggestions, linked
  * to the register items it covers here, with the first person who holds its
- * duty as the one who does it today.
+ * duty as the one who does it today. It keeps the recommendation's fallback
+ * for this line of business, its evidence to keep and its source, so the
+ * reviewer still has them after the start.
  */
 export function procedureFromLibrary(
   row: LibraryRow,
@@ -676,6 +685,7 @@ export function procedureFromLibrary(
   today: string,
 ): Procedure {
   const r = row.recommendation;
+  const fallback = ifYouCannotSeparateFor(r, industry);
   return newProcedure(
     {
       industry,
@@ -683,6 +693,9 @@ export function procedureFromLibrary(
       libraryId: r.id,
       purpose: r.purpose,
       trigger: r.trigger,
+      ...(fallback ? { fallback } : {}),
+      ...(r.evidenceToKeep?.length ? { evidenceToKeep: [...r.evidenceToKeep] } : {}),
+      source: r.source,
       cadence: r.cadence,
       prerequisites: [...r.prerequisites],
       ...(r.dutyIds.length ? { dutyIds: [...r.dutyIds] } : {}),

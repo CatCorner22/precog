@@ -4,7 +4,7 @@ import type { DualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import { midSentence } from "@/lib/precog/text";
 import { isPaymentDuty } from "@/lib/precog/sod/score";
 import type { StaffComposition } from "@/lib/precog/types";
-import { formatUsd } from "@/lib/utils";
+import { formatUsdTyped } from "@/lib/utils";
 
 export type ConflictSeverity = DetectedConflict["severity"];
 
@@ -73,7 +73,7 @@ export function conflictFactors(
     !conflict.dualReleaseMitigated
       ? "No dual release covers it"
       : partialThresholdUsd && partialThresholdUsd > 0
-        ? `Dual release covers payments over ${formatUsd(partialThresholdUsd)} only`
+        ? `Dual release covers payments over ${formatUsdTyped(partialThresholdUsd)} only`
         : "Dual release covers it",
     ...(staff && !staff.dualControlPayments && pair.some(isPaymentDuty)
       ? ["No second approver on payments"]

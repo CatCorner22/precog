@@ -5,32 +5,27 @@ import { localDateKey } from "@/lib/precog/dates";
 import { continuitySlips, decisionsDue } from "@/lib/precog/decisions/follow-through";
 import { openMonthlyChecks } from "@/lib/precog/firm/reviews";
 import { usePracticeState, useTemplate } from "@/lib/precog/practice-context";
-import { count, verb } from "@/lib/precog/text";
 import { useToday } from "@/lib/use-today";
 import { cn } from "@/lib/utils";
-
-interface AttentionItem {
-  id: string;
-  n: number;
-  text: string;
-  target: string;
-}
+import { buildNeedsAttentionItems, openNeedsAttentionItem } from "./needs-attention-menu.logic";
 
 /**
  * Everything that waits on the owner, behind one header button: decisions
  * past their review date, decisions undone since they were marked done,
- * people who left whose access is unchecked, and this month's open checks
- * (from the 5th, as the reminders count them).
+ * people who left whose access is unchecked, and the Monthly review's checks
+ * not done or with an exception to resolve: last month's through its due day
+ * (the 10th) and this month's from the 5th, as the firm's client table counts
+ * them (`openMonthlyChecks`).
  * Hidden when nothing waits. The list exists only while it is open, so the
  * tab walk's count of the Advanced menu never sees these items.
  */
-export function NeedsAttentionMenu({ onOpen }: { onOpen: (tab: string) => void }) {
+export function NeedsAttentionMenu({ onOpen }: { onOpen: (tab: string, item?: string) => void }) {
   const tpl = useTemplate();
   const { profile } = usePracticeState();
   const today = useToday();
   const day = localDateKey(today);
 
-  const items = useMemo<AttentionItem[]>(() => {
+  const items = useMemo(() => {
     const overdue = decisionsDue(profile.decisions, day).overdue.length;
     const slipped = continuitySlips(profile.decisions, tpl).length;
     const leavers = openAccessChecks(
@@ -38,39 +33,8 @@ export function NeedsAttentionMenu({ onOpen }: { onOpen: (tab: string) => void }
       profile.industry,
       tpl.people,
     ).length;
-    // From the 5th, as the reminders count them (MONTHLY_REVIEW_GRACE_DAY).
-    const monthly = openMonthlyChecks(
-      day,
-      tpl.people,
-      tpl.roleTemplates,
-      profile.monthlyReviews ?? [],
-    );
-    return [
-      {
-        id: "overdue",
-        n: overdue,
-        text: `${count(overdue, "decision")} to review`,
-        target: "journal",
-      },
-      {
-        id: "slipped",
-        n: slipped,
-        text: `${count(slipped, "decision")} undone since you marked ${verb(slipped, "it", "them")} done`,
-        target: "journal",
-      },
-      {
-        id: "leavers",
-        n: leavers,
-        text: `${count(leavers, "person", "people")} who left: check their access`,
-        target: "knowledge",
-      },
-      {
-        id: "monthly",
-        n: monthly,
-        text: `${count(monthly, "Monthly review check")} open`,
-        target: "monthly",
-      },
-    ].filter((item) => item.n > 0);
+    const months = openMonthlyChecks(day, profile.monthlyReviews ?? []);
+    return buildNeedsAttentionItems({ overdue, slipped, leavers, months });
   }, [
     day,
     tpl,
@@ -162,7 +126,7 @@ export function NeedsAttentionMenu({ onOpen }: { onOpen: (tab: string) => void }
               tabIndex={-1}
               onClick={() => {
                 setOpen(false);
-                onOpen(item.target);
+                openNeedsAttentionItem(item, onOpen);
               }}
               className="flex w-full items-center rounded-md px-2.5 py-2 text-left text-sm text-muted hover:bg-elevated hover:text-fg focus:bg-elevated focus:text-fg"
             >

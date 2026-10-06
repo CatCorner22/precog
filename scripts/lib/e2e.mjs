@@ -12,6 +12,17 @@ import { eventually } from "./steps.mjs";
 export const IGNORED_CONSOLE = /favicon|net::ERR_|Download the React DevTools/;
 
 /**
+ * A console message as the suites record it. Chromium's "Failed to load
+ * resource" line names no address, so the address the message comes from is
+ * added: a failure then says which request failed, and the browser's own
+ * /favicon.ico request (sent late for the robots.txt page openSetup clears
+ * storage on) reads as the favicon noise IGNORED_CONSOLE drops.
+ */
+export function consoleLine(text, sourceUrl) {
+  return sourceUrl && !text.includes(sourceUrl) ? `${text} (${sourceUrl})` : text;
+}
+
+/**
  * Copies of the app's storage names (WORKSPACE_PREFIX in
  * src/lib/precog/workspace-storage.ts, ACTIVE_PROFILE_KEY in
  * src/lib/precog/practice-profile.ts). The scripts run under plain Node and
@@ -54,10 +65,11 @@ export async function withPage(options, body) {
     page.on("pageerror", (err) => errors.page.push(String(err?.message || err)));
     page.on("console", (msg) => {
       const text = msg.text();
-      if (msg.type() === "error" && !IGNORED_CONSOLE.test(text)) errors.console.push(text);
+      const line = consoleLine(text, msg.location()?.url);
+      if (msg.type() === "error" && !IGNORED_CONSOLE.test(line)) errors.console.push(line);
       // React 19 logs hydration mismatches as errors, but keep the regex in case
       // a future version downgrades them to warnings.
-      if (/hydrat/i.test(text) && !errors.console.includes(text)) errors.console.push(text);
+      if (/hydrat/i.test(text) && !errors.console.includes(line)) errors.console.push(line);
     });
     await body(page, errors);
     return true;
@@ -95,6 +107,17 @@ export async function openSetup(page, baseUrl, timeout) {
   await page.waitForURL(/\/welcome$/, { timeout });
   await page.getByRole("link", { name: "Set up your business" }).click();
   await page.getByRole("radiogroup").waitFor({ timeout });
+}
+
+/** The sample entry shared by every guest smoke; also checks its accessible name. */
+export async function exploreSample(page, industry) {
+  await page
+    .getByRole("radio", { name: new RegExp(`^${industry}`) })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "Explore the fictional sample", exact: true }).waitFor();
+  await page.getByTestId("explore-sample-business").click();
+  await page.locator("nav[data-tab-count]").waitFor();
 }
 
 /** Waits until `locator` matches exactly `count` elements (Playwright's count() does not wait). */

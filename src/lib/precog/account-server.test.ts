@@ -53,8 +53,9 @@ vi.mock("./account-store", () => ({
     calls.push("delete-committed");
     return { quickBooksRefreshTokens: [], stripeCustomerId: null };
   },
+  encodeExportPage: () => "",
   encodeHistoryPage: () => "",
-  exportAccountRows: async () => ({}),
+  exportAccountPage: async () => ({ page: null, parts: null }),
   exportBusinessHistoryPage: async () => ({ rows: [], nextBeforeRevision: null }),
   listAccountHistoryBusinesses: async () => [],
 }));
@@ -159,6 +160,44 @@ describe("account deletion", () => {
     expect(calls).toEqual(["fresh-session", "trusted-address", "delete-committed"]);
     expect(spies.sendEmail).not.toHaveBeenCalled();
     expect(spies.report).not.toHaveBeenCalled();
+  });
+});
+
+describe("an export part request", () => {
+  const asOf = "2026-10-06T12:00:00.123456Z";
+  const planned = { section: "reportVersions", first: "a", last: "b", count: 3, asOf };
+  const refused = (input: unknown) => () => account.parseExportPartRequest(input);
+
+  it("passes a part as the plan wrote it, slice included for a QuickBooks reading", () => {
+    expect(account.parseExportPartRequest({ section: "account" })).toEqual({ section: "account" });
+    expect(account.parseExportPartRequest(planned)).toEqual(planned);
+    const slice = { vendors: [0, 5000], employees: [0, 0] };
+    expect(
+      account.parseExportPartRequest({ ...planned, section: "quickBooksSnapshots", slice }),
+    ).toEqual({ ...planned, section: "quickBooksSnapshots", slice });
+  });
+
+  it("refuses a part without its count or plan time, or with a malformed slice", () => {
+    for (const input of [
+      { ...planned, count: undefined },
+      { ...planned, count: 0 },
+      { ...planned, count: 1.5 },
+      { ...planned, count: 100_001 },
+      { ...planned, asOf: undefined },
+      { ...planned, asOf: "2026-10-06T12:00:00Z" },
+      { ...planned, asOf: "2026-13-45T12:00:00.123456Z" },
+      { ...planned, slice: { vendors: [0, 5], employees: [0, 0] } },
+      { ...planned, section: "quickBooksSnapshots", slice: { vendors: [5, 0], employees: [0, 0] } },
+      { ...planned, section: "quickBooksSnapshots", slice: { vendors: [0, 5] } },
+      {
+        ...planned,
+        section: "quickBooksSnapshots",
+        slice: { vendors: [-1, 5], employees: [0, 0] },
+      },
+      { ...planned, section: "quickBooksSnapshots", slice: "all" },
+    ]) {
+      expect(refused(input)).toThrow("Unknown export part");
+    }
   });
 });
 

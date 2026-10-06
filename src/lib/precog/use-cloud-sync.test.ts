@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { toast } from "sonner";
 import { memoryStorage } from "@/test/memory-storage";
 import { PRECOG_UPDATED_MESSAGE } from "./stale-deploy";
@@ -7,6 +7,7 @@ import { AccountLineage, LocalProfileStore } from "./save-conflict";
 import {
   defaultProfile,
   loadPortfolio,
+  normalizeProfile,
   rememberRemovedBusiness,
   removedBusinessIds,
   summarizeBusiness,
@@ -16,6 +17,11 @@ import {
 import type { Workspace } from "./workspace-context";
 import type { SaveConflictState } from "./use-cloud-sync";
 import type { KnowledgeItem } from "./types";
+import { resolveTemplate } from "./active-template";
+import { makeProfileEdits } from "./practice-edits";
+import { withPeople } from "./profile-actions";
+import { profileReducer, type ProfileAction } from "./profile-reducer";
+import { useMapHistory } from "./use-map-history";
 
 // The hooks run as plain functions: refs are plain objects, callbacks are
 // themselves, and effects run once, in order, when `effects.run()` is called.
@@ -147,9 +153,16 @@ async function syncTab(
     load?: { found: true; profile: PracticeProfile; revision: number; updatedAt: string };
     /** Not signed in: nothing loads from or saves to an account. */
     guest?: boolean;
+    /** The open business, the reducer's dispatch and the map history, for a tab that applies its updates. */
+    store?: {
+      profileRef: { current: PracticeProfile };
+      setProfile: Mock<(action: ProfileAction) => void>;
+      clearHistory: () => void;
+    };
   } = {},
 ) {
-  const profileRef = { current: open };
+  const profileRef = options.store?.profileRef ?? { current: open };
+  profileRef.current = open;
   const activated: PracticeProfile[] = [];
   const lineage = new AccountLineage();
   lineage.start(open.businessId as string, open.updatedAt);
@@ -162,11 +175,12 @@ async function syncTab(
       options.load ?? { found: false, profile: null, revision: null },
     );
   server.listBusinesses.mockResolvedValueOnce([]);
+  const setProfile = options.store?.setProfile ?? vi.fn();
   const sync = runCloudSync({
     workspace,
     profile: open,
     profileRef,
-    setProfile: vi.fn(),
+    setProfile,
     ready: true,
     setReady: vi.fn(),
     isPending: false,
@@ -179,16 +193,16 @@ async function syncTab(
       profileRef.current = next;
       lineage.start(next.businessId as string, next.updatedAt);
     },
-    clearHistory: vi.fn(),
+    clearHistory: options.store?.clearHistory ?? vi.fn(),
   });
   effects.run();
   // The bootstrap reopened the stored copy, which is `open` itself.
   activated.length = 0;
-  if (options.guest) return { sync, profileRef, activated, localStore, lineage };
+  if (options.guest) return { sync, profileRef, activated, localStore, lineage, setProfile };
   await vi.waitFor(() => expect(server.loadBusinessProfile).toHaveBeenCalled());
   await Promise.resolve();
   await Promise.resolve();
-  return { sync, profileRef, activated, localStore, lineage };
+  return { sync, profileRef, activated, localStore, lineage, setProfile };
 }
 
 beforeEach(() => {
@@ -308,6 +322,189 @@ describe("account bases and stamps shared by the tabs of one browser", () => {
     expect(stored).toEqual({ biz_a: 7, biz_b: 3 });
     // The stamp one tab saw the account take counts in the other tab too.
     expect(two.sync.accountTook("biz_a", a.updatedAt)).toBe(true);
+  });
+});
+
+describe("a save refused because another device saved the business (PERF-8)", () => {
+  const review = {
+    key: "bank_statement" as const,
+    period: "2026-08",
+    result: "done" as const,
+    ownerName: "Pat Kim",
+    notes: "",
+    recordedAt: "2026-09-23T09:00:00.000Z",
+  };
+
+  /** A tab that opened the account's copy of A Co at revision 4. */
+  async function openedAt4() {
+    const a = business("biz_a", "A Co");
+    const tab = await syncTab(browser(), a, {
+      load: { found: true, profile: a, revision: 4, updatedAt: a.updatedAt },
+    });
+    return { tab, opened: tab.profileRef.current };
+  }
+
+  /** The account's refusal: another device saved `theirs` as revision 5. */
+  function refusedWith(theirs: PracticeProfile) {
+    server.saveBusinessProfile.mockResolvedValueOnce({
+      ok: false,
+      conflict: true,
+      revision: 5,
+      profile: theirs,
+      updatedAt: theirs.updatedAt,
+    });
+  }
+
+  /** The update the tab asked to show, applied to `state`. */
+  function shown(tab: Awaited<ReturnType<typeof syncTab>>, state: PracticeProfile) {
+    const derive = tab.setProfile.mock.calls
+      .map(([action]) => action as { derive?: (p: PracticeProfile) => PracticeProfile })
+      .find((action) => typeof action?.derive === "function");
+    return derive?.derive?.(state);
+  }
+
+  it("merges the register edited here with a monthly review saved elsewhere, without asking", async () => {
+    const { tab, opened } = await openedAt4();
+    const mine = edit(opened, { customKnowledge: [item("Edited here")] });
+    tab.profileRef.current = mine;
+    refusedWith(edit(opened, { monthlyReviews: [review] }));
+    server.saveBusinessProfile.mockResolvedValueOnce({ ok: true, revision: 6 });
+
+    expect(await tab.sync.flushActive()).toBe(true);
+
+    expect(server.saveBusinessProfile).toHaveBeenCalledTimes(2);
+    const [first, second] = server.saveBusinessProfile.mock.calls.map(([call]) => call.data);
+    expect(first.baseRevision).toBe(4);
+    // The merge saves on the account's revision, holding both edits.
+    expect(second.baseRevision).toBe(5);
+    expect(second.profile.customKnowledge?.map((k: KnowledgeItem) => k.name)).toEqual([
+      "Edited here",
+    ]);
+    expect(second.profile.monthlyReviews).toEqual([review]);
+    expect(tab.sync.saveConflictRef.current).toBeNull();
+    // The open business shows the copy the account now holds.
+    expect(shown(tab, mine)).toBe(second.profile);
+    // An edit made meanwhile to this device's own section is kept on top.
+    const meanwhile = edit(mine, { customKnowledge: [item("Edited here"), item("And more")] });
+    const onTop = shown(tab, meanwhile);
+    expect(onTop?.customKnowledge?.map((k) => k.name)).toEqual(["Edited here", "And more"]);
+    expect(onTop?.monthlyReviews).toEqual([review]);
+    // One made meanwhile to the section taken from the other device is never replaced.
+    const clash = edit(mine, { monthlyReviews: [{ ...review, result: "exception" }] });
+    expect(shown(tab, clash)).toBe(clash);
+  });
+
+  it("still asks when both devices changed the same section", async () => {
+    const { tab, opened } = await openedAt4();
+    tab.profileRef.current = edit(opened, { customKnowledge: [item("Edited here")] });
+    refusedWith(edit(opened, { customKnowledge: [item("Edited elsewhere")] }));
+
+    expect(await tab.sync.flushActive()).toBe(false);
+
+    expect(server.saveBusinessProfile).toHaveBeenCalledTimes(1);
+    expect(tab.sync.saveConflictRef.current).toMatchObject({
+      reason: "remote-edit",
+      businessId: "biz_a",
+      revision: 5,
+    });
+    expect(tab.sync.saveConflictRef.current?.remote.customKnowledge?.[0]?.name).toBe(
+      "Edited elsewhere",
+    );
+    expect(shown(tab, tab.profileRef.current)).toBeUndefined();
+  });
+
+  it("asks when this tab does not hold the copy its revision stands for, as after a reload", async () => {
+    const a = business("biz_a", "A Co");
+    const tab = await syncTab(browser(), a);
+    tab.sync.cloudRevision.current.set("biz_a", 4);
+    tab.profileRef.current = edit(a, { customKnowledge: [item("Edited here")] });
+    refusedWith(edit(a, { monthlyReviews: [review] }));
+
+    expect(await tab.sync.flushActive()).toBe(false);
+
+    expect(server.saveBusinessProfile).toHaveBeenCalledTimes(1);
+    expect(tab.sync.saveConflictRef.current?.reason).toBe("remote-edit");
+  });
+
+  it("asks, with the newest copy, when a third save beats the merge", async () => {
+    const { tab, opened } = await openedAt4();
+    tab.profileRef.current = edit(opened, { customKnowledge: [item("Edited here")] });
+    refusedWith(edit(opened, { monthlyReviews: [review] }));
+    const third = edit(opened, { practiceName: "A Co renamed" });
+    server.saveBusinessProfile.mockResolvedValueOnce({
+      ok: false,
+      conflict: true,
+      revision: 7,
+      profile: third,
+      updatedAt: third.updatedAt,
+    });
+
+    expect(await tab.sync.flushActive()).toBe(false);
+
+    expect(server.saveBusinessProfile).toHaveBeenCalledTimes(2);
+    expect(tab.sync.saveConflictRef.current).toMatchObject({ revision: 7 });
+    expect(tab.sync.saveConflictRef.current?.remote.practiceName).toBe("A Co renamed");
+    expect(shown(tab, tab.profileRef.current)).toBeUndefined();
+  });
+
+  it("clears the map's undo once the merge takes the other device's team, so Undo keeps their person", async () => {
+    const today = "2026-09-23";
+    const own = normalizeProfile(
+      withPeople(
+        { ...defaultProfile("dental"), businessId: "biz_a", practiceName: "A Co" },
+        [
+          { id: "p_owner", name: "Dana Reyes", role: "Owner", active: true, owner: true },
+          { id: "p_front", name: "Sam Lee", role: "Front desk", active: true },
+        ],
+        today,
+      ),
+      { today },
+    );
+    // The provider's own pieces: the reducer, the map history and the edits.
+    const profileRef = { current: own };
+    const setProfile = vi.fn((action: ProfileAction) => {
+      profileRef.current = profileReducer(profileRef.current, action);
+    });
+    const history = useMapHistory(profileRef, setProfile);
+    const edits = makeProfileEdits({
+      setProfile,
+      profileRef,
+      pushUndo: history.pushUndo,
+      clearHistory: history.clearHistory,
+    });
+    const tab = await syncTab(browser(), own, {
+      load: { found: true, profile: own, revision: 4, updatedAt: own.updatedAt },
+      store: { profileRef, setProfile, clearHistory: history.clearHistory },
+    });
+    const opened = tab.profileRef.current;
+    // Here: a process moves on the map (Undo can take it back).
+    const processId = resolveTemplate(opened).processes[0].id;
+    edits.setMapLayout({ [processId]: { x: 40, y: 80 } });
+    expect(profileRef.current.mapLayout).toEqual({ [processId]: { x: 40, y: 80 } });
+    // There: another device adds Ari to the team.
+    const theirs = edit(
+      withPeople(
+        opened,
+        [
+          ...(opened.customPeople ?? []),
+          { id: "p_ari", name: "Ari Cole", role: "Hygienist", active: true },
+        ],
+        today,
+      ),
+      {},
+    );
+    refusedWith(theirs);
+    server.saveBusinessProfile.mockResolvedValueOnce({ ok: true, revision: 6 });
+
+    expect(await tab.sync.flushActive()).toBe(true);
+    const merged = profileRef.current;
+    expect(merged.customPeople?.map((p) => p.name)).toEqual(["Dana Reyes", "Sam Lee", "Ari Cole"]);
+    expect(merged.mapLayout).toEqual({ [processId]: { x: 40, y: 80 } });
+
+    // Undo would put back the team as it stood before the move, without Ari.
+    history.undoMap();
+    expect(profileRef.current.customPeople?.map((p) => p.name)).toContain("Ari Cole");
+    expect(profileRef.current).toBe(merged);
   });
 });
 

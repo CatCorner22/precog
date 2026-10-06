@@ -8,8 +8,12 @@ import {
   EVIDENCE_RECORD_NOTE,
   latestReview,
   monthlyReviewTasks,
+  openPeriods,
+  periodMonthName,
+  periodMonthYear,
   recordReview,
   RESULT_LABEL,
+  reviewDueText,
   reviewIndependenceMessage,
   reviewTrimNotice,
   type ReviewResult,
@@ -23,13 +27,24 @@ import { monthlyWorkpaperFacts, type WorkpaperFact } from "@/lib/precog/firm/wor
 import { clientErrorStatus } from "@/lib/request-errors";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
 
+/** A note draft's and a save's key: the month and the check, so switching months keeps each apart. */
+function draftKey(period: string, key: string): string {
+  return `${period}:${key}`;
+}
+
 /** The monthly checks, with an append-only result on the business and, when signed in, on the server. */
 export function MonthlyReview() {
   const { profile, template, setMonthlyReviews } = usePractice();
   const user = useCurrentUser();
   const today = localDateKey(useToday());
-  const tasks = monthlyReviewTasks(today, template.people, template.roleTemplates);
+  // Last month stays open until its due day, the 10th; until then the owner
+  // picks the month to record, last month first.
+  const periods = openPeriods(today);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const shownPeriod = chosen && periods.includes(chosen) ? chosen : periods[0];
+  const tasks = monthlyReviewTasks(today, template.people, template.roleTemplates, shownPeriod);
   const records = profile.monthlyReviews ?? [];
+  // Note drafts and the save under way, each by `draftKey(period, check)`.
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [facts, setFacts] = useState<WorkpaperFact[] | null>(null);
@@ -107,14 +122,15 @@ export function MonthlyReview() {
     dueOn: string,
     period: string,
   ) {
-    const note = notes[key] ?? "";
+    const draft = draftKey(period, key);
+    const note = notes[draft] ?? "";
     const input = { key, period, result, ownerName, notes: note };
     const trim = appendReview(records, input);
     setMonthlyReviews((current) => recordReview(current, input));
     if (trim.removed > 0) toast.message(reviewTrimNotice(trim));
-    setNotes((current) => ({ ...current, [key]: "" }));
+    setNotes((current) => ({ ...current, [draft]: "" }));
     if (!user || !profile.businessId) return;
-    setBusy(key);
+    setBusy(draft);
     try {
       await recordMonthlyReview({
         data: {
@@ -129,12 +145,38 @@ export function MonthlyReview() {
         },
       }).then((res) => {
         setEvidenceRead((n) => n + 1);
-        if (result === "skipped") {
-          toast.success("Skipped for this month on this business.");
+        const skipped = `Skipped for ${periodMonthYear(period)} on this business.`;
+        if (res.evidenceSkippedReason === "superseded") {
+          toast.success("Saved on this business.", {
+            description:
+              "A later result for this check and month replaced this one, so the control evidence log follows that result.",
+          });
           return;
         }
         if (res.evidenceBridged) {
-          toast.success("Saved on this business and recorded in the control evidence log.");
+          if (res.evidenceStatus === "withdrawn") {
+            toast.success(skipped, {
+              description:
+                "Precog marked the check withdrawn as skipped in the control evidence log.",
+            });
+            return;
+          }
+          toast.success(
+            res.evidenceStatus === "corrected"
+              ? "Recorded the correction in the control evidence log."
+              : "Saved on this business and recorded in the control evidence log.",
+          );
+          return;
+        }
+        // A Skipped check with no entry to withdraw, or none this deployment can write.
+        if (
+          result === "skipped" &&
+          (res.evidenceSkippedReason === null ||
+            res.evidenceSkippedReason === "bridge_disabled" ||
+            res.evidenceSkippedReason === "migration_pending" ||
+            res.evidenceSkippedReason === "already_recorded")
+        ) {
+          toast.success(skipped);
           return;
         }
         if (res.evidenceSkippedReason === "bridge_disabled") {
@@ -153,8 +195,7 @@ export function MonthlyReview() {
         }
         if (res.evidenceSkippedReason === "already_recorded") {
           toast.success("Saved on this business.", {
-            description:
-              "The evidence log keeps the first result for this check and month. The monthly log keeps this one.",
+            description: "The evidence log already holds this result for this check and month.",
           });
           return;
         }
@@ -184,13 +225,34 @@ export function MonthlyReview() {
       <h2 className="text-lg font-semibold">Monthly review</h2>
       <p className="mt-1 text-sm text-muted">
         The checks below come from the register. Record a result with an owner and a note. The
-        monthly log keeps every result. When you are signed in, the first Done or Exception for each
-        check and month also goes into the control evidence log as a preparer entry dated the day
-        you record it (a firm reviewer still records review separately). Two facts from QuickBooks,
+        monthly log keeps every result. When you are signed in, each Done or Exception for a check
+        and month also goes into the control evidence log as a preparer entry dated the day you
+        record it, and a changed result as a correction (a firm reviewer still records review
+        separately). Through the 10th, you can still record last month. Two facts from QuickBooks,
         then the checks. Duty ticks on the map are starting duties, not system access. Lock the
         report to send this page. Recording “Done” does not establish independent verification.
       </p>
       <p className="mt-2 text-xs text-muted">{EVIDENCE_RECORD_NOTE}</p>
+      {periods.length > 1 && (
+        <div role="group" aria-label="Month to record" className="mt-3 flex flex-wrap gap-2">
+          {periods.map((p, index) => (
+            <button
+              key={p}
+              type="button"
+              aria-pressed={p === shownPeriod}
+              data-period={p}
+              className={
+                p === shownPeriod
+                  ? "rounded-md border border-primary bg-primary/10 px-2 py-1 text-xs font-medium"
+                  : "rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+              }
+              onClick={() => setChosen(p)}
+            >
+              {index === 0 ? `${periodMonthName(p)} (due ${reviewDueText(p)})` : periodMonthName(p)}
+            </button>
+          ))}
+        </div>
+      )}
       {facts && (
         <ul className="mt-4 space-y-2">
           {facts.map((fact) => (
@@ -205,6 +267,7 @@ export function MonthlyReview() {
         {tasks.map((task) => {
           const latest = latestReview(records, task.key, task.period);
           const logLine = evidenceLogLine(evidenceShown, task.period, task.key);
+          const draft = draftKey(task.period, task.key);
           return (
             <li key={task.key} className="rounded-lg border border-border p-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -230,8 +293,8 @@ export function MonthlyReview() {
                 Note
                 <input
                   className="mt-1 w-full rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg"
-                  value={notes[task.key] ?? ""}
-                  onChange={(e) => setNotes((n) => ({ ...n, [task.key]: e.target.value }))}
+                  value={notes[draft] ?? ""}
+                  onChange={(e) => setNotes((n) => ({ ...n, [draft]: e.target.value }))}
                   aria-label={`Note for ${task.title}`}
                 />
               </label>
@@ -240,7 +303,7 @@ export function MonthlyReview() {
                   <button
                     key={result}
                     type="button"
-                    disabled={busy === task.key}
+                    disabled={busy === draft}
                     className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated disabled:opacity-50"
                     onClick={() =>
                       void save(task.key, result, task.suggestedOwner, task.dueOn, task.period)

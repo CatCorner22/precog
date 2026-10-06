@@ -7,16 +7,30 @@ import type { Sql } from "@/lib/db";
 import { AUDIT_BYPASS_SQL, openTestDb, type TestDb } from "@/test/pglite";
 import {
   deleteAccountRows,
+  encodeExportPage,
   encodeHistoryPage,
+  exportAccountPage,
   exportAccountRows,
   exportBusinessHistoryPage,
   HISTORY_PAGE_BYTES,
   listAccountHistoryBusinesses,
 } from "./account-store";
+import {
+  assembleAccountExport,
+  decodeExportPage,
+  EXPORT_CHANGED,
+  inlineReportLogos,
+  partArrivedWhole,
+  type ExportPage,
+  type ExportPartRequest,
+} from "./account-export";
 import { removeMember } from "./firm/store";
 
 /** Vercel's response body limit. */
 const VERCEL_RESPONSE_BYTES = 4.5 * 1024 * 1024;
+
+/** A plan time after every row a test writes, for a request made up by hand. */
+const FAR_FUTURE = "2999-01-01T00:00:00.000000Z";
 
 /** Bytes of the response body TanStack Start sends for a server function's result. */
 function wireBytes(result: unknown): number {
@@ -337,6 +351,12 @@ describe("account export of the batch 3 columns", () => {
          ('rv_2', 'ua', 'biz_1', 2, '{}'::jsonb, 'ua', null, null, null,
          null, null, null, null, null, '')`,
     );
+    // Reviewed in the assigned reviewer's place (migration 0056).
+    await pg.query(
+      `update report_versions set reviewed_by = 'ua', reviewed_at = '2026-10-04T00:00:00Z',
+         review_override_note = 'The assigned reviewer is on leave.'
+       where id = 'rv_2'`,
+    );
 
     const out = await exportAccountRows(sql, "ua");
     expect(out.billing?.subscriptionPriceId).toBe("price_tier_2");
@@ -359,8 +379,10 @@ describe("account export of the batch 3 columns", () => {
       returnedAt: "2026-10-03T00:00:00.000Z",
       returnedBy: "ub",
       returnNote: "Add payroll.",
+      reviewOverrideNote: null,
     });
     expect(v2).toMatchObject({
+      reviewOverrideNote: "The assigned reviewer is on leave.",
       engagement: null,
       reviewRequestedAt: null,
       reviewRequestedBy: null,
@@ -848,7 +870,7 @@ describe("a business its owner shared with a firm", () => {
 
 describe("the export's column notes", () => {
   it("name the migration that adds the subscription's price", () => {
-    const source = readFileSync(join(process.cwd(), "src/lib/precog/account-store.ts"), "utf8");
+    const source = readFileSync(join(process.cwd(), "src/lib/precog/account-export.ts"), "utf8");
     const note = source.match(/The Stripe price the subscription runs on \(migration (\d{4})\)/);
     expect(note?.[1]).toBeDefined();
     const dir = join(process.cwd(), "migrations");
@@ -858,4 +880,272 @@ describe("the export's column notes", () => {
       "add column if not exists subscription_price_id",
     );
   });
+});
+
+describe("the account export in parts (STAB-S-2)", () => {
+  const LOGO = `data:image/png;base64,${"A".repeat(80_000)}`;
+  const OLD_LOGO = `data:image/png;base64,${"B".repeat(80_000)}`;
+
+  /** Fetches every part as the browser does, checking each one's size on the wire. */
+  async function download(userId: string, firmUserId: string | null) {
+    const pages: ExportPage[] = [];
+    let parts: ExportPartRequest[] = [{ section: "account" }];
+    for (let i = 0; i < parts.length; i += 1) {
+      const sent = await exportAccountPage(sql, userId, firmUserId, parts[i]);
+      if (i === 0) parts = [parts[0], ...(sent.parts ?? [])];
+      expect(Buffer.byteLength(JSON.stringify(sent.page))).toBeLessThanOrEqual(HISTORY_PAGE_BYTES);
+      const base64 = encodeExportPage(sent.page);
+      expect(wireBytes({ base64, parts: sent.parts })).toBeLessThan(VERCEL_RESPONSE_BYTES);
+      expect(decodeExportPage(base64)).toEqual(sent.page);
+      pages.push(decodeExportPage(base64));
+    }
+    return { pages, parts };
+  }
+
+  it("pages a firm with 60 report versions and a logo, each part under 3 MB, into the single export's content", async () => {
+    await pg.exec(`
+      insert into firms (user_id, name, letterhead, logo_data_url)
+        values ('ua', 'North CPA', '1 Main St', '${LOGO}');
+      insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'ua', 'owner');
+      insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
+        select 'biz_' || g, 'ua', 'Client ' || g, 'dental',
+          jsonb_build_object('notes', repeat('p', 900000)), 1, now() - g * interval '1 hour'
+        from generate_series(2, 4) as g;
+      insert into report_versions (id, user_id, business_id, version_no, profile, firm_name,
+          firm_letterhead, firm_logo_data_url, prepared_at)
+        select 'rv_' || g, 'ua', 'biz_' || (g % 4 + 1), g,
+          jsonb_build_object('notes', repeat('"q"', 40000 + g * 100)), 'North CPA', '1 Main St',
+          case when g <= 5 then '${OLD_LOGO}' else '${LOGO}' end, now() - g * interval '1 day'
+        from generate_series(1, 60) as g;
+      insert into review_events (user_id, business_id, period, item_key, result, notes, recorded_at)
+        select 'ua', 'biz_1', '2026-09', 'bank_statement', 'done', repeat('n', 400),
+          now() - g * interval '1 minute'
+        from generate_series(1, 3000) as g;
+      insert into firm_audit_log (firm_user_id, actor_user_id, event)
+        select 'ua', 'ua', 'export_run' from generate_series(1, 50);
+    `);
+
+    // The single response this replaces is past Vercel's limit.
+    const whole = await exportAccountRows(sql, "ua", "ua");
+    expect(wireBytes({ json: JSON.stringify(whole, null, 2) })).toBeGreaterThan(
+      VERCEL_RESPONSE_BYTES,
+    );
+
+    const { pages, parts } = await download("ua", "ua");
+    // Each business on a part of its own; the versions over several.
+    expect(parts.filter((p) => p.section === "businesses")).toHaveLength(4);
+    expect(parts.filter((p) => p.section === "reportVersions").length).toBeGreaterThan(1);
+    expect(parts.filter((p) => p.section === "reviews").length).toBeGreaterThanOrEqual(1);
+
+    const file = assembleAccountExport(pages);
+    // Each logo the versions froze is in the file once; the firm's own once more.
+    expect(file.reportLogos.map((l) => l.dataUrl).sort()).toEqual([LOGO, OLD_LOGO]);
+    expect(JSON.stringify(file.reportVersions)).not.toContain("data:image");
+    expect(file.firm?.logoDataUrl).toBe(LOGO);
+    expect(file.reportVersions).toHaveLength(60);
+    expect(file.reviews).toHaveLength(3000);
+    expect(file.firmActivity).toHaveLength(50);
+
+    const { exportedAt: pagedAt, ...paged } = inlineReportLogos(file);
+    const { exportedAt: singleAt, ...single } = await exportAccountRows(sql, "ua", "ua");
+    expect(typeof pagedAt).toBe(typeof singleAt);
+    expect(paged).toEqual(single);
+    expect(Object.keys(inlineReportLogos(file))).toEqual(Object.keys(whole));
+  }, 60_000);
+
+  it("keeps the sections in the single export's order, newest first where it was", async () => {
+    await pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
+        values ('biz_0', 'ua', 'Older', 'dental', '{}'::jsonb, 1, now() - interval '1 day');
+      insert into report_versions (id, user_id, business_id, version_no, profile)
+        values ('rv_a', 'ua', 'biz_1', 1, '{}'), ('rv_b', 'ua', 'biz_1', 2, '{}'),
+          ('rv_c', 'ua', 'biz_0', 1, '{}');
+    `);
+    // A budget of one byte puts every row on a part of its own.
+    const first = await exportAccountPage(sql, "ua", null, { section: "account" }, 1);
+    const pages: ExportPage[] = [first.page];
+    for (const part of first.parts ?? []) {
+      pages.push((await exportAccountPage(sql, "ua", null, part, 1)).page);
+    }
+    expect(pages.length).toBeGreaterThan(6);
+    const file = assembleAccountExport(pages);
+    expect(file.businesses.map((b) => b.id)).toEqual(["biz_1", "biz_0"]);
+    expect(file.reportVersions.map((v) => v.id)).toEqual(["rv_c", "rv_b", "rv_a"]);
+    const { exportedAt: pagedAt, ...paged } = inlineReportLogos(file);
+    const { exportedAt: singleAt, ...single } = await exportAccountRows(sql, "ua");
+    expect(typeof pagedAt).toBe(typeof singleAt);
+    expect(paged).toEqual(single);
+  });
+
+  it("reads only the caller's rows, whatever range a request names", async () => {
+    await pg.exec(`
+      insert into report_versions (id, user_id, business_id, version_no, profile)
+        values ('rv_b', 'ub', 'biz_1', 1, '{}');
+      insert into firm_audit_log (firm_user_id, actor_user_id, event) values ('ub', 'ub', 'export_run');
+    `);
+    const everything = { first: "", last: "\u{10FFFF}", count: 1000, asOf: FAR_FUTURE };
+    for (const section of ["reportVersions", "firmActivity"] as const) {
+      const { page } = await exportAccountPage(sql, "ua", null, { section, ...everything });
+      expect(page).toEqual({ section, rows: [] });
+    }
+    const { page } = await exportAccountPage(sql, "ua", null, {
+      section: "businesses",
+      ...everything,
+    });
+    expect(page.section === "businesses" && page.rows.map((b) => b.id)).toEqual(["biz_1"]);
+    expect(JSON.stringify(page)).not.toContain("ub@");
+  });
+
+  /** Fetches every part of a plan already made, as the browser does after the first part. */
+  async function rest(userId: string, parts: ExportPartRequest[]): Promise<ExportPage[]> {
+    const pages: ExportPage[] = [];
+    for (const part of parts) pages.push((await exportAccountPage(sql, userId, null, part)).page);
+    return pages;
+  }
+
+  it("keeps every business saved, removed or restored during the download, newest saved first", async () => {
+    await pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision, updated_at, deleted_at)
+        select 'biz_' || g, 'ua', 'Client ' || g, 'dental', '{}'::jsonb, 1,
+          now() - g * interval '1 hour', case when g = 4 then now() - interval '1 day' end
+        from generate_series(2, 5) as g;
+    `);
+    const first = await exportAccountPage(sql, "ua", null, { section: "account" });
+    // During the download: an autosave, a removal and a restore each move
+    // the business's last-saved time.
+    await pg.exec(`
+      update businesses set profile = '{"saved":true}'::jsonb, revision = revision + 1,
+        updated_at = now() + interval '1 minute' where user_id = 'ua' and id = 'biz_3';
+      update businesses set deleted_at = now(), revision = revision + 1,
+        updated_at = now() + interval '2 minutes' where user_id = 'ua' and id = 'biz_2';
+      update businesses set deleted_at = null, revision = revision + 1,
+        updated_at = now() + interval '3 minutes' where user_id = 'ua' and id = 'biz_4';
+    `);
+    const parts = first.parts ?? [];
+    const pages = [first.page, ...(await rest("ua", parts))];
+    const file = assembleAccountExport(pages);
+    expect(file.businesses.map((b) => b.id)).toEqual(["biz_4", "biz_2", "biz_3", "biz_1", "biz_5"]);
+    expect(file.businesses.find((b) => b.id === "biz_3")?.profile).toEqual({ saved: true });
+    const { exportedAt: pagedAt, ...paged } = inlineReportLogos(file);
+    const { exportedAt: singleAt, ...single } = await exportAccountRows(sql, "ua");
+    expect(typeof pagedAt).toBe(typeof singleAt);
+    expect(paged).toEqual(single);
+    // Each part came back whole.
+    parts.forEach((part, i) => expect(partArrivedWhole(part, pages[i + 1])).toBe(true));
+    // A business deleted for good during the download leaves its part short,
+    // which the download refuses rather than save a file without it.
+    const plan = await exportAccountPage(sql, "ua", null, { section: "account" });
+    await pg.exec(`delete from businesses where user_id = 'ua' and id = 'biz_5'`);
+    const short = (plan.parts ?? []).filter((p) => p.section === "businesses");
+    const after = await rest("ua", short);
+    expect(short.map((part, i) => partArrivedWhole(part, after[i]))).toEqual([
+      true,
+      true,
+      true,
+      true,
+      false,
+    ]);
+  });
+
+  it("sends no part more rows than its plan counted when rows land inside its range", async () => {
+    // Two businesses' versions, QuickBooks readings and step pictures, each
+    // section in one part that starts with biz_0's rows and ends with biz_1's.
+    await pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
+        values ('biz_0', 'ua', 'Older', 'dental', '{}'::jsonb, 1, now() - interval '1 day');
+      insert into report_versions (id, user_id, business_id, version_no, profile)
+        values ('rv_0', 'ua', 'biz_0', 1, '{}'), ('rv_1', 'ua', 'biz_1', 1, '{}');
+      insert into integration_snapshots (user_id, business_id, provider, vendors, taken_at)
+        values ('ua', 'biz_0', 'qbo', '[]', now() - interval '2 days'),
+          ('ua', 'biz_1', 'qbo', '[]', now() - interval '2 days');
+      insert into procedure_images (id, user_id, business_id, content_type, bytes, byte_size,
+          width, height, sha256, created_at)
+        values ('img_0', 'ua', 'biz_0', 'image/png', '\\x01', 1, 1, 1, 'a', now() - interval '2 days'),
+          ('img_1', 'ua', 'biz_1', 'image/png', '\\x01', 1, 1, 1, 'b', now() - interval '2 days');
+    `);
+    const first = await exportAccountPage(sql, "ua", null, { section: "account" });
+    const parts = first.parts ?? [];
+    const sections = ["reportVersions", "quickBooksSnapshots", "procedureImages"] as const;
+    const planned = sections.map((section) => {
+      const of = parts.filter((p) => p.section === section);
+      expect(of).toHaveLength(1);
+      return of[0];
+    });
+    const ids = (page: ExportPage) =>
+      page.section === "reportVersions"
+        ? page.rows.map((v) => v.id)
+        : page.section === "procedureImages"
+          ? page.rows.map((i) => i.id)
+          : page.section === "quickBooksSnapshots"
+            ? page.rows.map((s) => s.businessId)
+            : [];
+    // Locked, read and uploaded during the download: each sorts between the
+    // part's first and last rows, and the part leaves it out.
+    await pg.exec(`
+      insert into report_versions (id, user_id, business_id, version_no, profile)
+        values ('rv_new', 'ua', 'biz_1', 2, '{}');
+      insert into integration_snapshots (user_id, business_id, provider, vendors)
+        values ('ua', 'biz_1', 'qbo', '[]');
+      insert into procedure_images (id, user_id, business_id, content_type, bytes, byte_size,
+          width, height, sha256)
+        values ('img_new', 'ua', 'biz_0', 'image/png', '\\x01', 1, 1, 1, 'c');
+    `);
+    const read = async () => {
+      const pages = await rest("ua", planned);
+      return pages.map(ids);
+    };
+    expect(await read()).toEqual([
+      ["rv_0", "rv_1"],
+      ["biz_0", "biz_1"],
+      ["img_0", "img_1"],
+    ]);
+    // A row that carries an older time into the range (a departing member's
+    // versions moving to the firm owner) is refused, never sent as a third row.
+    await pg.exec(`
+      insert into report_versions (id, user_id, business_id, version_no, profile, prepared_at)
+        values ('rv_moved', 'ua', 'biz_1', 3, '{}', now() - interval '1 year');
+    `);
+    await expect(exportAccountPage(sql, "ua", null, planned[0])).rejects.toMatchObject({
+      status: 409,
+      message: EXPORT_CHANGED,
+    });
+  });
+
+  it("splits a QuickBooks reading too large for one part, each part under the limit", async () => {
+    // The most one reading holds: 20 pages of 1,000 vendors and 20 of 1,000
+    // employees (sync.server.ts), with the digests a sealed reading stores.
+    const digest = `hmac:${"x".repeat(22)}`;
+    await pg.exec(`
+      insert into integration_snapshots (user_id, business_id, provider, vendors, employees, taken_at)
+      select 'ua', 'biz_1', 'qbo',
+        (select jsonb_agg(jsonb_build_object('id', g::text, 'name', 'Vendor ' || g || ' ' || repeat('v', 60),
+            'active', g % 9 <> 0, 'email', '${digest}', 'address', '${digest}', 'accountNumber', '${digest}')
+            order by g)
+          from generate_series(1, 20000) as g),
+        (select jsonb_agg(jsonb_build_object('id', g::text, 'name', 'Employee ' || g || ' ' || repeat('e', 60),
+            'active', g % 7 <> 0, 'releasedOn', case when g % 7 = 0 then '2026-01-31' end) order by g)
+          from generate_series(1, 20000) as g),
+        now() - interval '1 day';
+      insert into integration_snapshots (user_id, business_id, provider, vendors, employees)
+        values ('ua', 'biz_1', 'qbo', '[{"id":"1","name":"Small"}]', '[]');
+    `);
+    const whole = await exportAccountRows(sql, "ua");
+    const [, big] = whole.quickBooksSnapshots;
+    expect(big.vendors).toHaveLength(20_000);
+    // The one reading alone is past Vercel's limit as one part.
+    expect(
+      wireBytes({
+        base64: encodeExportPage({ section: "quickBooksSnapshots", rows: [big] }),
+        parts: null,
+      }),
+    ).toBeGreaterThan(VERCEL_RESPONSE_BYTES);
+
+    const { pages, parts } = await download("ua", null);
+    const pieces = parts.filter((p) => p.section === "quickBooksSnapshots");
+    expect(pieces.length).toBeGreaterThan(2);
+    const file = assembleAccountExport(pages);
+    expect(file.quickBooksSnapshots).toEqual(whole.quickBooksSnapshots);
+    // `parts` starts with the account part, as `pages` does.
+    parts.forEach((part, i) => expect(partArrivedWhole(part, pages[i])).toBe(true));
+  }, 120_000);
 });

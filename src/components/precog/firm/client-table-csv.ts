@@ -1,7 +1,13 @@
 import type { ClientEngagementRow } from "@/lib/precog/firm/store";
 import type { EngagementRecord } from "@/lib/precog/firm/engagement-row";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
-import { MONTHLY_REVIEW_GRACE_DAY, reviewDueOn, reviewItemsFor } from "@/lib/precog/firm/reviews";
+import {
+  monthKey,
+  MONTHLY_REVIEW_GRACE_DAY,
+  periodStanding,
+  previousPeriod,
+  type PeriodStanding,
+} from "@/lib/precog/firm/reviews";
 import { csvCell } from "@/lib/precog/import/csv";
 import { count, slug } from "@/lib/precog/text";
 
@@ -12,18 +18,32 @@ import { count, slug } from "@/lib/precog/text";
  */
 
 export type ClientColumn =
-  "client" | "status" | "lastReview" | "thisMonth" | "conflicts" | "awaiting";
+  | "client"
+  | "status"
+  | "lastReview"
+  | "lastMonth"
+  | "thisMonth"
+  | "exceptions"
+  | "skipped"
+  | "conflicts"
+  | "awaiting";
 
 export interface ClientSort {
   key: ClientColumn;
   dir: "asc" | "desc";
 }
 
+/** The table opens with the clients that reported exceptions on top, the rest by name. */
+export const DEFAULT_CLIENT_SORT: ClientSort = { key: "exceptions", dir: "desc" };
+
 export const CLIENT_COLUMNS: readonly { key: ClientColumn; label: string }[] = [
   { key: "client", label: "Client" },
   { key: "status", label: "Status" },
   { key: "lastReview", label: "Last review" },
+  { key: "lastMonth", label: "Last month" },
   { key: "thisMonth", label: "This month" },
+  { key: "exceptions", label: "Exceptions" },
+  { key: "skipped", label: "Skipped" },
   { key: "conflicts", label: "Open duty conflicts" },
   { key: "awaiting", label: "Awaiting review" },
 ];
@@ -60,43 +80,86 @@ export function withEngagementStatus(
   );
 }
 
-/** The number of monthly checks for the row's month. */
-function checksFor(client: ClientEngagementRow): number {
-  return reviewItemsFor(client.period).length;
+/** Last month's checks on the viewer's day `today`: done, total, exceptions, skipped and overdue. */
+export function lastMonthStanding(client: ClientEngagementRow, today: string): PeriodStanding {
+  return periodStanding(client.months, previousPeriod(monthKey(today)), today);
 }
 
-function overdue(client: ClientEngagementRow, today: string): boolean {
-  return client.thisMonthRecorded < checksFor(client) && today > reviewDueOn(client.period);
+/** This month's checks on the viewer's day `today`. */
+export function thisMonthStanding(client: ClientEngagementRow, today: string): PeriodStanding {
+  return periodStanding(client.months, monthKey(today), today);
 }
 
-/**
- * The month's checks: "Done"; "{n} overdue" once the month's due day (the
- * 10th of the next month, as the Monthly review shows it) has passed with
- * checks open; "Not started"; or "{k} of {n} recorded".
- */
+/** "3 of 5 done": only Done counts; an Exception or a Skip is not done. */
+function doneText(standing: PeriodStanding): string {
+  return `${standing.done} of ${standing.total} done`;
+}
+
+/** Last month's checks, "3 of 4 done"; the table adds an Overdue badge after its due day, the 10th. */
+export function lastMonthText(client: ClientEngagementRow, today: string): string {
+  return doneText(lastMonthStanding(client, today));
+}
+
+/** This month's checks, "3 of 5 done". */
 export function thisMonthText(client: ClientEngagementRow, today: string): string {
-  const total = checksFor(client);
-  const recorded = Math.min(client.thisMonthRecorded, total);
-  if (recorded >= total) return "Done";
-  if (overdue(client, today)) return `${total - recorded} overdue`;
-  if (recorded === 0) return "Not started";
-  return `${recorded} of ${total} recorded`;
+  return doneText(thisMonthStanding(client, today));
 }
 
-/** Open from the grace day of its month, as Needs attention counts it, until every check has a result. */
+/** "None", or "1 last month, 2 this month" (a month with none is left out). */
+function byMonthText(last: number, current: number): string {
+  const parts = [last > 0 ? `${last} last month` : "", current > 0 ? `${current} this month` : ""];
+  return parts.filter(Boolean).join(", ") || "None";
+}
+
+/** The checks reported as Exception, last month and this month. */
+export function exceptionsText(client: ClientEngagementRow, today: string): string {
+  return byMonthText(
+    lastMonthStanding(client, today).exceptions,
+    thisMonthStanding(client, today).exceptions,
+  );
+}
+
+/** The checks reported as Skipped, last month and this month. */
+export function skippedText(client: ClientEngagementRow, today: string): string {
+  return byMonthText(
+    lastMonthStanding(client, today).skipped,
+    thisMonthStanding(client, today).skipped,
+  );
+}
+
+function exceptionCount(client: ClientEngagementRow, today: string): number {
+  return lastMonthStanding(client, today).exceptions + thisMonthStanding(client, today).exceptions;
+}
+
+function skippedCount(client: ClientEngagementRow, today: string): number {
+  return lastMonthStanding(client, today).skipped + thisMonthStanding(client, today).skipped;
+}
+
+/** Open from the grace day of its month, as Needs attention counts it, until every check is Done. */
 function monthOpen(client: ClientEngagementRow, today: string): boolean {
-  const opens = `${client.period}-${String(MONTHLY_REVIEW_GRACE_DAY).padStart(2, "0")}`;
-  return today >= opens && client.thisMonthRecorded < checksFor(client);
+  const opens = `${monthKey(today)}-${String(MONTHLY_REVIEW_GRACE_DAY).padStart(2, "0")}`;
+  const standing = thisMonthStanding(client, today);
+  return today >= opens && standing.done < standing.total;
 }
 
 /**
- * "{N} clients · {M} with this month's review open · {K} versions awaiting
- * review". An ended engagement's month is not counted as open.
+ * "{N} clients · {M} with this month's review open · {O} with last month
+ * overdue · {E} with exceptions · {K} versions awaiting review". An ended
+ * engagement's months are not counted as open or overdue.
  */
 export function clientTotals(clients: readonly ClientEngagementRow[], today: string): string {
-  const open = clients.filter((c) => c.status === "active" && monthOpen(c, today)).length;
+  const active = clients.filter((c) => c.status === "active");
+  const open = active.filter((c) => monthOpen(c, today)).length;
+  const overdue = active.filter((c) => lastMonthStanding(c, today).overdue).length;
+  const exceptions = clients.filter((c) => exceptionCount(c, today) > 0).length;
   const awaiting = clients.reduce((sum, c) => sum + c.awaitingReview, 0);
-  return `${count(clients.length, "client")} · ${open} with this month's review open · ${count(awaiting, "version")} awaiting review`;
+  return `${count(clients.length, "client")} · ${open} with this month's review open · ${overdue} with last month overdue · ${exceptions} with exceptions · ${count(awaiting, "version")} awaiting review`;
+}
+
+/** The share of the month's checks Done; an overdue month sorts below every other. */
+function monthSortValue(standing: PeriodStanding): number {
+  const share = standing.done / standing.total;
+  return standing.overdue ? share - 1 : share;
 }
 
 function sortValue(client: ClientEngagementRow, key: ClientColumn, today: string): number | string {
@@ -107,12 +170,14 @@ function sortValue(client: ClientEngagementRow, key: ClientColumn, today: string
       return client.status === "ended" ? `1 ${client.endedAt ?? ""}` : "0";
     case "lastReview":
       return client.lastReviewAt ?? "";
-    case "thisMonth": {
-      // The share recorded; an overdue month sorts below every other.
-      const total = checksFor(client);
-      const share = Math.min(client.thisMonthRecorded, total) / total;
-      return overdue(client, today) ? share - 1 : share;
-    }
+    case "lastMonth":
+      return monthSortValue(lastMonthStanding(client, today));
+    case "thisMonth":
+      return monthSortValue(thisMonthStanding(client, today));
+    case "exceptions":
+      return exceptionCount(client, today);
+    case "skipped":
+      return skippedCount(client, today);
     case "conflicts":
       // Not counted yet sorts below zero.
       return client.openFindings ?? -1;
@@ -139,32 +204,48 @@ export function sortClients(
 
 /** The columns of the client table, in order, as the CSV's first line names them. */
 export const CLIENT_TABLE_CSV_HEADER =
-  "id,client,status,ended_on,last_review,this_month_recorded,this_month_total,open_duty_conflicts,awaiting_review,owner_email_status";
+  "id,client,status,ended_on,last_review,last_month,last_month_done,last_month_total,last_month_overdue,this_month,this_month_done,this_month_total,exceptions_last_month,exceptions_this_month,skipped_last_month,skipped_this_month,open_duty_conflicts,awaiting_review,owner_email_status";
 
 /**
  * The firm's client table as CSV: one line per client, in the order given.
- * Dates are YYYY-MM-DD, each the same day the table prints; an empty cell
- * means none (no review yet, conflicts not counted yet, no owner address).
- * Every cell goes through `csvCell`, so a client named "=SUM(…)" opens as
- * text.
+ * Dates are YYYY-MM-DD, each the same day the table prints, and months are
+ * YYYY-MM, last month and this month on the viewer's day `today`. Done
+ * counts only Done results; last_month_overdue is "yes" after last month's
+ * due day (the 10th) while a check has no result. An empty cell means none (no
+ * review yet, conflicts not counted yet, no owner address). Every cell goes
+ * through `csvCell`, so a client named "=SUM(…)" opens as text.
  */
-export function clientTableCsv(clients: readonly ClientEngagementRow[]): string {
-  const lines = clients.map((c) =>
-    [
+export function clientTableCsv(
+  clients: readonly ClientEngagementRow[],
+  today: string = localDateKey(new Date()),
+): string {
+  const lines = clients.map((c) => {
+    const last = lastMonthStanding(c, today);
+    const current = thisMonthStanding(c, today);
+    return [
       c.id,
       c.name,
       c.status,
       endedOn(c) ?? "",
       c.lastReviewAt ? c.lastReviewAt.slice(0, 10) : "",
-      String(c.thisMonthRecorded),
-      String(checksFor(c)),
+      last.period,
+      String(last.done),
+      String(last.total),
+      last.overdue ? "yes" : "no",
+      current.period,
+      String(current.done),
+      String(current.total),
+      String(last.exceptions),
+      String(current.exceptions),
+      String(last.skipped),
+      String(current.skipped),
       c.openFindings === null ? "" : String(c.openFindings),
       String(c.awaitingReview),
       c.ownerEmailStatus ?? "",
     ]
       .map(csvCell)
-      .join(","),
-  );
+      .join(",");
+  });
   return [CLIENT_TABLE_CSV_HEADER, ...lines].join("\n") + "\n";
 }
 

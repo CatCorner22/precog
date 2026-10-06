@@ -37,6 +37,20 @@ vi.mock("@tanstack/react-start", () => ({
 }));
 vi.mock("@/lib/auth/middleware", () => ({ authMiddleware: {} }));
 vi.mock("@/lib/db", () => ({ getSql: async () => ref.db?.sql }));
+// The review emails (review-mail.server.ts): off unless a test turns mail on.
+const mail = vi.hoisted(() => ({
+  configured: false,
+  sendEmail: vi.fn<(to: string, message: { subject: string; text: string }) => Promise<void>>(),
+  reportServerError: vi.fn(async (_err: unknown, _at?: string) => undefined),
+}));
+vi.mock("../reminders/mailer.server", () => ({
+  mailConfigured: () => mail.configured,
+  sendEmail: mail.sendEmail,
+}));
+vi.mock("@/lib/request-origin.server", () => ({ requestOrigin: () => "https://precog.test" }));
+vi.mock("@/lib/observability/report.server", () => ({
+  reportServerError: mail.reportServerError,
+}));
 
 type Call = (args: {
   context: { userId: string };
@@ -298,5 +312,114 @@ describe("a business its owner shared with the firm", () => {
     await expect(giveBack("out", "rv_g", "Fix it.")).rejects.toMatchObject(refused);
     expect((await ask("prep", "rv_g")).version.reviewRequestedFrom).toBe("own");
     expect((await giveBack("rev", "rv_g", "Fix it.")).version.returnedBy).toBe("rev");
+  });
+});
+
+describe("the review emails", () => {
+  beforeEach(async () => {
+    mail.configured = true;
+    mail.sendEmail.mockReset();
+    mail.sendEmail.mockResolvedValue(undefined);
+    mail.reportServerError.mockClear();
+    await db.clear("email_suppressions");
+  });
+  afterAll(() => {
+    mail.configured = false;
+  });
+
+  const sent = () =>
+    mail.sendEmail.mock.calls.map(([to, message]) => ({ to, subject: message.subject }));
+
+  it("emails the named reviewer after the request is stored, with a link to the version", async () => {
+    await lock("rv_1", "prep");
+    await assignReviewer("rev2");
+    mail.sendEmail.mockImplementation(async () => {
+      // Sent after the request is written: the version already reads as requested.
+      const rows = await db.pg.query<{ review_requested_at: string | null }>(
+        "select review_requested_at from report_versions where id = 'rv_1'",
+      );
+      expect(rows.rows[0].review_requested_at).not.toBeNull();
+    });
+    await ask("prep", "rv_1");
+    expect(sent()).toEqual([
+      { to: "rev2@example.test", subject: "Review requested: Client version 1" },
+    ]);
+    const text = mail.sendEmail.mock.calls[0][1].text;
+    expect(text).toContain("https://precog.test/report?version=rv_1");
+  });
+
+  it("emails every owner and reviewer who did not prepare it when the request names nobody, never the asker", async () => {
+    await lock("rv_1", "own");
+    await ask("own", "rv_1");
+    expect(
+      sent()
+        .map((m) => m.to)
+        .sort(),
+    ).toEqual(["rev2@example.test", "rev@example.test"]);
+    expect(sent().every((m) => m.subject === "Review requested: Client version 1")).toBe(true);
+  });
+
+  it("emails the preparer the note when a version is returned", async () => {
+    await lock("rv_1", "prep");
+    await giveBack("rev", "rv_1", "Add the payroll duties.");
+    expect(sent()).toEqual([{ to: "prep@example.test", subject: "Returned: Client version 1" }]);
+    expect(mail.sendEmail.mock.calls[0][1].text).toContain(
+      "What to change: Add the payroll duties.",
+    );
+  });
+
+  it("never emails a return to a preparer who left the firm or was removed from it", async () => {
+    await lock("rv_1", "prep");
+    await db.pg.query(`delete from firm_members where member_user_id = 'prep'`);
+    const { version } = await giveBack("rev", "rv_1", "Ask Ada about the Quokka ledger.");
+    expect(version.returnedAt).toBeTruthy();
+    expect(mail.sendEmail).not.toHaveBeenCalled();
+    expect(mail.reportServerError).not.toHaveBeenCalled();
+  });
+
+  it("emails the preparer of a business with no firm without asking about membership", async () => {
+    // A version locked while the business was a firm client, prepared by a
+    // member; the business has no firm now, so there is no firm to be in.
+    await db.pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision)
+        values ('biz_solo', 'own', 'Solo Client', 'general', '{}'::jsonb, 1);
+      insert into report_versions (id, user_id, business_id, version_no, profile, prepared_by)
+        values ('rv_solo', 'own', 'biz_solo', 1, '{}'::jsonb, 'out');
+    `);
+    await giveBack("own", "rv_solo", "Add the payroll duties.");
+    expect(sent()).toEqual([
+      { to: "out@example.test", subject: "Returned: Solo Client version 1" },
+    ]);
+  });
+
+  it("skips an address on the suppression list", async () => {
+    await db.pg.query(
+      "insert into email_suppressions (email, reason) values ('prep@example.test', 'bounced')",
+    );
+    await lock("rv_1", "prep");
+    await giveBack("rev", "rv_1", "Add the payroll duties.");
+    expect(mail.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing when email is not set up", async () => {
+    mail.configured = false;
+    await lock("rv_1", "prep");
+    await ask("prep", "rv_1");
+    await giveBack("rev", "rv_1", "Add the payroll duties.");
+    expect(mail.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("reports a mail failure and still stores the request and the return", async () => {
+    mail.sendEmail.mockRejectedValue(new Error("Email provider answered 500"));
+    await lock("rv_1", "prep");
+    const asked = await ask("prep", "rv_1");
+    expect(asked.version.reviewRequestedAt).toBeTruthy();
+    const returned = await giveBack("rev", "rv_1", "Add the payroll duties.");
+    expect(returned.version.returnedAt).toBeTruthy();
+    expect(mail.reportServerError).toHaveBeenCalledTimes(2);
+    expect(mail.reportServerError.mock.calls.map(([err]) => (err as Error).message)).toEqual([
+      "Email provider answered 500",
+      "Email provider answered 500",
+    ]);
   });
 });

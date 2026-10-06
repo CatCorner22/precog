@@ -1,9 +1,13 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useMemo } from "react";
-import { defaultDualReleasePolicy } from "@/lib/precog/controls/dual-release";
-import { cn, formatUsd } from "@/lib/utils";
-import type { DualReleasePanelModel } from "@/components/precog/use-dual-release-panel";
+import { useMemo, useState } from "react";
+import { defaultDualReleasePolicy, type ReleaseChannel } from "@/lib/precog/controls/dual-release";
+import { cn, formatUsdTyped } from "@/lib/utils";
+import {
+  readThreshold,
+  thresholdText,
+  type DualReleasePanelModel,
+} from "@/components/precog/use-dual-release-panel";
 
 export function DualReleaseChannelsSection({ model }: { model: DualReleasePanelModel }) {
   const { tpl, policy, coverage, toggleChannel, setThreshold } = model;
@@ -33,7 +37,7 @@ export function DualReleaseChannelsSection({ model }: { model: DualReleasePanelM
             <CardDescription>
               {c.thresholdUsd === 0
                 ? "Two people on every amount"
-                : `Two people above ${formatUsd(c.thresholdUsd)}`}
+                : `Two people above ${formatUsdTyped(c.thresholdUsd)}`}
               {appDefault.get(c.channel) === c.thresholdUsd && (
                 <span className="text-subtle"> · Precog default, change it below</span>
               )}
@@ -50,22 +54,81 @@ export function DualReleaseChannelsSection({ model }: { model: DualReleasePanelM
               />
               Channel on
             </label>
-            <label className="block text-xs text-muted">
-              Two people above this amount (USD)
-              <input
-                type="number"
-                min={0}
-                step={50}
-                disabled={!policy.enabled}
-                value={policy.rules.find((r) => r.channel === c.channel)?.thresholdUsd ?? 0}
-                onChange={(e) => setThreshold(c.channel, Number(e.target.value) || 0)}
-                className="mt-1 w-full rounded-md border border-border bg-elevated px-2 py-1 text-sm text-fg"
-              />
-            </label>
+            <ThresholdInput
+              channel={c.channel}
+              value={policy.rules.find((r) => r.channel === c.channel)?.thresholdUsd ?? 0}
+              disabled={!policy.enabled}
+              onCommit={setThreshold}
+            />
           </CardContent>
         </Card>
       ))}
     </div>
+  );
+}
+
+/**
+ * A channel's threshold. What the owner types stays in the field until they
+ * leave it; only then is it read. A value Precog cannot keep shows a message
+ * under the field, never a silent substitute.
+ */
+export function ThresholdInput({
+  channel,
+  value,
+  disabled,
+  onCommit,
+}: {
+  channel: ReleaseChannel;
+  value: number;
+  disabled: boolean;
+  onCommit: (channel: ReleaseChannel, thresholdUsd: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
+  function commit() {
+    if (draft === null) return;
+    const read = readThreshold(draft);
+    if ("error" in read) {
+      setMessage({ text: read.error, error: true });
+      return;
+    }
+    setDraft(null);
+    setMessage(read.note ? { text: read.note, error: false } : null);
+    onCommit(channel, read.value);
+  }
+  return (
+    <label className="block text-xs text-muted">
+      Two people above this amount (USD)
+      {/* A text field: a number field hands "1,000" or "$500" over as empty. */}
+      <input
+        type="text"
+        inputMode="decimal"
+        disabled={disabled}
+        aria-invalid={message?.error ?? false}
+        value={draft ?? thresholdText(value)}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          setMessage(null);
+        }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+          if (event.key === "Escape") {
+            setDraft(null);
+            setMessage(null);
+          }
+        }}
+        className="mt-1 w-full rounded-md border border-border bg-elevated px-2 py-1 text-sm text-fg"
+      />
+      {message && (
+        <span
+          className={cn("mt-1 block", message.error ? "text-danger" : "text-warn")}
+          role={message.error ? "alert" : "status"}
+        >
+          {message.text}
+        </span>
+      )}
+    </label>
   );
 }
 

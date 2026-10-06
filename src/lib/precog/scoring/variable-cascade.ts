@@ -12,7 +12,7 @@
 import { runPrecogScenario } from "../engine";
 import type { IndustryTemplate } from "../templates";
 import type { StaffComposition } from "../types";
-import { formatUsd } from "@/lib/utils";
+import { formatEstimateUsd } from "@/lib/utils";
 import { portfolioSummary, type ResidualScope } from "./residual-engine";
 import {
   DEFAULT_RISK_VARIABLES,
@@ -601,7 +601,7 @@ function verdict(deltas: MetricDelta[]): string {
   const moves = (d: MetricDelta) => (d.delta < 0 ? "falls" : "rises");
 
   const parts: string[] = [];
-  if (ret) parts.push(`Retained loss ${moves(ret)} ${formatUsd(Math.abs(ret.delta))}`);
+  if (ret) parts.push(`Retained loss ${moves(ret)} ${formatEstimateUsd(Math.abs(ret.delta))}`);
   if (res) {
     const points = Math.abs(Math.round(res.delta));
     parts.push(`average residual risk ${moves(res)} ${points} point${points === 1 ? "" : "s"}`);

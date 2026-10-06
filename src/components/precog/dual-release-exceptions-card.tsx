@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn, formatUsd } from "@/lib/utils";
+import { cn, formatUsd, formatUsdTyped } from "@/lib/utils";
 import { Clock, Plus, Trash2 } from "lucide-react";
 import { formatDay } from "@/lib/precog/dates";
 import type { ExceptionAction, ThresholdException } from "@/lib/precog/controls/dual-release";
@@ -269,7 +269,7 @@ export function DualReleaseExceptionsCard({ model }: { model: DualReleasePanelMo
                   </Badge>
                   {!ex.enabled && <Badge variant="default">Off</Badge>}
                   {ex.thresholdUsd != null && (
-                    <Badge variant="default">{formatUsd(ex.thresholdUsd)}</Badge>
+                    <Badge variant="default">{formatUsdTyped(ex.thresholdUsd)}</Badge>
                   )}
                 </div>
                 <p className="mt-1 text-xs text-muted">{ex.reason}</p>

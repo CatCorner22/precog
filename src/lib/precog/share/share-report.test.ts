@@ -300,13 +300,14 @@ describe("sharing a locked report version", () => {
     );
   });
 
-  it("never names who a review was requested from, who returned it or the return note", async () => {
+  it("never names who a review was requested from, who returned it, the return note or the override note", async () => {
     await lock("prep", "client", "rv_1");
     await review("rv_1");
     await db.pg.query(
       `update report_versions set review_requested_at = now(), review_requested_by = 'prep',
          review_requested_from = 'owner', returned_at = now(), returned_by = 'owner',
-         return_note = 'Ask Ada about the Quokka ledger' where id = 'rv_1'`,
+         return_note = 'Ask Ada about the Quokka ledger',
+         review_override_note = 'The assigned reviewer is at the Wombat audit' where id = 'rv_1'`,
     );
     await reportLink(token(1), "prep", "rv_1");
     const row = await loadReportShareRow(db.sql, token(1));
@@ -320,9 +321,12 @@ describe("sharing a locked report version", () => {
       returnedBy: null,
       returnedByName: null,
       returnNote: "",
+      // Why someone reviewed in the assigned reviewer's place (migration 0056).
+      reviewOverrideNote: null,
     });
     expect(shared?.version.reviewedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(JSON.stringify(shared)).not.toContain("Quokka ledger");
+    expect(JSON.stringify(shared)).not.toContain("Wombat audit");
   });
 
   it("never prints a link whose version is not reviewed for issuance", async () => {

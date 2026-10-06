@@ -39,6 +39,7 @@ const locked: ReportVersionRow = {
   reviewedByName: null,
   reviewedAt: null,
   reviewNote: "",
+  reviewOverrideNote: null,
   sentAt: null,
   hasFigures: true,
   firm: null,

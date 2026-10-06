@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { resolveTemplate } from "@/lib/precog/active-template";
+import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
 import { defaultProfile, type PracticeProfile } from "@/lib/precog/practice-profile";
 import { withStaff } from "@/lib/precog/profile-actions";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
@@ -35,6 +37,7 @@ const locked: ReportVersionRow = {
   reviewedByName: null,
   reviewedAt: null,
   reviewNote: "",
+  reviewOverrideNote: null,
   sentAt: null,
   hasFigures: false,
   firm: null,
@@ -89,6 +92,13 @@ const renderStored = (profile: PracticeProfile, layoutVersion: number) =>
 
 /** The report's text with its tags as single bars. */
 const textOf = (html: string) => html.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|");
+
+/** The report's text from the first `from` up to the next `to`. */
+const between = (text: string, from: string, to: string) => {
+  const start = text.indexOf(from);
+  expect(start, from).toBeGreaterThanOrEqual(0);
+  return text.slice(start, text.indexOf(to, start));
+};
 
 describe("printed control report", () => {
   it("prints no Coverage check KPI beside the duty separation figure", () => {
@@ -508,26 +518,121 @@ describe("a shared report", () => {
 });
 
 describe("report cover headlines", () => {
-  it("names the scale of each count, so the top-priority count and the residual count never share words", () => {
+  it("names each fix-first count's own scale in its label, so the two counts never read as one", () => {
     for (const industry of ["dental", "restaurant"] as const) {
-      const text = render(defaultProfile(industry)).replace(/<[^>]+>/g, "|");
-      const between = (from: string, to: string) => {
-        const start = text.indexOf(from);
-        expect(start, from).toBeGreaterThanOrEqual(0);
-        return text.slice(start, text.indexOf(to, start));
-      };
-      // The priority list's headline: items at priority 88 or more.
-      const top = between("Top-priority items", "Residual risks by band");
-      expect(top).toContain("Priority 88 or more");
-      expect(top).not.toMatch(/fix first|80 or more|residual/i);
-      // The residual "Fix first" band: risks at 80 or more on the residual index.
-      const residual = between("Residual risks by band", "Duty separation");
-      expect(residual).toMatch(/\|\d+ fix first\|/);
-      expect(residual).toContain("Fix first at 80 or more");
+      const text = textOf(render(defaultProfile(industry)));
+      // The priority list's count: items at priority 88 or more.
+      const top = between(
+        text,
+        "|Fix first on the priority list|",
+        "|Fix first on the residual index|",
+      );
+      expect(top).toMatch(/^\|Fix first on the priority list\|\d+\|Priority 88 or more$/);
+      expect(top).not.toMatch(/80 or more|residual|top-priority/i);
+      // The residual index's count: risks at 80 or more.
+      const residual = between(text, "|Fix first on the residual index|", "|Duty separation|");
+      expect(residual).toMatch(/^\|Fix first on the residual index\|\d+\|Residual 80 or more · /);
       expect(residual).not.toMatch(/top|priority|88/i);
-      // "Fix first" names the residual band only: nowhere else on the cover.
-      expect(text.replace(residual, "")).not.toMatch(/fix first/i);
+      // One urgency scale: the Priority stack's top band reads "Fix first"
+      // too, and each row says what it groups. Nowhere else names it.
+      const stack = between(text, "|Priority stack|", "|Segregation of duties|");
+      expect(stack).toContain("|Fix first|");
+      expect(stack).toContain("|Duty conflict · Control · Scenario|");
+      expect(stack).not.toMatch(/Top priority|High priority/);
+      expect(text.replace(top, "").replace(residual, "").replace(stack, "")).not.toMatch(
+        /fix first/i,
+      );
     }
+  });
+
+  it("pins the two counts that differ on one page, each with its scale", () => {
+    const tiles = (industry: "dental" | "retail") =>
+      between(textOf(render(defaultProfile(industry))), "|Fix first on the", "|Duty separation|");
+    expect(tiles("dental")).toBe(
+      "|Fix first on the priority list|3|Priority 88 or more|Fix first on the residual index|4|Residual 80 or more · 8 fix soon · 7 worth doing",
+    );
+    expect(tiles("retail")).toBe(
+      "|Fix first on the priority list|4|Priority 88 or more|Fix first on the residual index|6|Residual 80 or more · 6 fix soon · 5 worth doing",
+    );
+  });
+
+  it("keeps the labels a version locked under layouts 2 to 4 printed", () => {
+    for (const layoutVersion of [2, 3, 4]) {
+      const text = textOf(renderStored(defaultProfile("dental"), layoutVersion));
+      expect(text).toContain(
+        "|Top-priority items|3|Priority 88 or more|Residual risks by band|4 fix first|Fix first at 80 or more · 8 fix soon · 7 worth doing|",
+      );
+      expect(text).not.toContain("Fix first on the priority list");
+      expect(text).not.toContain("on the residual index");
+    }
+  });
+});
+
+describe("duty-conflict status column", () => {
+  const profile = defaultProfile("dental");
+  // The samples accept no risk, so the control's settings accept the cash
+  // pair here, as a business's own controls can.
+  const sample = resolveTemplate(profile);
+  const acceptingTpl = {
+    ...sample,
+    controls: sample.controls.map((c) =>
+      c.id === "c-sod-cash" ? { ...c, residualRiskAccepted: true } : c,
+    ),
+  };
+  const accepting = serializeReportModel(
+    buildControlReportModel({
+      tpl: acceptingTpl,
+      profile,
+      mapCustomized: false,
+      today: "2026-09-26",
+      trackFreshness: false,
+      mapReady: true,
+      businessName: "Sample",
+    }),
+  );
+  const acceptVendorPair: PracticeProfile = {
+    ...profile,
+    decisions: [
+      {
+        id: "d-accept",
+        createdAt: "2026-09-20T12:00:00.000Z",
+        subject: "Accept vendor set-up and payment",
+        kind: "accept_residual",
+        note: "",
+        linkedTab: "sod",
+        linkedId: "rule-vendor-create-pay",
+        linkedIndustry: "dental",
+      },
+    ],
+  };
+  /** The conflict table's text. */
+  const table = (html: string) =>
+    between(textOf(html), "|Segregation of duties|", "|Each row says what one person");
+  const frozenAt = (layoutVersion: number) =>
+    renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={profile}>
+        <ControlReport locked={locked} frozen={{ layoutVersion, model: accepting }} />
+      </ReadOnlyPracticeProvider>,
+    );
+
+  it("prints a risk accepted in the control's settings as layouts 1 to 4 printed it", () => {
+    for (const layoutVersion of [1, 2, 3, 4]) {
+      const rows = table(frozenAt(layoutVersion));
+      expect(rows, String(layoutVersion)).toContain("|Open, risk accepted|");
+      expect(rows, String(layoutVersion)).not.toContain("no decision logged");
+    }
+  });
+
+  it("says on layout 5 that no decision accepted a risk the settings accept", () => {
+    expect(table(frozenAt(5))).toContain("|Open, risk accepted (no decision logged)|");
+  });
+
+  it("names the day a logged decision accepted the risk, on layout 5 only", () => {
+    const rows = table(render(acceptVendorPair));
+    expect(rows).toContain("|Open, risk accepted on Sep 20, 2026|");
+    expect(rows).not.toContain("no decision logged");
+    // Layout 4 printed no acceptance its settings did not hold.
+    expect(table(renderStored(acceptVendorPair, 4))).not.toContain("risk accepted");
   });
 });
 
@@ -715,8 +820,8 @@ describe("report layout 3", () => {
   };
 
   it("is the layout a live report prints", () => {
-    expect(REPORT_LAYOUT_VERSION).toBe(4);
-    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4]);
+    expect(REPORT_LAYOUT_VERSION).toBe(5);
+    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4, 5]);
     const html = renderToStaticMarkup(
       <ReadOnlyPracticeProvider profile={answered}>
         <ControlReport />
@@ -795,5 +900,76 @@ describe("report layout 3", () => {
     expect(html).not.toContain("Review by");
     expect(html).not.toContain("Judged not valid");
     expect(html).not.toContain("Awaiting a second person");
+  });
+});
+
+describe("printed monthly review", () => {
+  const september: PracticeProfile = {
+    ...defaultProfile("dental"),
+    monthlyReviews: [
+      {
+        key: "bank_statement",
+        period: "2026-09",
+        result: "exception",
+        ownerName: "Ada Park",
+        notes: "Check 1043 payable to cash",
+        recordedAt: "2026-10-02T15:00:00.000Z",
+      },
+    ],
+  };
+  const lockedOn = (preparedAt: string) =>
+    renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={september}>
+        <ControlReport locked={{ ...locked, preparedAt }} />
+      </ReadOnlyPracticeProvider>,
+    );
+  const monthly = (html: string) => {
+    const text = textOf(html);
+    return text.slice(text.indexOf("|Monthly review|"), text.indexOf("|Priority stack|"));
+  };
+
+  it("prints last month, named with its due day, on a report locked before the 10th", () => {
+    const section = monthly(lockedOn("2026-10-03T16:00:00.000Z"));
+    expect(section).toContain("|Monthly checks for September 2026 (due October 10)|");
+    expect(section).toContain(
+      "|Open the bank statement: Exception — Ada Park: Check 1043 payable to cash|",
+    );
+    expect(section).toContain("|Read the cleared-check images: not recorded|");
+    // September has four checks; the card statement check starts in October.
+    expect(section).not.toContain("Read the company card statement");
+  });
+
+  it("keeps the report's own month and the earlier words on a version locked under layout 4", () => {
+    const html = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={september}>
+        <ControlReport
+          locked={{ ...locked, preparedAt: "2026-10-03T16:00:00.000Z" }}
+          frozen={{
+            layoutVersion: 4,
+            model: serializeReportModel(buildReportModelForProfile(september, "2026-10-03")),
+          }}
+        />
+      </ReadOnlyPracticeProvider>,
+    );
+    const text = textOf(html);
+    const section = text.slice(
+      text.indexOf("|Monthly review · "),
+      text.indexOf("|Priority stack|"),
+    );
+    expect(section).toContain("|Monthly review · October 2026|");
+    expect(section).toContain("|No monthly review results recorded for October 2026.");
+    expect(section).not.toContain("Monthly checks for");
+    const stack = text.slice(
+      text.indexOf("|Priority stack|"),
+      text.indexOf("|Segregation of duties|"),
+    );
+    expect(stack).toContain("|Top priority|");
+    expect(stack).not.toContain("|Fix first|");
+  });
+
+  it("prints this month once last month's due day has passed", () => {
+    const section = monthly(lockedOn("2026-10-12T16:00:00.000Z"));
+    expect(section).toContain("|Monthly checks for October 2026 (due November 10)|");
+    expect(section).toContain("|No monthly review results recorded for October 2026.");
   });
 });

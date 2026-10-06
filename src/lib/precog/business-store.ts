@@ -886,65 +886,24 @@ export async function transferBusinessesToOwner(
 ): Promise<MovedBusiness[]> {
   const { firmUserId: owner, memberUserId: member } = input;
   for (const id of [owner, member].sort()) await lockBusinessOwner(tx, id);
-  const rows = await tx<{ id: string; name: string }>`
-    select id, name from businesses
-    where user_id = ${member} and firm_user_id = ${owner} and granted_at is null
-    order by id
-    for update
+  // Each client and whether the owner already holds its id: a businesses
+  // row (live or deleted) or a deletion marker, which shares the key.
+  const rows = await tx<{ id: string; name: string; held: boolean }>`
+    select b.id, b.name,
+      exists (select 1 from businesses o where o.user_id = ${owner} and o.id = b.id)
+        or exists (select 1 from business_deletion_markers d
+          where d.user_id = ${owner} and d.business_id = b.id) as held
+    from businesses b
+    where b.user_id = ${member} and b.firm_user_id = ${owner} and b.granted_at is null
+    order by b.id
+    for update of b
   `;
-  const moved: MovedBusiness[] = [];
-  for (const row of rows) {
-    const held = await tx`
-      select 1 from businesses where user_id = ${owner} and id = ${row.id}
-      union all
-      select 1 from business_deletion_markers where user_id = ${owner} and business_id = ${row.id}
-    `;
-    const to = held.length ? `${row.id}-${randomHex(4)}` : row.id;
-    await tx`
-      insert into businesses
-        (id, user_id, name, industry, profile, created_at, updated_at, revision, deleted_at,
-          saved_by, firm_user_id)
-      select ${to}, ${owner}, name, industry, profile, created_at, now(), revision + 1, deleted_at,
-        ${member}, firm_user_id
-      from businesses where user_id = ${member} and id = ${row.id}
-    `;
-    await tx`update business_history set user_id = ${owner}, business_id = ${to}
-      where user_id = ${member} and business_id = ${row.id}`;
-    await tx`update report_versions set user_id = ${owner}, business_id = ${to}
-      where user_id = ${member} and business_id = ${row.id}`;
-    await tx`update integration_connections set user_id = ${owner}, business_id = ${to}
-      where user_id = ${member} and business_id = ${row.id}`;
-    await tx`update integration_snapshots set user_id = ${owner}, business_id = ${to}
-      where user_id = ${member} and business_id = ${row.id}`;
-    await tx`update procedure_images set user_id = ${owner}, business_id = ${to}
-      where user_id = ${member} and business_id = ${row.id}`;
-    await tx`update control_execution_log set user_id = ${owner}, business_id = ${to}
-      where user_id = ${member} and business_id = ${row.id}`;
-    await tx`update engagement_marks set user_id = ${owner}, business_id = ${to}
-      where user_id = ${member} and business_id = ${row.id}`;
-    await tx`update review_events set user_id = ${owner}, business_id = ${to}
-      where user_id = ${member} and business_id = ${row.id}`;
-    await tx`update reminder_log set user_id = ${owner}, business_id = ${to}
-      where user_id = ${member} and business_id = ${row.id}`;
-    await tx`update owner_email_stops set user_id = ${owner}, business_id = ${to}
-      where user_id = ${member} and business_id = ${row.id}`;
-    await tx`update business_deletion_markers set user_id = ${owner}, business_id = ${to}
-      where user_id = ${member} and business_id = ${row.id}`;
-    await tx`update map_shares set business_owner_id = ${owner}, business_id = ${to}
-      where business_owner_id = ${member} and business_id = ${row.id}`;
-    // Colleagues' pointers follow the row; the member's own pointer goes.
-    await tx`delete from business_profiles
-      where user_id = ${member}
-        and coalesce(profile->>'businessId', ${DEFAULT_BUSINESS_ID}) = ${row.id}
-        and coalesce(profile->>'ownerUserId', user_id) = ${member}`;
-    await tx`update business_profiles
-      set profile = profile || jsonb_build_object('businessId', ${to}::text, 'ownerUserId', ${owner}::text),
-        updated_at = now()
-      where user_id <> ${member}
-        and profile->>'businessId' = ${row.id} and profile->>'ownerUserId' = ${member}`;
-    await tx`delete from businesses where user_id = ${member} and id = ${row.id}`;
-    moved.push({ from: row.id, to, name: row.name });
-  }
+  const moved: MovedBusiness[] = rows.map((row) => ({
+    from: row.id,
+    to: row.held ? `${row.id}-${randomHex(4)}` : row.id,
+    name: row.name,
+  }));
+  if (moved.length) await moveBusinessRows(tx, owner, member, moved);
   // Purged firm clients left only a marker: it moves too, unless the owner holds one.
   await tx`
     insert into business_deletion_markers (user_id, business_id, firm_user_id, deleted_at)
@@ -955,6 +914,78 @@ export async function transferBusinessesToOwner(
   await tx`delete from business_deletion_markers
     where user_id = ${member} and firm_user_id = ${owner}`;
   return moved;
+}
+
+/**
+ * The tables keyed by a business's owner and id that follow it when it moves
+ * to another account, besides `map_shares` (keyed by `business_owner_id`).
+ */
+const MOVED_CHILD_TABLES = [
+  "business_history",
+  "report_versions",
+  "integration_connections",
+  "integration_snapshots",
+  "procedure_images",
+  "control_execution_log",
+  "engagement_marks",
+  "review_events",
+  "reminder_log",
+  "owner_email_stops",
+  "business_deletion_markers",
+] as const;
+
+/**
+ * Moves the member's businesses in `moved` to the owner, all of them at once:
+ * one statement per table, whatever the count, so the locks the hand-over
+ * holds last a fixed number of round trips. A new parent row under the
+ * owner, every child row repointed, the pointers fixed, the old parents
+ * deleted last.
+ */
+async function moveBusinessRows(
+  tx: Sql,
+  owner: string,
+  member: string,
+  moved: MovedBusiness[],
+): Promise<void> {
+  const from = moved.map((m) => m.from);
+  const to = moved.map((m) => m.to);
+  await tx`
+    insert into businesses
+      (id, user_id, name, industry, profile, created_at, updated_at, revision, deleted_at,
+        saved_by, firm_user_id)
+    select m.to_id, ${owner}, b.name, b.industry, b.profile, b.created_at, now(), b.revision + 1,
+      b.deleted_at, ${member}, b.firm_user_id
+    from businesses b
+    join unnest(${from}::text[], ${to}::text[]) as m(from_id, to_id) on m.from_id = b.id
+    where b.user_id = ${member}
+  `;
+  for (const table of MOVED_CHILD_TABLES) {
+    await tx.query(
+      `update ${table} t set user_id = $1, business_id = m.to_id
+       from unnest($3::text[], $4::text[]) as m(from_id, to_id)
+       where t.user_id = $2 and t.business_id = m.from_id`,
+      [owner, member, from, to],
+    );
+  }
+  await tx`
+    update map_shares t set business_owner_id = ${owner}, business_id = m.to_id
+    from unnest(${from}::text[], ${to}::text[]) as m(from_id, to_id)
+    where t.business_owner_id = ${member} and t.business_id = m.from_id
+  `;
+  // Colleagues' pointers follow the row; the member's own pointer goes.
+  await tx`delete from business_profiles
+    where user_id = ${member}
+      and coalesce(profile->>'businessId', ${DEFAULT_BUSINESS_ID}) = any(${from}::text[])
+      and coalesce(profile->>'ownerUserId', user_id) = ${member}`;
+  await tx`
+    update business_profiles p
+    set profile = p.profile || jsonb_build_object('businessId', m.to_id, 'ownerUserId', ${owner}::text),
+      updated_at = now()
+    from unnest(${from}::text[], ${to}::text[]) as m(from_id, to_id)
+    where p.user_id <> ${member}
+      and p.profile->>'businessId' = m.from_id and p.profile->>'ownerUserId' = ${member}
+  `;
+  await tx`delete from businesses where user_id = ${member} and id = any(${from}::text[])`;
 }
 
 export interface DeletedBusinessRow {

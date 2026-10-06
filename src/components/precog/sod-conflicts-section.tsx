@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { Shield } from "lucide-react";
+import { FileText, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { NavFn } from "@/lib/precog/navigation";
+import { useTemplate } from "@/lib/precog/practice-context";
+import { conflictProcedureLink } from "@/lib/precog/procedures/rule-procedures";
 import { useTabName } from "@/lib/precog/presentation";
 import { worksAt } from "@/lib/precog/person-location";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
@@ -135,6 +137,15 @@ function ConflictCardDetails({
 }) {
   const stillToDo = c.compensatingControls.filter((x) => !c.controlsInPlace.includes(x));
   const tabName = useTabName();
+  const tpl = useTemplate();
+  // The written procedure for this pair: the business's own once started, else
+  // the recommendation, which the Procedures tab highlights ready to start.
+  const procedure = conflictProcedureLink(
+    c.ruleId,
+    model.profile.procedures ?? [],
+    tpl.knowledge,
+    model.profile.industry,
+  );
   return (
     <ConflictSummary
       conflict={c}
@@ -149,6 +160,16 @@ function ConflictCardDetails({
         <p className="mt-2 text-xs text-muted">
           Until different people hold the duties: {stillToDo.join("; ")}
         </p>
+      )}
+      {procedure && (
+        <button
+          type="button"
+          className="mt-1 inline-flex items-center gap-1 text-left text-xs text-primary underline-offset-2 [overflow-wrap:anywhere] hover:underline"
+          onClick={() => onNavigate?.("procedures", procedure.item)}
+        >
+          <FileText className="size-3.5 shrink-0" aria-hidden />
+          Written procedure: {procedure.title}
+        </button>
       )}
       {/*
         The case that makes this duty conflict concrete. Without it a duty conflict

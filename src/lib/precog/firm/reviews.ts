@@ -3,7 +3,7 @@ import { ownersMarked, ownsBusiness } from "../sod/owner-role";
 import { personDuties } from "../sod/assignments";
 import { BANK_ACTIVITY_DUTIES } from "../sod/derive-staff";
 import type { Person } from "../types";
-import { utcDateKey } from "../dates";
+import { shiftDay, utcDateKey } from "../dates";
 
 export type ReviewItemKey =
   "bank_statement" | "cleared_checks" | "payroll_headcount" | "new_vendors" | "card_statement";
@@ -123,6 +123,129 @@ export function reviewDueOn(period: string): string {
   return utcDateKey(due);
 }
 
+/** The month before `period`, YYYY-MM. */
+export function previousPeriod(period: string): string {
+  const [year, month] = period.split("-").map(Number);
+  return utcDateKey(new Date(Date.UTC(year, month - 2, 1))).slice(0, 7);
+}
+
+/** The month after `period`, YYYY-MM. */
+function nextPeriod(period: string): string {
+  const [year, month] = period.split("-").map(Number);
+  return utcDateKey(new Date(Date.UTC(year, month, 1))).slice(0, 7);
+}
+
+/**
+ * The months an owner can record results for on `today` (YYYY-MM-DD), oldest
+ * first: last month as well as this one until last month's due day (the
+ * 10th), then this month alone.
+ */
+export function openPeriods(today: string): string[] {
+  const current = monthKey(today);
+  const previous = previousPeriod(current);
+  return today <= reviewDueOn(previous) ? [previous, current] : [current];
+}
+
+/**
+ * The month a report prints on `today`: the oldest month still open, so last
+ * month until its due day, then this month.
+ */
+export function reportPeriod(today: string): string {
+  return openPeriods(today)[0];
+}
+
+/**
+ * The months the firm's client table can need for a viewer whose calendar is
+ * within a day of `today` (the server's UTC day), oldest first: last month
+ * and this month for each of those days.
+ */
+export function clientTablePeriods(today: string): string[] {
+  const last = monthKey(shiftDay(today, 1));
+  const out = [previousPeriod(monthKey(shiftDay(today, -1)))];
+  while (out[out.length - 1] < last) out.push(nextPeriod(out[out.length - 1]));
+  return out;
+}
+
+const MONTH_NAME = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" });
+const MONTH_YEAR = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const DUE_DAY = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
+function periodStart(period: string): Date {
+  const [year, month] = period.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, 1));
+}
+
+/** "September" for "2026-09". */
+export function periodMonthName(period: string): string {
+  return MONTH_NAME.format(periodStart(period));
+}
+
+/** "September 2026" for "2026-09". */
+export function periodMonthYear(period: string): string {
+  return MONTH_YEAR.format(periodStart(period));
+}
+
+/** "October 10" for "2026-09": the day the month's checks are due. */
+export function reviewDueText(period: string): string {
+  return DUE_DAY.format(new Date(`${reviewDueOn(period)}T00:00:00Z`));
+}
+
+/** "September 2026 (due October 10)". */
+export function periodWithDue(period: string): string {
+  return `${periodMonthYear(period)} (due ${reviewDueText(period)})`;
+}
+
+/** One month's monthly checks for one business, each check counted once by its latest result. */
+export interface PeriodResults {
+  period: string;
+  done: number;
+  exceptions: number;
+  skipped: number;
+}
+
+/** Where one month's checks stand on a day. Only Done counts toward completion. */
+export interface PeriodStanding extends PeriodResults {
+  /** How many checks the month has. */
+  total: number;
+  /**
+   * The month's due day has passed with a check that has no result. A check
+   * recorded by then as Exception or Skipped is not overdue, though it is
+   * not Done either.
+   */
+  overdue: boolean;
+}
+
+/** The standing of `period` on `today` (YYYY-MM-DD), from the counts the server returned. */
+export function periodStanding(
+  months: readonly PeriodResults[],
+  period: string,
+  today: string,
+): PeriodStanding {
+  const found = months.find((m) => m.period === period);
+  const total = reviewItemsFor(period).length;
+  const done = Math.min(found?.done ?? 0, total);
+  const exceptions = found?.exceptions ?? 0;
+  const skipped = found?.skipped ?? 0;
+  // Each check counts once, by its latest result, so these are the checks with any result.
+  const recorded = Math.min(done + exceptions + skipped, total);
+  return {
+    period,
+    total,
+    done,
+    exceptions,
+    skipped,
+    overdue: recorded < total && today > reviewDueOn(period),
+  };
+}
+
 /**
  * The day of the month from which the month's checks count as open. Before
  * it, the screens and the reminders stay quiet about them: the first days of
@@ -130,25 +253,47 @@ export function reviewDueOn(period: string): string {
  */
 export const MONTHLY_REVIEW_GRACE_DAY = 5;
 
-/**
- * How many of this month's checks have no result yet, counted from
- * MONTHLY_REVIEW_GRACE_DAY; 0 before it. `day` is YYYY-MM-DD.
- */
-export function openMonthlyChecks(
-  day: string,
-  people: readonly Person[],
-  roleDuties: Readonly<Record<string, readonly string[]>>,
-  reviews: readonly ReviewRecord[],
-): number {
-  if (Number(day.slice(8, 10)) < MONTHLY_REVIEW_GRACE_DAY) return 0;
-  const period = monthKey(day);
-  return monthlyReviewTasks(day, people, roleDuties).filter(
-    (task) => !latestReview(reviews, task.key, period),
-  ).length;
+/** One open month's checks that wait on the owner. */
+export interface OpenMonthChecks {
+  period: string;
+  /** Checks with no result yet, or Skipped: not done. */
+  notDone: number;
+  /** Checks whose latest result is Exception: recorded, but not resolved. */
+  exceptions: number;
 }
 
 /**
- * The monthly checks for the period, each with a suggested owner who does not hold the
+ * The checks that wait on the owner on `day` (YYYY-MM-DD), month by month,
+ * oldest first. The months are the ones the owner can record (`openPeriods`):
+ * last month through its due day, the 10th, and this month from
+ * MONTHLY_REVIEW_GRACE_DAY. Only Done closes a check, as the firm's client
+ * table counts it, each check by its latest result: a check with no result,
+ * or Skipped, is not done, and one reported as Exception is recorded but not
+ * resolved. A month with nothing waiting is left out.
+ */
+export function openMonthlyChecks(
+  day: string,
+  reviews: readonly ReviewRecord[],
+): OpenMonthChecks[] {
+  const current = monthKey(day);
+  const counted = Number(day.slice(8, 10)) >= MONTHLY_REVIEW_GRACE_DAY;
+  return openPeriods(day)
+    .filter((period) => period !== current || counted)
+    .map((period) => {
+      let notDone = 0;
+      let exceptions = 0;
+      for (const item of reviewItemsFor(period)) {
+        const result = latestReview(reviews, item.key, period)?.result;
+        if (result === "exception") exceptions += 1;
+        else if (result !== "done") notDone += 1;
+      }
+      return { period, notDone, exceptions };
+    })
+    .filter((month) => month.notDone + month.exceptions > 0);
+}
+
+/**
+ * The monthly checks for `period` (the month of `today` unless given), each with a suggested owner who does not hold the
  * duties it checks. Ownership never turns self-review into independent
  * review. Recorded separate duties rank before provisional title suggestions;
  * an overlapping fallback is explicitly marked. Actual permissions and
@@ -158,8 +303,8 @@ export function monthlyReviewTasks(
   today: string,
   people: readonly Person[],
   roleDuties: Readonly<Record<string, readonly string[]>> = {},
+  period: string = monthKey(today),
 ): ReviewTask[] {
-  const period = monthKey(today);
   const dueOn = reviewDueOn(period);
   const team = people.filter((p) => p.active !== false);
   return reviewItemsFor(period).map((item) => {

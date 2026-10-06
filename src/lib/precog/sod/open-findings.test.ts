@@ -10,6 +10,7 @@ import { detectSodConflicts, sodDetectionOptions, type DetectedConflict } from "
 import {
   belowThresholdNote,
   conflictStatus,
+  conflictStatusPrintedV4,
   dualReleaseSplit,
   openFindings,
   openSodHint,
@@ -58,11 +59,60 @@ describe("conflictStatus", () => {
     );
   });
 
-  it("keeps an accepted finding open and says the risk was accepted", () => {
+  it("names the day of a logged acceptance decision, and keeps the finding open", () => {
+    expect(conflictStatus(finding({}), new Map(), "2026-09-01")).toBe(
+      "Open, risk accepted on Sep 1, 2026",
+    );
+    // The control's setting adds nothing once a dated decision says when.
+    expect(conflictStatus(finding({ residualRiskAccepted: true }), new Map(), "2026-09-01")).toBe(
+      "Open, risk accepted on Sep 1, 2026",
+    );
+    expect(conflictStatus(finding({ dualReleaseMitigated: true }), partial, "2026-09-01")).toBe(
+      "Reduced, not closed; risk accepted on Sep 1, 2026",
+    );
+  });
+
+  it("says plainly when the control's setting accepts the risk but no decision is logged", () => {
     const accepted = finding({ residualRiskAccepted: true });
-    expect(conflictStatus(accepted, new Map())).toBe("Open, risk accepted");
+    expect(conflictStatus(accepted, new Map())).toBe("Open, risk accepted (no decision logged)");
     const reduced = finding({ residualRiskAccepted: true, dualReleaseMitigated: true });
-    expect(conflictStatus(reduced, partial)).toBe("Reduced, not closed; risk accepted");
+    expect(conflictStatus(reduced, partial)).toBe(
+      "Reduced, not closed; risk accepted (no decision logged)",
+    );
+  });
+
+  it("keeps the words report layouts 1 to 4 printed: no date and no note", () => {
+    const accepted = finding({ residualRiskAccepted: true });
+    expect(conflictStatusPrintedV4(accepted, new Map())).toBe("Open, risk accepted");
+    expect(conflictStatusPrintedV4({ ...accepted, dualReleaseMitigated: true }, partial)).toBe(
+      "Reduced, not closed; risk accepted",
+    );
+    expect(conflictStatusPrintedV4(finding({}), new Map())).toBe("Open");
+    expect(conflictStatusPrintedV4(finding({ dualReleaseMitigated: true }), partial)).toBe(
+      "Reduced, not closed",
+    );
+    expect(conflictStatusPrintedV4(finding({ dualReleaseMitigated: true }), new Map())).toBe(
+      "Covered by dual release",
+    );
+    expect(conflictStatusPrintedV4(finding({ ownerHeld: true }), new Map())).toBe(
+      "Owner's own duties",
+    );
+  });
+
+  it("reads plain open with neither a decision nor the setting", () => {
+    expect(conflictStatus(finding({}), new Map(), undefined)).toBe("Open");
+    expect(conflictStatus(finding({ dualReleaseMitigated: true }), partial)).toBe(
+      "Reduced, not closed",
+    );
+  });
+
+  it("never prints an acceptance on a pair that is not open", () => {
+    expect(conflictStatus(finding({ ownerHeld: true }), new Map(), "2026-09-01")).toBe(
+      "Owner's own duties",
+    );
+    expect(conflictStatus(finding({ dualReleaseMitigated: true }), new Map(), "2026-09-01")).toBe(
+      "Covered by dual release",
+    );
   });
 
   it("reads open and the owner's own pairs", () => {
@@ -210,7 +260,9 @@ describe("one open count on every screen", () => {
     expect(report.sod.summary.critical).toBe(bySeverity("critical"));
     expect(report.sod.summary.high).toBe(bySeverity("high"));
     expect(report.sodOpen.openCritical).toBe(report.sod.summary.critical);
-    expect(conflictStatus(accepted[0], report.partialCoverage)).toBe("Open, risk accepted");
+    expect(conflictStatus(accepted[0], report.partialCoverage)).toBe(
+      "Open, risk accepted (no decision logged)",
+    );
   });
 });
 

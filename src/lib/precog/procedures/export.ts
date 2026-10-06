@@ -25,6 +25,42 @@ export interface ExportContext {
   today: string;
 }
 
+/** The heading over what a procedure kept from the recommendation it was started from. */
+export const LIBRARY_NOTES_TITLE = "From Precog's library";
+
+/** One part of that box: a heading and its lines. */
+export interface LibraryNote {
+  heading: string;
+  lines: string[];
+  /** Shown as a bulleted list rather than a paragraph. */
+  list: boolean;
+}
+
+/**
+ * What a procedure kept from the recommendation it was started from, in the
+ * order the editor, the print and the Markdown show it. Empty for a
+ * procedure written by hand or started before Precog kept them.
+ */
+export function libraryNotes(
+  p: Pick<Procedure, "fallback" | "evidenceToKeep" | "source">,
+): LibraryNote[] {
+  const notes: LibraryNote[] = [];
+  if (p.fallback)
+    notes.push({
+      heading: "If one person has to do both halves",
+      lines: [p.fallback],
+      list: false,
+    });
+  if (p.evidenceToKeep?.length)
+    notes.push({
+      heading: "Records to keep with each run",
+      lines: [...p.evidenceToKeep],
+      list: true,
+    });
+  if (p.source) notes.push({ heading: "Follows", lines: [p.source], list: false });
+  return notes;
+}
+
 /** One procedure as Markdown, in the order a stand-in reads it. */
 export function procedureMarkdown(p: Procedure, ctx: ExportContext): string {
   const place = ctx.places.find((pl) => pl.id === p.placeId);
@@ -65,6 +101,14 @@ export function procedureMarkdown(p: Procedure, ctx: ExportContext): string {
     ].filter(Boolean);
     parts.forEach((part, j) => lines.push(j === 0 ? `${i + 1}. ${part}` : `${pad}${part}`));
   });
+  const notes = libraryNotes(p);
+  if (notes.length) {
+    lines.push("", `## ${LIBRARY_NOTES_TITLE}`);
+    for (const note of notes) {
+      lines.push("", `**${note.heading}**`, "");
+      for (const x of note.lines) lines.push(note.list ? `- ${inline(x)}` : inline(x));
+    }
+  }
   const names = (ids: readonly string[]) =>
     ids.map((id) => ctx.nameOf(id) ?? id).join(", ") || undefined;
   const items = p.knowledgeIds.map((id) => ctx.itemName(id)).filter(Boolean) as string[];

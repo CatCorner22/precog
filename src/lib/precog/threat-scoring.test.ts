@@ -5,6 +5,8 @@ import { defaultProfile } from "./practice-profile";
 import { rankDangerousScenarios } from "./engine";
 import { buildThreatAssessment, fixFirstCount, fixFirstOf, rankTargets } from "./threat-scoring";
 import { PRIORITY_BAND_LABEL, priorityBand } from "./map-vision";
+import { CONFLICT_SEVERITY_KEY } from "./scoring/bands";
+import { INDUSTRIES, type IndustryId } from "./industry";
 import { detectSodConflicts, sodDetectionOptions } from "./sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "./sod/open-findings";
 import type { Person } from "./types";
@@ -57,9 +59,10 @@ describe("buildThreatAssessment for an own business", () => {
       riskVariables: p.riskVariables,
       confirmedScenarioIds: new Set(["sc-vendor-fraud"]),
     });
-    expect(
-      report.targetDeck.some((t) => t.label === "One person sets up vendors and pays them"),
-    ).toBe(true);
+    // Grouped into the row of the vendor pair it plays out, which keeps its loss.
+    const row = report.targetDeck.find((t) => t.members?.includes("scen-sc-vendor-fraud"));
+    expect(row?.kinds).toContain("scenario");
+    expect(row?.expectedLoss).toBeGreaterThan(0);
     const reasons = report.targetDeck.flatMap((t) => t.reasons);
     expect(reasons.join(" ")).not.toMatch(/p50/);
     for (const t of report.targetDeck.filter((x) => x.domain === "scenario")) {
@@ -137,9 +140,35 @@ describe("buildThreatAssessment for the sample", () => {
       const withLoss = report.targetDeck.filter((t) => t.expectedLoss !== undefined);
       expect(withLoss.length).toBeGreaterThan(0);
       for (const t of withLoss) {
-        const id = t.id.replace(/^scen-/, "");
+        // A grouped row carries the loss of the scenario grouped into it.
+        const id = (t.members ?? [t.id]).find((m) => m.startsWith("scen-"))!.replace(/^scen-/, "");
         const row = ranked.find((r) => r.scenario.id === id)!;
         expect(t.expectedLoss).toBe(row.result.retainedImpact.expected);
+      }
+    }
+  });
+});
+
+describe("a scenario row's retained dollars", () => {
+  const reasonsFor = (industry: IndustryId) => {
+    const p = defaultProfile(industry);
+    return buildThreatAssessment({
+      tpl: resolveTemplate(p),
+      practiceName: "x",
+      staff: p.staff,
+      riskVariables: p.riskVariables,
+      dualRelease: p.dualRelease,
+    }).targetDeck.flatMap((t) => t.reasons);
+  };
+
+  it("prints the retained loss as a rounded estimate, never to the dollar", () => {
+    expect(reasonsFor("professional_services")).toContain(
+      "Retained about $5,000 (Precog default, enter your policy)",
+    );
+    for (const { id } of INDUSTRIES) {
+      for (const reason of reasonsFor(id as IndustryId).filter((r) => /retained/i.test(r))) {
+        expect(reason, id).toMatch(/^Retained (about \$\d{1,3}(,\d{3})*|\$0)\b/);
+        expect(reason, id).not.toContain("~");
       }
     }
   });
@@ -189,7 +218,7 @@ describe("the priority list's headline", () => {
       const before = fixFirstCount(rankTargets(targets));
       expect(before).toBe(
         rankTargets(targets).filter(
-          (t) => t.priority >= 88 && PRIORITY_BAND_LABEL[t.band] === "Top priority",
+          (t) => t.priority >= 88 && PRIORITY_BAND_LABEL[t.band] === "Fix first",
         ).length,
       );
       expect(fixFirstCount(rankTargets([...targets, target()]))).toBeGreaterThanOrEqual(before);
@@ -240,5 +269,115 @@ describe("the priority list's headline", () => {
     expect(Object.keys(report)).not.toContain("overallThreatIndex");
     expect(Object.keys(report)).not.toContain("leadingPressure");
     expect(report.missionBrief.join(" ")).not.toMatch(/Early-warning/);
+  });
+});
+
+describe("the priority list groups rows by weakness", () => {
+  const sample = (industry: IndustryId) => {
+    const p = defaultProfile(industry);
+    const tpl = resolveTemplate(p);
+    return {
+      tpl,
+      p,
+      report: buildThreatAssessment({
+        tpl,
+        practiceName: p.practiceName,
+        staff: p.staff,
+        riskVariables: p.riskVariables,
+        dualRelease: p.dualRelease,
+      }),
+    };
+  };
+
+  it("lists a duty conflict, its control and its scenario once, tagged with each kind", () => {
+    const { report } = sample("restaurant");
+    const cash = report.targetDeck.find((t) => t.id === "sod-rule-cash-rec")!;
+    expect(cash.kinds).toEqual(["sod", "control", "scenario"]);
+    expect(cash.members).toEqual([
+      "sod-rule-cash-rec",
+      "ctrl-c-sod-cash",
+      "scen-sc-cash-sod-failure",
+    ]);
+    const vendor = report.targetDeck.find((t) => t.id === "sod-rule-vendor-create-pay")!;
+    expect(vendor.kinds).toEqual(["sod", "control", "scenario"]);
+    // The control and the scenario no longer take rows of their own.
+    const labels = report.targetDeck.map((t) => t.label);
+    expect(labels).not.toContain("Split duties: posting payments and reconciling the bank");
+    expect(labels).not.toContain("One person posts payments and reconciles the bank");
+    expect(labels).not.toContain("One person sets up vendors and pays them");
+    // The row keeps the scenario's loss after insurance.
+    expect(cash.expectedLoss).toBeGreaterThan(0);
+  });
+
+  it("never shows one weakness on two rows, in any sample", () => {
+    for (const { id } of INDUSTRIES) {
+      const { report } = sample(id as IndustryId);
+      const members = report.targetDeck.flatMap((t) => t.members ?? []);
+      expect(new Set(members).size, id).toBe(members.length);
+      for (const t of report.targetDeck) {
+        expect(t.members?.[0], id).toBe(t.id);
+        expect(t.kinds?.[0], id).toBe(t.kind);
+      }
+    }
+  });
+
+  it("keeps two duty pairs apart even when one control answers both", () => {
+    const { report } = sample("retail");
+    const ids = report.targetDeck.map((t) => t.id);
+    // Both pairs link the payments-and-reconciliation control.
+    expect(ids).toContain("sod-rule-release-rec");
+    expect(ids).toContain("sod-rule-cash-rec");
+    const release = report.targetDeck.find((t) => t.id === "sod-rule-release-rec")!;
+    expect(release.members).toEqual(["sod-rule-release-rec"]);
+    // The control joins the pair it shares the most with: posting and the scenario.
+    const cash = report.targetDeck.find((t) => t.id === "sod-rule-cash-rec")!;
+    expect(cash.members).toContain("ctrl-c-sod-cash");
+  });
+
+  it("counts groups, not rows, in the top-priority headline", () => {
+    const row = (id: string, kind: string, keys: string[], pair?: string) => ({
+      target: { id, kind, label: id, priority: 91, band: priorityBand(91) },
+      keys,
+      pair,
+    });
+    const grouped = rankTargets([
+      row("sod-a", "sod", ["pair:a", "control:c"], "a"),
+      row("ctrl-c", "control", ["control:c", "scenario:s"]),
+      row("scen-s", "scenario", ["scenario:s", "control:c"]),
+    ]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0].kinds).toEqual(["sod", "control", "scenario"]);
+    expect(fixFirstCount(grouped)).toBe(1);
+    // Two pairs are two weaknesses, so two rows and a count of two.
+    const pairs = rankTargets([
+      row("sod-a", "sod", ["pair:a", "control:c"], "a"),
+      row("sod-b", "sod", ["pair:b", "control:c"], "b"),
+    ]);
+    expect(fixFirstCount(pairs)).toBe(2);
+  });
+
+  it("prints conflict severity on the same scale as the priority list", () => {
+    expect(CONFLICT_SEVERITY_KEY).toBe(
+      "Critical and high duty conflicts are Fix first and Fix soon.",
+    );
+    let critical = 0;
+    let high = 0;
+    for (const { id } of INDUSTRIES) {
+      const { tpl, p, report } = sample(id as IndustryId);
+      const sod = detectSodConflicts(tpl, p.staff, sodDetectionOptions(tpl, p.dualRelease));
+      for (const t of report.targetDeck.filter((x) => x.kind === "sod")) {
+        const severity = sod.conflicts.find((c) => `sod-${c.ruleId}` === t.id)!.severity;
+        if (severity === "critical") {
+          critical++;
+          expect(PRIORITY_BAND_LABEL[t.band], t.id).toBe("Fix first");
+        }
+        if (severity === "high") {
+          high++;
+          expect(PRIORITY_BAND_LABEL[t.band], t.id).toBe("Fix soon");
+        }
+      }
+    }
+    expect(critical).toBeGreaterThan(0);
+    expect(high).toBeGreaterThan(0);
   });
 });

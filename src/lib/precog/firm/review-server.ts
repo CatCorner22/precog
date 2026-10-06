@@ -13,7 +13,9 @@ import { recordAuditForBusiness } from "./audit.server";
  * asks for review; a firm owner or reviewer who did not prepare it returns it
  * with a note. Both need a role in the business's own firm (a business its
  * owner shared with a firm is the firm's work, not the owner's), and both
- * are refused on an ended engagement.
+ * are refused on an ended engagement. Once the request or the return is
+ * stored and logged, review-mail.server.ts emails the reviewers or the
+ * preparer (CPA-9); a mail failure is reported there and never fails the call.
  */
 export const requestReportReview = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -33,6 +35,12 @@ export const requestReportReview = createServerFn({ method: "POST" })
       event: "version_review_requested",
       subjectUserId: version.reviewRequestedFrom,
       detail: { versionId: data.id, versionNo: version.versionNo },
+    });
+    const { mailReviewRequested } = await import("./review-mail.server");
+    await mailReviewRequested(sql, {
+      ownerUserId: where.ownerUserId,
+      version,
+      requestedBy: context.userId,
     });
     return { version };
   });
@@ -64,6 +72,12 @@ export const returnReport = createServerFn({ method: "POST" })
       event: "version_returned",
       subjectUserId: version.preparedBy,
       detail: { versionId: data.id, versionNo: version.versionNo },
+    });
+    const { mailReturned } = await import("./review-mail.server");
+    await mailReturned(sql, {
+      ownerUserId: where.ownerUserId,
+      version,
+      returnedBy: context.userId,
     });
     return { version };
   });

@@ -1,9 +1,16 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Printer } from "lucide-react";
 import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
-import { latestReview, reviewItemsFor, reviewResultLine } from "@/lib/precog/firm/reviews";
+import {
+  latestReview,
+  periodMonthYear,
+  periodWithDue,
+  reportPeriod,
+  reviewItemsFor,
+  reviewResultLine,
+} from "@/lib/precog/firm/reviews";
 import { industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import { dutiesOffTeam } from "@/lib/precog/onboarding/setup-answers";
@@ -11,9 +18,11 @@ import { SEVERITY_RANK, type DetectedConflict } from "@/lib/precog/sod/detect";
 import {
   belowThresholdNote,
   conflictStatus,
+  conflictStatusPrintedV4,
   dualReleaseSplit,
   openSodHint,
 } from "@/lib/precog/sod/open-findings";
+import { acceptanceDates } from "@/lib/precog/headline/open-conflicts";
 import { sodScopeLine } from "@/lib/precog/integrations/drift-signals";
 import { trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
@@ -24,6 +33,7 @@ import {
   type DecisionEntry,
 } from "@/lib/precog/practice-profile";
 import { PRIORITY_BAND_LABEL, PRIORITY_TOP } from "@/lib/precog/map-vision";
+import { PRIORITY_BAND_LABEL_PRINTED_V4 } from "@/lib/precog/scoring/bands";
 import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
 import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
@@ -33,7 +43,7 @@ import {
   type ReportVersionRow,
 } from "@/lib/precog/firm/reports";
 import type { FirmSnapshot } from "@/lib/precog/firm/store";
-import { ReportVersionsPanel } from "@/components/precog/report-versions";
+import { OpenVersionReview, ReportVersionsPanel } from "@/components/precog/report-versions";
 import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
 import { fixFirstOf } from "@/lib/precog/threat-scoring";
 import { RISK_SCALE } from "@/lib/precog/scoring/bands";
@@ -76,6 +86,11 @@ import { count, firstName, midSentence, verb } from "@/lib/precog/text";
  * footer are standing statements printed around the stored figures, so a
  * locked version's figures print unchanged. The report offers no "sent"
  * stamp: only a reviewed version is marked sent, from the versions panel.
+ * A locked version shows its review controls (OpenVersionReview) in place
+ * of that panel, so a reviewer signs the version they are reading; the cover
+ * and header then name the version as it reads after that sign-off, return
+ * or withdrawal, so a withdrawn review stops printing at once and a new one
+ * prints without a reload.
  * With `shared`, the page is a share link's: the toolbar (the way back into
  * Precog and Print) and the versions panel stay off; the share page's own
  * bar carries Print.
@@ -95,10 +110,15 @@ export function ControlReport({
 }) {
   const { profile, mapCustomized } = usePractice();
   const tpl = useTemplate();
+  // The open version as it now reads: a sign-off, return or withdrawal on it
+  // (OpenVersionReview) hands back the changed row, and the provenance the
+  // cover and header print follows it without a reload.
+  const [reviewNow, setReviewNow] = useState<ReportVersionRow | null>(null);
+  const version = locked && reviewNow?.id === locked.id ? reviewNow : locked;
+  const provenance = version ? versionProvenance(version) : null;
   const industry = industryMeta(profile.industry);
   const generated = locked ? new Date(locked.preparedAt) : new Date();
   const today = localDateKey(generated);
-  const month = today.slice(0, 7);
   const trackFreshness = trackRegisterFreshness(profile, tpl);
   const mapReady = mapAssessed(profile);
   const mapNote = mapNotAssessedNote(profile);
@@ -119,6 +139,15 @@ export function ControlReport({
   const layoutOne = layoutVersion === 1;
   const layoutThree = layoutVersion >= 3;
   const layoutFour = layoutVersion >= 4;
+  // Layout 5 prints the monthly checks for the oldest month still open on the
+  // report's day (last month until its due day, the 10th, then this month),
+  // the priority bands in the urgency words, each fix-first count with its
+  // own scale in its label, and the day a logged decision accepted a
+  // finding's risk. Earlier layouts print the report's own month and the
+  // words they printed then.
+  const layoutFive = layoutVersion >= 5;
+  const month = layoutFive ? reportPeriod(today) : today.slice(0, 7);
+  const priorityLabel = layoutFive ? PRIORITY_BAND_LABEL : PRIORITY_BAND_LABEL_PRINTED_V4;
   const kindLabel = layoutThree ? DECISION_KIND_LABEL : DECISION_KIND_LABEL_PRINTED_V1;
   const data = useMemo(
     () =>
@@ -141,6 +170,12 @@ export function ControlReport({
       : null;
   const { threat, portfolio, sod, sodOpen, sodLevel, mapHealth, healthDelta, decisionLog } = data;
   const { byConflict: responses, notValid } = data.responses;
+  // The day a logged decision accepted each finding's risk, for layout 5's
+  // status column; layouts 1 to 4 read only the control's setting.
+  const acceptedOn = useMemo(
+    () => (layoutFive ? acceptanceDates(sod.conflicts, profile.decisions, profile.industry) : null),
+    [layoutFive, sod.conflicts, profile.decisions, profile.industry],
+  );
   const sodNote = belowThresholdNote(sodOpen);
   // Pairs dual release reduces stay among the open conflicts; count them once.
   // Layouts 1 to 3 also counted the owner's own pairs dual release covers at
@@ -216,7 +251,12 @@ export function ControlReport({
           </div>
         </div>
       )}
-      {!locked && !shared && <ReportVersionsPanel />}
+      {!shared &&
+        (locked ? (
+          <OpenVersionReview version={version ?? locked} onChange={setReviewNow} />
+        ) : (
+          <ReportVersionsPanel />
+        ))}
 
       <article className="mx-auto max-w-4xl px-6 py-8 print:px-0 print:py-0">
         {draft && (
@@ -243,7 +283,7 @@ export function ControlReport({
               <p className="mt-2 text-base text-neutral-700">
                 Prepared for {businessName} by {firm.name}
               </p>
-              <p className="mt-1 text-sm text-neutral-800">{versionProvenance(locked)}</p>
+              <p className="mt-1 text-sm text-neutral-800">{provenance}</p>
               {locked?.scopeNote && (
                 <p className="mt-1 text-sm text-neutral-700">Scope: {locked.scopeNote}</p>
               )}
@@ -264,7 +304,7 @@ export function ControlReport({
           )}
           {locked && (
             <p className="mt-1 text-sm font-medium text-neutral-800">
-              {versionProvenance(locked)}
+              {provenance}
               {locked.scopeNote ? ` · Scope: ${locked.scopeNote}` : ""}
               {engagement ? ` · ${engagement}` : ""}
             </p>
@@ -322,8 +362,9 @@ export function ControlReport({
             value={mapReady ? (layoutOne ? String(mapHealth.score) : `${mapHealth.score}%`) : "—"}
             hint={mapReady ? mapHealth.bandLabel : "Not assessed yet"}
           />
+          {/* Two "fix first" counts on two scales: layout 5 names each one's scale. */}
           <Kpi
-            label="Top-priority items"
+            label={layoutFive ? "Fix first on the priority list" : "Top-priority items"}
             value={String(fixFirstOf(threat))}
             hint={`Priority ${PRIORITY_TOP} or more`}
           />
@@ -335,9 +376,11 @@ export function ControlReport({
             />
           ) : (
             <Kpi
-              label="Residual risks by band"
-              value={`${portfolio.criticalPath} fix first`}
-              hint={`Fix first at ${RISK_SCALE.critical} or more · ${portfolio.actNow} fix soon · ${portfolio.mitigate} worth doing`}
+              label={layoutFive ? "Fix first on the residual index" : "Residual risks by band"}
+              value={
+                layoutFive ? String(portfolio.criticalPath) : `${portfolio.criticalPath} fix first`
+              }
+              hint={`${layoutFive ? "Residual" : "Fix first at"} ${RISK_SCALE.critical} or more · ${portfolio.actNow} fix soon · ${portfolio.mitigate} worth doing`}
             />
           )}
           <Kpi
@@ -420,7 +463,12 @@ export function ControlReport({
           </ol>
         </Section>
 
-        <Section title={`Monthly review · ${monthLabel(month)}`}>
+        <Section
+          title={layoutFive ? "Monthly review" : `Monthly review · ${periodMonthYear(month)}`}
+        >
+          {layoutFive && (
+            <p className="mb-1 text-sm font-medium">Monthly checks for {periodWithDue(month)}</p>
+          )}
           {reviews.some((r) => r.latest) ? (
             <ul className="space-y-1 text-sm">
               {reviews.map(({ item, latest }) => (
@@ -431,7 +479,7 @@ export function ControlReport({
             </ul>
           ) : (
             <p className="text-sm text-neutral-700">
-              No monthly review results recorded for {monthLabel(month)}.
+              No monthly review results recorded for {periodMonthYear(month)}.
             </p>
           )}
         </Section>
@@ -454,7 +502,9 @@ export function ControlReport({
                   <tr key={`${t.kind}-${t.id}`} className="border-b border-neutral-200 align-top">
                     <td className="py-1.5 pr-2 tabular text-neutral-500">{i + 1}</td>
                     <td className="py-1.5 pr-2 font-medium">{t.label}</td>
-                    <td className="py-1.5 pr-2 text-neutral-700">{KIND_LABEL[t.kind] ?? t.kind}</td>
+                    <td className="py-1.5 pr-2 text-neutral-700">
+                      {(t.kinds ?? [t.kind]).map((k) => KIND_LABEL[k] ?? k).join(" · ")}
+                    </td>
                     <td className="py-1.5 pr-2">
                       <span
                         className={
@@ -465,7 +515,7 @@ export function ControlReport({
                               : "text-neutral-600"
                         }
                       >
-                        {PRIORITY_BAND_LABEL[t.band]}
+                        {priorityLabel[t.band]}
                       </span>
                     </td>
                     <td className={`py-1.5 text-right tabular${layoutThree ? "" : " pr-2"}`}>
@@ -540,7 +590,9 @@ export function ControlReport({
                           layoutThree ? "py-1.5 pr-2 text-neutral-700" : "py-1.5 text-neutral-700"
                         }
                       >
-                        {conflictStatus(c, data.partialCoverage)}
+                        {acceptedOn
+                          ? conflictStatus(c, data.partialCoverage, acceptedOn.get(c.id))
+                          : conflictStatusPrintedV4(c, data.partialCoverage)}
                       </td>
                       {layoutThree && (
                         <>
@@ -768,11 +820,3 @@ const SEVERITY_LABEL: Record<DetectedConflict["severity"], string> = {
   medium: "Medium",
   family: "Related duties",
 };
-
-const MONTH = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
-
-/** "2026-09" as "September 2026". */
-function monthLabel(period: string): string {
-  const [year, month] = period.split("-").map(Number);
-  return year && month ? MONTH.format(new Date(year, month - 1, 1)) : period;
-}

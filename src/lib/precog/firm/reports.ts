@@ -5,7 +5,11 @@ import { formatDay } from "../dates";
 import { RequestError } from "@/lib/request-errors";
 import { SUPPORT_EMAIL } from "../legal/operator";
 import type { FirmSnapshot } from "./store";
-import { loadEngagement, lockEngagementWriteAccess } from "./engagement-store";
+import {
+  assertEngagementOpen,
+  loadEngagement,
+  lockEngagementWriteAccess,
+} from "./engagement-store";
 
 /**
  * Locked report versions. Locking freezes the business as the account holds
@@ -15,7 +19,16 @@ import { loadEngagement, lockEngagementWriteAccess } from "./engagement-store";
  * review; a reviewer of the same firm, who is not the preparer, reviews it
  * for issuance or returns it with a note, and the preparer then locks a new
  * one. Nothing on a version changes afterwards except those stamps and the
- * sent stamp.
+ * sent stamp; until it is sent, the firm owner or its reviewer can withdraw
+ * the review (withdrawReportVersionReview).
+ *
+ * The review rules the versions panel reads (listReports returns them):
+ * - issueAloneFor: whether a preparer may issue alone, with its reason;
+ * - assignedReviewerFor: the engagement's reviewer, whom anyone else
+ *   reviewing in their place must explain with an override note
+ *   (OVERRIDE_NOTE_MIN characters or more), printed from
+ *   `reviewOverrideNote`;
+ * - withdrawReportVersionReview and its refusals.
  */
 export interface ReportVersionRow {
   id: string;
@@ -30,6 +43,12 @@ export interface ReportVersionRow {
   reviewedByName: string | null;
   reviewedAt: string | null;
   reviewNote: string;
+  /**
+   * Why someone other than the engagement's assigned reviewer reviewed it for
+   * issuance (migration 0056); null when the assigned reviewer, or nobody
+   * assigned, reviewed it, and on every version reviewed before then.
+   */
+  reviewOverrideNote: string | null;
   sentAt: string | null;
   /**
    * Whether the version stores the figures it printed. False for a version
@@ -89,6 +108,31 @@ export const REVIEW_BEFORE_SENT = "Review this version for issuance before marki
 /** The longest return note, after trimming. */
 export const RETURN_NOTE_MAX = 600;
 
+/**
+ * The stamp of a version its preparer issued alone. It prefixes the stored
+ * review note and ends the printed provenance line.
+ */
+export const NOT_INDEPENDENT = "Not an independent review";
+/** Why the preparer cannot issue alone: another member holds the owner or reviewer role. */
+export const ISSUE_ALONE_REFUSED =
+  "A different person at the firm must review this report for issuance";
+/** Why the preparer can issue alone. */
+export const ISSUE_ALONE_ALLOWED = `No one else at the firm holds the owner or reviewer role, so you can issue this version alone. It prints as "${NOT_INDEPENDENT}".`;
+/** The fewest characters of the note that explains reviewing in the assigned reviewer's place. */
+export const OVERRIDE_NOTE_MIN = 10;
+/** The refusal of a review in the assigned reviewer's place without that note. */
+export const OVERRIDE_NOTE_REQUIRED = `Someone else at the firm is this client's assigned reviewer. To review this version in their place, add a note of at least ${OVERRIDE_NOTE_MIN} characters saying why.`;
+/** The refusals of withdrawing a review for issuance. */
+export const WITHDRAW_AFTER_SENT =
+  "This version was already sent, so its review cannot be withdrawn.";
+export const WITHDRAW_REFUSED =
+  "Only the firm owner or the person who reviewed this version can withdraw its review.";
+/** The refusal of a signer whose role at the firm no longer reviews (see withdrawReportVersionReview). */
+export const WITHDRAW_ROLE_REFUSED =
+  "Your role at the firm no longer lets you withdraw this review. Ask the firm owner to withdraw it.";
+export const NOTHING_TO_WITHDRAW =
+  "This version has not been reviewed for issuance, so there is no review to withdraw.";
+
 export class ReportVersionError extends RequestError {
   constructor(status: number, message: string) {
     super(status, message);
@@ -99,7 +143,8 @@ export class ReportVersionError extends RequestError {
 const VERSION_COLUMNS = `
   v.id, v.business_id, v.version_no, v.revision, v.scope_note,
   v.prepared_by, p.name as prepared_by_name, v.prepared_at,
-  v.reviewed_by, r.name as reviewed_by_name, v.reviewed_at, v.review_note, v.sent_at,
+  v.reviewed_by, r.name as reviewed_by_name, v.reviewed_at, v.review_note,
+  v.review_override_note, v.sent_at,
   v.report_model is not null as has_figures,
   v.firm_name, v.firm_letterhead,
   v.engagement_scope, v.engagement_period_start, v.engagement_period_end,
@@ -126,6 +171,7 @@ interface RawVersion {
   reviewed_by_name: string | null;
   reviewed_at: string | null;
   review_note: string;
+  review_override_note: string | null;
   sent_at: string | null;
   has_figures: boolean;
   firm_name: string | null;
@@ -158,6 +204,7 @@ function toRow(r: RawVersion): ReportVersionRow {
     reviewedByName: r.reviewed_by_name,
     reviewedAt: toIsoTimestampOrNull(r.reviewed_at),
     reviewNote: r.review_note,
+    reviewOverrideNote: r.review_override_note,
     sentAt: toIsoTimestampOrNull(r.sent_at),
     hasFigures: Boolean(r.has_figures),
     firm:
@@ -431,6 +478,16 @@ async function refusalAfterRace(
 /** The sign-off's own refusal of a version already reviewed for issuance. */
 const SOMEONE_REVIEWED = "Someone has already reviewed this version for issuance";
 
+/**
+ * Reviews a version for issuance. Someone other than the preparer reviews
+ * it; the preparer issues it alone (`issueWithoutIndependentReview`) only
+ * when issueAloneFor allows it, and the note then starts with
+ * NOT_INDEPENDENT. When the client's engagement names a reviewer who may
+ * review this version (assignedReviewerFor) and someone else reviews it,
+ * that person gives `overrideNote` (OVERRIDE_NOTE_MIN to RETURN_NOTE_MAX
+ * characters after trimming), stored as `reviewOverrideNote`; otherwise the
+ * override note is ignored and stored as null.
+ */
 export async function signOffReportVersion(
   sql: Sql,
   input: {
@@ -438,42 +495,51 @@ export async function signOffReportVersion(
     id: string;
     reviewedBy: string;
     note: string;
-    /** The preparer is issuing the file alone. Refused when another firm member exists. */
+    /** The preparer is issuing the file alone. Refused unless issueAloneFor allows it. */
     issueWithoutIndependentReview?: boolean;
+    /** Why the signer reviews in the assigned reviewer's place. */
+    overrideNote?: string;
   },
 ): Promise<ReportVersionRow> {
   const current = await loadReportVersion(sql, input.ownerUserId, input.id);
   if (!current) throw new ReportVersionError(404, "That report version does not exist");
   if (current.version.reviewedAt) throw new ReportVersionError(409, SOMEONE_REVIEWED);
   if (current.version.returnedAt) throw new ReportVersionError(409, VERSION_RETURNED);
+  const businessId = current.version.businessId;
   const self = current.version.preparedBy === input.reviewedBy;
   if (self) {
     if (!input.issueWithoutIndependentReview) {
       throw new ReportVersionError(409, "The preparer cannot review their own report for issuance");
     }
-    const firms = await sql<{ firm_user_id: string | null }>`
-      select firm_user_id from businesses
-      where user_id = ${input.ownerUserId} and id = ${current.version.businessId}
-    `;
-    const firmId = firms[0]?.firm_user_id;
-    if (firmId) {
-      const others = await sql`
-        select 1 from firm_members
-        where firm_user_id = ${firmId} and member_user_id <> ${input.reviewedBy}
-        limit 1
-      `;
-      if (others.length) {
-        throw new ReportVersionError(
-          409,
-          "A different person at the firm must review this report for issuance",
-        );
-      }
+    const alone = await issueAloneFor(sql, {
+      ownerUserId: input.ownerUserId,
+      businessId,
+      preparedBy: input.reviewedBy,
+    });
+    if (!alone.canIssueAlone) throw new ReportVersionError(409, alone.reason);
+  }
+  const assigned = await assignedReviewerFor(sql, {
+    ownerUserId: input.ownerUserId,
+    businessId,
+    preparedBy: current.version.preparedBy,
+  });
+  let overrideNote: string | null = null;
+  if (assigned !== null && assigned !== input.reviewedBy) {
+    overrideNote = (input.overrideNote ?? "").trim();
+    if (overrideNote.length < OVERRIDE_NOTE_MIN) {
+      throw new ReportVersionError(400, OVERRIDE_NOTE_REQUIRED);
+    }
+    if (overrideNote.length > RETURN_NOTE_MAX) {
+      throw new ReportVersionError(400, RETURN_NOTE_TOO_LONG);
     }
   }
-  const note = self ? `Not an independent review. ${input.note}`.trim().slice(0, 600) : input.note;
+  const note = self
+    ? `${NOT_INDEPENDENT}. ${input.note}`.trim().slice(0, RETURN_NOTE_MAX)
+    : input.note;
   const rows = await sql`
     update report_versions
-    set reviewed_by = ${input.reviewedBy}, reviewed_at = now(), review_note = ${note}
+    set reviewed_by = ${input.reviewedBy}, reviewed_at = now(), review_note = ${note},
+      review_override_note = ${overrideNote}
     where user_id = ${input.ownerUserId} and id = ${input.id}
       and reviewed_at is null and returned_at is null
     returning id
@@ -486,6 +552,154 @@ export async function signOffReportVersion(
   const updated = await loadReportVersion(sql, input.ownerUserId, input.id);
   if (!updated) throw new Error("Unable to record the review");
   return updated.version;
+}
+
+/** Whether a preparer may issue a version alone, and the words that say why. */
+export interface IssueAloneStatus {
+  canIssueAlone: boolean;
+  /** ISSUE_ALONE_ALLOWED, or ISSUE_ALONE_REFUSED. */
+  reason: string;
+}
+
+/**
+ * Whether `preparedBy` may issue a version of this business alone, marked
+ * NOT_INDEPENDENT: yes for a business with no firm, and for a firm client
+ * when no other member of its firm holds the owner or reviewer role (for
+ * example a firm owner whose only colleague is a preparer). The version's
+ * own state (reviewed, returned, prepared by someone else) is the caller's
+ * to check; signOffReportVersion checks both.
+ */
+export async function issueAloneFor(
+  sql: Sql,
+  input: { ownerUserId: string; businessId: string; preparedBy: string },
+): Promise<IssueAloneStatus> {
+  const firmUserId = await businessFirm(sql, input.ownerUserId, input.businessId);
+  const others = firmUserId ? await eligibleReviewers(sql, firmUserId, input.preparedBy) : [];
+  return others.length === 0
+    ? { canIssueAlone: true, reason: ISSUE_ALONE_ALLOWED }
+    : { canIssueAlone: false, reason: ISSUE_ALONE_REFUSED };
+}
+
+/**
+ * The engagement's assigned reviewer when that person may review a version
+ * `preparedBy` prepared: still a member of the business's firm, holding the
+ * owner or reviewer role, and not the preparer. Null otherwise, and for a
+ * business with no firm. A review by anyone else needs an override note.
+ */
+export async function assignedReviewerFor(
+  sql: Sql,
+  input: { ownerUserId: string; businessId: string; preparedBy: string | null },
+): Promise<string | null> {
+  const firmUserId = await businessFirm(sql, input.ownerUserId, input.businessId);
+  if (!firmUserId) return null;
+  const engagement = await loadEngagement(sql, input.ownerUserId, input.businessId);
+  const assigned = engagement?.reviewerUserId ?? null;
+  if (!assigned) return null;
+  const eligible = await eligibleReviewers(sql, firmUserId, input.preparedBy);
+  return eligible.includes(assigned) ? assigned : null;
+}
+
+/** The firm of a business, or null for a solo business. */
+async function businessFirm(
+  sql: Sql,
+  ownerUserId: string,
+  businessId: string,
+): Promise<string | null> {
+  const firms = await sql<{ firm_user_id: string | null }>`
+    select firm_user_id from businesses
+    where user_id = ${ownerUserId} and id = ${businessId}
+  `;
+  return firms[0]?.firm_user_id ?? null;
+}
+
+/**
+ * Withdraws the review for issuance of a version not yet sent: clears who
+ * reviewed it, when, and both notes, so the version reads as locked and
+ * unreviewed again and can be reviewed (or returned) anew. On a version
+ * that is its firm's work (FIRM_READS_VERSION), the firm owner may
+ * withdraw, and so may the person who reviewed it while they still hold
+ * the owner or reviewer role there; someone who issued it alone (its
+ * preparer) may while they are still a member, whatever their role. Any
+ * other signer is refused (403, WITHDRAW_ROLE_REFUSED), for example a
+ * reviewer since made a preparer or removed. On any other version (a
+ * business with no firm, or a version its owner locked before sharing the
+ * business with a firm) the person who reviewed it may. Anyone else is
+ * refused (403, WITHDRAW_REFUSED). A sent version is refused (409,
+ * WITHDRAW_AFTER_SENT), and an unreviewed one (409, NOTHING_TO_WITHDRAW).
+ * A firm member is refused on an ended engagement (assertEngagementOpen).
+ * The business row is share-locked first, then the version row, the order
+ * the lock and the ownership transfer take, so a transfer or a send at the
+ * same moment runs wholly before or after the check and the write (the
+ * engagement row is read, never locked: a send locks the version, then
+ * the engagement). Returns the version as it now reads and who had reviewed
+ * it, for the activity log.
+ */
+export async function withdrawReportVersionReview(
+  sql: Sql,
+  input: { ownerUserId: string; id: string; withdrawnBy: string },
+): Promise<{ version: ReportVersionRow; withdrawnReviewer: string | null }> {
+  return inTransaction(sql, async (tx) => {
+    const found = await tx<{ business_id: string }>`
+      select business_id from report_versions
+      where user_id = ${input.ownerUserId} and id = ${input.id}
+    `;
+    if (!found[0]) throw new ReportVersionError(404, "That report version does not exist");
+    const businessId = found[0].business_id;
+    const business = await tx<{ firm_user_id: string | null }>`
+      select firm_user_id from businesses
+      where user_id = ${input.ownerUserId} and id = ${businessId} and deleted_at is null
+      for share
+    `;
+    if (!business[0]) throw new ReportVersionError(404, "That report version does not exist");
+    await assertEngagementOpen(tx, input.ownerUserId, businessId, input.withdrawnBy);
+    const rows = await tx.query<{
+      reviewed_by: string | null;
+      prepared_by: string | null;
+      reviewed_at: string | null;
+      sent_at: string | null;
+      firm_version: boolean;
+    }>(
+      `select v.reviewed_by, v.prepared_by, v.reviewed_at, v.sent_at,
+         (b.firm_user_id is not null and ${FIRM_READS_VERSION}) as firm_version
+       from report_versions v
+       join businesses b on b.user_id = v.user_id and b.id = v.business_id
+       where v.user_id = $1 and v.id = $2
+       for update of v`,
+      [input.ownerUserId, input.id],
+    );
+    const row = rows[0];
+    if (!row) throw new ReportVersionError(404, "That report version does not exist");
+    // The firm whose work the version is; null when it is the account's own.
+    const firmUserId = row.firm_version ? business[0].firm_user_id : null;
+    const roles = firmUserId
+      ? await tx<{ role: string }>`
+          select role from firm_members
+          where firm_user_id = ${firmUserId} and member_user_id = ${input.withdrawnBy}
+        `
+      : [];
+    const role = roles[0]?.role ?? null;
+    const firmOwner = firmUserId === input.withdrawnBy && role === "owner";
+    if (!firmOwner && row.reviewed_by !== input.withdrawnBy) {
+      throw new ReportVersionError(403, WITHDRAW_REFUSED);
+    }
+    const issuedAlone = row.prepared_by === row.reviewed_by;
+    const mayWithdraw =
+      firmUserId === null ||
+      role === "owner" ||
+      role === "reviewer" ||
+      (issuedAlone && role !== null);
+    if (!firmOwner && !mayWithdraw) throw new ReportVersionError(403, WITHDRAW_ROLE_REFUSED);
+    if (row.sent_at) throw new ReportVersionError(409, WITHDRAW_AFTER_SENT);
+    if (!row.reviewed_at) throw new ReportVersionError(409, NOTHING_TO_WITHDRAW);
+    await tx`
+      update report_versions
+      set reviewed_by = null, reviewed_at = null, review_note = '', review_override_note = null
+      where user_id = ${input.ownerUserId} and id = ${input.id}
+    `;
+    const updated = await loadReportVersion(tx, input.ownerUserId, input.id);
+    if (!updated) throw new Error("Unable to withdraw the review");
+    return { version: updated.version, withdrawnReviewer: row.reviewed_by };
+  });
 }
 
 /**
@@ -505,17 +719,22 @@ export async function markReportVersionSent(
   if (!current.version.reviewedAt) {
     throw new ReportVersionError(409, REVIEW_BEFORE_SENT);
   }
-  await sql`
+  // The update repeats the review check, so a review withdrawn between the
+  // read and the write leaves the version unsent.
+  const sent = await sql<{ n: number | string }>`
     with sent as (
       update report_versions set sent_at = coalesce(sent_at, now())
-      where user_id = ${ownerUserId} and id = ${id}
+      where user_id = ${ownerUserId} and id = ${id} and reviewed_at is not null
       returning user_id, business_id, sent_at
+    ), marked as (
+      insert into engagement_marks (user_id, business_id, report_sent_at)
+      select user_id, business_id, sent_at from sent
+      on conflict (user_id, business_id) do update set
+        report_sent_at = coalesce(engagement_marks.report_sent_at, excluded.report_sent_at)
     )
-    insert into engagement_marks (user_id, business_id, report_sent_at)
-    select user_id, business_id, sent_at from sent
-    on conflict (user_id, business_id) do update set
-      report_sent_at = coalesce(engagement_marks.report_sent_at, excluded.report_sent_at)
+    select count(*) as n from sent
   `;
+  if (Number(sent[0]?.n ?? 0) === 0) throw new ReportVersionError(409, REVIEW_BEFORE_SENT);
 }
 
 /**
@@ -545,11 +764,10 @@ async function versionAndFirm(
 ): Promise<{ version: ReportVersionRow; firmUserId: string | null }> {
   const current = await loadReportVersion(sql, ownerUserId, id);
   if (!current) throw new ReportVersionError(404, "That report version does not exist");
-  const firms = await sql<{ firm_user_id: string | null }>`
-    select firm_user_id from businesses
-    where user_id = ${ownerUserId} and id = ${current.version.businessId}
-  `;
-  return { version: current.version, firmUserId: firms[0]?.firm_user_id ?? null };
+  return {
+    version: current.version,
+    firmUserId: await businessFirm(sql, ownerUserId, current.version.businessId),
+  };
 }
 
 /**
@@ -686,7 +904,7 @@ export function versionProvenance(v: ReportVersionRow): string {
           } on ${formatDay(v.reviewRequestedAt)}`
         : " · Not yet reviewed"
     : v.reviewedBy && v.preparedBy === v.reviewedBy
-      ? ` · Issued by ${v.reviewedByName ?? "the preparer"} on ${formatDay(v.reviewedAt)}. Not an independent review`
+      ? ` · Issued by ${v.reviewedByName ?? "the preparer"} on ${formatDay(v.reviewedAt)}. ${NOT_INDEPENDENT}`
       : ` · Reviewed for issuance by ${v.reviewedByName ?? "a reviewer"} on ${formatDay(v.reviewedAt)}`;
   return `Version ${v.versionNo} · ${prepared}${reviewed}`;
 }
@@ -694,14 +912,16 @@ export function versionProvenance(v: ReportVersionRow): string {
 /**
  * The version as a report link hands it to whoever holds the link: without
  * the firm's own request-and-return routing (who a review was asked of, by
- * account id and name, and any return and its note). A link opens only a
- * version reviewed for issuance, whose printed line names the preparer and
- * the reviewer alone, so the link carries nothing more. For the share loader
- * (`share/share-store.ts` `loadSharedReport`).
+ * account id and name, and any return and its note) and without the note
+ * saying why someone reviewed in the assigned reviewer's place. A link opens
+ * only a version reviewed for issuance, whose printed line names the
+ * preparer and the reviewer alone, so the link carries nothing more. For the
+ * share loader (`share/share-store.ts` `loadSharedReport`).
  */
 export function withoutReviewRouting(v: ReportVersionRow): ReportVersionRow {
   return {
     ...v,
+    reviewOverrideNote: null,
     reviewRequestedAt: null,
     reviewRequestedFrom: null,
     reviewRequestedFromName: null,

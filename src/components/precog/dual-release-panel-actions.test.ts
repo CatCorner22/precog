@@ -94,6 +94,20 @@ describe("exceptionFromForm", () => {
     expect(open && "amountMaxUsd" in open).toBe(false);
   });
 
+  it("keeps an exception's threshold to the cent, never below $0", () => {
+    const form = { ...EMPTY_EXCEPTION_FORM, label: "Lab", reason: "Monthly invoice" };
+    expect(exceptionFromForm({ ...form, thresholdUsd: 3500.75 }, stamp)?.thresholdUsd).toBe(
+      3500.75,
+    );
+    expect(
+      exceptionFromForm({ ...form, action: "lower_threshold", thresholdUsd: 999.5 }, stamp)
+        ?.thresholdUsd,
+    ).toBe(999.5);
+    expect(exceptionFromForm({ ...form, thresholdUsd: 12.345 }, stamp)?.thresholdUsd).toBe(12.35);
+    expect(exceptionFromForm({ ...form, thresholdUsd: -5 }, stamp)?.thresholdUsd).toBe(0);
+    expect(exceptionFromForm({ ...form, thresholdUsd: 3500 }, stamp)?.thresholdUsd).toBe(3500);
+  });
+
   it("writes the action's label, not its code, into the journal note", () => {
     const ex = exceptionFromForm(
       { ...EMPTY_EXCEPTION_FORM, label: "Lab", reason: "Monthly", action: "waive_dual" },

@@ -135,7 +135,7 @@ import { portfolioSummary, tornadoSensitivity } from "./residual-engine";
  *   cards drop off. Every sample's deck moves; the threat index rises by 1
  *   to 2 everywhere but the nonprofit, whose index stays at 89.
  * - The priority list's headline is a count, not an average: the number of
- *   items in its top band (priority 88 or more, "Top priority"), counted
+ *   items in its top band (priority 88 or more, "Fix first"), counted
  *   over every target. COSO principles read Gap, In place or Not assessed,
  *   with no averaged overall or component score. With the accepted pairs
  *   open again (above), each sample's top band holds every 91-point
@@ -162,6 +162,17 @@ import { portfolioSummary, tornadoSensitivity } from "./residual-engine";
  *   failure and vendor fraud cards (78) follow the duty-conflict and control
  *   cards in the dental, retail, professional services, restaurant and
  *   general decks, and the lowest card drops off; no top-priority count moves.
+ * - The priority list shows each weakness once. A duty-conflict card, the
+ *   control its rule names and the scenario that plays it out are one row,
+ *   led by the highest card and tagged with each kind; two duty pairs stay
+ *   two rows even when one control answers both. The control cards
+ *   "Split duties: …" and the cash failure and vendor fraud scenario cards
+ *   join their conflict's row, so every deck is shorter (8 to 10 rows) and
+ *   the know-how cards move up. Where a know-how item is on the register and
+ *   among the sole-held items, its 76-point card now leads its 71-point
+ *   register row. Every top band held only distinct duty pairs, so no
+ *   top-priority count moves. The bands read "Fix first", "Fix soon",
+ *   "Worth doing" and "Watch", the residual bands' words.
  */
 const PINNED: Record<
   string,
@@ -212,13 +223,11 @@ const PINNED: Record<
       "sod-rule-cash-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
       "sod-rule-writeoff:91:92",
-      "ctrl-c-sod-cash:85:81",
-      "ctrl-c-sod-ap:85:81",
       "ctrl-c-cash:83:78",
-      "sod-rule-cash-void:83:78",
-      "scen-sc-cash-sod-failure:78:87",
-      "scen-sc-vendor-fraud:78:87",
+      "spof-k1:76:85",
       "spof-k3:76:85",
+      "spof-k8:76:85",
+      "spof-k4:65:65",
     ],
     coso: "10 gaps, 6 not assessed",
     cosoComponents: [
@@ -265,12 +274,12 @@ const PINNED: Record<
       "sod-rule-cash-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
       "sod-rule-writeoff:91:92",
-      "ctrl-c-sod-cash:86:83",
-      "ctrl-c-sod-ap:86:83",
       "ctrl-c-cash:84:80",
       "ctrl-c-ap:84:80",
-      "scen-sc-cash-sod-failure:78:87",
-      "scen-sc-vendor-fraud:78:87",
+      "spof-k1:76:85",
+      "spof-k3:76:85",
+      "spof-k6:76:85",
+      "spof-k4:65:65",
     ],
     coso: "10 gaps, 6 not assessed",
     cosoComponents: [
@@ -320,12 +329,11 @@ const PINNED: Record<
       "sod-rule-release-rec:91:92",
       "sod-rule-cash-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
-      "ctrl-c-sod-cash:86:83",
-      "ctrl-c-sod-ap:86:83",
-      "ctrl-c-cash:84:80",
       "ctrl-c-trust-rec:84:80",
-      "scen-sc-cash-sod-failure:78:87",
-      "scen-sc-vendor-fraud:78:87",
+      "spof-k1:76:85",
+      "spof-k2:76:85",
+      "spof-k3:65:65",
+      "scen-sc-writeoff-abuse:64:61",
     ],
     coso: "10 gaps, 6 not assessed",
     cosoComponents: [
@@ -374,13 +382,11 @@ const PINNED: Record<
       "sod-rule-cash-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
       "sod-rule-writeoff:91:92",
-      "ctrl-c-sod-cash:86:82",
-      "ctrl-c-sod-ap:86:82",
       "ctrl-c-cash:84:79",
-      "sod-rule-cash-void:83:78",
-      "scen-sc-cash-sod-failure:78:87",
-      "scen-sc-vendor-fraud:78:87",
+      "spof-k1:76:85",
       "spof-k5:76:85",
+      "spof-k7:76:85",
+      "spof-k3:65:65",
     ],
     coso: "10 gaps, 6 not assessed",
     cosoComponents: [
@@ -438,12 +444,10 @@ const PINNED: Record<
       "sod-rule-release-rec:91:92",
       "sod-rule-cash-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
-      "ctrl-c-sod-cash:79:71",
-      "ctrl-c-sod-ap:79:71",
       "spof-k3:76:85",
       "spof-k4:76:85",
       "spof-k5:76:85",
-      "scen-sc-cash-sod-failure:75:82",
+      "spof-k7:65:65",
     ],
     coso: "10 gaps, 6 not assessed",
     cosoComponents: [
@@ -505,12 +509,11 @@ const PINNED: Record<
       "sod-rule-release-rec:91:92",
       "sod-rule-cash-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
-      "ctrl-c-sod-cash:79:71",
-      "ctrl-c-sod-ap:79:71",
       "spof-k2:76:85",
       "spof-k4:76:85",
       "spof-k5:76:85",
-      "scen-sc-cash-sod-failure:75:82",
+      "scen-sc-ro-cash-skim:75:82",
+      "scen-sc-wire-je-cover:75:82",
     ],
     coso: "10 gaps, 6 not assessed",
     cosoComponents: [
@@ -567,12 +570,10 @@ const PINNED: Record<
       "sod-rule-release-rec:91:92",
       "sod-rule-cash-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
-      "ctrl-c-sod-cash:80:72",
-      "ctrl-c-sod-ap:80:72",
-      "ctrl-c-cash:79:70",
       "spof-k2:76:85",
       "spof-k3:76:85",
-      "scen-sc-cash-sod-failure:75:82",
+      "spof-k5:65:65",
+      "spof-k6:65:65",
     ],
     coso: "10 gaps, 6 not assessed",
     cosoComponents: [
@@ -620,13 +621,12 @@ const PINNED: Record<
       "sod-rule-cash-rec:91:92",
       "sod-rule-vendor-create-pay:91:92",
       "sod-rule-writeoff:91:92",
-      "ctrl-c-sod-cash:85:81",
-      "ctrl-c-sod-ap:85:81",
       "ctrl-c-cash:83:78",
       "sod-rule-deposit-post:83:78",
-      "scen-sc-cash-sod-failure:78:87",
-      "scen-sc-vendor-fraud:78:87",
+      "spof-k1:76:85",
       "spof-k3:76:85",
+      "spof-k4:65:65",
+      "spof-k5:65:65",
     ],
     coso: "10 gaps, 6 not assessed",
     cosoComponents: [

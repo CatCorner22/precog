@@ -76,6 +76,16 @@ export interface Procedure {
   title: string;
   /** The recommended procedure it was started from, if any (procedures/library.ts). */
   libraryId?: string;
+  /**
+   * Copied from the recommendation when the procedure was started, and shown
+   * read-only: what to do instead when one person has to do both halves of
+   * the work, the records to keep with each run, and the rule or guidance it
+   * follows. A procedure written by hand, or started before Precog copied
+   * them, has none.
+   */
+  fallback?: string;
+  evidenceToKeep?: string[];
+  source?: string;
   placeId?: string;
   /** The module or screen path inside the platform: "Banking > Reconcile". */
   module?: string;

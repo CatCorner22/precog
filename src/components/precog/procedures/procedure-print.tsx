@@ -9,6 +9,7 @@ import {
   stepMarkNote,
 } from "@/lib/precog/procedures/lifecycle";
 import type { Place, Procedure } from "@/lib/precog/procedures/types";
+import { LIBRARY_NOTES_TITLE, libraryNotes } from "@/lib/precog/procedures/export";
 import { StoredPicture } from "./step-pictures";
 
 /** Longest wait for pictures before printing anyway. */
@@ -78,6 +79,7 @@ export function ProcedurePrint({
         const steps = shownSteps(p);
         const due = reviewByDate(p);
         const items = p.knowledgeIds.map(itemName).filter(Boolean).join(", ");
+        const notes = libraryNotes(p);
         return (
           <article
             key={p.id}
@@ -155,6 +157,25 @@ export function ProcedurePrint({
                 </ol>
               )}
             </section>
+            {notes.length > 0 && (
+              <section className="space-y-1" style={{ breakInside: "avoid" }}>
+                <h2 className="font-semibold">{LIBRARY_NOTES_TITLE}</h2>
+                {notes.map((note) => (
+                  <div key={note.heading} className="text-[10pt]">
+                    <p className="font-semibold">{note.heading}</p>
+                    {note.list ? (
+                      <ul className="list-disc pl-5">
+                        {note.lines.map((line) => (
+                          <li key={line}>{line}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      note.lines.map((line) => <p key={line}>{line}</p>)
+                    )}
+                  </div>
+                ))}
+              </section>
+            )}
             <footer className="border-t border-neutral-300 pt-2 text-[9pt] text-neutral-600">
               Does it today: {nameOf(p.ownerPersonId) ?? "not set"} · Stand-ins:{" "}
               {p.backupPersonIds.map((id) => nameOf(id)).join(", ") || "nobody named yet"} ·

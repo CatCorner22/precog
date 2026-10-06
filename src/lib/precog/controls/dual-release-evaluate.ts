@@ -15,7 +15,7 @@ import {
   type ThresholdException,
 } from "./dual-release-policy";
 import { localDateKey } from "../dates";
-import { formatUsd } from "../../utils";
+import { formatUsdTyped } from "../../utils";
 
 /** Evaluating one release against the policy: threshold, exceptions, who may approve. */
 export function evaluateRelease(
@@ -168,8 +168,8 @@ export function evaluateRelease(
       second: undefined,
       reasons: [
         viaRaise
-          ? `Exception "${resolved.applied!.label}" raised threshold from ${formatUsd(rule.thresholdUsd)} to ${formatUsd(resolved.applied!.effectiveThresholdUsd)}.`
-          : `Amount ${formatUsd(request.amountUsd)} is at or under threshold ${formatUsd(effectiveThreshold)} — one signer may release it.`,
+          ? `Exception "${resolved.applied!.label}" raised threshold from ${formatUsdTyped(rule.thresholdUsd)} to ${formatUsdTyped(resolved.applied!.effectiveThresholdUsd)}.`
+          : `Amount ${formatUsdTyped(request.amountUsd)} is at or under threshold ${formatUsdTyped(effectiveThreshold)} — one signer may release it.`,
         ...(resolved.applied?.residualNote ? [resolved.applied.residualNote] : []),
         ...tieNote,
       ],
@@ -180,7 +180,7 @@ export function evaluateRelease(
     };
   }
 
-  const threshold = formatUsd(base.thresholdUsd);
+  const threshold = formatUsdTyped(base.thresholdUsd);
   if (!second) {
     return {
       ...base,
@@ -192,7 +192,7 @@ export function evaluateRelease(
           : `Dual release required above ${threshold}.`,
         "Second signer not yet attached.",
         ...(resolved.applied && resolved.applied.baseThresholdUsd !== effectiveThreshold
-          ? [`Base threshold ${formatUsd(rule.thresholdUsd)} → effective ${threshold}.`]
+          ? [`Base threshold ${formatUsdTyped(rule.thresholdUsd)} → effective ${threshold}.`]
           : []),
         ...tieNote,
       ],

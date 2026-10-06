@@ -43,6 +43,28 @@ describe("concentrationHeadline", () => {
       concentrationHeadline(openFindings(detectSodConflicts(tpl).conflicts, new Map())),
     ).toBeNull();
   });
+
+  it("counts each finding, in the finding unit, so a rule two people hold counts twice", () => {
+    // The general sample: one person holds half of the distinct rules held
+    // together, but well under half of the findings, the rows the report prints.
+    const sample = getIndustryTemplate("general");
+    const open = openFindings(detectSodConflicts(sample).conflicts, new Map());
+    const byRule = concentrationHeadline(open);
+    expect(byRule).not.toBeNull();
+    expect(byRule!.gaps * 2).toBeGreaterThanOrEqual(byRule!.totalGaps);
+    const held = open.filter((c) => c.personId === byRule!.personId).length;
+    expect(held * 2).toBeLessThan(open.length);
+    expect(concentrationHeadline(open, "finding")).toBeNull();
+    // Where one person holds most of the findings too, both units name them.
+    const dental = openFindings(
+      detectSodConflicts(getIndustryTemplate("dental")).conflicts,
+      new Map(),
+    );
+    const rows = concentrationHeadline(dental, "finding");
+    expect(rows?.personId).toBe(concentrationHeadline(dental)?.personId);
+    expect(rows?.totalGaps).toBe(dental.length);
+    expect(rows?.gaps).toBe(dental.filter((c) => c.personId === rows?.personId).length);
+  });
 });
 
 describe("separatedPairs", () => {

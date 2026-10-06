@@ -1,5 +1,5 @@
 import type { DualReleasePolicy } from "./dual-release";
-import { formatUsd } from "@/lib/utils";
+import { formatUsdTyped } from "@/lib/utils";
 
 /**
  * How screens quote the live dual-release policy. A duty-conflict suggestion
@@ -84,12 +84,15 @@ function quotesOwnThreshold(text: string): boolean {
   return OWN_THRESHOLD.some((re) => re.test(text));
 }
 
-/** "ACH / vendor electronic pay above $500; New vendor master at every amount" */
+/**
+ * "ACH / vendor electronic pay above $500; New vendor master at every amount".
+ * A threshold with cents keeps them: "above $999.50".
+ */
 function channelWords(rules: readonly DualReleasePolicy["rules"][number][]): string {
   return rules
     .map((r) =>
       r.thresholdUsd > 0
-        ? `${r.label} above ${formatUsd(r.thresholdUsd)}`
+        ? `${r.label} above ${formatUsdTyped(r.thresholdUsd)}`
         : `${r.label} at every amount`,
     )
     .join("; ");

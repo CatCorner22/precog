@@ -333,6 +333,7 @@ describe("Privacy", () => {
       version_review_requested: "review requests",
       version_returned: "returns",
       version_reviewed: "reviews for issuance",
+      version_review_withdrawn: "reviews for issuance",
       version_sent: "and sends",
       owner_email_set: "owner reminder addresses",
       quickbooks_connected: "QuickBooks connections",

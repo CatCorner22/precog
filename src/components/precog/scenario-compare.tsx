@@ -25,7 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn, formatUsd } from "@/lib/utils";
+import { cn, formatEstimateUsd, formatEstimateUsdRange } from "@/lib/utils";
 import { count, verb } from "@/lib/precog/text";
 import { ILLUSTRATIVE_LABEL } from "@/lib/precog/scoring/scenario-level";
 import { deltaTone, formatDaysChange, formatMoneyChange, pickScenario } from "./scenario-page";
@@ -345,8 +345,9 @@ function CompareResults({
     <>
       {allTie ? (
         <p className="rounded-lg border border-border bg-panel p-3 text-sm text-muted">
-          With {noPolicy ? "no policy" : "these insurance settings"} every option retains the same{" "}
-          {formatUsd(retained(report.columns[0]))}; they differ only in assumed loss if it happens.
+          With {noPolicy ? "no policy" : "these insurance settings"} every option retains the same
+          amount, {formatEstimateUsd(retained(report.columns[0]))}; they differ only in assumed loss
+          if it happens.
         </p>
       ) : (
         <>
@@ -391,21 +392,21 @@ function CompareResults({
                   size="sm"
                   className="border-0 bg-transparent p-0"
                   label="Assumed loss if it happens"
-                  value={formatUsd(col.result.financialImpact.expected)}
-                  hint={`assumed range ${formatUsd(col.result.financialImpact.low)} – ${formatUsd(col.result.financialImpact.high)}`}
+                  value={formatEstimateUsd(col.result.financialImpact.expected)}
+                  hint={`assumed range ${formatEstimateUsdRange(col.result.financialImpact.low, col.result.financialImpact.high)}`}
                 />
                 <FigureTile
                   size="sm"
                   className="border-0 bg-transparent p-0"
                   label="Assumed retained loss"
-                  value={formatUsd(retained(col))}
+                  value={formatEstimateUsd(retained(col))}
                   hint={
                     scenarioFlags(col.result.scenarioId).fraudRelated
                       ? withNote(
                           noPolicy
                             ? "all of it"
                             : dynamic
-                              ? `paid by insurance ${formatUsd(dynamic.transferredExpected)}`
+                              ? `paid by insurance ${formatEstimateUsd(dynamic.transferredExpected)}`
                               : "after deductible and limit",
                           policyNote,
                         )
@@ -487,9 +488,9 @@ function CompareResults({
                       )}
                     </th>
                     <td className="py-2.5 pr-3 tabular">
-                      {formatUsd(c.result.financialImpact.expected)}
+                      {formatEstimateUsd(c.result.financialImpact.expected)}
                     </td>
-                    <td className="py-2.5 pr-3 tabular">{formatUsd(retained(c))}</td>
+                    <td className="py-2.5 pr-3 tabular">{formatEstimateUsd(retained(c))}</td>
                     <td className="py-2.5 pr-3 tabular">about {c.result.timelineDays.p50} days</td>
                     <td
                       className={cn(

@@ -84,8 +84,11 @@ export const saveEngagement = createServerFn({ method: "POST" })
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
     // The engagement is the firm's work: a granted business's own account,
-    // outside the firm, reads it and does not change it (decision 26).
-    await requireBusinessRole(sql, context.userId, owner, data.businessId, "any");
+    // outside the firm, reads it and does not change it (decision 26). Who
+    // prepares and who reviews, the scope and the period that print on every
+    // locked version are the firm owner's staffing decision, so a preparer
+    // or reviewer reads them and does not change them (CPA-8).
+    await requireBusinessRole(sql, context.userId, owner, data.businessId, ["owner"]);
     const { businessId, ...fields } = data;
     const engagement = await saveEngagementRow(sql, {
       ownerUserId: owner,

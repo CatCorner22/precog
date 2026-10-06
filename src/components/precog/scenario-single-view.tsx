@@ -20,7 +20,7 @@ import { CaseCard, UnverifiedListNote } from "@/components/precog/case-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn, formatUsd } from "@/lib/utils";
+import { cn, formatEstimateUsd, formatEstimateUsdRange, formatUsd } from "@/lib/utils";
 import { count, verb } from "@/lib/precog/text";
 import { FigureTile } from "./figure-tile";
 import {
@@ -165,19 +165,19 @@ export function SingleScenarioView({
               <FigureTile
                 size="lg"
                 label="Assumed loss if it happens"
-                value={formatUsd(result.financialImpact.expected)}
-                hint={`assumed range ${formatUsd(result.financialImpact.low)} – ${formatUsd(result.financialImpact.high)}`}
+                value={formatEstimateUsd(result.financialImpact.expected)}
+                hint={`assumed range ${formatEstimateUsdRange(result.financialImpact.low, result.financialImpact.high)}`}
               />
               <FigureTile
                 size="lg"
                 label={`Assumed loss retained by ${teamLabel}`}
-                value={formatUsd(result.retainedImpact.expected)}
+                value={formatEstimateUsd(result.retainedImpact.expected)}
                 hint={
                   insuredLoss
                     ? withPolicyNote(
                         noPolicy
                           ? "all of the assumed loss"
-                          : `assumed range ${formatUsd(result.retainedImpact.low)} – ${formatUsd(result.retainedImpact.high)}`,
+                          : `assumed range ${formatEstimateUsdRange(result.retainedImpact.low, result.retainedImpact.high)}`,
                       )
                     : NOT_INSURED_HINT
                 }
@@ -207,7 +207,7 @@ export function SingleScenarioView({
                 </Badge>
                 {insuredLoss ? (
                   <Badge variant="ok">
-                    Paid by insurance {formatUsd(dynamic.transferredExpected)}
+                    Paid by insurance {formatEstimateUsd(dynamic.transferredExpected)}
                   </Badge>
                 ) : (
                   <Badge variant="default">{NOT_INSURED_LOSS}</Badge>
@@ -284,7 +284,8 @@ export function SingleScenarioView({
         <CardHeader>
           <CardTitle>Controls</CardTitle>
           <CardDescription>
-            Costs and reductions are this scenario&rsquo;s assumptions, not quotes.
+            Costs are this scenario&rsquo;s assumptions, not quotes. Each reduction is
+            Precog&rsquo;s estimate, not a measured reduction.
           </CardDescription>
         </CardHeader>
         <CardContent>

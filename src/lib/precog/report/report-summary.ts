@@ -1,8 +1,10 @@
 import type { DecisionEntry } from "../practice-profile";
 import type { IndustryId } from "../industry";
+import type { EntitlementId } from "../sod/conflict-rules";
 import type { DetectedConflict } from "../sod/detect";
 import type { HandSetFigures } from "../sod/derive-staff";
 import { concentrationHeadline } from "../sod/verdict";
+import type { OpenConflictHeadline } from "../headline/open-conflicts";
 import { isDecisionOpen, linkedKnowledgeId } from "../decisions/follow-through";
 import { count, midSentence } from "../text";
 
@@ -25,19 +27,32 @@ interface ContinuityFollowThrough {
 
 /** Figures the executive summary is written from; all come from the report model. */
 interface SummaryInput {
-  /** The open findings, as sod/open-findings counts them for the rest of the report. */
-  openConflicts: readonly DetectedConflict[];
-  /** Conflicting pairs the sole owner holds: left out of the open findings, never out of the report. */
-  ownerHeldPairs: number;
-  /** Staff pairs dual release closes at every amount: also left out of the open findings. */
-  dualReleaseClosedPairs: number;
+  /**
+   * The open duty conflicts and their breakdown (headline/open-conflicts):
+   * the rows and the count the conflict table prints. The owner's own pairs
+   * and the pairs dual release closes at every amount are counted apart,
+   * never in the open count.
+   */
+  conflicts: Pick<
+    OpenConflictHeadline,
+    "findings" | "open" | "critical" | "ownerHeld" | "closedByDualRelease"
+  >;
   firstStep: string | null;
+  /** The first step's control id (evidence/controls), when it has one. */
+  firstStepId?: string | null;
   registerReady: boolean;
   coverageIndex: number;
   singlePoints: number;
   mapHealth: { score: number; bandLabel: string } | null;
   topPriority: string | null;
 }
+
+/** The control (evidence/controls) whose label names "the concentrated role". */
+const SPLIT_ONE_DUTY_OUT = "split-one-duty-out";
+
+/** That step, worded for a summary that names no concentrated role. */
+export const SPLIT_STEP_WITHOUT_NAMED_ROLE =
+  "Move one duty of a conflicting pair to someone who holds neither duty — even just the bank reconciliation";
 
 /** How many decisions the printed log lists before it says how many it left out. */
 const DECISION_LOG_MAX = 10;
@@ -63,23 +78,33 @@ export const REPORT_BASIS =
  */
 export function executiveSummary(input: SummaryInput): string[] {
   const lines: string[] = [];
-  const open = input.openConflicts;
-  if (open.length === 0) {
-    lines.push(closedConflictsLine(input.ownerHeldPairs, input.dualReleaseClosedPairs));
+  let roleNamed = false;
+  const { findings, open, critical } = input.conflicts;
+  if (open === 0) {
+    lines.push(closedConflictsLine(input.conflicts.ownerHeld, input.conflicts.closedByDualRelease));
   } else {
-    const critical = open.filter((c) => c.severity === "critical").length;
-    const people = new Set(open.map((c) => c.personId)).size;
+    const people = new Set(findings.map((c) => c.personId)).size;
     lines.push(
-      `${count(open.length, "open duty conflict")}${critical > 0 ? `, ${critical} of them critical,` : ""} held by ${count(people, "person", "people")}.`,
+      `${count(open, "open duty conflict")}${critical > 0 ? `, ${critical} of them critical,` : ""} held by ${count(people, "person", "people")}.`,
     );
-    const headline = concentrationHeadline(open);
-    if (headline) {
+    const move = concentrationMove(findings);
+    if (move) {
+      roleNamed = true;
       lines.push(
-        `One person holds ${headline.gaps} of the ${headline.totalGaps} open gaps; moving one duty, ${midSentence(headline.dutyLabel)}, to someone who holds none of the others closes ${headline.closes} of them.`,
+        `One person holds ${move.held} of the ${open} open duty conflicts; moving one duty, ${midSentence(move.dutyLabel)}, to someone who holds none of the others closes ${move.closes} of them.`,
       );
     }
   }
-  if (input.firstStep) lines.push(`First step: ${midSentence(input.firstStep)}.`);
+  if (input.firstStep) {
+    // The split step's own label points at "the concentrated role", which
+    // only the concentration sentence above names. Without that sentence the
+    // step says on its own terms which duty to move.
+    const step =
+      !roleNamed && input.firstStepId === SPLIT_ONE_DUTY_OUT
+        ? SPLIT_STEP_WITHOUT_NAMED_ROLE
+        : input.firstStep;
+    lines.push(`First step: ${midSentence(step)}.`);
+  }
   // A figure that is not a number (a damaged register) leaves its sentence
   // out rather than print "NaN%".
   if (!input.registerReady) {
@@ -98,6 +123,46 @@ export function executiveSummary(input: SummaryInput): string[] {
   }
   if (input.topPriority) lines.push(`Highest item on the priority list: ${input.topPriority}.`);
   return lines;
+}
+
+/** The concentration move, counted in the conflict table's rows. */
+interface ConcentrationMove {
+  personId: string;
+  personName: string;
+  duty: EntitlementId;
+  dutyLabel: string;
+  /** Open conflicts the person holds. */
+  held: number;
+  /** How many of those moving the duty closes. */
+  closes: number;
+  /** The rules of the conflicts the move closes. */
+  ruleIds: string[];
+}
+
+/**
+ * The concentration move (sod/verdict `concentrationHeadline`) counted in the
+ * conflict table's rows: how many of the open conflicts the person holds, and
+ * how many of those moving the one duty closes. The headline picks the person
+ * and the duty in those rows too, so the person named holds the largest
+ * share and at least half of the open count the sentence before it prints
+ * ("12 of the 20"); with no such person there is no move, never "5 of the 13".
+ */
+export function concentrationMove(open: readonly DetectedConflict[]): ConcentrationMove | null {
+  const headline = concentrationHeadline(open, "finding");
+  if (!headline) return null;
+  const held = open.filter((c) => c.personId === headline.personId);
+  const closed = held.filter(
+    (c) => c.entitlementA === headline.duty || c.entitlementB === headline.duty,
+  );
+  return {
+    personId: headline.personId,
+    personName: headline.personName,
+    duty: headline.duty,
+    dutyLabel: headline.dutyLabel,
+    held: held.length,
+    closes: closed.length,
+    ruleIds: [...new Set(closed.map((c) => c.ruleId))],
+  };
 }
 
 /**

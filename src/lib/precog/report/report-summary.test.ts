@@ -3,11 +3,16 @@ import { resolveTemplate } from "../active-template";
 import { ownSetupProfile } from "../business-lifecycle";
 import { buildOwnTeam } from "../onboarding/own-team";
 import { INDUSTRIES } from "../industry";
-import { defaultProfile, type DecisionEntry, type DecisionReview } from "../practice-profile";
+import {
+  defaultProfile,
+  type DecisionEntry,
+  type DecisionReview,
+  type PracticeProfile,
+} from "../practice-profile";
 import { openFindings, partialDualReleaseCoverage } from "../sod/open-findings";
-import { concentrationHeadline } from "../sod/verdict";
 import { buildControlReportModel } from "./build-control-report";
 import {
+  concentrationMove,
   continuityFollowThrough,
   decisionLog,
   decisionStatus,
@@ -15,6 +20,7 @@ import {
   REPORT_BASIS,
   REPORT_BASIS_TITLE,
   REPORT_CAVEATS,
+  SPLIT_STEP_WITHOUT_NAMED_ROLE,
 } from "./report-summary";
 
 function decision(id: string, extra: Partial<DecisionEntry> = {}): DecisionEntry {
@@ -89,10 +95,10 @@ describe("continuityFollowThrough", () => {
   });
 });
 
+const noConflicts = { findings: [], open: 0, critical: 0, ownerHeld: 0, closedByDualRelease: 0 };
+
 const noOpenFindings = {
-  openConflicts: [],
-  ownerHeldPairs: 0,
-  dualReleaseClosedPairs: 0,
+  conflicts: noConflicts,
   firstStep: null,
   registerReady: false,
   coverageIndex: 0,
@@ -100,6 +106,12 @@ const noOpenFindings = {
   mapHealth: null,
   topPriority: null,
 };
+
+/** No open finding, with the owner's own pairs and the pairs dual release closes counted apart. */
+const closedBy = (over: { ownerHeld?: number; closedByDualRelease?: number }) => ({
+  ...noOpenFindings,
+  conflicts: { ...noConflicts, ...over },
+});
 
 describe("executive summary", () => {
   it.each(INDUSTRIES.map((i) => i.id))(
@@ -144,8 +156,118 @@ describe("executive summary", () => {
       true,
     );
     expect(model.summary[0]).toMatch(new RegExp(`^${open.length} open duty conflicts`));
-    const headline = concentrationHeadline(open);
-    if (headline) expect(model.summary[1]).toContain(`of the ${headline.totalGaps} open gaps`);
+    // The concentration sentence counts against the same open count, not
+    // against distinct rules: "10 of the 17", never "10 of the 12 open gaps".
+    expect(model.summary[1]).toBe(
+      "One person holds 10 of the 17 open duty conflicts; moving one duty, enter write-offs, to someone who holds none of the others closes 4 of them.",
+    );
+    expect(model.summary.join(" ")).not.toContain("open gaps");
+  });
+
+  it("counts the concentration move in the conflict table's rows", () => {
+    const profile = defaultProfile("restaurant");
+    const model = buildControlReportModel({
+      tpl: resolveTemplate(profile),
+      profile,
+      mapCustomized: false,
+      today: "2026-09-26",
+      trackFreshness: false,
+      mapReady: false,
+      businessName: "Sample",
+    });
+    const open = openFindings(model.sod.conflicts, model.partialCoverage);
+    const move = concentrationMove(open);
+    expect(move).not.toBeNull();
+    const held = open.filter((c) => c.personId === move!.personId);
+    expect(move!.held).toBe(held.length);
+    expect(model.summary.slice(0, 2)).toEqual([
+      "14 open duty conflicts, 3 of them critical, held by 4 people.",
+      "One person holds 7 of the 14 open duty conflicts; moving one duty, enter write-offs, to someone who holds none of the others closes 3 of them.",
+    ]);
+  });
+
+  /** The report model of `profile` as the report page builds it. */
+  const modelOf = (profile: PracticeProfile) =>
+    buildControlReportModel({
+      tpl: resolveTemplate(profile),
+      profile,
+      mapCustomized: false,
+      today: "2026-09-26",
+      trackFreshness: false,
+      mapReady: false,
+      businessName: "Sample",
+    });
+
+  it("pins each sample's concentration sentence, printed only when one person holds half or more", () => {
+    const sentences = Object.fromEntries(
+      INDUSTRIES.map(({ id }) => [
+        id,
+        modelOf(defaultProfile(id)).summary.find((line) => line.startsWith("One person holds")) ??
+          null,
+      ]),
+    );
+    const move = (held: number, open: number, duty: string, closes: number) =>
+      `One person holds ${held} of the ${open} open duty conflicts; moving one duty, ${duty}, to someone who holds none of the others closes ${closes} of them.`;
+    expect(sentences).toEqual({
+      dental: move(12, 20, "enter write-offs", 4),
+      // 7 of the 16 and 5 of the 13 are no longer printed: a minority of the open conflicts.
+      retail: null,
+      professional_services: move(7, 14, "reconcile the bank account", 3),
+      restaurant: move(7, 14, "enter write-offs", 3),
+      construction: move(8, 10, "reconcile the bank account", 3),
+      automotive: move(14, 22, "reconcile the bank account", 5),
+      nonprofit: move(15, 19, "reconcile the bank account", 5),
+      general: null,
+    });
+  });
+
+  it("never points at a concentrated role the summary does not name", () => {
+    const unnamed: string[] = [];
+    for (const { id } of INDUSTRIES) {
+      const base = defaultProfile(id);
+      for (const profile of [
+        base,
+        { ...base, dualRelease: { ...base.dualRelease, enabled: true } },
+      ]) {
+        const summary = modelOf(profile).summary;
+        if (summary.some((line) => line.startsWith("One person holds"))) continue;
+        unnamed.push(id);
+        expect(summary.join(" "), id).not.toContain("concentrated role");
+      }
+    }
+    expect(unnamed.length).toBeGreaterThan(0);
+    expect(modelOf(defaultProfile("retail")).summary).toContain(
+      "First step: move one duty of a conflicting pair to someone who holds neither duty — even just the bank reconciliation.",
+    );
+    expect(modelOf(defaultProfile("dental")).summary).toContain(
+      "First step: move any single duty out of the concentrated role — even just the bank reconciliation.",
+    );
+    expect(SPLIT_STEP_WITHOUT_NAMED_ROLE).not.toContain("concentrated");
+  });
+
+  it("names the person who holds the largest share, never a minority, in the rows it counts", () => {
+    let named = 0;
+    for (const { id } of INDUSTRIES) {
+      const base = defaultProfile(id);
+      for (const profile of [
+        base,
+        { ...base, dualRelease: { ...base.dualRelease, enabled: true } },
+      ]) {
+        const model = modelOf(profile);
+        const open = openFindings(model.sod.conflicts, model.partialCoverage);
+        const move = concentrationMove(open);
+        const sentence = model.summary.find((line) => line.startsWith("One person holds"));
+        expect(Boolean(sentence), id).toBe(Boolean(move));
+        if (!move) continue;
+        named += 1;
+        const byPerson = new Map<string, number>();
+        for (const c of open) byPerson.set(c.personId, (byPerson.get(c.personId) ?? 0) + 1);
+        expect(move.held * 2, id).toBeGreaterThanOrEqual(open.length);
+        expect(move.held, id).toBe(Math.max(...byPerson.values()));
+        expect(sentence, id).toContain(`holds ${move.held} of the ${open.length} open`);
+      }
+    }
+    expect(named).toBeGreaterThan(8);
   });
 
   it("says continuity is not assessed rather than printing a figure", () => {
@@ -157,21 +279,19 @@ describe("executive summary", () => {
   });
 
   it("names the owner's own pairs instead of saying nobody holds conflicting duties", () => {
-    expect(executiveSummary({ ...noOpenFindings, ownerHeldPairs: 3 })[0]).toBe(
+    expect(executiveSummary(closedBy({ ownerHeld: 3 }))[0]).toBe(
       "No open duty conflicts among staff. The owner holds 3 pairs of conflicting duties (listed under Segregation of duties as the owner's own duties).",
     );
-    expect(executiveSummary({ ...noOpenFindings, ownerHeldPairs: 1 })[0]).toContain(
+    expect(executiveSummary(closedBy({ ownerHeld: 1 }))[0]).toContain(
       "The owner holds 1 pair of conflicting duties",
     );
   });
 
   it("names the pairs dual release closes, after the owner's own", () => {
-    expect(
-      executiveSummary({ ...noOpenFindings, ownerHeldPairs: 2, dualReleaseClosedPairs: 1 })[0],
-    ).toBe(
+    expect(executiveSummary(closedBy({ ownerHeld: 2, closedByDualRelease: 1 }))[0]).toBe(
       "No open duty conflicts among staff. The owner holds 2 pairs of conflicting duties (listed under Segregation of duties as the owner's own duties). Dual release covers 1 more.",
     );
-    expect(executiveSummary({ ...noOpenFindings, dualReleaseClosedPairs: 2 })[0]).toBe(
+    expect(executiveSummary(closedBy({ closedByDualRelease: 2 }))[0]).toBe(
       "No open duty conflicts among staff. Dual release covers 2 pairs of conflicting duties at every amount.",
     );
   });
@@ -212,15 +332,13 @@ describe("executive summary", () => {
 
   it("leaves out a figure that is not a number rather than print NaN%", () => {
     const lines = executiveSummary({
-      openConflicts: [],
+      conflicts: noConflicts,
       firstStep: null,
       registerReady: true,
       coverageIndex: Number.NaN,
       singlePoints: 2,
       mapHealth: { score: Number.NaN, bandLabel: "Partial" },
       topPriority: null,
-      ownerHeldPairs: 0,
-      dualReleaseClosedPairs: 0,
     });
     expect(lines.join(" ")).not.toContain("NaN");
     expect(lines).toHaveLength(1);

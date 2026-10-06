@@ -25,6 +25,9 @@ export const PREPARER_LABEL = "Preparer";
 export const REVIEWER_LABEL = "Reviewer";
 export const NOT_SET = "Not set";
 export const SAVE_ENGAGEMENT = "Save engagement";
+/** What a preparer or reviewer reads in place of Save: the server lets only the owner save (CPA-8). */
+export const ENGAGEMENT_OWNER_SETS =
+  "The firm owner sets the scope, the period, the preparer and the reviewer. You can read them here.";
 export const END_ENGAGEMENT = "End engagement";
 export const REOPEN_ENGAGEMENT = "Reopen engagement";
 export const ENGAGEMENT_SAVED = "Engagement saved.";
@@ -91,7 +94,11 @@ interface FormProps {
   onHandBack?: () => void;
 }
 
-/** The engagement fields of the open client; inputs are disabled while it has ended. */
+/**
+ * The engagement fields of the open client. Only the firm owner edits them
+ * (saveEngagement refuses anyone else); a preparer or reviewer reads them,
+ * and every input is disabled while the engagement has ended.
+ */
 export function EngagementForm({
   businessName,
   members,
@@ -107,6 +114,7 @@ export function EngagementForm({
   const [draft, setDraft] = useState(engagement);
   useEffect(() => setDraft(engagement), [engagement]);
   const ended = engagement.status === "ended";
+  const readOnly = ended || !isOwner;
   const input = "mt-1 w-full rounded-md border border-border bg-bg px-2 py-1.5 text-sm text-fg";
 
   function memberSelect(
@@ -120,7 +128,7 @@ export function EngagementForm({
         <select
           className={input}
           value={value ?? ""}
-          disabled={ended}
+          disabled={readOnly}
           onChange={(e) => set(e.target.value || null)}
         >
           <option value="">{NOT_SET}</option>
@@ -140,7 +148,7 @@ export function EngagementForm({
       aria-label={ENGAGEMENT_HEADING}
       onSubmit={(e) => {
         e.preventDefault();
-        onSave?.(draft);
+        if (isOwner) onSave?.(draft);
       }}
     >
       <h3 className="text-base font-semibold">{ENGAGEMENT_HEADING}</h3>
@@ -153,7 +161,7 @@ export function EngagementForm({
           className={input}
           rows={3}
           maxLength={ENGAGEMENT_SCOPE_MAX}
-          disabled={ended}
+          disabled={readOnly}
           value={draft.scope}
           onChange={(e) => setDraft({ ...draft, scope: e.target.value })}
         />
@@ -167,7 +175,7 @@ export function EngagementForm({
           <input
             type="date"
             className={input}
-            disabled={ended}
+            disabled={readOnly}
             value={draft.periodStart ?? ""}
             onChange={(e) => setDraft({ ...draft, periodStart: e.target.value || null })}
           />
@@ -177,7 +185,7 @@ export function EngagementForm({
           <input
             type="date"
             className={input}
-            disabled={ended}
+            disabled={readOnly}
             value={draft.periodEnd ?? ""}
             onChange={(e) => setDraft({ ...draft, periodEnd: e.target.value || null })}
           />
@@ -189,10 +197,13 @@ export function EngagementForm({
           setDraft({ ...draft, reviewerUserId: id }),
         )}
       </div>
+      {!isOwner && <p className="text-xs text-muted">{ENGAGEMENT_OWNER_SETS}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" size="sm" disabled={ended || busy}>
-          {SAVE_ENGAGEMENT}
-        </Button>
+        {isOwner && (
+          <Button type="submit" size="sm" disabled={ended || busy}>
+            {SAVE_ENGAGEMENT}
+          </Button>
+        )}
         {isOwner &&
           (ended ? (
             <Button

@@ -308,7 +308,7 @@ function Home() {
                     >
                       Report
                     </Link>
-                    <NeedsAttentionMenu onOpen={(target) => openTab(target)} />
+                    <NeedsAttentionMenu onOpen={(target, item) => openTab(target, item)} />
                   </>
                 }
                 trailing={

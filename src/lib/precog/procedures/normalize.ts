@@ -40,6 +40,10 @@ export const PROCEDURE_LIMITS = {
   proofNote: 200,
   duties: 16,
   backups: 10,
+  fallback: 600,
+  source: 600,
+  evidence: 12,
+  evidenceItem: 120,
   /** Serialized size of every procedure together. */
   bytes: 700 * 1024,
 } as const;
@@ -141,6 +145,8 @@ export function normalizeProcedure(value: unknown, today: string): Procedure | n
   const verifiedByAccountName = verifiedByAccountId ? readText(raw.verifiedByAccountName, 120) : "";
   const optional = {
     libraryId: readText(raw.libraryId, 60),
+    fallback: readText(raw.fallback, PROCEDURE_LIMITS.fallback),
+    source: readText(raw.source, PROCEDURE_LIMITS.source),
     placeId: readText(raw.placeId, 60),
     module: readText(raw.module, PROCEDURE_LIMITS.module),
     url: webUrl(raw.url),
@@ -149,6 +155,11 @@ export function normalizeProcedure(value: unknown, today: string): Procedure | n
     ownerPersonId: readText(raw.ownerPersonId, 120),
     reviewerPersonId: readText(raw.reviewerPersonId, 120),
   };
+  const evidence = texts(
+    raw.evidenceToKeep,
+    PROCEDURE_LIMITS.evidence,
+    PROCEDURE_LIMITS.evidenceItem,
+  );
   return {
     id,
     industry: raw.industry,
@@ -157,6 +168,7 @@ export function normalizeProcedure(value: unknown, today: string): Procedure | n
     ...(CADENCES.includes(raw.cadence as ProcessCadence)
       ? { cadence: raw.cadence as ProcessCadence }
       : {}),
+    ...(evidence.length ? { evidenceToKeep: evidence } : {}),
     prerequisites: texts(
       raw.prerequisites,
       PROCEDURE_LIMITS.prerequisites,

@@ -308,6 +308,21 @@ describe("sample controls in COSO", () => {
   });
 });
 
+describe("the top residual scenario's dollars", () => {
+  it("prints the assumed loss as a rounded estimate, never to the dollar", () => {
+    const top = (industry: "general" | "construction") => {
+      const p = defaultProfile(industry);
+      return assessCoso(resolveTemplate(p), p.staff, { riskVariables: p.riskVariables })
+        .components.flatMap((c) => c.findings)
+        .find((f) => f.id === "ra-top")?.detail;
+    };
+    expect(top("general")).toBe(
+      "Scenario assumes a loss of about $77,000 and about 178 assumed days until found (assumed range 89–415 days). An assumption written into the scenario, not a forecast.",
+    );
+    expect(top("construction")).toMatch(/^Scenario assumes a loss of about \$67,000 and /);
+  });
+});
+
 describe("principles the app cannot read", () => {
   it("say so instead of asserting facts about the business", () => {
     const a = assessCoso(own, clean);

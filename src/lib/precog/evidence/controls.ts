@@ -308,11 +308,15 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   },
   "controlled-substance-count": {
     id: "controlled-substance-count",
+    // "At least once a week": a case that applies this control at open and
+    // close (case-littleton-oral-surgery-fentanyl) counts more often, and the
+    // catalog must not read as though it counted weekly. The cadence below is
+    // Precog's suggestion, as in the library's lib-controlled-count.
     label:
-      "Two people count controlled substances against the log each day and inspect vials and seals for tampering",
-    why: "Drug diversion is inventory theft with a patient at the other end. A daily two-person count with a signed log turns a missing or altered vial into a same-day question instead of a months-later discovery.",
+      "Two people count controlled substances against the log at least once a week and inspect vials and seals for tampering",
+    why: "Drug diversion is inventory theft with a patient at the other end. A two-person count with a signed log turns a missing or altered vial into a question at the next count instead of a months-later discovery. The DEA itself requires only a complete inventory every two years (21 CFR 1304.11); Precog suggests a weekly count, and a practice may count more often, for example at open and close.",
     setup: "an hour",
-    cadence: "daily",
+    cadence: "weekly",
   },
   "no-shared-logins": {
     id: "no-shared-logins",

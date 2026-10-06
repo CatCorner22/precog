@@ -15,7 +15,7 @@ import { simulateAllCascades } from "../scoring/variable-cascade";
 import type { IndustryTemplate } from "../templates";
 import type { StaffComposition } from "../types";
 import type { ToolOutput } from "./types";
-import { formatUsd } from "@/lib/utils";
+import { formatEstimateUsd, formatUsd } from "@/lib/utils";
 
 export interface ScenarioToolInput {
   tpl: IndustryTemplate;
@@ -40,15 +40,17 @@ export interface ScenarioRunData {
 }
 
 /**
- * A scenario's figures as assumptions: "assumed retained $5,000 · about 90
- * days until found". The assumed annual frequency is not printed. It is not
- * a measured rate.
+ * A scenario's figures as assumptions: "assumed retained about $5,000 · about
+ * 90 days until found". The dollars are rounded as every screen rounds them
+ * (formatEstimateUsd); the tool's `data` keeps the exact figure for any
+ * arithmetic. The assumed annual frequency is not printed. It is not a
+ * measured rate.
  */
 export function describeScenarioFigures(
   d: Pick<ScenarioRunData, "retained" | "timelineDays" | "dynamic">,
 ): string {
   return [
-    `assumed retained ${formatUsd(d.retained.expected)}`,
+    `assumed retained ${formatEstimateUsd(d.retained.expected)}`,
     `about ${d.timelineDays.p50} days until found`,
   ].join(" · ");
 }

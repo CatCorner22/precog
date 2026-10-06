@@ -6,8 +6,16 @@ import {
 import { portfolioSummary, tornadoSensitivity } from "@/lib/precog/scoring/residual-engine";
 import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
 import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
-import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
+import {
+  detectSodConflicts,
+  sodDetectionOptions,
+  type DetectedConflict,
+} from "@/lib/precog/sod/detect";
+import { openFindings, partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
+import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
+import { entitlementProcesses } from "@/lib/precog/sod/rule-match";
 import { soleOwnerId } from "@/lib/precog/sod/owner-role";
+import { concentrationHeadline } from "@/lib/precog/sod/verdict";
 import type { DualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import { checkInPlan, CONFIRMATION_MAX_AGE_DAYS } from "@/lib/precog/continuity/staleness";
 import {
@@ -64,7 +72,7 @@ import {
 } from "@/lib/precog/evidence";
 import type { StaffComposition } from "@/lib/precog/types";
 import { localDateKey, formatDay, formatDayNear, formatDayRange } from "../dates";
-import { joinWithAnd, verb, firstName, count } from "../text";
+import { joinWithAnd, verb, firstName, count, midSentence } from "../text";
 import { procedureAttention } from "../procedures/attention";
 import type { Procedure } from "../procedures/types";
 
@@ -79,6 +87,15 @@ interface WeeklyAction {
   processId?: string;
   /** The prosecuted cases this action rests on, where the library has any. */
   evidence?: ActionEvidence;
+  /**
+   * The duty pair (conflict rule) the action splits, so the one action plan
+   * (headline/action-plan) lists it once with any other step on that pair.
+   */
+  ruleId?: string;
+  /** For a hand-off: the person who holds both duties of the pair. */
+  personId?: string;
+  /** For a hand-off: the duty a second person takes. */
+  handedDuty?: EntitlementId;
 }
 
 interface ActionEvidence {
@@ -269,6 +286,8 @@ interface WeeklyContext {
   debriefing: Set<string>;
   /** Entries a leaver must hand off: advised as part of their hand-off, not as ordinary cross-training on top. */
   handingOver: Set<string>;
+  /** The duty conflicts, read once with the business's controls and dual release. */
+  conflicts: DetectedConflict[];
 }
 
 function weeklyContext(input: WeeklyActionsInput): WeeklyContext {
@@ -309,6 +328,8 @@ function weeklyContext(input: WeeklyActionsInput): WeeklyContext {
         .filter((l) => l.status === "notice")
         .flatMap((l) => l.handover.map((h) => h.item.id)),
     ),
+    conflicts: detectSodConflicts(tpl, input.staff, sodDetectionOptions(tpl, input.dualRelease))
+      .conflicts,
   };
 }
 
@@ -386,21 +407,25 @@ function dualControlActions({ tpl, input }: WeeklyContext): WeeklyAction[] {
  * Split only what an employee holds, once per gap: the owner's own pairs
  * have no one to move to and are handled by the outside-reader step.
  */
-function sodSplitActions({ tpl, input }: WeeklyContext): WeeklyAction[] {
-  const sod = detectSodConflicts(tpl, input.staff, sodDetectionOptions(tpl, input.dualRelease));
-  return sod.conflicts
+function sodSplitActions(ctx: WeeklyContext): WeeklyAction[] {
+  return splitConflicts(ctx).map((c) => ({
+    id: `sod-${c.ruleId}`,
+    title: `Split ${c.labelA.toLowerCase()} from ${c.labelB.toLowerCase()}`,
+    why: c.why || "One role holds duties that conflict.",
+    effort: "medium",
+    tab: "sod",
+    priority: PRIORITY.sodSplit,
+    evidence: evidenceFor(casesForSodRules([c.ruleId])),
+    ruleId: c.ruleId,
+  }));
+}
+
+/** The critical pairs an employee holds that the plan splits outright, one per gap. */
+function splitConflicts({ conflicts }: WeeklyContext): DetectedConflict[] {
+  return conflicts
     .filter((x) => x.severity === "critical" && !x.ownerHeld)
     .filter((x, i, all) => all.findIndex((o) => o.ruleId === x.ruleId) === i)
-    .slice(0, MAX_PER_SOURCE)
-    .map((c) => ({
-      id: `sod-${c.ruleId}`,
-      title: `Split ${c.labelA.toLowerCase()} from ${c.labelB.toLowerCase()}`,
-      why: c.why || "One role holds duties that conflict.",
-      effort: "medium",
-      tab: "sod",
-      priority: PRIORITY.sodSplit,
-      evidence: evidenceFor(casesForSodRules([c.ruleId])),
-    }));
+    .slice(0, MAX_PER_SOURCE);
 }
 
 /**
@@ -851,8 +876,14 @@ function residualActions(
   return actions;
 }
 
-/** Until the map is the owner's, one action to make it so; after that, hot and unowned processes. */
-function mapActions({ tpl, input, mapReady }: WeeklyContext): WeeklyAction[] {
+/**
+ * Until the map is the owner's, one action to make it so; after that, hot and
+ * unowned processes. A hot process reads as the control its worst open duty
+ * conflict needs, named for the person who holds it; a hot process with no
+ * open conflict that the week's other actions leave unnamed gives no action.
+ */
+function mapActions(ctx: WeeklyContext): WeeklyAction[] {
+  const { tpl, input, mapReady, conflicts } = ctx;
   if (!mapReady) {
     const starterCount = tpl.processes.length;
     return [
@@ -876,21 +907,29 @@ function mapActions({ tpl, input, mapReady }: WeeklyContext): WeeklyAction[] {
     ];
   }
   const snapshots = input.mapSnapshots ?? [];
-  const hot: WeeklyAction[] = snapshots
-    .filter((s) => s.heat >= HEAT_BANDS.hot)
-    .slice(0, MAX_PER_SOURCE)
-    .map((snap) => {
-      const gaps = snap.controlGaps.filter((c) => !c.segregated).length;
-      return {
-        id: `map-heat-${snap.process.id}`,
-        title: `Review hot process: ${snap.process.name}`,
-        why: `Heat ${snap.heat} — ${count(snap.risks.length, "risk")}${gaps ? `, ${count(gaps, "duty-conflict gap")}` : ""}. Open the map builder to assign owners and controls.`,
-        effort: gaps > 0 ? "medium" : "low",
-        tab: "map",
-        processId: snap.process.id,
-        priority: Math.min(92, snap.heat + 5),
-      };
-    });
+  const open = openFindings(conflicts, partialDualReleaseCoverage(input.dualRelease, conflicts));
+  // The report's concentration sentence ("moving one duty, X, ... closes N"):
+  // a hand-off for that person moves the same duty, so the two never disagree.
+  const moved = concentrationHeadline(open);
+  // Each pair and each hand-off is named once across the week's actions.
+  const named = new Set(splitConflicts(ctx).map((c) => c.ruleId));
+  const handedOff = new Set<string>();
+  const hot: WeeklyAction[] = [];
+  for (const snap of snapshots.filter((s) => s.heat >= HEAT_BANDS.hot)) {
+    if (hot.length >= MAX_PER_SOURCE) break;
+    const pick = open
+      .filter((x) => x.processIds.includes(snap.process.id) && !named.has(x.ruleId))
+      .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.score - a.score)
+      .map((x) => ({ c: x, handed: handOff(x, moved) }))
+      .find(
+        (x): x is { c: DetectedConflict; handed: EntitlementId } =>
+          x.handed !== null && !handedOff.has(`${x.c.personId}:${x.handed}`),
+      );
+    if (!pick) continue;
+    named.add(pick.c.ruleId);
+    handedOff.add(`${pick.c.personId}:${pick.handed}`);
+    hot.push(hotProcessAction(snap, pick.c, pick.handed));
+  }
   const unowned: WeeklyAction[] = snapshots
     .filter((s) => !s.owners.length)
     .slice(0, 1)
@@ -904,6 +943,111 @@ function mapActions({ tpl, input, mapReady }: WeeklyContext): WeeklyAction[] {
       priority: PRIORITY.unownedProcess,
     }));
   return [...hot, ...unowned];
+}
+
+const SEVERITY_RANK: Record<DetectedConflict["severity"], number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  family: 3,
+};
+
+/**
+ * Which of a conflict's two duties a second person takes, first choice first.
+ * The check before the act comes first: someone else reconciles, reviews,
+ * approves or confirms the delivery, so the bank reconciliation moves before
+ * the deposit and the approval before the entry it approves. A pair with no
+ * check hands off the power to change who or what the records hold
+ * (suppliers, employee records, system access, write-offs, manual journal
+ * entries), else the money itself. A routine entry (recording payments
+ * received, entering payroll or bills, issuing invoices or claims) is never
+ * handed off: a second person who only makes entries checks nothing, so a
+ * pair of two routine entries gives no hand-off.
+ */
+export const HAND_OFF_ORDER: readonly EntitlementId[] = [
+  // The check.
+  "bank_reconcile",
+  "review_card_statement",
+  "review_audit_logs",
+  "approve_writeoffs",
+  "approve_invoices",
+  "approve_vendor",
+  "approve_payroll",
+  "approve_expenses",
+  "receive_goods",
+  // The power to change who or what the records hold.
+  "create_vendor",
+  "edit_payroll_master",
+  "pms_admin_roles",
+  "manage_user_access",
+  "edit_patient_master",
+  "change_fee_schedule",
+  "post_adjustments",
+  "post_journal_entries",
+  // The money.
+  "release_payment",
+  "sign_checks",
+  "initiate_ach",
+  "issue_refunds",
+  "prepare_deposit",
+  "collect_cash",
+  "hold_company_card",
+  "order_supplies",
+  "manage_backups",
+  "export_bulk_data",
+];
+
+/**
+ * The duty a second person takes from the person who holds both: the duty
+ * the report's concentration sentence moves for that person when the pair
+ * has it, so the week's step and that sentence move the same duty; else the
+ * first of the two in HAND_OFF_ORDER. Null when neither is in it.
+ */
+function handOff(
+  c: DetectedConflict,
+  moved: { personId: string; duty: EntitlementId } | null,
+): EntitlementId | null {
+  if (moved?.personId === c.personId && [c.entitlementA, c.entitlementB].includes(moved.duty)) {
+    return moved.duty;
+  }
+  const rank = (duty: EntitlementId) => {
+    const i = HAND_OFF_ORDER.indexOf(duty);
+    return i === -1 ? Infinity : i;
+  };
+  const first = rank(c.entitlementA) <= rank(c.entitlementB) ? c.entitlementA : c.entitlementB;
+  return rank(first) === Infinity ? null : first;
+}
+
+/**
+ * A hot process as the control its worst open conflict needs: someone other
+ * than the person who holds both duties takes one of them, for example "Have
+ * someone other than Dana reconcile the bank account". The reason names the
+ * process only when both duties belong to it.
+ */
+function hotProcessAction(
+  snap: ProcessMapSnapshot,
+  c: DetectedConflict,
+  handedDuty: EntitlementId,
+): WeeklyAction {
+  const first = firstName(c.personName);
+  const [handed, kept] =
+    handedDuty === c.entitlementA ? [c.labelA, c.labelB] : [c.labelB, c.labelA];
+  const inProcess = [c.entitlementA, c.entitlementB].every((duty) =>
+    entitlementProcesses(duty).includes(snap.process.id),
+  );
+  return {
+    id: `map-heat-${snap.process.id}`,
+    title: `Have someone other than ${first} ${midSentence(handed)}`,
+    why: `${inProcess ? `In ${snap.process.name}, ` : ""}${first} can both ${midSentence(kept)} and ${midSentence(handed)}. ${c.why}`,
+    effort: "medium",
+    tab: "map",
+    processId: snap.process.id,
+    priority: Math.min(92, snap.heat + 5),
+    evidence: evidenceFor(casesForSodRules([c.ruleId])),
+    ruleId: c.ruleId,
+    personId: c.personId,
+    handedDuty,
+  };
 }
 
 const STEP_VERB: Record<ContinuityCommitment["step"], string> = {

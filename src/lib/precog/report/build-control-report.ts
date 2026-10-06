@@ -28,12 +28,12 @@ import {
   recommendedStepsForRules,
 } from "../evidence";
 import {
-  dualReleaseSplit,
   openFindings,
   openSeverityCounts,
   partialDualReleaseCoverage,
   ruleIdsOf,
 } from "../sod/open-findings";
+import { openConflictHeadline } from "../headline/open-conflicts";
 import { rankFirstSteps } from "../coach/first-steps";
 import { buildWeeklyActions } from "../weekly-actions/build";
 import { buildProcessMapGraph } from "../process-graph";
@@ -199,11 +199,11 @@ export function buildControlReportModel({
       : null;
   const registerReady = registerAssessed(tpl);
   const summary = executiveSummary({
-    openConflicts: open,
-    ownerHeldPairs: sod.conflicts.filter((c) => c.ownerHeld).length,
-    // The same count the duty-conflict section prints beside the open ones.
-    dualReleaseClosedPairs: dualReleaseSplit(sod.conflicts, partialCoverage).closed,
+    // The rows and the count the conflict table prints, with the owner's own
+    // pairs and the pairs dual release closes counted apart, as that section does.
+    conflicts: openConflictHeadline(sod, partialCoverage),
     firstStep: steps[0]?.control.label ?? null,
+    firstStepId: steps[0]?.control.id ?? null,
     registerReady,
     coverageIndex: continuity.coverageIndex,
     singlePoints: continuity.singlePoints.length,

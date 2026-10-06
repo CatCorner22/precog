@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { IndustryId } from "@/lib/precog/industry";
@@ -14,6 +14,9 @@ const SHOWN = 6;
  * do when one person has to do both halves of the work (in this line of
  * business's own words where it has them), and the guidance it follows.
  * Starting one opens the editor with the steps marked as suggestions.
+ * `highlightId` (a conflict card's link) shows that recommendation even when
+ * it would sit under "Show all", marks it with its Start button in the
+ * primary style, and scrolls to it.
  */
 export function RecommendedCard({
   rows,
@@ -21,6 +24,7 @@ export function RecommendedCard({
   itemName,
   nameOf,
   disabled,
+  highlightId,
   onStart,
 }: {
   rows: readonly LibraryRow[];
@@ -28,12 +32,25 @@ export function RecommendedCard({
   itemName: (id: string) => string | undefined;
   nameOf: (id: string) => string | null;
   disabled: boolean;
+  /** The recommendation a link asked for, marked and scrolled to. */
+  highlightId?: string | null;
   onStart: (row: LibraryRow) => void;
 }) {
   const [showAll, setShowAll] = useState(false);
+  const highlightedItem = useRef<HTMLLIElement>(null);
+  const highlighted = rows.find((r) => r.recommendation.id === highlightId) ?? null;
+  // Only when a link arrives (the panel mounts again for each one), not on every change to the list.
+  useEffect(() => {
+    highlightedItem.current?.scrollIntoView({ block: "center" });
+  }, [highlightId]);
   if (rows.length === 0) return null;
   const fitting = rows.filter((r) => r.fits);
-  const shown = showAll ? rows : fitting.slice(0, SHOWN);
+  const firstShown = fitting.slice(0, SHOWN);
+  const shown = showAll
+    ? rows
+    : highlighted && !firstShown.includes(highlighted)
+      ? [highlighted, ...firstShown]
+      : firstShown;
   const hidden = rows.length - shown.length;
   return (
     <Card>
@@ -56,15 +73,26 @@ export function RecommendedCard({
             const holders = row.heldBy.map(nameOf).filter(Boolean);
             const fallback = ifYouCannotSeparateFor(r, industry);
             return (
-              <li key={r.id} className="rounded-lg border border-border p-3">
+              <li
+                key={r.id}
+                ref={row === highlighted ? highlightedItem : undefined}
+                id={`recommended-${r.id}`}
+                aria-current={row === highlighted || undefined}
+                className="rounded-lg border border-border p-3 aria-[current=true]:border-primary/60 aria-[current=true]:bg-primary/5"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 [overflow-wrap:anywhere]">
                     <p className="font-medium">{r.title}</p>
                     <p className="text-xs text-muted">{r.purpose}</p>
+                    {row === highlighted && (
+                      <p className="mt-1 text-xs text-primary">
+                        The procedure for the duty conflict you came from.
+                      </p>
+                    )}
                   </div>
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant={row === highlighted ? "default" : "outline"}
                     className="h-7 shrink-0 px-2 text-xs"
                     aria-label={`Start from the recommended procedure: ${r.title}`}
                     disabled={disabled}

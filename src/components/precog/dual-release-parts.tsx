@@ -1,7 +1,7 @@
 import { CheckCircle2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { ReleaseEvaluation } from "@/lib/precog/controls/dual-release";
-import { cn, formatUsd } from "@/lib/utils";
+import { cn, formatUsdTyped } from "@/lib/utils";
 import { exceptionActionLabel, RELEASE_STATUS_LABEL } from "./dual-release-constants";
 
 export function DualReleaseEvalResult({ eval: result }: { eval: ReleaseEvaluation }) {
@@ -21,14 +21,14 @@ export function DualReleaseEvalResult({ eval: result }: { eval: ReleaseEvaluatio
         )}
         <Badge variant={ok ? "ok" : "danger"}>{RELEASE_STATUS_LABEL[result.status]}</Badge>
         <span className="text-xs text-muted">
-          {formatUsd(result.amountUsd)} ·{" "}
+          {formatUsdTyped(result.amountUsd)} ·{" "}
           {result.dualWaived ? (
             <span className="text-danger">waiver: no second signer needed at any amount</span>
           ) : result.dualForced ? (
             <span>two signers needed at every amount</span>
           ) : (
             <>
-              two signers needed above {formatUsd(result.thresholdUsd)}
+              two signers needed above {formatUsdTyped(result.thresholdUsd)}
               {result.thresholdUsd === 0 && <span className="text-subtle"> (every amount)</span>}
             </>
           )}
@@ -37,7 +37,7 @@ export function DualReleaseEvalResult({ eval: result }: { eval: ReleaseEvaluatio
             result.baseThresholdUsd !== result.thresholdUsd) && (
             <span className="text-subtle">
               {" "}
-              (channel threshold {formatUsd(result.baseThresholdUsd)})
+              (channel threshold {formatUsdTyped(result.baseThresholdUsd)})
             </span>
           )}
         </span>
