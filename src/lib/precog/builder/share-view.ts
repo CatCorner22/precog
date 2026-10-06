@@ -1,4 +1,4 @@
-import { PASSCODE_ATTEMPT_LIMIT, PASSCODE_ATTEMPT_WINDOW_MINUTES } from "../share/share-attempts";
+import { PASSCODE_ATTEMPT_LIMIT, PASSCODE_ATTEMPT_WINDOW_MINUTES } from "../share/share-limits";
 import { FREQUENCY_LABEL, type EvidenceStatus } from "./evidence";
 import type { EvidenceFrequency } from "../types";
 import { firstName } from "../text";

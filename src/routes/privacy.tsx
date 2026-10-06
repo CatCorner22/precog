@@ -10,7 +10,7 @@ import {
   XAI_API_DATA_POLICY_URL,
   isPlaceholder,
 } from "@/lib/precog/legal/operator";
-import { PASSCODE_ATTEMPT_RETENTION_DAYS } from "@/lib/precog/share/share-attempts";
+import { PASSCODE_ATTEMPT_RETENTION_DAYS } from "@/lib/precog/share/share-limits";
 import { SHARE_VIEW_RETENTION_DAYS } from "@/lib/precog/share/share-store";
 
 export const Route = createFileRoute("/privacy")({

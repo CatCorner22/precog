@@ -175,7 +175,12 @@ export default defineConfig(({ command }) => ({
     // Build-time server-function ids come from our own helper (same formula as
     // TanStack's default), so scripts/e2e-account-safety.mjs can address a
     // server function without reading the compiled bundle.
-    tanstackStart({ serverFns: { generateFunctionId: serverFunctionId } }),
+    tanstackStart({
+      serverFns: { generateFunctionId: serverFunctionId },
+      // Tests beside the routes (src/routes/*.test.tsx) are not routes; without
+      // this the generator warns about each of them on every dev start and build.
+      router: { routeFileIgnorePattern: "\\.test\\.(ts|tsx)$" },
+    }),
     ...(command === "build"
       ? [
           nitro({
