@@ -37,6 +37,12 @@ async function insuranceAndMapHistory(page, errors) {
   await page.getByRole("button", { name: "Explore the sample instead" }).click();
   await page.goto(`${base}/?tab=precog`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Settings and insurance", exact: true }).click();
+  // Only a theft or fraud scenario can be modeled as covered by a crime
+  // policy; the sample opens on a staffing scenario, so pick the cash one.
+  await page
+    .getByLabel("Scenario for these figures", { exact: true })
+    .getByRole("button", { name: "One person posts payments and reconciles the bank" })
+    .click();
   const status = page.getByRole("combobox", { name: "Insurance information status", exact: true });
   await status.selectOption("reported");
   const assumption = page.getByRole("checkbox", {
@@ -82,6 +88,10 @@ async function insuranceAndMapHistory(page, errors) {
   step("insurance: reload retains explicit status and the exact premium");
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Settings and insurance", exact: true }).click();
+  await page
+    .getByLabel("Scenario for these figures", { exact: true })
+    .getByRole("button", { name: "One person posts payments and reconciles the bank" })
+    .click();
   assert.equal(await status.inputValue(), "reported");
   assert.equal(await premium.inputValue(), "1234.56");
   await status.selectOption("unknown");
