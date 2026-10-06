@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { useWorkspace, type Workspace } from "@/lib/precog/workspace-context";
 import { scopedBrowserStorage } from "@/lib/precog/workspace-storage";
 import { clearLocalCopies } from "@/lib/precog/local-data";
@@ -38,23 +37,42 @@ const noSubscription = () => () => undefined;
 /**
  * The crash screen's workspace. Null storage while the server renders and
  * while the page hydrates (the server has no browser storage, so the buttons
- * match its markup), and while the account is still being checked.
+ * match its markup), and while the account is still being checked. Outside
+ * the workspace the account is read on demand (`./auth/session-account`), so
+ * every public page that only carries this screen does not load the auth
+ * client.
  */
 function useRecoveryWorkspace(): Workspace {
   const context = useWorkspace();
-  const { user, isPending } = useCurrentUserState();
   const hydrated = useSyncExternalStore(
     noSubscription,
     () => true,
     () => false,
   );
-  const accountId = user?.id ?? null;
+  const [account, setAccount] = useState<{ checked: boolean; id: string | null }>({
+    checked: false,
+    id: null,
+  });
+  const inWorkspace = context.local !== null;
+  useEffect(() => {
+    if (!hydrated || inWorkspace) return;
+    let cancelled = false;
+    import("@/lib/auth/session-account")
+      .then((m) => m.currentAccountId())
+      .then(
+        (id) => !cancelled && setAccount({ checked: true, id }),
+        () => !cancelled && setAccount({ checked: true, id: null }),
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, inWorkspace]);
   return useMemo(() => {
-    if (!hydrated || (isPending && !context.local)) {
+    if (!hydrated || (!inWorkspace && !account.checked)) {
       return { accountId: context.accountId, local: null, session: null };
     }
-    return recoveryWorkspace(context, accountId);
-  }, [context, hydrated, isPending, accountId]);
+    return recoveryWorkspace(context, account.id);
+  }, [context, hydrated, inWorkspace, account]);
 }
 
 /**
