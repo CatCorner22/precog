@@ -131,6 +131,13 @@
  * signed-out pages do not load either module, so their first-load figures in
  * scripts/perf-first-load.mjs are unchanged. Total budget lowered from 832 KB
  * to 820 KB.
+ *
+ * 2026-10-06: the review-fix programme (wave 1: save safety, crash recovery,
+ * report truth and share privacy; wave 2: CPA workflow and procedures) adds
+ * code before wave 4 removes some. Measured 816.0 KB in 132 chunks at the
+ * start of wave 1. Total budget raised from 820 KB to 845 KB so each wave's
+ * verify holds; slice S43 in wave 4 loads the inactive industry templates on
+ * demand and lowers the budget to the measured total plus 2 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -139,7 +146,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 820 * 1024,
+  totalGzipBytes: 845 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
