@@ -405,6 +405,9 @@ export function localSynthesize(
     topActions: string[];
   } | null;
 
+  const scenario = tools.find((t) => t.tool === "run_precog_scenario")
+    ?.data as ScenarioRunData | null;
+
   const cas = tools.find((t) => t.tool === "simulate_variable_cascades")?.data as {
     topByCostOfRisk?: {
       label: string;
@@ -884,6 +887,14 @@ export function localSynthesize(
     leading
       ? `- **${leading.breached} breached**, ${leading.watch} at watch (thresholds set in Precog, not benchmarks)`
       : "- Not checked in this run",
+    ...(scenario?.warningSigns?.length
+      ? [
+          `- Early signs of "${scenario.title}": ${scenario.warningSigns
+            .slice(0, 3)
+            .map((sign) => sign.replace(/\.$/, ""))
+            .join("; ")}.`,
+        ]
+      : []),
     "",
     `## ${BRIEF_SECTION.cascades}`,
     ...variableCascades.map((c) => `- ${c}`),

@@ -36,6 +36,7 @@ import type { FirmSnapshot } from "@/lib/precog/firm/store";
 import { ReportVersionsPanel } from "@/components/precog/report-versions";
 import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
 import { fixFirstOf } from "@/lib/precog/threat-scoring";
+import { scenarioUnfolding } from "@/lib/precog/scenario-unfolding";
 import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import {
   lockedFigures,
@@ -140,6 +141,15 @@ export function ControlReport({
       ? recalculationNote(figures.reason, formatDay(localDateKey(new Date())))
       : null;
   const { threat, portfolio, sod, sodOpen, sodLevel, mapHealth, healthDelta, decisionLog } = data;
+  const warningScenarios = !storedModel
+    ? threat.targetDeck
+        .filter((target) => target.kind === "scenario")
+        .flatMap((target) => {
+          const unfolding = target.processId ? scenarioUnfolding(target.processId) : null;
+          return unfolding ? [{ target, unfolding }] : [];
+        })
+        .slice(0, 3)
+    : [];
   const { byConflict: responses, notValid } = data.responses;
   const sodNote = belowThresholdNote(sodOpen);
   // Pairs dual release reduces stay among the open conflicts; count them once.
@@ -492,6 +502,27 @@ export function ControlReport({
             </p>
           )}
         </Section>
+
+        {warningScenarios.length > 0 && (
+          <Section title="Warning signs to watch">
+            <p className="mb-3 text-sm text-neutral-700">
+              What you can notice before a loss surfaces, for the scenarios at the top of the
+              priority stack.
+            </p>
+            <div className="space-y-3">
+              {warningScenarios.map(({ target, unfolding }) => (
+                <div key={target.id}>
+                  <p className="font-medium">{target.label}</p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-neutral-700">
+                    {unfolding.warningSigns.map((sign) => (
+                      <li key={sign}>{sign}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
 
         <Section title="Segregation of duties">
           <p className="text-sm text-neutral-700">
