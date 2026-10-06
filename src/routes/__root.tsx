@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import {
   createRootRoute,
   HeadContent,
@@ -67,6 +67,9 @@ export const Route = createRootRoute({
     };
   },
   beforeLoad: ({ location }) => preloadPracticeShell(location.pathname),
+  // The document stays around the page and around the crash screen alike, so
+  // an error caught at the root still renders inside <html> and <body>.
+  shellComponent: RootShell,
   component: RootDocument,
   notFoundComponent: NotFound,
 });
@@ -117,8 +120,25 @@ function CheckingAccount() {
   );
 }
 
-function RootDocument() {
+/** The document: head, banner, toasts and scripts, around every page and the crash screen. */
+function RootShell({ children }: { children: ReactNode }) {
   useEffect(() => installGlobalErrorReporting(), []);
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <HeadContent />
+      </head>
+      <body className="min-h-dvh bg-bg text-fg antialiased">
+        <CreatedWithGrokBanner />
+        {children}
+        <Toaster richColors position="bottom-right" />
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+
+function RootDocument() {
   useScrollToHash();
   const practicePage = useMatches({
     select: (matches) => needsPractice(matches.map((m) => m.routeId)),
@@ -129,31 +149,21 @@ function RootDocument() {
   const [practiceOpened, setPracticeOpened] = useState(practicePage);
   if (practicePage && !practiceOpened) setPracticeOpened(true);
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <HeadContent />
-      </head>
-      <body className="min-h-dvh bg-bg text-fg antialiased">
-        <CreatedWithGrokBanner />
-        <AuthProvider>
-          <PresentationProvider>
-            {!practicePage && <Outlet />}
-            {/* Hidden on a public page, so its account check never stands in
-                for that page. */}
-            {practiceOpened && (
-              <div hidden={!practicePage}>
-                <Suspense fallback={<CheckingAccount />}>
-                  <PracticeShell open={practicePage}>
-                    <Outlet />
-                  </PracticeShell>
-                </Suspense>
-              </div>
-            )}
-          </PresentationProvider>
-        </AuthProvider>
-        <Toaster richColors position="bottom-right" />
-        <Scripts />
-      </body>
-    </html>
+    <AuthProvider>
+      <PresentationProvider>
+        {!practicePage && <Outlet />}
+        {/* Hidden on a public page, so its account check never stands in
+            for that page. */}
+        {practiceOpened && (
+          <div hidden={!practicePage}>
+            <Suspense fallback={<CheckingAccount />}>
+              <PracticeShell open={practicePage}>
+                <Outlet />
+              </PracticeShell>
+            </Suspense>
+          </div>
+        )}
+      </PresentationProvider>
+    </AuthProvider>
   );
 }
