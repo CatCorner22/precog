@@ -13,7 +13,7 @@ import { insuranceFigureNote } from "@/lib/precog/scoring/dynamic-variables";
 import { confirmedScenarioIds, isOwnBusiness } from "@/lib/precog/scoring/scope";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatUsd, formatUsdDelta, cn } from "@/lib/utils";
+import { formatEstimateUsd, formatEstimateUsdDelta, formatUsd, cn } from "@/lib/utils";
 import { GitBranch } from "lucide-react";
 
 export function CascadePanel() {
@@ -112,7 +112,7 @@ export function CascadePanel() {
                     dRet < 0 ? "text-ok" : dRet > 0 ? "text-danger" : "text-muted",
                   )}
                 >
-                  Retained loss {formatUsdDelta(dRet)}
+                  Retained loss {formatEstimateUsdDelta(dRet)}
                 </span>
               </button>
             );
@@ -217,20 +217,21 @@ export function CascadePanel() {
   );
 }
 
-type MetricUnit = "usd" | "factor" | "index" | "pct" | "days" | "count";
+/** "usd" is a premium the owner's terms set, printed exactly; "estimate" is scenario dollars, rounded. */
+type MetricUnit = "usd" | "estimate" | "factor" | "index" | "pct" | "days" | "count";
 
 /** How each snapshot figure reads; a new MetricSnapshot key must name its unit here. */
 const METRIC_UNIT: Record<keyof MetricSnapshot, MetricUnit> = {
   likelihoodMultiplier: "factor",
   grossSeverityMultiplier: "factor",
   detectionLagMultiplier: "factor",
-  grossExpected: "usd",
-  retainedExpected: "usd",
-  transferredExpected: "usd",
+  grossExpected: "estimate",
+  retainedExpected: "estimate",
+  transferredExpected: "estimate",
   premiumAnnualNet: "usd",
   discountPctApplied: "pct",
-  expectedAnnualCostOfRisk: "usd",
-  eventPlusPremiumExpected: "usd",
+  expectedAnnualCostOfRisk: "estimate",
+  eventPlusPremiumExpected: "estimate",
   timelineP50: "days",
   residualAverage: "index",
   residualCriticalPath: "count",
@@ -240,6 +241,8 @@ function formatMetric(key: keyof MetricSnapshot, n: number): string {
   switch (METRIC_UNIT[key]) {
     case "usd":
       return formatUsd(n);
+    case "estimate":
+      return formatEstimateUsd(n);
     case "factor":
     case "index":
       return n.toFixed(2);
@@ -253,6 +256,8 @@ function formatMetricChange(key: keyof MetricSnapshot, delta: number): string {
   switch (METRIC_UNIT[key]) {
     case "usd":
       return formatUsd(Math.abs(delta));
+    case "estimate":
+      return formatEstimateUsd(Math.abs(delta));
     case "factor":
     case "index":
       return delta.toFixed(2);

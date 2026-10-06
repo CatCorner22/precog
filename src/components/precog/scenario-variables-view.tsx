@@ -8,7 +8,7 @@ import {
 import { DynamicVariablesPanel } from "@/components/precog/dynamic-variables-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn, formatUsd } from "@/lib/utils";
+import { cn, formatEstimateUsd } from "@/lib/utils";
 import { ILLUSTRATIVE_LABEL } from "@/lib/precog/scoring/scenario-level";
 import { FigureTile } from "./figure-tile";
 
@@ -91,12 +91,12 @@ export function ScenarioVariablesView({
             />
             <FigureTile
               label="Assumed loss if it happens"
-              value={formatUsd(result.financialImpact.expected)}
+              value={formatEstimateUsd(result.financialImpact.expected)}
               hint="before insurance"
             />
             <FigureTile
               label="Assumed retained loss"
-              value={formatUsd(result.retainedImpact.expected)}
+              value={formatEstimateUsd(result.retainedImpact.expected)}
               hint={withPolicyNote(noPolicy ? "all of it" : "after deductible and limit")}
             />
           </CardContent>
