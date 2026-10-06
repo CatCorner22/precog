@@ -79,7 +79,7 @@ export function TabStrip({
         // trailing padding keeps the last tab clear of the pinned control.
         className={cn(
           "relative mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6 [scrollbar-width:thin]",
-          trailing && "pr-44 sm:pr-48",
+          trailing && "pr-36 sm:pr-40",
         )}
       >
         {children}
@@ -99,7 +99,8 @@ export function TabStrip({
         )}
       />
       {trailing && (
-        <div className="pointer-events-none absolute top-0 right-0 bottom-3 flex items-center bg-gradient-to-l from-bg via-bg to-transparent pr-4 pl-16 sm:pr-6">
+        <div className="pointer-events-none absolute top-0 right-0 bottom-3 flex items-center bg-bg pr-4 pl-2 sm:pr-6">
+          <div className="pointer-events-none absolute inset-y-0 right-full w-8 bg-gradient-to-l from-bg to-transparent" />
           <div className="pointer-events-auto">{trailing}</div>
         </div>
       )}

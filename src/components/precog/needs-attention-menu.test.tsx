@@ -6,6 +6,7 @@ import {
   type ReviewRecord,
 } from "@/lib/precog/firm/reviews";
 import type { Person } from "@/lib/precog/types";
+import { buildNeedsAttentionItems, openNeedsAttentionItem } from "./needs-attention-menu.logic";
 import { NeedsAttentionMenu } from "./needs-attention-menu";
 
 const state = vi.hoisted(() => ({
@@ -72,5 +73,41 @@ describe("Needs attention menu", () => {
   it("counts the month's open checks from the 5th, as the reminders do", () => {
     state.today = new Date(2026, 9, 5);
     expect(view()).toContain("Needs attention (5)");
+  });
+
+  it("opens a leaver reminder at the leaving section", () => {
+    const [leavers] = buildNeedsAttentionItems({
+      overdue: 0,
+      slipped: 0,
+      leavers: 1,
+      monthly: 0,
+    });
+    const onOpen = vi.fn();
+
+    openNeedsAttentionItem(leavers, onOpen);
+
+    expect(onOpen).toHaveBeenCalledWith("knowledge", "leaving");
+  });
+
+  it("opens monthly reminders at checks and keeps journal reminders on their alias", () => {
+    const items = buildNeedsAttentionItems({
+      overdue: 1,
+      slipped: 1,
+      leavers: 0,
+      monthly: 1,
+    });
+    const onOpen = vi.fn();
+
+    openNeedsAttentionItem(
+      items.find((item) => item.id === "monthly")!,
+      onOpen,
+    );
+    expect(onOpen).toHaveBeenLastCalledWith("monthly", "checks");
+
+    openNeedsAttentionItem(
+      items.find((item) => item.id === "overdue")!,
+      onOpen,
+    );
+    expect(onOpen).toHaveBeenLastCalledWith("journal");
   });
 });

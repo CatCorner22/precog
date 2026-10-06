@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   DependenceCard,
   LeavingTeamCard,
@@ -20,6 +21,16 @@ import { useContinuityPlanner } from "@/components/precog/continuity/use-continu
 export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?: string | null }) {
   const p = useContinuityPlanner(initialKnowledgeId);
   const select = p.register.select;
+
+  useEffect(() => {
+    if (initialKnowledgeId !== "leaving") return;
+    const frame = requestAnimationFrame(() => {
+      const section = document.getElementById("leaving");
+      section?.scrollIntoView({ block: "start" });
+      section?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [initialKnowledgeId]);
 
   return (
     <div className="space-y-4">
@@ -73,12 +84,14 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
             journal={p.journal}
             onSelect={select}
           />
-          <LeavingTeamCard
-            leaving={p.leaving}
-            today={p.today}
-            journal={p.journal}
-            onSelect={select}
-          />
+          <section id="leaving" tabIndex={-1} aria-label="Leaving the team">
+            <LeavingTeamCard
+              leaving={p.leaving}
+              today={p.today}
+              journal={p.journal}
+              onSelect={select}
+            />
+          </section>
           <StandInSuggestionsCard />
           <DependenceCard registerAssessed={p.registerAssessed} report={p.report} />
         </div>
