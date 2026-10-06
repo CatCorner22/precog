@@ -118,6 +118,7 @@ export function ControlReport({
     figures && "model" in figures ? figures.layoutVersion : REPORT_LAYOUT_VERSION;
   const layoutOne = layoutVersion === 1;
   const layoutThree = layoutVersion >= 3;
+  const layoutFour = layoutVersion >= 4;
   const kindLabel = layoutThree ? DECISION_KIND_LABEL : DECISION_KIND_LABEL_PRINTED_V1;
   const data = useMemo(
     () =>
@@ -142,7 +143,15 @@ export function ControlReport({
   const { byConflict: responses, notValid } = data.responses;
   const sodNote = belowThresholdNote(sodOpen);
   // Pairs dual release reduces stay among the open conflicts; count them once.
+  // Layouts 1 to 3 also counted the owner's own pairs dual release covers at
+  // every amount as covered; their locked versions print that count.
   const dual = dualReleaseSplit(sod.conflicts, data.partialCoverage);
+  const dualClosed = layoutFour
+    ? dual.closed
+    : dual.closed +
+      sod.conflicts.filter(
+        (c) => c.ownerHeld && c.dualReleaseMitigated && !data.partialCoverage.has(c.ruleId),
+      ).length;
   const mapIssues = data.issues.filter((i) => i.severity !== "info");
   const sodRows = sod.conflicts
     .slice()
@@ -488,7 +497,7 @@ export function ControlReport({
           <p className="text-sm text-neutral-700">
             {sod.summary.critical} critical, {sod.summary.high} high, {sod.summary.medium} medium
             open conflicts across {sod.summary.peopleWithConflicts} of {sod.assignments.length}{" "}
-            people. {dual.closed} covered by dual release at every amount.
+            people. {dualClosed} covered by dual release at every amount.
             {dual.reduced > 0 &&
               ` ${dual.reduced} more reduced by dual release but not closed, counted open above.`}
           </p>
@@ -594,6 +603,7 @@ export function ControlReport({
           lossRange={data.lossRange}
           found={data.found}
           statsScope={data.statsScope}
+          benchmark={data.benchmark}
         />
 
         <ControlReportContinuitySections

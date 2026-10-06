@@ -286,7 +286,7 @@ describe("monthly results past the cap", () => {
       notes: "",
       recordedAt: "2026-01-01T00:00:00.000Z",
     }));
-    expect(trimReviewRecords(plain)).toEqual({ records: plain, removed: 0 });
+    expect(trimReviewRecords(plain)).toEqual({ records: plain, removed: 0, replaced: 0 });
     const next = appendReview(plain, {
       key: "bank_statement",
       period: periodOf(1001),
@@ -295,15 +295,50 @@ describe("monthly results past the cap", () => {
       notes: "",
     });
     expect(next.removed).toBe(1);
+    expect(next.replaced).toBe(0);
     expect(next.records).toHaveLength(MAX_REVIEW_RECORDS);
     expect(next.records.at(-1)).toEqual(plain.at(-2));
-    expect(reviewTrimNotice(next.removed)).toBe(
-      "Precog kept the newest 1,200 monthly results and removed 1 older one.",
+    expect(reviewTrimNotice(next)).toBe(
+      "Precog keeps up to 1,200 monthly results, so it removed 1 result from the oldest months.",
     );
-    expect(reviewTrimNotice(400)).toBe(
-      "Precog kept the newest 1,200 monthly results and removed 400 older ones.",
+    expect(reviewTrimNotice({ removed: 400, replaced: 0 })).toBe(
+      "Precog keeps up to 1,200 monthly results, so it removed 400 results from the oldest months.",
+    );
+    expect(reviewTrimNotice({ removed: 1500, replaced: 1497 })).toBe(
+      "Precog keeps up to 1,200 monthly results, so it removed 1,497 earlier results that a later one replaced for the same check and month, and 3 results from the oldest months.",
     );
     const loaded = normalizeReviewRecords([...plain, ...plain.slice(0, 20)]);
     expect(loaded).toHaveLength(MAX_REVIEW_RECORDS);
+  });
+
+  it("calls a replaced result from this month replaced, not older (RW1-6)", () => {
+    // Full, with this month's first check recorded twice: saving another
+    // result this month removes a result a later one replaced this month,
+    // not one from an old month.
+    const month = periodOf(1000);
+    const plain = Array.from({ length: MAX_REVIEW_RECORDS - 1 }, (_, i) => ({
+      key: CHECKS[i % 4],
+      period: periodOf(1000 - Math.floor(i / 4)),
+      result: "done" as const,
+      ownerName: "Pat",
+      notes: "",
+      recordedAt: "2026-01-01T00:00:00.000Z",
+    }));
+    const twice = [{ ...plain[0], result: "exception" as const }, ...plain];
+    const next = appendReview(twice, {
+      key: CHECKS[1],
+      period: month,
+      result: "done",
+      ownerName: "Pat",
+      notes: "",
+    });
+    expect(next).toMatchObject({ removed: 1, replaced: 1 });
+    // The removed result is this month's replaced one: the oldest month stays whole.
+    expect(next.records.filter((r) => r.period === month && r.key === CHECKS[1])).toHaveLength(1);
+    expect(next.records.at(-1)).toEqual(plain.at(-1));
+    expect(reviewTrimNotice(next)).toBe(
+      "Precog keeps up to 1,200 monthly results, so it removed 1 earlier result that a later one replaced for the same check and month.",
+    );
+    expect(reviewTrimNotice(next)).not.toMatch(/older/);
   });
 });

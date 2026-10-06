@@ -12,6 +12,8 @@ import { clamp } from "../number";
 /** What a scenario that is not theft or fraud says in place of an insurance recovery. */
 export const NOT_INSURED_LOSS = "Not an insured loss under a crime policy";
 const NOT_INSURED_NOTE = `${NOT_INSURED_LOSS}: the business keeps the whole assumed loss.`;
+/** The retained-loss hint on a scenario that is not theft or fraud, wherever a tile shows it. */
+export const NOT_INSURED_HINT = `all of the assumed loss · ${NOT_INSURED_LOSS}`;
 
 interface AppliedDiscount {
   id: string;

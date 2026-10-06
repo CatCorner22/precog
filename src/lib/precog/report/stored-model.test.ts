@@ -98,6 +98,16 @@ describe("stored report model", () => {
     { people: 15, register: 120, procedures: 100 },
     { people: 20, register: 120, procedures: 100 },
     { people: 60, register: 120, procedures: 100 },
+    // RW1-3: from about 250 people the duty-conflict findings alone (each in
+    // full, with its rule's text) took the model past the cap, so no lock went
+    // through. 400 people with 10 register items stored 1,045,182 characters.
+    { people: 250, register: 10, procedures: 10 },
+    { people: 400, register: 10, procedures: 10 },
+    { people: 250, register: 120, procedures: 100 },
+    { people: 400, register: 120, procedures: 100 },
+    { people: 1000, register: 10, procedures: 10 },
+    { people: 1000, register: 120, procedures: 100 },
+    { people: 1000, register: 300, procedures: 200, duties: 3000 },
   ])(
     "stores the figures of an own team of $people people, $register register items and $procedures procedures",
     (size) => {
@@ -113,13 +123,52 @@ describe("stored report model", () => {
     },
   );
 
-  it("marks a 400-person team with a full register too large to store", () => {
-    const frozen = freezeReport(
-      largeBusinessProfile({ people: 400, register: 120, procedures: 100 }),
-      DAY,
+  it("stores the duty-conflict findings as rows on their rule, and revives each exactly", () => {
+    const model = modelFor(largeBusinessProfile({ people: 400, register: 10, procedures: 10 }));
+    const shared = model.sod.conflicts.find(
+      (c, i) =>
+        c.linkedScenarioId &&
+        model.sod.conflicts.findIndex((other) => other.ruleId === c.ruleId) !== i,
     );
-    expect(frozen.model).toBeNull();
-    expect(frozen.tooLarge).toBe(true);
+    expect(shared).toBeDefined();
+    const [first, second] = model.sod.conflicts.filter((c) => c.ruleId === shared!.ruleId);
+    // A finding that differs from its rule's first one in a field, and lacks another.
+    const { linkedScenarioId: _gone, ...withoutScenario } = second;
+    const changed = {
+      ...withoutScenario,
+      residualRiskAccepted: !second.residualRiskAccepted,
+      controlsInPlace: ["Owner reviews every payment"],
+    };
+    const conflicts = model.sod.conflicts.map((c) => (c === second ? changed : c));
+    const edited = { ...model, sod: { ...model.sod, conflicts } };
+    const stored = serializeReportModel(edited);
+    const json = JSON.stringify(stored);
+    // Each rule's explanation is stored once, not once per finding.
+    const findings = model.sod.conflicts.filter((c) => c.why === first.why).length;
+    expect(findings).toBeGreaterThan(2);
+    expect(JSON.stringify(stored.sod).split(JSON.stringify(first.why)).length - 1).toBe(1);
+    const revived = reviveReportModel(JSON.parse(json) as StoredReportModel);
+    expect(revived.sod.conflicts).toEqual(conflicts);
+    expect("linkedScenarioId" in revived.sod.conflicts[conflicts.indexOf(changed)]).toBe(false);
+    expect(revived).toEqual(edited);
+  });
+
+  it("revives a model stored with every finding and list in full", () => {
+    const model = buildReportModelForProfile(defaultProfile("dental"), DAY);
+    const inFull = JSON.parse(
+      JSON.stringify({
+        ...model,
+        committed: [...model.committed.entries()],
+        partialCoverage: [...model.partialCoverage.entries()],
+      }),
+    ) as StoredReportModel;
+    expect(reviveReportModel(inFull)).toEqual(model);
+  });
+
+  it("names the team, not map versions or the register, when a lock is too large", () => {
+    expect(REPORT_TOO_LARGE_MESSAGE).toContain("the team has more people");
+    expect(REPORT_TOO_LARGE_MESSAGE).toContain("mark anyone who no longer works here as left");
+    expect(REPORT_TOO_LARGE_MESSAGE).not.toMatch(/map versions|archive register items/);
   });
 
   it("stores no model, and does not throw, when the model fails to build", () => {
@@ -167,8 +216,8 @@ describe("locked version figures", () => {
     expect(reviveReportModel(frozen!.model!)).toEqual(slimReportModel(atLock));
   });
 
-  it("stores the figures of a 20-person team with a full register", async () => {
-    const raw = largeBusinessProfile({ people: 20, register: 120, procedures: 100 });
+  it.each([20, 1000])("stores the figures of a %i-person team with a full register", async (n) => {
+    const raw = largeBusinessProfile({ people: n, register: 120, procedures: 100 });
     await db.pg.query(`update businesses set profile = $1::jsonb where id = 'biz_1'`, [
       JSON.stringify(raw),
     ]);

@@ -15,11 +15,13 @@ const WELCOME_DESCRIPTION =
 /**
  * The line under the pitch about the case records behind the findings. Until
  * a named person has checked every record against its source, it says where
- * the records come from and that the check is still running.
+ * the records come from and that the check is still running. It never says
+ * every finding links to a case: some businesses' gaps match no case, and
+ * their report says so ("No case in the library shows these exact pairs").
  */
 const CASE_LINE =
   VERIFIED_CASE_COUNT === CASE_COUNT
-    ? `Every finding links to one of ${CASE_COUNT} U.S. federal fraud cases at businesses like yours.`
+    ? `The findings draw on ${CASE_COUNT} U.S. federal fraud cases from Justice Department and IRS releases, each checked against its source.`
     : `${CASE_COUNT} U.S. federal fraud cases from Justice Department and IRS releases back the findings. Precog is still checking each record against its source.`;
 
 export const Route = createFileRoute("/welcome")({

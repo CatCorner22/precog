@@ -50,16 +50,18 @@ export function conflictStatus(
  * covered at every amount ("Covered by dual release"), or reduced but still
  * open because one person acts alone below the threshold ("Reduced, not
  * closed"). `reduced` is part of the open count; `closed` is not. An owner's
- * own pair dual release covers only above a threshold is in neither.
+ * own pair reads "Owner's own duties" whatever dual release covers, so it is
+ * in neither: the executive summary counts it apart, and the duty-conflict
+ * section's count agrees with it.
  */
 export function dualReleaseSplit(
   conflicts: readonly Pick<DetectedConflict, "ruleId" | "ownerHeld" | "dualReleaseMitigated">[],
   partial: ReadonlyMap<string, number>,
 ): { closed: number; reduced: number } {
-  const touched = conflicts.filter((c) => c.dualReleaseMitigated);
+  const touched = conflicts.filter((c) => c.dualReleaseMitigated && !c.ownerHeld);
   return {
     closed: touched.filter((c) => !partial.has(c.ruleId)).length,
-    reduced: touched.filter((c) => !c.ownerHeld && partial.has(c.ruleId)).length,
+    reduced: touched.filter((c) => partial.has(c.ruleId)).length,
   };
 }
 

@@ -9,6 +9,7 @@ import {
   buildReportModelForProfile,
   PRINTED_LAYOUT_VERSIONS,
   REPORT_LAYOUT_VERSION,
+  reviveReportModel,
   serializeReportModel,
 } from "@/lib/precog/report/stored-model";
 import { SCORING_VERSION } from "@/lib/precog/scoring/weights";
@@ -153,6 +154,73 @@ describe("printed control report", () => {
     const plain = render({ ...profile, dualRelease: { ...profile.dualRelease, enabled: false } });
     expect(plain).toContain("1 open critical duty conflict");
     expect(plain).not.toContain("only above a threshold");
+  });
+
+  it("counts an owner's own pair dual release covers once, in the summary and the duty-conflict section alike", () => {
+    // RW1-1: dual release covers the deposit pair at every amount, and the
+    // owner holds it. The summary counts it as the owner's; the section
+    // counted it again as covered by dual release.
+    const profile: PracticeProfile = {
+      ...defaultProfile("dental"),
+      practiceName: "Reyes Dental",
+      customPeople: [
+        {
+          id: "o",
+          name: "Olga Reyes",
+          role: "Owner",
+          active: true,
+          owner: true,
+          entitlements: ["post_payments", "prepare_deposit"],
+        },
+        {
+          id: "a",
+          name: "Ana Diaz",
+          role: "Front Desk Lead",
+          active: true,
+          entitlements: ["collect_cash"],
+        },
+      ],
+    };
+    const covered = { ...profile, dualRelease: { ...profile.dualRelease, enabled: true } };
+    const html = render(covered);
+    expect(html).toContain(
+      "No open duty conflicts among staff. The owner holds 1 pair of conflicting duties (listed under Segregation of duties as the owner&#x27;s own duties).",
+    );
+    expect(html).not.toContain("Dual release covers 1 more");
+    expect(html).toContain("0 covered by dual release at every amount.");
+    expect(html).toContain("Owner&#x27;s own duties");
+    // A version locked under layout 3 prints the count it printed then.
+    expect(renderStored(covered, 3)).toContain("1 covered by dual release at every amount.");
+  });
+
+  it("prints the benchmark stored at lock, and none on a version that stored none", () => {
+    const profile = defaultProfile("dental");
+    const model = buildReportModelForProfile(profile, "2026-09-26");
+    expect(model.evidence.length).toBeGreaterThan(0);
+    const page = (layoutVersion: number, stored: ReturnType<typeof serializeReportModel>) =>
+      renderToStaticMarkup(
+        <ReadOnlyPracticeProvider profile={profile}>
+          <ControlReport locked={locked} frozen={{ layoutVersion, model: stored }} />
+        </ReadOnlyPracticeProvider>,
+      );
+    const lead = "Organizations under 100 employees that suffered an investigated fraud";
+    // Today's model holds the figure, and a live report prints it.
+    expect(render(profile)).toContain(`${lead} lost a median of $126,000`);
+    // A version locked with another figure prints that figure.
+    const then = serializeReportModel({
+      ...model,
+      benchmark: { medianUsd: 150_000, publisher: "ACFE", citation: "Report to the Nations 2024" },
+    });
+    expect(page(REPORT_LAYOUT_VERSION, then)).toContain(
+      `${lead} lost a median of $150,000 (ACFE, Report to the Nations 2024).`,
+    );
+    // RW1-5: a layout 3 version never stored a benchmark, so it prints none,
+    // not today's $126,000.
+    const { benchmark: _none, ...layoutThree } = serializeReportModel(model);
+    const old = page(3, layoutThree as ReturnType<typeof serializeReportModel>);
+    expect(old).toContain("What these gaps have cost other businesses");
+    expect(old).not.toContain(lead);
+    expect(old).not.toContain("$126,000");
   });
 
   it("states the scope of the duty-conflict findings when the books show people the map lacks", () => {
@@ -546,19 +614,24 @@ describe("locked version figures", () => {
   it("prints figures stored under layout 1 with that layout's labels", () => {
     // A model locked on main before Phase 4: no `mitigate` or `watch` counts,
     // a map health score that still counts heat, no stored top-priority count
-    // (an averaged priority index instead) and no partial coverage.
-    const { mitigate: _m, watch: _w, ...oldPortfolio } = stored.portfolio;
-    const { fixFirst: _f, ...oldThreat } = stored.threat;
-    const { partialCoverage: _p, ...oldModel } = stored;
+    // (an averaged priority index instead) and no partial coverage, stored
+    // with every object and list in full, as locks stored models then.
+    const full = reviveReportModel(stored);
+    const plain = JSON.parse(
+      JSON.stringify({ ...full, committed: [...full.committed.entries()] }),
+    ) as typeof stored & { mapHealth: typeof full.mapHealth; threat: typeof full.threat };
+    const { mitigate: _m, watch: _w, ...oldPortfolio } = plain.portfolio;
+    const { fixFirst: _f, ...oldThreat } = plain.threat;
+    const { partialCoverage: _p, ...oldModel } = plain;
     const layoutOne = {
       ...oldModel,
       portfolio: oldPortfolio,
       threat: { ...oldThreat, overallThreatIndex: 89, classificationLabel: "Top priority" },
       mapHealth: {
-        ...stored.mapHealth,
+        ...plain.mapHealth,
         bandLabel: "Fair",
         dimensions: [
-          ...stored.mapHealth.dimensions,
+          ...plain.mapHealth.dimensions,
           { id: "calm", label: "Heat", score: 40, weight: 0.3, hint: "Average heat 60" },
         ],
       },
@@ -570,9 +643,9 @@ describe("locked version figures", () => {
     expect(html).not.toContain("Map completeness");
     expect(html).toContain("Map health score");
     expect(html).toContain("Average residual risk score");
-    expect(html).toContain(`${stored.portfolio.criticalPath} to fix first`);
+    expect(html).toContain(`${full.portfolio.criticalPath} to fix first`);
     // The top-priority count comes from the stored ten-row list.
-    const top = stored.threat.targetDeck.filter((t) => t.priority >= 88).length;
+    const top = full.threat.targetDeck.filter((t) => t.priority >= 88).length;
     expect(top).toBeGreaterThan(0);
     expect(html.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|")).toContain(
       `|Top-priority items|${top}|Priority 88 or more|`,
@@ -642,8 +715,8 @@ describe("report layout 3", () => {
   };
 
   it("is the layout a live report prints", () => {
-    expect(REPORT_LAYOUT_VERSION).toBe(3);
-    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3]);
+    expect(REPORT_LAYOUT_VERSION).toBe(4);
+    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4]);
     const html = renderToStaticMarkup(
       <ReadOnlyPracticeProvider profile={answered}>
         <ControlReport />

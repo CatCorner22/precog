@@ -71,7 +71,7 @@ describe("the landing page", () => {
     expect(html).not.toContain("Every finding links to one of");
   });
 
-  it("says every finding links to a case once every record is verified", async () => {
+  it("says the records are checked once every one is, without claiming every finding links to a case", async () => {
     vi.resetModules();
     vi.doMock("@/lib/precog/evidence/case-count", () => ({
       CASE_COUNT: 53,
@@ -82,8 +82,11 @@ describe("the landing page", () => {
     const verifiedHtml = renderToStaticMarkup(createElement(page));
     vi.doUnmock("@/lib/precog/evidence/case-count");
     expect(verifiedHtml).toContain(
-      "Every finding links to one of 53 U.S. federal fraud cases at businesses like yours.",
+      "The findings draw on 53 U.S. federal fraud cases from Justice Department and IRS releases, each checked against its source.",
     );
+    // A business whose gaps match no case reads "No case in the library shows
+    // these exact pairs" in its report, so the page never promises a link.
+    expect(verifiedHtml).not.toContain("Every finding links");
     expect(verifiedHtml).not.toContain("still checking");
   });
 

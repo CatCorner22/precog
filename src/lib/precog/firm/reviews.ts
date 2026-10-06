@@ -203,17 +203,27 @@ export function normalizeReviewRecords(value: unknown): ReviewRecord[] {
   return trimReviewRecords(out).records;
 }
 
+/** What trimming took out: in all, and how many of those a later result replaced. */
+export interface ReviewTrim {
+  removed: number;
+  /** Results a later one replaced for the same check and month; the rest came from the oldest months. */
+  replaced: number;
+}
+
 /**
  * Keeps at most MAX_REVIEW_RECORDS results, newest first. Past the cap it
  * first removes results a later one replaced for the same check and month,
  * oldest first, so every month keeps its latest result; only then does it
- * remove the oldest months. `removed` counts what it took out.
+ * remove the oldest months. `removed` counts what it took out, and
+ * `replaced` how many of those a later result replaced (which can be from a
+ * recent month).
  */
-export function trimReviewRecords(records: readonly ReviewRecord[]): {
-  records: ReviewRecord[];
-  removed: number;
-} {
-  if (records.length <= MAX_REVIEW_RECORDS) return { records: [...records], removed: 0 };
+export function trimReviewRecords(
+  records: readonly ReviewRecord[],
+): { records: ReviewRecord[] } & ReviewTrim {
+  if (records.length <= MAX_REVIEW_RECORDS) {
+    return { records: [...records], removed: 0, replaced: 0 };
+  }
   const latest = new Set<string>();
   const superseded: number[] = [];
   records.forEach((record, index) => {
@@ -223,12 +233,28 @@ export function trimReviewRecords(records: readonly ReviewRecord[]): {
   });
   const drop = new Set(superseded.slice(-(records.length - MAX_REVIEW_RECORDS)));
   const kept = records.filter((_, index) => !drop.has(index)).slice(0, MAX_REVIEW_RECORDS);
-  return { records: kept, removed: records.length - kept.length };
+  return { records: kept, removed: records.length - kept.length, replaced: drop.size };
 }
 
-/** What the Monthly review says when saving a result removed older ones past the cap. */
-export function reviewTrimNotice(removed: number): string {
-  return `Precog kept the newest ${MAX_REVIEW_RECORDS.toLocaleString("en-US")} monthly results and removed ${removed.toLocaleString("en-US")} older ${removed === 1 ? "one" : "ones"}.`;
+/**
+ * What the Monthly review says when saving a result removed some past the
+ * cap: the results a later one replaced and those from the oldest months,
+ * each counted, since a replaced result can be a recent one.
+ */
+export function reviewTrimNotice({ removed, replaced }: ReviewTrim): string {
+  const older = removed - replaced;
+  const parts = [
+    replaced > 0
+      ? `${results(replaced, "earlier result")} that a later one replaced for the same check and month`
+      : "",
+    older > 0 ? `${results(older, "result")} from the oldest months` : "",
+  ].filter(Boolean);
+  return `Precog keeps up to ${MAX_REVIEW_RECORDS.toLocaleString("en-US")} monthly results, so it removed ${parts.join(", and ")}.`;
+}
+
+/** "1 earlier result", "1,200 earlier results". */
+function results(n: number, singular: string): string {
+  return `${n.toLocaleString("en-US")} ${n === 1 ? singular : `${singular}s`}`;
 }
 
 /** A result as the screen and the printed report name it. */
@@ -269,7 +295,7 @@ export function recordReview(
 export function appendReview(
   records: readonly ReviewRecord[],
   input: Omit<ReviewRecord, "recordedAt"> & { recordedAt?: string },
-): { records: ReviewRecord[]; removed: number } {
+): { records: ReviewRecord[] } & ReviewTrim {
   const next: ReviewRecord = {
     key: input.key,
     period: input.period,
