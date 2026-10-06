@@ -28,6 +28,16 @@ describe("industrySample", () => {
     expect(sample.relations).toBe(built.relations);
     expect(sample.people).toBe(getIndustryTemplate("dental").people);
   });
+
+  it("keeps scenario ids outside the view and control-failure link vocabulary", () => {
+    const viewIds = new Set(["single", "compare", "variables", "cascades", "failure"]);
+    for (const [industry, sample] of Object.entries(REGISTRY)) {
+      for (const scenario of sample.scenarios) {
+        expect(viewIds.has(scenario.id), `${industry}: ${scenario.id}`).toBe(false);
+        expect(scenario.id.startsWith("failure:"), `${industry}: ${scenario.id}`).toBe(false);
+      }
+    }
+  });
 });
 
 const ROOT = resolve(__dirname, "../../../..");

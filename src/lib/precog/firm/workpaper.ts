@@ -1,4 +1,4 @@
-import type { IntegrationDrift } from "../integrations/qbo/model";
+import { PAYMENT_STATUS_NOTE, type IntegrationDrift } from "../integrations/qbo/model";
 
 /**
  * The two QuickBooks facts that sit next to the monthly checks.
@@ -20,7 +20,7 @@ export function monthlyWorkpaperFacts(drift: IntegrationDrift | null): Workpaper
       {
         id: "qbo-unread",
         label: "QuickBooks reading",
-        detail: `No QuickBooks reading is stored. The monthly checks are the file until a reading is connected. ${ACCT_NOTE}`,
+        detail: `No QuickBooks reading is stored. The monthly checks are the file until a reading is connected. ${PAYMENT_STATUS_NOTE} ${ACCT_NOTE}`,
       },
     ];
   }
@@ -31,10 +31,12 @@ export function monthlyWorkpaperFacts(drift: IntegrationDrift | null): Workpaper
   return [
     {
       id: "left-paid",
-      label: "Left, but still paid",
-      detail: left.length
-        ? `${left.join(", ")} — marked left on the duty map, and payroll still pays them.`
-        : "No person marked left is still paid in this reading.",
+      label: "Marked left here; still active in QuickBooks",
+      detail:
+        (left.length
+          ? `${left.join(", ")} — marked left on the duty map, but still active in the QuickBooks employee list.`
+          : "No person marked left on the duty map is still active in this QuickBooks employee-list reading.") +
+        ` ${PAYMENT_STATUS_NOTE}`,
     },
     {
       id: "vendor-changed",

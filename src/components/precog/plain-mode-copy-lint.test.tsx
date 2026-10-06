@@ -124,7 +124,7 @@ const ADVANCED: [string, (profile: PracticeProfile) => ReactNode][] = [
   ["Who knows what, as a drawing", () => <KnowledgeMap />],
   ["How work flows", () => <ProcessMap onNavigate={noop} />],
   ["How work flows, build mode", () => <ProcessMap onNavigate={noop} initialBuild />],
-  ["Scenarios", () => <ScenarioRunner />],
+  ["Scenarios", () => <ScenarioRunner item={null} onNavigate={noop} />],
   [
     "Scenarios, compare",
     (profile) => {

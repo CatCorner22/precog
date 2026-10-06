@@ -74,7 +74,7 @@ function itemText(item: QuickBooksAlertItem): string {
       const detail = (item.detail ?? "").trim();
       const first = `Precog could not read the QuickBooks books of ${item.businessName} ${when}: ${detail}`;
       if (!item.lastReadOn) return first;
-      return `${first} Until it is read again, the monthly check of vendors and payroll runs on the reading of ${day(item.lastReadOn)}.`;
+      return `${first} Until it is read again, the vendor and employee-list comparison uses the reading of ${day(item.lastReadOn)}. Payment status is not checked by this reading.`;
     }
     case "lapsing":
       return `QuickBooks' permission for ${item.businessName} ends on ${day(item.lapsesOn)}. Open the client and read the books before then to renew it, or connect QuickBooks again after.`;
