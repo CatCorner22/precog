@@ -9,6 +9,7 @@ import {
   entitlementsForTitle,
   jobCatalogEntry,
   jobCatalogUnknownEntitlements,
+  jobsForIndustry,
   matchJobTitle,
 } from "./job-catalog";
 
@@ -37,6 +38,16 @@ describe("job catalog", () => {
     expect(matchJobTitle("Director of Development")?.entry.id).toBe("development-director");
     expect(matchJobTitle("Assistant Controller")?.entry.id).toBe("controller");
     expect(matchJobTitle("Revenue Cycle Manager")?.entry.id).toBe("billing-manager");
+  });
+
+  it("offers a line of business its own jobs, not another line's, until asked for every title", () => {
+    const dental = jobsForIndustry("dental").map((job) => job.id);
+    expect(dental).toContain("dental-assistant");
+    expect(dental).toContain("bookkeeper");
+    expect(dental).not.toContain("night-auditor");
+    expect(jobsForIndustry("restaurant").map((job) => job.id)).not.toContain("night-auditor");
+    expect(jobsForIndustry("restaurant", true).map((job) => job.id)).toContain("night-auditor");
+    expect(jobsForIndustry("general").map((job) => job.id)).toContain("property-manager");
   });
 
   it("keeps ids unique and every name one entry's, as the matcher compares names", () => {
