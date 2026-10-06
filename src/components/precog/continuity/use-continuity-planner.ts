@@ -23,9 +23,11 @@ import {
 } from "@/lib/precog/continuity/register-window";
 import { continuityCommitments } from "@/lib/precog/decisions/follow-through";
 import {
+  mergeRegisterImport,
   parseRegisterCsv,
   registerTemplateCsv,
   registerToCsv,
+  unmatchedRowsMessage,
 } from "@/lib/precog/import/register-csv";
 import type { ImportIssue } from "@/lib/precog/import/csv";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
@@ -416,23 +418,41 @@ function useRegisterEditor(
     setImportIssues([]);
     try {
       const result = parseRegisterCsv(await file.text(), tpl);
-      const replacesOwn = result.knowledge.length > 0 && source === "own";
-      if (replacesOwn && !window.confirm(importRegisterPrompt(tpl, result))) return;
+      // The owner's own register keeps every item the file does not name;
+      // a sample or starter list gives way to the file.
+      const own = source === "own";
+      const named = new Set(
+        result.knowledge.filter((k) => tpl.knowledge.some((c) => c.id === k.id)).map((k) => k.id),
+      );
+      if (own && named.size > 0) {
+        const replaced = {
+          knowledge: tpl.knowledge.filter((k) => named.has(k.id)),
+          relations: tpl.relations.filter((r) => named.has(r.knowledgeId)),
+        };
+        const incoming = {
+          knowledge: result.knowledge.filter((k) => named.has(k.id)),
+          relations: result.relations.filter((r) => named.has(r.knowledgeId)),
+        };
+        if (!window.confirm(importRegisterPrompt(replaced, incoming))) return;
+      }
       setImportIssues(result.issues);
       if (!result.knowledge.length) {
         toast.error(result.issues[0]?.message ?? "No duties or tasks found in that file");
         return;
       }
-      setCustomKnowledge(result.knowledge);
-      setCustomRelations(result.relations);
+      const next = own ? mergeRegisterImport(tpl, result) : result;
+      setCustomKnowledge(next.knowledge);
+      setCustomRelations(next.relations);
       setSelectedId(null);
       checkIn.clearBaseline();
+      const unmatched = unmatchedRowsMessage(result.unmatched);
       toast.success(
         `Imported ${count(result.knowledge.length, "item")} and ${count(result.relations.length, "assignment")}${
           result.issues.length
             ? `; read the ${count(result.issues.length, "import note")} below`
             : ""
         }`,
+        unmatched ? { description: unmatched } : undefined,
       );
     } catch {
       toast.error("Import failed", { description: "Choose a readable CSV file and try again." });
