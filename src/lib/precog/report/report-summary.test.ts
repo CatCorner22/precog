@@ -219,6 +219,8 @@ describe("executive summary", () => {
       singlePoints: 2,
       mapHealth: { score: Number.NaN, bandLabel: "Partial" },
       topPriority: null,
+      ownerHeldPairs: 0,
+      dualReleaseClosedPairs: 0,
     });
     expect(lines.join(" ")).not.toContain("NaN");
     expect(lines).toHaveLength(1);
