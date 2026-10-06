@@ -4,6 +4,8 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -20,6 +22,7 @@ import {
 } from "@/lib/auth/identity-change";
 import { ACCOUNT_CHANGED_MESSAGE } from "@/lib/auth/expected-account";
 import { WorkspaceProvider, useWorkspace } from "./workspace-context";
+import { ReadOnlyPracticeProvider } from "./read-only-practice";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import type {
   KnowledgeItem,
@@ -214,11 +217,31 @@ export interface PracticeActions {
  * provider composes three hooks — map undo/redo, saving (local, portfolio,
  * account, other tabs), and the portfolio of businesses — and wraps the pure
  * profile edits in `./profile-actions` as state updates.
+ *
+ * Above the workspace sits the account gate:
+ * - "Checking your account…" shows only until the session first resolves. A
+ *   background session request (refocus, back online, another tab) never
+ *   unmounts the workspace, so open editors, drafts and undo survive it.
+ * - An identity lock (this tab or another signing in or out, or another tab
+ *   now showing a different account) hides the business, as it always has.
+ * - A signed-in session that ends with no lock and no failed request (it
+ *   expired, or another device signed it out) keeps the business on screen
+ *   read-only, with nothing saved, until the owner signs in again.
  */
 export function PracticeProvider({ children }: { children: ReactNode }) {
-  const { user, isPending } = useCurrentUserState();
+  const { user, isPending, error } = useCurrentUserState();
   const lock = useSyncExternalStore(subscribeIdentity, identityLockReason, () => null);
-  if (isPending || lock)
+  const [gate] = useState<AccountGate>(newAccountGate);
+  const accountId = user?.id ?? null;
+  const view = gateView(gate, { accountId, isPending, failed: Boolean(error), lock });
+  const ended = view.kind === "ended" ? view.ended : null;
+  // The account's copy on this device takes the last edits before the
+  // workspace's own unmount clean-up runs: the read-only view saves nothing.
+  useBrowserLayoutEffect(() => {
+    if (ended) flushEndedSession(ended);
+  }, [ended]);
+
+  if (view.kind === "placeholder")
     return (
       <main className="p-6">
         <p role="status">{lock ? IDENTITY_LOCK_TEXT[lock] : "Checking your account…"}</p>
@@ -229,13 +252,132 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
         )}
       </main>
     );
-  const accountId = user?.id ?? null;
+  if (view.kind === "ended")
+    return <SessionEndedPractice profile={view.ended.profile}>{children}</SessionEndedPractice>;
   return (
     <WorkspaceProvider key={accountId ?? "guest"} accountId={accountId}>
-      <AccountPracticeProvider>{children}</AccountPracticeProvider>
+      <AccountPracticeProvider gate={gate}>{children}</AccountPracticeProvider>
     </WorkspaceProvider>
   );
 }
+
+/** What the live workspace last rendered, kept so an ended session can freeze it. */
+interface LiveWorkspace {
+  accountId: string | null;
+  ready: boolean;
+  profile: PracticeProfile;
+  flushLocal: () => boolean;
+}
+
+/** The business of an account whose session ended, shown read-only. */
+export interface EndedSession {
+  accountId: string;
+  profile: PracticeProfile;
+  flushLocal: () => boolean;
+  flushed: boolean;
+}
+
+/** What the account gate remembers between renders. */
+export interface AccountGate {
+  /** The session has resolved at least once in this tab. */
+  resolvedOnce: boolean;
+  /** The account the live workspace showed with no identity lock; null for a guest. */
+  lastAccountId: string | null;
+  live: LiveWorkspace | null;
+  ended: EndedSession | null;
+}
+
+export function newAccountGate(): AccountGate {
+  return { resolvedOnce: false, lastAccountId: null, live: null, ended: null };
+}
+
+type GateView =
+  { kind: "placeholder" } | { kind: "ended"; ended: EndedSession } | { kind: "workspace" };
+
+/**
+ * Decides what the account gate shows, and updates what it remembers. It
+ * changes nothing but `gate`, and gives the same answer for the same input,
+ * so a repeated render agrees with the first.
+ */
+export function gateView(
+  gate: AccountGate,
+  session: {
+    accountId: string | null;
+    isPending: boolean;
+    failed: boolean;
+    lock: IdentityLock | null;
+  },
+): GateView {
+  // Any account change in flight, in this tab or another, keeps today's path:
+  // the business is hidden, and nothing of the old account carries over.
+  if (session.lock) {
+    gate.lastAccountId = null;
+    gate.ended = null;
+    return { kind: "placeholder" };
+  }
+  if (!session.isPending) gate.resolvedOnce = true;
+  if (!gate.resolvedOnce) return { kind: "placeholder" };
+  if (session.accountId) {
+    gate.lastAccountId = session.accountId;
+    gate.ended = null;
+    return { kind: "workspace" };
+  }
+  if (gate.ended) return { kind: "ended", ended: gate.ended };
+  const live = gate.live;
+  if (
+    gate.lastAccountId &&
+    !session.failed &&
+    live?.ready &&
+    live.accountId === gate.lastAccountId
+  ) {
+    gate.ended = {
+      accountId: gate.lastAccountId,
+      profile: live.profile,
+      flushLocal: live.flushLocal,
+      flushed: false,
+    };
+    return { kind: "ended", ended: gate.ended };
+  }
+  gate.lastAccountId = null;
+  return { kind: "workspace" };
+}
+
+/** Writes the ended account's last edits to its copy on this device, once. */
+export function flushEndedSession(ended: EndedSession): void {
+  if (ended.flushed) return;
+  ended.flushed = true;
+  ended.flushLocal();
+}
+
+/**
+ * The business of an account whose session ended: read-only, with no cloud
+ * sync, so no save goes out and no refused save repeats.
+ */
+export function SessionEndedPractice({
+  profile,
+  children,
+}: {
+  profile: PracticeProfile;
+  children: ReactNode;
+}) {
+  return (
+    <SessionEndedContext.Provider value={true}>
+      <ReadOnlyPracticeProvider profile={profile}>{children}</ReadOnlyPracticeProvider>
+    </SessionEndedContext.Provider>
+  );
+}
+
+const SessionEndedContext = createContext(false);
+
+/**
+ * True while the signed-in session has ended and Precog shows the business
+ * read-only until the owner signs in again.
+ */
+export function useSessionEnded(): boolean {
+  return useContext(SessionEndedContext);
+}
+
+const useBrowserLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /** This tab's own sign-in or sign-out needs no reload; another tab's change does. */
 const IDENTITY_LOCK_TEXT: Record<IdentityLock, string> = {
@@ -297,9 +439,20 @@ const PracticeStateContext = createContext<PracticeState | null>(null);
 const PracticeActionsContext = createContext<PracticeActions | null>(null);
 const PracticeSyncContext = createContext<PracticeSync | null>(null);
 
-function AccountPracticeProvider({ children }: { children: ReactNode }) {
-  const { user, isPending } = useCurrentUserState();
+function AccountPracticeProvider({
+  gate,
+  children,
+}: {
+  /** Told the open business on every render, so an ended session can show it read-only. */
+  gate: AccountGate;
+  children: ReactNode;
+}) {
+  const { user } = useCurrentUserState();
   const workspace = useWorkspace();
+  // The gate mounts the workspace only once the session has resolved. A
+  // guest's later refetch sets Better Auth's isPending again; it is not a
+  // first load, and must not restart the account effects or clear a conflict.
+  const isPending = false;
   const userId = user?.id;
   const userIsDevFallback = user?.isDevFallback;
   const [profile, setProfile] = useReducer(profileReducer, undefined, defaultProfile);
@@ -445,6 +598,7 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
   );
 
   const { saveConflict, resolveSaveConflict, syncStatus, downloadRecovery } = cloud;
+  gate.live = { accountId: workspace.accountId, ready, profile, flushLocal: cloud.flushLocal };
   const sync = useMemo<PracticeSync>(
     () => ({
       syncStatus,
