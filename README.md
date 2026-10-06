@@ -238,7 +238,12 @@ business's own home page.
   is linked to its Stripe customer with `npm run link:stripe-customer` or on
   `/operator`. Without Stripe the firm records its stage by hand.
 - **QuickBooks link** (read-only): reads the connected company's vendors and
-  employees and compares them with the people on the duty map.
+  employees and compares them with the people on the duty map. An active
+  employee-list record is not evidence that payroll paid that person; payment
+  status stays "not checked" and the review asks for the covered period's
+  payroll register. The response field `leftButStillPaid` retains its legacy
+  name for existing clients, but contains only active employee-list records
+  matching people marked left on the map.
 - **Reminders**: a weekly email digest to advisors, off until the account
   turns it on, with a stop link in every digest, and a note to each client
   owner about what is due, sent by the scheduled job; each account can turn

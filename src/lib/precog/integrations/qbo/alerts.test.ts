@@ -98,7 +98,7 @@ describe("QuickBooks alerts", () => {
     const firm = sent.find((s) => s.to === "adv@firm.test")!;
     expect(firm.subject).toBe("Precog: QuickBooks needs attention for 2 clients");
     expect(firm.text).toContain(
-      `Precog could not read the QuickBooks books of Ortiz Dental on Oct 5, 2026: ${REFUSED} Until it is read again, the monthly check of vendors and payroll runs on the reading of Sep 1, 2026.`,
+      `Precog could not read the QuickBooks books of Ortiz Dental on Oct 5, 2026: ${REFUSED} Until it is read again, the vendor and employee-list comparison uses the reading of Sep 1, 2026. Payment status is not checked by this reading.`,
     );
     expect(firm.text).toMatch(/QuickBooks' permission for Hill Dental ends on Oct \d+, 2026\./);
     expect(firm.text).not.toContain("Healthy Books");
