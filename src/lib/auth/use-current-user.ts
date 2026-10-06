@@ -32,6 +32,14 @@ type CurrentUserState = {
   user: AppUser | null;
   /** True while the session is still resolving — don't treat `user: null` as signed out yet. */
   isPending: boolean;
+  /**
+   * True while a session request runs after the first one (window refocus,
+   * back online, another tab's sign-in or sign-out). `isPending` is also true
+   * during a guest's refetch, so tell the first load apart with this.
+   */
+  isRefetching: boolean;
+  /** Why the last session request failed (a network error or a refusal), or null. */
+  error: unknown;
 };
 
 /**
@@ -59,7 +67,7 @@ export const useCurrentUserState: () => CurrentUserState = authEnabled
   : useDevUserState;
 
 function useDevUserState(): CurrentUserState {
-  return { user: DEV_USER, isPending: false };
+  return { user: DEV_USER, isPending: false, isRefetching: false, error: null };
 }
 
 /**
@@ -68,7 +76,7 @@ function useDevUserState(): CurrentUserState {
  * not on every render (a session refetch builds a new `data.user`).
  */
 function useSessionUserState(): CurrentUserState {
-  const { data, isPending } = authClient.useSession();
+  const { data, isPending, isRefetching, error } = authClient.useSession();
   const id = data?.user?.id ?? null;
   const name = data?.user?.name ?? null;
   const email = data?.user?.email ?? null;
@@ -86,7 +94,7 @@ function useSessionUserState(): CurrentUserState {
         : null,
     [id, name, email, image],
   );
-  return { user, isPending };
+  return { user, isPending, isRefetching, error: error ?? null };
 }
 
 /**

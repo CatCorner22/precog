@@ -186,6 +186,9 @@ try {
     await oldTab.getByRole("textbox", { name: "Business name", exact: true }).count(),
     0,
   );
+  // A sign-out in this browser is not a session that ended: the old tab never
+  // keeps the signed-out account's business on screen, not even read-only.
+  assert.equal(await oldTab.getByText(/Your session ended/).count(), 0);
   session = await context.request.get(`${base}/api/auth/get-session`);
   assert.equal(await session.json(), null);
   step("sign-out removes confirmed active copies; does not expose them as guest work");

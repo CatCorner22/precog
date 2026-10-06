@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { PracticeProvider } from "@/lib/precog/practice-context";
 import { WorkspaceRecovery } from "@/components/precog/workspace-recovery";
+import { SessionEndedBanner } from "@/components/precog/session-ended-banner";
 
 /**
  * The open business around the pages that show it. The root loads this
@@ -14,6 +15,7 @@ export function PracticeShell({ open, children }: { open: boolean; children: Rea
     <PracticeProvider>
       {open && (
         <>
+          <SessionEndedBanner />
           <WorkspaceRecovery />
           {children}
         </>

@@ -13,14 +13,21 @@ vi.mock("react", async (importOriginal) => ({
     return memo.value;
   },
 }));
-const session = vi.hoisted(() => ({ user: null as Record<string, string> | null }));
+const session = vi.hoisted(() => ({
+  user: null as Record<string, string> | null,
+  isPending: false,
+  isRefetching: false,
+  error: null as unknown,
+}));
 vi.mock("./client", () => ({
   authEnabled: true,
   // A new `data` object on every call, as a session refetch hands back.
   authClient: {
     useSession: () => ({
       data: session.user ? { user: { ...session.user } } : null,
-      isPending: false,
+      isPending: session.isPending,
+      isRefetching: session.isRefetching,
+      error: session.error,
     }),
   },
 }));
@@ -45,5 +52,30 @@ describe("the signed-in user", () => {
     expect(after?.displayName).toBe("Ada Park");
     session.user = null;
     expect(useCurrentUserState().user).toBeNull();
+  });
+});
+
+describe("the session request state", () => {
+  it("tells a background refetch apart from the first load", () => {
+    // A guest's refetch: Better Auth sets isPending again because data is null.
+    session.user = null;
+    session.isPending = true;
+    session.isRefetching = true;
+    expect(useCurrentUserState()).toMatchObject({
+      user: null,
+      isPending: true,
+      isRefetching: true,
+    });
+    session.isPending = false;
+    session.isRefetching = false;
+    expect(useCurrentUserState()).toMatchObject({ isPending: false, isRefetching: false });
+  });
+
+  it("passes the request's error through, and null when it succeeded", () => {
+    const failure = new TypeError("Failed to fetch");
+    session.error = failure;
+    expect(useCurrentUserState().error).toBe(failure);
+    session.error = undefined;
+    expect(useCurrentUserState().error).toBeNull();
   });
 });
