@@ -33,7 +33,7 @@ The owner ordered every relevant skill loaded and kept engaged on Precog work un
 
 - Status on 2026-10-06:
   - Wave 1: validation-design, code-review (9 defects, fixed in #217), security-review (nothing above the bar) and run are done; simplify is pending.
-  - Wave 2: code-review and security-review are done; simplify, run and validation-design follow the review fixes.
+  - Wave 2: code-review (22 defects with the three reviewers, fixed), security-review (nothing at the reporting bar; two low findings fixed), validation-design (audit written), run (11 checks passed; two display fixes) and ingest-source are done; simplify is running.
 
 ## Relationships
 
