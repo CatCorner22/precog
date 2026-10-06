@@ -124,6 +124,7 @@ export function buildThreatAssessment(input: {
       id: item.id,
       kind: item.category,
       label: item.name,
+      processId: scenarioRow?.scenario.id,
       priority: scored.priority,
       band,
       heat: item.residual,
