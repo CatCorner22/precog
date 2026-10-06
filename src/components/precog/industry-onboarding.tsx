@@ -49,9 +49,9 @@ import {
 } from "@/lib/precog/onboarding/add-people";
 import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import {
-  JOB_CATALOG,
   JOB_FAMILY_LABEL,
   jobCatalogEntry,
+  jobsForIndustry,
   type JobFamily,
 } from "@/lib/precog/onboarding/job-catalog";
 import { JobCatalogSheet } from "@/components/precog/job-catalog-sheet";
@@ -150,6 +150,11 @@ export function IndustryOnboarding({
   // roster notes stay in view; the owner closes it.
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteNote, setPasteNote] = useState("");
+  const [showAllJobs, setShowAllJobs] = useState(false);
+  const offeredJobs = useMemo(
+    () => jobsForIndustry(selected, showAllJobs),
+    [selected, showAllJobs],
+  );
   // People a pasted roster left out as terminated or inactive: once setup
   // finishes, the owner is asked to confirm their pay and logins are stopped.
   const [leftOut, setLeftOut] = useState<Departure[]>([]);
@@ -769,6 +774,7 @@ export function IndustryOnboarding({
                         <div className="min-w-0">
                           <p className="font-medium">{ind.label}</p>
                           <p className="mt-0.5 text-xs text-muted">{ind.tagline}</p>
+                          <p className="mt-1 text-xs text-subtle">{ind.sampleNote}</p>
                           <p className="mt-2 text-xs text-subtle">
                             Sample: {tpl.processes.length} processes, {tpl.people.length} people
                           </p>
@@ -779,25 +785,27 @@ export function IndustryOnboarding({
                   );
                 })}
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Button
-                  className="w-full"
-                  onClick={() => {
-                    // A nonprofit's first row is its executive director, not an owner.
-                    setRows((current) => firstRowForIndustry(current, selected));
-                    setStep("questions");
-                    setQuestion("actor");
-                  }}
-                >
-                  Set up my own business
-                </Button>
-                <Button className="w-full" variant="secondary" onClick={loadSample}>
-                  Explore the sample instead
-                </Button>
+              <div className="sticky bottom-0 -mx-6 border-t border-border bg-surface px-6 py-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      // A nonprofit's first row is its executive director, not an owner.
+                      setRows((current) => firstRowForIndustry(current, selected));
+                      setStep("questions");
+                      setQuestion("actor");
+                    }}
+                  >
+                    Set up my own business
+                  </Button>
+                  <Button className="w-full" variant="secondary" onClick={loadSample}>
+                    Explore the fictional sample
+                  </Button>
+                </div>
+                <p className="mt-2 text-center text-xs text-subtle">
+                  The sample team is fictional. Every gap on it says so until you enter your own.
+                </p>
               </div>
-              <p className="text-center text-xs text-subtle">
-                The sample team is fictional; every gap on it says so until you enter your own.
-              </p>
               <LegalFooter className="justify-center" />
               {cancelLink}
             </CardContent>
@@ -928,7 +936,7 @@ export function IndustryOnboarding({
               </label>
 
               <datalist id="job-title-options">
-                {JOB_CATALOG.map((j) => (
+                {offeredJobs.map((j) => (
                   <option key={j.id} value={j.title} />
                 ))}
               </datalist>
@@ -1334,6 +1342,15 @@ export function IndustryOnboarding({
                       Pick a common job, say how many, and rows appear with placeholder names and
                       that job&rsquo;s usual duties ticked. Rename them as you go.
                     </p>
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                      onClick={() => setShowAllJobs((open) => !open)}
+                    >
+                      {showAllJobs
+                        ? "Show titles for this line of business"
+                        : "Show every job title"}
+                    </button>
                     <div className="flex flex-wrap items-end gap-2">
                       <label className="flex flex-col gap-1 text-xs">
                         <span className="text-muted">Job title</span>
@@ -1343,18 +1360,22 @@ export function IndustryOnboarding({
                           onChange={(e) => setQuickTitle(e.target.value)}
                         >
                           <option value="">Choose a job title</option>
-                          {(Object.keys(JOB_FAMILY_LABEL) as JobFamily[]).map((family) => (
-                            <optgroup key={family} label={JOB_FAMILY_LABEL[family]}>
-                              {JOB_CATALOG.filter(
-                                // The table already has the owner's row.
-                                (j) => j.family === family && j.id !== "owner",
-                              ).map((j) => (
-                                <option key={j.id} value={j.id}>
-                                  {j.title}
-                                </option>
-                              ))}
-                            </optgroup>
-                          ))}
+                          {(Object.keys(JOB_FAMILY_LABEL) as JobFamily[])
+                            .filter((family) => offeredJobs.some((job) => job.family === family))
+                            .map((family) => (
+                              <optgroup key={family} label={JOB_FAMILY_LABEL[family]}>
+                                {offeredJobs
+                                  .filter(
+                                    // The table already has the owner's row.
+                                    (j) => j.family === family && j.id !== "owner",
+                                  )
+                                  .map((j) => (
+                                    <option key={j.id} value={j.id}>
+                                      {j.title}
+                                    </option>
+                                  ))}
+                              </optgroup>
+                            ))}
                         </select>
                       </label>
                       <label className="flex flex-col gap-1 text-xs">

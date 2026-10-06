@@ -24,6 +24,15 @@ describe("pluralTeamLabel", () => {
   });
 });
 
+describe("sample notes", () => {
+  it("tells each line of business what the sample is and what to skip", () => {
+    for (const industry of INDUSTRIES) {
+      expect(industry.sampleNote.length, industry.id).toBeGreaterThan(20);
+      expect(industry.sampleNote, industry.id).not.toMatch(/\bshould\b|\be\.g\./i);
+    }
+  });
+});
+
 describe("an industry the app does not know", () => {
   it("falls back to one industry for its metadata, sample and copy alike", () => {
     const unknown = "veterinary" as IndustryId;
