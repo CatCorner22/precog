@@ -306,3 +306,32 @@ describe("the versions list tells the panel what work the caller does on the bus
     expect((await list("prep", "prep_own")).work).toEqual({ firm: false, role: "preparer" });
   });
 });
+
+describe("the client list's sent date", () => {
+  type Listed = { clients: { id: string; reportSentAt: string | null }[] };
+  const sentAt = async () =>
+    ((await call(server.listFirmClients, "own", {})) as Listed).clients.find(
+      (c) => c.id === "biz_1",
+    )?.reportSentAt ?? null;
+  const pageOpen = (reportSentAt: string) =>
+    call(server.recordEngagement, "own", {
+      businessId: "biz_1",
+      reportSentAt,
+      openFindings: 2,
+      acceptedFindings: 0,
+    });
+
+  it("takes no sent date from the browser, only from a reviewed version marked sent", async () => {
+    await pageOpen("2026-09-01T00:00:00.000Z");
+    expect(await sentAt()).toBeNull();
+
+    await lock("rv_1");
+    await reviewedBy("rev")();
+    await call(server.markReportSent, "own", { id: "rv_1" });
+    const stamped = await sentAt();
+    expect(stamped).not.toBeNull();
+
+    await pageOpen("2026-09-02T00:00:00.000Z");
+    expect(await sentAt()).toBe(stamped);
+  });
+});

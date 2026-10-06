@@ -39,10 +39,12 @@ function ReportPage() {
  * The current report. The letterhead and the "Prepared for … by …" line name
  * the viewer's firm only for a firm client the viewer works on as a member of
  * that business's firm (a member belongs to one firm, so it is the viewer's
- * own). The business's own account on a business it shared with a firm is
- * not a member: it prints no firm, even one it runs itself, and is not
- * offered "Mark report sent", the firm's work. A signed-out visitor or a solo
- * business makes no server call and prints no firm.
+ * own); unlocked, that report prints as a draft with no cover page. The
+ * business's own account on a business it shared with a firm is not a
+ * member: it prints no firm, even one it runs itself. A signed-out visitor or
+ * a solo business makes no server call and prints no firm. No one marks the
+ * live report sent: the server records "sent" only on a reviewed version,
+ * from the versions panel.
  */
 function LiveReport() {
   // The user object is rebuilt on every render; the id is the stable key, so
@@ -52,10 +54,8 @@ function LiveReport() {
   const businessId = profile.businessId ?? null;
   const firmClient = Boolean(businesses.find((b) => b.id === businessId)?.firmClient);
   const [firm, setFirm] = useState<{ snapshot: FirmSnapshot; coverPage: boolean } | null>(null);
-  const [sharedOwner, setSharedOwner] = useState(false);
 
   useEffect(() => {
-    setSharedOwner(false);
     if (!userId || !firmClient || !businessId) {
       setFirm(null);
       return;
@@ -67,7 +67,6 @@ function LiveReport() {
         // The business's firm has the viewer in no role: its own account, which
         // shared it with that firm.
         const outside = work.firm && work.role === null;
-        setSharedOwner(outside);
         setFirm(
           res.firm && !outside
             ? {
@@ -89,13 +88,7 @@ function LiveReport() {
     };
   }, [userId, firmClient, businessId]);
 
-  return (
-    <ControlReport
-      firm={firm?.snapshot ?? null}
-      coverPage={firm?.coverPage ?? false}
-      sharedOwner={sharedOwner}
-    />
-  );
+  return <ControlReport firm={firm?.snapshot ?? null} coverPage={firm?.coverPage ?? false} />;
 }
 
 /**

@@ -68,13 +68,17 @@ import { count, firstName, midSentence, verb } from "@/lib/precog/text";
  * so later scoring changes leave them as they were; a locked version without
  * usable stored figures recalculates them and says why. With `firm`, the
  * firm's letterhead leads the page and the header says which firm prepared
- * it for the business (firm clients only); with `coverPage` as well, a cover
- * page comes first. The basis block, the letterhead, the cover, that line and
- * the footer are standing statements printed around the stored figures, so a
- * locked version's figures print unchanged. With `shared`, the page is a
- * share link's: the toolbar (the way back into Precog, the sent stamp and
- * Print) and the versions panel stay off; the share page's own bar carries
- * Print.
+ * it for the business (firm clients only); with `coverPage` as well, a locked
+ * version opens with a cover page. Without `locked`, a report on firm
+ * letterhead has not been locked or reviewed: it prints no cover and carries
+ * a draft banner, at the top of the first page and in the top margin of each
+ * later page. The basis block, the letterhead, the cover, that line and the
+ * footer are standing statements printed around the stored figures, so a
+ * locked version's figures print unchanged. The report offers no "sent"
+ * stamp: only a reviewed version is marked sent, from the versions panel.
+ * With `shared`, the page is a share link's: the toolbar (the way back into
+ * Precog and Print) and the versions panel stay off; the share page's own
+ * bar carries Print.
  */
 export function ControlReport({
   locked = null,
@@ -82,17 +86,14 @@ export function ControlReport({
   firm = null,
   coverPage = false,
   shared = false,
-  sharedOwner = false,
 }: {
   locked?: ReportVersionRow | null;
   frozen?: Pick<FrozenReport, "layoutVersion" | "model"> | null;
   firm?: FirmSnapshot | null;
   coverPage?: boolean;
   shared?: boolean;
-  /** The viewer is the business's own account on a business it shared with a firm: the firm marks the report sent. */
-  sharedOwner?: boolean;
 }) {
-  const { profile, mapCustomized, markReportSent } = usePractice();
+  const { profile, mapCustomized } = usePractice();
   const tpl = useTemplate();
   const industry = industryMeta(profile.industry);
   const generated = locked ? new Date(locked.preparedAt) : new Date();
@@ -104,7 +105,6 @@ export function ControlReport({
   const mapFrom = mapSource(profile);
   const sample = isSampleBusiness(profile);
   const businessName = printedBusinessName(profile);
-  const sentAt = profile.engagement?.reportSentAt;
   // Printed from the columns frozen at lock only; a live report prints none.
   const engagement = locked ? engagementLine(locked) : null;
 
@@ -164,6 +164,8 @@ export function ControlReport({
         ? "custom process map"
         : "industry template map"
   }`;
+  // Firm letterhead on a report no one has locked or reviewed: say so.
+  const draft = firm && !locked ? `DRAFT: not locked or reviewed by ${firm.name}` : null;
   const letterhead = firm && (
     <div className="report-letterhead mb-4 flex items-center gap-4">
       {firm.logoDataUrl && (
@@ -190,30 +192,13 @@ export function ControlReport({
               <ArrowLeft className="size-4" /> Back to Precog
             </Link>
             <div className="flex flex-wrap items-center gap-2">
-              {locked ? (
+              {locked && (
                 <Link
                   to="/report"
                   className="inline-flex h-8 items-center rounded-md border border-neutral-300 px-3 text-xs font-medium hover:bg-neutral-100"
                 >
                   Back to the current report
                 </Link>
-              ) : (
-                !sample &&
-                !sharedOwner && (
-                  <>
-                    <span role="status" className="text-xs text-neutral-600">
-                      {sentAt ? `Marked sent on ${formatDay(sentAt)}` : ""}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={Boolean(sentAt)}
-                      onClick={markReportSent}
-                    >
-                      {sentAt ? "Report marked sent" : "Mark report sent"}
-                    </Button>
-                  </>
-                )
               )}
               <Button size="sm" onClick={() => window.print()}>
                 <Printer className="size-3.5" /> Print / Save as PDF
@@ -225,7 +210,17 @@ export function ControlReport({
       {!locked && !shared && <ReportVersionsPanel />}
 
       <article className="mx-auto max-w-4xl px-6 py-8 print:px-0 print:py-0">
-        {coverPage && firm && (
+        {draft && (
+          <section
+            role="note"
+            aria-label="Draft"
+            className="report-draft mb-6 rounded-lg border-2 border-red-700 p-3 text-sm font-semibold text-red-800"
+          >
+            <style dangerouslySetInnerHTML={{ __html: draftPageHeader(draft) }} />
+            {draft}
+          </section>
+        )}
+        {coverPage && firm && locked && (
           <section
             aria-label="Cover page"
             className="report-cover mb-8 flex min-h-[60vh] flex-col justify-between break-after-page border-b-2 border-neutral-900 pb-8 print:min-h-[90vh] print:border-b-0"
@@ -239,9 +234,7 @@ export function ControlReport({
               <p className="mt-2 text-base text-neutral-700">
                 Prepared for {businessName} by {firm.name}
               </p>
-              <p className="mt-1 text-sm text-neutral-800">
-                {locked ? versionProvenance(locked) : `generated ${formatDay(generated)}`}
-              </p>
+              <p className="mt-1 text-sm text-neutral-800">{versionProvenance(locked)}</p>
               {locked?.scopeNote && (
                 <p className="mt-1 text-sm text-neutral-700">Scope: {locked.scopeNote}</p>
               )}
@@ -695,6 +688,22 @@ export function ControlReport({
         <ControlReportCaseAppendix evidence={data.evidence} />
       </article>
     </div>
+  );
+}
+
+/**
+ * Print rules that repeat the draft banner in the top margin of every page
+ * after the first, where the banner itself prints. The text goes in as CSS
+ * escapes, so a firm name cannot end the string or the style element.
+ */
+function draftPageHeader(text: string): string {
+  let escaped = "";
+  for (const ch of text) {
+    escaped += /[A-Za-z0-9 ]/.test(ch) ? ch : `\\${(ch.codePointAt(0) ?? 32).toString(16)} `;
+  }
+  return (
+    `@media print { @page { @top-center { content: "${escaped}"; color: #991b1b; font: 600 9pt sans-serif; } } ` +
+    `@page :first { @top-center { content: none; } } }`
   );
 }
 
