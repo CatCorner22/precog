@@ -10,7 +10,7 @@ import {
   listAccountHistoryBusinesses,
 } from "./account-store";
 import { isBusinessId } from "./profile-input";
-import { loadFirmFor } from "./firm/store";
+import { loadFirmFor, trustedEmailAddress } from "./firm/store";
 import { recordAuditForAccount } from "./firm/audit.server";
 import { SUPPORT_EMAIL } from "./legal/operator";
 import { formatDay, utcDateKey } from "./dates";
@@ -114,7 +114,9 @@ export const exportBusinessHistory = createServerFn({ method: "GET" })
  * deleteAccountRows), and refused (403) unless the session began within
  * FRESH_SESSION_MINUTES, so a session left open or taken cannot delete the
  * account. Once the deletion has committed, the account's address gets a
- * notice; a failed send is reported and the deletion stands. The client signs
+ * notice when Precog can vouch for it (TRUSTED_EMAIL, the digest's rule: not
+ * an X-only sign-in's made-up address, not an unconfirmed one); a failed
+ * send is reported and the deletion stands. The client signs
  * out and clears its local copies afterwards; nothing here can be undone.
  */
 export const deleteAccount = createServerFn({ method: "POST" })
@@ -132,11 +134,14 @@ export const deleteAccount = createServerFn({ method: "POST" })
       message: SIGN_IN_AGAIN_TO_DELETE,
     });
     const sql = await getSql();
+    // Read before the account row goes. The session's address alone may be
+    // one the auth broker made up for an X sign-in.
+    const notifyAt = email ? await trustedEmailAddress(sql, context.userId) : null;
     // Commits before it returns; everything after it is best effort.
     const deleted = await deleteAccountRows(sql, context.userId);
     await revokeQuickBooksTokens(deleted.quickBooksRefreshTokens);
     await deleteStripeCustomer(deleted.stripeCustomerId);
-    await sendAccountDeletedEmail(email, new Date());
+    await sendAccountDeletedEmail(notifyAt, new Date());
     return { ok: true as const };
   });
 

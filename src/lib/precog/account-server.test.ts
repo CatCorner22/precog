@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   sendFails: false,
   mailConfigured: true,
   email: "owner@example.com" as string | null,
+  /** Whether the stored address passes TRUSTED_EMAIL (not X-only, confirmed). */
+  trusted: true,
 }));
 const spies = vi.hoisted(() => ({
   sendEmail: vi.fn(),
@@ -56,7 +58,13 @@ vi.mock("./account-store", () => ({
   exportBusinessHistoryPage: async () => ({ rows: [], nextBeforeRevision: null }),
   listAccountHistoryBusinesses: async () => [],
 }));
-vi.mock("./firm/store", () => ({ loadFirmFor: async () => null }));
+vi.mock("./firm/store", () => ({
+  loadFirmFor: async () => null,
+  trustedEmailAddress: async () => {
+    calls.push("trusted-address");
+    return state.trusted ? "owner@example.com" : null;
+  },
+}));
 vi.mock("./firm/audit.server", () => ({ recordAuditForAccount: async () => {} }));
 vi.mock("./integrations/qbo/client.server", () => ({
   decryptSecret: (s: string) => s,
@@ -89,6 +97,7 @@ beforeEach(() => {
   state.sendFails = false;
   state.mailConfigured = true;
   state.email = "owner@example.com";
+  state.trusted = true;
   spies.sendEmail.mockClear();
   spies.report.mockClear();
   spies.fresh.mockClear();
@@ -114,7 +123,7 @@ describe("account deletion", () => {
 
   it("emails the account's address after the deletion commits", async () => {
     await expect(deleteAs("u1")).resolves.toEqual({ ok: true });
-    expect(calls).toEqual(["fresh-session", "delete-committed", "email"]);
+    expect(calls).toEqual(["fresh-session", "trusted-address", "delete-committed", "email"]);
     const [to, message] = spies.sendEmail.mock.calls[0] as [
       string,
       { subject: string; text: string },
@@ -129,7 +138,7 @@ describe("account deletion", () => {
   it("keeps the deletion when the email fails to send, and reports the failure", async () => {
     state.sendFails = true;
     await expect(deleteAs("u1")).resolves.toEqual({ ok: true });
-    expect(calls).toEqual(["fresh-session", "delete-committed", "email"]);
+    expect(calls).toEqual(["fresh-session", "trusted-address", "delete-committed", "email"]);
     expect(spies.report).toHaveBeenCalledTimes(1);
     expect(spies.report.mock.calls[0]?.[1]).toBe("account-deleted-email");
   });
@@ -140,6 +149,14 @@ describe("account deletion", () => {
     state.email = "owner@example.com";
     state.mailConfigured = false;
     await expect(deleteAs("u1")).resolves.toEqual({ ok: true });
+    expect(spies.sendEmail).not.toHaveBeenCalled();
+    expect(spies.report).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing to an address Precog cannot vouch for (X-only or unconfirmed)", async () => {
+    state.trusted = false;
+    await expect(deleteAs("u1")).resolves.toEqual({ ok: true });
+    expect(calls).toEqual(["fresh-session", "trusted-address", "delete-committed"]);
     expect(spies.sendEmail).not.toHaveBeenCalled();
     expect(spies.report).not.toHaveBeenCalled();
   });

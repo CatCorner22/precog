@@ -26,7 +26,10 @@ type Txn = {
 };
 
 const PAID_AT = "2026-09-01T00:00:00.000Z";
-const TAG = `owner:${PAID_AT}`;
+/** The reversal_for tag: the Stripe customer and the Assessment payment. */
+const TAG = `cus_1:${PAID_AT}`;
+/** The tag reversals carried before it named the customer: the account. */
+const ACCOUNT_TAG = `owner:${PAID_AT}`;
 
 describe("Assessment credit reversal, across a crash", () => {
   let db: TestDb;
@@ -195,6 +198,53 @@ describe("Assessment credit reversal, across a crash", () => {
     });
     expect(posts()).toHaveLength(0);
     expect(await row()).toEqual({ cents: 0, pending: null, failed: null });
+  });
+
+  it("finds a reversal posted before an ownership transfer moved the row, and posts nothing twice", async () => {
+    hang = true;
+    // The inline reversal reaches Stripe, then the function dies.
+    void applyBillingEvent(db.sql, refund("evt_r1"));
+    await vi.waitFor(() => expect(posts()).toHaveLength(1));
+    hang = false;
+    // Stripe holds the reversal; the firm changes owner before the run.
+    balance.unshift({
+      id: "cbtxn_rev",
+      amount: 100_000,
+      created: Date.parse("2026-09-20T00:00:00Z") / 1000,
+      description: "Assessment credit reversed",
+      metadata: { reversal_for: TAG },
+    });
+    await db.seedUser("heir", "h@example.com");
+    await db.sql`update billing_accounts set user_id = 'heir' where user_id = 'owner'`;
+    await db.sql`update billing_accounts
+      set assessment_credit_reversal_pending_at = now() - interval '2 hours'
+      where user_id = 'heir'`;
+    expect(await retryFailedCreditReversals(db.sql)).toMatchObject({
+      retried: 1,
+      alreadyPosted: 1,
+      failed: 0,
+    });
+    expect(posts()).toHaveLength(1);
+  });
+
+  it("recognises a reversal tagged with the account, also the account before a transfer", async () => {
+    balance.unshift({
+      id: "cbtxn_rev",
+      amount: 100_000,
+      created: Date.parse("2026-09-20T00:00:00Z") / 1000,
+      description: "Assessment credit reversed",
+      metadata: { reversal_for: ACCOUNT_TAG },
+    });
+    await db.sql`update billing_accounts
+      set assessment_credit_reversal_failed_at = now() where user_id = 'owner'`;
+    expect(await retryFailedCreditReversals(db.sql)).toMatchObject({ alreadyPosted: 1 });
+    await db.seedUser("heir", "h@example.com");
+    await db.sql`update billing_accounts
+      set user_id = 'heir', assessment_credit_cents = 100000,
+        assessment_credit_reversal_failed_at = now()
+      where user_id = 'owner'`;
+    expect(await retryFailedCreditReversals(db.sql)).toMatchObject({ alreadyPosted: 1 });
+    expect(posts()).toHaveLength(0);
   });
 
   it("recognises an untagged reversal posted before the tag, but not one for an earlier payment", async () => {

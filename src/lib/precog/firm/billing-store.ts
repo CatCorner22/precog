@@ -528,12 +528,58 @@ export function staleSubscriptionEvent(
   return storedRank !== undefined && incomingRank !== undefined && incomingRank < storedRank;
 }
 
-/** What recordSubscription did; "account deleted" when the account's user row is gone. */
+/**
+ * Holds the billing account a Stripe event for `userId` and `customerId`
+ * writes to, and returns its id; null when that account is deleted. The
+ * account's user row is taken FOR NO KEY UPDATE, the lock an ownership
+ * transfer (transferFirmOwnership) and the account deletion take first, so
+ * the event waits for either to commit rather than writing beside it. Then
+ * the customer is looked up again: when a transfer moved it to another
+ * account while the event waited (or before, with stale metadata), the
+ * event goes to the account that now holds it, whose user row is held the
+ * same way. An account that still holds the customer itself keeps it.
+ * Throws (Stripe retries) if the customer keeps moving.
+ */
+export async function lockBillingAccount(
+  sql: Sql,
+  userId: string,
+  stripeCustomerId: string | null,
+): Promise<string | null> {
+  let candidate = userId;
+  for (let hop = 0; hop < 3; hop += 1) {
+    const user = await sql<{ id: string }>`
+      select id from "user" where id = ${candidate} for no key update
+    `;
+    if (user.length === 0) return null;
+    if (!stripeCustomerId) return candidate;
+    const holders = await sql<{ user_id: string }>`
+      select user_id from billing_accounts where stripe_customer_id = ${stripeCustomerId}
+      order by (user_id = ${candidate}) desc, user_id
+      limit 1
+    `;
+    const holder = holders[0]?.user_id ?? candidate;
+    if (holder === candidate) return candidate;
+    candidate = holder;
+  }
+  throw new Error(
+    `Stripe customer ${stripeCustomerId} moved between accounts while an event applied`,
+  );
+}
+
+/**
+ * What recordSubscription did; "account deleted" when the account's user row
+ * is gone. `userId` is the account written to (lockBillingAccount), and
+ * `previousStatus` the status stored before, read under the row lock;
+ * `wrote` is false when the event was stale and changed nothing.
+ */
 export type RecordedSubscription =
   | { accountDeleted: true }
   | {
       accountDeleted: false;
+      userId: string;
       status: string;
+      previousStatus: string | null;
+      wrote: boolean;
       ignoredOther: boolean;
       storedSubscriptionId: string | null;
     };
@@ -555,14 +601,16 @@ export type RecordedSubscription =
  * events it follows.
  *
  * Stripe delivers in parallel, so events for one account apply one at a
- * time: the account's user row is held against deletion first (the global
- * lock order: user rows, then the firm, then businesses), then an empty
- * billing row is inserted if none exists, so the row lock that orders the
- * events exists even for the account's first event. The upsert repeats the
- * event-time check as a second guard. An account whose user row is gone
- * (deleted before or while the event waited) gets nothing written and
- * reports `accountDeleted`, so the webhook acknowledges the event instead
- * of failing on it until Stripe gives up.
+ * time: the account's user row is held first (lockBillingAccount, which
+ * also follows the customer to the account that holds it after an
+ * ownership transfer; the global lock order: user rows, then the billing
+ * row, then the firm, then businesses), then an empty billing row is
+ * inserted if none exists, so the row lock that orders the events exists
+ * even for the account's first event. The upsert repeats the event-time
+ * check as a second guard. An account whose user row is gone (deleted
+ * before or while the event waited) gets nothing written and reports
+ * `accountDeleted`, so the webhook acknowledges the event instead of
+ * failing on it until Stripe gives up.
  */
 export async function recordSubscription(
   sql: Sql,
@@ -584,14 +632,12 @@ export async function recordSubscription(
     priceId?: string | null;
   },
 ): Promise<RecordedSubscription> {
-  // A deletion holds the user row for update first (deleteAccountRows), so
-  // this waits for it and then finds no row.
-  const user = await sql<{ id: string }>`
-    select id from "user" where id = ${input.userId} for key share
-  `;
-  if (user.length === 0) return { accountDeleted: true };
+  // A deletion or an ownership transfer holds the user row first, so this
+  // waits for it and then finds no row, or the customer under its new owner.
+  const userId = await lockBillingAccount(sql, input.userId, input.stripeCustomerId);
+  if (userId === null) return { accountDeleted: true };
   await sql`
-    insert into billing_accounts (user_id) values (${input.userId})
+    insert into billing_accounts (user_id) values (${userId})
     on conflict (user_id) do nothing
   `;
   const stored = await sql<{
@@ -600,7 +646,7 @@ export async function recordSubscription(
     subscription_event_at: string | null;
   }>`
     select subscription_id, subscription_status, subscription_event_at
-    from billing_accounts where user_id = ${input.userId}
+    from billing_accounts where user_id = ${userId}
     for update
   `;
   const current = stored[0];
@@ -632,7 +678,10 @@ export async function recordSubscription(
         input.status !== "incomplete_expired";
       return {
         accountDeleted: false,
+        userId,
         status: current.subscription_status,
+        previousStatus: current.subscription_status,
+        wrote: false,
         ignoredOther,
         storedSubscriptionId: current.subscription_id,
       };
@@ -641,12 +690,13 @@ export async function recordSubscription(
   const eventAt = input.status === null ? null : (input.eventAt ?? null);
   const cancellationReason = input.cancellationReason ?? null;
   const priceId = input.priceId ?? null;
+  const previousStatus = current?.subscription_status ?? null;
   const rows = await sql<{ subscription_status: string }>`
     insert into billing_accounts
       (user_id, stripe_customer_id, subscription_id, subscription_status, current_period_end,
         subscription_event_at, past_due_since, subscription_price_id, updated_at)
     values (
-      ${input.userId}, ${input.stripeCustomerId}, ${input.subscriptionId},
+      ${userId}, ${input.stripeCustomerId}, ${input.subscriptionId},
       coalesce(${input.status}::text, 'active'), ${input.currentPeriodEnd}::timestamptz,
       ${eventAt}::timestamptz,
       case when ${input.status}::text in ('past_due', 'unpaid') then coalesce(${eventAt}::timestamptz, now()) end,
@@ -714,18 +764,24 @@ export async function recordSubscription(
   if (!written) {
     // The guard kept a newer row (the lock above makes this unreachable in practice).
     const kept = await sql<{ subscription_id: string | null; subscription_status: string | null }>`
-      select subscription_id, subscription_status from billing_accounts where user_id = ${input.userId}
+      select subscription_id, subscription_status from billing_accounts where user_id = ${userId}
     `;
     return {
       accountDeleted: false,
+      userId,
       status: kept[0]?.subscription_status ?? "incomplete",
+      previousStatus,
+      wrote: false,
       ignoredOther: false,
       storedSubscriptionId: kept[0]?.subscription_id ?? null,
     };
   }
   return {
     accountDeleted: false,
+    userId,
     status: written.subscription_status,
+    previousStatus,
+    wrote: true,
     ignoredOther: false,
     storedSubscriptionId: input.subscriptionId,
   };
@@ -807,6 +863,11 @@ export async function setStripeCustomer(
   customerId: string,
   { replace = false }: { replace?: boolean } = {},
 ): Promise<"linked" | "unchanged"> {
+  // The account's user row before its billing row, the order of every
+  // billing writer and of the account deletion, which otherwise deadlocks
+  // with a link that wrote the billing row first.
+  const account = await sql`select id from "user" where id = ${userId} for no key update`;
+  if (account.length === 0) throw new RequestError(404, `No Precog account has ${userId}.`);
   const owner = await userForCustomer(sql, customerId);
   if (owner && owner !== userId) throw new RequestError(409, CUSTOMER_OF_ANOTHER_ACCOUNT);
   const memberships = await sql<{ email: string | null; firm: string }>`

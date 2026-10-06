@@ -5,6 +5,7 @@ import {
   ACTIVE_SUBSCRIPTION_STATUSES,
   claimBillingEvent,
   listPendingCreditReversals,
+  lockBillingAccount,
   loadBillingAccount,
   markAssessmentCreditReversalPending,
   markAssessmentCreditReversed,
@@ -42,7 +43,12 @@ import { beforeDeadline } from "../cron/budget";
  * a subscription event apply. A subscription that has ended
  * (canceled, incomplete_expired) for an unknown customer stays "ignored".
  * A subscription event for an account deleted before or while it waited is
- * "account deleted": acknowledged, so Stripe stops retrying it.
+ * "account deleted": acknowledged, so Stripe stops retrying it. So is a paid
+ * Assessment for a deleted account, which is reported
+ * (billing-payment-for-deleted-account) for the operator to refund, since
+ * no account is left to hold it. An event that waited on an ownership
+ * transfer applies to the account that now holds the Stripe customer
+ * (lockBillingAccount).
  *
  * After a refund or a lost dispute on an Assessment that was credited
  * against the Firm plan, the transaction marks the reversal pending (the
@@ -73,6 +79,11 @@ export async function applyBillingEvent(
     assessmentPaidAt: string | null;
   }[] = [];
   const secondSubscriptions: { userId: string; ignored: string; stored: string | null }[] = [];
+  const orphanPayments: {
+    userId: string;
+    customerId: string | null;
+    paymentIntentId: string | null;
+  }[] = [];
   const planChanges: {
     userId: string;
     from: string | null;
@@ -90,8 +101,17 @@ export async function applyBillingEvent(
       );
     }
     if (change.kind === "assessment-paid") {
+      const userId = await lockBillingAccount(tx, change.userId, change.customerId);
+      if (userId === null) {
+        orphanPayments.push({
+          userId: change.userId,
+          customerId: change.customerId,
+          paymentIntentId: change.paymentIntentId,
+        });
+        return "account deleted";
+      }
       await recordAssessmentPayment(tx, {
-        userId: change.userId,
+        userId,
         stripeCustomerId: change.customerId,
         paymentIntentId: change.paymentIntentId,
         paidAt: change.eventAt,
@@ -143,7 +163,6 @@ export async function applyBillingEvent(
         `Stripe subscription ${change.subscriptionId} names no account (customer ${change.customerId ?? "unknown"})`,
       );
     }
-    const before = (await loadBillingAccount(tx, userId))?.subscriptionStatus ?? null;
     const recorded = await recordSubscription(tx, {
       userId,
       stripeCustomerId: change.customerId,
@@ -157,13 +176,21 @@ export async function applyBillingEvent(
     // The account was deleted before or while this event waited: nothing to
     // write, and the committed claim stops Stripe's retries.
     if (recorded.accountDeleted) return "account deleted";
-    const { status, ignoredOther, storedSubscriptionId } = recorded;
+    // The account written to: a transfer may have moved the customer.
+    const {
+      userId: account,
+      status,
+      previousStatus,
+      wrote,
+      ignoredOther,
+      storedSubscriptionId,
+    } = recorded;
     // Reported once, on the Checkout completion that started it: the
     // subscription's own created and updated events (each renewal) are not
     // news again.
     if (ignoredOther && change.status === null) {
       secondSubscriptions.push({
-        userId,
+        userId: account,
         ignored: change.subscriptionId,
         stored: storedSubscriptionId,
       });
@@ -172,13 +199,20 @@ export async function applyBillingEvent(
     // which a late checkout event does not overwrite.
     const ownsFirm = await setFirmPlan(
       tx,
-      userId,
+      account,
       ACTIVE_SUBSCRIPTION_STATUSES.has(status) ? "monthly" : "assessment",
     );
     // Only the firm the account owns changes plan; a firm it merely joined
-    // does not, so its log takes nothing.
-    if (ownsFirm && status !== before) {
-      planChanges.push({ userId, from: before, to: status, priceId: change.priceId });
+    // does not, so its log takes nothing. The status before is the one read
+    // under the row lock, and only an event that wrote is logged, so two
+    // events delivered together log one change each at most.
+    if (ownsFirm && wrote && status !== previousStatus) {
+      planChanges.push({
+        userId: account,
+        from: previousStatus,
+        to: status,
+        priceId: change.priceId,
+      });
     }
     return "applied";
   });
@@ -187,6 +221,9 @@ export async function applyBillingEvent(
   }
   for (const second of secondSubscriptions) {
     await afterCommit(() => reportSecondSubscription(second));
+  }
+  for (const payment of orphanPayments) {
+    await afterCommit(() => reportPaymentForDeletedAccount(payment));
   }
   // The firm's log takes a moved status once the change has committed; Stripe acted, so no actor.
   for (const { userId, ...detail } of planChanges) {
@@ -236,6 +273,22 @@ async function reportSecondSubscription(input: {
   console.error(`[billing] ${message}`);
   const { reportServerError } = await import("@/lib/observability/report.server");
   await reportServerError(new Error(message), "billing-second-subscription");
+}
+
+/**
+ * A paid Assessment Checkout whose account was deleted before the payment
+ * arrived: nothing is written, the event is acknowledged, and this report
+ * names the payment for the operator to refund in Stripe (OPERATIONS).
+ */
+async function reportPaymentForDeletedAccount(input: {
+  userId: string;
+  customerId: string | null;
+  paymentIntentId: string | null;
+}): Promise<void> {
+  const message = `Assessment payment ${input.paymentIntentId ?? "unknown"} (customer ${input.customerId ?? "unknown"}) for deleted account ${input.userId}; refund it in Stripe`;
+  console.error(`[billing] ${message}`);
+  const { reportServerError } = await import("@/lib/observability/report.server");
+  await reportServerError(new Error(message), "billing-payment-for-deleted-account");
 }
 
 /** Inline attempts before a reversal is left for the scheduled run. */
