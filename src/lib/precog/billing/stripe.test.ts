@@ -1477,7 +1477,7 @@ describe("the Assessment credit", () => {
     expect(balanceCalls()).toHaveLength(1);
     expect(balanceCalls()[0].body).toContain("amount=100000");
     expect(balanceCalls()[0].headers["idempotency-key"]).toBe(
-      "credit-reversal-cus_1-2026-09-01T00:00:00.000Z",
+      "credit-reversal-cus_1-2026-09-01T00:00:00.000Z-pi_1",
     );
     // The stamp stays (this payment is never credited again); the amount is spent.
     expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
@@ -1532,7 +1532,7 @@ describe("the Assessment credit", () => {
     expect(retried).toHaveLength(1);
     expect(retried[0].body).toContain("amount=100000");
     expect(retried[0].headers["idempotency-key"]).toBe(
-      "credit-reversal-cus_1-2026-09-01T00:00:00.000Z",
+      "credit-reversal-cus_1-2026-09-01T00:00:00.000Z-pi_1",
     );
     expect(await loadBillingAccount(db.sql, "owner")).toMatchObject({
       assessmentCreditCents: 0,
@@ -1585,7 +1585,7 @@ describe("the Assessment credit", () => {
     expect(balanceCalls()).toHaveLength(3);
     expect(balanceCalls()[2].body).toContain("amount=100000");
     expect(balanceCalls()[2].headers["idempotency-key"]).toBe(
-      "credit-reversal-cus_1-2027-01-15T08:00:00.000Z",
+      "credit-reversal-cus_1-2027-01-15T08:00:00.000Z-pi_2",
     );
   });
 });

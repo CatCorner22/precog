@@ -111,7 +111,7 @@ describe("the tier's limit on a new or restored client", () => {
     });
   });
 
-  it("refuses a restore past the tier's limit the same way, by role", async () => {
+  it("refuses a restore past the tier's limit to the firm owner, and a member's restore as not theirs", async () => {
     await db.pg.exec(`
       update businesses set deleted_at = now() where id = 'c5';
       insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id)
@@ -120,7 +120,22 @@ describe("the tier's limit on a new or restored client", () => {
     expect((await refusal(call(restoreDeletedClient, "fo", { businessId: "c5" }))).message).toBe(
       "Your firm's Starter tier holds 5 client businesses. Move up a tier in Manage billing on the Firm page, or delete a client you no longer need.",
     );
-    expect((await refusal(call(restoreDeletedClient, "pp", { businessId: "c5" }))).message).toBe(
+    // Only the firm owner restores a client, whatever room the plan has.
+    expect(await refusal(call(restoreDeletedClient, "pp", { businessId: "c5" }))).toEqual({
+      status: 403,
+      message: "Only the firm owner can delete or restore a client.",
+    });
+  });
+
+  it("asks the business's own account to go to the firm owner when the firm it shared with is full", async () => {
+    await db.seedUser("so");
+    await db.pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id, granted_at, deleted_at)
+        values ('shared', 'so', 'Shared', 'general', '{}'::jsonb, 1, 'fo', now(), now());
+    `);
+    expect(
+      (await refusal(call(restoreDeletedClient, "so", { businessId: "shared" }))).message,
+    ).toBe(
       "Your firm's Starter tier holds 5 client businesses. Ask the firm owner to move up a tier, or to delete a client the firm no longer needs.",
     );
   });

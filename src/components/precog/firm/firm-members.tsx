@@ -18,6 +18,7 @@ import type {
   InviteRole,
 } from "@/lib/precog/firm/store";
 import type { MovedBusiness } from "@/lib/precog/business-store";
+import { transferredOwnershipToasts } from "./firm-members-text";
 import { formatDay } from "@/lib/precog/dates";
 import { fieldCls } from "@/components/ui/field-classes";
 
@@ -128,7 +129,9 @@ export function FirmMembers({
       return;
     try {
       const res = await transferFirmOwnership({ data: { userId } });
-      toast.success(`${name} now owns ${firm.name}.`);
+      for (const line of transferredOwnershipToasts(name, firm.name, res.moved)) {
+        toast.success(line);
+      }
       onChange({ firm: res.firm, members: res.members });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Precog did not change the firm's owner.");

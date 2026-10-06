@@ -979,6 +979,17 @@ export function rememberRemovedBusiness(id: string, storage = browserStorage()):
   );
 }
 
+/**
+ * Forgets that business `id` was removed on this device: the account holds
+ * it live again (restored, opened, loaded or saved there), so it is listed
+ * and kept here as usual. True when a removal was forgotten.
+ */
+export function forgetRemovedBusiness(id: string, storage = browserStorage()): boolean {
+  const removed = removedBusinessIds(storage);
+  if (!removed.delete(id)) return false;
+  return writeLocal(REMOVED_BUSINESSES_KEY, JSON.stringify([...removed]), storage);
+}
+
 // ── The list of businesses ─────────────────────────────────────────────────
 
 /** The stored list as read: absent, a plain object of entries, or text that is not one. */

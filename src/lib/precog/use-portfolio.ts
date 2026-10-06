@@ -14,6 +14,7 @@ import {
   ACTIVE_PROFILE_KEY,
   loadPortfolio,
   businessSummaryKey,
+  forgetRemovedBusiness,
   rememberRemovedBusiness,
   removePortfolioEntry,
   savePortfolioEntry,
@@ -216,6 +217,11 @@ export function usePortfolio(input: {
           ownerUserId: ownerUserId ?? copy.profile.ownerUserId,
           onboardingComplete: true,
         };
+        // The account holds it live (restored after a removal on this
+        // device): it is listed and kept here again.
+        if (ownOrLocal && (copy.accountRevision !== null || copy.accountMovedOn)) {
+          if (forgetRemovedBusiness(id, workspace.local)) bumpPortfolio();
+        }
         if (copy.accountMovedOn) {
           // This device's copy opens with the banner up, as when a save is
           // refused: the owner chooses, and the other copy is kept.
@@ -242,6 +248,7 @@ export function usePortfolio(input: {
     [
       activateProfile,
       accountTook,
+      bumpPortfolio,
       cloudUser,
       flushActive,
       flushLocal,

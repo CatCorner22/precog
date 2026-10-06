@@ -10,8 +10,30 @@ export function removedMemberToasts(name: string, moved: MovedBusiness[]): strin
   const lines = [
     `Removed ${name}. ${count(moved.length, "client business", "client businesses")} now ${moved.length === 1 ? "sits" : "sit"} under your account.`,
   ];
-  for (const m of moved) {
-    if (m.to !== m.from) lines.push(`${m.name} was given a new address in the business list.`);
+  return [...lines, ...renamedLines(moved)];
+}
+
+/**
+ * What the old owner is told after handing the firm to `name`: the new
+ * owner, how many of the client businesses the old owner set up now sit
+ * under the new owner's account, and each one that took a new address there.
+ */
+export function transferredOwnershipToasts(
+  name: string,
+  firmName: string,
+  moved: MovedBusiness[],
+): string[] {
+  const lines = [`${name} now owns ${firmName}.`];
+  if (moved.length > 0) {
+    lines.push(
+      `${count(moved.length, "client business", "client businesses")} you set up now ${moved.length === 1 ? "sits" : "sit"} under ${name}'s account. You keep working on ${moved.length === 1 ? "it" : "them"} as a reviewer.`,
+    );
   }
-  return lines;
+  return [...lines, ...renamedLines(moved)];
+}
+
+function renamedLines(moved: MovedBusiness[]): string[] {
+  return moved
+    .filter((m) => m.to !== m.from)
+    .map((m) => `${m.name} was given a new address in the business list.`);
 }

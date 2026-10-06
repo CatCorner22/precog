@@ -762,6 +762,8 @@ export async function transferFirmOwnership(
         memberUserId: firmUserId,
       });
       await tx`update billing_accounts set user_id = ${newOwnerUserId}, updated_at = now() where user_id = ${firmUserId}`;
+      // A credit reversal still owed on the firm's customer goes with its billing.
+      await tx`update assessment_credit_reversals set user_id = ${newOwnerUserId} where user_id = ${firmUserId}`;
       // Client invitations accepted by the firm, and the versions locked for it,
       // follow the firm (its id is its owner's), before the old row goes.
       await tx`

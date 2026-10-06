@@ -306,6 +306,40 @@ describe.runIf(process.env.PRECOG_LIFECYCLE_POSTGRES === "1")(
         expect(rows[0].firm_user_id).toBe("m");
       });
 
+      it("an accept waits for a membership write that holds the business owner's account", async () => {
+        await firm();
+        const grant = await grantFrom("b", "biz_b");
+        const held = signal();
+        const release = signal();
+        // A membership write (for example b joining a firm) holds b's account
+        // FOR NO KEY UPDATE, as lockFirmMembershipWrite takes it.
+        const membership = inTransaction(db.sql, async (tx) => {
+          await tx`select id from "user" where id = 'b' for no key update`;
+          held.resolve();
+          await release.promise;
+        });
+        await held.promise;
+        const tag = `accept_${randomUUID().replaceAll("-", "")}`;
+        const accepting = settle(acceptGrant(taggedSql(db.sql, tag), grant.token, "o"));
+        try {
+          await expect
+            .poll(
+              async () => {
+                const [row] = await db.sql<{ n: number }>`select count(*)::int as n
+                  from pg_stat_activity where query like ${`/* ${tag} */%`}
+                    and wait_event_type = 'Lock'`;
+                return row.n;
+              },
+              { timeout: 5_000, interval: 20 },
+            )
+            .toBeGreaterThan(0);
+        } finally {
+          release.resolve();
+          await membership;
+        }
+        expect(message((await accepting).error ?? "ok")).toBe("ok");
+      });
+
       it("10 rounds of accept against transfer: success or a 409, never a raw database error", async () => {
         for (let i = 0; i < 10; i += 1) {
           await firm();

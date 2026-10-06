@@ -54,6 +54,18 @@ vi.mock("@/lib/db", () => ({ getSql: async () => ref.db?.sql }));
 // The public loaders read the caller's address and user agent for the view log.
 vi.mock("@/lib/request-ip.server", () => ({ requestIp: () => "203.0.113.9" }));
 vi.mock("@tanstack/react-start/server", () => ({ getRequest: () => null }));
+// The day each map link's week of actions was built for.
+const weekly = vi.hoisted(() => ({ days: [] as string[] }));
+vi.mock("../weekly-actions/build", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../weekly-actions/build")>();
+  return {
+    ...real,
+    buildWeeklyActions: (input: Parameters<typeof real.buildWeeklyActions>[0]) => {
+      weekly.days.push(input.today ?? "none");
+      return real.buildWeeklyActions(input);
+    },
+  };
+});
 
 type ShareCall = (args: {
   context: { userId: string };
@@ -752,6 +764,24 @@ describe("a map link", () => {
     expect(payload.sharedBy).toBe("the business's own account");
     expect(payload.namesHidden).toBe(true);
     expect(JSON.stringify(payload)).not.toContain("Ada Park");
+  });
+
+  it("builds the week's actions on the owner's day, not the server's", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // Already the 7th on the server's clock; still the 6th where the owner is.
+    vi.setSystemTime(new Date("2026-10-07T02:00:00Z"));
+    try {
+      weekly.days.length = 0;
+      await shareMap("solo", { businessId: "solo_biz", today: "2026-10-06" });
+      expect(weekly.days).toEqual(["2026-10-06"]);
+      // A day more than one away from the server's, or no day at all, is not taken.
+      weekly.days.length = 0;
+      await shareMap("solo", { businessId: "solo_biz", today: "2020-01-01" });
+      await shareMap("solo", { businessId: "solo_biz" });
+      expect(weekly.days).toEqual(["2026-10-07", "2026-10-07"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("is refused for a business the caller cannot reach, with no fallback to the caller", async () => {

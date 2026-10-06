@@ -305,29 +305,38 @@ const REVERSAL_DESCRIPTION = "Assessment credit reversed";
 
 /**
  * The `reversal_for` metadata of an Assessment-credit reversal: the Stripe
- * customer and the Assessment payment (its paid-at time) whose credit it
- * takes back. The scheduled run finds an earlier reversal by it
- * (findCreditReversal). Keyed on the customer, not the account: an
- * ownership transfer moves the billing row to another account but keeps
- * the customer, so a reversal posted before the transfer is still found.
+ * customer and the Assessment payment (its paid-at time and its payment
+ * intent) whose credit it takes back. The scheduled run finds an earlier
+ * reversal by it (findCreditReversal). Keyed on the customer, not the
+ * account: an ownership transfer moves the billing row to another account
+ * but keeps the customer, so a reversal posted before the transfer is still
+ * found. The payment intent makes it one payment's alone, even when two
+ * payments share a paid-at time or have none recorded.
  */
-export function creditReversalTag(customerId: string, assessmentPaidAt: string | null): string {
-  return `${customerId}:${assessmentPaidAt ?? "unknown"}`;
+export function creditReversalTag(
+  customerId: string,
+  assessmentPaidAt: string | null,
+  paymentIntentId: string | null,
+): string {
+  const tag = `${customerId}:${assessmentPaidAt ?? "unknown"}`;
+  return paymentIntentId ? `${tag}:${paymentIntentId}` : tag;
 }
 
 /**
  * Takes a posted credit back (a refunded Assessment keeps no credit). Keyed
- * on the Assessment payment like the credit, so a later payment's reversal
- * is not swallowed by this one's cached answer, and tagged with
- * creditReversalTag, so a retry after Stripe has forgotten the key (about a
- * day) finds the reversal instead of posting it again.
+ * on the Assessment payment (its paid-at time and payment intent), so a
+ * later payment's reversal is not swallowed by this one's cached answer,
+ * and tagged with creditReversalTag, so a retry after Stripe has forgotten
+ * the key (about a day) finds the reversal instead of posting it again.
  */
 export async function reverseCustomerBalance(input: {
   userId: string;
   customerId: string;
   amountCents: number;
   assessmentPaidAt: string | null;
+  paymentIntentId: string | null;
 }): Promise<void> {
+  const intent = input.paymentIntentId ? `-${input.paymentIntentId}` : "";
   await stripeRequest(
     "POST",
     `/customers/${encodeURIComponent(input.customerId)}/balance_transactions`,
@@ -335,9 +344,15 @@ export async function reverseCustomerBalance(input: {
       amount: input.amountCents,
       currency: "usd",
       description: REVERSAL_DESCRIPTION,
-      metadata: { reversal_for: creditReversalTag(input.customerId, input.assessmentPaidAt) },
+      metadata: {
+        reversal_for: creditReversalTag(
+          input.customerId,
+          input.assessmentPaidAt,
+          input.paymentIntentId,
+        ),
+      },
     },
-    `credit-reversal-${input.customerId}-${input.assessmentPaidAt ?? "unknown"}`,
+    `credit-reversal-${input.customerId}-${input.assessmentPaidAt ?? "unknown"}${intent}`,
   );
 }
 
@@ -355,11 +370,15 @@ type BalanceTransaction = {
 /**
  * True when the customer's balance already holds the reversal of this
  * Assessment payment's credit: a transaction tagged with its
- * creditReversalTag; one tagged the earlier way, `<account id>:<paid-at>`,
- * for this account, or for any account with the same paid-at time and
- * amount (the account before an ownership transfer); or (posted before the
- * tag existed) an untagged "Assessment credit reversed" of the same amount
- * created after the payment.
+ * creditReversalTag. When the payment's paid-at time is known, also one
+ * tagged the earlier ways, without the payment intent: `<customer>:<paid-at>`;
+ * `<account id>:<paid-at>` for this account, or for any account with the
+ * same paid-at time and amount (the account before an ownership transfer);
+ * or (posted before the tag existed) an untagged "Assessment credit
+ * reversed" of the same amount created after the payment. A payment whose
+ * paid-at time is unknown matches only its own tag: "unknown" is no one
+ * payment's time, so an earlier tag or an untagged reversal could be
+ * another payment's.
  * Reads newest first and stops at transactions older than the payment.
  * Throws when Stripe cannot answer or the history is longer than it reads,
  * so the caller posts nothing on a guess.
@@ -369,13 +388,15 @@ export async function findCreditReversal(input: {
   customerId: string;
   amountCents: number;
   assessmentPaidAt: string | null;
+  paymentIntentId: string | null;
 }): Promise<boolean> {
-  const tag = creditReversalTag(input.customerId, input.assessmentPaidAt);
-  const paidPart = `:${input.assessmentPaidAt ?? "unknown"}`;
-  const accountTag = `${input.userId}${paidPart}`;
-  const paidAtSeconds = input.assessmentPaidAt
-    ? Math.floor(Date.parse(input.assessmentPaidAt) / 1000)
-    : null;
+  const tag = creditReversalTag(input.customerId, input.assessmentPaidAt, input.paymentIntentId);
+  const paidAt = input.assessmentPaidAt;
+  const paidPart = paidAt ? `:${paidAt}` : null;
+  const earlierTags = new Set(
+    paidPart ? [`${input.customerId}${paidPart}`, `${input.userId}${paidPart}`] : [],
+  );
+  const paidAtSeconds = paidAt ? Math.floor(Date.parse(paidAt) / 1000) : null;
   let after: string | null = null;
   for (let page = 0; page < REVERSAL_LOOKUP_PAGES; page += 1) {
     const query = new URLSearchParams({ limit: "100" });
@@ -387,7 +408,10 @@ export async function findCreditReversal(input: {
     if (!Array.isArray(list.data)) throw new Error("Stripe balance transactions unreadable");
     for (const txn of list.data) {
       const reversalFor = txn.metadata?.reversal_for;
-      if (reversalFor === tag || reversalFor === accountTag) return true;
+      if (reversalFor === tag || (reversalFor !== undefined && earlierTags.has(reversalFor))) {
+        return true;
+      }
+      if (paidPart === null || paidAtSeconds === null) continue;
       if (
         reversalFor !== undefined &&
         reversalFor.endsWith(paidPart) &&
@@ -400,7 +424,7 @@ export async function findCreditReversal(input: {
         reversalFor === undefined &&
         txn.description === REVERSAL_DESCRIPTION &&
         txn.amount === input.amountCents &&
-        (paidAtSeconds === null || txn.created >= paidAtSeconds)
+        txn.created >= paidAtSeconds
       ) {
         return true;
       }

@@ -9,7 +9,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { madeByLabel, SHARE_NOTE_MAX, SHARE_PASSCODE_MIN } from "@/lib/precog/share/share-schema";
 import { createMapShare, listMapShares, revokeMapShare } from "@/lib/precog/share/share-server";
 import type { ShareSummary } from "@/lib/precog/share/share-store";
-import { formatDayShort } from "@/lib/precog/dates";
+import { formatDayShort, localDateKey } from "@/lib/precog/dates";
 import { count } from "@/lib/precog/text";
 import { cn } from "@/lib/utils";
 
@@ -72,6 +72,7 @@ export function SharePanel({
           expiresInDays: days,
           redacted: redactNames,
           passcode,
+          today: localDateKey(new Date()),
         },
       });
       setLatest(res.token);

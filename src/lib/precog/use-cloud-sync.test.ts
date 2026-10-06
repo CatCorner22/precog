@@ -7,6 +7,9 @@ import { AccountLineage, LocalProfileStore } from "./save-conflict";
 import {
   defaultProfile,
   loadPortfolio,
+  rememberRemovedBusiness,
+  removedBusinessIds,
+  summarizeBusiness,
   savePortfolioEntry,
   type PracticeProfile,
 } from "./practice-profile";
@@ -582,11 +585,96 @@ describe("an account load that fails at page open", () => {
     expect(server.loadBusinessProfile).toHaveBeenCalledTimes(2);
   });
 
+  it("records the account's revision of another business this device built on, so opening it later asks nothing", async () => {
+    const workspace = browser();
+    const b = business("biz_b", "B Co");
+    const mine = edit(b, { customKnowledge: [item("Edited here")] });
+    savePortfolioEntry(mine, workspace.local);
+    workspace.local?.setItem("precog.cloud-bases.v1", JSON.stringify({ biz_b: 3 }));
+    // The account took this device's copy of B (its answer never arrived).
+    workspace.local?.setItem("precog.cloud-stamps.v1", JSON.stringify({ biz_b: b.updatedAt }));
+    const tab = await syncTab(workspace, business("biz_a", "A Co"), { loadFails: true });
+    server.loadBusinessProfile.mockResolvedValueOnce({
+      found: true,
+      profile: b,
+      revision: 4,
+      updatedAt: b.updatedAt,
+    });
+    server.saveBusinessProfile.mockResolvedValue({ ok: true, revision: 1 });
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(tab.activated).toEqual([]);
+    expect(JSON.parse(workspace.local?.getItem("precog.cloud-bases.v1") ?? "{}")).toMatchObject({
+      biz_b: 4,
+    });
+    // Opening B later opens this device's edits, with no banner.
+    server.loadBusiness.mockResolvedValueOnce({ found: true, profile: b, revision: 4 });
+    expect(await portfolioTab(workspace, tab).switchBusiness("biz_b")).toEqual({ ok: true });
+    expect(tab.sync.saveConflictRef.current).toBeNull();
+    expect(tab.activated.at(-1)?.customKnowledge?.[0]?.name).toBe("Edited here");
+  });
+
+  it("records no revision of another business whose copy here is not built on the account's (CW1-1)", async () => {
+    const workspace = browser();
+    const b = business("biz_b", "B Co");
+    const theirs = edit(b, { customKnowledge: [item("Edited on another device")] });
+    savePortfolioEntry(edit(b, { customKnowledge: [item("Edited here")] }), workspace.local);
+    workspace.local?.setItem("precog.cloud-bases.v1", JSON.stringify({ biz_b: 3 }));
+    workspace.local?.setItem("precog.cloud-stamps.v1", JSON.stringify({ biz_b: b.updatedAt }));
+    await syncTab(workspace, business("biz_a", "A Co"), { loadFails: true });
+    server.loadBusinessProfile.mockResolvedValueOnce({
+      found: true,
+      profile: theirs,
+      revision: 4,
+      updatedAt: theirs.updatedAt,
+    });
+    server.saveBusinessProfile.mockResolvedValue({ ok: true, revision: 1 });
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(JSON.parse(workspace.local?.getItem("precog.cloud-bases.v1") ?? "{}")).toMatchObject({
+      biz_b: 3,
+    });
+  });
+
   it("stops retrying once the workspace closes", async () => {
     await syncTab(browser(), business("biz_a", "A Co"), { loadFails: true });
     effects.unmount();
     await vi.advanceTimersByTimeAsync(120_000);
     expect(server.loadBusinessProfile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a business removed on this device and restored in the account", () => {
+  it("is listed again once the account lists it", async () => {
+    const workspace = browser();
+    rememberRemovedBusiness("biz_b", workspace.local);
+    server.listBusinesses.mockResolvedValueOnce([
+      { ...summarizeBusiness(business("biz_b", "B Co")), ownerUserId: USER },
+    ]);
+    await syncTab(workspace, business("biz_a", "A Co"));
+    expect(removedBusinessIds(workspace.local).has("biz_b")).toBe(false);
+    expect(savePortfolioEntry(business("biz_b", "B Co"), workspace.local)).toBe(true);
+    expect(Object.keys(loadPortfolio(workspace.local))).toContain("biz_b");
+  });
+
+  it("is kept here again once the account loads it as the open business", async () => {
+    const workspace = browser();
+    const b = business("biz_b", "B Co");
+    rememberRemovedBusiness("biz_b", workspace.local);
+    const tab = await syncTab(workspace, business("biz_a", "A Co"), {
+      load: { found: true, profile: b, revision: 2, updatedAt: b.updatedAt },
+    });
+    expect(tab.activated.at(-1)?.businessId).toBe("biz_b");
+    expect(removedBusinessIds(workspace.local).has("biz_b")).toBe(false);
+  });
+
+  it("stays removed while the account does not hold it", async () => {
+    const workspace = browser();
+    rememberRemovedBusiness("biz_b", workspace.local);
+    await syncTab(workspace, business("biz_a", "A Co"));
+    expect(removedBusinessIds(workspace.local).has("biz_b")).toBe(true);
   });
 });
 

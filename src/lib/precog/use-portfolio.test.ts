@@ -6,6 +6,7 @@ import {
   ACTIVE_PROFILE_KEY,
   defaultProfile,
   loadPortfolio,
+  removedBusinessIds,
   savePortfolioEntry,
   type PracticeProfile,
 } from "./practice-profile";
@@ -153,5 +154,34 @@ describe("removing a business", () => {
     expect(savePortfolioEntry(business("biz_b", "B Co (edited)"), local)).toBe(true);
     expect(Object.keys(loadPortfolio(local))).toEqual(["biz_a"]);
     expect(local.getItem(ACTIVE_PROFILE_KEY)).toContain('"biz_a"');
+  });
+
+  it("lists and keeps it again once the owner opens it after it was restored in the account", async () => {
+    const local = new ScopedStorage(memoryStorage(), "user_1");
+    const workspace: Workspace = { accountId: "user_1", local, session: null };
+    savePortfolioEntry(business("biz_a", "A Co"), local);
+    savePortfolioEntry(business("biz_b", "B Co"), local);
+    server.deleteBusiness.mockResolvedValueOnce({ ok: true });
+    const first = portfolio({ open: business("biz_a", "A Co"), cloudUser: true, workspace });
+    await first.hook.deleteBusiness("biz_b");
+    expect(removedBusinessIds(local).has("biz_b")).toBe(true);
+
+    // The firm restores it; the account lists it and the owner opens it.
+    server.loadBusiness.mockResolvedValueOnce({
+      found: true,
+      profile: business("biz_b", "B Co"),
+      revision: 3,
+    });
+    const { hook, activateProfile } = portfolio({
+      open: business("biz_a", "A Co"),
+      cloudUser: true,
+      workspace,
+    });
+    expect(await hook.switchBusiness("biz_b")).toEqual({ ok: true });
+    expect(activateProfile).toHaveBeenCalledTimes(1);
+    expect(removedBusinessIds(local).has("biz_b")).toBe(false);
+    // Its saves on this device list it again.
+    expect(savePortfolioEntry(business("biz_b", "B Co (edited)"), local)).toBe(true);
+    expect(Object.keys(loadPortfolio(local)).sort()).toEqual(["biz_a", "biz_b"]);
   });
 });

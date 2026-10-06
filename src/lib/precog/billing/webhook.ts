@@ -17,6 +17,7 @@ import {
   recordSubscription,
   userForAssessmentIntent,
   userForCustomer,
+  type PendingReversal,
 } from "../firm/billing-store";
 import { setFirmPlan } from "../firm/store";
 import { billingChangeFor, type StripeEvent } from "./stripe";
@@ -72,12 +73,7 @@ export async function applyBillingEvent(
 ): Promise<"duplicate" | "ignored" | "applied" | "account deleted"> {
   // Lists, not nullable lets: assignments inside the transaction's
   // callback are invisible to narrowing after it.
-  const reversals: {
-    userId: string;
-    customerId: string;
-    creditCents: number;
-    assessmentPaidAt: string | null;
-  }[] = [];
+  const reversals: PendingReversal[] = [];
   const secondSubscriptions: { userId: string; ignored: string; stored: string | null }[] = [];
   const orphanPayments: {
     userId: string;
@@ -90,132 +86,144 @@ export async function applyBillingEvent(
     to: string;
     priceId: string | null;
   }[] = [];
-  const outcome = await inTransaction(sql, async (tx) => {
-    if (!(await claimBillingEvent(tx, event.id, event.type))) return "duplicate";
-    const change = billingChangeFor(event);
-    if (change.kind === "ignore") return "ignored";
-    if (change.kind === "unattributed") {
-      throw new RequestError(
-        500,
-        `Stripe event ${event.id} (${change.eventType}) names no account (customer ${change.customerId ?? "unknown"})`,
-      );
-    }
-    if (change.kind === "assessment-paid") {
-      const userId = await lockBillingAccount(tx, change.userId, change.customerId);
-      if (userId === null) {
-        orphanPayments.push({
-          userId: change.userId,
-          customerId: change.customerId,
-          paymentIntentId: change.paymentIntentId,
-        });
-        return "account deleted";
+  const outcome = await inTransaction(
+    sql,
+    async (tx) => {
+      // A deadlock victim runs again from nothing: what the first run noted goes.
+      for (const list of [reversals, secondSubscriptions, orphanPayments, planChanges]) {
+        list.length = 0;
       }
-      await recordAssessmentPayment(tx, {
+      if (!(await claimBillingEvent(tx, event.id, event.type))) return "duplicate";
+      const change = billingChangeFor(event);
+      if (change.kind === "ignore") return "ignored";
+      if (change.kind === "unattributed") {
+        throw new RequestError(
+          500,
+          `Stripe event ${event.id} (${change.eventType}) names no account (customer ${change.customerId ?? "unknown"})`,
+        );
+      }
+      if (change.kind === "assessment-paid") {
+        const userId = await lockBillingAccount(tx, change.userId, change.customerId);
+        if (userId === null) {
+          orphanPayments.push({
+            userId: change.userId,
+            customerId: change.customerId,
+            paymentIntentId: change.paymentIntentId,
+          });
+          return "account deleted";
+        }
+        await recordAssessmentPayment(tx, {
+          userId,
+          stripeCustomerId: change.customerId,
+          paymentIntentId: change.paymentIntentId,
+          paidAt: change.eventAt,
+          feeCents: change.amountSubtotalCents,
+        });
+        return "applied";
+      }
+      if (change.kind === "assessment-refunded" || change.kind === "assessment-dispute") {
+        const userId = await userForAssessmentIntent(tx, change.paymentIntentId);
+        if (!userId) return "ignored";
+        if (change.kind === "assessment-refunded") {
+          await recordAssessmentRefund(tx, userId, change.eventAt);
+        } else {
+          await recordAssessmentDispute(tx, userId, change.status, change.eventAt);
+        }
+        // After a refund or a lost dispute the firm is back on the assessment
+        // stage, unless its subscription is still running.
+        if (change.kind === "assessment-refunded" || change.status === "lost") {
+          const account = await loadBillingAccount(tx, userId);
+          const subscriptionActive = Boolean(
+            account?.subscriptionStatus &&
+            ACTIVE_SUBSCRIPTION_STATUSES.has(account.subscriptionStatus),
+          );
+          if (!subscriptionActive) await setFirmPlan(tx, userId, "assessment");
+          const pending = await markAssessmentCreditReversalPending(tx, userId);
+          if (pending) reversals.push({ userId, ...pending });
+        }
+        return "applied";
+      }
+      if (change.kind === "payment-failed") {
+        const userId = change.customerId ? await userForCustomer(tx, change.customerId) : null;
+        if (!userId) return "ignored";
+        await markPastDue(tx, userId, change.eventAt, change.hostedInvoiceUrl);
+        return "applied";
+      }
+      // A checkout completion (null status) names the account that started
+      // it, which may be a new customer. A subscription event's metadata can
+      // be stale after the firm changed owner, so the stored customer wins.
+      const byCustomer = change.customerId ? await userForCustomer(tx, change.customerId) : null;
+      const userId =
+        change.status === null ? (change.userId ?? byCustomer) : (byCustomer ?? change.userId);
+      if (!userId) {
+        // An ended subscription moves no money, and a cancellation for a
+        // customer no account holds (an old customer after a --replace link,
+        // or an account already deleted) can never be attributed.
+        if (change.status === "canceled" || change.status === "incomplete_expired")
+          return "ignored";
+        throw new RequestError(
+          500,
+          `Stripe subscription ${change.subscriptionId} names no account (customer ${change.customerId ?? "unknown"})`,
+        );
+      }
+      const recorded = await recordSubscription(tx, {
         userId,
         stripeCustomerId: change.customerId,
-        paymentIntentId: change.paymentIntentId,
-        paidAt: change.eventAt,
-        feeCents: change.amountSubtotalCents,
-      });
-      return "applied";
-    }
-    if (change.kind === "assessment-refunded" || change.kind === "assessment-dispute") {
-      const userId = await userForAssessmentIntent(tx, change.paymentIntentId);
-      if (!userId) return "ignored";
-      if (change.kind === "assessment-refunded") {
-        await recordAssessmentRefund(tx, userId, change.eventAt);
-      } else {
-        await recordAssessmentDispute(tx, userId, change.status, change.eventAt);
-      }
-      // After a refund or a lost dispute the firm is back on the assessment
-      // stage, unless its subscription is still running.
-      if (change.kind === "assessment-refunded" || change.status === "lost") {
-        const account = await loadBillingAccount(tx, userId);
-        const subscriptionActive = Boolean(
-          account?.subscriptionStatus &&
-          ACTIVE_SUBSCRIPTION_STATUSES.has(account.subscriptionStatus),
-        );
-        if (!subscriptionActive) await setFirmPlan(tx, userId, "assessment");
-        const pending = await markAssessmentCreditReversalPending(tx, userId);
-        if (pending) reversals.push({ userId, ...pending });
-      }
-      return "applied";
-    }
-    if (change.kind === "payment-failed") {
-      const userId = change.customerId ? await userForCustomer(tx, change.customerId) : null;
-      if (!userId) return "ignored";
-      await markPastDue(tx, userId, change.eventAt, change.hostedInvoiceUrl);
-      return "applied";
-    }
-    // A checkout completion (null status) names the account that started
-    // it, which may be a new customer. A subscription event's metadata can
-    // be stale after the firm changed owner, so the stored customer wins.
-    const byCustomer = change.customerId ? await userForCustomer(tx, change.customerId) : null;
-    const userId =
-      change.status === null ? (change.userId ?? byCustomer) : (byCustomer ?? change.userId);
-    if (!userId) {
-      // An ended subscription moves no money, and a cancellation for a
-      // customer no account holds (an old customer after a --replace link,
-      // or an account already deleted) can never be attributed.
-      if (change.status === "canceled" || change.status === "incomplete_expired") return "ignored";
-      throw new RequestError(
-        500,
-        `Stripe subscription ${change.subscriptionId} names no account (customer ${change.customerId ?? "unknown"})`,
-      );
-    }
-    const recorded = await recordSubscription(tx, {
-      userId,
-      stripeCustomerId: change.customerId,
-      subscriptionId: change.subscriptionId,
-      status: change.status,
-      currentPeriodEnd: change.currentPeriodEnd,
-      eventAt: change.eventAt,
-      cancellationReason: change.cancellationReason,
-      priceId: change.priceId,
-    });
-    // The account was deleted before or while this event waited: nothing to
-    // write, and the committed claim stops Stripe's retries.
-    if (recorded.accountDeleted) return "account deleted";
-    // The account written to: a transfer may have moved the customer.
-    const {
-      userId: account,
-      status,
-      previousStatus,
-      wrote,
-      ignoredOther,
-      storedSubscriptionId,
-    } = recorded;
-    // Reported once, on the Checkout completion that started it: the
-    // subscription's own created and updated events (each renewal) are not
-    // news again.
-    if (ignoredOther && change.status === null) {
-      secondSubscriptions.push({
-        userId: account,
-        ignored: change.subscriptionId,
-        stored: storedSubscriptionId,
-      });
-    }
-    // The plan on the firm row follows the subscription status as stored,
-    // which a late checkout event does not overwrite.
-    const ownsFirm = await setFirmPlan(
-      tx,
-      account,
-      ACTIVE_SUBSCRIPTION_STATUSES.has(status) ? "monthly" : "assessment",
-    );
-    // Only the firm the account owns changes plan; a firm it merely joined
-    // does not, so its log takes nothing. The status before is the one read
-    // under the row lock, and only an event that wrote is logged, so two
-    // events delivered together log one change each at most.
-    if (ownsFirm && wrote && status !== previousStatus) {
-      planChanges.push({
-        userId: account,
-        from: previousStatus,
-        to: status,
+        subscriptionId: change.subscriptionId,
+        status: change.status,
+        currentPeriodEnd: change.currentPeriodEnd,
+        eventAt: change.eventAt,
+        cancellationReason: change.cancellationReason,
         priceId: change.priceId,
       });
-    }
-    return "applied";
-  });
+      // The account was deleted before or while this event waited: nothing to
+      // write, and the committed claim stops Stripe's retries.
+      if (recorded.accountDeleted) return "account deleted";
+      // The account written to: a transfer may have moved the customer.
+      const {
+        userId: account,
+        status,
+        previousStatus,
+        wrote,
+        ignoredOther,
+        storedSubscriptionId,
+      } = recorded;
+      // Reported once, on the Checkout completion that started it: the
+      // subscription's own created and updated events (each renewal) are not
+      // news again.
+      if (ignoredOther && change.status === null) {
+        secondSubscriptions.push({
+          userId: account,
+          ignored: change.subscriptionId,
+          stored: storedSubscriptionId,
+        });
+      }
+      // The plan on the firm row follows the subscription status as stored,
+      // which a late checkout event does not overwrite.
+      const ownsFirm = await setFirmPlan(
+        tx,
+        account,
+        ACTIVE_SUBSCRIPTION_STATUSES.has(status) ? "monthly" : "assessment",
+      );
+      // Only the firm the account owns changes plan; a firm it merely joined
+      // does not, so its log takes nothing. The status before is the one read
+      // under the row lock, and only an event that wrote is logged, so two
+      // events delivered together log one change each at most.
+      if (ownsFirm && wrote && status !== previousStatus) {
+        planChanges.push({
+          userId: account,
+          from: previousStatus,
+          to: status,
+          priceId: change.priceId,
+        });
+      }
+      return "applied";
+    },
+    // Two accounts' rows are taken in ascending id order (lockBillingAccount),
+    // as every other write does; a deadlock left over (a customer that moved
+    // twice while the event waited) runs the event once more.
+    { retryOnDeadlock: true },
+  );
   for (const reversal of reversals) {
     await afterCommit(() => reverseAssessmentCredit(sql, reversal));
   }
@@ -296,13 +304,6 @@ const REVERSAL_ATTEMPTS = 3;
 /** Waits between attempts, in milliseconds; bounded for a webhook invocation. */
 const REVERSAL_RETRY_MS = [500, 2000];
 
-type PendingReversal = {
-  userId: string;
-  customerId: string;
-  creditCents: number;
-  assessmentPaidAt: string | null;
-};
-
 /**
  * Takes back a posted Assessment credit on the Stripe customer balance,
  * once the refund's transaction has marked it pending. The Stripe call
@@ -323,6 +324,7 @@ async function reverseAssessmentCredit(sql: Sql, input: PendingReversal): Promis
         customerId: input.customerId,
         amountCents: input.creditCents,
         assessmentPaidAt: input.assessmentPaidAt,
+        paymentIntentId: input.paymentIntentId,
       });
       last = null;
       break;
@@ -336,14 +338,14 @@ async function reverseAssessmentCredit(sql: Sql, input: PendingReversal): Promis
   if (last === null) {
     // Stripe confirmed. If this write fails, the row stays pending and
     // the scheduled run finds the reversal at Stripe and only clears it.
-    await markAssessmentCreditReversed(sql, input.userId);
+    await markAssessmentCreditReversed(sql, input);
     return true;
   }
   console.error(
     "[billing] Assessment credit not reversed:",
     last instanceof Error ? last.message : last,
   );
-  await markAssessmentCreditReversalFailed(sql, input.userId);
+  await markAssessmentCreditReversalFailed(sql, input);
   const { reportServerError } = await import("@/lib/observability/report.server");
   await reportServerError(last, "stripe-credit-reversal");
   return false;
@@ -384,6 +386,7 @@ export async function retryFailedCreditReversals(
       customerId: row.customerId,
       amountCents: row.creditCents,
       assessmentPaidAt: row.assessmentPaidAt,
+      paymentIntentId: row.paymentIntentId,
     };
     try {
       if (await findCreditReversal(reversal)) {
@@ -391,7 +394,7 @@ export async function retryFailedCreditReversals(
       } else {
         await reverseCustomerBalance(reversal);
       }
-      await markAssessmentCreditReversed(sql, row.userId);
+      await markAssessmentCreditReversed(sql, row);
     } catch (err) {
       failed += 1;
       console.error(

@@ -100,6 +100,9 @@ export class BusinessUnavailableError extends RequestError {
 
 /** A new client saved under a firm that changed owner while the save waited, twice over. */
 export const FIRM_CHANGED_OWNER_SAVE = "Your firm just changed owner. Save again.";
+/** A restore that met the business's firm changing owner more than once while it waited. */
+export const FIRM_CHANGED_OWNER_RESTORE =
+  "The firm just changed owner. Restore the business again.";
 
 export class AmbiguousBusinessIdentityError extends RequestError {
   constructor() {
@@ -789,15 +792,30 @@ export async function restoreBusinessRow(
   return inTransaction(sql, async (tx) => {
     await lockBusinessOwner(tx, ownerUserId);
     // A restore brings a live business back, so it counts against the plan
-    // of the account restoring as a new one does, under the same lock: the
-    // restorer's firm, or the owner's row (held above) without a firm.
-    const firm = await loadFirmFor(tx, actorUserId);
-    const firmUserId = firm ? await lockClientFirm(tx, actorUserId, firm.firmUserId) : null;
-    const rows = await tx<{ firm_user_id: string | null; granted: boolean }>`select firm_user_id,
-        granted_at is not null as granted from businesses
-      where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is not null
-        and deleted_at >= now() - make_interval(days => ${DELETED_RETENTION_DAYS}::int) for update`;
-    if (!rows.length) return false;
+    // that holds the business, as a new one does, under the same lock: the
+    // firm on its row (a business its owner shared with a firm included),
+    // whoever restores it, or the owner's own account (its row, held above)
+    // without one. The firm row is taken before the business row, the order
+    // every firm write takes; a row whose firm changed while this waited (an
+    // ownership transfer) is read again.
+    let firmUserId: string | null = null;
+    let rows: { firm_user_id: string | null; granted: boolean }[] = [];
+    for (let attempt = 0; ; attempt += 1) {
+      const seen = await tx<{ firm_user_id: string | null }>`select firm_user_id from businesses
+        where user_id = ${ownerUserId} and id = ${businessId}`;
+      const wanted = seen[0]?.firm_user_id ?? null;
+      firmUserId =
+        wanted && (await lockFirmMembershipWrite(tx, { accountIds: [], firmUserId: wanted }))
+          ? wanted
+          : null;
+      rows = await tx<{ firm_user_id: string | null; granted: boolean }>`select firm_user_id,
+          granted_at is not null as granted from businesses
+        where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is not null
+          and deleted_at >= now() - make_interval(days => ${DELETED_RETENTION_DAYS}::int) for update`;
+      if (!rows.length) return false;
+      if (rows[0].firm_user_id === wanted) break;
+      if (attempt >= 2) throw new RequestError(409, FIRM_CHANGED_OWNER_RESTORE);
+    }
     await authorizeBusinessDestroyer(
       tx,
       ownerUserId,
@@ -805,15 +823,19 @@ export async function restoreBusinessRow(
       rows[0].firm_user_id,
       rows[0].granted,
     );
-    const e = await loadEntitlements(tx, actorUserId);
-    if ((await countPlanClients(tx, actorUserId, firmUserId)) >= e.clientLimit) {
+    // The plan of the account that pays for the business: the firm's owner
+    // (whose plan is the firm's), or the owner's own account.
+    const e = await loadEntitlements(tx, firmUserId ?? ownerUserId);
+    if ((await countPlanClients(tx, ownerUserId, firmUserId)) >= e.clientLimit) {
       throw new RequestError(
         402,
         businessLimitMessage({
           plan: e.plan,
           limit: e.clientLimit,
           tier: e.tier,
-          asMember: firm !== null && firm.role !== "owner",
+          // Only the firm's owner moves its plan up: anyone else restoring a
+          // business the firm holds (the owner who shared it) asks them.
+          asMember: firmUserId !== null && firmUserId !== actorUserId,
         }),
       );
     }
