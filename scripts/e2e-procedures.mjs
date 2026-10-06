@@ -30,7 +30,7 @@ async function writeVerifyAndLink(page, errors) {
   step("open the dental sample on Procedures");
   await openSetup(page, base, options.timeout);
   await page.getByRole("radio", { name: /^Dental/ }).click();
-  await page.getByRole("button", { name: "Explore the sample instead" }).click();
+  await page.getByRole("button", { name: "Explore the fictional sample" }).click();
   await page.getByRole("tab", { name: /Procedures/ }).click();
   await page.getByRole("heading", { name: "Procedures", level: 1 }).waitFor();
 

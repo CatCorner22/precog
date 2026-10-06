@@ -40,7 +40,7 @@ await withPage(options, async (p, errors) => {
 
   step("load the dental sample");
   await page.getByRole("radio", { name: /^Dental/ }).click();
-  await page.getByRole("button", { name: "Explore the sample instead" }).click();
+  await page.getByRole("button", { name: "Explore the fictional sample" }).click();
   // How work flows sits under Advanced; its address opens it directly, and
   // the sample chosen above stays the open business.
   await page.locator("nav[data-tab-count]").waitFor();
