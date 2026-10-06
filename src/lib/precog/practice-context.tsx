@@ -44,7 +44,12 @@ import {
   type PracticeProfile,
 } from "./practice-profile";
 import type { SavedProcessBlock } from "./builder/process-blocks";
-import { AccountLineage, LocalProfileStore, type UnreadableCopy } from "./save-conflict";
+import {
+  AccountLineage,
+  LocalProfileStore,
+  OPENED_FROM_LIST_NOTICE,
+  type UnreadableCopy,
+} from "./save-conflict";
 import { downloadText } from "@/lib/download";
 import type { Departure } from "./continuity/access-removal";
 import type { ReviewRecord } from "./firm/reviews";
@@ -465,19 +470,25 @@ function AccountPracticeProvider({ children }: { children: ReactNode }) {
  * over it, so the offer stays until the owner closes it.
  */
 function offerUnreadableCopy(copy: UnreadableCopy): void {
+  const download = {
+    label: "Download the unreadable copy",
+    onClick: () =>
+      downloadText(
+        `precog-unreadable-copy-${localDateKey(new Date())}.json`,
+        copy.raw,
+        "application/json",
+      ),
+  };
+  // A damaged open copy gave way to the list's copy of the same business.
+  if (copy.openedFromList) {
+    toast(OPENED_FROM_LIST_NOTICE, { id: copy.key, duration: Infinity, action: download });
+    return;
+  }
   toast.error("Precog could not open the business saved on this device", {
     id: copy.key,
     duration: Infinity,
     description: "Precog kept the saved copy and does not save over it on this device.",
-    action: {
-      label: "Download the unreadable copy",
-      onClick: () =>
-        downloadText(
-          `precog-unreadable-copy-${localDateKey(new Date())}.json`,
-          copy.raw,
-          "application/json",
-        ),
-    },
+    action: download,
   });
 }
 

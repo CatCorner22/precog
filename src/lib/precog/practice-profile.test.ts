@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { memoryStorage } from "@/test/memory-storage";
+import type { StorageLike } from "./local-data";
+import { LocalProfileStore, OPENED_FROM_LIST_NOTICE, type UnreadableCopy } from "./save-conflict";
 import { resolveTemplate } from "./active-template";
 import { getIndustryTemplate } from "./templates";
 import { soleOwnerCriticalCount } from "./continuity/coverage";
@@ -11,12 +14,25 @@ import {
   DECISION_KIND_LABEL_PRINTED_V1,
   DISPOSITION_REASON_LABEL,
   MAX_DISPOSITION_NOTE,
+  ACTIVE_PROFILE_KEY,
+  MAX_REMOVED_BUSINESSES,
+  PORTFOLIO_KEY,
+  QUARANTINE_PREFIX,
   defaultProfile,
   hasUserWork,
+  loadPortfolio,
   normalizeCustomKnowledge,
   normalizeProfile,
   parseStoredProfile,
+  quarantineKey,
+  rememberRemovedBusiness,
+  removePortfolioEntry,
+  removedBusinessIds,
+  savePortfolioEntry,
+  writePortfolioEntry,
 } from "./practice-profile";
+
+vi.mock("@/lib/observability/report-browser", () => ({ reportClientError: () => undefined }));
 
 const [first, second] = getIndustryTemplate("dental").knowledge;
 
@@ -343,5 +359,156 @@ describe("decision labels", () => {
       "rule_does_not_fit",
       "other",
     ]);
+  });
+});
+
+describe("the list of businesses on this device", () => {
+  const listed = (id: string, name: string) => ({
+    ...defaultProfile("general"),
+    businessId: id,
+    practiceName: name,
+  });
+  const quarantined = (storage: { data: Map<string, string> }) =>
+    [...storage.data.keys()].filter((k) => k.startsWith(QUARANTINE_PREFIX));
+
+  it("quarantines a list that is an array or not JSON, never writes over it, and refuses the save", () => {
+    for (const raw of [
+      JSON.stringify([listed("b1", "Alpha"), listed("b2", "Beta")]),
+      `{"b1":{"practiceName":"Alpha"`,
+    ]) {
+      const storage = memoryStorage({ [PORTFOLIO_KEY]: raw });
+      expect(writePortfolioEntry(listed("b3", "Gamma"), storage)).toBe("unreadable");
+      expect(savePortfolioEntry(listed("b3", "Gamma"), storage)).toBe(false);
+      expect(storage.data.get(PORTFOLIO_KEY)).toBe(raw);
+      expect(storage.data.get(quarantineKey(raw))).toBe(raw);
+      expect(loadPortfolio(storage)).toEqual({});
+      // Read again and again, the text is kept once.
+      expect(quarantined(storage)).toHaveLength(1);
+    }
+  });
+
+  it("skips one malformed entry, quarantines it, and loads the rest", () => {
+    const storage = memoryStorage({
+      [PORTFOLIO_KEY]: JSON.stringify({
+        b1: listed("b1", "Alpha"),
+        b2: null,
+        b3: { ...listed("b3", "Gamma"), practiceName: 42 },
+        b4: "garbage",
+      }),
+    });
+    const all = loadPortfolio(storage);
+    expect(Object.keys(all).sort()).toEqual(["b1", "b3"]);
+    expect(all.b1.practiceName).toBe("Alpha");
+    // A name that is not text opens as the sample's name, never as a number.
+    expect(typeof all.b3.practiceName).toBe("string");
+    expect(storage.data.get(quarantineKey('{"b2":null}'))).toBe('{"b2":null}');
+    expect(quarantined(storage)).toHaveLength(2);
+    // Saving another business leaves every stored entry, malformed ones too, as it was.
+    expect(savePortfolioEntry(listed("b5", "Epsilon"), storage)).toBe(true);
+    const stored = JSON.parse(storage.data.get(PORTFOLIO_KEY) as string);
+    expect(stored.b2).toBeNull();
+    expect(stored.b4).toBe("garbage");
+    expect(Object.keys(loadPortfolio(storage)).sort()).toEqual(["b1", "b3", "b5"]);
+  });
+
+  it("does not list again a business removed on this device", () => {
+    const storage = memoryStorage();
+    savePortfolioEntry(listed("b1", "Alpha"), storage);
+    savePortfolioEntry(listed("b2", "Beta"), storage);
+    rememberRemovedBusiness("b2", storage);
+    removePortfolioEntry("b2", storage);
+    // A tab still open on Beta saves it: nothing to list, and nothing to warn about.
+    expect(writePortfolioEntry(listed("b2", "Beta"), storage)).toBe("removed");
+    expect(savePortfolioEntry(listed("b2", "Beta"), storage)).toBe(true);
+    expect(Object.keys(loadPortfolio(storage))).toEqual(["b1"]);
+  });
+
+  it("lists a business set up again under a new id", () => {
+    const storage = memoryStorage();
+    rememberRemovedBusiness("b2", storage);
+    expect(savePortfolioEntry(listed("b9", "Beta"), storage)).toBe(true);
+    expect(loadPortfolio(storage).b9?.practiceName).toBe("Beta");
+  });
+
+  it("remembers at most 200 removed businesses, forgetting the oldest first", () => {
+    const storage = memoryStorage();
+    for (let i = 0; i < MAX_REMOVED_BUSINESSES + 5; i++) rememberRemovedBusiness(`b${i}`, storage);
+    const ids = removedBusinessIds(storage);
+    expect(MAX_REMOVED_BUSINESSES).toBe(200);
+    expect(ids.size).toBe(200);
+    expect(ids.has("b0")).toBe(false);
+    expect(ids.has(`b${MAX_REMOVED_BUSINESSES + 4}`)).toBe(true);
+  });
+});
+
+describe("a damaged copy of the open business", () => {
+  const listedCopy = {
+    ...defaultProfile("general"),
+    businessId: "biz_kept",
+    practiceName: "Kept Plumbing",
+    onboardingComplete: true,
+  };
+  const store = (storage: StorageLike, told: UnreadableCopy[] = []) =>
+    new LocalProfileStore(
+      () => storage,
+      () => "r2",
+      (copy) => void told.push(copy),
+    );
+
+  it("opens the copy from the list of businesses when the open copy is cut short", () => {
+    const storage = memoryStorage({ [PORTFOLIO_KEY]: JSON.stringify({ biz_kept: listedCopy }) });
+    const newer = JSON.stringify({ ...listedCopy, practiceName: "Kept Plumbing (newer)" });
+    const full = `{"localRev":"r1","localBase":null,${newer.slice(1)}`;
+    const cut = full.slice(0, full.indexOf('"businessId"') + 40);
+    storage.data.set(ACTIVE_PROFILE_KEY, cut);
+    const told: UnreadableCopy[] = [];
+    const tab = store(storage, told);
+    const loaded = tab.load();
+    expect(loaded.profile.practiceName).toBe("Kept Plumbing");
+    expect(loaded.profile.businessId).toBe("biz_kept");
+    expect(loaded.stored).toBe(false);
+    expect(told).toEqual([{ key: quarantineKey(cut), raw: cut, openedFromList: true }]);
+    expect(storage.data.get(quarantineKey(cut))).toBe(cut);
+    expect(OPENED_FROM_LIST_NOTICE).toBe(
+      "Precog could not read the open copy of this business and opened the copy from your list of businesses.",
+    );
+    // The cut text is kept under its quarantine key, so the open business is written over it.
+    expect(tab.write(loaded.profile).kind).toBe("saved");
+    expect(parseStoredProfile(storage.data.get(ACTIVE_PROFILE_KEY) ?? null).practiceName).toBe(
+      "Kept Plumbing",
+    );
+  });
+
+  it("keeps an array under the open key, as for a copy the normaliser throws on, when the list has no copy", () => {
+    const storage = memoryStorage({ [ACTIVE_PROFILE_KEY]: "[1,2]" });
+    const told: UnreadableCopy[] = [];
+    const tab = store(storage, told);
+    const loaded = tab.load();
+    expect(loaded.profile.onboardingComplete).toBe(false);
+    expect(told).toEqual([{ key: quarantineKey("[1,2]"), raw: "[1,2]" }]);
+    expect(storage.data.get(quarantineKey("[1,2]"))).toBe("[1,2]");
+    expect(tab.write(loaded.profile).kind).toBe("failed");
+    expect(storage.data.get(ACTIVE_PROFILE_KEY)).toBe("[1,2]");
+  });
+
+  it("quarantines damaged text another program wrote before a tab saves over it", () => {
+    const storage = memoryStorage();
+    const tab = store(storage);
+    tab.load();
+    expect(tab.write(listedCopy).kind).toBe("saved");
+    storage.data.set(ACTIVE_PROFILE_KEY, "{cut");
+    expect(tab.write({ ...listedCopy, practiceName: "Next" }).kind).toBe("saved");
+    expect(storage.data.get(quarantineKey("{cut"))).toBe("{cut");
+  });
+
+  it("opens the newest listed business, not one removed on this device", () => {
+    const storage = memoryStorage({
+      [PORTFOLIO_KEY]: JSON.stringify({ biz_kept: listedCopy }),
+      [ACTIVE_PROFILE_KEY]: JSON.stringify({ ...listedCopy, businessId: "biz_gone" }),
+    });
+    rememberRemovedBusiness("biz_gone", storage);
+    const loaded = store(storage).load();
+    expect(loaded.profile.businessId).toBe("biz_kept");
+    expect(loaded.stored).toBe(false);
   });
 });

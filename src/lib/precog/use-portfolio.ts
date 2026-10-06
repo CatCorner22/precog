@@ -11,8 +11,10 @@ import type { IndustryId } from "./industry";
 import { deleteBusiness as deleteBusinessRemote, loadBusiness } from "./profile-server";
 import { getEntitlements, type EntitlementsAnswer } from "./firm/entitlements-server";
 import {
+  ACTIVE_PROFILE_KEY,
   loadPortfolio,
   businessSummaryKey,
+  rememberRemovedBusiness,
   removePortfolioEntry,
   savePortfolioEntry,
   summarizeBusiness,
@@ -20,6 +22,7 @@ import {
   type PracticeProfile,
 } from "./practice-profile";
 import { removeValueProof } from "./value-proof-store";
+import { removeLocal } from "./local-data";
 import { downloadRecoveryCopy } from "./recovery-copy";
 import {
   atBusinessLimit,
@@ -108,7 +111,12 @@ export function usePortfolio(input: {
   // nothing) and again after each business created.
   const entitlements = useRef<Promise<EntitlementsAnswer | null> | null>(null);
 
-  /** Local portfolio + cloud summaries merged by owner and id; the active business always wins. */
+  /**
+   * Local portfolio + cloud summaries merged by owner and id; the active
+   * business always wins. `loadPortfolio` normalises each stored entry and
+   * skips (and quarantines) one it cannot read, so one damaged entry never
+   * stops the list.
+   */
   const businesses = useMemo<BusinessSummary[]>(() => {
     const byId = new Map<string, BusinessSummary>();
     for (const b of remoteBusinesses) byId.set(businessSummaryKey(b, workspace.accountId), b);
@@ -138,7 +146,7 @@ export function usePortfolio(input: {
       shared: active?.shared,
       firmClient: active?.firmClient,
     });
-    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+    return [...byId.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- portfolioVersion tracks storage writes
   }, [
     remoteBusinesses,
@@ -195,6 +203,13 @@ export function usePortfolio(input: {
         });
         if (!copy.ok) return copy;
         if (!mounted.current) return { ok: false, reason: "The page closed before the switch." };
+        // An edit made while the account load was in flight: written now, or
+        // the business stays open, since opening the next one would drop it.
+        if (!flushLocal())
+          return {
+            ok: false,
+            reason: saveConflictRef.current ? CHOOSE_A_VERSION_FIRST : NOT_SAVED_ON_SWITCH,
+          };
         const opened = {
           ...copy.profile,
           businessId: id,
@@ -229,6 +244,7 @@ export function usePortfolio(input: {
       accountTook,
       cloudUser,
       flushActive,
+      flushLocal,
       openedFromAccount,
       raiseConflict,
       localStore,
@@ -413,15 +429,34 @@ export function usePortfolio(input: {
         });
       if (!mounted.current) return;
       if (!ownerUserId || ownerUserId === workspace.accountId) {
+        // Remembered first: a tab still open on it does not list it again.
+        rememberRemovedBusiness(id, workspace.local);
         removePortfolioEntry(id, workspace.local);
         removeValueProof(id, workspace.local);
+        // The open business another tab left here: a reload opens this
+        // tab's business instead, not the removed one.
+        if (localStore.peek(id)) {
+          const mine = profileRef.current;
+          const wrote =
+            saveConflictRef.current?.reason !== "other-tab" &&
+            localStore.write(mine).kind === "saved";
+          if (!wrote) removeLocal(ACTIVE_PROFILE_KEY, workspace.local);
+        }
       }
       setRemoteBusinesses((cur) =>
         cur.filter((b) => !(b.id === id && b.ownerUserId === ownerUserId)),
       );
       bumpPortfolio();
     },
-    [cloudUser, profileRef, setRemoteBusinesses, bumpPortfolio, workspace],
+    [
+      cloudUser,
+      localStore,
+      profileRef,
+      saveConflictRef,
+      setRemoteBusinesses,
+      bumpPortfolio,
+      workspace,
+    ],
   );
 
   return {
@@ -440,3 +475,6 @@ const CHOOSE_A_VERSION_FIRST = "Choose a copy in the banner at the top first, so
 /** This browser refused the open business, which exists nowhere else yet. */
 const NOT_KEPT_HERE =
   "This browser did not keep the open business, so it stays open until storage on this device frees up.";
+/** An edit made during a switch could not be written, so the switch stops. */
+export const NOT_SAVED_ON_SWITCH =
+  "Precog could not save this business on this device, so it stayed open. Download a recovery copy, then try again.";
