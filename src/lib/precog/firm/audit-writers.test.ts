@@ -28,6 +28,8 @@ vi.mock("@tanstack/react-start", () => ({
   },
 }));
 vi.mock("@/lib/auth/middleware", () => ({ authMiddleware: {} }));
+// Account deletion's recent-sign-in check has its own tests (fresh-session.test.ts).
+vi.mock("@/lib/auth/fresh-session", () => ({ requireFreshSession: async () => ({ email: null }) }));
 vi.mock("@/lib/db", () => ({ getSql: async () => ref.db?.sql }));
 vi.mock("@/lib/observability/report.server", () => ({ reportServerError: report.error }));
 vi.mock("@/lib/request-origin.server", () => ({
