@@ -231,42 +231,79 @@ export async function markAssessmentCreditUsed(
 }
 
 /**
- * Records that the posted credit is being taken back: the amount goes to
- * zero so a second refund or lost dispute on the same payment reverses
- * nothing twice. The stamp stays, so the refunded payment is never credited
- * again; only a new payment clears it (recordAssessmentPayment). A failed
- * reversal clears, since this call means Stripe just took the credit back.
+ * Marks the posted credit as being taken back, inside the refund's or lost
+ * dispute's transaction, and returns what to reverse; null when there is
+ * nothing to reverse or a reversal is already under way. The amount stays
+ * until Stripe confirms (markAssessmentCreditReversed), so a crash between
+ * the commit and the Stripe call leaves the row pending for the scheduled
+ * run instead of zeroed with nothing parked. The conditional update holds
+ * the row, so a second refund or lost dispute of the same payment, even one
+ * delivered in parallel, reverses nothing twice. The used stamp stays, so
+ * the refunded payment is never credited again; only a new payment clears
+ * it (recordAssessmentPayment).
+ */
+export async function markAssessmentCreditReversalPending(
+  sql: Sql,
+  userId: string,
+): Promise<{ customerId: string; creditCents: number; assessmentPaidAt: string | null } | null> {
+  const rows = await sql<{
+    stripe_customer_id: string;
+    assessment_credit_cents: number | string;
+    assessment_paid_at: string | null;
+  }>`
+    update billing_accounts
+    set assessment_credit_reversal_pending_at = now(), updated_at = now()
+    where user_id = ${userId}
+      and assessment_credit_used_at is not null
+      and stripe_customer_id is not null
+      and coalesce(assessment_credit_cents, 0) > 0
+      and assessment_credit_reversal_pending_at is null
+      and assessment_credit_reversal_failed_at is null
+    returning stripe_customer_id, assessment_credit_cents, assessment_paid_at
+  `;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    customerId: row.stripe_customer_id,
+    creditCents: Number(row.assessment_credit_cents),
+    assessmentPaidAt: toIsoTimestampOrNull(row.assessment_paid_at),
+  };
+}
+
+/**
+ * Records that Stripe took the credit back (or already had): the amount goes
+ * to zero and the pending and failed marks clear.
  */
 export async function markAssessmentCreditReversed(sql: Sql, userId: string): Promise<void> {
   await sql`
     update billing_accounts
-    set assessment_credit_cents = 0, assessment_credit_reversal_failed_at = null, updated_at = now()
+    set assessment_credit_cents = 0, assessment_credit_reversal_pending_at = null,
+      assessment_credit_reversal_failed_at = null, updated_at = now()
     where user_id = ${userId}
   `;
 }
 
 /**
- * Records that the Stripe-side reversal failed after the ledger already
- * zeroed the amount: the amount comes back so the row agrees with the
- * customer balance Stripe still holds, and the failure time marks the row
- * for the weekly retry (retryFailedCreditReversals). The Stripe call carries
- * a deterministic idempotency key, so a retry posts nothing twice.
+ * Records that every inline attempt at the Stripe-side reversal failed. The
+ * amount and the pending mark stay (the row agrees with the balance Stripe
+ * still holds), and the failure time lets the scheduled run retry it without
+ * waiting out the hour a pending row gets.
  */
-export async function markAssessmentCreditReversalFailed(
-  sql: Sql,
-  userId: string,
-  creditCents: number,
-): Promise<void> {
+export async function markAssessmentCreditReversalFailed(sql: Sql, userId: string): Promise<void> {
   await sql`
     update billing_accounts
-    set assessment_credit_cents = ${creditCents},
-      assessment_credit_reversal_failed_at = now(), updated_at = now()
+    set assessment_credit_reversal_failed_at = now(), updated_at = now()
     where user_id = ${userId}
   `;
 }
 
-/** Accounts whose credit reversal failed and still needs taking back, oldest failure first. */
-export async function listFailedCreditReversals(
+/**
+ * Accounts whose credit reversal still needs taking back, oldest first: a
+ * reversal whose inline attempts failed, and one pending for more than an
+ * hour (its webhook died between the commit and Stripe's answer). A row
+ * parked before migration 0053 has a failure time and no pending mark.
+ */
+export async function listPendingCreditReversals(
   sql: Sql,
 ): Promise<
   { userId: string; customerId: string; creditCents: number; assessmentPaidAt: string | null }[]
@@ -279,9 +316,13 @@ export async function listFailedCreditReversals(
   }>`
     select user_id, stripe_customer_id, assessment_credit_cents, assessment_paid_at
     from billing_accounts
-    where assessment_credit_reversal_failed_at is not null
+    where (
+        assessment_credit_reversal_failed_at is not null
+        or assessment_credit_reversal_pending_at < now() - interval '1 hour'
+      )
       and coalesce(assessment_credit_cents, 0) > 0
-    order by assessment_credit_reversal_failed_at asc
+    order by coalesce(assessment_credit_reversal_pending_at, assessment_credit_reversal_failed_at) asc,
+      user_id asc
   `;
   return rows.flatMap((r) =>
     r.stripe_customer_id && r.assessment_credit_cents !== null
@@ -356,6 +397,11 @@ export async function recordAssessmentPayment(
         when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
           then null
         else billing_accounts.assessment_credit_reversal_failed_at
+      end,
+      assessment_credit_reversal_pending_at = case
+        when excluded.assessment_payment_intent is distinct from billing_accounts.assessment_payment_intent
+          then null
+        else billing_accounts.assessment_credit_reversal_pending_at
       end,
       assessment_payment_intent = coalesce(excluded.assessment_payment_intent, billing_accounts.assessment_payment_intent),
       updated_at = now()
@@ -440,6 +486,59 @@ export function checkoutRefusal(account: BillingAccount | null, plan: string): s
 }
 
 /**
+ * Where a status sits in one subscription's life, for two events Stripe
+ * created in the same second (event.created is in whole seconds, and a
+ * Checkout's created(incomplete) and updated(active) routinely share one):
+ * incomplete < trialing = active < past_due = unpaid < canceled =
+ * incomplete_expired. A subscription moves up this order within a second,
+ * never down: a payment that clears a past_due arrives on a later retry, and
+ * nothing revives an ended subscription. A status not listed has no rank, so
+ * the same-second event applies as before.
+ */
+const STATUS_RANK: Readonly<Record<string, number>> = {
+  incomplete: 0,
+  trialing: 1,
+  active: 1,
+  past_due: 2,
+  unpaid: 2,
+  canceled: 3,
+  incomplete_expired: 3,
+};
+
+/**
+ * True when an event must not overwrite the stored subscription state: it
+ * was created before the newest subscription event already applied, or in
+ * the same second for the same subscription with a status lower in
+ * STATUS_RANK than the stored one. An event or a stored row without a time
+ * skips the check; so does an event without a status (a checkout
+ * completion), which keeps the stored status anyway.
+ */
+export function staleSubscriptionEvent(
+  stored: { subscriptionId: string | null; status: string | null; eventAt: string | null },
+  incoming: { subscriptionId: string; status: string | null; eventAt: string | null },
+): boolean {
+  if (!incoming.eventAt || !stored.eventAt) return false;
+  const incomingAt = Date.parse(incoming.eventAt);
+  const storedAt = Date.parse(stored.eventAt);
+  if (incomingAt < storedAt) return true;
+  if (incomingAt > storedAt || incoming.status === null || stored.status === null) return false;
+  if (stored.subscriptionId !== incoming.subscriptionId) return false;
+  const storedRank = STATUS_RANK[stored.status];
+  const incomingRank = STATUS_RANK[incoming.status];
+  return storedRank !== undefined && incomingRank !== undefined && incomingRank < storedRank;
+}
+
+/** What recordSubscription did; "account deleted" when the account's user row is gone. */
+export type RecordedSubscription =
+  | { accountDeleted: true }
+  | {
+      accountDeleted: false;
+      status: string;
+      ignoredOther: boolean;
+      storedSubscriptionId: string | null;
+    };
+
+/**
  * Records a subscription change and returns the status now stored. A null
  * `status` (a checkout completion, which knows only the ids) keeps the status
  * and renewal date a subscription event already stored for the same
@@ -447,12 +546,23 @@ export function checkoutRefusal(account: BillingAccount | null, plan: string): s
  * stored yet, a completed checkout counts as active.
  *
  * A stale event changes nothing: one created before the newest subscription
- * event already applied (a retry or a late delivery), or one for another
- * subscription while the stored one is still active (an old or duplicate
- * subscription being cancelled must not end the plan the firm pays for).
- * Only events that carry a status move the stored event time, because a
- * checkout completion can be created after the subscription events it
- * follows.
+ * event already applied (a retry or a late delivery), one from the same
+ * second that would move the subscription down STATUS_RANK, or one for
+ * another subscription while the stored one is still active (an old or
+ * duplicate subscription being cancelled must not end the plan the firm
+ * pays for). Only events that carry a status move the stored event time,
+ * because a checkout completion can be created after the subscription
+ * events it follows.
+ *
+ * Stripe delivers in parallel, so events for one account apply one at a
+ * time: the account's user row is held against deletion first (the global
+ * lock order: user rows, then the firm, then businesses), then an empty
+ * billing row is inserted if none exists, so the row lock that orders the
+ * events exists even for the account's first event. The upsert repeats the
+ * event-time check as a second guard. An account whose user row is gone
+ * (deleted before or while the event waited) gets nothing written and
+ * reports `accountDeleted`, so the webhook acknowledges the event instead
+ * of failing on it until Stripe gives up.
  */
 export async function recordSubscription(
   sql: Sql,
@@ -473,7 +583,17 @@ export async function recordSubscription(
     /** The subscription's Stripe price (its tier); null keeps the stored one for the same subscription. */
     priceId?: string | null;
   },
-): Promise<{ status: string; ignoredOther: boolean; storedSubscriptionId: string | null }> {
+): Promise<RecordedSubscription> {
+  // A deletion holds the user row for update first (deleteAccountRows), so
+  // this waits for it and then finds no row.
+  const user = await sql<{ id: string }>`
+    select id from "user" where id = ${input.userId} for key share
+  `;
+  if (user.length === 0) return { accountDeleted: true };
+  await sql`
+    insert into billing_accounts (user_id) values (${input.userId})
+    on conflict (user_id) do nothing
+  `;
   const stored = await sql<{
     subscription_id: string | null;
     subscription_status: string | null;
@@ -488,9 +608,17 @@ export async function recordSubscription(
     const otherWhileActive =
       current.subscription_id !== input.subscriptionId &&
       ACTIVE_SUBSCRIPTION_STATUSES.has(current.subscription_status);
-    const storedAt = toIsoTimestampOrNull(current.subscription_event_at);
-    const older = Boolean(
-      input.eventAt && storedAt && Date.parse(input.eventAt) < Date.parse(storedAt),
+    const older = staleSubscriptionEvent(
+      {
+        subscriptionId: current.subscription_id,
+        status: current.subscription_status,
+        eventAt: toIsoTimestampOrNull(current.subscription_event_at),
+      },
+      {
+        subscriptionId: input.subscriptionId,
+        status: input.status,
+        eventAt: input.eventAt ?? null,
+      },
     );
     if (otherWhileActive || older) {
       // A second subscription starting or running beside the one the firm
@@ -503,6 +631,7 @@ export async function recordSubscription(
         input.status !== "canceled" &&
         input.status !== "incomplete_expired";
       return {
+        accountDeleted: false,
         status: current.subscription_status,
         ignoredOther,
         storedSubscriptionId: current.subscription_id,
@@ -575,10 +704,28 @@ export async function recordSubscription(
         else billing_accounts.payment_failed_invoice_url
       end,
       updated_at = now()
+    -- The second guard: never overwrite a newer subscription event's state.
+    where ${input.eventAt ?? null}::timestamptz is null
+      or billing_accounts.subscription_event_at is null
+      or ${input.eventAt ?? null}::timestamptz >= billing_accounts.subscription_event_at
     returning subscription_status
   `;
+  const written = rows[0];
+  if (!written) {
+    // The guard kept a newer row (the lock above makes this unreachable in practice).
+    const kept = await sql<{ subscription_id: string | null; subscription_status: string | null }>`
+      select subscription_id, subscription_status from billing_accounts where user_id = ${input.userId}
+    `;
+    return {
+      accountDeleted: false,
+      status: kept[0]?.subscription_status ?? "incomplete",
+      ignoredOther: false,
+      storedSubscriptionId: kept[0]?.subscription_id ?? null,
+    };
+  }
   return {
-    status: rows[0].subscription_status,
+    accountDeleted: false,
+    status: written.subscription_status,
     ignoredOther: false,
     storedSubscriptionId: input.subscriptionId,
   };

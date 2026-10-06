@@ -157,6 +157,7 @@ async function applyLinkedSubscription(
     eventAt: new Date().toISOString(),
     priceId: applied.priceId,
   });
+  if (recorded.accountDeleted) throw new RequestError(404, noAccountWithId(userId));
   await setFirmPlan(
     tx,
     userId,

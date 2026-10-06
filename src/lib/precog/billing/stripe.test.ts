@@ -1512,6 +1512,8 @@ describe("the Assessment credit", () => {
       vi.fn(async (_url: string, init: RequestInit) => {
         if (down)
           return new Response(JSON.stringify({ error: { message: "down" } }), { status: 500 });
+        // The retry reads the customer's balance first: no reversal there yet.
+        if (init.method === "GET") return Response.json({ data: [], has_more: false });
         retried.push({
           body: String(init.body ?? ""),
           headers: init.headers as Record<string, string>,
@@ -1526,7 +1528,7 @@ describe("the Assessment credit", () => {
     expect(parked?.assessmentCreditReversalFailedAt).not.toBeNull();
     // Stripe recovers; the weekly retry takes the credit back, once.
     down = false;
-    expect(await retryFailedCreditReversals(db.sql)).toEqual({ retried: 1, failed: 0 });
+    expect(await retryFailedCreditReversals(db.sql)).toMatchObject({ retried: 1, failed: 0 });
     expect(retried).toHaveLength(1);
     expect(retried[0].body).toContain("amount=100000");
     expect(retried[0].headers["idempotency-key"]).toBe(
@@ -1536,7 +1538,7 @@ describe("the Assessment credit", () => {
       assessmentCreditCents: 0,
       assessmentCreditReversalFailedAt: null,
     });
-    expect(await retryFailedCreditReversals(db.sql)).toEqual({ retried: 0, failed: 0 });
+    expect(await retryFailedCreditReversals(db.sql)).toMatchObject({ retried: 0, failed: 0 });
     logged.mockRestore();
   });
 

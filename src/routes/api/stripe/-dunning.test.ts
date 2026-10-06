@@ -10,6 +10,7 @@ import { Route as StripeWebhook } from "./webhook";
 const db = vi.hoisted(() => ({ current: null as TestDb | null }));
 const mail = vi.hoisted(() => ({
   configured: true,
+  failure: null as Error | null,
   sent: [] as { to: string; subject: string; text: string }[],
 }));
 const report = vi.hoisted(() => ({
@@ -25,6 +26,7 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/precog/reminders/mailer.server", () => ({
   mailConfigured: () => mail.configured,
   sendEmail: async (to: string, message: { subject: string; text: string }) => {
+    if (mail.failure) throw mail.failure;
     mail.sent.push({ to, subject: message.subject, text: message.text });
   },
 }));
@@ -91,6 +93,7 @@ beforeEach(async () => {
   await t.seedUser("owner", "owner@firm.test");
   await saveFirm(t.sql, "owner", "North Advisors", "assessment");
   mail.configured = true;
+  mail.failure = null;
   mail.sent.length = 0;
   report.error.mockClear();
 });
@@ -121,6 +124,21 @@ describe("Stripe webhook dunning", () => {
     await deliver(subscription("e4", "past_due", 1_700_001_000));
     expect(mail.sent).toHaveLength(1);
     expect(report.error).not.toHaveBeenCalled();
+  });
+
+  it("answers 200 and reports it when the email fails after the event committed", async () => {
+    mail.failure = new Error("Resend timed out");
+    const res = await deliver(subscription("e1", "past_due", 1_700_000_000));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ received: true, outcome: "applied" });
+    expect(report.error).toHaveBeenCalledWith(mail.failure, "stripe-webhook-after-commit");
+    expect((await loadBillingAccount(db.current!.sql, "owner"))?.subscriptionStatus).toBe(
+      "past_due",
+    );
+    // Unstamped, so the next past_due event of the episode sends the email.
+    mail.failure = null;
+    await deliver(subscription("e2", "past_due", 1_700_000_500));
+    expect(mail.sent).toHaveLength(1);
   });
 
   it("links the firm page when no invoice event carried a link", async () => {
