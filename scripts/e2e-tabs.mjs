@@ -17,7 +17,7 @@
  * Usage: node scripts/e2e-tabs.mjs [baseUrl]   (default http://127.0.0.1:8080/)
  * Env:   E2E_TIMEOUT_MS (default 45000), E2E_SCREENSHOT (PNG path on failure)
  */
-import { e2eOptions, openSetup, withPage } from "./lib/e2e.mjs";
+import { e2eOptions, exploreSample, openSetup, withPage } from "./lib/e2e.mjs";
 
 const options = e2eOptions();
 const { baseUrl, timeout, failureShot } = options;
@@ -57,11 +57,7 @@ await withPage(options, async (page, errors) => {
   for (const industry of INDUSTRIES) {
     console.log(`· ${industry}`);
     await openSetup(page, baseUrl, timeout);
-    await page
-      .getByRole("radio", { name: new RegExp(`^${industry}`) })
-      .first()
-      .click();
-    await page.getByRole("button", { name: "Explore the sample instead" }).click();
+    await exploreSample(page, industry);
     await page.locator("nav button").first().waitFor();
     await drain(`${industry}: load the sample`);
 
