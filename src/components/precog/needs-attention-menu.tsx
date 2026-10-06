@@ -5,10 +5,9 @@ import { localDateKey } from "@/lib/precog/dates";
 import { continuitySlips, decisionsDue } from "@/lib/precog/decisions/follow-through";
 import { openMonthlyChecks } from "@/lib/precog/firm/reviews";
 import { usePracticeState, useTemplate } from "@/lib/precog/practice-context";
-import { count, verb } from "@/lib/precog/text";
 import { useToday } from "@/lib/use-today";
 import { cn } from "@/lib/utils";
-import { monthlyAttentionItems, type AttentionItem } from "./needs-attention-items";
+import { buildNeedsAttentionItems, openNeedsAttentionItem } from "./needs-attention-menu.logic";
 
 /**
  * Everything that waits on the owner, behind one header button: decisions
@@ -20,13 +19,13 @@ import { monthlyAttentionItems, type AttentionItem } from "./needs-attention-ite
  * Hidden when nothing waits. The list exists only while it is open, so the
  * tab walk's count of the Advanced menu never sees these items.
  */
-export function NeedsAttentionMenu({ onOpen }: { onOpen: (tab: string) => void }) {
+export function NeedsAttentionMenu({ onOpen }: { onOpen: (tab: string, item?: string) => void }) {
   const tpl = useTemplate();
   const { profile } = usePracticeState();
   const today = useToday();
   const day = localDateKey(today);
 
-  const items = useMemo<AttentionItem[]>(() => {
+  const items = useMemo(() => {
     const overdue = decisionsDue(profile.decisions, day).overdue.length;
     const slipped = continuitySlips(profile.decisions, tpl).length;
     const leavers = openAccessChecks(
@@ -34,28 +33,8 @@ export function NeedsAttentionMenu({ onOpen }: { onOpen: (tab: string) => void }
       profile.industry,
       tpl.people,
     ).length;
-    const monthly = monthlyAttentionItems(openMonthlyChecks(day, profile.monthlyReviews ?? []));
-    return [
-      {
-        id: "overdue",
-        n: overdue,
-        text: `${count(overdue, "decision")} to review`,
-        target: "journal",
-      },
-      {
-        id: "slipped",
-        n: slipped,
-        text: `${count(slipped, "decision")} undone since you marked ${verb(slipped, "it", "them")} done`,
-        target: "journal",
-      },
-      {
-        id: "leavers",
-        n: leavers,
-        text: `${count(leavers, "person", "people")} who left: check their access`,
-        target: "knowledge",
-      },
-      ...monthly,
-    ].filter((item) => item.n > 0);
+    const months = openMonthlyChecks(day, profile.monthlyReviews ?? []);
+    return buildNeedsAttentionItems({ overdue, slipped, leavers, months });
   }, [
     day,
     tpl,
@@ -147,7 +126,7 @@ export function NeedsAttentionMenu({ onOpen }: { onOpen: (tab: string) => void }
               tabIndex={-1}
               onClick={() => {
                 setOpen(false);
-                onOpen(item.target);
+                openNeedsAttentionItem(item, onOpen);
               }}
               className="flex w-full items-center rounded-md px-2.5 py-2 text-left text-sm text-muted hover:bg-elevated hover:text-fg focus:bg-elevated focus:text-fg"
             >

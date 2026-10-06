@@ -146,49 +146,60 @@ export function RegisterGrid({
               {REGISTER_RESPONSIVE_PEOPLE} people or {REGISTER_RESPONSIVE_ITEMS} items.
             </p>
           )}
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-            <span>
-              Items {itemPage * REGISTER_ITEM_PAGE + 1}–
-              {Math.min(report.items.length, (itemPage + 1) * REGISTER_ITEM_PAGE)} of{" "}
-              {report.items.length}
-            </span>
-            <button
-              type="button"
-              className="rounded border border-border px-2 py-1 disabled:opacity-40"
-              disabled={itemPage === 0}
-              onClick={() => register.setItemPage(itemPage - 1)}
-            >
-              Previous items
-            </button>
-            <button
-              type="button"
-              className="rounded border border-border px-2 py-1 disabled:opacity-40"
-              disabled={itemPage >= itemPages - 1}
-              onClick={() => register.setItemPage(itemPage + 1)}
-            >
-              Next items
-            </button>
-            <span>
-              People {peoplePage * REGISTER_PEOPLE_PAGE + 1}–
-              {Math.min(people.length, (peoplePage + 1) * REGISTER_PEOPLE_PAGE)} of {people.length}
-            </span>
-            <button
-              type="button"
-              className="rounded border border-border px-2 py-1 disabled:opacity-40"
-              disabled={peoplePage === 0}
-              onClick={() => register.setPeoplePage(peoplePage - 1)}
-            >
-              Previous people
-            </button>
-            <button
-              type="button"
-              className="rounded border border-border px-2 py-1 disabled:opacity-40"
-              disabled={peoplePage >= peoplePages - 1}
-              onClick={() => register.setPeoplePage(peoplePage + 1)}
-            >
-              Next people
-            </button>
-          </div>
+          {(itemPages > 1 || peoplePages > 1) && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+              {itemPages > 1 && (
+                <>
+                  <span>
+                    Items {itemPage * REGISTER_ITEM_PAGE + 1}–
+                    {Math.min(report.items.length, (itemPage + 1) * REGISTER_ITEM_PAGE)} of{" "}
+                    {report.items.length}
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded border border-border px-2 py-1 disabled:opacity-40"
+                    disabled={itemPage === 0}
+                    onClick={() => register.setItemPage(itemPage - 1)}
+                  >
+                    Previous items
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border border-border px-2 py-1 disabled:opacity-40"
+                    disabled={itemPage >= itemPages - 1}
+                    onClick={() => register.setItemPage(itemPage + 1)}
+                  >
+                    Next items
+                  </button>
+                </>
+              )}
+              {peoplePages > 1 && (
+                <>
+                  <span>
+                    People {peoplePage * REGISTER_PEOPLE_PAGE + 1}–
+                    {Math.min(people.length, (peoplePage + 1) * REGISTER_PEOPLE_PAGE)} of{" "}
+                    {people.length}
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded border border-border px-2 py-1 disabled:opacity-40"
+                    disabled={peoplePage === 0}
+                    onClick={() => register.setPeoplePage(peoplePage - 1)}
+                  >
+                    Previous people
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded border border-border px-2 py-1 disabled:opacity-40"
+                    disabled={peoplePage >= peoplePages - 1}
+                    onClick={() => register.setPeoplePage(peoplePage + 1)}
+                  >
+                    Next people
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full min-w-[640px] text-sm">
               <thead className="bg-elevated text-xs text-muted">

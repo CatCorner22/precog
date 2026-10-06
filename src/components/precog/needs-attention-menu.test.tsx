@@ -13,7 +13,11 @@ import {
 import type { ClientEngagementRow } from "@/lib/precog/firm/store";
 import type { Person } from "@/lib/precog/types";
 import { clientTotals } from "./firm/client-table-csv";
-import { monthlyAttentionItems } from "./needs-attention-items";
+import {
+  buildNeedsAttentionItems,
+  monthlyAttentionItems,
+  openNeedsAttentionItem,
+} from "./needs-attention-menu.logic";
 import { NeedsAttentionMenu } from "./needs-attention-menu";
 
 const state = vi.hoisted(() => ({
@@ -204,12 +208,19 @@ describe("Needs attention menu", () => {
       ["monthly-exceptions", 1, "1 Monthly review exception to resolve", "monthly"],
     ]);
     expect(monthlyAttentionItems([{ period: "2026-10", notDone: 1, exceptions: 2 }])).toEqual([
-      { id: "monthly", n: 1, text: "1 Monthly review check not done", target: "monthly" },
+      {
+        id: "monthly",
+        n: 1,
+        text: "1 Monthly review check not done",
+        target: "monthly",
+        item: "checks",
+      },
       {
         id: "monthly-exceptions",
         n: 2,
         text: "2 Monthly review exceptions to resolve",
         target: "monthly",
+        item: "checks",
       },
     ]);
   });
@@ -231,5 +242,47 @@ describe("Needs attention menu", () => {
     state.today = new Date(2026, 9, 11);
     // October's five checks: four not done (one of them Skipped) and one exception.
     expect(view()).toContain("Needs attention (5)");
+  });
+
+  it("opens a leaver reminder at the leaving section", () => {
+    const [leavers] = buildNeedsAttentionItems({
+      overdue: 0,
+      slipped: 0,
+      leavers: 1,
+      months: [],
+    });
+    const onOpen = vi.fn();
+
+    openNeedsAttentionItem(leavers, onOpen);
+
+    expect(onOpen).toHaveBeenCalledWith("knowledge", "leaving");
+  });
+
+  it("opens monthly reminders at checks and keeps journal reminders on their alias", () => {
+    const items = buildNeedsAttentionItems({
+      overdue: 1,
+      slipped: 1,
+      leavers: 0,
+      months: [{ period: "2026-10", notDone: 1, exceptions: 1 }],
+    });
+    const onOpen = vi.fn();
+
+    openNeedsAttentionItem(
+      items.find((item) => item.id === "monthly")!,
+      onOpen,
+    );
+    expect(onOpen).toHaveBeenLastCalledWith("monthly", "checks");
+
+    openNeedsAttentionItem(
+      items.find((item) => item.id === "monthly-exceptions")!,
+      onOpen,
+    );
+    expect(onOpen).toHaveBeenLastCalledWith("monthly", "checks");
+
+    openNeedsAttentionItem(
+      items.find((item) => item.id === "overdue")!,
+      onOpen,
+    );
+    expect(onOpen).toHaveBeenLastCalledWith("journal");
   });
 });

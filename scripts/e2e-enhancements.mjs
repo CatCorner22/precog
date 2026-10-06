@@ -10,6 +10,7 @@
 import assert from "node:assert/strict";
 import {
   e2eOptions,
+  exploreSample,
   openSetup,
   profileStorageKey,
   restingViewport,
@@ -33,8 +34,7 @@ if (passed)
 async function insuranceAndMapHistory(page, errors) {
   step("demo: open insurance settings");
   await openSetup(page, base, options.timeout);
-  await page.getByRole("radio", { name: /^Dental/ }).click();
-  await page.getByRole("button", { name: "Explore the fictional sample" }).click();
+  await exploreSample(page, "Dental");
   await page.goto(`${base}/?tab=precog`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Settings and insurance", exact: true }).click();
   // Only a theft or fraud scenario can be modeled as covered by a crime
