@@ -196,7 +196,8 @@ const BASE_CONTROLS: readonly ControlItem[] = [
     duties: ["recording", "reconciliation"],
     segregated: false,
     compensatingControls: ["Owner compares each deposit with the day's sales record weekly"],
-    residualRiskAccepted: true,
+    // Accepting a risk is a logged decision; a template carries none.
+    residualRiskAccepted: false,
   },
   {
     id: "c-sod-billing",

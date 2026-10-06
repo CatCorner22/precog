@@ -197,6 +197,10 @@ export function buildControlReportModel({
   const registerReady = registerAssessed(tpl);
   const summary = executiveSummary({
     openConflicts: open,
+    ownerHeldPairs: sod.conflicts.filter((c) => c.ownerHeld).length,
+    dualReleaseClosedPairs: sod.conflicts.filter(
+      (c) => !c.ownerHeld && c.dualReleaseMitigated && !partialCoverage.has(c.ruleId),
+    ).length,
     firstStep: steps[0]?.control.label ?? null,
     registerReady,
     coverageIndex: continuity.coverageIndex,

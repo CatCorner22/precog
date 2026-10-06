@@ -278,6 +278,30 @@ describe("the variable catalog", () => {
   });
 });
 
+describe("insurance on a scenario that is not fraud", () => {
+  const base = { expected: 50000, low: 10000, high: 100000 };
+
+  it("models a recovery only for a fraud scenario", () => {
+    const fraud = evaluateDynamicRisk(DEFAULT_RISK_VARIABLES, base, { fraudRelated: true });
+    expect(fraud.transfer.transferredExpected).toBeGreaterThan(0);
+    for (const opts of [undefined, { fraudRelated: false }]) {
+      const t = evaluateDynamicRisk(DEFAULT_RISK_VARIABLES, base, opts).transfer;
+      expect(t.transferredExpected).toBe(0);
+      expect([t.retainedExpected, t.retainedLow, t.retainedHigh]).toEqual([
+        t.grossLossExpected,
+        t.grossLossLow,
+        t.grossLossHigh,
+      ]);
+      // The premium is still paid, so the annual cost keeps it.
+      expect(t.premiumAnnualNet).toBe(fraud.transfer.premiumAnnualNet);
+      expect(t.notes.join(" ")).toContain(
+        "Not an insured loss under a crime policy: the business keeps the whole assumed loss.",
+      );
+      expect(t.notes.join(" ")).not.toMatch(/deductible|enter coverage/i);
+    }
+  });
+});
+
 describe("notes with a premium but no modeled recovery", () => {
   it("do not describe a deductible and limit that are not in the calculation", () => {
     const v = { ...DEFAULT_RISK_VARIABLES, deductible: 0, policyLimit: 0, coinsurancePct: 0 };

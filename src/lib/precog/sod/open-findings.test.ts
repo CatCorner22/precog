@@ -142,9 +142,41 @@ describe("one open count on every screen", () => {
     });
   }
 
+  it("shows no sample conflict as accepted: accepting a risk takes a logged decision", () => {
+    for (const { id } of INDUSTRIES) {
+      const profile = defaultProfile(id);
+      const tpl = resolveTemplate(profile);
+      const { conflicts } = detectSodConflicts(
+        tpl,
+        profile.staff,
+        sodDetectionOptions(tpl, profile.dualRelease),
+      );
+      expect(
+        conflicts.filter((c) => c.residualRiskAccepted).map((c) => c.id),
+        id,
+      ).toEqual([]);
+    }
+    const dental = defaultProfile("dental");
+    const dentalTpl = resolveTemplate(dental);
+    const cash = detectSodConflicts(
+      dentalTpl,
+      dental.staff,
+      sodDetectionOptions(dentalTpl, dental.dualRelease),
+    ).conflicts.filter((c) => c.linkedControlId === "c-sod-cash" && !c.ownerHeld);
+    expect(cash.length).toBeGreaterThan(0);
+    for (const c of cash) expect(conflictStatus(c, new Map())).toBe("Open");
+  });
+
   it("counts an accepted finding as open on the duty-conflict tiles and the report", () => {
     const profile = defaultProfile("dental");
-    const tpl = resolveTemplate(profile);
+    const sample = resolveTemplate(profile);
+    // The samples accept no risk, so accept the cash pair here as a business would.
+    const tpl = {
+      ...sample,
+      controls: sample.controls.map((c) =>
+        c.id === "c-sod-cash" ? { ...c, residualRiskAccepted: true } : c,
+      ),
+    };
     const report = buildControlReportModel({
       tpl,
       profile,

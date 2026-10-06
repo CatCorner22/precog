@@ -284,10 +284,34 @@ describe("insurance on an own business", () => {
   });
 
   it("keeps the sample business on the app's default policy, labelled as such", () => {
-    const r = runPrecogScenario(dental, "sc-front-desk-leaves")!;
+    const r = runPrecogScenario(dental, "sc-cash-sod-failure")!;
     expect(r.dynamic?.premiumAnnualNet).toBe(4200);
     expect(r.retainedImpact.expected).toBe(5000);
+    expect(r.dynamic?.transferredExpected).toBe(72411);
     expect(r.crimeModifiers.join(" ")).toContain("Insurance: Precog default, enter your policy");
+  });
+
+  it("models no insurance recovery for a scenario that is not fraud", () => {
+    // A staff resignation is not a loss a crime policy pays for.
+    for (const [tpl, id] of [
+      [dental, "sc-front-desk-leaves"],
+      [getIndustryTemplate("restaurant"), "sc-key-person-leaves"],
+    ] as const) {
+      const r = runPrecogScenario(tpl, id)!;
+      expect(r.dynamic?.transferredExpected, id).toBe(0);
+      expect(r.retainedImpact.expected, id).toBe(r.financialImpact.expected);
+      expect(r.retainedImpact.low, id).toBe(r.financialImpact.low);
+      expect(r.retainedImpact.high, id).toBe(r.financialImpact.high);
+      expect(r.crimeModifiers.join(" "), id).toContain(
+        "Insurance: Not an insured loss under a crime policy, so Precog models no recovery.",
+      );
+      expect(r.dynamic?.notes.join(" "), id).toContain(
+        "Not an insured loss under a crime policy: the business keeps the whole assumed loss.",
+      );
+    }
+    const frontDesk = runPrecogScenario(dental, "sc-front-desk-leaves")!;
+    expect(frontDesk.retainedImpact.expected).toBe(36533);
+    expect(frontDesk.dynamic?.expectedAnnualCostOfRisk).toBe(8584);
   });
 });
 

@@ -9,6 +9,10 @@ import type { RiskVariableState } from "./risk-variables";
 import { formatUsd, formatPct } from "../../utils";
 import { clamp } from "../number";
 
+/** What a scenario that is not theft or fraud says in place of an insurance recovery. */
+export const NOT_INSURED_LOSS = "Not an insured loss under a crime policy";
+const NOT_INSURED_NOTE = `${NOT_INSURED_LOSS}: the business keeps the whole assumed loss.`;
+
 interface AppliedDiscount {
   id: string;
   label: string;
@@ -64,12 +68,15 @@ export function evaluateDynamicRisk(
   const grossLow = baseImpact.low * impactMultiplier;
   const grossHigh = baseImpact.high * impactMultiplier;
 
+  // A crime policy pays for theft and fraud, not for a resignation, an outage
+  // or a missed filing, so only a fraud scenario gets a modeled recovery.
   const transfer = applyInsuranceTransfer(
     grossExpected,
     grossLow,
     grossHigh,
     v,
     ls.likelihoodMultiplier,
+    opts?.fraudRelated === true,
   );
 
   return {
@@ -87,15 +94,19 @@ export function applyInsuranceTransfer(
   grossHigh: number,
   v: RiskVariableState,
   likelihoodMultiplier: number,
+  /** False for a loss a crime policy does not pay (a resignation, an outage): the business keeps all of it. */
+  insuredLoss = true,
 ): InsuranceTransferResult {
   const { premiumAnnualNet, discountPctApplied, discounts } = computeNetPremium(v);
 
   // Share of years the event is assumed to happen, to annualize one event's loss.
   const annualFreqWeight = assumedAnnualFrequency(likelihoodMultiplier);
 
-  const rE = retainLoss(grossExpected, v);
-  const rL = retainLoss(grossLow, v);
-  const rH = retainLoss(grossHigh, v);
+  // With no policy limit in play the retention arithmetic transfers nothing.
+  const terms = insuredLoss ? v : { ...v, policyLimit: 0 };
+  const rE = retainLoss(grossExpected, terms);
+  const rL = retainLoss(grossLow, terms);
+  const rH = retainLoss(grossHigh, terms);
 
   const expectedAnnualCostOfRisk = Math.round(premiumAnnualNet + rE.retained * annualFreqWeight);
   const eventPlusPremiumExpected = Math.round(rE.retained + premiumAnnualNet);
@@ -105,26 +116,35 @@ export function applyInsuranceTransfer(
   const recorded = normalizeInsuranceRecord(v.insurance);
   const annualNote = `Annual cost of risk assumes the event happens in ${formatPct(annualFreqWeight, 1)} of years (Precog's assumption) × the retained loss`;
   const premiumNote = `Net premium ${formatUsd(premiumAnnualNet)} after ${discountPctApplied}% control credits (cap ${v.maxDiscountPct}%).`;
-  const notes: string[] = noPolicy
-    ? [
-        recorded && recorded.status !== "none"
-          ? "Precog models no recovery or premium from unconfirmed policy terms; this is not a finding that the business is uninsured."
-          : "No crime policy in these figures: the business keeps the whole assumed loss and pays no premium.",
-        `${annualNote}.`,
-      ]
-    : noRecovery
-      ? [
-          premiumNote,
-          "Precog counts the premium but models no recovery for this scenario, so the business keeps the whole assumed loss until you enter coverage assumptions.",
-          `${annualNote}, plus the premium.`,
-        ]
-      : [
-          premiumNote,
-          "Retained loss ≈ deductible + unreimbursed share + excess over limit.",
-          `${annualNote}, plus the premium.`,
-        ];
+  let notes: string[];
+  if (!insuredLoss) {
+    // The premium is still paid, so the notes keep it whenever there is one.
+    notes =
+      premiumAnnualNet > 0
+        ? [premiumNote, NOT_INSURED_NOTE, `${annualNote}, plus the premium.`]
+        : [NOT_INSURED_NOTE, `${annualNote}.`];
+  } else if (noPolicy) {
+    notes = [
+      recorded && recorded.status !== "none"
+        ? "Precog models no recovery or premium from unconfirmed policy terms; this is not a finding that the business is uninsured."
+        : "No crime policy in these figures: the business keeps the whole assumed loss and pays no premium.",
+      `${annualNote}.`,
+    ];
+  } else if (noRecovery) {
+    notes = [
+      premiumNote,
+      "Precog counts the premium but models no recovery for this scenario, so the business keeps the whole assumed loss until you enter coverage assumptions.",
+      `${annualNote}, plus the premium.`,
+    ];
+  } else {
+    notes = [
+      premiumNote,
+      "Retained loss ≈ deductible + unreimbursed share + excess over limit.",
+      `${annualNote}, plus the premium.`,
+    ];
+  }
 
-  if (!noRecovery && grossExpected > v.deductible + v.policyLimit) {
+  if (insuredLoss && !noRecovery && grossExpected > v.deductible + v.policyLimit) {
     notes.push(
       "The assumed loss can exceed the deductible plus the limit; the excess stays with the business.",
     );
