@@ -295,6 +295,7 @@ npm run e2e:tabs          # every tab of every industry demo, plus /report, /log
                           # /terms, /welcome, /pricing, /firm, a bad /share and /share/report
                           # link and /join/client/not-a-real-token; fails on any page error
 npm run e2e:safety        # signed sessions against the compiled build (see "Continuous integration")
+npm run e2e:save-safety   # edits survive failed saves, on the compiled build (same setup)
 ```
 
 Before asking for a merge, run `npm run verify`. It runs the format check,
@@ -371,19 +372,26 @@ to `main`; the release gate passes only when the other four pass.
 - **Migrations against real Postgres**: applies every migration twice, then
   `test:postgres:migrations` (two simultaneous runners, lock timeout, rollback
   and retry), `test:postgres:quota` (the daily model budget under 64 parallel
-  requests) and `test:postgres:lifecycle` (the business lifecycle on up to
-  eight connections).
+  requests), `test:postgres:lifecycle` (the business lifecycle on up to
+  eight connections), `test:postgres:evidence` (control evidence on
+  concurrent connections) and `test:postgres:races` (every other
+  `*.postgres.test.ts`: account deletion, Firm billing order, membership,
+  plan limits and share revocation on concurrent connections).
 - **Builder end-to-end smoke**: the dev server, then `e2e:warmup`, `e2e`,
   `e2e:enhancements` and `e2e:tabs`.
 - **Authenticated compiled-server safety**: the production build served by
   `scripts/serve-built-test.mjs` against a disposable `precog_safety_e2e`
   database; `e2e:safety` signs in two real Better Auth test sessions and checks
-  account boundaries (see `docs/ACCOUNT_DATA_MODEL.md`), then `e2e:tabs`
-  walks every tab on the compiled build. To run it locally, set
+  account boundaries (see `docs/ACCOUNT_DATA_MODEL.md`), `e2e:save-safety`
+  checks that edits survive a failed account load, a save meeting a newer
+  release, a refused business list and full browser storage, then
+  `e2e:evidence` runs the control evidence workflow and `e2e:tabs` walks every
+  tab on the compiled build. To run it locally, set
   `PRECOG_AUTH_TEST=1`, `DATABASE_URL` to a local `precog_safety_e2e`
   database, `BETTER_AUTH_URL=http://localhost:8080` and a 32-character
   `BETTER_AUTH_SECRET`, then `npm run db:migrate`, `npm run build`,
-  `node scripts/serve-built-test.mjs` and `npm run e2e:safety`.
+  `node scripts/serve-built-test.mjs`, `npm run e2e:safety` and
+  `npm run e2e:save-safety`.
 - **Release gate**: requires the four jobs above.
 
 A newer push to a pull request cancels its older run; pushes to `main` never
