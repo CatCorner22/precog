@@ -61,7 +61,7 @@ await withPage(options, async (page, errors) => {
       .getByRole("radio", { name: new RegExp(`^${industry}`) })
       .first()
       .click();
-    await page.getByRole("button", { name: "Explore the sample instead" }).click();
+    await page.getByRole("button", { name: "Explore the fictional sample" }).click();
     await page.locator("nav button").first().waitFor();
     await drain(`${industry}: load the sample`);
 
