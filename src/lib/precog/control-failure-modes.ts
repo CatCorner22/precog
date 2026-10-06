@@ -18,7 +18,7 @@ export const CONTROL_FAILURE_MODES: Readonly<Record<string, readonly string[]>> 
   "c-sod-ap": [
     "The person who releases bills also creates vendors and approves their invoices.",
     "A vendor change receives approval from the person who requested it.",
-    "A vendor's bank details change by email and nobody calls the vendor to confirm.",
+    "Bank details for a vendor change by email, and nobody calls the vendor to confirm.",
   ],
   "c-sod-ar": [
     "The person entering a receivable write-off also records its approval.",
@@ -52,7 +52,7 @@ export const CONTROL_FAILURE_MODES: Readonly<Record<string, readonly string[]>> 
   ],
   "c-clinical": [
     "The chart closes with required fields blank because the reviewer checks only its status.",
-    "Charts left open at day's end are closed in a batch the next week without review.",
+    "Charts left open at the end of the day are closed in a batch the next week without review.",
     "A late chart is marked complete without checking each required element.",
   ],
   "c-controlled": [
