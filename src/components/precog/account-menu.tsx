@@ -17,6 +17,7 @@ import {
   exportAccountData,
   exportBusinessHistory,
   listHistoryDownloads,
+  SIGN_IN_AGAIN_TO_DELETE,
 } from "@/lib/precog/account-server";
 import { getNotificationSettings, updateNotificationSettings } from "@/lib/precog/firm/server";
 import type { NotificationSettings } from "@/lib/precog/firm/store";
@@ -419,6 +420,39 @@ function LocalRecoveryControl({ disabled }: { disabled: boolean }) {
   );
 }
 
+/** The button on the refusal when the sign-in is too old to delete the account. */
+export const SIGN_IN_AGAIN_LABEL = "Sign in again";
+
+/**
+ * Says why the deletion did not go through. The 403 for an old sign-in asks
+ * for a recent one and offers the button that signs out and opens the
+ * sign-in page; a 409 says what blocks the deletion; anything else may have
+ * deleted the account before failing, so it says to reload and check.
+ */
+export function showDeletionFailure(error: unknown): void {
+  const status = clientErrorStatus(error);
+  const message = error instanceof Error ? error.message : "";
+  if (status === 403 && message === SIGN_IN_AGAIN_TO_DELETE) {
+    toast.error(message, {
+      duration: Infinity,
+      action: {
+        label: SIGN_IN_AGAIN_LABEL,
+        onClick: () => {
+          void signOut("/login").catch(() => {
+            toast.error("Precog could not sign you out. Reload and try again.");
+          });
+        },
+      },
+    });
+    return;
+  }
+  toast.error(
+    status === 409 && message
+      ? message
+      : "Precog could not finish the deletion or the sign-out. Reload to check the account. If the deletion finished, you cannot undo this.",
+  );
+}
+
 /** Export, history, digest, sessions and delete controls for the signed-in account. */
 export function AccountDataControls() {
   const workspace = useWorkspace();
@@ -448,11 +482,7 @@ export function AccountDataControls() {
       toast.success("Precog has deleted your account and its data.");
       await signOut("/", { skipRecovery: true });
     } catch (error) {
-      toast.error(
-        clientErrorStatus(error) === 409 && error instanceof Error
-          ? error.message
-          : "Precog could not finish the deletion or the sign-out. Reload to check the account. If the deletion finished, you cannot undo this.",
-      );
+      showDeletionFailure(error);
       setBusy(null);
     }
   }
