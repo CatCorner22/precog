@@ -141,7 +141,8 @@ const TOOLS = {
     run: processRecords,
   },
   run_precog_scenario: {
-    description: "A scenario's assumed timeline, assumed retained loss, and cost-of-risk figure.",
+    description:
+      "A scenario's assumed timeline, assumed retained loss, and cost-of-risk figure. warningSigns: what an owner can notice early; quote them as signs to watch, not as findings.",
     run: runPrecogScenarioTool,
   },
   compare_scenario_futures: {

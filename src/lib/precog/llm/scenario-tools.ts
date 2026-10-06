@@ -12,6 +12,7 @@ import {
   type RiskVariableState,
 } from "../scoring/dynamic-variables";
 import { simulateAllCascades } from "../scoring/variable-cascade";
+import { scenarioUnfolding } from "../scenario-unfolding";
 import type { IndustryTemplate } from "../templates";
 import type { StaffComposition } from "../types";
 import type { ToolOutput } from "./types";
@@ -37,6 +38,7 @@ export interface ScenarioRunData {
   timelineDays: { p50: number };
   /** Null when the scenario engine computed no insurance figures. */
   dynamic: { expectedAnnualCostOfRisk: number } | null;
+  warningSigns?: readonly string[];
 }
 
 /**
@@ -70,6 +72,7 @@ export function runPrecogScenarioTool({
   if (!result || !scenario) {
     return { ok: false, summary: "Scenario not found", data: null };
   }
+  const unfolding = scenarioUnfolding(scenarioId);
   return {
     ok: true,
     summary: `${scenario.title}: ${describeScenarioFigures({
@@ -80,6 +83,8 @@ export function runPrecogScenarioTool({
     data: {
       scenarioId,
       title: scenario.title,
+      unfolds: unfolding?.steps ?? [],
+      warningSigns: unfolding?.warningSigns ?? [],
       timelineDays: result.timelineDays,
       gross: result.financialImpact,
       retained: result.retainedImpact,

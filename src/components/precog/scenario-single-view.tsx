@@ -2,6 +2,12 @@ import { useMemo } from "react";
 import { CheckCircle2, GitBranch, GitCompare, SlidersHorizontal } from "lucide-react";
 import type { IndustryTemplate } from "@/lib/precog/templates";
 import type { MatrixLayerId, PrecogResult, ScenarioTemplate } from "@/lib/precog/types";
+import { todayBrief } from "@/lib/precog/continuity/today";
+import { localDateKey } from "@/lib/precog/dates";
+import { scenarioUnfolding } from "@/lib/precog/scenario-unfolding";
+import { useToday } from "@/lib/use-today";
+import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
+import { openFindings, partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import {
   insuranceBasis,
   insuranceFigureNote,
@@ -28,10 +34,12 @@ import {
   reductionPhrase,
   scenarioCases,
   scenarioConfirmation,
+  scenarioWatch,
   type ScenarioCases,
 } from "./scenario-page";
 import type { ScenarioView } from "./scenario-link";
 import { StaffWhatIfCard, type StaffWhatIf } from "./staff-what-if";
+import { ScenarioWatchCard } from "./scenario-watch-card";
 
 /** One scenario: its assumed figures, the real cases behind it, staffing to try, and mitigations. */
 export function SingleScenarioView({
@@ -46,6 +54,7 @@ export function SingleScenarioView({
   onClearMitigations,
   onView,
   staffWhatIf,
+  onOpenFailure,
 }: {
   tpl: IndustryTemplate;
   scenario: ScenarioTemplate;
@@ -58,9 +67,12 @@ export function SingleScenarioView({
   onClearMitigations: () => void;
   onView: (view: ScenarioView) => void;
   staffWhatIf: StaffWhatIf;
+  onOpenFailure?: (targetKey: string) => void;
 }) {
   const tabName = useTabName();
   const { profile, addDecision } = usePractice();
+  const today = useToday();
+  const day = localDateKey(today);
   const confirmed = useMemo(
     () => confirmedScenarioIds(profile.decisions, profile.industry),
     [profile.decisions, profile.industry],
@@ -69,6 +81,32 @@ export function SingleScenarioView({
     () => scenarioCases(scenario, profile.industry),
     [scenario, profile.industry],
   );
+  const openConflicts = useMemo(() => {
+    const conflicts = detectSodConflicts(
+      tpl,
+      profile.staff,
+      sodDetectionOptions(tpl, profile.dualRelease),
+    ).conflicts;
+    return openFindings(conflicts, partialDualReleaseCoverage(profile.dualRelease, conflicts));
+  }, [tpl, profile.staff, profile.dualRelease]);
+  const outTodayIds = useMemo(
+    () =>
+      new Set(
+        todayBrief(
+          tpl,
+          profile.plannedAbsences ?? [],
+          profile.decisions,
+          profile.industry,
+          day,
+        ).out.map((out) => out.person.id),
+      ),
+    [tpl, profile.plannedAbsences, profile.decisions, profile.industry, day],
+  );
+  const watch = useMemo(
+    () => scenarioWatch(tpl, scenario, openConflicts, outTodayIds),
+    [tpl, scenario, openConflicts, outTodayIds],
+  );
+  const unfolding = scenarioUnfolding(scenario.id);
   if (!result) return null;
   const scenarioIsStarter = ownBusiness && !confirmed.has(scenario.id);
   const noPolicy = insuranceBasis(riskVariables, ownBusiness) === "none";
@@ -129,6 +167,15 @@ export function SingleScenarioView({
             This could happen here
           </Button>
         </div>
+      )}
+
+      {unfolding && (
+        <ScenarioWatchCard
+          scenario={scenario}
+          unfolding={unfolding}
+          watch={watch}
+          onOpenFailure={onOpenFailure}
+        />
       )}
 
       {cases && <RealCasesCard cases={cases} />}
