@@ -162,11 +162,12 @@ async function syncTab(
       options.load ?? { found: false, profile: null, revision: null },
     );
   server.listBusinesses.mockResolvedValueOnce([]);
+  const setProfile = vi.fn();
   const sync = runCloudSync({
     workspace,
     profile: open,
     profileRef,
-    setProfile: vi.fn(),
+    setProfile,
     ready: true,
     setReady: vi.fn(),
     isPending: false,
@@ -184,11 +185,11 @@ async function syncTab(
   effects.run();
   // The bootstrap reopened the stored copy, which is `open` itself.
   activated.length = 0;
-  if (options.guest) return { sync, profileRef, activated, localStore, lineage };
+  if (options.guest) return { sync, profileRef, activated, localStore, lineage, setProfile };
   await vi.waitFor(() => expect(server.loadBusinessProfile).toHaveBeenCalled());
   await Promise.resolve();
   await Promise.resolve();
-  return { sync, profileRef, activated, localStore, lineage };
+  return { sync, profileRef, activated, localStore, lineage, setProfile };
 }
 
 beforeEach(() => {
@@ -308,6 +309,129 @@ describe("account bases and stamps shared by the tabs of one browser", () => {
     expect(stored).toEqual({ biz_a: 7, biz_b: 3 });
     // The stamp one tab saw the account take counts in the other tab too.
     expect(two.sync.accountTook("biz_a", a.updatedAt)).toBe(true);
+  });
+});
+
+describe("a save refused because another device saved the business (PERF-8)", () => {
+  const review = {
+    key: "bank_statement" as const,
+    period: "2026-08",
+    result: "done" as const,
+    ownerName: "Pat Kim",
+    notes: "",
+    recordedAt: "2026-09-23T09:00:00.000Z",
+  };
+
+  /** A tab that opened the account's copy of A Co at revision 4. */
+  async function openedAt4() {
+    const a = business("biz_a", "A Co");
+    const tab = await syncTab(browser(), a, {
+      load: { found: true, profile: a, revision: 4, updatedAt: a.updatedAt },
+    });
+    return { tab, opened: tab.profileRef.current };
+  }
+
+  /** The account's refusal: another device saved `theirs` as revision 5. */
+  function refusedWith(theirs: PracticeProfile) {
+    server.saveBusinessProfile.mockResolvedValueOnce({
+      ok: false,
+      conflict: true,
+      revision: 5,
+      profile: theirs,
+      updatedAt: theirs.updatedAt,
+    });
+  }
+
+  /** The update the tab asked to show, applied to `state`. */
+  function shown(tab: Awaited<ReturnType<typeof syncTab>>, state: PracticeProfile) {
+    const derive = tab.setProfile.mock.calls
+      .map(([action]) => action as { derive?: (p: PracticeProfile) => PracticeProfile })
+      .find((action) => typeof action?.derive === "function");
+    return derive?.derive?.(state);
+  }
+
+  it("merges the register edited here with a monthly review saved elsewhere, without asking", async () => {
+    const { tab, opened } = await openedAt4();
+    const mine = edit(opened, { customKnowledge: [item("Edited here")] });
+    tab.profileRef.current = mine;
+    refusedWith(edit(opened, { monthlyReviews: [review] }));
+    server.saveBusinessProfile.mockResolvedValueOnce({ ok: true, revision: 6 });
+
+    expect(await tab.sync.flushActive()).toBe(true);
+
+    expect(server.saveBusinessProfile).toHaveBeenCalledTimes(2);
+    const [first, second] = server.saveBusinessProfile.mock.calls.map(([call]) => call.data);
+    expect(first.baseRevision).toBe(4);
+    // The merge saves on the account's revision, holding both edits.
+    expect(second.baseRevision).toBe(5);
+    expect(second.profile.customKnowledge?.map((k: KnowledgeItem) => k.name)).toEqual([
+      "Edited here",
+    ]);
+    expect(second.profile.monthlyReviews).toEqual([review]);
+    expect(tab.sync.saveConflictRef.current).toBeNull();
+    // The open business shows the copy the account now holds.
+    expect(shown(tab, mine)).toBe(second.profile);
+    // An edit made meanwhile to this device's own section is kept on top.
+    const meanwhile = edit(mine, { customKnowledge: [item("Edited here"), item("And more")] });
+    const onTop = shown(tab, meanwhile);
+    expect(onTop?.customKnowledge?.map((k) => k.name)).toEqual(["Edited here", "And more"]);
+    expect(onTop?.monthlyReviews).toEqual([review]);
+    // One made meanwhile to the section taken from the other device is never replaced.
+    const clash = edit(mine, { monthlyReviews: [{ ...review, result: "exception" }] });
+    expect(shown(tab, clash)).toBe(clash);
+  });
+
+  it("still asks when both devices changed the same section", async () => {
+    const { tab, opened } = await openedAt4();
+    tab.profileRef.current = edit(opened, { customKnowledge: [item("Edited here")] });
+    refusedWith(edit(opened, { customKnowledge: [item("Edited elsewhere")] }));
+
+    expect(await tab.sync.flushActive()).toBe(false);
+
+    expect(server.saveBusinessProfile).toHaveBeenCalledTimes(1);
+    expect(tab.sync.saveConflictRef.current).toMatchObject({
+      reason: "remote-edit",
+      businessId: "biz_a",
+      revision: 5,
+    });
+    expect(tab.sync.saveConflictRef.current?.remote.customKnowledge?.[0]?.name).toBe(
+      "Edited elsewhere",
+    );
+    expect(shown(tab, tab.profileRef.current)).toBeUndefined();
+  });
+
+  it("asks when this tab does not hold the copy its revision stands for, as after a reload", async () => {
+    const a = business("biz_a", "A Co");
+    const tab = await syncTab(browser(), a);
+    tab.sync.cloudRevision.current.set("biz_a", 4);
+    tab.profileRef.current = edit(a, { customKnowledge: [item("Edited here")] });
+    refusedWith(edit(a, { monthlyReviews: [review] }));
+
+    expect(await tab.sync.flushActive()).toBe(false);
+
+    expect(server.saveBusinessProfile).toHaveBeenCalledTimes(1);
+    expect(tab.sync.saveConflictRef.current?.reason).toBe("remote-edit");
+  });
+
+  it("asks, with the newest copy, when a third save beats the merge", async () => {
+    const { tab, opened } = await openedAt4();
+    tab.profileRef.current = edit(opened, { customKnowledge: [item("Edited here")] });
+    refusedWith(edit(opened, { monthlyReviews: [review] }));
+    const third = edit(opened, { practiceName: "A Co renamed" });
+    server.saveBusinessProfile.mockResolvedValueOnce({
+      ok: false,
+      conflict: true,
+      revision: 7,
+      profile: third,
+      updatedAt: third.updatedAt,
+    });
+
+    expect(await tab.sync.flushActive()).toBe(false);
+
+    expect(server.saveBusinessProfile).toHaveBeenCalledTimes(2);
+    expect(tab.sync.saveConflictRef.current).toMatchObject({ revision: 7 });
+    expect(tab.sync.saveConflictRef.current?.remote.practiceName).toBe("A Co renamed");
+    expect(shown(tab, tab.profileRef.current)).toBeUndefined();
   });
 });
 
