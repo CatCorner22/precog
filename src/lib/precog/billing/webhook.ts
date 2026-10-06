@@ -39,6 +39,8 @@ import { recordAudit } from "../firm/audit.server";
  * with a 200. Linking the customer (OPERATIONS, Stripe) lets the retry of
  * a subscription event apply. A subscription that has ended
  * (canceled, incomplete_expired) for an unknown customer stays "ignored".
+ * A subscription event for an account deleted before or while it waited is
+ * "account deleted": acknowledged, so Stripe stops retrying it.
  *
  * After a refund or a lost dispute on an Assessment that was credited
  * against the Firm plan, the credit is reversed on the Stripe customer
@@ -51,7 +53,7 @@ import { recordAudit } from "../firm/audit.server";
 export async function applyBillingEvent(
   sql: Sql,
   event: StripeEvent,
-): Promise<"duplicate" | "ignored" | "applied"> {
+): Promise<"duplicate" | "ignored" | "applied" | "account deleted"> {
   let reversal: {
     userId: string;
     customerId: string;
@@ -143,7 +145,7 @@ export async function applyBillingEvent(
       );
     }
     const before = (await loadBillingAccount(tx, userId))?.subscriptionStatus ?? null;
-    const { status, ignoredOther, storedSubscriptionId } = await recordSubscription(tx, {
+    const recorded = await recordSubscription(tx, {
       userId,
       stripeCustomerId: change.customerId,
       subscriptionId: change.subscriptionId,
@@ -153,6 +155,10 @@ export async function applyBillingEvent(
       cancellationReason: change.cancellationReason,
       priceId: change.priceId,
     });
+    // The account was deleted before or while this event waited: nothing to
+    // write, and the committed claim stops Stripe's retries.
+    if (recorded.accountDeleted) return "account deleted";
+    const { status, ignoredOther, storedSubscriptionId } = recorded;
     // Reported once, on the Checkout completion that started it: the
     // subscription's own created and updated events (each renewal) are not
     // news again.

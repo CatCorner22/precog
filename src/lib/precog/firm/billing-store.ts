@@ -440,6 +440,59 @@ export function checkoutRefusal(account: BillingAccount | null, plan: string): s
 }
 
 /**
+ * Where a status sits in one subscription's life, for two events Stripe
+ * created in the same second (event.created is in whole seconds, and a
+ * Checkout's created(incomplete) and updated(active) routinely share one):
+ * incomplete < trialing = active < past_due = unpaid < canceled =
+ * incomplete_expired. A subscription moves up this order within a second,
+ * never down: a payment that clears a past_due arrives on a later retry, and
+ * nothing revives an ended subscription. A status not listed has no rank, so
+ * the same-second event applies as before.
+ */
+const STATUS_RANK: Readonly<Record<string, number>> = {
+  incomplete: 0,
+  trialing: 1,
+  active: 1,
+  past_due: 2,
+  unpaid: 2,
+  canceled: 3,
+  incomplete_expired: 3,
+};
+
+/**
+ * True when an event must not overwrite the stored subscription state: it
+ * was created before the newest subscription event already applied, or in
+ * the same second for the same subscription with a status lower in
+ * STATUS_RANK than the stored one. An event or a stored row without a time
+ * skips the check; so does an event without a status (a checkout
+ * completion), which keeps the stored status anyway.
+ */
+export function staleSubscriptionEvent(
+  stored: { subscriptionId: string | null; status: string | null; eventAt: string | null },
+  incoming: { subscriptionId: string; status: string | null; eventAt: string | null },
+): boolean {
+  if (!incoming.eventAt || !stored.eventAt) return false;
+  const incomingAt = Date.parse(incoming.eventAt);
+  const storedAt = Date.parse(stored.eventAt);
+  if (incomingAt < storedAt) return true;
+  if (incomingAt > storedAt || incoming.status === null || stored.status === null) return false;
+  if (stored.subscriptionId !== incoming.subscriptionId) return false;
+  const storedRank = STATUS_RANK[stored.status];
+  const incomingRank = STATUS_RANK[incoming.status];
+  return storedRank !== undefined && incomingRank !== undefined && incomingRank < storedRank;
+}
+
+/** What recordSubscription did; "account deleted" when the account's user row is gone. */
+export type RecordedSubscription =
+  | { accountDeleted: true }
+  | {
+      accountDeleted: false;
+      status: string;
+      ignoredOther: boolean;
+      storedSubscriptionId: string | null;
+    };
+
+/**
  * Records a subscription change and returns the status now stored. A null
  * `status` (a checkout completion, which knows only the ids) keeps the status
  * and renewal date a subscription event already stored for the same
@@ -447,12 +500,23 @@ export function checkoutRefusal(account: BillingAccount | null, plan: string): s
  * stored yet, a completed checkout counts as active.
  *
  * A stale event changes nothing: one created before the newest subscription
- * event already applied (a retry or a late delivery), or one for another
- * subscription while the stored one is still active (an old or duplicate
- * subscription being cancelled must not end the plan the firm pays for).
- * Only events that carry a status move the stored event time, because a
- * checkout completion can be created after the subscription events it
- * follows.
+ * event already applied (a retry or a late delivery), one from the same
+ * second that would move the subscription down STATUS_RANK, or one for
+ * another subscription while the stored one is still active (an old or
+ * duplicate subscription being cancelled must not end the plan the firm
+ * pays for). Only events that carry a status move the stored event time,
+ * because a checkout completion can be created after the subscription
+ * events it follows.
+ *
+ * Stripe delivers in parallel, so events for one account apply one at a
+ * time: the account's user row is held against deletion first (the global
+ * lock order: user rows, then the firm, then businesses), then an empty
+ * billing row is inserted if none exists, so the row lock that orders the
+ * events exists even for the account's first event. The upsert repeats the
+ * event-time check as a second guard. An account whose user row is gone
+ * (deleted before or while the event waited) gets nothing written and
+ * reports `accountDeleted`, so the webhook acknowledges the event instead
+ * of failing on it until Stripe gives up.
  */
 export async function recordSubscription(
   sql: Sql,
@@ -473,7 +537,17 @@ export async function recordSubscription(
     /** The subscription's Stripe price (its tier); null keeps the stored one for the same subscription. */
     priceId?: string | null;
   },
-): Promise<{ status: string; ignoredOther: boolean; storedSubscriptionId: string | null }> {
+): Promise<RecordedSubscription> {
+  // A deletion holds the user row for update first (deleteAccountRows), so
+  // this waits for it and then finds no row.
+  const user = await sql<{ id: string }>`
+    select id from "user" where id = ${input.userId} for key share
+  `;
+  if (user.length === 0) return { accountDeleted: true };
+  await sql`
+    insert into billing_accounts (user_id) values (${input.userId})
+    on conflict (user_id) do nothing
+  `;
   const stored = await sql<{
     subscription_id: string | null;
     subscription_status: string | null;
@@ -488,9 +562,17 @@ export async function recordSubscription(
     const otherWhileActive =
       current.subscription_id !== input.subscriptionId &&
       ACTIVE_SUBSCRIPTION_STATUSES.has(current.subscription_status);
-    const storedAt = toIsoTimestampOrNull(current.subscription_event_at);
-    const older = Boolean(
-      input.eventAt && storedAt && Date.parse(input.eventAt) < Date.parse(storedAt),
+    const older = staleSubscriptionEvent(
+      {
+        subscriptionId: current.subscription_id,
+        status: current.subscription_status,
+        eventAt: toIsoTimestampOrNull(current.subscription_event_at),
+      },
+      {
+        subscriptionId: input.subscriptionId,
+        status: input.status,
+        eventAt: input.eventAt ?? null,
+      },
     );
     if (otherWhileActive || older) {
       // A second subscription starting or running beside the one the firm
@@ -503,6 +585,7 @@ export async function recordSubscription(
         input.status !== "canceled" &&
         input.status !== "incomplete_expired";
       return {
+        accountDeleted: false,
         status: current.subscription_status,
         ignoredOther,
         storedSubscriptionId: current.subscription_id,
@@ -575,10 +658,28 @@ export async function recordSubscription(
         else billing_accounts.payment_failed_invoice_url
       end,
       updated_at = now()
+    -- The second guard: never overwrite a newer subscription event's state.
+    where ${input.eventAt ?? null}::timestamptz is null
+      or billing_accounts.subscription_event_at is null
+      or ${input.eventAt ?? null}::timestamptz >= billing_accounts.subscription_event_at
     returning subscription_status
   `;
+  const written = rows[0];
+  if (!written) {
+    // The guard kept a newer row (the lock above makes this unreachable in practice).
+    const kept = await sql<{ subscription_id: string | null; subscription_status: string | null }>`
+      select subscription_id, subscription_status from billing_accounts where user_id = ${input.userId}
+    `;
+    return {
+      accountDeleted: false,
+      status: kept[0]?.subscription_status ?? "incomplete",
+      ignoredOther: false,
+      storedSubscriptionId: kept[0]?.subscription_id ?? null,
+    };
+  }
   return {
-    status: rows[0].subscription_status,
+    accountDeleted: false,
+    status: written.subscription_status,
     ignoredOther: false,
     storedSubscriptionId: input.subscriptionId,
   };
