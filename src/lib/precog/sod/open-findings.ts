@@ -1,4 +1,5 @@
 import type { DualReleasePolicy } from "../controls/dual-release-policy";
+import { formatDay } from "../dates";
 import type { OpenSeverityCounts } from "../scoring/bands";
 import { count, verb } from "../text";
 import type { DetectedConflict } from "./detect";
@@ -27,8 +28,13 @@ export function openFindings<
  * Where a finding stands, in the words the report's status column prints. A
  * pair dual release covers only above a threshold reads "Reduced, not
  * closed", as its Start here badge does, and an accepted finding stays open
- * and says so. The data holds no date for an acceptance yet, so the status
- * names none.
+ * and says so.
+ *
+ * `acceptedOn` is the calendar day of the logged decision that accepted the
+ * risk (headline/open-conflicts `acceptanceDates`). With one, the status
+ * names that day. A control set to accept the risk with no decision logged
+ * says exactly that, so the owner's setting stays visible without reading as
+ * a decision nobody made.
  */
 export function conflictStatus(
   c: Pick<
@@ -36,13 +42,19 @@ export function conflictStatus(
     "ruleId" | "ownerHeld" | "residualRiskAccepted" | "dualReleaseMitigated"
   >,
   partial: ReadonlyMap<string, number>,
+  acceptedOn?: string,
 ): string {
   if (c.ownerHeld) return "Owner's own duties";
   if (c.dualReleaseMitigated && !partial.has(c.ruleId)) return "Covered by dual release";
+  const accepted = acceptedOn
+    ? `risk accepted on ${formatDay(acceptedOn)}`
+    : c.residualRiskAccepted
+      ? "risk accepted (no decision logged)"
+      : null;
   if (c.dualReleaseMitigated) {
-    return c.residualRiskAccepted ? "Reduced, not closed; risk accepted" : "Reduced, not closed";
+    return accepted ? `Reduced, not closed; ${accepted}` : "Reduced, not closed";
   }
-  return c.residualRiskAccepted ? "Open, risk accepted" : "Open";
+  return accepted ? `Open, ${accepted}` : "Open";
 }
 
 /**
