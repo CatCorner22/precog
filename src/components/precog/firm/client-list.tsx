@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
 import { localDateKey } from "@/lib/precog/dates";
@@ -111,8 +111,8 @@ export function ClientList({
     }
   }
 
-  const sorted = sortClients(clients, sort, today);
-  const totals = clientTotals(clients, today);
+  const sorted = useMemo(() => sortClients(clients, sort, today), [clients, sort, today]);
+  const totals = useMemo(() => clientTotals(clients, today), [clients, today]);
 
   return (
     <section className="rounded-xl border border-border bg-surface p-4">

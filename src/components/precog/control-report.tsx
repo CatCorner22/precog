@@ -5,7 +5,6 @@ import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import {
   latestReview,
-  periodMonthYear,
   periodWithDue,
   reportPeriod,
   reviewItemsFor,
@@ -66,7 +65,7 @@ import {
   ControlReportEvidenceSection,
 } from "@/components/precog/control-report-evidence-section";
 import { Kpi, Section } from "@/components/precog/control-report-parts";
-import { formatDay, localDateKey } from "@/lib/precog/dates";
+import { formatDay, formatMonth, localDateKey } from "@/lib/precog/dates";
 import { decidedOn } from "@/lib/precog/decisions/decided-on";
 import { count, firstName, midSentence, verb } from "@/lib/precog/text";
 
@@ -463,9 +462,7 @@ export function ControlReport({
           </ol>
         </Section>
 
-        <Section
-          title={layoutFive ? "Monthly review" : `Monthly review · ${periodMonthYear(month)}`}
-        >
+        <Section title={layoutFive ? "Monthly review" : `Monthly review · ${formatMonth(month)}`}>
           {layoutFive && (
             <p className="mb-1 text-sm font-medium">Monthly checks for {periodWithDue(month)}</p>
           )}
@@ -479,7 +476,7 @@ export function ControlReport({
             </ul>
           ) : (
             <p className="text-sm text-neutral-700">
-              No monthly review results recorded for {periodMonthYear(month)}.
+              No monthly review results recorded for {formatMonth(month)}.
             </p>
           )}
         </Section>

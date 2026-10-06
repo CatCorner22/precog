@@ -2,8 +2,8 @@ import type { ClientEngagementRow } from "@/lib/precog/firm/store";
 import type { EngagementRecord } from "@/lib/precog/firm/engagement-row";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
 import {
+  checksCountOn,
   monthKey,
-  MONTHLY_REVIEW_GRACE_DAY,
   periodStanding,
   previousPeriod,
   type PeriodStanding,
@@ -105,41 +105,47 @@ export function thisMonthText(client: ClientEngagementRow, today: string): strin
   return doneText(thisMonthStanding(client, today));
 }
 
+/** A result the table counts by month: Exception or Skipped. */
+type CountedResult = "exceptions" | "skipped";
+
+/** How many checks were reported with `field`'s result, last month and this month. */
+function byMonth(
+  client: ClientEngagementRow,
+  today: string,
+  field: CountedResult,
+): { last: number; current: number } {
+  return {
+    last: lastMonthStanding(client, today)[field],
+    current: thisMonthStanding(client, today)[field],
+  };
+}
+
 /** "None", or "1 last month, 2 this month" (a month with none is left out). */
-function byMonthText(last: number, current: number): string {
+function byMonthText({ last, current }: { last: number; current: number }): string {
   const parts = [last > 0 ? `${last} last month` : "", current > 0 ? `${current} this month` : ""];
   return parts.filter(Boolean).join(", ") || "None";
 }
 
 /** The checks reported as Exception, last month and this month. */
 export function exceptionsText(client: ClientEngagementRow, today: string): string {
-  return byMonthText(
-    lastMonthStanding(client, today).exceptions,
-    thisMonthStanding(client, today).exceptions,
-  );
+  return byMonthText(byMonth(client, today, "exceptions"));
 }
 
 /** The checks reported as Skipped, last month and this month. */
 export function skippedText(client: ClientEngagementRow, today: string): string {
-  return byMonthText(
-    lastMonthStanding(client, today).skipped,
-    thisMonthStanding(client, today).skipped,
-  );
+  return byMonthText(byMonth(client, today, "skipped"));
 }
 
-function exceptionCount(client: ClientEngagementRow, today: string): number {
-  return lastMonthStanding(client, today).exceptions + thisMonthStanding(client, today).exceptions;
-}
-
-function skippedCount(client: ClientEngagementRow, today: string): number {
-  return lastMonthStanding(client, today).skipped + thisMonthStanding(client, today).skipped;
+/** Both months' checks reported with `field`'s result, as the totals and the sort count them. */
+function bothMonths(client: ClientEngagementRow, today: string, field: CountedResult): number {
+  const { last, current } = byMonth(client, today, field);
+  return last + current;
 }
 
 /** Open from the grace day of its month, as Needs attention counts it, until every check is Done. */
 function monthOpen(client: ClientEngagementRow, today: string): boolean {
-  const opens = `${monthKey(today)}-${String(MONTHLY_REVIEW_GRACE_DAY).padStart(2, "0")}`;
   const standing = thisMonthStanding(client, today);
-  return today >= opens && standing.done < standing.total;
+  return checksCountOn(today) && standing.done < standing.total;
 }
 
 /**
@@ -151,7 +157,7 @@ export function clientTotals(clients: readonly ClientEngagementRow[], today: str
   const active = clients.filter((c) => c.status === "active");
   const open = active.filter((c) => monthOpen(c, today)).length;
   const overdue = active.filter((c) => lastMonthStanding(c, today).overdue).length;
-  const exceptions = clients.filter((c) => exceptionCount(c, today) > 0).length;
+  const exceptions = clients.filter((c) => bothMonths(c, today, "exceptions") > 0).length;
   const awaiting = clients.reduce((sum, c) => sum + c.awaitingReview, 0);
   return `${count(clients.length, "client")} · ${open} with this month's review open · ${overdue} with last month overdue · ${exceptions} with exceptions · ${count(awaiting, "version")} awaiting review`;
 }
@@ -175,9 +181,8 @@ function sortValue(client: ClientEngagementRow, key: ClientColumn, today: string
     case "thisMonth":
       return monthSortValue(thisMonthStanding(client, today));
     case "exceptions":
-      return exceptionCount(client, today);
     case "skipped":
-      return skippedCount(client, today);
+      return bothMonths(client, today, key);
     case "conflicts":
       // Not counted yet sorts below zero.
       return client.openFindings ?? -1;

@@ -21,6 +21,7 @@ import {
   EMPTY_EXCEPTION_FORM,
   exceptionDecision,
   exceptionFromForm,
+  keepCents,
   policyDecision,
   withMasterSwitch,
   type ExceptionForm,
@@ -69,11 +70,6 @@ export function withThreshold(
  */
 export function thresholdText(usd: number): string {
   return Number.isInteger(usd) ? String(usd) : usd.toFixed(2);
-}
-
-/** An amount to the cent: 12.75 stays 12.75, never 13. */
-function keepCents(usd: number): number {
-  return Math.round(usd * 100) / 100;
 }
 
 export function useDualReleasePanel() {
