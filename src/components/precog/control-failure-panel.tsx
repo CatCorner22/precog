@@ -7,6 +7,7 @@ import {
   UNVERIFIED_CASE,
 } from "@/lib/precog/evidence";
 import { usePractice } from "@/lib/precog/practice-context";
+import { localDateKey } from "@/lib/precog/dates";
 import {
   evaluateControlFailure,
   SAFEGUARDS,
@@ -39,6 +40,7 @@ export function ControlFailurePanel() {
         staff: profile.staff,
         riskVariables: profile.riskVariables,
         dualRelease: profile.dualRelease,
+        today: localDateKey(new Date()),
         confirmedScenarioIds: confirmed,
       }),
     [template, target, profile.staff, profile.riskVariables, profile.dualRelease, confirmed],
@@ -73,7 +75,7 @@ export function ControlFailurePanel() {
           </label>
           <select
             id="control-failure-target"
-            value={selectedKey}
+            value={targetKey(target)}
             onChange={(event) => setSelectedKey(event.target.value)}
             className="min-h-10 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-fg"
           >
@@ -185,9 +187,13 @@ export function ControlFailurePanel() {
 
           <PanelSection
             title={
-              report.mode === "failure"
-                ? "Duty conflicts that lose a control in place"
-                : "Duty conflicts it would cover"
+              report.findingsKind === "linked"
+                ? report.mode === "failure"
+                  ? "Duty conflicts this control guards"
+                  : "Duty conflicts this control would guard"
+                : report.mode === "failure"
+                  ? "Duty conflicts that lose a control in place"
+                  : "Duty conflicts it would cover"
             }
           >
             {report.findings.length ? (
@@ -199,15 +205,23 @@ export function ControlFailurePanel() {
                       <Badge variant="warn">{finding.severity}</Badge>
                       <span className="text-xs text-muted">{finding.personName}</span>
                     </div>
-                    <p className="mt-1 text-xs text-subtle">{finding.lostInPlace.join(" · ")}</p>
+                    <p className="mt-1 text-xs text-subtle">
+                      {report.findingsKind === "linked"
+                        ? finding.lostInPlace.length
+                          ? `Also in place: ${finding.lostInPlace.join(" · ")}`
+                          : "Nothing else in place"
+                        : finding.lostInPlace.join(" · ")}
+                    </p>
                   </li>
                 ))}
               </ul>
             ) : (
               <p className="text-sm text-muted">
-                {report.mode === "failure"
-                  ? "No duty conflict loses a control in place."
-                  : "No duty conflict would gain a control in place."}
+                {report.findingsKind === "linked"
+                  ? "No duty conflict on this team depends on this control."
+                  : report.mode === "failure"
+                    ? "No duty conflict loses a control in place."
+                    : "No duty conflict would gain a control in place."}
               </p>
             )}
           </PanelSection>

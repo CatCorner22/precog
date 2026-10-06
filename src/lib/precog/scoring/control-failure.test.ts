@@ -95,6 +95,7 @@ describe("control failure impact", () => {
     expect(control.compensatingControls.length).toBeGreaterThan(0);
     expect(linkedRules.length).toBeGreaterThan(0);
     expect(report.mode).toBe("failure");
+    expect(report.findingsKind).toBe("linked");
     expect(residual).toBeDefined();
     expect(residual!.withoutIt).toBeGreaterThan(residual!.withIt);
     expect(
@@ -102,6 +103,28 @@ describe("control failure impact", () => {
         control.compensatingControls.some((text) => finding.lostInPlace.includes(text)),
       ),
     ).toBe(true);
+    const inputs = inputsFor(tpl);
+    const withItFindings = detectSodConflicts(
+      tpl,
+      inputs.staff,
+      sodDetectionOptions(tpl, inputs.dualRelease),
+    )
+      .conflicts.filter((finding) => linkedRules.some((rule) => rule.id === finding.ruleId))
+      .map((finding) => finding.controlsInPlace);
+    const withoutItTpl = {
+      ...tpl,
+      controls: tpl.controls.map((item) =>
+        item.id === control.id ? { ...item, segregated: false } : item,
+      ),
+    };
+    const withoutItFindings = detectSodConflicts(
+      withoutItTpl,
+      inputs.staff,
+      sodDetectionOptions(withoutItTpl, inputs.dualRelease),
+    )
+      .conflicts.filter((finding) => linkedRules.some((rule) => rule.id === finding.ruleId))
+      .map((finding) => finding.controlsInPlace);
+    expect(withItFindings).toEqual(withoutItFindings);
 
     const direct = tpl.processes.find((process) => process.controlIds.includes(control.id));
     expect(direct).toBeDefined();
@@ -118,6 +141,35 @@ describe("control failure impact", () => {
         via: "depends",
       });
     }
+  });
+
+  it("lists current duty conflicts linked to a segregated control", () => {
+    const targetId = "c-sod-ap";
+    const tpl = {
+      ...dental,
+      controls: dental.controls.map((control) =>
+        control.id === targetId
+          ? { ...control, segregated: true, compensatingControls: [] }
+          : control,
+      ),
+    };
+    const inputs = inputsFor(tpl);
+    const linkedRuleIds = new Set(
+      CONFLICT_RULES.filter((rule) => rule.linkedControlId === targetId).map((rule) => rule.id),
+    );
+    const currentConflicts = detectSodConflicts(
+      tpl,
+      inputs.staff,
+      sodDetectionOptions(tpl, inputs.dualRelease),
+    ).conflicts.filter((finding) => linkedRuleIds.has(finding.ruleId));
+    const report = evaluateControlFailure(tpl, { kind: "control", id: targetId }, inputs);
+
+    expect(currentConflicts.length).toBeGreaterThan(0);
+    expect(report.findingsKind).toBe("linked");
+    expect(report.findings.map((finding) => finding.id)).toEqual(
+      expect.arrayContaining(currentConflicts.map((finding) => finding.id)),
+    );
+    expect(report.headline).toContain("duty conflict relies on it");
   });
 
   it("marks a non-segregated control as a gap", () => {
@@ -144,10 +196,36 @@ describe("control failure impact", () => {
 
     expect(report.mode).toBe("gap");
     expect(report.headline.startsWith("Without dual release")).toBe(true);
+    expect(
+      report.scenarios.some(
+        (scenario) => scenario.withoutIt.retainedExpected > scenario.withIt.retainedExpected,
+      ),
+    ).toBe(true);
     if (report.findings.length > 0) {
       expect(report.headline).toContain("would gain a control in place");
       expect(report.headline).not.toContain("lose");
     }
+  });
+
+  it("does not credit dual release when both payment-channel rules are off", () => {
+    const inputs = inputsFor(dental);
+    const dualRelease = {
+      ...inputs.dualRelease,
+      enabled: false,
+      rules: inputs.dualRelease.rules.map((rule) =>
+        rule.channel === "ach" || rule.channel === "check" ? { ...rule, enabled: false } : rule,
+      ),
+    };
+    const report = evaluateControlFailure(
+      dental,
+      { kind: "safeguard", id: "dual_release" },
+      { ...inputs, dualRelease, today: "2026-10-07" },
+    );
+
+    expect(report.scenarios).toEqual([]);
+    expect(report.notes).toContain(
+      "Switching dual release on would not cover payments as it is set up: turn on an ACH or check rule with two different people allowed to sign.",
+    );
   });
 
   it("leaves unconfirmed own-business scenarios and starter controls unscored", () => {
