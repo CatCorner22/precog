@@ -798,7 +798,12 @@ export function IndustryOnboarding({
                   >
                     Set up my own business
                   </Button>
-                  <Button className="w-full" variant="secondary" onClick={loadSample}>
+                  <Button
+                    className="w-full"
+                    variant="secondary"
+                    data-testid="explore-sample-business"
+                    onClick={loadSample}
+                  >
                     Explore the fictional sample
                   </Button>
                 </div>
