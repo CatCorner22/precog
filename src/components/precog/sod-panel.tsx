@@ -186,12 +186,17 @@ export function SodPanel({
       <ViewSwitcher model={model} />
 
       <div role="tabpanel" id={`sod-view-${view}`} aria-labelledby={`sod-tab-${view}`}>
-        {view === "dual" && <DualReleasePanel onOpenSod={() => setView("conflicts")} />}
+        {view === "dual" && (
+          <DualReleasePanel
+            onOpenSod={() => setView("conflicts")}
+            onOpenFailure={() => onNavigate?.("precog", "failure:safeguard:dual_release")}
+          />
+        )}
         {view === "power" && <PowerMapBuilder />}
         {view === "conflicts" && <SodConflictsSection model={model} onNavigate={onNavigate} />}
         {view === "matrix" && <SodMatrixSection report={report} />}
         {view === "roles" && <SodRolesSection model={model} />}
-        {view === "controls" && <SodControlsSection />}
+        {view === "controls" && <SodControlsSection onNavigate={onNavigate} />}
       </div>
     </div>
   );

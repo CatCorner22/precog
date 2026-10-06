@@ -25,7 +25,11 @@ import { formatEstimateUsd } from "@/lib/utils";
  */
 export function ControlFailurePanel({
   initialTarget = "safeguard:dual_release",
-}: { initialTarget?: string } = {}) {
+  onTargetChange,
+}: {
+  initialTarget?: string;
+  onTargetChange?: (key: string) => void;
+} = {}) {
   const { profile, template: baseTemplate } = usePractice();
   const template = useMemo(() => withOwnScenarioWording(baseTemplate), [baseTemplate]);
   const targets = useMemo<FailureTarget[]>(
@@ -36,6 +40,11 @@ export function ControlFailurePanel({
     [template.controls],
   );
   const [selectedKey, setSelectedKey] = useState(initialTarget);
+  const [linkedTarget, setLinkedTarget] = useState(initialTarget);
+  if (initialTarget !== linkedTarget) {
+    setLinkedTarget(initialTarget);
+    setSelectedKey(initialTarget);
+  }
   const target = targets.find((item) => targetKey(item) === selectedKey) ?? targets[0];
   const confirmed = useMemo(
     () => confirmedScenarioIds(profile.decisions, profile.industry),
@@ -85,7 +94,10 @@ export function ControlFailurePanel({
           <select
             id="control-failure-target"
             value={targetKey(target)}
-            onChange={(event) => setSelectedKey(event.target.value)}
+            onChange={(event) => {
+              setSelectedKey(event.target.value);
+              onTargetChange?.(event.target.value);
+            }}
             className="min-h-10 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-fg"
           >
             <optgroup label="Safeguards">

@@ -456,7 +456,7 @@ function Home() {
                 {tab === "precog" && (
                   <div className="space-y-4">
                     <TabIntro id="precog" />
-                    <ScenarioRunner initialScenarioId={item} />
+                    <ScenarioRunner item={item} onNavigate={openTab} />
                   </div>
                 )}
                 {tab === "sod" && (

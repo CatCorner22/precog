@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, ShieldOff } from "lucide-react";
 import {
   DualReleaseChannelsSection,
   DualReleasePolicyOptionsCard,
@@ -11,7 +11,13 @@ import { DualReleaseSimulatorCard } from "@/components/precog/dual-release-simul
 import { useDualReleasePanel } from "@/components/precog/use-dual-release-panel";
 import { useTabName } from "@/lib/precog/presentation";
 
-export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
+export function DualReleasePanel({
+  onOpenSod,
+  onOpenFailure,
+}: {
+  onOpenSod?: () => void;
+  onOpenFailure?: () => void;
+}) {
   const tabName = useTabName();
   const model = useDualReleasePanel();
   const { policy, exSummary, toggleMaster, logAsRemediation } = model;
@@ -52,6 +58,17 @@ export function DualReleasePanel({ onOpenSod }: { onOpenSod?: () => void }) {
           {onOpenSod && (
             <Button size="sm" variant="outline" onClick={onOpenSod}>
               See the duty conflicts this narrows
+            </Button>
+          )}
+          {onOpenFailure && (
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label="What if dual release fails?"
+              onClick={onOpenFailure}
+            >
+              <ShieldOff className="size-3.5" aria-hidden />
+              What if this fails?
             </Button>
           )}
         </div>

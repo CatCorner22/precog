@@ -35,6 +35,12 @@ export const TAB_ALIASES = {
   control: { tab: "sod", item: "controls", label: "Controls", tactical: "Controls" },
   "control-in-place": { tab: "sod", item: "controls", label: "Controls", tactical: "Controls" },
   layers: { tab: "sod", item: "controls", label: "Controls", tactical: "Controls" },
+  "control-failure": {
+    tab: "precog",
+    item: "failure",
+    label: "If a control fails",
+    tactical: "Control failure",
+  },
   residual: {
     tab: "scores",
     item: "residual",
