@@ -15,14 +15,14 @@ The present product is differentiated in design depth: it can model people, powe
 
 The likely outcome by segment:
 
-| Segment | Commercial attractiveness | Why |
-| --- | ---: | --- |
-| Owner-operated business, about 2–10 people, any industry | Medium as a free start; low as a paid plan alone | Real conflicts exist. Willingness to pay, and time to maintain a model, are limited. The free plan is how an owner starts. |
-| Growing business, about 10–50 people, one or several locations | High | Enough people that duties can split, and usually no enterprise GRC team. |
-| Bookkeepers, CPAs, and fractional CFOs with mixed clients | Very high | One firm repeats the same review across unlike clients. This is the paid product. |
-| Multi-location operators, any industry | High | The same workflow, more sites. Not a separate company. |
-| Large enterprises | Low for now | They require SSO, SCIM, procurement, and assurance Precog does not have. |
-| Insurers and lenders | Later | Interest is real. Proof, data rights, and the sales cycle are not. |
+| Segment                                                        |                        Commercial attractiveness | Why                                                                                                                        |
+| -------------------------------------------------------------- | -----------------------------------------------: | -------------------------------------------------------------------------------------------------------------------------- |
+| Owner-operated business, about 2–10 people, any industry       | Medium as a free start; low as a paid plan alone | Real conflicts exist. Willingness to pay, and time to maintain a model, are limited. The free plan is how an owner starts. |
+| Growing business, about 10–50 people, one or several locations |                                             High | Enough people that duties can split, and usually no enterprise GRC team.                                                   |
+| Bookkeepers, CPAs, and fractional CFOs with mixed clients      |                                        Very high | One firm repeats the same review across unlike clients. This is the paid product.                                          |
+| Multi-location operators, any industry                         |                                             High | The same workflow, more sites. Not a separate company.                                                                     |
+| Large enterprises                                              |                                      Low for now | They require SSO, SCIM, procurement, and assurance Precog does not have.                                                   |
+| Insurers and lenders                                           |                                            Later | Interest is real. Proof, data rights, and the sales cycle are not.                                                         |
 
 Industry is a pack, not a segment of the company. A dental office and a restaurant are different checklists on the same engine.
 
@@ -52,21 +52,21 @@ The real competitors are the spreadsheet, the owner's memory, the bookkeeper, th
 
 ## Current product scorecard
 
-| Capability | Current position | Commercial requirement |
-| --- | --- | --- |
-| Shared duty model and industry packs | Strong early asset | One rulebook for cash, payables, payroll, refunds, and inventory. Packs change titles, cases, and checklists. Validate with operators and accountants from more than one pack. |
-| Conflict detection | Good prototype | Measure precision and recall on real files from more than one pack. Support a policy change that names which packs it applies to. |
-| Visual map and matrix | Differentiated | Validate usability on real teams, from a handful of people up to about 200. |
-| Continuity and absence modeling | Differentiated | Add designated backups, effective dates, and drill evidence. |
-| Resolution planning | Promising | Add constraints for location, license, capacity, employment, and system access. |
-| Snapshots and exports | Useful | Approvals, retention, comparison, and a history that survives a later edit. |
-| Knowledge and operating blueprint | Useful | Editorial governance and dated source provenance for every pack, not one industry. |
-| Actual-vs-modeled validation | Partial (Oct 2026) | QuickBooks drift and access reconciliation exist. Still no proof the map matches live permissions. Measure the next gain on payroll or access exports. |
-| Evidence workflow | Shipped (Oct 2026) | Control execution log, monthly-review bridge, preparer/reviewer split (`docs/CONTROL_EVIDENCE_WORKFLOW.md`). Remaining: evidence requests with due dates and approval history. |
-| Integrations | Partial (Oct 2026) | QuickBooks read-only, payroll/access CSV, HR roster import. An industry system is a later pack connector, not the platform requirement. |
-| Multi-entity administration | Shipped for firms (Oct 2026) | Firm workspace: clients, members, invites, billing, report versions (`/firm`). A group with many sites of its own still needs inherited policy and local exceptions. |
-| Security and assurance | Early | Named operator, multi-factor sign-in for firm owners, an audit log the app role cannot rewrite, recovery, and a SOC 2 path when a buyer requires it. No business associate agreement. Protected health information is prohibited for every customer. |
-| Outcome proof | Missing | Required before any claim that a loss was avoided. |
+| Capability                           | Current position             | Commercial requirement                                                                                                                                                                                                                               |
+| ------------------------------------ | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shared duty model and industry packs | Strong early asset           | One rulebook for cash, payables, payroll, refunds, and inventory. Packs change titles, cases, and checklists. Validate with operators and accountants from more than one pack.                                                                       |
+| Conflict detection                   | Good prototype               | Measure precision and recall on real files from more than one pack. Support a policy change that names which packs it applies to.                                                                                                                    |
+| Visual map and matrix                | Differentiated               | Validate usability on real teams, from a handful of people up to about 200.                                                                                                                                                                          |
+| Continuity and absence modeling      | Differentiated               | Add designated backups, effective dates, and drill evidence.                                                                                                                                                                                         |
+| Resolution planning                  | Promising                    | Add constraints for location, license, capacity, employment, and system access.                                                                                                                                                                      |
+| Snapshots and exports                | Useful                       | Approvals, retention, comparison, and a history that survives a later edit.                                                                                                                                                                          |
+| Knowledge and operating blueprint    | Useful                       | Editorial governance and dated source provenance for every pack, not one industry.                                                                                                                                                                   |
+| Actual-vs-modeled validation         | Partial (Oct 2026)           | QuickBooks drift and access reconciliation exist. Still no proof the map matches live permissions. Measure the next gain on payroll or access exports.                                                                                               |
+| Evidence workflow                    | Shipped (Oct 2026)           | Control execution log, monthly-review bridge, preparer/reviewer split (`docs/CONTROL_EVIDENCE_WORKFLOW.md`). Remaining: evidence requests with due dates and approval history.                                                                       |
+| Integrations                         | Partial (Oct 2026)           | QuickBooks read-only, payroll/access CSV, HR roster import. An industry system is a later pack connector, not the platform requirement.                                                                                                              |
+| Multi-entity administration          | Shipped for firms (Oct 2026) | Firm workspace: clients, members, invites, billing, report versions (`/firm`). A group with many sites of its own still needs inherited policy and local exceptions.                                                                                 |
+| Security and assurance               | Early                        | Named operator, multi-factor sign-in for firm owners, an audit log the app role cannot rewrite, recovery, and a SOC 2 path when a buyer requires it. No business associate agreement. Protected health information is prohibited for every customer. |
+| Outcome proof                        | Missing                      | Required before any claim that a loss was avoided.                                                                                                                                                                                                   |
 
 ## Best market opportunities
 
