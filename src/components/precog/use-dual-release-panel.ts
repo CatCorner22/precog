@@ -63,6 +63,14 @@ export function withThreshold(
   };
 }
 
+/**
+ * A saved threshold as its field shows it: whole dollars as typed, an amount
+ * with cents to two places, so 12.5 reads "12.50" as the card above it does.
+ */
+export function thresholdText(usd: number): string {
+  return Number.isInteger(usd) ? String(usd) : usd.toFixed(2);
+}
+
 /** An amount to the cent: 12.75 stays 12.75, never 13. */
 function keepCents(usd: number): number {
   return Math.round(usd * 100) / 100;

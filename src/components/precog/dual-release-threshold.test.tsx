@@ -120,6 +120,6 @@ describe("the threshold field", () => {
     expect(html).toContain('type="text"');
     expect(html).toContain('inputMode="decimal"');
     expect(html).not.toContain('type="number"');
-    expect(html).toContain('value="999.5"');
+    expect(html).toContain('value="999.50"');
   });
 });

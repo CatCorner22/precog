@@ -522,12 +522,16 @@ describe("report cover headlines", () => {
     for (const industry of ["dental", "restaurant"] as const) {
       const text = textOf(render(defaultProfile(industry)));
       // The priority list's count: items at priority 88 or more.
-      const top = between(text, "|Fix first on the priority list|", "|Residual risks by band|");
+      const top = between(
+        text,
+        "|Fix first on the priority list|",
+        "|Fix first on the residual index|",
+      );
       expect(top).toMatch(/^\|Fix first on the priority list\|\d+\|Priority 88 or more$/);
       expect(top).not.toMatch(/80 or more|residual|top-priority/i);
       // The residual index's count: risks at 80 or more.
-      const residual = between(text, "|Residual risks by band|", "|Duty separation|");
-      expect(residual).toMatch(/\|\d+ fix first on the residual index\|Residual 80 or more · /);
+      const residual = between(text, "|Fix first on the residual index|", "|Duty separation|");
+      expect(residual).toMatch(/^\|Fix first on the residual index\|\d+\|Residual 80 or more · /);
       expect(residual).not.toMatch(/top|priority|88/i);
       // One urgency scale: the Priority stack's top band reads "Fix first"
       // too, and each row says what it groups. Nowhere else names it.
@@ -545,10 +549,10 @@ describe("report cover headlines", () => {
     const tiles = (industry: "dental" | "retail") =>
       between(textOf(render(defaultProfile(industry))), "|Fix first on the", "|Duty separation|");
     expect(tiles("dental")).toBe(
-      "|Fix first on the priority list|3|Priority 88 or more|Residual risks by band|4 fix first on the residual index|Residual 80 or more · 8 fix soon · 7 worth doing",
+      "|Fix first on the priority list|3|Priority 88 or more|Fix first on the residual index|4|Residual 80 or more · 8 fix soon · 7 worth doing",
     );
     expect(tiles("retail")).toBe(
-      "|Fix first on the priority list|4|Priority 88 or more|Residual risks by band|6 fix first on the residual index|Residual 80 or more · 6 fix soon · 5 worth doing",
+      "|Fix first on the priority list|4|Priority 88 or more|Fix first on the residual index|6|Residual 80 or more · 6 fix soon · 5 worth doing",
     );
   });
 

@@ -376,11 +376,9 @@ export function ControlReport({
             />
           ) : (
             <Kpi
-              label="Residual risks by band"
+              label={layoutFive ? "Fix first on the residual index" : "Residual risks by band"}
               value={
-                layoutFive
-                  ? `${portfolio.criticalPath} fix first on the residual index`
-                  : `${portfolio.criticalPath} fix first`
+                layoutFive ? String(portfolio.criticalPath) : `${portfolio.criticalPath} fix first`
               }
               hint={`${layoutFive ? "Residual" : "Fix first at"} ${RISK_SCALE.critical} or more · ${portfolio.actNow} fix soon · ${portfolio.mitigate} worth doing`}
             />

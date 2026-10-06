@@ -5,6 +5,7 @@ import { defaultDualReleasePolicy, type ReleaseChannel } from "@/lib/precog/cont
 import { cn, formatUsdTyped } from "@/lib/utils";
 import {
   readThreshold,
+  thresholdText,
   type DualReleasePanelModel,
 } from "@/components/precog/use-dual-release-panel";
 
@@ -104,7 +105,7 @@ export function ThresholdInput({
         inputMode="decimal"
         disabled={disabled}
         aria-invalid={message?.error ?? false}
-        value={draft ?? String(value)}
+        value={draft ?? thresholdText(value)}
         onChange={(event) => {
           setDraft(event.target.value);
           setMessage(null);
