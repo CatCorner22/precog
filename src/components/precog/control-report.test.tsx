@@ -721,8 +721,8 @@ describe("report layout 3", () => {
   };
 
   it("is the layout a live report prints", () => {
-    expect(REPORT_LAYOUT_VERSION).toBe(4);
-    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4]);
+    expect(REPORT_LAYOUT_VERSION).toBe(5);
+    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4, 5]);
     const html = renderToStaticMarkup(
       <ReadOnlyPracticeProvider profile={answered}>
         <ControlReport />
@@ -838,6 +838,34 @@ describe("printed monthly review", () => {
     expect(section).toContain("|Read the cleared-check images: not recorded|");
     // September has four checks; the card statement check starts in October.
     expect(section).not.toContain("Read the company card statement");
+  });
+
+  it("keeps the report's own month and the earlier words on a version locked under layout 4", () => {
+    const html = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={september}>
+        <ControlReport
+          locked={{ ...locked, preparedAt: "2026-10-03T16:00:00.000Z" }}
+          frozen={{
+            layoutVersion: 4,
+            model: serializeReportModel(buildReportModelForProfile(september, "2026-10-03")),
+          }}
+        />
+      </ReadOnlyPracticeProvider>,
+    );
+    const text = textOf(html);
+    const section = text.slice(
+      text.indexOf("|Monthly review · "),
+      text.indexOf("|Priority stack|"),
+    );
+    expect(section).toContain("|Monthly review · October 2026|");
+    expect(section).toContain("|No monthly review results recorded for October 2026.");
+    expect(section).not.toContain("Monthly checks for");
+    const stack = text.slice(
+      text.indexOf("|Priority stack|"),
+      text.indexOf("|Segregation of duties|"),
+    );
+    expect(stack).toContain("|Top priority|");
+    expect(stack).not.toContain("|Fix first|");
   });
 
   it("prints this month once last month's due day has passed", () => {

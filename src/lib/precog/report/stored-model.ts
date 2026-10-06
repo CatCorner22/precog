@@ -78,6 +78,9 @@ export interface FrozenReport {
  * stored model with another layout version recalculates instead of printing,
  * unless `ControlReport` still prints that layout with its own labels.
  *
+ * Layout 5: the monthly checks for the oldest month still open on the
+ * report's day, named with their due day, and the priority bands in the
+ * urgency words ("Fix first", "Fix soon", "Worth doing", "Watch").
  * Layout 4: the published benchmark the evidence section leads with, stored
  * (`benchmark`), and dual release's covered count without the owner's own
  * pairs, as the executive summary counts them.
@@ -86,10 +89,10 @@ export interface FrozenReport {
  * Layout 2: map completeness (no heat part) and residual rows counted by band.
  * Layout 1: map health score (with heat) and the average residual score.
  */
-export const REPORT_LAYOUT_VERSION = 4;
+export const REPORT_LAYOUT_VERSION = 5;
 
 /** The layouts `ControlReport` prints from stored figures, each with its own labels. */
-export const PRINTED_LAYOUT_VERSIONS: readonly number[] = [1, 2, 3, REPORT_LAYOUT_VERSION];
+export const PRINTED_LAYOUT_VERSIONS: readonly number[] = [1, 2, 3, 4, REPORT_LAYOUT_VERSION];
 
 /**
  * The largest stored model, in characters of JSON, after `slimReportModel`

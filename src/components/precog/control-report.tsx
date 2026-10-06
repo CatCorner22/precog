@@ -31,6 +31,7 @@ import {
   type DecisionEntry,
 } from "@/lib/precog/practice-profile";
 import { PRIORITY_BAND_LABEL, PRIORITY_TOP } from "@/lib/precog/map-vision";
+import { PRIORITY_BAND_LABEL_PRINTED_V4 } from "@/lib/precog/scoring/bands";
 import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
 import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
@@ -107,9 +108,6 @@ export function ControlReport({
   const industry = industryMeta(profile.industry);
   const generated = locked ? new Date(locked.preparedAt) : new Date();
   const today = localDateKey(generated);
-  // The monthly checks print for the oldest month still open on the report's
-  // day: last month until its due day (the 10th), then this month.
-  const month = reportPeriod(today);
   const trackFreshness = trackRegisterFreshness(profile, tpl);
   const mapReady = mapAssessed(profile);
   const mapNote = mapNotAssessedNote(profile);
@@ -130,6 +128,13 @@ export function ControlReport({
   const layoutOne = layoutVersion === 1;
   const layoutThree = layoutVersion >= 3;
   const layoutFour = layoutVersion >= 4;
+  // Layout 5 prints the monthly checks for the oldest month still open on the
+  // report's day (last month until its due day, the 10th, then this month)
+  // and the priority bands in the urgency words. Earlier layouts print the
+  // report's own month and the words they printed then.
+  const layoutFive = layoutVersion >= 5;
+  const month = layoutFive ? reportPeriod(today) : today.slice(0, 7);
+  const priorityLabel = layoutFive ? PRIORITY_BAND_LABEL : PRIORITY_BAND_LABEL_PRINTED_V4;
   const kindLabel = layoutThree ? DECISION_KIND_LABEL : DECISION_KIND_LABEL_PRINTED_V1;
   const data = useMemo(
     () =>
@@ -431,8 +436,12 @@ export function ControlReport({
           </ol>
         </Section>
 
-        <Section title="Monthly review">
-          <p className="mb-1 text-sm font-medium">Monthly checks for {periodWithDue(month)}</p>
+        <Section
+          title={layoutFive ? "Monthly review" : `Monthly review · ${periodMonthYear(month)}`}
+        >
+          {layoutFive && (
+            <p className="mb-1 text-sm font-medium">Monthly checks for {periodWithDue(month)}</p>
+          )}
           {reviews.some((r) => r.latest) ? (
             <ul className="space-y-1 text-sm">
               {reviews.map(({ item, latest }) => (
@@ -479,7 +488,7 @@ export function ControlReport({
                               : "text-neutral-600"
                         }
                       >
-                        {PRIORITY_BAND_LABEL[t.band]}
+                        {priorityLabel[t.band]}
                       </span>
                     </td>
                     <td className={`py-1.5 text-right tabular${layoutThree ? "" : " pr-2"}`}>

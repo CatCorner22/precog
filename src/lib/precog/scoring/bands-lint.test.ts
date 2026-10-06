@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { PRIORITY_BAND_LABEL, RISK_SCALE } from "./bands";
+import { PRIORITY_BAND_LABEL, PRIORITY_BAND_LABEL_PRINTED_V4, RISK_SCALE } from "./bands";
 import { bandForScore } from "./weights";
 
 /**
@@ -85,10 +85,18 @@ describe("band cutoffs", () => {
       PRIORITY_BAND_LABEL.watch,
     ]);
     const root = join(SRC, "..");
+    // Only the words report layouts 1 to 4 printed (PRIORITY_BAND_LABEL_PRINTED_V4)
+    // keep the retired names, so a version locked then prints as it did.
     const retired = sourceFiles(SRC)
       .filter((path) => /"(?:Top|High|Medium|Low) priority"/.test(readFileSync(path, "utf8")))
       .map((path) => relative(root, path));
-    expect(retired).toEqual([]);
+    expect(retired).toEqual(["src/lib/precog/scoring/bands.ts"]);
+    expect(Object.values(PRIORITY_BAND_LABEL_PRINTED_V4).slice(0, 4)).toEqual([
+      "Top priority",
+      "High priority",
+      "Medium priority",
+      "Low priority",
+    ]);
   });
 
   it("catches each shape a cutoff takes", () => {

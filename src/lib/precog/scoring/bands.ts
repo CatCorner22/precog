@@ -73,6 +73,19 @@ export const PRIORITY_BAND_LABEL: Record<PriorityBand, string> = {
 };
 
 /**
+ * The priority band words report layouts 1 to 4 printed. A version locked
+ * under one of those layouts keeps them (ControlReport); layout 5 prints
+ * PRIORITY_BAND_LABEL.
+ */
+export const PRIORITY_BAND_LABEL_PRINTED_V4: Record<PriorityBand, string> = {
+  white_hot: "Top priority",
+  critical: "High priority",
+  elevated: "Medium priority",
+  watch: "Low priority",
+  cold: "Not urgent",
+};
+
+/**
  * The key a duty-conflict table prints under its Severity column, so
  * "Critical" and "High" read on the same urgency scale as the priority list:
  * a critical conflict's row ranks "Fix first" there and a high one's "Fix
