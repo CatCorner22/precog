@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CASE_COUNT } from "@/lib/precog/evidence/case-count";
+import { CASE_COUNT, VERIFIED_CASE_COUNT } from "@/lib/precog/evidence/case-count";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { buttonClass } from "@/components/ui/button-variants";
 
@@ -11,6 +11,16 @@ import { buttonClass } from "@/components/ui/button-variants";
  */
 const WELCOME_DESCRIPTION =
   "Precog shows a small-business owner who can move money alone, what one absence would stop, and which fix to make this week.";
+
+/**
+ * The line under the pitch about the case records behind the findings. Until
+ * a named person has checked every record against its source, it says where
+ * the records come from and that the check is still running.
+ */
+const CASE_LINE =
+  VERIFIED_CASE_COUNT === CASE_COUNT
+    ? `Every finding links to one of ${CASE_COUNT} U.S. federal fraud cases at businesses like yours.`
+    : `${CASE_COUNT} U.S. federal fraud cases from Justice Department and IRS releases back the findings. Precog is still checking each record against its source.`;
 
 export const Route = createFileRoute("/welcome")({
   component: WelcomePage,
@@ -34,11 +44,9 @@ function WelcomePage() {
           </h1>
           <p className="mt-4 text-sm text-muted">
             Precog maps who holds which money duties, shows what stops when one person is away, and
-            tells you what to check each month, with prosecuted cases behind the findings.
+            tells you what to check each month.
           </p>
-          <p className="mt-3 text-sm font-medium">
-            {`${CASE_COUNT} prosecuted cases behind the findings.`}
-          </p>
+          <p className="mt-3 text-sm font-medium">{CASE_LINE}</p>
           <div className="mt-6 flex flex-wrap gap-2">
             <Link to="/" search={{ start: true }} className={buttonClass()}>
               Set up your business

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { BENCHMARKS } from "./benchmarks";
+import { VERIFIED_CASE_COUNT } from "./case-count";
 import {
+  allCasesUnverified,
   benchmarkCitation,
   CASE_LIBRARY,
   caseCountsForIndustry,
@@ -10,13 +12,29 @@ import {
 
 /**
  * Who has checked the library against its sources. Nobody has yet, so every
- * case card carries the "Unverified" marker and no benchmark prints a page.
- * When a person checks a record or reads a page in the published report,
- * raise the matching count here in the same change.
+ * case card carries the "Unverified" marker, a list of cases says so once
+ * above it, the landing page says Precog is still checking, and no benchmark
+ * prints a page. When a person checks a record or reads a page in the
+ * published report, raise the matching count here, and VERIFIED_CASE_COUNT
+ * in case-count.ts, in the same change.
  */
 describe("verification of the evidence library", () => {
-  it("counts the case records a named person has verified", () => {
+  it("counts the case records a named person has verified, and the landing page's count matches", () => {
     expect(CASE_LIBRARY.filter(caseIsVerified)).toHaveLength(0);
+    expect(VERIFIED_CASE_COUNT).toBe(CASE_LIBRARY.filter(caseIsVerified).length);
+  });
+
+  it("draws every case record from a Justice Department or IRS release, as the landing page says", () => {
+    const hosts = new Set(CASE_LIBRARY.map((c) => new URL(c.source.url).hostname));
+    expect([...hosts].sort()).toEqual(["www.irs.gov", "www.justice.gov"]);
+  });
+
+  it("calls a list all unverified only when it holds cases and none is verified", () => {
+    const checked = { verifiedOn: "2026-10-01", verifiedBy: "A. Reviewer" };
+    expect(allCasesUnverified(CASE_LIBRARY)).toBe(true);
+    expect(allCasesUnverified([])).toBe(false);
+    expect(allCasesUnverified([{}, checked])).toBe(false);
+    expect(allCasesUnverified([checked])).toBe(false);
   });
 
   it("counts the benchmarks that carry a page from the published report", () => {
