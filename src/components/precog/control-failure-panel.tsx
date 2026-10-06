@@ -18,7 +18,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
 
-export function ControlFailurePanel() {
+/**
+ * `initialTarget` picks the first control or safeguard shown ("kind:id", for
+ * example "control:c-sod-ap"); a key the business does not have falls back to
+ * the first safeguard, and the picker shows that fallback.
+ */
+export function ControlFailurePanel({
+  initialTarget = "safeguard:dual_release",
+}: { initialTarget?: string } = {}) {
   const { profile, template: baseTemplate } = usePractice();
   const template = useMemo(() => withOwnScenarioWording(baseTemplate), [baseTemplate]);
   const targets = useMemo<FailureTarget[]>(
@@ -28,22 +35,24 @@ export function ControlFailurePanel() {
     ],
     [template.controls],
   );
-  const [selectedKey, setSelectedKey] = useState("safeguard:dual_release");
+  const [selectedKey, setSelectedKey] = useState(initialTarget);
   const target = targets.find((item) => targetKey(item) === selectedKey) ?? targets[0];
   const confirmed = useMemo(
     () => confirmedScenarioIds(profile.decisions, profile.industry),
     [profile.decisions, profile.industry],
   );
+  // Read on every render so a tab left open past midnight judges waivers by the new day.
+  const today = localDateKey(new Date());
   const report = useMemo(
     () =>
       evaluateControlFailure(template, target, {
         staff: profile.staff,
         riskVariables: profile.riskVariables,
         dualRelease: profile.dualRelease,
-        today: localDateKey(new Date()),
+        today,
         confirmedScenarioIds: confirmed,
       }),
-    [template, target, profile.staff, profile.riskVariables, profile.dualRelease, confirmed],
+    [template, target, profile.staff, profile.riskVariables, profile.dualRelease, today, confirmed],
   );
 
   return (
