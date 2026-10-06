@@ -5,6 +5,7 @@ import { defaultProfile } from "@/lib/precog/practice-profile";
 import { withDecision, withStaff } from "@/lib/precog/profile-actions";
 import { resolveTemplate } from "@/lib/precog/active-template";
 import { confirmedScenarioIds, isOwnBusiness } from "@/lib/precog/scoring/scope";
+import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import type { Person } from "@/lib/precog/types";
 import { isOwnSector } from "@/lib/precog/evidence";
 import {
@@ -17,6 +18,7 @@ import {
   scenarioCases,
   scenarioConfirmation,
   scenarioRuleIds,
+  scenarioWatch,
   whatIfApplies,
   whatIfDiffers,
 } from "./scenario-page";
@@ -71,6 +73,82 @@ describe("scenarioCases", () => {
         expect(cases.ownSectorIds.has(c.id)).toBe(isOwnSector(c, "dental"));
       }
     }
+  });
+});
+
+describe("scenarioWatch", () => {
+  const tpl: Pick<IndustryTemplate, "controls" | "knowledge" | "relations" | "people"> = {
+    controls: [{ ...dental.controls[0], id: "watch-control", name: "Split vendor duties" }],
+    knowledge: [{ ...dental.knowledge[0], id: "watch-knowledge", name: "Close the books" }],
+    people: [
+      { ...dental.people[0], id: "expert", name: "Alex Example", active: true },
+      { ...dental.people[1], id: "proficient", name: "Blair Example", active: true },
+      { ...dental.people[2], id: "aware", name: "Casey Example", active: true },
+      { ...dental.people[3], id: "inactive", name: "Drew Example", active: false },
+    ],
+    relations: [
+      { personId: "expert", knowledgeId: "watch-knowledge", level: "expert" },
+      { personId: "proficient", knowledgeId: "watch-knowledge", level: "proficient" },
+      { personId: "aware", knowledgeId: "watch-knowledge", level: "aware" },
+      { personId: "inactive", knowledgeId: "watch-knowledge", level: "expert" },
+    ],
+  };
+  const scenario = {
+    id: "sc-vendor-fraud",
+    sodRuleIds: ["rule-vendor-create-pay", "rule-payments-adjust"],
+    controlId: "watch-control",
+    knowledgeId: "watch-knowledge",
+  };
+
+  it("filters to scenario rules and deduplicates each person and rule in input order", () => {
+    const conflicts = [
+      { ruleId: "unrelated", personName: "Alex Example", title: "Unrelated" },
+      { ruleId: "rule-vendor-create-pay", personName: "Alex Example", title: "First" },
+      { ruleId: "rule-vendor-create-pay", personName: "Alex Example", title: "Duplicate" },
+      { ruleId: "rule-payments-adjust", personName: "Alex Example", title: "Other rule" },
+      { ruleId: "rule-vendor-create-pay", personName: "Blair Example", title: "Another person" },
+    ];
+    expect(scenarioWatch(tpl, scenario, conflicts, new Set()).conflicts).toEqual([
+      { personName: "Alex Example", title: "First" },
+      { personName: "Alex Example", title: "Other rule" },
+      { personName: "Blair Example", title: "Another person" },
+    ]);
+  });
+
+  it("follows the control's segregation state and lists active strong knowledge holders", () => {
+    const inPlace = scenarioWatch(tpl, scenario, [], new Set(["expert", "aware", "inactive"]));
+    expect(inPlace.control).toEqual({
+      id: "watch-control",
+      name: "Split vendor duties",
+      inPlace: tpl.controls[0].segregated,
+    });
+    expect(inPlace.knowledge).toEqual({
+      name: "Close the books",
+      holders: ["Alex Example", "Blair Example"],
+      outToday: ["Alex Example"],
+    });
+    const notInPlace = scenarioWatch(
+      { ...tpl, controls: [{ ...tpl.controls[0], segregated: false }] },
+      scenario,
+      [],
+      new Set(),
+    );
+    expect(notInPlace.control?.inPlace).toBe(false);
+  });
+
+  it("returns null when a scenario omits an id or the template lacks its item", () => {
+    expect(scenarioWatch(tpl, { id: "unlinked" }, [], new Set())).toMatchObject({
+      control: null,
+      knowledge: null,
+    });
+    expect(
+      scenarioWatch(
+        tpl,
+        { ...scenario, controlId: "missing", knowledgeId: "missing" },
+        [],
+        new Set(),
+      ),
+    ).toMatchObject({ control: null, knowledge: null });
   });
 });
 
