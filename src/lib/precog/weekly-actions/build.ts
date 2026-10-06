@@ -319,7 +319,10 @@ function bankRecActions({ tpl, input }: WeeklyContext): WeeklyAction[] {
   const activePeople = tpl.people.filter((p) => p.active);
   const ownerId = soleOwnerId(activePeople, tpl.id);
   const ownerReconciles = activePeople.some(
-    (p) => p.id === ownerId && (p.entitlements ?? []).includes("bank_reconcile"),
+    (p) =>
+      p.id === ownerId &&
+      Array.isArray(p.entitlements) &&
+      p.entitlements.includes("bank_reconcile"),
   );
   if (ownerReconciles) {
     return [
@@ -792,7 +795,15 @@ function checkInActions({ tpl, input, today, registerReady }: WeeklyContext): We
 /** The active person the most critical work stops without, when that is half of it or more. */
 function dependenceActions({ continuity }: WeeklyContext): WeeklyAction[] {
   const leanedOn = continuity.people.find((l) => l.person.active);
-  if (!leanedOn || leanedOn.dependence < 50 || leanedOn.soleItems.length < 2) return [];
+  // A dependence that is not a number would print "NaN%"; it names nobody.
+  if (
+    !leanedOn ||
+    !Number.isFinite(leanedOn.dependence) ||
+    leanedOn.dependence < 50 ||
+    leanedOn.soleItems.length < 2
+  ) {
+    return [];
+  }
   return [
     {
       id: `dependence-${leanedOn.person.id}`,

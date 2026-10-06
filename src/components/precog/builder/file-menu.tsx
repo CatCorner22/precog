@@ -18,10 +18,17 @@ interface FileMenuItem {
   label: string;
   icon: ReactNode;
   title?: string;
+  /** A short second line under the label: what the item holds. */
+  detail?: string;
   /** For an item that opens a panel: whether the panel is open now. */
   checked?: boolean;
   run: () => void;
 }
+
+/** What the builder's Export saves: the map and the team, not the whole business. */
+export const EXPORT_DETAIL = "Map and team (JSON)";
+export const EXPORT_DESCRIPTION =
+  "Saves the process map and team only. To keep everything, use Download a recovery copy (guests) or Export data (account).";
 
 /**
  * The map builder's File menu: the spreadsheet, the JSON backup, the share
@@ -38,6 +45,7 @@ export function BuilderFileMenu({
   onSpreadsheet,
   onExport,
   onImportFile,
+  onRecoveryCopy,
   onShare,
   onSampleMap,
   onSaveVersion,
@@ -52,6 +60,8 @@ export function BuilderFileMenu({
   onSpreadsheet: () => void;
   onExport: () => void;
   onImportFile: (file: File) => void;
+  /** Saves the whole workspace, which Export does not. */
+  onRecoveryCopy: () => void;
   onShare: () => void;
   onSampleMap: () => void;
   onSaveVersion: () => void;
@@ -87,15 +97,24 @@ export function BuilderFileMenu({
       id: "export",
       label: "Export",
       icon: <Download className={icon} />,
-      title: "Full backup as JSON",
+      detail: EXPORT_DETAIL,
+      title: `${EXPORT_DETAIL}. ${EXPORT_DESCRIPTION}`,
       run: onExport,
     },
     {
       id: "import",
       label: "Import",
       icon: <Upload className={icon} />,
-      title: "Restore a JSON backup",
+      title: "Restore a map and team (JSON) file",
       run: () => fileRef.current?.click(),
+    },
+    {
+      id: "recovery",
+      label: "Download a recovery copy",
+      icon: <Download className={icon} />,
+      detail: "Everything, as one file",
+      title: "Download every business and the work this browser keeps, as one file",
+      run: onRecoveryCopy,
     },
     {
       id: "share",
@@ -222,7 +241,10 @@ export function BuilderFileMenu({
               )}
             >
               {item.icon}
-              <span className="min-w-0 flex-1">{item.label}</span>
+              <span className="min-w-0 flex-1">
+                {item.label}
+                {item.detail && <span className="block text-xs text-subtle">{item.detail}</span>}
+              </span>
               {item.checked && (
                 <span className="text-xs text-primary" aria-hidden>
                   open

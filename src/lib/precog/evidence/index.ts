@@ -335,10 +335,24 @@ export function caseIsVerified(study: Pick<CaseStudy, "verifiedOn" | "verifiedBy
   return Boolean(study.verifiedOn && study.verifiedBy);
 }
 
+/**
+ * Whether every case in a non-empty list is still unverified. A screen or a
+ * report that lists such a set says so once, above the list
+ * (`UNVERIFIED_CASE.listNote`), instead of beside every case; a mixed set
+ * keeps the mark on each unverified case.
+ */
+export function allCasesUnverified(
+  list: readonly Pick<CaseStudy, "verifiedOn" | "verifiedBy">[],
+): boolean {
+  return list.length > 0 && !list.some(caseIsVerified);
+}
+
 /** The marker and its explanation for a record nobody has checked yet. */
 export const UNVERIFIED_CASE = {
   label: "Unverified",
   title: "Nobody has checked this record against its source yet.",
+  /** The one note above a list in which no case has been checked. */
+  listNote: "None of these case records has been checked against its source yet.",
 } as const;
 
 /**

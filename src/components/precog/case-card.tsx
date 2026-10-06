@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import {
+  allCasesUnverified,
   caseForRule,
   caseIsVerified,
   DETECTION_LABEL,
@@ -136,17 +137,47 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** The small "Unverified" marker on a case nobody has checked against its source. */
+/**
+ * A marker's words: the chip shows the label, and a screen reader hears the
+ * label and its explanation as one sentence, in sentence case, with no stray
+ * punctuation ahead of the explanation.
+ */
+function MarkerText({ label, title }: { label: string; title: string }) {
+  return (
+    <>
+      <span aria-hidden>{label}</span>
+      <span className="sr-only normal-case">{`${label}. ${title}`}</span>
+    </>
+  );
+}
+
+/** The small, quiet "Unverified" chip on a case nobody has checked against its source. */
 export function UnverifiedMarker() {
   return (
     <span
       title={UNVERIFIED_CASE.title}
       className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-subtle"
     >
-      {UNVERIFIED_CASE.label}
-      <span className="sr-only">. {UNVERIFIED_CASE.title}</span>
+      <MarkerText label={UNVERIFIED_CASE.label} title={UNVERIFIED_CASE.title} />
     </span>
   );
+}
+
+/**
+ * The one note above a list of several cases when none of them has been
+ * checked against its source, so the list says it once. A single case, or a
+ * list with any verified case, shows no note; each card's own marker carries
+ * it.
+ */
+export function UnverifiedListNote({
+  studies,
+  className,
+}: {
+  studies: readonly Pick<CaseStudy, "verifiedOn" | "verifiedBy">[];
+  className?: string;
+}) {
+  if (studies.length < 2 || !allCasesUnverified(studies)) return null;
+  return <p className={cn("text-xs text-subtle", className)}>{UNVERIFIED_CASE.listNote}</p>;
 }
 
 /** The small "Verified against its source" marker on a case a named person has checked. */
@@ -157,8 +188,7 @@ export function VerifiedMarker({ study }: { study: Pick<CaseStudy, "verifiedOn" 
       title={title}
       className="rounded border border-border px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-subtle"
     >
-      {VERIFIED_CASE.label}
-      <span className="sr-only">. {title}</span>
+      <MarkerText label={VERIFIED_CASE.label} title={title} />
     </span>
   );
 }

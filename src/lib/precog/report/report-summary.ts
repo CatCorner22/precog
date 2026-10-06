@@ -27,6 +27,10 @@ interface ContinuityFollowThrough {
 interface SummaryInput {
   /** The open findings, as sod/open-findings counts them for the rest of the report. */
   openConflicts: readonly DetectedConflict[];
+  /** Conflicting pairs the sole owner holds: left out of the open findings, never out of the report. */
+  ownerHeldPairs: number;
+  /** Staff pairs dual release closes at every amount: also left out of the open findings. */
+  dualReleaseClosedPairs: number;
   firstStep: string | null;
   registerReady: boolean;
   coverageIndex: number;
@@ -61,7 +65,7 @@ export function executiveSummary(input: SummaryInput): string[] {
   const lines: string[] = [];
   const open = input.openConflicts;
   if (open.length === 0) {
-    lines.push("No open duty conflicts: no one person holds two conflicting duties.");
+    lines.push(closedConflictsLine(input.ownerHeldPairs, input.dualReleaseClosedPairs));
   } else {
     const critical = open.filter((c) => c.severity === "critical").length;
     const people = new Set(open.map((c) => c.personId)).size;
@@ -76,18 +80,43 @@ export function executiveSummary(input: SummaryInput): string[] {
     }
   }
   if (input.firstStep) lines.push(`First step: ${midSentence(input.firstStep)}.`);
-  lines.push(
-    input.registerReady
-      ? `${input.coverageIndex}% of the work on the register (weighted by how critical it is) has two or more people who can run it alone; ${count(input.singlePoints, "critical or important item")} ${input.singlePoints === 1 ? "relies" : "rely"} on one person or nobody.`
-      : "Precog has not assessed continuity yet: the register of duties and know-how marks nobody.",
-  );
-  if (input.mapHealth) {
+  // A figure that is not a number (a damaged register) leaves its sentence
+  // out rather than print "NaN%".
+  if (!input.registerReady) {
+    lines.push(
+      "Precog has not assessed continuity yet: the register of duties and know-how marks nobody.",
+    );
+  } else if (Number.isFinite(input.coverageIndex)) {
+    lines.push(
+      `${input.coverageIndex}% of the work on the register (weighted by how critical it is) has two or more people who can run it alone; ${count(input.singlePoints, "critical or important item")} ${input.singlePoints === 1 ? "relies" : "rely"} on one person or nobody.`,
+    );
+  }
+  if (input.mapHealth && Number.isFinite(input.mapHealth.score)) {
     lines.push(
       `Map completeness ${input.mapHealth.score}% (${input.mapHealth.bandLabel.toLowerCase()}).`,
     );
   }
   if (input.topPriority) lines.push(`Highest item on the priority list: ${input.topPriority}.`);
   return lines;
+}
+
+/**
+ * With no open finding, say only what is true: the owner's own pairs and the
+ * pairs dual release closes are left out of the open count, not absent, so
+ * the sentence names them.
+ */
+function closedConflictsLine(ownerHeld: number, dualClosed: number): string {
+  if (ownerHeld === 0 && dualClosed === 0) {
+    return "No one person other than the owner holds two conflicting duties.";
+  }
+  let line = "No open duty conflicts among staff.";
+  if (ownerHeld > 0) {
+    line += ` The owner holds ${count(ownerHeld, "pair")} of conflicting duties (listed under Segregation of duties as the owner's own duties).`;
+    if (dualClosed > 0) line += ` Dual release covers ${dualClosed} more.`;
+  } else {
+    line += ` Dual release covers ${count(dualClosed, "pair")} of conflicting duties at every amount.`;
+  }
+  return line;
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   acceptGrant,
   createGrant,
   endGrant,
+  FIRM_CHANGED_OWNER_ACCEPT,
   loadGrantFor,
   peekGrant,
   type CreatedGrant,
@@ -89,13 +90,28 @@ export const peekClientGrant = createServerFn({ method: "GET" })
     return { grant: await peekGrant(sql, data.token) };
   });
 
+/** SQLSTATE 23503 on the error or along its `cause` chain. */
+function isForeignKeyViolation(error: unknown): boolean {
+  for (let e = error, depth = 0; e && typeof e === "object" && depth < 8; depth += 1) {
+    if ((e as { code?: unknown }).code === "23503") return true;
+    e = (e as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 /** The firm owner accepts: the business joins the firm's client list. */
 export const acceptClientGrant = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(tokenInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const accepted = await acceptGrant(sql, data.token, context.userId);
+    const accepted = await acceptGrant(sql, data.token, context.userId).catch((error: unknown) => {
+      // acceptGrant holds the firm's row, so an ownership transfer waits for
+      // it; a foreign-key failure (SQLSTATE 23503) still means the firm's id
+      // went away under the write. The accept rolled back: ask for a retry.
+      if (isForeignKeyViolation(error)) throw new RequestError(409, FIRM_CHANGED_OWNER_ACCEPT);
+      throw error;
+    });
     await recordAudit(sql, {
       firmUserId: accepted.firmUserId,
       actorUserId: context.userId,

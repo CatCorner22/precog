@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "../active-template";
 import { getIndustryTemplate } from "../templates";
 import {
+  decodeTeamFile,
   effectiveDuties,
   mergeImportedPeople,
+  NO_REPLACE_MESSAGE,
+  NOT_TEXT_MESSAGE,
   parsePeopleCsv,
   peopleToCsv,
   removedPeopleImpact,
@@ -205,7 +208,7 @@ describe("parsePeopleCsv", () => {
     ];
     const csv = peopleToCsv(people);
     expect(csv.split(/\r?\n/)[0]).toBe(
-      "name,employee_id,role,department,tenure_years,active,last_day,entitlements,owns_business,duties_from_title",
+      "name,employee_id,role,department,tenure_years,active,last_day,entitlements,owns_business,duties_from_title,household",
     );
     const back = parsePeopleCsv(csv, { ...dental, people }).people;
     expect(back.find((p) => p.name === "Maya Chen")?.lastDay).toBe("2026-10-14");
@@ -509,5 +512,97 @@ describe("the owner's mark and guessed duties through a team CSV", () => {
     const back = parsePeopleCsv(roster, { ...dental, people: team }).people;
     expect(back.find((p) => p.name === "Dr. Ana Ruiz")?.owner).toBe(true);
     expect(back.find((p) => p.name === "Ben Ochoa")?.owner).toBe(false);
+  });
+});
+
+describe("the household mark in the team CSV", () => {
+  const general = getIndustryTemplate("general");
+  const today = new Date("2026-10-06T12:00:00");
+  const marked = general.people.map((person, index) =>
+    index < 2 ? { ...person, householdKey: "Smith Jones" } : person,
+  );
+
+  it("survives the team's own export and re-import, and the merge reports nobody changed", () => {
+    const csv = peopleToCsv(marked, general.roleTemplates);
+    expect(csv.split("\r\n")[0].endsWith(",duties_from_title,household")).toBe(true);
+    const back = parsePeopleCsv(csv, { ...general, people: marked }, { today });
+    const merged = mergeImportedPeople(marked, back.people);
+    expect(merged.people.map((person) => person.householdKey)).toEqual(
+      marked.map((person) => person.householdKey),
+    );
+    expect(merged.updated).toEqual([]);
+  });
+
+  it("reads the column into a team with no marks, and an empty cell clears a mark", () => {
+    const csv = peopleToCsv(marked, general.roleTemplates);
+    const fresh = parsePeopleCsv(csv, { ...general, people: [] }, { today }).people;
+    expect(fresh.filter((person) => person.householdKey === "Smith Jones")).toHaveLength(2);
+    const cleared = parsePeopleCsv(peopleToCsv(general.people, general.roleTemplates), {
+      ...general,
+      people: marked,
+    }).people;
+    expect(cleared.some((person) => person.householdKey)).toBe(false);
+  });
+
+  it("keeps the marks when a re-imported file has no household column", () => {
+    const older = peopleToCsv(marked, general.roleTemplates)
+      .split("\r\n")
+      .map((line) => line.replace(/,[^,]*$/, ""))
+      .join("\r\n");
+    expect(older.split("\r\n")[0].endsWith(",duties_from_title")).toBe(true);
+    const back = parsePeopleCsv(older, { ...general, people: marked }, { today });
+    const merged = mergeImportedPeople(marked, back.people);
+    expect(merged.people.filter((person) => person.householdKey === "Smith Jones")).toHaveLength(2);
+    const roster = `Employee Name,Job Title\n${marked.map((p) => `${p.name},${p.role}`).join("\n")}`;
+    const hr = parsePeopleCsv(roster, { ...general, people: marked }, { today }).people;
+    expect(hr.filter((person) => person.householdKey === "Smith Jones")).toHaveLength(2);
+  });
+});
+
+describe("a team file that is not text", () => {
+  it("refuses an Excel workbook (a zip) and names what to do", () => {
+    const xlsx = "PK\u0003\u0004\u0014\u0000\u0006\u0000[Content_Types].xml Ana Ruiz,Owner";
+    const result = parsePeopleCsv(xlsx, dental);
+    expect(result.people).toEqual([]);
+    expect(result.removed).toEqual([]);
+    expect(result.issues).toEqual([{ row: 0, message: NOT_TEXT_MESSAGE }]);
+    expect(NOT_TEXT_MESSAGE).toBe(
+      "This looks like an Excel or other non-text file. Save it as CSV, then import it.",
+    );
+  });
+
+  it("refuses a NUL byte or another control character, and mostly unreadable text", () => {
+    expect(parsePeopleCsv("name,role\nAna\u0000 Ruiz,Owner", dental).people).toEqual([]);
+    expect(parsePeopleCsv("name,role\nAna Ruiz,Owner\u0007", dental).people).toEqual([]);
+    const junk = "name,role\n" + "��ab".repeat(40);
+    expect(parsePeopleCsv(junk, dental).issues[0].message).toBe(NOT_TEXT_MESSAGE);
+  });
+
+  it("still reads text with tabs, a closing Ctrl-Z and the odd unreadable accent", () => {
+    const tabbed = "name\trole\nAna Ruiz\tOwner\nJos� Diaz\tCashier\n\u001A";
+    expect(parsePeopleCsv(tabbed, dental).people.map((p) => p.name)).toEqual([
+      "Ana Ruiz",
+      "Jos� Diaz",
+    ]);
+  });
+
+  it("decodes a UTF-16 export by its byte-order mark", () => {
+    const text = "name,role\nAna Ruiz,Owner";
+    const bytes = new Uint8Array(2 + text.length * 2);
+    bytes.set([0xff, 0xfe]);
+    for (let i = 0; i < text.length; i++) bytes[2 + i * 2] = text.charCodeAt(i);
+    expect(decodeTeamFile(bytes)).toBe(text);
+    expect(decodeTeamFile(new TextEncoder().encode(text))).toBe(text);
+  });
+
+  it("never offers to replace the team from a headerless list of bare words", () => {
+    const words = "PKF garbage\nmore bytes here\nother stuff\nAna Ruiz, Owner";
+    const result = parsePeopleCsv(words, dental);
+    expect(result.people.length).toBeGreaterThan(0);
+    expect(result.removed).toEqual([]);
+    expect(result.issues[0]).toEqual({ row: 0, message: NO_REPLACE_MESSAGE });
+    // A headerless list with titles is still a whole team.
+    const list = parsePeopleCsv("Ana Ruiz, Owner\nBen Cole, Bookkeeper", dental);
+    expect(list.removed.length).toBe(dental.people.length);
   });
 });

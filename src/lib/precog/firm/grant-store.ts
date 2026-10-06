@@ -6,7 +6,13 @@ import { toIsoTimestamp } from "../iso-time";
 import { businessLimitMessage } from "../business-lifecycle";
 import { countClients, loadEntitlements } from "./entitlements.server";
 import { GRANT_CLOSED, GRANT_CONFIRM } from "./grant-texts";
-import { accountFit, FirmMembershipError, loadFirmFor, maskEmail } from "./store";
+import {
+  accountFit,
+  FirmMembershipError,
+  loadFirmFor,
+  lockFirmMembershipWrite,
+  maskEmail,
+} from "./store";
 
 export { GRANT_CLOSED, GRANT_CONFIRM };
 
@@ -36,6 +42,8 @@ export const END_ACCESS_REFUSED =
   "Only the business's owner or the owner of the firm working on it can end the firm's access.";
 export const NOT_GRANTED =
   "Its owner did not share this business with the firm, so there is no access to end.";
+/** An accept that met the firm's ownership transfer (acceptGrant, acceptClientGrant). */
+export const FIRM_CHANGED_OWNER_ACCEPT = "Your firm changed owner while you accepted. Try again.";
 
 /** "This invitation was sent to a***@cpa.com. Sign in with that address to accept it." */
 export function grantMismatch(maskedEmail: string): string {
@@ -157,16 +165,35 @@ export interface AcceptedGrant {
  */
 export async function acceptGrant(sql: Sql, token: string, userId: string): Promise<AcceptedGrant> {
   return inTransaction(sql, async (tx) => {
-    // The business row first, then the invitation, the order createGrant and
-    // endGrant lock them in (they lock the business, then close its open
-    // invitations), so a re-send or a close racing this waits instead of
-    // deadlocking. The invitation is read again under its lock: one closed
-    // while this waited is refused.
+    // The two accounts' rows first, then the firm's row, as every firm write
+    // takes them (lockFirmMembershipWrite): accepts at the same moment count the firm's
+    // clients one after the other, and an ownership transfer, which deletes
+    // the row, either waits for this or has finished. Then the business row,
+    // then the invitation, the order createGrant and endGrant lock them in
+    // (they lock the business, then close its open invitations), so a
+    // re-send or a close racing this waits instead of deadlocking. The
+    // invitation is read again under its lock: one closed while this waited
+    // is refused.
     const target = await tx<{ business_owner_id: string; business_id: string }>`
       select business_owner_id, business_id from business_firm_grants
       where token = ${token} and kind = 'grant'
     `;
     if (!target[0]) throw new FirmMembershipError(GRANT_CLOSED);
+    // The two accounts before any row of theirs, ascending, as every write
+    // locks them (lockFirmMembershipWrite): an account deletion holds its row
+    // FOR UPDATE, so this waits for it instead of deadlocking on the
+    // invitation, then finds the firm or the business gone and refuses.
+    for (const id of [userId, target[0].business_owner_id].sort()) {
+      await tx`select id from "user" where id = ${id} for key share`;
+    }
+    const firm = await loadFirmFor(tx, userId);
+    if (
+      firm?.role === "owner" &&
+      !(await lockFirmMembershipWrite(tx, { accountIds: [], firmUserId: firm.firmUserId }))
+    ) {
+      // An ownership transfer deleted the row after loadFirmFor read it.
+      throw new RequestError(409, FIRM_CHANGED_OWNER_ACCEPT);
+    }
     const businesses = await tx<{ name: string; firm_user_id: string | null }>`
       select name, firm_user_id from businesses
       where user_id = ${target[0].business_owner_id} and id = ${target[0].business_id}
@@ -186,7 +213,6 @@ export async function acceptGrant(sql: Sql, token: string, userId: string): Prom
     const grant = grants[0];
     if (!grant) throw new FirmMembershipError(GRANT_CLOSED);
     if (grant.business_owner_id === userId) throw new FirmMembershipError(OWN_BUSINESS_GRANT);
-    const firm = await loadFirmFor(tx, userId);
     if (!firm || firm.role !== "owner") throw new FirmMembershipError(ONLY_FIRM_OWNER_ACCEPTS);
     const { fit } = await accountFit(tx, userId, grant.invited_email);
     if (fit === "mismatch") {
@@ -195,7 +221,8 @@ export async function acceptGrant(sql: Sql, token: string, userId: string): Prom
     if (fit === "confirm") throw new FirmMembershipError(GRANT_CONFIRM);
     const business = businesses[0];
     if (!business || business.firm_user_id) throw new FirmMembershipError(GRANT_CLOSED);
-    // A granted business counts toward the firm's client limit and tier.
+    // A granted business counts toward the firm's client limit and tier,
+    // counted under the firm's lock taken above.
     const e = await loadEntitlements(tx, userId);
     const held = await countClients(tx, userId, firm);
     if (held >= e.clientLimit) {

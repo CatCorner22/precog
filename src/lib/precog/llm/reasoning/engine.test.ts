@@ -3,7 +3,10 @@ import { resolveTemplate } from "../../active-template";
 import { INDUSTRIES } from "../../industry";
 import { defaultProfile, type PracticeProfile } from "../../practice-profile";
 import { DEFAULT_RISK_VARIABLES } from "../../scoring/dynamic-variables";
+import { confirmedScenarioIds } from "../../scoring/scope";
+import { simulateAllCascades, simulateCascadeLever } from "../../scoring/variable-cascade";
 import type { Person } from "../../types";
+import { executeTool } from "../tools";
 import { beamSearchLevers } from "./beam-search";
 import { summarizeCausalInfluence } from "./causal-graph";
 import { reasoningBaseline, runAdvancedReasoning } from "./engine";
@@ -113,6 +116,114 @@ describe("counterfactual scenario scope", () => {
     const report = runCounterfactuals(own, staff, riskVars, baseline, undefined, scope);
 
     expect(report.counterfactuals.some((c) => c.delta.annualCor !== 0)).toBe(true);
+  });
+});
+
+/** The dental sample with the owner's own people, and a decision logged on each confirmed scenario. */
+function ownDental(confirmed: string[]): PracticeProfile {
+  return {
+    ...defaultProfile("dental"),
+    customPeople: [
+      { id: "own-1", name: "Ana Ruiz", role: "Owner", active: true, entitlements: [] } as Person,
+    ],
+    decisions: confirmed.map((id) => ({
+      id: `d-${id}`,
+      createdAt: "2026-10-01T00:00:00.000Z",
+      subject: "This could happen here",
+      kind: "monitor",
+      note: "",
+      linkedTab: "precog",
+      linkedId: id,
+      linkedIndustry: "dental",
+    })),
+  };
+}
+
+/** Advanced reasoning as the panel runs it: the profile's confirmed scenarios and settings. */
+function scopedReasoning(profile: PracticeProfile) {
+  return runAdvancedReasoning(resolveTemplate(profile), profile.staff, profile.riskVariables, {
+    confirmedScenarioIds: confirmedScenarioIds(profile.decisions, profile.industry),
+    riskVariables: profile.riskVariables,
+  });
+}
+
+const STACK = "Cameras + dual release + bank reconciliation (stack)";
+const CASH_CUT = "Cut daily cash exposure 20%";
+const DENTAL_SCOPE_NOTE =
+  'Sample scenarios from the dental office sample (5) stay out: their losses and timelines are the sample\'s assumptions, not facts about your business. To make one your own, open it on What could happen and choose "This could happen here"; it then counts in the priority list and your totals.';
+
+describe("one scenario scope for the beam, the counterfactual and Pioneer", () => {
+  it("never puts the daily cash cut in the beam for an own business with nothing confirmed", () => {
+    const profile = ownDental([]);
+    const report = scopedReasoning(profile);
+    expect(report.recommendedSequence).toEqual([STACK]);
+    for (const f of report.beam.frontier) expect(f.sequence).not.toContain(CASH_CUT);
+
+    // Called without a scenario, the beam still prices no sample scenario.
+    const tpl = resolveTemplate(profile);
+    const beam = beamSearchLevers(
+      tpl,
+      profile.staff,
+      profile.riskVariables,
+      { depth: 3 },
+      { confirmedScenarioIds: new Set() },
+    );
+    expect(beam.best.sequence).not.toContain("cut_daily_cash_20pct");
+  });
+
+  it("says which sample scenarios stay out, on the report and in the Pioneer tool summary", () => {
+    const profile = ownDental([]);
+    expect(scopedReasoning(profile).scopeNote).toBe(DENTAL_SCOPE_NOTE);
+    const tool = executeTool("run_advanced_reasoning", { profile });
+    expect(tool.summary).toBe(
+      `Lever ordering: ${STACK} · verify next: Owner re-performs the last 2 bank reconciliations · ${DENTAL_SCOPE_NOTE}`,
+    );
+  });
+
+  it("keeps the sample's ordering and shows no note", () => {
+    const report = scopedReasoning(defaultProfile("dental"));
+    expect(report.recommendedSequence).toEqual([STACK]);
+    expect(report.scopeNote).toBeNull();
+  });
+
+  it("gives Pioneer's variable_cascades the residual the What else moves panel shows", () => {
+    const profile = ownDental(["sc-vendor-fraud"]);
+    const tpl = resolveTemplate(profile);
+    // The panel's call (cascade-panel.tsx).
+    const panel = simulateAllCascades(tpl, profile.riskVariables, profile.staff, undefined, {
+      confirmedScenarioIds: confirmedScenarioIds(profile.decisions, profile.industry),
+    });
+    const tool = executeTool("simulate_variable_cascades", { profile });
+    const data = tool.data as { scenarioId: string; baseline: { residualAverage: number } };
+    expect(data.scenarioId).toBe("sc-vendor-fraud");
+    expect(panel.baseline.residualAverage).toBe(57);
+    expect(data.baseline.residualAverage).toBe(panel.baseline.residualAverage);
+  });
+
+  it("pins the dental sample's cameras cascade and its counterfactual sentence", () => {
+    const profile = defaultProfile("dental");
+    const tpl = resolveTemplate(profile);
+    const cameras = simulateCascadeLever(
+      tpl,
+      "enable_cameras",
+      profile.riskVariables,
+      profile.staff,
+      undefined,
+      { confirmedScenarioIds: new Set() },
+    );
+    expect(cameras.before.residualAverage).toBe(58);
+    expect(cameras.after.residualAverage).toBe(57);
+    expect(cameras.overallVerdict).toBe(
+      "average residual risk falls 1 point. No tradeoffs in this model.",
+    );
+
+    const narratives = scopedReasoning(profile).counterfactual.top.map((c) => c.narrative);
+    expect(narratives).toContain(
+      'Switching on "Install security cameras (cash/safe/front)" lowers the residual index by about 1 point and lowers the cost-of-risk figure.',
+    );
+    expect(narratives).toContain(
+      `Switching on "${STACK}" lowers the residual index by about 8 points and lowers the cost-of-risk figure.`,
+    );
   });
 });
 

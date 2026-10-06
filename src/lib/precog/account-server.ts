@@ -10,8 +10,11 @@ import {
   listAccountHistoryBusinesses,
 } from "./account-store";
 import { isBusinessId } from "./profile-input";
-import { loadFirmFor } from "./firm/store";
+import { loadFirmFor, trustedEmailAddress } from "./firm/store";
 import { recordAuditForAccount } from "./firm/audit.server";
+import { SUPPORT_EMAIL } from "./legal/operator";
+import { formatDay, utcDateKey } from "./dates";
+import { escapeHtml, type RenderedEmail } from "./reminders/email";
 import { decryptSecret, qboConfigured, revokeToken } from "./integrations/qbo/client.server";
 
 /**
@@ -108,8 +111,13 @@ export const exportBusinessHistory = createServerFn({ method: "GET" })
  * Deletes the account and everything it owns, then revokes its QuickBooks
  * connections at Intuit and deletes its Stripe customer. Refused (409) while
  * the firm plan is billing or the account holds another firm's clients (see
- * deleteAccountRows). The client signs out and clears its local copies
- * afterwards; nothing here can be undone.
+ * deleteAccountRows), and refused (403) unless the session began within
+ * FRESH_SESSION_MINUTES, so a session left open or taken cannot delete the
+ * account. Once the deletion has committed, the account's address gets a
+ * notice when Precog can vouch for it (TRUSTED_EMAIL, the digest's rule: not
+ * an X-only sign-in's made-up address, not an unconfirmed one); a failed
+ * send is reported and the deletion stands. The client signs
+ * out and clears its local copies afterwards; nothing here can be undone.
  */
 export const deleteAccount = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -119,12 +127,60 @@ export const deleteAccount = createServerFn({ method: "POST" })
   })
   .handler(async ({ context }) => {
     // audit: exempt (deleteAccountRows writes member_left and client_handed_back to the other firms the account leaves; its own firm's log goes with it)
+    const { requireFreshSession } = await import("@/lib/auth/fresh-session");
+    const { email } = await requireFreshSession({
+      userId: context.userId,
+      bearerToken: context.bearerToken,
+      message: SIGN_IN_AGAIN_TO_DELETE,
+    });
     const sql = await getSql();
+    // Read before the account row goes. The session's address alone may be
+    // one the auth broker made up for an X sign-in.
+    const notifyAt = email ? await trustedEmailAddress(sql, context.userId) : null;
+    // Commits before it returns; everything after it is best effort.
     const deleted = await deleteAccountRows(sql, context.userId);
     await revokeQuickBooksTokens(deleted.quickBooksRefreshTokens);
     await deleteStripeCustomer(deleted.stripeCustomerId);
+    await sendAccountDeletedEmail(notifyAt, new Date());
     return { ok: true as const };
   });
+
+/** The refusal when the session began more than FRESH_SESSION_MINUTES ago. */
+export const SIGN_IN_AGAIN_TO_DELETE = "For your safety, sign in again, then delete your account.";
+
+/** The notice to the deleted account's address. The day is the UTC day of the deletion. */
+export function renderAccountDeletedEmail(deletedAt: Date): RenderedEmail {
+  const text = `Your Precog account was deleted on ${formatDay(utcDateKey(deletedAt))}. If you did not do this, write to ${SUPPORT_EMAIL}.`;
+  return {
+    subject: "Your Precog account was deleted",
+    text,
+    html: `<p>${escapeHtml(text)}</p>`,
+  };
+}
+
+/**
+ * Best effort, after the deletion has committed: a failed send is reported,
+ * never thrown, so it cannot undo or block the deletion. Nothing goes out
+ * when the account has no address or this deployment has no email set up.
+ */
+export async function sendAccountDeletedEmail(to: string | null, deletedAt: Date): Promise<void> {
+  if (!to) return;
+  try {
+    const { mailConfigured, sendEmail } = await import("./reminders/mailer.server");
+    if (!mailConfigured()) return;
+    await sendEmail(to, renderAccountDeletedEmail(deletedAt));
+  } catch (error) {
+    try {
+      const { reportServerError } = await import("@/lib/observability/report.server");
+      await reportServerError(error, "account-deleted-email");
+    } catch {
+      console.error(
+        "[account] Deletion notice not sent:",
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+}
 
 /** Best effort, as above: Stripe keeps the invoices and tax records either way. */
 async function deleteStripeCustomer(customerId: string | null): Promise<void> {

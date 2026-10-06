@@ -8,7 +8,9 @@
  *   2. a save meets a newer release (unknown server function, 404): the
  *      "Precog was updated" notice appears and the edit stays in this browser;
  *   3. this browser refuses the list of businesses: Precog says so rather
- *      than claiming a copy is kept.
+ *      than claiming a copy is kept;
+ *   4. browser storage fills up: the badge reads "Not saved on this device"
+ *      and a notice says so, and pagehide writes the edit once there is room.
  *
  * Usage: PRECOG_AUTH_TEST=1 DATABASE_URL=postgresql://…/precog_safety_e2e \
  *        BETTER_AUTH_SECRET=<32+ chars> node scripts/e2e-save-safety.mjs
@@ -35,6 +37,9 @@ const ids = {
 };
 /** Copied from src/lib/precog/stale-deploy.ts (plain Node cannot import TypeScript). */
 const UPDATED = "Precog was updated. Reload to keep saving. Your work is kept on this device.";
+/** Copied from LOCAL_FULL_MESSAGE in src/lib/precog/use-cloud-sync.ts. */
+const FULL =
+  "Precog could not save your latest changes on this device because browser storage is full. Download a recovery copy, then remove a business you no longer need.";
 const step = stepLogger();
 const errors = [];
 let browser, page;
@@ -229,6 +234,50 @@ try {
     "the open business is still kept",
     10_000,
   );
+  await page.context().close();
+
+  step("browser storage fills up: the badge says the edit is not saved, and pagehide writes it");
+  page = await newPage(null);
+  await page.addInitScript(
+    ([key, stored]) => {
+      if (!localStorage.getItem(key)) localStorage.setItem(key, stored);
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (name, value) {
+        if (window.__precogStorageFull && name === key)
+          throw new DOMException("Test quota", "QuotaExceededError");
+        return original.call(this, name, value);
+      };
+    },
+    [profileStorageKey(), JSON.stringify(profile("Full Safety"))],
+  );
+  await page.goto(`${base}/`, { waitUntil: "networkidle" });
+  await page.getByText("Saved on this device").first().waitFor();
+  const fullField = await openBusinessSettings(page);
+  await page.evaluate(() => {
+    window.__precogStorageFull = true;
+  });
+  await fullField.fill("Full Safety edited");
+  await fullField.blur();
+  await page.getByText(FULL).waitFor();
+  await page.getByText("Not saved on this device").first().waitFor();
+  const storedName = async () =>
+    (
+      await page.evaluate(
+        (key) => JSON.parse(localStorage.getItem(key) ?? "null"),
+        profileStorageKey(),
+      )
+    )?.practiceName;
+  assert.equal(await storedName(), "Full Safety", "the refused write stored nothing");
+  await page.evaluate(() => {
+    window.__precogStorageFull = false;
+    window.dispatchEvent(new Event("pagehide"));
+  });
+  await eventually(
+    async () => (await storedName()) === "Full Safety edited",
+    "pagehide did not write the edit the full browser refused",
+    10_000,
+  );
+  await page.getByText("Saved on this device").first().waitFor();
 
   assert.deepEqual(errors, [], "uncaught page errors");
   console.log(JSON.stringify({ ok: true, steps: step.names.length }));

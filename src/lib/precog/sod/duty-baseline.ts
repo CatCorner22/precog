@@ -31,6 +31,26 @@ export function readDutyBaseline(
 }
 
 /**
+ * Whether a baseline is stored for the business, readable or not. A stored
+ * one that `readDutyBaseline` cannot read is not the same as none: today's
+ * duties are not the accepted ones.
+ */
+export function hasStoredDutyBaseline(
+  storage: BaselineStorage | null | undefined,
+  businessId: string | undefined,
+): boolean {
+  try {
+    return Boolean(storage?.getItem(dutyBaselineKey(businessId)));
+  } catch {
+    return false;
+  }
+}
+
+/** What Change review says when the stored baseline cannot be read. */
+export const UNREADABLE_BASELINE_MESSAGE =
+  "Your accepted duty baseline could not be read. Accept the current duties again to restart change review.";
+
+/**
  * Store `assignments` as the baseline when none is stored yet, and leave a
  * stored one alone. A screen that changes duties away from Team calls this
  * before its change, so Change review lists that change instead of taking

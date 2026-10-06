@@ -7,8 +7,10 @@ const MAX_BODY_BYTES = 256 * 1024;
 /**
  * Stripe's webhook endpoint. The raw body is verified against the endpoint
  * secret before it is parsed; an unverified or oversized delivery is
- * refused. Stripe retries on anything but 2xx, so a database failure is
- * reported and answers 500, and the event comes back later.
+ * refused. Stripe retries on anything but 2xx, so a database failure before
+ * the event's claim commits is reported and answers 500, and the event comes
+ * back later. Work after the commit (the failed-payment email) is reported
+ * on failure and answers 200, since a retry would find the claim and skip it.
  */
 export const Route = createFileRoute("/api/stripe/webhook")({
   server: {
@@ -41,14 +43,21 @@ export const Route = createFileRoute("/api/stripe/webhook")({
         const outcome = await applyBillingEvent(sql, event);
         if (outcome === "applied") {
           // The one failed-payment email goes after the change has committed,
-          // so a rolled-back event never emails and a retry sends once.
-          const [{ afterBillingEvent }, { originFrom }] = await Promise.all([
-            import("@/lib/precog/billing/dunning.server"),
-            import("@/lib/request-origin.server"),
-          ]);
-          await afterBillingEvent(sql, event, {
-            origin: originFrom(request.url, request.headers),
-          });
+          // so a rolled-back event never emails and a retry sends once. The
+          // claim has committed too, so a failure here is reported and still
+          // answers 200: a 500 would only bring the event back as a duplicate.
+          try {
+            const [{ afterBillingEvent }, { originFrom }] = await Promise.all([
+              import("@/lib/precog/billing/dunning.server"),
+              import("@/lib/request-origin.server"),
+            ]);
+            await afterBillingEvent(sql, event, {
+              origin: originFrom(request.url, request.headers),
+            });
+          } catch (error) {
+            const { reportServerError } = await import("@/lib/observability/report.server");
+            await reportServerError(error, "stripe-webhook-after-commit");
+          }
         }
         return Response.json({ received: true, outcome }, { headers: NO_STORE });
       }, "stripe-webhook"),

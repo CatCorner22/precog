@@ -56,6 +56,7 @@ import { normalizePlaces, normalizeProcedures } from "./procedures/normalize";
 import type { Place, Procedure } from "./procedures/types";
 import { normalizeSetupAnswers, type SetupAnswers } from "./onboarding/setup-answers";
 import { normalizeOnboardingFacts, type OnboardingFacts } from "./onboarding/decision-model";
+import { trimDecisions } from "./decisions/trim";
 
 /**
  * One business: what it is, the owner's own team, map and register (or null
@@ -108,7 +109,7 @@ export interface PracticeProfile {
   businessId?: string;
   /** Pilot stamps: when the owner's team was started, when the map was complete, when the report was sent. */
   engagement?: EngagementStamp;
-  /** Monthly close results. A later result is appended; earlier ones stay. */
+  /** Monthly close results. The newest result for each check and month is kept; older duplicates are dropped first. */
   monthlyReviews?: ReviewRecord[];
   /** Read-only user and vendor export compared with the duty map. */
   accessReconciliation?: AccessReconciliation;
@@ -211,8 +212,14 @@ export interface DecisionDisposition {
   at: string;
 }
 
-/** Most journal entries kept, newest first. */
-export const MAX_DECISIONS = 100;
+/**
+ * Most journal entries kept, newest first. Far above the findings any team
+ * has, so a trim only ever removes old entries no current finding uses (see
+ * decisions/trim.ts).
+ */
+export const MAX_DECISIONS = 1000;
+/** Most stored entries read before the trim: twice the cap, so an oversized stored list is bounded. */
+const MAX_STORED_DECISIONS = MAX_DECISIONS * 2;
 /** Longest decision subject, in characters. */
 export const MAX_DECISION_SUBJECT = 120;
 /** Longest decision note, in characters. */
@@ -426,7 +433,7 @@ export function normalizeProfile(
       staff,
     ),
     dualRelease,
-    decisions: normalizeDecisions(parsed.decisions),
+    decisions: normalizeDecisions(parsed.decisions, industry),
     onboardingComplete:
       typeof parsed.onboardingComplete === "boolean"
         ? parsed.onboardingComplete
@@ -505,28 +512,36 @@ export function parseStoredProfile(raw: string | null): PracticeProfile {
  * profile the normaliser throws on comes back as `unreadable` with the error.
  * That is a bug in Precog, not damage to the copy, so the caller keeps the
  * stored text and never writes the setup sample over it. `unreadable` is
- * null for every other outcome.
+ * null for every other outcome. `damaged` is true when text is stored but is
+ * not JSON for an object at all (cut short, or another type): damage to the
+ * copy, which the caller quarantines before anything replaces it.
  */
 export function readStoredProfile(raw: string | null): {
   profile: PracticeProfile;
   unreadable: unknown;
+  damaged: boolean;
 } {
   const setup = () => ({ ...defaultProfile(), onboardingComplete: false });
-  if (!raw) return { profile: setup(), unreadable: null };
+  if (!raw) return { profile: setup(), unreadable: null, damaged: false };
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return { profile: setup(), unreadable: null };
+    return { profile: setup(), unreadable: null, damaged: true };
   }
-  if (!isRecord(parsed)) return { profile: setup(), unreadable: null };
+  if (!isRecord(parsed)) return { profile: setup(), unreadable: null, damaged: true };
   try {
     return {
       profile: normalizeProfile(parsed, { onboardingCompleteFallback: false }),
       unreadable: null,
+      damaged: false,
     };
   } catch (error) {
-    return { profile: setup(), unreadable: error ?? new Error("The normaliser failed.") };
+    return {
+      profile: setup(),
+      unreadable: error ?? new Error("The normaliser failed."),
+      damaged: false,
+    };
   }
 }
 
@@ -682,10 +697,15 @@ const CONTINUITY_STEPS: readonly ContinuityStep[] = ["cover", "handoff", "docume
 const COVERAGE_STATUSES: readonly CoverageStatus[] = ["uncovered", "single", "thin", "covered"];
 const DOCUMENTATION_STATES: readonly DocumentationState[] = ["none", "unlocated", "located"];
 
-/** Journal entries of a known kind, rebuilt deeply so every downstream reader gets safe history. */
-export function normalizeDecisions(value: unknown): DecisionEntry[] {
+/**
+ * Journal entries of a known kind, rebuilt deeply so every downstream reader
+ * gets safe history, and trimmed to MAX_DECISIONS by `trimDecisions`: an
+ * entry linked to a finding of `industry`, a "Not valid" judgement and a risk
+ * acceptance stay; the oldest of the rest go first.
+ */
+export function normalizeDecisions(value: unknown, industry?: IndustryId): DecisionEntry[] {
   if (!Array.isArray(value)) return [];
-  return value.slice(0, MAX_DECISIONS).flatMap((entry) => {
+  const entries = value.slice(0, MAX_STORED_DECISIONS).flatMap((entry): DecisionEntry[] => {
     if (
       !isRecord(entry) ||
       !isEnum(entry.kind, Object.keys(DECISION_KIND_LABEL) as DecisionKind[])
@@ -727,6 +747,7 @@ export function normalizeDecisions(value: unknown): DecisionEntry[] {
       },
     ];
   });
+  return trimDecisions(entries, MAX_DECISIONS, industry).kept;
 }
 
 function normalizeDecisionReview(value: unknown): DecisionReview | undefined {
@@ -896,36 +917,190 @@ export function readStoredActiveProfile(
   return readLocal(ACTIVE_PROFILE_KEY, storage) ?? readLocal(LEGACY_PROFILE_KEY, storage);
 }
 
-/** Local portfolio: every business this device knows about, keyed by id (includes the active one). */
-export function loadPortfolio(storage = browserStorage()): Record<string, PracticeProfile> {
-  const raw = readLocal(PORTFOLIO_KEY, storage);
-  if (!raw) return {};
+// ── Quarantine and removed businesses ──────────────────────────────────────
+
+/** Where stored text this build could not read is kept, one key per distinct text. */
+export const QUARANTINE_PREFIX = "precog.quarantine.";
+
+/** The quarantine key for `raw`: the same text read on every reload lands in one key, not one per load. */
+export function quarantineKey(raw: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < raw.length; i += 1) {
+    hash ^= raw.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `${QUARANTINE_PREFIX}${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+/**
+ * Keeps `raw` under its quarantine key. True when that key holds it
+ * afterwards, so the caller may replace the original; false when the browser
+ * refused the write, so the original must stay.
+ */
+export function quarantineText(raw: string, storage: StorageLike | null): boolean {
+  const key = quarantineKey(raw);
+  return readLocal(key, storage) === raw || writeLocal(key, raw, storage);
+}
+
+/** The ids of businesses removed on this device, oldest first. */
+export const REMOVED_BUSINESSES_KEY = "precog.removedBusinesses.v1";
+/** Most removed ids remembered; the oldest is forgotten first. */
+export const MAX_REMOVED_BUSINESSES = 200;
+
+/**
+ * The businesses removed on this device. A removal matches the business id
+ * alone, so a business set up again under a new id is listed as usual.
+ */
+export function removedBusinessIds(storage = browserStorage()): Set<string> {
+  const raw = readLocal(REMOVED_BUSINESSES_KEY, storage);
+  if (!raw) return new Set();
   try {
-    const parsed = JSON.parse(raw) as Record<string, PracticeProfile>;
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    const parsed: unknown = JSON.parse(raw);
+    return new Set(
+      Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [],
+    );
   } catch {
-    return {};
+    return new Set();
   }
 }
 
 /**
- * Keeps one business in the portfolio. A business whose setup is not
- * finished is not a business yet (it is the sample behind the setup dialog),
- * so it is never listed. False when the browser refused the write (storage
- * full or blocked), so a caller can say the copy on this device is stale.
+ * Remembers that the owner removed business `id` here, so neither a tab
+ * still open on it nor a reload that finds it as the open business lists it
+ * again. False when the browser refused the write.
  */
-export function savePortfolioEntry(profile: PracticeProfile, storage = browserStorage()): boolean {
-  if (profile.onboardingComplete === false) return true;
-  const id = profile.businessId ?? DEFAULT_BUSINESS_ID;
-  const all = loadPortfolio(storage);
-  all[id] = { ...profile, businessId: id };
-  return writeLocal(PORTFOLIO_KEY, JSON.stringify(all), storage);
+export function rememberRemovedBusiness(id: string, storage = browserStorage()): boolean {
+  const ids = [...removedBusinessIds(storage)].filter((kept) => kept !== id);
+  ids.push(id);
+  return writeLocal(
+    REMOVED_BUSINESSES_KEY,
+    JSON.stringify(ids.slice(-MAX_REMOVED_BUSINESSES)),
+    storage,
+  );
 }
 
+// ── The list of businesses ─────────────────────────────────────────────────
+
+/** The stored list as read: absent, a plain object of entries, or text that is not one. */
+type StoredPortfolio =
+  | { kind: "empty" }
+  | { kind: "entries"; entries: Record<string, unknown> }
+  /** `kept`: its text is held under its quarantine key, so a fresh list may replace it. */
+  | { kind: "unreadable"; kept: boolean };
+
+/** Reads the stored list. Text that is not a plain object is quarantined as read. */
+function readStoredPortfolio(storage: StorageLike | null): StoredPortfolio {
+  const raw = readLocal(PORTFOLIO_KEY, storage);
+  if (!raw) return { kind: "empty" };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = undefined;
+  }
+  if (isRecord(parsed)) return { kind: "entries", entries: parsed };
+  return { kind: "unreadable", kept: quarantineText(raw, storage) };
+}
+
+/**
+ * Local portfolio: every business this device knows about, keyed by id
+ * (includes the active one), each normalised as on every other load path.
+ * An entry that is not an object, or that the normaliser throws on, is
+ * skipped and its text kept under a quarantine key; a business removed on
+ * this device is skipped. A stored list that is not an object at all reads
+ * as empty, and its text is quarantined.
+ */
+export function loadPortfolio(storage = browserStorage()): Record<string, PracticeProfile> {
+  // The business menu reads the list on every rename keystroke; normalising
+  // every business each time lagged typing in a large portfolio. The same
+  // stored text gives the same list, so it is normalised once.
+  const text = `${readLocal(PORTFOLIO_KEY, storage)}\u0000${readLocal(REMOVED_BUSINESSES_KEY, storage)}`;
+  const cached = storage ? portfolioCache.get(storage) : undefined;
+  if (cached?.text === text) return { ...cached.list };
+  const list = readPortfolio(storage);
+  if (storage) portfolioCache.set(storage, { text, list });
+  return { ...list };
+}
+
+/** The last list read from each storage, by the stored text it was read from. */
+const portfolioCache = new WeakMap<
+  StorageLike,
+  { text: string; list: Record<string, PracticeProfile> }
+>();
+
+function readPortfolio(storage: StorageLike | null): Record<string, PracticeProfile> {
+  const stored = readStoredPortfolio(storage);
+  if (stored.kind !== "entries") return {};
+  const removed = removedBusinessIds(storage);
+  const out: Record<string, PracticeProfile> = {};
+  for (const [id, entry] of Object.entries(stored.entries)) {
+    if (removed.has(id)) continue;
+    try {
+      if (!isRecord(entry)) throw new Error("Not a business");
+      // An entry saved without its id is the one it is listed under.
+      const businessId = isBusinessId(entry.businessId) ? entry.businessId : id;
+      out[id] = normalizeProfile({ ...entry, businessId });
+    } catch {
+      quarantineText(JSON.stringify({ [id]: entry }), storage);
+    }
+  }
+  return out;
+}
+
+/**
+ * What `writePortfolioEntry` did with one business.
+ * - "saved": the list now holds this version.
+ * - "not-listed": its setup is not finished, so it is not a business yet; nothing written.
+ * - "removed": the owner removed this business on this device; nothing written.
+ * - "refused": the browser refused the write (storage full or blocked).
+ * - "unreadable": the stored list is not readable and the browser refused to
+ *   keep its text under a quarantine key, so nothing is written over it.
+ */
+export type PortfolioWrite = "saved" | "not-listed" | "removed" | "refused" | "unreadable";
+
+/**
+ * Keeps one business in the portfolio, leaving every other entry as stored.
+ * A business whose setup is not finished is not a business yet (it is the
+ * sample behind the setup dialog), so it is never listed; nor is one the
+ * owner removed on this device. A stored list this build cannot read is
+ * replaced by a fresh one only once its text is kept under its quarantine key.
+ */
+export function writePortfolioEntry(
+  profile: PracticeProfile,
+  storage = browserStorage(),
+): PortfolioWrite {
+  if (profile.onboardingComplete === false) return "not-listed";
+  const id = profile.businessId ?? DEFAULT_BUSINESS_ID;
+  if (removedBusinessIds(storage).has(id)) return "removed";
+  const stored = readStoredPortfolio(storage);
+  if (stored.kind === "unreadable" && !stored.kept) return "unreadable";
+  const all = stored.kind === "entries" ? stored.entries : {};
+  all[id] = { ...profile, businessId: id };
+  return writeLocal(PORTFOLIO_KEY, JSON.stringify(all), storage) ? "saved" : "refused";
+}
+
+/**
+ * Keeps one business in the portfolio (see `writePortfolioEntry`).
+ *
+ * Returns true when this device's list of businesses is as it needs to be
+ * for `profile`: the version was written ("saved"), or there is nothing to
+ * list ("not-listed": setup not finished; "removed": the owner removed it on
+ * this device). Returns false when the list does not hold this version: the
+ * browser refused the write ("refused"), or the stored list is unreadable and
+ * the browser refused to quarantine it, so it was not overwritten
+ * ("unreadable"). On false, a caller says
+ * this device did not keep the copy and offers a recovery download.
+ */
+export function savePortfolioEntry(profile: PracticeProfile, storage = browserStorage()): boolean {
+  const result = writePortfolioEntry(profile, storage);
+  return result === "saved" || result === "not-listed" || result === "removed";
+}
+
+/** Drops one business from the portfolio, leaving every other entry as stored. */
 export function removePortfolioEntry(id: string, storage = browserStorage()): void {
-  const all = loadPortfolio(storage);
-  if (!(id in all)) return;
-  delete all[id];
+  const stored = readStoredPortfolio(storage);
+  if (stored.kind !== "entries" || !(id in stored.entries)) return;
+  delete stored.entries[id];
   // Quota: a stale portfolio entry is harmless; it is re-derived on the next save.
-  writeLocal(PORTFOLIO_KEY, JSON.stringify(all), storage);
+  writeLocal(PORTFOLIO_KEY, JSON.stringify(stored.entries), storage);
 }

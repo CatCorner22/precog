@@ -56,10 +56,26 @@ vi.mock("@/lib/auth/client", () => ({ authEnabled: true }));
 const exit = vi.hoisted(() => ({
   check: null as ((transition: "sign-in" | "sign-out") => Promise<boolean>) | null,
 }));
+// The identity lock, set by a test as another tab's sign-out would set it.
+const identity = vi.hoisted(() => {
+  const state = {
+    lock: null as string | null,
+    listeners: new Set<() => void>(),
+    setLock(next: string | null) {
+      state.lock = next;
+      for (const listener of state.listeners) listener();
+    },
+  };
+  return state;
+});
 vi.mock("@/lib/auth/identity-change", () => ({
   identitySnapshot: () => ({ accountId: "user_1", generation: 0, locked: false }),
   identityUnchanged: () => true,
-  identityLockReason: () => null,
+  identityLockReason: () => identity.lock,
+  subscribeIdentity: (listener: () => void) => {
+    identity.listeners.add(listener);
+    return () => void identity.listeners.delete(listener);
+  },
   registerExitCheck: (check: typeof exit.check) => {
     exit.check = check;
     return () => undefined;
@@ -78,7 +94,7 @@ const recovery = vi.hoisted(() => ({ downloadRecoveryCopy: vi.fn() }));
 vi.mock("./recovery-copy", () => recovery);
 
 // Renamed: here they run as plain functions, not inside a component.
-const { useCloudSync: runCloudSync } = await import("./use-cloud-sync");
+const { useCloudSync: runCloudSync, LOCAL_FULL_MESSAGE } = await import("./use-cloud-sync");
 const { usePortfolio: runPortfolio } = await import("./use-portfolio");
 
 const USER = "user_1";
@@ -121,7 +137,14 @@ function browser(refuse?: string): Workspace {
 async function syncTab(
   workspace: Workspace,
   open: PracticeProfile,
-  options: { loadFails?: boolean; stored?: PracticeProfile } = {},
+  options: {
+    loadFails?: boolean;
+    stored?: PracticeProfile;
+    /** The account's answer to the open-business load. */
+    load?: { found: true; profile: PracticeProfile; revision: number; updatedAt: string };
+    /** Not signed in: nothing loads from or saves to an account. */
+    guest?: boolean;
+  } = {},
 ) {
   const profileRef = { current: open };
   const activated: PracticeProfile[] = [];
@@ -132,11 +155,9 @@ async function syncTab(
   if (options.loadFails)
     server.loadBusinessProfile.mockRejectedValueOnce(new Error("Failed to fetch"));
   else
-    server.loadBusinessProfile.mockResolvedValueOnce({
-      found: false,
-      profile: null,
-      revision: null,
-    });
+    server.loadBusinessProfile.mockResolvedValueOnce(
+      options.load ?? { found: false, profile: null, revision: null },
+    );
   server.listBusinesses.mockResolvedValueOnce([]);
   const sync = runCloudSync({
     workspace,
@@ -146,7 +167,7 @@ async function syncTab(
     ready: true,
     setReady: vi.fn(),
     isPending: false,
-    userId: USER,
+    userId: options.guest ? undefined : USER,
     userIsDevFallback: false,
     localStore,
     lineage,
@@ -160,6 +181,7 @@ async function syncTab(
   effects.run();
   // The bootstrap reopened the stored copy, which is `open` itself.
   activated.length = 0;
+  if (options.guest) return { sync, profileRef, activated, localStore, lineage };
   await vi.waitFor(() => expect(server.loadBusinessProfile).toHaveBeenCalled());
   await Promise.resolve();
   await Promise.resolve();
@@ -171,6 +193,8 @@ beforeEach(() => {
   const target = Object.assign(new EventTarget(), { confirm: vi.fn(() => true) });
   vi.stubGlobal("window", target);
   exit.check = null;
+  identity.lock = null;
+  identity.listeners.clear();
   vi.stubGlobal("document", Object.assign(new EventTarget(), { visibilityState: "visible" }));
   setters.calls.length = 0;
   effects.queue.length = 0;
@@ -623,5 +647,315 @@ describe("the workspace closing while an edit waits for its local write", () => 
     effects.unmount();
 
     expect(tab.localStore.peek("biz_a")?.profile.practiceName).toBe("A Co typed");
+  });
+});
+
+const ACTIVE = "precog.practiceProfile.v2";
+const STATUSES = new Set([
+  "idle",
+  "loading",
+  "saving",
+  "synced",
+  "local",
+  "local-error",
+  "error",
+  "conflict",
+]);
+/** The badge as last set. */
+function lastStatus() {
+  return setters.calls.filter((value) => typeof value === "string" && STATUSES.has(value)).at(-1);
+}
+/** One browser whose storage refuses the open business while `full.on` is set. */
+function fillableBrowser() {
+  const full = { on: false };
+  const raw = memoryStorage();
+  const write = raw.setItem;
+  raw.setItem = (key, value) => {
+    if (full.on && key.endsWith(ACTIVE)) throw new DOMException("Test quota", "QuotaExceededError");
+    write(key, value);
+  };
+  const workspace: Workspace = {
+    accountId: USER,
+    local: new ScopedStorage(raw, USER),
+    session: null,
+  };
+  return { workspace, full, raw };
+}
+function storageEvent(key: string | null, newValue: string | null) {
+  return Object.assign(new Event("storage"), { key, newValue });
+}
+/** Whether closing the tab now asks first. */
+function beforeUnloadBlocked() {
+  const event = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(event);
+  return event.defaultPrevented;
+}
+
+describe("two tabs editing one business at once", () => {
+  it("the tab in conflict never writes its copy into the list of businesses", async () => {
+    const workspace = browser();
+    const before = business("biz_a", "A Co");
+    const mine = edit(before, { customKnowledge: [item("Mine")] });
+    const tab = await syncTab(workspace, mine, { stored: before });
+    // The other tab saves its edit first: the open business and its list entry.
+    const theirs = edit(before, { customKnowledge: [item("Theirs")] });
+    new LocalProfileStore(() => workspace.local).write(theirs, { force: true });
+    savePortfolioEntry(theirs, workspace.local);
+
+    await vi.advanceTimersByTimeAsync(400);
+    expect(tab.sync.saveConflictRef.current?.reason).toBe("other-tab");
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(loadPortfolio(workspace.local).biz_a?.customKnowledge?.[0]?.name).toBe("Theirs");
+    expect(tab.localStore.peek("biz_a")?.profile.customKnowledge?.[0]?.name).toBe("Theirs");
+  });
+
+  it("asks before the tab closes while the conflict is open", async () => {
+    const workspace = browser();
+    const a = business("biz_a", "A Co");
+    const tab = await syncTab(workspace, a);
+    expect(beforeUnloadBlocked()).toBe(false);
+    const theirs = edit(a, { practiceName: "Theirs Co" });
+    tab.sync.raiseConflict({
+      reason: "other-tab",
+      businessId: "biz_a",
+      remote: theirs,
+      revision: null,
+      updatedAt: theirs.updatedAt,
+    });
+
+    expect(beforeUnloadBlocked()).toBe(true);
+    server.saveBusinessProfile.mockResolvedValue({ ok: true, revision: 2 });
+    await tab.sync.resolveSaveConflict("overwrite");
+    expect(beforeUnloadBlocked()).toBe(false);
+  });
+});
+
+describe("a browser whose storage is full", () => {
+  it("says 'Not saved on this device' after a refused write, and writes again on pagehide", async () => {
+    const { workspace, full } = fillableBrowser();
+    const before = business("biz_a", "A Co");
+    const typed = edit(before, { customKnowledge: [item("Typed while full")] });
+    const tab = await syncTab(workspace, typed, { stored: before, guest: true });
+    tab.profileRef.current = typed;
+    full.on = true;
+
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(lastStatus()).toBe("local-error");
+    expect(errorToast(LOCAL_FULL_MESSAGE)?.action?.label).toBe("Download a recovery copy");
+    expect(tab.localStore.peek("biz_a")?.profile.customKnowledge?.[0]).toBeUndefined();
+    // Closing now asks first: the edit is in this tab only.
+    expect(beforeUnloadBlocked()).toBe(true);
+    // The list keeps no copy this browser did not take as the open business.
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(loadPortfolio(workspace.local).biz_a).toBeUndefined();
+
+    full.on = false;
+    window.dispatchEvent(new Event("pagehide"));
+
+    expect(tab.localStore.peek("biz_a")?.profile.customKnowledge?.[0]?.name).toBe(
+      "Typed while full",
+    );
+    expect(lastStatus()).toBe("local");
+    expect(toast.dismiss).toHaveBeenCalledWith("local-save-failed");
+    expect(beforeUnloadBlocked()).toBe(false);
+  });
+
+  it("tries the refused write again after a short wait", async () => {
+    const { workspace, full } = fillableBrowser();
+    const before = business("biz_a", "A Co");
+    const typed = edit(before, { customKnowledge: [item("Typed while full")] });
+    const tab = await syncTab(workspace, typed, { stored: before, guest: true });
+    tab.profileRef.current = typed;
+    full.on = true;
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(lastStatus()).toBe("local-error");
+
+    full.on = false;
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(tab.localStore.peek("biz_a")?.profile.customKnowledge?.[0]?.name).toBe(
+      "Typed while full",
+    );
+    expect(loadPortfolio(workspace.local).biz_a?.customKnowledge?.[0]?.name).toBe(
+      "Typed while full",
+    );
+    expect(lastStatus()).toBe("local");
+  });
+});
+
+describe("another tab clearing this browser's storage", () => {
+  it("writes the open business again at once", async () => {
+    const { workspace, raw } = fillableBrowser();
+    const a = edit(business("biz_a", "A Co"), { customKnowledge: [item("Kept")] });
+    const tab = await syncTab(workspace, a, { guest: true });
+    raw.data.clear();
+
+    window.dispatchEvent(storageEvent(null, null));
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(tab.localStore.peek("biz_a")?.profile.customKnowledge?.[0]?.name).toBe("Kept");
+    expect(loadPortfolio(workspace.local).biz_a?.customKnowledge?.[0]?.name).toBe("Kept");
+    expect(lastStatus()).toBe("local");
+  });
+
+  it("writes it again when only the open business was removed", async () => {
+    const { workspace } = fillableBrowser();
+    const a = edit(business("biz_a", "A Co"), { customKnowledge: [item("Kept")] });
+    const tab = await syncTab(workspace, a, { guest: true });
+    workspace.local?.removeItem(ACTIVE);
+
+    window.dispatchEvent(storageEvent(workspace.local?.physicalKey(ACTIVE) ?? null, null));
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(tab.localStore.peek("biz_a")?.profile.customKnowledge?.[0]?.name).toBe("Kept");
+  });
+});
+
+describe("signing in to an account that holds the revision this device built on", () => {
+  it("saves this device's later edits without asking", async () => {
+    const workspace = browser();
+    const base = business("biz_a", "A Co");
+    const mine = edit(base, { customKnowledge: [item("Edited before the tab closed")] });
+    workspace.local?.setItem("precog.cloud-bases.v1", JSON.stringify({ biz_a: 4 }));
+    server.saveBusinessProfile.mockResolvedValue({ ok: true, revision: 5 });
+
+    const tab = await syncTab(workspace, mine, {
+      load: { found: true, profile: base, revision: 4, updatedAt: base.updatedAt },
+    });
+
+    expect(tab.sync.saveConflictRef.current).toBeNull();
+    await vi.waitFor(() => expect(server.saveBusinessProfile).toHaveBeenCalledTimes(1));
+    const sent = server.saveBusinessProfile.mock.calls[0][0].data;
+    expect(sent.baseRevision).toBe(4);
+    expect(sent.profile.customKnowledge?.[0]?.name).toBe("Edited before the tab closed");
+    expect(tab.activated).toEqual([]);
+  });
+
+  it("still asks when the account moved on from that revision", async () => {
+    const workspace = browser();
+    const base = business("biz_a", "A Co");
+    const mine = edit(base, { customKnowledge: [item("Edited here")] });
+    workspace.local?.setItem("precog.cloud-bases.v1", JSON.stringify({ biz_a: 3 }));
+
+    const tab = await syncTab(workspace, mine, {
+      load: { found: true, profile: base, revision: 4, updatedAt: base.updatedAt },
+    });
+
+    expect(tab.sync.saveConflictRef.current).toMatchObject({ reason: "sign-in", revision: 4 });
+    expect(server.saveBusinessProfile).not.toHaveBeenCalled();
+  });
+
+  it("asks again after a reload, and never saves over the account's newer copy (CW1-1)", async () => {
+    const workspace = browser();
+    const base = business("biz_a", "A Co");
+    const mine = edit(base, { customKnowledge: [item("Edited here")] });
+    const theirs = edit(base, { customKnowledge: [item("Edited on another device")] });
+    workspace.local?.setItem("precog.cloud-bases.v1", JSON.stringify({ biz_a: 3 }));
+    const load = {
+      found: true as const,
+      profile: theirs,
+      revision: 4,
+      updatedAt: theirs.updatedAt,
+    };
+
+    const first = await syncTab(workspace, mine, { load });
+    expect(first.sync.saveConflictRef.current).toMatchObject({ reason: "sign-in", revision: 4 });
+    effects.unmount();
+
+    // The owner reloads before choosing: the account still holds the other device's copy.
+    const second = await syncTab(workspace, mine, { load });
+    expect(second.sync.saveConflictRef.current).toMatchObject({ reason: "sign-in", revision: 4 });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(server.saveBusinessProfile).not.toHaveBeenCalled();
+    expect(second.activated).toEqual([]);
+  });
+
+  it("records the account's revision once the owner takes the account's copy", async () => {
+    const workspace = browser();
+    const base = business("biz_a", "A Co");
+    const mine = edit(base, { customKnowledge: [item("Edited here")] });
+    const theirs = edit(base, { customKnowledge: [item("Edited on another device")] });
+    workspace.local?.setItem("precog.cloud-bases.v1", JSON.stringify({ biz_a: 3 }));
+    const tab = await syncTab(workspace, mine, {
+      load: { found: true, profile: theirs, revision: 4, updatedAt: theirs.updatedAt },
+    });
+
+    await tab.sync.resolveSaveConflict("reload");
+
+    expect(JSON.parse(workspace.local?.getItem("precog.cloud-bases.v1") ?? "{}")).toEqual({
+      biz_a: 4,
+    });
+  });
+
+  it("asks again after a reload that follows an outage, too (CW1-1)", async () => {
+    const workspace = browser();
+    const base = business("biz_a", "A Co");
+    const mine = edit(base, { customKnowledge: [item("Edited here")] });
+    const theirs = edit(base, { customKnowledge: [item("Edited on another device")] });
+    workspace.local?.setItem("precog.cloud-bases.v1", JSON.stringify({ biz_a: 3 }));
+    const load = {
+      found: true as const,
+      profile: theirs,
+      revision: 4,
+      updatedAt: theirs.updatedAt,
+    };
+
+    const first = await syncTab(workspace, mine, { loadFails: true });
+    server.loadBusinessProfile.mockResolvedValueOnce(load);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(first.sync.saveConflictRef.current).toMatchObject({ reason: "unreachable" });
+    effects.unmount();
+
+    const second = await syncTab(workspace, mine, { load });
+    expect(second.sync.saveConflictRef.current).toMatchObject({ reason: "sign-in", revision: 4 });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(server.saveBusinessProfile).not.toHaveBeenCalled();
+  });
+
+  it("records the account's revision once this device takes the account's copy", async () => {
+    const workspace = browser();
+    const base = business("biz_a", "A Co");
+    const theirs = edit(base, { customKnowledge: [item("Edited on another device")] });
+    workspace.local?.setItem("precog.cloud-bases.v1", JSON.stringify({ biz_a: 3 }));
+    // The account took this device's copy before the other device's edit.
+    workspace.local?.setItem("precog.cloud-stamps.v1", JSON.stringify({ biz_a: base.updatedAt }));
+
+    const tab = await syncTab(workspace, base, {
+      load: { found: true, profile: theirs, revision: 4, updatedAt: theirs.updatedAt },
+    });
+
+    expect(tab.activated.at(-1)?.customKnowledge?.[0]?.name).toBe("Edited on another device");
+    expect(JSON.parse(workspace.local?.getItem("precog.cloud-bases.v1") ?? "{}")).toEqual({
+      biz_a: 4,
+    });
+  });
+});
+
+describe("the storage-full notice (CW1-3)", () => {
+  async function fullTab() {
+    const { workspace, full } = fillableBrowser();
+    const before = business("biz_a", "A Co");
+    const typed = edit(before, { customKnowledge: [item("Typed while full")] });
+    const tab = await syncTab(workspace, typed, { stored: before, guest: true });
+    tab.profileRef.current = typed;
+    full.on = true;
+    await vi.advanceTimersByTimeAsync(400);
+    expect(errorToast(LOCAL_FULL_MESSAGE)).toBeDefined();
+    vi.mocked(toast.dismiss).mockClear();
+    return tab;
+  }
+
+  it("closes with the workspace that raised it", async () => {
+    await fullTab();
+    effects.unmount();
+    expect(toast.dismiss).toHaveBeenCalledWith("local-save-failed");
+  });
+
+  it("closes once an account change locks the tab", async () => {
+    await fullTab();
+    identity.setLock("changed");
+    expect(toast.dismiss).toHaveBeenCalledWith("local-save-failed");
   });
 });

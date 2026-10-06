@@ -3,10 +3,12 @@ import { withPolicyEdit } from "@/lib/precog/scoring/insurance-record";
 import {
   APP_DEFAULT_POLICY,
   DEFAULT_RISK_VARIABLES,
+  NOT_INSURED_HINT,
   VARIABLE_CATALOG,
   insuranceBasis,
   insuranceFigureNote,
   policyFieldIsDefault,
+  scenarioFlags,
   type PolicyField,
   type RiskVariableState,
 } from "@/lib/precog/scoring/dynamic-variables";
@@ -42,6 +44,8 @@ export function DynamicVariablesPanel({
   const d = result?.dynamic;
   const basis = insuranceBasis(value, ownBusiness);
   const note = insuranceFigureNote(value, ownBusiness, result?.scenarioId);
+  // A crime policy pays nothing on a scenario that is not theft or fraud.
+  const insuredLoss = !result || scenarioFlags(result.scenarioId).fraudRelated;
   const hint = (text: string) => (note ? `${text} · ${note}` : text);
   const isDefault = (key: PolicyField) => policyFieldIsDefault(value, key);
 
@@ -102,11 +106,15 @@ export function DynamicVariablesPanel({
               <FigureTile
                 label="Assumed retained loss"
                 value={formatUsd(d.retainedExpected)}
-                hint={hint(
-                  basis === "none"
-                    ? "all of it"
-                    : `paid by insurance ${formatUsd(d.transferredExpected)}`,
-                )}
+                hint={
+                  insuredLoss
+                    ? hint(
+                        basis === "none"
+                          ? "all of it"
+                          : `paid by insurance ${formatUsd(d.transferredExpected)}`,
+                      )
+                    : NOT_INSURED_HINT
+                }
               />
               <FigureTile
                 label="One loss plus a year of premium"

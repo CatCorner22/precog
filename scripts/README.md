@@ -18,13 +18,15 @@ run with `npm test`.
 
 Each needs a local disposable Postgres in `DATABASE_URL` and its own opt-in flag.
 
-| Script                         | Run by                                                         | What it does                                                                    |
-| ------------------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `test-migrations-postgres.mjs` | `npm run test:postgres:migrations` (`PRECOG_MIGRATION_TEST=1`) | Two simultaneous runners, lock timeout, rollback and retry on real connections. |
-| `test-quota-postgres.mjs`      | `npm run test:postgres:quota` (`PRECOG_QUOTA_TEST=1`)          | The daily model budget under 64 parallel requests.                              |
+| Script                         | Run by                                                         | What it does                                                                                                                       |
+| ------------------------------ | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `test-migrations-postgres.mjs` | `npm run test:postgres:migrations` (`PRECOG_MIGRATION_TEST=1`) | Two simultaneous runners, lock timeout, rollback and retry on real connections.                                                    |
+| `test-quota-postgres.mjs`      | `npm run test:postgres:quota` (`PRECOG_QUOTA_TEST=1`)          | The daily model budget under 64 parallel requests.                                                                                 |
+| `test-postgres-races.mjs`      | `npm run test:postgres:races` (`PRECOG_LIFECYCLE_POSTGRES=1`)  | Every `src/**/*.postgres.test.ts` but the control-evidence one, on separate connections; refuses a file without the explicit skip. |
 
 `npm run test:postgres:lifecycle` (`PRECOG_LIFECYCLE_POSTGRES=1`) runs
-`src/lib/precog/business-lifecycle-safety.test.ts` on the same database.
+`src/lib/precog/business-lifecycle-safety.test.ts` on the same database, and
+`npm run test:postgres:evidence` runs the control-evidence suites.
 
 ## Browser suites
 
@@ -38,6 +40,7 @@ and needs `npx playwright install --with-deps chromium` once.
 | `e2e-enhancements.mjs`   | `npm run e2e:enhancements` (CI `e2e`)              | Insurance confirmation, map undo and redo, exception-first setup.                                                            |
 | `e2e-tabs.mjs`           | `npm run e2e:tabs` (CI `e2e` and `account-safety`) | Every tab of every industry demo and every standalone page; fails on any page error.                                         |
 | `e2e-account-safety.mjs` | `npm run e2e:safety` (CI `account-safety`)         | Two real signed sessions against the compiled build; account boundaries.                                                     |
+| `e2e-save-safety.mjs`    | `npm run e2e:save-safety` (CI `account-safety`)    | Edits survive a failed account load, a save meeting a newer release, a refused business list and full browser storage.       |
 | `serve-built-test.mjs`   | CI `account-safety`                                | Serves the compiled Vercel handler on port 8080 for the suites above.                                                        |
 | `lib/`                   | the suites                                         | `e2e.mjs` (browser page, waits, storage key), `steps.mjs` (step log, `eventually`), `server-fn-id.mjs`, `auth-test-env.mjs`. |
 

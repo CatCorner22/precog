@@ -3,7 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { detectionBreakdown, isOwnSector, type SchemeKind } from "@/lib/precog/evidence";
 import type { StartHereModel } from "@/lib/precog/start-here/model";
 import { Badge } from "@/components/ui/badge";
-import { CaseCard } from "./case-card";
+import { CaseCard, UnverifiedListNote } from "./case-card";
 import { SCHEME_ORDER, SCHEME_PHRASE } from "./start-here-copy";
 
 /** The filter chips: every case, the cases that show a gap on this page, or one scheme shape. */
@@ -66,6 +66,7 @@ export function EvidenceFooter({ model }: { model: StartHereModel["footer"] }) {
       <p className="text-xs text-subtle">
         {`Each card's "what would have caught it" is our reading of the record. The source states how the theft came to light in ${found.known} of ${found.n} ${found.n === 1 ? "case" : "cases"}; in the other ${found.unknown} it does not say.`}
       </p>
+      <UnverifiedListNote studies={ordered} />
       <div className="space-y-2">
         {ordered.map((c) => (
           <div key={c.id} className="space-y-1">

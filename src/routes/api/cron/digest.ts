@@ -11,8 +11,9 @@ const NO_STORE = { "cache-control": "no-store" } as const;
  * about a QuickBooks reading that failed or a permission about to end, then
  * shared-map view logs and failed passcode guesses past their retention are
  * purged, then the week's first-time milestones are counted into the answer,
- * and any Assessment-credit reversal a webhook parked is retried against
- * Stripe (model-call records past their 13 months, and activity-log rows past
+ * and any Assessment-credit reversal a webhook left failed, or pending for
+ * over an hour, is completed against Stripe, which is read first so a
+ * reversal already posted is never posted again (model-call records past their 13 months, and activity-log rows past
  * their firm's retention period, are dropped after the purge, each on its
  * own, so a failure there is reported but fails no stage):
  * the emails run before QuickBooks, so a slow or failing QuickBooks pass
@@ -21,9 +22,9 @@ const NO_STORE = { "cache-control": "no-store" } as const;
  * reported in the answer and does not stop the others.
  * Emails that fail inside the digest or the alerts are reported; either
  * counts as a failed stage when it had errors and sent nothing. The digest,
- * QuickBooks and alert stages each get a deadline (CRON_STAGE_BUDGET_MS, from
- * the stage's start) and stop before their next recipient, connection or
- * account once it passes; the answer then says `partial: true` and names
+ * QuickBooks, alert and credit-reversal stages each get a deadline (CRON_STAGE_BUDGET_MS, from
+ * the stage's start) and stop before their next recipient, connection,
+ * account or reversal once it passes; the answer then says `partial: true` and names
  * them in `stopped` (still 200: the next run picks up what is left). Vercel calls it with
  * `Authorization: Bearer $CRON_SECRET`; anything else is refused.
  */
@@ -138,9 +139,13 @@ export const Route = createFileRoute("/api/cron/digest")({
         const activation = await stage("activation", failures, () =>
           telemetry.weeklyActivation(sql, today),
         );
-        const creditReversals = await stage("credit-reversals", failures, () =>
-          billingWebhook.retryFailedCreditReversals(sql),
-        );
+        const creditReversals = await stage("credit-reversals", failures, async () => {
+          const outcome = await billingWebhook.retryFailedCreditReversals(sql, {
+            deadline: deadline("credit-reversals"),
+          });
+          if (outcome.stopped) stopped.push("credit-reversals");
+          return outcome;
+        });
 
         return Response.json(
           {

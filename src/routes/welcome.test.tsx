@@ -1,7 +1,7 @@
-import type { ComponentType, ReactNode } from "react";
+import { createElement, type ComponentType, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { CASE_COUNT } from "@/lib/precog/evidence/case-count";
+import { CASE_COUNT, VERIFIED_CASE_COUNT } from "@/lib/precog/evidence/case-count";
 
 // The page renders outside a router: Link becomes a plain anchor (its search
 // is written out as a query) and createFileRoute hands back its options.
@@ -55,13 +55,39 @@ describe("the landing page", () => {
     expect(html).toContain(">Precog</p>");
     expect(html).toContain(">See who in your business can move or hide money alone</h1>");
     expect(html).toContain(
-      "Precog maps who holds which money duties, shows what stops when one person is away, and tells you what to check each month, with prosecuted cases behind the findings.",
+      "Precog maps who holds which money duties, shows what stops when one person is away, and tells you what to check each month.</p>",
     );
+    expect(html).not.toContain("prosecuted cases behind the findings");
   });
 
-  it("prints the case count from the constant, never a typed figure", () => {
-    expect(html).toContain(`${CASE_COUNT} prosecuted cases behind the findings.`);
-    expect(html).toContain("53 prosecuted cases behind the findings.");
+  it("says where the case records come from and that Precog is still checking them", () => {
+    expect(VERIFIED_CASE_COUNT).toBeLessThan(CASE_COUNT);
+    expect(html).toContain(
+      `${CASE_COUNT} U.S. federal fraud cases from Justice Department and IRS releases back the findings. Precog is still checking each record against its source.`,
+    );
+    expect(html).toContain(
+      "53 U.S. federal fraud cases from Justice Department and IRS releases back the findings.",
+    );
+    expect(html).not.toContain("Every finding links to one of");
+  });
+
+  it("says the records are checked once every one is, without claiming every finding links to a case", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/precog/evidence/case-count", () => ({
+      CASE_COUNT: 53,
+      VERIFIED_CASE_COUNT: 53,
+    }));
+    const { Route: Verified } = await import("./welcome");
+    const page = (Verified as unknown as RouteLike).options.component;
+    const verifiedHtml = renderToStaticMarkup(createElement(page));
+    vi.doUnmock("@/lib/precog/evidence/case-count");
+    expect(verifiedHtml).toContain(
+      "The findings draw on 53 U.S. federal fraud cases from Justice Department and IRS releases, each checked against its source.",
+    );
+    // A business whose gaps match no case reads "No case in the library shows
+    // these exact pairs" in its report, so the page never promises a link.
+    expect(verifiedHtml).not.toContain("Every finding links");
+    expect(verifiedHtml).not.toContain("still checking");
   });
 
   it("sends a visitor into setup with the start key, or to sign-in", () => {

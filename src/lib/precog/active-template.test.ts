@@ -65,9 +65,10 @@ describe("resolveTemplate", () => {
     ]);
   });
 
-  it("clears the sample business's accepted residual risk for a business with its own people", () => {
+  it("carries no accepted residual risk for the sample or for a business with its own people", () => {
     const base = getIndustryTemplate("dental");
-    expect(base.controls.some((c) => c.residualRiskAccepted)).toBe(true);
+    // Accepting a risk is a logged decision, so no template accepts one.
+    expect(base.controls.some((c) => c.residualRiskAccepted)).toBe(false);
     const own = resolveTemplate({ industry: "dental", customPeople: base.people.slice(0, 2) });
     expect(own.controls.some((c) => c.residualRiskAccepted)).toBe(false);
     expect(base.controls.some((c) => c.compensatingControls.length > 0)).toBe(true);

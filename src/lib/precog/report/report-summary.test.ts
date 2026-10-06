@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "../active-template";
+import { ownSetupProfile } from "../business-lifecycle";
+import { buildOwnTeam } from "../onboarding/own-team";
 import { INDUSTRIES } from "../industry";
 import { defaultProfile, type DecisionEntry, type DecisionReview } from "../practice-profile";
 import { openFindings, partialDualReleaseCoverage } from "../sod/open-findings";
@@ -87,6 +89,18 @@ describe("continuityFollowThrough", () => {
   });
 });
 
+const noOpenFindings = {
+  openConflicts: [],
+  ownerHeldPairs: 0,
+  dualReleaseClosedPairs: 0,
+  firstStep: null,
+  registerReady: false,
+  coverageIndex: 0,
+  singlePoints: 0,
+  mapHealth: null,
+  topPriority: null,
+};
+
 describe("executive summary", () => {
   it.each(INDUSTRIES.map((i) => i.id))(
     "%s sample: plain sentences, none of the threat screen's jargon",
@@ -135,19 +149,81 @@ describe("executive summary", () => {
   });
 
   it("says continuity is not assessed rather than printing a figure", () => {
+    const lines = executiveSummary(noOpenFindings);
+    expect(lines).toEqual([
+      "No one person other than the owner holds two conflicting duties.",
+      "Precog has not assessed continuity yet: the register of duties and know-how marks nobody.",
+    ]);
+  });
+
+  it("names the owner's own pairs instead of saying nobody holds conflicting duties", () => {
+    expect(executiveSummary({ ...noOpenFindings, ownerHeldPairs: 3 })[0]).toBe(
+      "No open duty conflicts among staff. The owner holds 3 pairs of conflicting duties (listed under Segregation of duties as the owner's own duties).",
+    );
+    expect(executiveSummary({ ...noOpenFindings, ownerHeldPairs: 1 })[0]).toContain(
+      "The owner holds 1 pair of conflicting duties",
+    );
+  });
+
+  it("names the pairs dual release closes, after the owner's own", () => {
+    expect(
+      executiveSummary({ ...noOpenFindings, ownerHeldPairs: 2, dualReleaseClosedPairs: 1 })[0],
+    ).toBe(
+      "No open duty conflicts among staff. The owner holds 2 pairs of conflicting duties (listed under Segregation of duties as the owner's own duties). Dual release covers 1 more.",
+    );
+    expect(executiveSummary({ ...noOpenFindings, dualReleaseClosedPairs: 2 })[0]).toBe(
+      "No open duty conflicts among staff. Dual release covers 2 pairs of conflicting duties at every amount.",
+    );
+  });
+
+  it("names the owner's pairs on the report of an owner who holds conflicting duties", () => {
+    const profile = ownSetupProfile({
+      industry: "general",
+      practiceName: "",
+      people: buildOwnTeam(
+        [
+          {
+            name: "Ada",
+            role: "Owner",
+            duties: ["create_vendor", "release_payment", "bank_reconcile"],
+          },
+          { name: "Bea", role: "Bookkeeper", duties: ["approve_invoices"] },
+        ],
+        "general",
+      ),
+    });
+    const tpl = resolveTemplate(profile);
+    const model = buildControlReportModel({
+      tpl,
+      profile,
+      mapCustomized: false,
+      today: "2026-09-26",
+      trackFreshness: false,
+      mapReady: false,
+      businessName: "Ada's",
+    });
+    const owned = model.sod.conflicts.filter((c) => c.ownerHeld).length;
+    expect(owned).toBeGreaterThan(0);
+    expect(openFindings(model.sod.conflicts, model.partialCoverage)).toEqual([]);
+    expect(model.summary[0]).toBe(
+      `No open duty conflicts among staff. The owner holds ${owned} pairs of conflicting duties (listed under Segregation of duties as the owner's own duties).`,
+    );
+  });
+
+  it("leaves out a figure that is not a number rather than print NaN%", () => {
     const lines = executiveSummary({
       openConflicts: [],
       firstStep: null,
-      registerReady: false,
-      coverageIndex: 0,
-      singlePoints: 0,
-      mapHealth: null,
+      registerReady: true,
+      coverageIndex: Number.NaN,
+      singlePoints: 2,
+      mapHealth: { score: Number.NaN, bandLabel: "Partial" },
       topPriority: null,
+      ownerHeldPairs: 0,
+      dualReleaseClosedPairs: 0,
     });
-    expect(lines).toEqual([
-      "No open duty conflicts: no one person holds two conflicting duties.",
-      "Precog has not assessed continuity yet: the register of duties and know-how marks nobody.",
-    ]);
+    expect(lines.join(" ")).not.toContain("NaN");
+    expect(lines).toHaveLength(1);
   });
 
   it("writes its own caveats instead of the threat screen's demo-priors line", () => {

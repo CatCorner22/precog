@@ -28,8 +28,10 @@ vi.mock("@/lib/precog/account-server", () => ({
   exportAccountData: vi.fn(),
   exportBusinessHistory: vi.fn(),
   listHistoryDownloads: vi.fn(),
+  SIGN_IN_AGAIN_TO_DELETE: "For your safety, sign in again, then delete your account.",
 }));
-vi.mock("@/lib/auth/client", () => ({ signOut: vi.fn() }));
+const auth = vi.hoisted(() => ({ signOut: vi.fn(async (_to?: string) => {}) }));
+vi.mock("@/lib/auth/client", () => auth);
 vi.mock("sonner", () => ({ toast: toasts }));
 
 const { DELETE_ACCOUNT_PROMPT, DigestSwitch, digestSwitchLabel, toggleDigest } =
@@ -166,5 +168,41 @@ describe("the account deletion prompt", () => {
     );
     expect(DELETE_ACCOUNT_PROMPT).toContain("You cannot undo this.");
     expect(DELETE_ACCOUNT_PROMPT).toContain("Type DELETE to confirm.");
+  });
+});
+
+describe("a refused account deletion", () => {
+  const SIGN_IN_AGAIN = "For your safety, sign in again, then delete your account.";
+  const refusal = (status: number, message: string) =>
+    Object.assign(new Error(message), { status, name: "RequestError" });
+
+  beforeEach(() => {
+    toasts.error.mockClear();
+    auth.signOut.mockClear();
+  });
+
+  it("on a 403, shows the message with a Sign in again button that signs out to /login", async () => {
+    const { showDeletionFailure, SIGN_IN_AGAIN_LABEL } = await import("./account-menu");
+    showDeletionFailure(refusal(403, SIGN_IN_AGAIN));
+    expect(SIGN_IN_AGAIN_LABEL).toBe("Sign in again");
+    const [message, options] = toasts.error.mock.calls[0] as [
+      string,
+      { action: { label: string; onClick: () => void } },
+    ];
+    expect(message).toBe(SIGN_IN_AGAIN);
+    expect(options.action.label).toBe("Sign in again");
+    options.action.onClick();
+    expect(auth.signOut).toHaveBeenCalledWith("/login");
+  });
+
+  it("shows a 409's reason, and the reload advice for anything else, with no button", async () => {
+    const { showDeletionFailure } = await import("./account-menu");
+    const reload =
+      "Precog could not finish the deletion or the sign-out. Reload to check the account. If the deletion finished, you cannot undo this.";
+    showDeletionFailure(refusal(409, "Cancel the firm plan first."));
+    showDeletionFailure(new Error("network"));
+    // A 403 for another reason (a cross-site refusal) offers no sign-in.
+    showDeletionFailure(refusal(403, "Forbidden"));
+    expect(toasts.error.mock.calls).toEqual([["Cancel the firm plan first."], [reload], [reload]]);
   });
 });

@@ -13,6 +13,7 @@ import {
   HISTORY_PAGE_BYTES,
   listAccountHistoryBusinesses,
 } from "./account-store";
+import { removeMember } from "./firm/store";
 
 /** Vercel's response body limit. */
 const VERCEL_RESPONSE_BYTES = 4.5 * 1024 * 1024;
@@ -532,9 +533,31 @@ describe("account deletion safeguards", () => {
       ),
     });
     expect(await count("businesses", "where user_id = $1", ["ub"])).toBe(1);
-    await pg.exec(`update businesses set deleted_at = now() where user_id = 'ub'`);
+  });
+
+  it("refuses while a member's removed client holds locked reports the firm keeps (STAB-S-1)", async () => {
+    await seedFirm("ua", "Alpha CPA");
+    await pg.query(
+      `insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'ub', 'preparer')`,
+    );
+    await pg.exec(`
+      update businesses set firm_user_id = 'ua', deleted_at = now() where user_id = 'ub';
+      insert into report_versions (id, user_id, business_id, version_no, profile)
+        values ('rv_1', 'ub', 'biz_1', 1, '{}'::jsonb);
+    `);
+    await expect(deleteAccountRows(sql, "ub")).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining(
+        "You set up 1 client business for Alpha CPA, including a removed one the firm keeps for its retention period. Ask the firm owner to remove you from the firm first (your client businesses stay with the firm), then delete your account.",
+      ),
+    });
+    expect(await count("report_versions", "where user_id = $1", ["ub"])).toBe(1);
+    // Removed from the firm, the member's clients, removed ones too, move to the owner.
+    await removeMember(sql, "ua", "ub");
     await deleteAccountRows(sql, "ub");
     expect(await count('"user"', "where id = $1", ["ub"])).toBe(0);
+    expect(await count("businesses", "where user_id = 'ua' and deleted_at is not null")).toBe(1);
+    expect(await count("report_versions", "where user_id = 'ua'")).toBe(1);
   });
 
   it("releases members' client businesses from a deleted owner's firm", async () => {

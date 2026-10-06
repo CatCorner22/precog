@@ -1,16 +1,22 @@
 import { reportClientError } from "@/lib/observability/report-browser";
-import { browserStorage, readLocal, writeLocal, type StorageLike } from "./local-data";
+import { browserStorage, type StorageLike } from "./local-data";
 import {
   ACTIVE_PROFILE_KEY,
   hasUserWork,
+  loadPortfolio,
   normalizeProfile,
   parseStoredProfile,
+  quarantineKey,
+  quarantineText,
   readStoredActiveProfile,
   readStoredProfile,
+  removedBusinessIds,
   type PracticeProfile,
 } from "./practice-profile";
 import { uid } from "./text";
-import { DEFAULT_BUSINESS_ID } from "./business-id";
+import { DEFAULT_BUSINESS_ID, isBusinessId } from "./business-id";
+
+export { QUARANTINE_PREFIX, quarantineKey } from "./practice-profile";
 
 /**
  * Each copy of the open business a tab writes carries its own revision and
@@ -30,23 +36,40 @@ function makeLocalRevision(): string {
 
 const businessKey = (p: Pick<PracticeProfile, "businessId">) => p.businessId ?? DEFAULT_BUSINESS_ID;
 
-/** Where a stored business the normaliser could not read is kept, one key per distinct text. */
-export const QUARANTINE_PREFIX = "precog.quarantine.";
-
-/** The quarantine key for `raw`: the same text read on every reload lands in one key, not one per load. */
-export function quarantineKey(raw: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < raw.length; i += 1) {
-    hash ^= raw.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return `${QUARANTINE_PREFIX}${(hash >>> 0).toString(16).padStart(8, "0")}`;
-}
-
 /** A stored business this build could not read, kept under `key`. */
 export interface UnreadableCopy {
   key: string;
   raw: string;
+  /**
+   * True when the open copy was damaged (not JSON for an object) and the
+   * list of businesses held a copy of the same business, which opened instead.
+   */
+  openedFromList?: boolean;
+  /**
+   * True when the open copy was damaged and its text is kept under `key`:
+   * the work done next saves on this device as usual, beside that copy.
+   */
+  keptAside?: boolean;
+}
+
+/** The notice when a damaged open copy gave way to the copy in the list of businesses. */
+export const OPENED_FROM_LIST_NOTICE =
+  "Precog could not read the open copy of this business and opened the copy from your list of businesses.";
+
+/** The business id in damaged stored text, when the text still holds one. */
+function idInDamagedText(raw: string): string | null {
+  const match = /"businessId":"([^"\\]{1,64})"/.exec(raw);
+  return match && isBusinessId(match[1]) ? match[1] : null;
+}
+
+/** The newest listed business, for a reload whose open business was removed on this device. */
+function newestListed(storage: StorageLike | null): PracticeProfile | null {
+  let newest: PracticeProfile | null = null;
+  for (const p of Object.values(loadPortfolio(storage))) {
+    if (p.onboardingComplete === false) continue;
+    if (!newest || p.updatedAt > newest.updatedAt) newest = p;
+  }
+  return newest;
 }
 
 type LocalWriteResult =
@@ -77,7 +100,11 @@ export class LocalProfileStore {
   /** `updatedAt` of that copy: the same version reached another way (two tabs loading one account copy) is not a conflict. */
   private seenStamp: string | null = null;
 
-  /** True while the stored copy this tab loaded is one the normaliser could not read. */
+  /**
+   * True while the stored copy this tab loaded may not be written over: the
+   * normaliser threw on it, or it is damaged and the browser refused to keep
+   * a quarantined copy of it.
+   */
   private keepsUnreadable = false;
 
   constructor(
@@ -89,27 +116,58 @@ export class LocalProfileStore {
 
   /**
    * Reads the open business, remembering which stored copy this tab now
-   * builds on. `stored` is false on a first visit or when storage is blocked.
-   * A stored business the normaliser throws on is kept under a quarantine
-   * key, reported, and left in place: the setup sample opens, but no write
-   * replaces the stored copy while it stays unreadable.
+   * builds on. `stored` is false on a first visit or when storage is blocked,
+   * and false when the copy that opens is not the stored one, so the next
+   * write replaces the stored one.
+   *
+   * Stored text this build cannot read (the normaliser throws on it, or it is
+   * not JSON for an object) is kept under a quarantine key and reported. When
+   * the text is damaged and the list of businesses holds a copy of the same
+   * business, that copy opens (`unreadable.openedFromList`). Otherwise the
+   * setup sample opens. Text the normaliser throws on is never replaced while
+   * it stays unreadable; damaged text is replaced by the next write once its
+   * quarantined copy is kept (`unreadable.keptAside`), and never before. A
+   * business the owner removed on this device does not open again: the
+   * newest listed business opens, or the setup sample.
    */
   load(): { profile: PracticeProfile; stored: boolean; unreadable: UnreadableCopy | null } {
     const storage = this.storage();
     const raw = readStoredActiveProfile(storage);
     const read = readStoredProfile(raw);
-    const { profile } = read;
     this.seenRev = storedRevision(raw).rev;
-    this.seenStamp = raw ? profile.updatedAt : null;
-    this.keepsUnreadable = raw !== null && read.unreadable !== null;
-    let unreadable: UnreadableCopy | null = null;
-    if (raw !== null && read.unreadable !== null) {
-      unreadable = { key: quarantineKey(raw), raw };
-      if (readLocal(unreadable.key, storage) === null) writeLocal(unreadable.key, raw, storage);
-      reportClientError(read.unreadable, "normalize-local");
-      this.onUnreadable?.(unreadable);
+    this.seenStamp = null;
+    this.keepsUnreadable = false;
+    if (raw === null) return { profile: read.profile, stored: false, unreadable: null };
+    if (read.unreadable !== null || read.damaged) {
+      const unreadable: UnreadableCopy = { key: quarantineKey(raw), raw };
+      const kept = quarantineText(raw, storage);
+      reportClientError(
+        read.unreadable ?? new Error("The open business stored on this device is not readable."),
+        read.damaged ? "parse-local" : "normalize-local",
+      );
+      const id = read.damaged && kept ? idInDamagedText(raw) : null;
+      const listed = id ? loadPortfolio(storage)[id] : undefined;
+      if (listed) {
+        const copy = { ...unreadable, openedFromList: true };
+        this.onUnreadable?.(copy);
+        return { profile: listed, stored: false, unreadable: copy };
+      }
+      // Text the normaliser threw on stays where it is, for a build that
+      // reads it. Damaged text stays only while no quarantined copy of it is
+      // kept; once one is, the next write replaces it.
+      const keptAside = read.unreadable === null && kept;
+      this.keepsUnreadable = !keptAside;
+      this.seenStamp = read.profile.updatedAt;
+      const copy = keptAside ? { ...unreadable, keptAside: true } : unreadable;
+      this.onUnreadable?.(copy);
+      return { profile: read.profile, stored: true, unreadable: copy };
     }
-    return { profile, stored: raw !== null, unreadable };
+    if (removedBusinessIds(storage).has(businessKey(read.profile))) {
+      const profile = newestListed(storage) ?? readStoredProfile(null).profile;
+      return { profile, stored: false, unreadable: null };
+    }
+    this.seenStamp = read.profile.updatedAt;
+    return { profile: read.profile, stored: true, unreadable: null };
   }
 
   /** The stored copy of `businessId`, when the open business in storage is that one. */
@@ -146,8 +204,10 @@ export class LocalProfileStore {
     // write here would hide that copy from every later load.
     if (this.keepsUnreadable && current === null) {
       const legacy = readStoredActiveProfile(storage);
-      if (legacy !== null && readStoredProfile(legacy).unreadable !== null) {
-        return { kind: "failed" };
+      if (legacy !== null) {
+        const read = readStoredProfile(legacy);
+        if (read.unreadable !== null) return { kind: "failed" };
+        if (read.damaged && !quarantineText(legacy, storage)) return { kind: "failed" };
       }
       this.keepsUnreadable = false;
     }
@@ -156,9 +216,20 @@ export class LocalProfileStore {
       // A copy this build could not read stays until a build that reads it
       // opens it: neither the setup sample nor anything else replaces it.
       if (read.unreadable !== null) return { kind: "failed" };
+      if (read.damaged) {
+        // Damaged text is replaced only once a quarantined copy of it is
+        // kept, whether this tab opened it or another tab or program wrote it
+        // since. The load already reported the text this tab opened.
+        if (!quarantineText(current, storage)) return { kind: "failed" };
+        if (!this.keepsUnreadable)
+          reportClientError(
+            new Error("The open business stored on this device is not readable."),
+            "parse-local",
+          );
+      }
       this.keepsUnreadable = false;
       const theirs = read.profile;
-      if (foreign && businessKey(theirs) === businessKey(profile)) {
+      if (!read.damaged && foreign && businessKey(theirs) === businessKey(profile)) {
         const sameVersion =
           theirs.updatedAt === this.seenStamp || theirs.updatedAt === profile.updatedAt;
         if (!sameVersion && !options.force) return { kind: "conflict", theirs, rev: currentRev };

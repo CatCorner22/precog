@@ -1,13 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { resolveTemplate } from "../active-template";
 import { defaultDualReleasePolicy } from "../controls/dual-release-policy";
+import { staffFlagsFromDualRelease } from "../controls/dual-release-summary";
+import { defaultProfile } from "../practice-profile";
+import { withDualRelease, withStaff } from "../profile-actions";
 import { getIndustryTemplate } from "../templates";
 import { CONFLICT_RULES } from "../sod/conflict-rules";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
+import { openFindings, partialDualReleaseCoverage } from "../sod/open-findings";
 import type { StaffComposition } from "../types";
 import { DEFAULT_RISK_VARIABLES, mergeStaffIntoVariables } from "./dynamic-variables";
 import { portfolioSummary } from "./residual-engine";
-import { evaluateControlFailure, type FailureInputs } from "./control-failure";
+import {
+  DUAL_RELEASE_GAP_LEAD as GAP_LEAD,
+  DUAL_RELEASE_INOPERABLE_LEAD as INOPERABLE_LEAD,
+  evaluateControlFailure,
+  type FailureInputs,
+} from "./control-failure";
+import { confirmedScenarioIds } from "./scope";
 import { DEFAULT_WEIGHTS } from "./weights";
 
 const dental = getIndustryTemplate("dental");
@@ -224,7 +234,7 @@ describe("control failure impact", () => {
 
     expect(report.scenarios).toEqual([]);
     expect(report.notes).toContain(
-      "Switching dual release on would not cover payments as it is set up: turn on an ACH or check rule with two different people allowed to sign.",
+      "Switching dual release on would not cover payments as it is set up. No ACH or check rule is on; turn one on for dual release to count.",
     );
   });
 
@@ -270,5 +280,170 @@ describe("control failure impact", () => {
     expect(() =>
       evaluateControlFailure(dental, { kind: "control", id: "not-a-control" }, inputs),
     ).toThrow("Unknown control not-a-control");
+  });
+});
+
+describe("one dual-release reading for today and the what-if", () => {
+  const today = "2026-10-06";
+  const now = new Date(`${today}T12:00:00`);
+
+  /** The setup path from the review: payment rules off, then the staff checkbox ticked. */
+  function flagOnPolicyInoperable() {
+    let profile = defaultProfile("dental");
+    profile = withDualRelease(
+      profile,
+      {
+        ...profile.dualRelease,
+        rules: profile.dualRelease.rules.map((rule) =>
+          rule.channel === "ach" || rule.channel === "check" ? { ...rule, enabled: false } : rule,
+        ),
+      },
+      now,
+    );
+    profile = withStaff(profile, { ...profile.staff, dualControlPayments: true });
+    const tpl = resolveTemplate(profile);
+    const confirmed = confirmedScenarioIds(profile.decisions, profile.industry);
+    const inputs: FailureInputs = {
+      staff: profile.staff,
+      riskVariables: profile.riskVariables,
+      dualRelease: profile.dualRelease,
+      today,
+      confirmedScenarioIds: confirmed,
+    };
+    const reported = portfolioSummary(tpl, profile.staff, DEFAULT_WEIGHTS, {
+      confirmedScenarioIds: confirmed,
+      riskVariables: profile.riskVariables,
+    }).averageResidual;
+    return { profile, tpl, inputs, reported };
+  }
+
+  it("gives today's residual as the report does when the staff flag is on and no payment rule can run", () => {
+    const { profile, tpl, inputs, reported } = flagOnPolicyInoperable();
+    expect(profile.staff.dualControlPayments).toBe(true);
+    expect(staffFlagsFromDualRelease(profile.dualRelease, tpl, today).dualControlPayments).toBe(
+      false,
+    );
+
+    const report = evaluateControlFailure(tpl, { kind: "safeguard", id: "dual_release" }, inputs);
+
+    expect(report.mode).toBe("failure");
+    expect(report.residual.withIt).toBe(reported);
+    expect(report.residual.withoutIt).toBeGreaterThan(report.residual.withIt);
+    expect(report.scenarios.length).toBeGreaterThan(0);
+    expect(report.notes).toContain(
+      `${INOPERABLE_LEAD} No ACH or check rule is on; turn one on for dual release to count.`,
+    );
+  });
+
+  it("names a blanket waiver, not the rules, when the waiver is what blocks dual release", () => {
+    const staff = { ...dental.staffComposition, dualControlPayments: false };
+    const base = defaultDualReleasePolicy(dental, staff);
+    const dualRelease = {
+      ...base,
+      enabled: false,
+      rules: base.rules.map((rule) => ({ ...rule, enabled: true })),
+      exceptions: [
+        {
+          id: "ex-blanket",
+          label: "Everything",
+          channels: [],
+          action: "waive_dual" as const,
+          enabled: true,
+          reason: "Owner away",
+          createdAt: `${today}T00:00:00.000Z`,
+        },
+      ],
+    };
+    const report = evaluateControlFailure(
+      dental,
+      { kind: "safeguard", id: "dual_release" },
+      { ...inputsFor(dental, staff), dualRelease, today },
+    );
+
+    expect(report.mode).toBe("gap");
+    expect(report.notes).toContain(
+      `${GAP_LEAD} A waiver lets one person release every payment; end the waiver for dual release to count.`,
+    );
+    expect(report.notes.join(" ")).not.toContain("ACH or check rule");
+  });
+
+  it("names the missing second signer when only one person can sign", () => {
+    const owner = dental.people.find((person) => person.active)!;
+    const solo = { ...dental, people: [owner] };
+    const staff = { ...solo.staffComposition, dualControlPayments: true };
+    const base = defaultDualReleasePolicy(solo, staff);
+    const dualRelease = {
+      ...base,
+      enabled: true,
+      exceptions: [],
+      rules: base.rules.map((rule) => ({ ...rule, enabled: true })),
+    };
+    const report = evaluateControlFailure(
+      solo,
+      { kind: "safeguard", id: "dual_release" },
+      { ...inputsFor(solo, staff), dualRelease, today },
+    );
+
+    expect(report.mode).toBe("failure");
+    expect(report.notes).toContain(
+      `${INOPERABLE_LEAD} Name a second person allowed to sign; one person cannot approve their own payment.`,
+    );
+  });
+
+  it("adds no note when the staff flag is on and a payment rule can run", () => {
+    const staff = { ...dental.staffComposition, dualControlPayments: true };
+    const base = defaultDualReleasePolicy(dental, staff);
+    const dualRelease = {
+      ...base,
+      enabled: true,
+      exceptions: [],
+      rules: base.rules.map((rule) => ({ ...rule, enabled: true })),
+    };
+    const inputs = { ...inputsFor(dental, staff), dualRelease, today };
+    const report = evaluateControlFailure(
+      dental,
+      { kind: "safeguard", id: "dual_release" },
+      inputs,
+    );
+
+    expect(staffFlagsFromDualRelease(dualRelease, dental, today).dualControlPayments).toBe(true);
+    expect(report.notes).toEqual([]);
+    expect(report.residual.withIt).toBe(
+      portfolioSummary(dental, staff, DEFAULT_WEIGHTS, {
+        riskVariables: inputs.riskVariables,
+      }).averageResidual,
+    );
+  });
+
+  it("counts the duty conflicts a control guards as every other screen counts them", () => {
+    const tpl = { ...dental, controls: dental.controls.map((c) => ({ ...c, segregated: true })) };
+    const staff = { ...tpl.staffComposition, dualControlPayments: true };
+    const base = defaultDualReleasePolicy(tpl, staff);
+    const dualRelease = {
+      ...base,
+      enabled: true,
+      exceptions: [],
+      rules: base.rules.map((rule) => ({ ...rule, enabled: true, thresholdUsd: 0 })),
+    };
+    const inputs = { ...inputsFor(tpl, staff), dualRelease };
+    const all = detectSodConflicts(tpl, staff, sodDetectionOptions(tpl, dualRelease)).conflicts;
+    const open = openFindings(all, partialDualReleaseCoverage(dualRelease, all));
+    let linkedAll = 0;
+    let linkedOpen = 0;
+
+    for (const control of tpl.controls) {
+      const linkedRuleIds = new Set(
+        CONFLICT_RULES.filter((rule) => rule.linkedControlId === control.id).map((rule) => rule.id),
+      );
+      const expected = open.filter((finding) => linkedRuleIds.has(finding.ruleId));
+      linkedOpen += expected.length;
+      linkedAll += all.filter((finding) => linkedRuleIds.has(finding.ruleId)).length;
+      const report = evaluateControlFailure(tpl, { kind: "control", id: control.id }, inputs);
+      expect(report.findings.map((finding) => finding.id)).toEqual(
+        expected.map((finding) => finding.id),
+      );
+    }
+    // Dual release closes, or the owner holds, some linked pairs in this sample.
+    expect(linkedAll).toBeGreaterThan(linkedOpen);
   });
 });

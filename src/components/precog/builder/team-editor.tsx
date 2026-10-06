@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Download, Plus, Trash2, Upload, UserMinus } from "lucide-react";
 
@@ -7,13 +7,16 @@ import { inputCls } from "@/components/ui/field-classes";
 import { ChipPicker, type ChipOption } from "@/components/precog/builder/chips";
 import { localDateKey } from "@/lib/precog/dates";
 import { downloadCsv } from "@/lib/download";
+import { householdMark, MAX_HOUSEHOLD_MARK } from "@/lib/precog/import/people-backup";
 import {
+  decodeTeamFile,
   dutiesUnknown,
   effectiveDuties,
   mergeImportedPeople,
   parsePeopleCsv,
   peopleToCsv,
   removedPeopleImpact,
+  type PeopleImportResult,
 } from "@/lib/precog/import/people-csv";
 import type { ImportIssue } from "@/lib/precog/import/csv";
 import { parseRoster } from "@/lib/precog/import/roster";
@@ -223,7 +226,7 @@ export function TeamEditor({
     setImportIssues([]);
     let result: ReturnType<typeof parsePeopleCsv>;
     try {
-      result = parsePeopleCsv(await file.text(), tpl);
+      result = parsePeopleCsv(decodeTeamFile(new Uint8Array(await file.arrayBuffer())), tpl);
     } catch {
       toast.error("Import failed", { description: "Choose a readable CSV file and try again." });
       return;
@@ -277,24 +280,8 @@ export function TeamEditor({
       toast.error(result.issues[0]?.message ?? "No people imported");
       return;
     }
-    const merged = mergeImportedPeople(people, result.people);
-    onChange(replace ? result.people : merged.people);
+    putImportedTeam({ people, result, replace, issueCount: issues.length, onChange });
     recordOnLeave(result.onLeave ?? []);
-    const removed = replace ? result.removed.length : 0;
-    const recognised = result.titles.filter((t) => t.catalogTitle).length;
-    const counts = [
-      `${merged.added.length} added`,
-      `${merged.updated.length} updated`,
-      `${result.people.length - merged.added.length - merged.updated.length} unchanged`,
-      `${removed} removed`,
-    ].join(", ");
-    toast.success(
-      `Read ${count(result.people.length, "person", "people")}: ${counts}${
-        recognised
-          ? `; ${recognised} job ${verb(recognised, "title", "titles")} read from the catalog`
-          : ""
-      }${issues.length ? `; ${count(issues.length, "issue")} to check below` : ""}`,
-    );
   }
 
   /**
@@ -488,16 +475,9 @@ export function TeamEditor({
               {editing && (
                 <label className="mt-2 block text-xs text-muted">
                   Household mark
-                  <input
-                    className="mt-1 w-full rounded-md border border-border bg-bg px-2 py-1 text-xs text-fg"
-                    value={p.householdKey ?? ""}
-                    placeholder="Same mark means one household"
-                    maxLength={40}
-                    onChange={(e) =>
-                      updatePerson(p.id, {
-                        householdKey: e.target.value.trim().slice(0, 40) || undefined,
-                      })
-                    }
+                  <HouseholdMarkInput
+                    value={p.householdKey}
+                    onCommit={(householdKey) => updatePerson(p.id, { householdKey })}
                   />
                 </label>
               )}
@@ -616,6 +596,99 @@ export function TeamEditor({
         <Plus className="size-3.5" /> Add a person
       </Button>
     </div>
+  );
+}
+
+/**
+ * Puts an imported team in place and says what changed. An import that
+ * replaced the team offers Undo, which puts back the team as it was before
+ * the import.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- tested on its own, next to the editor that calls it.
+export function putImportedTeam({
+  people,
+  result,
+  replace,
+  issueCount,
+  onChange,
+}: {
+  people: Person[];
+  result: PeopleImportResult;
+  replace: boolean;
+  issueCount: number;
+  onChange: (next: Person[]) => void;
+}): void {
+  const before = people;
+  const merged = mergeImportedPeople(people, result.people);
+  onChange(replace ? result.people : merged.people);
+  const removed = replace ? result.removed.length : 0;
+  const recognised = result.titles.filter((t) => t.catalogTitle).length;
+  const counts = [
+    `${merged.added.length} added`,
+    `${merged.updated.length} updated`,
+    `${result.people.length - merged.added.length - merged.updated.length} unchanged`,
+    `${removed} removed`,
+  ].join(", ");
+  toast.success(
+    `Read ${count(result.people.length, "person", "people")}: ${counts}${
+      recognised
+        ? `; ${recognised} job ${verb(recognised, "title", "titles")} read from the catalog`
+        : ""
+    }${issueCount ? `; ${count(issueCount, "issue")} to check below` : ""}`,
+    replace
+      ? {
+          duration: 15_000,
+          action: {
+            label: "Undo",
+            onClick: () => {
+              onChange(before);
+              toast.success("The team is back as it was before the import.");
+            },
+          },
+        }
+      : undefined,
+  );
+}
+
+/**
+ * The household mark field. It keeps what the owner types, spaces included,
+ * and saves the mark trimmed when they leave the field or stop typing for
+ * 350 ms. A mark changed elsewhere (an undo, an import) replaces the text.
+ */
+export function HouseholdMarkInput({
+  value,
+  onCommit,
+}: {
+  value: string | undefined;
+  onCommit: (next: string | undefined) => void;
+}) {
+  const saved = value ?? "";
+  const [draft, setDraft] = useState(saved);
+  const [seen, setSeen] = useState(saved);
+  if (saved !== seen) {
+    setSeen(saved);
+    // The owner's own save comes back trimmed; keep their text as typed.
+    if ((householdMark(draft) ?? "") !== saved) setDraft(saved);
+  }
+
+  useEffect(() => {
+    if ((householdMark(draft) ?? "") === saved) return;
+    const timer = setTimeout(() => onCommit(householdMark(draft)), 350);
+    return () => clearTimeout(timer);
+  }, [draft, saved, onCommit]);
+
+  return (
+    <input
+      className="mt-1 w-full rounded-md border border-border bg-bg px-2 py-1 text-xs text-fg"
+      value={draft}
+      placeholder="Same mark means one household"
+      maxLength={MAX_HOUSEHOLD_MARK}
+      onChange={(e) => setDraft(e.target.value.slice(0, MAX_HOUSEHOLD_MARK))}
+      onBlur={() => {
+        const next = householdMark(draft);
+        if ((next ?? "") !== saved) onCommit(next);
+      }}
+    />
   );
 }
 

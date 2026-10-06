@@ -6,6 +6,8 @@ import { businessLimitMessage, MAX_BUSINESSES_PER_ACCOUNT } from "./business-lif
 import { DEFAULT_BUSINESS_ID } from "./business-id";
 import { revokeBusinessShares } from "./share/share-store";
 import { assertEngagementOpen } from "./firm/engagement-store";
+import { loadEntitlements } from "./firm/entitlements.server";
+import { loadFirmFor, lockFirmMembershipWrite } from "./firm/store";
 import { randomHex } from "@/lib/web-crypto";
 import {
   DELETED_RETENTION_DAYS,
@@ -41,6 +43,12 @@ interface BusinessSaveInput {
   savedBy?: string;
   /** The firm a new business belongs to; ignored for an existing row. */
   firmUserId?: string | null;
+  /**
+   * The plan's client limit for a new business, and its refusal (a 402).
+   * The count runs inside the save, under the firm's lock, or the owner's
+   * without a firm, so saves at the same moment cannot all pass it.
+   */
+  clientLimit?: { limit: number; message: string };
   /** Set the saver's active pointer in the same transaction as this save. */
   activate?: boolean;
   /**
@@ -89,6 +97,9 @@ export class BusinessUnavailableError extends RequestError {
     );
   }
 }
+
+/** A new client saved under a firm that changed owner while the save waited, twice over. */
+export const FIRM_CHANGED_OWNER_SAVE = "Your firm just changed owner. Save again.";
 
 export class AmbiguousBusinessIdentityError extends RequestError {
   constructor() {
@@ -160,6 +171,55 @@ async function lockBusinessOwner(sql: Sql, userId: string): Promise<void> {
   if (!owner.length) throw new RequestError(401, "Unauthorized");
 }
 
+/**
+ * Locks the firm a new or restored client counts against (its `firms` row,
+ * FOR UPDATE): after the owner's user row and before any business row, the
+ * order every firm write takes (lockFirmMembershipWrite). While it is held no
+ * other client of the firm is created, restored or granted, so a count of
+ * its clients holds until this commits. Returns the firm's id. It differs
+ * from `firmUserId` when an ownership transfer committed while this waited:
+ * the transfer deleted the old firm row and moved its members to the new
+ * owner's id, so the firm is read again and locked once more. Someone who
+ * left the firm meets the usual refusal; a second change of owner asks them
+ * to save again.
+ */
+async function lockClientFirm(tx: Sql, actor: string, firmUserId: string): Promise<string> {
+  if (await holdsFirm(tx, actor, firmUserId)) return firmUserId;
+  const current = await loadFirmFor(tx, actor);
+  if (!current) throw new BusinessUnavailableError();
+  if (current.firmUserId !== firmUserId && (await holdsFirm(tx, actor, current.firmUserId))) {
+    return current.firmUserId;
+  }
+  throw new RequestError(409, FIRM_CHANGED_OWNER_SAVE);
+}
+
+/** Locks the firm row; true when it exists and `actor` owns it or is its member. */
+async function holdsFirm(tx: Sql, actor: string, firmUserId: string): Promise<boolean> {
+  if (!(await lockFirmMembershipWrite(tx, { accountIds: [], firmUserId }))) return false;
+  if (firmUserId === actor) return true;
+  const membership = await tx`select member_user_id from firm_members
+    where member_user_id = ${actor} and firm_user_id = ${firmUserId} for share`;
+  return membership.length > 0;
+}
+
+/**
+ * The live businesses a plan's client limit counts (countClients' count):
+ * the firm's clients, whoever created them, or the account's own without a
+ * firm. Called under the firm's lock, or the account's own without a firm.
+ */
+async function countPlanClients(
+  tx: Sql,
+  userId: string,
+  firmUserId: string | null,
+): Promise<number> {
+  const rows = firmUserId
+    ? await tx<{ n: number | string }>`select count(*) as n from businesses
+        where firm_user_id = ${firmUserId} and deleted_at is null`
+    : await tx<{ n: number | string }>`select count(*) as n from businesses
+        where user_id = ${userId} and deleted_at is null`;
+  return Number(rows[0]?.n ?? 0);
+}
+
 /** Recheck sharing while holding the row lock; revocation cannot race the write. */
 async function authorizeBusinessWriter(
   sql: Sql,
@@ -226,6 +286,7 @@ export async function saveBusinessRevision<TProfile = unknown>(
   return inTransaction(sql, async (tx) => {
     await lockBusinessOwner(tx, input.userId);
     const savedBy = input.savedBy ?? input.userId;
+    let firmUserId = input.firmUserId ?? null;
     // Only the procedures travel back: the write check reads nothing else, and
     // a conflict reads the whole profile separately. `kept_recent` says the
     // newest kept version is inside the window and shares its saver with the
@@ -300,10 +361,15 @@ export async function saveBusinessRevision<TProfile = unknown>(
       // transaction, and only once per window of one person's editing.
       if (!current.kept_recent) await keepCurrentVersion(tx, input.userId, input.businessId);
     } else {
-      if (input.firmUserId && input.firmUserId !== input.userId) {
-        const membership = await tx`select member_user_id from firm_members
-          where member_user_id = ${savedBy} and firm_user_id = ${input.firmUserId} for share`;
-        if (!membership.length) throw new BusinessUnavailableError();
+      // A new business is the saver's own (refused above otherwise). The
+      // firm's lock, or the saver's (held since the top) without a firm,
+      // keeps the plan's count true until this commits.
+      if (input.firmUserId) firmUserId = await lockClientFirm(tx, savedBy, input.firmUserId);
+      if (input.clientLimit) {
+        const clients = await countPlanClients(tx, input.userId, firmUserId);
+        if (clients >= input.clientLimit.limit) {
+          throw new RequestError(402, input.clientLimit.message);
+        }
       }
       const held = await tx<{ n: number | string }>`select count(*) as n from businesses
         where user_id = ${input.userId} and deleted_at is null`;
@@ -321,7 +387,7 @@ export async function saveBusinessRevision<TProfile = unknown>(
       : await tx<{ revision: number | string; updated_at: string }>`
         insert into businesses (id, user_id, name, industry, profile, revision, updated_at, saved_by, firm_user_id)
         values (${input.businessId}, ${input.userId}, ${input.name}, ${input.industry},
-          ${input.profileJson}::jsonb, 1, now(), ${savedBy}, ${input.firmUserId ?? null})
+          ${input.profileJson}::jsonb, 1, now(), ${savedBy}, ${firmUserId})
         returning revision, updated_at`;
     const row = written[0];
     if (!row) throw new BusinessUnavailableError();
@@ -722,6 +788,11 @@ export async function restoreBusinessRow(
 ): Promise<boolean> {
   return inTransaction(sql, async (tx) => {
     await lockBusinessOwner(tx, ownerUserId);
+    // A restore brings a live business back, so it counts against the plan
+    // of the account restoring as a new one does, under the same lock: the
+    // restorer's firm, or the owner's row (held above) without a firm.
+    const firm = await loadFirmFor(tx, actorUserId);
+    const firmUserId = firm ? await lockClientFirm(tx, actorUserId, firm.firmUserId) : null;
     const rows = await tx<{ firm_user_id: string | null; granted: boolean }>`select firm_user_id,
         granted_at is not null as granted from businesses
       where user_id = ${ownerUserId} and id = ${businessId} and deleted_at is not null
@@ -734,6 +805,18 @@ export async function restoreBusinessRow(
       rows[0].firm_user_id,
       rows[0].granted,
     );
+    const e = await loadEntitlements(tx, actorUserId);
+    if ((await countPlanClients(tx, actorUserId, firmUserId)) >= e.clientLimit) {
+      throw new RequestError(
+        402,
+        businessLimitMessage({
+          plan: e.plan,
+          limit: e.clientLimit,
+          tier: e.tier,
+          asMember: firm !== null && firm.role !== "owner",
+        }),
+      );
+    }
     const held = await tx<{ n: number | string }>`select count(*) as n from businesses
       where user_id = ${ownerUserId} and deleted_at is null`;
     if (Number(held[0]?.n ?? 0) >= limit) throw new BusinessLimitError(limit);

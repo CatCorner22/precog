@@ -65,7 +65,7 @@ Digest and integration jobs are documented in route handlers under `src/routes/a
 
 The run answers JSON. Besides each stage's outcome (`purged`, `digest`, `synced`, `quickbooksAlerts`, `shareLogs`, `activation`, `creditReversals`) and `failures` (the stages that failed; the answer is then a 500):
 
-- `partial` and `stopped`: the digest, QuickBooks and QuickBooks-alert stages each have a deadline counted from the stage's start (`CRON_STAGE_BUDGET_MS` in `src/lib/precog/cron/budget.ts`: 150, 90 and 30 seconds, inside the 300-second bound). A stage that reaches it stops before its next recipient, connection or account, and `stopped` names it (`digest`, `quickbooks`, `quickbooks-alerts`); `partial` is then `true` and the answer is still 200.
+- `partial` and `stopped`: the digest, QuickBooks, QuickBooks-alert and credit-reversal stages each have a deadline counted from the stage's start (`CRON_STAGE_BUDGET_MS` in `src/lib/precog/cron/budget.ts`: 150, 90, 30 and 10 seconds, inside the 300-second bound). A stage that reaches it stops before its next recipient, connection, account or reversal, and `stopped` names it (`digest`, `quickbooks`, `quickbooks-alerts`, `credit-reversals`); `partial` is then `true` and the answer is still 200.
 - `modelUsage.purged`: model-call records deleted for being older than 13 months; `null` when that purge failed (reported as `cron-model-usage-purge`, not in `failures`).
 - `auditPurged`: activity-log rows deleted for being older than their firm's retention period (7 years when the firm's row is gone); `null` when that purge failed (reported as `cron-audit-purge`, not in `failures`).
 
@@ -116,17 +116,21 @@ Drill record (one row per drill; the first drill sets `[RTO]`):
 - Billing Portal: in Stripe → Settings → Billing → Customer portal, allow customers to switch plans and list each tier's product with both its monthly and yearly price. "Move up a tier in Manage billing", which Precog shows at a Starter or Practice limit, works only then.
 - Checkout: a firm has at most one open subscription Checkout. Asking again for the same tier and interval hands back the open session; asking for another expires the firm's other open subscription sessions first. The Checkout idempotency key carries the hour, so a session Stripe expired (after 24 hours, or by this rule) is never handed back, and Precog needs no `checkout.session.expired` event.
 - A second subscription: two subscription Checkouts completed in the same moment (two tiers asked for at once) leave Stripe charging both while Precog keeps the first. The webhook reports it once, on the second Checkout's completion, as `billing-second-subscription` with "second subscription sub_… beside sub_… for account …". Cancel the newer subscription in Stripe and refund its payment.
+- A payment for a deleted account: an Assessment Checkout paid after its account was deleted is acknowledged and writes nothing. The error tracker records `billing-payment-for-deleted-account` with "Assessment payment pi_… (customer cus_…) for deleted account …; refund it in Stripe". Refund that payment in Stripe.
 - "Names no account" reports: the webhook answers 500, and the error tracker records `stripe-webhook` with "Stripe subscription … names no account (customer cus_…)" or "Stripe event … names no account (customer cus_…)", when a paid Checkout or a running subscription cannot be tied to a Precog account. Stripe retries each delivery for up to 3 days.
   - A subscription report is expected right after you create a net-30 or hand-marked subscription in Stripe, because the customer is not linked yet. It stops once you link the customer (`npm run link:stripe-customer -- <email> <cus_…> --yes`, or Link a Stripe customer on `/operator`; see "Link a Stripe customer" below); Stripe's next retry then applies, and an event Stripe sent before the link never overwrites the state the link applied. Link within 3 days, or Stripe stops retrying.
   - A Checkout report is a payment Precog did not start (for example a Payment Link or a dashboard Checkout). Look it up in Stripe, then refund it or attribute it by hand. Its retries never succeed, because a Checkout's account comes only from the Checkout itself.
   - A cancellation for a customer no account holds is not reported; it answers 200 as "ignored".
 - Assessment disputes: while a dispute is open the paid tools stay open (the chargeback can still be won); a lost dispute counts as a refund and closes them until a new payment. The firm cannot change owner while a payment is disputed — the transfer refuses until the dispute clears.
-- Assessment-credit reversals retry inline, then weekly: when the webhook cannot reach Stripe, the row keeps the posted amount and stamps `assessment_credit_reversal_failed_at`, and the scheduled run's `credit-reversals` stage retries each parked row once a week under the same idempotency key. Rows still parked after a run need a look in the Stripe dashboard (the customer balance transaction with the matching `credit-reversal-…` key):
+- Assessment-credit reversals retry inline, then weekly: the refund's transaction stamps `assessment_credit_reversal_pending_at` and keeps the posted amount; Stripe's confirmation zeroes the amount and clears the stamp. When the webhook cannot reach Stripe, it also stamps `assessment_credit_reversal_failed_at`; when it dies before Stripe answers, the row stays pending. The scheduled run's `credit-reversals` stage takes each failed row, and each row pending for more than an hour, reads the customer's balance transactions for one whose metadata `reversal_for` is `<Stripe customer id>:<Assessment paid-at time>` (or, posted before October 2026, `<user id>:<Assessment paid-at time>`, which it also recognises for the firm's earlier owner), and posts the reversal only when none is there (`alreadyPosted` counts the rows it only cleared). Rows still listed after a run need a look in the Stripe dashboard (the customer balance transaction with that `reversal_for` metadata):
 
 ```sql
-select user_id, stripe_customer_id, assessment_credit_cents, assessment_credit_reversal_failed_at
+select user_id, stripe_customer_id, assessment_credit_cents,
+  assessment_credit_reversal_pending_at, assessment_credit_reversal_failed_at
 from billing_accounts
-where assessment_credit_reversal_failed_at is not null and coalesce(assessment_credit_cents, 0) > 0;
+where (assessment_credit_reversal_failed_at is not null
+    or assessment_credit_reversal_pending_at < now() - interval '1 hour')
+  and coalesce(assessment_credit_cents, 0) > 0;
 ```
 
 ### Link a Stripe customer

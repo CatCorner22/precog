@@ -18,7 +18,8 @@ import { shareReportProfile } from "./report-share-profile";
 /**
  * Share-link rows, kept free of `createServerFn` so they run against PGLite in
  * a unit test. Every query is scoped by the owner's verified user id; the
- * firm owner also reaches the links on the firm's clients.
+ * firm owner also reaches the links on the firm's clients, and a business's
+ * own account the links anyone made on its business.
  */
 
 /** Live (not revoked, not expired) links one account may hold at once. */
@@ -102,8 +103,14 @@ export interface ShareSummary {
   hasPasscode: boolean;
   views: number;
   lastViewedAt: string | null;
-  /** Who made the link when a colleague did (the firm owner sees those); null for the caller's own. */
+  /**
+   * Who made the link when someone else did: a colleague (the firm owner sees
+   * those) or a firm's member (the business's own account sees those); null
+   * for the caller's own.
+   */
   createdBy: string | null;
+  /** The firm `createdBy` made the link for, when they are its member; null otherwise. */
+  createdByFirm: string | null;
   /** A map link carries a copy of the map; a report link prints a locked version. */
   kind: "map" | "report";
   /** The business the link copies; null for a link made before links recorded it. */
@@ -123,6 +130,7 @@ type ShareListRow = {
   views: number | string | null;
   last_viewed_at: unknown;
   created_by: string | null;
+  created_by_firm: string | null;
   business_id: string | null;
   report_version_id: string | null;
   version_no: number | string | null;
@@ -135,36 +143,58 @@ const SHARE_LIST_COLUMNS = `
   (select max(viewed_at) from map_share_views v where v.token = s.token) as last_viewed_at,
   case when s.user_id = $1 then null
     else (select u.name from "user" u where u.id = s.user_id) end as created_by,
+  case when s.user_id = $1 then null
+    else (
+      select f.name from businesses b
+      join firms f on f.user_id = b.firm_user_id
+      where b.user_id = s.business_owner_id and b.id = s.business_id
+        and exists (
+          select 1 from firm_members m
+          where m.firm_user_id = b.firm_user_id and m.member_user_id = s.user_id
+        )
+    ) end as created_by_firm,
   s.business_id, s.report_version_id, rv.version_no
 `;
 const SHARE_LIST_JOINS = `left join report_versions rv on rv.id = s.report_version_id`;
 
 /**
- * Whether the firm owner `owner` (a query placeholder, such as `$1`) reaches
- * link `s`: a link to one of the firm's clients, except one the business's
- * own account made to a business it shared with the firm. That link stays
- * the account's alone, as ending the firm's access leaves it (endGrant).
+ * Whether account `caller` (a query placeholder, such as `$1`) reaches link
+ * `s` it did not make, to list it and revoke it:
+ *
+ * - the business's own account reaches every link to its business, the ones
+ *   a firm's member made on a business it shared with the firm included, so
+ *   the owner sees and ends them without ending the firm's access;
+ * - the firm owner reaches the links to the firm's clients, except one the
+ *   business's own account made to a business it shared with the firm. That
+ *   link stays the account's alone, as ending the firm's access leaves it
+ *   (endGrant).
  */
-const firmOwnerReaches = (owner: string) => `exists (
+const callerReaches = (caller: string) => `exists (
   select 1 from businesses b
   where b.user_id = s.business_owner_id and b.id = s.business_id
-    and b.firm_user_id = ${owner}
-    and not (b.granted_at is not null and s.user_id = b.user_id)
+    and (
+      b.user_id = ${caller}
+      or (
+        b.firm_user_id = ${caller}
+        and not (b.granted_at is not null and s.user_id = b.user_id)
+      )
+    )
 )`;
 
 /**
  * The owner's links: every live one, however many, then the newest revoked
  * or expired ones. The share panel only offers "revoke" for a listed link, so
  * a live link must never drop off the list behind newer dead ones. A firm
- * owner also sees the links colleagues made on the firm's clients, live and
- * past, so they can revoke the live ones and audit the rest
- * (`firmOwnerReaches`).
+ * owner also sees the links colleagues made on the firm's clients, and the
+ * business's own account the links a firm's member made on its business,
+ * live and past, so they can revoke the live ones and audit the rest
+ * (`callerReaches`).
  */
 export async function listMapShareSummaries(sql: Sql, userId: string): Promise<ShareSummary[]> {
   const live = await sql.query<ShareListRow>(
     `select ${SHARE_LIST_COLUMNS}
      from map_shares s ${SHARE_LIST_JOINS}
-     where (s.user_id = $1 or ${firmOwnerReaches("$1")})
+     where (s.user_id = $1 or ${callerReaches("$1")})
        and s.revoked_at is null
        and (s.expires_at is null or s.expires_at > now())
      order by s.created_at desc`,
@@ -173,7 +203,7 @@ export async function listMapShareSummaries(sql: Sql, userId: string): Promise<S
   const inactive = await sql.query<ShareListRow>(
     `select ${SHARE_LIST_COLUMNS}
      from map_shares s ${SHARE_LIST_JOINS}
-     where (s.user_id = $1 or ${firmOwnerReaches("$1")})
+     where (s.user_id = $1 or ${callerReaches("$1")})
        and (s.revoked_at is not null or (s.expires_at is not null and s.expires_at <= now()))
      order by s.created_at desc
      limit $2`,
@@ -190,6 +220,7 @@ export async function listMapShareSummaries(sql: Sql, userId: string): Promise<S
       views: Number(r.views ?? 0),
       lastViewedAt: toIsoTimestampOrNull(r.last_viewed_at),
       createdBy: r.created_by ?? null,
+      createdByFirm: r.created_by_firm ?? null,
       kind: r.report_version_id ? ("report" as const) : ("map" as const),
       businessId: r.business_id ?? null,
       reportVersionId: r.report_version_id ?? null,
@@ -304,8 +335,9 @@ export interface RevokedShare {
 }
 
 /**
- * Revokes one link for the account that made it, or for the firm owner when
- * the link copies one of the firm's clients (`firmOwnerReaches`), and says
+ * Revokes one link for the account that made it, for the business's own
+ * account, or for the firm owner when the link copies one of the firm's
+ * clients (`callerReaches`), and says
  * whether this call ended the link: "revoked" when it was live until now,
  * "already" when it was revoked before, null when the caller may not revoke
  * it (or it does not exist). The row lock makes two revokes at once read one
@@ -325,7 +357,7 @@ export async function revokeShareOnce(
     `update map_shares s set revoked_at = coalesce(s.revoked_at, now())
      from (select token, revoked_at from map_shares where token = $1 for update) prev
      where s.token = prev.token
-       and (s.user_id = $2 or ${firmOwnerReaches("$2")})
+       and (s.user_id = $2 or ${callerReaches("$2")})
      returning prev.revoked_at is null as was_live, s.business_owner_id, s.business_id`,
     [token, userId],
   );
@@ -465,8 +497,9 @@ export interface SharedReport {
 /**
  * The version a report link prints, as `getReport` loads it for a signed-in
  * viewer, with the profile cut down to what the report reads: the link hands
- * the version's names, duties and review results to whoever holds it, and
- * nothing the business wrote for itself, nor the firm's review routing
+ * the version's names, duties and the month's review results to whoever
+ * holds it, and nothing the business wrote for itself (process notes and
+ * earlier months' review notes included), nor the firm's review routing
  * (withoutReviewRouting). Null when the version is gone or
  * not reviewed for issuance: a link never prints what issuance never cleared,
  * even if the review was cleared after the link was minted.
@@ -500,6 +533,11 @@ export async function loadSharedReport(
     version: withoutReviewRouting(loaded.version),
     frozen,
     firm: loaded.version.firm ?? (name ? { name, letterhead: "", logoDataUrl: null } : null),
-    profile: shareReportProfile({ ...merged, businessId: row.businessId }),
+    // Projected as the link is opened, never stored: a link made before the
+    // projection last narrowed sends no more than one made today.
+    profile: shareReportProfile(
+      { ...merged, businessId: row.businessId },
+      loaded.version.preparedAt,
+    ),
   };
 }

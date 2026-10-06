@@ -3,7 +3,13 @@ import { getIndustryTemplate } from "../templates";
 import { coverageReport } from "../continuity/coverage";
 import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, Person } from "../types";
-import { parseRegisterCsv, registerTemplateCsv, registerToCsv } from "./register-csv";
+import {
+  mergeRegisterImport,
+  parseRegisterCsv,
+  registerTemplateCsv,
+  registerToCsv,
+  unmatchedRowsMessage,
+} from "./register-csv";
 
 const dental = getIndustryTemplate("dental");
 
@@ -55,9 +61,9 @@ describe("registerToCsv", () => {
   it("writes one row per item with a column per active person", () => {
     const csv = registerToCsv(tpl);
     expect(csv.split("\r\n")).toEqual([
-      "item,kind,criticality,documented,procedure location,last confirmed,description,Ana Ruiz,Ben Lee",
-      "Run payroll,duty,critical,false,,,Every other Friday,expert,learning",
-      'Vendor quirks,knowledge,important,true,Drive > Vendors > Quirks.docx,2025-01-15,"Who needs a ""PO"", who does not",aware,can do',
+      "item,kind,criticality,documented,procedure location,last confirmed,description,Ana Ruiz,Ben Lee,precog id",
+      "Run payroll,duty,critical,false,,,Every other Friday,expert,learning,k-payroll",
+      'Vendor quirks,knowledge,important,true,Drive > Vendors > Quirks.docx,2025-01-15,"Who needs a ""PO"", who does not",aware,can do,k-vendor',
       "",
     ]);
   });
@@ -346,5 +352,93 @@ describe("registerTemplateCsv", () => {
       { personId: "p-ana", knowledgeId: "k-run-month-end-payroll", level: "expert" },
       { personId: "p-ben", knowledgeId: "k-run-month-end-payroll", level: "basic" },
     ]);
+  });
+});
+
+describe("items whose names differ only in punctuation or case", () => {
+  const near: IndustryTemplate = {
+    ...tpl,
+    knowledge: [
+      { ...knowledge[0], id: "k1", name: "A/R follow-up", criticality: "critical" },
+      { ...knowledge[1], id: "k2", name: "A R follow up", criticality: "nice-to-have" },
+    ],
+    relations: [
+      { personId: "p-ana", knowledgeId: "k1", level: "expert" },
+      { personId: "p-ben", knowledgeId: "k2", level: "aware" },
+    ],
+  };
+
+  it("stay two items with their own marks through a round trip", () => {
+    const result = parseRegisterCsv(registerToCsv(near), near);
+    expect(result.issues).toEqual([]);
+    expect(result.unmatched).toEqual([]);
+    expect(result.knowledge).toEqual(near.knowledge);
+    expect(result.relations).toEqual(near.relations);
+  });
+
+  it("stay apart when the rows come back in a different order", () => {
+    const [header, first, second] = registerToCsv(near).split("\r\n");
+    const result = parseRegisterCsv([header, second, first, ""].join("\r\n"), near);
+    expect(result.knowledge.map((k) => [k.id, k.name])).toEqual([
+      ["k2", "A R follow up"],
+      ["k1", "A/R follow-up"],
+    ]);
+    expect(result.relations).toEqual([
+      { personId: "p-ben", knowledgeId: "k2", level: "aware" },
+      { personId: "p-ana", knowledgeId: "k1", level: "expert" },
+    ]);
+  });
+
+  it("match by name in the register's order when the file has no id column", () => {
+    const csv =
+      "item,criticality,Ana Ruiz,Ben Lee\r\nAR follow up,important,,expert\r\nar followup,,,\r\n";
+    const result = parseRegisterCsv(csv, near);
+    expect(result.knowledge.map((k) => [k.id, k.name, k.criticality])).toEqual([
+      ["k1", "AR follow up", "important"],
+      ["k2", "ar followup", "nice-to-have"],
+    ]);
+    expect(result.relations).toEqual([{ personId: "p-ben", knowledgeId: "k1", level: "expert" }]);
+  });
+
+  it("reports a third row with the same name as unmatched and changes nothing for it", () => {
+    const csv =
+      "item,Ana Ruiz\r\nA/R follow-up,expert\r\nA R follow up,\r\nAR Follow-Up,expert\r\n";
+    const result = parseRegisterCsv(csv, near);
+    expect(result.knowledge.map((k) => k.id)).toEqual(["k1", "k2"]);
+    expect(result.unmatched).toEqual([{ row: 3, name: "AR Follow-Up" }]);
+    expect(result.relations).toEqual([{ personId: "p-ana", knowledgeId: "k1", level: "expert" }]);
+  });
+});
+
+describe("mergeRegisterImport", () => {
+  it("replaces only the items the file names and keeps the rest with their marks", () => {
+    const file = parseRegisterCsv(
+      "item,Ana Ruiz,Ben Lee\r\nVendor quirks,expert,\r\nOpen the shop,,can do\r\n",
+      tpl,
+    );
+    const merged = mergeRegisterImport(tpl, file);
+    expect(merged.knowledge.map((k) => k.id)).toEqual(["k-payroll", "k-vendor", "k-open-the-shop"]);
+    expect(merged.relations).toEqual([
+      { personId: "p-ana", knowledgeId: "k-payroll", level: "expert" },
+      { personId: "p-ben", knowledgeId: "k-payroll", level: "basic" },
+      { personId: "p-dee", knowledgeId: "k-payroll", level: "expert" },
+      { personId: "p-ana", knowledgeId: "k-vendor", level: "expert" },
+      { personId: "p-ben", knowledgeId: "k-open-the-shop", level: "proficient" },
+    ]);
+  });
+
+  it("says which rows it could not match", () => {
+    expect(unmatchedRowsMessage([])).toBeNull();
+    expect(
+      unmatchedRowsMessage([
+        { row: 3, name: "AR Follow-Up" },
+        { row: 5, name: "Payroll" },
+      ]),
+    ).toBe(
+      "Precog could not match 2 rows to items in your register: AR Follow-Up, Payroll. It changed nothing for them.",
+    );
+    expect(unmatchedRowsMessage([{ row: 3, name: "Payroll" }])).toBe(
+      "Precog could not match 1 row to items in your register: Payroll. It changed nothing for them.",
+    );
   });
 });

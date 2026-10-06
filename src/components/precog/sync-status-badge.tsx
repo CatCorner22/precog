@@ -72,7 +72,7 @@ const LABEL: Record<SyncStatus, string> = {
   saving: "Saving to your account…",
   synced: "Saved to your account",
   local: "Saved on this device",
-  "local-error": "Not saved — this browser is not keeping data",
+  "local-error": "Not saved on this device",
   error: "Not saved to your account — saved on this device",
   conflict: "Edited elsewhere — not saved",
 };

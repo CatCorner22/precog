@@ -157,6 +157,7 @@ async function applyLinkedSubscription(
     eventAt: new Date().toISOString(),
     priceId: applied.priceId,
   });
+  if (recorded.accountDeleted) throw new RequestError(404, noAccountWithId(userId));
   await setFirmPlan(
     tx,
     userId,
@@ -206,6 +207,9 @@ export const linkStripeCustomerForAccount = createServerFn({ method: "POST" })
       }
 
       const outcome = await inTransaction(sql, async (tx) => {
+        // setStripeCustomer holds the account's user row before it writes
+        // the billing row (the account deletion's order), so a deletion at
+        // the same moment waits or is waited for, never deadlocks.
         const linked = await setStripeCustomer(tx, userId, customerId, { replace });
         if (applied) await applyLinkedSubscription(tx, userId, customerId, applied);
         const firm = await loadFirmFor(tx, userId);

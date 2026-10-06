@@ -577,7 +577,7 @@ function advancedReasoning({ tpl, staff, riskVars, scope }: ToolInputs): ToolOut
   const report = runAdvancedReasoning(tpl, staff, riskVars, scope);
   return {
     ok: true,
-    summary: `Lever ordering: ${report.recommendedSequence.join(" → ") || "status quo"} · verify next: ${report.evoi.topObservation}`,
+    summary: `Lever ordering: ${report.recommendedSequence.join(" → ") || "status quo"} · verify next: ${report.evoi.topObservation}${report.scopeNote ? ` · ${report.scopeNote}` : ""}`,
     // Ordering and reasons only; the weights behind the ordering are not
     // passed on as if measured.
     data: {
@@ -585,6 +585,7 @@ function advancedReasoning({ tpl, staff, riskVars, scope }: ToolInputs): ToolOut
       bestSingleLever: report.counterfactual.bestIntervention,
       verifyNext: report.evoi.items,
       synthesis: report.synthesis,
+      scopeNote: report.scopeNote,
       basis: "Precog's own weights, not measurements of this business.",
     },
   };

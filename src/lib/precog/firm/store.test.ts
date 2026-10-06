@@ -65,6 +65,20 @@ beforeEach(async () => {
   }
 });
 
+/** Wraps `inner` so any statement containing `needle` fails, inside transactions too. */
+function failingOn(needle: string): (inner: Sql) => Sql {
+  const failing = (inner: Sql): Sql => {
+    const wrapped = (async <T>(strings: TemplateStringsArray, ...values: unknown[]) => {
+      if (strings.join("").includes(needle)) throw new Error("injected failure");
+      return inner<T>(strings, ...values);
+    }) as Sql;
+    wrapped.query = inner.query;
+    wrapped.transaction = (work) => inner.transaction!((tx) => work(failing(tx)));
+    return wrapped;
+  };
+  return failing;
+}
+
 describe("firm client isolation", () => {
   it("lists only the signed-in account's clients and review log", async () => {
     await saveFirm(db.sql, "ua", "North Advisors", "assessment");
@@ -131,18 +145,9 @@ describe("firm membership", () => {
   });
 
   it("a failure part-way through saving the firm leaves no firm and no member row", async () => {
-    // Fails the third statement (attaching the owner's businesses), after the
+    // Fails the third write (attaching the owner's businesses), after the
     // firm row and the owner's membership were written inside the transaction.
-    const needle = "update businesses set firm_user_id";
-    const failing = (inner: Sql): Sql => {
-      const wrapped = (async <T>(strings: TemplateStringsArray, ...values: unknown[]) => {
-        if (strings.join("").includes(needle)) throw new Error("injected failure");
-        return inner<T>(strings, ...values);
-      }) as Sql;
-      wrapped.query = inner.query;
-      wrapped.transaction = (work) => inner.transaction!((tx) => work(failing(tx)));
-      return wrapped;
-    };
+    const failing = failingOn("update businesses set firm_user_id");
     await expect(saveFirm(failing(db.sql), "ua", "North", "assessment")).rejects.toThrow(
       "injected failure",
     );
@@ -151,6 +156,48 @@ describe("firm membership", () => {
     expect(await loadFirmFor(db.sql, "ua")).toBeNull();
     // The next attempt starts clean and completes.
     expect((await saveFirm(db.sql, "ua", "North", "assessment")).role).toBe("owner");
+  });
+
+  it("a rename that fails at the grant revocation keeps the old name, plan, clients and open grants", async () => {
+    await saveFirm(db.sql, "ua", "North Advisors", "assessment");
+    // After the first save: a business kept outside the firm, and an open
+    // invitation its owner sent to another firm, which a completed save closes.
+    await db.pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision)
+        values ('biz_2', 'ua', 'Later', 'general', '{}'::jsonb, 1);
+      insert into business_firm_grants (token, business_owner_id, business_id, invited_email, expires_at)
+        values ('g_open', 'ua', 'biz_2', 'other@example.test', now() + interval '1 day');
+    `);
+    const failing = failingOn("update business_firm_grants");
+    await expect(saveFirm(failing(db.sql), "ua", "South Partners", "monthly")).rejects.toThrow(
+      "injected failure",
+    );
+    expect(await loadFirmFor(db.sql, "ua")).toMatchObject({
+      firmUserId: "ua",
+      name: "North Advisors",
+      plan: "assessment",
+      role: "owner",
+    });
+    const businesses = await db.pg.query<{ id: string; firm_user_id: string | null }>(
+      "select id, firm_user_id from businesses where user_id = 'ua' order by id",
+    );
+    expect(businesses.rows).toEqual([
+      { id: "biz_1", firm_user_id: "ua" },
+      { id: "biz_2", firm_user_id: null },
+    ]);
+    const grants = await db.pg.query<{ token: string; revoked_at: string | null }>(
+      "select token, revoked_at from business_firm_grants",
+    );
+    expect(grants.rows).toEqual([{ token: "g_open", revoked_at: null }]);
+    // Without the failure the same rename lands whole: name, plan, clients, grant closed.
+    expect(await saveFirm(db.sql, "ua", "South Partners", "monthly")).toMatchObject({
+      name: "South Partners",
+      plan: "monthly",
+    });
+    const closed = await db.pg.query<{ revoked: boolean }>(
+      "select revoked_at is not null as revoked from business_firm_grants",
+    );
+    expect(closed.rows).toEqual([{ revoked: true }]);
   });
 
   it("an invitation admits a member with the given role, once, and shares the clients", async () => {
@@ -245,6 +292,18 @@ describe("firm membership", () => {
       "select token, accepted_by from firm_invites order by token",
     );
     expect(kept.rows).toEqual([{ token: "t2", accepted_by: "uc" }]);
+  });
+});
+
+describe("one firm per account in the schema (migration 0051)", () => {
+  it("refuses a second membership that is not an owner row", async () => {
+    await saveFirm(db.sql, "ua", "North", null);
+    await saveFirm(db.sql, "ub", "South", null);
+    await db.pg.query("insert into firm_members values ('ua', 'uc', 'preparer')");
+    await expect(
+      db.pg.query("insert into firm_members values ('ub', 'uc', 'reviewer')"),
+    ).rejects.toThrow(/firm_members_one_firm_per_member/);
+    expect((await loadFirmFor(db.sql, "uc"))?.firmUserId).toBe("ua");
   });
 });
 
@@ -503,7 +562,12 @@ describe("firm ownership transfer", () => {
   });
 
   it("moves members, invitations, clients, markers and billing, and swaps the roles", async () => {
-    await transferFirmOwnership(db.sql, "ua", "ub");
+    const moved = await transferFirmOwnership(db.sql, "ua", "ub");
+    // The old owner's own client goes to the new owner's account; ub holds a
+    // biz_1 already, so it arrives under a new id.
+    expect(moved).toEqual([
+      { from: "biz_1", to: expect.stringMatching(/^biz_1-[0-9a-f]{8}$/), name: "Client UA" },
+    ]);
     expect(await loadFirmFor(db.sql, "ua")).toEqual({
       firmUserId: "ub",
       name: "North",
@@ -521,13 +585,16 @@ describe("firm ownership transfer", () => {
     expect((await listInvites(db.sql, "ub")).map((i) => i.token)).toEqual(["open"]);
     const firms = await db.pg.query<{ user_id: string }>("select user_id from firms");
     expect(firms.rows).toEqual([{ user_id: "ub" }]);
-    const clients = await db.pg.query<{ user_id: string; firm_user_id: string | null }>(
-      "select user_id, firm_user_id from businesses order by user_id",
-    );
+    const clients = await db.pg.query<{
+      id: string;
+      user_id: string;
+      firm_user_id: string | null;
+      saved_by: string | null;
+    }>("select id, user_id, firm_user_id, saved_by from businesses order by user_id, id");
     expect(clients.rows).toEqual([
-      { user_id: "ua", firm_user_id: "ub" },
-      { user_id: "ub", firm_user_id: "ub" },
-      { user_id: "uc", firm_user_id: null },
+      { id: "biz_1", user_id: "ub", firm_user_id: "ub", saved_by: null },
+      { id: moved[0].to, user_id: "ub", firm_user_id: "ub", saved_by: "ua" },
+      { id: "biz_1", user_id: "uc", firm_user_id: null, saved_by: null },
     ]);
     const markers = await db.pg.query<{ firm_user_id: string | null }>(
       "select firm_user_id from business_deletion_markers",
@@ -537,11 +604,11 @@ describe("firm ownership transfer", () => {
       "select user_id, stripe_customer_id from billing_accounts",
     );
     expect(billing.rows).toEqual([{ user_id: "ub", stripe_customer_id: "cus_1" }]);
-    // The old owner's own business is a firm client they hold as a member now.
-    expect(await resolveBusinessOwner(db.sql, "ub", "biz_1")).toBe("ub");
+    // The old owner reaches the moved client as a member of the firm.
+    expect(await resolveBusinessOwner(db.sql, "ua", moved[0].to)).toBe("ub");
     expect(
       (await listClientEngagements(db.sql, "ub", "ub")).map((c) => c.ownerUserId).sort(),
-    ).toEqual(["ua", "ub"]);
+    ).toEqual(["ub", "ub"]);
   });
 
   it("carries the letterhead, logo and cover-page switch to the new owner's firm row", async () => {

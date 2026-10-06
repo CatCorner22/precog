@@ -7,7 +7,7 @@ import {
   UNVERIFIED_CASE,
   VERIFIED_CASE,
 } from "@/lib/precog/evidence";
-import { CaseCard, RuleCaseCard } from "./case-card";
+import { CaseCard, RuleCaseCard, UnverifiedListNote } from "./case-card";
 
 describe("CaseCard", () => {
   it("marks a record nobody has checked as unverified, with the reason on hover", () => {
@@ -15,6 +15,15 @@ describe("CaseCard", () => {
     expect(html).toContain(UNVERIFIED_CASE.label);
     expect(html).toContain(`title="${UNVERIFIED_CASE.title}"`);
     expect(UNVERIFIED_CASE.title).toBe("Nobody has checked this record against its source yet.");
+  });
+
+  it("keeps the marker a quiet chip and reads it as one sentence, with no stray leading punctuation", () => {
+    const html = renderToStaticMarkup(<CaseCard study={CASE_LIBRARY[0]} />);
+    expect(html).toContain('<span aria-hidden="true">Unverified</span>');
+    expect(html).toContain(
+      '<span class="sr-only normal-case">Unverified. Nobody has checked this record against its source yet.</span>',
+    );
+    expect(html).not.toContain('<span class="sr-only">. ');
   });
 
   it("drops the marker once a named person has verified the record", () => {
@@ -35,7 +44,9 @@ describe("CaseCard's verified marker", () => {
     );
     expect(html).toContain(">Verified against its source<");
     expect(html).toContain('title="Checked on Oct 1, 2026 by A. Reviewer."');
-    expect(html).toContain('<span class="sr-only">. Checked on Oct 1, 2026 by A. Reviewer.</span>');
+    expect(html).toContain(
+      '<span class="sr-only normal-case">Verified against its source. Checked on Oct 1, 2026 by A. Reviewer.</span>',
+    );
     expect(html).not.toContain(UNVERIFIED_CASE.label);
     expect(html).not.toContain(UNVERIFIED_CASE.title);
   });
@@ -44,6 +55,29 @@ describe("CaseCard's verified marker", () => {
     const html = renderToStaticMarkup(<CaseCard study={CASE_LIBRARY[0]} />);
     expect(html).not.toContain(VERIFIED_CASE.label);
     expect(html).not.toContain("Checked on");
+  });
+});
+
+describe("UnverifiedListNote", () => {
+  const verified = { ...CASE_LIBRARY[0], verifiedOn: "2026-10-01", verifiedBy: "A. Reviewer" };
+
+  it("says once, above a list of several cases, that none has been checked", () => {
+    const html = renderToStaticMarkup(<UnverifiedListNote studies={CASE_LIBRARY.slice(0, 3)} />);
+    expect(html).toBe(
+      '<p class="text-xs text-subtle">None of these case records has been checked against its source yet.</p>',
+    );
+  });
+
+  it("says nothing for a single case, a mixed list or a verified list", () => {
+    expect(renderToStaticMarkup(<UnverifiedListNote studies={CASE_LIBRARY.slice(0, 1)} />)).toBe(
+      "",
+    );
+    expect(
+      renderToStaticMarkup(
+        <UnverifiedListNote studies={[verified, ...CASE_LIBRARY.slice(1, 3)]} />,
+      ),
+    ).toBe("");
+    expect(renderToStaticMarkup(<UnverifiedListNote studies={[verified, verified]} />)).toBe("");
   });
 });
 

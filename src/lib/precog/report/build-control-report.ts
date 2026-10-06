@@ -20,12 +20,15 @@ import { leavers as leaversReport } from "../continuity/leavers";
 import { profileStandInConflicts } from "../continuity/standin-conflicts";
 import { continuityCommitments, continuitySlips } from "../decisions/follow-through";
 import {
+  BENCHMARK_BY_ID,
+  benchmarkCitation,
   casesForSodRules,
   citingCaseStats,
   isOwnSector,
   recommendedStepsForRules,
 } from "../evidence";
 import {
+  dualReleaseSplit,
   openFindings,
   openSeverityCounts,
   partialDualReleaseCoverage,
@@ -197,6 +200,9 @@ export function buildControlReportModel({
   const registerReady = registerAssessed(tpl);
   const summary = executiveSummary({
     openConflicts: open,
+    ownerHeldPairs: sod.conflicts.filter((c) => c.ownerHeld).length,
+    // The same count the duty-conflict section prints beside the open ones.
+    dualReleaseClosedPairs: dualReleaseSplit(sod.conflicts, partialCoverage).closed,
     firstStep: steps[0]?.control.label ?? null,
     registerReady,
     coverageIndex: continuity.coverageIndex,
@@ -233,6 +239,8 @@ export function buildControlReportModel({
     lossRange,
     found,
     statsScope,
+    /** The published median the evidence section leads with, as it stood at lock (layout 4). */
+    benchmark: smallOrgBenchmark(),
     policyNote,
     healthDelta,
     registerReady,
@@ -251,3 +259,26 @@ export function buildControlReportModel({
 }
 
 export type ControlReportModel = ReturnType<typeof buildControlReportModel>;
+
+/**
+ * The published figure the evidence section leads with: the median loss at
+ * organizations under 100 employees, the size of business Precog is for,
+ * with its publisher and citation.
+ */
+export interface ReportBenchmark {
+  medianUsd: number;
+  publisher: string;
+  citation: string;
+}
+
+const SMALL_ORG_BENCHMARK = "bm-small-org-losses";
+
+export function smallOrgBenchmark(): ReportBenchmark | null {
+  const benchmark = BENCHMARK_BY_ID[SMALL_ORG_BENCHMARK];
+  if (!benchmark || typeof benchmark.numeric !== "number") return null;
+  return {
+    medianUsd: benchmark.numeric,
+    publisher: benchmark.source.publisher,
+    citation: benchmarkCitation(benchmark),
+  };
+}

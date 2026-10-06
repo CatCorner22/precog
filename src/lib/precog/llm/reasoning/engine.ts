@@ -11,6 +11,7 @@ import type { IndustryTemplate } from "../../templates";
 import { portfolioSummary, type ResidualScope } from "../../scoring/residual-engine";
 import { rankDangerousScenarios } from "../../engine";
 import { DEFAULT_WEIGHTS } from "../../scoring/weights";
+import { starterScenarioNote } from "../../scoring/scope";
 import { summarizeCausalInfluence, type CausalNodeId } from "./causal-graph";
 import { beamSearchLevers } from "./beam-search";
 import { runCounterfactuals, type ReasoningBaseline } from "./counterfactual";
@@ -37,6 +38,12 @@ interface AdvancedReasoningReport {
     items: Omit<VerifyNextItem, "id">[];
   };
   synthesis: string[];
+  /**
+   * Set when no scenario is in scope (an own business that has confirmed
+   * none): the levers are then ranked on the residual index alone, and this
+   * says which sample scenarios stay out. Null otherwise.
+   */
+  scopeNote: string | null;
 }
 
 export function runAdvancedReasoning(
@@ -51,7 +58,14 @@ export function runAdvancedReasoning(
     netToDecision: Math.round(c.netToDecision * 1000) / 1000,
     topPath: c.topPaths[0]?.narrative ?? "no path",
   }));
-  const beam = beamSearchLevers(tpl, staff, riskVars, { beamWidth: 4, depth: 3 }, scope);
+  // The beam prices the same scenario the counterfactual does, and none when none is in scope.
+  const beam = beamSearchLevers(
+    tpl,
+    staff,
+    riskVars,
+    { beamWidth: 4, depth: 3, scenarioId: baseline.topScenarioId },
+    scope,
+  );
   const cf = runCounterfactuals(tpl, staff, riskVars, baseline, undefined, scope);
   const checks = verifyNext(staff, riskVars);
 
@@ -85,6 +99,7 @@ export function runAdvancedReasoning(
         .map(({ observation, effort, rationale }) => ({ observation, effort, rationale })),
     },
     synthesis,
+    scopeNote: baseline.topScenarioId ? null : starterScenarioNote(tpl, scope.confirmedScenarioIds),
   };
 }
 

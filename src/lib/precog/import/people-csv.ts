@@ -14,6 +14,7 @@ import { datesAreDayFirst } from "./hire-date";
 import { parseRoster } from "./roster";
 import { looksLikeRosterHeader, mapColumns, startsWithColumnHeading } from "./roster-columns";
 import { readPerson, type ImportContext, type TitleMapping } from "./roster-row-read";
+import { householdMark } from "./people-backup";
 import { personDuties } from "../sod/assignments";
 import { ROLE_TEMPLATES } from "../sod/role-templates";
 
@@ -50,7 +51,9 @@ export interface PeopleImportResult {
  * Reads a team file: a worker export with its header row (even under a
  * report title), this app's own export, or a plain list saved from a text
  * editor, which reads as a pasted roster does. A header with no name column
- * is reported rather than read as people.
+ * is reported rather than read as people, and so is a file that is not text
+ * (an Excel workbook, a zip, random bytes). A plain list whose lines mostly
+ * have no job title only adds people: it never offers to replace the team.
  */
 export function parsePeopleCsv(
   text: string,
@@ -69,13 +72,63 @@ export function parsePeopleCsv(
       [],
     );
   }
+  if (!looksLikeText(text)) return emptyResult([{ row: 0, message: NOT_TEXT_MESSAGE }], []);
   const source = stripInvisibleControls(text);
   const table = locateTable(source, looksLikeRosterHeader);
   if (table) return addSkippedLines(parsePeopleRows(table.rows, tpl, opts), table.skipped);
   const rows = parseRows(source, sniffDelimiter(source));
   if (startsWithColumnHeading(rows[0] ?? [])) return parsePeopleRows(rows, tpl, opts);
-  return parseRoster(source, tpl, opts);
+  const list = parseRoster(source, tpl, opts);
+  // No header, and most lines carry no job title: too little to tell that
+  // the file is the whole team, so it adds and updates and removes nobody.
+  const untitled = list.titles.filter((mapping) => !mapping.title.trim()).length;
+  if (list.removed.length && untitled * 2 > list.titles.length) {
+    list.issues.unshift({ row: 0, message: NO_REPLACE_MESSAGE });
+    list.removed = [];
+  }
+  return list;
 }
+
+/** What a team import says about a file that is not text. */
+export const NOT_TEXT_MESSAGE =
+  "This looks like an Excel or other non-text file. Save it as CSV, then import it.";
+
+/** What a team import says when a headerless list cannot replace the team. */
+export const NO_REPLACE_MESSAGE =
+  "Precog found no header row and most lines have no job title, so this file only adds and updates people. To replace the team, import a file with a header row.";
+
+/**
+ * True when a file reads as text: no zip signature (an .xlsx is a zip), no
+ * NUL or other control character except tab, line feed, carriage return,
+ * vertical tab, form feed and a closing end-of-file mark (Ctrl-Z), and at
+ * most 5% of characters unreadable (the replacement character, DEL and the
+ * C1 controls).
+ */
+export function looksLikeText(text: string): boolean {
+  if (text.startsWith("PK\u0003\u0004")) return false;
+  const body = text.endsWith("\u001A") ? text.slice(0, -1) : text;
+  if (CONTROL_CHARACTER.test(body)) return false;
+  const unreadable = body.match(UNREADABLE_CHARACTER)?.length ?? 0;
+  return unreadable * 20 <= body.length;
+}
+
+/**
+ * The text of a team file from its bytes: UTF-16 when it starts with that
+ * byte-order mark (Excel's "Unicode Text" export), else UTF-8.
+ */
+export function decodeTeamFile(bytes: Uint8Array): string {
+  const encoding =
+    bytes[0] === 0xff && bytes[1] === 0xfe
+      ? "utf-16le"
+      : bytes[0] === 0xfe && bytes[1] === 0xff
+        ? "utf-16be"
+        : "utf-8";
+  return new TextDecoder(encoding).decode(bytes);
+}
+
+// eslint-disable-next-line no-control-regex -- finding control characters is the point.
+const CONTROL_CHARACTER = /[\u0000-\u0008\u000E-\u001F]/;
+const UNREADABLE_CHARACTER = /[�\u007F-\u009F]/g;
 
 /** Reads a table whose first row is the header. */
 export function parsePeopleRows(
@@ -161,6 +214,22 @@ export function parsePeopleRows(
     ownExport: isOwnExportHeader(header),
   };
 
+  // The household mark comes from the file's column when it has one (an
+  // empty cell clears it); a file without the column keeps the matched team
+  // member's mark, so related signers never turn into dual control.
+  const householdColumn = header.findIndex((cell) => HOUSEHOLD_HEADERS.has(normalizeHeader(cell)));
+  const existingById = new Map(tpl.people.map((person) => [person.id, person]));
+  // Set on the person read, not a copy: a later row naming a second
+  // position of this person updates that same object.
+  const withHousehold = (person: Person, cells: readonly string[]): Person => {
+    const mark =
+      householdColumn >= 0
+        ? householdMark(cells[householdColumn])
+        : existingById.get(person.id)?.householdKey;
+    if (mark) person.householdKey = mark;
+    return person;
+  };
+
   const people: Person[] = [];
   const titles: TitleMapping[] = [];
   let duplicates = 0;
@@ -174,7 +243,7 @@ export function parsePeopleRows(
       titles.push(read.position);
       continue;
     }
-    people.push(read.person);
+    people.push(withHousehold(read.person, cells));
     titles.push(read.mapping);
   }
 
@@ -291,6 +360,7 @@ export function peopleToCsv(
         ),
         person.owner === undefined ? "" : person.owner ? "yes" : "no",
         person.dutiesFromTitle ? "yes" : "",
+        person.householdKey ?? "",
       ]
         .map(csvCell)
         .join(","),
@@ -374,6 +444,7 @@ const PEOPLE_CSV_HEADER = [
   "entitlements",
   "owns_business",
   "duties_from_title",
+  "household",
 ] as const;
 
 /** Columns this app's export added later; an older export without them is still its own. */
@@ -381,7 +452,13 @@ const LATER_EXPORT_COLUMNS: readonly string[] = [
   "employee_id",
   "owns_business",
   "duties_from_title",
+  "household",
 ];
+
+/** Headers of the household mark column: this app's export, and the field's name in the team editor. */
+const HOUSEHOLD_HEADERS = new Set(
+  ["household", "household mark", "household_key", "shares a household"].map(normalizeHeader),
+);
 
 /** First cell of a report footer row: totals, counts, page numbers, run stamps. */
 const FOOTER_PATTERN =

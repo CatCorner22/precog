@@ -6,6 +6,9 @@ import {
   parseMapBackup,
 } from "./map-backup";
 import { resolveTemplate } from "../active-template";
+import { mitigatedSodRuleIds } from "../controls/dual-release-summary";
+import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
+import { getIndustryTemplate } from "../templates";
 import { defaultProfile } from "../practice-profile";
 import { enrichProcess } from "../process-graph";
 import { computeMapHealth } from "../process-health";
@@ -69,6 +72,52 @@ describe("parseMapBackup", () => {
     expect(() => parseMapBackup({ processes: [] })).toThrow(/no processes/);
     expect(() => parseMapBackup("text")).toThrow(/no processes/);
     expect(() => parseMapBackup({ processes: [{ name: "No id" }] })).toThrow(/id and a name/);
+  });
+
+  it("brings back the business name, cleaned, and reads none when the file has none", () => {
+    const json = mapBackupJson({
+      industry: profile.industry,
+      businessName: "  Bright‮ Smiles  ",
+      processes: tpl.processes,
+      people: tpl.people,
+      layout: {},
+    });
+    expect(parseMapBackup(JSON.parse(json)).businessName).toBe("Bright Smiles");
+    expect(parseMapBackup(backupOf(tpl.processes)).businessName).toBe("");
+    expect(parseMapBackup(backupOf(tpl.processes, { businessName: 7 })).businessName).toBe("");
+  });
+
+  it("keeps the household mark, so related signers do not count as dual control after a restore", () => {
+    // The stress test's case: the whole general team marked as one household,
+    // dual release on, unrelated signers not attested.
+    const general = getIndustryTemplate("general");
+    const sample = defaultProfile("general");
+    const policy = {
+      ...sample.dualRelease,
+      enabled: true,
+      rules: sample.dualRelease.rules.map((rule) => ({ ...rule, enabled: true })),
+      unrelatedSignersAttested: false,
+    };
+    const people = general.people.map((person) => ({ ...person, householdKey: "Smith home" }));
+    const before = { ...general, people };
+    const restored = parseMapBackup(
+      JSON.parse(
+        mapBackupJson({
+          industry: "general",
+          businessName: "x",
+          processes: general.processes,
+          people,
+          layout: {},
+        }),
+      ),
+    ).people;
+    const after = { ...general, people: restored };
+    expect(restored.map((person) => person.householdKey)).toEqual(people.map(() => "Smith home"));
+    expect(mitigatedSodRuleIds(policy, after, "2026-10-06").size).toBe(0);
+    const health = (t: typeof general) =>
+      detectSodConflicts(t, sample.staff, sodDetectionOptions(t, policy)).summary.segregationHealth;
+    expect(health(before)).toBe(12);
+    expect(health(after)).toBe(12);
   });
 
   it("refuses a file past the import size with its size and the limit", () => {

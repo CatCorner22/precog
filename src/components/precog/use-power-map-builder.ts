@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDutyBaseline } from "./use-duty-baseline";
+import { UNREADABLE_BASELINE_MESSAGE } from "@/lib/precog/sod/duty-baseline";
 import { buildGraph } from "./power-map-graph";
 import { useEdgesState, useNodesState } from "@xyflow/react";
 import { OPERATING_DUTIES } from "@/lib/precog/sod/conflict-rules";
@@ -123,6 +124,11 @@ export function usePowerMapBuilder() {
     // cannot promise a baseline the owner accepted: the first one is stored
     // when the map is first opened.
     const ownTeam = tpl.people.some((person) => (person.entitlements?.length ?? 0) > 0);
+    // A stored baseline that cannot be read leaves nothing to go back to.
+    if (ownTeam && !baseline) {
+      window.alert(UNREADABLE_BASELINE_MESSAGE);
+      return;
+    }
     if (
       !window.confirm(
         ownTeam
@@ -133,7 +139,7 @@ export function usePowerMapBuilder() {
       return;
     }
     if (ownTeam) {
-      const accepted = baseline.filter((person) => !isSimulatedPersonId(person.personId));
+      const accepted = (baseline ?? []).filter((person) => !isSimulatedPersonId(person.personId));
       commit(accepted);
       setSelectedId(accepted[0]?.personId ?? "");
       setConflictsOnly(false);

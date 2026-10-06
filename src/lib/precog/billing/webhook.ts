@@ -4,8 +4,10 @@ import { inTransaction } from "@/lib/sql-transaction";
 import {
   ACTIVE_SUBSCRIPTION_STATUSES,
   claimBillingEvent,
-  listFailedCreditReversals,
+  listPendingCreditReversals,
+  lockBillingAccount,
   loadBillingAccount,
+  markAssessmentCreditReversalPending,
   markAssessmentCreditReversed,
   markAssessmentCreditReversalFailed,
   markPastDue,
@@ -19,6 +21,7 @@ import {
 import { setFirmPlan } from "../firm/store";
 import { billingChangeFor, type StripeEvent } from "./stripe";
 import { recordAudit } from "../firm/audit.server";
+import { beforeDeadline } from "../cron/budget";
 
 /**
  * Applies one verified Stripe event to the account it concerns. Idempotent:
@@ -39,28 +42,48 @@ import { recordAudit } from "../firm/audit.server";
  * with a 200. Linking the customer (OPERATIONS, Stripe) lets the retry of
  * a subscription event apply. A subscription that has ended
  * (canceled, incomplete_expired) for an unknown customer stays "ignored".
+ * A subscription event for an account deleted before or while it waited is
+ * "account deleted": acknowledged, so Stripe stops retrying it. So is a paid
+ * Assessment for a deleted account, which is reported
+ * (billing-payment-for-deleted-account) for the operator to refund, since
+ * no account is left to hold it. An event that waited on an ownership
+ * transfer applies to the account that now holds the Stripe customer
+ * (lockBillingAccount).
  *
  * After a refund or a lost dispute on an Assessment that was credited
- * against the Firm plan, the credit is reversed on the Stripe customer
- * balance once the transaction has committed, with a short inline retry; a
- * failure that outlasts the retry restores the stored amount and marks the
- * row, and the weekly run retries it (retryFailedCreditReversals). The
- * stored credit amount goes to zero inside the transaction, so a second
- * refund or lost dispute on the same payment reverses nothing twice.
+ * against the Firm plan, the transaction marks the reversal pending (the
+ * stored amount stays), so a second refund or lost dispute on the same
+ * payment reverses nothing twice. Once it has committed, the credit is
+ * reversed on the Stripe customer balance with a short inline retry, and
+ * Stripe's confirmation zeroes the amount and clears the mark. A failure
+ * that outlasts the retry marks the row failed; a webhook that dies before
+ * Stripe answers leaves it pending. The scheduled run completes both
+ * (retryFailedCreditReversals), looking for the reversal at Stripe before
+ * it posts one.
+ *
+ * Work after the commit (the reversal, the second-subscription report, the
+ * plan_changed audit row) never throws: the claim has committed, so a
+ * failure is reported and the event still answers 200, since Stripe's retry
+ * would only find a duplicate.
  */
 export async function applyBillingEvent(
   sql: Sql,
   event: StripeEvent,
-): Promise<"duplicate" | "ignored" | "applied"> {
-  let reversal: {
+): Promise<"duplicate" | "ignored" | "applied" | "account deleted"> {
+  // Lists, not nullable lets: assignments inside the transaction's
+  // callback are invisible to narrowing after it.
+  const reversals: {
     userId: string;
     customerId: string;
     creditCents: number;
     assessmentPaidAt: string | null;
-  } | null = null;
-  let secondSubscription: { userId: string; ignored: string; stored: string | null } | null = null;
-  // A list, not a nullable let: assignments inside the transaction's
-  // callback are invisible to narrowing after it.
+  }[] = [];
+  const secondSubscriptions: { userId: string; ignored: string; stored: string | null }[] = [];
+  const orphanPayments: {
+    userId: string;
+    customerId: string | null;
+    paymentIntentId: string | null;
+  }[] = [];
   const planChanges: {
     userId: string;
     from: string | null;
@@ -78,8 +101,17 @@ export async function applyBillingEvent(
       );
     }
     if (change.kind === "assessment-paid") {
+      const userId = await lockBillingAccount(tx, change.userId, change.customerId);
+      if (userId === null) {
+        orphanPayments.push({
+          userId: change.userId,
+          customerId: change.customerId,
+          paymentIntentId: change.paymentIntentId,
+        });
+        return "account deleted";
+      }
       await recordAssessmentPayment(tx, {
-        userId: change.userId,
+        userId,
         stripeCustomerId: change.customerId,
         paymentIntentId: change.paymentIntentId,
         paidAt: change.eventAt,
@@ -104,19 +136,8 @@ export async function applyBillingEvent(
           ACTIVE_SUBSCRIPTION_STATUSES.has(account.subscriptionStatus),
         );
         if (!subscriptionActive) await setFirmPlan(tx, userId, "assessment");
-        if (
-          account?.assessmentCreditUsedAt &&
-          account.stripeCustomerId &&
-          (account.assessmentCreditCents ?? 0) > 0
-        ) {
-          reversal = {
-            userId,
-            customerId: account.stripeCustomerId,
-            creditCents: account.assessmentCreditCents ?? 0,
-            assessmentPaidAt: account.assessmentPaidAt,
-          };
-          await markAssessmentCreditReversed(tx, userId);
-        }
+        const pending = await markAssessmentCreditReversalPending(tx, userId);
+        if (pending) reversals.push({ userId, ...pending });
       }
       return "applied";
     }
@@ -142,8 +163,7 @@ export async function applyBillingEvent(
         `Stripe subscription ${change.subscriptionId} names no account (customer ${change.customerId ?? "unknown"})`,
       );
     }
-    const before = (await loadBillingAccount(tx, userId))?.subscriptionStatus ?? null;
-    const { status, ignoredOther, storedSubscriptionId } = await recordSubscription(tx, {
+    const recorded = await recordSubscription(tx, {
       userId,
       stripeCustomerId: change.customerId,
       subscriptionId: change.subscriptionId,
@@ -153,32 +173,58 @@ export async function applyBillingEvent(
       cancellationReason: change.cancellationReason,
       priceId: change.priceId,
     });
+    // The account was deleted before or while this event waited: nothing to
+    // write, and the committed claim stops Stripe's retries.
+    if (recorded.accountDeleted) return "account deleted";
+    // The account written to: a transfer may have moved the customer.
+    const {
+      userId: account,
+      status,
+      previousStatus,
+      wrote,
+      ignoredOther,
+      storedSubscriptionId,
+    } = recorded;
     // Reported once, on the Checkout completion that started it: the
     // subscription's own created and updated events (each renewal) are not
     // news again.
     if (ignoredOther && change.status === null) {
-      secondSubscription = {
-        userId,
+      secondSubscriptions.push({
+        userId: account,
         ignored: change.subscriptionId,
         stored: storedSubscriptionId,
-      };
+      });
     }
     // The plan on the firm row follows the subscription status as stored,
     // which a late checkout event does not overwrite.
     const ownsFirm = await setFirmPlan(
       tx,
-      userId,
+      account,
       ACTIVE_SUBSCRIPTION_STATUSES.has(status) ? "monthly" : "assessment",
     );
     // Only the firm the account owns changes plan; a firm it merely joined
-    // does not, so its log takes nothing.
-    if (ownsFirm && status !== before) {
-      planChanges.push({ userId, from: before, to: status, priceId: change.priceId });
+    // does not, so its log takes nothing. The status before is the one read
+    // under the row lock, and only an event that wrote is logged, so two
+    // events delivered together log one change each at most.
+    if (ownsFirm && wrote && status !== previousStatus) {
+      planChanges.push({
+        userId: account,
+        from: previousStatus,
+        to: status,
+        priceId: change.priceId,
+      });
     }
     return "applied";
   });
-  if (reversal) await reverseAssessmentCredit(sql, reversal);
-  if (secondSubscription) await reportSecondSubscription(secondSubscription);
+  for (const reversal of reversals) {
+    await afterCommit(() => reverseAssessmentCredit(sql, reversal));
+  }
+  for (const second of secondSubscriptions) {
+    await afterCommit(() => reportSecondSubscription(second));
+  }
+  for (const payment of orphanPayments) {
+    await afterCommit(() => reportPaymentForDeletedAccount(payment));
+  }
   // The firm's log takes a moved status once the change has committed; Stripe acted, so no actor.
   for (const { userId, ...detail } of planChanges) {
     await recordAudit(sql, {
@@ -189,6 +235,28 @@ export async function applyBillingEvent(
     });
   }
   return outcome;
+}
+
+/**
+ * Runs one step after the event's claim has committed. A throw is logged and
+ * reported (stripe-webhook-after-commit) instead of failing the delivery: a
+ * 500 would bring the event back only as a duplicate.
+ */
+async function afterCommit(work: () => Promise<unknown>): Promise<void> {
+  try {
+    await work();
+  } catch (error) {
+    console.error(
+      "[billing] step after the commit failed:",
+      error instanceof Error ? error.message : error,
+    );
+    try {
+      const { reportServerError } = await import("@/lib/observability/report.server");
+      await reportServerError(error, "stripe-webhook-after-commit");
+    } catch {
+      // Already logged above; the delivery still answers 200.
+    }
+  }
 }
 
 /**
@@ -207,35 +275,57 @@ async function reportSecondSubscription(input: {
   await reportServerError(new Error(message), "billing-second-subscription");
 }
 
-/** Inline attempts before a reversal is parked for the weekly run. */
+/**
+ * A paid Assessment Checkout whose account was deleted before the payment
+ * arrived: nothing is written, the event is acknowledged, and this report
+ * names the payment for the operator to refund in Stripe (OPERATIONS).
+ */
+async function reportPaymentForDeletedAccount(input: {
+  userId: string;
+  customerId: string | null;
+  paymentIntentId: string | null;
+}): Promise<void> {
+  const message = `Assessment payment ${input.paymentIntentId ?? "unknown"} (customer ${input.customerId ?? "unknown"}) for deleted account ${input.userId}; refund it in Stripe`;
+  console.error(`[billing] ${message}`);
+  const { reportServerError } = await import("@/lib/observability/report.server");
+  await reportServerError(new Error(message), "billing-payment-for-deleted-account");
+}
+
+/** Inline attempts before a reversal is left for the scheduled run. */
 const REVERSAL_ATTEMPTS = 3;
 /** Waits between attempts, in milliseconds; bounded for a webhook invocation. */
 const REVERSAL_RETRY_MS = [500, 2000];
 
+type PendingReversal = {
+  userId: string;
+  customerId: string;
+  creditCents: number;
+  assessmentPaidAt: string | null;
+};
+
 /**
- * Takes back a posted Assessment credit on the Stripe customer balance. The
- * Stripe call carries a deterministic idempotency key, so every attempt and
- * every weekly retry posts at most once. When every inline attempt fails,
- * the stored amount comes back (the row agrees with the balance Stripe
- * still holds) and the row is marked for the weekly run; the outcome is
- * reported either way a failure outlasts the retry.
+ * Takes back a posted Assessment credit on the Stripe customer balance,
+ * once the refund's transaction has marked it pending. The Stripe call
+ * carries a deterministic idempotency key, so the inline attempts post at
+ * most once between them. Stripe's confirmation zeroes the amount and
+ * clears the mark. When every inline attempt fails, the row keeps its
+ * amount and pending mark (it agrees with the balance Stripe still holds),
+ * is marked failed for the scheduled run, and the failure is reported.
  */
-async function reverseAssessmentCredit(
-  sql: Sql,
-  input: {
-    userId: string;
-    customerId: string;
-    creditCents: number;
-    assessmentPaidAt: string | null;
-  },
-): Promise<boolean> {
+async function reverseAssessmentCredit(sql: Sql, input: PendingReversal): Promise<boolean> {
   if (input.creditCents <= 0) return true;
   const { reverseCustomerBalance } = await import("./stripe.server");
   let last: unknown = null;
   for (let attempt = 0; attempt < REVERSAL_ATTEMPTS; attempt += 1) {
     try {
-      await reverseCustomerBalance(input.customerId, input.creditCents, input.assessmentPaidAt);
-      return true;
+      await reverseCustomerBalance({
+        userId: input.userId,
+        customerId: input.customerId,
+        amountCents: input.creditCents,
+        assessmentPaidAt: input.assessmentPaidAt,
+      });
+      last = null;
+      break;
     } catch (err) {
       last = err;
       if (attempt < REVERSAL_RETRY_MS.length) {
@@ -243,32 +333,64 @@ async function reverseAssessmentCredit(
       }
     }
   }
+  if (last === null) {
+    // Stripe confirmed. If this write fails, the row stays pending and
+    // the scheduled run finds the reversal at Stripe and only clears it.
+    await markAssessmentCreditReversed(sql, input.userId);
+    return true;
+  }
   console.error(
     "[billing] Assessment credit not reversed:",
     last instanceof Error ? last.message : last,
   );
-  await markAssessmentCreditReversalFailed(sql, input.userId, input.creditCents);
+  await markAssessmentCreditReversalFailed(sql, input.userId);
   const { reportServerError } = await import("@/lib/observability/report.server");
   await reportServerError(last, "stripe-credit-reversal");
   return false;
 }
 
 /**
- * Retries every credit reversal a webhook parked, for the weekly run: one
- * Stripe attempt each, oldest failure first. A success zeroes the amount and
- * clears the mark; a failure keeps both for the week after and is reported.
- * Returns what moved, for the run's answer.
+ * Completes every credit reversal a webhook left behind, for the scheduled
+ * run: one whose inline attempts failed, and one still pending an hour after
+ * its webhook (the function died between its commit and Stripe's answer).
+ * Oldest first. For each, the customer's balance transactions are read
+ * first: a reversal already there (tagged with its reversal_for metadata)
+ * only clears the row, since Stripe forgets an idempotency key after about a
+ * day; otherwise the reversal is posted, then the row cleared. A failure
+ * keeps the row for the next run and is reported. Stops before the next row
+ * once `deadline` passes. Returns what moved, for the run's answer.
  */
 export async function retryFailedCreditReversals(
   sql: Sql,
-): Promise<{ retried: number; failed: number }> {
-  const pending = await listFailedCreditReversals(sql);
-  const { reverseCustomerBalance } = await import("./stripe.server");
+  options: { deadline?: number } = {},
+): Promise<{
+  retried: number;
+  alreadyPosted: number;
+  failed: number;
+  stopped: boolean;
+  remaining: number;
+}> {
+  const pending = await listPendingCreditReversals(sql);
+  const { findCreditReversal, reverseCustomerBalance } = await import("./stripe.server");
   const { reportServerError } = await import("@/lib/observability/report.server");
+  let retried = 0;
+  let alreadyPosted = 0;
   let failed = 0;
   for (const row of pending) {
+    if (!beforeDeadline(options.deadline)) break;
+    retried += 1;
+    const reversal = {
+      userId: row.userId,
+      customerId: row.customerId,
+      amountCents: row.creditCents,
+      assessmentPaidAt: row.assessmentPaidAt,
+    };
     try {
-      await reverseCustomerBalance(row.customerId, row.creditCents, row.assessmentPaidAt);
+      if (await findCreditReversal(reversal)) {
+        alreadyPosted += 1;
+      } else {
+        await reverseCustomerBalance(reversal);
+      }
       await markAssessmentCreditReversed(sql, row.userId);
     } catch (err) {
       failed += 1;
@@ -279,5 +401,6 @@ export async function retryFailedCreditReversals(
       await reportServerError(err, "stripe-credit-reversal-retry");
     }
   }
-  return { retried: pending.length, failed };
+  const remaining = pending.length - retried;
+  return { retried, alreadyPosted, failed, stopped: remaining > 0, remaining };
 }

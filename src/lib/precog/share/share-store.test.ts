@@ -214,7 +214,9 @@ describe("revoking links with the business and the firm", () => {
   it("lets the firm owner list and revoke a colleague's link to a firm client, and nobody else", async () => {
     await linkTo(tok(1), "prep", "owner", "own_biz");
     const listed = await listMapShareSummaries(sql, "owner");
-    expect(listed.map((l) => [l.token, l.createdBy])).toEqual([[tok(1), "prep"]]);
+    expect(listed.map((l) => [l.token, l.createdBy, l.createdByFirm])).toEqual([
+      [tok(1), "prep", "North"],
+    ]);
     expect(await listMapShareSummaries(sql, "outsider")).toEqual([]);
     expect(await revoke("outsider", tok(1))).toBe(null);
     expect(await revoked(tok(1))).toBe(false);
@@ -243,12 +245,16 @@ describe("revoking links with the business and the firm", () => {
     expect(await revoke("owner", tok(1))).toBe(null);
     expect(await revoked(tok(1))).toBe(false);
     expect(await revoke("owner", tok(2))).toBe("revoked");
-    // The business's own account keeps listing and revoking its links.
-    expect((await listMapShareSummaries(sql, "outsider")).map((l) => l.token).sort()).toEqual([
-      tok(1),
-      tok(3),
+    // The business's own account keeps listing and revoking its links, and
+    // lists the firm's link too, named as the firm's.
+    const own = await listMapShareSummaries(sql, "outsider");
+    expect(own.map((l) => [l.token, l.createdBy, l.createdByFirm]).sort()).toEqual([
+      [tok(1), null, null],
+      [tok(2), "prep", "North"],
+      [tok(3), null, null],
     ]);
     expect(await revoke("outsider", tok(1))).toBe("revoked");
+    expect(await revoke("outsider", tok(2))).toBe("already");
   });
 
   it("says whether a revoke ended a live link or found it revoked already", async () => {

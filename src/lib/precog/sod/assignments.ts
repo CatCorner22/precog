@@ -23,8 +23,12 @@ export function personDuties(
   person: Pick<Person, "role" | "entitlements">,
   roleTemplates: Readonly<Record<string, readonly string[]>>,
 ): EntitlementId[] {
-  const duties = person.entitlements?.length
-    ? person.entitlements
+  // A stored duty list can hold anything; only string ids count as duties.
+  const own = Array.isArray(person.entitlements)
+    ? person.entitlements.filter((id): id is string => typeof id === "string")
+    : [];
+  const duties = own.length
+    ? own
     : (roleTemplates[person.role] ?? ROLE_TEMPLATES[person.role] ?? ["view_reports_only"]);
   return Array.from(new Set(duties)) as EntitlementId[];
 }

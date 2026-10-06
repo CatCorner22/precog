@@ -31,6 +31,8 @@ interface RegisterImportResult {
   knowledge: KnowledgeItem[];
   relations: KnowledgeRelation[];
   issues: ImportIssue[];
+  /** Rows the importer skipped because their item was already taken by an earlier row. */
+  unmatched: { row: number; name: string }[];
 }
 
 const REGISTER_CSV_COLUMNS = [
@@ -42,6 +44,14 @@ const REGISTER_CSV_COLUMNS = [
   "last confirmed",
   "description",
 ] as const;
+
+/**
+ * The item's id, written after the people columns so the grid still reads
+ * left to right. It tells apart items whose names differ only in
+ * punctuation or case; files without it match by name.
+ */
+const ID_COLUMN = "precog id";
+const ID_ALIASES = [ID_COLUMN, "item id"];
 
 const HEADER_ALIASES: Record<(typeof REGISTER_CSV_COLUMNS)[number], readonly string[]> = {
   item: ["item", "name", "duty", "task", "duty/task", "duty or task", "knowledge", "work"],
@@ -60,7 +70,7 @@ const HEADER_ALIASES: Record<(typeof REGISTER_CSV_COLUMNS)[number], readonly str
   description: ["description", "notes", "details"],
 };
 
-const KIND_ALIASES: Record<string, KnowledgeKind> = {
+export const KIND_ALIASES: Readonly<Record<string, KnowledgeKind>> = {
   duty: "duty",
   duties: "duty",
   responsibility: "duty",
@@ -72,7 +82,7 @@ const KIND_ALIASES: Record<string, KnowledgeKind> = {
   skill: "knowledge",
 };
 
-const CRITICALITY_ALIASES: Record<string, Criticality> = {
+export const CRITICALITY_ALIASES: Readonly<Record<string, Criticality>> = {
   critical: "critical",
   businessstopswithoutit: "critical",
   stops: "critical",
@@ -146,10 +156,15 @@ export function parseRegisterCsv(
       knowledge: [],
       relations: [],
       issues: [{ row: 0, message: "Missing an item column (duty, task or know-how name)" }],
+      unmatched: [],
     };
   }
+  const idColumn = header.findIndex((cell) =>
+    ID_ALIASES.some((alias) => normalizeHeader(alias) === normalizeHeader(cell)),
+  );
 
   const fixedColumns = new Set(columns.values());
+  if (idColumn >= 0) fixedColumns.add(idColumn);
   const activePeople = tpl.people.filter((p) => p.active);
   const personColumns: { index: number; person: Person }[] = [];
   const unknownPeople: string[] = [];
@@ -193,11 +208,41 @@ export function parseRegisterCsv(
     issues.push({ row: maxRows + 1, message: rowCapMessage(maxRows, dataRows.length - maxRows) });
   }
 
-  const existingByName = new Map(tpl.knowledge.map((k) => [nameKey(k.name), k]));
-  const usedIds = new Set<string>();
+  // A row takes the item its id names, else the first item in register
+  // order with its name that no other row took. Ids go first, so a row
+  // without one cannot take an item a later row names by id.
+  const existingById = new Map(tpl.knowledge.map((k) => [k.id, k]));
+  const existingByName = new Map<string, KnowledgeItem[]>();
+  for (const k of tpl.knowledge) {
+    const key = nameKey(k.name);
+    existingByName.set(key, [...(existingByName.get(key) ?? []), k]);
+  }
+  const taken = new Set<string>();
+  const rowExisting = new Map<number, KnowledgeItem>();
+  rowsToImport.forEach((cells, index) => {
+    const id = idColumn >= 0 ? (cells[idColumn] ?? "").trim() : "";
+    const item = existingById.get(id);
+    if (item && !taken.has(item.id) && (cells[itemColumn] ?? "").trim()) {
+      taken.add(item.id);
+      rowExisting.set(index, item);
+    }
+  });
+  rowsToImport.forEach((cells, index) => {
+    const name = (cells[itemColumn] ?? "").trim();
+    if (!name || rowExisting.has(index)) return;
+    const item = existingByName.get(nameKey(name))?.find((k) => !taken.has(k.id));
+    if (item) {
+      taken.add(item.id);
+      rowExisting.set(index, item);
+    }
+  });
+
+  // New items never take an id the register already uses.
+  const usedIds = new Set(tpl.knowledge.map((k) => k.id));
   const seenNames = new Set<string>();
   const knowledge: KnowledgeItem[] = [];
   const relations: KnowledgeRelation[] = [];
+  const unmatched: RegisterImportResult["unmatched"] = [];
   const cell = (cells: string[], key: (typeof REGISTER_CSV_COLUMNS)[number]) => {
     const index = columns.get(key);
     return index === undefined ? "" : (cells[index] ?? "").trim();
@@ -211,16 +256,17 @@ export function parseRegisterCsv(
       return;
     }
     const itemKey = nameKey(name);
-    if (seenNames.has(itemKey)) {
+    const existing = rowExisting.get(index);
+    if (!existing && seenNames.has(itemKey)) {
       issues.push({
         row: rowNumber,
         message: `"${name}" appears twice; the importer skipped the second row`,
       });
+      unmatched.push({ row: rowNumber, name });
       return;
     }
     seenNames.add(itemKey);
 
-    const existing = existingByName.get(itemKey);
     const kindValue = cell(cells, "kind");
     let kind: KnowledgeKind = existing?.kind ?? "duty";
     if (kindValue) {
@@ -271,10 +317,12 @@ export function parseRegisterCsv(
       : (existing?.description ?? "");
 
     let id = existing?.id ?? `k-${slug(name) || "item"}`;
-    const baseId = id;
-    let suffix = 2;
-    while (usedIds.has(id)) id = `${baseId}-${suffix++}`;
-    usedIds.add(id);
+    if (!existing) {
+      const baseId = id;
+      let suffix = 2;
+      while (usedIds.has(id)) id = `${baseId}-${suffix++}`;
+      usedIds.add(id);
+    }
 
     knowledge.push({
       id,
@@ -304,13 +352,13 @@ export function parseRegisterCsv(
     }
   });
 
-  return { knowledge, relations, issues };
+  return { knowledge, relations, issues, unmatched };
 }
 
 export function registerToCsv(tpl: IndustryTemplate): string {
   const people = tpl.people.filter((p) => p.active);
   const levelOf = new Map(tpl.relations.map((r) => [`${r.personId}|${r.knowledgeId}`, r.level]));
-  const header = [...REGISTER_CSV_COLUMNS, ...people.map((p) => p.name)];
+  const header = [...REGISTER_CSV_COLUMNS, ...people.map((p) => p.name), ID_COLUMN];
   const rows = tpl.knowledge.map((k) => [
     k.name,
     k.kind ?? "knowledge",
@@ -323,8 +371,43 @@ export function registerToCsv(tpl: IndustryTemplate): string {
       const level = levelOf.get(`${p.id}|${k.id}`);
       return level ? LEVEL_CELL[level] : "";
     }),
+    k.id,
   ]);
   return `${[header, ...rows].map((cells) => cells.map(csvCell).join(",")).join("\r\n")}\r\n`;
+}
+
+interface RegisterContents {
+  knowledge: readonly KnowledgeItem[];
+  relations: readonly KnowledgeRelation[];
+}
+
+/**
+ * The register after an import that replaces only the items the file names:
+ * those items and their marks come from the file, every other item keeps
+ * its place and its marks, and new items go on the end.
+ */
+export function mergeRegisterImport(
+  register: RegisterContents,
+  file: RegisterContents,
+): { knowledge: KnowledgeItem[]; relations: KnowledgeRelation[] } {
+  const fromFile = new Map(file.knowledge.map((k) => [k.id, k]));
+  const current = new Set(register.knowledge.map((k) => k.id));
+  return {
+    knowledge: [
+      ...register.knowledge.map((k) => fromFile.get(k.id) ?? k),
+      ...file.knowledge.filter((k) => !current.has(k.id)),
+    ],
+    relations: [
+      ...register.relations.filter((r) => !fromFile.has(r.knowledgeId)),
+      ...file.relations,
+    ],
+  };
+}
+
+/** The import note for rows the importer skipped, or null when there are none. */
+export function unmatchedRowsMessage(unmatched: RegisterImportResult["unmatched"]): string | null {
+  if (!unmatched.length) return null;
+  return `Precog could not match ${unmatched.length} ${unmatched.length === 1 ? "row" : "rows"} to items in your register: ${unmatched.map((u) => u.name).join(", ")}. It changed nothing for them.`;
 }
 
 /** Empty grid with the active team as columns and one example row. */

@@ -295,6 +295,7 @@ npm run e2e:tabs          # every tab of every industry demo, plus /report, /log
                           # /terms, /welcome, /pricing, /firm, a bad /share and /share/report
                           # link and /join/client/not-a-real-token; fails on any page error
 npm run e2e:safety        # signed sessions against the compiled build (see "Continuous integration")
+npm run e2e:save-safety   # edits survive failed saves, on the compiled build (same setup)
 ```
 
 Before asking for a merge, run `npm run verify`. It runs the format check,
@@ -371,19 +372,26 @@ to `main`; the release gate passes only when the other four pass.
 - **Migrations against real Postgres**: applies every migration twice, then
   `test:postgres:migrations` (two simultaneous runners, lock timeout, rollback
   and retry), `test:postgres:quota` (the daily model budget under 64 parallel
-  requests) and `test:postgres:lifecycle` (the business lifecycle on up to
-  eight connections).
+  requests), `test:postgres:lifecycle` (the business lifecycle on up to
+  eight connections), `test:postgres:evidence` (control evidence on
+  concurrent connections) and `test:postgres:races` (every other
+  `*.postgres.test.ts`: account deletion, Firm billing order, membership,
+  plan limits and share revocation on concurrent connections).
 - **Builder end-to-end smoke**: the dev server, then `e2e:warmup`, `e2e`,
   `e2e:enhancements` and `e2e:tabs`.
 - **Authenticated compiled-server safety**: the production build served by
   `scripts/serve-built-test.mjs` against a disposable `precog_safety_e2e`
   database; `e2e:safety` signs in two real Better Auth test sessions and checks
-  account boundaries (see `docs/ACCOUNT_DATA_MODEL.md`), then `e2e:tabs`
-  walks every tab on the compiled build. To run it locally, set
+  account boundaries (see `docs/ACCOUNT_DATA_MODEL.md`), `e2e:save-safety`
+  checks that edits survive a failed account load, a save meeting a newer
+  release, a refused business list and full browser storage, then
+  `e2e:evidence` runs the control evidence workflow and `e2e:tabs` walks every
+  tab on the compiled build. To run it locally, set
   `PRECOG_AUTH_TEST=1`, `DATABASE_URL` to a local `precog_safety_e2e`
   database, `BETTER_AUTH_URL=http://localhost:8080` and a 32-character
   `BETTER_AUTH_SECRET`, then `npm run db:migrate`, `npm run build`,
-  `node scripts/serve-built-test.mjs` and `npm run e2e:safety`.
+  `node scripts/serve-built-test.mjs`, `npm run e2e:safety` and
+  `npm run e2e:save-safety`.
 - **Release gate**: requires the four jobs above.
 
 A newer push to a pull request cancels its older run; pushes to `main` never
@@ -408,9 +416,9 @@ Grok calls require a signed-in user and are rate-limited to 10/min per user, 120
 
 Team CSV imports use the columns `name`, `role`, `tenure_years`, `active`, and `entitlements`. With an imported team, active headcount, known-tenure averages, and segregation health are derived from the team's duties; the segregation slider remains available as an explicit manual override. Re-importing matches rows to the current team by name (case and punctuation ignored), so who-knows-what assignments and process ownership carry over; anyone missing from the file is removed and the import notes what left with them.
 
-The process map (How work flows) has a **Spreadsheet** panel in Build mode that exports the processes as CSV with the columns `process`, `stage`, `description`, `owners`, `depends on`, `controls`, `cadence`, `systems`, `documented`, `procedure location`, `inputs`, `outputs` (lists separated by `;`), and imports the same shape back. Rows are matched to existing processes by name, so a matched row keeps its id, risks, ideas and evidence and only the columns present in the file change; new names become new processes, and a checkbox on the preview removes processes the file no longer lists. Owners, dependencies and controls are matched by name as well, and anything that does not resolve is reported per row before you apply. Each process also carries a **Continuity record** (how often it runs, the systems it lives in, whether a written procedure exists and where), which the map health score counts under "Written down" and Pioneer reads through `get_process_records` when asked who could cover a process. In Build mode the arrow keys step between processes (left/right by stage, up/down within a stage), `F` frames the selection with its risks and controls, `Enter` jumps to the name field, `Shift+A` re-arranges every process into its stage lane, and `Ctrl+Z` / `Ctrl+Shift+Z` undo and redo.
+The process map (How work flows) has a **Spreadsheet** panel in Build mode that exports the processes as CSV with the columns `process`, `stage`, `description`, `owners`, `depends on`, `controls`, `cadence`, `systems`, `documented`, `procedure location`, `inputs`, `outputs` (lists separated by `;`; an item that contains `;` or `|` is wrapped in double quotes), and imports the same shape back. Rows are matched to existing processes by name, so a matched row keeps its id, risks, ideas and evidence and only the columns present in the file change; new names become new processes, and a checkbox on the preview removes processes the file no longer lists. Owners, dependencies and controls are matched by name as well, and anything that does not resolve is reported per row before you apply. Each process also carries a **Continuity record** (how often it runs, the systems it lives in, whether a written procedure exists and where), which the map health score counts under "Written down" and Pioneer reads through `get_process_records` when asked who could cover a process. In Build mode the arrow keys step between processes (left/right by stage, up/down within a stage), `F` frames the selection with its risks and controls, `Enter` jumps to the name field, `Shift+A` re-arranges every process into its stage lane, and `Ctrl+Z` / `Ctrl+Shift+Z` undo and redo.
 
-The continuity register (Who knows what) imports and exports a spreadsheet with the columns `item`, `kind` (duty / task / know-how), `criticality` (critical / important / nice-to-have), `documented`, `procedure location` (where the written procedure lives — drive path, binder, link), `last confirmed` (re-confirm items after 90 days), `description`, followed by one column per active team member holding that person's level: `expert`, `can do`, `learning`, `aware`, or blank. Rows matched by name to existing items keep their id and process links; columns for people not on the active team are skipped and reported. "Blank template" downloads the grid with the current team as columns.
+The continuity register (Who knows what) imports and exports a spreadsheet with the columns `item`, `kind` (duty / task / know-how), `criticality` (critical / important / nice-to-have), `documented`, `procedure location` (where the written procedure lives — drive path, binder, link), `last confirmed` (re-confirm items after 90 days), `description`, followed by one column per active team member holding that person's level: `expert`, `can do`, `learning`, `aware`, or blank, then a `precog id` column. Rows match existing items by that id, or by name when a file has no id, and keep their id and process links, so two items whose names differ only in punctuation or case stay apart. An import into your own register changes only the items the file names; the rest keep their marks; columns for people not on the active team are skipped and reported. "Blank template" downloads the grid with the current team as columns.
 Pioneer and the Start here also surface the confirmed-recently figure once you enter your own register. Re-confirmation is organised as a check-in per person: the "Confirm it's still true" card groups stale items by who holds them, so one conversation covers everything the register says that person can do (still does it / level changed / no longer), with a separate list for stale items nobody on the active team holds. The weekly action plan, printed report and Pioneer (`get_register_checkins`) advise in the same terms — "check in with Maya: 5 entries, 2 nobody else can run alone" — rather than item by item, and Start here names the next person to sit down with. When a check-in takes someone off an item or drops them below "can do it alone", a "What this check-in changed" card lists every item whose coverage got worse, who is left, and the cross-training move that repairs it, loggable as a decision.
 Share links can hide people's names while keeping roles, optionally require a passcode, and record a small view log for the owner.
 

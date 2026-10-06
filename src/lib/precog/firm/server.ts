@@ -417,6 +417,11 @@ export const listFirmClients = createServerFn({ method: "GET" })
     };
   });
 
+/**
+ * The page-open stamps the browser measures. The sent date is not one of
+ * them: only markReportSent sets it, on a reviewed version, so any
+ * reportSentAt in the request is dropped here.
+ */
 export const recordEngagement = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
@@ -424,7 +429,6 @@ export const recordEngagement = createServerFn({ method: "POST" })
       businessId: string;
       startedAt?: string | null;
       mapCompletedAt?: string | null;
-      reportSentAt?: string | null;
       openFindings: number;
       acceptedFindings: number;
     }) => {
@@ -439,7 +443,6 @@ export const recordEngagement = createServerFn({ method: "POST" })
         businessId: raw.businessId,
         startedAt: instantInput(raw.startedAt),
         mapCompletedAt: instantInput(raw.mapCompletedAt),
-        reportSentAt: instantInput(raw.reportSentAt),
         openFindings: Math.max(0, Math.round(openFindings)),
         acceptedFindings: Math.max(0, Math.round(acceptedFindings)),
       };
