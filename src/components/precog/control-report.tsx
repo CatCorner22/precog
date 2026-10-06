@@ -466,7 +466,9 @@ export function ControlReport({
                   <tr key={`${t.kind}-${t.id}`} className="border-b border-neutral-200 align-top">
                     <td className="py-1.5 pr-2 tabular text-neutral-500">{i + 1}</td>
                     <td className="py-1.5 pr-2 font-medium">{t.label}</td>
-                    <td className="py-1.5 pr-2 text-neutral-700">{KIND_LABEL[t.kind] ?? t.kind}</td>
+                    <td className="py-1.5 pr-2 text-neutral-700">
+                      {(t.kinds ?? [t.kind]).map((k) => KIND_LABEL[k] ?? k).join(" · ")}
+                    </td>
                     <td className="py-1.5 pr-2">
                       <span
                         className={

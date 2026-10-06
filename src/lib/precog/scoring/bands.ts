@@ -13,8 +13,9 @@
  *   must-do work stops when someone is out.
  * - PRIORITY_SCALE, higher is worse: what the map and the priority list look
  *   at first. Process heat, a priority item and a person's workload band on
- *   it, in words of their own ("Top priority" and so on), so no priority
- *   band borrows a residual band's name.
+ *   it. Its bands read in the same urgency words as the residual action
+ *   bands ("Fix first", "Fix soon", "Worth doing", "Watch"), so a reader
+ *   meets one scale of urgency; the cutoffs stay each scale's own.
  *
  * An index is Precog's weighting of the owner's answers. It is never a
  * measurement, and the cutoffs are presentation choices that order attention;
@@ -56,14 +57,28 @@ export function priorityBand(score: number): PriorityBand {
   return "cold";
 }
 
-/** Priority bands in words that differ from the residual action bands ("Fix first" means only residual 80+). */
+/**
+ * Priority bands in the one urgency scale every screen uses: "Fix first",
+ * "Fix soon", "Worth doing", "Watch", the words of the residual action
+ * bands. Each scale keeps its own cutoffs: "Fix first" is priority 88 or
+ * more here and residual 80 or more there. Below "Watch" an item is "Not
+ * urgent".
+ */
 export const PRIORITY_BAND_LABEL: Record<PriorityBand, string> = {
-  white_hot: "Top priority",
-  critical: "High priority",
-  elevated: "Medium priority",
-  watch: "Low priority",
+  white_hot: "Fix first",
+  critical: "Fix soon",
+  elevated: "Worth doing",
+  watch: "Watch",
   cold: "Not urgent",
 };
+
+/**
+ * The key a duty-conflict table prints under its Severity column, so
+ * "Critical" and "High" read on the same urgency scale as the priority list:
+ * a critical conflict's row ranks "Fix first" there and a high one's "Fix
+ * soon" (threat-scoring SOD_HEAT; threat-scoring.test checks).
+ */
+export const CONFLICT_SEVERITY_KEY = "Critical and high duty conflicts are Fix first and Fix soon.";
 
 /** The colour of a higher-is-worse figure on RISK_SCALE: red from "Fix soon" up, amber from "Worth doing". */
 export function riskTone(score: number): "danger" | "warn" | "ok" {

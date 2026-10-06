@@ -526,8 +526,13 @@ describe("report cover headlines", () => {
       expect(residual).toMatch(/\|\d+ fix first\|/);
       expect(residual).toContain("Fix first at 80 or more");
       expect(residual).not.toMatch(/top|priority|88/i);
-      // "Fix first" names the residual band only: nowhere else on the cover.
-      expect(text.replace(residual, "")).not.toMatch(/fix first/i);
+      // One urgency scale: the Priority stack's top band reads "Fix first"
+      // too, and each row says what it groups. Nowhere else names it.
+      const stack = between("Priority stack", "Segregation of duties");
+      expect(stack).toContain("|Fix first|");
+      expect(stack).toContain("|Duty conflict · Control · Scenario|");
+      expect(stack).not.toMatch(/Top priority|High priority/);
+      expect(text.replace(residual, "").replace(stack, "")).not.toMatch(/fix first/i);
     }
   });
 });

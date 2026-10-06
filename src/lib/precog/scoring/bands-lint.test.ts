@@ -1,6 +1,8 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { PRIORITY_BAND_LABEL, RISK_SCALE } from "./bands";
+import { bandForScore } from "./weights";
 
 /**
  * Every band cutoff lives in scoring/bands.ts, so the same figure can never
@@ -68,6 +70,25 @@ describe("band cutoffs", () => {
     }));
     expect(files.length).toBeGreaterThan(100);
     expect(cutoffsOutsideBands(files)).toEqual([]);
+  });
+
+  it("name the priority bands in the residual bands' urgency words", () => {
+    // One scale of urgency: each index keeps its own cutoffs, never its own words.
+    expect(
+      [RISK_SCALE.critical, RISK_SCALE.actNow, RISK_SCALE.mitigate, 0].map(
+        (s) => bandForScore(s).label,
+      ),
+    ).toEqual([
+      PRIORITY_BAND_LABEL.white_hot,
+      PRIORITY_BAND_LABEL.critical,
+      PRIORITY_BAND_LABEL.elevated,
+      PRIORITY_BAND_LABEL.watch,
+    ]);
+    const root = join(SRC, "..");
+    const retired = sourceFiles(SRC)
+      .filter((path) => /"(?:Top|High|Medium|Low) priority"/.test(readFileSync(path, "utf8")))
+      .map((path) => relative(root, path));
+    expect(retired).toEqual([]);
   });
 
   it("catches each shape a cutoff takes", () => {
