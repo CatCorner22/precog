@@ -24,6 +24,7 @@ import { authEnabled } from "@/lib/auth/client";
 import { listBusinesses, loadBusinessProfile, saveBusinessProfile } from "./profile-server";
 import {
   ACTIVE_PROFILE_KEY,
+  forgetRemovedBusiness,
   hasUserWork,
   loadPortfolio,
   makeBusinessId,
@@ -157,6 +158,18 @@ export function useCloudSync(input: {
       window.removeEventListener("storage", onStorage);
     };
   }, [bumpPortfolio, workspace.local]);
+  /**
+   * The account holds this account's business `id` live (it listed, loaded
+   * or saved it), so a removal of it on this device is over: it was restored
+   * since, and is listed and kept here again.
+   */
+  const accountHolds = useCallback(
+    (id: string, ownerUserId: string | undefined) => {
+      if (ownerUserId && ownerUserId !== userId) return;
+      if (forgetRemovedBusiness(id, workspace.local)) bumpPortfolio();
+    },
+    [bumpPortfolio, userId, workspace.local],
+  );
   // The open business's row as last listed, without its save time: a save
   // that changes nothing the list shows does not re-render every reader.
   const listedRow = useRef<string | null>(null);
@@ -230,6 +243,18 @@ export function useCloudSync(input: {
     (id: string, stamp: string) =>
       syncedStamps.current[id] === stamp || storedStamps(workspace.local)[id] === stamp,
     [workspace.local],
+  );
+  /**
+   * Whether this device's copy of business `id` builds on its version
+   * stamped `stamp`: the account took this device's copy at that version, or
+   * this device holds that very version (listed, or open in another tab).
+   */
+  const deviceHolds = useCallback(
+    (id: string, stamp: string) =>
+      accountTook(id, stamp) ||
+      loadPortfolio(workspace.local)[id]?.updatedAt === stamp ||
+      localStore.peek(id)?.profile.updatedAt === stamp,
+    [accountTook, localStore, workspace.local],
   );
   const skipNextCloudSave = useRef(false);
   const cloudLoadedFor = useRef<string | null>(null);
@@ -337,6 +362,7 @@ export function useCloudSync(input: {
         if (!mounted.current || !identityUnchanged(identity)) return false;
         if (result.ok) {
           rememberRevision(id, result.revision);
+          accountHolds(id, current.ownerUserId);
           acknowledged.current.set(id, current);
           lineage.add(id, current.updatedAt);
           rememberStamp(id, current.updatedAt);
@@ -354,7 +380,7 @@ export function useCloudSync(input: {
         return false;
       });
     },
-    [lineage, raiseConflict, rememberRevision, rememberStamp, userId, profileRef],
+    [lineage, raiseConflict, rememberRevision, rememberStamp, accountHolds, userId, profileRef],
   );
 
   /**
@@ -587,7 +613,9 @@ export function useCloudSync(input: {
     const attempt = async (): Promise<void> => {
       try {
         const list = await listBusinesses();
-        if (mounted.current) setRemoteBusinesses(list);
+        if (!mounted.current) return;
+        for (const b of list) accountHolds(b.id, b.ownerUserId);
+        setRemoteBusinesses(list);
       } catch {
         if (!mounted.current) return;
         toast.error("Could not load your account's businesses", {
@@ -597,7 +625,7 @@ export function useCloudSync(input: {
       }
     };
     return attempt();
-  }, []);
+  }, [accountHolds]);
 
   useEffect(() => {
     if (!ready || isPending) return;
@@ -634,6 +662,8 @@ export function useCloudSync(input: {
         const buildOnAccount = () => {
           if (res.revision !== null) rememberRevision(id, res.revision);
         };
+        // The account holds it live, so a removal of it here is over.
+        accountHolds(id, remoteProfile.ownerUserId);
 
         if (failures > 0) {
           // Read late, after the owner worked on (and may have switched to)
@@ -645,6 +675,14 @@ export function useCloudSync(input: {
             lineage.buildsOn(id, remoteProfile.updatedAt);
           if (fastForward) buildOnAccount();
           if (id !== localId || fastForward) {
+            // Another business than the open one: this device builds on the
+            // account's copy of it when it holds that very version, or the
+            // account took this device's copy at that version. Its revision
+            // is recorded then, so opening it later saves on top of it
+            // instead of asking; any other copy here still asks.
+            if (!fastForward && id !== localId && deviceHolds(id, remoteProfile.updatedAt)) {
+              buildOnAccount();
+            }
             saveOpenBusiness(local);
             return;
           }
@@ -817,6 +855,8 @@ export function useCloudSync(input: {
     workspace,
     lineage,
     rememberRevision,
+    accountHolds,
+    deviceHolds,
     rememberStamp,
     keepInList,
     offerCopyDownload,

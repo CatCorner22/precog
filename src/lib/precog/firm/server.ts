@@ -59,13 +59,7 @@ import {
   versionFirmName,
 } from "./reports";
 import { loadBillingAccount, planToStore } from "./billing-store";
-import { businessLimitMessage } from "../business-lifecycle";
-import {
-  countClients,
-  loadEntitlements,
-  requireEntitlement,
-  requireEntitlementForBusiness,
-} from "./entitlements.server";
+import { requireEntitlement, requireEntitlementForBusiness } from "./entitlements.server";
 import { recordFirst } from "../telemetry/events.server";
 import { assertEngagementOpen, engagementEnded } from "./engagement-store";
 import { recordAudit, recordAuditForBusiness } from "./audit.server";
@@ -318,7 +312,9 @@ export const transferFirmOwnership = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
-    await transferFirmOwnershipRows(sql, firm.firmUserId, data.userId);
+    // The old owner's own client businesses moved to the new owner's
+    // account, some under a new address when the new owner held the id.
+    const moved = await transferFirmOwnershipRows(sql, firm.firmUserId, data.userId);
     // The firm's id is now the new owner's; its log moved with it.
     await recordAudit(sql, {
       firmUserId: data.userId,
@@ -326,10 +322,12 @@ export const transferFirmOwnership = createServerFn({ method: "POST" })
       event: "ownership_transferred",
       subjectUserId: data.userId,
     });
+    await recordHandOvers(sql, data.userId, context.userId, context.userId, moved);
     await repointStripeOwner(sql, data.userId);
     return {
       firm: await loadFirmFor(sql, context.userId),
       members: await listMembers(sql, data.userId),
+      moved,
     };
   });
 
@@ -385,7 +383,10 @@ export const leaveFirm = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-/** One client_handed_over row per business a departing member's exit moved to the owner. */
+/**
+ * One client_handed_over row per business a departing member's exit (or an
+ * old owner's transfer of the firm) moved to the owner.
+ */
 async function recordHandOvers(
   sql: Awaited<ReturnType<typeof getSql>>,
   firmUserId: string,
@@ -796,21 +797,9 @@ export const restoreDeletedClient = createServerFn({ method: "POST" })
     const matches = candidates.filter((b) => b.id === data.businessId);
     const target = matches.find((b) => b.ownerUserId === context.userId) ?? matches[0];
     if (!target) throw new RequestError(404, "That business is not in the deleted list");
-    // A restore brings a live business back, so it counts against the plan
-    // as a new one does; the store's per-owner ceiling still applies after.
-    const e = await loadEntitlements(sql, context.userId);
-    const held = await countClients(sql, context.userId, firm);
-    if (held >= e.clientLimit) {
-      throw new RequestError(
-        402,
-        businessLimitMessage({
-          plan: e.plan,
-          limit: e.clientLimit,
-          tier: e.tier,
-          asMember: firm !== null && firm.role !== "owner",
-        }),
-      );
-    }
+    // A restore brings a live business back, so the store counts it against
+    // the plan that holds the business (its firm's, or its owner's own),
+    // under that plan's lock; its per-owner ceiling still applies after.
     const restored = await restoreBusinessRow(
       sql,
       target.ownerUserId,

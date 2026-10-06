@@ -4,6 +4,7 @@ import { toSql } from "@/lib/sql-transaction";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { applyBillingEvent, retryFailedCreditReversals } from "./webhook";
 import { saveFirm } from "../firm/store";
+import { markAssessmentCreditReversed } from "../firm/billing-store";
 
 const report = vi.hoisted(() => ({
   failAt: null as string | null,
@@ -28,6 +29,8 @@ type Txn = {
 const PAID_AT = "2026-09-01T00:00:00.000Z";
 /** The reversal_for tag: the Stripe customer and the Assessment payment. */
 const TAG = `cus_1:${PAID_AT}`;
+/** The tag a reversal carries now: the Stripe customer, the payment's paid-at time and its payment intent. */
+const NEW_TAG = `cus_1:${PAID_AT}:pi_1`;
 /** The tag reversals carried before it named the customer: the account. */
 const ACCOUNT_TAG = `owner:${PAID_AT}`;
 
@@ -122,8 +125,8 @@ describe("Assessment credit reversal, across a crash", () => {
     expect(await applyBillingEvent(db.sql, refund("evt_r1"))).toBe("applied");
     expect(posts()).toHaveLength(1);
     expect(posts()[0].body).toContain("amount=100000");
-    expect(new URLSearchParams(posts()[0].body).get("metadata[reversal_for]")).toBe(TAG);
-    expect(posts()[0].key).toBe(`credit-reversal-cus_1-${PAID_AT}`);
+    expect(new URLSearchParams(posts()[0].body).get("metadata[reversal_for]")).toBe(NEW_TAG);
+    expect(posts()[0].key).toBe(`credit-reversal-cus_1-${PAID_AT}-pi_1`);
     expect(await row()).toEqual({ cents: 0, pending: null, failed: null });
     // Nothing is left for the scheduled run.
     expect(await retryFailedCreditReversals(db.sql)).toMatchObject({ retried: 0 });
@@ -159,7 +162,7 @@ describe("Assessment credit reversal, across a crash", () => {
     expect(calls.at(-2)?.url).toBe(
       "https://api.stripe.com/v1/customers/cus_1/balance_transactions?limit=100",
     );
-    expect(new URLSearchParams(posts()[1].body).get("metadata[reversal_for]")).toBe(TAG);
+    expect(new URLSearchParams(posts()[1].body).get("metadata[reversal_for]")).toBe(NEW_TAG);
     expect(await row()).toEqual({ cents: 0, pending: null, failed: null });
   });
 
@@ -315,6 +318,119 @@ describe("Assessment credit reversal, across a crash", () => {
     await vi.waitFor(() => expect(posts()).toHaveLength(1));
     hang = false;
     expect(await applyBillingEvent(db.sql, refund("evt_r2"))).toBe("applied");
+    expect(posts()).toHaveLength(1);
+  });
+
+  /** A new Assessment payment (a new payment intent) for the same account and customer. */
+  const paidAgain = (id: string, intent: string) => ({
+    id,
+    type: "checkout.session.completed",
+    created: 1_800_000_000,
+    data: {
+      object: {
+        mode: "payment",
+        payment_status: "paid",
+        client_reference_id: "owner",
+        customer: "cus_1",
+        payment_intent: intent,
+        amount_subtotal: 100_000,
+      },
+    },
+  });
+  const newPaymentRow = async () =>
+    (
+      await db.sql<{ intent: string; cents: number | null; used: string | null }>`
+        select assessment_payment_intent as intent, assessment_credit_cents as cents,
+          assessment_credit_used_at as used
+        from billing_accounts where user_id = 'owner'`
+    )[0];
+
+  it("keeps a failed reversal owed when a new payment arrives, and the scheduled run posts it", async () => {
+    await db.sql`update billing_accounts
+      set assessment_credit_reversal_pending_at = now() - interval '2 hours',
+        assessment_credit_reversal_failed_at = now()
+      where user_id = 'owner'`;
+    expect(await applyBillingEvent(db.sql, paidAgain("evt_p2", "pi_2"))).toBe("applied");
+    // The new payment starts clean and earns its own credit.
+    expect(await newPaymentRow()).toEqual({ intent: "pi_2", cents: null, used: null });
+    expect(await retryFailedCreditReversals(db.sql)).toMatchObject({ retried: 1, failed: 0 });
+    expect(posts()).toHaveLength(1);
+    expect(posts()[0].body).toContain("amount=100000");
+    expect(new URLSearchParams(posts()[0].body).get("metadata[reversal_for]")).toBe(NEW_TAG);
+    expect(posts()[0].key).toBe(`credit-reversal-cus_1-${PAID_AT}-pi_1`);
+    // Done once: the next run finds nothing.
+    expect(await retryFailedCreditReversals(db.sql)).toMatchObject({ retried: 0 });
+    expect(posts()).toHaveLength(1);
+  });
+
+  it("keeps a pending reversal owed when a new payment arrives after a crash", async () => {
+    hang = true;
+    void applyBillingEvent(db.sql, refund("evt_r1"));
+    await vi.waitFor(() => expect(posts()).toHaveLength(1));
+    hang = false;
+    expect(await applyBillingEvent(db.sql, paidAgain("evt_p2", "pi_2"))).toBe("applied");
+    expect(await newPaymentRow()).toEqual({ intent: "pi_2", cents: null, used: null });
+    await db.sql`update assessment_credit_reversals set pending_at = now() - interval '2 hours'`;
+    expect(await retryFailedCreditReversals(db.sql)).toMatchObject({ retried: 1, failed: 0 });
+    expect(posts()).toHaveLength(2);
+    expect(new URLSearchParams(posts()[1].body).get("metadata[reversal_for]")).toBe(NEW_TAG);
+  });
+
+  it("never zeroes a new payment's credit when the earlier payment's reversal confirms late", async () => {
+    await db.sql`update billing_accounts
+      set assessment_credit_reversal_pending_at = now() where user_id = 'owner'`;
+    await applyBillingEvent(db.sql, paidAgain("evt_p2", "pi_2"));
+    await db.sql`update billing_accounts
+      set assessment_credit_used_at = now(), assessment_credit_cents = 50000
+      where user_id = 'owner'`;
+    // The earlier payment's inline reversal now reaches Stripe and confirms.
+    await markAssessmentCreditReversed(db.sql, {
+      userId: "owner",
+      customerId: "cus_1",
+      paymentIntentId: "pi_1",
+    });
+    expect((await newPaymentRow()).cents).toBe(50_000);
+    expect(await db.sql`select 1 from assessment_credit_reversals`).toHaveLength(0);
+  });
+
+  it("never takes a reversal of another payment with no known paid time as this one's", async () => {
+    // A row whose paid time is unknown: the tag's time part is "unknown".
+    await db.sql`update billing_accounts
+      set assessment_paid_at = null, assessment_credit_reversal_failed_at = now()
+      where user_id = 'owner'`;
+    balance.unshift(
+      {
+        id: "cbtxn_other",
+        amount: 100_000,
+        created: Date.parse("2026-09-20T00:00:00Z") / 1000,
+        description: "Assessment credit reversed",
+        metadata: { reversal_for: "cus_1:unknown" },
+      },
+      {
+        id: "cbtxn_other_new",
+        amount: 100_000,
+        created: Date.parse("2026-09-21T00:00:00Z") / 1000,
+        description: "Assessment credit reversed",
+        metadata: { reversal_for: "cus_1:unknown:pi_0" },
+      },
+      {
+        id: "cbtxn_untagged",
+        amount: 100_000,
+        created: Date.parse("2026-09-22T00:00:00Z") / 1000,
+        description: "Assessment credit reversed",
+        metadata: {},
+      },
+    );
+    expect(await retryFailedCreditReversals(db.sql)).toMatchObject({ alreadyPosted: 0 });
+    expect(posts()).toHaveLength(1);
+    expect(new URLSearchParams(posts()[0].body).get("metadata[reversal_for]")).toBe(
+      "cus_1:unknown:pi_1",
+    );
+    // This payment's own reversal is found by its tag.
+    await db.sql`update billing_accounts
+      set assessment_credit_cents = 100000, assessment_credit_reversal_failed_at = now()
+      where user_id = 'owner'`;
+    expect(await retryFailedCreditReversals(db.sql)).toMatchObject({ alreadyPosted: 1 });
     expect(posts()).toHaveLength(1);
   });
 });

@@ -422,6 +422,10 @@ function FirmPage() {
                     setBilling(res.billing);
                   })
                   .catch(() => undefined);
+                // The old owner's own clients now list under the new owner's account.
+                void listFirmClients()
+                  .then((res) => setClients(res.clients))
+                  .catch(() => undefined);
               }
               if (next.removed) {
                 for (const line of removedMemberToasts(next.removed.name, next.removed.moved)) {

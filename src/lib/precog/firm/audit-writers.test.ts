@@ -248,11 +248,40 @@ describe("firm writers", () => {
       logoDataUrl: null,
       coverPage: true,
     });
-    await call(server.transferFirmOwnership, "fo", { userId: "rv" });
+    const res = await call<{ moved: { from: string; to: string; name: string }[] }>(
+      server.transferFirmOwnership,
+      "fo",
+      { userId: "rv" },
+    );
     const rows = await log();
-    expect(rows.map((r) => [r.firm, r.event, r.actor, r.subject])).toEqual([
-      ["rv", "letterhead_changed", "fo", null],
-      ["rv", "ownership_transferred", "fo", "rv"],
+    // The old owner's own client (biz_f) moves to the new owner, logged as a hand-over.
+    expect(rows.map((r) => [r.firm, r.event, r.actor, r.business, r.subject])).toEqual([
+      ["rv", "letterhead_changed", "fo", null, null],
+      ["rv", "ownership_transferred", "fo", null, "rv"],
+      ["rv", "client_handed_over", "fo", "biz_f", "fo"],
+    ]);
+    expect(rows[2].detail).toEqual({ from: "biz_f" });
+    expect(res.moved).toEqual([{ from: "biz_f", to: "biz_f", name: "Fay Client" }]);
+  });
+
+  it("logs a renamed hand-over on a transfer under the business's new address", async () => {
+    // The new owner already holds an id the old owner's client uses.
+    await db.pg.query(
+      `insert into businesses (id, user_id, name, industry, profile, revision, firm_user_id)
+       values ('biz_f', 'rv', 'Rv Own', 'dental', $1::jsonb, 1, null)`,
+      [JSON.stringify(defaultProfile("dental"))],
+    );
+    const res = await call<{ moved: { from: string; to: string; name: string }[] }>(
+      server.transferFirmOwnership,
+      "fo",
+      { userId: "rv" },
+    );
+    expect(res.moved).toHaveLength(1);
+    expect(res.moved[0].from).toBe("biz_f");
+    expect(res.moved[0].to).toMatch(/^biz_f-[0-9a-f]+$/);
+    const handed = (await log()).filter((r) => r.event === "client_handed_over");
+    expect(handed.map((r) => [r.business, r.subject, r.detail])).toEqual([
+      [res.moved[0].to, "fo", { from: "biz_f" }],
     ]);
   });
 

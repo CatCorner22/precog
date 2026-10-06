@@ -50,16 +50,16 @@ horizontal product is proven.
 Every hypothesis must have an owner, evidence source, deadline, and explicit
 pass/fail threshold.
 
-| ID | Hypothesis | Test | Pass threshold | Failure implication |
-| --- | --- | --- | --- | --- |
-| H1 | Bookkeepers and CPAs with mixed clients have a repeating responsibility and access review | 12 firm interviews + workflow observation, covering at least three industry packs | 8 describe the same recurring job; 5 provide artifacts | Reframe the buyer or stop firm-first development |
-| H2 | Businesses of about 10–50 people will fund the workflow | 10 buyer interviews + 5 priced proposals, not all in one pack | 3 paid design partners | Treat as a consulting aid, not standalone SaaS |
-| H3 | A credible first model can be created quickly | Timed onboarding with real staff and access exports | Median under 4 hours advisor-led; under 1 day total | Reduce the pack and automate ingestion before adding analysis |
-| H4 | Findings are accurate enough to act on | Blind finding review by the customer + an independent reviewer | At least 70% valid; at least 50% actionable | Tune rules and suppress heuristics before scaling sales |
-| H5 | Customers will maintain the model | 90-day pilot with two review cycles | 60% complete cycle two | Do not claim continuous controls |
-| H6 | Value can be shown without speculative fraud savings | Baseline time study + exception outcomes | Each paid pilot shows labor savings or an approved closure worth the annual price | Narrow the offer or lower the setup burden |
-| H7 | A firm lowers acquisition cost | Multi-client firm pilot | One firm activates 3+ paying clients, in more than one pack | Sell direct, or maintain only the pack that pays |
-| H8 | CSV and QuickBooks reconciliation are enough for the first sale | Import real accounting, payroll, and access exports | 80% of permissions map; a person can clear the rest | Build one more connector only after naming the source that blocked the sale |
+| ID  | Hypothesis                                                                                | Test                                                                              | Pass threshold                                                                    | Failure implication                                                         |
+| --- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| H1  | Bookkeepers and CPAs with mixed clients have a repeating responsibility and access review | 12 firm interviews + workflow observation, covering at least three industry packs | 8 describe the same recurring job; 5 provide artifacts                            | Reframe the buyer or stop firm-first development                            |
+| H2  | Businesses of about 10–50 people will fund the workflow                                   | 10 buyer interviews + 5 priced proposals, not all in one pack                     | 3 paid design partners                                                            | Treat as a consulting aid, not standalone SaaS                              |
+| H3  | A credible first model can be created quickly                                             | Timed onboarding with real staff and access exports                               | Median under 4 hours advisor-led; under 1 day total                               | Reduce the pack and automate ingestion before adding analysis               |
+| H4  | Findings are accurate enough to act on                                                    | Blind finding review by the customer + an independent reviewer                    | At least 70% valid; at least 50% actionable                                       | Tune rules and suppress heuristics before scaling sales                     |
+| H5  | Customers will maintain the model                                                         | 90-day pilot with two review cycles                                               | 60% complete cycle two                                                            | Do not claim continuous controls                                            |
+| H6  | Value can be shown without speculative fraud savings                                      | Baseline time study + exception outcomes                                          | Each paid pilot shows labor savings or an approved closure worth the annual price | Narrow the offer or lower the setup burden                                  |
+| H7  | A firm lowers acquisition cost                                                            | Multi-client firm pilot                                                           | One firm activates 3+ paying clients, in more than one pack                       | Sell direct, or maintain only the pack that pays                            |
+| H8  | CSV and QuickBooks reconciliation are enough for the first sale                           | Import real accounting, payroll, and access exports                               | 80% of permissions map; a person can clear the rest                               | Build one more connector only after naming the source that blocked the sale |
 
 ## 3. Target segments and buyer map
 
@@ -430,19 +430,19 @@ identifiers in any pack.
 
 ## 11. Commercial scorecard
 
-| Area | Metric | 12-week gate |
-| --- | --- | ---: |
-| Demand | Paid design partners, at least three packs among them | 5 |
-| Retention signal | Commit to a second cycle | 3 of 5 |
-| Channel | Firm with paying clients in more than one pack | At least 1 firm / 3 clients |
-| Activation | Credible initial model | Median under 4 advisor hours |
-| Accuracy | Critical findings judged valid | At least 70% |
-| Actionability | Critical findings accepted for action | At least 50% |
-| Data | Permissions automatically mapped | At least 80% |
-| Workflow | Second cycle completed on time | At least 60% |
-| Risk | Unresolved critical conflicts at day 90 | Down at least 50% |
-| Value | Observed hours saved or an approved closure | At least the annual price |
-| Economics | Implementation after packs are reused | Below 25% of first-year fees |
+| Area             | Metric                                                |                 12-week gate |
+| ---------------- | ----------------------------------------------------- | ---------------------------: |
+| Demand           | Paid design partners, at least three packs among them |                            5 |
+| Retention signal | Commit to a second cycle                              |                       3 of 5 |
+| Channel          | Firm with paying clients in more than one pack        |  At least 1 firm / 3 clients |
+| Activation       | Credible initial model                                | Median under 4 advisor hours |
+| Accuracy         | Critical findings judged valid                        |                 At least 70% |
+| Actionability    | Critical findings accepted for action                 |                 At least 50% |
+| Data             | Permissions automatically mapped                      |                 At least 80% |
+| Workflow         | Second cycle completed on time                        |                 At least 60% |
+| Risk             | Unresolved critical conflicts at day 90               |            Down at least 50% |
+| Value            | Observed hours saved or an approved closure           |    At least the annual price |
+| Economics        | Implementation after packs are reused                 | Below 25% of first-year fees |
 
 ## 12. Go, narrow, or stop
 

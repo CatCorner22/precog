@@ -122,7 +122,7 @@ Drill record (one row per drill; the first drill sets `[RTO]`):
   - A Checkout report is a payment Precog did not start (for example a Payment Link or a dashboard Checkout). Look it up in Stripe, then refund it or attribute it by hand. Its retries never succeed, because a Checkout's account comes only from the Checkout itself.
   - A cancellation for a customer no account holds is not reported; it answers 200 as "ignored".
 - Assessment disputes: while a dispute is open the paid tools stay open (the chargeback can still be won); a lost dispute counts as a refund and closes them until a new payment. The firm cannot change owner while a payment is disputed — the transfer refuses until the dispute clears.
-- Assessment-credit reversals retry inline, then weekly: the refund's transaction stamps `assessment_credit_reversal_pending_at` and keeps the posted amount; Stripe's confirmation zeroes the amount and clears the stamp. When the webhook cannot reach Stripe, it also stamps `assessment_credit_reversal_failed_at`; when it dies before Stripe answers, the row stays pending. The scheduled run's `credit-reversals` stage takes each failed row, and each row pending for more than an hour, reads the customer's balance transactions for one whose metadata `reversal_for` is `<Stripe customer id>:<Assessment paid-at time>` (or, posted before October 2026, `<user id>:<Assessment paid-at time>`, which it also recognises for the firm's earlier owner), and posts the reversal only when none is there (`alreadyPosted` counts the rows it only cleared). Rows still listed after a run need a look in the Stripe dashboard (the customer balance transaction with that `reversal_for` metadata):
+- Assessment-credit reversals retry inline, then weekly: the refund's transaction stamps `assessment_credit_reversal_pending_at` and keeps the posted amount; Stripe's confirmation zeroes the amount and clears the stamp. When the webhook cannot reach Stripe, it also stamps `assessment_credit_reversal_failed_at`; when it dies before Stripe answers, the row stays pending. The scheduled run's `credit-reversals` stage takes each failed row, and each row pending for more than an hour, reads the customer's balance transactions for one whose metadata `reversal_for` is `<Stripe customer id>:<Assessment paid-at time>:<payment intent id>` (or, posted earlier and only when the paid-at time is known, `<Stripe customer id>:<Assessment paid-at time>` or `<user id>:<Assessment paid-at time>`, which it also recognises for the firm's earlier owner), and posts the reversal only when none is there (`alreadyPosted` counts the rows it only cleared). A new Assessment payment that arrives while an earlier payment's reversal is still pending or failed moves that reversal to its own row in `assessment_credit_reversals` (migration 0055), which the same stage completes. Rows still listed after a run need a look in the Stripe dashboard (the customer balance transaction with that `reversal_for` metadata):
 
 ```sql
 select user_id, stripe_customer_id, assessment_credit_cents,
@@ -131,6 +131,10 @@ from billing_accounts
 where (assessment_credit_reversal_failed_at is not null
     or assessment_credit_reversal_pending_at < now() - interval '1 hour')
   and coalesce(assessment_credit_cents, 0) > 0;
+
+select user_id, stripe_customer_id, credit_cents, assessment_payment_intent, pending_at, failed_at
+from assessment_credit_reversals
+where failed_at is not null or pending_at < now() - interval '1 hour';
 ```
 
 ### Link a Stripe customer

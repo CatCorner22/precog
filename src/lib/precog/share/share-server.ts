@@ -3,7 +3,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql, type Sql } from "@/lib/db";
 import { randomHex } from "@/lib/web-crypto";
 import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
-import { DAY_MS, localDateKey } from "../dates";
+import { DAY_MS, localDateKey, resolveClientDate } from "../dates";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { SlidingWindowLimiter } from "../llm/rate-limit";
 import { parseLoadShareInput } from "../public-inputs";
@@ -47,7 +47,8 @@ const SHARED_BY_OWN_ACCOUNT = "the business's own account";
  * The page a map link prints, built here from the business as saved, never
  * from what the browser sends: the figures, the process list, the issues and
  * the week's actions are the ones the map builder computes from the same
- * profile. Refused (403) when the caller cannot reach the business, including
+ * profile, on the owner's calendar day (the day the browser sends, within
+ * one day of the server's clock), as the owner's own page does. Refused (403) when the caller cannot reach the business, including
  * one whose first save has not reached the account. The page names who made
  * the link (the firm, for a firm's work on a business; else the account) and
  * when the business was last saved. Hiding names scrubs every person on the
@@ -57,7 +58,7 @@ async function storedMapPayload(
   sql: Sql,
   callerId: string,
   businessId: string,
-  { note, redacted }: { note: string; redacted: boolean },
+  { note, redacted, today }: { note: string; redacted: boolean; today: string },
 ): Promise<{ businessOwnerId: string; payload: SharedMapPayload }> {
   const businessOwnerId = await resolveBusinessOwner(sql, callerId, businessId);
   if (!businessOwnerId) throw new RequestError(403, MAP_SHARE_UNSAVED);
@@ -98,7 +99,6 @@ async function storedMapPayload(
     import("../builder/map-state"),
     import("./share-payload"),
   ]);
-  const today = localDateKey(new Date());
   const profile = mergeProfile(
     { profile: row.profile, name: row.name, industry: row.industry },
     today,
@@ -150,7 +150,14 @@ export const createMapShare = createServerFn({ method: "POST" })
       expiresInDays?: number;
       redacted?: boolean;
       passcode?: string;
-    }) => parseCreateShareInput(input),
+      /** The owner's calendar day (YYYY-MM-DD), which the week's actions are built for. */
+      today?: string;
+    }) => ({
+      ...parseCreateShareInput(input),
+      // Taken only as a real day within one day of the server's clock;
+      // otherwise the server's UTC day.
+      today: resolveClientDate((input as { today?: unknown } | null)?.today),
+    }),
   )
   .handler(async ({ context, data }) => {
     const { randomBytes } = await import("node:crypto");
@@ -162,7 +169,7 @@ export const createMapShare = createServerFn({ method: "POST" })
       sql,
       context.userId,
       data.businessId,
-      { note: data.note, redacted: hideNames },
+      { note: data.note, redacted: hideNames, today: data.today },
     );
     const token = randomHex(18);
     const expires = new Date(Date.now() + data.expiresInDays * DAY_MS).toISOString();

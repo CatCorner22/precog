@@ -32,13 +32,15 @@ function pausedBefore(
   at: RegExp,
   reached: ReturnType<typeof signal>,
   release: ReturnType<typeof signal>,
+  /** Pause only on a matching statement whose first parameter is this. */
+  firstParam?: string,
 ): Sql {
   const wrapped = toSql(<R>(text: string, params: unknown[]) => sql.query<R>(text, params));
   wrapped.transaction = (work) =>
     inTransaction(sql, (tx) => {
       let paused = false;
       const inner = toSql(async <R>(text: string, params: unknown[]) => {
-        if (!paused && at.test(text)) {
+        if (!paused && at.test(text) && (firstParam === undefined || params[0] === firstParam)) {
           paused = true;
           reached.resolve();
           await release.promise;
@@ -201,6 +203,49 @@ describe.runIf(process.env.PRECOG_LIFECYCLE_POSTGRES === "1")(
       const firms = await db.sql<{ user_id: string; plan: string }>`
         select user_id, plan from firms`;
       expect(firms).toEqual([{ user_id: "n", plan: "assessment" }]);
+    });
+
+    it("never deadlocks a transfer against an event that names the new owner while the old one holds the customer", async () => {
+      // `z` sorts after `o`: the transfer locks o, then z. The event names z
+      // (its Checkout was started by z) for the customer o still holds.
+      await db.seedUser("z");
+      await db.sql`insert into firm_members (firm_user_id, member_user_id, role)
+        values ('o', 'z', 'reviewer')`;
+      const reached = signal();
+      const release = signal();
+      const transferDeadlocks = countingDeadlocks(
+        pausedBefore(db.sql, /from "user" where id = .* for no key update/i, reached, release, "z"),
+      );
+      const transfer = settle(transferFirmOwnership(transferDeadlocks.sql, "o", "z"));
+      await reached.promise;
+      const paid = {
+        id: "ev_paid_z",
+        type: "checkout.session.completed",
+        created: T + 30,
+        data: {
+          object: {
+            mode: "payment",
+            payment_status: "paid",
+            customer: "cus_1",
+            client_reference_id: "z",
+            payment_intent: "pi_z",
+            amount_subtotal: 50_000,
+          },
+        },
+      } as StripeEvent;
+      const hookDeadlocks = countingDeadlocks(db.sql);
+      const hook = settle(applyBillingEvent(hookDeadlocks.sql, paid));
+      await sleep(300);
+      release.resolve();
+      const [t, h] = [await transfer, await hook];
+      expect(transferDeadlocks.deadlocks()).toBe(0);
+      expect(hookDeadlocks.deadlocks()).toBe(0);
+      expect(t.error).toBeNull();
+      expect(h).toEqual({ value: "applied", error: null });
+      // The payment went to the account that holds the customer once the transfer committed.
+      const rows = await db.sql<{ user_id: string; intent: string | null }>`
+        select user_id, assessment_payment_intent as intent from billing_accounts`;
+      expect(rows).toEqual([{ user_id: "z", intent: "pi_z" }]);
     });
 
     it("never deadlocks an operator link against the account's deletion", async () => {

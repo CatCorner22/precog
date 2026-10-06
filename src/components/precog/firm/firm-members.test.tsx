@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FirmMembers } from "./firm-members";
-import { removedMemberToasts } from "./firm-members-text";
+import { removedMemberToasts, transferredOwnershipToasts } from "./firm-members-text";
 import type { FirmContext, FirmMember } from "@/lib/precog/firm/store";
 
 vi.mock("@/lib/precog/firm/server", () => ({
@@ -92,6 +92,35 @@ describe("the prompts", () => {
     expect(source).toContain(
       "Make ${name} the owner of ${firm.name}? They take the firm's clients, members, invitations and billing, and you stay on as a reviewer. Stripe's receipts and payment emails go to them from now on, and owner reminders for the firm's clients follow their settings. You cannot undo this.",
     );
-    expect(source).toContain("`${name} now owns ${firm.name}.`");
+    expect(source).toContain("transferredOwnershipToasts(name, firm.name, res.moved)");
+  });
+});
+
+describe("what the old owner is told after handing over the firm", () => {
+  it("names the new owner, and nothing more when no client business moved", () => {
+    expect(transferredOwnershipToasts("Bea", "North Advisors", [])).toEqual([
+      "Bea now owns North Advisors.",
+    ]);
+  });
+
+  it("counts the client businesses that moved to the new owner and names each renamed one", () => {
+    expect(
+      transferredOwnershipToasts("Bea", "North Advisors", [
+        { from: "biz_1", to: "biz_1", name: "Acme" },
+      ]),
+    ).toEqual([
+      "Bea now owns North Advisors.",
+      "1 client business you set up now sits under Bea's account. You keep working on it as a reviewer.",
+    ]);
+    expect(
+      transferredOwnershipToasts("Bea", "North Advisors", [
+        { from: "biz_1", to: "biz_1", name: "Acme" },
+        { from: "biz_2", to: "biz_2-0a1b2c3d", name: "Beta Dental" },
+      ]),
+    ).toEqual([
+      "Bea now owns North Advisors.",
+      "2 client businesses you set up now sit under Bea's account. You keep working on them as a reviewer.",
+      "Beta Dental was given a new address in the business list.",
+    ]);
   });
 });
