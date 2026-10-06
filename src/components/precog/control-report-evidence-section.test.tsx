@@ -10,6 +10,7 @@ import {
 } from "@/lib/precog/evidence";
 import { DEFAULT_FRAUD_STATS } from "@/lib/precog/templates/shared-controls";
 import { formatUsd } from "@/lib/utils";
+import { smallOrgBenchmark, type ReportBenchmark } from "@/lib/precog/report/build-control-report";
 import {
   ControlReportCaseAppendix,
   ControlReportEvidenceSection,
@@ -17,7 +18,7 @@ import {
 
 const RULES = ["rule-cash-rec", "rule-sign-rec", "rule-release-rec", "rule-payroll-release"];
 
-function sectionHtml() {
+function sectionHtml(benchmark: ReportBenchmark | null = smallOrgBenchmark()) {
   const citing = citingCaseStats(RULES);
   return renderToStaticMarkup(
     <ControlReportEvidenceSection
@@ -30,6 +31,7 @@ function sectionHtml() {
         count: citing.count,
         floors: citing.cases.filter((c) => c.lossUsd > 0 && c.lossIsFloor).length,
       }}
+      benchmark={benchmark}
     />,
   );
 }
@@ -55,6 +57,21 @@ describe("the report's evidence section", () => {
     expect(html).toContain(second);
     expect(html.indexOf(lead)).toBeLessThan(html.indexOf(second));
     expect(html).not.toContain("cases that show these gaps,");
+  });
+
+  it("prints the benchmark the model holds, and none when it holds none", () => {
+    const stored = {
+      medianUsd: 150_000,
+      publisher: "ACFE",
+      citation: "Report to the Nations 2024",
+    };
+    expect(sectionHtml(stored)).toContain(
+      "lost a median of $150,000 (ACFE, Report to the Nations 2024).",
+    );
+    const none = sectionHtml(null);
+    expect(none).not.toContain("Organizations under 100 employees");
+    expect(none).not.toContain("$126,000");
+    expect(none).toContain(" Among prosecuted federal cases with these gaps");
   });
 });
 

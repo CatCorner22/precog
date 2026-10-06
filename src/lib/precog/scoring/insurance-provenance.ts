@@ -5,7 +5,9 @@
  */
 import { joinWithAnd } from "../text";
 import { CORE_POLICY_FIELDS, normalizeInsuranceRecord, type PolicyField } from "./insurance-record";
+import { NOT_INSURED_LOSS } from "./insurance-transfer";
 import type { RiskVariableState } from "./risk-variables";
+import { scenarioFlags } from "./scenario-kind";
 
 /** The label demonstration figures carry until explicitly confirmed. */
 export const APP_DEFAULT_POLICY = "Precog default, enter your policy";
@@ -90,6 +92,9 @@ export function effectiveRiskVariables(
   };
 }
 
+/** The note on a scenario that is not theft or fraud, whatever the policy answers. */
+export const NOT_INSURED_FIGURE_NOTE = `${NOT_INSURED_LOSS}, so Precog models no recovery.`;
+
 /** How the note names each core policy field the owner has not confirmed. */
 const POLICY_FIELD_WORD = {
   basePremiumAnnual: "premium",
@@ -103,6 +108,9 @@ export function insuranceFigureNote(
   ownBusiness: boolean,
   scenarioId?: string,
 ): string | null {
+  // A crime policy pays only for theft and fraud, so no policy answer moves a
+  // scenario that is neither: say so, as the scenario card and the engine do.
+  if (scenarioId && !scenarioFlags(scenarioId).fraudRelated) return NOT_INSURED_FIGURE_NOTE;
   const basis = insuranceBasis(v, ownBusiness);
   if (basis === "unknown")
     return "Nobody has assessed insurance, so Precog models no recovery. This does not mean you are uninsured.";

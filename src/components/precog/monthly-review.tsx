@@ -109,9 +109,9 @@ export function MonthlyReview() {
   ) {
     const note = notes[key] ?? "";
     const input = { key, period, result, ownerName, notes: note };
-    const { removed } = appendReview(records, input);
+    const trim = appendReview(records, input);
     setMonthlyReviews((current) => recordReview(current, input));
-    if (removed > 0) toast.message(reviewTrimNotice(removed));
+    if (trim.removed > 0) toast.message(reviewTrimNotice(trim));
     setNotes((current) => ({ ...current, [key]: "" }));
     if (!user || !profile.businessId) return;
     setBusy(key);

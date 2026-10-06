@@ -14,7 +14,7 @@ import {
   evaluateDynamicRisk,
   insuranceFigureNote,
   mergeStaffIntoVariables,
-  NOT_INSURED_LOSS,
+  NOT_INSURED_FIGURE_NOTE,
   type RiskVariableState,
 } from "./scoring/dynamic-variables";
 import { scenarioFlags } from "./scoring/scenario-kind";
@@ -211,7 +211,7 @@ export function runPrecogScenario(
   // recovery for any other scenario, and the line says why.
   const insuranceBasisLine = flags.fraudRelated
     ? (insuranceFigureNote(entered, ownBusiness, scenarioId) ?? "Conditional scenario calculation.")
-    : `${NOT_INSURED_LOSS}, so Precog models no recovery.`;
+    : NOT_INSURED_FIGURE_NOTE;
   crimeModifiers.push(
     `Insurance: ${insuranceBasisLine} Modeled retained loss ${formatUsd(dynamic.transfer.retainedExpected)}; modeled annual premium ${formatUsd(dynamic.transfer.premiumAnnualNet)}.`,
   );

@@ -5,6 +5,7 @@ import type { MatrixLayerId, PrecogResult, ScenarioTemplate } from "@/lib/precog
 import {
   insuranceBasis,
   insuranceFigureNote,
+  NOT_INSURED_HINT,
   NOT_INSURED_LOSS,
   scenarioFlags,
   type RiskVariableState,
@@ -178,7 +179,7 @@ export function SingleScenarioView({
                           ? "all of the assumed loss"
                           : `assumed range ${formatUsd(result.retainedImpact.low)} – ${formatUsd(result.retainedImpact.high)}`,
                       )
-                    : `all of the assumed loss · ${NOT_INSURED_LOSS}`
+                    : NOT_INSURED_HINT
                 }
               />
               <FigureTile

@@ -1,8 +1,6 @@
 import {
   METHOD_CAVEATS,
-  BENCHMARK_BY_ID,
   allCasesUnverified,
-  benchmarkCitation,
   lossPhrase,
   DETECTION_LABEL,
   UNVERIFIED_CASE,
@@ -15,20 +13,16 @@ import { Section } from "@/components/precog/control-report-parts";
 
 type EvidenceSectionProps = Pick<
   ControlReportModel,
-  "evidence" | "citing" | "steps" | "lossRange" | "found" | "statsScope"
+  "evidence" | "citing" | "steps" | "lossRange" | "found" | "statsScope" | "benchmark"
 >;
 
 /**
- * The published figure the section leads with: the median loss at
- * organizations under 100 employees, the size of business Precog is for. The
- * prosecuted cases' median follows it, because federal prosecutions skew
- * toward large losses.
- */
-const SMALL_ORG_BENCHMARK = "bm-small-org-losses";
-
-/**
  * What the open gaps have cost other organizations, and the steps to take
- * first. The cases themselves are listed with their sources in the appendix
+ * first. It leads with the published benchmark the model holds (the median
+ * loss at organizations under 100 employees, the size of business Precog is
+ * for); the prosecuted cases' median follows it, because federal prosecutions
+ * skew toward large losses. A locked version stored before layout 4 holds no
+ * benchmark and prints none, rather than today's figure. The cases themselves are listed with their sources in the appendix
  * (ControlReportCaseAppendix), after the footer, so the body stays short.
  */
 export function ControlReportEvidenceSection({
@@ -38,17 +32,17 @@ export function ControlReportEvidenceSection({
   lossRange,
   found,
   statsScope,
+  benchmark,
 }: EvidenceSectionProps) {
   if (evidence.length === 0) return null;
 
   const caseById = new Map(evidence.map((c) => [c.id, c]));
-  const smallOrg = BENCHMARK_BY_ID[SMALL_ORG_BENCHMARK];
 
   return (
     <Section title="What these gaps have cost other businesses">
       <p className="text-sm text-neutral-700">
-        {smallOrg && typeof smallOrg.numeric === "number"
-          ? `Organizations under 100 employees that suffered an investigated fraud lost a median of ${formatUsd(smallOrg.numeric)} (${smallOrg.source.publisher}, ${benchmarkCitation(smallOrg)}).`
+        {benchmark
+          ? `Organizations under 100 employees that suffered an investigated fraud lost a median of ${formatUsd(benchmark.medianUsd)} (${benchmark.publisher}, ${benchmark.citation}).`
           : ""}
         {lossRange
           ? ` Among prosecuted federal cases with these gaps, the median stated loss was ${formatUsd(lossRange.median)}, from ${formatUsd(lossRange.low)} to ${formatUsd(lossRange.high)}; ${lossRange.n} of the ${statsScope.count} state a loss${

@@ -200,8 +200,13 @@ export interface FrozenReportRow<TModel = unknown> {
   model: TModel | null;
 }
 
-/** Why a lock is refused when the figures are past the stored cap (REPORT_MODEL_MAX_CHARS). */
-export const REPORT_TOO_LARGE_MESSAGE = `This report is too large to lock. Remove old map versions or archive register items you no longer use, then lock again. Need help? Write to ${SUPPORT_EMAIL}.`;
+/**
+ * Why a lock is refused when the figures are past the stored cap
+ * (REPORT_MODEL_MAX_CHARS). The stored figures grow with the team: each active
+ * person adds duty-conflict rows and coverage rows, and someone marked as left
+ * adds none. Map versions and the size of the profile do not count.
+ */
+export const REPORT_TOO_LARGE_MESSAGE = `This report is too large to lock: the team has more people, and more duty conflicts between them, than a locked version can keep. On the Team tab, mark anyone who no longer works here as left, then lock again. Need help? Write to ${SUPPORT_EMAIL}.`;
 
 /**
  * Freezes the saved business as the next version. The business row is locked

@@ -4,6 +4,8 @@ import type { ScenarioTemplate } from "@/lib/precog/types";
 import {
   insuranceBasis,
   insuranceFigureNote,
+  NOT_INSURED_HINT,
+  scenarioFlags,
   type RiskVariableState,
 } from "@/lib/precog/scoring/dynamic-variables";
 import { usePracticeState, useTemplate } from "@/lib/precog/practice-context";
@@ -397,14 +399,18 @@ function CompareResults({
                   className="border-0 bg-transparent p-0"
                   label="Assumed retained loss"
                   value={formatUsd(retained(col))}
-                  hint={withNote(
-                    noPolicy
-                      ? "all of it"
-                      : dynamic
-                        ? `paid by insurance ${formatUsd(dynamic.transferredExpected)}`
-                        : "after deductible and limit",
-                    policyNote,
-                  )}
+                  hint={
+                    scenarioFlags(col.result.scenarioId).fraudRelated
+                      ? withNote(
+                          noPolicy
+                            ? "all of it"
+                            : dynamic
+                              ? `paid by insurance ${formatUsd(dynamic.transferredExpected)}`
+                              : "after deductible and limit",
+                          policyNote,
+                        )
+                      : NOT_INSURED_HINT
+                  }
                 />
                 <FigureTile
                   size="sm"

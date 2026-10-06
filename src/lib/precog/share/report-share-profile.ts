@@ -1,3 +1,4 @@
+import { normalizeSetupAnswers } from "../onboarding/setup-answers";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import type { ReviewRecord } from "../firm/reviews";
 import type { KnowledgeItem, Person, ProcessIdea, ProcessNode, ProcessRisk } from "../types";
@@ -9,8 +10,10 @@ import type { KnowledgeItem, Person, ProcessIdea, ProcessNode, ProcessRisk } fro
  * finding; from the profile it reads only the industry, the printed name,
  * the team size, the process map and register (the map section, the "custom
  * map" wording and whether register freshness is tracked), the month's
- * review results, the books-versus-map scope line and the engagement
- * stamps. The journal's text, planned absences, access checks, places,
+ * review results, the books-versus-map scope line, the engagement stamps
+ * and the setup answers (which duties sit outside the team, so the "nobody
+ * holds" line leaves them out; each answer is a fixed choice, never free
+ * text). The journal's text, planned absences, access checks, places,
  * written procedures, map history, saved blocks, process notes and earlier
  * monthly review notes are the business's own notes, so a link never hands
  * them to whoever holds it (share-report.test.ts serialises what a link
@@ -39,6 +42,7 @@ export function shareReportProfile(profile: PracticeProfile, preparedAt?: string
       ? shareReviews(profile.monthlyReviews, preparedAt)
       : profile.monthlyReviews,
     integrationDriftSummary: profile.integrationDriftSummary,
+    ...shareSetupAnswers(profile),
     // The template source: the map and register the report prints and
     // measures (resolveTemplate, mapSource, registerSource, isMapCustomized).
     customProcesses: profile.customProcesses
@@ -54,6 +58,15 @@ export function shareReportProfile(profile: PracticeProfile, preparedAt?: string
     mapLayout: profile.mapLayout,
     updatedAt: profile.updatedAt,
   };
+}
+
+/**
+ * The setup answers, rebuilt from their fixed choices alone
+ * (normalizeSetupAnswers), so nothing but those choices travels.
+ */
+function shareSetupAnswers(profile: PracticeProfile): Pick<PracticeProfile, "setupAnswers"> {
+  const answers = normalizeSetupAnswers(profile.setupAnswers);
+  return answers ? { setupAnswers: answers } : {};
 }
 
 /**

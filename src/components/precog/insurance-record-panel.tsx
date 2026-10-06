@@ -4,11 +4,19 @@ import {
   normalizeInsuranceRecord,
   type PolicyField,
 } from "@/lib/precog/scoring/insurance-record";
-import { VARIABLE_CATALOG, type RiskVariableState } from "@/lib/precog/scoring/dynamic-variables";
+import {
+  VARIABLE_CATALOG,
+  scenarioFlags,
+  type RiskVariableState,
+} from "@/lib/precog/scoring/dynamic-variables";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
 import { policyFieldValue, withFieldToggled } from "./insurance-record-fields";
 
-/** No file upload or external model call: records the owner's stated basis. */
+/**
+ * No file upload or external model call: records the owner's stated basis.
+ * A scenario that is not theft or fraud offers no recovery assumption: a
+ * crime policy does not pay for it.
+ */
 export function InsuranceRecordPanel({
   value,
   onChange,
@@ -105,7 +113,7 @@ export function InsuranceRecordPanel({
               ).map(checkbox)}
             </div>
           </details>
-          {scenarioId && (
+          {scenarioId && scenarioFlags(scenarioId).fraudRelated && (
             <label className="flex items-start gap-2 text-xs text-muted">
               <input
                 type="checkbox"

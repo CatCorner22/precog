@@ -97,4 +97,23 @@ describe("a locked version prints the same report from either stored shape", () 
     expect(full).toContain("Train next:");
     expect(renderLocked(profile, storedNow(raw))).toBe(full);
   });
+
+  // RW1-3: teams this size could not lock at all; the stored model now packs
+  // the duty-conflict rows, and the page printed from it must not change.
+  it.each([
+    { people: 250, register: 120, procedures: 100 },
+    { people: 400, register: 10, procedures: 10 },
+    { people: 1000, register: 120, procedures: 100 },
+  ])(
+    "an own team of $people people with $register register items",
+    (size) => {
+      const raw = largeBusinessProfile(size);
+      const profile = normalizeProfile(raw as Partial<PracticeProfile>);
+      const full = renderLocked(profile, storedInFull(raw));
+      expect(full).toContain("Duties held together");
+      expect(full).toContain("Contingency cards");
+      expect(renderLocked(profile, storedNow(raw))).toBe(full);
+    },
+    60_000,
+  );
 });

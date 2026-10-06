@@ -12,6 +12,7 @@ import {
 } from "@/lib/precog/report/stored-model";
 import { ControlReport } from "@/components/precog/control-report";
 import { shareReportProfile } from "@/lib/precog/share/report-share-profile";
+import { UNANSWERED } from "@/lib/precog/onboarding/setup-answers";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
@@ -169,6 +170,9 @@ const full: PracticeProfile = {
     accessPending: 0,
   },
   engagement: { reportSentAt: "2026-09-28T12:00:00.000Z" },
+  // Cash and payroll are not done here, so the "nobody holds" line leaves
+  // their duties out (dutiesOffTeam); the shared page must too.
+  setupAnswers: { ...UNANSWERED, cashOrChecks: "no", payroll: "none" },
 };
 
 const frozenFor = (layoutVersion: number) => ({
@@ -185,7 +189,7 @@ const render = (profile: PracticeProfile, layoutVersion: number) =>
 
 describe("shareReportProfile", () => {
   it("prints the same report as the full profile under every printed layout", () => {
-    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3]);
+    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4]);
     const projected = shareReportProfile(full);
     for (const layout of PRINTED_LAYOUT_VERSIONS) {
       const whole = render(full, layout);
@@ -341,5 +345,55 @@ describe("shareReportProfile", () => {
     expect(projected.integrationDriftSummary).toBe(full.integrationDriftSummary);
     expect(projected.engagement).toEqual({ reportSentAt: "2026-09-28T12:00:00.000Z" });
     expect(projected.staff).toBe(full.staff);
+    expect(projected.setupAnswers).toEqual(full.setupAnswers);
+  });
+
+  it('prints the same "nobody holds" line as the firm\'s view, from the setup answers', () => {
+    // Nobody on the team reconciles the bank: the answers say an outside
+    // bookkeeper does, so the line leaves that duty out.
+    const outside: PracticeProfile = {
+      ...full,
+      customPeople: team.map((p) =>
+        p.id === "b" ? { ...p, entitlements: ["enter_invoices", "release_payment"] } : p,
+      ),
+      setupAnswers: { ...UNANSWERED, bankRec: "outside" },
+    };
+    const frozen = {
+      layoutVersion: 3,
+      model: serializeReportModel(buildReportModelForProfile(outside, "2026-09-26")),
+    };
+    const page = (profile: PracticeProfile) =>
+      renderToStaticMarkup(
+        <ReadOnlyPracticeProvider profile={profile}>
+          <ControlReport locked={locked} frozen={frozen} firm={locked.firm} shared />
+        </ReadOnlyPracticeProvider>,
+      );
+    const line = (html: string) =>
+      html.match(/The register marks nobody still working here for: ([^.]*)\./)?.[1] ?? "";
+    const firmView = page(outside);
+    expect(line(page({ ...outside, setupAnswers: undefined }))).toMatch(/reconcile/i);
+    expect(line(firmView)).not.toMatch(/reconcile/i);
+    expect(line(firmView)).not.toBe("");
+    expect(page(shareReportProfile(outside, locked.preparedAt))).toBe(firmView);
+  });
+
+  it("carries each setup answer as its fixed choice, and nothing typed beside them", () => {
+    const typed = {
+      ...full,
+      setupAnswers: {
+        ...full.setupAnswers,
+        bankRec: "Ada at home on Sundays",
+        note: "Ben's surgery; keep it between us.",
+      },
+    } as unknown as PracticeProfile;
+    const projected = shareReportProfile(typed);
+    expect(Object.keys(projected.setupAnswers ?? {}).sort()).toEqual(
+      Object.keys(UNANSWERED).sort(),
+    );
+    expect(projected.setupAnswers?.bankRec).toBe("unsure");
+    expect(projected.setupAnswers?.payroll).toBe("none");
+    const text = JSON.stringify(projected);
+    expect(text).not.toContain("Ada at home");
+    expect(text).not.toContain("keep it between us");
   });
 });

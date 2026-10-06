@@ -82,6 +82,18 @@ describe("dualReleaseSplit", () => {
     });
     expect(openFindings([covered, reduced], partial)).toEqual([reduced]);
   });
+
+  it("leaves out the owner's own pairs, which read as the owner's whatever dual release covers", () => {
+    const owners = finding({ ruleId: "rule-a", ownerHeld: true, dualReleaseMitigated: true });
+    const ownersReduced = finding({
+      ruleId: "rule-b",
+      ownerHeld: true,
+      dualReleaseMitigated: true,
+    });
+    const partial = new Map([["rule-b", 150]]);
+    expect(conflictStatus(owners, partial)).toBe("Owner's own duties");
+    expect(dualReleaseSplit([owners, ownersReduced], partial)).toEqual({ closed: 0, reduced: 0 });
+  });
 });
 
 describe("one open count on every screen", () => {

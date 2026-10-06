@@ -25,7 +25,7 @@ The three columns are the sample business with its saved settings at three point
 
 Knock-on effects, before #208 → after #208 (the follow-up moves none):
 
-- Install security cameras (cash/safe/front): (no note) → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
+- Install security cameras (cash/safe/front): "Faster detection shortens the assumed days until found, and a scheme found sooner builds up less loss." → that note, then "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 - Bond / screen cash handlers: "The direct effects dominate; knock-on effects were small under current inputs." → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 - Cut daily cash exposure 20%: "The direct effects dominate; knock-on effects were small under current inputs." → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 
@@ -46,7 +46,7 @@ Advanced reasoning, side-by-side comparison:
 
 Knock-on effects, before #208 → after #208 (the follow-up moves none):
 
-- Install security cameras (cash/safe/front): (no note) → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
+- Install security cameras (cash/safe/front): "Faster detection shortens the assumed days until found, and a scheme found sooner builds up less loss." → that note, then "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 - Bond / screen cash handlers: "The direct effects dominate; knock-on effects were small under current inputs." → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 - Cut daily cash exposure 20%: "The direct effects dominate; knock-on effects were small under current inputs." → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 
@@ -69,7 +69,7 @@ Advanced reasoning, side-by-side comparison:
 
 Knock-on effects, before #208 → after #208 (the follow-up moves none):
 
-- Install security cameras (cash/safe/front): (no note) → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
+- Install security cameras (cash/safe/front): "Faster detection shortens the assumed days until found, and a scheme found sooner builds up less loss." → that note, then "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 - Cut daily cash exposure 20%: "The direct effects dominate; knock-on effects were small under current inputs." → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 
 Advanced reasoning, side-by-side comparison:
@@ -92,7 +92,7 @@ Advanced reasoning, side-by-side comparison:
 
 Knock-on effects, before #208 → after #208 (the follow-up moves none):
 
-- Install security cameras (cash/safe/front): (no note) → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
+- Install security cameras (cash/safe/front): "Faster detection shortens the assumed days until found, and a scheme found sooner builds up less loss." → that note, then "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 - Bond / screen cash handlers: "The direct effects dominate; knock-on effects were small under current inputs." → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 - Cut daily cash exposure 20%: "The direct effects dominate; knock-on effects were small under current inputs." → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 
@@ -129,7 +129,7 @@ Knock-on effects, before #208 → after #208 (the follow-up moves none):
 
 Knock-on effects, before #208 → after #208 (the follow-up moves none):
 
-- Install security cameras (cash/safe/front): (no note) → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
+- Install security cameras (cash/safe/front): "Faster detection shortens the assumed days until found, and a scheme found sooner builds up less loss." → that note, then "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 - Bond / screen cash handlers: "The direct effects dominate; knock-on effects were small under current inputs." → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 - Monitored alarm / access control: "The direct effects dominate; knock-on effects were small under current inputs." → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 - Cut daily cash exposure 20%: "The direct effects dominate; knock-on effects were small under current inputs." → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
@@ -150,7 +150,7 @@ Advanced reasoning, side-by-side comparison:
 
 Knock-on effects, before #208 → after #208 (the follow-up moves none):
 
-- Install security cameras (cash/safe/front): (no note) → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
+- Install security cameras (cash/safe/front): "Faster detection shortens the assumed days until found, and a scheme found sooner builds up less loss." → that note, then "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 - Bond / screen cash handlers: "The direct effects dominate; knock-on effects were small under current inputs." → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 - Cut daily cash exposure 20%: "The direct effects dominate; knock-on effects were small under current inputs." → "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved."
 
