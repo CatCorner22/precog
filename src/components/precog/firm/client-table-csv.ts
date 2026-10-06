@@ -211,7 +211,7 @@ export const CLIENT_TABLE_CSV_HEADER =
  * Dates are YYYY-MM-DD, each the same day the table prints, and months are
  * YYYY-MM, last month and this month on the viewer's day `today`. Done
  * counts only Done results; last_month_overdue is "yes" after last month's
- * due day (the 10th) with checks not Done. An empty cell means none (no
+ * due day (the 10th) while a check has no result. An empty cell means none (no
  * review yet, conflicts not counted yet, no owner address). Every cell goes
  * through `csvCell`, so a client named "=SUM(…)" opens as text.
  */

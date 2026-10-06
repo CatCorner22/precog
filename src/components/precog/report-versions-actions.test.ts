@@ -144,7 +144,12 @@ describe("the override note", () => {
 });
 
 describe("withdrawing a review", () => {
-  const reviewed = { reviewedAt: "2026-10-07T09:00:00.000Z", reviewedBy: "rev", sentAt: null };
+  const reviewed = {
+    reviewedAt: "2026-10-07T09:00:00.000Z",
+    reviewedBy: "rev",
+    sentAt: null,
+    preparedBy: "prep",
+  };
   const firm = (role: "owner" | "reviewer" | "preparer" | null) => ({ firm: true, role });
 
   it("is for the signer and the firm owner, before the version is sent", () => {
@@ -171,6 +176,20 @@ describe("withdrawing a review", () => {
         work: firm("owner"),
       }),
     ).toBe(false);
+  });
+
+  it("is not for a signer whose firm role no longer reviews, unless they issued the version alone", () => {
+    // The server refuses these with "Your role at the firm no longer lets you withdraw this review."
+    expect(canWithdrawReview({ version: reviewed, viewerId: "rev", work: firm("preparer") })).toBe(
+      false,
+    );
+    const alone = { ...reviewed, preparedBy: "rev" };
+    expect(canWithdrawReview({ version: alone, viewerId: "rev", work: firm("preparer") })).toBe(
+      true,
+    );
+    expect(canWithdrawReview({ version: alone, viewerId: "rev", work: firm(null) })).toBe(false);
+    // The account's own version, with no firm reading it: the signer may withdraw.
+    expect(canWithdrawReview({ version: reviewed, viewerId: "rev", work: null })).toBe(true);
   });
 
   it("is not for the owner of another firm on a solo business, nor for a reader", () => {

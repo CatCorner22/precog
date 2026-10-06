@@ -38,12 +38,21 @@ interface SummaryInput {
     "findings" | "open" | "critical" | "ownerHeld" | "closedByDualRelease"
   >;
   firstStep: string | null;
+  /** The first step's control id (evidence/controls), when it has one. */
+  firstStepId?: string | null;
   registerReady: boolean;
   coverageIndex: number;
   singlePoints: number;
   mapHealth: { score: number; bandLabel: string } | null;
   topPriority: string | null;
 }
+
+/** The control (evidence/controls) whose label names "the concentrated role". */
+const SPLIT_ONE_DUTY_OUT = "split-one-duty-out";
+
+/** That step, worded for a summary that names no concentrated role. */
+export const SPLIT_STEP_WITHOUT_NAMED_ROLE =
+  "Move one duty of a conflicting pair to someone who holds neither duty — even just the bank reconciliation";
 
 /** How many decisions the printed log lists before it says how many it left out. */
 const DECISION_LOG_MAX = 10;
@@ -69,6 +78,7 @@ export const REPORT_BASIS =
  */
 export function executiveSummary(input: SummaryInput): string[] {
   const lines: string[] = [];
+  let roleNamed = false;
   const { findings, open, critical } = input.conflicts;
   if (open === 0) {
     lines.push(closedConflictsLine(input.conflicts.ownerHeld, input.conflicts.closedByDualRelease));
@@ -79,12 +89,22 @@ export function executiveSummary(input: SummaryInput): string[] {
     );
     const move = concentrationMove(findings);
     if (move) {
+      roleNamed = true;
       lines.push(
         `One person holds ${move.held} of the ${open} open duty conflicts; moving one duty, ${midSentence(move.dutyLabel)}, to someone who holds none of the others closes ${move.closes} of them.`,
       );
     }
   }
-  if (input.firstStep) lines.push(`First step: ${midSentence(input.firstStep)}.`);
+  if (input.firstStep) {
+    // The split step's own label points at "the concentrated role", which
+    // only the concentration sentence above names. Without that sentence the
+    // step says on its own terms which duty to move.
+    const step =
+      !roleNamed && input.firstStepId === SPLIT_ONE_DUTY_OUT
+        ? SPLIT_STEP_WITHOUT_NAMED_ROLE
+        : input.firstStep;
+    lines.push(`First step: ${midSentence(step)}.`);
+  }
   // A figure that is not a number (a damaged register) leaves its sentence
   // out rather than print "NaN%".
   if (!input.registerReady) {

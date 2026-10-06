@@ -145,15 +145,20 @@ export function overrideLine(
  * business's firm. Never for an account that only reads the versions.
  */
 export function canWithdrawReview(input: {
-  version: Pick<ReportVersionRow, "reviewedAt" | "reviewedBy" | "sentAt">;
+  version: Pick<ReportVersionRow, "reviewedAt" | "reviewedBy" | "sentAt" | "preparedBy">;
   viewerId: string;
   work: { firm: boolean; role: FirmRole | null } | null;
   readOnly?: boolean;
 }): boolean {
-  const { version: v } = input;
+  const { version: v, work } = input;
   if (input.readOnly || !v.reviewedAt || v.sentAt) return false;
-  if (v.reviewedBy === input.viewerId) return true;
-  return input.work?.firm === true && input.work.role === "owner";
+  const firmRole = work?.firm === true ? work.role : null;
+  if (firmRole === "owner") return true;
+  if (v.reviewedBy !== input.viewerId) return false;
+  if (work?.firm !== true) return true;
+  // The server's rule (withdrawReportVersionReview): on a firm's version the
+  // signer still reviews for the firm, or issued it alone and is still a member.
+  return firmRole === "reviewer" || (v.preparedBy === v.reviewedBy && firmRole !== null);
 }
 
 /**

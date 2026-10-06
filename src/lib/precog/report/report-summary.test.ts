@@ -20,6 +20,7 @@ import {
   REPORT_BASIS,
   REPORT_BASIS_TITLE,
   REPORT_CAVEATS,
+  SPLIT_STEP_WITHOUT_NAMED_ROLE,
 } from "./report-summary";
 
 function decision(id: string, extra: Partial<DecisionEntry> = {}): DecisionEntry {
@@ -218,6 +219,30 @@ describe("executive summary", () => {
       nonprofit: move(15, 19, "reconcile the bank account", 5),
       general: null,
     });
+  });
+
+  it("never points at a concentrated role the summary does not name", () => {
+    const unnamed: string[] = [];
+    for (const { id } of INDUSTRIES) {
+      const base = defaultProfile(id);
+      for (const profile of [
+        base,
+        { ...base, dualRelease: { ...base.dualRelease, enabled: true } },
+      ]) {
+        const summary = modelOf(profile).summary;
+        if (summary.some((line) => line.startsWith("One person holds"))) continue;
+        unnamed.push(id);
+        expect(summary.join(" "), id).not.toContain("concentrated role");
+      }
+    }
+    expect(unnamed.length).toBeGreaterThan(0);
+    expect(modelOf(defaultProfile("retail")).summary).toContain(
+      "First step: move one duty of a conflicting pair to someone who holds neither duty — even just the bank reconciliation.",
+    );
+    expect(modelOf(defaultProfile("dental")).summary).toContain(
+      "First step: move any single duty out of the concentrated role — even just the bank reconciliation.",
+    );
+    expect(SPLIT_STEP_WITHOUT_NAMED_ROLE).not.toContain("concentrated");
   });
 
   it("names the person who holds the largest share, never a minority, in the rows it counts", () => {

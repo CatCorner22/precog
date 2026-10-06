@@ -203,6 +203,7 @@ export function buildControlReportModel({
     // pairs and the pairs dual release closes counted apart, as that section does.
     conflicts: openConflictHeadline(sod, partialCoverage),
     firstStep: steps[0]?.control.label ?? null,
+    firstStepId: steps[0]?.control.id ?? null,
     registerReady,
     coverageIndex: continuity.coverageIndex,
     singlePoints: continuity.singlePoints.length,

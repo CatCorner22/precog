@@ -24,7 +24,8 @@ import {
 /**
  * Every client the firm holds as a sortable table: the engagement's state,
  * the last monthly result, last month's and this month's checks Done (last
- * month marked Overdue after its due day), the exceptions and skips, open
+ * month marked Overdue after its due day while a check has no result), the
+ * exceptions and skips, open
  * duty conflicts and the versions awaiting review, the owner's address for
  * reminders, and the businesses deleted within the grace period. Clients
  * with exceptions sort to the top until another column is chosen.
@@ -131,9 +132,9 @@ export function ClientList({
       <p className="mt-1 text-sm text-muted">
         Last review is the newest monthly result Precog holds for that client. Last month and This
         month count Done checks only; Exceptions and Skipped count the others. Last month stays open
-        until its due day, the 10th, and shows Overdue after it. An owner address receives the
-        reminders about their own business once its owner confirms it from an email; Precog sends
-        nothing else to it.
+        until its due day, the 10th; after it, Last month shows Overdue while a check has no result.
+        An owner address receives the reminders about their own business once its owner confirms it
+        from an email; Precog sends nothing else to it.
         {clients.length > 0 &&
           " Sort by any column; Export clients (CSV) downloads the same columns."}
       </p>
