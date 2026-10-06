@@ -167,6 +167,13 @@ export async function acceptGrant(sql: Sql, token: string, userId: string): Prom
       where token = ${token} and kind = 'grant'
     `;
     if (!target[0]) throw new FirmMembershipError(GRANT_CLOSED);
+    // The two accounts before any row of theirs, ascending, as every write
+    // locks them (lockFirmMembershipWrite): an account deletion holds its row
+    // FOR UPDATE, so this waits for it instead of deadlocking on the
+    // invitation, then finds the firm or the business gone and refuses.
+    for (const id of [userId, target[0].business_owner_id].sort()) {
+      await tx`select id from "user" where id = ${id} for key share`;
+    }
     const businesses = await tx<{ name: string; firm_user_id: string | null }>`
       select name, firm_user_id from businesses
       where user_id = ${target[0].business_owner_id} and id = ${target[0].business_id}
