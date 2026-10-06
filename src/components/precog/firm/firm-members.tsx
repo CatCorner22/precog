@@ -10,6 +10,7 @@ import {
   setFirmMemberRole,
   transferFirmOwnership,
 } from "@/lib/precog/firm/server";
+import { showTransferFailure } from "./firm-transfer";
 import type {
   FirmContext,
   FirmInvite,
@@ -134,7 +135,7 @@ export function FirmMembers({
       }
       onChange({ firm: res.firm, members: res.members });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Precog did not change the firm's owner.");
+      showTransferFailure(err);
     }
   }
 

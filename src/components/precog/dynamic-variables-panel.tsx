@@ -16,7 +16,7 @@ import type { PrecogResult } from "@/lib/precog/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatUsd, cn } from "@/lib/utils";
+import { formatEstimateUsd, formatUsd, cn } from "@/lib/utils";
 import { RefreshCw } from "lucide-react";
 import { ExactAmount } from "./exact-amount";
 import { FieldSection, FigureTile } from "./figure-tile";
@@ -100,25 +100,25 @@ export function DynamicVariablesPanel({
               />
               <FigureTile
                 label="Assumed loss if it happens"
-                value={formatUsd(d.grossExpected)}
+                value={formatEstimateUsd(d.grossExpected)}
                 hint="before insurance"
               />
               <FigureTile
                 label="Assumed retained loss"
-                value={formatUsd(d.retainedExpected)}
+                value={formatEstimateUsd(d.retainedExpected)}
                 hint={
                   insuredLoss
                     ? hint(
                         basis === "none"
                           ? "all of it"
-                          : `paid by insurance ${formatUsd(d.transferredExpected)}`,
+                          : `paid by insurance ${formatEstimateUsd(d.transferredExpected)}`,
                       )
                     : NOT_INSURED_HINT
                 }
               />
               <FigureTile
                 label="One loss plus a year of premium"
-                value={formatUsd(d.eventPlusPremiumExpected)}
+                value={formatEstimateUsd(d.eventPlusPremiumExpected)}
                 hint={hint("retained loss of one event plus a year of premium")}
               />
             </div>

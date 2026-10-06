@@ -89,6 +89,7 @@ function version(no: number, reviewed: boolean): ReportVersionRow {
     reviewedByName: reviewed ? "Ben Ortiz" : null,
     reviewedAt: reviewed ? `2026-${month}-03T12:00:00.000Z` : null,
     reviewNote: "",
+    reviewOverrideNote: null,
     sentAt: null,
     hasFigures: true,
     firm: { name: "North Advisors", letterhead: "12 Elm St", logoDataUrl: null },

@@ -7,7 +7,7 @@ import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "../sod/open-findings";
 import type { IndustryTemplate } from "../templates";
 import type { ProcessNode, StaffComposition } from "../types";
-import { formatUsd } from "@/lib/utils";
+import { formatEstimateUsd } from "@/lib/utils";
 import { mergeStaffIntoVariables, type RiskVariableState } from "./dynamic-variables";
 import { portfolioSummary } from "./residual-engine";
 import { scenariosInScope } from "./scope";
@@ -533,7 +533,7 @@ function buildHeadline(
       worstScenario.withoutIt.retainedExpected - worstScenario.withIt.retainedExpected;
     if (Math.abs(retainedDelta) >= 1) {
       clauses.push(
-        `about ${formatUsd(Math.abs(retainedDelta))} ${retainedDelta > 0 ? "more" : "less"} retained loss on ${worstScenario.title}`,
+        `${formatEstimateUsd(Math.abs(retainedDelta))} ${retainedDelta > 0 ? "more" : "less"} retained loss on ${worstScenario.title}`,
       );
     }
     const daysDelta = worstScenario.withoutIt.p50Days - worstScenario.withIt.p50Days;
@@ -545,7 +545,7 @@ function buildHeadline(
       worstScenario.withIt.expectedAnnualCostOfRisk;
     if (Math.abs(costDelta) >= 1) {
       clauses.push(
-        `annual cost of risk ${costDelta > 0 ? "rises" : "falls"} about ${formatUsd(Math.abs(costDelta))}`,
+        `annual cost of risk ${costDelta > 0 ? "rises" : "falls"} ${formatEstimateUsd(Math.abs(costDelta))}`,
       );
     }
   }

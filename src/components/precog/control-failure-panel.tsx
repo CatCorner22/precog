@@ -16,7 +16,7 @@ import {
 import { confirmedScenarioIds, withOwnScenarioWording } from "@/lib/precog/scoring/scope";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatUsd } from "@/lib/utils";
+import { formatEstimateUsd } from "@/lib/utils";
 
 /**
  * `initialTarget` picks the first control or safeguard shown ("kind:id", for
@@ -158,8 +158,8 @@ export function ControlFailurePanel({
                   <li key={scenario.id} className="flex flex-wrap justify-between gap-2">
                     <span className="font-medium">{scenario.title}</span>
                     <span className="text-xs text-muted">
-                      Retained loss {formatUsd(scenario.retainedExpected)} · {scenario.p50Days} days
-                      until found
+                      Retained loss {formatEstimateUsd(scenario.retainedExpected)} ·{" "}
+                      {scenario.p50Days} days until found
                     </span>
                   </li>
                 ))}
@@ -345,9 +345,9 @@ function ScenarioFigures({
 }) {
   return (
     <div className="space-y-1 text-xs text-muted">
-      <p>Retained loss: {formatUsd(figures.retainedExpected)}</p>
+      <p>Retained loss: {formatEstimateUsd(figures.retainedExpected)}</p>
       <p>Days until found: {figures.p50Days}</p>
-      <p>Annual cost of risk: {formatUsd(figures.expectedAnnualCostOfRisk)}</p>
+      <p>Annual cost of risk: {formatEstimateUsd(figures.expectedAnnualCostOfRisk)}</p>
     </div>
   );
 }

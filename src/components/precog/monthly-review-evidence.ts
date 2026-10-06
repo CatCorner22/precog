@@ -1,5 +1,5 @@
 import type { ControlExecution, ExecutionStatus } from "@/lib/precog/controls/executions/model";
-import { executionRunId } from "@/lib/precog/controls/review-bridge";
+import { executionRunId, monthlyChainRunId } from "@/lib/precog/controls/review-bridge";
 import type { ReviewItemKey } from "@/lib/precog/firm/reviews";
 
 /** The evidence log's state, in the short words the monthly review prints beside a result. */
@@ -35,8 +35,11 @@ export interface EvidencePage {
  * The state of each monthly run (`runIds`) the month's evidence log holds.
  * The log answers newest first, 20 a page, so a monthly run recorded early
  * in a busy month sits past page one: this follows the log position until
- * every run is found or the log ends. Null when `cancelled()` turns true
- * between pages (the screen moved on), so nothing stale is shown.
+ * every run is found or the log ends. A later result that corrects a run
+ * writes a new entry in its chain (`supersedingRunId`); newest first, the
+ * first entry met of a chain is the current one, and its state is kept
+ * under the first run's id. Null when `cancelled()` turns true between
+ * pages (the screen moved on), so nothing stale is shown.
  */
 export async function readMonthlyEvidence(
   readPage: (cursor: string | null) => Promise<EvidencePage>,
@@ -49,7 +52,10 @@ export async function readMonthlyEvidence(
   for (let page = 0; page < EVIDENCE_PAGE_LIMIT; page++) {
     const { entries, nextCursor }: EvidencePage = await readPage(cursor);
     if (cancelled()) return null;
-    for (const entry of entries) if (wanted.has(entry.id)) found.set(entry.id, entry.status);
+    for (const entry of entries) {
+      const run = monthlyChainRunId(entry.id);
+      if (wanted.has(run) && !found.has(run)) found.set(run, entry.status);
+    }
     if (found.size === wanted.size || !nextCursor) break;
     cursor = nextCursor;
   }

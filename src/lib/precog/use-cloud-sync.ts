@@ -49,6 +49,7 @@ import type { ProfileAction } from "./profile-reducer";
 import { localDateKey } from "./dates";
 import { DEFAULT_BUSINESS_ID } from "./business-id";
 import { withoutOthersVerifications } from "./procedures/lifecycle";
+import { mergeSections, withAccountSections } from "./profile-merge";
 
 /**
  * What the save badge says. "saving" is an edit waiting for its account
@@ -98,6 +99,25 @@ const LOCAL_FAILED_TOAST = "local-save-failed";
 /** That notice when browser storage is full. */
 export const LOCAL_FULL_MESSAGE =
   "Precog could not save your latest changes on this device because browser storage is full. Download a recovery copy, then remove a business you no longer need.";
+/** Said once the open business holds a merge of its edits with another device's. */
+export const MERGED_MESSAGE = "Merged changes from your other device.";
+
+/** The account's copy of a business at one revision, as this tab holds it. */
+interface AccountBase {
+  revision: number;
+  profile: PracticeProfile;
+}
+
+/** A merge the account took, waiting to show in the open business. */
+interface AcceptedMerge {
+  businessId: string;
+  /** The account's revision of the merged copy. */
+  revision: number;
+  /** The merged copy the account holds. */
+  saved: PracticeProfile;
+  /** Whether any section came from the other device. */
+  tookTheirs: boolean;
+}
 
 /**
  * Keeping the open business saved: in this browser on every edit, in the
@@ -200,6 +220,16 @@ export function useCloudSync(input: {
   }
   const syncedStamps = useRef<Record<string, string>>({});
   const acknowledged = useRef(new Map<string, PracticeProfile>());
+  // The account's copy each business was built on in this tab, with its
+  // revision: what a refused save compares both copies with before asking.
+  // Held in memory only, so after a reload a refused save asks, as before.
+  const accountBase = useRef(new Map<string, AccountBase>());
+  const noteBase = useCallback((id: string, revision: number | null, profile: PracticeProfile) => {
+    if (revision === null) accountBase.current.delete(id);
+    else accountBase.current.set(id, { revision, profile });
+  }, []);
+  // Merged copies the account took, by the open-business object that shows one.
+  const acceptedMerges = useRef(new WeakMap<PracticeProfile, AcceptedMerge>());
   useEffect(
     () =>
       registerExitCleanup(() => {
@@ -327,6 +357,72 @@ export function useCloudSync(input: {
     [guardUnload],
   );
 
+  /**
+   * The open business merged with the account's newer copy, when the save
+   * the account refused was made on the base this tab holds and the two
+   * copies changed different sections. Null otherwise: the owner chooses.
+   */
+  const mergeOnRefusal = useCallback(
+    (id: string, savedOn: number | null, remote: PracticeProfile) => {
+      const base = accountBase.current.get(id);
+      if (savedOn === null || !base || base.revision !== savedOn) return null;
+      if (saveConflictRef.current) return null;
+      const local = profileRef.current;
+      if ((local.businessId ?? DEFAULT_BUSINESS_ID) !== id || local.onboardingComplete === false)
+        return null;
+      const merge = mergeSections(base.profile, local, remote, new Date().toISOString());
+      return merge.kind === "merged" ? { ...merge, local } : null;
+    },
+    [profileRef],
+  );
+
+  /**
+   * The account took the merge. The open business shows it, and keeps any
+   * edit made since the merge was worked out unless that edit touched a
+   * section taken from the other device; then the open business stays as it
+   * is, still built on its old base, and its next save asks. The save effect
+   * records the new base once the merge shows (see `acceptedMerges`).
+   */
+  const acceptMerge = useCallback(
+    (
+      id: string,
+      merge: NonNullable<ReturnType<typeof mergeOnRefusal>>,
+      remote: PracticeProfile,
+      revision: number,
+    ) => {
+      const saved = merge.profile;
+      acknowledged.current.set(id, saved);
+      rememberStamp(id, saved.updatedAt);
+      lastCloudError.current = null;
+      const accepted: AcceptedMerge = {
+        businessId: id,
+        revision,
+        saved,
+        tookTheirs: merge.fromRemote.length > 0,
+      };
+      setProfile({
+        derive: (state) => {
+          if (saveConflictRef.current) return state;
+          if (state === merge.local) {
+            acceptedMerges.current.set(saved, accepted);
+            return saved;
+          }
+          const next = withAccountSections(
+            state,
+            merge.local,
+            remote,
+            merge.fromRemote,
+            new Date().toISOString(),
+          );
+          if (!next) return state;
+          acceptedMerges.current.set(next, accepted);
+          return next;
+        },
+      });
+    },
+    [rememberStamp, setProfile],
+  );
+
   const saveCloud = useCallback(
     async (current: PracticeProfile) => {
       const id = current.businessId ?? DEFAULT_BUSINESS_ID;
@@ -341,28 +437,35 @@ export function useCloudSync(input: {
           if (profileRef.current === current) setSyncStatus("synced");
           return true;
         }
+        const save = (version: PracticeProfile, baseRevision: number | null) =>
+          saveBusinessProfile({
+            data: {
+              expectedAccountId: userId,
+              profile: version,
+              industry: version.industry,
+              baseRevision,
+              ownerUserId: version.ownerUserId,
+              today: localDateKey(new Date()),
+            },
+          });
+        const firstBase = cloudRevision.current.get(id) ?? null;
+        let lastBase = firstBase;
         // Only a version this tab itself held is saved over without asking;
         // matching clocks are never proof that a remote version was taken in.
         const result = await saveOnLineage({
           businessId: id,
-          baseRevision: cloudRevision.current.get(id) ?? null,
+          baseRevision: firstBase,
           lineage,
-          save: (baseRevision) =>
-            saveBusinessProfile({
-              data: {
-                expectedAccountId: userId,
-                profile: current,
-                industry: current.industry,
-                baseRevision,
-                ownerUserId: current.ownerUserId,
-                today: localDateKey(new Date()),
-              },
-            }),
+          save: (baseRevision) => {
+            lastBase = baseRevision;
+            return save(current, baseRevision);
+          },
         });
         if (!mounted.current || !identityUnchanged(identity)) return false;
         if (result.ok) {
           rememberRevision(id, result.revision);
           accountHolds(id, current.ownerUserId);
+          noteBase(id, result.revision, current);
           acknowledged.current.set(id, current);
           lineage.add(id, current.updatedAt);
           rememberStamp(id, current.updatedAt);
@@ -370,17 +473,44 @@ export function useCloudSync(input: {
           if (profileRef.current === current) setSyncStatus("synced");
           return true;
         }
+        let refused = result;
+        let remote = normalizeProfile(result.profile);
+        // Another device saved this business since this tab's base. When the
+        // two changed different sections, the merge keeps both and saves on
+        // the account's revision; otherwise the owner chooses, as before.
+        const merge = lastBase === firstBase ? mergeOnRefusal(id, lastBase, remote) : null;
+        if (merge) {
+          const answer = await save(merge.profile, result.revision);
+          if (!mounted.current || !identityUnchanged(identity)) return false;
+          if (answer.ok) {
+            acceptMerge(id, merge, remote, answer.revision);
+            return true;
+          }
+          refused = answer;
+          remote = normalizeProfile(answer.profile);
+        }
         raiseConflict({
           reason: "remote-edit",
           businessId: id,
-          remote: normalizeProfile(result.profile),
-          revision: result.revision,
-          updatedAt: result.updatedAt,
+          remote,
+          revision: refused.revision,
+          updatedAt: refused.updatedAt,
         });
         return false;
       });
     },
-    [lineage, raiseConflict, rememberRevision, rememberStamp, accountHolds, userId, profileRef],
+    [
+      lineage,
+      raiseConflict,
+      rememberRevision,
+      rememberStamp,
+      accountHolds,
+      noteBase,
+      mergeOnRefusal,
+      acceptMerge,
+      userId,
+      profileRef,
+    ],
   );
 
   /**
@@ -633,6 +763,7 @@ export function useCloudSync(input: {
       setSyncStatus(localStatus(lastLocalWrite.current));
       cloudLoadedFor.current = null;
       cloudRevision.current.clear();
+      accountBase.current.clear();
       saveConflictRef.current = null;
       setSaveConflict(null);
       return;
@@ -660,7 +791,9 @@ export function useCloudSync(input: {
         // a reload must ask again rather than save over it.
         const builtOn = cloudRevision.current.get(id);
         const buildOnAccount = () => {
-          if (res.revision !== null) rememberRevision(id, res.revision);
+          if (res.revision === null) return;
+          rememberRevision(id, res.revision);
+          noteBase(id, res.revision, remoteProfile);
         };
         // The account holds it live, so a removal of it here is over.
         accountHolds(id, remoteProfile.ownerUserId);
@@ -858,6 +991,7 @@ export function useCloudSync(input: {
     accountHolds,
     deviceHolds,
     rememberStamp,
+    noteBase,
     keepInList,
     offerCopyDownload,
     saveCloud,
@@ -885,7 +1019,21 @@ export function useCloudSync(input: {
     // Waiting for the owner to choose between this tab's version and another
     // tab's: writing now would overwrite theirs.
     if (saveConflictRef.current?.reason === "other-tab") return;
-    if (profile === loadedFromStorage.current) {
+    const merged = acceptedMerges.current.get(profile);
+    if (merged) {
+      acceptedMerges.current.delete(profile);
+      // The open business now builds on the merged copy the account holds.
+      const id = merged.businessId;
+      cloudRevision.current.set(id, merged.revision);
+      noteBase(id, merged.revision, merged.saved);
+      lineage.add(id, merged.saved.updatedAt);
+      if (merged.tookTheirs) toast(MERGED_MESSAGE);
+      // Written here at once, and only then kept as this browser's base: a
+      // reload before the write finds the older base and asks, rather than
+      // saving the older copy over the merge.
+      pendingLocalWrite.current = null;
+      if (writeOpenLocally(profile) === "saved") rememberRevision(id, merged.revision);
+    } else if (profile === loadedFromStorage.current) {
       loadedFromStorage.current = null;
       storedProfile.current = profile;
       if (!cloudUser) setSyncStatus(localStatus(lastLocalWrite.current));
@@ -958,6 +1106,8 @@ export function useCloudSync(input: {
     guardUnload,
     reportCloudError,
     keepInList,
+    noteBase,
+    rememberRevision,
   ]);
 
   // Another tab saved the open business. When it built on this tab's copy
@@ -1123,11 +1273,12 @@ export function useCloudSync(input: {
     (opened: PracticeProfile, revision: number) => {
       const id = opened.businessId ?? DEFAULT_BUSINESS_ID;
       rememberRevision(id, revision);
+      noteBase(id, revision, opened);
       rememberStamp(id, opened.updatedAt);
       acknowledged.current.set(id, opened);
       skipNextCloudSave.current = true;
     },
-    [rememberRevision, rememberStamp],
+    [noteBase, rememberRevision, rememberStamp],
   );
 
   /**
@@ -1188,6 +1339,8 @@ export function useCloudSync(input: {
         if (conflict.reason === "other-tab") return;
         if (conflict.revision !== null) cloudRevision.current.set(id, conflict.revision);
         else cloudRevision.current.delete(id);
+        // Whichever copy the owner keeps now builds on the account's.
+        noteBase(id, conflict.revision, { ...conflict.remote, businessId: id });
         const local = loadPortfolio(workspace.local)[id];
         if (choice === "reload") {
           // This device now builds on the account's copy, after a reload too.
@@ -1261,6 +1414,8 @@ export function useCloudSync(input: {
       // A legacy account copy has no revision: saving over it creates one.
       if (conflict.revision !== null) cloudRevision.current.set(id, conflict.revision);
       else cloudRevision.current.delete(id);
+      // Whichever copy the owner keeps now builds on the account's.
+      noteBase(id, conflict.revision, { ...conflict.remote, businessId: id });
 
       // As between two tabs, the version the owner did not pick stays
       // reachable as a copy in their businesses.
@@ -1302,6 +1457,7 @@ export function useCloudSync(input: {
       copyNote,
       guardUnload,
       noteLocalWrite,
+      noteBase,
       rememberRevision,
       rememberStamp,
       reportCloudError,

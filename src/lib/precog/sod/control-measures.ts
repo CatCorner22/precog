@@ -99,7 +99,7 @@ function measuresFor(w: GuidanceWords): Record<EntitlementId, DutyControlMeasure
     ),
     bank_reconcile: measures(
       [
-        "Reconcile the bank by the 15th of the next month, by someone who does not post",
+        "Reconcile the bank by the 10th of the next month, by someone who does not post",
         "Set how long a reconciling item may stay open and who approves clearing it",
       ],
       [

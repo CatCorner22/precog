@@ -23,7 +23,7 @@ import { isOwnBusiness, scenariosInScope } from "./scoring/scope";
 import { STRONG_LEVELS } from "./continuity/coverage";
 import { scenarioLevels, STAFF_CONDITIONS } from "./scoring/scenario-level";
 import { DEFAULT_WEIGHTS } from "./scoring/weights";
-import { formatUsd } from "../utils";
+import { formatEstimateUsd, formatUsd } from "../utils";
 import { count } from "./text";
 import { normalizeKnowledgeRelations } from "./knowledge-relations";
 
@@ -213,7 +213,7 @@ export function runPrecogScenario(
     ? (insuranceFigureNote(entered, ownBusiness, scenarioId) ?? "Conditional scenario calculation.")
     : NOT_INSURED_FIGURE_NOTE;
   crimeModifiers.push(
-    `Insurance: ${insuranceBasisLine} Modeled retained loss ${formatUsd(dynamic.transfer.retainedExpected)}; modeled annual premium ${formatUsd(dynamic.transfer.premiumAnnualNet)}.`,
+    `Insurance: ${insuranceBasisLine} Modeled retained loss ${formatEstimateUsd(dynamic.transfer.retainedExpected)}; modeled annual premium ${formatUsd(dynamic.transfer.premiumAnnualNet)}.`,
   );
 
   const served = industryMeta(tpl.id).customerLabel;

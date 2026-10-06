@@ -14,11 +14,17 @@ import {
 import { hasWorkspaceRecoveryOffer } from "@/lib/precog/workspace-recovery-offer";
 import {
   deleteAccount,
-  exportAccountData,
+  exportAccountDataPage,
   exportBusinessHistory,
   listHistoryDownloads,
   SIGN_IN_AGAIN_TO_DELETE,
 } from "@/lib/precog/account-server";
+import {
+  assembleAccountExport,
+  decodeExportPage,
+  exportProgressLabel,
+  type ExportPartRequest,
+} from "@/lib/precog/account-export";
 import { getNotificationSettings, updateNotificationSettings } from "@/lib/precog/firm/server";
 import type { NotificationSettings } from "@/lib/precog/firm/store";
 import { useDigestState, weeklyDigestAfter } from "@/components/precog/digest-state";
@@ -121,6 +127,32 @@ async function downloadBusinessHistory(business: HistoryBusiness): Promise<void>
   downloadText(
     `precog-history-${slug(business.name) || business.businessId}-${localDateKey(new Date())}.json`,
     JSON.stringify(file, null, 2),
+    "application/json",
+  );
+}
+
+/**
+ * Fetches the account export's parts in order, reporting each one done
+ * against the total the first part names, and saves them joined as one file.
+ */
+export async function downloadAccountExport(
+  onProgress: (done: number, total: number) => void,
+): Promise<void> {
+  const first: { base64: string; parts: ExportPartRequest[] | null } = await exportAccountDataPage({
+    data: { section: "account" },
+  });
+  const rest = first.parts ?? [];
+  const total = rest.length + 1;
+  const pages = [decodeExportPage(first.base64)];
+  onProgress(1, total);
+  for (const part of rest) {
+    const sent: { base64: string } = await exportAccountDataPage({ data: part });
+    pages.push(decodeExportPage(sent.base64));
+    onProgress(pages.length, total);
+  }
+  downloadText(
+    `precog-account-${localDateKey(new Date())}.json`,
+    JSON.stringify(assembleAccountExport(pages), null, 2),
     "application/json",
   );
 }
@@ -457,16 +489,19 @@ export function showDeletionFailure(error: unknown): void {
 export function AccountDataControls() {
   const workspace = useWorkspace();
   const [busy, setBusy] = useState<"export" | "history" | "delete" | null>(null);
+  const [exportProgress, setExportProgress] = useState<string | null>(null);
 
   async function exportAll() {
     setBusy("export");
     try {
-      const { json } = await exportAccountData();
-      downloadText(`precog-account-${localDateKey(new Date())}.json`, json, "application/json");
+      await downloadAccountExport((done, total) =>
+        setExportProgress(exportProgressLabel(done, total)),
+      );
       toast.success("Your data is downloading as one JSON file.");
     } catch {
       toast.error("The export failed. Try again in a moment.");
     } finally {
+      setExportProgress(null);
       setBusy(null);
     }
   }
@@ -501,6 +536,11 @@ export function AccountDataControls() {
         <Download className="size-3.5" aria-hidden />
         Export data
       </button>
+      {exportProgress && (
+        <span role="status" className="px-2 text-xs text-muted">
+          {exportProgress}
+        </span>
+      )}
       <HistoryDownloads
         disabled={busy !== null}
         onBusy={(running) => setBusy(running ? "history" : null)}

@@ -123,6 +123,39 @@ describe("a procedure as Markdown", () => {
     );
   });
 
+  it("adds what a procedure kept from Precog's library, after the steps", () => {
+    const p = {
+      ...reconcile(),
+      fallback: "A person who does not post compares the statement with the books.",
+      evidenceToKeep: ["Reconciliation sign-off", "Bank statement"],
+      source: "GAO Green Book, Principle 10.",
+    };
+    const md = procedureMarkdown(p, ctx);
+    expect(md).toContain(
+      [
+        "## From Precog's library",
+        "",
+        "**If one person has to do both halves**",
+        "",
+        "A person who does not post compares the statement with the books.",
+        "",
+        "**Records to keep with each run**",
+        "",
+        "- Reconciliation sign-off",
+        "- Bank statement",
+        "",
+        "**Follows**",
+        "",
+        "GAO Green Book, Principle 10.",
+        "",
+        "## People",
+      ].join("\n"),
+    );
+    expect(md.indexOf("## Steps")).toBeLessThan(md.indexOf("## From Precog's library"));
+    expect(proceduresMarkdown([p], "Riverside", ctx)).toContain("### From Precog's library");
+    expect(procedureMarkdown(reconcile(), ctx)).not.toContain("From Precog's library");
+  });
+
   it("puts every procedure under one heading for the business, one level down", () => {
     const other = newProcedure(
       { id: "proc-safe", industry: "general", title: "Open the safe", placeId: "safe" },

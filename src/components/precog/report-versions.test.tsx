@@ -1,10 +1,10 @@
-import { isValidElement, type ReactNode } from "react";
+import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReportVersionRow } from "@/lib/precog/firm/reports";
 import { createHookRuntime, type HookRuntime } from "@/test/hook-runtime";
-import { ReportVersionsPanel } from "./report-versions";
-import { SHARED_BUSINESS_NOTE } from "./report-versions-actions";
+import { OpenVersionReview, ReportVersionsPanel } from "./report-versions";
+import { SHARED_BUSINESS_NOTE, withdrawConfirmText } from "./report-versions-actions";
 
 // The panel runs as a plain function under src/test/hook-runtime.ts: state
 // persists and effects run as React runs them, so a test sees how often the
@@ -45,6 +45,7 @@ const server = vi.hoisted(() => ({
   lockReport: vi.fn(),
   markReportSent: vi.fn(),
   signOffReport: vi.fn(),
+  withdrawReportReview: vi.fn(),
 }));
 vi.mock("@/lib/precog/firm/server", () => server);
 const plans = vi.hoisted(() => ({ getEntitlements: vi.fn() }));
@@ -76,6 +77,7 @@ function version(patch: Partial<ReportVersionRow>): ReportVersionRow {
     reviewedByName: null,
     reviewedAt: null,
     reviewNote: "",
+    reviewOverrideNote: null,
     sentAt: null,
     hasFigures: true,
     firm: null,
@@ -97,6 +99,53 @@ function labels(node: ReactNode): string[] {
   if (!isValidElement<{ children?: ReactNode; "aria-label"?: string }>(node)) return [];
   const own = node.props["aria-label"] ? [node.props["aria-label"]] : [];
   return [...own, ...labels(node.props.children)];
+}
+
+type Props = {
+  children?: ReactNode;
+  "aria-label"?: string;
+  role?: string;
+  disabled?: boolean;
+  onClick?: () => void;
+  onChange?: (e: { target: { value: string } }) => void;
+};
+
+/** Every element in the tree that `match` accepts, in document order. */
+function findAll(
+  node: ReactNode,
+  match: (el: ReactElement<Props>) => boolean,
+): ReactElement<Props>[] {
+  if (Array.isArray(node)) return node.flatMap((n) => findAll(n, match));
+  if (!isValidElement<Props>(node)) return [];
+  return [...(match(node) ? [node] : []), ...findAll(node.props.children, match)];
+}
+
+/** The text an element shows, from its string children. */
+function textOf(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  return isValidElement<Props>(node) ? textOf(node.props.children) : "";
+}
+
+/** Clicks the element with this accessible name. */
+function click(tree: ReactNode, label: string) {
+  const [el] = findAll(tree, (e) => e.props["aria-label"] === label);
+  if (!el?.props.onClick) throw new Error(`No button named ${label}`);
+  el.props.onClick();
+}
+
+/** The clickable element showing `text`, inside the first element with `role` when given. */
+function button(tree: ReactNode, text: string, role?: string): ReactElement<Props> {
+  const scope = role ? findAll(tree, (e) => e.props.role === role)[0] : tree;
+  const [el] = findAll(
+    scope,
+    (e) => typeof e.props.onClick === "function" && textOf(e).includes(text),
+  );
+  if (!el) throw new Error(`No button showing ${text}`);
+  return el;
+}
+function clickText(tree: ReactNode, text: string, role?: string) {
+  button(tree, text, role).props.onClick?.();
 }
 
 /**
@@ -182,26 +231,120 @@ describe("report versions panel", () => {
     it("keeps every button for the firm's own reviewer", async () => {
       const { labels: names, html } = await panel("bea", "reviewer", versions());
       expect(html).toContain("Lock this version");
-      expect(names).toContain("Review version 3 for issuance");
+      expect(names).toContain("Open version 3 to review");
       expect(names).toContain("Mark version 2 as sent");
       expect(names).toContain("Share version 2");
+      expect(names).toContain("Withdraw the review of version 2");
       expect(html).not.toContain(SHARED_BUSINESS_NOTE);
     });
   });
 
-  it("gives a reviewer who did not prepare a version Review for issuance and Return to preparer", async () => {
-    const { labels: names } = await panel("bea", "reviewer", [version({})]);
-    expect(names).toContain("Review version 1 for issuance");
-    expect(names).toContain("Return version 1 to its preparer");
+  it("offers a reviewer who did not prepare a version Open to review, never a sign-off from the list", async () => {
+    const { labels: names, html } = await panel("bea", "reviewer", [version({})]);
+    expect(names).toContain("Open version 1 to review");
+    expect(html).toContain("Open to review");
+    expect(names).not.toContain("Open version 1");
+    expect(names).not.toContain("Review version 1 for issuance");
+    expect(names).not.toContain("Return version 1 to its preparer");
     expect(names).not.toContain("Ask for review of version 1");
   });
 
-  it("gives the preparer Ask for review and Issue without an independent review", async () => {
+  it("gives the preparer Ask for review and Open to review, where Issue alone waits", async () => {
     const { labels: names, html } = await panel("ada", "preparer", [version({})]);
     expect(names).toContain("Ask for review of version 1");
-    expect(names).toContain("Issue version 1 without an independent review");
+    expect(names).toContain("Open version 1 to review");
+    expect(names).not.toContain("Issue version 1 without an independent review");
     expect(names).not.toContain("Return version 1 to its preparer");
     expect(html).toContain("Ask for review");
+  });
+
+  it("offers a preparer who cannot issue alone plain Open", async () => {
+    server.listReports.mockResolvedValue({
+      versions: [version({})],
+      work: { firm: true, role: "preparer" },
+      review: { canIssueAlone: false, issueAloneReason: "x", assignedReviewerUserId: null },
+    });
+    state.userId = "ada";
+    server.getFirm.mockResolvedValue({ firm: { role: "preparer" }, members: [] });
+    const names = labels(await runtime.settle(() => ReportVersionsPanel()));
+    expect(names).toContain("Open version 1");
+    expect(names).toContain("Ask for review of version 1");
+  });
+
+  it("marks a version a newer one superseded, and prints a review in the assigned reviewer's place", async () => {
+    const older = version({
+      id: "rv_1",
+      versionNo: 1,
+      reviewedBy: "own",
+      reviewedByName: "Owen Owner",
+      reviewedAt: "2026-10-06T09:00:00.000Z",
+      reviewOverrideNote: "Bea is on leave this week.",
+    });
+    const newer = version({ id: "rv_2", versionNo: 2 });
+    state.userId = "ada";
+    server.listReports.mockResolvedValue({
+      versions: [newer, older],
+      work: { firm: true, role: "preparer" },
+      review: { canIssueAlone: false, issueAloneReason: "x", assignedReviewerUserId: "bea" },
+    });
+    server.getFirm.mockResolvedValue({
+      firm: { role: "preparer" },
+      members: [{ userId: "bea", name: "Bea Lin" }],
+    });
+    const html = renderToStaticMarkup(<>{await runtime.settle(() => ReportVersionsPanel())}</>);
+    expect(html).toContain("Superseded by version 2");
+    expect(html.match(/Superseded by version/g)).toHaveLength(1);
+    expect(html).toContain(
+      "Signed by Owen Owner instead of the assigned reviewer Bea Lin: Bea is on leave this week.",
+    );
+  });
+
+  describe("Withdraw review in the list", () => {
+    const reviewed = () =>
+      version({
+        reviewedBy: "bea",
+        reviewedByName: "Bea Lin",
+        reviewedAt: "2026-10-06T09:00:00.000Z",
+      });
+
+    it("shows to the signer and the firm owner before the version is sent, to no one else", async () => {
+      expect((await panel("bea", "reviewer", [reviewed()])).labels).toContain(
+        "Withdraw the review of version 1",
+      );
+      runtime.reset();
+      expect((await panel("own", "owner", [reviewed()])).labels).toContain(
+        "Withdraw the review of version 1",
+      );
+      runtime.reset();
+      expect((await panel("cy", "reviewer", [reviewed()])).labels).not.toContain(
+        "Withdraw the review of version 1",
+      );
+      runtime.reset();
+      expect((await panel("ada", "preparer", [reviewed()])).labels).not.toContain(
+        "Withdraw the review of version 1",
+      );
+      runtime.reset();
+      const sent = { ...reviewed(), sentAt: "2026-10-07T09:00:00.000Z" };
+      expect((await panel("own", "owner", [sent])).labels).not.toContain(
+        "Withdraw the review of version 1",
+      );
+    });
+
+    it("asks first, saying what withdrawing does, then withdraws", async () => {
+      server.withdrawReportReview.mockResolvedValue({ version: version({}) });
+      const first = await panel("bea", "reviewer", [reviewed()]);
+      click(first.tree, "Withdraw the review of version 1");
+      const asking = await runtime.settle(() => ReportVersionsPanel());
+      const html = renderToStaticMarkup(<>{asking}</>);
+      expect(html).toContain(withdrawConfirmText(1));
+      expect(html).not.toContain("You cannot undo this.");
+      expect(server.withdrawReportReview).not.toHaveBeenCalled();
+      clickText(asking, "Withdraw review", "alertdialog");
+      const after = await runtime.settle(() => ReportVersionsPanel());
+      expect(server.withdrawReportReview).toHaveBeenCalledWith({ data: { id: "rv_1" } });
+      expect(labels(after)).not.toContain("Withdraw the review of version 1");
+      expect(labels(after)).toContain("Open version 1 to review");
+    });
   });
 
   it("shows a returned version's note and no review button", async () => {
@@ -262,5 +405,162 @@ describe("report versions panel", () => {
       const { labels: names } = await panel("ada", "preparer", [reviewed()]);
       expect(names).not.toContain("Share version 1");
     });
+  });
+});
+
+describe("the open version's review controls", () => {
+  type Rules = {
+    canIssueAlone: boolean;
+    issueAloneReason: string;
+    assignedReviewerUserId: string | null;
+  };
+  const rules = (patch: Partial<Rules> = {}): Rules => ({
+    canIssueAlone: false,
+    issueAloneReason: "A different person at the firm must review this report for issuance",
+    assignedReviewerUserId: null,
+    ...patch,
+  });
+
+  /** The controls on `open` for `viewer`, over the business's `versions`. */
+  async function view(
+    viewer: string,
+    role: string | null,
+    open: ReportVersionRow,
+    review: Rules = rules(),
+    versions: ReportVersionRow[] = [open],
+  ) {
+    state.userId = viewer;
+    server.listReports.mockResolvedValue({ versions, work: { firm: true, role }, review });
+    server.getFirm.mockResolvedValue({
+      firm: { role },
+      members: [
+        { userId: "bea", name: "Bea Lin" },
+        { userId: "own", name: "Owen Owner" },
+      ],
+    });
+    const render = () => OpenVersionReview({ version: open });
+    const tree = await runtime.settle(render);
+    return { tree, render, labels: labels(tree), html: renderToStaticMarkup(<>{tree}</>) };
+  }
+
+  it("gives a reviewer who did not prepare it Review for issuance and Return to preparer", async () => {
+    const { labels: names } = await view("bea", "reviewer", version({}));
+    expect(server.listReports).toHaveBeenCalledWith({ data: { businessId: "biz_1" } });
+    expect(names).toContain("Review version 1 for issuance");
+    expect(names).toContain("Return version 1 to its preparer");
+  });
+
+  it("asks in a dialog naming the version, the preparer and an independent review, then signs", async () => {
+    server.signOffReport.mockResolvedValue({
+      version: version({ reviewedBy: "bea", reviewedAt: "2026-10-06T09:00:00.000Z" }),
+    });
+    const first = await view("bea", "reviewer", version({}));
+    click(first.tree, "Review version 1 for issuance");
+    const asking = await runtime.settle(first.render);
+    const html = renderToStaticMarkup(<>{asking}</>);
+    expect(labels(asking)).toContain("Review version 1 for issuance?");
+    expect(html).toContain("Prepared by Ada Park");
+    expect(html).toContain("Independent review");
+    expect(html).not.toContain("Not an independent review");
+    expect(html).not.toContain("Why you review in place of");
+    expect(server.signOffReport).not.toHaveBeenCalled();
+    clickText(asking, "Review for issuance", "dialog");
+    const after = await runtime.settle(first.render);
+    expect(server.signOffReport).toHaveBeenCalledWith({
+      data: { id: "rv_1", note: "", issueWithoutIndependentReview: false },
+    });
+    // Signed: the dialog closes, and the signer may withdraw.
+    expect(labels(after)).not.toContain("Review version 1 for issuance?");
+    expect(labels(after)).toContain("Withdraw the review of version 1");
+  });
+
+  it("asks for the override note when someone else is the assigned reviewer", async () => {
+    server.signOffReport.mockResolvedValue({ version: version({}) });
+    const first = await view("own", "owner", version({}), rules({ assignedReviewerUserId: "bea" }));
+    click(first.tree, "Review version 1 for issuance");
+    const asking = await runtime.settle(first.render);
+    expect(renderToStaticMarkup(<>{asking}</>)).toContain(
+      "Why you review in place of the assigned reviewer Bea Lin (10 to 600 characters)",
+    );
+    expect(button(asking, "Review for issuance", "dialog").props.disabled).toBe(true);
+    const [overrideBox] = findAll(asking, (e) => e.type === "textarea");
+    overrideBox.props.onChange?.({ target: { value: "Bea is on leave this week." } });
+    const typed = await runtime.settle(first.render);
+    expect(button(typed, "Review for issuance", "dialog").props.disabled).toBe(false);
+    clickText(typed, "Review for issuance", "dialog");
+    await runtime.settle(first.render);
+    expect(server.signOffReport).toHaveBeenCalledWith({
+      data: {
+        id: "rv_1",
+        note: "",
+        issueWithoutIndependentReview: false,
+        overrideNote: "Bea is on leave this week.",
+      },
+    });
+  });
+
+  it("asks no override note of the assigned reviewer, nor on a version the assigned reviewer prepared", async () => {
+    for (const [viewer, role, preparedBy] of [
+      ["bea", "reviewer", "ada"],
+      ["own", "owner", "bea"],
+    ] as const) {
+      runtime.reset();
+      const first = await view(
+        viewer,
+        role,
+        version({ preparedBy }),
+        rules({ assignedReviewerUserId: "bea" }),
+      );
+      click(first.tree, "Review version 1 for issuance");
+      const asking = await runtime.settle(first.render);
+      expect(renderToStaticMarkup(<>{asking}</>)).not.toContain("Why you review in place of");
+      expect(button(asking, "Review for issuance", "dialog").props.disabled).toBe(false);
+    }
+  });
+
+  it("hides Issue alone when the rules refuse it, and shows why", async () => {
+    const { labels: names, html } = await view("ada", "preparer", version({}));
+    expect(names).not.toContain("Issue version 1 without an independent review");
+    expect(html).toContain("A different person at the firm must review this report for issuance");
+  });
+
+  it("offers Issue alone when the rules allow it, saying it is not an independent review", async () => {
+    server.signOffReport.mockResolvedValue({ version: version({}) });
+    const first = await view("ada", "owner", version({}), rules({ canIssueAlone: true }));
+    click(first.tree, "Issue version 1 without an independent review");
+    const asking = await runtime.settle(first.render);
+    const html = renderToStaticMarkup(<>{asking}</>);
+    expect(labels(asking)).toContain("Issue version 1 without an independent review?");
+    expect(html).toContain("Not an independent review");
+    clickText(asking, "Issue without an independent review", "dialog");
+    await runtime.settle(first.render);
+    expect(server.signOffReport).toHaveBeenCalledWith({
+      data: { id: "rv_1", note: "", issueWithoutIndependentReview: true },
+    });
+  });
+
+  it("says a newer version supersedes the open one, in the view and in the dialog", async () => {
+    const open = version({});
+    const first = await view("bea", "reviewer", open, rules(), [
+      version({ id: "rv_3", versionNo: 3 }),
+      open,
+    ]);
+    expect(first.html).toContain("Superseded by version 3");
+    click(first.tree, "Review version 1 for issuance");
+    const asking = await runtime.settle(first.render);
+    expect(renderToStaticMarkup(<>{asking}</>)).toContain(
+      "Superseded by version 3: a newer version exists.",
+    );
+  });
+
+  it("shows nothing to an account that only reads the versions", async () => {
+    state.userId = "bo";
+    server.listReports.mockResolvedValue({
+      versions: [version({})],
+      work: { firm: true, role: null },
+      review: rules(),
+    });
+    server.getFirm.mockResolvedValue({ firm: null, members: [] });
+    expect(await runtime.settle(() => OpenVersionReview({ version: version({}) }))).toBeNull();
   });
 });

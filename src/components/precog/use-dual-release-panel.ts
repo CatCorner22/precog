@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import {
   activeExceptionSummary,
+  DUAL_RELEASE_MAX_USD,
   dualReleaseCoverage,
   evaluateRelease,
   listEligibleApprovers,
   makeExceptionId,
+  type DualReleasePolicy,
   type ReleaseChannel,
   type ReleaseEvaluation,
 } from "@/lib/precog/controls/dual-release";
@@ -14,6 +16,7 @@ import { personLabel } from "@/lib/precog/person-label";
 import { dateAfter, localDateKey } from "@/lib/precog/dates";
 import { useToday } from "@/lib/use-today";
 import { soleOwnerId } from "@/lib/precog/sod/owner-role";
+import { formatUsdTyped } from "@/lib/utils";
 import {
   EMPTY_EXCEPTION_FORM,
   exceptionDecision,
@@ -22,6 +25,43 @@ import {
   withMasterSwitch,
   type ExceptionForm,
 } from "./dual-release-panel-actions";
+
+/**
+ * Read a typed payment threshold. A blank, non-numeric or negative entry is
+ * an error and saves nothing; an amount above the most Precog stores saves
+ * that most, with a note saying so. Cents are kept as typed.
+ */
+export function readThreshold(draft: string): { value: number; note?: string } | { error: string } {
+  const text = draft.trim().replaceAll(",", "").replace(/^\$/, "");
+  const typed = text ? Number(text) : NaN;
+  if (!Number.isFinite(typed) || typed < 0) return { error: "Enter an amount of $0 or more." };
+  if (typed > DUAL_RELEASE_MAX_USD) {
+    return {
+      value: DUAL_RELEASE_MAX_USD,
+      note: `Kept at ${formatUsdTyped(DUAL_RELEASE_MAX_USD)}, the most this figure accepts.`,
+    };
+  }
+  return { value: keepCents(typed) };
+}
+
+/** The policy with one channel's threshold set, to the cent and never below $0. */
+export function withThreshold(
+  policy: DualReleasePolicy,
+  ch: ReleaseChannel,
+  thresholdUsd: number,
+): DualReleasePolicy {
+  return {
+    ...policy,
+    rules: policy.rules.map((r) =>
+      r.channel === ch ? { ...r, thresholdUsd: Math.max(0, keepCents(thresholdUsd)) } : r,
+    ),
+  };
+}
+
+/** An amount to the cent: 12.75 stays 12.75, never 13. */
+function keepCents(usd: number): number {
+  return Math.round(usd * 100) / 100;
+}
 
 export function useDualReleasePanel() {
   const tpl = useTemplate();
@@ -84,12 +124,7 @@ export function useDualReleasePanel() {
   }
 
   function setThreshold(ch: ReleaseChannel, thresholdUsd: number) {
-    setDualRelease({
-      ...policy,
-      rules: policy.rules.map((r) =>
-        r.channel === ch ? { ...r, thresholdUsd: Math.max(0, Math.round(thresholdUsd)) } : r,
-      ),
-    });
+    setDualRelease(withThreshold(policy, ch, thresholdUsd));
   }
 
   const lastEval: ReleaseEvaluation | null = useMemo(

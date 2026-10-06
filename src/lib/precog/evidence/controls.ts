@@ -309,10 +309,10 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "controlled-substance-count": {
     id: "controlled-substance-count",
     label:
-      "Two people count controlled substances against the log each day and inspect vials and seals for tampering",
-    why: "Drug diversion is inventory theft with a patient at the other end. A daily two-person count with a signed log turns a missing or altered vial into a same-day question instead of a months-later discovery.",
+      "Two people count controlled substances against the log each week and inspect vials and seals for tampering",
+    why: "Drug diversion is inventory theft with a patient at the other end. A weekly two-person count with a signed log turns a missing or altered vial into a question within days instead of a months-later discovery. The DEA itself requires only a complete inventory every two years (21 CFR 1304.11); the weekly count is the practice's own policy.",
     setup: "an hour",
-    cadence: "daily",
+    cadence: "weekly",
   },
   "no-shared-logins": {
     id: "no-shared-logins",

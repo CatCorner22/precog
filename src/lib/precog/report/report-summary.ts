@@ -1,8 +1,10 @@
 import type { DecisionEntry } from "../practice-profile";
 import type { IndustryId } from "../industry";
+import type { EntitlementId } from "../sod/conflict-rules";
 import type { DetectedConflict } from "../sod/detect";
 import type { HandSetFigures } from "../sod/derive-staff";
 import { concentrationHeadline } from "../sod/verdict";
+import type { OpenConflictHeadline } from "../headline/open-conflicts";
 import { isDecisionOpen, linkedKnowledgeId } from "../decisions/follow-through";
 import { count, midSentence } from "../text";
 
@@ -25,12 +27,16 @@ interface ContinuityFollowThrough {
 
 /** Figures the executive summary is written from; all come from the report model. */
 interface SummaryInput {
-  /** The open findings, as sod/open-findings counts them for the rest of the report. */
-  openConflicts: readonly DetectedConflict[];
-  /** Conflicting pairs the sole owner holds: left out of the open findings, never out of the report. */
-  ownerHeldPairs: number;
-  /** Staff pairs dual release closes at every amount: also left out of the open findings. */
-  dualReleaseClosedPairs: number;
+  /**
+   * The open duty conflicts and their breakdown (headline/open-conflicts):
+   * the rows and the count the conflict table prints. The owner's own pairs
+   * and the pairs dual release closes at every amount are counted apart,
+   * never in the open count.
+   */
+  conflicts: Pick<
+    OpenConflictHeadline,
+    "findings" | "open" | "critical" | "ownerHeld" | "closedByDualRelease"
+  >;
   firstStep: string | null;
   registerReady: boolean;
   coverageIndex: number;
@@ -63,19 +69,18 @@ export const REPORT_BASIS =
  */
 export function executiveSummary(input: SummaryInput): string[] {
   const lines: string[] = [];
-  const open = input.openConflicts;
-  if (open.length === 0) {
-    lines.push(closedConflictsLine(input.ownerHeldPairs, input.dualReleaseClosedPairs));
+  const { findings, open, critical } = input.conflicts;
+  if (open === 0) {
+    lines.push(closedConflictsLine(input.conflicts.ownerHeld, input.conflicts.closedByDualRelease));
   } else {
-    const critical = open.filter((c) => c.severity === "critical").length;
-    const people = new Set(open.map((c) => c.personId)).size;
+    const people = new Set(findings.map((c) => c.personId)).size;
     lines.push(
-      `${count(open.length, "open duty conflict")}${critical > 0 ? `, ${critical} of them critical,` : ""} held by ${count(people, "person", "people")}.`,
+      `${count(open, "open duty conflict")}${critical > 0 ? `, ${critical} of them critical,` : ""} held by ${count(people, "person", "people")}.`,
     );
-    const headline = concentrationHeadline(open);
-    if (headline) {
+    const move = concentrationMove(findings);
+    if (move) {
       lines.push(
-        `One person holds ${headline.gaps} of the ${headline.totalGaps} open gaps; moving one duty, ${midSentence(headline.dutyLabel)}, to someone who holds none of the others closes ${headline.closes} of them.`,
+        `One person holds ${move.held} of the ${open} open duty conflicts; moving one duty, ${midSentence(move.dutyLabel)}, to someone who holds none of the others closes ${move.closes} of them.`,
       );
     }
   }
@@ -98,6 +103,45 @@ export function executiveSummary(input: SummaryInput): string[] {
   }
   if (input.topPriority) lines.push(`Highest item on the priority list: ${input.topPriority}.`);
   return lines;
+}
+
+/** The concentration move, counted in the conflict table's rows. */
+interface ConcentrationMove {
+  personId: string;
+  personName: string;
+  duty: EntitlementId;
+  dutyLabel: string;
+  /** Open conflicts the person holds. */
+  held: number;
+  /** How many of those moving the duty closes. */
+  closes: number;
+  /** The rules of the conflicts the move closes. */
+  ruleIds: string[];
+}
+
+/**
+ * The concentration move (sod/verdict `concentrationHeadline`) counted in the
+ * conflict table's rows: how many of the open conflicts the person holds, and
+ * how many of those moving the one duty closes. The headline picks the person
+ * and the duty; the figures share the open count's denominator, so "12 of the
+ * 20" reads against the 20 the sentence before it prints.
+ */
+export function concentrationMove(open: readonly DetectedConflict[]): ConcentrationMove | null {
+  const headline = concentrationHeadline(open);
+  if (!headline) return null;
+  const held = open.filter((c) => c.personId === headline.personId);
+  const closed = held.filter(
+    (c) => c.entitlementA === headline.duty || c.entitlementB === headline.duty,
+  );
+  return {
+    personId: headline.personId,
+    personName: headline.personName,
+    duty: headline.duty,
+    dutyLabel: headline.dutyLabel,
+    held: held.length,
+    closes: closed.length,
+    ruleIds: [...new Set(closed.map((c) => c.ruleId))],
+  };
 }
 
 /**

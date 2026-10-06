@@ -32,6 +32,7 @@ export const AUDIT_EVENTS = [
   "version_review_requested",
   "version_returned",
   "version_reviewed",
+  "version_review_withdrawn",
   "version_sent",
   "owner_email_set",
   "quickbooks_connected",
@@ -81,6 +82,43 @@ export async function insertAudit(tx: Sql, input: AuditInput): Promise<void> {
       ${JSON.stringify(input.detail ?? {})}::jsonb
     )
   `;
+}
+
+/**
+ * Writes several rows in one statement, in the order given, inside the
+ * caller's transaction; as insertAudit, each actor's name is read as it is now.
+ */
+export async function insertAudits(tx: Sql, inputs: AuditInput[]): Promise<void> {
+  if (!inputs.length) return;
+  const rows = inputs.map((input) => ({
+    firm_user_id: input.firmUserId,
+    actor_user_id: input.actorUserId,
+    event: input.event,
+    business_id: input.businessId ?? null,
+    subject_user_id: input.subjectUserId ?? null,
+    detail: input.detail ?? {},
+  }));
+  await tx`
+    insert into firm_audit_log
+      (firm_user_id, actor_user_id, actor_name, event, business_id, subject_user_id, detail)
+    select r.firm_user_id, r.actor_user_id,
+      coalesce((select coalesce(nullif(u.name, ''), u.email, '') from "user" u
+        where u.id = r.actor_user_id), ''),
+      r.event, r.business_id, r.subject_user_id, r.detail
+    from jsonb_array_elements(${JSON.stringify(rows)}::jsonb) with ordinality as e(v, n)
+    cross join lateral jsonb_to_record(e.v) as r(firm_user_id text, actor_user_id text,
+      event text, business_id text, subject_user_id text, detail jsonb)
+    order by e.n
+  `;
+}
+
+/** insertAudits after the action has committed; a failure is reported, as recordAudit's. */
+export async function recordAudits(sql: Sql, inputs: AuditInput[]): Promise<void> {
+  try {
+    await insertAudits(sql, inputs);
+  } catch (err) {
+    await reportServerError(err, "audit");
+  }
 }
 
 /**

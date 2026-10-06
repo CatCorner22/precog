@@ -122,7 +122,7 @@ describe("the firm's work on a business needs a role in that business's firm", (
     expect(await refusal(call(server.markReportSent, "bo", { id: v.id }))).toEqual(refused);
   });
 
-  it("refuses that owner a change to the firm's engagement, and lets a firm member make it", async () => {
+  it("refuses that owner a change to the firm's engagement, and lets the firm owner make it", async () => {
     const fields = {
       businessId: "biz_1",
       scope: "Rewritten by the owner",
@@ -138,11 +138,26 @@ describe("the firm's work on a business needs a role in that business's firm", (
     expect(
       (await db.pg.query("select scope from engagement_marks where business_id = 'biz_1'")).rows,
     ).toEqual([]);
-    const saved = (await call(engagement.saveEngagement, "pp", {
+    // Assignments, scope and period are the firm owner's (CPA-8): its
+    // preparer and reviewer read them and do not change them.
+    const ownerOnly = { status: 403, message: "Only a firm owner can do that" };
+    expect(
+      await refusal(call(engagement.saveEngagement, "pp", { ...fields, reviewerUserId: "rv" })),
+    ).toEqual(ownerOnly);
+    expect(await refusal(call(engagement.saveEngagement, "rv", fields))).toEqual(ownerOnly);
+    expect(
+      (await db.pg.query("select scope from engagement_marks where business_id = 'biz_1'")).rows,
+    ).toEqual([]);
+    const saved = (await call(engagement.saveEngagement, "fo", {
       ...fields,
       scope: "Monthly close",
-    })) as { engagement: { scope: string } };
-    expect(saved.engagement.scope).toBe("Monthly close");
+      preparerUserId: "pp",
+      reviewerUserId: "rv",
+    })) as { engagement: { scope: string; reviewerUserId: string | null } };
+    expect([saved.engagement.scope, saved.engagement.reviewerUserId]).toEqual([
+      "Monthly close",
+      "rv",
+    ]);
   });
 
   it("refuses that owner review and return although they own an empty firm of their own", async () => {

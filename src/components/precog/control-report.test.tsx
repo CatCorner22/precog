@@ -35,6 +35,7 @@ const locked: ReportVersionRow = {
   reviewedByName: null,
   reviewedAt: null,
   reviewNote: "",
+  reviewOverrideNote: null,
   sentAt: null,
   hasFigures: false,
   firm: null,
@@ -525,8 +526,13 @@ describe("report cover headlines", () => {
       expect(residual).toMatch(/\|\d+ fix first\|/);
       expect(residual).toContain("Fix first at 80 or more");
       expect(residual).not.toMatch(/top|priority|88/i);
-      // "Fix first" names the residual band only: nowhere else on the cover.
-      expect(text.replace(residual, "")).not.toMatch(/fix first/i);
+      // One urgency scale: the Priority stack's top band reads "Fix first"
+      // too, and each row says what it groups. Nowhere else names it.
+      const stack = between("Priority stack", "Segregation of duties");
+      expect(stack).toContain("|Fix first|");
+      expect(stack).toContain("|Duty conflict · Control · Scenario|");
+      expect(stack).not.toMatch(/Top priority|High priority/);
+      expect(text.replace(residual, "").replace(stack, "")).not.toMatch(/fix first/i);
     }
   });
 });
@@ -715,8 +721,8 @@ describe("report layout 3", () => {
   };
 
   it("is the layout a live report prints", () => {
-    expect(REPORT_LAYOUT_VERSION).toBe(4);
-    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4]);
+    expect(REPORT_LAYOUT_VERSION).toBe(5);
+    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4, 5]);
     const html = renderToStaticMarkup(
       <ReadOnlyPracticeProvider profile={answered}>
         <ControlReport />
@@ -795,5 +801,76 @@ describe("report layout 3", () => {
     expect(html).not.toContain("Review by");
     expect(html).not.toContain("Judged not valid");
     expect(html).not.toContain("Awaiting a second person");
+  });
+});
+
+describe("printed monthly review", () => {
+  const september: PracticeProfile = {
+    ...defaultProfile("dental"),
+    monthlyReviews: [
+      {
+        key: "bank_statement",
+        period: "2026-09",
+        result: "exception",
+        ownerName: "Ada Park",
+        notes: "Check 1043 payable to cash",
+        recordedAt: "2026-10-02T15:00:00.000Z",
+      },
+    ],
+  };
+  const lockedOn = (preparedAt: string) =>
+    renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={september}>
+        <ControlReport locked={{ ...locked, preparedAt }} />
+      </ReadOnlyPracticeProvider>,
+    );
+  const monthly = (html: string) => {
+    const text = textOf(html);
+    return text.slice(text.indexOf("|Monthly review|"), text.indexOf("|Priority stack|"));
+  };
+
+  it("prints last month, named with its due day, on a report locked before the 10th", () => {
+    const section = monthly(lockedOn("2026-10-03T16:00:00.000Z"));
+    expect(section).toContain("|Monthly checks for September 2026 (due October 10)|");
+    expect(section).toContain(
+      "|Open the bank statement: Exception — Ada Park: Check 1043 payable to cash|",
+    );
+    expect(section).toContain("|Read the cleared-check images: not recorded|");
+    // September has four checks; the card statement check starts in October.
+    expect(section).not.toContain("Read the company card statement");
+  });
+
+  it("keeps the report's own month and the earlier words on a version locked under layout 4", () => {
+    const html = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={september}>
+        <ControlReport
+          locked={{ ...locked, preparedAt: "2026-10-03T16:00:00.000Z" }}
+          frozen={{
+            layoutVersion: 4,
+            model: serializeReportModel(buildReportModelForProfile(september, "2026-10-03")),
+          }}
+        />
+      </ReadOnlyPracticeProvider>,
+    );
+    const text = textOf(html);
+    const section = text.slice(
+      text.indexOf("|Monthly review · "),
+      text.indexOf("|Priority stack|"),
+    );
+    expect(section).toContain("|Monthly review · October 2026|");
+    expect(section).toContain("|No monthly review results recorded for October 2026.");
+    expect(section).not.toContain("Monthly checks for");
+    const stack = text.slice(
+      text.indexOf("|Priority stack|"),
+      text.indexOf("|Segregation of duties|"),
+    );
+    expect(stack).toContain("|Top priority|");
+    expect(stack).not.toContain("|Fix first|");
+  });
+
+  it("prints this month once last month's due day has passed", () => {
+    const section = monthly(lockedOn("2026-10-12T16:00:00.000Z"));
+    expect(section).toContain("|Monthly checks for October 2026 (due November 10)|");
+    expect(section).toContain("|No monthly review results recorded for October 2026.");
   });
 });

@@ -3,7 +3,14 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Printer } from "lucide-react";
 import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
-import { latestReview, reviewItemsFor, reviewResultLine } from "@/lib/precog/firm/reviews";
+import {
+  latestReview,
+  periodMonthYear,
+  periodWithDue,
+  reportPeriod,
+  reviewItemsFor,
+  reviewResultLine,
+} from "@/lib/precog/firm/reviews";
 import { industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import { dutiesOffTeam } from "@/lib/precog/onboarding/setup-answers";
@@ -24,6 +31,7 @@ import {
   type DecisionEntry,
 } from "@/lib/precog/practice-profile";
 import { PRIORITY_BAND_LABEL, PRIORITY_TOP } from "@/lib/precog/map-vision";
+import { PRIORITY_BAND_LABEL_PRINTED_V4 } from "@/lib/precog/scoring/bands";
 import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
 import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
@@ -33,7 +41,7 @@ import {
   type ReportVersionRow,
 } from "@/lib/precog/firm/reports";
 import type { FirmSnapshot } from "@/lib/precog/firm/store";
-import { ReportVersionsPanel } from "@/components/precog/report-versions";
+import { OpenVersionReview, ReportVersionsPanel } from "@/components/precog/report-versions";
 import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
 import { fixFirstOf } from "@/lib/precog/threat-scoring";
 import { RISK_SCALE } from "@/lib/precog/scoring/bands";
@@ -76,6 +84,8 @@ import { count, firstName, midSentence, verb } from "@/lib/precog/text";
  * footer are standing statements printed around the stored figures, so a
  * locked version's figures print unchanged. The report offers no "sent"
  * stamp: only a reviewed version is marked sent, from the versions panel.
+ * A locked version shows its review controls (OpenVersionReview) in place
+ * of that panel, so a reviewer signs the version they are reading.
  * With `shared`, the page is a share link's: the toolbar (the way back into
  * Precog and Print) and the versions panel stay off; the share page's own
  * bar carries Print.
@@ -98,7 +108,6 @@ export function ControlReport({
   const industry = industryMeta(profile.industry);
   const generated = locked ? new Date(locked.preparedAt) : new Date();
   const today = localDateKey(generated);
-  const month = today.slice(0, 7);
   const trackFreshness = trackRegisterFreshness(profile, tpl);
   const mapReady = mapAssessed(profile);
   const mapNote = mapNotAssessedNote(profile);
@@ -119,6 +128,13 @@ export function ControlReport({
   const layoutOne = layoutVersion === 1;
   const layoutThree = layoutVersion >= 3;
   const layoutFour = layoutVersion >= 4;
+  // Layout 5 prints the monthly checks for the oldest month still open on the
+  // report's day (last month until its due day, the 10th, then this month)
+  // and the priority bands in the urgency words. Earlier layouts print the
+  // report's own month and the words they printed then.
+  const layoutFive = layoutVersion >= 5;
+  const month = layoutFive ? reportPeriod(today) : today.slice(0, 7);
+  const priorityLabel = layoutFive ? PRIORITY_BAND_LABEL : PRIORITY_BAND_LABEL_PRINTED_V4;
   const kindLabel = layoutThree ? DECISION_KIND_LABEL : DECISION_KIND_LABEL_PRINTED_V1;
   const data = useMemo(
     () =>
@@ -216,7 +232,7 @@ export function ControlReport({
           </div>
         </div>
       )}
-      {!locked && !shared && <ReportVersionsPanel />}
+      {!shared && (locked ? <OpenVersionReview version={locked} /> : <ReportVersionsPanel />)}
 
       <article className="mx-auto max-w-4xl px-6 py-8 print:px-0 print:py-0">
         {draft && (
@@ -420,7 +436,12 @@ export function ControlReport({
           </ol>
         </Section>
 
-        <Section title={`Monthly review · ${monthLabel(month)}`}>
+        <Section
+          title={layoutFive ? "Monthly review" : `Monthly review · ${periodMonthYear(month)}`}
+        >
+          {layoutFive && (
+            <p className="mb-1 text-sm font-medium">Monthly checks for {periodWithDue(month)}</p>
+          )}
           {reviews.some((r) => r.latest) ? (
             <ul className="space-y-1 text-sm">
               {reviews.map(({ item, latest }) => (
@@ -431,7 +452,7 @@ export function ControlReport({
             </ul>
           ) : (
             <p className="text-sm text-neutral-700">
-              No monthly review results recorded for {monthLabel(month)}.
+              No monthly review results recorded for {periodMonthYear(month)}.
             </p>
           )}
         </Section>
@@ -454,7 +475,9 @@ export function ControlReport({
                   <tr key={`${t.kind}-${t.id}`} className="border-b border-neutral-200 align-top">
                     <td className="py-1.5 pr-2 tabular text-neutral-500">{i + 1}</td>
                     <td className="py-1.5 pr-2 font-medium">{t.label}</td>
-                    <td className="py-1.5 pr-2 text-neutral-700">{KIND_LABEL[t.kind] ?? t.kind}</td>
+                    <td className="py-1.5 pr-2 text-neutral-700">
+                      {(t.kinds ?? [t.kind]).map((k) => KIND_LABEL[k] ?? k).join(" · ")}
+                    </td>
                     <td className="py-1.5 pr-2">
                       <span
                         className={
@@ -465,7 +488,7 @@ export function ControlReport({
                               : "text-neutral-600"
                         }
                       >
-                        {PRIORITY_BAND_LABEL[t.band]}
+                        {priorityLabel[t.band]}
                       </span>
                     </td>
                     <td className={`py-1.5 text-right tabular${layoutThree ? "" : " pr-2"}`}>
@@ -768,11 +791,3 @@ const SEVERITY_LABEL: Record<DetectedConflict["severity"], string> = {
   medium: "Medium",
   family: "Related duties",
 };
-
-const MONTH = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
-
-/** "2026-09" as "September 2026". */
-function monthLabel(period: string): string {
-  const [year, month] = period.split("-").map(Number);
-  return year && month ? MONTH.format(new Date(year, month - 1, 1)) : period;
-}

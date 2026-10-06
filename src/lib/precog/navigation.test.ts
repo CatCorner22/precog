@@ -45,6 +45,18 @@ describe("parseHomeSearch", () => {
     });
   });
 
+  it("keeps a recommended procedure's item as given, so a conflict card's link opens it", () => {
+    expect(parseHomeSearch({ tab: "procedures", item: "lib:lib-bank-rec" })).toEqual({
+      tab: "procedures",
+      item: "lib:lib-bank-rec",
+    });
+    // The retired blueprint screen still opens Procedures with the item.
+    expect(parseHomeSearch({ tab: "blueprint", item: "lib:lib-payroll" })).toEqual({
+      tab: "procedures",
+      item: "lib:lib-payroll",
+    });
+  });
+
   it("reads a numeric item as text", () => {
     expect(parseHomeSearch({ tab: "map", item: 42 })).toEqual({ tab: "map", item: "42" });
   });

@@ -10,7 +10,7 @@ import { citingCaseStats, isOwnSector, type CaseStudy } from "@/lib/precog/evide
 import { casesBehindScenario } from "@/lib/precog/evidence/scenario-cases";
 import { dateAfter } from "@/lib/precog/dates";
 import { count } from "@/lib/precog/text";
-import { formatUsd, formatUsdDelta } from "@/lib/utils";
+import { formatEstimateUsdDelta, formatUsd } from "@/lib/utils";
 
 export interface ScenarioCases {
   /** Up to three cases to show: cases that cite a linked rule first, the owner's sector first within each group. */
@@ -84,9 +84,9 @@ export function deltaTone(delta: number): "ok" | "danger" | "muted" {
   return whole < 0 ? "ok" : whole > 0 ? "danger" : "muted";
 }
 
-/** "-$1,200", "+$300", or "no change". */
+/** A change in scenario dollars: "about -$1,200", "about +$300", or "no change". */
 export function formatMoneyChange(delta: number): string {
-  return Math.round(delta) === 0 ? "no change" : formatUsdDelta(delta);
+  return Math.round(delta) === 0 ? "no change" : formatEstimateUsdDelta(delta);
 }
 
 /** "-56 days", "+1 day", or "no change". */

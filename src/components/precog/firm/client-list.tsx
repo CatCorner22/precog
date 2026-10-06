@@ -11,6 +11,11 @@ import {
   CLIENT_COLUMNS,
   clientStatusText,
   clientTotals,
+  DEFAULT_CLIENT_SORT,
+  exceptionsText,
+  lastMonthStanding,
+  lastMonthText,
+  skippedText,
   sortClients,
   thisMonthText,
   type ClientSort,
@@ -18,9 +23,11 @@ import {
 
 /**
  * Every client the firm holds as a sortable table: the engagement's state,
- * the last monthly result, this month's checks, open duty conflicts and the
- * versions awaiting review, the owner's address for reminders, and the
- * businesses deleted within the grace period.
+ * the last monthly result, last month's and this month's checks Done (last
+ * month marked Overdue after its due day), the exceptions and skips, open
+ * duty conflicts and the versions awaiting review, the owner's address for
+ * reminders, and the businesses deleted within the grace period. Clients
+ * with exceptions sort to the top until another column is chosen.
  */
 export function ClientList({
   clients,
@@ -49,7 +56,7 @@ export function ClientList({
   /** YYYY-MM-DD; the viewer's day unless a test fixes it. */
   today?: string;
 }) {
-  const [sort, setSort] = useState<ClientSort>({ key: "client", dir: "asc" });
+  const [sort, setSort] = useState<ClientSort>(DEFAULT_CLIENT_SORT);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
 
@@ -122,9 +129,11 @@ export function ClientList({
       </div>
       {clients.length > 0 && <p className="mt-1 text-sm font-medium">{totals}</p>}
       <p className="mt-1 text-sm text-muted">
-        Last review is the newest monthly result Precog holds for that client. An owner address
-        receives the reminders about their own business once its owner confirms it from an email;
-        Precog sends nothing else to it.
+        Last review is the newest monthly result Precog holds for that client. Last month and This
+        month count Done checks only; Exceptions and Skipped count the others. Last month stays open
+        until its due day, the 10th, and shows Overdue after it. An owner address receives the
+        reminders about their own business once its owner confirms it from an email; Precog sends
+        nothing else to it.
         {clients.length > 0 &&
           " Sort by any column; Export clients (CSV) downloads the same columns."}
       </p>
@@ -134,7 +143,7 @@ export function ClientList({
         </p>
       ) : (
         <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[44rem] text-left text-sm">
+          <table className="w-full min-w-[60rem] text-left text-sm">
             <thead>
               <tr className="border-b border-border text-xs text-muted">
                 {CLIENT_COLUMNS.map((col) => (
@@ -194,7 +203,17 @@ export function ClientList({
                   <td className="py-2 pr-3 text-xs">
                     {client.lastReviewAt ? client.lastReviewAt.slice(0, 10) : "None"}
                   </td>
+                  <td className="py-2 pr-3 text-xs">
+                    {lastMonthText(client, today)}
+                    {lastMonthStanding(client, today).overdue && (
+                      <span className="ml-1.5 rounded border border-danger/40 px-1 py-0.5 font-medium text-danger">
+                        Overdue
+                      </span>
+                    )}
+                  </td>
                   <td className="py-2 pr-3 text-xs">{thisMonthText(client, today)}</td>
+                  <td className="py-2 pr-3 text-xs">{exceptionsText(client, today)}</td>
+                  <td className="py-2 pr-3 text-xs">{skippedText(client, today)}</td>
                   <td className="py-2 pr-3 text-xs">
                     {client.openFindings === null ? "Not counted yet" : client.openFindings}
                   </td>

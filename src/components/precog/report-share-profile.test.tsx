@@ -33,6 +33,7 @@ const locked: ReportVersionRow = {
   reviewedByName: "Ben Ortiz",
   reviewedAt: "2026-09-27T12:00:00.000Z",
   reviewNote: "",
+  reviewOverrideNote: null,
   sentAt: null,
   hasFigures: true,
   firm: { name: "North Advisors", letterhead: "12 Elm St", logoDataUrl: null },
@@ -189,7 +190,7 @@ const render = (profile: PracticeProfile, layoutVersion: number) =>
 
 describe("shareReportProfile", () => {
   it("prints the same report as the full profile under every printed layout", () => {
-    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4]);
+    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4, 5]);
     const projected = shareReportProfile(full);
     for (const layout of PRINTED_LAYOUT_VERSIONS) {
       const whole = render(full, layout);

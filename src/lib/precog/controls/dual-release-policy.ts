@@ -460,12 +460,15 @@ const EXCEPTION_ACTIONS = new Set<ExceptionAction>([
   "waive_dual",
   "lower_threshold",
 ]);
-const MAX_USD = 1_000_000_000;
+/** The largest amount a stored threshold keeps; a larger one reads as this. */
+export const DUAL_RELEASE_MAX_USD = 1_000_000_000;
 
 const str = (value: unknown, max: number): string | undefined =>
   typeof value === "string" ? value.trim().slice(0, max) : undefined;
 const boundedUsd = (value: unknown): number | undefined =>
-  typeof value === "number" && Number.isFinite(value) ? clamp(value, 0, MAX_USD) : undefined;
+  typeof value === "number" && Number.isFinite(value)
+    ? clamp(value, 0, DUAL_RELEASE_MAX_USD)
+    : undefined;
 const isoDay = (value: unknown): string | undefined =>
   typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
 const roleList = (value: unknown, fallback: string[]): string[] =>

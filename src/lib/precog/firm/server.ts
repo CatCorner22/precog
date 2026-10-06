@@ -50,6 +50,8 @@ import {
   type InviteRole,
 } from "./store";
 import {
+  assignedReviewerFor,
+  issueAloneFor,
   listReportVersions,
   loadFrozenReport,
   loadReportVersion,
@@ -57,12 +59,13 @@ import {
   markReportVersionSent,
   signOffReportVersion,
   versionFirmName,
+  withdrawReportVersionReview,
 } from "./reports";
 import { loadBillingAccount, planToStore } from "./billing-store";
 import { requireEntitlement, requireEntitlementForBusiness } from "./entitlements.server";
 import { recordFirst } from "../telemetry/events.server";
 import { assertEngagementOpen, engagementEnded } from "./engagement-store";
-import { recordAudit, recordAuditForBusiness } from "./audit.server";
+import { recordAudit, recordAuditForBusiness, recordAudits } from "./audit.server";
 import {
   businessInput,
   EMAIL,
@@ -301,15 +304,27 @@ export const removeFirmMember = createServerFn({ method: "POST" })
     return { members: await listMembers(sql, firm.firmUserId), moved: moved ?? [] };
   });
 
+/** The refusal when the owner's sign-in is older than FRESH_SESSION_MINUTES. */
+export const SIGN_IN_AGAIN_TO_TRANSFER = "For your safety, sign in again, then transfer the firm.";
+
 /**
  * Hands the firm, its clients, members, invitations and billing to a member;
- * the caller stays on as a reviewer. Stripe's customer and subscription
- * are repointed best effort afterwards, so receipts reach the new owner.
+ * the caller stays on as a reviewer. Like account deletion, it needs a
+ * sign-in from the last FRESH_SESSION_MINUTES (SEC-5): a session left open
+ * on a shared office computer, or taken, cannot give the firm away. Stripe's
+ * customer and subscription are repointed best effort afterwards, so
+ * receipts reach the new owner.
  */
 export const transferFirmOwnership = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(memberInput)
   .handler(async ({ context, data }) => {
+    const { requireFreshSession } = await import("@/lib/auth/fresh-session");
+    await requireFreshSession({
+      userId: context.userId,
+      bearerToken: context.bearerToken,
+      message: SIGN_IN_AGAIN_TO_TRANSFER,
+    });
     const sql = await getSql();
     const firm = await requireFirmRole(sql, context.userId, ["owner"]);
     // The old owner's own client businesses moved to the new owner's
@@ -385,7 +400,7 @@ export const leaveFirm = createServerFn({ method: "POST" })
 
 /**
  * One client_handed_over row per business a departing member's exit (or an
- * old owner's transfer of the firm) moved to the owner.
+ * old owner's transfer of the firm) moved to the owner, in one statement.
  */
 async function recordHandOvers(
   sql: Awaited<ReturnType<typeof getSql>>,
@@ -394,16 +409,17 @@ async function recordHandOvers(
   memberUserId: string,
   moved: { from: string; to: string }[],
 ): Promise<void> {
-  for (const business of moved) {
-    await recordAudit(sql, {
+  await recordAudits(
+    sql,
+    moved.map((business) => ({
       firmUserId,
       actorUserId,
-      event: "client_handed_over",
+      event: "client_handed_over" as const,
       businessId: business.to,
       subjectUserId: memberUserId,
       detail: { from: business.from },
-    });
-  }
+    })),
+  );
 }
 
 // ── Clients ─────────────────────────────────────────────────────────────────
@@ -593,9 +609,28 @@ export const lockReport = createServerFn({ method: "POST" })
   });
 
 /**
- * The versions the caller reads on one business, and the work they do on it
- * (businessWork): the versions panel offers Lock, review, Mark sent and
- * Share only to an account the server lets do them.
+ * The review rules of one business as they apply to the caller, for the
+ * versions panel:
+ * - `canIssueAlone` and `issueAloneReason` (issueAloneFor): whether the
+ *   caller may issue a version they prepared without an independent review.
+ *   The panel offers "Issue alone" on an open version the caller prepared
+ *   only when it is true, and shows the reason when it is false.
+ * - `assignedReviewerUserId` (the engagement's reviewer, null when none is
+ *   assigned or that person can no longer review): a reviewer other than
+ *   this person, reviewing a version this person did not prepare, writes an
+ *   override note of OVERRIDE_NOTE_MIN characters or more.
+ */
+export interface ReviewRules {
+  canIssueAlone: boolean;
+  issueAloneReason: string;
+  assignedReviewerUserId: string | null;
+}
+
+/**
+ * The versions the caller reads on one business, the work they do on it
+ * (businessWork) and its review rules (ReviewRules): the versions panel
+ * offers Lock, review, Mark sent and Share only to an account the server
+ * lets do them.
  */
 export const listReports = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
@@ -603,11 +638,22 @@ export const listReports = createServerFn({ method: "GET" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const owner = await requireBusinessOwner(sql, context.userId, data.businessId);
-    const [versions, work] = await Promise.all([
+    const where = { ownerUserId: owner, businessId: data.businessId };
+    const [versions, work, alone, assigned] = await Promise.all([
       listReportVersions(sql, owner, data.businessId, context.userId),
       businessWork(sql, context.userId, owner, data.businessId),
+      issueAloneFor(sql, { ...where, preparedBy: context.userId }),
+      // Read for no particular preparer: on a version the assigned reviewer
+      // prepared themselves, nobody needs the note, and the panel compares
+      // that version's preparer itself.
+      assignedReviewerFor(sql, { ...where, preparedBy: null }),
     ]);
-    return { versions, work };
+    const review: ReviewRules = {
+      canIssueAlone: alone.canIssueAlone,
+      issueAloneReason: alone.reason,
+      assignedReviewerUserId: assigned,
+    };
+    return { versions, work, review };
   });
 
 export const getReport = createServerFn({ method: "GET" })
@@ -651,11 +697,21 @@ export const getReport = createServerFn({ method: "GET" })
 
 export const signOffReport = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { id: string; note?: string; issueWithoutIndependentReview?: boolean }) => ({
-    ...idInput(input),
-    note: typeof input.note === "string" ? input.note.trim().slice(0, 600) : "",
-    issueWithoutIndependentReview: requireObject(input).issueWithoutIndependentReview === true,
-  }))
+  .validator(
+    (input: {
+      id: string;
+      note?: string;
+      issueWithoutIndependentReview?: boolean;
+      /** Why the caller reviews in the engagement's assigned reviewer's place. */
+      overrideNote?: string;
+    }) => ({
+      ...idInput(input),
+      note: typeof input.note === "string" ? input.note.trim().slice(0, 600) : "",
+      issueWithoutIndependentReview: requireObject(input).issueWithoutIndependentReview === true,
+      // The store refuses a short or over-long note with its own words.
+      overrideNote: typeof input.overrideNote === "string" ? input.overrideNote.slice(0, 2000) : "",
+    }),
+  )
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const where = await requireReportVersion(sql, context.userId, data.id);
@@ -675,10 +731,43 @@ export const signOffReport = createServerFn({ method: "POST" })
       reviewedBy: context.userId,
       note: data.note,
       issueWithoutIndependentReview: data.issueWithoutIndependentReview,
+      overrideNote: data.overrideNote,
     });
+    // The override note itself stays on the version; the log says one was given.
     await recordAuditForBusiness(sql, where.ownerUserId, where.businessId, {
       actorUserId: context.userId,
       event: "version_reviewed",
+      detail: {
+        versionId: data.id,
+        versionNo: version.versionNo,
+        ...(version.reviewOverrideNote !== null ? { inPlaceOfAssignedReviewer: true } : {}),
+      },
+    });
+    return { version };
+  });
+
+/**
+ * Withdraws the review for issuance of a version not yet sent, so it can be
+ * reviewed again (withdrawReportVersionReview): the firm owner, or the
+ * person who reviewed it. Refused once the version is sent
+ * (WITHDRAW_AFTER_SENT), to anyone else (WITHDRAW_REFUSED), and to a firm
+ * member on an ended engagement.
+ */
+export const withdrawReportReview = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(idInput)
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const where = await requireReportVersion(sql, context.userId, data.id);
+    const { version, withdrawnReviewer } = await withdrawReportVersionReview(sql, {
+      ownerUserId: where.ownerUserId,
+      id: data.id,
+      withdrawnBy: context.userId,
+    });
+    await recordAuditForBusiness(sql, where.ownerUserId, where.businessId, {
+      actorUserId: context.userId,
+      event: "version_review_withdrawn",
+      subjectUserId: withdrawnReviewer,
       detail: { versionId: data.id, versionNo: version.versionNo },
     });
     return { version };

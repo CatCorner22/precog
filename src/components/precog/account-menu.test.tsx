@@ -9,6 +9,11 @@ const server = vi.hoisted(() => ({
   fail: false,
 }));
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+const exportPages = vi.hoisted(() => ({
+  fetch: vi.fn(async (_input: { data: unknown }): Promise<unknown> => null),
+}));
+const downloads = vi.hoisted(() => ({ downloadText: vi.fn() }));
+vi.mock("@/lib/download", () => downloads);
 
 vi.mock("@/lib/precog/firm/server", () => ({
   getNotificationSettings: vi.fn(async () => ({
@@ -25,7 +30,7 @@ vi.mock("@/lib/precog/firm/server", () => ({
 }));
 vi.mock("@/lib/precog/account-server", () => ({
   deleteAccount: vi.fn(),
-  exportAccountData: vi.fn(),
+  exportAccountDataPage: exportPages.fetch,
   exportBusinessHistory: vi.fn(),
   listHistoryDownloads: vi.fn(),
   SIGN_IN_AGAIN_TO_DELETE: "For your safety, sign in again, then delete your account.",
@@ -34,8 +39,77 @@ const auth = vi.hoisted(() => ({ signOut: vi.fn(async (_to?: string) => {}) }));
 vi.mock("@/lib/auth/client", () => auth);
 vi.mock("sonner", () => ({ toast: toasts }));
 
-const { DELETE_ACCOUNT_PROMPT, DigestSwitch, digestSwitchLabel, toggleDigest } =
-  await import("./account-menu");
+const {
+  DELETE_ACCOUNT_PROMPT,
+  DigestSwitch,
+  digestSwitchLabel,
+  downloadAccountExport,
+  toggleDigest,
+} = await import("./account-menu");
+const { exportProgressLabel } = await import("@/lib/precog/account-export");
+
+describe("Export data", () => {
+  const encode = (page: unknown) => Buffer.from(JSON.stringify(page), "utf8").toString("base64");
+  const account = {
+    exportedAt: "2026-10-06T12:00:00.000Z",
+    user: {
+      id: "ua",
+      name: "Ann",
+      email: "ann@example.test",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    },
+    firmGrants: [],
+    deletedBusinesses: [],
+    firmMemberships: [],
+    engagements: [],
+    reminderSettings: null,
+    billing: null,
+    quickBooksConnections: [],
+    activity: [],
+    modelUsage: [],
+  };
+  const business = (id: string) => ({ id, name: "Café ✓", profile: { note: '"<x>"' } });
+
+  it("fetches the parts in order, shows how far it got, and saves one file", async () => {
+    const parts = [
+      { section: "firm" },
+      { section: "businesses", first: "k2", last: "k2" },
+      { section: "businesses", first: "k1", last: "k1" },
+    ];
+    exportPages.fetch.mockImplementation(async ({ data }: { data: unknown }) => {
+      const part = data as { section: string; first?: string };
+      if (part.section === "account") {
+        return { base64: encode({ section: "account", data: account }), parts };
+      }
+      if (part.section === "firm") {
+        const firm = { firm: null, firmMembers: [], firmInvites: [], firmClients: [] };
+        return { base64: encode({ section: "firm", data: firm }), parts: null };
+      }
+      const rows = [business(part.first === "k2" ? "biz_2" : "biz_1")];
+      return { base64: encode({ section: "businesses", rows }), parts: null };
+    });
+    const progress: string[] = [];
+    await downloadAccountExport((done, total) => progress.push(exportProgressLabel(done, total)));
+    expect(exportPages.fetch.mock.calls.map(([input]) => input.data)).toEqual([
+      { section: "account" },
+      ...parts,
+    ]);
+    expect(progress).toEqual([
+      "Preparing your download: 1 of 4 parts",
+      "Preparing your download: 2 of 4 parts",
+      "Preparing your download: 3 of 4 parts",
+      "Preparing your download: 4 of 4 parts",
+    ]);
+    expect(downloads.downloadText).toHaveBeenCalledTimes(1);
+    const [name, text, type] = downloads.downloadText.mock.calls[0];
+    expect(name).toMatch(/^precog-account-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(type).toBe("application/json");
+    const file = JSON.parse(text as string);
+    expect(file.user).toEqual(account.user);
+    expect(file.businesses).toEqual([business("biz_2"), business("biz_1")]);
+    expect(file.reportLogos).toEqual([]);
+  });
+});
 
 function render(state: { weeklyDigest: boolean; mailConfigured: boolean } | null) {
   return renderToStaticMarkup(

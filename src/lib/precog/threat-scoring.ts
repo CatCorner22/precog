@@ -50,6 +50,15 @@ interface ThreatAssessmentReport {
 
 interface ThreatTarget extends PriorityTarget {
   domain: ThreatDomain;
+  /**
+   * The kinds of row grouped into this one, the leading row's first: a duty
+   * conflict, the control that splits it and the scenario that plays it out
+   * are one weakness, listed once. Absent on a version locked before rows
+   * were grouped.
+   */
+  kinds?: string[];
+  /** The ids of the rows grouped into this one, the leading row's first. */
+  members?: string[];
   residual?: number;
   /**
    * The scenario's assumed loss after insurance (the retained loss) under the
@@ -100,7 +109,16 @@ export function buildThreatAssessment(input: {
   // retained loss under the owner's settings.
   const rankedById = new Map(ranked.map((row) => [row.scenario.id, row]));
 
-  const targets: ThreatTarget[] = [];
+  const targets: KeyedTarget<ThreatTarget>[] = [];
+  const scenarioKeys = (id: string | undefined): string[] => {
+    const s = id ? tpl.scenarios.find((x) => x.id === id) : undefined;
+    if (!s) return [];
+    return [
+      `scenario:${s.id}`,
+      ...(s.controlId ? [`control:${s.controlId}`] : []),
+      ...(s.sodRuleIds ?? []).map((r) => `pair:${r}`),
+    ];
+  };
 
   for (const item of portfolio.top.slice(0, 6)) {
     const scenarioRow =
@@ -120,26 +138,40 @@ export function buildThreatAssessment(input: {
       controlOpen: item.category === "control" && item.controlEffectiveness < 50,
     });
     const band = priorityBand(scored.priority);
+    const keys =
+      item.category === "scenario"
+        ? scenarioKeys(item.linkedScenarioId)
+        : item.category === "knowledge"
+          ? item.linkedKnowledgeId
+            ? [`knowledge:${item.linkedKnowledgeId}`]
+            : []
+          : [
+              ...(item.linkedControlId ? [`control:${item.linkedControlId}`] : []),
+              ...(item.linkedScenarioId ? [`scenario:${item.linkedScenarioId}`] : []),
+            ];
     targets.push({
-      id: item.id,
-      kind: item.category,
-      label: item.name,
-      priority: scored.priority,
-      band,
-      heat: item.residual,
-      impactHint: scored.impactHint,
-      reasons: scored.reasons.slice(0, 3),
-      immediate: scored.immediate,
-      domain:
-        item.category === "knowledge"
-          ? "knowledge"
-          : item.category === "control"
-            ? "control"
-            : "portfolio",
-      residual: item.residual,
-      expectedLoss: scenarioRow ? retainedLoss(scenarioRow.result) : undefined,
-      p50Days: scenarioRow?.result.timelineDays.p50 ?? item.p50Days,
-      roe: deriveRoe(item.category, item.name, item.residual),
+      keys,
+      target: {
+        id: item.id,
+        kind: item.category,
+        label: item.name,
+        priority: scored.priority,
+        band,
+        heat: item.residual,
+        impactHint: scored.impactHint,
+        reasons: scored.reasons.slice(0, 3),
+        immediate: scored.immediate,
+        domain:
+          item.category === "knowledge"
+            ? "knowledge"
+            : item.category === "control"
+              ? "control"
+              : "portfolio",
+        residual: item.residual,
+        expectedLoss: scenarioRow ? retainedLoss(scenarioRow.result) : undefined,
+        p50Days: scenarioRow?.result.timelineDays.p50 ?? item.p50Days,
+        roe: deriveRoe(item.category, item.name, item.residual),
+      },
     });
   }
 
@@ -161,22 +193,30 @@ export function buildThreatAssessment(input: {
     });
     const band = priorityBand(scored.priority);
     targets.push({
-      id: `sod-${c.ruleId}`,
-      kind: "sod",
-      label: c.title || c.ruleId,
-      priority: scored.priority,
-      band,
-      heat,
-      impactHint: scored.impactHint,
-      reasons: [c.why || "Incompatible duties concentrated", ...scored.reasons].slice(0, 3),
-      immediate: scored.immediate || c.severity === "critical",
-      domain: "sod",
-      residual: heat,
-      roe: [
-        "Apply dual-release threshold on the conflicting duty pair",
-        "Owner weekly sample of the high-risk transaction class",
-        "Document compensating control + residual acceptance date",
+      pair: c.ruleId,
+      keys: [
+        `pair:${c.ruleId}`,
+        ...(c.linkedControlId ? [`control:${c.linkedControlId}`] : []),
+        ...(c.linkedScenarioId ? [`scenario:${c.linkedScenarioId}`] : []),
       ],
+      target: {
+        id: `sod-${c.ruleId}`,
+        kind: "sod",
+        label: c.title || c.ruleId,
+        priority: scored.priority,
+        band,
+        heat,
+        impactHint: scored.impactHint,
+        reasons: [c.why || "Incompatible duties concentrated", ...scored.reasons].slice(0, 3),
+        immediate: scored.immediate || c.severity === "critical",
+        domain: "sod",
+        residual: heat,
+        roe: [
+          "Apply dual-release threshold on the conflicting duty pair",
+          "Owner weekly sample of the high-risk transaction class",
+          "Document compensating control + residual acceptance date",
+        ],
+      },
     });
   }
 
@@ -190,22 +230,25 @@ export function buildThreatAssessment(input: {
     });
     const band = priorityBand(scored.priority);
     targets.push({
-      id: `spof-${r.knowledgeId}`,
-      kind: "knowledge",
-      label: r.name,
-      priority: scored.priority,
-      band,
-      heat,
-      impactHint: scored.impactHint,
-      reasons: scored.reasons,
-      immediate: scored.immediate,
-      domain: "knowledge",
-      residual: heat,
-      roe: [
-        "Cross-train a stand-in within 30 days",
-        "Document the procedure in the business playbook",
-        "Re-score residual risk once the stand-in can do the work",
-      ],
+      keys: [`knowledge:${r.knowledgeId}`],
+      target: {
+        id: `spof-${r.knowledgeId}`,
+        kind: "knowledge",
+        label: r.name,
+        priority: scored.priority,
+        band,
+        heat,
+        impactHint: scored.impactHint,
+        reasons: scored.reasons,
+        immediate: scored.immediate,
+        domain: "knowledge",
+        residual: heat,
+        roe: [
+          "Cross-train a stand-in within 30 days",
+          "Document the procedure in the business playbook",
+          "Re-score residual risk once the stand-in can do the work",
+        ],
+      },
     });
   }
 
@@ -224,32 +267,35 @@ export function buildThreatAssessment(input: {
     });
     const band = priorityBand(scored.priority);
     targets.push({
-      id: `scen-${row.scenario.id}`,
-      kind: "scenario",
-      label: row.scenario.title,
-      processId: row.scenario.id,
-      priority: scored.priority,
-      band,
-      heat: residualProxy,
-      impactHint: scored.impactHint,
-      reasons: [
-        `about ${row.result.timelineDays.p50} assumed days until found`,
-        `Retained ~${formatUsd(retainedLoss(row.result))}${policyNote ? ` (${policyNote})` : ""}`,
-      ],
-      immediate: scored.immediate,
-      domain: "scenario",
-      residual: residualProxy,
-      expectedLoss: retainedLoss(row.result),
-      p50Days: row.result.timelineDays.p50,
-      roe: [
-        "Run Precog scenario compare (do-nothing vs controls)",
-        "Pull highest tornado lever for this path",
-        "Schedule owner review of linked residual acceptance",
-      ],
+      keys: scenarioKeys(row.scenario.id),
+      target: {
+        id: `scen-${row.scenario.id}`,
+        kind: "scenario",
+        label: row.scenario.title,
+        processId: row.scenario.id,
+        priority: scored.priority,
+        band,
+        heat: residualProxy,
+        impactHint: scored.impactHint,
+        reasons: [
+          `about ${row.result.timelineDays.p50} assumed days until found`,
+          `Retained ~${formatUsd(retainedLoss(row.result))}${policyNote ? ` (${policyNote})` : ""}`,
+        ],
+        immediate: scored.immediate,
+        domain: "scenario",
+        residual: residualProxy,
+        expectedLoss: retainedLoss(row.result),
+        p50Days: row.result.timelineDays.p50,
+        roe: [
+          "Run Precog scenario compare (do-nothing vs controls)",
+          "Pull highest tornado lever for this path",
+          "Schedule owner review of linked residual acceptance",
+        ],
+      },
     });
   }
 
-  const allTargets = uniqueTargets(targets);
+  const allTargets = groupTargets(targets);
   const deck = allTargets.slice(0, LIST_SIZE);
 
   const openSod = tpl.controls.filter((c) => !c.segregated).length;
@@ -288,33 +334,92 @@ export function buildThreatAssessment(input: {
   };
 }
 
-/** Rows shown on the list: one per label (first one wins), highest priority first, at most ten. */
-export function rankTargets<T extends Pick<PriorityTarget, "label" | "priority">>(
-  targets: readonly T[],
-): T[] {
-  return uniqueTargets(targets).slice(0, LIST_SIZE);
+/**
+ * A row before grouping, with the weaknesses it describes: `pair:<rule id>`
+ * for a duty pair, `control:<id>` for a control, `scenario:<id>` and
+ * `knowledge:<id>`. `pair` is set on a duty-conflict row itself; two duty
+ * pairs are two weaknesses even when one control answers both.
+ */
+interface KeyedTarget<T> {
+  target: T;
+  keys: readonly string[];
+  pair?: string;
 }
 
-/** Every target once per label (first one wins), highest priority first. */
-function uniqueTargets<T extends Pick<PriorityTarget, "label" | "priority">>(
-  targets: readonly T[],
-): T[] {
-  const seen = new Set<string>();
-  return targets
-    .filter((t) => {
-      const key = t.label.toLowerCase().slice(0, 40);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => b.priority - a.priority);
+/** The fields a grouped row adds: its kinds and its rows, the leading row's first. */
+interface Grouped {
+  kinds: string[];
+  members: string[];
+}
+
+type Groupable = Pick<PriorityTarget, "label" | "priority"> &
+  Partial<Pick<PriorityTarget, "id" | "kind">> & { expectedLoss?: number; p50Days?: number };
+
+/** Rows shown on the list: one per weakness, highest priority first, at most ten. */
+export function rankTargets<T extends Groupable>(
+  targets: readonly (T | KeyedTarget<T>)[],
+): (T & Grouped)[] {
+  return groupTargets(targets.map((t) => ("target" in t ? t : { target: t, keys: [] }))).slice(
+    0,
+    LIST_SIZE,
+  );
 }
 
 /**
- * The list's headline: how many items sit in its top band ("Top priority", priority 88 or more).
- * A count, not an average, so a new item can raise it and never lowers it.
- * Count over every target, not the ten-row list, or a business with more
- * than ten top-band items would read as ten.
+ * Every weakness once, highest priority first. Rows are taken in priority
+ * order; a row joins the group it shares the most weaknesses with (the
+ * higher one on a tie), else starts its own. A duty conflict, the control
+ * that splits it and the scenario that plays it out share a weakness, so
+ * they read as one row tagged "Duty conflict · Control · Scenario". Two duty
+ * conflicts never share a row. Rows whose labels open with the same 40
+ * characters are one weakness too. A group keeps its leading row's figures,
+ * and the first loss any of its rows carries.
+ */
+function groupTargets<T extends Groupable>(rows: readonly KeyedTarget<T>[]): (T & Grouped)[] {
+  const sorted = rows
+    .map((row, order) => ({ row, order }))
+    .sort((a, b) => b.row.target.priority - a.row.target.priority || a.order - b.order)
+    .map(({ row }) => row);
+  const groups: { keys: Set<string>; pair: boolean; rows: T[] }[] = [];
+  for (const row of sorted) {
+    const keys = [...row.keys, `label:${row.target.label.toLowerCase().slice(0, 40)}`];
+    let best: (typeof groups)[number] | undefined;
+    let bestShared = 0;
+    for (const group of groups) {
+      if (row.pair && group.pair) continue;
+      const shared = keys.filter((k) => group.keys.has(k)).length;
+      if (shared > bestShared) {
+        best = group;
+        bestShared = shared;
+      }
+    }
+    if (best) {
+      for (const k of keys) best.keys.add(k);
+      best.pair ||= row.pair !== undefined;
+      best.rows.push(row.target);
+    } else {
+      groups.push({ keys: new Set(keys), pair: row.pair !== undefined, rows: [row.target] });
+    }
+  }
+  return groups.map(({ rows: [lead, ...rest] }) => {
+    const loss =
+      lead.expectedLoss === undefined ? rest.find((m) => m.expectedLoss !== undefined) : undefined;
+    return {
+      ...lead,
+      ...(loss ? { expectedLoss: loss.expectedLoss, p50Days: loss.p50Days } : {}),
+      kinds: [...new Set([lead, ...rest].flatMap((m) => (m.kind ? [m.kind] : [])))],
+      members: [...new Set([lead, ...rest].map((m) => m.id ?? m.label))],
+    };
+  });
+}
+
+/**
+ * The list's headline: how many weaknesses sit in its top band ("Fix first",
+ * priority 88 or more), each counted once however many rows name it.
+ * A count, not an average, so a new item can raise it; it lowers it only by
+ * showing that two counted rows are one weakness. Count over every target,
+ * not the ten-row list, or a business with more than ten top-band items
+ * would read as ten.
  */
 export function fixFirstCount(targets: readonly Pick<PriorityTarget, "band">[]): number {
   return targets.filter((t) => t.band === "white_hot").length;
