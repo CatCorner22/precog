@@ -121,6 +121,16 @@
  * in 131 chunks, against 820.4 KB for batch 3 on the earlier main. Total
  * budget raised from 825 KB to 832 KB. The control failure panel (#205)
  * then brings the total to 830.8 KB.
+ *
+ * 2026-10-05: the four schema modules (map share, control check commands,
+ * public inputs, map backup) move from zod to zod/mini, which bundles only
+ * the checks they call (24.9 KB gzipped for the same schemas against 7.4 KB
+ * in a standalone build), and the map's PNG export loads html-to-image when
+ * someone exports rather than with the map. Measured 815.6 KB in 132 chunks
+ * against 830.8 KB; the process-map chunk falls from 44.7 KB to 39.2 KB. The
+ * signed-out pages do not load either module, so their first-load figures in
+ * scripts/perf-first-load.mjs are unchanged. Total budget lowered from 832 KB
+ * to 820 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -129,7 +139,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 832 * 1024,
+  totalGzipBytes: 820 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

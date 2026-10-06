@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as z from "zod/mini";
 import { invalidRequest, RequestError, requireObject } from "@/lib/request-errors";
 import { INDUSTRIES, type IndustryId } from "../industry";
 import { clamp } from "../number";
@@ -7,8 +7,11 @@ import { isBusinessId } from "../profile-input";
 /** Largest stored share, in bytes of JSON. */
 export const MAX_SHARE_BYTES = 256 * 1024;
 
-const str = (max: number) => z.string().max(max);
-const num = z.number().finite();
+const str = (max: number) => z.string().check(z.maxLength(max));
+/** z.number() refuses NaN and the infinities on its own. */
+const num = z.number();
+const listOf = <T extends z.ZodMiniType>(item: T, max: number) =>
+  z.array(item).check(z.maxLength(max));
 
 /**
  * Shape check for a map share before it is stored and later rendered on a
@@ -28,47 +31,44 @@ const sharedMapPayloadSchema = z.object({
     score: num,
     bandLabel: str(80),
     summary: str(1_000),
-    dimensions: z
-      .array(
-        z.object({
-          id: str(40),
-          label: str(80),
-          score: num,
-          weight: num,
-          hint: str(500),
-        }),
-      )
-      .max(20),
+    dimensions: listOf(
+      z.object({
+        id: str(40),
+        label: str(80),
+        score: num,
+        weight: num,
+        hint: str(500),
+      }),
+      20,
+    ),
     processCount: num,
     avgHeat: num,
     hotProcesses: num,
   }),
-  processes: z
-    .array(
-      z.object({
-        id: str(80),
-        name: str(120),
-        description: str(2_000),
-        stage: num,
-        heat: num,
-        owners: z.array(str(120)).max(50),
-        controls: z.array(z.object({ name: str(200), segregated: z.boolean() })).max(100),
-        risks: z
-          .array(z.object({ title: str(200), kind: str(40), severity: num, likelihood: num }))
-          .max(100),
-        dependencies: z.array(str(80)).max(100),
-        evidence: z
-          .array(z.object({ label: str(200), frequency: str(40), status: str(40) }))
-          .max(100),
-      }),
-    )
-    .max(200),
-  people: z.array(z.object({ name: str(120), role: str(120) })).max(200),
-  issues: z.array(str(500)).max(500),
-  actions: z.array(z.object({ title: str(200), why: str(1_000), effort: str(40) })).max(200),
-  note: str(2_000).optional(),
+  processes: listOf(
+    z.object({
+      id: str(80),
+      name: str(120),
+      description: str(2_000),
+      stage: num,
+      heat: num,
+      owners: listOf(str(120), 50),
+      controls: listOf(z.object({ name: str(200), segregated: z.boolean() }), 100),
+      risks: listOf(
+        z.object({ title: str(200), kind: str(40), severity: num, likelihood: num }),
+        100,
+      ),
+      dependencies: listOf(str(80), 100),
+      evidence: listOf(z.object({ label: str(200), frequency: str(40), status: str(40) }), 100),
+    }),
+    200,
+  ),
+  people: listOf(z.object({ name: str(120), role: str(120) }), 200),
+  issues: listOf(str(500), 500),
+  actions: listOf(z.object({ title: str(200), why: str(1_000), effort: str(40) }), 200),
+  note: z.optional(str(2_000)),
   /** Set by redactSharePayload: people's names are replaced with role labels. */
-  namesHidden: z.boolean().optional(),
+  namesHidden: z.optional(z.boolean()),
 });
 
 /** Frozen, self-contained view of a map for the public share page. */
@@ -83,7 +83,7 @@ export function validateSharePayload(input: unknown): SharedMapPayload {
       `This map is too large to share (${Math.ceil(bytes / 1024)} KB; the limit is ${MAX_SHARE_BYTES / 1024} KB). Shorten process descriptions or share fewer processes.`,
     );
   }
-  const parsed = sharedMapPayloadSchema.safeParse(input);
+  const parsed = z.safeParse(sharedMapPayloadSchema, input);
   if (!parsed.success) {
     // The field path is for the server log; the owner gets a sentence.
     const first = parsed.error.issues[0];

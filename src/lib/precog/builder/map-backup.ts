@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as z from "zod/mini";
 import type { IndustryId } from "../industry";
 import { peopleFromBackup } from "../import/people-backup";
 import { normalizeSystems, parseCadence } from "../process-record";
@@ -57,15 +57,18 @@ export function mapBackupJson(backup: {
  * dropped. Throws with a plain message when there is nothing to restore.
  */
 export function parseMapBackup(raw: unknown): MapBackup {
-  const file = z.object({ processes: z.array(z.unknown()).min(1) }).safeParse(raw);
+  const file = z.safeParse(
+    z.object({ processes: z.array(z.unknown()).check(z.minLength(1)) }),
+    raw,
+  );
   if (!file.success) throw new Error("The file has no processes to restore.");
   const record = raw as { people?: unknown; layout?: unknown };
   let dropped = 0;
-  const keep = <T>(items: unknown, schema: z.ZodType<T>): T[] => {
+  const keep = <T>(items: unknown, schema: z.ZodMiniType<T>): T[] => {
     if (!Array.isArray(items)) return [];
     const kept: T[] = [];
     for (const item of items) {
-      const parsed = schema.safeParse(item);
+      const parsed = z.safeParse(schema, item);
       if (parsed.success) kept.push(parsed.data);
       else dropped += 1;
     }
@@ -99,7 +102,7 @@ export function parseMapBackup(raw: unknown): MapBackup {
   const layout: MapBackup["layout"] = {};
   if (record.layout && typeof record.layout === "object") {
     for (const [id, at] of Object.entries(record.layout)) {
-      const parsed = position.safeParse(at);
+      const parsed = z.safeParse(position, at);
       if (parsed.success) layout[id] = parsed.data;
       else dropped += 1;
     }
@@ -109,46 +112,52 @@ export function parseMapBackup(raw: unknown): MapBackup {
 }
 
 /** A list of strings, keeping only the strings. */
-const strings = z
-  .array(z.unknown())
-  .catch([])
-  .transform((items) => items.filter((x): x is string => typeof x === "string"));
+const strings = z.pipe(
+  z.catch(z.array(z.unknown()), []),
+  z.transform((items) => items.filter((x): x is string => typeof x === "string")),
+);
+/** Absent, or anything but a string, reads as undefined rather than dropping the whole entry. */
+const optionalOrUndefined = <T extends z.ZodMiniType>(schema: T) =>
+  z.catch(z.optional(schema), undefined);
 const optionalText = (max: number) =>
-  z
-    .string()
-    .optional()
-    .catch(undefined)
-    .transform((s) => s?.trim().slice(0, max) || undefined);
-const note = z.string().catch("");
-const title = z.string().trim().min(1);
-const score = z.number().int().min(1).max(5);
+  z.pipe(
+    optionalOrUndefined(z.string()),
+    z.transform((s) => s?.trim().slice(0, max) || undefined),
+  );
+const note = z.catch(z.string(), "");
+const requiredId = z.string().check(z.minLength(1));
+const title = z.string().check(z.trim(), z.minLength(1));
+const score = z.pipe(
+  z.int().check(z.minimum(1), z.maximum(5)),
+  z.transform((n) => n as 1 | 2 | 3 | 4 | 5),
+);
 
 const processShell = z.object({
-  id: z.string().min(1),
-  name: z.string().trim().min(1),
-  description: z.string().catch(""),
+  id: requiredId,
+  name: title,
+  description: note,
   dependencies: strings,
   controlIds: strings,
-  stage: z.number().int().min(0).catch(0),
+  stage: z.catch(z.int().check(z.minimum(0)), 0),
   ownerPersonIds: strings,
-  risks: z.unknown().optional(),
-  ideas: z.unknown().optional(),
-  wastes: z.unknown().optional(),
+  risks: z.optional(z.unknown()),
+  ideas: z.optional(z.unknown()),
+  wastes: z.optional(z.unknown()),
   inputs: strings,
   outputs: strings,
-  evidence: z.unknown().optional(),
-  cadence: z.string().optional().catch(undefined),
-  systems: strings.optional(),
-  documented: z.boolean().optional().catch(undefined),
+  evidence: z.optional(z.unknown()),
+  cadence: optionalOrUndefined(z.string()),
+  systems: z.optional(strings),
+  documented: optionalOrUndefined(z.boolean()),
   procedureLocation: optionalText(PROCESS_TEXT_LIMITS.location),
 });
 
 const risk = z.object({
-  id: z.string().min(1),
+  id: requiredId,
   title,
   kind: z.enum(RISK_KINDS),
-  severity: score.transform((n) => n as 1 | 2 | 3 | 4 | 5),
-  likelihood: score.transform((n) => n as 1 | 2 | 3 | 4 | 5),
+  severity: score,
+  likelihood: score,
   note,
   linkedControlId: optionalText(200),
   linkedScenarioId: optionalText(200),
@@ -156,7 +165,7 @@ const risk = z.object({
 });
 
 const idea = z.object({
-  id: z.string().min(1),
+  id: requiredId,
   title,
   category: z.enum(IDEA_CATEGORIES),
   effort: z.enum(LEVELS),
@@ -166,18 +175,18 @@ const idea = z.object({
 });
 
 const waste = z.object({
-  id: z.string().min(1),
+  id: requiredId,
   kind: z.enum(WASTE_KINDS),
   label: title,
   note,
 });
 
 const evidence = z.object({
-  id: z.string().min(1),
+  id: requiredId,
   label: title,
   frequency: z.enum(Object.keys(FREQUENCY_LABEL) as EvidenceFrequency[]),
   reviewerPersonId: optionalText(200),
-  lastDoneAt: z.iso.datetime({ offset: true }).optional().catch(undefined),
+  lastDoneAt: optionalOrUndefined(z.iso.datetime({ offset: true })),
   note: optionalText(PROCESS_TEXT_LIMITS.itemNote),
 });
 

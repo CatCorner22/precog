@@ -1,4 +1,4 @@
-import { z } from "zod";
+import * as z from "zod/mini";
 import { RequestError } from "@/lib/request-errors";
 import { formatMonth, isCalendarDate, latestClientDay } from "../../dates";
 import { stableStringify } from "../../text";
@@ -9,22 +9,30 @@ const UNREADABLE = "Precog could not read this check. Reload the page and try ag
 /** The refusal of a command id that is already in the history with other content. */
 export const DIFFERENT_CONTENT =
   "This command was already recorded with different content. Reload the log.";
-const id = z.string().regex(/^[A-Za-z0-9_-]{1,80}$/, UNREADABLE);
+const id = z.string().check(z.regex(/^[A-Za-z0-9_-]{1,80}$/, UNREADABLE));
 /** Required text the form labels `label`; each message names that field. */
 const text = (max: number, label: string) =>
   z
     .string(`Fill in ${label}.`)
-    .trim()
-    .min(1, `Fill in ${label}.`)
-    .max(max, `Keep ${label} to ${max.toLocaleString("en-US")} characters or fewer.`);
+    .check(
+      z.trim(),
+      z.minLength(1, `Fill in ${label}.`),
+      z.maxLength(max, `Keep ${label} to ${max.toLocaleString("en-US")} characters or fewer.`),
+    );
 const day = (label: string) =>
-  z.string(`Enter ${label}.`).refine(isCalendarDate, `Enter a real calendar date for ${label}.`);
-const period = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Choose an evidence period.");
-const references = z
-  .array(text(400, "each evidence reference"), "Enter at least one evidence reference.")
-  .min(1, "Enter at least one evidence reference.")
-  .max(8, "Enter at most 8 evidence references, one per line.")
-  .transform((refs) => [...new Set(refs)]);
+  z
+    .string(`Enter ${label}.`)
+    .check(z.refine(isCalendarDate, `Enter a real calendar date for ${label}.`));
+const period = z.string().check(z.regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Choose an evidence period."));
+const references = z.pipe(
+  z
+    .array(text(400, "each evidence reference"), "Enter at least one evidence reference.")
+    .check(
+      z.minLength(1, "Enter at least one evidence reference."),
+      z.maxLength(8, "Enter at most 8 evidence references, one per line."),
+    ),
+  z.transform((refs) => [...new Set(refs)]),
+);
 export const METHODS = ["inquiry", "observation", "inspection", "reperformance"] as const;
 /** The form's name for each method. */
 export const METHOD_LABELS: Record<(typeof METHODS)[number], string> = {
@@ -37,11 +45,11 @@ const method = z.enum(METHODS, "Choose a method.");
 const base = {
   commandId: id,
   runId: id,
-  baseRevision: z.number(UNREADABLE).int(UNREADABLE).min(1, UNREADABLE).max(200, UNREADABLE),
+  baseRevision: z.int(UNREADABLE).check(z.minimum(1, UNREADABLE), z.maximum(200, UNREADABLE)),
 };
 const followUp = {
-  followUpOwner: text(120, "the follow-up owner").optional(),
-  dueOn: day("the follow-up due date").optional(),
+  followUpOwner: z.optional(text(120, "the follow-up owner")),
+  dueOn: z.optional(day("the follow-up due date")),
 };
 const result = z.enum(["no_exception", "exception"], "Choose a result.");
 const note = (label: string) => text(2000, label);
@@ -49,78 +57,72 @@ const workNote = note("the work performed and conclusion");
 
 const schema = z
   .discriminatedUnion("action", [
-    z
-      .object({
-        ...base,
-        action: z.literal("record"),
-        baseRevision: z.literal(0),
-        controlKey: z.enum([
-          "bank_statement",
-          "cleared_checks",
-          "payroll_headcount",
-          "new_vendors",
-          "card_statement",
-        ]),
-        period,
-        performedOn: day("the date performed"),
-        performedBy: text(120, "who performed the work"),
-        method,
-        scope: text(1500, "the population, period and items checked"),
-        evidenceRefs: references,
-        result,
-        note: workNote,
-        ...followUp,
-      })
-      .strict(),
-    z
-      .object({
-        ...base,
-        action: z.literal("review"),
-        method,
-        evidenceRefs: references,
-        result,
-        note: workNote,
-        independenceConfirmed: z.boolean(
-          "Confirm that you did not perform this work and can review it independently.",
-        ),
-        /** One-partner firm issuing the check. The server allows this only when nobody else is on the firm. */
-        soleIssuer: z.boolean().optional(),
-        ...followUp,
-      })
-      .strict(),
-    z
-      .object({
-        ...base,
-        action: z.literal("correct"),
-        performedOn: day("the date performed"),
-        performedBy: text(120, "who performed the work"),
-        scope: text(1500, "the correction scope"),
-        evidenceRefs: references,
-        note: note("what you corrected and how"),
-      })
-      .strict(),
-    z
-      .object({
-        ...base,
-        action: z.literal("reopen"),
-        note: note("why you are reopening this conclusion"),
-        followUpOwner: text(120, "the follow-up owner"),
-        dueOn: day("the follow-up due date"),
-      })
-      .strict(),
+    z.strictObject({
+      ...base,
+      action: z.literal("record"),
+      baseRevision: z.literal(0),
+      controlKey: z.enum([
+        "bank_statement",
+        "cleared_checks",
+        "payroll_headcount",
+        "new_vendors",
+        "card_statement",
+      ]),
+      period,
+      performedOn: day("the date performed"),
+      performedBy: text(120, "who performed the work"),
+      method,
+      scope: text(1500, "the population, period and items checked"),
+      evidenceRefs: references,
+      result,
+      note: workNote,
+      ...followUp,
+    }),
+    z.strictObject({
+      ...base,
+      action: z.literal("review"),
+      method,
+      evidenceRefs: references,
+      result,
+      note: workNote,
+      independenceConfirmed: z.boolean(
+        "Confirm that you did not perform this work and can review it independently.",
+      ),
+      /** One-partner firm issuing the check. The server allows this only when nobody else is on the firm. */
+      soleIssuer: z.optional(z.boolean()),
+      ...followUp,
+    }),
+    z.strictObject({
+      ...base,
+      action: z.literal("correct"),
+      performedOn: day("the date performed"),
+      performedBy: text(120, "who performed the work"),
+      scope: text(1500, "the correction scope"),
+      evidenceRefs: references,
+      note: note("what you corrected and how"),
+    }),
+    z.strictObject({
+      ...base,
+      action: z.literal("reopen"),
+      note: note("why you are reopening this conclusion"),
+      followUpOwner: text(120, "the follow-up owner"),
+      dueOn: day("the follow-up due date"),
+    }),
   ])
-  .superRefine((command, ctx) => {
-    if (
-      "result" in command &&
-      command.result === "exception" &&
-      (!command.followUpOwner || !command.dueOn)
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Name a follow-up owner and due date for the exception.",
-      });
-    }
-  });
+  .check(
+    z.superRefine((command, ctx) => {
+      if (
+        "result" in command &&
+        command.result === "exception" &&
+        (!command.followUpOwner || !command.dueOn)
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Name a follow-up owner and due date for the exception.",
+        });
+      }
+    }),
+  );
 export type ExecutionCommand = z.infer<typeof schema>;
 export type ExecutionStatus =
   "awaiting_review" | "needs_correction" | "awaiting_retest" | "reviewed";
@@ -167,7 +169,7 @@ export function emptyLogMessage(period: string): string {
 export function parseCommand(value: unknown): ExecutionCommand {
   // Every field a person fills in has its own message above; anything else
   // (ids, revisions, unknown keys) gets UNREADABLE, never zod's own text.
-  const parsed = schema.safeParse(value, { error: () => UNREADABLE });
+  const parsed = z.safeParse(schema, value, { error: () => UNREADABLE });
   if (!parsed.success) throw new RequestError(400, parsed.error.issues[0]?.message ?? UNREADABLE);
   return parsed.data;
 }
