@@ -233,7 +233,12 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
   const lock = useSyncExternalStore(subscribeIdentity, identityLockReason, () => null);
   const [gate] = useState<AccountGate>(newAccountGate);
   const accountId = user?.id ?? null;
-  const view = gateView(gate, { accountId, isPending, failed: Boolean(error), lock });
+  const view = gateView(gate, {
+    accountId,
+    isPending,
+    failed: sessionRequestFailed(error),
+    lock,
+  });
   const ended = view.kind === "ended" ? view.ended : null;
   // The account's copy on this device takes the last edits before the
   // workspace's own unmount clean-up runs: the read-only view saves nothing.
@@ -259,6 +264,20 @@ export function PracticeProvider({ children }: { children: ReactNode }) {
       <AccountPracticeProvider gate={gate}>{children}</AccountPracticeProvider>
     </WorkspaceProvider>
   );
+}
+
+/**
+ * Whether the last session request failed, as opposed to answering that the
+ * session ended. Better Auth answers a session it no longer holds with no
+ * data and a 401 error (`{ status: 401, statusText }` from @better-fetch);
+ * that is a session that ended. A network error or any other status is a
+ * failed request, which keeps the live workspace.
+ */
+export function sessionRequestFailed(error: unknown): boolean {
+  if (!error) return false;
+  const status =
+    typeof error === "object" && "status" in error ? (error as { status: unknown }).status : null;
+  return status !== 401;
 }
 
 /** What the live workspace last rendered, kept so an ended session can freeze it. */
@@ -641,9 +660,16 @@ function offerUnreadableCopy(copy: UnreadableCopy): void {
   toast.error("Precog could not open the business saved on this device", {
     id: copy.key,
     duration: Infinity,
-    description: "Precog kept the saved copy and does not save over it on this device.",
+    description: unreadableCopyDescription(copy),
     action: download,
   });
+}
+
+/** What the notice says Precog does with an unreadable copy and with the work done next. */
+export function unreadableCopyDescription(copy: UnreadableCopy): string {
+  return copy.keptAside
+    ? "Precog kept the saved copy aside on this device. Your new work saves on this device as usual."
+    : "Precog kept the saved copy and does not save over it on this device.";
 }
 
 /**

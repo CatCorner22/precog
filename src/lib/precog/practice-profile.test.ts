@@ -371,19 +371,39 @@ describe("the list of businesses on this device", () => {
   const quarantined = (storage: { data: Map<string, string> }) =>
     [...storage.data.keys()].filter((k) => k.startsWith(QUARANTINE_PREFIX));
 
-  it("quarantines a list that is an array or not JSON, never writes over it, and refuses the save", () => {
-    for (const raw of [
-      JSON.stringify([listed("b1", "Alpha"), listed("b2", "Beta")]),
-      `{"b1":{"practiceName":"Alpha"`,
-    ]) {
+  const unreadableLists = [
+    JSON.stringify([listed("b1", "Alpha"), listed("b2", "Beta")]),
+    `{"b1":{"practiceName":"Alpha"`,
+  ];
+
+  it("quarantines a list that is an array or not JSON, then starts a fresh list beside it (CW1-4)", () => {
+    for (const raw of unreadableLists) {
       const storage = memoryStorage({ [PORTFOLIO_KEY]: raw });
+      expect(loadPortfolio(storage)).toEqual({});
+      expect(storage.data.get(quarantineKey(raw))).toBe(raw);
+      expect(writePortfolioEntry(listed("b3", "Gamma"), storage)).toBe("saved");
+      expect(savePortfolioEntry(listed("b4", "Delta"), storage)).toBe(true);
+      // The unreadable text stays under its quarantine key; the list holds the new work.
+      expect(storage.data.get(quarantineKey(raw))).toBe(raw);
+      expect(Object.keys(loadPortfolio(storage)).sort()).toEqual(["b3", "b4"]);
+      // Read again and again, the text is kept once.
+      expect(quarantined(storage)).toHaveLength(1);
+    }
+  });
+
+  it("never writes over an unreadable list the browser refused to quarantine", () => {
+    for (const raw of unreadableLists) {
+      const storage = memoryStorage({ [PORTFOLIO_KEY]: raw });
+      const write = storage.setItem;
+      storage.setItem = (key, value) => {
+        if (key.startsWith(QUARANTINE_PREFIX))
+          throw new DOMException("Test quota", "QuotaExceededError");
+        write(key, value);
+      };
       expect(writePortfolioEntry(listed("b3", "Gamma"), storage)).toBe("unreadable");
       expect(savePortfolioEntry(listed("b3", "Gamma"), storage)).toBe(false);
       expect(storage.data.get(PORTFOLIO_KEY)).toBe(raw);
-      expect(storage.data.get(quarantineKey(raw))).toBe(raw);
-      expect(loadPortfolio(storage)).toEqual({});
-      // Read again and again, the text is kept once.
-      expect(quarantined(storage)).toHaveLength(1);
+      expect(quarantined(storage)).toHaveLength(0);
     }
   });
 
@@ -479,16 +499,42 @@ describe("a damaged copy of the open business", () => {
     );
   });
 
-  it("keeps an array under the open key, as for a copy the normaliser throws on, when the list has no copy", () => {
+  it("keeps an array under its quarantine key, then saves the new work, when the list has no copy (CW1-2)", () => {
     const storage = memoryStorage({ [ACTIVE_PROFILE_KEY]: "[1,2]" });
     const told: UnreadableCopy[] = [];
     const tab = store(storage, told);
     const loaded = tab.load();
     expect(loaded.profile.onboardingComplete).toBe(false);
-    expect(told).toEqual([{ key: quarantineKey("[1,2]"), raw: "[1,2]" }]);
+    expect(told).toEqual([{ key: quarantineKey("[1,2]"), raw: "[1,2]", keptAside: true }]);
     expect(storage.data.get(quarantineKey("[1,2]"))).toBe("[1,2]");
-    expect(tab.write(loaded.profile).kind).toBe("failed");
+    const setUp = { ...listedCopy, businessId: "biz_new", practiceName: "New Plumbing" };
+    expect(tab.write(setUp).kind).toBe("saved");
+    expect(storage.data.get(quarantineKey("[1,2]"))).toBe("[1,2]");
+    // A reload opens the new work, not the setup sample.
+    const reloaded = store(storage).load();
+    expect(reloaded.unreadable).toBeNull();
+    expect(reloaded.profile.practiceName).toBe("New Plumbing");
+  });
+
+  it("keeps an array under the open key while the browser refuses to quarantine it", () => {
+    const storage = memoryStorage({ [ACTIVE_PROFILE_KEY]: "[1,2]" });
+    const write = storage.setItem;
+    const refusing = { on: true };
+    storage.setItem = (key, value) => {
+      if (refusing.on && key.startsWith(QUARANTINE_PREFIX))
+        throw new DOMException("Test quota", "QuotaExceededError");
+      write(key, value);
+    };
+    const told: UnreadableCopy[] = [];
+    const tab = store(storage, told);
+    const loaded = tab.load();
+    expect(told).toEqual([{ key: quarantineKey("[1,2]"), raw: "[1,2]" }]);
+    expect(tab.write({ ...loaded.profile, onboardingComplete: true }).kind).toBe("failed");
     expect(storage.data.get(ACTIVE_PROFILE_KEY)).toBe("[1,2]");
+    // Once the browser keeps the quarantined copy, the next write goes through.
+    refusing.on = false;
+    expect(tab.write(listedCopy).kind).toBe("saved");
+    expect(storage.data.get(quarantineKey("[1,2]"))).toBe("[1,2]");
   });
 
   it("quarantines damaged text another program wrote before a tab saves over it", () => {

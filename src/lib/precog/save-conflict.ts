@@ -45,6 +45,11 @@ export interface UnreadableCopy {
    * list of businesses held a copy of the same business, which opened instead.
    */
   openedFromList?: boolean;
+  /**
+   * True when the open copy was damaged and its text is kept under `key`:
+   * the work done next saves on this device as usual, beside that copy.
+   */
+  keptAside?: boolean;
 }
 
 /** The notice when a damaged open copy gave way to the copy in the list of businesses. */
@@ -95,7 +100,11 @@ export class LocalProfileStore {
   /** `updatedAt` of that copy: the same version reached another way (two tabs loading one account copy) is not a conflict. */
   private seenStamp: string | null = null;
 
-  /** True while the stored copy this tab loaded is one the normaliser could not read. */
+  /**
+   * True while the stored copy this tab loaded may not be written over: the
+   * normaliser threw on it, or it is damaged and the browser refused to keep
+   * a quarantined copy of it.
+   */
   private keepsUnreadable = false;
 
   constructor(
@@ -115,9 +124,11 @@ export class LocalProfileStore {
    * not JSON for an object) is kept under a quarantine key and reported. When
    * the text is damaged and the list of businesses holds a copy of the same
    * business, that copy opens (`unreadable.openedFromList`). Otherwise the
-   * setup sample opens, but no write replaces the stored copy while it stays
-   * unreadable. A business the owner removed on this device does not open
-   * again: the newest listed business opens, or the setup sample.
+   * setup sample opens. Text the normaliser throws on is never replaced while
+   * it stays unreadable; damaged text is replaced by the next write once its
+   * quarantined copy is kept (`unreadable.keptAside`), and never before. A
+   * business the owner removed on this device does not open again: the
+   * newest listed business opens, or the setup sample.
    */
   load(): { profile: PracticeProfile; stored: boolean; unreadable: UnreadableCopy | null } {
     const storage = this.storage();
@@ -141,10 +152,15 @@ export class LocalProfileStore {
         this.onUnreadable?.(copy);
         return { profile: listed, stored: false, unreadable: copy };
       }
-      this.keepsUnreadable = true;
+      // Text the normaliser threw on stays where it is, for a build that
+      // reads it. Damaged text stays only while no quarantined copy of it is
+      // kept; once one is, the next write replaces it.
+      const keptAside = read.unreadable === null && kept;
+      this.keepsUnreadable = !keptAside;
       this.seenStamp = read.profile.updatedAt;
-      this.onUnreadable?.(unreadable);
-      return { profile: read.profile, stored: true, unreadable };
+      const copy = keptAside ? { ...unreadable, keptAside: true } : unreadable;
+      this.onUnreadable?.(copy);
+      return { profile: read.profile, stored: true, unreadable: copy };
     }
     if (removedBusinessIds(storage).has(businessKey(read.profile))) {
       const profile = newestListed(storage) ?? readStoredProfile(null).profile;
@@ -190,7 +206,8 @@ export class LocalProfileStore {
       const legacy = readStoredActiveProfile(storage);
       if (legacy !== null) {
         const read = readStoredProfile(legacy);
-        if (read.unreadable !== null || read.damaged) return { kind: "failed" };
+        if (read.unreadable !== null) return { kind: "failed" };
+        if (read.damaged && !quarantineText(legacy, storage)) return { kind: "failed" };
       }
       this.keepsUnreadable = false;
     }
@@ -200,14 +217,15 @@ export class LocalProfileStore {
       // opens it: neither the setup sample nor anything else replaces it.
       if (read.unreadable !== null) return { kind: "failed" };
       if (read.damaged) {
-        // Damaged text this tab opened as unreadable stays, as above. Damaged
-        // text another tab or program wrote since is replaced only once a
-        // quarantined copy of it is kept.
-        if (this.keepsUnreadable || !quarantineText(current, storage)) return { kind: "failed" };
-        reportClientError(
-          new Error("The open business stored on this device is not readable."),
-          "parse-local",
-        );
+        // Damaged text is replaced only once a quarantined copy of it is
+        // kept, whether this tab opened it or another tab or program wrote it
+        // since. The load already reported the text this tab opened.
+        if (!quarantineText(current, storage)) return { kind: "failed" };
+        if (!this.keepsUnreadable)
+          reportClientError(
+            new Error("The open business stored on this device is not readable."),
+            "parse-local",
+          );
       }
       this.keepsUnreadable = false;
       const theirs = read.profile;
