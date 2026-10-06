@@ -50,6 +50,9 @@ export function AdvancedReasoningPanel() {
           weights, not a measurement of your business, so the order is worth reading and the page
           hides the decimals.
         </p>
+        {report.scopeNote && (
+          <p className="mt-2 max-w-2xl text-xs text-subtle">{report.scopeNote}</p>
+        )}
       </section>
 
       <Card>

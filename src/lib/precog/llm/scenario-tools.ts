@@ -168,12 +168,14 @@ export function variableCascades({
   tpl,
   staff,
   riskVars,
+  scope,
   topScenarioId,
   noScenarioNote,
 }: ScenarioToolInput): ToolOutput {
   const scenarioId = topScenarioId();
   if (!scenarioId) return noScenario(noScenarioNote());
-  const all = simulateAllCascades(tpl, riskVars, staff, scenarioId);
+  // The same scope the What else moves panel uses, so the two quote one residual.
+  const all = simulateAllCascades(tpl, riskVars, staff, scenarioId, scope);
   const topCor = all.rankedByCor.slice(0, 5).map((s) => ({
     leverId: s.lever.id,
     label: s.lever.label,

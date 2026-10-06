@@ -75,7 +75,9 @@ export function runCounterfactuals(
     const lowersResidual = residualDrop >= RESIDUAL_STEP;
     const lowersCor = delta.annualCor <= -COR_STEP;
     const effects = [
-      lowersResidual ? `lowers the residual index by about ${residualDrop} points` : "",
+      lowersResidual
+        ? `lowers the residual index by about ${residualDrop} ${residualDrop === 1 ? "point" : "points"}`
+        : "",
       lowersCor ? "lowers the cost-of-risk figure" : "",
     ].filter(Boolean);
     return {
