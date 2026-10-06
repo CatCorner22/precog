@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendReview,
   latestReview,
+  MAX_REVIEW_RECORDS,
   monthlyReviewTasks,
   normalizeReviewRecords,
   recordReview,
   reviewResultLine,
+  reviewTrimNotice,
+  trimReviewRecords,
 } from "./reviews";
 import type { Person } from "../types";
 import { getIndustryTemplate } from "../templates";
@@ -216,5 +220,90 @@ describe("reviewResultLine", () => {
     expect(reviewResultLine({ result: "skipped", ownerName: "Dana", notes: " " })).toBe(
       "Skipped — Dana",
     );
+  });
+});
+
+describe("monthly results past the cap", () => {
+  const CHECKS = ["bank_statement", "cleared_checks", "payroll_headcount", "new_vendors"] as const;
+  const periodOf = (month: number) => new Date(Date.UTC(2010, month, 1)).toISOString().slice(0, 7);
+
+  /** Each check each month first found an exception, then was cleared, oldest month first. */
+  function history(months: number) {
+    let records: ReturnType<typeof recordReview> = [];
+    for (let m = 0; m < months; m++) {
+      const period = periodOf(m);
+      for (const key of CHECKS) {
+        records = recordReview(records, {
+          key,
+          period,
+          result: "exception",
+          ownerName: "Pat",
+          notes: "Check 1043 payable to cash",
+          recordedAt: `${period}-12T10:00:00.000Z`,
+        });
+        records = recordReview(records, {
+          key,
+          period,
+          result: "done",
+          ownerName: "Pat",
+          notes: "Cleared with the owner",
+          recordedAt: `${period}-20T10:00:00.000Z`,
+        });
+      }
+    }
+    return records;
+  }
+
+  // ST-SCALE-4: past 240 results the oldest months were dropped silently.
+  it("keeps every result while they fit, the earlier ones included", () => {
+    const records = history(25);
+    expect(records).toHaveLength(200);
+    expect(latestReview(records, "bank_statement", periodOf(0))?.result).toBe("done");
+    expect(records.at(-1)?.result).toBe("exception");
+    const stored = normalizeReviewRecords(JSON.parse(JSON.stringify(history(38))));
+    expect(stored).toHaveLength(304);
+    expect(latestReview(stored, "new_vendors", periodOf(0))?.result).toBe("done");
+  });
+
+  it("drops results a later one replaced before any month, so every month keeps its latest", () => {
+    // 200 months x 4 checks x 2 results = 1,600 records, past the 1,200 cap.
+    const stored = history(200);
+    expect(MAX_REVIEW_RECORDS).toBe(1200);
+    expect(stored).toHaveLength(MAX_REVIEW_RECORDS);
+    for (let m = 0; m < 200; m++)
+      for (const key of CHECKS) expect(latestReview(stored, key, periodOf(m))?.result).toBe("done");
+    // The newest months keep their exception too; the oldest lose only that.
+    expect(stored.filter((r) => r.period === periodOf(199))).toHaveLength(8);
+    expect(stored.filter((r) => r.period === periodOf(0))).toHaveLength(4);
+  });
+
+  it("counts what it removes, and removes the oldest months only once no duplicate is left", () => {
+    const plain = Array.from({ length: MAX_REVIEW_RECORDS }, (_, i) => ({
+      key: CHECKS[i % 4],
+      period: periodOf(1000 - Math.floor(i / 4)),
+      result: "done" as const,
+      ownerName: "Pat",
+      notes: "",
+      recordedAt: "2026-01-01T00:00:00.000Z",
+    }));
+    expect(trimReviewRecords(plain)).toEqual({ records: plain, removed: 0 });
+    const next = appendReview(plain, {
+      key: "bank_statement",
+      period: periodOf(1001),
+      result: "done",
+      ownerName: "Pat",
+      notes: "",
+    });
+    expect(next.removed).toBe(1);
+    expect(next.records).toHaveLength(MAX_REVIEW_RECORDS);
+    expect(next.records.at(-1)).toEqual(plain.at(-2));
+    expect(reviewTrimNotice(next.removed)).toBe(
+      "Precog kept the newest 1,200 monthly results and removed 1 older one.",
+    );
+    expect(reviewTrimNotice(400)).toBe(
+      "Precog kept the newest 1,200 monthly results and removed 400 older ones.",
+    );
+    const loaded = normalizeReviewRecords([...plain, ...plain.slice(0, 20)]);
+    expect(loaded).toHaveLength(MAX_REVIEW_RECORDS);
   });
 });

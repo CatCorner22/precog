@@ -4,12 +4,14 @@ import { usePractice } from "@/lib/precog/practice-context";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { useToday } from "@/lib/use-today";
 import {
+  appendReview,
   EVIDENCE_RECORD_NOTE,
   latestReview,
   monthlyReviewTasks,
   recordReview,
   RESULT_LABEL,
   reviewIndependenceMessage,
+  reviewTrimNotice,
   type ReviewResult,
 } from "@/lib/precog/firm/reviews";
 import { recordMonthlyReview } from "@/lib/precog/firm/server";
@@ -106,9 +108,10 @@ export function MonthlyReview() {
     period: string,
   ) {
     const note = notes[key] ?? "";
-    setMonthlyReviews((current) =>
-      recordReview(current, { key, period, result, ownerName, notes: note }),
-    );
+    const input = { key, period, result, ownerName, notes: note };
+    const { removed } = appendReview(records, input);
+    setMonthlyReviews((current) => recordReview(current, input));
+    if (removed > 0) toast.message(reviewTrimNotice(removed));
     setNotes((current) => ({ ...current, [key]: "" }));
     if (!user || !profile.businessId) return;
     setBusy(key);
