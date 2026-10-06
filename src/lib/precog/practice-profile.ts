@@ -985,7 +985,8 @@ export function rememberRemovedBusiness(id: string, storage = browserStorage()):
 type StoredPortfolio =
   | { kind: "empty" }
   | { kind: "entries"; entries: Record<string, unknown> }
-  | { kind: "unreadable" };
+  /** `kept`: its text is held under its quarantine key, so a fresh list may replace it. */
+  | { kind: "unreadable"; kept: boolean };
 
 /** Reads the stored list. Text that is not a plain object is quarantined as read. */
 function readStoredPortfolio(storage: StorageLike | null): StoredPortfolio {
@@ -998,8 +999,7 @@ function readStoredPortfolio(storage: StorageLike | null): StoredPortfolio {
     parsed = undefined;
   }
   if (isRecord(parsed)) return { kind: "entries", entries: parsed };
-  quarantineText(raw, storage);
-  return { kind: "unreadable" };
+  return { kind: "unreadable", kept: quarantineText(raw, storage) };
 }
 
 /**
@@ -1053,8 +1053,8 @@ function readPortfolio(storage: StorageLike | null): Record<string, PracticeProf
  * - "not-listed": its setup is not finished, so it is not a business yet; nothing written.
  * - "removed": the owner removed this business on this device; nothing written.
  * - "refused": the browser refused the write (storage full or blocked).
- * - "unreadable": the stored list is not readable; its text is quarantined and
- *   nothing is written over it.
+ * - "unreadable": the stored list is not readable and the browser refused to
+ *   keep its text under a quarantine key, so nothing is written over it.
  */
 export type PortfolioWrite = "saved" | "not-listed" | "removed" | "refused" | "unreadable";
 
@@ -1062,8 +1062,8 @@ export type PortfolioWrite = "saved" | "not-listed" | "removed" | "refused" | "u
  * Keeps one business in the portfolio, leaving every other entry as stored.
  * A business whose setup is not finished is not a business yet (it is the
  * sample behind the setup dialog), so it is never listed; nor is one the
- * owner removed on this device. A stored list this build cannot read is never
- * replaced by a fresh one.
+ * owner removed on this device. A stored list this build cannot read is
+ * replaced by a fresh one only once its text is kept under its quarantine key.
  */
 export function writePortfolioEntry(
   profile: PracticeProfile,
@@ -1073,7 +1073,7 @@ export function writePortfolioEntry(
   const id = profile.businessId ?? DEFAULT_BUSINESS_ID;
   if (removedBusinessIds(storage).has(id)) return "removed";
   const stored = readStoredPortfolio(storage);
-  if (stored.kind === "unreadable") return "unreadable";
+  if (stored.kind === "unreadable" && !stored.kept) return "unreadable";
   const all = stored.kind === "entries" ? stored.entries : {};
   all[id] = { ...profile, businessId: id };
   return writeLocal(PORTFOLIO_KEY, JSON.stringify(all), storage) ? "saved" : "refused";
@@ -1087,7 +1087,8 @@ export function writePortfolioEntry(
  * list ("not-listed": setup not finished; "removed": the owner removed it on
  * this device). Returns false when the list does not hold this version: the
  * browser refused the write ("refused"), or the stored list is unreadable and
- * was quarantined, not overwritten ("unreadable"). On false, a caller says
+ * the browser refused to quarantine it, so it was not overwritten
+ * ("unreadable"). On false, a caller says
  * this device did not keep the copy and offers a recovery download.
  */
 export function savePortfolioEntry(profile: PracticeProfile, storage = browserStorage()): boolean {

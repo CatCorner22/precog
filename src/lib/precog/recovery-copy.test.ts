@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { memoryStorage } from "@/test/memory-storage";
-import { defaultProfile, type PracticeProfile } from "./practice-profile";
+import {
+  REMOVED_BUSINESSES_KEY,
+  defaultProfile,
+  loadPortfolio,
+  type PracticeProfile,
+} from "./practice-profile";
 import {
   RestoreError,
   recoveryCopyText,
@@ -51,7 +56,7 @@ describe("restoring a recovery copy", () => {
     const target = workspaceWith({}, "B");
     const result = await restoreFromRecoveryText(text, target.local);
 
-    expect(result).toEqual({ restored: 3, skipped: 0 });
+    expect(result).toEqual({ restored: 3, skipped: 0, keptNewer: 0 });
     const restored = portfolioOf(target.local);
     expect(Object.keys(restored).sort()).toEqual(["biz_bakery", "biz_open", "biz_plumbing"]);
     expect(restored.biz_plumbing.practiceName).toBe("Kept Plumbing");
@@ -81,7 +86,7 @@ describe("restoring a recovery copy", () => {
     const target = workspaceWith({});
     const result = await restoreFromRecoveryText(text, target.local);
 
-    expect(result).toEqual({ restored: 1, skipped: 3 });
+    expect(result).toEqual({ restored: 1, skipped: 3, keptNewer: 0 });
     expect(Object.keys(portfolioOf(target.local))).toEqual(["biz_kept"]);
     expect(restoreMessage(result)).toBe(
       "Restored 1 business. Reload the page to open it. Precog could not read 3 businesses in the file.",
@@ -97,12 +102,47 @@ describe("restoring a recovery copy", () => {
       }),
     });
     const text = recoveryCopyText(workspaceWith({}), business("biz_same", "New Name"));
-    expect(await restoreFromRecoveryText(text, target.local)).toEqual({ restored: 1, skipped: 0 });
+    expect(await restoreFromRecoveryText(text, target.local)).toEqual({
+      restored: 1,
+      skipped: 0,
+      keptNewer: 0,
+    });
     const portfolio = portfolioOf(target.local);
     expect(portfolio.biz_other.practiceName).toBe("Other Shop");
     expect(portfolio.biz_same.practiceName).toBe("New Name");
     // The null entry, which stops the list of businesses from opening, is gone.
     expect(Object.keys(portfolio).sort()).toEqual(["biz_other", "biz_same"]);
+  });
+
+  it("keeps a listed business newer than the copy's, and says so (CW1-5)", async () => {
+    const older = { ...business("biz_same", "Old Name"), updatedAt: "2026-09-01T10:00:00.000Z" };
+    const newer = { ...business("biz_same", "Newer Name"), updatedAt: "2026-09-20T10:00:00.000Z" };
+    const target = workspaceWith({ [PORTFOLIO_KEY]: JSON.stringify({ biz_same: newer }) });
+    const text = recoveryCopyText(workspaceWith({}), older);
+
+    const result = await restoreFromRecoveryText(text, target.local);
+
+    expect(portfolioOf(target.local).biz_same.practiceName).toBe("Newer Name");
+    expect(result).toEqual({ restored: 0, skipped: 0, keptNewer: 1 });
+    expect(restoreMessage(result)).toBe(
+      "This device already holds a newer copy of 1 business in the file, so Precog kept it.",
+    );
+    expect(restoreMessage({ restored: 2, skipped: 1, keptNewer: 2 })).toBe(
+      "Restored 2 businesses. Reload the page to open them. This device already holds a newer copy of 2 businesses in the file, so Precog kept them. Precog could not read 1 business in the file.",
+    );
+  });
+
+  it("lists again a business removed on this device, and counts only what it lists (CW1-5)", async () => {
+    const target = workspaceWith({
+      [REMOVED_BUSINESSES_KEY]: JSON.stringify(["biz_gone", "biz_other"]),
+    });
+    const text = recoveryCopyText(workspaceWith({}), business("biz_gone", "Gone Co"));
+
+    const result = await restoreFromRecoveryText(text, target.local);
+
+    expect(result).toEqual({ restored: 1, skipped: 0, keptNewer: 0 });
+    expect(Object.keys(loadPortfolio(target.local))).toEqual(["biz_gone"]);
+    expect(JSON.parse(target.local.getItem(REMOVED_BUSINESSES_KEY) ?? "[]")).toEqual(["biz_other"]);
   });
 
   it("refuses a file that is not a recovery copy and writes nothing", async () => {
@@ -117,7 +157,7 @@ describe("restoring a recovery copy", () => {
   it("says when the file holds nothing to restore", async () => {
     const target = workspaceWith({});
     const result = await restoreFromRecoveryText(recoveryCopyText(target, null), target.local);
-    expect(result).toEqual({ restored: 0, skipped: 0 });
+    expect(result).toEqual({ restored: 0, skipped: 0, keptNewer: 0 });
     expect(target.local.getItem(PORTFOLIO_KEY)).toBeNull();
     expect(restoreMessage(result)).toBe("The file holds no business Precog can restore.");
   });

@@ -13,6 +13,7 @@ import {
   identityUnchanged,
   registerExitCheck,
   registerExitCleanup,
+  subscribeIdentity,
 } from "@/lib/auth/identity-change";
 import { reportClientError } from "@/lib/observability/report-browser";
 import { downloadRecoveryCopy } from "./recovery-copy";
@@ -252,6 +253,8 @@ export function useCloudSync(input: {
   // The open business holds changes this browser refused to keep: the next
   // pagehide, the retry timer and the next edit write it again.
   const dirtySinceFailure = useRef(false);
+  // Whether the notice that this browser refused those changes is up.
+  const localFailedShown = useRef(false);
   const localRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Whether an account save is waiting on the debounce timer.
   const cloudSaveWaiting = useRef(false);
@@ -478,14 +481,15 @@ export function useCloudSync(input: {
           dirtySinceFailure.current = false;
           if (localRetryTimer.current) clearTimeout(localRetryTimer.current);
           localRetryTimer.current = null;
+          localFailedShown.current = false;
           toast.dismiss(LOCAL_FAILED_TOAST);
         }
       } else if (mounted.current) {
-        const firstFailure = !dirtySinceFailure.current;
         dirtySinceFailure.current = true;
         // A stored copy Precog could not open is kept, not written over; its
         // own notice says so, so this one is not shown.
-        if (firstFailure && !storedCopyUnreadable(workspace.local))
+        if (!localFailedShown.current && !storedCopyUnreadable(workspace.local)) {
+          localFailedShown.current = true;
           toast.error(
             canKeepLocalData(workspace.local)
               ? LOCAL_FULL_MESSAGE
@@ -500,6 +504,7 @@ export function useCloudSync(input: {
               },
             },
           );
+        }
         if (!localRetryTimer.current)
           localRetryTimer.current = setTimeout(() => {
             localRetryTimer.current = null;
@@ -538,6 +543,21 @@ export function useCloudSync(input: {
     const cur = profileRef.current;
     if (writeOpenLocally(cur) === "saved" && cur.onboardingComplete !== false) keepInList(cur);
   }, [keepInList, profileRef, writeOpenLocally]);
+  // The storage-full notice belongs to this workspace: its recovery download
+  // reads this workspace's storage. It closes when the workspace does, and
+  // as soon as an account change locks the tab.
+  useEffect(() => {
+    const unsubscribe = subscribeIdentity(() => {
+      if (identityLockReason() === null) return;
+      // Shown again on the next refused write, in case the change is cancelled.
+      localFailedShown.current = false;
+      toast.dismiss(LOCAL_FAILED_TOAST);
+    });
+    return () => {
+      unsubscribe();
+      toast.dismiss(LOCAL_FAILED_TOAST);
+    };
+  }, []);
   const retryLocalRef = useRef<() => void>(() => undefined);
   retryLocalRef.current = () => {
     if (dirtySinceFailure.current) rewriteOpen();
@@ -606,9 +626,14 @@ export function useCloudSync(input: {
         // Cloud rows skip the client normaliser on the way in unless we run it here.
         const remoteProfile = normalizeProfile(res.profile);
         const id = remoteProfile.businessId ?? DEFAULT_BUSINESS_ID;
-        // The account revision this device's copy was built on, before this load moves it.
+        // The account revision this device's copy was built on. Only a path
+        // that takes the account's copy, or saves on top of it, records the
+        // new one: a copy kept for the owner's choice is not built on it, and
+        // a reload must ask again rather than save over it.
         const builtOn = cloudRevision.current.get(id);
-        if (res.revision !== null) rememberRevision(id, res.revision);
+        const buildOnAccount = () => {
+          if (res.revision !== null) rememberRevision(id, res.revision);
+        };
 
         if (failures > 0) {
           // Read late, after the owner worked on (and may have switched to)
@@ -618,6 +643,7 @@ export function useCloudSync(input: {
             local.updatedAt !== remoteProfile.updatedAt &&
             res.revision !== null &&
             lineage.buildsOn(id, remoteProfile.updatedAt);
+          if (fastForward) buildOnAccount();
           if (id !== localId || fastForward) {
             saveOpenBusiness(local);
             return;
@@ -650,6 +676,7 @@ export function useCloudSync(input: {
           builtOn === res.revision &&
           local.updatedAt !== remoteProfile.updatedAt
         ) {
+          buildOnAccount();
           saveOpenBusiness(local);
           return;
         }
@@ -669,6 +696,7 @@ export function useCloudSync(input: {
         }
 
         // The save effect writes it to this browser as the open business.
+        buildOnAccount();
         rememberStamp(id, remoteProfile.updatedAt);
         acknowledged.current.set(id, remoteProfile);
         skipNextCloudSave.current = true;
@@ -1122,6 +1150,8 @@ export function useCloudSync(input: {
         else cloudRevision.current.delete(id);
         const local = loadPortfolio(workspace.local)[id];
         if (choice === "reload") {
+          // This device now builds on the account's copy, after a reload too.
+          if (conflict.revision !== null) rememberRevision(id, conflict.revision);
           const accountCopy = { ...conflict.remote, businessId: id };
           const kept = local ? keepAsCopy(local, "copy from this device") : null;
           keepInList(accountCopy);
@@ -1195,6 +1225,8 @@ export function useCloudSync(input: {
       // As between two tabs, the version the owner did not pick stays
       // reachable as a copy in their businesses.
       if (choice === "reload") {
+        // This device now builds on the account's copy, after a reload too.
+        if (conflict.revision !== null) rememberRevision(id, conflict.revision);
         const kept = keepAsCopy(
           cur,
           conflict.reason === "sign-in" ? "copy from before sign-in" : "copy from this device",
@@ -1230,6 +1262,7 @@ export function useCloudSync(input: {
       copyNote,
       guardUnload,
       noteLocalWrite,
+      rememberRevision,
       rememberStamp,
       reportCloudError,
       profileRef,

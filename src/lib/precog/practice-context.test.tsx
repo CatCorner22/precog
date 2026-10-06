@@ -21,6 +21,8 @@ import {
   flushEndedSession,
   gateView,
   newAccountGate,
+  sessionRequestFailed,
+  unreadableCopyDescription,
   usePractice,
   usePracticeActions,
   usePracticeState,
@@ -184,10 +186,39 @@ describe("the account gate", () => {
     liveWorkspace(gate, "a", alpha);
     // A network error leaves Better Auth's data, so the account stays.
     expect(step(gate, { accountId: "a", failed: true }).kind).toBe("workspace");
-    // A refused request (no data and an error) is not read as a session that ended.
+    // A failed request (no data and an error other than 401) is not read as a session that ended.
     expect(step(gate, { accountId: null, failed: true }).kind).toBe("workspace");
     expect(gate.ended).toBeNull();
   });
+
+  it("reads Better Auth's 401 answer as a session that ended, not a failed request (CW1-6)", () => {
+    // Better Auth 1.6.33 answers a session it no longer holds with no data and
+    // this error, from @better-fetch/fetch.
+    const ended = { status: 401, statusText: "Unauthorized" };
+    expect(sessionRequestFailed(ended)).toBe(false);
+    expect(sessionRequestFailed({ status: 500, statusText: "Internal Server Error" })).toBe(true);
+    expect(sessionRequestFailed(new TypeError("Failed to fetch"))).toBe(true);
+    expect(sessionRequestFailed(null)).toBe(false);
+
+    const gate = newAccountGate();
+    step(gate, { accountId: "a" });
+    liveWorkspace(gate, "a", alpha);
+    const view = step(gate, { accountId: null, failed: sessionRequestFailed(ended) });
+    expect(view.kind).toBe("ended");
+    if (view.kind === "ended") expect(view.ended.profile).toBe(alpha);
+  });
+
+  it.each(["signing-out", "other-tab", "changed"] as const)(
+    "never shows the old business after a 401 while locked (%s)",
+    (lock) => {
+      const gate = newAccountGate();
+      step(gate, { accountId: "a" });
+      liveWorkspace(gate, "a", alpha);
+      const failed = sessionRequestFailed({ status: 401, statusText: "Unauthorized" });
+      expect(step(gate, { accountId: null, failed, lock }).kind).toBe("placeholder");
+      expect(gate.ended).toBeNull();
+    },
+  );
 
   it("does not freeze a workspace that never finished loading, or another account's", () => {
     const gate = newAccountGate();
@@ -197,6 +228,17 @@ describe("the account gate", () => {
     step(gate, { accountId: "a" });
     liveWorkspace(gate, "b", alpha);
     expect(step(gate, {}).kind).toBe("workspace");
+  });
+});
+
+describe("the notice for a business Precog could not open (CW1-2)", () => {
+  it("says new work saves as usual once a damaged copy is kept aside", () => {
+    expect(unreadableCopyDescription({ key: "k", raw: "[1,2]", keptAside: true })).toBe(
+      "Precog kept the saved copy aside on this device. Your new work saves on this device as usual.",
+    );
+    expect(unreadableCopyDescription({ key: "k", raw: "{}" })).toBe(
+      "Precog kept the saved copy and does not save over it on this device.",
+    );
   });
 });
 
