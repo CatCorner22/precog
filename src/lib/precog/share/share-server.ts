@@ -15,8 +15,12 @@ import { loadFirmFor } from "../firm/store";
 import type { PracticeProfile } from "../practice-profile";
 import { requireBusinessRole, requireReportVersion } from "../firm/access.server";
 import { checkPasscodeGuess, hashPasscode } from "./share-attempts";
-import { redactSharePayload } from "./share-payload";
-import { parseCreateShareInput, SHARE_PASSCODE_MIN, type SharedMapPayload } from "./share-schema";
+import {
+  parseCreateShareInput,
+  SHARE_PASSCODE_MIN,
+  validateSharePayload,
+  type SharedMapPayload,
+} from "./share-schema";
 import { clamp } from "../number";
 import { recordAuditForBusiness } from "../firm/audit.server";
 import {
@@ -33,25 +37,108 @@ import {
 
 export type { SharedMapPayload };
 
-/** Names on the saved business, including people who have left. */
-async function rosterForShare(
+/** The refusal for a map link to a business the caller cannot reach (or not saved yet). */
+export const MAP_SHARE_UNSAVED = "Save this business to your account before sharing it.";
+
+/** How the shared page names a link's maker on a link that hides names and was not made by a firm. */
+const SHARED_BY_OWN_ACCOUNT = "the business's own account";
+
+/**
+ * The page a map link prints, built here from the business as saved, never
+ * from what the browser sends: the figures, the process list, the issues and
+ * the week's actions are the ones the map builder computes from the same
+ * profile. Refused (403) when the caller cannot reach the business, including
+ * one whose first save has not reached the account. The page names who made
+ * the link (the firm, for a firm's work on a business; else the account) and
+ * when the business was last saved. Hiding names scrubs every person on the
+ * saved team, people who have left included (buildSharePayload).
+ */
+async function storedMapPayload(
   sql: Sql,
-  ownerId: string,
+  callerId: string,
   businessId: string,
-): Promise<{ name: string; role: string }[]> {
-  const rows = await sql<{ profile: PracticeProfile }>`
-    select profile from businesses
-    where user_id = ${ownerId} and id = ${businessId} and deleted_at is null
+  { note, redacted }: { note: string; redacted: boolean },
+): Promise<{ businessOwnerId: string; payload: SharedMapPayload }> {
+  const businessOwnerId = await resolveBusinessOwner(sql, callerId, businessId);
+  if (!businessOwnerId) throw new RequestError(403, MAP_SHARE_UNSAVED);
+  const rows = await sql<{
+    name: string;
+    industry: string;
+    profile: PracticeProfile;
+    updated_at: unknown;
+    user_id: string;
+    firm_user_id: string | null;
+    granted_at: unknown;
+    firm_name: string | null;
+    caller_name: string | null;
+  }>`
+    select b.name, b.industry, b.profile, b.updated_at, b.user_id, b.firm_user_id, b.granted_at,
+      f.name as firm_name,
+      (select u.name from "user" u where u.id = ${callerId}) as caller_name
+    from businesses b
+    left join firms f on f.user_id = b.firm_user_id
+    where b.user_id = ${businessOwnerId} and b.id = ${businessId} and b.deleted_at is null
   `;
-  const profile = rows[0]?.profile;
-  if (!profile || typeof profile !== "object") return [];
-  try {
-    return resolveTemplate(profile)
-      .people.filter((person) => person.name.trim())
-      .map((person) => ({ name: person.name, role: person.role }));
-  } catch {
-    return [];
-  }
+  const row = rows[0];
+  if (!row) throw new RequestError(403, MAP_SHARE_UNSAVED);
+  const [
+    { mergeProfile },
+    { buildProcessMapGraph },
+    { residualScope },
+    { buildWeeklyActions },
+    { trackRegisterFreshness },
+    { mapAssessed },
+    { buildSharePayload },
+  ] = await Promise.all([
+    import("../profile-merge"),
+    import("../process-graph"),
+    import("../scoring/scope"),
+    import("../weekly-actions/build"),
+    import("../continuity/register-state"),
+    import("../builder/map-state"),
+    import("./share-payload"),
+  ]);
+  const today = localDateKey(new Date());
+  const profile = mergeProfile(
+    { profile: row.profile, name: row.name, industry: row.industry },
+    today,
+  );
+  const tpl = resolveTemplate(profile);
+  // The inputs the map builder handed in when the browser built the page, so
+  // a shared list matches the week's plan the owner sees.
+  const { snapshots } = buildProcessMapGraph(tpl, profile.staff, {}, residualScope(profile));
+  const actions = buildWeeklyActions({
+    tpl,
+    staff: profile.staff,
+    dualRelease: profile.dualRelease,
+    mapSnapshots: snapshots,
+    today,
+    trackFreshness: trackRegisterFreshness(profile, tpl),
+    mapAssessed: mapAssessed(profile),
+    decisions: profile.decisions,
+    plannedAbsences: profile.plannedAbsences,
+    procedures: profile.procedures,
+    integrationDriftSummary: profile.integrationDriftSummary,
+    accessReconciliation: profile.accessReconciliation,
+  });
+  // A firm's work on a business carries the firm's name; the business's own
+  // account sharing a business it shared with a firm is still the account.
+  const byFirm =
+    row.firm_user_id !== null &&
+    Boolean(row.firm_name) &&
+    !(row.user_id === callerId && row.granted_at !== null);
+  const account = row.caller_name?.trim();
+  const sharedBy = byFirm
+    ? (row.firm_name as string)
+    : !redacted && account
+      ? account
+      : SHARED_BY_OWN_ACCOUNT;
+  const payload = validateSharePayload({
+    ...buildSharePayload(profile, actions, note, redacted),
+    sharedBy: sharedBy.slice(0, 200),
+    savedAt: toIsoTimestamp(row.updated_at),
+  });
+  return { businessOwnerId, payload };
 }
 
 export const createMapShare = createServerFn({ method: "POST" })
@@ -59,7 +146,7 @@ export const createMapShare = createServerFn({ method: "POST" })
   .validator(
     (input: {
       businessId: string;
-      payload: SharedMapPayload;
+      note?: string;
       expiresInDays?: number;
       redacted?: boolean;
       passcode?: string;
@@ -69,20 +156,16 @@ export const createMapShare = createServerFn({ method: "POST" })
     const { randomBytes } = await import("node:crypto");
     const sql = await getSql();
     // The link records its business, so deleting the business or removing
-    // the member who made it revokes the link. A business with no row yet (a
-    // new one whose first save is still on its way) is the caller's own:
-    // nothing stored can be reached through it, and deleting it later still
-    // revokes the link.
-    const businessOwnerId =
-      (await resolveBusinessOwner(sql, context.userId, data.businessId)) ?? context.userId;
+    // the member who made it revokes the link.
+    const hideNames = data.redacted;
+    const { businessOwnerId, payload } = await storedMapPayload(
+      sql,
+      context.userId,
+      data.businessId,
+      { note: data.note, redacted: hideNames },
+    );
     const token = randomHex(18);
     const expires = new Date(Date.now() + data.expiresInDays * DAY_MS).toISOString();
-    const roster = await rosterForShare(sql, businessOwnerId, data.businessId);
-    const team = [...roster, ...data.payload.people];
-    // The browser may set namesHidden and keep the names. Scrub from the
-    // stored roster, including people who have left, and ignore that flag.
-    const hideNames = data.redacted || data.payload.namesHidden === true;
-    const payload = hideNames ? redactSharePayload(data.payload, team) : data.payload;
     const passcodeSalt = data.passcode ? randomBytes(16).toString("hex") : null;
     const passcodeHash =
       data.passcode && passcodeSalt ? await hashPasscode(data.passcode, passcodeSalt) : null;

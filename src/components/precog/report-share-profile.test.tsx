@@ -245,6 +245,82 @@ describe("shareReportProfile", () => {
     expect(render(withoutLocation, 3)).not.toContain("of work has a confirmation from the last");
   });
 
+  it("prints the same report from a map whose processes carry notes, without the notes or past months", () => {
+    // The owner's own map: the starter processes, owned by the team, each
+    // with a description, risk and idea notes, evidence and systems.
+    const processes = industrySample("dental").processes.map((p, i) => ({
+      ...p,
+      ownerPersonIds: [i % 2 ? "b" : "a"],
+      description: `Process note ${i}: bank login kept in the front drawer.`,
+      risks: (p.risks ?? []).map((r) => ({ ...r, note: `Risk note ${i}: Maria skips the count.` })),
+      ideas: [
+        {
+          id: `idea${i}`,
+          title: `Idea title ${i}`,
+          category: "control" as const,
+          effort: "low" as const,
+          impact: "high" as const,
+          note: "Buy a safe.",
+          status: "backlog" as const,
+        },
+      ],
+      systems: ["Quokka banking portal"],
+      procedureLocation: "Payroll binder, shelf 2",
+    }));
+    const mapped: PracticeProfile = {
+      ...full,
+      customProcesses: processes,
+      monthlyReviews: [
+        // This month's result, an earlier draft of it and a past month: the
+        // report prints the first alone (latestReview).
+        ...(full.monthlyReviews ?? []),
+        { ...full.monthlyReviews![0], notes: "An earlier draft of this month's note." },
+        {
+          ...full.monthlyReviews![0],
+          period: "2026-07",
+          notes: "Cash short $400, spoke to Maria.",
+        },
+      ],
+    };
+    const projected = shareReportProfile(mapped, locked.preparedAt);
+    for (const layout of PRINTED_LAYOUT_VERSIONS) {
+      const whole = render(mapped, layout);
+      expect(whole).toContain("Two deposits in transit.");
+      expect(whole).toMatch(/\d+ risks/);
+      expect(render(projected, layout)).toBe(whole);
+    }
+    const text = JSON.stringify(projected);
+    for (const secret of [
+      "Process note",
+      "bank login",
+      "Maria skips",
+      "Idea title",
+      "Buy a safe",
+      "Quokka",
+      "Payroll binder",
+      "earlier draft",
+      "Cash short",
+    ]) {
+      expect(text).not.toContain(secret);
+    }
+    expect(projected.monthlyReviews).toEqual(full.monthlyReviews);
+  });
+
+  it("keeps the months a reader's clock can put a lock near midnight on the 1st in", () => {
+    const record = full.monthlyReviews![0];
+    const reviews = ["2026-08", "2026-09", "2026-10", "2026-11"].map((period) => ({
+      ...record,
+      period,
+    }));
+    const at = (iso: string) =>
+      shareReportProfile({ ...full, monthlyReviews: reviews }, iso).monthlyReviews?.map(
+        (r) => r.period,
+      );
+    expect(at("2026-09-26T12:00:00.000Z")).toEqual(["2026-09"]);
+    expect(at("2026-10-01T03:00:00.000Z")).toEqual(["2026-09", "2026-10"]);
+    expect(at("2026-09-30T22:00:00.000Z")).toEqual(["2026-09", "2026-10"]);
+  });
+
   it("keeps what the report reads: the name, team, map, reviews, reading and stamps", () => {
     const projected = shareReportProfile(full);
     expect(projected.practiceName).toBe("Ortiz Dental Studio");
@@ -261,7 +337,7 @@ describe("shareReportProfile", () => {
       },
     ]);
     expect(projected.mapLayout).toEqual({ p1: { x: 10, y: 20 } });
-    expect(projected.monthlyReviews).toBe(full.monthlyReviews);
+    expect(projected.monthlyReviews).toEqual(full.monthlyReviews);
     expect(projected.integrationDriftSummary).toBe(full.integrationDriftSummary);
     expect(projected.engagement).toEqual({ reportSentAt: "2026-09-28T12:00:00.000Z" });
     expect(projected.staff).toBe(full.staff);

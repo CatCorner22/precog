@@ -15,10 +15,11 @@ const listOf = <T extends z.ZodMiniType>(item: T, max: number) =>
 
 /**
  * Shape check for a map share before it is stored and later rendered on a
- * public page. React escaping keeps the page XSS-safe already; this turns a
- * malformed or oversized payload from an old client into a clean 400 instead
- * of a 500 (or a row the share page cannot render). Limits are generous for a
- * real map and tight enough that a share cannot be used as blob storage.
+ * public page. The server builds the payload from the saved business; React
+ * escaping keeps the page XSS-safe already, and this turns an oversized or
+ * malformed map into a clean 4xx instead of a 500 (or a row the share page
+ * cannot render). Limits are generous for a real map and tight enough that a
+ * share cannot be used as blob storage.
  */
 const sharedMapPayloadSchema = z.object({
   version: z.literal(1),
@@ -69,6 +70,13 @@ const sharedMapPayloadSchema = z.object({
   note: z.optional(str(2_000)),
   /** Set by redactSharePayload: people's names are replaced with role labels. */
   namesHidden: z.optional(z.boolean()),
+  /**
+   * Who made the link (the firm, or the account) and when the business it
+   * copies was last saved, both set by the server. Absent on a link made
+   * before Precog built links from the saved business.
+   */
+  sharedBy: z.optional(str(200)),
+  savedAt: z.optional(str(40)),
 });
 
 /** Frozen, self-contained view of a map for the public share page. */
@@ -96,28 +104,50 @@ export function validateSharePayload(input: unknown): SharedMapPayload {
   return parsed.data;
 }
 
+/**
+ * Who made a link someone else made, as the share panels list it: "Made by
+ * Dana Cole at North Advisors" for a firm's member, else "Made by Dana Cole".
+ */
+export function madeByLabel(link: {
+  createdBy: string | null;
+  createdByFirm: string | null;
+}): string {
+  const by = link.createdBy?.trim() || "someone else";
+  return link.createdByFirm ? `Made by ${by} at ${link.createdByFirm}` : `Made by ${by}`;
+}
+
 /** Passcode length bounds. Eight or more: a four-digit PIN falls to a few thousand guesses. */
 export const SHARE_PASSCODE_MIN = 8;
 const SHARE_PASSCODE_MAX = 64;
 
 interface CreateShareInput {
-  /** The business the payload copies; the server checks the caller may reach it. */
+  /** The business the link copies; the server builds the map from its saved copy. */
   businessId: string;
-  payload: SharedMapPayload;
+  /** The owner's note to the reader, or "" for none. */
+  note: string;
   expiresInDays: number;
   redacted: boolean;
   passcode: string | undefined;
 }
 
+/** The longest note to the reader the share panel takes. */
+export const SHARE_NOTE_MAX = 2_000;
+
 /**
- * createMapShare's input. A passcode the owner typed but that is too short or
- * too long is refused, not dropped: dropping it created a link with no
- * passcode while the owner believed it had one.
+ * createMapShare's input: the business, never its map. The server builds
+ * what the page prints from the business as saved (share-server.ts), so a
+ * page on Precog's domain never prints figures a browser made up. A passcode
+ * the owner typed but that is too short or too long is refused, not dropped:
+ * dropping it created a link with no passcode while the owner believed it
+ * had one.
  */
 export function parseCreateShareInput(input: unknown): CreateShareInput {
   const raw = requireObject(input);
   if (!isBusinessId(raw.businessId)) throw invalidRequest();
   if (raw.passcode != null && typeof raw.passcode !== "string") throw invalidRequest();
+  if (raw.note != null && typeof raw.note !== "string") throw invalidRequest();
+  const note = raw.note?.trim() ?? "";
+  if (note.length > SHARE_NOTE_MAX) throw invalidRequest();
   const passcode = raw.passcode?.trim() || undefined;
   if (passcode && (passcode.length < SHARE_PASSCODE_MIN || passcode.length > SHARE_PASSCODE_MAX)) {
     throw new RequestError(
@@ -128,7 +158,7 @@ export function parseCreateShareInput(input: unknown): CreateShareInput {
   const days = typeof raw.expiresInDays === "number" ? raw.expiresInDays : 30;
   return {
     businessId: raw.businessId,
-    payload: validateSharePayload(raw.payload),
+    note,
     expiresInDays: clamp(days || 30, 1, 365),
     redacted: raw.redacted === true,
     passcode,
