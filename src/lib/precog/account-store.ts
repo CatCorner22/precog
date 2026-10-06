@@ -518,8 +518,11 @@ export function encodeHistoryPage(rows: BusinessHistoryExportRow[]): string {
  * Removes every row the account owns and then the account itself, in one
  * transaction. Refused (409) while a firm plan is still billing, so Stripe
  * never keeps charging a deleted account, and while the account holds client
- * businesses it set up for someone else's firm: the firm owner removes the
- * member first, which hands those clients to the firm (see removeMember).
+ * businesses it set up for someone else's firm, removed ones included: the
+ * firm owner removes the member first, which hands those clients to the firm
+ * (see removeMember). The account's row is locked first, so a billing
+ * webhook, a client save or a client grant running at the same moment either
+ * commits before the checks or finds the account gone.
  *
  * Snapshots and the per-user model-usage counts carry no foreign key to the
  * user, so they are deleted explicitly; everything else (businesses and their
@@ -536,7 +539,20 @@ export function encodeHistoryPage(rows: BusinessHistoryExportRow[]): string {
  */
 export async function deleteAccountRows(sql: Sql, userId: string): Promise<DeletedAccount> {
   return inTransaction(sql, async (tx) => {
+    // The lock order of every membership write (lockFirmMembershipWrite in
+    // firm/store.ts): the account row first, then the firm row, then
+    // businesses; the billing row sits between the account and the firm.
+    // FOR UPDATE, so a writer that names the account waits: a
+    // Stripe webhook inserting its billing row, a client save
+    // (lockBusinessOwner), an invitation or a firm save. A writer that got
+    // the row first commits before the checks below read, so they see its
+    // rows and refuse; one that comes after finds the account gone.
+    const account = await tx`select id from "user" where id = ${userId} for update`;
+    if (!account.length) throw new RequestError(401, "Unauthorized");
     const stripeCustomerId = await refuseWhileBilling(tx, userId);
+    // The account's own firm next: a client grant accepted, a member
+    // invited or the plan changed waits, or refuses once the firm is gone.
+    await tx`select user_id from firms where user_id = ${userId} for update`;
     await refuseWhileHoldingFirmClients(tx, userId);
     const connections = await tx<{ refresh_token_enc: string }>`
       select refresh_token_enc from integration_connections where user_id = ${userId}
@@ -615,8 +631,11 @@ async function logDeparture(tx: Sql, userId: string): Promise<void> {
 
 /** Refuses while the Firm plan runs; otherwise the Stripe customer id to delete, if any. */
 async function refuseWhileBilling(tx: Sql, userId: string): Promise<string | null> {
+  // Locked before the firm row: a webhook updating a billing row that already
+  // exists holds it, then sets the firm's plan, and never needs the account.
   const rows = await tx<{ subscription_status: string | null; stripe_customer_id: string | null }>`
     select subscription_status, stripe_customer_id from billing_accounts where user_id = ${userId}
+    for update
   `;
   const status = rows[0]?.subscription_status;
   if (status && ACTIVE_SUBSCRIPTION_STATUSES.has(status)) {
@@ -628,21 +647,32 @@ async function refuseWhileBilling(tx: Sql, userId: string): Promise<string | nul
   return rows[0]?.stripe_customer_id ?? null;
 }
 
+/**
+ * Refuses while the account holds client businesses it set up for another
+ * firm. Removed ones count too: a removed client with locked report versions
+ * stays for the firm's retention period (KEPT_FOR_RETENTION in
+ * business-store.ts), and the account's deletion would cascade it away.
+ * Removing the member moves them all to the firm owner (removeMember).
+ */
 async function refuseWhileHoldingFirmClients(tx: Sql, userId: string): Promise<void> {
-  const rows = await tx<{ firm_name: string; n: number | string }>`
-    select f.name as firm_name, count(*) as n
+  const rows = await tx<{ firm_name: string; n: number | string; removed: number | string }>`
+    select f.name as firm_name, count(*) as n, count(b.deleted_at) as removed
     from businesses b join firms f on f.user_id = b.firm_user_id
-    where b.user_id = ${userId} and b.firm_user_id <> ${userId} and b.deleted_at is null
-      and b.granted_at is null
+    where b.user_id = ${userId} and b.firm_user_id <> ${userId} and b.granted_at is null
     group by f.name
     order by count(*) desc
     limit 1
   `;
   const held = rows[0];
   if (!held) return;
+  const removed = Number(held.removed);
+  const kept =
+    removed === 0
+      ? ""
+      : `, including ${removed === 1 ? "a removed one" : "removed ones"} the firm keeps for its retention period`;
   throw new RequestError(
     409,
-    `You set up ${count(Number(held.n), "client business", "client businesses")} for ${held.firm_name}. Ask the firm owner to remove you from the firm first (your client businesses stay with the firm), then delete your account. Need help? Write to ${SUPPORT_EMAIL}.`,
+    `You set up ${count(Number(held.n), "client business", "client businesses")} for ${held.firm_name}${kept}. Ask the firm owner to remove you from the firm first (your client businesses stay with the firm), then delete your account. Need help? Write to ${SUPPORT_EMAIL}.`,
   );
 }
 

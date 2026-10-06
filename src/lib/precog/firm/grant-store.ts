@@ -165,8 +165,8 @@ export interface AcceptedGrant {
  */
 export async function acceptGrant(sql: Sql, token: string, userId: string): Promise<AcceptedGrant> {
   return inTransaction(sql, async (tx) => {
-    // The firm's row first, as every firm write takes it
-    // (lockFirmMembershipWrite): accepts at the same moment count the firm's
+    // The two accounts' rows first, then the firm's row, as every firm write
+    // takes them (lockFirmMembershipWrite): accepts at the same moment count the firm's
     // clients one after the other, and an ownership transfer, which deletes
     // the row, either waits for this or has finished. Then the business row,
     // then the invitation, the order createGrant and endGrant lock them in
@@ -179,6 +179,13 @@ export async function acceptGrant(sql: Sql, token: string, userId: string): Prom
       where token = ${token} and kind = 'grant'
     `;
     if (!target[0]) throw new FirmMembershipError(GRANT_CLOSED);
+    // The two accounts before any row of theirs, ascending, as every write
+    // locks them (lockFirmMembershipWrite): an account deletion holds its row
+    // FOR UPDATE, so this waits for it instead of deadlocking on the
+    // invitation, then finds the firm or the business gone and refuses.
+    for (const id of [userId, target[0].business_owner_id].sort()) {
+      await tx`select id from "user" where id = ${id} for key share`;
+    }
     const firm = await loadFirmFor(tx, userId);
     if (
       firm?.role === "owner" &&
