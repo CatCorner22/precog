@@ -66,4 +66,22 @@ describe("peopleFromBackup", () => {
     ]);
     expect(peopleFromBackup(undefined)).toEqual([]);
   });
+
+  it("restores the household mark, cleaned and cut to 40 characters, and drops one that is not text", () => {
+    const people = peopleFromBackup([
+      { id: "a", name: "Ana Smith", householdKey: "Smith Jones" },
+      { id: "b", name: "Bo Smith", householdKey: "  Smith​ Jones  " },
+      { id: "c", name: "Cy Long", householdKey: `${"x".repeat(39)} tail` },
+      { id: "d", name: "Di None", householdKey: 4 },
+      { id: "e", name: "Ed Blank", householdKey: "   " },
+    ]);
+    expect(people.map((person) => person.householdKey)).toEqual([
+      "Smith Jones",
+      "Smith Jones",
+      "x".repeat(39),
+      undefined,
+      undefined,
+    ]);
+    expect(people.filter((person) => "householdKey" in person)).toHaveLength(3);
+  });
 });
