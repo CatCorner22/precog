@@ -81,10 +81,12 @@ describe("client table CSV", () => {
       ],
       today,
     );
+    // South Clinic recorded every September check (1 Done, 2 Exceptions, 1
+    // Skipped), so September is not overdue although only one is Done.
     expect(csv.split("\n")).toEqual([
       CLIENT_TABLE_CSV_HEADER,
       "biz_1,North Dental,active,,2026-10-03,2026-09,4,4,no,2026-10,3,5,0,0,0,0,2,1,confirmed",
-      "biz_2,South Clinic,ended,2026-09-30,,2026-09,1,4,yes,2026-10,0,5,2,1,1,0,,0,",
+      "biz_2,South Clinic,ended,2026-09-30,,2026-09,1,4,no,2026-10,0,5,2,1,1,0,,0,",
       "",
     ]);
   });

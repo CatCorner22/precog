@@ -8,19 +8,15 @@ import { usePracticeState, useTemplate } from "@/lib/precog/practice-context";
 import { count, verb } from "@/lib/precog/text";
 import { useToday } from "@/lib/use-today";
 import { cn } from "@/lib/utils";
-
-interface AttentionItem {
-  id: string;
-  n: number;
-  text: string;
-  target: string;
-}
+import { monthlyAttentionItems, type AttentionItem } from "./needs-attention-items";
 
 /**
  * Everything that waits on the owner, behind one header button: decisions
  * past their review date, decisions undone since they were marked done,
- * people who left whose access is unchecked, and this month's open checks
- * (from the 5th, as the reminders count them).
+ * people who left whose access is unchecked, and the Monthly review's checks
+ * not done or with an exception to resolve: last month's through its due day
+ * (the 10th) and this month's from the 5th, as the firm's client table counts
+ * them (`openMonthlyChecks`).
  * Hidden when nothing waits. The list exists only while it is open, so the
  * tab walk's count of the Advanced menu never sees these items.
  */
@@ -38,13 +34,7 @@ export function NeedsAttentionMenu({ onOpen }: { onOpen: (tab: string) => void }
       profile.industry,
       tpl.people,
     ).length;
-    // From the 5th, as the reminders count them (MONTHLY_REVIEW_GRACE_DAY).
-    const monthly = openMonthlyChecks(
-      day,
-      tpl.people,
-      tpl.roleTemplates,
-      profile.monthlyReviews ?? [],
-    );
+    const monthly = monthlyAttentionItems(openMonthlyChecks(day, profile.monthlyReviews ?? []));
     return [
       {
         id: "overdue",
@@ -64,12 +54,7 @@ export function NeedsAttentionMenu({ onOpen }: { onOpen: (tab: string) => void }
         text: `${count(leavers, "person", "people")} who left: check their access`,
         target: "knowledge",
       },
-      {
-        id: "monthly",
-        n: monthly,
-        text: `${count(monthly, "Monthly review check")} open`,
-        target: "monthly",
-      },
+      ...monthly,
     ].filter((item) => item.n > 0);
   }, [
     day,

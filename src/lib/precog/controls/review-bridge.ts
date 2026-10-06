@@ -1,7 +1,7 @@
 import { RequestError } from "@/lib/request-errors";
 import { formatDay } from "../dates";
 import { RESULT_LABEL, REVIEW_ITEMS, type ReviewItemKey, type ReviewResult } from "../firm/reviews";
-import type { ExecutionCommand } from "./executions/model";
+import type { ControlExecution, ExecutionCommand } from "./executions/model";
 
 export interface MonthlyBridgeInput {
   businessId: string;
@@ -61,7 +61,22 @@ export function monthlyBridgeCommandId(period: string, itemKey: ReviewItemKey): 
  * result, so a retried correction is idempotent and Done -> Exception -> Done
  * writes three entries that end on Done. The log lists a month newest first,
  * so the first entry of a chain met in that order is the current one.
+ *
+ * A check changed to Skipped after it has an entry withdraws that entry: the
+ * next entry records an exception whose note says the check was withdrawn as
+ * skipped, and whose command id starts with WITHDRAWAL_COMMAND, so
+ * `monthlyEntryResult` reads it back as Skipped. Done -> Skipped -> Done
+ * writes three entries that end on Done.
  */
+
+/** The start of a bridged entry's command id; the rest is its run id. */
+const RECORD_COMMAND = "monthly-bridge";
+/** The start of the command id of an entry that withdraws a check changed to Skipped. */
+const WITHDRAWAL_COMMAND = "monthly-withdraw";
+
+/** What a withdrawal's note adds to "Corrects the entry of <date>: now Skipped." */
+const WITHDRAWAL_NOTE =
+  "This entry withdraws the check as skipped, and the log holds it as an exception until someone does the check.";
 
 /**
  * The position of `runId` in the monthly chain of this check and month: 1 for
@@ -106,18 +121,36 @@ export function supersedingRunId(
   return `${executionRunId(period, itemKey)}-v${version + 1}`;
 }
 
-/** "Corrects the entry of Apr 15, 2026: now Exception." */
+/**
+ * "Corrects the entry of Apr 15, 2026: now Exception."; for Skipped, followed
+ * by WITHDRAWAL_NOTE.
+ */
 export function correctionNote(supersededOn: string, result: ReviewResult): string {
-  return `Corrects the entry of ${formatDay(supersededOn)}: now ${RESULT_LABEL[result]}.`;
+  const note = `Corrects the entry of ${formatDay(supersededOn)}: now ${RESULT_LABEL[result]}.`;
+  return result === "skipped" ? `${note} ${WITHDRAWAL_NOTE}` : note;
+}
+
+/**
+ * The monthly result an entry of a check's chain stands for, read from its
+ * recorded work: Done for no exception, Exception for an exception, Skipped
+ * for an entry that withdrew the check; null for a run with no recorded work.
+ */
+export function monthlyEntryResult(run: Pick<ControlExecution, "history">): ReviewResult | null {
+  const work = run.history.find((e) => e.command.action === "record")?.command;
+  if (work?.action !== "record") return null;
+  if (work.commandId.startsWith(`${WITHDRAWAL_COMMAND}-`)) return "skipped";
+  return work.result === "exception" ? "exception" : "done";
 }
 
 /**
  * Build a control execution **record** command from a monthly review result.
- * Returns null for a skipped result, which creates no evidence. The method is
- * inquiry: a monthly note is the owner saying the check was done.
+ * The method is inquiry: a monthly note is the owner saying the check was
+ * done. A Skipped result creates no evidence of its own (null), except to
+ * withdraw the entry it supersedes: that entry is an exception, since the
+ * check is no longer done for the month.
  */
 export function bridgeRecordCommand(input: MonthlyBridgeInput): ExecutionCommand | null {
-  if (input.result === "skipped") return null;
+  if (input.result === "skipped" && !input.supersedes) return null;
   const item = REVIEW_ITEMS.find((r) => r.key === input.itemKey);
   if (!item) throw new RequestError(400, "Unknown review item");
 
@@ -134,12 +167,13 @@ export function bridgeRecordCommand(input: MonthlyBridgeInput): ExecutionCommand
     ? supersedingRunId(input.period, input.itemKey, input.supersedes.runId)
     : executionRunId(input.period, input.itemKey);
   // The command id follows the run id, so a retry of the same entry is idempotent.
-  const commandId = `monthly-bridge-${runId}`.slice(0, 80);
+  const commandId =
+    `${input.result === "skipped" ? WITHDRAWAL_COMMAND : RECORD_COMMAND}-${runId}`.slice(0, 80);
   // The record schema needs at least one reference. With no note, the one
   // reference says plainly that none was given, rather than reading like one.
   const refs = input.notes.trim() ? [input.notes.trim().slice(0, 400)] : [NO_EVIDENCE_REFERENCE];
 
-  if (input.result === "exception") {
+  if (input.result === "exception" || input.result === "skipped") {
     const followUpOwner = (input.followUpOwner ?? input.ownerName).trim().slice(0, 120);
     const dueOn = input.followUpDueOn ?? input.dueOn;
     if (!followUpOwner || !dueOn) {

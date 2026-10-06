@@ -6,11 +6,12 @@ import {
   executionRunId,
   monthlyBridgeCommandId,
   monthlyChainRunId,
+  monthlyEntryResult,
   monthlyEntryVersion,
   NO_EVIDENCE_REFERENCE,
   supersedingRunId,
 } from "./review-bridge";
-import { parseCommand } from "./executions/model";
+import { parseCommand, type ExecutionCommand } from "./executions/model";
 import type { ReviewItemKey } from "../firm/reviews";
 
 describe("review-bridge", () => {
@@ -72,6 +73,66 @@ describe("review-bridge", () => {
         baseRevision: 1,
       }),
     ).toBeNull();
+  });
+
+  it("withdraws the entry of a check changed to Skipped, as an exception whose note says so", () => {
+    expect(correctionNote("2026-04-12", "skipped")).toBe(
+      "Corrects the entry of Apr 12, 2026: now Skipped. This entry withdraws the check as skipped, and the log holds it as an exception until someone does the check.",
+    );
+    const cmd = bridgeRecordCommand({
+      businessId: "biz_a",
+      period: "2026-04",
+      itemKey: "new_vendors",
+      ownerName: "Alex",
+      dueOn: "2026-05-10",
+      result: "skipped",
+      notes: "",
+      performedOn: "2026-04-14",
+      baseRevision: 0,
+      supersedes: { runId: "2026-04-new_vendors", performedOn: "2026-04-12" },
+    });
+    expect(cmd).toMatchObject({
+      runId: "2026-04-new_vendors-v2",
+      commandId: "monthly-withdraw-2026-04-new_vendors-v2",
+      result: "exception",
+      performedOn: "2026-04-14",
+      note: correctionNote("2026-04-12", "skipped"),
+      evidenceRefs: [NO_EVIDENCE_REFERENCE],
+      followUpOwner: "Alex",
+      dueOn: "2026-05-10",
+    });
+    expect(parseCommand(cmd)).toMatchObject({
+      commandId: "monthly-withdraw-2026-04-new_vendors-v2",
+    });
+  });
+
+  it("reads back the monthly result each entry of a chain stands for", () => {
+    const input = {
+      businessId: "biz_a",
+      period: "2026-04",
+      itemKey: "new_vendors" as const,
+      ownerName: "Alex",
+      dueOn: "2026-05-10",
+      notes: "",
+      performedOn: "2026-04-14",
+      baseRevision: 0,
+    };
+    const entry = (command: ExecutionCommand | null) => ({
+      history: command
+        ? [{ actor: { id: "owner", name: "Owner" }, recordedAt: "2026-04-14T12:00:00Z", command }]
+        : [],
+    });
+    const supersedes = { runId: "2026-04-new_vendors", performedOn: "2026-04-12" };
+    expect(monthlyEntryResult(entry(bridgeRecordCommand({ ...input, result: "done" })))).toBe(
+      "done",
+    );
+    expect(
+      monthlyEntryResult(entry(bridgeRecordCommand({ ...input, result: "exception", supersedes }))),
+    ).toBe("exception");
+    expect(
+      monthlyEntryResult(entry(bridgeRecordCommand({ ...input, result: "skipped", supersedes }))),
+    ).toBe("skipped");
+    expect(monthlyEntryResult(entry(null))).toBeNull();
   });
 
   it("requires follow-up fields for exceptions", () => {

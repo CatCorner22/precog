@@ -383,19 +383,34 @@ describe("open periods", () => {
   });
 
   it("counts only Done toward completion and marks a month overdue after its due day", () => {
-    const months = [{ period: "2026-09", done: 2, exceptions: 1, skipped: 1 }];
+    const months = [{ period: "2026-09", done: 2, exceptions: 1, skipped: 0 }];
     expect(periodStanding(months, "2026-09", "2026-10-10")).toEqual({
       period: "2026-09",
       total: 4,
       done: 2,
       exceptions: 1,
-      skipped: 1,
+      skipped: 0,
       overdue: false,
     });
+    // One of September's four checks has no result after its due day.
     expect(periodStanding(months, "2026-09", "2026-10-11").overdue).toBe(true);
-    expect(periodStanding([{ ...months[0], done: 4 }], "2026-09", "2026-10-11").overdue).toBe(
+    expect(periodStanding([{ ...months[0], done: 3 }], "2026-09", "2026-10-11").overdue).toBe(
       false,
     );
     expect(periodStanding([], "2026-10", "2026-10-11")).toMatchObject({ done: 0, total: 5 });
+  });
+
+  it("calls a month overdue only when a check has no result by its due day", () => {
+    // Every check recorded on time, one as Exception and one as Skipped: not
+    // overdue, although only two are Done.
+    const recorded = [{ period: "2026-09", done: 2, exceptions: 1, skipped: 1 }];
+    expect(periodStanding(recorded, "2026-09", "2026-10-11")).toMatchObject({
+      done: 2,
+      total: 4,
+      overdue: false,
+    });
+    expect(periodStanding(recorded, "2026-09", "2027-03-01").overdue).toBe(false);
+    const skippedAll = [{ period: "2026-09", done: 0, exceptions: 0, skipped: 4 }];
+    expect(periodStanding(skippedAll, "2026-09", "2026-10-11").overdue).toBe(false);
   });
 });

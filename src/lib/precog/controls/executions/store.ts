@@ -159,6 +159,30 @@ export async function executeControlCommand(
 }
 
 /**
+ * One run of a month and the runs that continue it (their ids start with
+ * `${runId}-`), for example one monthly check's chain of entries
+ * (controls/review-bridge.ts), read in one query however busy the month, with
+ * the log's read access. In no particular order.
+ */
+export async function listControlExecutionChain(
+  sql: Sql,
+  actorId: string,
+  businessId: string,
+  period: string,
+  runId: string,
+): Promise<ControlExecution[]> {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period) || !/^[A-Za-z0-9_-]{1,80}$/.test(runId))
+    throw new RequestError(400, "Choose a valid month and check.");
+  return inTransaction(sql, async (tx) => {
+    const owner = await access(tx, actorId, businessId, false);
+    const rows = await tx<{ record: ControlExecution }>`select record from control_execution_log
+      where user_id=${owner.user_id} and business_id=${businessId} and period=${period}
+        and (id=${runId} or starts_with(id, ${`${runId}-`}))`;
+    return rows.map((r) => r.record);
+  });
+}
+
+/**
  * Keyset pagination is anchored to an existing row in this account/business/month.
  * New inserts do not shift previously returned rows across page boundaries.
  * This is a live log, not a point-in-time snapshot; reload page one for newer work.

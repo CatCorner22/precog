@@ -3,7 +3,7 @@ import { inTransaction, toSql } from "@/lib/sql-transaction";
 import type { Sql } from "@/lib/db";
 import { openSafetyDb, type SafetyDb } from "@/test/safety-db";
 import { deleteAccountRows, exportAccountRows } from "../../account-store";
-import { executeControlCommand, listControlExecutions } from "./store";
+import { executeControlCommand, listControlExecutionChain, listControlExecutions } from "./store";
 let db: SafetyDb;
 const record = (runId = "check_a") => ({
   action: "record",
@@ -127,6 +127,26 @@ describe("account-scoped control execution log", () => {
     expect(
       (await listControlExecutions(db.sql, "owner", "biz_1", "2026-08", null)).entries[0],
     ).toEqual(before);
+  });
+  it("reads one run and the runs that continue it in one call, with the log's read access", async () => {
+    for (const id of ["chain", "chain-v2", "chain-v3", "chained", "other"]) {
+      await run("prep", record(id));
+    }
+    // The same id in another month is not part of the chain.
+    await run("prep", { ...record("chain-v4"), period: "2026-07", performedOn: "2026-08-02" });
+    const ids = async (actor: string) =>
+      (await listControlExecutionChain(db.sql, actor, "biz_1", "2026-08", "chain"))
+        .map((r) => r.id)
+        .sort();
+    expect(await ids("reviewer")).toEqual(["chain", "chain-v2", "chain-v3"]);
+    expect(await ids("owner")).toEqual(["chain", "chain-v2", "chain-v3"]);
+    await expect(ids("outsider")).rejects.toMatchObject({ status: 404 });
+    await expect(
+      listControlExecutionChain(db.sql, "owner", "biz_1", "2026-13", "chain"),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      listControlExecutionChain(db.sql, "owner", "biz_1", "2026-08", "bad id"),
+    ).rejects.toMatchObject({ status: 400 });
   });
   it("returns an explicit empty period and validates pagination", async () => {
     await run();

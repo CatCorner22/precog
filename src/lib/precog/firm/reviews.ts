@@ -215,7 +215,11 @@ export interface PeriodResults {
 export interface PeriodStanding extends PeriodResults {
   /** How many checks the month has. */
   total: number;
-  /** The month's due day has passed with checks not Done. */
+  /**
+   * The month's due day has passed with a check that has no result. A check
+   * recorded by then as Exception or Skipped is not overdue, though it is
+   * not Done either.
+   */
   overdue: boolean;
 }
 
@@ -228,13 +232,17 @@ export function periodStanding(
   const found = months.find((m) => m.period === period);
   const total = reviewItemsFor(period).length;
   const done = Math.min(found?.done ?? 0, total);
+  const exceptions = found?.exceptions ?? 0;
+  const skipped = found?.skipped ?? 0;
+  // Each check counts once, by its latest result, so these are the checks with any result.
+  const recorded = Math.min(done + exceptions + skipped, total);
   return {
     period,
     total,
     done,
-    exceptions: found?.exceptions ?? 0,
-    skipped: found?.skipped ?? 0,
-    overdue: done < total && today > reviewDueOn(period),
+    exceptions,
+    skipped,
+    overdue: recorded < total && today > reviewDueOn(period),
   };
 }
 
@@ -245,21 +253,43 @@ export function periodStanding(
  */
 export const MONTHLY_REVIEW_GRACE_DAY = 5;
 
+/** One open month's checks that wait on the owner. */
+export interface OpenMonthChecks {
+  period: string;
+  /** Checks with no result yet, or Skipped: not done. */
+  notDone: number;
+  /** Checks whose latest result is Exception: recorded, but not resolved. */
+  exceptions: number;
+}
+
 /**
- * How many of this month's checks have no result yet, counted from
- * MONTHLY_REVIEW_GRACE_DAY; 0 before it. `day` is YYYY-MM-DD.
+ * The checks that wait on the owner on `day` (YYYY-MM-DD), month by month,
+ * oldest first. The months are the ones the owner can record (`openPeriods`):
+ * last month through its due day, the 10th, and this month from
+ * MONTHLY_REVIEW_GRACE_DAY. Only Done closes a check, as the firm's client
+ * table counts it, each check by its latest result: a check with no result,
+ * or Skipped, is not done, and one reported as Exception is recorded but not
+ * resolved. A month with nothing waiting is left out.
  */
 export function openMonthlyChecks(
   day: string,
-  people: readonly Person[],
-  roleDuties: Readonly<Record<string, readonly string[]>>,
   reviews: readonly ReviewRecord[],
-): number {
-  if (Number(day.slice(8, 10)) < MONTHLY_REVIEW_GRACE_DAY) return 0;
-  const period = monthKey(day);
-  return monthlyReviewTasks(day, people, roleDuties).filter(
-    (task) => !latestReview(reviews, task.key, period),
-  ).length;
+): OpenMonthChecks[] {
+  const current = monthKey(day);
+  const counted = Number(day.slice(8, 10)) >= MONTHLY_REVIEW_GRACE_DAY;
+  return openPeriods(day)
+    .filter((period) => period !== current || counted)
+    .map((period) => {
+      let notDone = 0;
+      let exceptions = 0;
+      for (const item of reviewItemsFor(period)) {
+        const result = latestReview(reviews, item.key, period)?.result;
+        if (result === "exception") exceptions += 1;
+        else if (result !== "done") notDone += 1;
+      }
+      return { period, notDone, exceptions };
+    })
+    .filter((month) => month.notDone + month.exceptions > 0);
 }
 
 /**

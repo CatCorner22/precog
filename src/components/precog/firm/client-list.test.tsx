@@ -213,10 +213,11 @@ describe("client table", () => {
     // duty conflicts, Awaiting review, row by row in the default order (the
     // client with exceptions first).
     const [granted, member] = cellsOf(html).map((cells) => cells.slice(1, 9));
+    // Every September check has a result (two Done, two Skipped), so no Overdue badge.
     expect(granted).toEqual([
       "Active",
       "2026-10-03",
-      "2 of 4 doneOverdue",
+      "2 of 4 done",
       "3 of 5 done",
       "1 this month",
       "2 last month, 1 this month",

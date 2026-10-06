@@ -103,12 +103,30 @@ async function press(label: string) {
     expect(Object.values(toast).some((fn) => fn.mock.calls.length > 0)).toBe(true),
   );
 }
-type Button = { props: { children: unknown; onClick: () => void } };
+type Button = { props: { children: unknown; onClick: () => void; disabled?: boolean } };
 function buttons(node: ReactNode): Button[] {
-  if (Array.isArray(node)) return node.flatMap(buttons);
+  return elements(node, "button") as unknown as Button[];
+}
+type Input = {
+  props: {
+    "aria-label": string;
+    value: string;
+    onChange: (event: { target: { value: string } }) => void;
+  };
+};
+/** The note field of the check titled `title`. */
+function noteField(node: ReactNode, title: string): Input {
+  const found = (elements(node, "input") as unknown as Input[]).find(
+    (input) => input.props["aria-label"] === `Note for ${title}`,
+  );
+  if (!found) throw new Error(`No note field for ${title}`);
+  return found;
+}
+function elements(node: ReactNode, type: string): ReactNode[] {
+  if (Array.isArray(node)) return node.flatMap((child) => elements(child, type));
   if (!isValidElement<{ children?: ReactNode }>(node)) return [];
-  const own = node.type === "button" ? [node as unknown as Button] : [];
-  return [...own, ...buttons(node.props.children)];
+  const own = node.type === type ? [node] : [];
+  return [...own, ...elements(node.props.children, type)];
 }
 
 beforeEach(() => {
@@ -282,6 +300,45 @@ describe("monthly review tells the owner where the result went", () => {
     await press("Skipped");
     expect(toast.success).toHaveBeenCalledWith("Skipped for September 2026 on this business.");
   });
+  it("says the evidence log withdrew the check when a recorded check is skipped", async () => {
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: true,
+      evidenceStatus: "withdrawn",
+      evidenceSkippedReason: null,
+    });
+    await press("Skipped");
+    expect(toast.success).toHaveBeenCalledWith("Skipped for September 2026 on this business.", {
+      description: "Precog marked the check withdrawn as skipped in the control evidence log.",
+    });
+  });
+  it("warns when a skip could not withdraw the check's evidence entry", async () => {
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: false,
+      evidenceStatus: null,
+      evidenceSkippedReason: "bridge_failed",
+    });
+    await press("Skipped");
+    expect(toast.warning).toHaveBeenCalledWith(
+      "Saved on this business, but not in the evidence log.",
+      { description: "Precog could not add the entry. Press the result again later." },
+    );
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+  it("says a later result for the check replaced this one in the evidence log", async () => {
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: false,
+      evidenceStatus: null,
+      evidenceSkippedReason: "superseded",
+    });
+    await press("Exception");
+    expect(toast.success).toHaveBeenCalledWith("Saved on this business.", {
+      description:
+        "A later result for this check and month replaced this one, so the control evidence log follows that result.",
+    });
+  });
 });
 
 describe("monthly review records last month until its due day", () => {
@@ -340,6 +397,62 @@ describe("monthly review records last month until its due day", () => {
     // The evidence log is read for the month on screen.
     expect(evidenceLog.getControlExecutionLog).toHaveBeenLastCalledWith({
       data: expect.objectContaining({ period: "2026-10" }),
+    });
+  });
+
+  it("keeps a note and a save under way with the month they belong to", async () => {
+    vi.setSystemTime(new Date(2026, 9, 3, 9));
+    state.today = new Date(2026, 9, 3);
+    signIn();
+    evidenceLog.getControlExecutionLog.mockResolvedValue(page([]));
+    await settle();
+    const render = () => runtime.render(() => MonthlyReview());
+    const click = (label: string) =>
+      buttons(render())
+        .find((b) => b.props.children === label)!
+        .props.onClick();
+    const bank = "Open the bank statement";
+    // A note typed under September stays with September.
+    noteField(render(), bank).props.onChange({ target: { value: "September statement read." } });
+    click("October");
+    await settle();
+    expect(noteField(render(), bank).props.value).toBe("");
+    // October's Done carries October's own (empty) note, not September's.
+    let answer!: (value: unknown) => void;
+    server.recordMonthlyReview.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    click("Done");
+    await vi.waitFor(() => expect(server.recordMonthlyReview).toHaveBeenCalledTimes(1));
+    expect(server.recordMonthlyReview).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({ period: "2026-10", itemKey: "bank_statement", notes: "" }),
+    });
+    // While October's save is under way only October's check waits on it.
+    expect(buttons(render()).find((b) => b.props.children === "Done")!.props.disabled).toBe(true);
+    click("September (due October 10)");
+    await settle();
+    expect(noteField(render(), bank).props.value).toBe("September statement read.");
+    expect(buttons(render()).find((b) => b.props.children === "Done")!.props.disabled).toBe(false);
+    answer({
+      ok: true,
+      evidenceBridged: true,
+      evidenceStatus: "recorded",
+      evidenceSkippedReason: null,
+    });
+    await vi.waitFor(() => expect(toast.success).toHaveBeenCalled());
+    // September's note is still there to send with September's result.
+    server.recordMonthlyReview.mockResolvedValue({
+      ok: true,
+      evidenceBridged: true,
+      evidenceStatus: "recorded",
+      evidenceSkippedReason: null,
+    });
+    click("Done");
+    await vi.waitFor(() => expect(server.recordMonthlyReview).toHaveBeenCalledTimes(2));
+    expect(server.recordMonthlyReview).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({
+        period: "2026-09",
+        itemKey: "bank_statement",
+        notes: "September statement read.",
+      }),
     });
   });
 });

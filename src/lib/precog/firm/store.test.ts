@@ -833,8 +833,9 @@ describe("client engagement figures", () => {
       total: 4,
       overdue: false,
     });
-    // After September's due day, the 10th, its open checks are overdue.
-    expect(periodStanding(row.months, "2026-09", "2026-10-11").overdue).toBe(true);
+    // Every September check has a result, so September is not overdue after
+    // its due day, the 10th, although only one check is Done.
+    expect(periodStanding(row.months, "2026-09", "2026-10-11").overdue).toBe(false);
     expect(periodStanding(row.months, "2026-10", "2026-10-11")).toMatchObject({
       done: 0,
       exceptions: 1,

@@ -27,6 +27,11 @@ import { monthlyWorkpaperFacts, type WorkpaperFact } from "@/lib/precog/firm/wor
 import { clientErrorStatus } from "@/lib/request-errors";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
 
+/** A note draft's and a save's key: the month and the check, so switching months keeps each apart. */
+function draftKey(period: string, key: string): string {
+  return `${period}:${key}`;
+}
+
 /** The monthly checks, with an append-only result on the business and, when signed in, on the server. */
 export function MonthlyReview() {
   const { profile, template, setMonthlyReviews } = usePractice();
@@ -39,6 +44,7 @@ export function MonthlyReview() {
   const shownPeriod = chosen && periods.includes(chosen) ? chosen : periods[0];
   const tasks = monthlyReviewTasks(today, template.people, template.roleTemplates, shownPeriod);
   const records = profile.monthlyReviews ?? [];
+  // Note drafts and the save under way, each by `draftKey(period, check)`.
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [facts, setFacts] = useState<WorkpaperFact[] | null>(null);
@@ -116,14 +122,15 @@ export function MonthlyReview() {
     dueOn: string,
     period: string,
   ) {
-    const note = notes[key] ?? "";
+    const draft = draftKey(period, key);
+    const note = notes[draft] ?? "";
     const input = { key, period, result, ownerName, notes: note };
     const trim = appendReview(records, input);
     setMonthlyReviews((current) => recordReview(current, input));
     if (trim.removed > 0) toast.message(reviewTrimNotice(trim));
-    setNotes((current) => ({ ...current, [key]: "" }));
+    setNotes((current) => ({ ...current, [draft]: "" }));
     if (!user || !profile.businessId) return;
-    setBusy(key);
+    setBusy(draft);
     try {
       await recordMonthlyReview({
         data: {
@@ -138,16 +145,38 @@ export function MonthlyReview() {
         },
       }).then((res) => {
         setEvidenceRead((n) => n + 1);
-        if (result === "skipped") {
-          toast.success(`Skipped for ${periodMonthYear(period)} on this business.`);
+        const skipped = `Skipped for ${periodMonthYear(period)} on this business.`;
+        if (res.evidenceSkippedReason === "superseded") {
+          toast.success("Saved on this business.", {
+            description:
+              "A later result for this check and month replaced this one, so the control evidence log follows that result.",
+          });
           return;
         }
         if (res.evidenceBridged) {
+          if (res.evidenceStatus === "withdrawn") {
+            toast.success(skipped, {
+              description:
+                "Precog marked the check withdrawn as skipped in the control evidence log.",
+            });
+            return;
+          }
           toast.success(
             res.evidenceStatus === "corrected"
               ? "Recorded the correction in the control evidence log."
               : "Saved on this business and recorded in the control evidence log.",
           );
+          return;
+        }
+        // A Skipped check with no entry to withdraw, or none this deployment can write.
+        if (
+          result === "skipped" &&
+          (res.evidenceSkippedReason === null ||
+            res.evidenceSkippedReason === "bridge_disabled" ||
+            res.evidenceSkippedReason === "migration_pending" ||
+            res.evidenceSkippedReason === "already_recorded")
+        ) {
+          toast.success(skipped);
           return;
         }
         if (res.evidenceSkippedReason === "bridge_disabled") {
@@ -238,6 +267,7 @@ export function MonthlyReview() {
         {tasks.map((task) => {
           const latest = latestReview(records, task.key, task.period);
           const logLine = evidenceLogLine(evidenceShown, task.period, task.key);
+          const draft = draftKey(task.period, task.key);
           return (
             <li key={task.key} className="rounded-lg border border-border p-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -263,8 +293,8 @@ export function MonthlyReview() {
                 Note
                 <input
                   className="mt-1 w-full rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg"
-                  value={notes[task.key] ?? ""}
-                  onChange={(e) => setNotes((n) => ({ ...n, [task.key]: e.target.value }))}
+                  value={notes[draft] ?? ""}
+                  onChange={(e) => setNotes((n) => ({ ...n, [draft]: e.target.value }))}
                   aria-label={`Note for ${task.title}`}
                 />
               </label>
@@ -273,7 +303,7 @@ export function MonthlyReview() {
                   <button
                     key={result}
                     type="button"
-                    disabled={busy === task.key}
+                    disabled={busy === draft}
                     className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated disabled:opacity-50"
                     onClick={() =>
                       void save(task.key, result, task.suggestedOwner, task.dueOn, task.period)

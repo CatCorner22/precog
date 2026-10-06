@@ -46,8 +46,13 @@ evidence reference. When the note is empty, the one reference reads exactly
 "No evidence reference given", so the entry never reads as if it cites
 something; entries recorded before this release keep the placeholder they were
 written with ("Monthly review note for" and the month). Done awaits review; Exception needs correction, with
-the monthly due date as the follow-up due date. A later result for the same
-check and month is refused here and kept only in the monthly review log.
+the monthly due date as the follow-up due date. A later, different result for
+the same check and month adds an entry that corrects the latest one
+(`Corrects the entry of <date>: now <result>.`). Skipped after an entry adds one that
+withdraws the check as skipped: an exception whose note says so.
+Precog writes these from the monthly review log's latest result for the check
+and month, under the business's lock, so two devices saving at once leave both
+logs on the same result.
 Monthly-review results recorded before this release are neither imported nor
 relabeled. No score, control-effectiveness calculation, insurance assumption or
 AI answer is improved merely by recording an event. The UI uses “no exception
