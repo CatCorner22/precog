@@ -1,4 +1,5 @@
 import { csvCell } from "../import/csv";
+import { LIST_LIMITS } from "../profile-entries";
 import type { RoleAssignment } from "./assignments";
 import { ENTITLEMENTS, OPERATING_DUTIES, type EntitlementId } from "./conflict-rules";
 
@@ -27,9 +28,11 @@ interface PowerMapImport {
 /**
  * Reads a power-map file (or a bare list of assignments): each row is
  * allow-listed and bounded before it reaches analysis. A malformed row is
- * left out with its reason, and the rest import.
+ * left out with its reason, and the rest import. A file the owner imports
+ * holds at most MAX_PEOPLE people; a stored baseline or snapshot passes
+ * MAX_PEOPLE_STORED instead.
  */
-export function readRoleAssignments(value: unknown): PowerMapImport {
+export function readRoleAssignments(value: unknown, maxPeople = MAX_PEOPLE): PowerMapImport {
   const file = value && typeof value === "object" && "assignments" in value ? value : undefined;
   const version = file && (file as { version?: unknown }).version;
   if (typeof version === "number" && version > POWER_MAP_MODEL_VERSION) {
@@ -48,8 +51,8 @@ export function readRoleAssignments(value: unknown): PowerMapImport {
     };
   }
   if (rows.length === 0) return { assignments: [], issues: [], problem: "The map lists nobody." };
-  if (rows.length > MAX_PEOPLE) {
-    return { assignments: [], issues: [], problem: `A map holds at most ${MAX_PEOPLE} people.` };
+  if (rows.length > maxPeople) {
+    return { assignments: [], issues: [], problem: `A map holds at most ${maxPeople} people.` };
   }
   const ids = new Set<string>();
   const assignments: RoleAssignment[] = [];
@@ -65,9 +68,13 @@ export function readRoleAssignments(value: unknown): PowerMapImport {
   return { assignments, issues };
 }
 
-/** A stored list of assignments, only when every row is good: a saved baseline or snapshot is all or nothing. */
+/**
+ * A stored list of assignments, only when every row is good: a saved baseline
+ * or snapshot is all or nothing. It holds up to the team a business can store
+ * (MAX_PEOPLE_STORED), not the cap on an imported file.
+ */
 export function normalizeRoleAssignments(value: unknown): RoleAssignment[] | undefined {
-  const read = readRoleAssignments(value);
+  const read = readRoleAssignments(value, MAX_PEOPLE_STORED);
   return read.problem || read.issues.length ? undefined : read.assignments;
 }
 
@@ -129,5 +136,8 @@ function readRow(raw: unknown, seenIds: ReadonlySet<string>): RoleAssignment | s
 }
 
 const POWER_MAP_MODEL_VERSION = 1;
+/** Most people in a power-map file the owner imports. */
 const MAX_PEOPLE = 100;
+/** Most people in a stored baseline or snapshot: the most a business's team holds. */
+export const MAX_PEOPLE_STORED = LIST_LIMITS.people;
 const KNOWN_DUTIES: ReadonlySet<string> = new Set(ENTITLEMENTS.map((item) => item.id));

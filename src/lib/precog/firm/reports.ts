@@ -3,6 +3,7 @@ import { inTransaction } from "@/lib/sql-transaction";
 import { toIsoTimestamp, toIsoTimestampOrNull } from "../iso-time";
 import { formatDay } from "../dates";
 import { RequestError } from "@/lib/request-errors";
+import { SUPPORT_EMAIL } from "../legal/operator";
 import type { FirmSnapshot } from "./store";
 import { loadEngagement, lockEngagementWriteAccess } from "./engagement-store";
 
@@ -199,12 +200,16 @@ export interface FrozenReportRow<TModel = unknown> {
   model: TModel | null;
 }
 
+/** Why a lock is refused when the figures are past the stored cap (REPORT_MODEL_MAX_CHARS). */
+export const REPORT_TOO_LARGE_MESSAGE = `This report is too large to lock. Remove old map versions or archive register items you no longer use, then lock again. Need help? Write to ${SUPPORT_EMAIL}.`;
+
 /**
  * Freezes the saved business as the next version. The business row is locked
  * while the number is chosen, so two simultaneous locks get consecutive
  * numbers instead of one failing on the unique constraint. `freeze` builds
  * the report's figures from the profile being locked; a null result locks the
- * version without them.
+ * version without them, and a result marked `tooLarge` refuses the lock (413,
+ * REPORT_TOO_LARGE_MESSAGE) so that no version is stored.
  */
 export async function lockReportVersion(
   sql: Sql,
@@ -214,7 +219,7 @@ export async function lockReportVersion(
     preparedBy: string;
     scopeNote: string;
     id: string;
-    freeze?: (profile: unknown) => FrozenReportRow | null;
+    freeze?: (profile: unknown) => (FrozenReportRow & { tooLarge?: boolean }) | null;
     /** Additional server-side admission, evaluated under the same write locks. */
     authorize?: (tx: Sql) => Promise<void>;
   },
@@ -229,6 +234,9 @@ export async function lockReportVersion(
         where user_id = ${input.ownerUserId} and id = ${input.businessId} and deleted_at is null
       `;
       const frozen = input.freeze?.(business[0].profile) ?? null;
+      // A version never locks without figures for being large: the lock
+      // refuses and says what to remove.
+      if (frozen?.tooLarge) throw new ReportVersionError(413, REPORT_TOO_LARGE_MESSAGE);
       // The firm's name and letterhead are copied in as they are today, from
       // the business's firm (the join `versionFirmName` makes), so a solo
       // business freezes none; the engagement's scope and period likewise (an

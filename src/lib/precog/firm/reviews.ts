@@ -109,7 +109,8 @@ export function isReviewPeriod(value: unknown): value is string {
   return typeof value === "string" && PERIOD.test(value);
 }
 
-const MAX_REVIEW_RECORDS = 240;
+/** Most monthly results a business keeps: five checks a month for twenty years. */
+export const MAX_REVIEW_RECORDS = 1200;
 
 export function monthKey(day: string): string {
   return day.slice(0, 7);
@@ -176,10 +177,14 @@ export function monthlyReviewTasks(
   });
 }
 
+/**
+ * The stored results, newest first, each checked field by field and within
+ * MAX_REVIEW_RECORDS (see `trimReviewRecords`).
+ */
 export function normalizeReviewRecords(value: unknown): ReviewRecord[] {
   if (!Array.isArray(value)) return [];
   const out: ReviewRecord[] = [];
-  for (const entry of value.slice(0, MAX_REVIEW_RECORDS)) {
+  for (const entry of value) {
     if (!entry || typeof entry !== "object") continue;
     const raw = entry as Record<string, unknown>;
     if (!isReviewItemKey(raw.key)) continue;
@@ -195,7 +200,35 @@ export function normalizeReviewRecords(value: unknown): ReviewRecord[] {
       recordedAt: raw.recordedAt.slice(0, 40),
     });
   }
-  return out;
+  return trimReviewRecords(out).records;
+}
+
+/**
+ * Keeps at most MAX_REVIEW_RECORDS results, newest first. Past the cap it
+ * first removes results a later one replaced for the same check and month,
+ * oldest first, so every month keeps its latest result; only then does it
+ * remove the oldest months. `removed` counts what it took out.
+ */
+export function trimReviewRecords(records: readonly ReviewRecord[]): {
+  records: ReviewRecord[];
+  removed: number;
+} {
+  if (records.length <= MAX_REVIEW_RECORDS) return { records: [...records], removed: 0 };
+  const latest = new Set<string>();
+  const superseded: number[] = [];
+  records.forEach((record, index) => {
+    const slot = `${record.key}\u0000${record.period}`;
+    if (latest.has(slot)) superseded.push(index);
+    else latest.add(slot);
+  });
+  const drop = new Set(superseded.slice(-(records.length - MAX_REVIEW_RECORDS)));
+  const kept = records.filter((_, index) => !drop.has(index)).slice(0, MAX_REVIEW_RECORDS);
+  return { records: kept, removed: records.length - kept.length };
+}
+
+/** What the Monthly review says when saving a result removed older ones past the cap. */
+export function reviewTrimNotice(removed: number): string {
+  return `Precog kept the newest ${MAX_REVIEW_RECORDS.toLocaleString("en-US")} monthly results and removed ${removed.toLocaleString("en-US")} older ${removed === 1 ? "one" : "ones"}.`;
 }
 
 /** A result as the screen and the printed report name it. */
@@ -221,11 +254,22 @@ export function latestReview(
   return records.find((r) => r.key === key && r.period === period);
 }
 
-/** Append a result. The previous result for that item and month stays in the list. */
+/**
+ * Append a result. The previous result for that item and month stays in the
+ * list until the list passes MAX_REVIEW_RECORDS (see `trimReviewRecords`).
+ */
 export function recordReview(
   records: readonly ReviewRecord[],
   input: Omit<ReviewRecord, "recordedAt"> & { recordedAt?: string },
 ): ReviewRecord[] {
+  return appendReview(records, input).records;
+}
+
+/** `recordReview`, with how many older results the cap removed. */
+export function appendReview(
+  records: readonly ReviewRecord[],
+  input: Omit<ReviewRecord, "recordedAt"> & { recordedAt?: string },
+): { records: ReviewRecord[]; removed: number } {
   const next: ReviewRecord = {
     key: input.key,
     period: input.period,
@@ -234,7 +278,7 @@ export function recordReview(
     notes: input.notes.trim().slice(0, 500),
     recordedAt: input.recordedAt ?? new Date().toISOString(),
   };
-  return [next, ...records].slice(0, MAX_REVIEW_RECORDS);
+  return trimReviewRecords([next, ...records]);
 }
 
 function reviewerFor(

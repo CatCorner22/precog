@@ -7,6 +7,7 @@ import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { applyAssignmentsToPeople } from "@/lib/precog/sod/apply-assignments";
 import { diffAssignments, type AssignmentChange } from "@/lib/precog/sod/assignment-diff";
 import { buildAssignments } from "@/lib/precog/sod/detect";
+import { UNREADABLE_BASELINE_MESSAGE } from "@/lib/precog/sod/duty-baseline";
 import { useDutyBaseline } from "./use-duty-baseline";
 import { cn } from "@/lib/utils";
 
@@ -19,8 +20,10 @@ export function ChangeReviewCard() {
   const { profile, setCustomPeople } = usePractice();
   const assignments = useMemo(() => buildAssignments(tpl), [tpl]);
   const { baseline, acceptBaseline } = useDutyBaseline(assignments, profile.businessId);
+  // An unreadable stored baseline lists no changes and says so: today's
+  // duties are not the accepted ones, and Discard has nothing to go back to.
   const pendingChanges = useMemo(
-    () => diffAssignments(baseline, assignments),
+    () => (baseline ? diffAssignments(baseline, assignments) : []),
     [baseline, assignments],
   );
 
@@ -45,7 +48,8 @@ export function ChangeReviewCard() {
                   `Discard ${count} pending change${count === 1 ? "" : "s"} and go back to the duties you last accepted? You cannot undo this.`,
                 )
               ) {
-                setCustomPeople((people) => applyAssignmentsToPeople(people, baseline));
+                if (baseline)
+                  setCustomPeople((people) => applyAssignmentsToPeople(people, baseline));
               }
             }}
             disabled={!pendingChanges.length}
@@ -56,7 +60,7 @@ export function ChangeReviewCard() {
           <Button
             size="sm"
             onClick={() => acceptBaseline(assignments)}
-            disabled={!pendingChanges.length}
+            disabled={baseline !== undefined && !pendingChanges.length}
           >
             <Check className="size-3.5" />
             Accept baseline
@@ -64,7 +68,9 @@ export function ChangeReviewCard() {
         </div>
       </CardHeader>
       <CardContent>
-        {pendingChanges.length ? (
+        {!baseline ? (
+          <p className="text-sm text-warn">{UNREADABLE_BASELINE_MESSAGE}</p>
+        ) : pendingChanges.length ? (
           <>
             <div className="mb-3 flex flex-wrap gap-2">
               <Badge variant="accent">{pendingChanges.length} pending</Badge>

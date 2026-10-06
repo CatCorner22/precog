@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createPowerMapFile, normalizeRoleAssignments, readRoleAssignments } from "./model-io";
+import {
+  createPowerMapFile,
+  MAX_PEOPLE_STORED,
+  normalizeRoleAssignments,
+  readRoleAssignments,
+} from "./model-io";
 
 const good = { personId: "a", personName: "Ana", role: "Clerk", entitlements: ["collect_cash"] };
 
@@ -31,5 +36,17 @@ describe("readRoleAssignments", () => {
   it("keeps a stored list all or nothing", () => {
     expect(normalizeRoleAssignments([good])).toHaveLength(1);
     expect(normalizeRoleAssignments([good, { ...good, personId: "" }])).toBeUndefined();
+  });
+
+  // ST-SCALE-2: the 100-person cap on an imported file also dropped a stored
+  // baseline or snapshot of a larger team.
+  it("caps an imported file at 100 people and a stored list at the team a business holds", () => {
+    const team = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ ...good, personId: `p${i}`, personName: `P ${i}` }));
+    expect(readRoleAssignments(team(100)).assignments).toHaveLength(100);
+    expect(readRoleAssignments(team(101)).problem).toBe("A map holds at most 100 people.");
+    expect(normalizeRoleAssignments(team(400))).toHaveLength(400);
+    expect(normalizeRoleAssignments(team(MAX_PEOPLE_STORED))).toHaveLength(MAX_PEOPLE_STORED);
+    expect(normalizeRoleAssignments(team(MAX_PEOPLE_STORED + 1))).toBeUndefined();
   });
 });
