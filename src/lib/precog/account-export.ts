@@ -75,6 +75,8 @@ export interface AccountExport {
     reviewedBy: string | null;
     reviewedAt: string | null;
     reviewNote: string;
+    /** Why someone reviewed in the assigned reviewer's place (migration 0056); null otherwise. */
+    reviewOverrideNote: string | null;
     sentAt: string | null;
     /** The firm's name and letterhead as frozen at lock; null before migration 0041 and for a solo business. */
     firm: { name: string; letterhead: string; logoDataUrl: string | null } | null;

@@ -9,29 +9,190 @@ import {
   REVIEW_WORKFLOW_TEXT,
   reviewRequestedToast,
   SHARED_BUSINESS_NOTE,
-  signOffWithNote,
+  canWithdrawReview,
+  needsOverrideNote,
+  overrideLine,
+  overrideNoteLabel,
+  overrideNoteReady,
+  signOffDialogText,
+  SIGN_OFF_TEXT,
+  supersededBy,
+  supersededLabel,
+  withdrawConfirmText,
 } from "./report-versions-actions";
 
-describe("signOffWithNote", () => {
-  it("records nothing when the reviewer cancels the prompt", async () => {
-    const send = vi.fn(async (note: string) => ({ note }));
-    await expect(signOffWithNote(3, send, () => null)).resolves.toBeNull();
-    expect(send).not.toHaveBeenCalled();
-  });
-
-  it("records the review with an empty note on OK, and with the note when one is typed", async () => {
-    const send = vi.fn(async (note: string) => ({ note }));
-    await expect(signOffWithNote(3, send, () => "")).resolves.toEqual({ note: "" });
-    await expect(signOffWithNote(3, send, () => "Tied to the ledger")).resolves.toEqual({
-      note: "Tied to the ledger",
+describe("the sign-off dialog", () => {
+  it("names the version, the preparer and an independent review", () => {
+    expect(
+      signOffDialogText({
+        versionNo: 7,
+        preparerName: "Ada Park",
+        sole: false,
+        supersededBy: null,
+      }),
+    ).toEqual({
+      title: "Review version 7 for issuance?",
+      lines: ["Prepared by Ada Park", "Independent review"],
+      confirm: "Review for issuance",
     });
-    expect(send).toHaveBeenCalledTimes(2);
   });
 
-  it("names the version in the question", async () => {
-    const ask = vi.fn(() => null);
-    await signOffWithNote(7, async () => undefined, ask);
-    expect(ask).toHaveBeenCalledWith(expect.stringContaining("Review version 7 for issuance?"));
+  it("says a preparer issuing alone is not an independent review, and names a newer version", () => {
+    expect(
+      signOffDialogText({ versionNo: 2, preparerName: null, sole: true, supersededBy: 4 }),
+    ).toEqual({
+      title: "Issue version 2 without an independent review?",
+      lines: [
+        "Prepared by a firm member",
+        "Not an independent review",
+        "Superseded by version 4: a newer version exists.",
+      ],
+      confirm: "Issue without an independent review",
+    });
+  });
+
+  it("names the remaining sign-off words", () => {
+    expect(SIGN_OFF_TEXT).toEqual({
+      heading: "Review this version",
+      openToReview: "Open to review",
+      review: "Review for issuance",
+      issueAlone: "Issue without an independent review",
+      independent: "Independent review",
+      notIndependent: "Not an independent review",
+      cancel: "Cancel",
+      note: "Note for the file (optional)",
+      reviewed: "Reviewed for issuance.",
+      failed: "Precog did not record the review.",
+      withdraw: "Withdraw review",
+      keep: "Keep the review",
+      withdrawn: "Review withdrawn. The version reads as not reviewed for issuance.",
+      withdrawFailed: "Precog did not withdraw the review.",
+    });
+  });
+});
+
+describe("superseded versions", () => {
+  const list = [
+    { id: "c", versionNo: 3 },
+    { id: "b", versionNo: 2 },
+    { id: "a", versionNo: 1 },
+  ];
+  it("names the newest version above this one", () => {
+    expect(supersededBy(list[2], list)).toBe(3);
+    expect(supersededBy(list[1], list)).toBe(3);
+    expect(supersededBy(list[0], list)).toBeNull();
+    expect(supersededLabel(3)).toBe("Superseded by version 3");
+  });
+});
+
+describe("the override note", () => {
+  it("is needed when someone other than the assigned reviewer reviews", () => {
+    const version = { preparedBy: "prep" };
+    expect(needsOverrideNote({ version, viewerId: "own", assignedReviewerUserId: "rev" })).toBe(
+      true,
+    );
+    expect(needsOverrideNote({ version, viewerId: "rev", assignedReviewerUserId: "rev" })).toBe(
+      false,
+    );
+    expect(needsOverrideNote({ version, viewerId: "own", assignedReviewerUserId: null })).toBe(
+      false,
+    );
+  });
+
+  it("is not needed on a version the assigned reviewer prepared, as the server counts it", () => {
+    // assignedReviewerFor leaves out the preparer, so no one is assigned to that version.
+    expect(
+      needsOverrideNote({
+        version: { preparedBy: "rev" },
+        viewerId: "own",
+        assignedReviewerUserId: "rev",
+      }),
+    ).toBe(false);
+  });
+
+  it("takes 10 to 600 characters after trimming", () => {
+    expect(overrideNoteReady("  short  ")).toBe(false);
+    expect(overrideNoteReady(" Bea is on leave ")).toBe(true);
+    expect(overrideNoteReady("x".repeat(600))).toBe(true);
+    expect(overrideNoteReady("x".repeat(601))).toBe(false);
+    expect(overrideNoteLabel("Bea Lin")).toBe(
+      "Why you review in place of the assigned reviewer Bea Lin (10 to 600 characters)",
+    );
+    expect(overrideNoteLabel(null)).toBe(
+      "Why you review in place of the assigned reviewer (10 to 600 characters)",
+    );
+  });
+
+  it("prints who signed in whose place, and why", () => {
+    const signed = {
+      reviewOverrideNote: "Bea is on leave.",
+      reviewedBy: "own",
+      reviewedByName: "Owen Owner",
+    };
+    expect(overrideLine(signed, { userId: "rev", name: "Bea Lin" })).toBe(
+      "Signed by Owen Owner instead of the assigned reviewer Bea Lin: Bea is on leave.",
+    );
+    // The engagement now names the signer, or nobody Precog can name.
+    expect(overrideLine(signed, { userId: "own", name: "Owen Owner" })).toBe(
+      "Signed by Owen Owner instead of the assigned reviewer: Bea is on leave.",
+    );
+    expect(overrideLine(signed, null)).toBe(
+      "Signed by Owen Owner instead of the assigned reviewer: Bea is on leave.",
+    );
+    expect(overrideLine({ ...signed, reviewOverrideNote: null }, null)).toBeNull();
+  });
+});
+
+describe("withdrawing a review", () => {
+  const reviewed = { reviewedAt: "2026-10-07T09:00:00.000Z", reviewedBy: "rev", sentAt: null };
+  const firm = (role: "owner" | "reviewer" | "preparer" | null) => ({ firm: true, role });
+
+  it("is for the signer and the firm owner, before the version is sent", () => {
+    expect(canWithdrawReview({ version: reviewed, viewerId: "rev", work: firm("reviewer") })).toBe(
+      true,
+    );
+    expect(canWithdrawReview({ version: reviewed, viewerId: "own", work: firm("owner") })).toBe(
+      true,
+    );
+    expect(canWithdrawReview({ version: reviewed, viewerId: "rev2", work: firm("reviewer") })).toBe(
+      false,
+    );
+    expect(
+      canWithdrawReview({
+        version: { ...reviewed, sentAt: "2026-10-08T09:00:00.000Z" },
+        viewerId: "own",
+        work: firm("owner"),
+      }),
+    ).toBe(false);
+    expect(
+      canWithdrawReview({
+        version: { ...reviewed, reviewedAt: null, reviewedBy: null },
+        viewerId: "own",
+        work: firm("owner"),
+      }),
+    ).toBe(false);
+  });
+
+  it("is not for the owner of another firm on a solo business, nor for a reader", () => {
+    // On a business with no firm, the server lets only the signer withdraw.
+    expect(
+      canWithdrawReview({
+        version: reviewed,
+        viewerId: "own",
+        work: { firm: false, role: "owner" },
+      }),
+    ).toBe(false);
+    expect(
+      canWithdrawReview({ version: reviewed, viewerId: "rev", work: firm(null), readOnly: true }),
+    ).toBe(false);
+  });
+
+  it("says what withdrawing does, without the irreversible warning", () => {
+    const text = withdrawConfirmText(3);
+    expect(text).toBe(
+      "Withdraw the review of version 3? It reads as not reviewed for issuance again: nobody can mark it sent or share it, and its report links stop opening it, until someone reviews it again. The activity log records the withdrawal.",
+    );
+    expect(text).not.toContain("You cannot undo this.");
   });
 });
 
@@ -105,6 +266,18 @@ describe("request-and-return buttons", () => {
     expect(
       reviewButtonsFor({ version: fresh, viewerId: "ada", role: "owner", firmClient: true }),
     ).toEqual({ ask: true, issueAlone: true, reviewOrReturn: false });
+  });
+
+  it("drops Issue alone when the review rules refuse it", () => {
+    expect(
+      reviewButtonsFor({
+        version: fresh,
+        viewerId: "ada",
+        role: "preparer",
+        firmClient: true,
+        canIssueAlone: false,
+      }),
+    ).toEqual({ ask: true, issueAlone: false, reviewOrReturn: false });
   });
 
   it("offers the firm owner Ask for review on a version someone else prepared, beside Review and Return", () => {

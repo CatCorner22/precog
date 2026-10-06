@@ -243,8 +243,8 @@ const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][numb
     key: `business_id${SEP}lpad((2147483647 - version_no)::text, 10, '0')`,
     desc: false,
     columns: `id, business_id, version_no, revision, scope_note, prepared_by, prepared_at,
-      reviewed_by, reviewed_at, review_note, sent_at, firm_name, firm_letterhead,
-      md5(firm_logo_data_url) as firm_logo_id, engagement_scope, engagement_period_start,
+      reviewed_by, reviewed_at, review_note, review_override_note, sent_at, firm_name,
+      firm_letterhead, md5(firm_logo_data_url) as firm_logo_id, engagement_scope, engagement_period_start,
       engagement_period_end, review_requested_at, review_requested_by, review_requested_from,
       returned_at, returned_by, return_note, profile`,
     map: (r: {
@@ -258,6 +258,7 @@ const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][numb
       reviewed_by: string | null;
       reviewed_at: string | null;
       review_note: string;
+      review_override_note: string | null;
       sent_at: string | null;
       firm_name: string | null;
       firm_letterhead: string | null;
@@ -283,6 +284,7 @@ const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][numb
       reviewedBy: r.reviewed_by,
       reviewedAt: toIsoTimestampOrNull(r.reviewed_at),
       reviewNote: r.review_note,
+      reviewOverrideNote: r.review_override_note,
       sentAt: toIsoTimestampOrNull(r.sent_at),
       firm:
         r.firm_name === null

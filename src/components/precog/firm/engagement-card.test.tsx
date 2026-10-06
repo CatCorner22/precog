@@ -32,6 +32,7 @@ const {
   REOPEN_ENGAGEMENT,
   REVIEWER_LABEL,
   SAVE_ENGAGEMENT,
+  ENGAGEMENT_OWNER_SETS,
   SCOPE_LABEL,
   endEngagementPrompt,
   engagementStatusText,
@@ -108,7 +109,7 @@ describe("the engagement block", () => {
   });
 
   it("prints the fields, the members by name or address, and the status", () => {
-    const html = form(active, false);
+    const html = form(active, true);
     for (const text of [
       ENGAGEMENT_HEADING,
       SCOPE_LABEL,
@@ -130,6 +131,19 @@ describe("the engagement block", () => {
     expect(html).toContain(">Ola North</option>");
     expect(html).toContain(">rev@n.test</option>");
     expect(html).not.toContain('disabled=""');
+  });
+
+  it("shows a preparer or reviewer the engagement read-only, with no Save", () => {
+    // saveEngagement refuses anyone but the firm owner (CPA-8).
+    const html = form(active, false);
+    expect(html).toContain(">Duty map</textarea>");
+    expect(html).not.toContain(SAVE_ENGAGEMENT);
+    expect(html.match(/disabled=""/g)?.length).toBe(5); // scope, two dates, two selects
+    expect(html).toContain(ENGAGEMENT_OWNER_SETS);
+    expect(ENGAGEMENT_OWNER_SETS).toBe(
+      "The firm owner sets the scope, the period, the preparer and the reviewer. You can read them here.",
+    );
+    expect(form(active, true)).not.toContain(ENGAGEMENT_OWNER_SETS);
   });
 
   it("gives the owner alone End or Reopen", () => {

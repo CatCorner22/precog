@@ -346,6 +346,12 @@ describe("account export of the batch 3 columns", () => {
          ('rv_2', 'ua', 'biz_1', 2, '{}'::jsonb, 'ua', null, null, null,
          null, null, null, null, null, '')`,
     );
+    // Reviewed in the assigned reviewer's place (migration 0056).
+    await pg.query(
+      `update report_versions set reviewed_by = 'ua', reviewed_at = '2026-10-04T00:00:00Z',
+         review_override_note = 'The assigned reviewer is on leave.'
+       where id = 'rv_2'`,
+    );
 
     const out = await exportAccountRows(sql, "ua");
     expect(out.billing?.subscriptionPriceId).toBe("price_tier_2");
@@ -368,8 +374,10 @@ describe("account export of the batch 3 columns", () => {
       returnedAt: "2026-10-03T00:00:00.000Z",
       returnedBy: "ub",
       returnNote: "Add payroll.",
+      reviewOverrideNote: null,
     });
     expect(v2).toMatchObject({
+      reviewOverrideNote: "The assigned reviewer is on leave.",
       engagement: null,
       reviewRequestedAt: null,
       reviewRequestedBy: null,

@@ -40,7 +40,7 @@ import {
   type ReportVersionRow,
 } from "@/lib/precog/firm/reports";
 import type { FirmSnapshot } from "@/lib/precog/firm/store";
-import { ReportVersionsPanel } from "@/components/precog/report-versions";
+import { OpenVersionReview, ReportVersionsPanel } from "@/components/precog/report-versions";
 import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
 import { fixFirstOf } from "@/lib/precog/threat-scoring";
 import { RISK_SCALE } from "@/lib/precog/scoring/bands";
@@ -83,6 +83,8 @@ import { count, firstName, midSentence, verb } from "@/lib/precog/text";
  * footer are standing statements printed around the stored figures, so a
  * locked version's figures print unchanged. The report offers no "sent"
  * stamp: only a reviewed version is marked sent, from the versions panel.
+ * A locked version shows its review controls (OpenVersionReview) in place
+ * of that panel, so a reviewer signs the version they are reading.
  * With `shared`, the page is a share link's: the toolbar (the way back into
  * Precog and Print) and the versions panel stay off; the share page's own
  * bar carries Print.
@@ -225,7 +227,7 @@ export function ControlReport({
           </div>
         </div>
       )}
-      {!locked && !shared && <ReportVersionsPanel />}
+      {!shared && (locked ? <OpenVersionReview version={locked} /> : <ReportVersionsPanel />)}
 
       <article className="mx-auto max-w-4xl px-6 py-8 print:px-0 print:py-0">
         {draft && (
