@@ -17,7 +17,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:postgres": "npm run test:postgres:migrations && npm run test:postgres:quota && npm run test:postgres:lifecycle && npm run test:postgres:evidence",
+    "test:postgres": "npm run test:postgres:migrations && npm run test:postgres:quota && npm run test:postgres:lifecycle && npm run test:postgres:evidence && npm run test:postgres:races",
     "test:postgres:migrations": "node scripts/test-migrations-postgres.mjs",
     "test:postgres:quota": "node --experimental-strip-types scripts/test-quota-postgres.mjs",
     "test:postgres:lifecycle": "vitest run src/lib/precog/business-lifecycle-safety.test.ts",
@@ -42,7 +42,8 @@
     "verify": "npm run format:check && npm run typecheck && npm run lint && npm test && npm run build && npm run check:bundle",
     "test:evidence:http": "node scripts/test-control-evidence-http.mjs",
     "e2e:evidence": "node scripts/e2e-control-evidence.mjs",
-    "test:postgres:evidence": "node scripts/test-control-evidence-postgres.mjs"
+    "test:postgres:evidence": "node scripts/test-control-evidence-postgres.mjs",
+    "test:postgres:races": "node scripts/test-postgres-races.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",

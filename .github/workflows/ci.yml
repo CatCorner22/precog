@@ -71,7 +71,7 @@ jobs:
   migrations:
     name: Migrations against real Postgres, applied twice
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
@@ -121,6 +121,13 @@ jobs:
 
       - name: Control evidence on concurrent real PostgreSQL connections
         run: npm run test:postgres:evidence
+        env:
+          PRECOG_LIFECYCLE_POSTGRES: "1"
+
+      # Every other src/**/*.postgres.test.ts: account deletion, Firm billing
+      # order, membership, plan limits and share revocation races.
+      - name: Account, firm, billing and share races on concurrent real PostgreSQL connections
+        run: npm run test:postgres:races
         env:
           PRECOG_LIFECYCLE_POSTGRES: "1"
 
@@ -229,6 +236,8 @@ jobs:
           exit 1
       - name: Signed sessions and account boundaries
         run: npm run e2e:safety
+      - name: Edits survive a failed account load, a newer release and full browser storage
+        run: npm run e2e:save-safety
       - name: First-load JavaScript per page, against each page's budget
         run: npm run perf:first-load -- http://localhost:8080
       - name: Control evidence workflow in the browser (isolated embedded database)
@@ -247,6 +256,7 @@ jobs:
           name: authenticated-safety-failure
           path: |
             artifacts/account-safety-failure.png
+            artifacts/save-safety-failure.png
             artifacts/compiled-tabs-failure.png
             artifacts/control-evidence/
             compiled-test.log
