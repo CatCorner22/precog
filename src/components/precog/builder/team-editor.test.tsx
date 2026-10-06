@@ -5,9 +5,28 @@ import { toast } from "sonner";
 import { defaultProfile } from "@/lib/precog/practice-profile";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
 import type { Person } from "@/lib/precog/types";
-import { ConfirmTitleDuties, TeamEditor } from "./team-editor";
+import { getIndustryTemplate } from "@/lib/precog/templates";
+import { parsePeopleCsv } from "@/lib/precog/import/people-csv";
+import { createHookRuntime, type HookRuntime } from "@/test/hook-runtime";
+import { ConfirmTitleDuties, HouseholdMarkInput, putImportedTeam, TeamEditor } from "./team-editor";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+// The household field runs as a plain function under src/test/hook-runtime.ts,
+// so a test can type into it without a DOM renderer; everything else renders
+// with React.
+const hooks = vi.hoisted(() => ({ runtime: null as HookRuntime | null }));
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return {
+    ...actual,
+    useState: (init: unknown) =>
+      hooks.runtime?.active ? hooks.runtime.useState(init) : actual.useState(init),
+    useEffect: (effect: () => void, deps?: unknown[]) =>
+      hooks.runtime?.active
+        ? hooks.runtime.useEffect(effect, deps)
+        : actual.useEffect(effect, deps),
+  };
+});
 
 const people: Person[] = [
   { id: "p-ana", name: "Ana Ruiz", role: "Bookkeeper", active: true, dutiesFromTitle: true },
@@ -59,5 +78,94 @@ describe("Team's per-person Confirm duties", () => {
     expect(next[1]).toBe(people[1]);
     expect(next[2]).toBe(people[2]);
     expect(toast.success).toHaveBeenCalledWith("Ana Ruiz's duties confirmed.");
+  });
+});
+
+describe("Household mark field", () => {
+  type Input = {
+    props: {
+      value: string;
+      onChange: (e: { target: { value: string } }) => void;
+      onBlur: () => void;
+    };
+  };
+  const runtime = createHookRuntime();
+  function mount(value: string | undefined, onCommit: (next: string | undefined) => void) {
+    hooks.runtime = runtime;
+    runtime.reset();
+    const render = () =>
+      runtime.render(() => HouseholdMarkInput({ value, onCommit })) as unknown as Input;
+    return { render, type: (text: string) => render().props.onChange({ target: { value: text } }) };
+  }
+
+  it("keeps the space while 'Smith Jones' is typed, and saves it after a pause", () => {
+    vi.useFakeTimers();
+    try {
+      const onCommit = vi.fn();
+      const field = mount(undefined, onCommit);
+      field.render();
+      for (let i = 1; i <= "Smith Jones".length; i++) {
+        field.type("Smith Jones".slice(0, i));
+        expect(field.render().props.value).toBe("Smith Jones".slice(0, i));
+      }
+      expect(onCommit).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(350);
+      expect(onCommit).toHaveBeenCalledTimes(1);
+      expect(onCommit).toHaveBeenCalledWith("Smith Jones");
+    } finally {
+      runtime.reset();
+      hooks.runtime = null;
+      vi.useRealTimers();
+    }
+  });
+
+  it("saves the mark trimmed when the owner leaves the field, and an empty field clears it", () => {
+    const onCommit = vi.fn();
+    const field = mount("Smith", onCommit);
+    field.render();
+    field.type("  Smith Jones  ");
+    field.render().props.onBlur();
+    expect(onCommit).toHaveBeenLastCalledWith("Smith Jones");
+    field.type("   ");
+    field.render().props.onBlur();
+    expect(onCommit).toHaveBeenLastCalledWith(undefined);
+    runtime.reset();
+    hooks.runtime = null;
+  });
+});
+
+describe("Undo after a team import that replaced the team", () => {
+  const general = getIndustryTemplate("general");
+
+  it("puts back the team as it was before the import", () => {
+    const before = general.people;
+    const result = parsePeopleCsv("Name,Job Title\nZed Park,Cashier\nYu Lin,Bookkeeper", general);
+    expect(result.removed.length).toBe(before.length);
+    const onChange = vi.fn();
+    vi.mocked(toast.success).mockClear();
+    putImportedTeam({ people: before, result, replace: true, issueCount: 0, onChange });
+    expect(onChange).toHaveBeenLastCalledWith(result.people);
+    const [message, options] = vi.mocked(toast.success).mock.calls[0];
+    expect(message).toBe(
+      `Read 2 people: 2 added, 0 updated, 0 unchanged, ${before.length} removed; 2 job titles read from the catalog`,
+    );
+    const action = (options as { action: { label: string; onClick: () => void } }).action;
+    expect(action.label).toBe("Undo");
+    action.onClick();
+    expect(onChange).toHaveBeenLastCalledWith(before);
+    expect(toast.success).toHaveBeenLastCalledWith("The team is back as it was before the import.");
+  });
+
+  it("offers no Undo for an import that only adds and updates", () => {
+    const result = parsePeopleCsv("Name,Job Title\nZed Park,Cashier", general);
+    vi.mocked(toast.success).mockClear();
+    putImportedTeam({
+      people: general.people,
+      result,
+      replace: false,
+      issueCount: 0,
+      onChange: vi.fn(),
+    });
+    expect(vi.mocked(toast.success).mock.calls[0][1]).toBeUndefined();
   });
 });

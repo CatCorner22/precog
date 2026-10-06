@@ -1,5 +1,7 @@
 import * as z from "zod/mini";
+import { MAX_BUSINESS_NAME } from "../business-id";
 import type { IndustryId } from "../industry";
+import { stripInvisibleControls } from "../text";
 import { peopleFromBackup } from "../import/people-backup";
 import { normalizeSystems, parseCadence } from "../process-record";
 import { IDEA_CATEGORIES, IDEA_STATUSES, LEVELS, RISK_KINDS, WASTE_KINDS } from "../process-vocab";
@@ -13,6 +15,8 @@ export interface MapBackup {
   /** The backup's team, each field checked (empty when the backup has none). */
   people: Person[];
   layout: Record<string, { x: number; y: number }>;
+  /** The business name the backup was exported under, checked; "" when it has none. */
+  businessName: string;
   /** Processes, risks, ideas, waste, evidence and positions left out as malformed. */
   dropped: number;
 }
@@ -26,7 +30,10 @@ export function mapBackupSizeRefusal(bytes: number): string | null {
   return `This file is too large to import (${Math.ceil(bytes / 1024 / 1024)} MB; the limit is 2 MB). Export a smaller map, or split it first.`;
 }
 
-/** The JSON backup the builder's Export writes. */
+/**
+ * The JSON file the builder's Export writes: the process map and the team
+ * only, with the business name. It is not a backup of the whole business.
+ */
 export function mapBackupJson(backup: {
   industry: IndustryId;
   businessName: string;
@@ -62,7 +69,7 @@ export function parseMapBackup(raw: unknown): MapBackup {
     raw,
   );
   if (!file.success) throw new Error("The file has no processes to restore.");
-  const record = raw as { people?: unknown; layout?: unknown };
+  const record = raw as { people?: unknown; layout?: unknown; businessName?: unknown };
   let dropped = 0;
   const keep = <T>(items: unknown, schema: z.ZodMiniType<T>): T[] => {
     if (!Array.isArray(items)) return [];
@@ -108,7 +115,11 @@ export function parseMapBackup(raw: unknown): MapBackup {
     }
   }
 
-  return { processes, people: peopleFromBackup(record.people), layout, dropped };
+  const businessName =
+    typeof record.businessName === "string"
+      ? stripInvisibleControls(record.businessName).trim().slice(0, MAX_BUSINESS_NAME).trim()
+      : "";
+  return { processes, people: peopleFromBackup(record.people), layout, businessName, dropped };
 }
 
 /** A list of strings, keeping only the strings. */

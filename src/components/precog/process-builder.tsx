@@ -65,7 +65,8 @@ import type { MapValidationIssue } from "@/lib/precog/process-validation";
 import { enrichProcess, processMapContext } from "@/lib/precog/process-graph";
 import { residualScope } from "@/lib/precog/scoring/scope";
 import { validateProcessMap } from "@/lib/precog/process-validation";
-import { usePractice, useTemplate } from "@/lib/precog/practice-context";
+import { needsOwnName, ownBusinessName } from "@/lib/precog/business-lifecycle";
+import { usePractice, usePracticeSync, useTemplate } from "@/lib/precog/practice-context";
 import { teamSource } from "@/lib/precog/team-source";
 import { useTabName } from "@/lib/precog/presentation";
 import { count, slug, uniqueId } from "@/lib/precog/text";
@@ -112,7 +113,9 @@ export function ProcessBuilder({
     saveMapVersion,
     deleteMapVersion,
     restoreMapVersion,
+    setPracticeName,
   } = usePractice();
+  const { downloadRecovery } = usePracticeSync();
   const processes = tpl.processes;
   const [panels, setPanels] = useState<ReadonlySet<BuilderPanel>>(
     () => new Set(initialPanel ? [initialPanel] : []),
@@ -415,9 +418,20 @@ export function ProcessBuilder({
       });
       return;
     }
-    // Every person field the backup carries comes back: department, last
-    // day and employee id too, each checked.
+    // The file holds the map and the team only. Each person field it carries
+    // comes back checked: role, active, the owner mark, tenure, last day,
+    // duties, department, employee id, the duties-from-title mark and the
+    // household mark. The register, procedures, reviews and the rest of the
+    // business are not in the file and stay as they are.
     if (backup.people.length) setCustomPeople(backup.people);
+    // A business still without a name of its own (the sample's name, once
+    // the file's team replaces the sample's, or setup's "My business") takes
+    // the file's name; one the owner has named keeps its name.
+    const unnamed =
+      needsOwnName(profile) || (!ownBusinessName(profile) && backup.people.length > 0);
+    if (backup.businessName && unnamed) {
+      setPracticeName(backup.businessName);
+    }
     const importIssues = validateProcessMap(
       backup.processes,
       backup.people.length ? backup.people : tpl.people,
@@ -556,6 +570,7 @@ export function ProcessBuilder({
             onSpreadsheet={() => toggle("spreadsheet")}
             onExport={exportMap}
             onImportFile={(f) => void importMap(f)}
+            onRecoveryCopy={downloadRecovery}
             onShare={() => toggle("share")}
             onSampleMap={resetToTemplate}
             onSaveVersion={saveVersion}
