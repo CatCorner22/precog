@@ -7,12 +7,21 @@ import type { Sql } from "@/lib/db";
 import { AUDIT_BYPASS_SQL, openTestDb, type TestDb } from "@/test/pglite";
 import {
   deleteAccountRows,
+  encodeExportPage,
   encodeHistoryPage,
+  exportAccountPage,
   exportAccountRows,
   exportBusinessHistoryPage,
   HISTORY_PAGE_BYTES,
   listAccountHistoryBusinesses,
 } from "./account-store";
+import {
+  assembleAccountExport,
+  decodeExportPage,
+  inlineReportLogos,
+  type ExportPage,
+  type ExportPartRequest,
+} from "./account-export";
 import { removeMember } from "./firm/store";
 
 /** Vercel's response body limit. */
@@ -848,7 +857,7 @@ describe("a business its owner shared with a firm", () => {
 
 describe("the export's column notes", () => {
   it("name the migration that adds the subscription's price", () => {
-    const source = readFileSync(join(process.cwd(), "src/lib/precog/account-store.ts"), "utf8");
+    const source = readFileSync(join(process.cwd(), "src/lib/precog/account-export.ts"), "utf8");
     const note = source.match(/The Stripe price the subscription runs on \(migration (\d{4})\)/);
     expect(note?.[1]).toBeDefined();
     const dir = join(process.cwd(), "migrations");
@@ -857,5 +866,122 @@ describe("the export's column notes", () => {
     expect(readFileSync(join(dir, file ?? ""), "utf8")).toContain(
       "add column if not exists subscription_price_id",
     );
+  });
+});
+
+describe("the account export in parts (STAB-S-2)", () => {
+  const LOGO = `data:image/png;base64,${"A".repeat(80_000)}`;
+  const OLD_LOGO = `data:image/png;base64,${"B".repeat(80_000)}`;
+
+  /** Fetches every part as the browser does, checking each one's size on the wire. */
+  async function download(userId: string, firmUserId: string | null) {
+    const pages: ExportPage[] = [];
+    let parts: ExportPartRequest[] = [{ section: "account" }];
+    for (let i = 0; i < parts.length; i += 1) {
+      const sent = await exportAccountPage(sql, userId, firmUserId, parts[i]);
+      if (i === 0) parts = [parts[0], ...(sent.parts ?? [])];
+      expect(Buffer.byteLength(JSON.stringify(sent.page))).toBeLessThanOrEqual(HISTORY_PAGE_BYTES);
+      const base64 = encodeExportPage(sent.page);
+      expect(wireBytes({ base64, parts: sent.parts })).toBeLessThan(VERCEL_RESPONSE_BYTES);
+      expect(decodeExportPage(base64)).toEqual(sent.page);
+      pages.push(decodeExportPage(base64));
+    }
+    return { pages, parts };
+  }
+
+  it("pages a firm with 60 report versions and a logo, each part under 3 MB, into the single export's content", async () => {
+    await pg.exec(`
+      insert into firms (user_id, name, letterhead, logo_data_url)
+        values ('ua', 'North CPA', '1 Main St', '${LOGO}');
+      insert into firm_members (firm_user_id, member_user_id, role) values ('ua', 'ua', 'owner');
+      insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
+        select 'biz_' || g, 'ua', 'Client ' || g, 'dental',
+          jsonb_build_object('notes', repeat('p', 900000)), 1, now() - g * interval '1 hour'
+        from generate_series(2, 4) as g;
+      insert into report_versions (id, user_id, business_id, version_no, profile, firm_name,
+          firm_letterhead, firm_logo_data_url, prepared_at)
+        select 'rv_' || g, 'ua', 'biz_' || (g % 4 + 1), g,
+          jsonb_build_object('notes', repeat('"q"', 40000 + g * 100)), 'North CPA', '1 Main St',
+          case when g <= 5 then '${OLD_LOGO}' else '${LOGO}' end, now() - g * interval '1 day'
+        from generate_series(1, 60) as g;
+      insert into review_events (user_id, business_id, period, item_key, result, notes, recorded_at)
+        select 'ua', 'biz_1', '2026-09', 'bank_statement', 'done', repeat('n', 400),
+          now() - g * interval '1 minute'
+        from generate_series(1, 3000) as g;
+      insert into firm_audit_log (firm_user_id, actor_user_id, event)
+        select 'ua', 'ua', 'export_run' from generate_series(1, 50);
+    `);
+
+    // The single response this replaces is past Vercel's limit.
+    const whole = await exportAccountRows(sql, "ua", "ua");
+    expect(wireBytes({ json: JSON.stringify(whole, null, 2) })).toBeGreaterThan(
+      VERCEL_RESPONSE_BYTES,
+    );
+
+    const { pages, parts } = await download("ua", "ua");
+    // Each business on a part of its own; the versions over several.
+    expect(parts.filter((p) => p.section === "businesses")).toHaveLength(4);
+    expect(parts.filter((p) => p.section === "reportVersions").length).toBeGreaterThan(1);
+    expect(parts.filter((p) => p.section === "reviews").length).toBeGreaterThanOrEqual(1);
+
+    const file = assembleAccountExport(pages);
+    // Each logo the versions froze is in the file once; the firm's own once more.
+    expect(file.reportLogos.map((l) => l.dataUrl).sort()).toEqual([LOGO, OLD_LOGO]);
+    expect(JSON.stringify(file.reportVersions)).not.toContain("data:image");
+    expect(file.firm?.logoDataUrl).toBe(LOGO);
+    expect(file.reportVersions).toHaveLength(60);
+    expect(file.reviews).toHaveLength(3000);
+    expect(file.firmActivity).toHaveLength(50);
+
+    const { exportedAt: pagedAt, ...paged } = inlineReportLogos(file);
+    const { exportedAt: singleAt, ...single } = await exportAccountRows(sql, "ua", "ua");
+    expect(typeof pagedAt).toBe(typeof singleAt);
+    expect(paged).toEqual(single);
+    expect(Object.keys(inlineReportLogos(file))).toEqual(Object.keys(whole));
+  }, 60_000);
+
+  it("keeps the sections in the single export's order, newest first where it was", async () => {
+    await pg.exec(`
+      insert into businesses (id, user_id, name, industry, profile, revision, updated_at)
+        values ('biz_0', 'ua', 'Older', 'dental', '{}'::jsonb, 1, now() - interval '1 day');
+      insert into report_versions (id, user_id, business_id, version_no, profile)
+        values ('rv_a', 'ua', 'biz_1', 1, '{}'), ('rv_b', 'ua', 'biz_1', 2, '{}'),
+          ('rv_c', 'ua', 'biz_0', 1, '{}');
+    `);
+    // A budget of one byte puts every row on a part of its own.
+    const first = await exportAccountPage(sql, "ua", null, { section: "account" }, 1);
+    const pages: ExportPage[] = [first.page];
+    for (const part of first.parts ?? []) {
+      pages.push((await exportAccountPage(sql, "ua", null, part, 1)).page);
+    }
+    expect(pages.length).toBeGreaterThan(6);
+    const file = assembleAccountExport(pages);
+    expect(file.businesses.map((b) => b.id)).toEqual(["biz_1", "biz_0"]);
+    expect(file.reportVersions.map((v) => v.id)).toEqual(["rv_c", "rv_b", "rv_a"]);
+    const { exportedAt: pagedAt, ...paged } = inlineReportLogos(file);
+    const { exportedAt: singleAt, ...single } = await exportAccountRows(sql, "ua");
+    expect(typeof pagedAt).toBe(typeof singleAt);
+    expect(paged).toEqual(single);
+  });
+
+  it("reads only the caller's rows, whatever range a request names", async () => {
+    await pg.exec(`
+      insert into report_versions (id, user_id, business_id, version_no, profile)
+        values ('rv_b', 'ub', 'biz_1', 1, '{}');
+      insert into firm_audit_log (firm_user_id, actor_user_id, event) values ('ub', 'ub', 'export_run');
+    `);
+    const everything = { first: "", last: "\u{10FFFF}" };
+    for (const section of ["reportVersions", "firmActivity"] as const) {
+      const { page } = await exportAccountPage(sql, "ua", null, { section, ...everything });
+      expect(page).toEqual({ section, rows: [] });
+    }
+    // Newest first: the first key is the highest.
+    const { page } = await exportAccountPage(sql, "ua", null, {
+      section: "businesses",
+      first: everything.last,
+      last: everything.first,
+    });
+    expect(page.section === "businesses" && page.rows.map((b) => b.id)).toEqual(["biz_1"]);
+    expect(JSON.stringify(page)).not.toContain("ub@");
   });
 });

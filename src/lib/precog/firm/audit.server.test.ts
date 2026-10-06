@@ -7,6 +7,7 @@ vi.mock("@/lib/observability/report.server", () => ({ reportServerError: report.
 
 const {
   insertAudit,
+  insertAudits,
   listFirmActivity,
   purgeExpiredAudit,
   recordAudit,
@@ -79,6 +80,38 @@ describe("the activity log", () => {
     ]);
     const [newest] = await listFirmActivity(db.sql, "fo");
     expect(newest).toMatchObject({ event: "plan_changed", actorName: "", detail: {} });
+  });
+
+  it("writes several rows in one statement, in order, as one at a time would", async () => {
+    await insertAudits(db.sql, []);
+    await insertAudits(db.sql, [
+      { firmUserId: "fo", actorUserId: "fo", event: "client_handed_over", businessId: "biz_1" },
+      { firmUserId: "fo", actorUserId: "pp", event: "member_left", subjectUserId: "pp" },
+      { firmUserId: "fo", actorUserId: null, event: "plan_changed", detail: { to: "monthly" } },
+    ]);
+    expect(await logRows()).toEqual([
+      {
+        firm_user_id: "fo",
+        actor_name: "Fay Owner",
+        event: "client_handed_over",
+        business_id: "biz_1",
+      },
+      {
+        firm_user_id: "fo",
+        actor_name: "pp@example.test",
+        event: "member_left",
+        business_id: null,
+      },
+      { firm_user_id: "fo", actor_name: "", event: "plan_changed", business_id: null },
+    ]);
+    const rows = await db.sql<{ subject_user_id: string | null; detail: unknown }>`
+      select subject_user_id, detail from firm_audit_log order by id
+    `;
+    expect(rows).toEqual([
+      { subject_user_id: null, detail: {} },
+      { subject_user_id: "pp", detail: {} },
+      { subject_user_id: null, detail: { to: "monthly" } },
+    ]);
   });
 
   it("refuses an update or a delete from any connection", async () => {

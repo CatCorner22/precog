@@ -53,8 +53,9 @@ vi.mock("./account-store", () => ({
     calls.push("delete-committed");
     return { quickBooksRefreshTokens: [], stripeCustomerId: null };
   },
+  encodeExportPage: () => "",
   encodeHistoryPage: () => "",
-  exportAccountRows: async () => ({}),
+  exportAccountPage: async () => ({ page: null, parts: null }),
   exportBusinessHistoryPage: async () => ({ rows: [], nextBeforeRevision: null }),
   listAccountHistoryBusinesses: async () => [],
 }));

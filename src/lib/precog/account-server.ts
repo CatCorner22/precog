@@ -4,11 +4,13 @@ import { getSql } from "@/lib/db";
 import { RequestError, requireObject } from "@/lib/request-errors";
 import {
   deleteAccountRows,
+  encodeExportPage,
   encodeHistoryPage,
-  exportAccountRows,
+  exportAccountPage,
   exportBusinessHistoryPage,
   listAccountHistoryBusinesses,
 } from "./account-store";
+import { PAGED_EXPORT_SECTIONS, type ExportPartRequest } from "./account-export";
 import { isBusinessId } from "./profile-input";
 import { loadFirmFor, trustedEmailAddress } from "./firm/store";
 import { recordAuditForAccount } from "./firm/audit.server";
@@ -18,22 +20,47 @@ import { escapeHtml, type RenderedEmail } from "./reminders/email";
 import { decryptSecret, qboConfigured, revokeToken } from "./integrations/qbo/client.server";
 
 /**
- * Everything the account holds, for the owner to keep. Serialised here because
- * the stored JSON columns have no static shape the transport layer can check.
+ * One part of everything the account holds, for the owner to keep (see
+ * exportAccountPage): the first part (`account`) lists the others, which the
+ * browser fetches in order and joins into one file (assembleAccountExport).
+ * Each part is sent as base64 JSON, as a history page is, so its size on the
+ * wire stays under Vercel's 4.5 MB response limit whatever the rows hold.
+ * One export_run row per download, on its first part.
  */
-export const exportAccountData = createServerFn({ method: "GET" })
+export const exportAccountDataPage = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .handler(async ({ context }) => {
+  .validator(parseExportPartRequest)
+  .handler(async ({ context, data }) => {
     const sql = await getSql();
     const firmUserId = await ownedFirm(sql, context.userId);
-    const json = JSON.stringify(await exportAccountRows(sql, context.userId, firmUserId), null, 2);
-    await recordAuditForAccount(sql, context.userId, {
-      actorUserId: context.userId,
-      event: "export_run",
-      detail: { kind: "account" },
-    });
-    return { json };
+    const { page, parts } = await exportAccountPage(sql, context.userId, firmUserId, data);
+    if (data.section === "account") {
+      await recordAuditForAccount(sql, context.userId, {
+        actorUserId: context.userId,
+        event: "export_run",
+        detail: { kind: "account" },
+      });
+    }
+    return { base64: encodeExportPage(page), parts };
   });
+
+/** The longest sort key a part may name; an id, a timestamp and a number fit well inside. */
+const MAX_EXPORT_KEY_LENGTH = 1024;
+
+/** Checks an export part request; its keys only choose among the caller's own rows. */
+export function parseExportPartRequest(input: unknown): ExportPartRequest {
+  const raw = requireObject(input);
+  if (raw.section === "account" || raw.section === "firm") return { section: raw.section };
+  const section = PAGED_EXPORT_SECTIONS.find((s) => s === raw.section);
+  const key = (value: unknown) =>
+    typeof value === "string" && value.length <= MAX_EXPORT_KEY_LENGTH ? value : null;
+  const first = key(raw.first);
+  const last = key(raw.last);
+  if (!section || first === null || last === null) {
+    throw new RequestError(400, "Unknown export part");
+  }
+  return { section, first, last };
+}
 
 /** The firm the account owns, whose members' clients its export and history list hold; null otherwise. */
 async function ownedFirm(sql: Awaited<ReturnType<typeof getSql>>, userId: string) {

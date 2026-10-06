@@ -62,7 +62,7 @@ import { loadBillingAccount, planToStore } from "./billing-store";
 import { requireEntitlement, requireEntitlementForBusiness } from "./entitlements.server";
 import { recordFirst } from "../telemetry/events.server";
 import { assertEngagementOpen, engagementEnded } from "./engagement-store";
-import { recordAudit, recordAuditForBusiness } from "./audit.server";
+import { recordAudit, recordAuditForBusiness, recordAudits } from "./audit.server";
 import {
   businessInput,
   EMAIL,
@@ -385,7 +385,7 @@ export const leaveFirm = createServerFn({ method: "POST" })
 
 /**
  * One client_handed_over row per business a departing member's exit (or an
- * old owner's transfer of the firm) moved to the owner.
+ * old owner's transfer of the firm) moved to the owner, in one statement.
  */
 async function recordHandOvers(
   sql: Awaited<ReturnType<typeof getSql>>,
@@ -394,16 +394,17 @@ async function recordHandOvers(
   memberUserId: string,
   moved: { from: string; to: string }[],
 ): Promise<void> {
-  for (const business of moved) {
-    await recordAudit(sql, {
+  await recordAudits(
+    sql,
+    moved.map((business) => ({
       firmUserId,
       actorUserId,
-      event: "client_handed_over",
+      event: "client_handed_over" as const,
       businessId: business.to,
       subjectUserId: memberUserId,
       detail: { from: business.from },
-    });
-  }
+    })),
+  );
 }
 
 // ── Clients ─────────────────────────────────────────────────────────────────
