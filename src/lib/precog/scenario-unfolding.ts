@@ -78,16 +78,16 @@ export const SCENARIO_UNFOLDING: Readonly<Record<string, ScenarioUnfolding>> = {
   },
   "sc-key-person-leaves": {
     steps: [
-      "The billing administrator handles every invoice and customer question.",
-      "They leave before a stand-in learns the billing process.",
-      "Unsent invoices gather while the team tries to restore the work.",
-      "Stalled billing exposes how much depends on one person's knowledge.",
+      "One person runs a critical daily routine and holds the only working knowledge of it.",
+      "They leave before a stand-in learns the routine end to end.",
+      "The work stalls or runs with mistakes while the team pieces it together.",
+      "Delays and errors show how much depended on one person's knowledge.",
     ],
     warningSigns: [
-      "No active teammate can prepare a customer invoice alone.",
-      "Billing questions keep returning to the same person.",
-      "Unsent invoices wait without a ready stand-in.",
-      "Customer billing pauses when the sole expert is unavailable.",
+      "No active teammate can run the routine alone.",
+      "Questions about it keep returning to the same person.",
+      "The steps are not written down anywhere a stand-in can find them.",
+      "The work pauses whenever that person is away.",
     ],
   },
   "sc-trust-misappropriation": {
