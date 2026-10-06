@@ -138,6 +138,14 @@
  * start of wave 1. Total budget raised from 820 KB to 845 KB so each wave's
  * verify holds; slice S43 in wave 4 loads the inactive industry templates on
  * demand and lowers the budget to the measured total plus 2 KB.
+ *
+ * 2026-10-06: #224, #225 and #226 merged into Devin branches after #223 had
+ * landed, so they reach main only through a follow-up merge. Each passed its
+ * own budget check on a base without wave 2. On main with wave 2 they add
+ * 8.4 KB gzipped of scenario and control-failure text: scenario-unfolding
+ * 3.9 KB (a new chunk), sod-panel 3.0 KB, scenario-runner 0.9 KB, the rest
+ * under 0.3 KB each. The total goes from 840.6 KB to 849.0 KB. Total budget
+ * raised from 845 KB to 855 KB; slice S43 in wave 4 still lowers it.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -146,7 +154,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 845 * 1024,
+  totalGzipBytes: 855 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

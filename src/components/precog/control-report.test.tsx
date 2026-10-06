@@ -112,9 +112,10 @@ describe("printed control report", () => {
   it("prints the top Dental sample scenario's warning signs in the live report", () => {
     const profile = defaultProfile("dental");
     const model = buildReportModelForProfile(profile, "2026-09-26");
-    const scenario = model.threat.targetDeck.find((target) => target.kind === "scenario");
-    expect(scenario?.processId).toBeDefined();
-    const unfolding = scenarioUnfolding(scenario!.processId!);
+    // The scenario is grouped into the duty conflict it plays out.
+    const scenario = model.threat.targetDeck.find((target) => target.scenario)?.scenario;
+    expect(scenario).toBeDefined();
+    const unfolding = scenarioUnfolding(scenario!.id);
     expect(unfolding).not.toBeNull();
 
     const html = renderLive(profile);
@@ -122,7 +123,7 @@ describe("printed control report", () => {
     expect(html).toContain(
       "What you can notice before a loss surfaces, for the scenarios at the top of the priority stack.",
     );
-    expect(html).toContain(scenario!.label);
+    expect(html).toContain(scenario!.title);
     expect(html).toContain(unfolding!.warningSigns[0]);
   });
 
@@ -133,7 +134,7 @@ describe("printed control report", () => {
       customPeople: team,
     };
     const model = buildReportModelForProfile(own, "2026-09-26");
-    expect(model.threat.targetDeck.some((target) => target.kind === "scenario")).toBe(false);
+    expect(model.threat.targetDeck.some((target) => target.scenario)).toBe(false);
     expect(renderLive(own)).not.toContain("Warning signs to watch");
   });
 

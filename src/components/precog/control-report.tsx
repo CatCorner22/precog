@@ -172,10 +172,12 @@ export function ControlReport({
   const { threat, portfolio, sod, sodOpen, sodLevel, mapHealth, healthDelta, decisionLog } = data;
   const warningScenarios = !storedModel
     ? threat.targetDeck
-        .filter((target) => target.kind === "scenario")
         .flatMap((target) => {
-          const unfolding = target.processId ? scenarioUnfolding(target.processId) : null;
-          return unfolding ? [{ target, unfolding }] : [];
+          // A scenario is usually grouped into the duty conflict it plays out.
+          const unfolding = target.scenario ? scenarioUnfolding(target.scenario.id) : null;
+          return unfolding && target.scenario
+            ? [{ target, title: target.scenario.title, unfolding }]
+            : [];
         })
         .slice(0, 3)
     : [];
@@ -560,9 +562,9 @@ export function ControlReport({
               priority stack.
             </p>
             <div className="space-y-3">
-              {warningScenarios.map(({ target, unfolding }) => (
+              {warningScenarios.map(({ target, title, unfolding }) => (
                 <div key={target.id}>
-                  <p className="font-medium">{target.label}</p>
+                  <p className="font-medium">{title}</p>
                   <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-neutral-700">
                     {unfolding.warningSigns.map((sign) => (
                       <li key={sign}>{sign}</li>
