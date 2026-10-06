@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { openTestDb, type TestDb } from "@/test/pglite";
-import { digestAddressProblem } from "./store";
+import { digestAddressProblem, trustedEmailAddress } from "./store";
 import { GOOGLE_ACCOUNT, TRUSTED_EMAIL, VOUCHED_EMAIL, X_ACCOUNT } from "./vouched-email";
 
 /**
@@ -81,5 +81,18 @@ describe("vouched addresses", () => {
       x_and_google: null,
     });
     expect(await digestAddressProblem(db.sql, "nobody")).toBeNull();
+  });
+
+  it("hands out an address only where TRUSTED_EMAIL holds (the deletion notice's rule)", async () => {
+    const addresses: Record<string, string | null> = {};
+    for (const a of ACCOUNTS) addresses[a.id] = await trustedEmailAddress(db.sql, a.id);
+    expect(addresses).toEqual({
+      password_confirmed: "password_confirmed@example.test",
+      google_confirmed: "google_confirmed@example.test",
+      google_unconfirmed: null,
+      x_only: null,
+      x_and_google: "x_and_google@example.test",
+    });
+    expect(await trustedEmailAddress(db.sql, "nobody")).toBeNull();
   });
 });

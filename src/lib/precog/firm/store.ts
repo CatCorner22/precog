@@ -189,6 +189,10 @@ const MEMBERSHIP_TX = { retryOnDeadlock: true } as const;
  *   2. the firm's row in `firms` (FOR UPDATE), so seat counts, member lists
  *      and an ownership transfer, which deletes that row, never interleave.
  *
+ * A write that also takes the firm's billing row (an ownership transfer)
+ * takes it between the two: locks the accounts with `firmUserId` null, then
+ * the billing row, then the firm row, as the billing webhook does.
+ *
  * Members and invitations come after, never before. Pass an empty
  * `accountIds` when the write changes no account's membership (a role
  * change, an invitation). Returns false when the firm row does not exist,
@@ -683,11 +687,18 @@ export async function transferFirmOwnership(
   return inTransaction(
     sql,
     async (tx) => {
-      const locked = await lockFirmMembershipWrite(tx, {
+      // The lock order of the billing webhook: the user rows, then the
+      // firm's billing row, then the firm row. Taking the firm before the
+      // billing row deadlocked with a refund that holds the billing row and
+      // then sets the firm's plan.
+      await lockFirmMembershipWrite(tx, {
         accountIds: [firmUserId, newOwnerUserId],
-        firmUserId,
+        firmUserId: null,
       });
-      if (!locked) throw new RequestError(404, "Set up the firm first");
+      const billing = await tx<{ subscription_status: string | null; disputed: boolean }>`
+      select subscription_status, assessment_disputed_at is not null as disputed
+      from billing_accounts where user_id = ${firmUserId} for update
+    `;
       const firms = await tx<{
         name: string;
         plan: string;
@@ -712,10 +723,6 @@ export async function transferFirmOwnership(
       if (!member.length) throw new FirmMembershipError(`${name} is not a member of ${firm.name}.`);
       const owns = await tx`select 1 from firms where user_id = ${newOwnerUserId}`;
       if (owns.length) throw new FirmMembershipError(`${name} already owns a firm.`);
-      const billing = await tx<{ subscription_status: string | null; disputed: boolean }>`
-      select subscription_status, assessment_disputed_at is not null as disputed
-      from billing_accounts where user_id = ${firmUserId} for update
-    `;
       if (billing[0]?.subscription_status === "past_due" || billing[0]?.disputed) {
         throw new FirmMembershipError(
           `The firm cannot change owner while its payment is overdue or a payment is disputed. Fix that in Manage billing first, or write to ${SUPPORT_EMAIL}.`,
@@ -1133,6 +1140,19 @@ export async function digestAddressProblem(
   const row = rows[0];
   if (!row || row.trusted) return null;
   return row.x_only ? "x_only" : "unconfirmed";
+}
+
+/**
+ * The account's address when Precog may email it on its own initiative
+ * (TRUSTED_EMAIL, the digest's rule); null for an X-only or unconfirmed
+ * address, an account with none, and an unknown account.
+ */
+export async function trustedEmailAddress(sql: Sql, userId: string): Promise<string | null> {
+  const rows = await sql.query<{ email: string | null }>(
+    `select u.email from "user" u where u.id = $1 and ${TRUSTED_EMAIL("u")}`,
+    [userId],
+  );
+  return rows[0]?.email || null;
 }
 
 /** Turns the digest off for the account the token names; false for an unknown token. */

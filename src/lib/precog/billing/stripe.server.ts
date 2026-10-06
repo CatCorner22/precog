@@ -304,12 +304,15 @@ export async function creditCustomerBalance(
 const REVERSAL_DESCRIPTION = "Assessment credit reversed";
 
 /**
- * The `reversal_for` metadata of an Assessment-credit reversal: the account
- * and the Assessment payment (its paid-at time) whose credit it takes back.
- * The scheduled run finds an earlier reversal by it (findCreditReversal).
+ * The `reversal_for` metadata of an Assessment-credit reversal: the Stripe
+ * customer and the Assessment payment (its paid-at time) whose credit it
+ * takes back. The scheduled run finds an earlier reversal by it
+ * (findCreditReversal). Keyed on the customer, not the account: an
+ * ownership transfer moves the billing row to another account but keeps
+ * the customer, so a reversal posted before the transfer is still found.
  */
-export function creditReversalTag(userId: string, assessmentPaidAt: string | null): string {
-  return `${userId}:${assessmentPaidAt ?? "unknown"}`;
+export function creditReversalTag(customerId: string, assessmentPaidAt: string | null): string {
+  return `${customerId}:${assessmentPaidAt ?? "unknown"}`;
 }
 
 /**
@@ -332,7 +335,7 @@ export async function reverseCustomerBalance(input: {
       amount: input.amountCents,
       currency: "usd",
       description: REVERSAL_DESCRIPTION,
-      metadata: { reversal_for: creditReversalTag(input.userId, input.assessmentPaidAt) },
+      metadata: { reversal_for: creditReversalTag(input.customerId, input.assessmentPaidAt) },
     },
     `credit-reversal-${input.customerId}-${input.assessmentPaidAt ?? "unknown"}`,
   );
@@ -352,8 +355,11 @@ type BalanceTransaction = {
 /**
  * True when the customer's balance already holds the reversal of this
  * Assessment payment's credit: a transaction tagged with its
- * creditReversalTag, or (posted before the tag existed) an untagged
- * "Assessment credit reversed" of the same amount created after the payment.
+ * creditReversalTag; one tagged the earlier way, `<account id>:<paid-at>`,
+ * for this account, or for any account with the same paid-at time and
+ * amount (the account before an ownership transfer); or (posted before the
+ * tag existed) an untagged "Assessment credit reversed" of the same amount
+ * created after the payment.
  * Reads newest first and stops at transactions older than the payment.
  * Throws when Stripe cannot answer or the history is longer than it reads,
  * so the caller posts nothing on a guess.
@@ -364,7 +370,9 @@ export async function findCreditReversal(input: {
   amountCents: number;
   assessmentPaidAt: string | null;
 }): Promise<boolean> {
-  const tag = creditReversalTag(input.userId, input.assessmentPaidAt);
+  const tag = creditReversalTag(input.customerId, input.assessmentPaidAt);
+  const paidPart = `:${input.assessmentPaidAt ?? "unknown"}`;
+  const accountTag = `${input.userId}${paidPart}`;
   const paidAtSeconds = input.assessmentPaidAt
     ? Math.floor(Date.parse(input.assessmentPaidAt) / 1000)
     : null;
@@ -379,7 +387,15 @@ export async function findCreditReversal(input: {
     if (!Array.isArray(list.data)) throw new Error("Stripe balance transactions unreadable");
     for (const txn of list.data) {
       const reversalFor = txn.metadata?.reversal_for;
-      if (reversalFor === tag) return true;
+      if (reversalFor === tag || reversalFor === accountTag) return true;
+      if (
+        reversalFor !== undefined &&
+        reversalFor.endsWith(paidPart) &&
+        txn.description === REVERSAL_DESCRIPTION &&
+        txn.amount === input.amountCents
+      ) {
+        return true;
+      }
       if (
         reversalFor === undefined &&
         txn.description === REVERSAL_DESCRIPTION &&

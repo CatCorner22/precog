@@ -31,5 +31,7 @@ begin
   end if;
 end $$;
 
--- 3. Checked against every existing row; step 1 leaves none that fails.
-alter table businesses validate constraint businesses_firm_user_id_fkey;
+-- 3. The check of the existing rows is migration 0054. Each migration file
+--    runs in its own transaction, so adding the key NOT VALID here commits
+--    with only a brief lock on businesses, and 0054's VALIDATE then reads
+--    every row under a lock that lets writes go on.
