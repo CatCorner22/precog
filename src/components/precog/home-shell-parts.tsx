@@ -200,16 +200,27 @@ export function MoreTabsMenu({
       if (triggerRef.current) setPlace(fixedMenuPlace(triggerRef.current));
     };
     placeMenu();
-    const frame = requestAnimationFrame(() => itemRefs.current[0]?.focus({ preventScroll: true }));
     window.addEventListener("resize", placeMenu);
     window.addEventListener("scroll", placeMenu, true);
     return () => {
-      cancelAnimationFrame(frame);
       setPlace(null);
       window.removeEventListener("resize", placeMenu);
       window.removeEventListener("scroll", placeMenu, true);
     };
   }, [open]);
+
+  // The menu renders only once it has a place, so the first item can take
+  // focus only then; later re-placements (scroll, resize) leave focus alone.
+  const focusedOnOpen = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      focusedOnOpen.current = false;
+      return;
+    }
+    if (!place || focusedOnOpen.current) return;
+    focusedOnOpen.current = true;
+    itemRefs.current[0]?.focus({ preventScroll: true });
+  }, [open, place]);
 
   useEffect(() => {
     if (!open) return;
