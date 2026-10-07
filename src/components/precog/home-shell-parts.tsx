@@ -77,8 +77,9 @@ export function TabStrip({
         // text inside a tab (the badges' screen-reader text), so it scrolls and
         // clips with the tabs instead of widening the page on a phone. The
         // trailing padding keeps the last tab clear of the pinned control.
+        // On a touch screen every tab is at least 44px tall.
         className={cn(
-          "relative mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6 [scrollbar-width:thin]",
+          "relative mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6 [scrollbar-width:thin] pointer-coarse:[&_[role=tab]]:min-h-11",
           trailing && "pr-36 sm:pr-40",
         )}
       >
@@ -290,7 +291,7 @@ export function MoreTabsMenu({
           }
         }}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+          "inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors pointer-coarse:min-h-11",
           tabs.some((t) => t.id === activeId)
             ? "text-fg hover:bg-elevated/60"
             : "text-muted hover:bg-elevated/60 hover:text-fg",
@@ -324,7 +325,7 @@ export function MoreTabsMenu({
                 data-tab-id={t.id}
                 onClick={() => pick(t.id)}
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-elevated focus:bg-elevated",
+                  "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-elevated focus:bg-elevated pointer-coarse:min-h-11",
                   activeId === t.id ? "text-fg" : "text-muted hover:text-fg",
                 )}
               >
@@ -350,7 +351,7 @@ export function MoreTabsMenu({
                 setOpen(false);
                 onOpenLink(link.id);
               }}
-              className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-muted hover:bg-elevated hover:text-fg focus:bg-elevated"
+              className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-muted hover:bg-elevated hover:text-fg focus:bg-elevated pointer-coarse:min-h-11"
             >
               <ExternalLink className="size-4" aria-hidden />
               <span className="flex-1">{link.label}</span>
@@ -437,7 +438,7 @@ export function HeaderActions({
           aria-expanded={open}
           aria-controls="header-more"
           onClick={() => setOpen((v) => !v)}
-          className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated/60 px-2.5 py-1.5 text-xs font-medium text-muted hover:text-fg"
+          className="inline-flex items-center gap-1 rounded-lg border border-border bg-elevated/60 px-2.5 py-1.5 text-xs font-medium text-muted hover:text-fg pointer-coarse:min-h-11"
         >
           <MoreHorizontal className="size-4" aria-hidden /> More
         </button>
@@ -509,7 +510,9 @@ export function MetricCard({
   return (
     <Card
       className={
-        onClick ? "cursor-pointer transition-colors hover:border-border-strong" : undefined
+        onClick
+          ? "cursor-pointer transition-colors hover:border-border-strong pointer-coarse:min-h-11"
+          : undefined
       }
       onClick={onClick}
       role={onClick ? "button" : undefined}

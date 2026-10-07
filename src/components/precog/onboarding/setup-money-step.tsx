@@ -62,7 +62,7 @@ function SegmentedQuestion<T extends string>({
               aria-checked={checked}
               tabIndex={checked ? 0 : -1}
               onClick={() => onChange(choice.value)}
-              className={`min-h-8 rounded-md border px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              className={`min-h-8 rounded-md pointer-coarse:min-h-11 pointer-coarse:min-w-11 border px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                 checked
                   ? "border-primary/50 bg-primary/10 text-fg"
                   : "border-border bg-panel text-muted hover:border-border-strong"
