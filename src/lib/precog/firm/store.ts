@@ -931,7 +931,7 @@ export async function listClientEngagements(
   // Each check counts once a month, by its latest result: a check marked
   // Exception and then Done is Done, and one marked Done and then Skipped is
   // Skipped.
-  const counts = await sql<{
+  const monthCounts = sql<{
     user_id: string;
     business_id: string;
     period: string;
@@ -955,25 +955,7 @@ export async function listClientEngagements(
     ) l
     group by l.user_id, l.business_id, l.period
   `;
-  const byBusiness = new Map<string, Map<string, PeriodResults>>();
-  for (const c of counts) {
-    const key = `${c.user_id}\u0000${c.business_id}`;
-    const months = byBusiness.get(key) ?? new Map<string, PeriodResults>();
-    months.set(c.period, {
-      period: c.period,
-      done: Number(c.done),
-      exceptions: Number(c.exceptions),
-      skipped: Number(c.skipped),
-    });
-    byBusiness.set(key, months);
-  }
-  const monthsFor = (ownerUserId: string, businessId: string): PeriodResults[] => {
-    const found = byBusiness.get(`${ownerUserId}\u0000${businessId}`);
-    return periods.map(
-      (period) => found?.get(period) ?? { period, done: 0, exceptions: 0, skipped: 0 },
-    );
-  };
-  const rows = await sql<{
+  const clientRows = sql<{
     id: string;
     user_id: string;
     name: string;
@@ -1020,6 +1002,26 @@ export async function listClientEngagements(
       and (b.user_id = ${userId} or (${firmUserId}::text is not null and b.firm_user_id = ${firmUserId}))
     order by b.updated_at desc
   `;
+  // The two reads do not depend on each other, so they run side by side.
+  const [counts, rows] = await Promise.all([monthCounts, clientRows]);
+  const byBusiness = new Map<string, Map<string, PeriodResults>>();
+  for (const c of counts) {
+    const key = `${c.user_id}\u0000${c.business_id}`;
+    const months = byBusiness.get(key) ?? new Map<string, PeriodResults>();
+    months.set(c.period, {
+      period: c.period,
+      done: Number(c.done),
+      exceptions: Number(c.exceptions),
+      skipped: Number(c.skipped),
+    });
+    byBusiness.set(key, months);
+  }
+  const monthsFor = (ownerUserId: string, businessId: string): PeriodResults[] => {
+    const found = byBusiness.get(`${ownerUserId}\u0000${businessId}`);
+    return periods.map(
+      (period) => found?.get(period) ?? { period, done: 0, exceptions: 0, skipped: 0 },
+    );
+  };
   return rows.map((r) => ({
     id: r.id,
     name: r.name,

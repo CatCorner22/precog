@@ -8,6 +8,7 @@ import { DEFAULT_WEIGHTS } from "@/lib/precog/scoring/weights";
 import { confirmedScenarioIds } from "@/lib/precog/scoring/scope";
 import {
   detectSodConflicts,
+  SEVERITY_RANK,
   sodDetectionOptions,
   type DetectedConflict,
 } from "@/lib/precog/sod/detect";
@@ -944,13 +945,6 @@ function mapActions(ctx: WeeklyContext): WeeklyAction[] {
     }));
   return [...hot, ...unowned];
 }
-
-const SEVERITY_RANK: Record<DetectedConflict["severity"], number> = {
-  critical: 0,
-  high: 1,
-  medium: 2,
-  family: 3,
-};
 
 /**
  * Which of a conflict's two duties a second person takes, first choice first.

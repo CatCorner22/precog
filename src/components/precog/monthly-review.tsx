@@ -10,7 +10,6 @@ import {
   monthlyReviewTasks,
   openPeriods,
   periodMonthName,
-  periodMonthYear,
   recordReview,
   RESULT_LABEL,
   reviewDueText,
@@ -25,7 +24,7 @@ import type { ExecutionStatus } from "@/lib/precog/controls/executions/model";
 import { evidenceLogLine, monthlyRunIds, readMonthlyEvidence } from "./monthly-review-evidence";
 import { monthlyWorkpaperFacts, type WorkpaperFact } from "@/lib/precog/firm/workpaper";
 import { clientErrorStatus } from "@/lib/request-errors";
-import { formatDay, localDateKey } from "@/lib/precog/dates";
+import { formatDay, formatMonth, localDateKey } from "@/lib/precog/dates";
 import { HowThisWorks } from "./page-intro";
 
 /** A note draft's and a save's key: the month and the check, so switching months keeps each apart. */
@@ -146,7 +145,7 @@ export function MonthlyReview() {
         },
       }).then((res) => {
         setEvidenceRead((n) => n + 1);
-        const skipped = `Skipped for ${periodMonthYear(period)} on this business.`;
+        const skipped = `Skipped for ${formatMonth(period)} on this business.`;
         if (res.evidenceSkippedReason === "superseded") {
           toast.success("Saved on this business.", {
             description:

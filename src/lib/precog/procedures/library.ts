@@ -3,7 +3,7 @@ import type { IndustryId } from "../industry";
 import { personDuties } from "../sod/assignments";
 import type { EntitlementId } from "../sod/conflict-rules";
 import type { IndustryTemplate } from "../templates";
-import type { ProcessCadence } from "../types";
+import type { KnowledgeItem, ProcessCadence } from "../types";
 import { newProcedure, newStep } from "./lifecycle";
 import type { Procedure } from "./types";
 
@@ -633,12 +633,30 @@ export interface LibraryRow {
 }
 
 /**
+ * The business's own procedure that writes a recommendation, when it has
+ * one: the procedure started from it (it carries the `libraryId`), or else,
+ * when every register item the recommendation matches already has a
+ * procedure, the one for the first of those items. `own` holds the
+ * business's procedures for its line of business.
+ */
+export function writtenProcedure<P extends Pick<Procedure, "libraryId" | "knowledgeIds">>(
+  recommendation: Pick<RecommendedProcedure, "id" | "covers">,
+  own: readonly P[],
+  knowledge: readonly Pick<KnowledgeItem, "id" | "name">[],
+): P | undefined {
+  const started = own.find((p) => p.libraryId === recommendation.id);
+  if (started) return started;
+  const matched = knowledge.filter((k) => recommendation.covers.test(k.name));
+  if (matched.length === 0) return undefined;
+  const coverFor = matched.map((k) => own.find((p) => p.knowledgeIds.includes(k.id)));
+  return coverFor.every(Boolean) ? coverFor[0] : undefined;
+}
+
+/**
  * The recommended procedures for this line of business that are not already
- * written, each with what it would cover here. A recommendation counts as
- * written when a procedure was started from it (it carries the
- * `libraryId`), or when every register item it matches already has a
- * procedure. Ordered: those covering register items, then those whose duty
- * someone holds, then the rest.
+ * written (writtenProcedure), each with what it would cover here. Ordered:
+ * those covering register items, then those whose duty someone holds, then
+ * the rest.
  */
 export function libraryRows(
   tpl: Pick<IndustryTemplate, "people" | "knowledge" | "roleTemplates">,
@@ -646,16 +664,15 @@ export function libraryRows(
   industry: IndustryId,
 ): LibraryRow[] {
   const own = procedures.filter((p) => p.industry === industry);
-  const started = new Set(own.map((p) => p.libraryId).filter(Boolean));
   const written = new Set(own.flatMap((p) => p.knowledgeIds));
   const active = tpl.people.filter((p) => p.active);
   const rows: LibraryRow[] = [];
   for (const recommendation of RECOMMENDED_PROCEDURES) {
     if (recommendation.industries && !recommendation.industries.includes(industry)) continue;
-    if (started.has(recommendation.id)) continue;
-    const matched = tpl.knowledge.filter((k) => recommendation.covers.test(k.name));
-    const knowledgeIds = matched.filter((k) => !written.has(k.id)).map((k) => k.id);
-    if (matched.length > 0 && knowledgeIds.length === 0) continue;
+    if (writtenProcedure(recommendation, own, tpl.knowledge)) continue;
+    const knowledgeIds = tpl.knowledge
+      .filter((k) => recommendation.covers.test(k.name) && !written.has(k.id))
+      .map((k) => k.id);
     const duties = new Set<string>(recommendation.dutyIds);
     const heldBy = active
       .filter((p) => personDuties(p, tpl.roleTemplates).some((d) => duties.has(d)))

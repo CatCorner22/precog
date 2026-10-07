@@ -1,7 +1,12 @@
 import type { IndustryId } from "../industry";
 import type { DetectedConflict } from "../sod/detect";
 import type { KnowledgeItem } from "../types";
-import { RECOMMENDED_PROCEDURES, type LibraryRow, type RecommendedProcedure } from "./library";
+import {
+  RECOMMENDED_PROCEDURES,
+  writtenProcedure,
+  type LibraryRow,
+  type RecommendedProcedure,
+} from "./library";
 import type { Procedure } from "./types";
 
 /**
@@ -102,10 +107,9 @@ export function libraryIdFromItem(item: string | null | undefined): string | nul
 }
 
 /**
- * The business's own procedure for a recommendation, when it has one: the
- * procedure started from it, or else, as `libraryRows` counts it written,
- * the procedure for a register item it covers when every such item already
- * has one.
+ * The business's own procedure for a recommendation, when it has one, as
+ * `libraryRows` counts it written (writtenProcedure). For an id the library
+ * does not hold, only a procedure started from it counts.
  */
 export function writtenProcedureFor(
   libraryId: string,
@@ -114,14 +118,10 @@ export function writtenProcedureFor(
   industry: IndustryId,
 ): Procedure | undefined {
   const own = procedures.filter((p) => p.industry === industry);
-  const started = own.find((p) => p.libraryId === libraryId);
-  if (started) return started;
   const recommendation = BY_ID.get(libraryId);
-  if (!recommendation) return undefined;
-  const matched = knowledge.filter((k) => recommendation.covers.test(k.name));
-  if (matched.length === 0) return undefined;
-  const coverFor = matched.map((k) => own.find((p) => p.knowledgeIds.includes(k.id)));
-  return coverFor.every(Boolean) ? coverFor[0] : undefined;
+  return recommendation
+    ? writtenProcedure(recommendation, own, knowledge)
+    : own.find((p) => p.libraryId === libraryId);
 }
 
 /**
@@ -154,13 +154,12 @@ export function rankLibraryRowsByConflicts(
   rows: readonly LibraryRow[],
   openConflicts: readonly Pick<DetectedConflict, "ruleId" | "severity">[],
 ): LibraryRow[] {
-  const addressed = new Map<string, { critical: number; high: number; any: number }>();
+  const addressed = new Map<string, { critical: number; high: number }>();
   for (const c of openConflicts) {
     for (const id of new Set(libraryIdsForRule(c.ruleId))) {
-      const tally = addressed.get(id) ?? { critical: 0, high: 0, any: 0 };
+      const tally = addressed.get(id) ?? { critical: 0, high: 0 };
       if (c.severity === "critical") tally.critical += 1;
       else if (c.severity === "high") tally.high += 1;
-      tally.any += 1;
       addressed.set(id, tally);
     }
   }

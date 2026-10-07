@@ -1,8 +1,9 @@
 import { toast } from "sonner";
 import { SIGN_IN_AGAIN_TO_TRANSFER } from "@/lib/precog/firm/server";
+import { SIGN_IN_AGAIN_LABEL, showSignInAgain } from "../sign-in-again";
 
 /** The button on the refusal when the owner's sign-in is too old to transfer the firm. */
-export const TRANSFER_SIGN_IN_LABEL = "Sign in again";
+export const TRANSFER_SIGN_IN_LABEL = SIGN_IN_AGAIN_LABEL;
 
 /**
  * Says why the transfer did not go through. A sign-in too old to transfer
@@ -13,19 +14,10 @@ export const TRANSFER_SIGN_IN_LABEL = "Sign in again";
 export function showTransferFailure(err: unknown): void {
   const message = err instanceof Error ? err.message : "";
   if (message === SIGN_IN_AGAIN_TO_TRANSFER) {
-    toast.error(message, {
-      duration: Infinity,
-      action: {
-        label: TRANSFER_SIGN_IN_LABEL,
-        onClick: () => {
-          void import("@/lib/auth/client")
-            .then(({ signOut }) => signOut("/login"))
-            .catch(() => {
-              toast.error("Precog could not sign you out. Reload and try again.");
-            });
-        },
-      },
-    });
+    // The sign-in client loads only when the button is used.
+    showSignInAgain(message, (to) =>
+      import("@/lib/auth/client").then(({ signOut }) => signOut(to)),
+    );
     return;
   }
   toast.error(message || "Precog did not change the firm's owner.");

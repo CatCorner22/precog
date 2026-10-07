@@ -10,7 +10,7 @@ import { usageTotalsFor } from "./llm/usage-log.server";
 import { count } from "./text";
 import { pictureUrl } from "./procedures/image-pipeline";
 import { handBackGranted } from "./firm/grant-store";
-import { insertAudits, withAuditBypass, type FirmActivityRow } from "./firm/audit.server";
+import { insertAudits, toFirmActivityRow, withAuditBypass } from "./firm/audit.server";
 import {
   assembleAccountExport,
   continuesReading,
@@ -88,7 +88,9 @@ export async function exportAccountRows(
  * download starts again. A part that comes back short is the browser's to
  * refuse (partArrivedWhole). Only the caller's own rows, and for a firm
  * owner (`firmUserId`) the firm's: the keys in a request only choose among
- * those, so a made-up key reads nothing that is not the caller's.
+ * those, so a made-up key reads nothing that is not the caller's. `json` is
+ * the page as JSON, the text the size check measured and the server function
+ * sends (encodeBase64Json).
  */
 export async function exportAccountPage(
   sql: Sql,
@@ -96,7 +98,7 @@ export async function exportAccountPage(
   firmUserId: string | null,
   request: ExportPartRequest,
   budgetBytes = HISTORY_PAGE_BYTES,
-): Promise<{ page: ExportPage; parts: ExportPartRequest[] | null }> {
+): Promise<{ page: ExportPage; json: string; parts: ExportPartRequest[] | null }> {
   if (request.section === "account") {
     return inTransaction(sql, async (tx) => {
       await tx`set transaction isolation level repeatable read`;
@@ -115,14 +117,13 @@ export async function exportAccountPage(
         ),
       ]);
       const parts: ExportPartRequest[] = [{ section: "firm" }, ...planned.flat()];
-      return { page: { section: "account", data }, parts };
+      const page: ExportPage = { section: "account", data };
+      return { page, json: JSON.stringify(page), parts };
     });
   }
   if (request.section === "firm") {
-    return {
-      page: { section: "firm", data: await readFirmPart(sql, userId, firmUserId) },
-      parts: null,
-    };
+    const page: ExportPage = { section: "firm", data: await readFirmPart(sql, userId, firmUserId) };
+    return { page, json: JSON.stringify(page), parts: null };
   }
   const scope = scopeOf(request.section, userId, firmUserId);
   const rows = scope === null ? [] : await readPagedRows(sql, request.section, scope, request);
@@ -131,10 +132,11 @@ export async function exportAccountPage(
     rows,
     ...(continuesReading(request) ? { continues: true } : {}),
   } as ExportPage;
-  if (Buffer.byteLength(JSON.stringify(page), "utf8") > EXPORT_PART_MAX_BYTES) {
+  const json = JSON.stringify(page);
+  if (Buffer.byteLength(json, "utf8") > EXPORT_PART_MAX_BYTES) {
     throw new RequestError(409, EXPORT_CHANGED);
   }
-  return { page, parts: null };
+  return { page, json, parts: null };
 }
 
 /**
@@ -145,10 +147,19 @@ export async function exportAccountPage(
  */
 export const EXPORT_PART_MAX_BYTES = 3.25 * 1024 * 1024;
 
-/** An export part as the server function sends it: its JSON in base64 (see encodeHistoryPage). */
-export function encodeExportPage(page: ExportPage): string {
-  return Buffer.from(JSON.stringify(page), "utf8").toString("base64");
+/**
+ * JSON text as a server function sends it: in base64, which the browser reads
+ * back with decodeBase64Json (account-export.ts). A JSON string inside the
+ * transport's own JSON is escaped twice, so quotes, backslashes and `<` grow
+ * four to five times on the wire; base64 holds every page at 4/3 of its JSON,
+ * which HISTORY_PAGE_BYTES and EXPORT_PART_MAX_BYTES rely on.
+ */
+export function encodeBase64Json(json: string): string {
+  return Buffer.from(json, "utf8").toString("base64");
 }
+
+/** An export part as the server function sends it: its JSON in base64 (encodeBase64Json). */
+export const encodeExportPage = (page: ExportPage) => encodeBase64Json(JSON.stringify(page));
 
 async function readAccountPart(tx: Sql, userId: string): Promise<AccountExportPart> {
   const [
@@ -542,21 +553,7 @@ const PAGED: { [S in PagedExportSection]: PagedSection<AccountExportFile[S][numb
     key: `${TS("occurred_at")}${SEP}${NUM("id")}`,
     desc: true,
     columns: "actor_name, event, business_id, subject_user_id, detail, occurred_at",
-    map: (r: {
-      actor_name: string;
-      event: string;
-      business_id: string | null;
-      subject_user_id: string | null;
-      detail: unknown;
-      occurred_at: string;
-    }): FirmActivityRow => ({
-      actorName: r.actor_name,
-      event: r.event,
-      businessId: r.business_id,
-      subjectUserId: r.subject_user_id,
-      detail: r.detail,
-      occurredAt: toIsoTimestamp(r.occurred_at),
-    }),
+    map: toFirmActivityRow,
   }),
 };
 
@@ -567,6 +564,20 @@ function scopeOf(
   firmUserId: string | null,
 ): string | null {
   return PAGED[section].scope === "firm" ? firmUserId : userId;
+}
+
+/**
+ * Whether a part reads the firm the account owns (exportAccountPage's
+ * `firmUserId`): the first part, whose plan pages the firm's sections, the
+ * firm part, and a section of the firm's rows. Every other part reads the
+ * account's own rows alone.
+ */
+export function readsOwnedFirm(request: ExportPartRequest): boolean {
+  return (
+    request.section === "account" ||
+    request.section === "firm" ||
+    PAGED[request.section].scope === "firm"
+  );
 }
 
 /**
@@ -585,10 +596,14 @@ function keyOrder(section: PagedExportSection): string {
   return `order by x.k collate "C" ${PAGED[section].desc ? "desc" : "asc"}`;
 }
 
-/** A planned row: its key and size, and for a sliced section its arrays' lengths and largest element. */
+/**
+ * A planned row: its key and size, and for a sliced section its arrays'
+ * lengths and largest element. An `alone` section's rows carry no size: each
+ * gets a page of its own whatever its size.
+ */
 interface PlannedRow {
   k: string;
-  n: number | string;
+  n?: number | string;
   vendors_length?: number | string | null;
   vendors_max?: number | string | null;
   employees_length?: number | string | null;
@@ -618,8 +633,10 @@ async function planPages(
       case when jsonb_typeof(x.${a}) = 'array' then (select max(octet_length(e::text))
         from jsonb_array_elements(x.${a}) e) end as ${a}_max`,
   );
+  // A row's size decides whether it shares a page, which an `alone` row never does.
+  const size = s.alone ? "" : ", octet_length(row_to_json(x)::text) as n";
   const rows = await tx.query<PlannedRow>(
-    `select x.k, octet_length(row_to_json(x)::text) as n${measures.join("")}
+    `select x.k${size}${measures.join("")}
      from (${sectionQuery(section)}) x ${keyOrder(section)}`,
     [scope, null],
   );
@@ -887,15 +904,9 @@ export async function exportBusinessHistoryPage(
   return { rows: page, nextBeforeRevision: more ? (page.at(-1)?.revision ?? null) : null };
 }
 
-/**
- * A history page as the server function sends it: the rows' JSON in base64.
- * A JSON string inside the transport's own JSON is escaped twice, so quotes,
- * backslashes and `<` grow four to five times on the wire; base64 holds every
- * page at 4/3 of its JSON, which HISTORY_PAGE_BYTES relies on.
- */
-export function encodeHistoryPage(rows: BusinessHistoryExportRow[]): string {
-  return Buffer.from(JSON.stringify(rows), "utf8").toString("base64");
-}
+/** A history page as the server function sends it: the rows' JSON in base64 (encodeBase64Json). */
+export const encodeHistoryPage = (rows: BusinessHistoryExportRow[]) =>
+  encodeBase64Json(JSON.stringify(rows));
 
 /**
  * Removes every row the account owns and then the account itself, in one

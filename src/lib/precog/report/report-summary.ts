@@ -135,6 +135,8 @@ interface ConcentrationMove {
   held: number;
   /** How many of those moving the duty closes. */
   closes: number;
+  /** The conflicts the move closes, in the order of `open`. */
+  closed: DetectedConflict[];
   /** The rules of the conflicts the move closes. */
   ruleIds: string[];
 }
@@ -161,6 +163,7 @@ export function concentrationMove(open: readonly DetectedConflict[]): Concentrat
     dutyLabel: headline.dutyLabel,
     held: held.length,
     closes: closed.length,
+    closed,
     ruleIds: [...new Set(closed.map((c) => c.ruleId))],
   };
 }

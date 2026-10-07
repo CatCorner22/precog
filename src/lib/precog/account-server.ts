@@ -4,11 +4,12 @@ import { getSql } from "@/lib/db";
 import { RequestError, requireObject } from "@/lib/request-errors";
 import {
   deleteAccountRows,
-  encodeExportPage,
+  encodeBase64Json,
   encodeHistoryPage,
   exportAccountPage,
   exportBusinessHistoryPage,
   listAccountHistoryBusinesses,
+  readsOwnedFirm,
 } from "./account-store";
 import { PAGED_EXPORT_SECTIONS, type ExportPartRequest, type ExportSlice } from "./account-export";
 import { isBusinessId } from "./profile-input";
@@ -33,8 +34,8 @@ export const exportAccountDataPage = createServerFn({ method: "GET" })
   .validator(parseExportPartRequest)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const firmUserId = await ownedFirm(sql, context.userId);
-    const { page, parts } = await exportAccountPage(sql, context.userId, firmUserId, data);
+    const firmUserId = readsOwnedFirm(data) ? await ownedFirm(sql, context.userId) : null;
+    const { json, parts } = await exportAccountPage(sql, context.userId, firmUserId, data);
     if (data.section === "account") {
       await recordAuditForAccount(sql, context.userId, {
         actorUserId: context.userId,
@@ -42,7 +43,7 @@ export const exportAccountDataPage = createServerFn({ method: "GET" })
         detail: { kind: "account" },
       });
     }
-    return { base64: encodeExportPage(page), parts };
+    return { base64: encodeBase64Json(json), parts };
   });
 
 /** The longest sort key a part may name; an id, a timestamp and a number fit well inside. */

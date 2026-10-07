@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { FileText, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { NavFn } from "@/lib/precog/navigation";
 import { useTemplate } from "@/lib/precog/practice-context";
-import { conflictProcedureLink } from "@/lib/precog/procedures/rule-procedures";
+import { conflictProcedureLink, RULE_PROCEDURE } from "@/lib/precog/procedures/rule-procedures";
 import { useTabName } from "@/lib/precog/presentation";
 import { worksAt } from "@/lib/precog/person-location";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
@@ -29,6 +29,21 @@ export function SodConflictsSection({
 }) {
   const { report, filterSeverity, setFilterSeverity, locations, placesOf, filtered } = model;
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const tpl = useTemplate();
+  const { procedures, industry } = model.profile;
+  // The written procedure each pair leads to: the business's own once
+  // started, else the recommendation, which the Procedures tab highlights
+  // ready to start. Worked out once per rule, not on every card.
+  const procedureLinks = useMemo(
+    () =>
+      new Map(
+        Object.keys(RULE_PROCEDURE).map((ruleId) => [
+          ruleId,
+          conflictProcedureLink(ruleId, procedures ?? [], tpl.knowledge, industry),
+        ]),
+      ),
+    [procedures, tpl.knowledge, industry],
+  );
 
   return (
     <Card>
@@ -104,6 +119,7 @@ export function SodConflictsSection({
                   key={c.id}
                   conflict={c}
                   model={model}
+                  procedure={procedureLinks.get(c.ruleId) ?? null}
                   onNavigate={onNavigate}
                 />
               ))}
@@ -129,23 +145,17 @@ export function SodConflictsSection({
 function ConflictCardDetails({
   conflict: c,
   model,
+  procedure,
   onNavigate,
 }: {
   conflict: DetectedConflict;
   model: SodPanelModel;
+  /** The written procedure for this pair (conflictProcedureLink). */
+  procedure: ReturnType<typeof conflictProcedureLink>;
   onNavigate?: NavFn;
 }) {
   const stillToDo = c.compensatingControls.filter((x) => !c.controlsInPlace.includes(x));
   const tabName = useTabName();
-  const tpl = useTemplate();
-  // The written procedure for this pair: the business's own once started, else
-  // the recommendation, which the Procedures tab highlights ready to start.
-  const procedure = conflictProcedureLink(
-    c.ruleId,
-    model.profile.procedures ?? [],
-    tpl.knowledge,
-    model.profile.industry,
-  );
   return (
     <ConflictSummary
       conflict={c}

@@ -358,11 +358,19 @@ export function partArrivedWhole(part: ExportPartRequest, page: ExportPage): boo
   return page.rows.length === part.count && (page.continues === true) === continuesReading(part);
 }
 
-/** A part as the server function returns it: the page's JSON in base64. */
-export function decodeExportPage(base64: string): ExportPage {
-  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  return JSON.parse(new TextDecoder().decode(bytes)) as ExportPage;
+/**
+ * JSON a server function sends in base64 (encodeBase64Json in
+ * account-store.ts, which says why), read back.
+ */
+export function decodeBase64Json<T>(base64: string): T {
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return JSON.parse(new TextDecoder().decode(bytes)) as T;
 }
+
+/** A part as the server function returns it: the page's JSON in base64. */
+export const decodeExportPage: (base64: string) => ExportPage = decodeBase64Json;
 
 /** The progress line while the parts download. */
 export function exportProgressLabel(done: number, total: number): string {

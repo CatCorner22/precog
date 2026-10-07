@@ -3,7 +3,7 @@ import { ownersMarked, ownsBusiness } from "../sod/owner-role";
 import { personDuties } from "../sod/assignments";
 import { BANK_ACTIVITY_DUTIES } from "../sod/derive-staff";
 import type { Person } from "../types";
-import { shiftDay, utcDateKey } from "../dates";
+import { formatMonth, shiftDay, utcDateKey } from "../dates";
 
 export type ReviewItemKey =
   "bank_statement" | "cleared_checks" | "payroll_headcount" | "new_vendors" | "card_statement";
@@ -167,11 +167,6 @@ export function clientTablePeriods(today: string): string[] {
 }
 
 const MONTH_NAME = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" });
-const MONTH_YEAR = new Intl.DateTimeFormat("en-US", {
-  month: "long",
-  year: "numeric",
-  timeZone: "UTC",
-});
 const DUE_DAY = new Intl.DateTimeFormat("en-US", {
   month: "long",
   day: "numeric",
@@ -188,11 +183,6 @@ export function periodMonthName(period: string): string {
   return MONTH_NAME.format(periodStart(period));
 }
 
-/** "September 2026" for "2026-09". */
-export function periodMonthYear(period: string): string {
-  return MONTH_YEAR.format(periodStart(period));
-}
-
 /** "October 10" for "2026-09": the day the month's checks are due. */
 export function reviewDueText(period: string): string {
   return DUE_DAY.format(new Date(`${reviewDueOn(period)}T00:00:00Z`));
@@ -200,7 +190,7 @@ export function reviewDueText(period: string): string {
 
 /** "September 2026 (due October 10)". */
 export function periodWithDue(period: string): string {
-  return `${periodMonthYear(period)} (due ${reviewDueText(period)})`;
+  return `${formatMonth(period)} (due ${reviewDueText(period)})`;
 }
 
 /** One month's monthly checks for one business, each check counted once by its latest result. */
@@ -253,6 +243,14 @@ export function periodStanding(
  */
 export const MONTHLY_REVIEW_GRACE_DAY = 5;
 
+/**
+ * Whether the month's own checks count as open on `day` (YYYY-MM-DD): from
+ * MONTHLY_REVIEW_GRACE_DAY of the month on.
+ */
+export function checksCountOn(day: string): boolean {
+  return Number(day.slice(8, 10)) >= MONTHLY_REVIEW_GRACE_DAY;
+}
+
 /** One open month's checks that wait on the owner. */
 export interface OpenMonthChecks {
   period: string;
@@ -276,7 +274,7 @@ export function openMonthlyChecks(
   reviews: readonly ReviewRecord[],
 ): OpenMonthChecks[] {
   const current = monthKey(day);
-  const counted = Number(day.slice(8, 10)) >= MONTHLY_REVIEW_GRACE_DAY;
+  const counted = checksCountOn(day);
   return openPeriods(day)
     .filter((period) => period !== current || counted)
     .map((period) => {

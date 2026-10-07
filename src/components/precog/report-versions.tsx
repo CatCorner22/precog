@@ -15,7 +15,11 @@ import {
 } from "@/lib/precog/firm/server";
 import { requestReportReview, returnReport } from "@/lib/precog/firm/review-server";
 import { getEntitlements } from "@/lib/precog/firm/entitlements-server";
-import { versionProvenance, type ReportVersionRow } from "@/lib/precog/firm/reports";
+import {
+  RETURN_NOTE_MAX,
+  versionProvenance,
+  type ReportVersionRow,
+} from "@/lib/precog/firm/reports";
 import type { FirmMember, FirmRole } from "@/lib/precog/firm/store";
 import { isOwnTeam } from "@/lib/precog/firm/engagement";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
@@ -673,7 +677,7 @@ export function OpenVersionReview({
                   className="mt-1 w-full rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900"
                   value={overrideNote}
                   onChange={(e) => setOverrideNote(e.target.value)}
-                  maxLength={600}
+                  maxLength={RETURN_NOTE_MAX}
                   rows={2}
                   autoFocus
                 />
@@ -685,7 +689,7 @@ export function OpenVersionReview({
                 className="mt-1 w-full rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                maxLength={600}
+                maxLength={RETURN_NOTE_MAX}
                 rows={2}
                 autoFocus={!overrideNeeded}
               />

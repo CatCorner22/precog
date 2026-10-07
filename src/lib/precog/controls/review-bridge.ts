@@ -49,10 +49,6 @@ export function executionRunId(period: string, itemKey: ReviewItemKey): string {
   return `${period}-${itemKey}`.slice(0, 80);
 }
 
-export function monthlyBridgeCommandId(period: string, itemKey: ReviewItemKey): string {
-  return `monthly-bridge-${period}-${itemKey}`.slice(0, 80);
-}
-
 /*
  * One check and month can hold a chain of monthly evidence entries. The first
  * has the run id `executionRunId(period, itemKey)`; each later one corrects the
@@ -73,6 +69,21 @@ export function monthlyBridgeCommandId(period: string, itemKey: ReviewItemKey): 
 const RECORD_COMMAND = "monthly-bridge";
 /** The start of the command id of an entry that withdraws a check changed to Skipped. */
 const WITHDRAWAL_COMMAND = "monthly-withdraw";
+
+/**
+ * The command id of a bridged entry: RECORD_COMMAND, or WITHDRAWAL_COMMAND for
+ * an entry that withdraws the check, then its run id (the chain's first
+ * entry's unless `entry.runId` names another). It follows the run id, so a
+ * retry of the same entry is idempotent.
+ */
+export function monthlyBridgeCommandId(
+  period: string,
+  itemKey: ReviewItemKey,
+  entry: { runId?: string; withdraws?: boolean } = {},
+): string {
+  const runId = entry.runId ?? executionRunId(period, itemKey);
+  return `${entry.withdraws ? WITHDRAWAL_COMMAND : RECORD_COMMAND}-${runId}`.slice(0, 80);
+}
 
 /** What a withdrawal's note adds to "Corrects the entry of <date>: now Skipped." */
 const WITHDRAWAL_NOTE =
@@ -166,9 +177,10 @@ export function bridgeRecordCommand(input: MonthlyBridgeInput): ExecutionCommand
   const runId = input.supersedes
     ? supersedingRunId(input.period, input.itemKey, input.supersedes.runId)
     : executionRunId(input.period, input.itemKey);
-  // The command id follows the run id, so a retry of the same entry is idempotent.
-  const commandId =
-    `${input.result === "skipped" ? WITHDRAWAL_COMMAND : RECORD_COMMAND}-${runId}`.slice(0, 80);
+  const commandId = monthlyBridgeCommandId(input.period, input.itemKey, {
+    runId,
+    withdraws: input.result === "skipped",
+  });
   // The record schema needs at least one reference. With no note, the one
   // reference says plainly that none was given, rather than reading like one.
   const refs = input.notes.trim() ? [input.notes.trim().slice(0, 400)] : [NO_EVIDENCE_REFERENCE];
