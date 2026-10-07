@@ -107,6 +107,29 @@ describe("matchScenarios", () => {
     expect(matched.map((scenario) => scenario.id)).toEqual(["sc-cash-sod-failure"]);
   });
 
+  it("does not select a departure scenario from leaves alone", () => {
+    const departure = sampleScenarios("dental").find(
+      (scenario) => scenario.id === "sc-front-desk-leaves",
+    );
+    if (!departure) throw new Error("Missing dental departure scenario");
+
+    expect(matchScenarios("Walk me through the leaves scenario.", [departure])).toEqual([]);
+  });
+
+  it("matches departure scenarios by identifying words despite generic leave wording", () => {
+    expect(
+      matchScenarios(
+        "Walk me through the front desk lead leaves scenario.",
+        sampleScenarios("dental"),
+      ).map((scenario) => scenario.id),
+    ).toContain("sc-front-desk-leaves");
+    expect(
+      matchScenarios("What happens if our key person leaves?", sampleScenarios("restaurant")).map(
+        (scenario) => scenario.id,
+      ),
+    ).toContain("sc-key-person-leaves");
+  });
+
   it("keeps a doubled l unless an ing or ed suffix was stripped", () => {
     const templateScenario = sampleScenarios("retail")[0];
     if (!templateScenario) throw new Error("Missing retail scenario");

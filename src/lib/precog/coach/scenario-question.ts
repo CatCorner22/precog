@@ -31,6 +31,12 @@ const SCENARIO_STOP_WORDS = new Set([
   "happens",
   "if",
   "when",
+  "leave",
+  "quit",
+  "away",
+  "absent",
+  "sick",
+  "out",
 ]);
 
 /** Owner words for a scenario that its title and id do not contain. */

@@ -2,10 +2,11 @@ import type { IndustryTemplate } from "./templates/types";
 import type { ScenarioTemplate } from "./types";
 import type { DetectedConflict } from "./sod/detect";
 import { relationLevel, STRONG_LEVELS } from "./continuity/coverage";
+import { registerAssessed } from "./continuity/register-state";
 import { CONFLICT_RULES, entitlementLabel, type EntitlementId } from "./sod/conflict-rules";
 import { buildAssignments, type RoleAssignment } from "./sod/assignments";
 import { teamHeldDuties } from "./sod/rule-match";
-import { midSentence } from "./text";
+import { joinWithAnd, midSentence, verb } from "./text";
 
 /** The duty-conflict rules a scenario plays out: those it names and those linked to it. */
 export function scenarioRuleIds(scenario: Pick<ScenarioTemplate, "id" | "sodRuleIds">): string[] {
@@ -30,11 +31,11 @@ export interface ScenarioWatch {
   /** The control the scenario relies on, when the template has it. */
   control: { id: string; name: string; inPlace: boolean } | null;
   /** The register entry the scenario turns on, when the template has it. */
-  knowledge: { name: string; holders: string[]; outToday: string[] } | null;
+  knowledge: { name: string; holders: string[]; outToday: string[]; recorded: boolean } | null;
 }
 
 export function scenarioWatch(
-  tpl: Pick<IndustryTemplate, "controls" | "knowledge" | "relations" | "people"> &
+  tpl: Pick<IndustryTemplate, "id" | "controls" | "knowledge" | "relations" | "people"> &
     Partial<Pick<IndustryTemplate, "roleTemplates">>,
   scenario: Pick<ScenarioTemplate, "id" | "sodRuleIds" | "controlId" | "knowledgeId">,
   openConflicts: readonly Pick<DetectedConflict, "ruleId" | "personName" | "title">[],
@@ -86,6 +87,14 @@ export function scenarioWatch(
             person.active &&
             STRONG_LEVELS.has(relationLevel(tpl.relations, person.id, item.id) ?? "aware"),
         );
+  const recorded =
+    item !== undefined &&
+    (tpl.relations.some(
+      (relation) =>
+        relation.knowledgeId === item.id &&
+        tpl.people.some((person) => person.id === relation.personId && person.active),
+    ) ||
+      (tpl.relations.length === 0 && registerAssessed(tpl)));
 
   return {
     conflicts,
@@ -99,9 +108,45 @@ export function scenarioWatch(
           outToday: holders
             .filter((person) => outTodayIds.has(person.id))
             .map((person) => person.name),
+          recorded,
         }
       : null,
   };
+}
+
+export function knowledgeFact(knowledge: NonNullable<ScenarioWatch["knowledge"]>): string {
+  if (!knowledge.recorded) {
+    return `${knowledge.name}: who can run it alone isn't recorded yet; mark it on Who knows what.`;
+  }
+  if (knowledge.holders.length === 0) {
+    return `${knowledge.name}: nobody can run it alone.`;
+  }
+  return `${knowledge.name}: ${joinWithAnd(knowledge.holders)} can run it alone.`;
+}
+
+export function dutyFacts(watch: ScenarioWatch): string[] {
+  if (watch.conflicts.length > 0) {
+    return [
+      ...watch.conflicts.slice(0, 3).map((conflict) => {
+        return `${conflict.personName} holds both duties: ${conflict.title}`;
+      }),
+      ...(watch.conflicts.length > 3 ? [`and ${watch.conflicts.length - 3} more`] : []),
+    ];
+  }
+  if (watch.unassignedDuties.length > 0) {
+    return [
+      `Nobody on the team is ticked for ${joinWithAnd(watch.unassignedDuties)}, so Precog cannot tell whether one person holds both duties this needs. Tick whoever does ${verb(watch.unassignedDuties.length, "it", "them")} on the Team tab.`,
+      ...(watch.offTeamDuties.length > 0
+        ? [`Your setup answers place ${joinWithAnd(watch.offTeamDuties)} outside the team.`]
+        : []),
+    ];
+  }
+  if (watch.offTeamDuties.length > 0) {
+    return [
+      `Your setup answers place ${joinWithAnd(watch.offTeamDuties)} outside the team, so nobody on the team holds both duties this needs.`,
+    ];
+  }
+  return ["Nobody on the team holds both duties this needs."];
 }
 
 /** A duty's label in running text: "enter payroll". */

@@ -79,7 +79,8 @@ describe("scenarioCases", () => {
 });
 
 describe("scenarioWatch", () => {
-  const tpl: Pick<IndustryTemplate, "controls" | "knowledge" | "relations" | "people"> = {
+  const tpl: Pick<IndustryTemplate, "id" | "controls" | "knowledge" | "relations" | "people"> = {
+    id: dental.id,
     controls: [{ ...dental.controls[0], id: "watch-control", name: "Split vendor duties" }],
     knowledge: [{ ...dental.knowledge[0], id: "watch-knowledge", name: "Close the books" }],
     people: [
@@ -128,6 +129,7 @@ describe("scenarioWatch", () => {
       name: "Close the books",
       holders: ["Alex Example", "Blair Example"],
       outToday: ["Alex Example"],
+      recorded: true,
     });
     const notInPlace = scenarioWatch(
       { ...tpl, controls: [{ ...tpl.controls[0], segregated: false }] },
