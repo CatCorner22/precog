@@ -18,26 +18,38 @@ import { outStopsNote, WEIGHTED_SHARE_NOTE } from "./start-here-copy";
 export function StartHereContinuitySection({
   model,
   onOpenDetail,
+  part,
 }: {
   model: StartHereModel["continuity"];
   onOpenDetail: NavFn;
+  /**
+   * "today" renders only the card on who is out right now (nothing when there
+   * is nothing to say); "readiness" only the heading and the figures. Both when
+   * absent.
+   */
+  part?: "today" | "readiness";
 }) {
   const tabName = useTabName();
   const { isSampleTeam, slippedCount, registerReady, trackFreshness, readiness, staffingToday } =
     model;
+  const showToday = part !== "readiness";
+  const showReadiness = part !== "today";
+  if (part === "today" && !staffingToday.headline) return null;
 
   return (
     <section className="space-y-3">
-      <SectionHeading
-        icon={<Users className="size-4" aria-hidden />}
-        title="Continuity readiness"
-        subtitle={
-          staffingToday.out.length > 0
-            ? "Someone is out today — this is what it stops."
-            : "Can the business run if someone is out tomorrow?"
-        }
-      />
-      {staffingToday.headline && (
+      {showReadiness && (
+        <SectionHeading
+          icon={<Users className="size-4" aria-hidden />}
+          title="Continuity readiness"
+          subtitle={
+            showToday && staffingToday.out.length > 0
+              ? "Someone is out today — this is what it stops."
+              : "Can the business run if someone is out tomorrow?"
+          }
+        />
+      )}
+      {showToday && staffingToday.headline && (
         <Card
           className={staffingToday.out.length > 0 ? "border-warn/40 bg-warn/5" : "border-border"}
         >
@@ -163,84 +175,86 @@ export function StartHereContinuitySection({
           </CardContent>
         </Card>
       )}
-      <Card>
-        <CardContent className="space-y-4 pt-5">
-          {!registerReady ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-panel/60 p-4">
-              <p className="text-sm font-medium">Not assessed yet.</p>
-              <Button size="sm" variant="secondary" onClick={() => onOpenDetail("knowledge")}>
-                Mark who can do each
-              </Button>
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-lg border border-border bg-panel/60 p-4">
-                <p className="font-mono text-2xl font-semibold tracking-tight">
-                  {readiness.coverageIndex}%
-                </p>
-                <p className="mt-1 text-sm font-medium">Has a stand-in</p>
-                <p className="mt-1 text-xs text-subtle">work two or more people can run</p>
+      {showReadiness && (
+        <Card>
+          <CardContent className="space-y-4 pt-5">
+            {!registerReady ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-panel/60 p-4">
+                <p className="text-sm font-medium">Not assessed yet.</p>
+                <Button size="sm" variant="secondary" onClick={() => onOpenDetail("knowledge")}>
+                  Mark who can do each
+                </Button>
               </div>
-              <div className="rounded-lg border border-border bg-panel/60 p-4">
-                <p
-                  className={cn(
-                    "font-mono text-2xl font-semibold tracking-tight",
-                    TONE_TEXT[healthTone(readiness.documentationIndex)],
-                  )}
-                >
-                  {readiness.documentationIndex}%
-                </p>
-                <p className="mt-1 text-sm font-medium">Written down</p>
-                <p className="mt-1 text-xs text-subtle">procedures a stand-in could follow</p>
-              </div>
-              <div className="rounded-lg border border-border bg-panel/60 p-4">
-                <p className="font-mono text-2xl font-semibold tracking-tight">
-                  {trackFreshness ? `${readiness.freshness.confirmedIndex}%` : "—"}
-                </p>
-                <p className="mt-1 text-sm font-medium">Confirmed recently</p>
-                <p className="mt-1 text-xs text-subtle">
-                  {!trackFreshness
-                    ? "starts once you enter your own register"
-                    : readiness.checkIns.checkIns[0]
-                      ? `next: check in with ${firstName(readiness.checkIns.checkIns[0].person.name)} (${readiness.checkIns.checkIns[0].items.length})`
-                      : readiness.checkIns.unheld.length > 0
-                        ? `${count(readiness.checkIns.unheld.length, "stale item")} nobody active holds`
-                        : `checked in the last ${CONFIRMATION_MAX_AGE_DAYS} days`}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border bg-panel/60 p-4">
-                <p className="font-mono text-2xl font-semibold tracking-tight">{slippedCount}</p>
-                <p className="mt-1 text-sm font-medium">Slipped</p>
-                <p className="mt-1 text-xs text-subtle">
-                  done items whose coverage or documentation regressed
-                </p>
-              </div>
-              <p className="text-xs leading-relaxed text-subtle sm:col-span-2 lg:col-span-4">
-                {INDEX_BASIS} {WEIGHTED_SHARE_NOTE}
-              </p>
-            </div>
-          )}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {readiness.mostDepended ? (
-              <p className="text-sm text-muted">
-                {isSampleTeam && "Sample register — "}
-                {readiness.mostDepended.person.name} carries {readiness.mostDepended.dependence}% of
-                must-do work alone
-              </p>
             ) : (
-              <span />
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg border border-border bg-panel/60 p-4">
+                  <p className="font-mono text-2xl font-semibold tracking-tight">
+                    {readiness.coverageIndex}%
+                  </p>
+                  <p className="mt-1 text-sm font-medium">Has a stand-in</p>
+                  <p className="mt-1 text-xs text-subtle">work two or more people can run</p>
+                </div>
+                <div className="rounded-lg border border-border bg-panel/60 p-4">
+                  <p
+                    className={cn(
+                      "font-mono text-2xl font-semibold tracking-tight",
+                      TONE_TEXT[healthTone(readiness.documentationIndex)],
+                    )}
+                  >
+                    {readiness.documentationIndex}%
+                  </p>
+                  <p className="mt-1 text-sm font-medium">Written down</p>
+                  <p className="mt-1 text-xs text-subtle">procedures a stand-in could follow</p>
+                </div>
+                <div className="rounded-lg border border-border bg-panel/60 p-4">
+                  <p className="font-mono text-2xl font-semibold tracking-tight">
+                    {trackFreshness ? `${readiness.freshness.confirmedIndex}%` : "—"}
+                  </p>
+                  <p className="mt-1 text-sm font-medium">Confirmed recently</p>
+                  <p className="mt-1 text-xs text-subtle">
+                    {!trackFreshness
+                      ? "starts once you enter your own register"
+                      : readiness.checkIns.checkIns[0]
+                        ? `next: check in with ${firstName(readiness.checkIns.checkIns[0].person.name)} (${readiness.checkIns.checkIns[0].items.length})`
+                        : readiness.checkIns.unheld.length > 0
+                          ? `${count(readiness.checkIns.unheld.length, "stale item")} nobody active holds`
+                          : `checked in the last ${CONFIRMATION_MAX_AGE_DAYS} days`}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-panel/60 p-4">
+                  <p className="font-mono text-2xl font-semibold tracking-tight">{slippedCount}</p>
+                  <p className="mt-1 text-sm font-medium">Slipped</p>
+                  <p className="mt-1 text-xs text-subtle">
+                    done items whose coverage or documentation regressed
+                  </p>
+                </div>
+                <p className="text-xs leading-relaxed text-subtle sm:col-span-2 lg:col-span-4">
+                  {INDEX_BASIS} {WEIGHTED_SHARE_NOTE}
+                </p>
+              </div>
             )}
-            <button
-              type="button"
-              onClick={() => onOpenDetail("knowledge")}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-            >
-              Open {tabName("knowledge")}
-              <ArrowRight className="size-3.5" aria-hidden />
-            </button>
-          </div>
-        </CardContent>
-      </Card>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {readiness.mostDepended ? (
+                <p className="text-sm text-muted">
+                  {isSampleTeam && "Sample register — "}
+                  {readiness.mostDepended.person.name} carries {readiness.mostDepended.dependence}%
+                  of must-do work alone
+                </p>
+              ) : (
+                <span />
+              )}
+              <button
+                type="button"
+                onClick={() => onOpenDetail("knowledge")}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                Open {tabName("knowledge")}
+                <ArrowRight className="size-3.5" aria-hidden />
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </section>
   );
 }

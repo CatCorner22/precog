@@ -1,102 +1,160 @@
 import { ArrowRight, ExternalLink } from "lucide-react";
 import { SectionHeading } from "./start-here-parts";
 import { TeamLink } from "./team-link";
-import { doNextDrift, doNextSteps } from "@/lib/precog/actions/do-next";
+import { Button } from "@/components/ui/button";
+import { doNextDrift, doNextSteps, type DoNextStep } from "@/lib/precog/actions/do-next";
+import type { NavFn } from "@/lib/precog/navigation";
+import { useTabName } from "@/lib/precog/presentation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { FIRST_STEPS_SHOWN, stepDestination } from "@/lib/precog/start-here/layout";
 import type { StartHereModel } from "@/lib/precog/start-here/model";
 import { benchmarkCitation, effortPhrase, lossPhrase } from "@/lib/precog/evidence";
 
-export function StartHereFirstStepsSection({ model }: { model: StartHereModel["firstSteps"] }) {
+export function StartHereFirstStepsSection({
+  model,
+  onOpenDetail,
+  part,
+}: {
+  model: StartHereModel["firstSteps"];
+  /** Opens the screen that fixes a step; without it the steps have no button. */
+  onOpenDetail?: NavFn;
+  /**
+   * "actions" renders the ranked list and the books-vs-duties card; "notes"
+   * the reporting-channel and sole-knowledge cards. Both when absent.
+   */
+  part?: "actions" | "notes";
+}) {
+  const tabName = useTabName();
   const { items, caseById, tips, hotlineGap, soleKnowledge, alreadyInPlace } = model;
   const steps = doNextSteps(items);
   const driftActions = doNextDrift(items);
+  const shown = steps.slice(0, FIRST_STEPS_SHOWN);
+  const rest = steps.slice(FIRST_STEPS_SHOWN);
+  const showActions = part !== "notes";
+  const showNotes = part !== "actions";
+  const hasNotes = Boolean(tips) || soleKnowledge.length > 0;
+  if (part === "notes" && !hasNotes) return null;
+
+  const renderStep = (s: DoNextStep, i: number) => {
+    const destination = stepDestination(s);
+    return (
+      <li key={s.control.id} className="flex gap-3">
+        <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-xs text-muted">
+          {i + 1}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+            <p className="min-w-0 grow basis-56 text-sm leading-relaxed">{s.control.label}</p>
+            {onOpenDetail && destination && (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="shrink-0"
+                aria-label={`Open ${tabName(destination)}: ${s.control.label}`}
+                onClick={() => onOpenDetail(destination)}
+              >
+                Open the conflicts it answers
+                <ArrowRight className="size-3.5" aria-hidden />
+              </Button>
+            )}
+          </div>
+          <p className="mt-0.5 text-sm leading-relaxed text-muted">{s.control.why}</p>
+          <div className="mt-1 text-xs text-subtle">
+            {effortPhrase(s.control)} ·{" "}
+            {s.answers > 0
+              ? `answers ${s.answers} of your open ${s.answers === 1 ? "gap" : "gaps"} · `
+              : ""}
+            would plausibly have caught {s.supportingCaseIds.length}{" "}
+            {s.supportingCaseIds.length === 1 ? "case" : "cases"} below
+            {s.supportingCaseIds.length > 0 && (
+              <details className="inline">
+                <summary className="ml-1 inline cursor-pointer font-medium text-primary hover:underline">
+                  · which {s.supportingCaseIds.length === 1 ? "case" : "cases"}
+                </summary>
+                <ul className="mt-1 space-y-0.5 text-xs text-muted">
+                  {s.supportingCaseIds.map((id) => {
+                    const c = caseById.get(id);
+                    return c ? (
+                      <li key={id}>
+                        · {c.title}
+                        {c.lossUsd > 0 ? ` (${lossPhrase(c)})` : ""}
+                      </li>
+                    ) : null;
+                  })}
+                </ul>
+              </details>
+            )}
+          </div>
+        </div>
+      </li>
+    );
+  };
 
   return (
     <section className="space-y-3">
-      <SectionHeading
-        icon={<ArrowRight className="size-4" aria-hidden />}
-        title="Do these first"
-        subtitle="Ordered first by how many of your open gaps each one answers, then by how many of the real cases below it would plausibly have caught. Most of these are detective controls: they shorten how long a scheme runs, which is what decides the loss."
-      />
+      {showActions && (
+        <>
+          <SectionHeading
+            icon={<ArrowRight className="size-4" aria-hidden />}
+            title="Do these first"
+            subtitle="Ranked by how many of your open gaps each answers, then by how many of the real cases below it would plausibly have caught."
+          />
 
-      <Card>
-        <CardContent className="pt-5">
-          {steps.length === 0 ? (
-            <p className="text-sm leading-relaxed text-muted">
-              Nothing outstanding from the duty conflicts. What follows applies to every business.
-            </p>
-          ) : (
-            <ol className="space-y-3">
-              {steps.map((s, i) => (
-                <li key={s.control.id} className="flex gap-3">
-                  <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-xs text-muted">
-                    {i + 1}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm leading-relaxed">{s.control.label}</p>
-                    <p className="mt-0.5 text-sm leading-relaxed text-muted">{s.control.why}</p>
-                    <p className="mt-1 text-xs text-subtle">
-                      {effortPhrase(s.control)} ·{" "}
-                      {s.answers > 0
-                        ? `answers ${s.answers} of your open ${s.answers === 1 ? "gap" : "gaps"} · `
-                        : ""}
-                      would plausibly have caught {s.supportingCaseIds.length}{" "}
-                      {s.supportingCaseIds.length === 1 ? "case" : "cases"} below
-                    </p>
-                    {s.supportingCaseIds.length > 0 && (
-                      <details className="mt-1">
-                        <summary className="cursor-pointer text-xs font-medium text-primary hover:underline">
-                          Which {s.supportingCaseIds.length === 1 ? "case" : "cases"}
-                        </summary>
-                        <ul className="mt-1 space-y-0.5 text-xs text-muted">
-                          {s.supportingCaseIds.map((id) => {
-                            const c = caseById.get(id);
-                            return c ? (
-                              <li key={id}>
-                                · {c.title}
-                                {c.lossUsd > 0 ? ` (${lossPhrase(c)})` : ""}
-                              </li>
-                            ) : null;
-                          })}
-                        </ul>
-                      </details>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
-          {alreadyInPlace.length > 0 && (
-            <p className="mt-3 text-xs text-muted">
-              Left off because you said at setup they already run:{" "}
-              {alreadyInPlace.map((control) => control.label).join(", ")}.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+          <Card>
+            <CardContent className="pt-3">
+              {steps.length === 0 ? (
+                <p className="text-sm leading-relaxed text-muted">
+                  Nothing outstanding from the duty conflicts. What follows applies to every
+                  business.
+                </p>
+              ) : (
+                <ol className="space-y-2.5">{shown.map(renderStep)}</ol>
+              )}
+              {rest.length > 0 && (
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-sm font-medium text-primary hover:underline">
+                    Show the other {rest.length === 1 ? "one" : rest.length}
+                  </summary>
+                  <ol className="mt-3 space-y-3">
+                    {rest.map((s, i) => renderStep(s, i + FIRST_STEPS_SHOWN))}
+                  </ol>
+                </details>
+              )}
+              {alreadyInPlace.length > 0 && (
+                <p className="mt-3 text-xs text-muted">
+                  Left off because you said at setup they already run:{" "}
+                  {alreadyInPlace.map((control) => control.label).join(", ")}.
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
-      {driftActions.length > 0 && (
-        <Card className="border-warn/30 bg-warn/5">
-          <CardContent className="space-y-2 pt-5">
-            <p className="text-sm font-medium">Books vs your duty assignments</p>
-            <ul className="space-y-2 text-sm text-muted">
-              {driftActions.map((d) => (
-                <li key={d.id}>
-                  <span className="text-fg">{d.title}</span> — {d.why}
-                </li>
-              ))}
-            </ul>
-            <p className="text-xs text-subtle">
-              <TeamLink>
-                Match payroll and access exports to your duty assignments under Team
-              </TeamLink>
-            </p>
-          </CardContent>
-        </Card>
+          {driftActions.length > 0 && (
+            <Card className="border-warn/30 bg-warn/5">
+              <CardContent className="space-y-2 pt-5">
+                <p className="text-sm font-medium">Books vs your duty assignments</p>
+                <ul className="space-y-2 text-sm text-muted">
+                  {driftActions.map((d) => (
+                    <li key={d.id}>
+                      <span className="text-fg">{d.title}</span> — {d.why}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-subtle">
+                  <TeamLink>
+                    Match payroll and access exports to your duty assignments under Team
+                  </TeamLink>
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
-      {tips && (
+      {part === "notes" && hasNotes && <SectionHeading title="Also worth knowing" />}
+
+      {showNotes && tips && (
         <Card>
           <CardContent className="space-y-1 pt-5">
             <p className="text-sm font-medium">
@@ -123,7 +181,7 @@ export function StartHereFirstStepsSection({ model }: { model: StartHereModel["f
         </Card>
       )}
 
-      {soleKnowledge.length > 0 && (
+      {showNotes && soleKnowledge.length > 0 && (
         <Card>
           <CardContent className="space-y-2 pt-5">
             <p className="text-sm font-medium">

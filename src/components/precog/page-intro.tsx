@@ -61,10 +61,13 @@ function toggleOnSpace(e: KeyboardEvent<HTMLElement>) {
 export function HowThisWorks({
   children,
   className,
+  bodyClassName,
   summary = "How this works",
 }: {
   children: ReactNode;
   className?: string;
+  /** Classes for the body, for a fold that holds whole sections rather than a note. */
+  bodyClassName?: string;
   summary?: string;
 }) {
   return (
@@ -76,7 +79,9 @@ export function HowThisWorks({
         <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden />
         {summary}
       </summary>
-      <div className="space-y-3 px-4 pb-4 text-sm leading-relaxed text-muted">{children}</div>
+      <div className={cn("space-y-3 px-4 pb-4 text-sm leading-relaxed text-muted", bodyClassName)}>
+        {children}
+      </div>
     </details>
   );
 }
