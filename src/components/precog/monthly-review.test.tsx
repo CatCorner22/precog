@@ -405,6 +405,19 @@ describe("monthly review records last month until its due day", () => {
     expect(classOf("Exception (found a problem)")[0]).toContain("pointer-coarse:min-h-11");
   });
 
+  it("outlines the check Needs attention opens, so the owner sees which one has focus", () => {
+    state.today = new Date(2026, 9, 3);
+    const html = renderToStaticMarkup(<MonthlyReview focusPeriod="2026-10" />);
+    const classes =
+      /<li[^>]*id="check-2026-10-bank_statement"[^>]*class="([^"]*)"|<li[^>]*class="([^"]*)"[^>]*id="check-2026-10-bank_statement"/
+        .exec(html)
+        ?.slice(1)
+        .find(Boolean)
+        ?.split(" ");
+    expect(classes).toContain("focus:outline-2");
+    expect(classes).toContain("focus:outline-primary");
+  });
+
   it("offers this month alone from the 11th", () => {
     state.today = new Date(2026, 9, 11);
     const html = view();

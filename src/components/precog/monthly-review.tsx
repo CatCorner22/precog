@@ -362,7 +362,8 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
               key={task.key}
               id={checkItemId(task.period, task.key)}
               tabIndex={-1}
-              className="scroll-mt-4 rounded-lg border border-border p-3"
+              // Needs attention focuses the check it opens; the outline shows which one.
+              className="scroll-mt-4 rounded-lg border border-border p-3 focus:outline-2 focus:outline-offset-2 focus:outline-primary"
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="font-medium">{task.title}</h3>
