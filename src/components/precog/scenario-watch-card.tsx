@@ -60,6 +60,20 @@ export function ScenarioWatchCard({
                     ))}
                     {watch.conflicts.length > 3 && <p>and {watch.conflicts.length - 3} more</p>}
                   </>
+                ) : watch.notOpen.length > 0 ? (
+                  // Held, but left out of the open count, as the Duty
+                  // conflicts tab's "Not counted as open" group says.
+                  <>
+                    {watch.notOpen.slice(0, 3).map((pair, index) => (
+                      <p key={`${pair.personName}:${index}`}>
+                        {pair.personName} holds both duties: {pair.title}. Not counted as open:{" "}
+                        {pair.reason === "owner"
+                          ? "it is the owner's own pair."
+                          : "dual release covers it at every amount."}
+                      </p>
+                    ))}
+                    {watch.notOpen.length > 3 && <p>and {watch.notOpen.length - 3} more</p>}
+                  </>
                 ) : watch.unassignedDuties.length > 0 ? (
                   <>
                     <p>

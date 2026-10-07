@@ -7,7 +7,8 @@ import { localDateKey } from "@/lib/precog/dates";
 import { scenarioUnfolding } from "@/lib/precog/scenario-unfolding";
 import { useToday } from "@/lib/use-today";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { openFindings, partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
+import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
+import { openConflictHeadline } from "@/lib/precog/headline/open-conflicts";
 import { dutiesOffTeam } from "@/lib/precog/onboarding/setup-answers";
 import {
   insuranceBasis,
@@ -83,20 +84,22 @@ export function SingleScenarioView({
     () => scenarioCases(scenario, profile.industry),
     [scenario, profile.industry],
   );
-  // The open findings, and the assignments the check built, which the watch
-  // card reads for the duties nobody holds.
-  const { openConflicts, assignments } = useMemo(() => {
+  // The open findings as the Duty conflicts tab counts them
+  // (headline/open-conflicts), every finding, so the card can name a pair
+  // held but not counted as open, and the assignments the check built, which
+  // the watch card reads for the duties nobody holds.
+  const { openConflicts, conflicts, assignments } = useMemo(() => {
     const report = detectSodConflicts(
       tpl,
       profile.staff,
       sodDetectionOptions(tpl, profile.dualRelease),
     );
-    const { conflicts } = report;
     return {
-      openConflicts: openFindings(
-        conflicts,
-        partialDualReleaseCoverage(profile.dualRelease, conflicts),
-      ),
+      openConflicts: openConflictHeadline(
+        report,
+        partialDualReleaseCoverage(profile.dualRelease, report.conflicts),
+      ).findings,
+      conflicts: report.conflicts,
       assignments: report.assignments,
     };
   }, [tpl, profile.staff, profile.dualRelease]);
@@ -123,8 +126,9 @@ export function SingleScenarioView({
         outTodayIds,
         dutiesOffTeam(profile.setupAnswers),
         assignments,
+        conflicts,
       ),
-    [tpl, scenario, openConflicts, outTodayIds, profile.setupAnswers, assignments],
+    [tpl, scenario, openConflicts, outTodayIds, profile.setupAnswers, assignments, conflicts],
   );
   const unfolding = scenarioUnfolding(scenario.id);
   // The figures card: a pick on a phone scrolls it into view.

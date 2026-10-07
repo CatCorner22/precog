@@ -88,6 +88,14 @@ export interface ScenarioWatch {
   /** Open findings on the scenario's duty-conflict rules, one per person and rule. */
   conflicts: { personName: string; title: string }[];
   /**
+   * Pairs on the scenario's rules that someone holds but the open count
+   * leaves out, as the Duty conflicts tab's "Not counted as open" group does:
+   * the owner's own pairs, and pairs dual release covers at every amount.
+   * With one of them the card names it instead of "Nobody on the team holds
+   * both duties".
+   */
+  notOpen: { personName: string; title: string; reason: "owner" | "dual" }[];
+  /**
    * Duties the scenario's rules need that nobody active holds, in plain words.
    * With one of them unticked Precog cannot tell whether anyone holds a pair,
    * so the card says so instead of "Nobody on the team holds both duties".
@@ -119,6 +127,15 @@ export function scenarioWatch(
     people: tpl.people,
     roleTemplates: tpl.roleTemplates ?? {},
   }),
+  /**
+   * Every finding the conflict check made (the detection report's
+   * `conflicts`), of which `openConflicts` are the open ones: the rest on
+   * the scenario's rules are held but not counted as open.
+   */
+  allConflicts: readonly Pick<
+    DetectedConflict,
+    "ruleId" | "personName" | "title" | "ownerHeld"
+  >[] = openConflicts.map((c) => ({ ...c, ownerHeld: false })),
 ): ScenarioWatch {
   const ruleIds = new Set(scenarioRuleIds(scenario));
   const seen = new Set<string>();
@@ -129,6 +146,18 @@ export function scenarioWatch(
     if (seen.has(key)) continue;
     seen.add(key);
     conflicts.push({ personName: conflict.personName, title: conflict.title });
+  }
+  const notOpen: ScenarioWatch["notOpen"] = [];
+  for (const conflict of allConflicts) {
+    if (!ruleIds.has(conflict.ruleId)) continue;
+    const key = `${conflict.personName}\u0000${conflict.ruleId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    notOpen.push({
+      personName: conflict.personName,
+      title: conflict.title,
+      reason: conflict.ownerHeld ? "owner" : "dual",
+    });
   }
 
   const held = teamHeldDuties(assignments);
@@ -159,6 +188,7 @@ export function scenarioWatch(
 
   return {
     conflicts,
+    notOpen,
     unassignedDuties: [...unassigned].map(dutyWords),
     offTeamDuties: [...offTeamUnheld].map(dutyWords),
     control: control ? { id: control.id, name: control.name, inPlace: control.segregated } : null,
