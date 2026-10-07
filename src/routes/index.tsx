@@ -22,6 +22,7 @@ import {
   Shield,
   Sparkles,
   Users,
+  UserX,
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -103,7 +104,7 @@ function Home() {
   const tab: TabId = isTabId(search.tab) ? search.tab : "start";
   const item = search.item ?? null;
   const build = search.build ?? false;
-  const activeAdvanced = ADVANCED_TABS.find((t) => t.id === tab) ?? null;
+  const activeExtra = TABS.find((t) => t.id === tab && !PRIMARY_TAB_IDS.includes(t.id)) ?? null;
 
   const tpl = useTemplate();
   const { profile, ready, businesses } = usePracticeState();
@@ -246,8 +247,8 @@ function Home() {
 
   /** Roving focus for the tab strip: arrow keys, Home, and End move between tabs. */
   function onTabKeyDown(event: KeyboardEvent<HTMLElement>) {
-    // The visible strip: the primary tabs plus the open advanced tab, if any.
-    const visible = activeAdvanced ? [...PRIMARY_TABS, activeAdvanced] : PRIMARY_TABS;
+    // The visible strip: the primary tabs plus the open Analyze or header tab, if any.
+    const visible = activeExtra ? [...PRIMARY_TABS, activeExtra] : PRIMARY_TABS;
     const index = visible.findIndex((t) => t.id === tab);
     let next = index;
     if (event.key === "ArrowRight") next = (index + 1) % visible.length;
@@ -310,18 +311,39 @@ function Home() {
                       Report
                     </Link>
                     <NeedsAttentionMenu onOpen={(target, item) => openTab(target, item)} />
+                    <button
+                      type="button"
+                      data-header-link="absences"
+                      onClick={() => openTab("absences")}
+                      className={buttonClass({ variant: "secondary", size: "sm" })}
+                    >
+                      <UserX className="size-3.5" aria-hidden />
+                      {tabLabel("absences", say)}
+                    </button>
                   </>
                 }
                 trailing={
-                  <SignedIn>
-                    <Link
-                      to="/firm"
-                      title="For accountants and advisors who look after several businesses"
+                  <>
+                    <button
+                      type="button"
+                      data-header-tab="pioneer"
+                      aria-pressed={tab === "pioneer"}
+                      onClick={() => openTab("pioneer")}
                       className={buttonClass({ variant: "secondary", size: "sm" })}
                     >
-                      Firm workspace
-                    </Link>
-                  </SignedIn>
+                      <MessageSquare className="size-3.5" aria-hidden />
+                      {tabLabel("pioneer", say)}
+                    </button>
+                    <SignedIn>
+                      <Link
+                        to="/firm"
+                        title="For accountants and advisors who look after several businesses"
+                        className={buttonClass({ variant: "secondary", size: "sm" })}
+                      >
+                        Firm workspace
+                      </Link>
+                    </SignedIn>
+                  </>
                 }
               />
             </div>
@@ -347,7 +369,7 @@ function Home() {
             tabCount={TABS.length}
             trailing={
               <MoreTabsMenu
-                tabs={ADVANCED_TABS}
+                tabs={ANALYZE_TABS}
                 activeId={tab}
                 label={(t) => say(t.label, t.tactical)}
                 onPick={(id) => openTab(id)}
@@ -360,7 +382,7 @@ function Home() {
               />
             }
           >
-            {[...PRIMARY_TABS, ...(activeAdvanced ? [activeAdvanced] : [])].map((t) => {
+            {[...PRIMARY_TABS, ...(activeExtra ? [activeExtra] : [])].map((t) => {
               const Icon = t.icon;
               const active = tab === t.id;
               return (
@@ -554,11 +576,13 @@ const TAB_ICONS: Record<TabId, ShellTab["icon"]> = {
 const TABS: readonly ShellTab[] = TAB_WORDS.map((t) => ({ ...t, icon: TAB_ICONS[t.id] }));
 
 /**
- * Six tabs carry the product: where you stand, who works here, who controls
- * what, who knows what, how to do it when they are out, and what to check
- * each month. The rest are deeper views of the same inputs and sit behind
- * "Advanced". Every tab keeps its id and deep link, and older ids open the
- * view they became (TAB_ALIASES) or the page they moved to (ROUTE_ALIASES).
+ * Six tabs carry the owner's jobs: where you stand, who works here, who
+ * controls what, who knows what, how to do it when they are out, and what to
+ * check each month. Ask Pioneer is a header button, since a question can come
+ * up on any tab. The rest analyze the same inputs (how work flows, what could
+ * happen, how Precog scores) and sit behind "Analyze". Every tab keeps its id
+ * and deep link, and older ids open the view they became (TAB_ALIASES) or the
+ * page they moved to (ROUTE_ALIASES).
  */
 const PRIMARY_TAB_IDS: readonly TabId[] = [
   "start",
@@ -568,14 +592,17 @@ const PRIMARY_TAB_IDS: readonly TabId[] = [
   "procedures",
   "monthly",
 ];
+const HEADER_TAB_IDS: readonly TabId[] = ["pioneer"];
 /**
- * Value proof and History live on the firm workspace. Advanced links there,
+ * Value proof and History live on the firm workspace. Analyze links there,
  * so an owner who is signed out (and has no Firm workspace button) still
  * reaches Value proof on this device.
  */
 const ROUTE_LINK_IDS: readonly RouteAliasId[] = ["value", "snapshots"];
 const PRIMARY_TABS = PRIMARY_TAB_IDS.map((id) => TABS.find((t) => t.id === id)!);
-const ADVANCED_TABS = TABS.filter((t) => !PRIMARY_TAB_IDS.includes(t.id));
+const ANALYZE_TABS = TABS.filter(
+  (t) => !PRIMARY_TAB_IDS.includes(t.id) && !HEADER_TAB_IDS.includes(t.id),
+);
 
 /** One sentence of purpose per page, with the method folded under "How this works". */
 const TAB_INTROS = {

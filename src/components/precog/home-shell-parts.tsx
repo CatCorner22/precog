@@ -37,7 +37,7 @@ export function TabStrip({
   /** Pinned at the strip's right end, outside the tablist: menus, never tabs. */
   trailing?: ReactNode;
   onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
-  /** Every tab, including the ones behind "Advanced"; the tab walk (scripts/e2e-tabs.mjs) checks it. */
+  /** Every tab, including the ones behind "Analyze" and in the header; the tab walk (scripts/e2e-tabs.mjs) checks it. */
   tabCount: number;
 }) {
   const ref = useRef<HTMLElement | null>(null);
@@ -108,7 +108,7 @@ export function TabStrip({
   );
 }
 
-/** A place on another page that the Advanced menu links to, below its views. */
+/** A place on another page that the Analyze menu links to, below its views. */
 export interface ShellRouteLink {
   id: string;
   label: string;
@@ -285,7 +285,7 @@ export function MoreTabsMenu({
             : "text-muted hover:bg-elevated/60 hover:text-fg",
         )}
       >
-        Advanced
+        Analyze
         <ChevronDown
           className={cn("size-3.5 transition-transform", open && "rotate-180")}
           aria-hidden
@@ -295,7 +295,7 @@ export function MoreTabsMenu({
         <div
           role="menu"
           style={{ top: place.top, right: place.right }}
-          aria-label="Advanced views"
+          aria-label="Analyze views"
           onKeyDown={onMenuKeyDown}
           className="fixed z-30 w-64 rounded-lg border border-border bg-surface p-1 shadow-xl"
         >

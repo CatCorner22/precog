@@ -190,7 +190,7 @@ See `docs/CONTROL_EVIDENCE_WORKFLOW.md` for boundaries and test instructions.
 for several client businesses. It keeps the firm's own business: its people,
 its clients, report versions, billing and the QuickBooks link. It also holds
 Value proof and History (assessment snapshots) for the open business, which
-the home page's Advanced menu links to. The Monthly review is a tab on each
+the home page's Analyze menu links to. The Monthly review is a tab on each
 business's own home page.
 
 - **People at the firm**: the owner invites preparers and reviewers by email;
