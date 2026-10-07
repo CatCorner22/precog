@@ -62,10 +62,6 @@ describe("coachErrorMessage", () => {
 
   it("shows a plain sentence for an error the server did not explain", () => {
     expect(coachErrorMessage(new Error("TypeError: x is undefined"))).toBe(
-      "Pioneer could not build a brief. Try again in a moment.",
-    );
-    expect(coachErrorMessage("boom")).toBe(
-      "Pioneer could not build a brief. Try again in a moment.",
       "Pioneer could not answer just now. Try again in a moment.",
     );
     expect(coachErrorMessage("boom")).toBe(
@@ -90,15 +86,8 @@ describe("briefAuthorLine", () => {
     expect(briefAuthorLine({ modelStatus: "failed" })).toBe(
       "Written by Precog's rules from your records. No AI wrote it.",
     );
-    expect(briefAuthorLine({ modelStatus: "answered", model: "grok-4.5" })).toMatch(
-      /^Grok \(grok-4\.5\) picked the top moves\. Precog's rules wrote every word\.$/,
-      "Written by Precog's rules from your records. No AI model wrote it.",
-    );
-    expect(briefAuthorLine({ modelStatus: "failed" })).toBe(
-      "Written by Precog's rules from your records. No AI model wrote it.",
-    );
     expect(briefAuthorLine({ modelStatus: "answered", model: "grok-4.5" })).toBe(
-      "Grok (grok-4.5) picked what to show first from Precog's statements. It wrote none of them.",
+      "Grok (grok-4.5) picked the moves most relevant to your question. Precog's rules wrote every word.",
     );
   });
 });
@@ -127,7 +116,9 @@ describe("CoachResultView", () => {
     expect(html).toContain("Added to the Decisions log");
     expect(html).toContain("Show all 5");
     expect(html).not.toContain("Move 5");
-    expect(html).not.toContain("Because.");
+    expect(html.match(/<p class="mt-1 text-xs text-muted">Because\.<\/p>/g)).toHaveLength(
+      MOVES_PREVIEW,
+    );
   });
 
   it("hides copied move Markdown on screen and renders the structured details in the disclosure", () => {

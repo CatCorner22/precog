@@ -86,7 +86,9 @@ describe("local advisor brief", () => {
     expect(brief.decisions.map((d) => d.action)).toContain(
       "Mark who can do each item on Who knows what",
     );
-    expect(brief.markdown).toContain("**Grace Kim**: set up suppliers and release payments");
+    expect(brief.markdown).toContain(
+      "**Grace Kim**: set up suppliers and release payments (critical)",
+    );
     expect(brief.markdown).not.toContain("## This week\nThis week:");
   });
 
@@ -105,9 +107,6 @@ describe("local advisor brief", () => {
         `${control.why} You can do this yourself this week; it takes minutes.`,
       );
     }
-    expect(brief.markdown).toContain(
-      "**Grace Kim**: set up suppliers and release payments (critical)",
-    );
   });
 
   it("names a conflict's severity in the Start here badge words, not a residual band", () => {
@@ -141,20 +140,67 @@ describe("local advisor brief", () => {
     const question = "Walk me through a write-off abuse scenario and its controls.";
     const { brief, steps } = localBrief(question, { profile: sample, question }, sample);
 
-    expect(brief.markdown).toContain("## Your question");
-    expect(brief.markdown).toMatch(
-      /\*\*Write-offs posted without a second approval\*\*:.*assumed retained/,
-    );
-    expect(brief.markdown).toContain("How it unfolds:");
+    expect(brief.markdown).toContain("## Answer");
+    expect(brief.markdown).toContain("### Write-offs posted without a second approval");
+    expect(brief.markdown).toMatch(/\*\*Precog's assumptions:\*\* assumed retained/);
+    expect(brief.markdown).toContain("**How it unfolds**");
     expect(brief.markdown).toContain(
       "1. A staff member posts a large adjustment against a customer balance.",
     );
-    expect(brief.markdown).toContain("Warning signs:");
+    expect(brief.markdown).toContain("**Warning signs**");
     expect(brief.markdown).toContain("Large adjustments post under one login.");
     expect(brief.markdown).not.toContain("not counted in your totals");
     expect(steps.find((step) => step.phase === "synthesize")?.detail).toContain(
       `${brief.decisions.length} recommended moves`,
     );
+  });
+
+  it("shows the departure scenario before the absence answer", () => {
+    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+    const question = "Walk me through the front desk lead leaves scenario.";
+    const scenario = resolveTemplate(sample).scenarios.find(
+      (item) => item.id === "sc-front-desk-leaves",
+    );
+    if (!scenario) throw new Error("Missing dental departure scenario");
+    const { brief } = localBrief(question, { profile: sample, question }, sample);
+    const scenarioStart = brief.markdown.indexOf(`### ${scenario.title}`);
+    const absenceStart = brief.markdown.indexOf(
+      "If Jordan Blake (Front Desk Lead) is away or leaves",
+    );
+
+    expect(brief.markdown).toContain(scenario.description);
+    expect(brief.markdown).toContain("**How it unfolds**");
+    expect(brief.markdown).toContain("**Warning signs**");
+    expect(scenarioStart).toBeGreaterThanOrEqual(0);
+    expect(absenceStart).toBeGreaterThan(scenarioStart);
+  });
+
+  it("does not treat an unassessed register as proof nobody can run a scenario alone", () => {
+    const profile = clinic();
+    const template = resolveTemplate(profile);
+    const answer = scenarioAnswer(
+      "Walk me through the front desk lead leaves scenario.",
+      template,
+      profile,
+    )?.join("\n");
+
+    expect(answer).toContain(
+      "Insurance denial appeals: who can run it alone isn't recorded yet; mark it on Who knows what.",
+    );
+    expect(answer).not.toContain("nobody can run it alone");
+  });
+
+  it("reports recorded holders when the sample register is assessed", () => {
+    const profile = pioneerProfileFrom(defaultProfile("dental") as never);
+    const template = resolveTemplate(profile);
+    const answer = scenarioAnswer(
+      "Walk me through the front desk lead leaves scenario.",
+      template,
+      profile,
+    )?.join("\n");
+
+    expect(answer).toContain("Insurance denial appeals: Jordan Blake can run it alone.");
+    expect(answer).not.toContain("isn't recorded yet");
   });
 
   it("labels an unconfirmed owner-business starter scenario in its scenario answer", () => {
@@ -163,7 +209,7 @@ describe("local advisor brief", () => {
     const { brief } = localBrief(question, { profile, question }, profile);
     const line = brief.markdown
       .split("\n")
-      .find((text) => text.includes("**Write-offs posted without a second approval**"));
+      .find((text) => text.includes("### Write-offs posted without a second approval"));
     const tag = `(${starterScenarioLabel(profile.industry).replace(/^Sample scenarios/, "sample scenario")}, not counted in your totals)`;
 
     expect(line).toBeDefined();
@@ -191,7 +237,7 @@ describe("local advisor brief", () => {
     const vendor = brief.markdown.indexOf("One person sets up vendors and pays them");
     const cash = brief.markdown.indexOf("One person posts payments and reconciles the bank");
 
-    expect(brief.markdown).toContain("## Your question");
+    expect(brief.markdown).toContain("## Answer");
     expect(vendor).toBeGreaterThan(-1);
     expect(cash).toBeGreaterThan(-1);
     expect(vendor).toBeLessThan(cash);
@@ -237,7 +283,8 @@ describe("local advisor brief", () => {
     const riskSection =
       brief.markdown.split("## Biggest open risks\n")[1]?.split("\n\n## ")[0] ?? "";
     const risks = riskSection.match(/^\d+\. \*\*/gm) ?? [];
-    expect(risks).toHaveLength(4);
+    expect(risks).toHaveLength(3);
+    expect(riskSection).toMatch(/\n\n\*\*What this has cost other businesses\*\*/);
     expect(riskSection).not.toMatch(/Drivers: (?:Severity level|Likelihood level)/);
   });
 

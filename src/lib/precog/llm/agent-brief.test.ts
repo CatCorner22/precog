@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   chickenLittleCritique,
+  destack,
   extractVariableCascades,
   localSynthesize,
   NO_ALERT_WARNING,
   renderDecision,
 } from "./agent-brief";
-import { chickenLittleCritique, destack, localSynthesize, NO_ALERT_WARNING } from "./agent-brief";
 import type { ScenarioRunData } from "./scenario-tools";
 import type { ToolResult } from "./types";
 import { RISK_SCALE } from "../scoring/bands";
@@ -78,6 +78,33 @@ describe("Pioneer early scenario signs", () => {
   });
 });
 
+describe("Pioneer's residual warnings", () => {
+  const warn = (averageResidual: number, criticalPath: number) =>
+    chickenLittleCritique([
+      {
+        tool: "get_residual_portfolio",
+        ok: true,
+        summary: "",
+        data: { averageResidual, criticalPath },
+      },
+    ]);
+
+  it("names the residual band the average sits in, never a priority-list word", () => {
+    expect(warn(RISK_SCALE.actNow, 0)).toContain(
+      `The average risk index is ${RISK_SCALE.actNow}/100, in the "${RESIDUAL_BAND_LABEL.act_now}" band on Precog's own index (Precog warns at ${RISK_SCALE.actNow} or more).`,
+    );
+    expect(warn(RISK_SCALE.critical + 5, 0).join(" ")).toContain(
+      `in the "${RESIDUAL_BAND_LABEL.critical_path}" band`,
+    );
+  });
+
+  it("counts the residual risks in the Severe band, not in Fix first", () => {
+    const warnings = warn(0, 3);
+    expect(warnings).toContain(`3 risks are in the "${RESIDUAL_BAND_LABEL.critical_path}" band.`);
+    expect(warnings.join(" ")).not.toMatch(/fix first|fix soon|worth doing/i);
+  });
+});
+
 describe("Pioneer concise brief", () => {
   it("keeps the short limits section and omits the removed sections and stack labels", () => {
     const { brief } = synthesize(makeScenarioResult());
@@ -137,14 +164,16 @@ describe("variable cascade brief lines", () => {
     const lines = extractVariableCascades([result]);
 
     expect(lines[0]).toBe(
-      "**Cameras + dual release**: risk index −8.0, found 71 days sooner. Also: lowers likelihood. Shorter detection reduces assumed loss.",
+      "**Put cameras and dual release in place together**: risk index 8 points lower, found 71 days sooner. Also: lowers likelihood. Shorter detection reduces assumed loss.",
     );
     expect(lines[1]).toContain("found 12 days later");
     expect(lines[1]).not.toContain("Shorter detection");
     expect(lines[2]).toBe(
       "**No-op lever**: no change in Precog's figures. Also: lowers likelihood.",
     );
-    expect(lines.join("\n")).not.toMatch(/assumed retained \$0|premium \$0|risk index \+?0\.0/);
+    expect(lines.join("\n")).not.toMatch(
+      /assumed retained \$0|premium \$0|risk index \+?0\.0|0 points/,
+    );
   });
 });
 
@@ -174,35 +203,11 @@ describe("rules-authored move text", () => {
       cascadeEffects: ["risk index ↓"],
     };
 
-    expect(brief.decisions[0].action).toBe("Cameras + dual release");
+    expect(brief.decisions[0].action).toBe("Put cameras and dual release in place together");
     expect(brief.decisions[0].rationale).toBe(
       "Precog's model ranks this first, using its own weights. It is an ordering, not a measurement.",
     );
     expect(renderDecision(move, 0)).not.toContain("Also moves");
     expect(move.cascadeEffects).toEqual(["risk index ↓"]);
-describe("Pioneer's residual warnings", () => {
-  const warn = (averageResidual: number, criticalPath: number) =>
-    chickenLittleCritique([
-      {
-        tool: "get_residual_portfolio",
-        ok: true,
-        summary: "",
-        data: { averageResidual, criticalPath },
-      },
-    ]);
-
-  it("names the residual band the average sits in, never a priority-list word", () => {
-    expect(warn(RISK_SCALE.actNow, 0)).toContain(
-      `The average risk index is ${RISK_SCALE.actNow}/100, in the "${RESIDUAL_BAND_LABEL.act_now}" band on Precog's own index (Precog warns at ${RISK_SCALE.actNow} or more).`,
-    );
-    expect(warn(RISK_SCALE.critical + 5, 0).join(" ")).toContain(
-      `in the "${RESIDUAL_BAND_LABEL.critical_path}" band`,
-    );
-  });
-
-  it("counts the residual risks in the Severe band, not in Fix first", () => {
-    const warnings = warn(0, 3);
-    expect(warnings).toContain(`3 risks are in the "${RESIDUAL_BAND_LABEL.critical_path}" band.`);
-    expect(warnings.join(" ")).not.toMatch(/fix first|fix soon|worth doing/i);
   });
 });
