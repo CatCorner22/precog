@@ -4,7 +4,7 @@ import { INDUSTRIES } from "@/lib/precog/industry";
 import { suggestedDuties } from "@/lib/precog/onboarding/own-team";
 import { UNANSWERED } from "@/lib/precog/onboarding/setup-answers";
 import { ONE_PERSON_NOTE, onePersonNote } from "./industry-onboarding-helpers";
-import { caseCoveragePhrase, titleTicksItems } from "./industry-onboarding-helpers";
+import { caseCoveragePhrase, finishWaits, titleTicksItems } from "./industry-onboarding-helpers";
 
 const total = CASE_LIBRARY.length;
 const inSectors = (...sectors: string[]) =>
@@ -91,7 +91,7 @@ describe("setup leave confirms", () => {
 });
 
 describe("titleTicksItems", () => {
-  it("lists each named person whose job title ticked duties, with those duties", () => {
+  it("lists each named person whose job title suggested duties not yet decided, with those duties", () => {
     const answers = { ...UNANSWERED, bankRec: "outside" as const };
     const items = titleTicksItems(
       [
@@ -107,6 +107,7 @@ describe("titleTicksItems", () => {
           role: "Bookkeeper",
           duties: suggestedDuties("Bookkeeper", false, "dental", answers),
           suggestedFor: "Bookkeeper",
+          keptDuties: ["release_payment"],
           rowId: "b",
         },
         { name: "Cal", role: "Front Desk", duties: ["post_payments"], rowId: "c" },
@@ -119,17 +120,36 @@ describe("titleTicksItems", () => {
         rowId: "b",
         who: "Lisa",
         role: "Bookkeeper",
+        // Kept duties leave the list; duties with no grid column stay in it.
         duties: [
           "post_payments",
           "enter_invoices",
           "create_vendor",
-          "release_payment",
           "enter_payroll",
           "post_journal_entries",
           "review_card_statement",
         ],
       },
     ]);
+  });
+});
+
+describe("finishWaits", () => {
+  it("holds Finish back until every suggestion is decided, naming the first person", () => {
+    const lisa = {
+      rowId: "b",
+      who: "Lisa",
+      role: "Bookkeeper",
+      duties: ["post_payments"] as const,
+    };
+    const cal = {
+      rowId: "c",
+      who: "Cal",
+      role: "Front Desk",
+      duties: ["collect_cash", "issue_refunds"] as const,
+    };
+    expect(finishWaits([lisa, cal])).toEqual({ waiting: 3, first: lisa });
+    expect(finishWaits([])).toBeNull();
   });
 });
 

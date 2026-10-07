@@ -326,3 +326,34 @@ describe("a draft this version cannot read", () => {
     expect(read?.[0].answersUnticked).toEqual(["bank_reconcile"]);
   });
 });
+
+describe("setup draft: confirmed duties and answered questions", () => {
+  function stored(value: unknown) {
+    const storage = tabStorage();
+    storage.setItem(SETUP_DRAFT_KEY, JSON.stringify(value));
+    return readSetupDraft(storage);
+  }
+  const draft = { step: "team", selected: "dental", businessName: "", rows: [], paste: "" };
+
+  it("keeps the duties the owner kept, and drops a row whose kept list is not strings", () => {
+    const rows = [
+      {
+        name: "Ruth",
+        role: "Bookkeeper",
+        duties: ["release_payment"],
+        keptDuties: ["release_payment"],
+      },
+      { name: "Moe", role: "Bookkeeper", duties: [], keptDuties: "release_payment" },
+    ];
+    const read = stored({ ...draft, rows })?.rows;
+    expect(read?.map((r) => r.name)).toEqual(["Ruth"]);
+    expect(read?.[0].keptDuties).toEqual(["release_payment"]);
+  });
+
+  it("keeps which money questions were answered, known names only", () => {
+    expect(
+      stored({ ...draft, answeredQuestions: ["payroll", "bogus"] })?.answeredQuestions,
+    ).toEqual(["payroll"]);
+    expect(stored(draft)?.answeredQuestions).toBeUndefined();
+  });
+});

@@ -3,7 +3,10 @@ import { CONTROL_CATALOG } from "../evidence/controls";
 import { DEFAULT_RISK_VARIABLES } from "../scoring/dynamic-variables";
 import { DEFAULT_WEIGHTS } from "../scoring/weights";
 import {
+  SETUP_QUESTIONS,
   UNANSWERED,
+  answeredSummary,
+  normalizeAnsweredQuestions,
   dutiesOffTeam,
   hiddenDuties,
   normalizeSetupAnswers,
@@ -147,5 +150,27 @@ describe("setup answer effects", () => {
       'Who can cover each duty was not asked yet. "Who knows what" starts from the sample\'s list with nobody assigned.',
     ]);
     expect(effects.assumed.filter((line) => line.includes("not counted"))).toHaveLength(5);
+  });
+});
+
+describe("unanswered money questions", () => {
+  it("read exactly as Not sure for the engines, and say they were not answered", () => {
+    const left = setupEffects(UNANSWERED, "general", []);
+    const notSure = setupEffects(UNANSWERED, "general", SETUP_QUESTIONS);
+    expect(left.changed).toEqual(notSure.changed);
+    expect(notSure).toEqual(setupEffects(UNANSWERED, "general"));
+    expect(left.assumed).toHaveLength(notSure.assumed.length);
+    expect(left.assumed).toContain(
+      "Payroll is treated as run in-house because you did not answer.",
+    );
+    expect(notSure.assumed).toContain(
+      "Payroll is treated as run in-house because you answered Not sure.",
+    );
+    expect(answeredSummary(UNANSWERED, [])).toEqual({ answered: 0, shown: 11 });
+    expect(
+      answeredSummary({ ...UNANSWERED, cashOrChecks: "no" }, ["cashOrChecks", "cameras"]),
+    ).toEqual({ answered: 1, shown: 10 });
+    expect(normalizeAnsweredQuestions(["payroll", "nope", "payroll", 3])).toEqual(["payroll"]);
+    expect(normalizeAnsweredQuestions("payroll")).toEqual([]);
   });
 });

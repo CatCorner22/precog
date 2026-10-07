@@ -108,9 +108,11 @@ describe("IndustryOnboarding, first render", () => {
     expect(text).not.toContain("Your progress stays in this tab until you finish.");
   });
 
-  it("names the owner row's ticks under its job title", () => {
+  it("names the owner row's suggested duties under its job title, not counted yet", () => {
     const { text } = firstRender("Ruiz Dental", "dental", "team");
-    expect(text).toContain("From the job title: Approve payroll, Approve write-offs and voids,");
+    expect(text).toContain(
+      "From the job title, not counted yet: Approve payroll, Approve write-offs and voids,",
+    );
     expect(text).not.toContain("Catalog job: Owner");
   });
 
