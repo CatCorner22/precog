@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ShieldOff } from "lucide-react";
 import {
   caseIsVerified,
@@ -46,6 +46,18 @@ export function ControlFailurePanel({
     setSelectedKey(initialTarget);
   }
   const target = targets.find((item) => targetKey(item) === selectedKey) ?? targets[0];
+  // A link to one control ("What if this fails?") lands with the picker on
+  // screen: on a phone the page above it is taller than the viewport.
+  useEffect(() => {
+    if (!initialTarget) return;
+    const frame = requestAnimationFrame(() => {
+      const el = document.getElementById("control-failure-target");
+      if (!el) return;
+      const { top, bottom } = el.getBoundingClientRect();
+      if (top < 0 || bottom > window.innerHeight) el.scrollIntoView({ block: "center" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [initialTarget]);
   const confirmed = useMemo(
     () => confirmedScenarioIds(profile.decisions, profile.industry),
     [profile.decisions, profile.industry],
