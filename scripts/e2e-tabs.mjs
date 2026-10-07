@@ -337,6 +337,43 @@ async function shellChecks(page) {
     throw new Error(`Needs attention items counted as Analyze views: ${leaked.join(", ")}`);
   }
 
+  // On a phone the header is two rows above the tabs: the business with Needs
+  // attention and Sign in, then "Someone is out", Ask Pioneer and More, with
+  // nothing wrapping and no third row.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await home();
+  await page.locator("[aria-controls=header-more]").waitFor({ timeout });
+  const rows = await page.evaluate(() => {
+    const top = (sel) => Math.round(document.querySelector(sel)?.getBoundingClientRect().top ?? -1);
+    return {
+      business: top("[aria-controls=business-switcher-panel]"),
+      attention: top("[data-needs-attention]"),
+      absences: top("[data-header-link=absences]"),
+      pioneer: top("[data-header-tab=pioneer]"),
+      more: top("[aria-controls=header-more]"),
+      tabs: top("nav[data-tab-count]"),
+      header: Math.round(document.querySelector("header")?.getBoundingClientRect().height ?? 0),
+    };
+  });
+  if (rows.attention < 0 || Math.abs(rows.attention - rows.business) > 24) {
+    throw new Error(
+      `phone header: Needs attention is not beside the business: ${JSON.stringify(rows)}`,
+    );
+  }
+  const sameRow = (a, b) => Math.abs(a - b) <= 4;
+  if (
+    !sameRow(rows.absences, rows.pioneer) ||
+    !sameRow(rows.absences, rows.more) ||
+    rows.absences <= rows.business
+  ) {
+    throw new Error(`phone header: actions wrapped: ${JSON.stringify(rows)}`);
+  }
+  if (rows.tabs <= rows.more || rows.header > 170) {
+    throw new Error(`phone header: ${rows.header}px tall: ${JSON.stringify(rows)}`);
+  }
+  console.log(`  ✓ phone header is ${rows.header}px: two rows above the tabs`);
+  await page.setViewportSize({ width: 1440, height: 900 });
+
   // The home footer links to the privacy notice.
   await page
     .getByRole("navigation", { name: "Legal" })

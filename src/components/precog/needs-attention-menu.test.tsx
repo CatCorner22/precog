@@ -228,6 +228,11 @@ describe("Needs attention menu", () => {
   it("shows last month's checks before the 5th, while last month is still open", () => {
     state.today = new Date(2026, 9, 4);
     expect(view()).toContain("Needs attention (4)");
+    // On a phone the words hide behind the bell but stay for screen readers.
+    const compact = renderToStaticMarkup(
+      <NeedsAttentionMenu compactOnPhone onOpen={() => undefined} />,
+    );
+    expect(compact).toContain('class="sr-only sm:not-sr-only">Needs attention </span>(4)');
     state.records = all("2026-09", "done");
     expect(view()).toBe("");
   });
