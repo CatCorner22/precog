@@ -42,46 +42,48 @@ export function StartHereFirstStepsSection({
         {i + 1}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm leading-relaxed">{s.control.label}</p>
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+          <p className="min-w-0 flex-1 text-sm leading-relaxed">{s.control.label}</p>
+          {onOpenDetail && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="shrink-0"
+              aria-label={`Open ${tabName(stepDestination(s))}: ${s.control.label}`}
+              onClick={() => onOpenDetail(stepDestination(s))}
+            >
+              {s.answers > 0 ? "Open the conflicts it answers" : `Open ${tabName("control")}`}
+              <ArrowRight className="size-3.5" aria-hidden />
+            </Button>
+          )}
+        </div>
         <p className="mt-0.5 text-sm leading-relaxed text-muted">{s.control.why}</p>
-        <p className="mt-1 text-xs text-subtle">
+        <div className="mt-1 text-xs text-subtle">
           {effortPhrase(s.control)} ·{" "}
           {s.answers > 0
             ? `answers ${s.answers} of your open ${s.answers === 1 ? "gap" : "gaps"} · `
             : ""}
           would plausibly have caught {s.supportingCaseIds.length}{" "}
           {s.supportingCaseIds.length === 1 ? "case" : "cases"} below
-        </p>
-        {s.supportingCaseIds.length > 0 && (
-          <details className="mt-1">
-            <summary className="cursor-pointer text-xs font-medium text-primary hover:underline">
-              Which {s.supportingCaseIds.length === 1 ? "case" : "cases"}
-            </summary>
-            <ul className="mt-1 space-y-0.5 text-xs text-muted">
-              {s.supportingCaseIds.map((id) => {
-                const c = caseById.get(id);
-                return c ? (
-                  <li key={id}>
-                    · {c.title}
-                    {c.lossUsd > 0 ? ` (${lossPhrase(c)})` : ""}
-                  </li>
-                ) : null;
-              })}
-            </ul>
-          </details>
-        )}
-        {onOpenDetail && (
-          <Button
-            size="sm"
-            variant="secondary"
-            className="mt-2"
-            aria-label={`Open ${tabName(stepDestination(s))}: ${s.control.label}`}
-            onClick={() => onOpenDetail(stepDestination(s))}
-          >
-            {s.answers > 0 ? "Open the conflicts it answers" : `Open ${tabName("control")}`}
-            <ArrowRight className="size-3.5" aria-hidden />
-          </Button>
-        )}
+          {s.supportingCaseIds.length > 0 && (
+            <details className="inline">
+              <summary className="ml-1 inline cursor-pointer font-medium text-primary hover:underline">
+                · which {s.supportingCaseIds.length === 1 ? "case" : "cases"}
+              </summary>
+              <ul className="mt-1 space-y-0.5 text-xs text-muted">
+                {s.supportingCaseIds.map((id) => {
+                  const c = caseById.get(id);
+                  return c ? (
+                    <li key={id}>
+                      · {c.title}
+                      {c.lossUsd > 0 ? ` (${lossPhrase(c)})` : ""}
+                    </li>
+                  ) : null;
+                })}
+              </ul>
+            </details>
+          )}
+        </div>
       </div>
     </li>
   );
@@ -93,18 +95,18 @@ export function StartHereFirstStepsSection({
           <SectionHeading
             icon={<ArrowRight className="size-4" aria-hidden />}
             title="Do these first"
-            subtitle="Ordered first by how many of your open gaps each one answers, then by how many of the real cases below it would plausibly have caught."
+            subtitle="Ranked by how many of your open gaps each answers, then by how many of the real cases below it would plausibly have caught."
           />
 
           <Card>
-            <CardContent className="pt-5">
+            <CardContent className="pt-3">
               {steps.length === 0 ? (
                 <p className="text-sm leading-relaxed text-muted">
                   Nothing outstanding from the duty conflicts. What follows applies to every
                   business.
                 </p>
               ) : (
-                <ol className="space-y-3">{shown.map(renderStep)}</ol>
+                <ol className="space-y-2.5">{shown.map(renderStep)}</ol>
               )}
               {rest.length > 0 && (
                 <details className="mt-3">
