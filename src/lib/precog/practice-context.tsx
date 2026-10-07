@@ -680,7 +680,9 @@ function useActiveTemplate(profile: PracticeProfile): IndustryTemplate {
   const { industry, customProcesses, customPeople, customKnowledge, customRelations, procedures } =
     profile;
   const confirmedControlsKey = confirmedControlIds(profile.decisions, industry).join("|");
-  const controlsInPlaceKey = JSON.stringify(controlsInPlace(profile.decisions, industry));
+  const controlsInPlaceKey = JSON.stringify(
+    controlsInPlace(profile.decisions, industry, profile.setupAnswers),
+  );
   return useMemo(
     () =>
       resolveTemplate({

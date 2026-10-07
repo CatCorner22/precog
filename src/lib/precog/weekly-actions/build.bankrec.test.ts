@@ -40,6 +40,30 @@ describe("the bank-reconciliation action", () => {
     expect(action?.title).toBe("Have someone outside the books read the bank statement each month");
   });
 
+  it("names only the money duties the owner holds beside reconciling (Marco)", () => {
+    // Marco owns the restaurant: the owner title signs checks, and he ticked
+    // the bank reconciliation. He takes no payment and records none.
+    const { action } = bankRecAction([
+      {
+        name: "Marco Rossi",
+        role: "Owner",
+        duties: [
+          "approve_vendor",
+          "approve_payroll",
+          "approve_writeoffs",
+          "approve_expenses",
+          "sign_checks",
+          "bank_reconcile",
+        ],
+      },
+      { name: "Keisha Moore", role: "General Manager", duties: ["collect_cash", "post_payments"] },
+    ]);
+    expect(action?.why).toBe(
+      "You reconcile the bank yourself, but you also sign / release checks, so nobody else ever compares the books with the bank. An outside bookkeeper or accountant reading the statement and the payroll register each month closes that.",
+    );
+    expect(action?.why).not.toContain("take or record the money");
+  });
+
   it("asks for an outside reader, not a start, when the owner reconciles and records", () => {
     const { action } = bankRecAction([
       {
@@ -49,6 +73,9 @@ describe("the bank-reconciliation action", () => {
       },
     ]);
     expect(action?.title).toBe("Have someone outside the books read the bank statement each month");
+    expect(action?.why).toMatch(
+      /^You reconcile the bank yourself, but you also take payment from customers and record payments received, so /,
+    );
   });
 
   it("asks the owner to start reconciling when an employee reconciles the money they post", () => {

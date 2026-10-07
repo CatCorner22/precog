@@ -1,4 +1,4 @@
-import type { IndustryId } from "./industry";
+import { industryHasOwner, type IndustryId } from "./industry";
 import { normalizeKnowledgeRelations } from "./knowledge-relations";
 import { getIndustryTemplate, type IndustryTemplate } from "./templates";
 import type { ControlItem, KnowledgeItem, KnowledgeRelation, Person, ProcessNode } from "./types";
@@ -28,8 +28,13 @@ export interface TemplateSource {
   decisions?: readonly DecisionLink[] | null;
   /** Starter controls the owner has confirmed; read from `decisions` when absent. */
   confirmedControlIds?: readonly string[] | null;
-  /** Controls the owner already has, by control id; read from `decisions` when absent. */
+  /**
+   * Controls the owner already has, by control id; read from `decisions` and
+   * `setupAnswers` when absent.
+   */
   controlsInPlace?: Readonly<Record<string, readonly string[]>> | null;
+  /** The setup answers: a few of them record a control the owner already has. */
+  setupAnswers?: SetupInPlaceAnswers | null;
   /** Written procedures: a register item with one counts as written down. */
   procedures?: readonly Procedure[] | null;
 }
@@ -72,17 +77,59 @@ const MAX_IN_PLACE_TEXT = 200;
 export function controlsInPlace(
   decisions: readonly DecisionLink[] | null | undefined,
   industry: IndustryId,
+  setupAnswers?: SetupInPlaceAnswers | null,
 ): Record<string, string[]> {
   const byControl: Record<string, string[]> = {};
+  const add = (controlId: string, note: string | undefined) => {
+    const text = (note ?? "").trim().slice(0, MAX_IN_PLACE_TEXT);
+    if (!text) return;
+    const list = (byControl[controlId] ??= []);
+    if (!list.includes(text)) list.push(text);
+  };
   for (const d of decisions ?? []) {
     if (d.linkedTab !== CONTROL_IN_PLACE_TAB || !d.linkedId) continue;
     if (d.linkedIndustry && d.linkedIndustry !== industry) continue;
-    const text = (d.note ?? "").trim().slice(0, MAX_IN_PLACE_TEXT);
-    if (!text) continue;
-    const list = (byControl[d.linkedId] ??= []);
-    if (!list.includes(text)) list.push(text);
+    add(d.linkedId, d.note);
+  }
+  // The setup answers come last, where the entries setup used to log sat
+  // (the oldest in the journal), so a control lists its texts in the same order.
+  for (const { controlId, text } of setupControlsInPlace(setupAnswers, industry)) {
+    add(controlId, text);
   }
   return byControl;
+}
+
+/** The setup answers that record a control the owner already has. */
+export interface SetupInPlaceAnswers {
+  ownerReadsStatement?: string;
+  bankRec?: string;
+}
+
+/**
+ * The controls the owner said at setup that they already have, each with the
+ * text it carries on its control, newest first as the journal lists them.
+ * They are facts the owner gave, not decisions about a finding, so they
+ * credit the control without entering the Decisions log.
+ */
+export function setupControlsInPlace(
+  answers: SetupInPlaceAnswers | null | undefined,
+  industry: IndustryId,
+): { controlId: string; text: string }[] {
+  if (!answers) return [];
+  const out: { controlId: string; text: string }[] = [];
+  if (answers.bankRec === "outside") {
+    out.push({
+      controlId: "c-sod-cash",
+      text: "An outside bookkeeper or CPA reconciles the bank account each month (answered at setup).",
+    });
+  }
+  if (answers.ownerReadsStatement === "yes") {
+    const text = industryHasOwner(industry)
+      ? "The owner opens and reads the bank statement each month (answered at setup)."
+      : "A board member opens and reads the bank statement each month (answered at setup).";
+    out.push({ controlId: "c-sod-ap", text }, { controlId: "c-sod-cash", text });
+  }
+  return out;
 }
 
 /**
@@ -124,7 +171,9 @@ export function resolveTemplate(source: TemplateSource): IndustryTemplate {
   const confirmed = new Set(
     source.confirmedControlIds ?? confirmedControlIds(source.decisions, source.industry),
   );
-  const inPlace = source.controlsInPlace ?? controlsInPlace(source.decisions, source.industry);
+  const inPlace =
+    source.controlsInPlace ??
+    controlsInPlace(source.decisions, source.industry, source.setupAnswers);
   return {
     ...resolved,
     // The sample's own array handed back as customPeople is still the sample

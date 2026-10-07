@@ -34,7 +34,7 @@ import {
 import type { IndustryTemplate } from "../templates/types";
 import { closingSteps } from "../controls/dual-release-wording";
 import { personLabel } from "../person-label";
-import { count, firstName, joinWithAnd, midSentence, verb } from "../text";
+import { count, endSentence, firstName, joinWithAnd, midSentence, verb } from "../text";
 
 /**
  * The local advisor brief, made to answer for this business.
@@ -636,7 +636,9 @@ function ownFirstBrief(
   const variableCascades = brief.variableCascades
     .filter((l) => !stripInsurance || !POLICY_TERMS.test(l))
     .map((l) =>
-      dayWording(policyNote && l.startsWith("Baseline:") ? `${l} Insurance: ${policyNote}.` : l),
+      dayWording(
+        policyNote && l.startsWith("Baseline:") ? `${l} Insurance: ${endSentence(policyNote)}` : l,
+      ),
     );
   const advancedReasoning = brief.advancedReasoning?.flatMap((l) => {
     if (!stripInsurance) return [l];

@@ -13,7 +13,8 @@ import {
   type DetectedConflict,
 } from "@/lib/precog/sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
-import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
+import { entitlementLabel, type EntitlementId } from "@/lib/precog/sod/conflict-rules";
+import { BANK_ACTIVITY_DUTIES } from "@/lib/precog/sod/derive-staff";
 import { entitlementProcesses } from "@/lib/precog/sod/rule-match";
 import { soleOwnerId } from "@/lib/precog/sod/owner-role";
 import { concentrationHeadline } from "@/lib/precog/sod/verdict";
@@ -336,22 +337,30 @@ function weeklyContext(input: WeeklyActionsInput): WeeklyContext {
 
 function bankRecActions({ tpl, input }: WeeklyContext): WeeklyAction[] {
   if (input.staff.independentBankRec) return [];
-  // An owner who already reconciles, but also takes or records the money,
+  // An owner who already reconciles, but also handles or records the money,
   // is not told to start: the missing piece is a reader outside the books.
   const activePeople = tpl.people.filter((p) => p.active);
   const ownerId = soleOwnerId(activePeople, tpl.id);
-  const ownerReconciles = activePeople.some(
+  const owner = activePeople.find(
     (p) =>
       p.id === ownerId &&
       Array.isArray(p.entitlements) &&
       p.entitlements.includes("bank_reconcile"),
   );
-  if (ownerReconciles) {
+  if (owner) {
+    // Name only the money duties the owner holds, in the order
+    // BANK_ACTIVITY_DUTIES lists them, never a duty nobody ticked.
+    const held = [...BANK_ACTIVITY_DUTIES]
+      .filter((d) => owner.entitlements?.includes(d))
+      .map((d) => midSentence(entitlementLabel(d)));
+    const yourself = held.length
+      ? `You reconcile the bank yourself, but you also ${joinWithAnd(held)}, so nobody else ever compares the books with the bank.`
+      : "You reconcile the bank yourself, so nobody else ever compares the books with the bank.";
     return [
       {
         id: "bank-rec",
         title: "Have someone outside the books read the bank statement each month",
-        why: "You reconcile the bank yourself, but you also take or record the money, so nobody else ever compares the books with the bank. An outside bookkeeper or accountant reading the statement and the payroll register each month closes that.",
+        why: `${yourself} An outside bookkeeper or accountant reading the statement and the payroll register each month closes that.`,
         effort: "low",
         tab: "sod",
         priority: PRIORITY.bankRec,
