@@ -1,7 +1,6 @@
 import type { ControlExecution, ExecutionStatus } from "@/lib/precog/controls/executions/model";
 import { executionRunId, monthlyChainRunId } from "@/lib/precog/controls/review-bridge";
 import type { ReviewItemKey } from "@/lib/precog/firm/reviews";
-import { browserSessionStorage, readLocalJson, writeLocal } from "@/lib/precog/local-data";
 
 /** The evidence log's state, in the short words the monthly review prints beside a result. */
 export const EVIDENCE_STATUS_LABEL: Record<ExecutionStatus, string> = {
@@ -88,28 +87,4 @@ export const SOMEONE_ELSE = "__someone_else__";
 export interface WhoPick {
   choice: string;
   other: string;
-}
-
-/** The session key of the last pick, one per business so a name never crosses to another. */
-function pickKey(businessId: string | null): string {
-  return `precog:monthly-review:who:${businessId ?? "this-device"}`;
-}
-
-/**
- * The last "Who did this check" saved on this business in this browser
- * session, or null: the Monthly review starts the next check on it.
- */
-export function readRememberedPick(businessId: string | null): WhoPick | null {
-  const value = readLocalJson(pickKey(businessId), browserSessionStorage()) as
-    Partial<WhoPick> | null | undefined;
-  if (!value || typeof value.choice !== "string" || !value.choice) return null;
-  return {
-    choice: value.choice.slice(0, 80),
-    other: typeof value.other === "string" ? value.other.slice(0, 80) : "",
-  };
-}
-
-/** Keeps `pick` for the rest of this browser session; a blocked store keeps nothing. */
-export function rememberPick(businessId: string | null, pick: WhoPick): void {
-  writeLocal(pickKey(businessId), JSON.stringify(pick), browserSessionStorage());
 }

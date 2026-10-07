@@ -27,8 +27,6 @@ import {
   evidenceLogLine,
   monthlyRunIds,
   readMonthlyEvidence,
-  readRememberedPick,
-  rememberPick,
   SOMEONE_ELSE,
   type WhoPick,
 } from "./monthly-review-evidence";
@@ -79,10 +77,10 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
   // Note drafts and the save under way, each by `draftKey(period, check)`.
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  // Who did each check, by `draftKey`; a check not picked yet uses the last
-  // pick of this browser session (`lastPick`), and starts empty without one.
+  // Who did each check, by `draftKey`. Every check starts empty and waits for
+  // its own choice: a pick carried over from another check could credit a
+  // check to someone the owner never chose.
   const [picks, setPicks] = useState<Record<string, WhoPick>>({});
-  const [lastPick, setLastPick] = useState<WhoPick | null>(null);
   // Why a press of a result was refused, by `draftKey`.
   const [problems, setProblems] = useState<Record<string, string>>({});
   const team = [
@@ -116,10 +114,6 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
   const unsaved = Object.values(notes).some((note) => note.trim() !== "");
 
   useEffect(() => {
-    setLastPick(readRememberedPick(businessId));
-  }, [businessId]);
-
-  useEffect(() => {
     if (!unsaved || typeof window === "undefined") return;
     const warn = (event: Event) => {
       event.preventDefault();
@@ -130,18 +124,15 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
   }, [unsaved]);
 
   /**
-   * The pick shown for a check: its own, else the session's last pick. A name
-   * no longer on the active team (someone left, or another business is open)
-   * is never saved silently: the check falls back to empty.
+   * The pick shown for a check: its own, else empty. A name no longer on the
+   * active team (someone left, or another business is open) is never saved
+   * silently: the check falls back to empty.
    */
   function pickFor(draft: string): WhoPick {
     const valid = (pick: WhoPick | null | undefined): pick is WhoPick =>
       Boolean(pick && (pick.choice === SOMEONE_ELSE || team.includes(pick.choice)));
     const own = picks[draft];
-    // Choosing "Choose a person" again clears the check, even with a last pick.
-    if (own && (own.choice === "" || valid(own))) return own;
-    if (valid(lastPick)) return lastPick;
-    return { choice: "", other: "" };
+    return valid(own) ? own : { choice: "", other: "" };
   }
 
   function setPick(draft: string, pick: WhoPick) {
@@ -212,8 +203,6 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
     }
     setProblems((current) => ({ ...current, [draft]: "" }));
     setPicks((current) => ({ ...current, [draft]: pick }));
-    setLastPick(pick);
-    rememberPick(businessId, pick);
     const trim = appendReview(records, input);
     setMonthlyReviews((current) => recordReview(current, input));
     if (trim.removed > 0) toast.message(reviewTrimNotice(trim));

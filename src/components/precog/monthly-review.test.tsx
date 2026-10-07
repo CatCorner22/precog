@@ -426,6 +426,13 @@ describe("monthly review records last month until its due day", () => {
     });
     click("October");
     expect(await settle()).toMatch(/aria-pressed="true"[^>]*>October<\/button>/);
+    // October's check starts empty: September's pick never carries over.
+    const octoberWho = whoField(
+      runtime.render(() => MonthlyReview()),
+      BANK,
+    );
+    expect(octoberWho.props.value).toBe("");
+    octoberWho.props.onChange({ target: { value: "Owner" } });
     click("Done");
     await vi.waitFor(() => expect(server.recordMonthlyReview).toHaveBeenCalledTimes(2));
     expect(server.recordMonthlyReview).toHaveBeenLastCalledWith({
@@ -483,6 +490,7 @@ describe("monthly review records last month until its due day", () => {
       evidenceStatus: "recorded",
       evidenceSkippedReason: null,
     });
+    whoField(render(), bank).props.onChange({ target: { value: "Owner" } });
     click("Done");
     await vi.waitFor(() => expect(server.recordMonthlyReview).toHaveBeenCalledTimes(2));
     expect(server.recordMonthlyReview).toHaveBeenLastCalledWith({
@@ -910,24 +918,17 @@ describe("monthly review saves who actually did the check", () => {
     }
   });
 
-  it("remembers the last pick for the next check and for this browser session", async () => {
+  it("starts every other check's picker empty after a save, so Done never credits an unchosen person", async () => {
     state.people = [owner(), dana()];
-    const stored = new Map<string, string>();
-    vi.stubGlobal("sessionStorage", {
-      getItem: (key: string) => stored.get(key) ?? null,
-      setItem: (key: string, value: string) => void stored.set(key, value),
-    });
-    try {
-      await settle();
-      whoField(render(), BANK).props.onChange({ target: { value: "Dana" } });
-      click("Done");
-      expect(whoField(render(), "Read the cleared-check images").props.value).toBe("Dana");
-      runtime.reset();
-      await settle();
-      expect(whoField(render(), BANK).props.value).toBe("Dana");
-    } finally {
-      vi.unstubAllGlobals();
-    }
+    await settle();
+    whoField(render(), BANK).props.onChange({ target: { value: "Dana" } });
+    click("Done");
+    // The saved check keeps its own pick; the next check waits for a choice.
+    expect(whoField(render(), BANK).props.value).toBe("Dana");
+    expect(whoField(render(), "Read the cleared-check images").props.value).toBe("");
+    runtime.reset();
+    await settle();
+    expect(whoField(render(), BANK).props.value).toBe("");
   });
 
   it("opens with a plain sentence and keeps the evidence-log detail under How this works", () => {
