@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { FileText } from "lucide-react";
-import type { NavFn } from "@/lib/precog/navigation";
+import { tabLabel, type NavFn } from "@/lib/precog/navigation";
+import { usePresentation } from "@/lib/precog/presentation";
 import type { SodDetectionReport } from "@/lib/precog/sod/detect";
 import { buttonClass } from "@/components/ui/button-variants";
 import { HowThisWorks } from "./page-intro";
@@ -39,6 +40,7 @@ export function StartHere({
   sod?: SodDetectionReport;
 }) {
   const model = useStartHere(sod);
+  const { say } = usePresentation();
 
   return (
     <div className="space-y-6">
@@ -70,8 +72,8 @@ export function StartHere({
           </p>
           <p>
             Every dollar figure and duration on this page links to the case or study it came from.
-            The continuity percentages are Precog&rsquo;s own indices; Who knows what explains how
-            Precog counts each.
+            The continuity percentages are Precog&rsquo;s own indices; {tabLabel("knowledge", say)}{" "}
+            explains how Precog counts each.
           </p>
         </HowThisWorks>
       </header>

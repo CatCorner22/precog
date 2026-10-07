@@ -12,6 +12,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { reassignOwner, undoOwnerChange } from "@/lib/precog/builder/stand-in-owner";
 import { analyzeWorkload } from "@/lib/precog/builder/workload";
 import { usePracticeActions, usePracticeState } from "@/lib/precog/practice-context";
+import { tabLabel } from "@/lib/precog/navigation";
+import { usePresentation } from "@/lib/precog/presentation";
 import { PageIntro } from "./page-intro";
 
 /**
@@ -25,6 +27,7 @@ export function TeamArea() {
   const { template: tpl, profile } = usePracticeState();
   const { setCustomPeople, setCustomProcesses } = usePracticeActions();
   const navigate = useNavigate();
+  const { say } = usePresentation();
   const [showJobs, setShowJobs] = useState(false);
   const workload = useMemo(
     () => analyzeWorkload(tpl, tpl.processes, tpl.people, profile.staff, profile.dualRelease),
@@ -54,10 +57,10 @@ export function TeamArea() {
           purpose="Who works here and which money duties each person holds."
           method={
             <p>
-              Who controls what, Who knows what and the report all read this list. A title from the
-              role list brings that job&rsquo;s usual duties; change them to match what each person
-              really does, and mark a last working day when someone leaves so their record stays in
-              history without counting as cover.
+              {tabLabel("sod", say)}, {tabLabel("knowledge", say)} and the report all read this
+              list. A title from the role list brings that job&rsquo;s usual duties; change them to
+              match what each person really does, and mark a last working day when someone leaves so
+              their record stays in history without counting as cover.
             </p>
           }
         />

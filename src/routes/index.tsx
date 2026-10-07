@@ -598,7 +598,7 @@ const TAB_INTROS = {
     },
     method: {
       plain:
-        "Each procedure belongs to an entry on Who knows what and names the software or place where the task happens. A review date says when to read it again, and a written, findable procedure lowers the exposure of the entry it belongs to.",
+        "Each procedure belongs to a register entry and names the software or place where the task happens. A review date says when to read it again, and a written, findable procedure lowers the exposure of the entry it belongs to.",
       tactical:
         "Each procedure is linked to a register entry and names its platform and module. A review date drives staleness, and a written procedure is credited in know-how residual scoring.",
     },
