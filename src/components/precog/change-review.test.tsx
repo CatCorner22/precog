@@ -77,4 +77,37 @@ describe("Change review", () => {
     expect(html).toContain(UNREADABLE_BASELINE_MESSAGE);
     expect(html).not.toContain("No pending changes.");
   });
+
+  it("counts a leaver as a person who left, and hides the counts that are zero", () => {
+    const accepted = teamProfile(3);
+    storeDutyBaseline(
+      storage,
+      BUSINESS,
+      buildAssignments({ ...getIndustryTemplate("general"), people: accepted.customPeople ?? [] }),
+    );
+    const left = {
+      ...accepted,
+      customPeople: (accepted.customPeople ?? []).map((p) =>
+        p.id === "p2" ? { ...p, active: false, lastDay: "2026-10-03" } : p,
+      ),
+    };
+    const html = render(left);
+    expect(html).toContain("1 person left");
+    expect(html).not.toContain("revocations");
+    expect(html).not.toContain("0 duties");
+    expect(html).toContain("Left the team:");
+  });
+
+  it("names duties added and removed in plain words", () => {
+    const accepted = teamProfile(3, 1);
+    storeDutyBaseline(
+      storage,
+      BUSINESS,
+      buildAssignments({ ...getIndustryTemplate("general"), people: accepted.customPeople ?? [] }),
+    );
+    const html = render(teamProfile(3, 2));
+    expect(html).toContain("1 duty added");
+    expect(html).toContain("1 duty removed");
+    expect(html).not.toContain("people left");
+  });
 });

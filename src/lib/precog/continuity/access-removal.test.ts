@@ -4,11 +4,17 @@ import { parsePeopleCsv } from "../import/people-csv";
 import { normalizeProfile, defaultProfile, type LeaverAccessCheck } from "../practice-profile";
 import type { Person } from "../types";
 import { markLeft } from "./leavers";
+import { INDUSTRIES } from "../industry";
 import {
   confirmAccessRemoved,
   departuresBetween,
+  LEAVER_ACCESS_ITEMS,
+  leaverAccessItems,
+  leaverLine,
   noteDepartures,
   openAccessChecks,
+  recordLastDay,
+  restorePerson,
 } from "./access-removal";
 
 const TODAY = "2026-09-24";
@@ -227,5 +233,115 @@ describe("more open leaver checks than the cap", () => {
     ).leaverAccessChecks;
     expect(reloaded?.filter((c) => !c.confirmedOn)).toHaveLength(350);
     expect(reloaded?.some((c) => c.name === "Done Already")).toBe(false);
+  });
+});
+
+describe("the owner records that someone left the business", () => {
+  it("marks them as left on the last day the owner chose, past or today", () => {
+    const after = recordLastDay(team, "p-pat", "2026-09-20", TODAY);
+    expect(after.find((p) => p.id === "p-pat")).toMatchObject({
+      active: false,
+      lastDay: "2026-09-20",
+    });
+    expect(recordLastDay(team, "p-pat", TODAY, TODAY)[2]).toMatchObject({
+      active: false,
+      lastDay: TODAY,
+    });
+    expect(departuresBetween(team, after).map((l) => l.name)).toEqual(["Pat Kim"]);
+  });
+
+  it("keeps someone with a future last day at work, on notice", () => {
+    const after = recordLastDay(team, "p-pat", "2026-10-15", TODAY);
+    expect(after[2]).toMatchObject({ active: true, lastDay: "2026-10-15" });
+    expect(departuresBetween(team, after)).toEqual([]);
+  });
+
+  it("changes nothing for a date that is not a calendar day", () => {
+    expect(recordLastDay(team, "p-pat", "2026-02-30", TODAY)).toBe(team);
+  });
+
+  it("Undo puts them back at work as they were, and their check stops asking", () => {
+    const after = recordLastDay(team, "p-jordan", "2026-09-22", TODAY);
+    const checks = noteDepartures([], departuresBetween(team, after), "marked", "retail", TODAY);
+    expect(openAccessChecks(checks, "retail", after)).toHaveLength(1);
+    // Something else changed on the team before the owner pressed Undo.
+    const renamed = after.map((p) => (p.id === "p-olga" ? { ...p, name: "Olga O." } : p));
+    const undone = restorePerson(renamed, team[1]);
+    expect(undone[1]).toEqual(team[1]);
+    expect(undone[1]).not.toHaveProperty("lastDay");
+    expect(undone[0].name).toBe("Olga O.");
+    expect(openAccessChecks(checks, "retail", undone)).toHaveLength(0);
+  });
+});
+
+describe("the line for each leaver", () => {
+  const check: LeaverAccessCheck = {
+    id: "c1",
+    personId: "p-jordan",
+    name: "Jordan Lee",
+    industry: "retail",
+    notedOn: "2026-10-07",
+    source: "marked",
+  };
+  it("gives the last day and the day it was marked", () => {
+    expect(leaverLine(check, { lastDay: "2026-10-03" }, "2026-10-07")).toBe(
+      "last day Oct 3, marked as left Oct 7",
+    );
+  });
+  it("gives the marked day alone when no last day is known", () => {
+    expect(leaverLine(check, undefined, "2026-10-07")).toBe("marked as left Oct 7");
+  });
+  it("names a roster as the source", () => {
+    expect(leaverLine({ ...check, source: "roster" }, undefined, "2027-01-02")).toBe(
+      "listed as no longer working here in the roster you pasted on Oct 7, 2026",
+    );
+  });
+});
+
+describe("the leaver checklist in each industry's words", () => {
+  const words = (industry: Parameters<typeof leaverAccessItems>[0]) =>
+    leaverAccessItems(industry)
+      .map((item) => item.label)
+      .join(" | ")
+      .toLowerCase();
+
+  it("a nonprofit has no till and asks about mail, donors, giving and mailed checks", () => {
+    const text = words("nonprofit");
+    expect(text).not.toMatch(/\btill\b|point-of-sale|practice|customer|business software/);
+    expect(text).toContain("organization software");
+    expect(text).toContain("po box");
+    expect(text).toContain("donor database");
+    expect(text).toContain("online giving platform");
+    expect(text).toContain("mailed checks");
+  });
+
+  it("a restaurant asks about the safe combination, keys, alarm code and POS PIN", () => {
+    const text = words("restaurant");
+    for (const word of ["safe combination", "keys", "alarm code", "pos pin"])
+      expect(text).toContain(word);
+    expect(text).not.toContain("practice");
+  });
+
+  it("only a dental practice reads 'practice software'", () => {
+    expect(words("dental")).toContain("practice software");
+    for (const industry of INDUSTRIES.map((i) => i.id).filter((id) => id !== "dental"))
+      expect(words(industry)).not.toContain("practice software");
+  });
+
+  it("every industry starts with pay and the bank, and has unique item ids", () => {
+    for (const { id } of INDUSTRIES) {
+      const items = leaverAccessItems(id);
+      expect(items[0].id).toBe("payroll");
+      expect(items.some((item) => item.id === "bank")).toBe(true);
+      expect(new Set(items.map((item) => item.id)).size).toBe(items.length);
+    }
+    expect(LEAVER_ACCESS_ITEMS).toEqual(leaverAccessItems("general"));
+  });
+
+  it("the decisions log names what a nonprofit confirmed", () => {
+    const [check] = noteDepartures([], [{ name: "Ana Ruiz" }], "marked", "nonprofit", TODAY);
+    const { decisions } = confirmAccessRemoved([check], [check.id], TODAY);
+    expect(decisions[0].note).toContain("donor database");
+    expect(decisions[0].note).not.toContain("point of sale");
   });
 });

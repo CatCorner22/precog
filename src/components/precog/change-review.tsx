@@ -9,6 +9,7 @@ import { diffAssignments, type AssignmentChange } from "@/lib/precog/sod/assignm
 import { buildAssignments } from "@/lib/precog/sod/detect";
 import { UNREADABLE_BASELINE_MESSAGE } from "@/lib/precog/sod/duty-baseline";
 import { useDutyBaseline } from "./use-duty-baseline";
+import { count } from "@/lib/precog/text";
 import { cn } from "@/lib/utils";
 
 /**
@@ -74,12 +75,9 @@ export function ChangeReviewCard() {
           <>
             <div className="mb-3 flex flex-wrap gap-2">
               <Badge variant="accent">{pendingChanges.length} pending</Badge>
-              <Badge>
-                {pendingChanges.filter((item) => item.kind === "duty_granted").length} grants
-              </Badge>
-              <Badge>
-                {pendingChanges.filter((item) => item.kind === "duty_revoked").length} revocations
-              </Badge>
+              {changeCounts(pendingChanges).map((label) => (
+                <Badge key={label}>{label}</Badge>
+              ))}
             </div>
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
               {pendingChanges.slice(0, 12).map((change) => (
@@ -119,5 +117,22 @@ const CHANGE_LABEL: Record<AssignmentChange["kind"], string> = {
   duty_granted: "Adds",
   duty_revoked: "Removes",
   person_added: "New person:",
-  person_removed: "Removed:",
+  person_removed: "Left the team:",
 };
+
+/**
+ * The pending changes counted in plain words, zero counts left out:
+ * "2 duties added", "1 duty removed", "1 person added", "1 person left".
+ */
+function changeCounts(changes: readonly AssignmentChange[]): string[] {
+  const of = (kind: AssignmentChange["kind"]) => changes.filter((c) => c.kind === kind).length;
+  const rows: [number, string, string, string][] = [
+    [of("duty_granted"), "duty", "duties", "added"],
+    [of("duty_revoked"), "duty", "duties", "removed"],
+    [of("person_added"), "person", "people", "added"],
+    [of("person_removed"), "person", "people", "left"],
+  ];
+  return rows
+    .filter(([n]) => n > 0)
+    .map(([n, one, many, what]) => `${count(n, one, many)} ${what}`);
+}

@@ -7,6 +7,7 @@ import { ChangeReviewCard } from "@/components/precog/change-review";
 import { TeamEditor } from "@/components/precog/builder/team-editor";
 import { WorkloadView } from "@/components/precog/builder/workload-view";
 import { JobCatalogSheet } from "@/components/precog/job-catalog-sheet";
+import { LeaverAccessList } from "@/components/precog/leaver-access";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { reassignOwner, undoOwnerChange } from "@/lib/precog/builder/stand-in-owner";
@@ -18,7 +19,8 @@ import { PageIntro } from "./page-intro";
 
 /**
  * The Team tab: who works here and which money duties each person holds,
- * edited in one place. Every other screen reads this list. Change review
+ * edited in one place. Every other screen reads this list. Under it, the
+ * people who left and whose pay and sign-ins are still to check. Change review
  * shows what changed since the owner last accepted the team's duties,
  * Workload who carries the processes, and the access and payroll import
  * checks the list against the exports from the business's systems.
@@ -59,8 +61,9 @@ export function TeamArea() {
             <p>
               {tabLabel("sod", say)}, {tabLabel("knowledge", say)} and the report all read this
               list. A title from the role list brings that job&rsquo;s usual duties; change them to
-              match what each person really does, and mark a last working day when someone leaves so
-              their record stays in history without counting as cover.
+              match what each person really does. When someone leaves, press &ldquo;Left the
+              business&rdquo; and give their last day: their record stays in history without
+              counting as cover, and Precog lists their pay and sign-ins to check.
             </p>
           }
         />
@@ -89,6 +92,7 @@ export function TeamArea() {
           <TeamEditor people={tpl.people} onChange={(next) => setCustomPeople(next)} />
         </CardContent>
       </Card>
+      <LeaverAccessList explainOnSample />
       <ChangeReviewCard />
       <Card>
         <CardHeader>
