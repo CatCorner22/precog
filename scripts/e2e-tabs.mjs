@@ -428,9 +428,12 @@ async function shellChecks(page) {
     .locator('nav [role="tab"]')
     .evaluateAll((tabs) => tabs.map((t) => t.id.replace(/^tab-/, "")));
   await page.locator("[data-sections-menu]").click();
-  const listed = await page
-    .locator('[role="menu"][aria-label="All sections"] [role="menuitem"]')
-    .evaluateAll((items) => items.map((i) => i.getAttribute("data-tab-id") ?? i.textContent));
+  // The menu renders after the click: wait for its items before reading them.
+  const sectionItems = page.locator('[role="menu"][aria-label="All sections"] [role="menuitem"]');
+  await sectionItems.first().waitFor({ state: "visible" });
+  const listed = await sectionItems.evaluateAll((items) =>
+    items.map((i) => i.getAttribute("data-tab-id") ?? i.textContent),
+  );
   const missing = mainSections.filter((id) => !listed.includes(id));
   if (missing.length) throw new Error(`All sections leaves out: ${missing.join(", ")}`);
   await page.keyboard.press("Escape");
