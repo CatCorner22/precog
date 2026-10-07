@@ -9,8 +9,10 @@ import { cn } from "@/lib/utils";
 import {
   buildNeedsAttentionItems,
   groupNeedsAttentionItems,
+  needsAttentionTotal,
   openNeedsAttentionItem,
   type AttentionGroup,
+  type AttentionInput,
   type AttentionItem,
 } from "./needs-attention-menu.logic";
 
@@ -37,8 +39,8 @@ export function NeedsAttentionMenu({
   const today = useToday();
   const day = localDateKey(today);
 
-  const groups = useMemo(() => {
-    const items = buildNeedsAttentionItems({
+  const input = useMemo<AttentionInput>(
+    () => ({
       day,
       people: tpl.people,
       roleDuties: tpl.roleTemplates,
@@ -46,18 +48,24 @@ export function NeedsAttentionMenu({
       slipped: continuitySlips(profile.decisions, tpl).map((slip) => slip.decision),
       leavers: openAccessChecks(profile.leaverAccessChecks, profile.industry, tpl.people).length,
       reviews: profile.monthlyReviews ?? [],
-    });
-    return groupNeedsAttentionItems(items, tpl.people);
-  }, [
-    day,
-    tpl,
-    profile.decisions,
-    profile.leaverAccessChecks,
-    profile.industry,
-    profile.monthlyReviews,
-  ]);
-
+    }),
+    [
+      day,
+      tpl,
+      profile.decisions,
+      profile.leaverAccessChecks,
+      profile.industry,
+      profile.monthlyReviews,
+    ],
+  );
+  // The button's count needs no words; the items and their groups are built
+  // only while the menu is open.
+  const total = useMemo(() => needsAttentionTotal(input), [input]);
   const [open, setOpen] = useState(false);
+  const groups = useMemo(
+    () => (open ? groupNeedsAttentionItems(buildNeedsAttentionItems(input), input.people) : []),
+    [open, input],
+  );
   const ref = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -72,10 +80,6 @@ export function NeedsAttentionMenu({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  const total = groups.reduce(
-    (n, group) => n + group.items.reduce((sum, item) => sum + item.n, 0),
-    0,
-  );
   if (total === 0) return null;
 
   function onMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {

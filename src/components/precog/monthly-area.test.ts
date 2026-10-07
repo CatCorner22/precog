@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { checkPeriod, revealMonthlyItem } from "./monthly-area.logic";
+import { revealMonthlyItem } from "./monthly-area.logic";
+import { checkPeriod } from "./monthly-check-id";
 
 /** A stand-in for a page element: records how it was scrolled and focused. */
 function element(tabIndex: string | null = null) {

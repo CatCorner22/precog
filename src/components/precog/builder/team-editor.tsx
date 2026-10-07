@@ -5,7 +5,7 @@ import { Download, Plus, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { inputCls } from "@/components/ui/field-classes";
 import { ChipPicker, type ChipOption } from "@/components/precog/builder/chips";
-import { recordLastDay, restorePerson } from "@/lib/precog/continuity/access-removal";
+import { hasLeftBy, recordLastDay, restorePerson } from "@/lib/precog/continuity/access-removal";
 import { formatDay, isCalendarDate, localDateKey } from "@/lib/precog/dates";
 import { downloadCsv } from "@/lib/download";
 import { householdMark, MAX_HOUSEHOLD_MARK } from "@/lib/precog/import/people-backup";
@@ -646,7 +646,7 @@ export function LeavingForm({
   onCancel: () => void;
 }) {
   const valid = isCalendarDate(lastDay);
-  const later = valid && lastDay > today;
+  const later = valid && !hasLeftBy(lastDay, today);
   const fieldId = `last-day-${person.id}`;
   return (
     <div className="mt-2 space-y-1.5 rounded-md border border-border bg-panel px-2 py-1.5">
@@ -701,7 +701,7 @@ export function recordLeaving({
 }): boolean {
   const prior = people.find((p) => p.id === personId);
   if (!prior || !prior.active || !isCalendarDate(lastDay)) return false;
-  const gone = lastDay <= today;
+  const gone = hasLeftBy(lastDay, today);
   if (gone && people.filter((p) => p.active).length <= 1) {
     toast.error("Keep at least one person working here.");
     return false;

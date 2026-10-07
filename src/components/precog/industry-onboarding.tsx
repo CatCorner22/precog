@@ -455,6 +455,7 @@ export function IndustryOnboarding({
   }
   const industry = INDUSTRIES.find((i) => i.id === selected);
   const namedRows = rows.filter((r) => r.name.trim().length > 0);
+  const onePerson = onePersonNote(namedRows.length);
   const hidden = useMemo(() => hiddenDuties(answers), [answers]);
   const visibleCoreDuties = CORE_DUTIES.filter((duty) => !hidden.has(duty));
   const effects = useMemo(() => setupEffects(answers, selected), [answers, selected]);
@@ -701,7 +702,16 @@ export function IndustryOnboarding({
         only in this browser tab.
       </p>
     );
-  const titleTicks = titleTicksItems(rows, selected, answers);
+  // Each row's duties ticked from its job title, worked out once for both the
+  // grid's note under each title and the review of them.
+  const titleTicked = useMemo(
+    () => new Map(rows.map((row) => [row, titleTickedDuties(row, selected, answers)])),
+    [rows, selected, answers],
+  );
+  const titleTicks = useMemo(
+    () => titleTicksItems(rows, selected, answers, (row) => titleTicked.get(row) ?? []),
+    [rows, selected, answers, titleTicked],
+  );
 
   /** Brings a person's row into view from the review, with focus on their job title. */
   function showRow(rowId: string) {
@@ -1170,7 +1180,7 @@ export function IndustryOnboarding({
                             />
                             <SeatNote
                               seat={typedSeat(row, selected)}
-                              duties={titleTickedDuties(row, selected, answers)}
+                              duties={titleTicked.get(row) ?? []}
                             />
                             {extraDuties(row.duties).length > 0 && (
                               <ul
@@ -1505,9 +1515,9 @@ export function IndustryOnboarding({
                   </CardContent>
                 </Card>
               </div>
-              {onePersonNote(namedRows.length) && (
+              {onePerson && (
                 <p className="rounded-lg border border-border bg-elevated/50 px-3 py-2 text-xs text-muted">
-                  {onePersonNote(namedRows.length)}
+                  {onePerson}
                 </p>
               )}
               <TitleTicksReview items={titleTicks} onShow={showRow} />

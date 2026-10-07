@@ -169,10 +169,11 @@ export function titleTicksItems(
   rows: readonly OwnTeamRow[],
   industry: string,
   answers: SetupAnswers,
+  ticked: (row: OwnTeamRow) => EntitlementId[] = (row) => titleTickedDuties(row, industry, answers),
 ): TitleTicksItem[] {
   return rows.flatMap((row) => {
     const who = row.name.trim();
-    const duties = who ? titleTickedDuties(row, industry, answers) : [];
+    const duties = who ? ticked(row) : [];
     return duties.length > 0
       ? [{ rowId: row.rowId ?? "", who, role: row.role.trim(), duties }]
       : [];

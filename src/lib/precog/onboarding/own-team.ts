@@ -214,14 +214,16 @@ export function withoutOffTeam(
 /**
  * Whether a row's ticks are still exactly a title's suggestion, leaving
  * aside duties the setup answers place outside the team: a row ticked before
- * the answers changed still counts as the suggestion.
+ * the answers changed still counts as the suggestion. `suggestion` comes from
+ * `suggestedDuties` with the same answers, so it holds none of those duties
+ * already.
  */
 export function stillSuggested(
   duties: readonly EntitlementId[],
   suggestion: readonly EntitlementId[],
   answers: SetupAnswers | undefined,
 ): boolean {
-  return sameDuties(withoutOffTeam(duties, answers), withoutOffTeam(suggestion, answers));
+  return sameDuties(withoutOffTeam(duties, answers), suggestion);
 }
 
 /** One row without the duties in `off`, remembering them as left out by the answers. */
@@ -253,8 +255,7 @@ export function withoutDutiesOffTeam(
   let changed = false;
   const next = rows.map((row) => {
     // The fresh first row keeps its ticks (see above).
-    const untouched: boolean = isUntouchedLeaderRow(row);
-    if (untouched) return row;
+    if (isUntouchedLeaderRow(row)) return row;
     const fitted = dropOffTeam(row, off);
     if (fitted !== row) changed = true;
     return fitted;
@@ -285,13 +286,13 @@ export function fitDutiesToAnswers(
     const role = row.role.trim();
     const fromTitle = Boolean(role) && (row.suggestedFor ?? "").trim() === role;
     const usual = fromTitle ? suggestedDuties(role, rowOwnsBusiness(row, industry), industry) : [];
-    const back = row.answersUnticked.filter(
-      (d) => usual.includes(d) && !off.has(d) && !hidden.has(d) && !row.duties.includes(d),
+    // The title's duties the answers unticked and nobody has ticked since:
+    // back on the team now, or still left out (or hidden) and remembered.
+    const candidates = row.answersUnticked.filter(
+      (d) => usual.includes(d) && !row.duties.includes(d),
     );
-    // Still left out (or hidden) by the answers: remember it for later.
-    const waiting = row.answersUnticked.filter(
-      (d) => usual.includes(d) && (off.has(d) || hidden.has(d)) && !row.duties.includes(d),
-    );
+    const back = candidates.filter((d) => !off.has(d) && !hidden.has(d));
+    const waiting = candidates.filter((d) => off.has(d) || hidden.has(d));
     if (back.length === 0 && waiting.length === row.answersUnticked.length) return row;
     changed = true;
     const held = new Set([...row.duties, ...back]);

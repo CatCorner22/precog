@@ -6,7 +6,8 @@ import { TabLoading } from "@/components/precog/home-shell-parts";
 import { MonthlyReview } from "@/components/precog/monthly-review";
 import { tabLabel } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
-import { checkPeriod, revealMonthlyItem } from "./monthly-area.logic";
+import { revealMonthlyItem } from "./monthly-area.logic";
+import { checkPeriod } from "./monthly-check-id";
 import { PageIntro } from "./page-intro";
 
 /**

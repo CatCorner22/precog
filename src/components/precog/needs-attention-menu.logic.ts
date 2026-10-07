@@ -1,7 +1,7 @@
 import {
+  countedOpenPeriods,
   latestReview,
   monthlyReviewTasks,
-  openMonthlyChecks,
   periodMonthName,
   reportPeriod,
   reviewDueText,
@@ -9,7 +9,7 @@ import {
 } from "@/lib/precog/firm/reviews";
 import { count, verb } from "@/lib/precog/text";
 import type { Person } from "@/lib/precog/types";
-import { checkItemId } from "./monthly-area.logic";
+import { checkItemId } from "./monthly-check-id";
 
 /**
  * One line of the Needs attention menu: how many, what, the tab it opens,
@@ -37,7 +37,7 @@ interface DecisionLink {
   linkedPersonId?: string;
 }
 
-interface AttentionInput {
+export interface AttentionInput {
   /** The owner's calendar day, YYYY-MM-DD. */
   day: string;
   /** The team, as the Monthly review suggests a person for each check from it. */
@@ -112,6 +112,42 @@ export function buildNeedsAttentionItems({
   ].filter((item) => item.n > 0);
 }
 
+/** One monthly check that waits: an Exception to resolve, or a check not done in the month that is due. */
+interface WaitingCheck {
+  period: string;
+  key: string;
+  title: string;
+  who: string | null;
+  exception: boolean;
+}
+
+/**
+ * The Monthly review's checks that wait on `day`, each read by its latest
+ * result once: every check whose latest result is Exception in either open
+ * month (`countedOpenPeriods`), and every check not done (no result yet, or
+ * Skipped) of the month that is due (`reportPeriod`). `who` is the person
+ * the Monthly review suggests, when they are on the team.
+ */
+function waitingChecks(
+  day: string,
+  reviews: readonly ReviewRecord[],
+  people: readonly Person[],
+  roleDuties: Readonly<Record<string, readonly string[]>>,
+): WaitingCheck[] {
+  const due = reportPeriod(day);
+  const out: WaitingCheck[] = [];
+  for (const period of countedOpenPeriods(day)) {
+    for (const task of monthlyReviewTasks(day, people, roleDuties, period)) {
+      const result = latestReview(reviews, task.key, period)?.result;
+      const exception = result === "exception";
+      if (!exception && (result === "done" || period !== due)) continue;
+      const who = people.some((p) => p.name === task.suggestedOwner) ? task.suggestedOwner : null;
+      out.push({ period, key: task.key, title: task.title, who, exception });
+    }
+  }
+  return out;
+}
+
 /**
  * The Monthly review's items on `day`:
  * - The checks not done (no result yet, or Skipped) of the month that is due
@@ -119,7 +155,7 @@ export function buildNeedsAttentionItems({
  *   suggests, for example "4 checks for September, due October 10". Each opens
  *   that person's first check not done.
  * - Each check whose latest result is Exception, in either open month
- *   (`openMonthlyChecks`), as its own item that opens that check.
+ *   (`countedOpenPeriods`), as its own item that opens that check.
  */
 export function monthlyAttentionItems(
   day: string,
@@ -128,43 +164,59 @@ export function monthlyAttentionItems(
   roleDuties: Readonly<Record<string, readonly string[]>> = {},
 ): AttentionItem[] {
   const due = reportPeriod(day);
-  const notDone: AttentionItem[] = [];
+  const notDone = new Map<string | null, { n: number; first: string }>();
   const exceptions: AttentionItem[] = [];
-  for (const month of openMonthlyChecks(day, reviews)) {
-    const { period } = month;
-    const name = periodMonthName(period);
-    for (const task of monthlyReviewTasks(day, people, roleDuties, period)) {
-      const who = people.some((p) => p.name === task.suggestedOwner) ? task.suggestedOwner : null;
-      const result = latestReview(reviews, task.key, period)?.result;
-      if (result === "exception") {
-        exceptions.push({
-          id: `exception-${period}-${task.key}`,
-          n: 1,
-          text: `Resolve the ${name} exception: ${task.title}`,
-          target: "monthly",
-          item: checkItemId(period, task.key),
-          who,
-        });
-      } else if (result !== "done" && period === due) {
-        const mine = notDone.find((item) => item.who === who);
-        if (mine) mine.n += 1;
-        else {
-          notDone.push({
-            id: `monthly-${who ?? ""}`,
-            n: 1,
-            text: "",
-            target: "monthly",
-            item: checkItemId(period, task.key),
-            who,
-          });
-        }
-      }
+  for (const check of waitingChecks(day, reviews, people, roleDuties)) {
+    const item = checkItemId(check.period, check.key);
+    if (check.exception) {
+      exceptions.push({
+        id: `exception-${check.period}-${check.key}`,
+        n: 1,
+        text: `Resolve the ${periodMonthName(check.period)} exception: ${check.title}`,
+        target: "monthly",
+        item,
+        who: check.who,
+      });
+    } else {
+      const mine = notDone.get(check.who);
+      if (mine) mine.n += 1;
+      else notDone.set(check.who, { n: 1, first: item });
     }
   }
-  for (const item of notDone) {
-    item.text = `${count(item.n, "check")} for ${periodMonthName(due)}, due ${reviewDueText(due)}`;
-  }
-  return [...notDone, ...exceptions];
+  const month = periodMonthName(due);
+  const dueText = reviewDueText(due);
+  return [
+    ...[...notDone].map(([who, { n, first }]) => ({
+      id: `monthly-${who ?? ""}`,
+      n,
+      text: `${count(n, "check")} for ${month}, due ${dueText}`,
+      target: "monthly",
+      item: first,
+      who,
+    })),
+    ...exceptions,
+  ];
+}
+
+/**
+ * The number the Needs attention button shows: every item's count added up,
+ * worked out without building the items or their words.
+ */
+export function needsAttentionTotal({
+  day,
+  people,
+  roleDuties = {},
+  overdue,
+  slipped,
+  leavers,
+  reviews,
+}: AttentionInput): number {
+  return (
+    waitingChecks(day, reviews, people, roleDuties).length +
+    overdue.length +
+    slipped.length +
+    Math.max(leavers, 0)
+  );
 }
 
 /**

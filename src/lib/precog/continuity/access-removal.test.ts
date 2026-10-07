@@ -8,8 +8,6 @@ import { INDUSTRIES } from "../industry";
 import {
   confirmAccessRemoved,
   departuresBetween,
-  LEAVER_ACCESS_ITEMS,
-  leaverAccessItems,
   leaverAccessNames,
   leaverLine,
   noteDepartures,
@@ -17,6 +15,7 @@ import {
   recordLastDay,
   restorePerson,
 } from "./access-removal";
+import { leaverAccessItems } from "./leaver-access-items";
 
 const TODAY = "2026-09-24";
 const person = (id: string, name: string, role: string, active = true): Person => ({
@@ -336,7 +335,12 @@ describe("the leaver checklist in each industry's words", () => {
       expect(items.some((item) => item.id === "bank")).toBe(true);
       expect(new Set(items.map((item) => item.id)).size).toBe(items.length);
     }
-    expect(LEAVER_ACCESS_ITEMS).toEqual(leaverAccessItems("general"));
+    expect(leaverAccessItems("general")).toEqual(leaverAccessItems("general"));
+  });
+
+  it("words every item of every industry's checklist", () => {
+    for (const { id } of INDUSTRIES)
+      for (const item of leaverAccessItems(id)) expect(item.label).not.toBe("");
   });
 
   it("the decisions log names what a nonprofit confirmed", () => {

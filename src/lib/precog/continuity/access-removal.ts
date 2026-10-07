@@ -17,238 +17,106 @@ import { formatDay, formatDayNear, isCalendarDate } from "../dates";
  * with the day.
  */
 
-/** One thing to check for someone who has left, in the words the checklist uses. */
-export interface LeaverAccessItemDef {
+/**
+ * One thing to check for someone who has left: its id, and how the decisions
+ * log names it ("donor database"). The checklist's longer wording for each
+ * line of business is in `leaver-access-items.ts`, loaded only by the Team
+ * tab's checklist.
+ */
+export interface LeaverAccessItemKey {
   id: string;
-  label: string;
-  /** How the decisions log names it: "donor database". */
   short: string;
 }
 
-const OFF_PAYROLL: LeaverAccessItemDef = {
-  id: "payroll",
-  label: "Off payroll: no more pay runs or direct deposits to them",
-  short: "pay",
-};
-const PAYROLL_LOGIN: LeaverAccessItemDef = {
-  id: "payroll_login",
-  label: "Payroll system sign-in removed",
-  short: "payroll",
-};
-const BANK: LeaverAccessItemDef = {
-  id: "bank",
-  label: "Bank sign-ins and cards removed, and their name off the bank's signer list",
-  short: "bank",
-};
+const OFF_PAYROLL: LeaverAccessItemKey = { id: "payroll", short: "pay" };
+const PAYROLL_LOGIN: LeaverAccessItemKey = { id: "payroll_login", short: "payroll" };
+const BANK: LeaverAccessItemKey = { id: "bank", short: "bank" };
+const KEYS: LeaverAccessItemKey = { id: "keys", short: "keys" };
+const EMAIL: LeaverAccessItemKey = { id: "email", short: "email" };
+/** Email together with other software, under the id "software". */
+const EMAIL_SOFTWARE: LeaverAccessItemKey = { id: "software", short: "email" };
 
 /**
- * What each line of business checks when someone leaves, in that business's
- * own words: a restaurant's safe combination and POS PIN, a nonprofit's PO
- * box, donor database and online giving platform. Pay and the bank come
- * first everywhere.
+ * What each line of business checks when someone leaves: a restaurant's safe
+ * combination and POS PIN, a nonprofit's PO box, donor database and online
+ * giving platform. Pay and the bank come first everywhere.
  */
-const ITEMS_BY_INDUSTRY: Record<IndustryId, readonly LeaverAccessItemDef[]> = {
+const ITEMS_BY_INDUSTRY: Record<IndustryId, readonly LeaverAccessItemKey[]> = {
   dental: [
     OFF_PAYROLL,
     BANK,
     PAYROLL_LOGIN,
-    {
-      id: "practice_software",
-      label: "Practice software sign-in removed (scheduling, billing and patient records)",
-      short: "practice software",
-    },
-    {
-      id: "insurance",
-      label: "Insurance portal and claims clearinghouse sign-ins removed",
-      short: "insurance portals",
-    },
-    {
-      id: "keys",
-      label: "Office keys returned and the alarm code changed",
-      short: "keys",
-    },
-    {
-      id: "email",
-      label: "Email and bookkeeping sign-ins removed",
-      short: "email",
-    },
+    { id: "practice_software", short: "practice software" },
+    { id: "insurance", short: "insurance portals" },
+    KEYS,
+    EMAIL,
   ],
   retail: [
     OFF_PAYROLL,
     BANK,
     PAYROLL_LOGIN,
-    {
-      id: "pos",
-      label: "Point-of-sale sign-in, PIN and any manager override code removed",
-      short: "point of sale",
-    },
-    {
-      id: "online_store",
-      label: "Online store and supplier account sign-ins removed",
-      short: "online store",
-    },
-    {
-      id: "keys",
-      label: "Store keys returned, and the alarm code and safe combination changed",
-      short: "store keys",
-    },
-    {
-      id: "email",
-      label: "Email and bookkeeping sign-ins removed",
-      short: "email",
-    },
+    { id: "pos", short: "point of sale" },
+    { id: "online_store", short: "online store" },
+    { id: "keys", short: "store keys" },
+    EMAIL,
   ],
   professional_services: [
     OFF_PAYROLL,
-    {
-      id: "bank",
-      label:
-        "Bank sign-ins and cards removed, including the client trust account, and their name off every signer list",
-      short: "bank and trust accounts",
-    },
+    { id: "bank", short: "bank and trust accounts" },
     PAYROLL_LOGIN,
-    {
-      id: "billing",
-      label: "Time and billing, document and client portal sign-ins removed",
-      short: "billing software",
-    },
-    {
-      id: "agency",
-      label: "Their access to tax agency and other government accounts through the firm removed",
-      short: "tax agency access",
-    },
-    {
-      id: "keys",
-      label: "Office keys returned and the alarm code changed",
-      short: "keys",
-    },
-    {
-      id: "email",
-      label: "Email and accounting software sign-ins removed",
-      short: "email",
-    },
+    { id: "billing", short: "billing software" },
+    { id: "agency", short: "tax agency access" },
+    KEYS,
+    EMAIL,
   ],
   restaurant: [
     OFF_PAYROLL,
     BANK,
     PAYROLL_LOGIN,
-    { id: "pos", label: "POS PIN and manager card removed", short: "POS PIN" },
-    { id: "safe", label: "Safe combination changed", short: "safe combination" },
-    {
-      id: "keys",
-      label: "Keys returned and the alarm code changed",
-      short: "keys",
-    },
-    {
-      id: "ordering",
-      label: "Delivery app, online ordering and supplier account sign-ins removed",
-      short: "delivery apps",
-    },
-    {
-      id: "email",
-      label: "Email and accounting software sign-ins removed",
-      short: "email",
-    },
+    { id: "pos", short: "POS PIN" },
+    { id: "safe", short: "safe combination" },
+    KEYS,
+    { id: "ordering", short: "delivery apps" },
+    EMAIL,
   ],
   construction: [
     OFF_PAYROLL,
     BANK,
     PAYROLL_LOGIN,
-    {
-      id: "cards",
-      label: "Fuel cards and supplier or lumber yard accounts closed to them",
-      short: "fuel cards",
-    },
-    {
-      id: "equipment",
-      label:
-        "Company vehicle, tools and equipment returned, and job site keys and lockbox codes changed",
-      short: "job site keys",
-    },
-    {
-      id: "software",
-      label: "Email, estimating, project and accounting software sign-ins removed",
-      short: "project software",
-    },
+    { id: "cards", short: "fuel cards" },
+    { id: "equipment", short: "job site keys" },
+    { id: "software", short: "project software" },
   ],
   automotive: [
     OFF_PAYROLL,
     BANK,
     PAYROLL_LOGIN,
-    {
-      id: "shop_system",
-      label: "Shop or dealer management system sign-in removed",
-      short: "shop management system",
-    },
-    {
-      id: "parts",
-      label: "Parts supplier, warranty portal and fuel card access removed",
-      short: "parts accounts",
-    },
-    {
-      id: "keys",
-      label: "Building keys returned, the alarm code changed, and the customer key cabinet checked",
-      short: "keys",
-    },
-    {
-      id: "email",
-      label: "Email and accounting software sign-ins removed",
-      short: "email",
-    },
+    { id: "shop_system", short: "shop management system" },
+    { id: "parts", short: "parts accounts" },
+    KEYS,
+    EMAIL,
   ],
   nonprofit: [
     OFF_PAYROLL,
-    {
-      id: "bank",
-      label:
-        "Bank sign-ins and organization cards removed, and their name off the bank's signer list",
-      short: "bank",
-    },
-    PAYROLL_LOGIN,
-    { id: "donors", label: "Donor database sign-in removed", short: "donor database" },
-    {
-      id: "giving",
-      label:
-        "Online giving platform sign-in removed, and its payouts still going to the organization's bank account",
-      short: "online giving platform",
-    },
-    {
-      id: "mail",
-      label: "Mail and PO box key returned, and someone still here now receives the mailed checks",
-      short: "PO box",
-    },
-    {
-      id: "software",
-      label: "Email and organization software sign-ins removed (accounting, grants)",
-      short: "email",
-    },
-  ],
-  general: [
-    OFF_PAYROLL,
     BANK,
     PAYROLL_LOGIN,
-    {
-      id: "keys",
-      label: "Keys returned, and any alarm code or safe combination they knew changed",
-      short: "keys",
-    },
-    {
-      id: "software",
-      label: "Email and accounting software sign-ins removed",
-      short: "email",
-    },
+    { id: "donors", short: "donor database" },
+    { id: "giving", short: "online giving platform" },
+    { id: "mail", short: "PO box" },
+    EMAIL_SOFTWARE,
   ],
+  general: [OFF_PAYROLL, BANK, PAYROLL_LOGIN, KEYS, EMAIL_SOFTWARE],
 };
 
-/** The checklist for someone who has left this line of business. */
-export function leaverAccessItems(industry: IndustryId): readonly LeaverAccessItemDef[] {
+/** The checklist's ids and short names for someone who has left this line of business. */
+export function leaverAccessKeys(industry: IndustryId): readonly LeaverAccessItemKey[] {
   return ITEMS_BY_INDUSTRY[industry] ?? ITEMS_BY_INDUSTRY.general;
 }
 
-/** The checklist for a business of no particular line. */
-export const LEAVER_ACCESS_ITEMS = leaverAccessItems("general");
-
-export type LeaverAccessItem = LeaverAccessItemDef["id"];
+/** Whether someone whose last day is `lastDay` has left by `today` (both YYYY-MM-DD). */
+export function hasLeftBy(lastDay: string, today: string): boolean {
+  return lastDay <= today;
+}
 
 /** One person leaving: who, and how Precog learned. */
 export interface Departure {
@@ -383,7 +251,7 @@ export function confirmAccessRemoved(
       subject: `${check.name} has left: pay and sign-ins stopped`.slice(0, 120),
       kind: "remediate",
       note: `On ${formatDay(today)} you confirmed that ${leaverLabel(check)} is off payroll and that you have removed their access: ${joinWithAnd(
-        leaverAccessItems(check.industry)
+        leaverAccessKeys(check.industry)
           .filter((item) => item.id !== OFF_PAYROLL.id)
           .map((item) => item.short),
       )}. ${
@@ -418,7 +286,7 @@ export function recordLastDay(
   today: string,
 ): Person[] {
   if (!isCalendarDate(lastDay) || !isCalendarDate(today)) return people as Person[];
-  const gone = lastDay <= today;
+  const gone = hasLeftBy(lastDay, today);
   return people.map((person) =>
     person.id === personId ? { ...person, active: !gone, lastDay } : person,
   );

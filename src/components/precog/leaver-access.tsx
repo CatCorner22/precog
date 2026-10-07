@@ -5,13 +5,11 @@ import { Button } from "@/components/ui/button";
 import { usePractice } from "@/lib/precog/practice-context";
 import { teamSource } from "@/lib/precog/team-source";
 import { useTabName } from "@/lib/precog/presentation";
+import { leaverLabel, leaverLine, openAccessChecks } from "@/lib/precog/continuity/access-removal";
 import {
   leaverAccessItems,
-  leaverLabel,
-  leaverLine,
-  openAccessChecks,
   type LeaverAccessItemDef,
-} from "@/lib/precog/continuity/access-removal";
+} from "@/lib/precog/continuity/leaver-access-items";
 import { localDateKey } from "@/lib/precog/dates";
 import type { IndustryId } from "@/lib/precog/industry";
 

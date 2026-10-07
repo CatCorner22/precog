@@ -290,6 +290,16 @@ export interface OpenMonthChecks {
 }
 
 /**
+ * The open months (`openPeriods`) whose checks count on `day`: last month
+ * through its due day, and this month from MONTHLY_REVIEW_GRACE_DAY.
+ */
+export function countedOpenPeriods(day: string): string[] {
+  const current = monthKey(day);
+  const counted = checksCountOn(day);
+  return openPeriods(day).filter((period) => period !== current || counted);
+}
+
+/**
  * The checks that wait on the owner on `day` (YYYY-MM-DD), month by month,
  * oldest first. The months are the ones the owner can record (`openPeriods`):
  * last month through its due day, the 10th, and this month from
@@ -302,10 +312,7 @@ export function openMonthlyChecks(
   day: string,
   reviews: readonly ReviewRecord[],
 ): OpenMonthChecks[] {
-  const current = monthKey(day);
-  const counted = checksCountOn(day);
-  return openPeriods(day)
-    .filter((period) => period !== current || counted)
+  return countedOpenPeriods(day)
     .map((period) => {
       let notDone = 0;
       let exceptions = 0;
