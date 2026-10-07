@@ -23,7 +23,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { type CoverageReport } from "@/lib/precog/continuity/coverage";
 import { handoverDeadline } from "@/lib/precog/continuity/leavers";
-import { CRITICALITY_LABEL, NOT_ASSESSED_ABSENCE } from "@/lib/precog/continuity/planner-copy";
+import {
+  CRITICALITY_LABEL,
+  NOT_ASSESSED_ABSENCE,
+  noNoticeText,
+} from "@/lib/precog/continuity/planner-copy";
 import { inputClass } from "./styles";
 import { handoffDeadline } from "@/lib/precog/continuity/planned-absence";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
@@ -481,11 +485,7 @@ export function LeavingTeamCard({
           </div>
         )}
         {leaving.list.length === 0 && (
-          <p className="text-xs text-muted">
-            Nobody has given notice. When someone does, record the date here rather than removing
-            them &mdash; the printed report and Pioneer will count down to it and chase the
-            hand-off.
-          </p>
+          <p className="text-xs text-muted">{noNoticeText(leaving.leftNames)}</p>
         )}
         {leaving.list.map((l) => (
           <LeaverCard

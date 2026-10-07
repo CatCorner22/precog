@@ -745,6 +745,11 @@ function useLeaving(
     () => leavers(tpl, profile.decisions, today, conflictsFor),
     [tpl, profile.decisions, today, conflictsFor],
   );
+  /** People already marked as left; their access checklist shows on the same card. */
+  const leftNames = useMemo(
+    () => tpl.people.filter((p) => !p.active).map((p) => p.name),
+    [tpl.people],
+  );
   /** People still on the team with no last day recorded yet. */
   const staying = useMemo(() => people.filter((p) => !p.lastDay), [people]);
   const [personId, setPersonId] = useState("");
@@ -793,6 +798,7 @@ function useLeaving(
   };
   return {
     list,
+    leftNames,
     staying,
     personId,
     setPersonId,
