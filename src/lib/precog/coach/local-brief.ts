@@ -476,7 +476,16 @@ const SCENARIO_STOP_WORDS = new Set([
   "would",
 ]);
 
-/** Match a scenario only when the question asks about scenarios and names one. */
+/** A question that asks for two scenarios side by side. */
+const COMPARE_QUESTION = /\b(compare|versus|vs\.?)\b/i;
+
+/**
+ * Match a scenario only when the question asks about scenarios and names one.
+ * The scenario whose own words the question uses most is the one it names
+ * (one shared word such as "payments" does not outrank a title the question
+ * quotes); a comparison takes the two strongest, in the order the question
+ * names them.
+ */
 export function scenarioAnswer(
   question: string,
   tpl: IndustryTemplate,
@@ -491,12 +500,16 @@ export function scenarioAnswer(
       return {
         scenario,
         templateIndex,
+        score: hitIndexes.length,
         firstHit: hitIndexes.length ? Math.min(...hitIndexes) : -1,
       };
     })
-    .filter((match) => match.firstHit >= 0)
-    .sort((a, b) => a.firstHit - b.firstHit || a.templateIndex - b.templateIndex)
-    .slice(0, 2);
+    .filter((match) => match.score > 0)
+    .sort(
+      (a, b) => b.score - a.score || a.firstHit - b.firstHit || a.templateIndex - b.templateIndex,
+    )
+    .slice(0, COMPARE_QUESTION.test(question) ? 2 : 1)
+    .sort((a, b) => a.firstHit - b.firstHit || a.templateIndex - b.templateIndex);
   if (!matches.length) return null;
 
   const answers: string[] = [];

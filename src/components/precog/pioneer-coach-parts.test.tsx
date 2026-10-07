@@ -151,6 +151,16 @@ describe("extraWarnings", () => {
       warning,
     ]);
   });
+
+  it("hides the watched-condition warning when the Watched conditions section prints the count", () => {
+    const warning = "3 watched conditions breached.";
+    const r = result({
+      markdown:
+        "## Situation\nAll fine.\n\n## Watched conditions\n- **3 breached**, 1 at watch (thresholds set in Precog, not benchmarks)",
+      warnings: [warning],
+    });
+    expect(extraWarnings(r)).toEqual([]);
+  });
 });
 
 describe("brief copy", () => {

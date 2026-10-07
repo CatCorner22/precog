@@ -186,3 +186,45 @@ describe("Pioneer's residual warnings", () => {
     expect(warnings.join(" ")).not.toMatch(/fix first|fix soon|worth doing/i);
   });
 });
+
+describe("Pioneer breached-condition count", () => {
+  const leading: ToolResult = {
+    tool: "get_leading_indicators",
+    ok: true,
+    summary: "Watched conditions",
+    data: { breached: 3, watch: 1, topActions: [] },
+  };
+  const residual: ToolResult = {
+    tool: "get_residual_portfolio",
+    ok: true,
+    summary: "Risk index",
+    data: { averageResidual: 90, criticalPath: 0 },
+  };
+
+  function section(markdown: string, heading: string) {
+    return markdown.match(
+      new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=\\n## |(?![\\s\\S]))`, "m"),
+    )?.[1];
+  }
+
+  it("states the count once, under Watched conditions, not again under Warnings", () => {
+    const tools = [leading, residual];
+    const warnings = chickenLittleCritique(tools);
+    const brief = localSynthesize("What can happen?", tools, [], warnings, [], [], []);
+
+    expect(warnings).toContain("3 watched conditions breached.");
+    expect(section(brief.markdown, "Watched conditions")).toContain("**3 breached**, 1 at watch");
+    expect(section(brief.markdown, "Warnings")).toContain("The average risk index is 90/100");
+    expect(section(brief.markdown, "Warnings")).not.toMatch(/watched conditions? breached/i);
+  });
+
+  it("leaves out an empty Warnings section when the count was its only line", () => {
+    const tools = [leading];
+    const warnings = chickenLittleCritique(tools);
+    const brief = localSynthesize("What can happen?", tools, [], warnings, [], [], []);
+
+    expect(warnings).toEqual(["3 watched conditions breached."]);
+    expect(brief.markdown).not.toContain("## Warnings");
+    expect(section(brief.markdown, "Watched conditions")).toContain("**3 breached**, 1 at watch");
+  });
+});

@@ -42,6 +42,13 @@ export const WARNING_RULES = {
   smallTeamSize: 6,
 } as const;
 
+/**
+ * The warning that counts breached watched conditions. The Watched conditions
+ * section prints the same count, so the Markdown brief and the screen state it
+ * there only.
+ */
+export const BREACHED_CONDITIONS_WARNING = /^\d+ watched conditions? breached/i;
+
 /** The warning when nothing crosses a threshold; the critic lens says the same. */
 export const NO_ALERT_WARNING =
   "Nothing is at a red alert; check again after a team or insurance change.";
@@ -897,6 +904,10 @@ export function localSynthesize(
 
   const situation = `**${snap?.practice ?? "This business"}**: coverage check **${coso ? `${coso.gaps} of ${coso.principles}` : "?"}** with a gap, average risk index **${residual?.averageResidual ?? "?"}/100**, **${leading?.breached ?? "?"}** watched conditions breached. Second payment signer: ${snap?.staff.dualControlPayments ? "on" : "off"}; bank reconciliation: ${snap?.staff.independentBankRec ? "independent" : "not independent"}. Question: _${question}_`;
 
+  const markdownWarnings = leading
+    ? warnings.filter((warning) => !BREACHED_CONDITIONS_WARNING.test(warning))
+    : warnings;
+
   const markdown = [
     `## ${BRIEF_SECTION.situation}`,
     situation,
@@ -907,9 +918,9 @@ export function localSynthesize(
     `## ${BRIEF_SECTION.moves}`,
     ...decisions.map(renderDecision),
     "",
-    `## ${BRIEF_SECTION.warnings}`,
-    ...warnings.map((w) => `- ${w}`),
-    "",
+    ...(markdownWarnings.length
+      ? [`## ${BRIEF_SECTION.warnings}`, ...markdownWarnings.map((w) => `- ${w}`), ""]
+      : []),
     `## ${BRIEF_SECTION.risks}`,
     ...highestRisks.map((r, i) => `${i + 1}. ${r}`),
     "",
