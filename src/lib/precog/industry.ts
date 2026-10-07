@@ -123,6 +123,16 @@ export function industryHasOwner(id: string | undefined): boolean {
 }
 
 /**
+ * Who checks a procedure when nobody is named: "the owner", or for a line of
+ * business with no owner, "the executive director"; capitalized when it
+ * starts a sentence.
+ */
+export function defaultReviewer(id: string | undefined, startsSentence = false): string {
+  const who = industryHasOwner(id) ? "the owner" : "the executive director";
+  return startsSentence ? `T${who.slice(1)}` : who;
+}
+
+/**
  * The industry whose sample stands in when a stored industry is not one the
  * app knows. Every lookup by industry (metadata, sample, copy) falls back to
  * it, so an unknown value never mixes one industry's team with another's words.
