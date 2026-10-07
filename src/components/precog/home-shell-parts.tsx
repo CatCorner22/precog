@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -166,12 +167,18 @@ function fixedMenuPlace(trigger: HTMLElement): { top: number; right: number } {
  * active tab, so the strip always shows where the reader is. Below a separator it
  * links to places on other pages (`data-route-link`), which are not tabs.
  *
+ * With `sections` it is the phone's "All sections" menu (`data-sections-menu`):
+ * below the `sm` breakpoint the strip shows only the open tab, and this menu
+ * names every main section, then the Analyze views under their own caption,
+ * so no section hides off the edge of a narrow screen.
+ *
  * Keyboard: Enter, Space or ArrowDown on the button opens the menu on its
  * first item; ArrowUp, ArrowDown, Home and End move within it and never reach
  * the tabs; Escape closes it and returns focus to the button; picking a
  * view moves focus to that view's tab.
  */
 export function MoreTabsMenu({
+  sections = [],
   tabs,
   activeId,
   label,
@@ -179,6 +186,8 @@ export function MoreTabsMenu({
   links = [],
   onOpenLink,
 }: {
+  /** The main sections, listed first by name: the phone's "All sections" menu. */
+  sections?: readonly ShellTab[];
   tabs: readonly ShellTab[];
   activeId: TabId;
   label: (tab: ShellTab) => string;
@@ -187,6 +196,8 @@ export function MoreTabsMenu({
   onOpenLink?: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const allSections = sections.length > 0;
+  const menuTabs = [...sections, ...tabs];
   // The strip scrolls sideways, which would clip a menu hung below it, so the
   // menu is fixed-position, under its button. See fixedMenuPlace for why the
   // numbers are not plain window coordinates.
@@ -282,7 +293,8 @@ export function MoreTabsMenu({
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        data-more-tabs
+        data-more-tabs={allSections ? undefined : true}
+        data-sections-menu={allSections ? true : undefined}
         onClick={() => setOpen((v) => !v)}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown" && !open) {
@@ -292,12 +304,14 @@ export function MoreTabsMenu({
         }}
         className={cn(
           "inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors pointer-coarse:min-h-11",
-          tabs.some((t) => t.id === activeId)
-            ? "text-fg hover:bg-elevated/60"
-            : "text-muted hover:bg-elevated/60 hover:text-fg",
+          allSections
+            ? "border border-border text-fg hover:bg-elevated/60"
+            : tabs.some((t) => t.id === activeId)
+              ? "text-fg hover:bg-elevated/60"
+              : "text-muted hover:bg-elevated/60 hover:text-fg",
         )}
       >
-        Analyze
+        {allSections ? "All sections" : "Analyze"}
         <ChevronDown
           className={cn("size-3.5 transition-transform", open && "rotate-180")}
           aria-hidden
@@ -307,31 +321,44 @@ export function MoreTabsMenu({
         <div
           role="menu"
           style={{ top: place.top, right: place.right }}
-          aria-label="Analyze views"
+          aria-label={allSections ? "All sections" : "Analyze views"}
           onKeyDown={onMenuKeyDown}
-          className="fixed z-30 w-64 rounded-lg border border-border bg-surface p-1 shadow-xl"
+          className="fixed z-30 max-h-[calc(100dvh-8rem)] w-64 overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-xl"
         >
-          {tabs.map((t, i) => {
+          {menuTabs.map((t, i) => {
             const Icon = t.icon;
             return (
-              <button
-                key={t.id}
-                ref={(el) => {
-                  itemRefs.current[i] = el;
-                }}
-                type="button"
-                role="menuitem"
-                tabIndex={-1}
-                data-tab-id={t.id}
-                onClick={() => pick(t.id)}
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-elevated focus:bg-elevated pointer-coarse:min-h-11",
-                  activeId === t.id ? "text-fg" : "text-muted hover:text-fg",
+              <Fragment key={t.id}>
+                {allSections && i === sections.length && tabs.length > 0 && (
+                  <>
+                    <div role="separator" className="my-1 border-t border-border" />
+                    <p
+                      role="presentation"
+                      className="px-2.5 pt-1 pb-0.5 text-xs font-medium tracking-wide text-subtle uppercase"
+                    >
+                      Analyze
+                    </p>
+                  </>
                 )}
-              >
-                <Icon className="size-4" aria-hidden />
-                <span className="flex-1">{label(t)}</span>
-              </button>
+                <button
+                  ref={(el) => {
+                    itemRefs.current[i] = el;
+                  }}
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  data-tab-id={t.id}
+                  aria-current={allSections && activeId === t.id ? "page" : undefined}
+                  onClick={() => pick(t.id)}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-elevated focus:bg-elevated pointer-coarse:min-h-11",
+                    activeId === t.id ? "text-fg" : "text-muted hover:text-fg",
+                  )}
+                >
+                  <Icon className="size-4" aria-hidden />
+                  <span className="flex-1">{label(t)}</span>
+                </button>
+              </Fragment>
             );
           })}
           {links.length > 0 && <div role="separator" className="my-1 border-t border-border" />}
@@ -339,7 +366,7 @@ export function MoreTabsMenu({
             <a
               key={link.id}
               ref={(el) => {
-                itemRefs.current[tabs.length + i] = el;
+                itemRefs.current[menuTabs.length + i] = el;
               }}
               href={link.href}
               role="menuitem"

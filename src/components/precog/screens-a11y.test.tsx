@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { SectionHeader } from "./builder/chips";
-import { HeaderActions, TabStrip } from "./home-shell-parts";
+import { HeaderActions, MoreTabsMenu, TabStrip } from "./home-shell-parts";
 import { InsuranceRecordPanel } from "./insurance-record-panel";
 import { DualReleaseExceptionsCard } from "./dual-release-exceptions-card";
 import { EMPTY_EXCEPTION_FORM } from "./dual-release-panel-actions";
@@ -81,6 +81,39 @@ describe("tab strip", () => {
     expect(navBody).not.toContain("data-more-tabs");
     expect(navBody).toContain('role="tab"');
     expect(html.indexOf("data-more-tabs")).toBeGreaterThan(html.indexOf("</nav>"));
+  });
+});
+
+describe("the phone's All sections menu", () => {
+  const tab = (id: "team" | "map", label: string) => ({
+    id,
+    label,
+    tactical: label,
+    icon: () => null,
+  });
+  const menu = (sections: ReturnType<typeof tab>[]) =>
+    renderToStaticMarkup(
+      <MoreTabsMenu
+        sections={sections}
+        tabs={[tab("map", "How work flows")]}
+        activeId="team"
+        label={(t) => t.label}
+        onPick={() => {}}
+      />,
+    );
+
+  it("names itself, and is not the Analyze menu the tab walk opens", () => {
+    const html = menu([tab("team", "Team")]);
+    expect(html).toContain("All sections");
+    expect(html).toContain("data-sections-menu");
+    expect(html).not.toContain("data-more-tabs");
+  });
+
+  it("stays the Analyze menu with no sections", () => {
+    const html = menu([]);
+    expect(html).toContain("Analyze");
+    expect(html).toContain("data-more-tabs");
+    expect(html).not.toContain("data-sections-menu");
   });
 });
 
