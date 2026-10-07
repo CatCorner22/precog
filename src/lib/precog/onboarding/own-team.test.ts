@@ -16,6 +16,8 @@ import {
   firstUnnamedWithDuties,
   fitDutiesToAnswers,
   isLeaderTitle,
+  keepDuties,
+  unconfirmedDuties,
   onLeavePersonIds,
   ownerRow,
   suggestedDuties,
@@ -646,9 +648,12 @@ describe("adding people by job title and typing the title agree", () => {
         expect(row.duties, `${entry.id} in ${industry}`).toEqual(
           suggestedDuties(entry.title, owns, industry),
         );
-        if (row.duties.length > 0) {
-          expect(buildOwnTeam([row], industry)[0].dutiesFromTitle, entry.id).toBe(true);
-        }
+        // Nothing a title suggests counts until it is kept, and kept duties are no guess.
+        const [unkept] = buildOwnTeam([row], industry);
+        expect(unkept.entitlements, entry.id).toEqual(["view_reports_only"]);
+        const [kept] = buildOwnTeam([keepDuties(row, row.duties)], industry);
+        expect(kept.entitlements, entry.id).toEqual([...row.duties, "view_reports_only"]);
+        expect(kept.dutiesFromTitle, entry.id).toBeUndefined();
       }
     }
   });
@@ -756,7 +761,7 @@ describe("setup answers decide what a job title ticks", () => {
     expect(withoutDutiesOffTeam(rows, outside)).toBe(rows);
   });
 
-  it("keeps the 'from the job title' mark when only duties off the team were left out", () => {
+  it("leaves out suggested duties nobody kept, whatever the answers left out", () => {
     const owner: OwnTeamRow = { ...ownerRow(), name: "Dana" };
     const lisa: OwnTeamRow = {
       name: "Lisa",
@@ -764,8 +769,10 @@ describe("setup answers decide what a job title ticks", () => {
       duties: suggestedDuties("Bookkeeper", false, "dental", noPayroll),
       suggestedFor: "Bookkeeper",
     };
-    const people = buildOwnTeam([owner, lisa], "dental", noPayroll);
-    expect(people.map((p) => p.dutiesFromTitle)).toEqual([true, true]);
+    const people = buildOwnTeam([owner, keepDuties(lisa, lisa.duties)], "dental", noPayroll);
+    expect(people.map((p) => p.dutiesFromTitle)).toEqual([undefined, undefined]);
+    expect(people[0].entitlements).toEqual(["view_reports_only"]);
+    expect(people[1].entitlements).toEqual([...lisa.duties, "view_reports_only"]);
   });
 
   it("lists the duties a row still holds from its job title, without hidden ones", () => {
@@ -806,9 +813,14 @@ describe("changing a setup answer back re-ticks what the job title ticks", () =>
     const again = back.find((row) => row.name === "Lisa")!;
     expect(again.duties).toContain("bank_reconcile");
     expect(again.duties).toEqual(suggestedDuties("Bookkeeper", false, "dental"));
-    // The title-ticks review lists it, and Finish gives the Bookkeeper the duty.
+    // The title-ticks review lists it, and once kept Finish gives the Bookkeeper the duty.
     expect(titleTickedDuties(again, "dental", inHouse)).toContain("bank_reconcile");
-    const people = buildOwnTeam(back, "dental", inHouse);
+    expect(unconfirmedDuties(again, "dental", inHouse)).toContain("bank_reconcile");
+    const people = buildOwnTeam(
+      back.map((row) => keepDuties(row, row.duties)),
+      "dental",
+      inHouse,
+    );
     expect(people.find((p) => p.name === "Lisa")?.entitlements).toContain("bank_reconcile");
   });
 

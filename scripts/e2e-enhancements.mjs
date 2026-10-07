@@ -193,6 +193,11 @@ async function exceptionFirstSetup(page, errors) {
     "the business name was not restored after reload",
   );
   await waitForCount(names, 4, "roster rows restored after reload");
+  // A duty a job title suggested counts only once kept: keep each person's.
+  const keepAll = page.getByRole("button", { name: /^Keep all \d+ for / });
+  while ((await keepAll.count()) > 0) await keepAll.first().click();
+  const keepOne = page.locator("[data-confirm-row] [data-keep]");
+  while ((await keepOne.count()) > 0) await keepOne.first().click();
   await page.getByRole("button", { name: "Show me my gaps", exact: true }).click();
   const profile = await waitProfile(
     page,

@@ -5,7 +5,7 @@ import {
   ownerRow,
   rowSeat,
   sharedTitles,
-  titleTickedDuties,
+  unconfirmedDuties,
   type OwnTeamRow,
   type SeatReading,
 } from "@/lib/precog/onboarding/own-team";
@@ -162,22 +162,35 @@ export function dutiesHeldByTitle(rows: readonly OwnTeamRow[], role: string): En
 }
 
 /**
- * The people whose job title ticked duties they still hold, for the review
- * before Finish: named rows only, since Finish drops a row with no name.
+ * The people whose job title suggested duties the owner has not yet kept or
+ * removed, for the review before Finish: named rows only, since Finish drops
+ * a row with no name. Every such duty is listed, grid column or not.
  */
 export function titleTicksItems(
   rows: readonly OwnTeamRow[],
   industry: string,
   answers: SetupAnswers,
-  ticked: (row: OwnTeamRow) => EntitlementId[] = (row) => titleTickedDuties(row, industry, answers),
+  waiting: (row: OwnTeamRow) => EntitlementId[] = (row) =>
+    unconfirmedDuties(row, industry, answers),
 ): TitleTicksItem[] {
   return rows.flatMap((row) => {
     const who = row.name.trim();
-    const duties = who ? ticked(row) : [];
+    const duties = who ? waiting(row) : [];
     return duties.length > 0
       ? [{ rowId: row.rowId ?? "", who, role: row.role.trim(), duties }]
       : [];
   });
+}
+
+/**
+ * What holds Finish back: the suggested duties still to keep or remove, and
+ * the first person they belong to; null once every one is decided.
+ */
+export function finishWaits(
+  items: readonly TitleTicksItem[],
+): { waiting: number; first: TitleTicksItem } | null {
+  const waiting = items.reduce((sum, item) => sum + item.duties.length, 0);
+  return waiting > 0 && items[0] ? { waiting, first: items[0] } : null;
 }
 
 /** Whether leaving setup now loses typed work: the browser keeps nothing, or the draft write failed. */

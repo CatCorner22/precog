@@ -32,9 +32,11 @@ import {
   firstUnnamedWithDuties,
   rowNeedsReview,
   rowOwnsBusiness,
+  keepDuties,
   stillSuggested,
   suggestedDuties,
-  titleTickedDuties,
+  toggleDutyByHand,
+  unconfirmedDuties,
   untickDutyForTitle,
   withoutDutiesOffTeam,
   fitDutiesToAnswers,
@@ -76,6 +78,7 @@ import {
   caseCoveragePhrase,
   dutiesHeldByTitle,
   EMPTY_ROW,
+  finishWaits,
   freshRows,
   focusableIn,
   focusSoon,
@@ -92,6 +95,7 @@ import {
 import {
   AddDutyControl,
   DutyHeading,
+  FinishWaitsNote,
   SeatNote,
   TitleTicksReview,
   YearsHereInput,
@@ -103,8 +107,10 @@ import { DEFAULT_BUSINESS_ID, MAX_BUSINESS_NAME } from "@/lib/precog/business-id
 import { count } from "@/lib/precog/text";
 import {
   hiddenDuties,
+  normalizeAnsweredQuestions,
   normalizeSetupAnswers,
   setupEffects,
+  type SetupQuestion,
   UNANSWERED,
   type SetupAnswers,
 } from "@/lib/precog/onboarding/setup-answers";
@@ -145,6 +151,8 @@ export function IndustryOnboarding({
     initialStep ?? (typedName ? "questions" : "industry"),
   );
   const [answers, setAnswers] = useState<SetupAnswers>(UNANSWERED);
+  // The money questions the owner chose an answer for; the rest stay Not sure for the engines.
+  const [answered, setAnswered] = useState<SetupQuestion[]>([]);
   const [question, setQuestion] = useState<ShellQuestion>("actor");
   const [facts, setFacts] = useState<OnboardingFacts>(
     profile.onboardingFacts ?? EMPTY_ONBOARDING_FACTS,
@@ -208,6 +216,7 @@ export function IndustryOnboarding({
     setRows(start.draft.rows);
     setStep(start.draft.step);
     setAnswers(normalizeSetupAnswers(start.draft.setupAnswers) ?? UNANSWERED);
+    setAnswered(normalizeAnsweredQuestions(start.draft.answeredQuestions));
     setQuestion(
       start.draft.currentQuestionId &&
         ["actor", "workforce", "locations", "setup_method"].includes(start.draft.currentQuestionId)
@@ -252,6 +261,7 @@ export function IndustryOnboarding({
             businessId,
             leftOut,
             setupAnswers: answers,
+            answeredQuestions: answered,
             schemaVersion: ONBOARDING_FACTS_VERSION,
             currentQuestionId: question,
             actor: facts.actor,
@@ -281,6 +291,7 @@ export function IndustryOnboarding({
     businessId,
     leftOut,
     answers,
+    answered,
     unresolvedRows,
     workspace.session,
   ]);
@@ -387,6 +398,7 @@ export function IndustryOnboarding({
     setFinishNote("");
     setBusinessName(typedName);
     setAnswers(UNANSWERED);
+    setAnswered([]);
     setRestoredEarlier(false);
   }
 
@@ -458,7 +470,10 @@ export function IndustryOnboarding({
   const onePerson = onePersonNote(namedRows.length);
   const hidden = useMemo(() => hiddenDuties(answers), [answers]);
   const visibleCoreDuties = CORE_DUTIES.filter((duty) => !hidden.has(duty));
-  const effects = useMemo(() => setupEffects(answers, selected), [answers, selected]);
+  const effects = useMemo(
+    () => setupEffects(answers, selected, answered),
+    [answers, selected, answered],
+  );
 
   // Titles two or more people share, for "untick one duty for all of them".
   const shared = useMemo(() => sharedTitlesWithDuties(rows), [rows]);
@@ -574,24 +589,62 @@ export function IndustryOnboarding({
       );
     });
   }
+  /** Adds a duty by hand: the owner's own entry, so it counts at once. */
   function addDuty(index: number, duty: EntitlementId) {
     setRows((current) =>
       current.map((row, i) =>
-        i === index && !row.duties.includes(duty) ? { ...row, duties: [...row.duties, duty] } : row,
+        i === index && !row.duties.includes(duty) ? toggleDutyByHand(row, duty) : row,
       ),
     );
   }
+  /** Ticks or unticks a duty by hand; a duty ticked by hand counts at once. */
   function toggleDuty(index: number, duty: EntitlementId) {
     setRows((current) =>
-      current.map((row, i) => {
-        if (i !== index) return row;
-        const has = row.duties.includes(duty);
-        return {
-          ...row,
-          duties: has ? row.duties.filter((d) => d !== duty) : [...row.duties, duty],
-        };
-      }),
+      current.map((row, i) => (i === index ? toggleDutyByHand(row, duty) : row)),
     );
+  }
+  /**
+   * After a Keep or Remove in the review, focus goes to the next decision for
+   * the same person, then to the next person's, then to the finish button.
+   */
+  function focusNextDecision(rowId: string) {
+    focusSoon(
+      () =>
+        document.querySelector<HTMLElement>(`[data-confirm-row="${rowId}"] [data-keep]`) ??
+        document.querySelector<HTMLElement>("[data-confirm-row] [data-keep]") ??
+        finishRef.current,
+    );
+  }
+  /** Keeps suggested duties for one person: from now on they count. */
+  function keepSuggested(rowId: string, duties: readonly EntitlementId[]) {
+    const index = rows.findIndex((row) => row.rowId === rowId);
+    if (index < 0) return;
+    setRows((current) =>
+      current.map((row) => (row.rowId === rowId ? keepDuties(row, duties) : row)),
+    );
+    setGridStatus({
+      text:
+        duties.length === 1
+          ? `Kept ${coreDutyLabel(duties[0])} for ${whoIs(rows[index], index)}.`
+          : `Kept ${count(duties.length, "duty", "duties")} for ${whoIs(rows[index], index)}.`,
+    });
+    if (finishNote) setFinishNote("");
+    focusNextDecision(rowId);
+  }
+  /** Removes one suggested duty from one person. */
+  function removeSuggested(rowId: string, duty: EntitlementId) {
+    const index = rows.findIndex((row) => row.rowId === rowId);
+    if (index < 0) return;
+    setRows((current) =>
+      current.map((row) =>
+        row.rowId === rowId ? { ...row, duties: row.duties.filter((d) => d !== duty) } : row,
+      ),
+    );
+    setGridStatus({
+      text: `Removed ${coreDutyLabel(duty)} from ${whoIs(rows[index], index)}.`,
+    });
+    if (finishNote) setFinishNote("");
+    focusNextDecision(rowId);
   }
   function finish() {
     // A row with duties ticked and no name would be dropped with its duties: ask for the name.
@@ -602,6 +655,12 @@ export function IndustryOnboarding({
         `Person ${unnamed + 1}${role ? ` (${role})` : ""} has duties ticked but no name. Type a name, or remove the row.`,
       );
       document.getElementById(nameInputId(unnamed))?.focus();
+      return;
+    }
+    // A duty a job title suggested counts only once kept: every one is decided first.
+    const waits = finishWaits(titleTicks);
+    if (waits) {
+      showDecisions(waits.first.rowId);
       return;
     }
     const people = buildOwnTeam(rows, selected, answers);
@@ -702,16 +761,29 @@ export function IndustryOnboarding({
         only in this browser tab.
       </p>
     );
-  // Each row's duties ticked from its job title, worked out once for both the
-  // grid's note under each title and the review of them.
+  // Each row's duties a job title suggested and the owner has not yet kept,
+  // worked out once for the grid's note under each title, the review of
+  // them, and what holds Finish back.
   const titleTicked = useMemo(
-    () => new Map(rows.map((row) => [row, titleTickedDuties(row, selected, answers)])),
+    () => new Map(rows.map((row) => [row, unconfirmedDuties(row, selected, answers)])),
     [rows, selected, answers],
   );
   const titleTicks = useMemo(
     () => titleTicksItems(rows, selected, answers, (row) => titleTicked.get(row) ?? []),
     [rows, selected, answers, titleTicked],
   );
+  const waits = finishWaits(titleTicks);
+
+  /** Brings one person's suggested duties into view in the review, with focus on the first Keep. */
+  function showDecisions(rowId: string) {
+    focusSoon(() => {
+      const button = document.querySelector<HTMLElement>(
+        `[data-confirm-row="${rowId}"] [data-keep]`,
+      );
+      button?.scrollIntoView({ block: "center" });
+      return button;
+    });
+  }
 
   /** Brings a person's row into view from the review, with focus on their job title. */
   function showRow(rowId: string) {
@@ -902,7 +974,17 @@ export function IndustryOnboarding({
               {storageNote}
               <SetupMoneyStep
                 answers={answers}
-                onChange={setAnswers}
+                answered={answered}
+                onChange={(next, question) => {
+                  setAnswers(next);
+                  setAnswered((current) => {
+                    const chosen = current.includes(question) ? current : [...current, question];
+                    // The camera question goes, unanswered, when no cash is taken.
+                    return next.cashOrChecks === "no"
+                      ? chosen.filter((q) => q !== "cameras")
+                      : chosen;
+                  });
+                }}
                 industry={selected}
                 onNext={() => {
                   // Answers changed after people were added untick what they rule out, and
@@ -1035,7 +1117,9 @@ export function IndustryOnboarding({
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => finishRef.current?.focus()}
+                    onClick={() =>
+                      waits ? showDecisions(waits.first.rowId) : finishRef.current?.focus()
+                    }
                     disabled={namedRows.length === 0}
                   >
                     Skip to the finish button
@@ -1212,7 +1296,17 @@ export function IndustryOnboarding({
                           </td>
                           {visibleCoreDuties.map((duty) => (
                             <td key={duty} className="border-b border-border p-0 text-center">
-                              <label className="flex min-h-11 w-full items-center justify-center p-1.5">
+                              <label
+                                className={cn(
+                                  "flex min-h-11 w-full items-center justify-center p-1.5",
+                                  titleTicked.get(row)?.includes(duty) && "bg-warn/15",
+                                )}
+                                title={
+                                  titleTicked.get(row)?.includes(duty)
+                                    ? "From the job title, not counted yet: keep or remove it below the table"
+                                    : undefined
+                                }
+                              >
                                 <input
                                   type="checkbox"
                                   className="size-4"
@@ -1520,18 +1614,33 @@ export function IndustryOnboarding({
                   {onePerson}
                 </p>
               )}
-              <TitleTicksReview items={titleTicks} onShow={showRow} />
+              <TitleTicksReview
+                items={titleTicks}
+                onShow={showRow}
+                onKeep={keepSuggested}
+                onRemove={removeSuggested}
+              />
               {finishNote && (
                 <p className="text-xs text-danger" role="alert">
                   {finishNote}
                 </p>
+              )}
+              {waits && (
+                <FinishWaitsNote
+                  id="finish-waits"
+                  finishLabel={finishLabel}
+                  waiting={waits.waiting}
+                  first={waits.first}
+                  onShow={showDecisions}
+                />
               )}
               <div className="grid gap-2 sm:grid-cols-2">
                 <Button
                   ref={finishRef}
                   className="w-full"
                   onClick={finish}
-                  disabled={namedRows.length === 0}
+                  disabled={namedRows.length === 0 || waits !== null}
+                  aria-describedby={waits ? "finish-waits" : undefined}
                 >
                   {finishLabel}
                 </Button>

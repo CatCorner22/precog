@@ -2,25 +2,36 @@ import { useId, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import type { IndustryId } from "@/lib/precog/industry";
 import { industryHasOwner } from "@/lib/precog/industry";
-import type { SetupAnswers } from "@/lib/precog/onboarding/setup-answers";
+import {
+  answeredSummary,
+  type SetupAnswers,
+  type SetupQuestion,
+} from "@/lib/precog/onboarding/setup-answers";
 
 type Choice<T extends string> = { value: T; label: string };
 
+/**
+ * One question as a radio group. Unanswered, no choice is selected and the
+ * first choice takes the keyboard focus, so the owner sees what they have
+ * not chosen.
+ */
 function SegmentedQuestion<T extends string>({
   label,
   value,
+  answered,
   choices,
   onChange,
 }: {
   label: string;
   value: T;
+  answered: boolean;
   choices: readonly Choice<T>[];
   onChange: (value: T) => void;
 }) {
   const labelId = useId();
 
   function move(event: KeyboardEvent<HTMLDivElement>) {
-    const current = choices.findIndex((choice) => choice.value === value);
+    const current = answered ? choices.findIndex((choice) => choice.value === value) : -1;
     const keyDirection =
       event.key === "ArrowRight" || event.key === "ArrowDown"
         ? 1
@@ -29,7 +40,11 @@ function SegmentedQuestion<T extends string>({
           : 0;
     const nextIndex =
       keyDirection !== 0
-        ? (current + keyDirection + choices.length) % choices.length
+        ? current < 0
+          ? keyDirection > 0
+            ? 0
+            : choices.length - 1
+          : (current + keyDirection + choices.length) % choices.length
         : event.key === "Home"
           ? 0
           : event.key === "End"
@@ -52,15 +67,15 @@ function SegmentedQuestion<T extends string>({
         onKeyDown={move}
         className="flex flex-wrap gap-1 rounded-lg"
       >
-        {choices.map((choice) => {
-          const checked = value === choice.value;
+        {choices.map((choice, index) => {
+          const checked = answered && value === choice.value;
           return (
             <button
               key={choice.value}
               type="button"
               role="radio"
               aria-checked={checked}
-              tabIndex={checked ? 0 : -1}
+              tabIndex={checked || (!answered && index === 0) ? 0 : -1}
               onClick={() => onChange(choice.value)}
               className={`min-h-8 rounded-md pointer-coarse:min-h-11 pointer-coarse:min-w-11 border px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                 checked
@@ -83,28 +98,41 @@ const ANSWER_CHOICES: readonly Choice<"yes" | "no" | "unsure">[] = [
   { value: "unsure", label: "Not sure" },
 ];
 
-function setAnswer<K extends keyof SetupAnswers>(
+/** A money question's answer was chosen: the new answers and which question it was. */
+type OnAnswer = (answers: SetupAnswers, question: SetupQuestion) => void;
+
+function setAnswer<K extends SetupQuestion>(
   answers: SetupAnswers,
-  onChange: (answers: SetupAnswers) => void,
+  onChange: OnAnswer,
   key: K,
   value: SetupAnswers[K],
 ) {
-  onChange({ ...answers, [key]: value });
+  onChange({ ...answers, [key]: value }, key);
 }
 
+/**
+ * The "How money moves here" questions. Every question starts unanswered;
+ * an unanswered question keeps the Not sure value, so the engines read it
+ * exactly as a Not sure answer. Next works at any count.
+ */
 export function SetupMoneyStep({
   answers,
+  answered,
   onChange,
   industry,
   onNext,
   onBack,
 }: {
   answers: SetupAnswers;
-  onChange: (answers: SetupAnswers) => void;
+  /** The questions the owner chose an answer for. */
+  answered: readonly SetupQuestion[];
+  onChange: OnAnswer;
   industry: IndustryId;
   onNext: () => void;
   onBack: () => void;
 }) {
+  const has = (question: SetupQuestion) => answered.includes(question);
+  const progress = answeredSummary(answers, answered);
   const statementQuestion = industryHasOwner(industry)
     ? "Does the owner open and read the bank statement each month?"
     : "Does a board member open and read the bank statement each month?";
@@ -117,30 +145,37 @@ export function SetupMoneyStep({
           <SegmentedQuestion
             label="Do you take cash or paper checks in person or by mail?"
             value={answers.cashOrChecks}
+            answered={has("cashOrChecks")}
             choices={ANSWER_CHOICES}
             onChange={(value) =>
-              onChange({
-                ...answers,
-                cashOrChecks: value,
-                ...(value === "no" ? { cameras: "unsure" } : {}),
-              })
+              onChange(
+                {
+                  ...answers,
+                  cashOrChecks: value,
+                  ...(value === "no" ? { cameras: "unsure" } : {}),
+                },
+                "cashOrChecks",
+              )
             }
           />
           <SegmentedQuestion
             label="Does anyone use a company credit or debit card?"
             value={answers.companyCard}
+            answered={has("companyCard")}
             choices={ANSWER_CHOICES}
             onChange={(value) => setAnswer(answers, onChange, "companyCard", value)}
           />
           <SegmentedQuestion
             label="Do you give refunds, credits, or write-offs?"
             value={answers.refunds}
+            answered={has("refunds")}
             choices={ANSWER_CHOICES}
             onChange={(value) => setAnswer(answers, onChange, "refunds", value)}
           />
           <SegmentedQuestion
             label="How is payroll handled?"
             value={answers.payroll}
+            answered={has("payroll")}
             choices={[
               { value: "in-house", label: "In-house" },
               { value: "provider", label: "Provider" },
@@ -152,6 +187,7 @@ export function SetupMoneyStep({
           <SegmentedQuestion
             label="Who reconciles the bank each month?"
             value={answers.bankRec}
+            answered={has("bankRec")}
             choices={[
               { value: "team", label: "Our team" },
               { value: "outside", label: "Outside bookkeeper or CPA" },
@@ -163,6 +199,7 @@ export function SetupMoneyStep({
           <SegmentedQuestion
             label="About how much do you take in each day across all payment types?"
             value={answers.dailyTakings}
+            answered={has("dailyTakings")}
             choices={[
               { value: "under-1k", label: "Under $1,000" },
               { value: "1k-5k", label: "$1,000–$5,000" },
@@ -181,12 +218,14 @@ export function SetupMoneyStep({
           <SegmentedQuestion
             label={statementQuestion}
             value={answers.ownerReadsStatement}
+            answered={has("ownerReadsStatement")}
             choices={ANSWER_CHOICES}
             onChange={(value) => setAnswer(answers, onChange, "ownerReadsStatement", value)}
           />
           <SegmentedQuestion
             label="Does the bank require a second person to approve payments?"
             value={answers.bankSecondApproval}
+            answered={has("bankSecondApproval")}
             choices={ANSWER_CHOICES}
             onChange={(value) => setAnswer(answers, onChange, "bankSecondApproval", value)}
           />
@@ -194,6 +233,7 @@ export function SetupMoneyStep({
             <SegmentedQuestion
               label="Are security cameras in place?"
               value={answers.cameras}
+              answered={has("cameras")}
               choices={ANSWER_CHOICES}
               onChange={(value) => setAnswer(answers, onChange, "cameras", value)}
             />
@@ -201,18 +241,23 @@ export function SetupMoneyStep({
           <SegmentedQuestion
             label="Is an alarm or access-control system in place?"
             value={answers.alarm}
+            answered={has("alarm")}
             choices={ANSWER_CHOICES}
             onChange={(value) => setAnswer(answers, onChange, "alarm", value)}
           />
           <SegmentedQuestion
             label="Are people who handle money background checked?"
             value={answers.backgroundChecks}
+            answered={has("backgroundChecks")}
             choices={ANSWER_CHOICES}
             onChange={(value) => setAnswer(answers, onChange, "backgroundChecks", value)}
           />
         </div>
       </fieldset>
 
+      <p className="text-xs text-muted" role="status">
+        {`${progress.answered} of ${progress.shown} answered. A question you leave counts as Not sure.`}
+      </p>
       <div className="flex flex-wrap gap-2 border-t border-border pt-3">
         <Button variant="secondary" onClick={onBack}>
           Back
