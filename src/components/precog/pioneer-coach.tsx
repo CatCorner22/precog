@@ -17,6 +17,7 @@ import { journalEntry, type CoachDecision } from "@/lib/precog/coach/journal-ent
 import {
   BUSINESS_CHANGED_MESSAGE,
   CoachResultView,
+  briefClipboardText,
   coachErrorMessage,
   type CoachResult,
 } from "./pioneer-coach-parts";
@@ -54,13 +55,14 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
 
   async function run() {
     const id = ++runId.current;
+    const askedQuestion = question.trim();
     running.current = true;
     setLoading(true);
     setError(null);
     try {
       const res = await runPioneerCoach({
         data: {
-          question,
+          question: askedQuestion,
           today: localDateKey(new Date()),
           profile: {
             industry: profile.industry,
@@ -90,7 +92,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
         setError(res.error);
         setResult(null);
       } else {
-        setResult(res);
+        setResult({ ...res, question: askedQuestion || res.question });
         setLogged(new Set());
       }
     } catch (e) {
@@ -107,7 +109,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
   async function copyBrief() {
     if (!result?.markdown) return;
     try {
-      await navigator.clipboard.writeText(result.markdown);
+      await navigator.clipboard.writeText(briefClipboardText(result));
       setCopied(true);
       if (copiedTimer.current) clearTimeout(copiedTimer.current);
       copiedTimer.current = setTimeout(() => setCopied(false), 2000);
@@ -131,12 +133,12 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
           className="mt-3"
           icon={<Compass className="size-5 text-primary" aria-hidden />}
           purpose="Pioneer is Precog's assistant. Ask about your team, a person leaving, or what to fix first; it answers from your own records."
+          purpose="Ask about risks, someone being away, or what to fix first. Answers come from your own records."
           method={
             <p>
-              Pioneer builds every answer from Precog&rsquo;s own records: the exposure that
-              remains, duty conflicts, scenarios, the guidance library, and the prosecuted cases.
-              Where it orders fixes, it uses Precog&rsquo;s weights and says so. It never invents a
-              measurement.
+              Precog's rules write every answer from your records, scenarios, the guidance library
+              and prosecuted cases. Fix order uses Precog's weights, not measurements. When Grok is
+              on, it only picks which statements show first; it writes none.
             </p>
           }
         />

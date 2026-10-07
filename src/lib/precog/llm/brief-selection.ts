@@ -54,5 +54,5 @@ export function renderBriefSelection(
   const limits = brief.chickenLittleWarnings.length
     ? `\n\n### Important limits\n${brief.chickenLittleWarnings.map((text) => `- ${text}`).join("\n")}`
     : "";
-  return `## Selected for your question\n\n${highlights.join("\n\n")}\n\nThese are suggestions from Precog's rules, selected by the model without rewriting. This is not a new risk ranking or independent verification.${limits}\n\n---\n\n${brief.markdown}`;
+  return `## Picked for your question\n\n${highlights.join("\n\n")}\n\n_Grok picked these from Precog's own statements without changing them. They are not a new ranking._${limits}\n\n---\n\n${brief.markdown}`;
 }

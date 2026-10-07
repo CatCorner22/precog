@@ -20,7 +20,7 @@ export function monthlyWorkpaperFacts(drift: IntegrationDrift | null): Workpaper
       {
         id: "qbo-unread",
         label: "QuickBooks reading",
-        detail: `No QuickBooks reading is stored. The monthly checks are the file until a reading is connected. ${PAYMENT_STATUS_NOTE} ${ACCT_NOTE}`,
+        detail: `No QuickBooks reading yet, so the monthly checks are the record. ${PAYMENT_STATUS_NOTE} ${ACCT_NOTE}`,
       },
     ];
   }

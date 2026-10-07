@@ -13,6 +13,7 @@ import {
 } from "./local-brief";
 import { pioneerProfileFrom } from "./pioneer-profile";
 import { nonprofitLeaderPeople } from "@/test/nonprofit-leader-team";
+import * as scenarioQuestion from "./scenario-question";
 
 vi.mock("../llm/agent-loop", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../llm/agent-loop")>();
@@ -62,7 +63,7 @@ describe("local advisor brief", () => {
     const { brief } = localBrief(SOD, { profile: sample, question: SOD }, sample);
     const moves = [...brief.decisions.map((d) => d.action), brief.frontierNextMove].join(" ");
     expect(moves).not.toMatch(/deductible|policy limit|premium/i);
-    expect(brief.markdown).toContain("## Your open duty conflicts");
+    expect(brief.markdown).toContain("## Answer");
     expect(brief.markdown).toContain("Maya Chen");
   });
 
@@ -81,7 +82,7 @@ describe("local advisor brief", () => {
       "Mark who can do each item on Who knows what",
     );
     expect(brief.markdown).toContain(
-      "**Grace Kim** (Bookkeeper): set up suppliers and release payments (critical)",
+      "**Grace Kim**: set up suppliers and release payments (critical)",
     );
   });
 
@@ -99,7 +100,9 @@ describe("local advisor brief", () => {
     const other = "Give me a plain-English board brief on residual risk.";
     const asked = localBrief(leaves, { profile: sample, question: leaves }, sample).brief;
     const generic = localBrief(other, { profile: sample, question: other }, sample).brief;
-    expect(asked.markdown).toContain("## Your question");
+    expect(asked.markdown).toContain("## Answer");
+    expect(asked.markdown).not.toContain("Your question");
+    expect(asked.markdown).not.toMatch(/^Question:/m);
     expect(asked.markdown).toMatch(/If Jordan Blake \(Front Desk Lead\) is away or leaves/);
     expect(asked.frontierNextMove).not.toBe(generic.frontierNextMove);
     // The move carries its register link, so a Journal entry logged from it is
@@ -148,6 +151,22 @@ describe("local brief fallback", () => {
     expect(logged.mock.calls[0][0]).toContain("TypeError");
     expect(localBrief(EMBEZZLEMENT, { profile, question: EMBEZZLEMENT }, profile).partial).toBe(
       false,
+    );
+  });
+
+  it("returns the plain fallback when answer processing also throws", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(scenarioQuestion, "matchScenarios").mockImplementation(() => {
+      throw new Error("scenario matching failed");
+    });
+    const profile = clinic();
+    const question = "Walk me through a write-off abuse scenario and its controls.";
+    const result = localBrief(question, { profile, question }, profile);
+
+    expect(result.partial).toBe(true);
+    expect(result.brief.markdown).toContain("## Situation");
+    expect(result.brief.chickenLittleWarnings[0]).toMatch(
+      /^Pioneer could not compute part of the full brief/,
     );
   });
 });

@@ -223,7 +223,7 @@ describe("monthly review communicates evidence limits", () => {
     expect(html).toContain(">Monthly review</h2>");
     expect(html).not.toContain("This month’s file");
     expect(html).toContain(
-      "The control evidence log is the record a reviewer relies on. Process Done marks, Decisions log entries and procedure proofs stay on this business and do not enter it.",
+      "Reviewers rely on this log. Done marks on processes, Decisions log entries and procedure proofs stay on the business and are not part of it.",
     );
     expect(html).not.toContain('href="/firm"');
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chickenLittleCritique, localSynthesize, NO_ALERT_WARNING } from "./agent-brief";
+import { chickenLittleCritique, destack, localSynthesize, NO_ALERT_WARNING } from "./agent-brief";
 import type { ScenarioRunData } from "./scenario-tools";
 import type { ToolResult } from "./types";
 import { RISK_SCALE } from "../scoring/bands";
@@ -26,8 +26,30 @@ function synthesize(scenario: ToolResult) {
   };
 }
 
+describe("stack wording", () => {
+  it("turns a stacked label into an owner-facing phrase inside longer text", () => {
+    expect(destack("Cameras + dual release + bank reconciliation (stack)")).toBe(
+      "Cameras, dual release and bank reconciliation together",
+    );
+    expect(
+      destack(
+        "Levers in the order Precog prefers: Cameras, dual release, bank reconciliation (stack).",
+      ),
+    ).toBe(
+      "Levers in the order Precog prefers: Cameras, dual release and bank reconciliation together.",
+    );
+    expect(
+      destack(
+        "First: Cameras + dual release + bank reconciliation (stack). Next: Cameras + dual release + bank reconciliation (stack).",
+      ),
+    ).toBe(
+      "First: Cameras, dual release and bank reconciliation together. Next: Cameras, dual release and bank reconciliation together.",
+    );
+  });
+});
+
 describe("Pioneer early scenario signs", () => {
-  it("adds the first three signs under watched conditions without changing alerts", () => {
+  it("adds the first three early signs under warnings without changing alerts", () => {
     const { brief, warnings } = synthesize(
       makeScenarioResult(["First sign.", "Second sign.", "Third sign.", "Fourth sign."]),
     );

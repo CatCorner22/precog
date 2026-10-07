@@ -47,7 +47,7 @@ export function ScenarioWatchCard({
         {(ruleIds.length > 0 || watch.control || watch.knowledge) && (
           <section>
             <p className="text-xs font-medium tracking-wide text-subtle uppercase">
-              In your business right now
+              In your business now
             </p>
             <div className="mt-2 space-y-1 text-sm text-muted">
               {ruleIds.length > 0 &&

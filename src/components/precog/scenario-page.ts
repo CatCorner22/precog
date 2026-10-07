@@ -20,6 +20,9 @@ import { casesBehindScenario } from "@/lib/precog/evidence/scenario-cases";
 import { dateAfter } from "@/lib/precog/dates";
 import { count, midSentence } from "@/lib/precog/text";
 import { formatEstimateUsdDelta, formatUsd, formatUsdDelta } from "@/lib/utils";
+import { scenarioRuleIds } from "@/lib/precog/scenario-watch";
+export { scenarioRuleIds, scenarioWatch } from "@/lib/precog/scenario-watch";
+export type { ScenarioWatch } from "@/lib/precog/scenario-watch";
 
 export interface ScenarioCases {
   /** Up to three cases to show: cases that cite a linked rule first, the owner's sector first within each group. */

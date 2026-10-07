@@ -35,7 +35,7 @@ export function PowerMapResolutionSection({ model }: { model: PowerMapBuilderMod
                   dualRelease={model.profile.dualRelease}
                 >
                   <p className="mt-2 text-xs text-muted">
-                    Until different people hold the duties:{" "}
+                    Until you split the duties:{" "}
                     {conflict.compensatingControls.slice(0, 2).join("; ")}
                   </p>
                 </ConflictSummary>
