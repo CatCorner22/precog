@@ -271,7 +271,12 @@ export function briefAuthorLine(result: Pick<CoachResult, "modelStatus" | "model
 
 /** Warnings the brief's own Warnings section does not already list (sign in, the model failed). */
 export function extraWarnings(result: Pick<CoachResult, "warnings" | "markdown">): string[] {
-  return result.warnings.filter((w) => !result.markdown.includes(w));
+  const watchedConditionsListed = result.markdown.includes("Watched conditions: **");
+  return result.warnings.filter(
+    (warning) =>
+      !result.markdown.includes(warning) &&
+      !(watchedConditionsListed && /^\d+ watched conditions? breached/i.test(warning)),
+  );
 }
 
 /**

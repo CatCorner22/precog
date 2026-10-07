@@ -7,6 +7,7 @@ import { describeScenarioFigures } from "../llm/scenario-tools";
 import { defaultProfile } from "../practice-profile";
 import { getIndustryCopy } from "../templates/industry-copy";
 import { ownBusinessProfile, buildOwnTeam } from "../onboarding/own-team";
+import { answerPioneer } from "./pioneer-answer";
 import { pioneerProfileFrom } from "./pioneer-profile";
 import { DEFAULT_COACH_QUESTION, localBrief } from "./local-brief";
 
@@ -88,7 +89,7 @@ function runBrief(industry: IndustryId, question: string) {
 }
 
 describe("Pioneer brief contract", () => {
-  it("keeps every industry prompt answer-first, concise, and free of malformed deltas", () => {
+  it("keeps every industry prompt answer-first, concise, and free of malformed deltas", async () => {
     for (const industry of INDUSTRIES) {
       const questions = [DEFAULT_COACH_QUESTION, ...getIndustryCopy(industry).pioneerPrompts];
       for (const question of questions) {
@@ -100,6 +101,10 @@ describe("Pioneer brief contract", () => {
         expect(brief.markdown).not.toContain("If you ");
         expect(brief.markdown).not.toContain("(stack)");
         expect(brief.markdown).not.toContain(" $0");
+        expect(
+          /^\s*-\s*\d+ watched conditions? breached\b/im.test(brief.markdown) &&
+            /breached\*\*/.test(brief.markdown),
+        ).toBe(false);
         const headingOrder = [
           "Answer",
           "Situation",
@@ -127,12 +132,30 @@ describe("Pioneer brief contract", () => {
         }
         if (question === DEFAULT_COACH_QUESTION) {
           expect(brief.markdown.startsWith("## Answer\n")).toBe(true);
+          for (const step of run.steps) {
+            expect(`${step.title}\n${step.detail}`).not.toContain("(stack)");
+          }
           const step = run.steps.find(
             (item) => item.title === "Wrote the brief from Precog's rules",
           );
           expect(step?.detail).toMatch(
             new RegExp(`^${brief.decisions.length} recommended moves\\b`),
           );
+          const answer = await answerPioneer(
+            { question, profile: sampleProfile(industry), today: TODAY },
+            { userId: "contract-test", grok: "no_api_key" },
+          );
+          if (!answer.ok) throw new Error(answer.error);
+          expect(
+            JSON.stringify({
+              markdown: answer.markdown,
+              details: answer.details,
+              steps: answer.steps,
+              evidence: answer.evidence,
+              specialistNotes: answer.specialistNotes,
+              decisions: answer.decisions,
+            }),
+          ).not.toContain("(stack)");
         }
       }
     }

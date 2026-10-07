@@ -5,7 +5,7 @@ import { CONTROL_CATALOG, controlForIndustry } from "../evidence/controls";
 import { runPrecogScenario } from "../engine";
 import type { IndustryId } from "../industry";
 import { runLocalAgentLoop, type LocalAgentRun } from "../llm/agent-loop";
-import { BRIEF_SECTION, renderDecision } from "../llm/agent-brief";
+import { BRIEF_SECTION, destack, renderDecision } from "../llm/agent-brief";
 import { describeScenarioFigures, type ScenarioRunData } from "../llm/scenario-tools";
 import { readSpofData } from "../llm/spof-data";
 import type { ToolContext } from "../llm/tools";
@@ -92,14 +92,17 @@ export function localBrief(
     return {
       ...result,
       brief,
-      steps: result.steps.map((step) =>
-        step.title === "Wrote the brief from Precog's rules"
-          ? {
-              ...step,
-              detail: `${brief.decisions.length} recommended moves · ${brief.specialistNotes.length} review lenses`,
-            }
-          : step,
-      ),
+      steps: result.steps.map((step) => {
+        const detail =
+          step.title === "Wrote the brief from Precog's rules"
+            ? `${brief.decisions.length} recommended moves · ${brief.specialistNotes.length} review lenses`
+            : step.detail;
+        return {
+          ...step,
+          title: destack(step.title),
+          detail: destack(detail),
+        };
+      }),
       latencyMs: Date.now() - started,
       partial: false,
     };
@@ -202,28 +205,28 @@ export function fallbackBrief(
     `- ${warning}`,
     "",
   ].join("\n");
-  return ownFirstBrief(
-    {
-      situation,
-      highestRisks: [],
-      tradeoffs: [],
-      decisions,
-      frontierNextMove,
-      chickenLittleWarnings: [warning],
-      variableCascades: [],
-      specialistNotes: [],
-      markdown,
-      evidence: [],
-    },
-    profile,
-    question,
-    {
+  const fallback: StructuredBrief = {
+    situation,
+    highestRisks: [],
+    tradeoffs: [],
+    decisions,
+    frontierNextMove,
+    chickenLittleWarnings: [warning],
+    variableCascades: [],
+    specialistNotes: [],
+    markdown,
+    evidence: [],
+  };
+  try {
+    return ownFirstBrief(fallback, profile, question, {
       tpl,
       people,
       toolResults: known.toolResults ?? [],
       today: known.today,
-    },
-  );
+    });
+  } catch {
+    return fallback;
+  }
 }
 
 /**
@@ -607,7 +610,7 @@ function ownFirstBrief(
     starterTitles.some((t) => line.includes(t)) && !line.includes(starterTag)
       ? `${line} ${starterTag}`
       : line;
-  const postProcess = (line: string) => labelStarter(labelPremium(dayWording(line)));
+  const postProcess = (line: string) => destack(labelStarter(labelPremium(dayWording(line))));
   // General insurance guidance (what a deductible or a policy limit does) is
   // about a policy this business has not entered; it stays out with the levers.
   const policyTalk = (line: string) => stripInsurance && POLICY_TERMS.test(line);

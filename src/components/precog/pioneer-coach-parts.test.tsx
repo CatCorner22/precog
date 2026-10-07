@@ -165,6 +165,20 @@ describe("extraWarnings", () => {
     });
     expect(extraWarnings(r)).toEqual(["Sign in to have Grok write it."]);
   });
+
+  it("hides the watched-condition warning when the replacement line is in the brief", () => {
+    const warning =
+      "5 watched conditions breached: the conditions that come before a loss are present.";
+    const r = result({
+      markdown:
+        "## Warnings\n- Watched conditions: **5 breached**, 1 at watch (thresholds set in Precog, not benchmarks)",
+      warnings: [warning],
+    });
+    expect(extraWarnings(r)).toEqual([]);
+    expect(extraWarnings({ ...r, markdown: "## Warnings\n- Not checked in this run" })).toEqual([
+      warning,
+    ]);
+  });
 });
 
 describe("BriefMarkdown", () => {

@@ -36,6 +36,21 @@ export function leverAction(label: string): string {
   return `Put ${joinWithAnd(parts)} in place together`;
 }
 
+export function destack(text: string): string {
+  const wording = (first: string, second: string, third: string) =>
+    `${first}, ${joinWithAnd(
+      [second, third].map((part) => part.charAt(0).toLowerCase() + part.slice(1)),
+    )} together`;
+  return text
+    .replace(
+      /([^\n]*?)\s+\+\s+([^+\n]+)\s+\+\s+([^+\n]+) \(stack\)/g,
+      (_match, first, second, third) => wording(first, second, third),
+    )
+    .replace(/([^\n]*?),\s*([^,\n]+),\s*([^,\n]+) \(stack\)/g, (_match, first, second, third) =>
+      wording(first, second, third),
+    );
+}
+
 /**
  * When a warning fires. Every threshold is this app's own choice, not a
  * benchmark, and the text that quotes one says so.
@@ -884,7 +899,7 @@ export function localSynthesize(
   const situation = `**${snap?.practice ?? "This business"}**: average risk index **${residual?.averageResidual ?? "?"}/100** · **${leading?.breached ?? "?"}** watched conditions breached · **${coso ? `${coso.gaps} of ${coso.principles}` : "?"}** control checks have a gap. Second signer on payments: ${snap?.staff.dualControlPayments ? "on" : "off"}. Independent bank reconciliation: ${snap?.staff.independentBankRec ? "on" : "off"}.`;
   const conditions = [
     leading
-      ? `- **${leading.breached} breached**, ${leading.watch} at watch (thresholds set in Precog, not benchmarks)`
+      ? `- Watched conditions: **${leading.breached} breached**, ${leading.watch} at watch (thresholds set in Precog, not benchmarks)`
       : "- Not checked in this run",
     ...(scenario?.warningSigns?.length
       ? [
@@ -898,6 +913,9 @@ export function localSynthesize(
         ]
       : []),
   ];
+  const markdownWarnings = leading
+    ? warnings.filter((warning) => !/^\d+ watched conditions? breached/i.test(warning))
+    : warnings;
 
   const markdown = [
     `## ${BRIEF_SECTION.situation}`,
@@ -910,7 +928,7 @@ export function localSynthesize(
     ...decisions.map(renderDecision),
     "",
     `## ${BRIEF_SECTION.warnings}`,
-    ...warnings.map((w) => `- ${w}`),
+    ...markdownWarnings.map((w) => `- ${w}`),
     ...conditions,
     "",
     `## ${BRIEF_SECTION.risks}`,

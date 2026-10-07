@@ -13,6 +13,7 @@ import {
 } from "./local-brief";
 import { pioneerProfileFrom } from "./pioneer-profile";
 import { nonprofitLeaderPeople } from "@/test/nonprofit-leader-team";
+import * as scenarioQuestion from "./scenario-question";
 
 vi.mock("../llm/agent-loop", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../llm/agent-loop")>();
@@ -150,6 +151,22 @@ describe("local brief fallback", () => {
     expect(logged.mock.calls[0][0]).toContain("TypeError");
     expect(localBrief(EMBEZZLEMENT, { profile, question: EMBEZZLEMENT }, profile).partial).toBe(
       false,
+    );
+  });
+
+  it("returns the plain fallback when answer processing also throws", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(scenarioQuestion, "matchScenarios").mockImplementation(() => {
+      throw new Error("scenario matching failed");
+    });
+    const profile = clinic();
+    const question = "Walk me through a write-off abuse scenario and its controls.";
+    const result = localBrief(question, { profile, question }, profile);
+
+    expect(result.partial).toBe(true);
+    expect(result.brief.markdown).toContain("## Situation");
+    expect(result.brief.chickenLittleWarnings[0]).toMatch(
+      /^Pioneer could not compute part of the full brief/,
     );
   });
 });

@@ -38,7 +38,6 @@ function stem(word: string): string {
   if (word.endsWith("ed")) return word.slice(0, -2);
   if (/(?:ss|x|z|ch|sh)es$/.test(word)) return word.slice(0, -2);
   if (word.endsWith("s")) return word.slice(0, -1);
-  if (word.endsWith("es")) return word.slice(0, -2);
   return word;
 }
 
