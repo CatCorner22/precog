@@ -12,6 +12,7 @@ import {
 import {
   DEFAULT_WEIGHTS,
   RESIDUAL_BAND_LABEL,
+  RESIDUAL_BANDS,
   SCORING_VERSION,
   WEIGHT_DESCRIPTIONS,
 } from "@/lib/precog/scoring/weights";
@@ -59,10 +60,11 @@ export function ScoringBasis({ sensitivity }: { sensitivity: SensitivityReport }
               <div className="rounded-lg border border-border bg-elevated p-3">
                 <p className="font-medium">Risk scale · higher is worse</p>
                 <p className="mt-1 text-muted">
-                  {RESIDUAL_BAND_LABEL.accept_monitor} under {RISK_SCALE.mitigate} ·{" "}
-                  {RESIDUAL_BAND_LABEL.mitigate} {RISK_SCALE.mitigate}–{RISK_SCALE.actNow - 1} ·{" "}
-                  {RESIDUAL_BAND_LABEL.act_now} {RISK_SCALE.actNow}–{RISK_SCALE.critical - 1} ·{" "}
-                  {RESIDUAL_BAND_LABEL.critical_path} {RISK_SCALE.critical}+
+                  {RESIDUAL_BAND_LABEL.accept_monitor} under {RESIDUAL_BANDS.mitigate.min} ·{" "}
+                  {RESIDUAL_BAND_LABEL.mitigate} {RESIDUAL_BANDS.mitigate.min}–
+                  {RESIDUAL_BANDS.mitigate.max} · {RESIDUAL_BAND_LABEL.act_now}{" "}
+                  {RESIDUAL_BANDS.act_now.min}–{RESIDUAL_BANDS.act_now.max} ·{" "}
+                  {RESIDUAL_BAND_LABEL.critical_path} {RESIDUAL_BANDS.critical_path.min}+
                 </p>
                 <p className="mt-1 text-muted">
                   The share of must-do work that stops when someone is out reads amber above{" "}

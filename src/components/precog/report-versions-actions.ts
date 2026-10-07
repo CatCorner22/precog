@@ -219,8 +219,8 @@ export function returnNoteReady(note: string): boolean {
  * asked of the viewer or of the firm's reviewers, the viewer may review or
  * return it (reviewButtonsFor), and no newer version supersedes it.
  */
-export function versionAwaitingReview(input: {
-  versions: readonly Pick<
+export function versionAwaitingReview<
+  V extends Pick<
     ReportVersionRow,
     | "id"
     | "versionNo"
@@ -229,13 +229,15 @@ export function versionAwaitingReview(input: {
     | "returnedAt"
     | "reviewRequestedAt"
     | "reviewRequestedFrom"
-  >[];
+  >,
+>(input: {
+  versions: readonly V[];
   viewerId: string;
   role: FirmRole | null;
   firmClient: boolean;
   readOnly?: boolean;
-}): number | null {
-  let newest: number | null = null;
+}): V | null {
+  let newest: V | null = null;
   for (const v of input.versions) {
     if (!v.reviewRequestedAt) continue;
     if (v.reviewRequestedFrom !== null && v.reviewRequestedFrom !== input.viewerId) continue;
@@ -247,7 +249,7 @@ export function versionAwaitingReview(input: {
       firmClient: input.firmClient,
       readOnly: input.readOnly,
     });
-    if (buttons.reviewOrReturn) newest = Math.max(newest ?? 0, v.versionNo);
+    if (buttons.reviewOrReturn && (newest === null || v.versionNo > newest.versionNo)) newest = v;
   }
   return newest;
 }

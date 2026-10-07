@@ -322,6 +322,14 @@ const ACTION_BANDS: {
   },
 ];
 
+/**
+ * Each residual band's label and its whole-number range (min to max), for
+ * tiles, notes and the glossary that print a band's cutoffs.
+ */
+export const RESIDUAL_BANDS = Object.fromEntries(
+  ACTION_BANDS.map(({ band, label, min, max }) => [band, { label, min, max }]),
+) as Record<ActionBand, { label: string; min: number; max: number }>;
+
 /** Each residual band's label, for tiles and notes that name a band without a score. */
 export const RESIDUAL_BAND_LABEL = Object.fromEntries(
   ACTION_BANDS.map((b) => [b.band, b.label]),

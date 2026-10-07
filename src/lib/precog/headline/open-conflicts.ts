@@ -41,6 +41,9 @@ export interface OpenConflictHeadline<T extends HeadlineFinding = DetectedConfli
   closedByDualRelease: number;
 }
 
+/** The open count and its parts, as the tiles and the coach state them. */
+export type OpenConflictTotals = Pick<OpenConflictHeadline, "open" | "critical" | "high" | "other">;
+
 /**
  * The open duty conflicts among a detection report's findings, with their
  * breakdown. `partial` is the rules dual release covers only above a

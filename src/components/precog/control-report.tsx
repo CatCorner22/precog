@@ -197,6 +197,19 @@ export function ControlReport({
     () => (layoutFive ? acceptanceDates(sod.conflicts, profile.decisions, profile.industry) : null),
     [layoutFive, sod.conflicts, profile.decisions, profile.industry],
   );
+  // Each segregation row's Status, Response and Review by, worked out once
+  // for both the table and the phone list.
+  const sodRows = sod.conflicts
+    .slice()
+    .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.score - a.score)
+    .map((conflict) => ({
+      conflict,
+      status: acceptedOn
+        ? conflictStatus(conflict, data.partialCoverage, acceptedOn.get(conflict.id))
+        : conflictStatusPrintedV4(conflict, data.partialCoverage),
+      response: responseLine(conflict.id, responses, notValid),
+      reviewBy: reviewByLine(responses[conflict.id]?.reviewBy),
+    }));
   const sodNote = belowThresholdNote(sodOpen);
   // Pairs dual release reduces stay among the open conflicts; count them once.
   // Layouts 1 to 3 also counted the owner's own pairs dual release covers at
@@ -209,9 +222,6 @@ export function ControlReport({
         (c) => c.ownerHeld && c.dualReleaseMitigated && !data.partialCoverage.has(c.ruleId),
       ).length;
   const mapIssues = data.issues.filter((i) => i.severity !== "info");
-  const sodRows = sod.conflicts
-    .slice()
-    .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.score - a.score);
   const offTeamDuties = dutiesOffTeam(profile.setupAnswers);
   const unheld = sod.summary.unheldDuties
     .filter((d) => !offTeamDuties.has(d))
@@ -222,24 +232,19 @@ export function ControlReport({
     item,
     latest: latestReview(profile.monthlyReviews ?? [], item.key, month),
   }));
-  const mapLine = layoutSix
-    ? `${industry.label} · ${teamSizeLine(profile, tpl.people, industry.teamLabel)} · ${
-        mapFrom === "starter"
-          ? "starter process map (not yet edited)"
-          : mapCustomized
-            ? "custom process map"
-            : "industry template map"
-      }`
-    : `${industry.label} · ${profile.staff.teamSize}-person ${industry.teamLabel} · ${
-        mapFrom === "starter"
-          ? "sample process map"
-          : mapCustomized
-            ? "custom process map"
-            : "industry template map"
-      }`;
+  const team = layoutSix
+    ? teamSizeLine(profile, tpl.people, industry.teamLabel)
+    : `${profile.staff.teamSize}-person ${industry.teamLabel}`;
+  const starter = layoutSix ? "starter process map (not yet edited)" : "sample process map";
+  const mapLine = `${industry.label} · ${team} · ${
+    mapFrom === "starter" ? starter : mapCustomized ? "custom process map" : "industry template map"
+  }`;
   // Layout 6's segregation sentence: the open count the executive summary
   // prints, with the same breakdown, from the same model.
-  const openHeadline = layoutSix ? openConflictHeadline(sod, data.partialCoverage) : null;
+  const openHeadline = useMemo(
+    () => (layoutSix ? openConflictHeadline(sod, data.partialCoverage) : null),
+    [layoutSix, sod, data.partialCoverage],
+  );
   // Firm letterhead on a report no one has locked or reviewed: say so.
   const draft = firm && !locked ? `DRAFT: not locked or reviewed by ${firm.name}` : null;
   const letterhead = firm && (
@@ -645,7 +650,7 @@ export function ControlReport({
                   </tr>
                 </thead>
                 <tbody>
-                  {sodRows.map((c) => (
+                  {sodRows.map(({ conflict: c, ...row }) => (
                     <tr key={c.id} className="border-b border-neutral-200 align-top">
                       <td className="py-1.5 pr-2">{c.personName}</td>
                       <td className="py-1.5 pr-2">
@@ -657,16 +662,12 @@ export function ControlReport({
                           layoutThree ? "py-1.5 pr-2 text-neutral-700" : "py-1.5 text-neutral-700"
                         }
                       >
-                        {acceptedOn
-                          ? conflictStatus(c, data.partialCoverage, acceptedOn.get(c.id))
-                          : conflictStatusPrintedV4(c, data.partialCoverage)}
+                        {row.status}
                       </td>
                       {layoutThree && (
                         <>
-                          <td className="py-1.5 pr-2">{responseLine(c.id, responses, notValid)}</td>
-                          <td className="py-1.5 tabular text-neutral-700">
-                            {reviewByLine(responses[c.id]?.reviewBy)}
-                          </td>
+                          <td className="py-1.5 pr-2">{row.response}</td>
+                          <td className="py-1.5 tabular text-neutral-700">{row.reviewBy}</td>
                         </>
                       )}
                     </tr>
@@ -676,22 +677,18 @@ export function ControlReport({
               {/* On a phone the table's columns overflow the screen, so the same
                   rows stack instead. Screen only: print keeps the table. */}
               <ul className="mt-3 space-y-2 text-sm sm:hidden print:hidden">
-                {sodRows.map((c) => (
+                {sodRows.map(({ conflict: c, ...row }) => (
                   <li key={c.id} className="border-b border-neutral-200 pb-2">
                     <p className="font-medium">{c.personName}</p>
                     <p>
                       {c.labelA} + {midSentence(c.labelB)}
                     </p>
                     <p className="text-neutral-700">
-                      Severity: {SEVERITY_LABEL[c.severity]} · Status:{" "}
-                      {acceptedOn
-                        ? conflictStatus(c, data.partialCoverage, acceptedOn.get(c.id))
-                        : conflictStatusPrintedV4(c, data.partialCoverage)}
+                      Severity: {SEVERITY_LABEL[c.severity]} · Status: {row.status}
                     </p>
                     {layoutThree && (
                       <p className="text-neutral-700">
-                        Response: {responseLine(c.id, responses, notValid)} · Review by:{" "}
-                        {reviewByLine(responses[c.id]?.reviewBy)}
+                        Response: {row.response} · Review by: {row.reviewBy}
                       </p>
                     )}
                   </li>

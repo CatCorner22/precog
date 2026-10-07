@@ -271,8 +271,8 @@ describe("the version waiting for the viewer's review", () => {
 
   it("is the newest version asked of the viewer, or of the firm's reviewers", () => {
     const v2 = { ...base, id: "rv_2", versionNo: 2, reviewRequestedFrom: null };
-    expect(versionAwaitingReview({ ...view, versions: [v2, base] })).toBe(2);
-    expect(versionAwaitingReview({ ...view, versions: [base] })).toBe(1);
+    expect(versionAwaitingReview({ ...view, versions: [v2, base] })?.versionNo).toBe(2);
+    expect(versionAwaitingReview({ ...view, versions: [base] })?.versionNo).toBe(1);
   });
 
   it("is none for a version asked of someone else, not asked, reviewed, returned or prepared by the viewer", () => {

@@ -1,4 +1,5 @@
-import { PRIORITY_SCALE, RISK_SCALE } from "./scoring/bands";
+import { PRIORITY_SCALE } from "./scoring/bands";
+import { RESIDUAL_BANDS } from "./scoring/weights";
 import { resolveNavTarget, type NavTarget, type TabId } from "./navigation";
 
 /**
@@ -87,7 +88,7 @@ export const GLOSSARY: readonly GlossaryTerm[] = [
   {
     id: "residual-bands",
     term: "Severe, High, Moderate, Low",
-    definition: `The four bands for residual risk. Severe is ${RISK_SCALE.critical} or more, High is ${RISK_SCALE.actNow} to ${RISK_SCALE.critical - 1}, Moderate is ${RISK_SCALE.mitigate} to ${RISK_SCALE.actNow - 1}, and Low is under ${RISK_SCALE.mitigate}.`,
+    definition: `The four bands for residual risk. Severe is ${RESIDUAL_BANDS.critical_path.min} or more, High is ${RESIDUAL_BANDS.act_now.min} to ${RESIDUAL_BANDS.act_now.max}, Moderate is ${RESIDUAL_BANDS.mitigate.min} to ${RESIDUAL_BANDS.mitigate.max}, and Low is under ${RESIDUAL_BANDS.mitigate.min}.`,
     tabs: ["scores", "map", "pioneer"],
   },
   {

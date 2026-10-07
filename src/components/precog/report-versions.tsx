@@ -296,23 +296,21 @@ export function ReportVersionsPanel() {
   const awaiting = versions
     ? versionAwaitingReview({ versions, viewerId, role, firmClient, readOnly })
     : null;
-  const awaitingId =
-    awaiting === null ? null : (versions?.find((v) => v.versionNo === awaiting)?.id ?? null);
 
   return (
     <section className="print:hidden mx-auto max-w-4xl px-6 pt-6" aria-label="Report versions">
-      {awaiting !== null && awaitingId && (
+      {awaiting && (
         <div
           role="status"
           className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-300 bg-blue-50 p-3 text-sm font-medium text-blue-950"
         >
-          <span>{awaitingReviewText(awaiting)}</span>
+          <span>{awaitingReviewText(awaiting.versionNo)}</span>
           <Link
             to="/report"
-            search={{ version: awaitingId }}
+            search={{ version: awaiting.id }}
             className="inline-flex h-8 items-center rounded-md bg-blue-700 px-3 text-xs font-medium text-white hover:bg-blue-800"
           >
-            {openVersionText(awaiting)}
+            {openVersionText(awaiting.versionNo)}
           </Link>
         </div>
       )}

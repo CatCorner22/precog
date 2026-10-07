@@ -26,7 +26,7 @@ import { partialDualReleaseCoverage } from "../sod/open-findings";
 import {
   openConflictBreakdown,
   openConflictHeadline,
-  type OpenConflictHeadline,
+  type OpenConflictTotals,
 } from "../headline/open-conflicts";
 import type { IndustryTemplate } from "../templates/types";
 import { closingSteps } from "../controls/dual-release-wording";
@@ -52,9 +52,6 @@ interface PersonConflicts {
   role: string;
   conflicts: DetectedConflict[];
 }
-
-/** The open count every screen gives (headline/open-conflicts), as the coach states it. */
-type OpenConflictTotals = Pick<OpenConflictHeadline, "open" | "critical" | "high" | "other">;
 
 /** A rules brief for this business; `partial` when only the conflict-only brief could be built. */
 interface LocalBrief extends LocalAgentRun {

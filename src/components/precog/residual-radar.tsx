@@ -1,6 +1,7 @@
 import {
   DEFAULT_WEIGHTS,
   RESIDUAL_BAND_LABEL,
+  RESIDUAL_BANDS,
   type ActionBand,
 } from "@/lib/precog/scoring/weights";
 import { ILLUSTRATIVE_LABEL } from "@/lib/precog/scoring/scenario-level";
@@ -9,7 +10,6 @@ import {
   confirmedScenarioIds,
   starterScenarioNote,
 } from "@/lib/precog/scoring/scope";
-import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import { IndexBasis } from "@/components/precog/index-basis";
 import { ScoringBasis } from "@/components/precog/scoring-basis";
 import { useMemo, useState } from "react";
@@ -92,19 +92,19 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
           className="bg-surface p-4"
           label={RESIDUAL_BAND_LABEL.critical_path}
           value={String(summary.criticalPath)}
-          hint={`Residual ${RISK_SCALE.critical} or more`}
+          hint={`Residual ${RESIDUAL_BANDS.critical_path.min} or more`}
         />
         <FigureTile
           className="bg-surface p-4"
           label={RESIDUAL_BAND_LABEL.act_now}
           value={String(summary.actNow)}
-          hint={`Residual ${RISK_SCALE.actNow}–${RISK_SCALE.critical - 1}`}
+          hint={`Residual ${RESIDUAL_BANDS.act_now.min}–${RESIDUAL_BANDS.act_now.max}`}
         />
         <FigureTile
           className="bg-surface p-4"
           label={RESIDUAL_BAND_LABEL.mitigate}
           value={String(summary.mitigate)}
-          hint={`Residual ${RISK_SCALE.mitigate}–${RISK_SCALE.actNow - 1}; ${summary.watch} more ${RESIDUAL_BAND_LABEL.accept_monitor}`}
+          hint={`Residual ${RESIDUAL_BANDS.mitigate.min}–${RESIDUAL_BANDS.mitigate.max}; ${summary.watch} more ${RESIDUAL_BAND_LABEL.accept_monitor}`}
         />
       </div>
       <IndexBasis />
