@@ -11,17 +11,27 @@ import {
   openPeriods,
   periodMonthName,
   recordReview,
-  RESULT_LABEL,
+  resolvedNote,
   reviewDueText,
   reviewIndependenceMessage,
+  reviewSaveProblem,
   reviewTrimNotice,
+  savedResultLine,
   type ReviewResult,
 } from "@/lib/precog/firm/reviews";
 import { recordMonthlyReview } from "@/lib/precog/firm/server";
 import { getQuickBooksStatus } from "@/lib/precog/integrations/qbo/server";
 import { getControlExecutionLog } from "@/lib/precog/controls/executions/server";
 import type { ExecutionStatus } from "@/lib/precog/controls/executions/model";
-import { evidenceLogLine, monthlyRunIds, readMonthlyEvidence } from "./monthly-review-evidence";
+import {
+  evidenceLogLine,
+  monthlyRunIds,
+  readMonthlyEvidence,
+  readRememberedPick,
+  rememberPick,
+  SOMEONE_ELSE,
+  type WhoPick,
+} from "./monthly-review-evidence";
 import { monthlyWorkpaperFacts, type WorkpaperFact } from "@/lib/precog/firm/workpaper";
 import { clientErrorStatus } from "@/lib/request-errors";
 import { formatDay, formatMonth, localDateKey } from "@/lib/precog/dates";
@@ -31,6 +41,16 @@ import { HowThisWorks } from "./page-intro";
 function draftKey(period: string, key: string): string {
   return `${period}:${key}`;
 }
+
+/**
+ * The words on a result button. The screen alone says what Exception means;
+ * the report prints `RESULT_LABEL`.
+ */
+const RESULT_BUTTON: Record<ReviewResult, string> = {
+  done: "Done",
+  exception: "Exception (found a problem)",
+  skipped: "Skipped",
+};
 
 /** The monthly checks, with an append-only result on the business and, when signed in, on the server. */
 export function MonthlyReview() {
@@ -47,6 +67,15 @@ export function MonthlyReview() {
   // Note drafts and the save under way, each by `draftKey(period, check)`.
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  // Who did each check, by `draftKey`; a check not picked yet uses the last
+  // pick of this browser session (`lastPick`), and starts empty without one.
+  const [picks, setPicks] = useState<Record<string, WhoPick>>({});
+  const [lastPick, setLastPick] = useState<WhoPick | null>(null);
+  // Why a press of a result was refused, by `draftKey`.
+  const [problems, setProblems] = useState<Record<string, string>>({});
+  const team = [
+    ...new Set(template.people.filter((p) => p.active !== false).map((p) => p.name.trim())),
+  ].filter(Boolean);
   const [facts, setFacts] = useState<WorkpaperFact[] | null>(null);
   // The evidence log's state of each monthly run this month, read when signed
   // in and again after a result is recorded; null until read or on failure.
@@ -71,6 +100,42 @@ export function MonthlyReview() {
   const businessId = profile.businessId ?? null;
   const evidenceFor = `${evidenceAccountId} ${businessId} ${period}`;
   const evidenceShown = evidence?.read === evidenceFor ? evidence.statuses : null;
+  // A typed note no result has saved yet, which closing the page would lose.
+  const unsaved = Object.values(notes).some((note) => note.trim() !== "");
+
+  useEffect(() => {
+    setLastPick(readRememberedPick(businessId));
+  }, [businessId]);
+
+  useEffect(() => {
+    if (!unsaved || typeof window === "undefined") return;
+    const warn = (event: Event) => {
+      event.preventDefault();
+      (event as BeforeUnloadEvent).returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsaved]);
+
+  /**
+   * The pick shown for a check: its own, else the session's last pick. A name
+   * no longer on the active team (someone left, or another business is open)
+   * is never saved silently: the check falls back to empty.
+   */
+  function pickFor(draft: string): WhoPick {
+    const valid = (pick: WhoPick | null | undefined): pick is WhoPick =>
+      Boolean(pick && (pick.choice === SOMEONE_ELSE || team.includes(pick.choice)));
+    const own = picks[draft];
+    // Choosing "Choose a person" again clears the check, even with a last pick.
+    if (own && (own.choice === "" || valid(own))) return own;
+    if (valid(lastPick)) return lastPick;
+    return { choice: "", other: "" };
+  }
+
+  function setPick(draft: string, pick: WhoPick) {
+    setPicks((current) => ({ ...current, [draft]: pick }));
+    setProblems((current) => ({ ...current, [draft]: "" }));
+  }
 
   useEffect(() => {
     if (!userId || !businessId) {
@@ -118,13 +183,25 @@ export function MonthlyReview() {
   async function save(
     key: (typeof tasks)[number]["key"],
     result: ReviewResult,
-    ownerName: string,
     dueOn: string,
     period: string,
+    noteOverride?: string,
   ) {
     const draft = draftKey(period, key);
-    const note = notes[draft] ?? "";
+    const note = noteOverride ?? notes[draft] ?? "";
+    // The person picked for this check, never the suggested one.
+    const pick = pickFor(draft);
+    const ownerName = (pick.choice === SOMEONE_ELSE ? pick.other : pick.choice).trim();
     const input = { key, period, result, ownerName, notes: note };
+    const problem = reviewSaveProblem(input);
+    if (problem) {
+      setProblems((current) => ({ ...current, [draft]: problem }));
+      return;
+    }
+    setProblems((current) => ({ ...current, [draft]: "" }));
+    setPicks((current) => ({ ...current, [draft]: pick }));
+    setLastPick(pick);
+    rememberPick(businessId, pick);
     const trim = appendReview(records, input);
     setMonthlyReviews((current) => recordReview(current, input));
     if (trim.removed > 0) toast.message(reviewTrimNotice(trim));
@@ -224,16 +301,20 @@ export function MonthlyReview() {
     <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-lg font-semibold">Monthly review</h2>
       <p className="mt-1 text-sm text-muted">
-        The checks below come from the register; record each result with an owner and a note.
+        Do each check below. Choose who did it, then press Done, or Exception if you found a problem
+        and say what you found.
       </p>
       <HowThisWorks className="mt-3">
         <p>
-          The monthly log keeps every result. When you are signed in, each Done or Exception for a
-          check and month also goes into the control evidence log as a preparer entry dated the day
-          you record it, and a changed result as a correction (a firm reviewer still records review
-          separately). Through the 10th, you can still record last month. Two facts from QuickBooks,
-          then the checks. Duty ticks on the map are starting duties, not system access. Lock the
-          report to send this page. Recording “Done” does not establish independent verification.
+          Precog keeps every result you save, with who did the check and the day. Last month stays
+          open until the 10th, so you can still record it. Pressing Done says the check was done; it
+          does not prove that someone separate checked it.
+        </p>
+        <p>
+          When you are signed in, each Done or Exception also goes into the control evidence log as
+          a preparer entry dated the day you record it. A changed result goes in as a correction. A
+          firm reviewer still records their review separately. Duty ticks on the map are starting
+          duties, not system access. Lock the report to send this page.
         </p>
         <p className="text-xs">{EVIDENCE_RECORD_NOTE}</p>
       </HowThisWorks>
@@ -272,12 +353,20 @@ export function MonthlyReview() {
           const latest = latestReview(records, task.key, task.period);
           const logLine = evidenceLogLine(evidenceShown, task.period, task.key);
           const draft = draftKey(task.period, task.key);
+          const pick = pickFor(draft);
+          const typed = notes[draft] ?? "";
+          const problem = problems[draft];
           return (
-            <li key={task.key} className="rounded-lg border border-border p-3">
+            <li
+              key={task.key}
+              id={`check-${task.period}-${task.key}`}
+              tabIndex={-1}
+              className="scroll-mt-4 rounded-lg border border-border p-3"
+            >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="font-medium">{task.title}</h3>
                 <p className="text-xs text-muted">
-                  {task.period} · due {formatDay(task.dueOn)} · {task.suggestedOwner}
+                  {task.period} · due {formatDay(task.dueOn)} · Suggested: {task.suggestedOwner}
                 </p>
               </div>
               <p className="mt-1 text-sm text-muted">{task.why}</p>
@@ -285,38 +374,108 @@ export function MonthlyReview() {
                 {reviewIndependenceMessage(task.reviewerIndependence)}
               </p>
               {latest && (
-                <p className="mt-2 text-xs">
-                  Reported result: {RESULT_LABEL[latest.result]}
-                  {latest.ownerName ? ` by ${latest.ownerName}` : ""} on{" "}
-                  {formatDay(latest.recordedAt)}
-                  {latest.notes ? ` — ${latest.notes}` : ""}
+                <p className="mt-2 text-xs font-medium" data-saved-result={latest.result}>
+                  {savedResultLine(latest, today)}
                 </p>
               )}
               {logLine && <p className="mt-1 text-xs text-muted">{logLine}</p>}
+              <div className="mt-2 flex flex-wrap items-end gap-2">
+                <label className="block text-xs text-muted">
+                  Who did this check
+                  <select
+                    className="mt-1 block rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg"
+                    value={pick.choice}
+                    onChange={(e) => setPick(draft, { ...pick, choice: e.target.value })}
+                    aria-label={`Who did ${task.title}`}
+                  >
+                    <option value="">Choose a person</option>
+                    {team.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                    <option value={SOMEONE_ELSE}>Someone else</option>
+                  </select>
+                </label>
+                {pick.choice === SOMEONE_ELSE && (
+                  <label className="block text-xs text-muted">
+                    Their name
+                    <input
+                      className="mt-1 block rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg"
+                      value={pick.other}
+                      maxLength={80}
+                      onChange={(e) => setPick(draft, { ...pick, other: e.target.value })}
+                      aria-label={`Name of who did ${task.title}`}
+                    />
+                  </label>
+                )}
+              </div>
               <label className="mt-2 block text-xs text-muted">
                 Note
                 <input
                   className="mt-1 w-full rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg"
-                  value={notes[draft] ?? ""}
-                  onChange={(e) => setNotes((n) => ({ ...n, [draft]: e.target.value }))}
+                  value={typed}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setNotes((n) => ({ ...n, [draft]: value }));
+                    setProblems((current) => ({ ...current, [draft]: "" }));
+                  }}
                   aria-label={`Note for ${task.title}`}
                 />
               </label>
+              {typed.trim() !== "" && (
+                <p className="mt-1 text-xs text-muted">Not saved yet: press a result</p>
+              )}
               <div className="mt-2 flex flex-wrap gap-2">
-                {(Object.keys(RESULT_LABEL) as ReviewResult[]).map((result) => (
+                {(Object.keys(RESULT_BUTTON) as ReviewResult[]).map((result) => {
+                  const pressed = latest?.result === result;
+                  return (
+                    <button
+                      key={result}
+                      type="button"
+                      aria-pressed={pressed}
+                      disabled={busy === draft}
+                      className={
+                        pressed
+                          ? "rounded-md border border-primary bg-primary px-2 py-1 text-xs font-medium text-primary-fg disabled:opacity-50"
+                          : "rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated disabled:opacity-50"
+                      }
+                      onClick={() => void save(task.key, result, task.dueOn, task.period)}
+                    >
+                      {RESULT_BUTTON[result]}
+                    </button>
+                  );
+                })}
+                {latest?.result === "exception" && (
                   <button
-                    key={result}
                     type="button"
                     disabled={busy === draft}
                     className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated disabled:opacity-50"
                     onClick={() =>
-                      void save(task.key, result, task.suggestedOwner, task.dueOn, task.period)
+                      void save(
+                        task.key,
+                        "done",
+                        task.dueOn,
+                        task.period,
+                        resolvedNote(typed, latest.notes),
+                      )
                     }
                   >
-                    {RESULT_LABEL[result]}
+                    Mark resolved
                   </button>
-                ))}
+                )}
               </div>
+              <p className="mt-1 text-xs text-muted">
+                Press Exception when the check turned up a problem, and say what you found in the
+                note.
+                {latest?.result === "exception" &&
+                  " Once it is sorted out, press Mark resolved: Precog saves Done with what fixed it."}
+              </p>
+              {problem && (
+                <p role="alert" className="mt-1 text-xs font-medium text-danger">
+                  {problem}
+                </p>
+              )}
             </li>
           );
         })}

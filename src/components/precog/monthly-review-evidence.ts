@@ -79,3 +79,54 @@ export function evidenceLogLine(
   const status = statuses?.get(executionRunId(period, itemKey));
   return status ? `Evidence log: ${EVIDENCE_STATUS_LABEL[status]}` : null;
 }
+
+/** The "Who did this check" choice that asks for a name not on the team. */
+export const SOMEONE_ELSE = "__someone_else__";
+
+/** One check's "Who did this check": a team member's name, or SOMEONE_ELSE with `other` typed. */
+export interface WhoPick {
+  choice: string;
+  other: string;
+}
+
+/** The session key of the last pick, one per business so a name never crosses to another. */
+function pickKey(businessId: string | null): string {
+  return `precog:monthly-review:who:${businessId ?? "this-device"}`;
+}
+
+/** This browser session's store, or null where there is none or it is blocked. */
+function sessionStore(): Pick<Storage, "getItem" | "setItem"> | null {
+  try {
+    return typeof sessionStorage === "undefined" ? null : sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The last "Who did this check" saved on this business in this browser
+ * session, or null: the Monthly review starts the next check on it.
+ */
+export function readRememberedPick(businessId: string | null): WhoPick | null {
+  try {
+    const raw = sessionStore()?.getItem(pickKey(businessId));
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<WhoPick> | null;
+    if (!value || typeof value.choice !== "string" || !value.choice) return null;
+    return {
+      choice: value.choice.slice(0, 80),
+      other: typeof value.other === "string" ? value.other.slice(0, 80) : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Keeps `pick` for the rest of this browser session; a blocked store keeps nothing. */
+export function rememberPick(businessId: string | null, pick: WhoPick): void {
+  try {
+    sessionStore()?.setItem(pickKey(businessId), JSON.stringify(pick));
+  } catch {
+    // Nothing to keep: the next check starts empty.
+  }
+}

@@ -139,7 +139,8 @@ describe("client table cells", () => {
       months: [...months(), { period: "2026-11", done: 1, exceptions: 1, skipped: 0 }],
     });
     expect(lastMonthText(november, "2026-11-02")).toBe("3 of 5 done");
-    expect(thisMonthText(november, "2026-11-02")).toBe("1 of 5 done");
+    // November has seven checks: the deposit and duplicate-payment checks start then.
+    expect(thisMonthText(november, "2026-11-02")).toBe("1 of 7 done");
     expect(exceptionsText(november, "2026-11-02")).toBe("1 this month");
   });
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { REVIEW_ITEMS } from "../../firm/reviews";
 import { applyCommand, parseCommand, type Actor, type ControlExecution } from "./model";
 
 const now = "2026-09-29T12:00:00.000Z";
@@ -53,6 +54,15 @@ describe("control execution lifecycle", () => {
       expect(run.controlKey).toBe(controlKey);
     }
     expect(() => parseCommand({ ...record(), controlKey: "petty_cash" })).toThrow();
+  });
+  it("accepts every monthly check, the deposit and duplicate-payment checks included", () => {
+    const keys = REVIEW_ITEMS.map((item) => item.key);
+    expect(keys).toContain("deposits_match");
+    expect(keys).toContain("duplicate_payments");
+    for (const controlKey of keys) {
+      const run = applyCommand(null, parseCommand({ ...record(), controlKey }), preparer, now, 7);
+      expect(run.controlKey).toBe(controlKey);
+    }
   });
   it("requires specific scope and evidence references", () => {
     for (const edit of [{ evidenceRefs: [] }, { scope: " " }, { note: "" }]) {

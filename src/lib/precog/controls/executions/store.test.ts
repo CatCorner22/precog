@@ -243,6 +243,22 @@ describe("account-scoped control execution log", () => {
     await expect(db.sql`update control_execution_log set record=${JSON.stringify({ ...saved, controlKey: "petty_cash" })}::jsonb
       where user_id='owner' and business_id='biz_1'`).rejects.toThrow();
   });
+  it("stores the deposit and duplicate-payment checks under the one named controlKey check", async () => {
+    for (const controlKey of ["deposits_match", "duplicate_payments"])
+      await run("prep", { ...record(`check_${controlKey}`), controlKey });
+    const listed = await listControlExecutions(db.sql, "owner", "biz_1", "2026-08", null);
+    expect(listed.entries.map((r) => r.controlKey).sort()).toEqual([
+      "deposits_match",
+      "duplicate_payments",
+    ]);
+    const checks = await db.sql<{ conname: string; def: string }>`select conname,
+        pg_get_constraintdef(oid) as def from pg_constraint
+      where conrelid = 'control_execution_log'::regclass and contype = 'c'
+        and pg_get_constraintdef(oid) like '%new_vendors%'`;
+    expect(checks.map((c) => c.conname)).toEqual(["control_execution_log_control_key_check"]);
+    expect(checks[0].def).toContain("deposits_match");
+    expect(checks[0].def).toContain("duplicate_payments");
+  });
   it("does not use membership of a different firm to authorize this business", async () => {
     await db.sql`insert into firms(user_id,name) values ('outsider','Other firm')`;
     await db.sql`insert into firm_members(firm_user_id,member_user_id,role) values ('outsider','outsider','owner')`;

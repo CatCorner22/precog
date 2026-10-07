@@ -22,27 +22,20 @@ const state = vi.hoisted(() => ({
   businessId: undefined as string | undefined,
   today: new Date(2026, 8, 29),
 }));
-// Called as a plain function (`direct`), the screen keeps its first state and
-// runs no effects, so a test can press its buttons without a DOM renderer.
 // Under `hooks.runtime` (src/test/hook-runtime.ts) state persists and effects
-// run as React runs them, so a test sees how often the screen calls the server.
-const hooks = vi.hoisted(() => ({ direct: false, runtime: null as HookRuntime | null }));
+// run as React runs them, so a test can press the screen's buttons without a
+// DOM renderer and sees how often the screen calls the server.
+const hooks = vi.hoisted(() => ({ runtime: null as HookRuntime | null }));
 vi.mock("react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react")>();
   return {
     ...actual,
     useState: (init: unknown) =>
-      hooks.runtime?.active
-        ? hooks.runtime.useState(init)
-        : hooks.direct
-          ? [typeof init === "function" ? (init as () => unknown)() : init, () => undefined]
-          : actual.useState(init),
+      hooks.runtime?.active ? hooks.runtime.useState(init) : actual.useState(init),
     useEffect: (effect: () => void, deps?: unknown[]) =>
       hooks.runtime?.active
         ? hooks.runtime.useEffect(effect, deps)
-        : hooks.direct
-          ? undefined
-          : actual.useEffect(effect, deps),
+        : actual.useEffect(effect, deps),
   };
 });
 const toast = vi.hoisted(() => ({ success: vi.fn(), warning: vi.fn(), error: vi.fn() }));
@@ -53,11 +46,12 @@ vi.mock("@tanstack/react-router", () => ({
     <a href={to}>{children}</a>
   ),
 }));
+const practice = vi.hoisted(() => ({ setMonthlyReviews: vi.fn() }));
 vi.mock("@/lib/precog/practice-context", () => ({
   usePractice: () => ({
     profile: { monthlyReviews: state.records, businessId: state.businessId },
     template: { people: state.people, roleTemplates: {} },
-    setMonthlyReviews: vi.fn(),
+    setMonthlyReviews: practice.setMonthlyReviews,
   }),
 }));
 // A new object on every call, as the real session hook builds one on every render.
@@ -85,27 +79,53 @@ const owner = (): Person => ({
 });
 const view = () => renderToStaticMarkup(<MonthlyReview />);
 
-/** Presses the first check's result button, as a signed-in owner of a saved business. */
-async function press(label: string) {
+const BANK = "Open the bank statement";
+/**
+ * Presses the first check's result button, as a signed-in owner of a saved
+ * business, after choosing the owner as the person who did the check and
+ * typing `note` when given (an Exception needs one).
+ */
+async function press(label: string, note = "") {
   state.user = { id: "owner" };
   state.businessId = "biz_1";
-  hooks.direct = true;
-  let tree: ReactNode;
-  try {
-    tree = MonthlyReview();
-  } finally {
-    hooks.direct = false;
-  }
-  const button = buttons(tree).find((b) => b.props.children === label);
+  if (state.people.length === 0) state.people = [owner()];
+  await runtime.settle(() => MonthlyReview());
+  const render = () => runtime.render(() => MonthlyReview());
+  whoField(render(), BANK).props.onChange({ target: { value: "Owner" } });
+  if (note) noteField(render(), BANK).props.onChange({ target: { value: note } });
+  const button = buttons(render()).find((b) => b.props.children === label);
   if (!button) throw new Error(`No ${label} button`);
   button.props.onClick();
   await vi.waitFor(() =>
     expect(Object.values(toast).some((fn) => fn.mock.calls.length > 0)).toBe(true),
   );
 }
-type Button = { props: { children: unknown; onClick: () => void; disabled?: boolean } };
+type Button = {
+  props: { children: unknown; onClick: () => void; disabled?: boolean; "aria-pressed"?: boolean };
+};
 function buttons(node: ReactNode): Button[] {
   return elements(node, "button") as unknown as Button[];
+}
+type Select = {
+  props: { value: string; onChange: (event: { target: { value: string } }) => void };
+};
+/** The "Who did this check" picker of the check titled `title`. */
+function whoField(node: ReactNode, title: string): Select {
+  const found = (
+    elements(node, "select") as unknown as (Select & {
+      props: { "aria-label": string };
+    })[]
+  ).find((select) => select.props["aria-label"] === `Who did ${title}`);
+  if (!found) throw new Error(`No who field for ${title}`);
+  return found;
+}
+/** The name field shown once "Someone else" is chosen for the check titled `title`. */
+function otherNameField(node: ReactNode, title: string): Input {
+  const found = (elements(node, "input") as unknown as Input[]).find(
+    (input) => input.props["aria-label"] === `Name of who did ${title}`,
+  );
+  if (!found) throw new Error(`No name field for ${title}`);
+  return found;
 }
 type Input = {
   props: {
@@ -136,6 +156,7 @@ beforeEach(() => {
   state.businessId = undefined;
   state.today = new Date(2026, 8, 29);
   server.recordMonthlyReview.mockReset();
+  practice.setMonthlyReviews.mockReset();
   evidenceLog.getControlExecutionLog.mockReset();
   qbo.getQuickBooksStatus.mockClear();
   runtime.reset();
@@ -193,7 +214,7 @@ describe("monthly review communicates evidence limits", () => {
       },
     ];
     const html = view();
-    expect(html).toContain("Reported result: Done");
+    expect(html).toContain("Saved: Done by Owner on Sep 29 — Reviewed");
     expect(html).toContain("control evidence log");
     expect(html.match(/data-review-independence="self_review"/g)).toHaveLength(4);
   });
@@ -270,7 +291,7 @@ describe("monthly review tells the owner where the result went", () => {
       evidenceBridged: false,
       evidenceSkippedReason: reason,
     });
-    await press("Exception");
+    await press("Exception (found a problem)", "Vendor added twice");
     expect(toast.warning).toHaveBeenCalledWith(
       "Saved on this business, but not in the evidence log.",
       { description: reason },
@@ -285,7 +306,7 @@ describe("monthly review tells the owner where the result went", () => {
       evidenceStatus: "corrected",
       evidenceSkippedReason: null,
     });
-    await press("Exception");
+    await press("Exception (found a problem)", "Vendor added twice");
     expect(toast.success).toHaveBeenCalledWith(
       "Recorded the correction in the control evidence log.",
     );
@@ -333,7 +354,7 @@ describe("monthly review tells the owner where the result went", () => {
       evidenceStatus: null,
       evidenceSkippedReason: "superseded",
     });
-    await press("Exception");
+    await press("Exception (found a problem)", "Vendor added twice");
     expect(toast.success).toHaveBeenCalledWith("Saved on this business.", {
       description:
         "A later result for this check and month replaced this one, so the control evidence log follows that result.",
@@ -378,6 +399,12 @@ describe("monthly review records last month until its due day", () => {
       buttons(runtime.render(() => MonthlyReview()))
         .find((b) => b.props.children === label)!
         .props.onClick();
+    whoField(
+      runtime.render(() => MonthlyReview()),
+      BANK,
+    ).props.onChange({
+      target: { value: "Owner" },
+    });
     click("Done");
     await vi.waitFor(() => expect(server.recordMonthlyReview).toHaveBeenCalledTimes(1));
     expect(server.recordMonthlyReview).toHaveBeenLastCalledWith({
@@ -411,13 +438,14 @@ describe("monthly review records last month until its due day", () => {
       buttons(render())
         .find((b) => b.props.children === label)!
         .props.onClick();
-    const bank = "Open the bank statement";
+    const bank = BANK;
     // A note typed under September stays with September.
     noteField(render(), bank).props.onChange({ target: { value: "September statement read." } });
     click("October");
     await settle();
     expect(noteField(render(), bank).props.value).toBe("");
     // October's Done carries October's own (empty) note, not September's.
+    whoField(render(), bank).props.onChange({ target: { value: "Owner" } });
     let answer!: (value: unknown) => void;
     server.recordMonthlyReview.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
     click("Done");
@@ -546,6 +574,12 @@ describe("monthly review reads the evidence log for the month", () => {
     evidenceLog.getControlExecutionLog.mockResolvedValueOnce(
       page([{ id: "2026-09-bank_statement", status: "awaiting_review" }]),
     );
+    whoField(
+      runtime.render(() => MonthlyReview()),
+      BANK,
+    ).props.onChange({
+      target: { value: "Owner" },
+    });
     const tree = runtime.render(() => MonthlyReview());
     buttons(tree)
       .find((b) => b.props.children === "Done")!
@@ -673,5 +707,244 @@ describe("readMonthlyEvidence", () => {
     expect(await readMonthlyEvidence(read, ids)).toEqual(new Map());
     expect(read).toHaveBeenCalledTimes(EVIDENCE_PAGE_LIMIT);
     expect(EVIDENCE_PAGE_LIMIT).toBe(250);
+  });
+});
+
+describe("monthly review saves who actually did the check", () => {
+  const dana = (): Person => ({
+    id: "dana",
+    name: "Dana",
+    role: "Office manager",
+    active: true,
+    owner: false,
+    entitlements: ["view_reports_only"],
+  });
+  const ok = {
+    ok: true,
+    evidenceBridged: true,
+    evidenceStatus: "recorded",
+    evidenceSkippedReason: null,
+  };
+  const render = () => runtime.render(() => MonthlyReview());
+  const click = (label: string, index = 0) =>
+    buttons(render())
+      .filter((b) => b.props.children === label)
+      [index].props.onClick();
+  /** What the screen saved on the business, from the last `setMonthlyReviews` updater. */
+  function savedLocally(): ReviewRecord[] {
+    const update = practice.setMonthlyReviews.mock.calls.at(-1)?.[0] as
+      ((current: ReviewRecord[]) => ReviewRecord[]) | undefined;
+    return update ? update([]) : [];
+  }
+
+  it("saves the person picked, not the suggested owner", async () => {
+    // Dana holds no checked duty, so Precog suggests her for the bank statement.
+    state.people = [owner(), dana()];
+    state.user = { id: "owner" };
+    state.businessId = "biz_1";
+    server.recordMonthlyReview.mockResolvedValue(ok);
+    const html = await settle();
+    expect(html).toContain("Suggested: Dana");
+    expect(whoField(render(), BANK).props.value).toBe("");
+    whoField(render(), BANK).props.onChange({ target: { value: "Owner" } });
+    click("Done");
+    await vi.waitFor(() => expect(server.recordMonthlyReview).toHaveBeenCalledTimes(1));
+    expect(server.recordMonthlyReview).toHaveBeenCalledWith({
+      data: expect.objectContaining({ itemKey: "bank_statement", ownerName: "Owner" }),
+    });
+    expect(savedLocally()[0]).toMatchObject({ key: "bank_statement", ownerName: "Owner" });
+  });
+
+  it("saves the name typed under Someone else", async () => {
+    state.people = [owner(), dana()];
+    await settle();
+    whoField(render(), BANK).props.onChange({ target: { value: "__someone_else__" } });
+    otherNameField(render(), BANK).props.onChange({ target: { value: "Jordan Blake" } });
+    click("Done");
+    expect(savedLocally()[0]).toMatchObject({ ownerName: "Jordan Blake", result: "done" });
+  });
+
+  it("offers the active team and Someone else, and leaves out people who left", () => {
+    state.people = [owner(), dana(), { ...dana(), id: "gone", name: "Gone Person", active: false }];
+    const html = view();
+    expect(html).toContain('aria-label="Who did Open the bank statement"');
+    expect(html).toContain("Who did this check");
+    expect(html).toContain('<option value="Dana">Dana</option>');
+    expect(html).toContain(">Someone else</option>");
+    expect(html).not.toContain("Gone Person</option>");
+  });
+
+  it("refuses a result until someone is picked", async () => {
+    state.people = [owner(), dana()];
+    await settle();
+    click("Done");
+    expect(practice.setMonthlyReviews).not.toHaveBeenCalled();
+    expect(server.recordMonthlyReview).not.toHaveBeenCalled();
+    expect(await settle()).toContain("Choose who did this check.");
+  });
+
+  it("refuses an Exception with a blank note and says what to do", async () => {
+    state.people = [owner()];
+    await settle();
+    whoField(render(), BANK).props.onChange({ target: { value: "Owner" } });
+    click("Exception (found a problem)");
+    expect(practice.setMonthlyReviews).not.toHaveBeenCalled();
+    expect(await settle()).toContain("Say what you found.");
+    noteField(render(), BANK).props.onChange({ target: { value: "Check 1043 payable to cash" } });
+    click("Exception (found a problem)");
+    expect(savedLocally()[0]).toMatchObject({
+      result: "exception",
+      notes: "Check 1043 payable to cash",
+      ownerName: "Owner",
+    });
+  });
+
+  it("explains Exception in one line on the screen and keeps the report's label", () => {
+    state.people = [owner()];
+    const html = view();
+    expect(html).toContain(">Exception (found a problem)</button>");
+    expect(html).toContain("Press Exception when the check turned up a problem");
+  });
+
+  it("marks the latest result's button as pressed and shows a lasting Saved line", () => {
+    state.people = [owner()];
+    state.records = [
+      {
+        key: "bank_statement",
+        period: "2026-09",
+        result: "exception",
+        ownerName: "Dana",
+        notes: "Deposit of Sep 12 missing",
+        recordedAt: "2026-09-29T12:00:00Z",
+      },
+      {
+        key: "bank_statement",
+        period: "2026-09",
+        result: "done",
+        ownerName: "Dana",
+        notes: "",
+        recordedAt: "2026-09-20T12:00:00Z",
+      },
+    ];
+    const html = view();
+    expect(html).toContain("Saved: Exception by Dana on Sep 29 — Deposit of Sep 12 missing");
+    const bank = buttons(MonthlyReviewTree()).slice(0, 3);
+    expect(bank.map((b) => [b.props.children, b.props["aria-pressed"]])).toEqual([
+      ["Done", false],
+      ["Exception (found a problem)", true],
+      ["Skipped", false],
+    ]);
+    // A check with no result has nothing pressed.
+    expect(
+      buttons(MonthlyReviewTree())
+        .slice(3)
+        .filter((b) => ["Done", "Skipped"].includes(String(b.props.children)))
+        .every((b) => b.props["aria-pressed"] === false),
+    ).toBe(true);
+  });
+
+  it("records Done with a Resolved note when Mark resolved is pressed", async () => {
+    state.people = [owner()];
+    state.records = [
+      {
+        key: "bank_statement",
+        period: "2026-09",
+        result: "exception",
+        ownerName: "Owner",
+        notes: "Deposit of Sep 12 missing",
+        recordedAt: "2026-09-29T08:00:00Z",
+      },
+    ];
+    const html = await settle();
+    expect(html.match(/>Mark resolved<\/button>/g)).toHaveLength(1);
+    whoField(render(), BANK).props.onChange({ target: { value: "Owner" } });
+    noteField(render(), BANK).props.onChange({
+      target: { value: "Found it in the Sep 13 deposit" },
+    });
+    click("Mark resolved");
+    expect(savedLocally()[0]).toMatchObject({
+      key: "bank_statement",
+      result: "done",
+      ownerName: "Owner",
+      notes: "Resolved: Found it in the Sep 13 deposit",
+    });
+  });
+
+  it("gives each check an id other screens can open it by", () => {
+    state.people = [owner()];
+    const html = view();
+    expect(html).toContain('id="check-2026-09-bank_statement"');
+    expect(html).toContain('id="check-2026-09-new_vendors"');
+  });
+
+  it("says a typed note is not saved yet, and warns before the page closes", async () => {
+    state.people = [owner()];
+    const target = new EventTarget();
+    vi.stubGlobal("window", target);
+    try {
+      await settle();
+      noteField(render(), BANK).props.onChange({ target: { value: "Half done" } });
+      expect(await settle()).toContain("Not saved yet: press a result");
+      const leave = new Event("beforeunload", { cancelable: true });
+      target.dispatchEvent(leave);
+      expect(leave.defaultPrevented).toBe(true);
+      // Once saved, nothing waits and the page closes quietly.
+      whoField(render(), BANK).props.onChange({ target: { value: "Owner" } });
+      click("Done");
+      expect(await settle()).not.toContain("Not saved yet");
+      const later = new Event("beforeunload", { cancelable: true });
+      target.dispatchEvent(later);
+      expect(later.defaultPrevented).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("remembers the last pick for the next check and for this browser session", async () => {
+    state.people = [owner(), dana()];
+    const stored = new Map<string, string>();
+    vi.stubGlobal("sessionStorage", {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => void stored.set(key, value),
+    });
+    try {
+      await settle();
+      whoField(render(), BANK).props.onChange({ target: { value: "Dana" } });
+      click("Done");
+      expect(whoField(render(), "Read the cleared-check images").props.value).toBe("Dana");
+      runtime.reset();
+      await settle();
+      expect(whoField(render(), BANK).props.value).toBe("Dana");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("opens with a plain sentence and keeps the evidence-log detail under How this works", () => {
+    const html = view();
+    expect(html).not.toContain("come from the register");
+    expect(html).toContain(
+      "Do each check below. Choose who did it, then press Done, or Exception if you found a problem and say what you found.",
+    );
+  });
+});
+
+/** One render of the screen as a plain tree, through the hook runtime. */
+function MonthlyReviewTree(): ReactNode {
+  return runtime.render(() => MonthlyReview());
+}
+
+describe("monthly review never saves a name that left the team", () => {
+  it("empties the pick of someone no longer active", async () => {
+    state.people = [owner(), { ...owner(), id: "lee", name: "Lee", owner: false }];
+    await settle();
+    const render = () => runtime.render(() => MonthlyReview());
+    whoField(render(), BANK).props.onChange({ target: { value: "Lee" } });
+    state.people = [owner(), { ...owner(), id: "lee", name: "Lee", owner: false, active: false }];
+    expect(whoField(render(), BANK).props.value).toBe("");
+    buttons(render())
+      .find((b) => b.props.children === "Done")!
+      .props.onClick();
+    expect(practice.setMonthlyReviews).not.toHaveBeenCalled();
   });
 });
