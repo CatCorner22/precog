@@ -17,7 +17,7 @@ import { businessLocations, locationsById, worksAt } from "@/lib/precog/person-l
 import { findingsWithoutDecision } from "@/lib/precog/decisions/not-valid";
 import { openSeverityCountsOf, partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { openConflictHeadline } from "@/lib/precog/headline/open-conflicts";
-import { firstDoNextStep } from "@/lib/precog/actions/do-next";
+import { firstDoNextLine } from "@/lib/precog/actions/do-next";
 import { setupInPlaceControls } from "@/lib/precog/onboarding/setup-answers";
 import { rulesDualReleaseCanNarrow, type ConflictSeverity } from "./sod-conflict-view";
 
@@ -116,11 +116,12 @@ export function useSodPanel(
   // list under them all read this one object.
   const headline = useMemo(() => openConflictHeadline(report, partial), [report, partial]);
   // The step Start here's "Do these first" lists first, from the same open
-  // findings, setup answers and books reading: the "What to do first" box
-  // leads with it.
+  // findings, setup answers and books reading, in the words Start here gives
+  // it (naming the person and duties in conflict): the "What to do first"
+  // box leads with it.
   const firstStep = useMemo(
     () =>
-      firstDoNextStep({
+      firstDoNextLine({
         open: headline.findings,
         industry: profile.industry,
         integrationDriftSummary: profile.integrationDriftSummary,

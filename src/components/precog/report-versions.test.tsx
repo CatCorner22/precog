@@ -22,6 +22,15 @@ vi.mock("react", async (importOriginal) => {
         : actual.useEffect(effect, deps),
   };
 });
+// A portal renders in place, inside a marker, so a test can find what the
+// review controls put in the page's toolbar.
+vi.mock("react-dom", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-dom")>();
+  return {
+    ...actual,
+    createPortal: (children: ReactNode) => <div data-portal="toolbar">{children}</div>,
+  };
+});
 const state = vi.hoisted(() => ({ userId: "bea", firmClient: true }));
 // A new object on every call, as the real session hook builds one on every render.
 vi.mock("@/lib/auth/use-current-user", () => ({
@@ -493,6 +502,54 @@ describe("the open version's review controls", () => {
     expect(names).toContain("Sign off version 1 as reviewer");
     expect(names).toContain("Return version 1 to its preparer");
     expect(html).toContain("Signing off records you as the reviewer of version 1 for issuance.");
+  });
+
+  describe("in the bar that stays on screen while the reader scrolls", () => {
+    const toolbar = {} as HTMLElement;
+    /** What the controls put in the toolbar for `viewer`, and the render that shows it. */
+    async function bar(viewer: string, role: string) {
+      state.userId = viewer;
+      server.listReports.mockResolvedValue({
+        versions: [version({})],
+        work: { firm: true, role },
+        review: rules(),
+      });
+      server.getFirm.mockResolvedValue({ firm: { role }, members: [] });
+      const render = () => OpenVersionReview({ version: version({}), toolbar });
+      const tree = await runtime.settle(render);
+      const [inBar] = findAll(
+        tree,
+        (e) => (e.props as { "data-portal"?: string })["data-portal"] === "toolbar",
+      );
+      return { render, inBar };
+    }
+
+    it("gives a version awaiting this reviewer Sign off as reviewer and Return to preparer, hidden in print", async () => {
+      const { render, inBar } = await bar("bea", "reviewer");
+      expect(labels(inBar)).toEqual([
+        "Sign off version 1 as reviewer",
+        "Return version 1 to its preparer",
+      ]);
+      const html = renderToStaticMarkup(<>{inBar}</>);
+      expect(html).toContain("print:hidden");
+      expect(html).toContain("Sign off as reviewer");
+      expect(html).toContain("Return to preparer");
+      // Each does what the button at the top does.
+      click(inBar, "Sign off version 1 as reviewer");
+      expect(labels(await runtime.settle(render))).toContain("Sign off version 1 as reviewer?");
+      runtime.reset();
+      const again = await bar("bea", "reviewer");
+      vi.stubGlobal("requestAnimationFrame", vi.fn());
+      click(again.inBar, "Return version 1 to its preparer");
+      const returning = renderToStaticMarkup(<>{await runtime.settle(again.render)}</>);
+      expect(returning).toContain('id="return-note"');
+      vi.unstubAllGlobals();
+    });
+
+    it("puts nothing there for the preparer", async () => {
+      const { inBar } = await bar("ada", "preparer");
+      expect(inBar).toBeUndefined();
+    });
   });
 
   it("asks in a dialog naming the version, the preparer and an independent review, then signs", async () => {

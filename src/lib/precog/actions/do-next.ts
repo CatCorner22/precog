@@ -1,7 +1,7 @@
 import { recommendedStepsForRules } from "../evidence";
 import type { ControlId } from "../evidence/controls";
 import type { IndustryId } from "../industry";
-import { rankFirstSteps, UNIVERSAL_FIX } from "../coach/first-steps";
+import { CONTROL_DUTIES, rankFirstSteps, UNIVERSAL_FIX } from "../coach/first-steps";
 import type { AccessReconciliation } from "../firm/reconcile";
 import { buildDriftActions, type DriftAction } from "../integrations/drift-signals";
 import type { IntegrationDriftSummary } from "../integrations/drift-summary";
@@ -135,4 +135,59 @@ export function doNextDrift(items: readonly DoNextItem[]): DriftAction[] {
  */
 export function firstDoNextStep(input: DoNextInput): DoNextStep | null {
   return doNextSteps(doNextList(input))[0] ?? null;
+}
+
+/**
+ * The open finding a step is named for on screen: of the open findings whose
+ * duties the step's control watches (coach/first-steps `CONTROL_DUTIES`), the
+ * one where it watches both duties, then the first in `open`'s order (most
+ * severe first). Null when the step answers no open finding.
+ */
+export function stepFocus(
+  step: Pick<DoNextStep, "control">,
+  open: readonly DetectedConflict[],
+): DetectedConflict | null {
+  const duties = new Set(CONTROL_DUTIES[step.control.id]);
+  const watched = (c: DetectedConflict) =>
+    Number(duties.has(c.entitlementA)) + Number(duties.has(c.entitlementB));
+  let best: DetectedConflict | null = null;
+  for (const c of open) {
+    if (watched(c) > (best ? watched(best) : 0)) best = c;
+  }
+  return best;
+}
+
+/**
+ * The words the screens give a step from "Do these first", naming the person
+ * and the two duties actually in conflict (`stepFocus`): Start here's item 1
+ * and the duty-conflict tab's "What to do first" box both read it, so the two
+ * name one first step for one person. The split step that already names its
+ * person and duty keeps its words. Screens only: the printed report keeps the
+ * step list's own words.
+ */
+export function stepLineOnScreen(step: DoNextStep, open: readonly DetectedConflict[]): string {
+  const focus = stepFocus(step, open);
+  const namedSplit =
+    step.control.id === UNIVERSAL_FIX && step.control.label !== SPLIT_STEP_WITHOUT_NAMED_ROLE;
+  if (!focus || namedSplit) return step.control.label;
+  const who = focus.personName;
+  const holds = `${who} can both ${midSentence(focus.labelA)} and ${midSentence(focus.labelB)}`;
+  const reconciles =
+    focus.entitlementA === "bank_reconcile" || focus.entitlementB === "bank_reconcile";
+  const what =
+    step.control.id === UNIVERSAL_FIX
+      ? "move one of the two duties to someone who holds neither"
+      : step.control.id === "independent-bank-reconciliation" && reconciles
+        ? `someone other than ${who} reconciles the account`
+        : midSentence(step.control.label);
+  return `${holds}: ${what}`;
+}
+
+/**
+ * The first step on screen (`firstDoNextStep` in `stepLineOnScreen`'s words),
+ * or null when no control answers the open findings.
+ */
+export function firstDoNextLine(input: DoNextInput): string | null {
+  const step = firstDoNextStep(input);
+  return step ? stepLineOnScreen(step, input.open) : null;
 }

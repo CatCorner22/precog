@@ -156,6 +156,13 @@
  * the firm page 1.1 KB; the rest is 1 KB or less per chunk. No module is
  * duplicated and the largest chunk is unchanged at 109 KB. Total budget
  * raised from 855 KB to 870 KB; slice S43 in wave 4 still lowers it.
+ *
+ * 2026-10-07: wave 3c G3 (navigation agreement) adds 0.7 KB gzipped against
+ * da42bb2 (869.9 KB to 870.6 KB, 140 chunks both): the reviewer actions in
+ * the report's sticky bar 0.24 KB, the first step named for the person in
+ * conflict 0.2 KB (Start here), the conflict list's order note 0.13 KB and
+ * the Needs attention line count 0.08 KB. Total budget raised from 870 KB to
+ * 871 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -164,7 +171,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 870 * 1024,
+  totalGzipBytes: 871 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

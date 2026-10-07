@@ -122,6 +122,9 @@ export function ControlReport({
   // (OpenVersionReview) hands back the changed row, and the provenance the
   // cover and header print follows it without a reload.
   const [reviewNow, setReviewNow] = useState<ReportVersionRow | null>(null);
+  // The bar that stays on screen while the reader scrolls: the open
+  // version's reviewer actions sit in it too.
+  const [toolbar, setToolbar] = useState<HTMLElement | null>(null);
   const version = locked && reviewNow?.id === locked.id ? reviewNow : locked;
   const provenance = version ? versionProvenance(version) : null;
   const industry = industryMeta(profile.industry);
@@ -283,6 +286,11 @@ export function ControlReport({
             </Link>
             <div className="flex flex-wrap items-center gap-2">
               {locked && (
+                // Sign off as reviewer and Return to preparer, on a version
+                // awaiting this reviewer (OpenVersionReview puts them here).
+                <span ref={setToolbar} data-slot="review-actions" className="contents" />
+              )}
+              {locked && (
                 <Link
                   to="/report"
                   className="inline-flex h-8 items-center rounded-md border border-neutral-300 px-3 text-xs font-medium hover:bg-neutral-100"
@@ -299,7 +307,11 @@ export function ControlReport({
       )}
       {!shared &&
         (locked ? (
-          <OpenVersionReview version={version ?? locked} onChange={setReviewNow} />
+          <OpenVersionReview
+            version={version ?? locked}
+            onChange={setReviewNow}
+            toolbar={toolbar}
+          />
         ) : (
           <ReportVersionsPanel />
         ))}
