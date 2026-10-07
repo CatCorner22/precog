@@ -8,6 +8,7 @@ import { scenarioUnfolding } from "@/lib/precog/scenario-unfolding";
 import { useToday } from "@/lib/use-today";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
+import { dutiesOffTeam } from "@/lib/precog/onboarding/setup-answers";
 import {
   insuranceBasis,
   insuranceFigureNote,
@@ -102,9 +103,11 @@ export function SingleScenarioView({
       ),
     [tpl, profile.plannedAbsences, profile.decisions, profile.industry, day],
   );
+  // Duties the setup answers place outside the team, as the Duty conflicts screen reads them.
   const watch = useMemo(
-    () => scenarioWatch(tpl, scenario, openConflicts, outTodayIds),
-    [tpl, scenario, openConflicts, outTodayIds],
+    () =>
+      scenarioWatch(tpl, scenario, openConflicts, outTodayIds, dutiesOffTeam(profile.setupAnswers)),
+    [tpl, scenario, openConflicts, outTodayIds, profile.setupAnswers],
   );
   const unfolding = scenarioUnfolding(scenario.id);
   if (!result) return null;

@@ -61,10 +61,24 @@ export function ScenarioWatchCard({
                     {watch.conflicts.length > 3 && <p>and {watch.conflicts.length - 3} more</p>}
                   </>
                 ) : watch.unassignedDuties.length > 0 ? (
+                  <>
+                    <p>
+                      Nobody on the team is ticked for {joinWithAnd(watch.unassignedDuties)}, so
+                      Precog cannot tell whether one person holds both duties this needs. Tick
+                      whoever does {watch.unassignedDuties.length === 1 ? "it" : "them"} on the Team
+                      tab.
+                    </p>
+                    {watch.offTeamDuties.length > 0 && (
+                      <p>
+                        Your setup answers place {joinWithAnd(watch.offTeamDuties)} outside the
+                        team.
+                      </p>
+                    )}
+                  </>
+                ) : watch.offTeamDuties.length > 0 ? (
                   <p>
-                    Nobody on the team is ticked for {joinWithAnd(watch.unassignedDuties)}, so
-                    Precog cannot tell whether one person holds both duties this needs. Tick whoever
-                    does {watch.unassignedDuties.length === 1 ? "it" : "them"} on the Team tab.
+                    Your setup answers place {joinWithAnd(watch.offTeamDuties)} outside the team, so
+                    nobody on the team holds both duties this needs.
                   </p>
                 ) : (
                   <p>Nobody on the team holds both duties this needs.</p>
