@@ -13,9 +13,11 @@ type HeadlineFinding = Pick<
 
 /**
  * Every figure a screen prints about open duty conflicts, counted once
- * through sod/open-findings `openFindings`. Start here, the report, the
- * duty-conflict screen and the firm's client list read this one model, so a
- * reader never meets two numbers for the same thing.
+ * through sod/open-findings `openFindings`. Start here (its tile, its
+ * exposure sentence and its first step), the report, the duty-conflict
+ * screen (its tile, sub-tab and location filter), the coach and the firm's
+ * client list read this one model, so a reader never meets two numbers for
+ * the same thing.
  */
 export interface OpenConflictHeadline<T extends HeadlineFinding = DetectedConflict> {
   /** The open findings themselves, one row each, as the report's conflict table lists them. */
@@ -71,6 +73,19 @@ export function openConflictHeadline<T extends HeadlineFinding>(
     ownerHeld: report.conflicts.filter((c) => c.ownerHeld).length,
     closedByDualRelease: split.closed,
   };
+}
+
+/**
+ * The open count's parts, as every tile hint and the coach word them:
+ * "4 critical · 15 high · 1 other". The parts add up to `open`; "other"
+ * (medium and related duties) is left out when there is none.
+ */
+export function openConflictBreakdown(
+  headline: Pick<OpenConflictHeadline<HeadlineFinding>, "critical" | "high" | "other">,
+): string {
+  const parts = [`${headline.critical} critical`, `${headline.high} high`];
+  if (headline.other > 0) parts.push(`${headline.other} other`);
+  return parts.join(" · ");
 }
 
 const ACCEPT_KINDS: ReadonlySet<string> = new Set(["accept_residual"]);

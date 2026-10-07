@@ -6,10 +6,10 @@ import { segregationLevel } from "@/lib/precog/scoring/bands";
 import { CONFLICT_RULES, entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import {
   belowThresholdNote,
-  dualReleaseSplit,
   openSeverityCounts,
   partialDualReleaseCoverage,
 } from "@/lib/precog/sod/open-findings";
+import { openConflictBreakdown, openConflictHeadline } from "@/lib/precog/headline/open-conflicts";
 import { sodScopeLine } from "@/lib/precog/integrations/drift-signals";
 import type { NavFn } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
@@ -68,10 +68,12 @@ export function SodPanel({
   const level = segregationLevel(health, open);
   // The open tiles count what dual release covers only above a threshold; say why.
   const belowNote = belowThresholdNote(open);
-  const { reduced } = dualReleaseSplit(
-    report.conflicts,
+  // The open count every screen gives (headline/open-conflicts), with its parts.
+  const headline = openConflictHeadline(
+    report,
     partialDualReleaseCoverage(profile.dualRelease, report.conflicts),
   );
+  const reduced = headline.reducedNotClosed;
   // The findings cover only the people on the map; say so when the books show more.
   const scope = sodScopeLine(profile.integrationDriftSummary);
   const offTeamDuties = dutiesOffTeam(profile.setupAnswers);
@@ -123,7 +125,7 @@ export function SodPanel({
         />
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <StatTile
           label={say("Duties kept apart", "Duty separation")}
           value={String(health)}
@@ -131,16 +133,10 @@ export function SodPanel({
           tone={level === "critical" ? "danger" : level === "weak" ? "warn" : "ok"}
         />
         <StatTile
-          label="Critical open"
-          value={String(report.summary.critical)}
-          hint="Not closed by dual release"
-          tone="danger"
-        />
-        <StatTile
-          label="High open"
-          value={String(report.summary.high)}
-          hint="Not closed by dual release"
-          tone="warn"
+          label="Open duty conflicts"
+          value={String(headline.open)}
+          hint={openConflictBreakdown(headline)}
+          tone={headline.critical > 0 ? "danger" : headline.open > 0 ? "warn" : "primary"}
         />
         <StatTile
           label="Narrowed by dual release"
@@ -200,7 +196,7 @@ export function SodPanel({
         </div>
       )}
 
-      <ViewSwitcher model={model} />
+      <ViewSwitcher model={model} open={headline.open} />
 
       <div
         role="tabpanel"
@@ -265,10 +261,11 @@ function Section({
   );
 }
 
-function ViewSwitcher({ model }: { model: SodPanelModel }) {
-  const { group, openGroup, report } = model;
+/** The three sub-tabs; Duty conflicts carries the open count, as the tile above it does. */
+function ViewSwitcher({ model, open }: { model: SodPanelModel; open: number }) {
+  const { group, openGroup } = model;
   const groups: { id: SodGroup; label: string; icon: LucideIcon }[] = [
-    { id: "conflicts", label: `Duty conflicts (${report.conflicts.length})`, icon: AlertTriangle },
+    { id: "conflicts", label: `Duty conflicts (${open})`, icon: AlertTriangle },
     { id: "duties", label: "Duty assignments", icon: Network },
     { id: "safeguards", label: "Controls", icon: ShieldCheck },
   ];

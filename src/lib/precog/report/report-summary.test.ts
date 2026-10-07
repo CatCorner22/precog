@@ -237,12 +237,15 @@ describe("executive summary", () => {
     }
     expect(unnamed.length).toBeGreaterThan(0);
     expect(modelOf(defaultProfile("retail")).summary).toContain(
-      "First step: move one duty of a conflicting pair to someone who holds neither duty — even just the bank reconciliation.",
+      "First step: move one duty of a conflicting pair to someone who holds neither duty.",
     );
+    // The first step names the person and the duty, against the same open count.
     expect(modelOf(defaultProfile("dental")).summary).toContain(
-      "First step: move any single duty out of the concentrated role — even just the bank reconciliation.",
+      "First step: move one duty, enter write-offs, away from Maya Chen: it closes 4 of the 20 open duty conflicts.",
     );
     expect(SPLIT_STEP_WITHOUT_NAMED_ROLE).not.toContain("concentrated");
+    // It names no duty: the bank reconciliation may already sit with someone else.
+    expect(SPLIT_STEP_WITHOUT_NAMED_ROLE).not.toMatch(/bank/i);
   });
 
   it("names the person who holds the largest share, never a minority, in the rows it counts", () => {
