@@ -191,9 +191,14 @@ describe("printed control report", () => {
     const html = render(covered);
     expect(html).toContain("Weak · 1 open critical duty conflict");
     // The reduced pair is counted once: among the open conflicts, not again as covered.
-    expect(html).toContain("0 covered by dual release at every amount.");
-    expect(html).toContain("1 more reduced by dual release but not closed, counted open above.");
+    expect(html).toContain(
+      "1 open duty conflict: 1 critical, 0 high, 0 medium, 0 related duties, held by 1 of 2 people. 1 of them is reduced by dual release but not closed. 0 covered by dual release at every amount, not counted open.",
+    );
     expect(html).not.toContain("0 critical duty conflicts");
+    // A version locked under layout 5 prints the sentence it printed then.
+    const five = renderStored(covered, 5);
+    expect(five).toContain("0 covered by dual release at every amount.");
+    expect(five).toContain("1 more reduced by dual release but not closed, counted open above.");
     expect(html).toContain(
       "Dual release covers 1 critical duty conflict only above a threshold. Below the threshold one person still acts alone, so it counts as open.",
     );
@@ -234,7 +239,10 @@ describe("printed control report", () => {
       "No open duty conflicts among staff. The owner holds 1 pair of conflicting duties (listed under Segregation of duties as the owner&#x27;s own duties).",
     );
     expect(html).not.toContain("Dual release covers 1 more");
-    expect(html).toContain("0 covered by dual release at every amount.");
+    expect(html).toContain(
+      "No open duty conflicts among staff. The owner holds 1 pair of conflicting duties, listed below and not counted open. 0 covered by dual release at every amount, not counted open.",
+    );
+    expect(renderStored(covered, 5)).toContain("0 covered by dual release at every amount.");
     expect(html).toContain("Owner&#x27;s own duties");
     // A version locked under layout 3 prints the count it printed then.
     expect(renderStored(covered, 3)).toContain("1 covered by dual release at every amount.");
@@ -562,13 +570,13 @@ describe("report cover headlines", () => {
       const top = between(
         text,
         "|Fix first on the priority list|",
-        "|Fix first on the residual index|",
+        "|Severe on the residual index|",
       );
       expect(top).toMatch(/^\|Fix first on the priority list\|\d+\|Priority 88 or more$/);
       expect(top).not.toMatch(/80 or more|residual|top-priority/i);
       // The residual index's count: risks at 80 or more.
-      const residual = between(text, "|Fix first on the residual index|", "|Duty separation|");
-      expect(residual).toMatch(/^\|Fix first on the residual index\|\d+\|Residual 80 or more · /);
+      const residual = between(text, "|Severe on the residual index|", "|Duty separation|");
+      expect(residual).toMatch(/^\|Severe on the residual index\|\d+\|Residual 80 or more · /);
       expect(residual).not.toMatch(/top|priority|88/i);
       // One urgency scale: the Priority stack's top band reads "Fix first"
       // too, and each row says what it groups. Nowhere else names it.
@@ -586,10 +594,10 @@ describe("report cover headlines", () => {
     const tiles = (industry: "dental" | "retail") =>
       between(textOf(render(defaultProfile(industry))), "|Fix first on the", "|Duty separation|");
     expect(tiles("dental")).toBe(
-      "|Fix first on the priority list|3|Priority 88 or more|Fix first on the residual index|4|Residual 80 or more · 8 fix soon · 7 worth doing",
+      "|Fix first on the priority list|3|Priority 88 or more|Severe on the residual index|4|Residual 80 or more · 8 high · 7 moderate",
     );
     expect(tiles("retail")).toBe(
-      "|Fix first on the priority list|4|Priority 88 or more|Fix first on the residual index|6|Residual 80 or more · 6 fix soon · 5 worth doing",
+      "|Fix first on the priority list|4|Priority 88 or more|Severe on the residual index|6|Residual 80 or more · 6 high · 5 moderate",
     );
   });
 
@@ -857,8 +865,8 @@ describe("report layout 3", () => {
   };
 
   it("is the layout a live report prints", () => {
-    expect(REPORT_LAYOUT_VERSION).toBe(5);
-    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4, 5]);
+    expect(REPORT_LAYOUT_VERSION).toBe(6);
+    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4, 5, 6]);
     const html = renderToStaticMarkup(
       <ReadOnlyPracticeProvider profile={answered}>
         <ControlReport />

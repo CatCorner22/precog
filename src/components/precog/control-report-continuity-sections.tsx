@@ -300,43 +300,47 @@ function ControlReportLeaveSection({
                 </p>
               )}
               {w.impact.stops.length > 0 ? (
-                <table className="mt-2 w-full text-xs">
-                  <thead>
-                    <tr className="text-left text-neutral-500">
-                      <th className="py-0.5 font-normal">Stops</th>
-                      <th className="py-0.5 font-normal">Stand-in</th>
-                      {w.status === "current" && <th className="py-0.5 font-normal">Procedure</th>}
-                      <th className="py-0.5 font-normal">Hand-off</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {w.impact.stops.map((s) => {
-                      const c = handoffCommitment(committed, s.item.id, w.absence.id);
-                      return (
-                        <tr key={s.item.id} className="border-t border-neutral-200 align-top">
-                          <td className="py-1 pr-2">{s.item.name}</td>
-                          <td className="py-1 pr-2">
-                            {s.standIn?.name ?? "Nobody — outside provider or it waits"}
-                          </td>
-                          {w.status === "current" && (
-                            <td className="py-1 pr-2 text-neutral-600">
-                              {procedurePointer(s.item)}
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-neutral-500">
+                        <th className="py-0.5 font-normal">Stops</th>
+                        <th className="py-0.5 font-normal">Stand-in</th>
+                        {w.status === "current" && (
+                          <th className="py-0.5 font-normal">Procedure</th>
+                        )}
+                        <th className="py-0.5 font-normal">Hand-off</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {w.impact.stops.map((s) => {
+                        const c = handoffCommitment(committed, s.item.id, w.absence.id);
+                        return (
+                          <tr key={s.item.id} className="border-t border-neutral-200 align-top">
+                            <td className="py-1 pr-2">{s.item.name}</td>
+                            <td className="py-1 pr-2">
+                              {s.standIn?.name ?? "Nobody — outside provider or it waits"}
                             </td>
-                          )}
-                          <td className="py-1 text-neutral-600">
-                            {c
-                              ? c.overdue
-                                ? `Logged; review overdue${c.reviewBy ? ` (${formatDay(c.reviewBy)})` : ""}`
-                                : `Logged${c.reviewBy ? `; review ${formatDay(c.reviewBy)}` : ""}`
-                              : w.status === "current"
-                                ? "Not logged — decide today"
-                                : `Not logged — by ${formatDay(handoffDeadline(w, today))}`}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            {w.status === "current" && (
+                              <td className="py-1 pr-2 text-neutral-600">
+                                {procedurePointer(s.item)}
+                              </td>
+                            )}
+                            <td className="py-1 text-neutral-600">
+                              {c
+                                ? c.overdue
+                                  ? `Logged; review overdue${c.reviewBy ? ` (${formatDay(c.reviewBy)})` : ""}`
+                                  : `Logged${c.reviewBy ? `; review ${formatDay(c.reviewBy)}` : ""}`
+                                : w.status === "current"
+                                  ? "Not logged — decide today"
+                                  : `Not logged — by ${formatDay(handoffDeadline(w, today))}`}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <p className="mt-2 text-xs text-neutral-600">
                   Nothing on the register stops; someone else can run everything they hold.
@@ -391,38 +395,40 @@ function ControlReportDebriefSection({ debriefs }: { debriefs: ControlReportMode
                 {d.daysSince > 0 ? `, ended ${count(d.daysSince, "day")} ago` : ", ended today"}
               </span>
             </div>
-            <table className="mt-2 w-full text-xs">
-              <thead>
-                <tr className="text-left text-neutral-500">
-                  <th className="py-0.5 font-normal">Covered</th>
-                  <th className="py-0.5 font-normal">Stand-in</th>
-                  <th className="py-0.5 font-normal">Decide</th>
-                </tr>
-              </thead>
-              <tbody>
-                {d.items.map((e) => (
-                  <tr key={e.item.id} className="border-t border-neutral-200 align-top">
-                    <td className="py-1 pr-2">{e.item.name}</td>
-                    <td className="py-1 pr-2">
-                      {e.standIn
-                        ? `${e.standIn.name}${e.standInLevel ? ` (${LEVEL_LABEL[e.standInLevel].toLowerCase()})` : ""}${e.standInConfirmed ? "" : ", suggested"}`
-                        : "Nobody lined up"}
-                    </td>
-                    <td className="py-1 text-neutral-600">
-                      {!e.standIn || !e.standInConfirmed
-                        ? "Who stepped in? Record them on the register."
-                        : standInAlreadyStrong(e)
-                          ? e.handoff
-                            ? "Already can do it alone; close the logged hand-off."
-                            : "Already can do it alone; nothing to change."
-                          : e.training
-                            ? "Can do alone now? Then close the cross-training entry."
-                            : "Can do alone now? Or log it as cross-training."}
-                    </td>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-neutral-500">
+                    <th className="py-0.5 font-normal">Covered</th>
+                    <th className="py-0.5 font-normal">Stand-in</th>
+                    <th className="py-0.5 font-normal">Decide</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {d.items.map((e) => (
+                    <tr key={e.item.id} className="border-t border-neutral-200 align-top">
+                      <td className="py-1 pr-2">{e.item.name}</td>
+                      <td className="py-1 pr-2">
+                        {e.standIn
+                          ? `${e.standIn.name}${e.standInLevel ? ` (${LEVEL_LABEL[e.standInLevel].toLowerCase()})` : ""}${e.standInConfirmed ? "" : ", suggested"}`
+                          : "Nobody lined up"}
+                      </td>
+                      <td className="py-1 text-neutral-600">
+                        {!e.standIn || !e.standInConfirmed
+                          ? "Who stepped in? Record them on the register."
+                          : standInAlreadyStrong(e)
+                            ? e.handoff
+                              ? "Already can do it alone; close the logged hand-off."
+                              : "Already can do it alone; nothing to change."
+                            : e.training
+                              ? "Can do alone now? Then close the cross-training entry."
+                              : "Can do alone now? Or log it as cross-training."}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </li>
         ))}
       </ul>
@@ -470,46 +476,48 @@ function ControlReportLeavingSection({
               </span>
             </div>
             {l.handover.length > 0 && (
-              <table className="mt-2 w-full text-xs">
-                <thead>
-                  <tr className="text-left text-neutral-500">
-                    <th className="py-0.5 font-normal">Only they can run</th>
-                    <th className="py-0.5 font-normal">Successor to train</th>
-                    <th className="py-0.5 font-normal">Written procedure</th>
-                    <th className="py-0.5 font-normal">Logged</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {l.handover.map((h) => (
-                    <tr key={h.item.id} className="border-t border-neutral-200 align-top">
-                      <td className="py-1 pr-2">
-                        {h.item.name}
-                        {h.item.criticality === "critical" ? " (critical)" : ""}
-                      </td>
-                      <td className="py-1 pr-2">
-                        {h.successor
-                          ? `${h.successor.name}${h.successorLevel ? ` (${LEVEL_LABEL[h.successorLevel].toLowerCase()})` : " (starting cold)"}`
-                          : "Nobody remaining to take it"}
-                      </td>
-                      <td className="py-1 pr-2">
-                        {h.item.linkedProcedures?.[0]
-                          ? `Procedures: ${h.item.linkedProcedures[0].title}`
-                          : !h.item.documented
-                            ? "Nothing written down"
-                            : h.item.procedureLocation?.trim()
-                              ? h.item.procedureLocation.trim()
-                              : "Written; location not recorded"}
-                      </td>
-                      <td className="py-1 text-neutral-600">
-                        {h.training
-                          ? `Training logged${h.training.reviewBy ? `, review ${formatDay(h.training.reviewBy)}` : ""}`
-                          : "Not logged"}
-                        {h.documenting ? "; write-up logged" : ""}
-                      </td>
+              <div className="mt-2 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-neutral-500">
+                      <th className="py-0.5 font-normal">Only they can run</th>
+                      <th className="py-0.5 font-normal">Successor to train</th>
+                      <th className="py-0.5 font-normal">Written procedure</th>
+                      <th className="py-0.5 font-normal">Logged</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {l.handover.map((h) => (
+                      <tr key={h.item.id} className="border-t border-neutral-200 align-top">
+                        <td className="py-1 pr-2">
+                          {h.item.name}
+                          {h.item.criticality === "critical" ? " (critical)" : ""}
+                        </td>
+                        <td className="py-1 pr-2">
+                          {h.successor
+                            ? `${h.successor.name}${h.successorLevel ? ` (${LEVEL_LABEL[h.successorLevel].toLowerCase()})` : " (starting cold)"}`
+                            : "Nobody remaining to take it"}
+                        </td>
+                        <td className="py-1 pr-2">
+                          {h.item.linkedProcedures?.[0]
+                            ? `Procedures: ${h.item.linkedProcedures[0].title}`
+                            : !h.item.documented
+                              ? "Nothing written down"
+                              : h.item.procedureLocation?.trim()
+                                ? h.item.procedureLocation.trim()
+                                : "Written; location not recorded"}
+                        </td>
+                        <td className="py-1 text-neutral-600">
+                          {h.training
+                            ? `Training logged${h.training.reviewBy ? `, review ${formatDay(h.training.reviewBy)}` : ""}`
+                            : "Not logged"}
+                          {h.documenting ? "; write-up logged" : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
             {l.orphanedProcesses.length > 0 && (
               <p className="mt-2 text-xs text-neutral-600">
@@ -553,32 +561,34 @@ function ControlReportCardsSection({ cards }: { cards: ControlReportModel["cards
               </span>
             </div>
             {c.stops.length > 0 && (
-              <table className="mt-2 w-full text-xs">
-                <thead>
-                  <tr className="text-left text-neutral-500">
-                    <th className="py-0.5 font-normal">Stops</th>
-                    <th className="py-0.5 font-normal">Stand-in</th>
-                    <th className="py-0.5 font-normal">Written procedure</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {c.stops.map((s) => (
-                    <tr key={s.item.id} className="border-t border-neutral-200 align-top">
-                      <td className="py-1 pr-2">{s.item.name}</td>
-                      <td className="py-1 pr-2">
-                        {s.standIn?.name ?? "Nobody — outside provider or it waits"}
-                      </td>
-                      <td className="py-1 text-neutral-600">
-                        {s.item.linkedProcedures?.[0]
-                          ? `Procedures: ${s.item.linkedProcedures[0].title}`
-                          : !s.item.documented
-                            ? "None written"
-                            : s.item.procedureLocation?.trim() || "Exists; location not recorded"}
-                      </td>
+              <div className="mt-2 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-neutral-500">
+                      <th className="py-0.5 font-normal">Stops</th>
+                      <th className="py-0.5 font-normal">Stand-in</th>
+                      <th className="py-0.5 font-normal">Written procedure</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {c.stops.map((s) => (
+                      <tr key={s.item.id} className="border-t border-neutral-200 align-top">
+                        <td className="py-1 pr-2">{s.item.name}</td>
+                        <td className="py-1 pr-2">
+                          {s.standIn?.name ?? "Nobody — outside provider or it waits"}
+                        </td>
+                        <td className="py-1 text-neutral-600">
+                          {s.item.linkedProcedures?.[0]
+                            ? `Procedures: ${s.item.linkedProcedures[0].title}`
+                            : !s.item.documented
+                              ? "None written"
+                              : s.item.procedureLocation?.trim() || "Exists; location not recorded"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
             {c.orphanedProcesses.length > 0 && (
               <p className="mt-2 text-xs text-neutral-600">
