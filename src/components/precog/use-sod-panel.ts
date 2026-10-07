@@ -15,7 +15,7 @@ import {
 } from "@/lib/precog/sod/title-duties";
 import { businessLocations, locationsById, worksAt } from "@/lib/precog/person-location";
 import { findingsWithoutDecision } from "@/lib/precog/decisions/not-valid";
-import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
+import { openSeverityCountsOf, partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { openConflictHeadline } from "@/lib/precog/headline/open-conflicts";
 import { rulesDualReleaseCanNarrow, type ConflictSeverity } from "./sod-conflict-view";
 
@@ -113,6 +113,8 @@ export function useSodPanel(
   // parts and its findings: the tile, the sub-tab, the location filter and the
   // list under them all read this one object.
   const headline = useMemo(() => openConflictHeadline(report, partial), [report, partial]);
+  // The open critical and high findings that cap the band word, from the same findings.
+  const openSeverity = useMemo(() => openSeverityCountsOf(headline.findings), [headline]);
   // Open findings nobody has logged a decision on: the "No decision yet" tile.
   // It reads the same decided-on rule as the pilot metrics, so the two move together.
   const withoutDecision = useMemo(
@@ -161,6 +163,7 @@ export function useSodPanel(
     profile,
     report,
     headline,
+    openSeverity,
     withoutDecision,
     addDecision,
     narrowable,

@@ -114,11 +114,22 @@ export function openSeverityCounts(
   conflicts: readonly DetectedConflict[],
   policy: DualReleasePolicy,
 ): OpenSodCounts {
-  const open = openFindings(conflicts, partialDualReleaseCoverage(policy, conflicts));
+  return openSeverityCountsOf(
+    openFindings(conflicts, partialDualReleaseCoverage(policy, conflicts)),
+  );
+}
+
+/**
+ * The same counts from findings already known to be open (`openFindings`,
+ * or headline/open-conflicts `findings`), for a screen that holds them, so
+ * it does not sort the team's findings again.
+ */
+export function openSeverityCountsOf(open: readonly DetectedConflict[]): OpenSodCounts {
   const critical = open.filter((c) => c.severity === "critical");
   const high = open.filter((c) => c.severity === "high");
   // An open finding dual release narrows is one it covers only above a threshold.
-  const below = (findings: DetectedConflict[]) => findings.filter((c) => c.dualReleaseMitigated);
+  const below = (findings: readonly DetectedConflict[]) =>
+    findings.filter((c) => c.dualReleaseMitigated);
   return {
     openCritical: critical.length,
     openHigh: high.length,

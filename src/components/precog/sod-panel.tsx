@@ -4,7 +4,7 @@ import { dutiesOffTeam } from "@/lib/precog/onboarding/setup-answers";
 import { AlertTriangle, Network, ShieldCheck, type LucideIcon } from "lucide-react";
 import { segregationLevel } from "@/lib/precog/scoring/bands";
 import { CONFLICT_RULES, entitlementLabel } from "@/lib/precog/sod/conflict-rules";
-import { belowThresholdNote, openSeverityCounts } from "@/lib/precog/sod/open-findings";
+import { belowThresholdNote } from "@/lib/precog/sod/open-findings";
 import { openConflictBreakdown } from "@/lib/precog/headline/open-conflicts";
 import { sodScopeLine } from "@/lib/precog/integrations/drift-signals";
 import type { NavFn } from "@/lib/precog/navigation";
@@ -45,8 +45,8 @@ export function SodPanel({
 }) {
   const { say } = usePresentation();
   const model = useSodPanel(shellReport, initialView, onNavigate);
-  const { profile, report, headline, sodExamples, titleDuties, titleDutyNames, group, setView } =
-    model;
+  const { profile, report, headline, openSeverity: open } = model;
+  const { sodExamples, titleDuties, titleDutyNames, group, setView } = model;
   // A view that is a section of its sub-tab (matrix, roles, dual) comes into
   // view and takes focus when the address names it, as a tab landing would.
   useEffect(() => {
@@ -61,7 +61,6 @@ export function SodPanel({
   }, [initialView]);
   const health = report.summary.segregationHealth;
   // Never "strong" or "adequate" while a critical or high finding is open.
-  const open = openSeverityCounts(report.conflicts, profile.dualRelease);
   const level = segregationLevel(health, open);
   // The open tiles count what dual release covers only above a threshold; say why.
   const belowNote = belowThresholdNote(open);
