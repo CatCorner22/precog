@@ -52,15 +52,26 @@ const RESULT_BUTTON: Record<ReviewResult, string> = {
   skipped: "Skipped",
 };
 
-/** The monthly checks, with an append-only result on the business and, when signed in, on the server. */
-export function MonthlyReview() {
+/**
+ * The monthly checks, with an append-only result on the business and, when
+ * signed in, on the server. `focusPeriod` is the month of a check opened from
+ * Needs attention; when that month is open, it is the month on screen.
+ */
+export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | null } = {}) {
   const { profile, template, setMonthlyReviews } = usePractice();
   const user = useCurrentUser();
   const today = localDateKey(useToday());
   // Last month stays open until its due day, the 10th; until then the owner
   // picks the month to record, last month first.
   const periods = openPeriods(today);
-  const [chosen, setChosen] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<string | null>(focusPeriod);
+  // A newly opened check shows its month in this same render, so the check is
+  // on the page by the time Monthly review scrolls to it.
+  const [focusSeen, setFocusSeen] = useState(focusPeriod);
+  if (focusPeriod !== focusSeen) {
+    setFocusSeen(focusPeriod);
+    if (focusPeriod) setChosen(focusPeriod);
+  }
   const shownPeriod = chosen && periods.includes(chosen) ? chosen : periods[0];
   const tasks = monthlyReviewTasks(today, template.people, template.roleTemplates, shownPeriod);
   const records = profile.monthlyReviews ?? [];

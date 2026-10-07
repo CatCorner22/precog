@@ -4,6 +4,11 @@ const SECTIONS = ["checks", "evidence", "calendar", "decisions", "number-pattern
 /** The element lookup `revealMonthlyItem` needs: `document` on the page. */
 export type ElementLookup = { getElementById(id: string): HTMLElement | null };
 
+/** The month ("2026-10") of the check `item` names, or null for a section or no item. */
+export function checkPeriod(item: string | null): string | null {
+  return item?.match(/^check-(\d{4}-\d{2})-/)?.[1] ?? null;
+}
+
 /**
  * Brings `item` into view on the Monthly review tab. A check's id
  * ("check-<period>-<key>", for example "check-2026-09-bank_statement")

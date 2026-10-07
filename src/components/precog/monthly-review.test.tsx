@@ -376,6 +376,16 @@ describe("monthly review records last month until its due day", () => {
     }
   });
 
+  it("opens on the month of the check a Needs attention item names", () => {
+    state.today = new Date(2026, 9, 3);
+    const html = renderToStaticMarkup(<MonthlyReview focusPeriod="2026-10" />);
+    expect(html).toMatch(/aria-pressed="true"[^>]*>October<\/button>/);
+    expect(html).toContain('id="check-2026-10-bank_statement"');
+    // A month no longer open leaves the default month on screen.
+    const closed = renderToStaticMarkup(<MonthlyReview focusPeriod="2026-08" />);
+    expect(closed).toMatch(/aria-pressed="true"[^>]*>September \(due October 10\)<\/button>/);
+  });
+
   it("offers this month alone from the 11th", () => {
     state.today = new Date(2026, 9, 11);
     const html = view();

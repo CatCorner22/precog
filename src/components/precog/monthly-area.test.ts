@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { revealMonthlyItem } from "./monthly-area.logic";
+import { checkPeriod, revealMonthlyItem } from "./monthly-area.logic";
 
 /** A stand-in for a page element: records how it was scrolled and focused. */
 function element(tabIndex: string | null = null) {
@@ -19,6 +19,15 @@ function page(elements: Record<string, ReturnType<typeof element>>) {
     getElementById: (id: string) => (elements[id] ?? null) as unknown as HTMLElement | null,
   };
 }
+
+describe("checkPeriod", () => {
+  it("reads the month from a check's id, and nothing from a section's name", () => {
+    expect(checkPeriod("check-2026-10-bank_statement")).toBe("2026-10");
+    expect(checkPeriod("checks")).toBeNull();
+    expect(checkPeriod("decisions")).toBeNull();
+    expect(checkPeriod(null)).toBeNull();
+  });
+});
 
 describe("revealMonthlyItem", () => {
   it("scrolls to the check an item names and focuses it", () => {

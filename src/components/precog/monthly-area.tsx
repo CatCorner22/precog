@@ -6,7 +6,7 @@ import { TabLoading } from "@/components/precog/home-shell-parts";
 import { MonthlyReview } from "@/components/precog/monthly-review";
 import { tabLabel } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
-import { revealMonthlyItem } from "./monthly-area.logic";
+import { checkPeriod, revealMonthlyItem } from "./monthly-area.logic";
 import { PageIntro } from "./page-intro";
 
 /**
@@ -48,7 +48,7 @@ export function MonthlyArea({
         }
       />
       <section id="checks">
-        <MonthlyReview />
+        <MonthlyReview focusPeriod={checkPeriod(item)} />
       </section>
       <section id="evidence">
         <ControlEvidencePanel />
