@@ -17,15 +17,18 @@ import {
 import { StandInSuggestionsCard } from "@/components/precog/continuity/stand-in-suggestions-card";
 import { useContinuityPlanner } from "@/components/precog/continuity/use-continuity-planner";
 
+/** The sections of the tab an address can open on (`?tab=knowledge&item=<section>`). */
+const PLANNER_SECTIONS: ReadonlySet<string> = new Set(["absences", "leaving"]);
+
 /** The Who knows what tab: the register, the plans built from it, and absence planning. */
 export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?: string | null }) {
   const p = useContinuityPlanner(initialKnowledgeId);
   const select = p.register.select;
 
   useEffect(() => {
-    if (initialKnowledgeId !== "leaving") return;
+    if (!initialKnowledgeId || !PLANNER_SECTIONS.has(initialKnowledgeId)) return;
     const frame = requestAnimationFrame(() => {
-      const section = document.getElementById("leaving");
+      const section = document.getElementById(initialKnowledgeId);
       section?.scrollIntoView({ block: "start" });
       section?.focus({ preventScroll: true });
     });
@@ -69,21 +72,23 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
 
         <div className="space-y-4">
           <SelectedKnowledgeCard register={p.register} trackFreshness={p.trackFreshness} />
-          <OutTomorrowCard
-            whatIf={p.whatIf}
-            people={p.people}
-            registerAssessed={p.registerAssessed}
-            journal={p.journal}
-            onSelect={select}
-          />
-          <PlannedLeaveCard
-            leave={p.leave}
-            people={p.people}
-            tpl={p.tpl}
-            today={p.today}
-            journal={p.journal}
-            onSelect={select}
-          />
+          <section id="absences" tabIndex={-1} aria-label="Who is out" className="space-y-4">
+            <PlannedLeaveCard
+              leave={p.leave}
+              people={p.people}
+              tpl={p.tpl}
+              today={p.today}
+              journal={p.journal}
+              onSelect={select}
+            />
+            <OutTomorrowCard
+              whatIf={p.whatIf}
+              people={p.people}
+              registerAssessed={p.registerAssessed}
+              journal={p.journal}
+              onSelect={select}
+            />
+          </section>
           <section id="leaving" tabIndex={-1} aria-label="Leaving the team">
             <LeavingTeamCard
               leaving={p.leaving}

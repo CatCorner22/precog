@@ -10,7 +10,7 @@
  * template it was not written for.
  * Once, signed out, it also checks the header (Report, Needs attention), the
  * Monthly review tab, old tab ids in the address (?tab=journal, ?tab=layers,
- * ?tab=command, ?tab=value), the retired /threat page, the Advanced menu's
+ * ?tab=command, ?tab=value), the retired /threat page, the Analyze menu's
  * links to the firm workspace, the tab count, and the home footer's Privacy
  * link.
  *
@@ -69,7 +69,8 @@ await withPage(options, async (page, errors) => {
         .waitFor({ state: "detached", timeout: 15000 })
         .catch(() => {});
 
-    // The primary tabs sit in the strip; the rest are behind "Advanced".
+    // The primary tabs sit in the strip; Ask Pioneer is a header button; the
+    // rest are behind "Analyze".
     const primary = await page.locator('nav [role="tab"]').allInnerTexts();
     let lastLabel = "";
     for (let i = 0; i < primary.length; i++) {
@@ -82,7 +83,7 @@ await withPage(options, async (page, errors) => {
     await page.locator("[data-more-tabs]").click();
     // The menu is placed under its button after it opens; read it once it shows.
     await page.locator('[role="menu"] [role="menuitem"]').first().waitFor();
-    // Advanced views only: its links to other pages are checked once, below.
+    // Analyze views only: its links to other pages are checked once, below.
     const advanced = await page
       .locator('[role="menu"] [role="menuitem"]:not([data-route-link])')
       .allInnerTexts();
@@ -98,12 +99,13 @@ await withPage(options, async (page, errors) => {
       await drain(`${industry}: tab "${label}"`);
       lastLabel = label;
     }
+    const headerTabs = await page.locator("[data-header-tab]").count();
     const expected = Number(
       await page.locator("nav[data-tab-count]").getAttribute("data-tab-count"),
     );
-    if (primary.length + advanced.length !== expected) {
+    if (primary.length + advanced.length + headerTabs !== expected) {
       throw new Error(
-        `${industry}: expected ${expected} tabs, found ${primary.length} primary and ${advanced.length} advanced`,
+        `${industry}: expected ${expected} tabs, found ${primary.length} primary, ${advanced.length} under Analyze and ${headerTabs} in the header`,
       );
     }
 
@@ -178,7 +180,7 @@ async function shellChecks(page) {
     await page.locator("nav[data-tab-count]").waitFor();
   };
 
-  // Ten tabs: six in the strip, four under Advanced.
+  // Ten tabs: six in the strip, three under Analyze, Ask Pioneer in the header.
   await home();
   const tabCount = await page.locator("nav[data-tab-count]").getAttribute("data-tab-count");
   if (tabCount !== "10") throw new Error(`expected 10 tabs, data-tab-count is ${tabCount}`);
@@ -231,7 +233,7 @@ async function shellChecks(page) {
   await home();
   await page.locator("[data-more-tabs]").click();
   await page.locator('[role="menu"] [data-route-link="value"]').click();
-  await valueProofInView("Advanced › Value proof");
+  await valueProofInView("Analyze › Value proof");
 
   await home();
 
@@ -276,7 +278,23 @@ async function shellChecks(page) {
   await page.goBack({ waitUntil: "networkidle", timeout });
   await page.locator('#sod-tab-controls[aria-selected="true"]').waitFor({ timeout });
 
-  // Needs attention lists its own items, and they never count as Advanced views.
+  // The header opens Ask Pioneer, and "Someone is out" lands on the absence
+  // cards of Who knows what, with the section focused.
+  await home();
+  await page.locator("[data-header-tab=pioneer]").click();
+  await page.waitForURL(/[?&]tab=pioneer/, { timeout });
+  if ((await selectedTab()) !== "Ask Pioneer") {
+    throw new Error(`the header's Ask Pioneer opened "${await selectedTab()}"`);
+  }
+  await page.locator("[data-header-link=absences]").click();
+  await page.waitForURL(/[?&]tab=knowledge(&|$)/, { timeout });
+  if (!/[?&]item=absences/.test(page.url())) {
+    throw new Error(`"Someone is out" did not open the absence cards: ${page.url()}`);
+  }
+  await page.locator("#absences").waitFor({ timeout });
+  await page.waitForFunction(() => document.activeElement?.id === "absences", null, { timeout });
+
+  // Needs attention lists its own items, and they never count as Analyze views.
   await home();
   const attention = page.locator("[data-needs-attention]");
   let attentionItems = [];
@@ -297,7 +315,7 @@ async function shellChecks(page) {
   await page.keyboard.press("Escape");
   const leaked = advanced.filter((text) => attentionItems.includes(text));
   if (leaked.length) {
-    throw new Error(`Needs attention items counted as Advanced views: ${leaked.join(", ")}`);
+    throw new Error(`Needs attention items counted as Analyze views: ${leaked.join(", ")}`);
   }
 
   // The home footer links to the privacy notice.

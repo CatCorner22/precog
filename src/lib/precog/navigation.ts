@@ -50,6 +50,9 @@ export const TAB_ALIASES = {
   coso: { tab: "scores", item: "coverage", label: "Coverage check", tactical: "COSO" },
   intel: { tab: "scores", item: "patterns", label: "Patterns", tactical: "Intel" },
   journal: { tab: "monthly", item: "decisions", label: "Decisions log", tactical: "Journal" },
+  // The header's "Someone is out" opens Who knows what on the absence cards:
+  // out today, planned leave, and the cover sheet for each.
+  absences: { tab: "knowledge", item: "absences", label: "Someone is out", tactical: "Absences" },
   // The retired Dashboard opens Start here; the retired blueprint screen opens Procedures.
   command: { tab: "start", label: "Start here", tactical: "Start here" },
   blueprint: { tab: "procedures", label: "Procedures", tactical: "Procedures" },

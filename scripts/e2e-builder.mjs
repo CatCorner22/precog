@@ -41,7 +41,7 @@ await withPage(options, async (p, errors) => {
 
   step("load the dental sample");
   await exploreSample(page, "Dental");
-  // How work flows sits under Advanced; its address opens it directly, and
+  // How work flows sits under Analyze; its address opens it directly, and
   // the sample chosen above stays the open business.
   await page.locator("nav[data-tab-count]").waitFor();
   await page.waitForLoadState("networkidle");

@@ -37,7 +37,7 @@ export function TabStrip({
   /** Pinned at the strip's right end, outside the tablist: menus, never tabs. */
   trailing?: ReactNode;
   onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
-  /** Every tab, including the ones behind "Advanced"; the tab walk (scripts/e2e-tabs.mjs) checks it. */
+  /** Every tab, including the ones behind "Analyze" and in the header; the tab walk (scripts/e2e-tabs.mjs) checks it. */
   tabCount: number;
 }) {
   const ref = useRef<HTMLElement | null>(null);
@@ -108,7 +108,7 @@ export function TabStrip({
   );
 }
 
-/** A place on another page that the Advanced menu links to, below its views. */
+/** A place on another page that the Analyze menu links to, below its views. */
 export interface ShellRouteLink {
   id: string;
   label: string;
@@ -200,16 +200,27 @@ export function MoreTabsMenu({
       if (triggerRef.current) setPlace(fixedMenuPlace(triggerRef.current));
     };
     placeMenu();
-    const frame = requestAnimationFrame(() => itemRefs.current[0]?.focus({ preventScroll: true }));
     window.addEventListener("resize", placeMenu);
     window.addEventListener("scroll", placeMenu, true);
     return () => {
-      cancelAnimationFrame(frame);
       setPlace(null);
       window.removeEventListener("resize", placeMenu);
       window.removeEventListener("scroll", placeMenu, true);
     };
   }, [open]);
+
+  // The menu renders only once it has a place, so the first item can take
+  // focus only then; later re-placements (scroll, resize) leave focus alone.
+  const focusedOnOpen = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      focusedOnOpen.current = false;
+      return;
+    }
+    if (!place || focusedOnOpen.current) return;
+    focusedOnOpen.current = true;
+    itemRefs.current[0]?.focus({ preventScroll: true });
+  }, [open, place]);
 
   useEffect(() => {
     if (!open) return;
@@ -285,7 +296,7 @@ export function MoreTabsMenu({
             : "text-muted hover:bg-elevated/60 hover:text-fg",
         )}
       >
-        Advanced
+        Analyze
         <ChevronDown
           className={cn("size-3.5 transition-transform", open && "rotate-180")}
           aria-hidden
@@ -295,7 +306,7 @@ export function MoreTabsMenu({
         <div
           role="menu"
           style={{ top: place.top, right: place.right }}
-          aria-label="Advanced views"
+          aria-label="Analyze views"
           onKeyDown={onMenuKeyDown}
           className="fixed z-30 w-64 rounded-lg border border-border bg-surface p-1 shadow-xl"
         >
@@ -413,10 +424,13 @@ export function HeaderActions({
       </>
     );
   }
+  // The panel hangs from the sticky header's right edge, not from the
+  // button: the button can sit far left in the row (a short label beside
+  // it), and a panel anchored there would run off the left of a phone.
   return (
     <>
       {inline}
-      <div ref={ref} className="relative">
+      <div ref={ref} className="static">
         <button
           ref={triggerRef}
           type="button"
@@ -432,7 +446,7 @@ export function HeaderActions({
             id="header-more"
             role="group"
             aria-label="More header actions"
-            className="absolute top-full right-0 z-30 mt-1 flex min-w-56 flex-col items-stretch gap-2 rounded-lg border border-border bg-surface p-3 shadow-xl"
+            className="absolute top-full right-4 z-30 mt-1 flex w-max max-w-[calc(100vw-2rem)] min-w-56 flex-col items-stretch gap-2 rounded-lg border border-border bg-surface p-3 shadow-xl"
           >
             {leading}
             {trailing}

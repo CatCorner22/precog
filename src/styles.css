@@ -33,8 +33,10 @@
   html {
     color-scheme: dark;
     /* The one scroll offset for anchor jumps and scrollIntoView: sections
-       carry no own margin, so a target never stacks two offsets. */
-    scroll-padding-top: calc(var(--grok-banner-h, 0px) + 8rem);
+       carry no own margin, so a target never stacks two offsets. The home
+       page measures its sticky header into --home-header-h (it wraps taller
+       on a phone); other pages fall back to a fixed clearance. */
+    scroll-padding-top: calc(var(--grok-banner-h, 0px) + var(--home-header-h, 7rem) + 1rem);
   }
   /* Every control shows where keyboard focus is, in forced colours too. */
   :focus-visible {
