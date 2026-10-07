@@ -62,7 +62,7 @@ export const UNHELD_VIEW = "__unheld__";
  */
 export function noNoticeText(leftNames: readonly string[]): string {
   const advice =
-    "When someone gives notice, record the date here rather than removing them. The printed report and Pioneer count down to it and chase the hand-off.";
+    "When someone does, record their date here instead of removing them; Precog counts down and chases the hand-off.";
   if (leftNames.length === 0) return `Nobody has given notice. ${advice}`;
   return `Nobody still on the team has given notice. ${joinWithAnd(leftNames)} left; check their access above. ${advice}`;
 }

@@ -5,16 +5,12 @@ import { CONTROL_CATALOG, controlForIndustry } from "../evidence/controls";
 import { runPrecogScenario } from "../engine";
 import type { IndustryId } from "../industry";
 import { runLocalAgentLoop, type LocalAgentRun } from "../llm/agent-loop";
-import { BRIEF_SECTION, leverLabel, renderDecision, renderThisWeekLine } from "../llm/agent-brief";
-import { BRIEF_SECTION, destack, renderDecision } from "../llm/agent-brief";
+import { BRIEF_SECTION, destack, leverAction, renderDecision } from "../llm/agent-brief";
 import { describeScenarioFigures, type ScenarioRunData } from "../llm/scenario-tools";
 import { readSpofData } from "../llm/spof-data";
-import { describeScenarioFigures } from "../llm/scenario-tools";
 import type { ToolContext } from "../llm/tools";
 import type { PioneerDecision, StructuredBrief, ToolResult } from "../llm/types";
 import type { PracticeProfile } from "../practice-profile";
-import { scenarioUnfolding } from "../scenario-unfolding";
-import { insuranceFigureNote, policyDefaultsInForce } from "../scoring/dynamic-variables";
 import {
   DEFAULT_RISK_VARIABLES,
   insuranceFigureNote,
@@ -46,7 +42,7 @@ import { personLabel } from "../person-label";
 import { scenarioUnfolding } from "../scenario-unfolding";
 import { scenarioRuleIds, scenarioWatch } from "../scenario-watch";
 import { count, firstName, joinWithAnd, midSentence, verb } from "../text";
-import { matchScenarios } from "./scenario-question";
+import { matchScenarios, mentionsScenario } from "./scenario-question";
 
 /**
  * The local advisor brief, made to answer for this business.
@@ -95,28 +91,12 @@ export function localBrief(
     const brief = ownFirstBrief(result.brief, profile, question, {
       tpl,
       people,
+      totals,
       toolResults: result.toolResults,
-    });
-    return {
-      ...result,
-      steps: result.steps.map((step) =>
-        step.phase === "synthesize"
-          ? {
-              ...step,
-              detail: `${brief.decisions.length} recommended moves · ${brief.specialistNotes.length} review lenses`,
-            }
-          : step,
-      ),
-      brief,
       today: ctx.today,
     });
     return {
       ...result,
-      brief: ownFirstBrief(result.brief, profile, question, {
-        tpl,
-        people,
-        totals,
-        toolResults: result.toolResults,
       brief,
       steps: result.steps.map((step) => {
         const detail =
@@ -143,8 +123,7 @@ export function localBrief(
       steps: [],
       toolsUsed: [],
       toolResults: [],
-      brief: fallbackBrief(profile, question, { tpl, people, totals }),
-      brief: fallbackBrief(profile, question, { tpl, people, today: ctx.today }),
+      brief: fallbackBrief(profile, question, { tpl, people, totals, today: ctx.today }),
       contextFingerprint: "fallback",
       latencyMs: Date.now() - started,
       partial: true,
@@ -226,10 +205,10 @@ function totalSentence(totals: OpenConflictTotals, people: number): string {
 export function fallbackBrief(
   profile: PracticeProfile,
   question: string,
-  known: { tpl?: IndustryTemplate; people?: PersonConflicts[]; totals?: OpenConflictTotals } = {},
   known: {
     tpl?: IndustryTemplate;
     people?: PersonConflicts[];
+    totals?: OpenConflictTotals;
     today?: string;
     toolResults?: ToolResult[];
   } = {},
@@ -247,9 +226,8 @@ export function fallbackBrief(
   ];
   const situation =
     totals.open > 0
-      ? `**${profile.practiceName}**: ${totalSentence(totals, people.length)}. Question: _${question}_`
-      : `**${profile.practiceName}**: no open duty conflicts. Question: _${question}_`;
-  const situation = `**${profile.practiceName}**: ${people.length} ${people.length === 1 ? "person holds" : "people hold"} an open duty conflict.`;
+      ? `**${profile.practiceName}**: ${totalSentence(totals, people.length)}.`
+      : `**${profile.practiceName}**: no open duty conflicts.`;
   const frontierNextMove = people[0] ? thisWeek(people[0]) : `This week: ${STATEMENT_THIS_WEEK}.`;
   const warning =
     "Pioneer could not compute part of the full brief for this business, so it built this one from your team's duty conflicts alone.";
@@ -258,19 +236,16 @@ export function fallbackBrief(
     situation,
     "",
     `## ${BRIEF_SECTION.thisWeek}`,
-    renderThisWeekLine(frontierNextMove),
-    "",
-    `## ${OWN_CONFLICTS}`,
-    ...(people.length ? people.slice(0, 5).map(conflictLine) : ["- None open."]),
     thisWeekBody(frontierNextMove),
     "",
     `## ${BRIEF_SECTION.moves}`,
     ...decisions.map(renderDecision),
     "",
-    `## ${BRIEF_SECTION.limits}`,
-    "- Rankings use Precog's weights, not a measurement of this business.",
     `## ${BRIEF_SECTION.warnings}`,
     `- ${warning}`,
+    "",
+    `## ${BRIEF_SECTION.limits}`,
+    "- Rankings use Precog's weights, not a measurement of this business.",
     "",
   ].join("\n");
   const fallback: StructuredBrief = {
@@ -289,6 +264,7 @@ export function fallbackBrief(
     return ownFirstBrief(fallback, profile, question, {
       tpl,
       people,
+      totals,
       toolResults: known.toolResults ?? [],
       today: known.today,
     });
@@ -333,10 +309,6 @@ const SEVERITY_WORDS: Record<DetectedConflict["severity"], string> = {
   family: "a duty conflict",
 };
 
-/** The heading for the business's own conflicts, inserted after the situation. */
-const OWN_CONFLICTS = "Your open duty conflicts";
-/** The heading for the answer to a question about someone being away. */
-const YOUR_QUESTION = "Your question";
 /** Short form for the conflict list: "critical", "high", "medium", "duty conflict". */
 const SEVERITY_SHORT: Record<DetectedConflict["severity"], string> = {
   critical: "critical",
@@ -436,8 +408,6 @@ function dayWording(line: string): string {
 
 /** "- **Grace Kim**: set up suppliers and release payments" */
 function conflictLine(p: PersonConflicts): string {
-  const pairs = p.conflicts.slice(0, 3).map(pairWords).join("; ");
-  return `- **${p.personName}**: ${pairs}`;
   const pairs = p.conflicts
     .slice(0, 1)
     .map((c) => `${pairWords(c)} (${SEVERITY_SHORT[c.severity]})`)
@@ -505,111 +475,6 @@ function absenceAnswer(question: string, toolResults: ToolResult[]): string[] | 
   ];
 }
 
-const SCENARIO_QUESTION = /\b(scenario|walk me through|compare|what would happen|how would)\b/i;
-const SCENARIO_STOP_WORDS = new Set([
-  "about",
-  "after",
-  "before",
-  "could",
-  "every",
-  "first",
-  "from",
-  "money",
-  "never",
-  "other",
-  "person",
-  "posted",
-  "someone",
-  "their",
-  "there",
-  "these",
-  "those",
-  "through",
-  "under",
-  "until",
-  "which",
-  "while",
-  "without",
-  "would",
-]);
-
-/** Match a scenario only when the question asks about scenarios and names one. */
-export function scenarioAnswer(
-  question: string,
-  tpl: IndustryTemplate,
-  profile: PracticeProfile,
-): string[] | null {
-  if (!SCENARIO_QUESTION.test(question)) return null;
-  const matches = tpl.scenarios
-    .map((scenario, templateIndex) => {
-      const hitIndexes = [...scenarioKeywords(scenario)]
-        .map((keyword) => scenarioKeywordPattern(keyword).exec(question)?.index ?? -1)
-        .filter((index) => index >= 0);
-      return {
-        scenario,
-        templateIndex,
-        firstHit: hitIndexes.length ? Math.min(...hitIndexes) : -1,
-      };
-    })
-    .filter((match) => match.firstHit >= 0)
-    .sort((a, b) => a.firstHit - b.firstHit || a.templateIndex - b.templateIndex)
-    .slice(0, 2);
-  if (!matches.length) return null;
-
-  const answers: string[] = [];
-  for (const { scenario } of matches) {
-    const result = runPrecogScenario(tpl, scenario.id, {
-      staff: profile.staff,
-      riskVariables: profile.riskVariables,
-    });
-    if (!result) continue;
-    if (answers.length) answers.push("");
-    const unfolding = scenarioUnfolding(scenario.id);
-    answers.push(
-      `**${scenario.title}**: ${describeScenarioFigures({
-        retained: result.retainedImpact,
-        timelineDays: result.timelineDays,
-        dynamic: result.dynamic ?? null,
-      })}`,
-    );
-    if (unfolding?.steps.length) {
-      answers.push("How it unfolds:", ...unfolding.steps.map((step, i) => `${i + 1}. ${step}`));
-    }
-    if (unfolding?.warningSigns.length) {
-      answers.push("Warning signs:", ...unfolding.warningSigns.map((sign) => `- ${sign}`));
-    }
-  }
-  return answers.length ? answers : null;
-}
-
-function scenarioKeywords(scenario: IndustryTemplate["scenarios"][number]): Set<string> {
-  const titleWords = scenario.title.toLowerCase().match(/[a-z0-9]+/g) ?? [];
-  const idWords = scenario.id.replace(/^sc-/, "").toLowerCase().split("-");
-  return new Set([
-    ...titleWords.filter((word) => word.length >= 5 && !SCENARIO_STOP_WORDS.has(word)),
-    ...idWords.filter((word) => !SCENARIO_STOP_WORDS.has(word)),
-  ]);
-}
-
-function scenarioKeywordPattern(keyword: string): RegExp {
-  const pattern =
-    keyword === "writeoff"
-      ? "write(?:[-\\s]?off)s?"
-      : keyword === "skim"
-        ? "skim(?:m(?:ing|ed)|s)?"
-        : `${keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}s?`;
-  return new RegExp(`\\b${pattern}\\b`, "i");
-}
-
-function scenarioMoveIsRelevant(
-  action: string,
-  scenario: IndustryTemplate["scenarios"][number],
-): boolean {
-  return [...scenarioKeywords(scenario)].some((keyword) =>
-    scenarioKeywordPattern(keyword).test(action),
-  );
-}
-
 /** Whether the question names these words as whole words ("Jordan", "front desk lead"). */
 function mentions(question: string, words: string): boolean {
   const trimmed = words.trim();
@@ -618,7 +483,19 @@ function mentions(question: string, words: string): boolean {
   return new RegExp(`\\b${pattern}\\b`, "i").test(question);
 }
 
-function scenarioAnswer(
+/** The scenario answer for a question that asks about a named scenario, or null. */
+export function scenarioAnswer(
+  question: string,
+  tpl: IndustryTemplate,
+  profile: PracticeProfile,
+  people: PersonConflicts[] = [],
+  today?: string,
+): string[] | null {
+  const scenarios = matchScenarios(question, tpl.scenarios);
+  return scenarios.length ? scenarioAnswerLines(scenarios, profile, tpl, people, today) : null;
+}
+
+function scenarioAnswerLines(
   scenarios: readonly ScenarioTemplate[],
   profile: PracticeProfile,
   tpl: IndustryTemplate,
@@ -637,10 +514,20 @@ function scenarioAnswer(
       : [],
   );
   const openConflicts = people.flatMap((person) => person.conflicts);
+  const assessed = registerAssessed(tpl);
+  const starterIds = new Set(
+    starterScenariosLeftOut(tpl, confirmedScenarioIds(profile.decisions, profile.industry)).map(
+      (scenario) => scenario.id,
+    ),
+  );
+  const starterTag = `(${starterScenarioLabel(profile.industry).replace(/^Sample scenarios/, "sample scenario")}, not counted in your totals)`;
   const lines: string[] = [];
 
   for (const scenario of scenarios) {
-    lines.push(`### ${scenario.title}`, scenario.description, "");
+    const title = starterIds.has(scenario.id)
+      ? `### ${scenario.title} ${starterTag}`
+      : `### ${scenario.title}`;
+    lines.push(title, scenario.description, "");
     const unfolding = scenarioUnfolding(scenario.id);
     if (unfolding) {
       lines.push(
@@ -675,10 +562,16 @@ function scenarioAnswer(
       );
     }
     if (watch.knowledge) {
-      const holders = watch.knowledge.holders.length
-        ? `${joinWithAnd(watch.knowledge.holders)} can run it alone.`
-        : "nobody can run it alone.";
-      facts.push(`- ${watch.knowledge.name}: ${holders}`);
+      if (!assessed) {
+        facts.push(
+          `- ${watch.knowledge.name}: who can run it alone isn't recorded yet; mark it on Who knows what.`,
+        );
+      } else {
+        const holders = watch.knowledge.holders.length
+          ? `${joinWithAnd(watch.knowledge.holders)} can run it alone.`
+          : "nobody can run it alone.";
+        facts.push(`- ${watch.knowledge.name}: ${holders}`);
+      }
       if (watch.knowledge.outToday.length > 0) {
         facts.push(`- ${joinWithAnd(watch.knowledge.outToday)} out today.`);
       }
@@ -720,7 +613,6 @@ function ownFirstBrief(
     people: PersonConflicts[];
     totals: OpenConflictTotals;
     toolResults: ToolResult[];
-    toolResults: ToolResult[];
     today?: string;
   },
 ): StructuredBrief {
@@ -728,16 +620,14 @@ function ownFirstBrief(
   const ownBusiness = isOwnBusiness(tpl);
   const stripInsurance = policyDefaultsInForce(profile.riskVariables);
   const policyNote = insuranceFigureNote(profile.riskVariables, ownBusiness);
+  const scenarios = matchScenarios(question, tpl.scenarios);
   const absence = isAbsenceQuestion(question) ? absenceAnswer(question, known.toolResults) : null;
-  const scenario = absence ? null : scenarioAnswer(question, tpl, profile);
-  const leadWithConflicts = !absence && isConflictQuestion(question) && people.length > 0;
-  const scenarios = absence ? [] : matchScenarios(question, tpl.scenarios);
   const leadWithConflicts =
     !absence && scenarios.length === 0 && isConflictQuestion(question) && people.length > 0;
   const assessed = registerAssessed(tpl);
 
   let decisions = brief.decisions.flatMap((d) => {
-    const action = leverLabel(d.action);
+    const action = leverAction(d.action);
     if (!stripInsurance) return [{ ...d, action }];
     const kept = withoutInsuranceSteps(action);
     return kept ? [{ ...d, action: kept }] : [];
@@ -764,15 +654,11 @@ function ownFirstBrief(
     ];
   }
 
-  const scenarioTitle = scenario?.[0] ? /^\*\*(.+?)\*\*:/.exec(scenario[0])?.[1] : undefined;
-  const scenarioTemplate = tpl.scenarios.find((s) => s.title === scenarioTitle);
   const scenarioMove =
-    decisions[0] &&
-    scenarioTemplate &&
-    scenarioMoveIsRelevant(decisions[0].action, scenarioTemplate)
+    decisions[0] && scenarios[0] && mentionsScenario(decisions[0].action, scenarios[0])
       ? decisions[0]
       : null;
-  let frontierNextMove = leverLabel(brief.frontierNextMove);
+  let frontierNextMove = leverAction(brief.frontierNextMove);
   if (leadWithConflicts) {
     frontierNextMove = thisWeek(people[0]);
   } else if (absence && decisions[0] && isContinuityDecision(decisions[0])) {
@@ -782,64 +668,6 @@ function ownFirstBrief(
   } else if (stripInsurance && INSURANCE_LEVER.test(frontierNextMove)) {
     frontierNextMove = `This week: ${STATEMENT_THIS_WEEK}, then re-check the watched conditions.`;
   }
-
-  const variableCascades = brief.variableCascades
-    .filter((l) => !stripInsurance || !POLICY_TERMS.test(l))
-    .map((l) =>
-      dayWording(policyNote && l.startsWith("Baseline:") ? `${l} Insurance: ${policyNote}.` : l),
-    );
-  const advancedReasoning = brief.advancedReasoning?.flatMap((l) => {
-    if (!stripInsurance) return [l];
-    const kept = withoutInsuranceSteps(l);
-    return kept ? [kept] : [];
-  });
-  const verifyNext = advancedReasoning?.find((line) =>
-    line.startsWith("Most useful thing to verify next:"),
-  );
-
-  const conflictLines = people.slice(0, 5).map(conflictLine);
-
-  const sections = splitSections(brief.markdown).flatMap((s): Section[] => {
-    switch (s.heading) {
-      case BRIEF_SECTION.situation:
-        if (absence) return [s, { heading: YOUR_QUESTION, body: [...absence, ""] }];
-        if (scenario) return [s, { heading: YOUR_QUESTION, body: [...scenario, ""] }];
-        return leadWithConflicts
-          ? [
-              s,
-              {
-                heading: OWN_CONFLICTS,
-                body: [
-                  `- ${totalSentence(known.totals, people.length)}.`,
-                  ...conflictLines,
-                  `- The step you can take alone: **${statement.action.replace(/\.$/, "")}**.`,
-                  "",
-                ],
-              },
-            ]
-          : [s];
-      case BRIEF_SECTION.cascades:
-        return [{ heading: s.heading, body: [...variableCascades.map((c) => `- ${c}`), ""] }];
-      case BRIEF_SECTION.limits:
-        return [
-          {
-            heading: s.heading,
-            body: [
-              ...(brief.tradeoffs[0] ? [`- ${brief.tradeoffs[0]}`] : []),
-              ...(verifyNext ? [`- ${verifyNext}`] : []),
-              "- Rankings use Precog's weights, not a measurement of this business.",
-              "",
-            ],
-          },
-        ];
-      case BRIEF_SECTION.moves:
-        return [{ heading: s.heading, body: [...decisions.map(renderDecision), ""] }];
-      case BRIEF_SECTION.thisWeek:
-        return [{ heading: s.heading, body: [renderThisWeekLine(frontierNextMove), ""] }];
-      default:
-        return [s];
-    }
-  });
 
   // Any other line that quotes a premium or a retained loss on default policy
   // figures says so (a "$0" change between levers is not a policy figure).
@@ -882,17 +710,22 @@ function ownFirstBrief(
     sourceSection(BRIEF_SECTION.warnings)?.body.filter((line) => line.trim()) ??
     brief.chickenLittleWarnings.map((warning) => `- ${warning}`);
   const watchedConditions = sourceSection("Watched conditions")?.body.filter((line) => line.trim());
-  const answer = absence
-    ? absence
-    : scenarios.length > 0
-      ? scenarioAnswer(scenarios, profile, tpl, people, known.today)
-      : leadWithConflicts
-        ? [
-            ...people.slice(0, 3).map(conflictLine),
-            ...(people.length > 3 ? [`- and ${people.length - 3} more`] : []),
-            `- The step you can take alone: **${statement.action.replace(/\.$/, "")}**.`,
-          ]
-        : null;
+  const answer =
+    scenarios.length > 0
+      ? [
+          ...scenarioAnswerLines(scenarios, profile, tpl, people, known.today),
+          ...(absence ? ["", ...absence] : []),
+        ]
+      : absence
+        ? absence
+        : leadWithConflicts
+          ? [
+              `- ${totalSentence(known.totals, people.length)}.`,
+              ...people.slice(0, 3).map(conflictLine),
+              ...(people.length > 3 ? [`- and ${people.length - 3} more`] : []),
+              `- The step you can take alone: **${statement.action.replace(/\.$/, "")}**.`,
+            ]
+          : null;
   const sections: Section[] = [
     ...(answer ? [{ heading: BRIEF_SECTION.answer, body: [...answer, ""] }] : []),
     { heading: BRIEF_SECTION.situation, body: [brief.situation, ""] },
@@ -903,8 +736,12 @@ function ownFirstBrief(
       body: [...warnings, ...(watchedConditions ?? []), ""],
     },
   ];
-  const risks = sourceSection(BRIEF_SECTION.risks)?.body.filter((line) => line.trim()) ?? [];
+  const risks = (
+    sourceSection(BRIEF_SECTION.risks)?.body.filter((line) => line.trim()) ?? []
+  ).flatMap((line) => (line.startsWith(`**${BRIEF_SECTION.cases}**`) ? ["", line] : [line]));
   if (risks.length > 0) sections.push({ heading: BRIEF_SECTION.risks, body: [...risks, ""] });
+  const limits = sourceSection(BRIEF_SECTION.limits)?.body.filter((line) => line.trim()) ?? [];
+  if (limits.length > 0) sections.push({ heading: BRIEF_SECTION.limits, body: [...limits, ""] });
   const markdown = joinSections(sections)
     .split("\n")
     .filter((line) => !(line.startsWith("- ") && policyTalk(line)))

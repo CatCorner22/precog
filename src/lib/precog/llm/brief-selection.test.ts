@@ -56,9 +56,9 @@ describe("bounded selection protocol", () => {
       claims,
     )!;
     const result = renderBriefSelection(brief, claims, selected);
-    expect(result).toContain("## Picked for your question");
+    expect(result).toContain("## Most relevant to your question");
     expect(result).toContain(
-      "_Grok picked these from Precog's own statements without changing them. They are not a new ranking._",
+      "Grok picked these from Precog's moves below without rewriting them. It did not rank the risks or check them.",
     );
     expect(result).toContain("### Important limits");
     expect(result.indexOf("Action 0")).toBeLessThan(result.indexOf("Action 2"));
@@ -67,7 +67,7 @@ describe("bounded selection protocol", () => {
     for (const warning of brief.chickenLittleWarnings) expect(result).toContain(warning);
     expect(result.endsWith(brief.markdown)).toBe(true);
   });
-  it("renders action-only bullets and skips warnings already present in the brief", () => {
+  it("renders action and rationale bullets and skips warnings already present in the brief", () => {
     const withWarnings = {
       ...brief,
       markdown: `${brief.markdown}\n${brief.chickenLittleWarnings.map((warning) => `- ${warning}`).join("\n")}`,
@@ -76,9 +76,8 @@ describe("bounded selection protocol", () => {
     const selection = result.split("\n\n---\n\n")[0];
 
     expect(selection).toContain("## Most relevant to your question");
-    expect(selection).toContain("- **Action 0**");
-    expect(selection).toContain("- **Action 2**");
-    expect(selection).not.toContain("Only when condition 0 holds.");
+    expect(selection).toContain("- **Action 0**: Only when condition 0 holds.");
+    expect(selection).toContain("- **Action 2**: Only when condition 2 holds.");
     expect(selection).toContain(
       "Grok picked these from Precog's moves below without rewriting them. It did not rank the risks or check them.",
     );

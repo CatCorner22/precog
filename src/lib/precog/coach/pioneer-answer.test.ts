@@ -88,7 +88,7 @@ describe("answerPioneer", () => {
     expect(PIONEER_FAILED_MESSAGE).toBe(
       "Pioneer could not answer just now. Try again in a moment.",
     );
-    expect(MODEL_FAILED_WARNING).toBe("Grok was unavailable, so Precog's rules wrote this brief.");
+    expect(MODEL_FAILED_WARNING).toBe("Grok did not answer, so Precog's rules wrote this brief.");
   });
 
   it("answers the default question when none is sent, with the rules brief and no model", async () => {
@@ -133,12 +133,8 @@ describe("answerPioneer", () => {
     const res = await answerPioneer(request("What should I fix this week?"), access("allowed"));
     if (!res.ok) throw new Error(res.error);
     expect(res.modelStatus).toBe("failed");
-    expect(MODEL_FAILED_WARNING).toBe(
-      "Grok did not answer this time. Precog's rules wrote this brief.",
-    );
-    expect(res.warnings).toContain(
-      "Grok did not answer this time. Precog's rules wrote this brief.",
-    );
+    expect(MODEL_FAILED_WARNING).toBe("Grok did not answer, so Precog's rules wrote this brief.");
+    expect(res.warnings).toContain("Grok did not answer, so Precog's rules wrote this brief.");
   });
 
   it("says today's AI limit is reached, not that Grok failed, once the daily budget is spent", async () => {
@@ -216,7 +212,9 @@ describe("answerPioneer", () => {
   });
 
   it("returns the plain error envelope when building the brief throws", async () => {
-    expect(PIONEER_FAILED_MESSAGE).toBe("Pioneer could not build a brief. Try again in a moment.");
+    expect(PIONEER_FAILED_MESSAGE).toBe(
+      "Pioneer could not answer just now. Try again in a moment.",
+    );
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(localBrief).mockImplementationOnce(() => {
       throw new Error("boom");

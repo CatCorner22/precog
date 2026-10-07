@@ -484,10 +484,6 @@ export function LeavingTeamCard({
         )}
         {leaving.list.length === 0 && (
           <p className="text-xs text-muted">{noNoticeText(leaving.leftNames)}</p>
-          <p className="text-xs text-muted">
-            Nobody has given notice. When someone does, record their date here instead of removing
-            them; Precog counts down and chases the hand-off.
-          </p>
         )}
         {leaving.list.map((l) => (
           <LeaverCard

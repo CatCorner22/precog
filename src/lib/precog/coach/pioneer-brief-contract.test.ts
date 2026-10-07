@@ -112,6 +112,7 @@ describe("Pioneer brief contract", () => {
           "Recommended moves",
           "Warnings",
           "Biggest open risks",
+          "Limits",
         ];
         const headings = brief.markdown
           .split("\n")
