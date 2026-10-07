@@ -407,6 +407,19 @@ describe("report header, basis block and footer", () => {
       covered.indexOf("<header"),
     );
     expect(cover).toContain("break-after-page");
+    // On screen the header already says all of it, so the cover prints only.
+    const coverTag = covered.slice(
+      covered.lastIndexOf("<section", covered.indexOf('aria-label="Cover page"')),
+      covered.indexOf(">", covered.indexOf('aria-label="Cover page"')),
+    );
+    const coverClasses = /class="([^"]*)"/.exec(coverTag)?.[1].split(/\s+/) ?? [];
+    expect(coverClasses).toEqual(expect.arrayContaining(["hidden", "print:flex"]));
+    expect(coverClasses).not.toContain("flex");
+    const head = textOf(covered.slice(covered.indexOf("<header"), covered.indexOf("</header>")));
+    expect(head).toContain(
+      "|Ortiz Dental Studio|Prepared for Ortiz Dental Studio by North Advisors|",
+    );
+    expect(head).toContain("Version 1 · Prepared by Ada Park on Sep 26, 2026 · Not yet reviewed");
     expect(textOf(cover)).toContain("|Prepared for Ortiz Dental Studio by North Advisors|");
     expect(textOf(cover)).toContain(
       "Version 1 · Prepared by Ada Park on Sep 26, 2026 · Not yet reviewed",

@@ -309,7 +309,7 @@ export function ControlReport({
         {coverPage && firm && locked && (
           <section
             aria-label="Cover page"
-            className="report-cover mb-8 flex min-h-[60vh] flex-col justify-between break-after-page border-b-2 border-neutral-900 pb-8 print:min-h-[90vh] print:border-b-0"
+            className="report-cover mb-8 hidden break-after-page flex-col justify-between pb-8 print:flex print:min-h-[90vh]"
           >
             {letterhead}
             <div>
