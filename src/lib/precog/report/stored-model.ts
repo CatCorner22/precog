@@ -9,7 +9,11 @@ import { mergeProfile } from "../profile-merge";
 import { SCORING_VERSION } from "../scoring/weights";
 import type { DetectedConflict, RoleAssignment } from "../sod/detect";
 import type { Person } from "../types";
-import { buildControlReportModel, type ControlReportModel } from "./build-control-report";
+import {
+  buildControlReportModel,
+  NO_REPORT_EXAMPLES,
+  type ControlReportModel,
+} from "./build-control-report";
 import { NO_FINDING_RESPONSES, type FindingResponses } from "./finding-responses";
 
 /**
@@ -19,8 +23,14 @@ import { NO_FINDING_RESPONSES, type FindingResponses } from "./finding-responses
  */
 export type StoredReportModel = Omit<
   ControlReportModel,
-  "committed" | "partialCoverage" | "responses" | "sod" | "benchmark"
+  "committed" | "partialCoverage" | "responses" | "sod" | "benchmark" | "examples"
 > & {
+  /**
+   * Absent in a model stored under layouts 1 to 6, which did not store
+   * Precog's examples. Such a model revives with none; those layouts print
+   * no example marks anyway.
+   */
+  examples?: ControlReportModel["examples"];
   /**
    * Absent in a model stored under layouts 1 to 3, which did not store the
    * benchmark. Such a model revives with none, and prints none.
@@ -78,6 +88,13 @@ export interface FrozenReport {
  * stored model with another layout version recalculates instead of printing,
  * unless `ControlReport` still prints that layout with its own labels.
  *
+ * Layout 7: the header names a map with no processes as "no processes
+ * mapped yet", not "custom process map", and counts the processes on an
+ * own map still exactly as Precog's example had them; the process map list
+ * and the priority stack mark each such process, and each control the owner
+ * never confirmed, as Precog's example. The ids of those examples
+ * are stored with the model (`examples`). Every printed-text change made after it
+ * goes behind `printsLayoutSeven`.
  * Layout 6: the header's team size from the owner's own active people on
  * the map ("12-person practice"), "starter process map (not yet edited)" in
  * place of "sample process map" for an own team, the segregation sentence
@@ -99,10 +116,10 @@ export interface FrozenReport {
  * Layout 2: map completeness (no heat part) and residual rows counted by band.
  * Layout 1: map health score (with heat) and the average residual score.
  */
-export const REPORT_LAYOUT_VERSION = 6;
+export const REPORT_LAYOUT_VERSION = 7;
 
 /** The layouts `ControlReport` prints from stored figures, each with its own labels. */
-export const PRINTED_LAYOUT_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, REPORT_LAYOUT_VERSION];
+export const PRINTED_LAYOUT_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, REPORT_LAYOUT_VERSION];
 
 /**
  * Whether a report printed under `layoutVersion` prints layout 6's text. A
@@ -113,6 +130,16 @@ export const PRINTED_LAYOUT_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, REPORT
  */
 export function printsLayoutSix(layoutVersion: number): boolean {
   return layoutVersion >= 6;
+}
+
+/**
+ * Whether a report printed under `layoutVersion` prints layout 7's text: the
+ * map header that says when no process is mapped, and Precog's example
+ * processes and controls marked as such. A version locked under layouts 1
+ * to 6 prints what it printed then.
+ */
+export function printsLayoutSeven(layoutVersion: number): boolean {
+  return layoutVersion >= 7;
 }
 
 /**
@@ -475,6 +502,7 @@ export function reviveReportModel(stored: StoredReportModel): ControlReportModel
     partialCoverage: new Map(model.partialCoverage ?? []),
     responses: model.responses ?? NO_FINDING_RESPONSES,
     benchmark: model.benchmark ?? null,
+    examples: model.examples ?? NO_REPORT_EXAMPLES,
   };
 }
 

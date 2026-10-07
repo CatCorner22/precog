@@ -45,6 +45,13 @@ export interface OwnTeamRow {
    * fitDutiesToAnswers).
    */
   answersUnticked?: EntitlementId[];
+  /**
+   * Duties the owner confirmed for this person: a suggested duty they kept,
+   * or a duty they ticked or added by hand. A duty the job title suggested
+   * (see unconfirmedDuties) does not count until it is here; typing a new
+   * title clears the list with the ticks it replaces.
+   */
+  keptDuties?: EntitlementId[];
   /** The pasted roster says this person is on leave; they stay on the team and are recorded as out. */
   onLeave?: boolean;
   /**
@@ -322,7 +329,8 @@ export function titleTicksFor(
   answers?: SetupAnswers,
 ): OwnTeamRow {
   const role = row.role.trim();
-  const { answersUnticked: _old, ...rest } = row;
+  // A new title's ticks are new suggestions: nothing about them is confirmed yet.
+  const { answersUnticked: _old, keptDuties: _kept, ...rest } = row;
   const ticked: OwnTeamRow = {
     ...rest,
     duties: suggestedDuties(role, rowOwnsBusiness(row, industry), industry),
@@ -348,6 +356,78 @@ export function titleTickedDuties(
   const hidden = answers ? hiddenDuties(answers) : new Set<EntitlementId>();
   const held = row.duties.filter((d) => usual.has(d) && !hidden.has(d));
   return [...CORE_DUTIES, ...extraDuties(held)].filter((d) => held.includes(d));
+}
+
+/**
+ * The duties a row holds only because a job title suggested them and the
+ * owner has not yet kept: in the grid's column order, then the duties with
+ * no column. They come from the title that ticked them (`suggestedFor`),
+ * even after the title was retyped, so a retyped title never confirms the
+ * old title's guesses. With the setup answers, duties the answers hide are
+ * left out: they have no column and do not count either way.
+ */
+export function unconfirmedDuties(
+  row: Pick<OwnTeamRow, "role" | "duties" | "suggestedFor" | "owner" | "keptDuties">,
+  industry?: string,
+  answers?: SetupAnswers,
+): EntitlementId[] {
+  const from = (row.suggestedFor ?? "").trim();
+  if (!from) return [];
+  // Both readings of the title, with and without the owner's duties, so
+  // ticking or clearing "Owns the business" afterwards confirms nothing.
+  const usual = new Set([
+    ...suggestedDuties(from, true, industry),
+    ...suggestedDuties(from, false, industry),
+  ]);
+  const kept = new Set(row.keptDuties ?? []);
+  const hidden = answers ? hiddenDuties(answers) : new Set<EntitlementId>();
+  const waiting = row.duties.filter((d) => usual.has(d) && !kept.has(d) && !hidden.has(d));
+  return [...CORE_DUTIES, ...extraDuties(waiting)].filter((d) => waiting.includes(d));
+}
+
+/** The row with these suggested duties kept: they count from now on. */
+export function keepDuties(row: OwnTeamRow, duties: readonly EntitlementId[]): OwnTeamRow {
+  const kept = row.keptDuties ?? [];
+  const added = duties.filter((d) => row.duties.includes(d) && !kept.includes(d));
+  return added.length === 0 ? row : { ...row, keptDuties: [...kept, ...added] };
+}
+
+/**
+ * The row with one duty ticked or unticked by hand. A duty ticked by hand
+ * is the owner's own entry and counts at once; unticking removes it.
+ */
+export function toggleDutyByHand(row: OwnTeamRow, duty: EntitlementId): OwnTeamRow {
+  if (row.duties.includes(duty)) return { ...row, duties: row.duties.filter((d) => d !== duty) };
+  return keepDuties({ ...row, duties: [...row.duties, duty] }, [duty]);
+}
+
+/**
+ * The duties the grid shows as ticked: only those the owner chose, ticked or
+ * added by hand or kept in the review. A duty the job title only suggested
+ * stays unticked until the owner keeps it, so a ticked box never stands for
+ * a guess.
+ */
+export function chosenDuties(
+  row: Pick<OwnTeamRow, "role" | "duties" | "suggestedFor" | "owner" | "keptDuties">,
+  industry?: string,
+): EntitlementId[] {
+  const waiting = new Set(unconfirmedDuties(row, industry));
+  return row.duties.filter((d) => !waiting.has(d));
+}
+
+/**
+ * A tick or untick by hand in the grid. Ticking a duty the job title only
+ * suggested (shown unticked) keeps it; any other duty toggles as
+ * toggleDutyByHand does.
+ */
+export function tickDutyByHand(
+  row: OwnTeamRow,
+  duty: EntitlementId,
+  industry?: string,
+): OwnTeamRow {
+  return unconfirmedDuties(row, industry).includes(duty)
+    ? keepDuties(row, [duty])
+    : toggleDutyByHand(row, duty);
 }
 
 /**
@@ -505,28 +585,34 @@ export function onLeavePersonIds(rows: readonly OwnTeamRow[]): string[] {
  * Turns the grid rows into people the engines can read. Empty names are
  * dropped, names and roles are trimmed and bounded, and each person carries
  * the duties ticked for them so duty-conflict detection reads them directly
- * instead of guessing from a job title.
+ * instead of guessing from a job title. A duty a job title suggested counts
+ * only once the owner kept it (see unconfirmedDuties): setup does not finish
+ * while one waits, and nothing the owner did not confirm reaches the map.
+ * Duties the setup answers hide are left to ownBusinessProfile, which drops
+ * them; `_answers` stays for callers that pass them.
  */
 export function buildOwnTeam(
   rows: readonly OwnTeamRow[],
   industry?: string,
-  answers?: SetupAnswers,
+  _answers?: SetupAnswers,
 ): Person[] {
   return teamRows(rows)
-    .map((row) => ({
-      fromTitle: dutiesStillFromTitle(row, industry, answers),
-      name: row.name.trim().slice(0, 60),
-      role: row.role.trim().slice(0, MAX_ROLE_LENGTH) || "Team member",
-      duties: row.duties.filter((d) => ENTITLEMENT_IDS.has(d)),
-      tenureYears:
-        typeof row.tenureYears === "number" && Number.isFinite(row.tenureYears)
-          ? clamp(row.tenureYears, 0, 60)
-          : undefined,
-      department: row.department?.trim().slice(0, 120) || undefined,
-      employeeId: row.employeeId?.trim().slice(0, 40) || undefined,
-      lastDay: row.lastDay && isCalendarDate(row.lastDay) ? row.lastDay : undefined,
-      owner: rowOwnsBusiness(row, industry),
-    }))
+    .map((row) => {
+      const unconfirmed = new Set(unconfirmedDuties(row, industry));
+      return {
+        name: row.name.trim().slice(0, 60),
+        role: row.role.trim().slice(0, MAX_ROLE_LENGTH) || "Team member",
+        duties: row.duties.filter((d) => ENTITLEMENT_IDS.has(d) && !unconfirmed.has(d)),
+        tenureYears:
+          typeof row.tenureYears === "number" && Number.isFinite(row.tenureYears)
+            ? clamp(row.tenureYears, 0, 60)
+            : undefined,
+        department: row.department?.trim().slice(0, 120) || undefined,
+        employeeId: row.employeeId?.trim().slice(0, 40) || undefined,
+        lastDay: row.lastDay && isCalendarDate(row.lastDay) ? row.lastDay : undefined,
+        owner: rowOwnsBusiness(row, industry),
+      };
+    })
     .map((row, index) => ({
       id: `own-${index + 1}`,
       name: row.name,
@@ -539,9 +625,9 @@ export function buildOwnTeam(
       ...(row.department ? { department: row.department } : {}),
       ...(row.employeeId ? { employeeId: row.employeeId } : {}),
       ...(row.lastDay ? { lastDay: row.lastDay } : {}),
+      // Every duty here was kept or entered by the owner, so none carries
+      // the "duties from the job title" mark.
       entitlements: Array.from(new Set<string>([...row.duties, "view_reports_only"])),
-      // The owner never changed these ticks from the title's usual duties.
-      ...(row.fromTitle ? { dutiesFromTitle: true as const } : {}),
     }));
 }
 
@@ -577,19 +663,6 @@ function isUntouchedLeaderRow(row: OwnTeamRow | undefined): row is OwnTeamRow {
       Boolean(fresh.owner) === Boolean(row.owner) &&
       sameDuties(fresh.duties, row.duties),
   );
-}
-
-/**
- * Whether a row's ticks are still exactly the usual duties for its title:
- * the title that ticked them is the row's title now, and nobody has added or
- * removed a duty since. A row with no duties at all has nothing guessed.
- */
-function dutiesStillFromTitle(row: OwnTeamRow, industry?: string, answers?: SetupAnswers): boolean {
-  const role = row.role.trim();
-  if (!role || row.duties.length === 0) return false;
-  if ((row.suggestedFor ?? "").trim() !== role) return false;
-  const usual = suggestedDuties(role, rowOwnsBusiness(row, industry), industry, answers);
-  return stillSuggested(row.duties, usual, answers);
 }
 
 /**

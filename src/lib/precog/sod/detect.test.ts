@@ -568,7 +568,7 @@ describe("recommendations", () => {
     expect(report.recommendations.join(" ")).toMatch(
       /Person 2 \(Office Manager\) holds 7 of the 11 core money duties/,
     );
-    expect(report.recommendations.join(" ")).toMatch(/moving the bank reconciliation/);
+    expect(report.recommendations.join(" ")).toMatch(/Moving the bank reconciliation/);
   });
 
   it("ranks two critical findings that both show 100 by their full score, not their id", () => {
@@ -1008,7 +1008,7 @@ describe("findings the owner reads", () => {
     ];
     const recs = detectAssignments({ assignments: partners }).recommendations.join("\n");
     expect(recs).toMatch(
-      /Close the 2 critical pairs first, or narrow them with a dual-release rule\./,
+      /Close the 2 critical pairs before the others, or narrow them with a dual-release rule\./,
     );
     expect(recs).not.toMatch(/\(s\)|dual-release-compensate|PMS/);
     expect(recs).toMatch(
@@ -1020,7 +1020,9 @@ describe("findings the owner reads", () => {
     const recs = detectAssignments({
       assignments: [clerk(["create_vendor", "release_payment"])],
     }).recommendations;
-    expect(recs[0]).toBe("Close the 1 critical pair first, or narrow it with a dual-release rule.");
+    expect(recs[0]).toBe(
+      "Close the 1 critical pair before the others, or narrow it with a dual-release rule.",
+    );
   });
 });
 

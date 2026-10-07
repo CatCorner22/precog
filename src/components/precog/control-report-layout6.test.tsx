@@ -94,7 +94,11 @@ const storedUnder = (profile: PracticeProfile, layoutVersion: number) =>
   );
 
 /** The report's text with its tags as single bars. */
-const textOf = (html: string) => html.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|");
+const textOf = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, "|")
+    .replace(/\|+/g, "|")
+    .replace(/&#x27;/g, "'");
 
 const between = (text: string, from: string, to: string) => {
   const start = text.indexOf(from);
@@ -108,19 +112,64 @@ describe("report layout 6", () => {
     expect(printsLayoutSix(6)).toBe(true);
   });
 
-  it("names the own team's active people on the map, and the starter map as not yet edited", () => {
+  it("prints versions locked under layout 6 as layout 6 printed them", () => {
+    const text = textOf(storedUnder(dana, 6));
+    expect(text).toContain(
+      "|Dental office · 12-person practice · starter process map (not yet edited) · generated",
+    );
+    expect(text).toContain(
+      "|Starter process map from the dental office template, not yet edited: 8 processes, none with an owner yet.",
+    );
+    expect(text).toContain("This does not mean you are uninsured..|");
+  });
+
+  it("names the people mapped, not a team size, and the starter map as Precog's example (layout 7)", () => {
     const text = textOf(live(dana));
     expect(text).toContain(
-      "|Dental office · 12-person practice · starter process map (not yet edited)",
+      "|Dental office · 12 people mapped · Precog's example dental office processes, not yet edited · generated",
     );
-    expect(text).not.toContain("3-person");
+    expect(text).not.toContain("-person");
     expect(text).not.toContain("sample process map");
-    expect(text).toContain("|Starter process map from the dental office template, not yet edited:");
+    expect(text).not.toContain("starter process map");
+    expect(text).toContain(
+      "|Precog's example dental office processes, not this business's own map yet: 8 processes, none with an owner yet.",
+    );
+  });
+
+  it("adds the headcount the owner gave at setup", () => {
+    const band = {
+      ...dana,
+      onboardingFacts: { schemaVersion: 1 as const, workforceBand: "7-30" as const },
+    };
+    expect(textOf(live(band))).toContain(
+      "|Dental office · 12 people mapped (setup: 7–30 people) · Precog's example",
+    );
+    const counted = {
+      ...dana,
+      onboardingFacts: {
+        schemaVersion: 1 as const,
+        workforceBand: "7-30" as const,
+        workforceCount: 14,
+      },
+    };
+    expect(textOf(live(counted))).toContain(
+      "|Dental office · 12 people mapped (setup: 14 people) ·",
+    );
+    const one = { ...dana, customPeople: dana.customPeople!.slice(0, 1) };
+    expect(textOf(live(one))).toContain("|Dental office · 1 person mapped ·");
   });
 
   it("says so when the owner's own team has nobody active on it", () => {
     const empty = { ...dana, customPeople: [] };
-    expect(textOf(live(empty))).toContain("|Dental office · practice with nobody on the map yet ·");
+    expect(textOf(live(empty))).toContain("|Dental office · nobody mapped yet ·");
+  });
+
+  it("ends the insurance sentence with one full stop", () => {
+    const text = textOf(live(dana));
+    expect(text).toContain(
+      "|Insurance: Nobody has assessed insurance, so Precog models no recovery. This does not mean you are uninsured.|",
+    );
+    expect(text).not.toContain("uninsured..");
   });
 
   it("keeps the sample's own size on the sample", () => {
@@ -157,6 +206,9 @@ describe("report layout 6", () => {
     expect(text).toContain("|Dental office · 3-person practice · sample process map · generated");
     expect(text).toContain("|Sample process map from the dental office sample:");
     expect(text).not.toContain("not yet edited");
+    expect(text).not.toContain("Precog's example");
+    // Layout 5 keeps the double full stop it printed.
+    expect(text).toContain("This does not mean you are uninsured..|");
     expect(text).toMatch(
       /\|Segregation of duties\|\d+ critical, \d+ high, \d+ medium open conflicts across \d+ of 12 people\. \d+ covered by dual release at every amount\./,
     );
@@ -165,6 +217,57 @@ describe("report layout 6", () => {
       "|Fix first on the residual index|5|Residual 80 or more · 9 fix soon · 6 worth doing|",
     );
     expect(sample).not.toContain("Severe on the residual index");
+  });
+});
+
+describe("another problem in the report's monthly section", () => {
+  const DONATION = "A family's mailed donation check never reached the bank";
+  const withProblem: PracticeProfile = {
+    ...dana,
+    monthlyReviews: [
+      {
+        key: "other_problem",
+        period: "2026-09",
+        result: "exception",
+        ownerName: "Priya",
+        notes: DONATION,
+        recordedAt: "2026-09-25T15:00:00.000Z",
+      },
+      {
+        key: "bank_statement",
+        period: "2026-09",
+        result: "done",
+        ownerName: "Priya",
+        notes: "",
+        recordedAt: "2026-09-24T15:00:00.000Z",
+      },
+    ],
+  };
+  const monthly = (text: string) => between(text, "|Monthly review|", "|Priority stack|");
+
+  it("prints nothing new in versions locked under layout 6", () => {
+    expect(monthly(textOf(storedUnder(withProblem, 6)))).not.toContain(DONATION);
+  });
+
+  it("prints each problem as its own line under layout 7, after the checks", () => {
+    const section = monthly(textOf(live(withProblem)));
+    expect(section).toContain("|Open the bank statement: Done — Priya|");
+    expect(section).toContain("|Read the cleared-check images: not recorded|");
+    expect(section).toMatch(
+      /\|Review vendors added or changed: not recorded\|Another problem: Exception — Priya: A family(&#x27;|')s mailed donation check never reached the bank$/,
+    );
+  });
+
+  it("prints a version locked under layout 5 exactly as before", () => {
+    const before = monthly(
+      textOf(
+        storedUnder({ ...withProblem, monthlyReviews: withProblem.monthlyReviews!.slice(1) }, 5),
+      ),
+    );
+    const after = monthly(textOf(storedUnder(withProblem, 5)));
+    expect(after).toBe(before);
+    expect(after).not.toContain("Another problem");
+    expect(after).toContain("|Open the bank statement: Done — Priya|");
   });
 });
 

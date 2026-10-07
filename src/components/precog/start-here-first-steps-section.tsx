@@ -38,6 +38,9 @@ export function StartHereFirstStepsSection({
 
   const renderStep = (s: DoNextStep, i: number) => {
     const destination = stepDestination(s);
+    // Item 1 names the person and duties in conflict, in the words the
+    // duty-conflict tab's "What to do first" box gives it.
+    const label = (i === 0 && model.firstLine) || s.control.label;
     return (
       <li key={s.control.id} className="flex gap-3">
         <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-xs text-muted">
@@ -45,13 +48,13 @@ export function StartHereFirstStepsSection({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-            <p className="min-w-0 grow basis-56 text-sm leading-relaxed">{s.control.label}</p>
+            <p className="min-w-0 grow basis-56 text-sm leading-relaxed">{label}</p>
             {onOpenDetail && destination && (
               <Button
                 size="sm"
                 variant="secondary"
                 className="shrink-0"
-                aria-label={`Open ${tabName(destination)}: ${s.control.label}`}
+                aria-label={`Open ${tabName(destination)}: ${label}`}
                 onClick={() => onOpenDetail(destination)}
               >
                 Open the conflicts it answers

@@ -12,8 +12,9 @@ import { cn } from "@/lib/utils";
 import { fieldCls } from "@/components/ui/field-classes";
 
 /**
- * The short note under a row's job title: every duty the title ticked, by
- * name, so a tick in a column scrolled out of view is never a surprise; and a
+ * The short note under a row's job title: how many duties the title
+ * suggested that the owner has not yet kept, pointing to the review below
+ * the table where each is kept or removed (the grid never ticks them); and a
  * warning when only part of the title matched a catalog job.
  */
 export function SeatNote({
@@ -21,7 +22,7 @@ export function SeatNote({
   duties = [],
 }: {
   seat: SeatReading | undefined;
-  /** The duties the row still holds because its job title ticked them. */
+  /** The duties the row's job title suggested that the owner has not yet kept or removed. */
   duties?: readonly EntitlementId[];
 }) {
   if (!seat) return null;
@@ -34,21 +35,21 @@ export function SeatNote({
     <>
       {seat.partial ? (
         <p className="mt-1 max-w-[11rem] text-xs text-warn">
-          {`Catalog job (partial match): ${seat.title}; check the ticks`}
+          {`Catalog job (partial match): ${seat.title}; check its suggested duties`}
         </p>
       ) : duties.length === 0 ? (
         <p className="mt-1 max-w-[11rem] text-xs text-muted">{`Catalog job: ${seat.title}`}</p>
       ) : null}
       {duties.length > 0 && (
-        <p className="mt-1 max-w-[11rem] text-xs text-muted">
-          {`From the job title: ${duties.map(dutyShortName).join(", ")} — untick any this person does not do`}
+        <p className="mt-1 max-w-[11rem] text-xs text-warn">
+          {`The job title suggests ${count(duties.length, "duty", "duties")}: keep or remove each below the table.`}
         </p>
       )}
     </>
   );
 }
 
-/** One person whose duties a job title ticked, for the review before Finish. */
+/** One person whose job title suggested duties the owner has not yet kept or removed. */
 export interface TitleTicksItem {
   rowId: string;
   who: string;
@@ -57,42 +58,146 @@ export interface TitleTicksItem {
 }
 
 /**
- * The review before Finish: how many duties job titles ticked, for whom, and
- * a link to each person's row, so nobody keeps a duty the owner never named.
+ * The review before Finish: every duty a job title suggested and the owner
+ * has not yet decided, column or not, by its full name, person by person,
+ * each with Keep and Remove. "Keep all" and "Remove all", of equal weight,
+ * sit side by side under the duties they decide. A
+ * suggested duty counts only once kept, and Finish waits until none is left.
  */
 export function TitleTicksReview({
   items,
   onShow,
+  onKeep,
+  onRemove,
 }: {
   items: readonly TitleTicksItem[];
   onShow: (rowId: string) => void;
+  onKeep: (rowId: string, duties: readonly EntitlementId[]) => void;
+  onRemove: (rowId: string, duties: readonly EntitlementId[]) => void;
 }) {
-  const ticked = items.reduce((sum, item) => sum + item.duties.length, 0);
-  if (ticked === 0) return null;
+  const waiting = items.reduce((sum, item) => sum + item.duties.length, 0);
+  if (waiting === 0) return null;
+  const small =
+    "min-h-7 rounded-md border px-2 py-0.5 text-xs pointer-coarse:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
   return (
     <section
+      id="title-ticks"
       className="space-y-2 rounded-xl border border-warn/40 bg-warn/10 p-3"
       aria-labelledby="title-ticks-heading"
     >
       <h3 id="title-ticks-heading" className="text-sm font-medium">
-        {`Precog ticked ${count(ticked, "duty", "duties")} from job titles for ${count(items.length, "person", "people")}: check them`}
+        {`Job titles suggested ${count(waiting, "duty", "duties")} for ${count(items.length, "person", "people")}: keep or remove each`}
       </h3>
-      <ul className="space-y-1 text-xs text-muted">
+      <p className="text-xs text-muted">
+        Precog counts a suggested duty only once you keep it. Keep what each person does today;
+        remove the rest.
+      </p>
+      <ul className="space-y-2">
         {items.map((item) => (
-          <li key={item.rowId}>
-            <button
-              type="button"
-              className="min-h-6 font-medium text-primary underline underline-offset-2"
-              aria-label={`Go to ${item.who}'s row`}
-              onClick={() => onShow(item.rowId)}
-            >
-              {item.who}
-            </button>{" "}
-            {`(${item.role}): ${item.duties.map(dutyShortName).join(", ")}`}
+          <li
+            key={item.rowId}
+            data-confirm-row={item.rowId}
+            className="space-y-1.5 rounded-lg border border-border bg-panel p-2 text-xs"
+          >
+            <p>
+              <button
+                type="button"
+                className="min-h-6 font-medium text-primary underline underline-offset-2"
+                aria-label={`Go to ${item.who}'s row`}
+                onClick={() => onShow(item.rowId)}
+              >
+                {item.who}
+              </button>{" "}
+              <span className="text-muted">{`(${item.role}) does these, from the job title:`}</span>
+            </p>
+            <ul className="space-y-1" aria-label={`Suggested duties for ${item.who}`}>
+              {item.duties.map((duty) => {
+                const label = coreDutyLabel(duty);
+                return (
+                  <li
+                    key={duty}
+                    className="flex max-w-md flex-wrap items-center justify-between gap-2"
+                  >
+                    <span>{label}</span>
+                    <span className="flex gap-1">
+                      <button
+                        type="button"
+                        data-keep
+                        className={cn(small, "border-primary/50 bg-primary/10 text-fg")}
+                        aria-label={`Keep ${label} for ${item.who}`}
+                        onClick={() => onKeep(item.rowId, [duty])}
+                      >
+                        Keep
+                      </button>
+                      <button
+                        type="button"
+                        className={cn(
+                          small,
+                          "border-border bg-panel text-muted hover:border-danger hover:text-danger",
+                        )}
+                        aria-label={`Remove ${label} from ${item.who}`}
+                        onClick={() => onRemove(item.rowId, [duty])}
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            {item.duties.length > 1 && (
+              <span className="flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  className={cn(small, "border-primary/50 bg-primary/10 font-medium text-fg")}
+                  onClick={() => onKeep(item.rowId, item.duties)}
+                >
+                  {`Keep all ${item.duties.length} for ${item.who}`}
+                </button>
+                <button
+                  type="button"
+                  className={cn(small, "border-danger/50 bg-danger/10 font-medium text-fg")}
+                  onClick={() => onRemove(item.rowId, item.duties)}
+                >
+                  {`Remove all ${item.duties.length} from ${item.who}`}
+                </button>
+              </span>
+            )}
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+/**
+ * Why the finish button waits: how many suggested duties are still to keep
+ * or remove, and a link to the first person they belong to.
+ */
+export function FinishWaitsNote({
+  id,
+  finishLabel,
+  waiting,
+  first,
+  onShow,
+}: {
+  id: string;
+  finishLabel: string;
+  waiting: number;
+  first: TitleTicksItem;
+  onShow: (rowId: string) => void;
+}) {
+  return (
+    <p id={id} className="text-xs text-warn" role="status">
+      {`“${finishLabel}” works once you keep or remove each duty a job title suggested: ${count(waiting, "duty", "duties")} left. `}
+      <button
+        type="button"
+        className="min-h-6 font-medium text-primary underline underline-offset-2"
+        onClick={() => onShow(first.rowId)}
+      >
+        {`Start with ${first.who}`}
+      </button>
+    </p>
   );
 }
 

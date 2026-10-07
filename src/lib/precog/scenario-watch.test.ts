@@ -13,6 +13,7 @@ if (!activePerson) throw new Error("Missing active dental sample person");
 function factsFor(overrides: Partial<ScenarioWatch> = {}): ScenarioWatch {
   return {
     conflicts: [],
+    notOpen: [],
     unassignedDuties: [],
     offTeamDuties: [],
     control: null,

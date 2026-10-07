@@ -1,6 +1,6 @@
 import { normalizeSetupAnswers } from "../onboarding/setup-answers";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
-import type { ReviewRecord } from "../firm/reviews";
+import { OTHER_PROBLEM_KEY, reportPeriod, type ReviewRecord } from "../firm/reviews";
 import type { KnowledgeItem, Person, ProcessIdea, ProcessNode, ProcessRisk } from "../types";
 
 /**
@@ -158,23 +158,31 @@ const ZONE_SPREAD_MS = 14 * 60 * 60 * 1000;
 /**
  * The review results the report prints: the latest per check (the first in
  * the list, which is newest first, as latestReview reads it) for the
- * report's month. The page works the month out on the reader's clock, so
- * both months a lock near midnight on the 1st can fall in stay; no other
- * month does. Without `preparedAt`, the latest per check and month.
+ * report's month, and every other problem of that month (each is its own,
+ * told apart by when it was recorded). The report's month is the lock day's
+ * month on layouts 1 to 4 and, from layout 5, the oldest month still open
+ * (`reportPeriod`: last month through the 10th). The page works the day out
+ * on the reader's clock, so the months either rule gives for both days a
+ * lock near midnight can fall on stay; no other month does. Without
+ * `preparedAt`, the latest per check and month.
  */
 function shareReviews(records: readonly ReviewRecord[], preparedAt?: string): ReviewRecord[] {
   const at = preparedAt ? Date.parse(preparedAt) : Number.NaN;
   const months = Number.isNaN(at)
     ? null
     : new Set(
-        [at - ZONE_SPREAD_MS, at + ZONE_SPREAD_MS].map((t) =>
-          new Date(t).toISOString().slice(0, 7),
-        ),
+        [at - ZONE_SPREAD_MS, at + ZONE_SPREAD_MS].flatMap((t) => {
+          const day = new Date(t).toISOString().slice(0, 10);
+          return [day.slice(0, 7), reportPeriod(day)];
+        }),
       );
   const seen = new Set<string>();
   return records.filter((record) => {
     if (months && !months.has(record.period)) return false;
-    const key = `${record.key}|${record.period}`;
+    const key =
+      record.key === OTHER_PROBLEM_KEY
+        ? `${record.key}|${record.period}|${record.recordedAt}`
+        : `${record.key}|${record.period}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

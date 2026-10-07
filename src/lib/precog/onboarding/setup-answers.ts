@@ -35,6 +35,40 @@ export const UNANSWERED: SetupAnswers = {
   backgroundChecks: "unsure",
 };
 
+/** One "How money moves here" question, named by the answer it sets. */
+export type SetupQuestion = keyof SetupAnswers;
+
+/** Every money question, in the order the step asks them. */
+export const SETUP_QUESTIONS = Object.keys(UNANSWERED) as SetupQuestion[];
+
+/**
+ * The questions the step shows for these answers: the camera question goes
+ * when no cash or paper checks are taken.
+ */
+export function shownSetupQuestions(a: SetupAnswers): SetupQuestion[] {
+  return SETUP_QUESTIONS.filter((q) => !(q === "cameras" && a.cashOrChecks === "no"));
+}
+
+/**
+ * The questions the owner chose an answer for, read from a saved draft:
+ * known names only, each once. A question the owner left alone keeps the
+ * Not sure value, so the engines read it exactly as a Not sure answer; this
+ * list only lets the step show it as unanswered.
+ */
+export function normalizeAnsweredQuestions(value: unknown): SetupQuestion[] {
+  if (!Array.isArray(value)) return [];
+  return SETUP_QUESTIONS.filter((q) => value.includes(q));
+}
+
+/** "N of M answered" for the money step: the shown questions the owner chose an answer for. */
+export function answeredSummary(
+  a: SetupAnswers,
+  answered: readonly SetupQuestion[],
+): { answered: number; shown: number } {
+  const shown = shownSetupQuestions(a);
+  return { answered: shown.filter((q) => answered.includes(q)).length, shown: shown.length };
+}
+
 export function normalizeSetupAnswers(value: unknown): SetupAnswers | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const answers = value as Record<string, unknown>;
@@ -114,7 +148,13 @@ export function setupInPlaceControls(a: SetupAnswers | undefined): ReadonlySet<C
 export function setupEffects(
   a: SetupAnswers,
   industry: IndustryId,
+  answered?: readonly SetupQuestion[],
 ): { changed: string[]; assumed: string[] } {
+  // A question left unanswered reads as Not sure; the reason says which it was.
+  const why = (question: SetupQuestion) =>
+    answered && !answered.includes(question)
+      ? "because you did not answer."
+      : "because you answered Not sure.";
   const changed: string[] = [];
   const assumed: string[] = [];
   const statementReader = industryHasOwner(industry) ? "The owner" : "A board member";
@@ -174,39 +214,29 @@ export function setupEffects(
     changed.push("Background checks for money handlers are counted as in place.");
 
   if (a.cashOrChecks === "unsure")
-    assumed.push(
-      "Cash and paper-check duties stay in the team list because you answered Not sure.",
-    );
+    assumed.push(`Cash and paper-check duties stay in the team list ${why("cashOrChecks")}`);
   if (a.companyCard === "unsure")
-    assumed.push("Company-card duties stay in the team list because you answered Not sure.");
+    assumed.push(`Company-card duties stay in the team list ${why("companyCard")}`);
   if (a.refunds === "unsure")
-    assumed.push(
-      "Refund and write-off duties stay in the team list because you answered Not sure.",
-    );
-  if (a.payroll === "unsure")
-    assumed.push("Payroll is treated as run in-house because you answered Not sure.");
+    assumed.push(`Refund and write-off duties stay in the team list ${why("refunds")}`);
+  if (a.payroll === "unsure") assumed.push(`Payroll is treated as run in-house ${why("payroll")}`);
   if (a.bankRec === "unsure")
-    assumed.push(
-      "Bank reconciliation is read from who has the duty ticked because you answered Not sure.",
-    );
+    assumed.push(`Bank reconciliation is read from who has the duty ticked ${why("bankRec")}`);
   if (a.dailyTakings === "unsure")
     assumed.push(
-      `Daily takings are assumed to be $${DEFAULT_RISK_VARIABLES.dailyCashExposure.toLocaleString("en-US")} because you answered Not sure.`,
+      `Daily takings are assumed to be $${DEFAULT_RISK_VARIABLES.dailyCashExposure.toLocaleString("en-US")} ${why("dailyTakings")}`,
     );
   if (a.ownerReadsStatement === "unsure")
     assumed.push(
-      `${statementReader} opening and reading the bank statement is not counted because you answered Not sure.`,
+      `${statementReader} opening and reading the bank statement is not counted ${why("ownerReadsStatement")}`,
     );
   if (a.bankSecondApproval === "unsure")
-    assumed.push("A second bank approval is not counted because you answered Not sure.");
-  if (a.cameras === "unsure")
-    assumed.push("Security cameras are not counted because you answered Not sure.");
+    assumed.push(`A second bank approval is not counted ${why("bankSecondApproval")}`);
+  if (a.cameras === "unsure") assumed.push(`Security cameras are not counted ${why("cameras")}`);
   if (a.alarm === "unsure")
-    assumed.push("An alarm or access-control system is not counted because you answered Not sure.");
+    assumed.push(`An alarm or access-control system is not counted ${why("alarm")}`);
   if (a.backgroundChecks === "unsure")
-    assumed.push(
-      "Background checks for money handlers are not counted because you answered Not sure.",
-    );
+    assumed.push(`Background checks for money handlers are not counted ${why("backgroundChecks")}`);
 
   assumed.push(
     "Insurance was not asked, and Precog treats it as unverified until a policy is added.",

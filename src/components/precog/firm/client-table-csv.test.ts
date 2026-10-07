@@ -6,7 +6,9 @@ import {
   clientStatusText,
   clientTableCsv,
   clientTableFileName,
+  clientColumns,
   clientTotals,
+  clientUrgency,
   clientUrgencyText,
   DEFAULT_CLIENT_SORT,
   exceptionsText,
@@ -365,5 +367,58 @@ describe("client table urgency", () => {
     );
     expect(clientUrgencyText([rows[1]], today)).toBe("No client needs you now.");
     expect(clientUrgencyText([rows[2]], "2026-10-04")).toBe("No client needs you now.");
+  });
+});
+
+describe("client table headers", () => {
+  it("name last month and this month, with last month's due day, from the viewer's day", () => {
+    const labels = (today: string) => clientColumns(today).map((c) => c.label);
+    expect(labels("2026-10-07")).toEqual([
+      "Client",
+      "Status",
+      "Last review",
+      "September checks (due Oct 10)",
+      "October checks",
+      "Exceptions",
+      "Skipped",
+      "Open duty conflicts",
+      "Awaiting review",
+    ]);
+    // In January, last month is December of the year before.
+    expect(labels("2027-01-03").slice(3, 5)).toEqual([
+      "December checks (due Jan 10)",
+      "January checks",
+    ]);
+    // Each month header says in full what it counts.
+    const month = clientColumns("2026-10-07").find((c) => c.key === "lastMonth");
+    expect(month?.title).toBe(
+      "September 2026 (due October 10): the checks marked Done, of all of that month's checks. Overdue after the due day while a check has no result.",
+    );
+  });
+});
+
+describe("the urgency line's link to a version awaiting review", () => {
+  it("splits off the versions awaiting review, so the page can link them", () => {
+    const today = "2026-10-12";
+    const rows = [
+      row({ id: "1", months: months({ done: 4 }, { done: 0 }), awaitingReview: 1 }),
+      row({ id: "2", months: months(), awaitingReview: 0 }),
+    ];
+    expect(clientUrgency(rows, today)).toEqual({
+      before: "1 needs you now: 1 with nothing recorded this month, ",
+      awaiting: "1 version awaiting review",
+      after: ".",
+    });
+    expect(clientUrgency([rows[1]], today)).toEqual({
+      before: "No client needs you now.",
+      awaiting: null,
+      after: "",
+    });
+    for (const r of [rows, [rows[1]]]) {
+      const parts = clientUrgency(r, today);
+      expect(clientUrgencyText(r, today)).toBe(
+        `${parts.before}${parts.awaiting ?? ""}${parts.after}`,
+      );
+    }
   });
 });

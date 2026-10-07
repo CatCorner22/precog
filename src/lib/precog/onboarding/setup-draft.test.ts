@@ -69,6 +69,22 @@ describe("reloading in the middle of setup", () => {
     });
   });
 
+  it("says the answers came back, so the dialog can offer Start over, only when there are any", () => {
+    expect(reload(base).resumed).toBe(false);
+    // The name the owner came in with is not progress made in setup.
+    expect(
+      reload({ ...base, step: "questions", businessName: "Ruiz Dental" }, "Ruiz Dental").resumed,
+    ).toBe(false);
+    expect(
+      reload({ ...base, step: "questions", schemaVersion: 1, actor: "business_leader" }).resumed,
+    ).toBe(true);
+    expect(reload({ ...base, step: "money" }).resumed).toBe(true);
+    expect(reload({ ...base, step: "team", businessName: "Reload Test Shop" }).resumed).toBe(true);
+    expect(reload({ ...base, rows: [{ name: "Marco", role: "Owner", duties: [] }] }).resumed).toBe(
+      true,
+    );
+  });
+
   it("round-trips the money step and normalizes saved answers", () => {
     const answers = { ...UNANSWERED, bankRec: "outside" as const };
     const back = reload({
@@ -324,5 +340,36 @@ describe("a draft this version cannot read", () => {
     const read = stored({ ...draft, rows })?.rows;
     expect(read?.map((r) => r.name)).toEqual(["Lisa"]);
     expect(read?.[0].answersUnticked).toEqual(["bank_reconcile"]);
+  });
+});
+
+describe("setup draft: confirmed duties and answered questions", () => {
+  function stored(value: unknown) {
+    const storage = tabStorage();
+    storage.setItem(SETUP_DRAFT_KEY, JSON.stringify(value));
+    return readSetupDraft(storage);
+  }
+  const draft = { step: "team", selected: "dental", businessName: "", rows: [], paste: "" };
+
+  it("keeps the duties the owner kept, and drops a row whose kept list is not strings", () => {
+    const rows = [
+      {
+        name: "Ruth",
+        role: "Bookkeeper",
+        duties: ["release_payment"],
+        keptDuties: ["release_payment"],
+      },
+      { name: "Moe", role: "Bookkeeper", duties: [], keptDuties: "release_payment" },
+    ];
+    const read = stored({ ...draft, rows })?.rows;
+    expect(read?.map((r) => r.name)).toEqual(["Ruth"]);
+    expect(read?.[0].keptDuties).toEqual(["release_payment"]);
+  });
+
+  it("keeps which money questions were answered, known names only", () => {
+    expect(
+      stored({ ...draft, answeredQuestions: ["payroll", "bogus"] })?.answeredQuestions,
+    ).toEqual(["payroll"]);
+    expect(stored(draft)?.answeredQuestions).toBeUndefined();
   });
 });

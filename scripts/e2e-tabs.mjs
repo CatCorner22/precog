@@ -9,6 +9,7 @@
  * is the check that catches a hydration mismatch and any tab that throws on a
  * template it was not written for.
  * Once, signed out, it also checks the header (Report, Needs attention), the
+ * phone strip ("All sections" names every main section), the
  * Monthly review tab, old tab ids in the address (?tab=journal, ?tab=layers,
  * ?tab=command, ?tab=value), the retired /threat page, the Analyze menu's
  * links to the firm workspace, the tab count, and the home footer's Privacy
@@ -416,6 +417,27 @@ async function shellChecks(page) {
     throw new Error(`phone header: ${rows.header}px tall: ${JSON.stringify(rows)}`);
   }
   console.log(`  ✓ phone header is ${rows.header}px: two rows above the tabs`);
+
+  // On a phone the strip shows the open tab, with its label, and "All
+  // sections" names every main section, so none hides off the edge.
+  const shownTabs = await page.locator('nav [role="tab"]:visible').allInnerTexts();
+  if (shownTabs.length !== 1 || !shownTabs[0].trim()) {
+    throw new Error(`phone strip shows ${JSON.stringify(shownTabs)}, not the open tab alone`);
+  }
+  const mainSections = await page
+    .locator('nav [role="tab"]')
+    .evaluateAll((tabs) => tabs.map((t) => t.id.replace(/^tab-/, "")));
+  await page.locator("[data-sections-menu]").click();
+  // The menu renders after the click: wait for its items before reading them.
+  const sectionItems = page.locator('[role="menu"][aria-label="All sections"] [role="menuitem"]');
+  await sectionItems.first().waitFor({ state: "visible" });
+  const listed = await sectionItems.evaluateAll((items) =>
+    items.map((i) => i.getAttribute("data-tab-id") ?? i.textContent),
+  );
+  const missing = mainSections.filter((id) => !listed.includes(id));
+  if (missing.length) throw new Error(`All sections leaves out: ${missing.join(", ")}`);
+  await page.keyboard.press("Escape");
+  console.log(`  ✓ phone "All sections" lists ${listed.length} places by name`);
   await page.setViewportSize({ width: 1440, height: 900 });
 
   // The home footer links to the privacy notice.

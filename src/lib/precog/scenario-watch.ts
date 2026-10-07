@@ -7,6 +7,7 @@ import { CONFLICT_RULES, entitlementLabel, type EntitlementId } from "./sod/conf
 import { buildAssignments, type RoleAssignment } from "./sod/assignments";
 import { teamHeldDuties } from "./sod/rule-match";
 import { joinWithAnd, midSentence, verb } from "./text";
+import { controlConfirmedByOwner } from "./active-template";
 
 /** The duty-conflict rules a scenario plays out: those it names and those linked to it. */
 export function scenarioRuleIds(scenario: Pick<ScenarioTemplate, "id" | "sodRuleIds">): string[] {
@@ -19,6 +20,14 @@ export interface ScenarioWatch {
   /** Open findings on the scenario's duty-conflict rules, one per person and rule. */
   conflicts: { personName: string; title: string }[];
   /**
+   * Pairs on the scenario's rules that someone holds but the open count
+   * leaves out, as the Duty conflicts tab's "Not counted as open" group does:
+   * the owner's own pairs, and pairs dual release covers at every amount.
+   * With one of them the card names it instead of "Nobody on the team holds
+   * both duties".
+   */
+  notOpen: { personName: string; title: string; reason: "owner" | "dual" }[];
+  /**
    * Duties the scenario's rules need that nobody active holds, in plain words.
    * With one of them unticked Precog cannot tell whether anyone holds a pair,
    * so the card says so instead of "Nobody on the team holds both duties".
@@ -28,8 +37,13 @@ export interface ScenarioWatch {
   unassignedDuties: string[];
   /** Duties the scenario's rules need that nobody holds because the setup answers place them outside the team. */
   offTeamDuties: string[];
-  /** The control the scenario relies on, when the template has it. */
-  control: { id: string; name: string; inPlace: boolean } | null;
+  /**
+   * The control the scenario relies on, when the template has it. On an
+   * owner's own business it is in place only when the owner confirmed it
+   * (`controlConfirmedByOwner`); `example` marks one the owner never
+   * confirmed, which the card names as Precog's example, not as in place.
+   */
+  control: { id: string; name: string; inPlace: boolean; example?: true } | null;
   /** The register entry the scenario turns on, when the template has it. */
   knowledge: { name: string; holders: string[]; outToday: string[]; recorded: boolean } | null;
 }
@@ -50,6 +64,22 @@ export function scenarioWatch(
     people: tpl.people,
     roleTemplates: tpl.roleTemplates ?? {},
   }),
+  /**
+   * Every finding the conflict check made (the detection report's
+   * `conflicts`), of which `openConflicts` are the open ones: the rest on
+   * the scenario's rules are held but not counted as open.
+   */
+  allConflicts: readonly Pick<
+    DetectedConflict,
+    "ruleId" | "personName" | "title" | "ownerHeld"
+  >[] = openConflicts.map((c) => ({ ...c, ownerHeld: false })),
+  /**
+   * On an owner's own business, the controls the owner confirmed
+   * (`confirmedControlIds`): only those, and those with something the owner
+   * recorded in place, read as in place. Null for the sample business, whose
+   * controls are the sample's own facts.
+   */
+  ownerConfirmedControls: ReadonlySet<string> | null = null,
 ): ScenarioWatch {
   const ruleIds = new Set(scenarioRuleIds(scenario));
   const seen = new Set<string>();
@@ -60,6 +90,18 @@ export function scenarioWatch(
     if (seen.has(key)) continue;
     seen.add(key);
     conflicts.push({ personName: conflict.personName, title: conflict.title });
+  }
+  const notOpen: ScenarioWatch["notOpen"] = [];
+  for (const conflict of allConflicts) {
+    if (!ruleIds.has(conflict.ruleId)) continue;
+    const key = `${conflict.personName}\u0000${conflict.ruleId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    notOpen.push({
+      personName: conflict.personName,
+      title: conflict.title,
+      reason: conflict.ownerHeld ? "owner" : "dual",
+    });
   }
 
   const held = teamHeldDuties(assignments);
@@ -98,9 +140,10 @@ export function scenarioWatch(
 
   return {
     conflicts,
+    notOpen,
     unassignedDuties: [...unassigned].map(dutyWords),
     offTeamDuties: [...offTeamUnheld].map(dutyWords),
-    control: control ? { id: control.id, name: control.name, inPlace: control.segregated } : null,
+    control: control ? watchedControl(control, ownerConfirmedControls) : null,
     knowledge: item
       ? {
           name: item.name,
@@ -112,6 +155,35 @@ export function scenarioWatch(
         }
       : null,
   };
+}
+
+/** The scenario's control as the card reads it: in place, not in place, or Precog's example. */
+function watchedControl(
+  control: IndustryTemplate["controls"][number],
+  ownerConfirmed: ReadonlySet<string> | null,
+): NonNullable<ScenarioWatch["control"]> {
+  const { id, name } = control;
+  if (!ownerConfirmed) return { id, name, inPlace: control.segregated };
+  if (controlConfirmedByOwner(control, ownerConfirmed)) return { id, name, inPlace: true };
+  return { id, name, inPlace: false, example: true };
+}
+
+/**
+ * Whether the owner's own team closes the scenario's duty-conflict path: it
+ * plays out a rule, nobody holds a pair it needs (open or not counted as
+ * open), and every duty it needs is ticked for someone or placed outside the
+ * team by the setup answers.
+ */
+export function teamClosesPath(
+  scenario: Pick<ScenarioTemplate, "id" | "sodRuleIds">,
+  watch: Pick<ScenarioWatch, "conflicts" | "notOpen" | "unassignedDuties">,
+): boolean {
+  return (
+    scenarioRuleIds(scenario).length > 0 &&
+    watch.conflicts.length === 0 &&
+    watch.notOpen.length === 0 &&
+    watch.unassignedDuties.length === 0
+  );
 }
 
 export function knowledgeFact(knowledge: NonNullable<ScenarioWatch["knowledge"]>): string {
@@ -131,6 +203,23 @@ export function dutyFacts(watch: ScenarioWatch): string[] {
         return `${conflict.personName} holds both duties: ${conflict.title}`;
       }),
       ...(watch.conflicts.length > 3 ? [`and ${watch.conflicts.length - 3} more`] : []),
+    ];
+  }
+  if (watch.notOpen.length > 0) {
+    // Held, but left out of the open count, as the Duty conflicts tab's
+    // "Not counted as open" group says.
+    return [
+      ...watch.notOpen
+        .slice(0, 3)
+        .map(
+          (pair) =>
+            `${pair.personName} holds both duties: ${pair.title}. Not counted as open: ${
+              pair.reason === "owner"
+                ? "it is the owner's own pair."
+                : "dual release covers it at every amount."
+            }`,
+        ),
+      ...(watch.notOpen.length > 3 ? [`and ${watch.notOpen.length - 3} more`] : []),
     ];
   }
   if (watch.unassignedDuties.length > 0) {

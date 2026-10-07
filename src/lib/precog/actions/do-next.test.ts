@@ -16,7 +16,11 @@ import {
   doNextList,
   doNextSteps,
   SPLIT_STEP_WITHOUT_NAMED_ROLE,
+  stepLineOnScreen,
+  type DoNextStep,
 } from "./do-next";
+import { CONTROL_CATALOG, type ControlId } from "../evidence/controls";
+import type { DetectedConflict } from "../sod/detect";
 
 const TODAY = new Date(2026, 8, 26);
 
@@ -193,5 +197,77 @@ describe("the split-one-duty-out step", () => {
     expect(label).not.toMatch(/bank/i);
     // With nobody holding half the conflicts, the step still names no bank duty.
     expect(SPLIT_STEP_WITHOUT_NAMED_ROLE).not.toMatch(/bank/i);
+  });
+});
+
+describe("a step as the screens word it", () => {
+  const step = (id: ControlId, label = CONTROL_CATALOG[id].label) =>
+    ({
+      control: { ...CONTROL_CATALOG[id], label },
+      supportingCaseIds: [],
+      asApplied: "",
+      answers: 1,
+    }) as DoNextStep;
+  const finding = (
+    personName: string,
+    a: DetectedConflict["entitlementA"],
+    b: DetectedConflict["entitlementB"],
+    labelA: string,
+    labelB: string,
+  ) => ({ personName, entitlementA: a, entitlementB: b, labelA, labelB }) as DetectedConflict;
+  const sam = finding(
+    "Sam",
+    "collect_cash",
+    "post_payments",
+    "Take payment from customers",
+    "Record payments received",
+  );
+  const lisa = finding(
+    "Lisa",
+    "release_payment",
+    "bank_reconcile",
+    "Release payments",
+    "Reconcile the bank account",
+  );
+
+  it("names the finding whose two duties the control watches before a more severe one it half watches", () => {
+    // Bank reconciliation watches releasing payments but not setting up suppliers.
+    const ana = finding(
+      "Ana",
+      "create_vendor",
+      "release_payment",
+      "Set up suppliers",
+      "Release payments",
+    );
+    expect(stepLineOnScreen(step("independent-bank-reconciliation"), [ana, sam])).toBe(
+      "Sam can both take payment from customers and record payments received: someone other than the person who banks the money reconciles the account",
+    );
+    // With no finding it watches whole, the most severe one it half watches.
+    expect(stepLineOnScreen(step("positive-pay"), [sam, ana])).toBe(
+      "Ana can both set up suppliers and release payments: turn on Positive Pay so the bank only pays checks on a list you upload",
+    );
+  });
+
+  it("says someone other than the person who reconciles, by name, when that person is in the pair", () => {
+    expect(stepLineOnScreen(step("independent-bank-reconciliation"), [lisa, sam])).toBe(
+      "Lisa can both release payments and reconcile the bank account: someone other than Lisa reconciles the account",
+    );
+  });
+
+  it("names the person for the split step that names nobody, and keeps one that names its person", () => {
+    expect(
+      stepLineOnScreen(step("split-one-duty-out", SPLIT_STEP_WITHOUT_NAMED_ROLE), [lisa]),
+    ).toBe(
+      "Lisa can both release payments and reconcile the bank account: move one of the two duties to someone who holds neither",
+    );
+    const named =
+      "Move one duty, release payments, away from Lisa: it closes 1 of the 1 open duty conflicts";
+    expect(stepLineOnScreen(step("split-one-duty-out", named), [lisa])).toBe(named);
+  });
+
+  it("keeps the step's own words when it answers no open finding", () => {
+    expect(stepLineOnScreen(step("mandatory-time-away"), [lisa])).toBe(
+      CONTROL_CATALOG["mandatory-time-away"].label,
+    );
   });
 });

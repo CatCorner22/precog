@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { jobCatalogEntry } from "../onboarding/job-catalog";
-import { buildOwnTeam, ownerRow } from "../onboarding/own-team";
+import { buildOwnTeam, keepDuties, ownerRow } from "../onboarding/own-team";
 import { rowsForJobTitle } from "../onboarding/add-people";
+import type { Person } from "../types";
 import {
   confirmTitleDuties,
   confirmTitleDutiesFor,
@@ -9,52 +10,51 @@ import {
   titleDutiesSentence,
 } from "./title-duties";
 
+/** A person an imported roster marked as carrying their title's usual duties. */
+const guessed = (id: string, name: string): Person => ({
+  id,
+  name,
+  role: "Bookkeeper",
+  active: true,
+  entitlements: ["post_payments", "view_reports_only"],
+  dutiesFromTitle: true,
+});
+
 describe("findings that rest on duties guessed from job titles", () => {
-  it("marks people whose ticks are still the usual ones for their title, and nobody the owner changed", () => {
+  it("setup marks nobody: a suggested duty counts only once the owner keeps it", () => {
     const bookkeeper = rowsForJobTitle(jobCatalogEntry("bookkeeper")!, 1, [], "dental")[0];
-    const cashier = rowsForJobTitle(jobCatalogEntry("cashier")!, 1, [], "dental")[0];
+    const owner = { ...ownerRow(), name: "Olga Owner" };
     const people = buildOwnTeam(
       [
-        { ...ownerRow(), name: "Olga Owner" },
+        keepDuties(owner, owner.duties),
         { ...bookkeeper, name: "Ben Ochoa" },
-        // The owner unticked one of the cashier's duties.
-        { ...cashier, name: "Cal Diaz", duties: cashier.duties.slice(1) },
-        // Typed by hand, with no title to guess from.
         { name: "Dee Park", role: "Chief Vibes Officer", duties: ["collect_cash"] },
-        // A title the catalog cannot read ticks nothing, so nothing is guessed.
-        {
-          name: "Eve Ng",
-          role: "Chief Vibes Officer",
-          duties: [],
-          suggestedFor: "Chief Vibes Officer",
-        },
       ],
       "dental",
     );
-    expect(people.map((p) => [p.name, p.dutiesFromTitle ?? false])).toEqual([
-      ["Olga Owner", true],
-      ["Ben Ochoa", true],
-      ["Cal Diaz", false],
-      ["Dee Park", false],
-      ["Eve Ng", false],
-    ]);
+    expect(people.map((p) => p.dutiesFromTitle ?? false)).toEqual([false, false, false]);
+    // Ben's suggested duties were never kept, so none of them counts.
+    expect(people[1].entitlements).toEqual(["view_reports_only"]);
+    expect(people[0].entitlements).toEqual([...owner.duties, "view_reports_only"]);
+    expect(titleDutiesSentence(people)).toBe("");
+  });
+
+  it("names the people an import marked, and nobody else", () => {
+    const people: Person[] = [
+      guessed("p1", "Olga Owner"),
+      guessed("p2", "Ben Ochoa"),
+      { id: "p3", name: "Cal Diaz", role: "Cashier", active: true },
+      { id: "p4", name: "Dee Park", role: "Clerk", active: true },
+      { id: "p5", name: "Eve Ng", role: "Clerk", active: true },
+    ];
     expect(peopleWithTitleDuties(people).map((p) => p.name)).toEqual(["Olga Owner", "Ben Ochoa"]);
     expect(titleDutiesSentence(people)).toBe(
       "2 of your 5 people carry the usual duties for their job titles.",
     );
   });
 
-  it("a row whose title was changed after its duties were ticked is not marked", () => {
-    const bookkeeper = rowsForJobTitle(jobCatalogEntry("bookkeeper")!, 1, [], "general")[0];
-    const [person] = buildOwnTeam(
-      [{ ...bookkeeper, name: "Ben Ochoa", role: "Controller" }],
-      "general",
-    );
-    expect(person.dutiesFromTitle).toBeUndefined();
-  });
-
   it("clears every mark once the owner says the duties are right", () => {
-    const people = buildOwnTeam([{ ...ownerRow(), name: "Olga Owner" }], "general");
+    const people = [guessed("p1", "Olga Owner")];
     expect(titleDutiesSentence(people)).toBe(
       "Your one person carries the usual duties for their job title.",
     );
@@ -64,13 +64,7 @@ describe("findings that rest on duties guessed from job titles", () => {
   });
 
   it("says when every one of several people carries the usual duties for their title, and when one does", () => {
-    const people = buildOwnTeam(
-      [
-        { ...ownerRow(), name: "Olga Owner" },
-        { ...rowsForJobTitle(jobCatalogEntry("bookkeeper")!, 1, [], "general")[0], name: "Ben" },
-      ],
-      "general",
-    );
+    const people = [guessed("p1", "Olga Owner"), guessed("p2", "Ben")];
     expect(titleDutiesSentence(people)).toBe(
       "All 2 of your people carry the usual duties for their job titles.",
     );
@@ -80,13 +74,7 @@ describe("findings that rest on duties guessed from job titles", () => {
   });
 
   it("clears the mark on one person only when the owner confirms that person's duties", () => {
-    const people = buildOwnTeam(
-      [
-        { ...ownerRow(), name: "Olga Owner" },
-        { ...rowsForJobTitle(jobCatalogEntry("bookkeeper")!, 1, [], "general")[0], name: "Ben" },
-      ],
-      "general",
-    );
+    const people = [guessed("p1", "Olga Owner"), guessed("p2", "Ben")];
     const [olga, ben] = people;
     const confirmed = confirmTitleDutiesFor(people, ben.id);
     expect(confirmed[1]).not.toHaveProperty("dutiesFromTitle");

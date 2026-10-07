@@ -7,7 +7,14 @@ import {
   MAX_REVIEW_RECORDS,
   monthlyReviewTasks,
   normalizeReviewRecords,
+  OTHER_PROBLEM_KEY,
+  openMonthlyChecks,
   openPeriods,
+  otherProblemLine,
+  otherProblemReportLine,
+  otherProblems,
+  otherProblemSaveProblem,
+  REVIEW_ITEMS,
   periodMonthName,
   periodStanding,
   periodWithDue,
@@ -21,6 +28,7 @@ import {
   reviewTrimNotice,
   savedResultLine,
   trimReviewRecords,
+  type ReviewRecord,
 } from "./reviews";
 import type { Person } from "../types";
 import { getIndustryTemplate } from "../templates";
@@ -546,5 +554,121 @@ describe("resolvedNote", () => {
     expect(resolvedNote("Refund received", "Paid ACME twice")).toBe("Resolved: Refund received");
     expect(resolvedNote("  ", "Paid ACME twice")).toBe("Resolved: Paid ACME twice");
     expect(resolvedNote("", "")).toBe("Resolved");
+  });
+});
+
+describe("what each check covers", () => {
+  it("has one plain line for every check, the November ones included", () => {
+    expect(REVIEW_ITEMS.map((i) => i.key)).toHaveLength(7);
+    for (const item of REVIEW_ITEMS) {
+      expect(item.covers, item.key).toMatch(/^[A-Z].+\.$/);
+      expect(item.covers).not.toMatch(/\bshould\b|\be\.g\./);
+      // Two sentences at most, of plain words: what it covers, then what it does not.
+      expect(item.covers.split(". ").length, item.key).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("sends a check you received to Another problem until the deposit check starts", () => {
+    const covers = (period: string) =>
+      monthlyReviewTasks(`${period}-07`, people, {}, period).find((t) => t.key === "cleared_checks")
+        ?.covers;
+    expect(covers("2026-09")).toBe(
+      "Checks your business wrote that cleared the bank. A check you received, or a bill paid twice, belongs under Another problem.",
+    );
+    expect(covers("2026-11")).toBe(
+      "Checks your business wrote that cleared the bank. A check you received belongs under the deposit check, and a bill paid twice under its own check.",
+    );
+  });
+});
+
+describe("another problem this month", () => {
+  const problem = (notes: string, recordedAt: string, ownerName = "Priya"): ReviewRecord => ({
+    key: OTHER_PROBLEM_KEY,
+    period: "2026-09",
+    result: "exception" as const,
+    ownerName,
+    notes,
+    recordedAt,
+  });
+
+  it("is not a check", () => {
+    expect(isReviewItemKey(OTHER_PROBLEM_KEY)).toBe(false);
+    expect(reviewItemsFor("2026-09").map((i) => i.key)).not.toContain(OTHER_PROBLEM_KEY);
+  });
+
+  it("needs who found it and a note", () => {
+    expect(otherProblemSaveProblem({ ownerName: " ", notes: "Donation check lost" })).toBe(
+      "Choose who found it.",
+    );
+    expect(otherProblemSaveProblem({ ownerName: "Priya", notes: "  " })).toBe(
+      "Say what the problem is.",
+    );
+    expect(
+      otherProblemSaveProblem({ ownerName: "Priya", notes: "Donation check lost" }),
+    ).toBeNull();
+  });
+
+  it("keeps each problem of a month, oldest first, with the result that resolved it", () => {
+    const first = problem("Donation check never reached the bank", "2026-10-02T10:00:00.000Z");
+    const second = problem("Invoice 88 paid twice", "2026-10-03T10:00:00.000Z", "Marco");
+    const fixed = {
+      ...first,
+      result: "done" as const,
+      ownerName: "Ada",
+      notes: "Resolved: Donation check never reached the bank",
+      recordedAt: "2026-10-04T10:00:00.000Z",
+      resolves: first.recordedAt,
+    };
+    const records = normalizeReviewRecords([fixed, second, first]);
+    expect(records).toHaveLength(3);
+    expect(records[0]?.resolves).toBe(first.recordedAt);
+    expect(otherProblems(records, "2026-09")).toEqual([
+      { problem: first, resolved: fixed },
+      { problem: second, resolved: null },
+    ]);
+    expect(otherProblems(records, "2026-10")).toEqual([]);
+    expect(otherProblemLine(second, "2026-10-07")).toBe(
+      "Another problem: Invoice 88 paid twice — found by Marco on Oct 3",
+    );
+    expect(otherProblemReportLine({ problem: second, resolved: null })).toBe(
+      "Another problem: Exception — Marco: Invoice 88 paid twice",
+    );
+    expect(otherProblemReportLine({ problem: first, resolved: fixed })).toBe(
+      "Another problem: Done — Ada: Resolved: Donation check never reached the bank",
+    );
+  });
+
+  it("never replaces an earlier problem of the month when the list is trimmed", () => {
+    const problems = Array.from({ length: 3 }, (_, i) =>
+      problem(`Problem ${i}`, `2026-10-0${i + 1}T10:00:00.000Z`),
+    ).reverse();
+    const filler = Array.from({ length: MAX_REVIEW_RECORDS }, (_, i) => ({
+      key: "bank_statement" as const,
+      period: "2026-09",
+      result: "done" as const,
+      ownerName: "Ada",
+      notes: "",
+      recordedAt: `2026-09-${String((i % 28) + 1).padStart(2, "0")}T00:00:00.000Z`,
+    }));
+    const kept = trimReviewRecords([...problems, ...filler]).records;
+    expect(otherProblems(kept, "2026-09")).toHaveLength(3);
+  });
+
+  it("leaves every check's done and not-done count as it was", () => {
+    const records = [
+      problem("Donation check never reached the bank", "2026-10-02T10:00:00.000Z"),
+      {
+        key: "bank_statement" as const,
+        period: "2026-09",
+        result: "done" as const,
+        ownerName: "Ada",
+        notes: "",
+        recordedAt: "2026-10-01T10:00:00.000Z",
+      },
+    ];
+    expect(openMonthlyChecks("2026-10-07", records)).toEqual(
+      openMonthlyChecks("2026-10-07", records.slice(1)),
+    );
+    expect(monthlyReviewTasks("2026-10-07", people, {}, "2026-09")).toHaveLength(4);
   });
 });

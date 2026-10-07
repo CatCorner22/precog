@@ -60,6 +60,11 @@ export function midSentence(label: string): string {
   return /^(?:[A-Z][a-z]|A\s)/.test(label) ? label[0].toLowerCase() + label.slice(1) : label;
 }
 
+/** `text` as a whole sentence: a full stop added only when it does not already end in one. */
+export function endSentence(text: string): string {
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
 /** "1 person", "3 people", "2 entries": the number and the noun that agrees with it. */
 export function count(n: number, singular: string, plural = `${singular}s`): string {
   return `${n} ${n === 1 ? singular : plural}`;

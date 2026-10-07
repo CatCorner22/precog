@@ -26,7 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, estimateUsdChange, formatEstimateUsd, formatEstimateUsdRange } from "@/lib/utils";
-import { count, verb } from "@/lib/precog/text";
+import { count, endSentence, verb } from "@/lib/precog/text";
 import { ILLUSTRATIVE_LABEL } from "@/lib/precog/scoring/scenario-level";
 import { deltaTone, formatDaysChange, formatEstimateChange, pickScenario } from "./scenario-page";
 import { FigureTile } from "./figure-tile";
@@ -363,7 +363,7 @@ function CompareResults({
             {report.mode === "futures"
               ? "Do nothing is the baseline and never counts as the lowest; a tie on retained loss goes to the lower assumed loss if it happens."
               : "A tie on retained loss goes to the lower assumed loss if it happens."}
-            {policyNote ? ` Retained loss and cost of risk: ${policyNote}.` : ""}
+            {policyNote ? ` Retained loss and cost of risk: ${endSentence(policyNote)}` : ""}
           </p>
         </>
       )}

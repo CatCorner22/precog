@@ -8,7 +8,12 @@ import {
   EVIDENCE_RECORD_NOTE,
   latestReview,
   monthlyReviewTasks,
+  OTHER_PROBLEM_KEY,
   openPeriods,
+  otherProblemItemKey,
+  otherProblemLine,
+  otherProblems,
+  otherProblemSaveProblem,
   periodMonthName,
   recordReview,
   resolvedNote,
@@ -17,6 +22,7 @@ import {
   reviewSaveProblem,
   reviewTrimNotice,
   savedResultLine,
+  type ReviewRecord,
   type ReviewResult,
 } from "@/lib/precog/firm/reviews";
 import { recordMonthlyReview } from "@/lib/precog/firm/server";
@@ -298,6 +304,104 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
     }
   }
 
+  /**
+   * Saves another problem of `period` as an Exception on the business. It is
+   * not a check, so it never goes to the monthly review log, where the
+   * firm's client table counts checks, nor to the control evidence log.
+   */
+  function recordProblem(period: string) {
+    const draft = draftKey(period, OTHER_PROBLEM_KEY);
+    const pick = pickFor(draft);
+    const ownerName = (pick.choice === SOMEONE_ELSE ? pick.other : pick.choice).trim();
+    const note = notes[draft] ?? "";
+    const problem = otherProblemSaveProblem({ ownerName, notes: note });
+    if (problem) {
+      setProblems((current) => ({ ...current, [draft]: problem }));
+      return;
+    }
+    const input = {
+      key: OTHER_PROBLEM_KEY,
+      period,
+      result: "exception" as const,
+      ownerName,
+      notes: note,
+    };
+    saveOnBusiness(input);
+    // The next problem waits for its own choice of who found it.
+    setPicks((current) => ({ ...current, [draft]: { choice: "", other: "" } }));
+    setNotes((current) => ({ ...current, [draft]: "" }));
+  }
+
+  /** Saves Done for another problem, naming the problem it resolves. */
+  function resolveProblem(period: string, found: ReviewRecord) {
+    const draft = draftKey(period, otherProblemItemKey(found.recordedAt));
+    const pick = pickFor(draft);
+    const ownerName = (pick.choice === SOMEONE_ELSE ? pick.other : pick.choice).trim();
+    if (!ownerName) {
+      setProblems((current) => ({ ...current, [draft]: "Choose who resolved it." }));
+      return;
+    }
+    saveOnBusiness({
+      key: OTHER_PROBLEM_KEY,
+      period,
+      result: "done",
+      ownerName,
+      notes: resolvedNote("", found.notes),
+      resolves: found.recordedAt,
+    });
+  }
+
+  function saveOnBusiness(input: Omit<ReviewRecord, "recordedAt">) {
+    const trim = appendReview(records, input);
+    setMonthlyReviews((current) => recordReview(current, input));
+    if (trim.removed > 0) toast.message(reviewTrimNotice(trim));
+    toast.success("Saved on this business.", {
+      description:
+        "Another problem is not a check: it does not change how many checks are done, and it does not go into the control evidence log.",
+    });
+  }
+
+  /** A "Who did this check" picker for `draft`: a person to choose, never filled in for you. */
+  function whoPicker(draft: string, label: string, name: string) {
+    const pick = pickFor(draft);
+    return (
+      <div className="mt-2 flex flex-wrap items-end gap-2">
+        <label className="block text-xs text-muted">
+          {label}
+          <select
+            className="mt-1 block rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg"
+            value={pick.choice}
+            onChange={(e) => setPick(draft, { ...pick, choice: e.target.value })}
+            aria-label={name}
+          >
+            <option value="">Choose a person</option>
+            {team.map((person) => (
+              <option key={person} value={person}>
+                {person}
+              </option>
+            ))}
+            <option value={SOMEONE_ELSE}>Someone else</option>
+          </select>
+        </label>
+        {pick.choice === SOMEONE_ELSE && (
+          <label className="block text-xs text-muted">
+            Their name
+            <input
+              className="mt-1 block rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg"
+              value={pick.other}
+              maxLength={80}
+              onChange={(e) => setPick(draft, { ...pick, other: e.target.value })}
+              aria-label={`Name for ${name}`}
+            />
+          </label>
+        )}
+      </div>
+    );
+  }
+
+  const problemDraft = shownPeriod ? draftKey(shownPeriod, OTHER_PROBLEM_KEY) : "";
+  const found = shownPeriod ? otherProblems(records, shownPeriod) : [];
+
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-lg font-semibold">Monthly review</h2>
@@ -371,6 +475,9 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
                   {task.period} · due {formatDay(task.dueOn)} · Suggested: {task.suggestedOwner}
                 </p>
               </div>
+              <p className="mt-1 text-sm" data-covers={task.key}>
+                {task.covers}
+              </p>
               <p className="mt-1 text-sm text-muted">{task.why}</p>
               <p className="mt-2 text-xs" data-review-independence={task.reviewerIndependence}>
                 {reviewIndependenceMessage(task.reviewerIndependence)}
@@ -481,6 +588,89 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
             </li>
           );
         })}
+        {shownPeriod && (
+          <li
+            id={checkItemId(shownPeriod, OTHER_PROBLEM_KEY)}
+            tabIndex={-1}
+            className="scroll-mt-4 rounded-lg border border-dashed border-border p-3 focus:outline-2 focus:outline-offset-2 focus:outline-primary"
+          >
+            <h3 className="font-medium">Record another problem this month</h3>
+            <p className="mt-1 text-sm">
+              A problem none of the checks above covers, for example a donation check that never
+              reached the bank. It is not a check, so it does not change how many checks are done,
+              and it does not go into the control evidence log.
+            </p>
+            {found.length > 0 && (
+              <ul className="mt-2 space-y-2">
+                {found.map(({ problem: entry, resolved }) => {
+                  const draft = draftKey(shownPeriod, otherProblemItemKey(entry.recordedAt));
+                  const refused = problems[draft];
+                  return (
+                    <li
+                      key={entry.recordedAt}
+                      id={checkItemId(shownPeriod, otherProblemItemKey(entry.recordedAt))}
+                      tabIndex={-1}
+                      className="scroll-mt-4 rounded-md border border-border p-2 text-xs focus:outline-2 focus:outline-offset-2 focus:outline-primary"
+                    >
+                      <p
+                        className="font-medium"
+                        data-saved-problem={resolved ? "done" : "exception"}
+                      >
+                        {otherProblemLine(entry, today)}
+                      </p>
+                      {resolved ? (
+                        <p className="mt-1 text-muted">{savedResultLine(resolved, today)}</p>
+                      ) : (
+                        <>
+                          {whoPicker(draft, "Who resolved it", `Who resolved: ${entry.notes}`)}
+                          <button
+                            type="button"
+                            className="mt-2 rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated pointer-coarse:min-h-11"
+                            onClick={() => resolveProblem(shownPeriod, entry)}
+                          >
+                            Mark resolved
+                          </button>
+                          {refused && (
+                            <p role="alert" className="mt-1 font-medium text-danger">
+                              {refused}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {whoPicker(problemDraft, "Who found it", "Who found another problem")}
+            <label className="mt-2 block text-xs text-muted">
+              What the problem is
+              <input
+                className="mt-1 w-full rounded-md border border-border bg-bg px-2 py-1 text-sm text-fg"
+                value={notes[problemDraft] ?? ""}
+                maxLength={500}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setNotes((n) => ({ ...n, [problemDraft]: value }));
+                  setProblems((current) => ({ ...current, [problemDraft]: "" }));
+                }}
+                aria-label="Note for another problem"
+              />
+            </label>
+            <button
+              type="button"
+              className="mt-2 rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated pointer-coarse:min-h-11"
+              onClick={() => recordProblem(shownPeriod)}
+            >
+              Record the problem
+            </button>
+            {problems[problemDraft] && (
+              <p role="alert" className="mt-1 text-xs font-medium text-danger">
+                {problems[problemDraft]}
+              </p>
+            )}
+          </li>
+        )}
       </ul>
     </section>
   );

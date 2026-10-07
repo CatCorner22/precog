@@ -222,18 +222,15 @@ describe("Add a business from the business menu", () => {
       hasIndependentBankRec: true,
     });
 
-    const cashDecisions = profile.decisions.filter(
-      (decision) => decision.linkedTab === "control-in-place" && decision.linkedId === "c-sod-cash",
-    );
-    const cashDecisionTexts = cashDecisions.map((decision) => decision.note);
-    expect(cashDecisionTexts).toEqual(
+    // The answers credit the cash control without logging a decision.
+    expect(profile.decisions).toEqual([]);
+    const cashControl = template.controls.find((control) => control.id === "c-sod-cash");
+    expect(cashControl?.compensatingControls).toEqual(
       expect.arrayContaining([
         "The owner opens and reads the bank statement each month (answered at setup).",
         "An outside bookkeeper or CPA reconciles the bank account each month (answered at setup).",
       ]),
     );
-    const cashControl = template.controls.find((control) => control.id === "c-sod-cash");
-    expect(cashControl?.compensatingControls).toEqual(expect.arrayContaining(cashDecisionTexts));
 
     const restored = normalizeProfile(JSON.parse(JSON.stringify(profile)));
     expect(restored.staff).toMatchObject({ independentBankRec: true, bankRecSource: "outside" });

@@ -8,13 +8,15 @@ import { conflictProcedureLink, RULE_PROCEDURE } from "@/lib/precog/procedures/r
 import { useTabName } from "@/lib/precog/presentation";
 import { worksAt } from "@/lib/precog/person-location";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
+import { teamOwnerId } from "@/lib/precog/sod/owner-role";
+import { moneyCycleHolders } from "@/lib/precog/sod/recommendations";
 import { count, joinWithAnd } from "@/lib/precog/text";
 import { cn } from "@/lib/utils";
 import { RuleCaseCard } from "./case-card";
 import { IndexBasis } from "./index-basis";
 import { ConflictDecision } from "./sod-conflict-decision";
 import { ConflictSummary } from "./sod-conflict-summary";
-import { conflictsByPerson, SEVERITY_FILTERS } from "./sod-conflict-view";
+import { conflictsByPerson, listOrderNote, SEVERITY_FILTERS } from "./sod-conflict-view";
 import type { SodPanelModel } from "./use-sod-panel";
 
 /** Cards shown per person before "Show more". */
@@ -44,6 +46,10 @@ export function SodConflictsSection({
       ),
     [procedures, tpl.knowledge, industry],
   );
+  const orderNote = listOrderNote(
+    filteredOpen,
+    moneyCycleHolders(report.assignments, teamOwnerId(report.assignments, industry)),
+  );
 
   return (
     <Card>
@@ -53,8 +59,8 @@ export function SodConflictsSection({
           Detected conflicts
         </CardTitle>
         <CardDescription>
-          Each pair of duties one person holds, most severe first: who holds it, whether dual
-          release narrows it, and whether you accepted the risk.
+          {orderNote ??
+            "Each pair of duties one person holds, most severe first: who holds it, whether dual release narrows it, and whether you accepted the risk."}
         </CardDescription>
         <IndexBasis />
         <div
@@ -82,12 +88,21 @@ export function SodConflictsSection({
         {locations.length > 1 && <LocationFilter model={model} />}
       </CardHeader>
       <CardContent className="space-y-4">
-        {report.recommendations.length > 0 && (
+        {(model.firstStep || report.recommendations.length > 0) && (
           <div className="rounded-lg border border-border bg-panel p-3">
             <p className="text-xs font-medium tracking-wide text-subtle uppercase">
               What to do first
             </p>
-            <ul className="mt-2 space-y-1 text-sm text-muted">
+            {/*
+              One first step on every screen: the step Start here lists first
+              leads, and the recommendations under it explain the findings.
+            */}
+            <ul data-box="what-to-do-first" className="mt-2 space-y-1 text-sm text-muted">
+              {model.firstStep && (
+                <li className="text-fg">
+                  · <span className="font-medium">First, as on Start here:</span> {model.firstStep}
+                </li>
+              )}
               {report.recommendations.map((r) => (
                 <li key={r}>· {r}</li>
               ))}

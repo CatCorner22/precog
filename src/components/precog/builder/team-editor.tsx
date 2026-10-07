@@ -446,17 +446,19 @@ export function TeamEditor({
                   <button
                     type="button"
                     onClick={() =>
+                      // No date is filled in for the owner: a default would be saved by a quick press.
                       setLeaving(
-                        leaving?.id === p.id
-                          ? null
-                          : { id: p.id, lastDay: p.lastDay ?? localDateKey(new Date()) },
+                        leaving?.id === p.id ? null : { id: p.id, lastDay: p.lastDay ?? "" },
                       )
                     }
-                    className={cn("shrink-0 text-subtle hover:text-warn", ROW_CONTROL)}
+                    className={cn(
+                      "shrink-0 rounded-md border border-border bg-panel px-2 py-0.5 text-muted hover:border-warn hover:text-warn",
+                      ROW_CONTROL,
+                    )}
                     aria-expanded={leaving?.id === p.id}
-                    aria-label={`${p.name} left the business`}
+                    aria-label={`Mark ${p.name} as left…`}
                   >
-                    Left the business
+                    Mark as left…
                   </button>
                 )}
                 <button
@@ -634,8 +636,10 @@ const ROW_CONTROL =
   "pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center";
 
 /**
- * Asks for someone's last day before recording that they left. Today or an
- * earlier day marks them as left; a later day keeps them at work on notice.
+ * Asks for someone's last day before recording that they left. The field
+ * starts empty, so nothing is saved until the owner picks a day or presses
+ * Today. Today or an earlier day marks them as left; a later day keeps them
+ * at work on notice.
  */
 export function LeavingForm({
   person,
@@ -658,6 +662,7 @@ export function LeavingForm({
   const valid = isCalendarDate(lastDay);
   const later = valid && !hasLeftBy(lastDay, today);
   const fieldId = `last-day-${person.id}`;
+  const hintId = `last-day-hint-${person.id}`;
   return (
     <div className="mt-2 space-y-1.5 rounded-md border border-border bg-panel px-2 py-1.5">
       <div className="flex flex-wrap items-end gap-2">
@@ -669,23 +674,29 @@ export function LeavingForm({
           type="date"
           className={cn(inputCls, "w-auto")}
           value={lastDay}
+          aria-describedby={hintId}
           onChange={(e) => onLastDay(e.target.value)}
         />
-        <Button size="sm" disabled={!valid} onClick={onConfirm}>
+        <Button size="sm" variant="secondary" onClick={() => onLastDay(today)}>
+          Today
+        </Button>
+        <Button size="sm" disabled={!valid} aria-describedby={hintId} onClick={onConfirm}>
           {later ? "Record last day" : `Mark ${person.name} as left`}
         </Button>
         <Button size="sm" variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
       </div>
-      <p className="text-xs text-muted">
-        {later
-          ? `${person.name} keeps working and keeps their duties until then.`
-          : `${person.name} stays on the list for history but no longer holds any duty or counts as a stand-in. ${
-              raisesCheck
-                ? "Then check their pay and sign-ins below the team list."
-                : "On your own business, a checklist of pay and sign-ins to remove then appears below the team list."
-            }`}
+      <p id={hintId} className="text-xs text-muted">
+        {!valid
+          ? `Choose ${person.name}'s last day, or press Today.`
+          : later
+            ? `${person.name} keeps working and keeps their duties until then.`
+            : `${person.name} stays on the list for history but no longer holds any duty or counts as a stand-in. ${
+                raisesCheck
+                  ? "Then check their pay and sign-ins below the team list."
+                  : "On your own business, a checklist of pay and sign-ins to remove then appears below the team list."
+              }`}
       </p>
     </div>
   );

@@ -264,10 +264,27 @@ function Home() {
     [sodReport, profile.dualRelease],
   );
 
+  /** The Analyze menu's views and links; the phone's "All sections" menu adds the main tabs. */
+  const analyzeMenu = {
+    tabs: ANALYZE_TABS,
+    activeId: tab,
+    label: (t: ShellTab) => say(t.label, t.tactical),
+    onPick: (id: TabId) => openTab(id),
+    links: ROUTE_LINK_IDS.map((id) => ({
+      id,
+      label: tabLabel(id, say),
+      href: ROUTE_ALIASES[id].href,
+    })),
+    onOpenLink: (id: string) => openTab(id),
+  };
+
   /** Roving focus for the tab strip: arrow keys, Home, and End move between tabs. */
   function onTabKeyDown(event: KeyboardEvent<HTMLElement>) {
-    // The visible strip: the primary tabs plus the open Analyze or header tab, if any.
-    const visible = activeExtra ? [...PRIMARY_TABS, activeExtra] : PRIMARY_TABS;
+    // The visible strip: the primary tabs plus the open Analyze or header tab,
+    // if any; a phone shows the open tab only, so the keys stay on it there.
+    const visible = (activeExtra ? [...PRIMARY_TABS, activeExtra] : PRIMARY_TABS).filter(
+      (t) => t.id === tab || document.getElementById(`tab-${t.id}`)?.offsetParent !== null,
+    );
     const index = visible.findIndex((t) => t.id === tab);
     let next = index;
     if (event.key === "ArrowRight") next = (index + 1) % visible.length;
@@ -391,18 +408,17 @@ function Home() {
             onKeyDown={onTabKeyDown}
             tabCount={TABS.length}
             trailing={
-              <MoreTabsMenu
-                tabs={ANALYZE_TABS}
-                activeId={tab}
-                label={(t) => say(t.label, t.tactical)}
-                onPick={(id) => openTab(id)}
-                links={ROUTE_LINK_IDS.map((id) => ({
-                  id,
-                  label: tabLabel(id, say),
-                  href: ROUTE_ALIASES[id].href,
-                }))}
-                onOpenLink={(id) => openTab(id)}
-              />
+              // On a phone the strip shows only the open tab, and "All
+              // sections" names every main section and Analyze view, so none
+              // sits off the edge. Wider screens keep every tab and Analyze.
+              <>
+                <div className="hidden sm:block">
+                  <MoreTabsMenu {...analyzeMenu} />
+                </div>
+                <div className="sm:hidden">
+                  <MoreTabsMenu {...analyzeMenu} sections={PRIMARY_TABS} />
+                </div>
+              </>
             }
           >
             {[...PRIMARY_TABS, ...(activeExtra ? [activeExtra] : [])].map((t) => {
@@ -420,7 +436,9 @@ function Home() {
                   onClick={() => openTab(t.id)}
                   data-active={active || undefined}
                   className={cn(
-                    "inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    "shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    // A phone shows the open tab only; "All sections" lists the rest.
+                    active ? "inline-flex" : "hidden sm:inline-flex",
                     active
                       ? "border border-border bg-elevated text-fg"
                       : "text-muted hover:bg-elevated/60 hover:text-fg",

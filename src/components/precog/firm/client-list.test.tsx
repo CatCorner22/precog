@@ -1,9 +1,26 @@
+import { isValidElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AddClientForm, ClientList } from "./client-list";
 import { addClientFromForm, clientReportSearch, openClientReport } from "./open-client-report";
 import type { ClientEngagementRow } from "@/lib/precog/firm/store";
+import { createHookRuntime, type HookRuntime } from "@/test/hook-runtime";
 
+// A test can run ClientList as a plain function to reach its click handlers:
+// under the hook runtime, its state persists and useMemo computes in place.
+const hooks = vi.hoisted(() => ({ runtime: null as HookRuntime | null }));
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return {
+    ...actual,
+    useState: (init: unknown) =>
+      hooks.runtime?.active ? hooks.runtime.useState(init) : actual.useState(init),
+    useMemo: <T,>(make: () => T, deps: unknown[]) =>
+      hooks.runtime?.active ? make() : actual.useMemo(make, deps),
+  };
+});
+const runtime = createHookRuntime();
+hooks.runtime = runtime;
 const toastError = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: toastError }),
@@ -76,6 +93,53 @@ describe("Open report on the client list", () => {
     expect(html.match(/>Open</g)).toHaveLength(2);
     expect(html).toContain('aria-label="Open the Monthly review for Second Dental"');
     expect(html).toContain('aria-label="Open the Monthly review for Open One"');
+    // The client's name opens it as Open does, and every row's actions sit
+    // under the name, not in a last column past the table's right edge.
+    expect(html).toMatch(
+      /<button[^>]*title="Open the Monthly review"[^>]*>Second Dental<\/button>/,
+    );
+    expect(html).not.toMatch(/<th scope="col"[^>]*><\/th>/);
+    expect(cellsOf(html).map((cells) => cells.length)).toEqual([9, 9]);
+    expect(cellsOf(html)[0][0]).toContain("Add owner emailOpenOpen report");
+  });
+
+  it("opens the client from its name, and its waiting version from the summary and the count", () => {
+    const opened: string[] = [];
+    const reports: string[] = [];
+    const tree = runtime.render(() =>
+      ClientList({
+        clients: [
+          { ...row, awaitingReview: 1, awaitingVersionId: "v_9" },
+          { ...row, id: "biz_1", name: "Open One" },
+        ],
+        deleted: [],
+        activeId: "biz_1",
+        onOpen: (id) => opened.push(id),
+        onOpenReport: (id) => reports.push(id),
+        onRestored: () => undefined,
+        onClientsChange: () => undefined,
+        onExport: () => undefined,
+        canRestore: true,
+        today: "2026-10-07",
+      }),
+    );
+    const html = renderToStaticMarkup(tree);
+    expect(html).toContain(
+      'aria-label="Open the version awaiting review for Second Dental">1 version awaiting review</button>',
+    );
+    expect(html).toContain(
+      'aria-label="Open the version of Second Dental awaiting review">1</button>',
+    );
+    // The client without a waiting version keeps a plain None.
+    expect(cellsOf(html)[1][8]).toBe("None");
+    const buttons = findButtons(tree);
+    buttons.find((b) => b.text === "Second Dental")?.onClick();
+    buttons
+      .find((b) => b.label === "Open the version awaiting review for Second Dental")
+      ?.onClick();
+    buttons.find((b) => b.label === "Open the version of Second Dental awaiting review")?.onClick();
+    expect(opened).toEqual(["biz_2"]);
+    expect(reports).toEqual(["biz_2", "biz_2"]);
   });
 
   it("shows the deleted list with Restore only to someone who may restore", () => {
@@ -174,14 +238,17 @@ describe("client table", () => {
       "Client",
       "Status",
       "Last review",
-      "Last month",
-      "This month",
+      "September checks (due Oct 10)",
+      "October checks",
       "Exceptions",
       "Skipped",
       "Open duty conflicts",
       "Awaiting review",
-      "",
     ]);
+    // The month headers say in full what they count.
+    expect(html).toContain(
+      'title="September 2026 (due October 10): the checks marked Done, of all of that month&#x27;s checks. Overdue after the due day while a check has no result."',
+    );
     expect(html).not.toContain('aria-sort="descending"');
     expect(html.match(/aria-sort="none"/g)).toHaveLength(9);
     // The way back to that order shows only once a column is chosen.
@@ -285,9 +352,11 @@ describe("client table", () => {
     expect(html).toContain(
       "2 clients · 1 with this month&#x27;s review open · 0 with last month overdue · 0 with exceptions · 3 versions awaiting review",
     );
-    expect(html).toContain("Last month and This month count Done checks only;");
+    expect(html).toContain("The two month columns count Done checks only;");
     expect(html).toContain(">Export clients (CSV)<");
-    expect(html).toContain("Sort by any column; Export clients (CSV) downloads the same columns.");
+    expect(html).toContain(
+      "Sort by any column; Export clients (CSV) downloads these figures, one column each (done and total apart, last month and this month apart), plus the client id and the owner address&#x27;s state.",
+    );
   });
 
   it("offers no CSV and no totals with no clients", () => {
@@ -394,4 +463,34 @@ function cellsOf(html: string): string[][] {
   return [...body.matchAll(/<tr[^>]*>(.*?)<\/tr>/g)].map((r) =>
     [...r[1].matchAll(/<td[^>]*>(.*?)<\/td>/g)].map((c) => c[1].replace(/<[^>]+>/g, "")),
   );
+}
+
+/** Every button in a rendered tree: its text, its accessible label and its click handler. */
+function findButtons(
+  node: unknown,
+): { text: string; label: string | undefined; onClick: () => void }[] {
+  const out: { text: string; label: string | undefined; onClick: () => void }[] = [];
+  const visit = (n: unknown) => {
+    if (Array.isArray(n)) return n.forEach(visit);
+    if (!isValidElement(n)) return;
+    const props = n.props as { children?: unknown; onClick?: () => void; "aria-label"?: string };
+    if (n.type === "button" && props.onClick) {
+      out.push({
+        text: textOf(props.children),
+        label: props["aria-label"],
+        onClick: props.onClick,
+      });
+    }
+    if (typeof n.type === "function") return visit((n.type as (p: unknown) => unknown)(n.props));
+    visit(props.children);
+  };
+  visit(node);
+  return out;
+}
+
+function textOf(n: unknown): string {
+  if (typeof n === "string" || typeof n === "number") return String(n);
+  if (Array.isArray(n)) return n.map(textOf).join("");
+  if (isValidElement(n)) return textOf((n.props as { children?: unknown }).children);
+  return "";
 }

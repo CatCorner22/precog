@@ -5,6 +5,8 @@ import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import {
   latestReview,
+  otherProblemReportLine,
+  otherProblems,
   periodWithDue,
   reportPeriod,
   reviewItemsFor,
@@ -46,13 +48,18 @@ import {
   type ReportVersionRow,
 } from "@/lib/precog/firm/reports";
 import type { FirmSnapshot } from "@/lib/precog/firm/store";
+import type { OnboardingFacts } from "@/lib/precog/onboarding/decision-model";
 import { OpenVersionReview, ReportVersionsPanel } from "@/components/precog/report-versions";
-import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
+import {
+  buildControlReportModel,
+  NO_REPORT_EXAMPLES,
+} from "@/lib/precog/report/build-control-report";
 import { fixFirstOf } from "@/lib/precog/threat-scoring";
 import { scenarioUnfolding } from "@/lib/precog/scenario-unfolding";
 import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import {
   lockedFigures,
+  printsLayoutSeven,
   printsLayoutSix,
   recalculationNote,
   REPORT_LAYOUT_VERSION,
@@ -73,7 +80,7 @@ import {
 import { Kpi, Section } from "@/components/precog/control-report-parts";
 import { formatDay, formatMonth, localDateKey } from "@/lib/precog/dates";
 import { decidedOn } from "@/lib/precog/decisions/decided-on";
-import { count, firstName, midSentence, verb } from "@/lib/precog/text";
+import { count, endSentence, firstName, midSentence, verb } from "@/lib/precog/text";
 
 /**
  * Print-friendly control priorities report — File → Print → Save as PDF.
@@ -119,6 +126,9 @@ export function ControlReport({
   // (OpenVersionReview) hands back the changed row, and the provenance the
   // cover and header print follows it without a reload.
   const [reviewNow, setReviewNow] = useState<ReportVersionRow | null>(null);
+  // The bar that stays on screen while the reader scrolls: the open
+  // version's reviewer actions sit in it too.
+  const [toolbar, setToolbar] = useState<HTMLElement | null>(null);
   const version = locked && reviewNow?.id === locked.id ? reviewNow : locked;
   const provenance = version ? versionProvenance(version) : null;
   const industry = industryMeta(profile.industry);
@@ -159,6 +169,10 @@ export function ControlReport({
   // executive summary does, and words the residual tile in the residual
   // bands (report/stored-model `printsLayoutSix`).
   const layoutSix = printsLayoutSix(layoutVersion);
+  // Layout 7 names a map with no processes as such, and marks the processes
+  // and controls on an own business that are still Precog's examples
+  // (report/stored-model `printsLayoutSeven`), from the ids the model stores.
+  const layoutSeven = printsLayoutSeven(layoutVersion);
   const data = useMemo(
     () =>
       storedModel
@@ -232,12 +246,36 @@ export function ControlReport({
     item,
     latest: latestReview(profile.monthlyReviews ?? [], item.key, month),
   }));
-  const team = layoutSix
+  // Layout 7 prints each other problem of the month on its own line after
+  // the checks; layouts 1 to 6 print the checks alone, as they did.
+  const problemLines = layoutSeven
+    ? otherProblems(profile.monthlyReviews ?? [], month).map(otherProblemReportLine)
+    : [];
+  const team = layoutSeven
     ? teamSizeLine(profile, tpl.people, industry.teamLabel)
-    : `${profile.staff.teamSize}-person ${industry.teamLabel}`;
-  const starter = layoutSix ? "starter process map (not yet edited)" : "sample process map";
+    : layoutSix
+      ? teamSizeLineSix(profile, tpl.people, industry.teamLabel)
+      : `${profile.staff.teamSize}-person ${industry.teamLabel}`;
+  const example = `Precog's example ${industry.label.toLowerCase()} processes`;
+  const starter = layoutSeven
+    ? `${example}, not yet edited`
+    : layoutSix
+      ? "starter process map (not yet edited)"
+      : "sample process map";
+  // Layout 7: Precog's examples on an own business, as the model stored them:
+  // the processes on an own map still as the starter map had them (the
+  // header already names an untouched starter map as the example), and the
+  // controls the owner never confirmed, marked in the priority stack.
+  const examples = layoutSeven ? data.examples : NO_REPORT_EXAMPLES;
+  const exampleCount = examples.processIds.length;
+  const ownMapLine =
+    layoutSeven && tpl.processes.length === 0
+      ? "no processes mapped yet"
+      : exampleCount
+        ? `custom process map (${exampleCount} of ${tpl.processes.length} still Precog's examples)`
+        : "custom process map";
   const mapLine = `${industry.label} · ${team} · ${
-    mapFrom === "starter" ? starter : mapCustomized ? "custom process map" : "industry template map"
+    mapFrom === "starter" ? starter : mapCustomized ? ownMapLine : "industry template map"
   }`;
   // Layout 6's segregation sentence: the open count the executive summary
   // prints, with the same breakdown, from the same model.
@@ -274,6 +312,11 @@ export function ControlReport({
             </Link>
             <div className="flex flex-wrap items-center gap-2">
               {locked && (
+                // Sign off as reviewer and Return to preparer, on a version
+                // awaiting this reviewer (OpenVersionReview puts them here).
+                <span ref={setToolbar} data-slot="review-actions" className="contents" />
+              )}
+              {locked && (
                 <Link
                   to="/report"
                   className="inline-flex h-8 items-center rounded-md border border-neutral-300 px-3 text-xs font-medium hover:bg-neutral-100"
@@ -290,7 +333,11 @@ export function ControlReport({
       )}
       {!shared &&
         (locked ? (
-          <OpenVersionReview version={version ?? locked} onChange={setReviewNow} />
+          <OpenVersionReview
+            version={version ?? locked}
+            onChange={setReviewNow}
+            toolbar={toolbar}
+          />
         ) : (
           <ReportVersionsPanel />
         ))}
@@ -309,7 +356,7 @@ export function ControlReport({
         {coverPage && firm && locked && (
           <section
             aria-label="Cover page"
-            className="report-cover mb-8 flex min-h-[60vh] flex-col justify-between break-after-page border-b-2 border-neutral-900 pb-8 print:min-h-[90vh] print:border-b-0"
+            className="report-cover mb-8 hidden break-after-page flex-col justify-between pb-8 print:flex print:min-h-[90vh]"
           >
             {letterhead}
             <div>
@@ -514,12 +561,15 @@ export function ControlReport({
           {layoutFive && (
             <p className="mb-1 text-sm font-medium">Monthly checks for {periodWithDue(month)}</p>
           )}
-          {reviews.some((r) => r.latest) ? (
+          {reviews.some((r) => r.latest) || problemLines.length > 0 ? (
             <ul className="space-y-1 text-sm">
               {reviews.map(({ item, latest }) => (
                 <li key={item.key}>
                   {item.title}: {latest ? reviewResultLine(latest) : "not recorded"}
                 </li>
+              ))}
+              {problemLines.map((line, i) => (
+                <li key={`other-${i}`}>{line}</li>
               ))}
             </ul>
           ) : (
@@ -546,7 +596,14 @@ export function ControlReport({
                 {threat.targetDeck.map((t, i) => (
                   <tr key={`${t.kind}-${t.id}`} className="border-b border-neutral-200 align-top">
                     <td className="py-1.5 pr-2 tabular text-neutral-500">{i + 1}</td>
-                    <td className="py-1.5 pr-2 font-medium">{t.label}</td>
+                    <td className="py-1.5 pr-2 font-medium">
+                      {t.label}
+                      {examples.targetIds.includes(t.id) && (
+                        <span className="block text-xs font-normal text-neutral-600">
+                          Precog&apos;s example, not confirmed by the owner
+                        </span>
+                      )}
+                    </td>
                     <td className="py-1.5 pr-2 text-neutral-700">
                       {(t.kinds ?? [t.kind]).map((k) => KIND_LABEL[k] ?? k).join(" · ")}
                     </td>
@@ -578,7 +635,9 @@ export function ControlReport({
           </div>
           {layoutThree ? (
             data.policyNote && (
-              <p className="mt-2 text-xs text-neutral-600">Insurance: {data.policyNote}.</p>
+              <p className="mt-2 text-xs text-neutral-600">
+                Insurance: {layoutSeven ? endSentence(data.policyNote) : `${data.policyNote}.`}
+              </p>
             )
           ) : (
             <p className="mt-2 text-xs text-neutral-600">
@@ -758,9 +817,11 @@ export function ControlReport({
         <Section title="Process map">
           {mapFrom === "starter" && (
             <p className="mb-2 text-sm text-neutral-700">
-              {layoutSix
-                ? `Starter process map from the ${industry.label.toLowerCase()} template, not yet edited:`
-                : `Sample process map from the ${industry.label.toLowerCase()} sample:`}{" "}
+              {layoutSeven
+                ? `${example}, not this business's own map yet:`
+                : layoutSix
+                  ? `Starter process map from the ${industry.label.toLowerCase()} template, not yet edited:`
+                  : `Sample process map from the ${industry.label.toLowerCase()} sample:`}{" "}
               {tpl.processes.length} processes, none with an owner yet.
             </p>
           )}
@@ -774,6 +835,12 @@ export function ControlReport({
               .map((p) => (
                 <li key={p.id} className="border-b border-neutral-200 py-1">
                   <span className="font-medium">{p.name}</span>
+                  {examples.processIds.includes(p.id) && (
+                    <span className="text-neutral-500">
+                      {" "}
+                      · Precog&apos;s example, not yet edited
+                    </span>
+                  )}
                   <span className="text-neutral-500">
                     {" "}
                     · {(p.risks ?? []).length} risks
@@ -863,12 +930,8 @@ function segregationSentence(headline: OpenConflictHeadline, people: number): st
   return `${line} ${headline.closedByDualRelease} covered by dual release at every amount, not counted open.`;
 }
 
-/**
- * Layout 6's team size in the header. An own team is sized by its active
- * people on the map, whatever size setup recorded; the sample keeps the size
- * it was built with.
- */
-function teamSizeLine(
+/** Layout 6's team in the header, as layout 6 printed it: an own team is the count of active people on the map. */
+function teamSizeLineSix(
   profile: Parameters<typeof teamSource>[0] & { staff: { teamSize: number } },
   people: readonly { active: boolean }[],
   teamLabel: string,
@@ -876,6 +939,38 @@ function teamSizeLine(
   if (teamSource(profile) !== "own") return `${profile.staff.teamSize}-person ${teamLabel}`;
   const active = people.filter((p) => p.active).length;
   return active > 0 ? `${active}-person ${teamLabel}` : `${teamLabel} with nobody on the map yet`;
+}
+
+/**
+ * Layout 7's team in the header. An own team is the count of active people on
+ * the map, never read as the business's size, with the headcount the owner
+ * gave at setup beside it when there is one; the sample keeps the size it was
+ * built with.
+ */
+function teamSizeLine(
+  profile: Parameters<typeof teamSource>[0] & {
+    staff: { teamSize: number };
+    onboardingFacts?: Pick<OnboardingFacts, "workforceBand" | "workforceCount">;
+  },
+  people: readonly { active: boolean }[],
+  teamLabel: string,
+): string {
+  if (teamSource(profile) !== "own") return `${profile.staff.teamSize}-person ${teamLabel}`;
+  const active = people.filter((p) => p.active).length;
+  const mapped = active > 0 ? `${count(active, "person", "people")} mapped` : "nobody mapped yet";
+  const setup = setupHeadcount(profile.onboardingFacts);
+  return setup ? `${mapped} (setup: ${setup})` : mapped;
+}
+
+/** The headcount answered at setup: the count when given, else the band ("7–30 people"). */
+function setupHeadcount(
+  facts: Pick<OnboardingFacts, "workforceBand" | "workforceCount"> | undefined,
+): string | null {
+  if (facts?.workforceCount) return count(facts.workforceCount, "person", "people");
+  if (!facts?.workforceBand) return null;
+  return facts.workforceBand === "1"
+    ? "1 person"
+    : `${facts.workforceBand.replace("-", "–")} people`;
 }
 
 /**

@@ -2,7 +2,12 @@ import type { Departure } from "../continuity/access-removal";
 import { MAX_BUSINESS_NAME } from "../business-id";
 import { INDUSTRIES, type IndustryId } from "../industry";
 import { browserSessionStorage, type StorageLike } from "../local-data";
-import { normalizeSetupAnswers, type SetupAnswers } from "./setup-answers";
+import {
+  normalizeAnsweredQuestions,
+  normalizeSetupAnswers,
+  type SetupAnswers,
+  type SetupQuestion,
+} from "./setup-answers";
 import {
   ONBOARDING_FACTS_VERSION,
   ONBOARDING_QUESTION_IDS,
@@ -50,6 +55,11 @@ export interface SetupDraft {
    */
   leftOut?: Departure[];
   setupAnswers?: SetupAnswers;
+  /**
+   * The money questions the owner chose an answer for. The rest keep the Not
+   * sure value in `setupAnswers` and show as unanswered.
+   */
+  answeredQuestions?: SetupQuestion[];
   /** Valid imported rows waiting outside the 60-person review grid. */
   unresolvedRows?: number;
 }
@@ -59,6 +69,10 @@ const QUESTION_IDS = new Set<string>(ONBOARDING_QUESTION_IDS);
 
 const optional = (value: unknown, type: "string" | "boolean") =>
   value === undefined || typeof value === type;
+
+/** Absent, or a list of strings. */
+const optionalStrings = (value: unknown) =>
+  value === undefined || (Array.isArray(value) && value.every((d) => typeof d === "string"));
 
 /** A row every field of which has the type the grid gives it; anything else is dropped. */
 function isRow(value: unknown): value is OwnTeamRow {
@@ -70,9 +84,8 @@ function isRow(value: unknown): value is OwnTeamRow {
     typeof row.role === "string" &&
     Array.isArray(row.duties) &&
     row.duties.every((d) => typeof d === "string") &&
-    (row.answersUnticked === undefined ||
-      (Array.isArray(row.answersUnticked) &&
-        row.answersUnticked.every((d) => typeof d === "string"))) &&
+    optionalStrings(row.answersUnticked) &&
+    optionalStrings(row.keptDuties) &&
     optional(row.owner, "boolean") &&
     optional(row.onLeave, "boolean") &&
     (row.tenureYears === undefined ||
@@ -119,6 +132,7 @@ export function readSetupDraft(
     if (typeof draft.selected !== "string" || !INDUSTRY_IDS.has(draft.selected)) return null;
     const leftOut = Array.isArray(draft.leftOut) ? draft.leftOut.filter(isDeparture) : [];
     const setupAnswers = normalizeSetupAnswers(draft.setupAnswers);
+    const answeredQuestions = normalizeAnsweredQuestions(draft.answeredQuestions);
     const facts = normalizeOnboardingFacts({
       schemaVersion: draft.schemaVersion,
       actor: draft.actor,
@@ -152,6 +166,7 @@ export function readSetupDraft(
       ...(typeof draft.businessId === "string" ? { businessId: draft.businessId } : {}),
       ...(leftOut.length > 0 ? { leftOut } : {}),
       ...(setupAnswers ? { setupAnswers } : {}),
+      ...(answeredQuestions.length > 0 ? { answeredQuestions } : {}),
       ...(typeof draft.unresolvedRows === "number" &&
       Number.isInteger(draft.unresolvedRows) &&
       draft.unresolvedRows >= 0
@@ -194,8 +209,26 @@ export function namedPeople(draft: Pick<SetupDraft, "rows">): number {
 }
 
 /**
+ * Whether a draft holds anything the owner did beyond opening setup: a
+ * business name other than the one they came in with, a person, a pasted
+ * roster, an answered question, or a step past the first.
+ */
+export function draftHasProgress(draft: SetupDraft, typedName = ""): boolean {
+  return (
+    (draft.businessName.trim().length > 0 && draft.businessName.trim() !== typedName.trim()) ||
+    draft.paste.trim().length > 0 ||
+    namedPeople(draft) > 0 ||
+    draft.step === "money" ||
+    draft.step === "team" ||
+    Boolean(draft.actor ?? draft.workforceBand ?? draft.locationBand ?? draft.setupMethod) ||
+    (draft.answeredQuestions?.length ?? 0) > 0
+  );
+}
+
+/**
  * Where setup starts. A draft entered for this same unfinished business (a
- * reload mid-setup) comes back exactly as it was. A draft from an earlier
+ * reload mid-setup) comes back exactly as it was, with `resumed` when it
+ * holds progress, so the dialog can say so and offer to start over. A draft from an earlier
  * setup in this tab, one the owner left to load the sample, comes back when
  * it holds typed work, with the name and line of business chosen for this
  * business, and `restoredEarlier` so the dialog can say so and offer to start
@@ -206,7 +239,7 @@ export function initialSetup(
   draft: SetupDraft | null,
   business: { businessId: string; industry: IndustryId; typedName: string },
   freshRows: () => OwnTeamRow[],
-): { draft: SetupDraft; restoredEarlier: boolean } {
+): { draft: SetupDraft; restoredEarlier: boolean; resumed: boolean } {
   const fresh: SetupDraft = {
     schemaVersion: ONBOARDING_FACTS_VERSION,
     currentQuestionId: "actor",
@@ -218,13 +251,17 @@ export function initialSetup(
     paste: "",
     businessId: business.businessId,
   };
-  if (!draft) return { draft: fresh, restoredEarlier: false };
+  if (!draft) return { draft: fresh, restoredEarlier: false, resumed: false };
   const sameSetup =
     draft.businessId === business.businessId ||
     (draft.businessId === undefined && draftHasTypedWork(draft));
   if (sameSetup)
-    return { draft: { ...draft, businessId: business.businessId }, restoredEarlier: false };
-  if (!draftHasTypedWork(draft)) return { draft: fresh, restoredEarlier: false };
+    return {
+      draft: { ...draft, businessId: business.businessId },
+      restoredEarlier: false,
+      resumed: draftHasProgress(draft, business.typedName),
+    };
+  if (!draftHasTypedWork(draft)) return { draft: fresh, restoredEarlier: false, resumed: false };
   return {
     draft: {
       ...draft,
@@ -234,5 +271,6 @@ export function initialSetup(
       businessId: business.businessId,
     },
     restoredEarlier: true,
+    resumed: false,
   };
 }

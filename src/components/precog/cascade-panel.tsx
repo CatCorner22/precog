@@ -14,6 +14,7 @@ import { confirmedScenarioIds, isOwnBusiness } from "@/lib/precog/scoring/scope"
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatEstimateUsd, formatEstimateUsdDelta, formatUsd, cn } from "@/lib/utils";
+import { endSentence } from "@/lib/precog/text";
 import { GitBranch } from "lucide-react";
 
 export function CascadePanel() {
@@ -64,7 +65,7 @@ export function CascadePanel() {
         </p>
         {policyNote && (
           <p className="mt-2 max-w-2xl text-xs text-subtle">
-            Insurance figures here: {policyNote}.
+            Insurance figures here: {endSentence(policyNote)}
           </p>
         )}
         {all.scopeNote && <p className="mt-2 max-w-2xl text-xs text-subtle">{all.scopeNote}</p>}

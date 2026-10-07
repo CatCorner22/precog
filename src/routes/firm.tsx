@@ -385,7 +385,9 @@ function FirmPage() {
       )}
 
       {signedIn && (
-        <div className="mt-4">
+        // The client table is wider than the page's column: on a laptop it
+        // spreads past it, centred, so every column and the row actions show.
+        <div className="mt-4 lg:relative lg:left-1/2 lg:w-[min(72rem,calc(100vw-3rem))] lg:-translate-x-1/2">
           <ClientList
             clients={clients}
             deleted={deleted}

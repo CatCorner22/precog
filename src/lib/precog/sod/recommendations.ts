@@ -61,20 +61,19 @@ export function sodRecommendations(
   const recommendations: string[] = [];
   if (critical > 0) {
     recommendations.push(
-      `Close the ${count(critical, "critical pair")} first, or narrow ${verb(critical, "it", "them")} with a dual-release rule.`,
+      `Close the ${count(critical, "critical pair")} before the others, or narrow ${verb(critical, "it", "them")} with a dual-release rule.`,
     );
   }
   // One employee holding most of the money cycle is the finding a CPA leads
-  // with: every pair above is then in the same pair of hands.
-  for (const person of assignments) {
-    if (person.personId === overseer.soleOwnerId) continue;
-    const cycle = moneyCycleHeld(person.entitlements);
-    if (cycle.length < CONCENTRATION_THRESHOLD) continue;
+  // with: every pair above is then in the same pair of hands. It explains;
+  // it names no first move, because the first step every screen leads with
+  // is the ranked one (actions/do-next `rankedFirstSteps`).
+  for (const { person, cycle } of moneyCycleHolders(assignments, overseer.soleOwnerId)) {
     recommendations.push(
       `${personLabel(person.personName, person.role)} holds ${cycle.length} of the ${MONEY_CYCLE.length} core money duties, so most of the money cycle runs through one person with nobody in between. ${
         cycle.includes("bank_reconcile")
-          ? "Start by moving the bank reconciliation to someone who holds none of the others."
-          : "Start by having someone who holds none of them reconcile the bank account."
+          ? "Moving the bank reconciliation to someone who holds none of the others puts a second person in the cycle."
+          : "Having someone who holds none of them reconcile the bank account puts a second person in the cycle."
       }`,
     );
   }
@@ -121,6 +120,26 @@ export function sodRecommendations(
     recommendations.push("Duties look separated; scan again after any role change.");
   }
   return recommendations.map((text) => inOverseerWords(text, overseer.hasOwner));
+}
+
+/**
+ * The employees the recommendations call out for holding most of the money
+ * cycle ("holds 6 of the 11 core money duties"), in team order, each with the
+ * money-cycle duties they hold and how many duties the cycle has. The sole
+ * owner is never one of them.
+ */
+export function moneyCycleHolders<T extends Pick<RoleAssignment, "personId" | "entitlements">>(
+  assignments: readonly T[],
+  soleOwnerId: string | null,
+): { person: T; cycle: EntitlementId[]; of: number }[] {
+  return assignments
+    .filter((person) => person.personId !== soleOwnerId)
+    .map((person) => ({
+      person,
+      cycle: moneyCycleHeld(person.entitlements),
+      of: MONEY_CYCLE.length,
+    }))
+    .filter(({ cycle }) => cycle.length >= CONCENTRATION_THRESHOLD);
 }
 
 /** Money-cycle duties a set of duties covers, counting ACH initiation and check signing as releasing payments. */

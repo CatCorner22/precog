@@ -53,12 +53,18 @@ export function ScenarioWatchCard({
             <div className="mt-2 space-y-1 text-sm text-muted">
               {ruleIds.length > 0 &&
                 dutyFacts(watch).map((fact, index) => <p key={`${fact}:${index}`}>{fact}</p>)}
-              {control && (
-                <p>
-                  &ldquo;{control.name}&rdquo; is{" "}
-                  {control.inPlace ? "marked in place." : "not marked in place."}
-                </p>
-              )}
+              {control &&
+                (control.example ? (
+                  <p>
+                    &ldquo;{control.name}&rdquo; is Precog&rsquo;s example. You have not confirmed
+                    it runs here.
+                  </p>
+                ) : (
+                  <p>
+                    &ldquo;{control.name}&rdquo; is{" "}
+                    {control.inPlace ? "marked in place." : "not marked in place."}
+                  </p>
+                ))}
               {watch.knowledge && (
                 <>
                   <p>{knowledgeFact(watch.knowledge)}</p>

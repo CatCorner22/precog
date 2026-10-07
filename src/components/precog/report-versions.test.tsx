@@ -22,6 +22,15 @@ vi.mock("react", async (importOriginal) => {
         : actual.useEffect(effect, deps),
   };
 });
+// A portal renders in place, inside a marker, so a test can find what the
+// review controls put in the page's toolbar.
+vi.mock("react-dom", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-dom")>();
+  return {
+    ...actual,
+    createPortal: (children: ReactNode) => <div data-portal="toolbar">{children}</div>,
+  };
+});
 const state = vi.hoisted(() => ({ userId: "bea", firmClient: true }));
 // A new object on every call, as the real session hook builds one on every render.
 vi.mock("@/lib/auth/use-current-user", () => ({
@@ -244,7 +253,7 @@ describe("report versions panel", () => {
     expect(names).toContain("Open version 1 to review");
     expect(html).toContain("Open to review");
     expect(names).not.toContain("Open version 1");
-    expect(names).not.toContain("Review version 1 for issuance");
+    expect(names).not.toContain("Sign off version 1 as reviewer");
     expect(names).not.toContain("Return version 1 to its preparer");
     expect(names).not.toContain("Ask for review of version 1");
   });
@@ -362,7 +371,7 @@ describe("report versions panel", () => {
     ]) {
       runtime.reset();
       const { labels: names, html } = await panel(viewer, role, [returned]);
-      expect(html).toContain("Returned: Add the payroll duties. by Bea Lin on Oct 7, 2026");
+      expect(html).toContain("Returned by Bea Lin on Oct 7, 2026: “Add the payroll duties.”");
       expect(names.filter((n) => n !== "Open version 1" && n !== "Report versions")).toEqual([]);
     }
   });
@@ -487,11 +496,60 @@ describe("the open version's review controls", () => {
     return { tree, render, labels: labels(tree), html: renderToStaticMarkup(<>{tree}</>) };
   }
 
-  it("gives a reviewer who did not prepare it Review for issuance and Return to preparer", async () => {
-    const { labels: names } = await view("bea", "reviewer", version({}));
+  it("gives a reviewer who did not prepare it Sign off as reviewer and Return to preparer", async () => {
+    const { labels: names, html } = await view("bea", "reviewer", version({}));
     expect(server.listReports).toHaveBeenCalledWith({ data: { businessId: "biz_1" } });
-    expect(names).toContain("Review version 1 for issuance");
+    expect(names).toContain("Sign off version 1 as reviewer");
     expect(names).toContain("Return version 1 to its preparer");
+    expect(html).toContain("Signing off records you as the reviewer of version 1 for issuance.");
+  });
+
+  describe("in the bar that stays on screen while the reader scrolls", () => {
+    const toolbar = {} as HTMLElement;
+    /** What the controls put in the toolbar for `viewer`, and the render that shows it. */
+    async function bar(viewer: string, role: string) {
+      state.userId = viewer;
+      server.listReports.mockResolvedValue({
+        versions: [version({})],
+        work: { firm: true, role },
+        review: rules(),
+      });
+      server.getFirm.mockResolvedValue({ firm: { role }, members: [] });
+      const render = () => OpenVersionReview({ version: version({}), toolbar });
+      const tree = await runtime.settle(render);
+      const [inBar] = findAll(
+        tree,
+        (e) => (e.props as { "data-portal"?: string })["data-portal"] === "toolbar",
+      );
+      return { render, inBar };
+    }
+
+    it("gives a version awaiting this reviewer Sign off as reviewer and Return to preparer, hidden in print", async () => {
+      const { render, inBar } = await bar("bea", "reviewer");
+      expect(labels(inBar)).toEqual([
+        "Sign off version 1 as reviewer",
+        "Return version 1 to its preparer",
+      ]);
+      const html = renderToStaticMarkup(<>{inBar}</>);
+      expect(html).toContain("print:hidden");
+      expect(html).toContain("Sign off as reviewer");
+      expect(html).toContain("Return to preparer");
+      // Each does what the button at the top does.
+      click(inBar, "Sign off version 1 as reviewer");
+      expect(labels(await runtime.settle(render))).toContain("Sign off version 1 as reviewer?");
+      runtime.reset();
+      const again = await bar("bea", "reviewer");
+      vi.stubGlobal("requestAnimationFrame", vi.fn());
+      click(again.inBar, "Return version 1 to its preparer");
+      const returning = renderToStaticMarkup(<>{await runtime.settle(again.render)}</>);
+      expect(returning).toContain('id="return-note"');
+      vi.unstubAllGlobals();
+    });
+
+    it("puts nothing there for the preparer", async () => {
+      const { inBar } = await bar("ada", "preparer");
+      expect(inBar).toBeUndefined();
+    });
   });
 
   it("asks in a dialog naming the version, the preparer and an independent review, then signs", async () => {
@@ -499,39 +557,39 @@ describe("the open version's review controls", () => {
       version: version({ reviewedBy: "bea", reviewedAt: "2026-10-06T09:00:00.000Z" }),
     });
     const first = await view("bea", "reviewer", version({}));
-    click(first.tree, "Review version 1 for issuance");
+    click(first.tree, "Sign off version 1 as reviewer");
     const asking = await runtime.settle(first.render);
     const html = renderToStaticMarkup(<>{asking}</>);
-    expect(labels(asking)).toContain("Review version 1 for issuance?");
+    expect(labels(asking)).toContain("Sign off version 1 as reviewer?");
     expect(html).toContain("Prepared by Ada Park");
     expect(html).toContain("Independent review");
     expect(html).not.toContain("Not an independent review");
     expect(html).not.toContain("Why you review in place of");
     expect(server.signOffReport).not.toHaveBeenCalled();
-    clickText(asking, "Review for issuance", "dialog");
+    clickText(asking, "Sign off as reviewer", "dialog");
     const after = await runtime.settle(first.render);
     expect(server.signOffReport).toHaveBeenCalledWith({
       data: { id: "rv_1", note: "", issueWithoutIndependentReview: false },
     });
     // Signed: the dialog closes, and the signer may withdraw.
-    expect(labels(after)).not.toContain("Review version 1 for issuance?");
+    expect(labels(after)).not.toContain("Sign off version 1 as reviewer?");
     expect(labels(after)).toContain("Withdraw the review of version 1");
   });
 
   it("asks for the override note when someone else is the assigned reviewer", async () => {
     server.signOffReport.mockResolvedValue({ version: version({}) });
     const first = await view("own", "owner", version({}), rules({ assignedReviewerUserId: "bea" }));
-    click(first.tree, "Review version 1 for issuance");
+    click(first.tree, "Sign off version 1 as reviewer");
     const asking = await runtime.settle(first.render);
     expect(renderToStaticMarkup(<>{asking}</>)).toContain(
       "Why you review in place of the assigned reviewer Bea Lin (10 to 600 characters)",
     );
-    expect(button(asking, "Review for issuance", "dialog").props.disabled).toBe(true);
+    expect(button(asking, "Sign off as reviewer", "dialog").props.disabled).toBe(true);
     const [overrideBox] = findAll(asking, (e) => e.type === "textarea");
     overrideBox.props.onChange?.({ target: { value: "Bea is on leave this week." } });
     const typed = await runtime.settle(first.render);
-    expect(button(typed, "Review for issuance", "dialog").props.disabled).toBe(false);
-    clickText(typed, "Review for issuance", "dialog");
+    expect(button(typed, "Sign off as reviewer", "dialog").props.disabled).toBe(false);
+    clickText(typed, "Sign off as reviewer", "dialog");
     await runtime.settle(first.render);
     expect(server.signOffReport).toHaveBeenCalledWith({
       data: {
@@ -555,10 +613,10 @@ describe("the open version's review controls", () => {
         version({ preparedBy }),
         rules({ assignedReviewerUserId: "bea" }),
       );
-      click(first.tree, "Review version 1 for issuance");
+      click(first.tree, "Sign off version 1 as reviewer");
       const asking = await runtime.settle(first.render);
       expect(renderToStaticMarkup(<>{asking}</>)).not.toContain("Why you review in place of");
-      expect(button(asking, "Review for issuance", "dialog").props.disabled).toBe(false);
+      expect(button(asking, "Sign off as reviewer", "dialog").props.disabled).toBe(false);
     }
   });
 
@@ -590,7 +648,7 @@ describe("the open version's review controls", () => {
       open,
     ]);
     expect(first.html).toContain("Superseded by version 3");
-    click(first.tree, "Review version 1 for issuance");
+    click(first.tree, "Sign off version 1 as reviewer");
     const asking = await runtime.settle(first.render);
     expect(renderToStaticMarkup(<>{asking}</>)).toContain(
       "Superseded by version 3: a newer version exists.",
@@ -623,8 +681,8 @@ describe("the open version's review controls", () => {
       server.signOffReport.mockResolvedValue({ version: signed() });
       const { onChange, render, tree } = await watched("bea", "reviewer", version({}));
       expect(onChange).not.toHaveBeenCalled();
-      click(tree, "Review version 1 for issuance");
-      clickText(await runtime.settle(render), "Review for issuance", "dialog");
+      click(tree, "Sign off version 1 as reviewer");
+      clickText(await runtime.settle(render), "Sign off as reviewer", "dialog");
       await runtime.settle(render);
       expect(onChange).toHaveBeenCalledTimes(1);
       expect(onChange).toHaveBeenCalledWith(signed());
@@ -679,7 +737,7 @@ describe("the open version's review controls", () => {
         });
         expect(onChange).toHaveBeenCalledWith(returned);
         expect(renderToStaticMarkup(<>{after}</>)).toContain(
-          "Returned: Add the payroll duties. by Bea Lin on Oct 7, 2026",
+          "Returned by Bea Lin on Oct 7, 2026: “Add the payroll duties.”",
         );
       } finally {
         returnReport.mockReset();
@@ -702,7 +760,7 @@ describe("the open version's review controls", () => {
     ]) {
       runtime.reset();
       const { html, labels: names } = await view(viewer, role, returned);
-      expect(html).toContain("Returned: Add the payroll duties. by Bea Lin on Oct 7, 2026");
+      expect(html).toContain("Returned by Bea Lin on Oct 7, 2026: “Add the payroll duties.”");
       expect(names).not.toContain("Return version 1 to its preparer");
     }
   });

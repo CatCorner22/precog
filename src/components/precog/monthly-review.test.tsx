@@ -2,7 +2,7 @@ import { isValidElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Person } from "@/lib/precog/types";
-import type { ReviewRecord } from "@/lib/precog/firm/reviews";
+import { monthlyReviewTasks, REVIEW_ITEMS, type ReviewRecord } from "@/lib/precog/firm/reviews";
 import type { ControlExecution } from "@/lib/precog/controls/executions/model";
 import { createHookRuntime, type HookRuntime } from "@/test/hook-runtime";
 import { MonthlyReview } from "./monthly-review";
@@ -991,3 +991,140 @@ describe("monthly review never saves a name that left the team", () => {
     expect(practice.setMonthlyReviews).not.toHaveBeenCalled();
   });
 });
+
+describe("monthly review says what each check covers", () => {
+  it("prints one plain line under every check's title, the November checks included", () => {
+    state.people = [owner()];
+    const september = view();
+    for (const item of REVIEW_ITEMS.filter((i) => !i.since)) {
+      const task = monthlyReviewTasks("2026-09-29", state.people, {}, "2026-09").find(
+        (t) => t.key === item.key,
+      )!;
+      expect(september).toContain(`data-covers="${item.key}"`);
+      expect(september).toContain(escape(task.covers));
+    }
+    expect(september).toContain(
+      "Checks your business wrote that cleared the bank. A check you received, or a bill paid twice, belongs under Another problem.",
+    );
+    state.today = new Date(2026, 10, 20);
+    vi.setSystemTime(new Date(2026, 10, 20, 9));
+    const november = view();
+    const tasks = monthlyReviewTasks("2026-11-20", state.people, {}, "2026-11");
+    expect(tasks.map((t) => t.key)).toEqual(REVIEW_ITEMS.map((i) => i.key));
+    for (const task of tasks) {
+      expect(november).toContain(`data-covers="${task.key}"`);
+      expect(november).toContain(escape(task.covers));
+    }
+  });
+});
+
+describe("monthly review records another problem this month", () => {
+  const render = () => runtime.render(() => MonthlyReview());
+  const click = (label: string) =>
+    buttons(render())
+      .find((b) => b.props.children === label)!
+      .props.onClick();
+  const field = (label: string) => {
+    const found = [...elements(render(), "select"), ...elements(render(), "input")].find(
+      (e) => (e as unknown as Input).props["aria-label"] === label,
+    );
+    if (!found) throw new Error(`No field ${label}`);
+    return found as unknown as Input;
+  };
+  function savedLocally(): ReviewRecord[] {
+    const update = practice.setMonthlyReviews.mock.calls.at(-1)?.[0] as
+      ((current: ReviewRecord[]) => ReviewRecord[]) | undefined;
+    return update ? update([]) : [];
+  }
+  const DONATION = "A family's mailed donation check never reached the bank";
+
+  it("ends each month's list with the entry, its picker empty", () => {
+    state.people = [owner()];
+    const html = view();
+    expect(html).toContain('id="check-2026-09-other_problem"');
+    expect(html).toContain("Record another problem this month");
+    expect(html.lastIndexOf("data-covers=")).toBeLessThan(html.indexOf("Record another problem"));
+    expect(html).toContain(">Record the problem</button>");
+    expect(field("Who found another problem").props.value).toBe("");
+  });
+
+  it("saves an Exception under the person and month chosen, with the note, and nothing for the server", async () => {
+    state.people = [owner()];
+    state.user = { id: "owner" };
+    state.businessId = "biz_1";
+    await settle();
+    field("Who found another problem").props.onChange({ target: { value: "Owner" } });
+    field("Note for another problem").props.onChange({ target: { value: DONATION } });
+    click("Record the problem");
+    expect(savedLocally()).toEqual([
+      expect.objectContaining({
+        key: "other_problem",
+        period: "2026-09",
+        result: "exception",
+        ownerName: "Owner",
+        notes: DONATION,
+      }),
+    ]);
+    // Not a check: no monthly review log entry, so no count and no evidence log entry moves.
+    expect(server.recordMonthlyReview).not.toHaveBeenCalled();
+    expect(toast.success).toHaveBeenCalledWith("Saved on this business.", {
+      description:
+        "Another problem is not a check: it does not change how many checks are done, and it does not go into the control evidence log.",
+    });
+    // The next problem waits for its own choice of person.
+    expect(field("Who found another problem").props.value).toBe("");
+  });
+
+  it("refuses without a person or without a note", async () => {
+    state.people = [owner()];
+    await settle();
+    field("Note for another problem").props.onChange({ target: { value: DONATION } });
+    click("Record the problem");
+    expect(practice.setMonthlyReviews).not.toHaveBeenCalled();
+    expect(await settle()).toContain("Choose who found it.");
+    field("Note for another problem").props.onChange({ target: { value: " " } });
+    field("Who found another problem").props.onChange({ target: { value: "Owner" } });
+    click("Record the problem");
+    expect(practice.setMonthlyReviews).not.toHaveBeenCalled();
+    expect(await settle()).toContain("Say what the problem is.");
+  });
+
+  it("lists it in the month and marks it resolved, leaving every check as it was", async () => {
+    state.people = [owner()];
+    state.records = [
+      {
+        key: "other_problem",
+        period: "2026-09",
+        result: "exception",
+        ownerName: "Owner",
+        notes: DONATION,
+        recordedAt: "2026-09-28T15:00:00.000Z",
+      },
+    ];
+    const html = await settle();
+    expect(html).toContain(`Another problem: ${escape(DONATION)} — found by Owner on Sep 28`);
+    expect(html).toContain('id="check-2026-09-other_problem-20260928150000000"');
+    // Every check still has no result.
+    expect(html).not.toContain("data-saved-result");
+    expect(html.match(/>Mark resolved<\/button>/g)).toHaveLength(1);
+    click("Mark resolved");
+    expect(practice.setMonthlyReviews).not.toHaveBeenCalled();
+    expect(await settle()).toContain("Choose who resolved it.");
+    field(`Who resolved: ${DONATION}`).props.onChange({ target: { value: "Owner" } });
+    click("Mark resolved");
+    expect(savedLocally()[0]).toMatchObject({
+      key: "other_problem",
+      period: "2026-09",
+      result: "done",
+      ownerName: "Owner",
+      notes: `Resolved: ${DONATION}`,
+      resolves: "2026-09-28T15:00:00.000Z",
+    });
+    expect(server.recordMonthlyReview).not.toHaveBeenCalled();
+  });
+});
+
+/** Text as renderToStaticMarkup escapes it. */
+function escape(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/'/g, "&#x27;").replace(/"/g, "&quot;");
+}

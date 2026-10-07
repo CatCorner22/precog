@@ -12,7 +12,7 @@ import type {
   StaffComposition,
 } from "./types";
 import { getIndustryTemplate } from "./templates";
-import { resolveTemplate } from "./active-template";
+import { CONTROL_IN_PLACE_TAB, resolveTemplate, setupControlsInPlace } from "./active-template";
 import {
   DEFAULT_RISK_VARIABLES,
   mergeStaffIntoVariables,
@@ -433,7 +433,10 @@ export function normalizeProfile(
       staff,
     ),
     dualRelease,
-    decisions: normalizeDecisions(parsed.decisions, industry),
+    decisions: withoutSetupEntries(normalizeDecisions(parsed.decisions, industry), {
+      industry,
+      setupAnswers,
+    }),
     onboardingComplete:
       typeof parsed.onboardingComplete === "boolean"
         ? parsed.onboardingComplete
@@ -696,6 +699,33 @@ const REVIEW_OUTCOMES = ["done", "still_open", "no_longer_relevant"] as const;
 const CONTINUITY_STEPS: readonly ContinuityStep[] = ["cover", "handoff", "document", "locate"];
 const COVERAGE_STATUSES: readonly CoverageStatus[] = ["uncovered", "single", "thin", "covered"];
 const DOCUMENTATION_STATES: readonly DocumentationState[] = ["none", "unlocated", "located"];
+
+/**
+ * The journal without the entries setup used to log for its own answers
+ * ("The owner opens and reads the bank statement each month (answered at
+ * setup)." and the outside-bookkeeper line). Setup logged them as "Watch it"
+ * decisions the owner never made. An entry goes only when it is exactly one
+ * of those: a control-in-place entry of that kind, under this industry, with
+ * the text the stored setup answers still give for that control, and never
+ * reviewed or judged. The answers credit the same control with the same text
+ * (`setupControlsInPlace`), so no figure moves.
+ */
+export function withoutSetupEntries(
+  decisions: DecisionEntry[],
+  profile: Pick<PracticeProfile, "industry" | "setupAnswers">,
+): DecisionEntry[] {
+  const setup = setupControlsInPlace(profile.setupAnswers, profile.industry);
+  if (setup.length === 0) return decisions;
+  const seeded = (d: DecisionEntry) =>
+    d.linkedTab === CONTROL_IN_PLACE_TAB &&
+    d.kind === "monitor" &&
+    (!d.linkedIndustry || d.linkedIndustry === profile.industry) &&
+    !d.disposition &&
+    !d.reviews?.length &&
+    d.status !== "closed" &&
+    setup.some((s) => s.controlId === d.linkedId && s.text === d.note);
+  return decisions.some(seeded) ? decisions.filter((d) => !seeded(d)) : decisions;
+}
 
 /**
  * Journal entries of a known kind, rebuilt deeply so every downstream reader

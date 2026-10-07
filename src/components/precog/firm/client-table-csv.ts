@@ -1,11 +1,14 @@
 import type { ClientEngagementRow } from "@/lib/precog/firm/store";
 import type { EngagementRecord } from "@/lib/precog/firm/engagement-row";
-import { formatDay, localDateKey } from "@/lib/precog/dates";
+import { formatDay, formatDayShort, localDateKey } from "@/lib/precog/dates";
 import {
   checksCountOn,
   monthKey,
+  periodMonthName,
   periodStanding,
+  periodWithDue,
   previousPeriod,
+  reviewDueOn,
   type PeriodStanding,
 } from "@/lib/precog/firm/reviews";
 import { csvCell } from "@/lib/precog/import/csv";
@@ -37,17 +40,38 @@ export interface ClientSort {
 /** The table opens with the clients who need the firm most on top, the rest by name. */
 export const DEFAULT_CLIENT_SORT: ClientSort = { key: "urgency", dir: "desc" };
 
-export const CLIENT_COLUMNS: readonly { key: ClientColumn; label: string }[] = [
-  { key: "client", label: "Client" },
-  { key: "status", label: "Status" },
-  { key: "lastReview", label: "Last review" },
-  { key: "lastMonth", label: "Last month" },
-  { key: "thisMonth", label: "This month" },
-  { key: "exceptions", label: "Exceptions" },
-  { key: "skipped", label: "Skipped" },
-  { key: "conflicts", label: "Open duty conflicts" },
-  { key: "awaiting", label: "Awaiting review" },
-];
+/**
+ * The table's columns on the viewer's day `today`. The two month columns
+ * name their month, last month with its due day ("September checks (due Oct
+ * 10)", "October checks"); `title` says in full what a month column counts.
+ */
+export function clientColumns(
+  today: string,
+): readonly { key: ClientColumn; label: string; title?: string }[] {
+  const current = monthKey(today);
+  const last = previousPeriod(current);
+  const counts = (period: string, overdue: string) =>
+    `${periodWithDue(period)}: the checks marked Done, of all of that month's checks.${overdue}`;
+  return [
+    { key: "client", label: "Client" },
+    { key: "status", label: "Status" },
+    { key: "lastReview", label: "Last review" },
+    {
+      key: "lastMonth",
+      label: `${periodMonthName(last)} checks (due ${formatDayShort(reviewDueOn(last))})`,
+      title: counts(last, " Overdue after the due day while a check has no result."),
+    },
+    {
+      key: "thisMonth",
+      label: `${periodMonthName(current)} checks`,
+      title: counts(current, ""),
+    },
+    { key: "exceptions", label: "Exceptions" },
+    { key: "skipped", label: "Skipped" },
+    { key: "conflicts", label: "Open duty conflicts" },
+    { key: "awaiting", label: "Awaiting review" },
+  ];
+}
 
 /**
  * The viewer's local day the engagement ended, YYYY-MM-DD, as the Engagement
@@ -211,16 +235,34 @@ function urgencyValue(client: ClientEngagementRow, today: string): number {
  * no client has is left out; with none, "No client needs you now."
  */
 export function clientUrgencyText(clients: readonly ClientEngagementRow[], today: string): string {
+  const { before, awaiting, after } = clientUrgency(clients, today);
+  return `${before}${awaiting ?? ""}${after}`;
+}
+
+/**
+ * The urgency line in three pieces, so the page can link the versions
+ * awaiting review to the version: the text before them, "{K} versions
+ * awaiting review" (null when none waits) and the text after them.
+ */
+export function clientUrgency(
+  clients: readonly ClientEngagementRow[],
+  today: string,
+): { before: string; awaiting: string | null; after: string } {
   const { all, overdue, exceptions, nothing, awaiting } = needsTally(clients, today);
   const need = all.filter((n) => n.overdue || n.exceptions || n.nothingRecorded || n.awaiting);
-  if (need.length === 0) return "No client needs you now.";
+  if (need.length === 0) return { before: "No client needs you now.", awaiting: null, after: "" };
   const parts = [
     overdue > 0 ? `${overdue} with last month overdue` : "",
     exceptions > 0 ? `${exceptions} with exceptions` : "",
     nothing > 0 ? `${nothing} with nothing recorded this month` : "",
-    awaiting > 0 ? `${count(awaiting, "version")} awaiting review` : "",
   ].filter(Boolean);
-  return `${need.length} ${verb(need.length, "needs", "need")} you now: ${parts.join(", ")}.`;
+  const lead = `${need.length} ${verb(need.length, "needs", "need")} you now: ${parts.join(", ")}`;
+  if (awaiting === 0) return { before: lead, awaiting: null, after: "." };
+  return {
+    before: parts.length > 0 ? `${lead}, ` : lead,
+    awaiting: `${count(awaiting, "version")} awaiting review`,
+    after: ".",
+  };
 }
 
 /** The share of the month's checks Done; an overdue month sorts below every other. */
