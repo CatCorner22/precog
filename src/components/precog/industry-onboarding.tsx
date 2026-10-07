@@ -85,6 +85,7 @@ import {
   typedSeat,
   whoIs,
   withRowIds,
+  onePersonNote,
 } from "./industry-onboarding-helpers";
 import {
   AddDutyControl,
@@ -1502,10 +1503,11 @@ export function IndustryOnboarding({
                   </CardContent>
                 </Card>
               </div>
-              <p className="rounded-lg border border-border bg-elevated/50 px-3 py-2 text-xs text-muted">
-                You can continue with one person. Precog will assess that sole-owner setup; add the
-                rest of your team later under Team for a fuller team assessment.
-              </p>
+              {onePersonNote(namedRows.length) && (
+                <p className="rounded-lg border border-border bg-elevated/50 px-3 py-2 text-xs text-muted">
+                  {onePersonNote(namedRows.length)}
+                </p>
+              )}
               <TitleTicksReview items={titleTicks} onShow={showRow} />
               {finishNote && (
                 <p className="text-xs text-danger" role="alert">

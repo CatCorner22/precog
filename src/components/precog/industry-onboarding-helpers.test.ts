@@ -3,6 +3,7 @@ import { CASE_LIBRARY } from "@/lib/precog/evidence";
 import { INDUSTRIES } from "@/lib/precog/industry";
 import { suggestedDuties } from "@/lib/precog/onboarding/own-team";
 import { UNANSWERED } from "@/lib/precog/onboarding/setup-answers";
+import { ONE_PERSON_NOTE, onePersonNote } from "./industry-onboarding-helpers";
 import { caseCoveragePhrase, titleTicksItems } from "./industry-onboarding-helpers";
 
 const total = CASE_LIBRARY.length;
@@ -129,5 +130,14 @@ describe("titleTicksItems", () => {
         ],
       },
     ]);
+  });
+});
+
+describe("onePersonNote", () => {
+  it("offers the one-person setup only while one person or nobody is named", () => {
+    expect(onePersonNote(0)).toBe(ONE_PERSON_NOTE);
+    expect(onePersonNote(1)).toBe(ONE_PERSON_NOTE);
+    // Priya named four people and still read "sole-owner setup".
+    expect(onePersonNote(4)).toBeNull();
   });
 });
