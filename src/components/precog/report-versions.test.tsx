@@ -362,9 +362,53 @@ describe("report versions panel", () => {
     ]) {
       runtime.reset();
       const { labels: names, html } = await panel(viewer, role, [returned]);
-      expect(html).toContain("Returned: Add the payroll duties.");
+      expect(html).toContain("Returned: Add the payroll duties. by Bea Lin on Oct 7, 2026");
       expect(names.filter((n) => n !== "Open version 1" && n !== "Report versions")).toEqual([]);
     }
+  });
+
+  describe("a version waiting for the viewer's review", () => {
+    const asked = (patch: Partial<ReportVersionRow> = {}) =>
+      version({
+        id: "rv_3",
+        versionNo: 3,
+        reviewRequestedAt: "2026-10-06T09:00:00.000Z",
+        reviewRequestedFrom: "bea",
+        reviewRequestedFromName: "Bea Lin",
+        ...patch,
+      });
+    /** The "Lock this version" button in the tree. */
+    const lockButton = (tree: ReactNode) => button(tree, "Lock this version");
+
+    it("shows a banner at the top linking to that version, and an outline Lock", async () => {
+      const { tree, html } = await panel("bea", "reviewer", [asked(), version({})]);
+      expect(html).toContain("Version 3 waits for your review.");
+      const [banner] = findAll(tree, (e) => e.props.role === "status");
+      expect(textOf(banner)).toContain("Version 3 waits for your review.");
+      expect(textOf(banner)).toContain("Open version 3");
+      expect(html.indexOf("Version 3 waits for your review.")).toBeLessThan(
+        html.indexOf("Lock this version"),
+      );
+      expect((lockButton(tree).props as { variant?: string }).variant).toBe("outline");
+    });
+
+    it("shows no banner to the preparer, nor to a reviewer it was not asked of", async () => {
+      for (const [viewer, role, patch] of [
+        ["ada", "preparer", {}],
+        ["own", "owner", {}],
+        ["bea", "reviewer", { reviewRequestedAt: null, reviewRequestedFrom: null }],
+      ] as const) {
+        runtime.reset();
+        const { tree, html } = await panel(viewer, role, [asked(patch)]);
+        expect(html).not.toContain("waits for your review");
+        expect(findAll(tree, (e) => e.props.role === "status")).toEqual([]);
+      }
+    });
+
+    it("keeps Lock filled for a preparer", async () => {
+      const { tree } = await panel("ada", "preparer", [asked()]);
+      expect((lockButton(tree).props as { variant?: string }).variant).toBe("default");
+    });
   });
 
   describe("Share on a reviewed version", () => {
@@ -595,14 +639,15 @@ describe("the open version's review controls", () => {
       expect(onChange).toHaveBeenCalledWith(version({}));
     });
 
-    it("after a return", async () => {
+    it("after a return, through a note written on the page", async () => {
       const returned = version({
-        returnedAt: "2026-10-07T09:00:00.000Z",
+        returnedAt: "2026-10-07T15:00:00.000Z",
         returnedBy: "bea",
         returnedByName: "Bea Lin",
         returnNote: "Add the payroll duties.",
       });
-      vi.stubGlobal("window", { prompt: () => "Add the payroll duties." });
+      const prompt = vi.fn(() => "never asked");
+      vi.stubGlobal("window", { prompt });
       const returnReport = vi.mocked(
         (await import("@/lib/precog/firm/review-server")).returnReport,
       );
@@ -610,16 +655,56 @@ describe("the open version's review controls", () => {
         returnReport.mockResolvedValue({ version: returned });
         const { onChange, render, tree } = await watched("bea", "reviewer", version({}));
         click(tree, "Return version 1 to its preparer");
-        await runtime.settle(render);
+        const writing = await runtime.settle(render);
+        expect(prompt).not.toHaveBeenCalled();
+        expect(returnReport).not.toHaveBeenCalled();
+        const box = () =>
+          findAll(
+            writing,
+            (e) => e.type === "textarea" && (e.props as { required?: boolean }).required === true,
+          )[0];
+        expect((box()?.props as { maxLength?: number }).maxLength).toBe(600);
+        // Nothing to send until the note has words in it.
+        const confirm = (tree: ReactNode) =>
+          findAll(tree, (e) => e.props["aria-label"] === "Return version 1 with this note")[0];
+        expect(confirm(writing)?.props.disabled).toBe(true);
+        box()?.props.onChange?.({ target: { value: " Add the payroll duties. " } });
+        const ready = await runtime.settle(render);
+        expect(confirm(ready)?.props.disabled).toBe(false);
+        confirm(ready)?.props.onClick?.();
+        const after = await runtime.settle(render);
+        expect(prompt).not.toHaveBeenCalled();
         expect(returnReport).toHaveBeenCalledWith({
           data: { id: "rv_1", note: "Add the payroll duties." },
         });
         expect(onChange).toHaveBeenCalledWith(returned);
+        expect(renderToStaticMarkup(<>{after}</>)).toContain(
+          "Returned: Add the payroll duties. by Bea Lin on Oct 7, 2026",
+        );
       } finally {
         returnReport.mockReset();
         vi.unstubAllGlobals();
       }
     });
+  });
+
+  it("shows the preparer the returned version's note, who returned it and when", async () => {
+    const returned = version({
+      reviewRequestedAt: "2026-10-06T09:00:00.000Z",
+      returnedAt: "2026-10-07T15:00:00.000Z",
+      returnedBy: "bea",
+      returnedByName: "Bea Lin",
+      returnNote: "Add the payroll duties.",
+    });
+    for (const [viewer, role] of [
+      ["ada", "preparer"],
+      ["bea", "reviewer"],
+    ]) {
+      runtime.reset();
+      const { html, labels: names } = await view(viewer, role, returned);
+      expect(html).toContain("Returned: Add the payroll duties. by Bea Lin on Oct 7, 2026");
+      expect(names).not.toContain("Return version 1 to its preparer");
+    }
   });
 
   it("shows nothing to an account that only reads the versions", async () => {

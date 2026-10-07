@@ -25,16 +25,22 @@ import { isOwnTeam } from "@/lib/precog/firm/engagement";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
 import {
   askForReviewLabel,
+  awaitingReviewText,
   canWithdrawReview,
   issueAloneLabel,
+  lockButtonVariant,
   needsOverrideNote,
   openToReviewLabel,
+  openVersionText,
   overrideLine,
   overrideNoteLabel,
   overrideNoteReady,
+  RETURN_NOTE_TEXT,
   returnedNoteLine,
+  returnNoteConfirmLabel,
+  returnNoteLabel,
+  returnNoteReady,
   returnVersionLabel,
-  returnWithNote,
   reviewButtonsFor,
   reviewVersionLabel,
   REVIEW_WORKFLOW_TEXT,
@@ -44,6 +50,7 @@ import {
   signOffDialogText,
   supersededBy,
   supersededLabel,
+  versionAwaitingReview,
   withdrawConfirmText,
   withdrawLabel,
 } from "./report-versions-actions";
@@ -78,7 +85,7 @@ function versionNotes(
         <p className="text-xs font-medium text-amber-800">{supersededLabel(newer)}</p>
       )}
       {override && <p className="text-xs text-neutral-700">{override}</p>}
-      {v.returnedAt && <p className="text-xs text-neutral-700">{returnedNoteLine(v.returnNote)}</p>}
+      {v.returnedAt && <p className="text-xs text-neutral-700">{returnedNoteLine(v)}</p>}
     </>
   );
 }
@@ -284,9 +291,31 @@ export function ReportVersionsPanel() {
       readOnly,
       canIssueAlone: review?.canIssueAlone,
     });
+  // The version a reviewer came here for: named at the top, so the draft
+  // below never reads as the thing to review.
+  const awaiting = versions
+    ? versionAwaitingReview({ versions, viewerId, role, firmClient, readOnly })
+    : null;
+  const awaitingId =
+    awaiting === null ? null : (versions?.find((v) => v.versionNo === awaiting)?.id ?? null);
 
   return (
     <section className="print:hidden mx-auto max-w-4xl px-6 pt-6" aria-label="Report versions">
+      {awaiting !== null && awaitingId && (
+        <div
+          role="status"
+          className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-300 bg-blue-50 p-3 text-sm font-medium text-blue-950"
+        >
+          <span>{awaitingReviewText(awaiting)}</span>
+          <Link
+            to="/report"
+            search={{ version: awaitingId }}
+            className="inline-flex h-8 items-center rounded-md bg-blue-700 px-3 text-xs font-medium text-white hover:bg-blue-800"
+          >
+            {openVersionText(awaiting)}
+          </Link>
+        </div>
+      )}
       <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm">
         {readOnly ? (
           <p className="text-xs text-neutral-600">{SHARED_BUSINESS_NOTE}</p>
@@ -304,7 +333,12 @@ export function ReportVersionsPanel() {
                 />
               </label>
               {/* Held until the list says what this account may do here. */}
-              <Button size="sm" onClick={() => void lock()} disabled={busy || versions === null}>
+              <Button
+                size="sm"
+                variant={lockButtonVariant({ role, awaiting: awaiting !== null })}
+                onClick={() => void lock()}
+                disabled={busy || versions === null}
+              >
                 <Lock className="size-3.5" /> Lock this version
               </Button>
             </div>
@@ -445,6 +479,9 @@ export function OpenVersionReview({
   const [note, setNote] = useState("");
   const [overrideNote, setOverrideNote] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
+  // The return form under "Return to preparer": open or not, and its note.
+  const [returning, setReturning] = useState(false);
+  const [returnNote, setReturnNote] = useState("");
   const userId = user?.id ?? null;
   const businessId = version.businessId;
 
@@ -513,15 +550,18 @@ export function OpenVersionReview({
   };
 
   if (!buttons.reviewOrReturn && !buttons.issueAlone && !issueAloneReason && !withdrawable) {
-    // Nothing for this viewer to do here; still say when a newer version exists.
-    return newer === null ? null : (
+    // Nothing for this viewer to do here; still say when a newer version
+    // exists, and what the reviewer asked to change on a returned one.
+    if (newer === null && !current.returnedAt) return null;
+    return (
       <section
         className="print:hidden mx-auto max-w-4xl px-6 pt-6"
         aria-label={SIGN_OFF_TEXT.heading}
       >
-        <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-900">
-          {supersededLabel(newer)}
-        </p>
+        <div className="space-y-1 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          {newer !== null && <p className="font-medium">{supersededLabel(newer)}</p>}
+          {current.returnedAt && <p>{returnedNoteLine(current)}</p>}
+        </div>
       </section>
     );
   }
@@ -555,17 +595,18 @@ export function OpenVersionReview({
   }
 
   async function giveBack() {
+    if (!returnNoteReady(returnNote)) {
+      toast.error(REVIEW_WORKFLOW_TEXT.noteRequired);
+      return;
+    }
+    setBusy(true);
     try {
-      const result = await returnWithNote(current.versionNo, (returnNote) => {
-        setBusy(true);
-        return returnReport({ data: { id: current.id, note: returnNote } });
+      const { version: returned } = await returnReport({
+        data: { id: current.id, note: returnNote.trim() },
       });
-      if (result === null) return;
-      if (result === "empty") {
-        toast.error(REVIEW_WORKFLOW_TEXT.noteRequired);
-        return;
-      }
-      replace(result.version);
+      replace(returned);
+      setReturning(false);
+      setReturnNote("");
       toast.success(REVIEW_WORKFLOW_TEXT.returned);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : REVIEW_WORKFLOW_TEXT.returnFailed);
@@ -612,9 +653,10 @@ export function OpenVersionReview({
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={() => void giveBack()}
+                onClick={() => setReturning((cur) => !cur)}
                 disabled={busy}
                 aria-label={returnVersionLabel(current.versionNo)}
+                aria-expanded={returning}
               >
                 <Undo2 className="size-3.5" /> {REVIEW_WORKFLOW_TEXT.returnToPreparer}
               </Button>
@@ -644,6 +686,40 @@ export function OpenVersionReview({
             </Button>
           )}
         </div>
+        {returning && buttons.reviewOrReturn && (
+          <div className="mt-2 rounded-md border border-neutral-300 bg-white p-3">
+            <label className="block text-xs text-neutral-700">
+              {returnNoteLabel(current.versionNo)}
+              <textarea
+                className="mt-1 w-full rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900"
+                value={returnNote}
+                onChange={(e) => setReturnNote(e.target.value)}
+                maxLength={RETURN_NOTE_MAX}
+                rows={3}
+                required
+                autoFocus
+              />
+            </label>
+            <div className="mt-2 flex flex-wrap justify-end gap-1.5">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setReturning(false)}
+                disabled={busy}
+              >
+                {RETURN_NOTE_TEXT.cancel}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => void giveBack()}
+                disabled={busy || !returnNoteReady(returnNote)}
+                aria-label={returnNoteConfirmLabel(current.versionNo)}
+              >
+                <Undo2 className="size-3.5" /> {RETURN_NOTE_TEXT.confirm}
+              </Button>
+            </div>
+          </div>
+        )}
         {withdrawing &&
           withdrawable &&
           withdrawConfirm({
