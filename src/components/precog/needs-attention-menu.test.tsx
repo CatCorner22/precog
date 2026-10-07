@@ -305,7 +305,8 @@ describe("Needs attention menu", () => {
         "Owner",
       ],
     ]);
-    expect(needsAttentionTotal({ ...input, reviews: [found] })).toBe(5);
+    // Two lines, so the button shows 2, not the 5 things they count.
+    expect(needsAttentionTotal({ ...input, reviews: [found] })).toBe(2);
     // Resolved, it waits on nothing; the four checks still wait.
     const fixed: ReviewRecord = {
       ...found,
@@ -317,7 +318,7 @@ describe("Needs attention menu", () => {
     expect(
       buildNeedsAttentionItems({ ...input, reviews: [fixed, found] }).map((i) => i.text),
     ).toEqual(["4 checks for September, due October 10"]);
-    expect(needsAttentionTotal({ ...input, reviews: [fixed, found] })).toBe(4);
+    expect(needsAttentionTotal({ ...input, reviews: [fixed, found] })).toBe(1);
   });
 
   it("splits the checks by the person each is suggested for and groups every item by person", () => {
@@ -356,26 +357,28 @@ describe("Needs attention menu", () => {
 
   it("shows last month's checks before the 5th, while last month is still open", () => {
     state.today = new Date(2026, 9, 4);
-    expect(view()).toContain("Needs attention (4)");
+    // One line, "4 checks for September, due October 10".
+    expect(view()).toContain("Needs attention (1)");
     // On a phone the words hide behind the bell but stay for screen readers.
     const compact = renderToStaticMarkup(
       <NeedsAttentionMenu compactOnPhone onOpen={() => undefined} />,
     );
-    expect(compact).toContain('class="sr-only sm:not-sr-only">Needs attention </span>(4)');
+    expect(compact).toContain('class="sr-only sm:not-sr-only">Needs attention </span>(1)');
     state.records = all("2026-09", "done");
     expect(view()).toBe("");
   });
 
   it("counts last month alone through the 10th, and this month alone after it", () => {
     state.today = new Date(2026, 9, 5);
-    expect(view()).toContain("Needs attention (4)");
+    expect(view()).toContain("Needs attention (1)");
     state.records = [
       result("cleared_checks", "2026-10", "exception"),
       result("payroll_headcount", "2026-10", "skipped"),
     ];
     state.today = new Date(2026, 9, 11);
-    // October's five checks: four not done (one of them Skipped) and one exception.
-    expect(view()).toContain("Needs attention (5)");
+    // October's five checks: one line for the four not done (one of them
+    // Skipped) and one for the exception.
+    expect(view()).toContain("Needs attention (2)");
   });
 
   it("opens a leaver reminder at the leaving section", () => {
@@ -435,5 +438,36 @@ describe("Needs attention menu", () => {
     const rows = html.match(/<button[^>]*role="menuitem"[^>]*>/g) ?? [];
     expect(rows).toHaveLength(items.length);
     for (const row of rows) expect(row).toContain("pointer-coarse:min-h-11");
+  });
+
+  it("shows on its button the number of lines the open menu lists, never the things they count", () => {
+    const inputs = [
+      // The tester's menu: "2 checks for September" and one exception, once "(3)".
+      {
+        ...none,
+        day: "2026-10-07",
+        people: [state.owner],
+        reviews: [
+          result("bank_statement", "2026-09", "exception"),
+          result("new_vendors", "2026-09", "done"),
+        ],
+      },
+      { ...none, day: "2026-10-07", people: [state.owner] },
+      {
+        day: "2026-10-07",
+        people: [dana, lisa],
+        overdue: [{ linkedPersonId: "lisa" }, { linkedPersonId: "lisa" }, {}],
+        slipped: [{ linkedPersonId: "someone-gone" }, {}],
+        leavers: 3,
+        reviews: [result("cleared_checks", "2026-10", "exception")],
+      },
+    ];
+    for (const input of inputs) {
+      const lines = buildNeedsAttentionItems(input);
+      expect(needsAttentionTotal(input)).toBe(lines.length);
+      const groups = groupNeedsAttentionItems(lines, input.people);
+      expect(groups.flatMap((g) => g.items)).toHaveLength(lines.length);
+    }
+    expect(needsAttentionTotal(inputs[0])).toBe(2);
   });
 });

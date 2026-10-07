@@ -225,8 +225,12 @@ export function monthlyAttentionItems(
 }
 
 /**
- * The number the Needs attention button shows: every item's count added up,
- * worked out without building the items or their words.
+ * The number the Needs attention button shows: how many lines the menu lists
+ * (`buildNeedsAttentionItems`), one for each person's checks not done, each
+ * exception, each person's overdue and undone decisions, and the leavers,
+ * worked out without building the items or their words. A line can count
+ * several things ("4 checks for September"); the button counts lines, so it
+ * never shows a number the open menu does not.
  */
 export function needsAttentionTotal({
   day,
@@ -237,11 +241,15 @@ export function needsAttentionTotal({
   leavers,
   reviews,
 }: AttentionInput): number {
+  const checks = waitingChecks(day, reviews, people, roleDuties);
+  const notDoneLines = new Set(checks.filter((c) => !c.exception).map((c) => c.who)).size;
+  const exceptionLines = checks.filter((c) => c.exception).length;
   return (
-    waitingChecks(day, reviews, people, roleDuties).length +
-    overdue.length +
-    slipped.length +
-    Math.max(leavers, 0)
+    notDoneLines +
+    exceptionLines +
+    byPerson(overdue, people).size +
+    byPerson(slipped, people).size +
+    (leavers > 0 ? 1 : 0)
   );
 }
 

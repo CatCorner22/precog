@@ -132,3 +132,26 @@ export function conflictsByPerson(conflicts: readonly DetectedConflict[]): {
   }
   return [...groups.values()];
 }
+
+/**
+ * What order the list is in, said when it opens with someone other than the
+ * person the summary above it names for holding most of the money cycle
+ * ("holds 6 of the 11 core money duties"): people run by their most severe
+ * pair, not by how many duties they hold. Null when the two agree, or when
+ * the summary names nobody.
+ */
+export function listOrderNote(
+  open: readonly DetectedConflict[],
+  holders: readonly {
+    person: { personId: string; personName: string };
+    cycle: readonly string[];
+    of: number;
+  }[],
+): string | null {
+  const leader = conflictsByPerson(open)[0];
+  const holder = holders[0];
+  if (!leader || !holder || holders.some((h) => h.person.personId === leader.personId)) {
+    return null;
+  }
+  return `Grouped by person, in order of each person's most severe pair: ${leader.personName} comes first, not ${holder.person.personName}, who holds ${holder.cycle.length} of the ${holder.of} core money duties.`;
+}

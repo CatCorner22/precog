@@ -35,7 +35,13 @@ import { titleDutiesSentence } from "../sod/title-duties";
 import { locationsById } from "../person-location";
 import { industryMeta } from "../industry";
 import { localDateKey } from "../dates";
-import { doNextList, doNextSteps, type DoNextItem, type DoNextStep } from "../actions/do-next";
+import {
+  doNextList,
+  doNextSteps,
+  stepLineOnScreen,
+  type DoNextItem,
+  type DoNextStep,
+} from "../actions/do-next";
 import { joinWithAnd } from "../text";
 import { formatUsd } from "../../utils";
 import { dutiesOffTeam, setupInPlaceControls } from "../onboarding/setup-answers";
@@ -174,6 +180,12 @@ interface StartHereFirstStepsModel {
   items: DoNextItem[];
   /** The ranked controls on that list, in order. */
   steps: DoNextStep[];
+  /**
+   * Item 1 as the screens word it (actions/do-next `stepLineOnScreen`),
+   * naming the person and the duties in conflict; the duty-conflict tab's
+   * "What to do first" box reads the same words. Null with no step.
+   */
+  firstLine: string | null;
   /** In-place setup controls that the unfiltered ranked list would have shown. */
   alreadyInPlace: ControlDefinition[];
   caseById: Map<string, CaseStudy>;
@@ -316,6 +328,7 @@ export function buildStartHereModel({
     accessReconciliation: profile.accessReconciliation,
   };
   const doNext = doNextList({ ...doNextInput, inPlace });
+  const steps = doNextSteps(doNext);
   const alreadyInPlace = [
     ...new Set(
       doNextSteps(doNextList(doNextInput))
@@ -345,7 +358,8 @@ export function buildStartHereModel({
     cost,
     firstSteps: {
       items: doNext,
-      steps: doNextSteps(doNext),
+      steps,
+      firstLine: steps[0] ? stepLineOnScreen(steps[0], open) : null,
       alreadyInPlace,
       caseById: new Map(evidence.map((c) => [c.id, c])),
       tips: BENCHMARK_BY_ID["bm-tips"],

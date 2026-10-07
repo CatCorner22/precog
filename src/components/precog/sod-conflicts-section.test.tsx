@@ -8,7 +8,11 @@ import { procedureForConflict } from "@/lib/precog/procedures/rule-procedures";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { buildStartHereModel } from "@/lib/precog/start-here/model";
+import { ownSetupProfile } from "@/lib/precog/business-lifecycle";
+import { UNANSWERED } from "@/lib/precog/onboarding/setup-answers";
+import type { Person } from "@/lib/precog/types";
 import { SodPanel } from "./sod-panel";
+import { StartHereFirstStepsSection } from "./start-here-first-steps-section";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
@@ -22,6 +26,19 @@ const render = (profile: PracticeProfile) =>
       <SodPanel initialView="conflicts" onNavigate={() => {}} />
     </ReadOnlyPracticeProvider>,
   );
+
+/** The What to do first box's items, as text. */
+const boxItems = (page: string) => {
+  const box = page.split('data-box="what-to-do-first"')[1]?.split("</ul>")[0] ?? "";
+  return [...box.matchAll(/<li[^>]*>((?:(?!<\/li>).)*)<\/li>/g)].map((m) =>
+    m[1]
+      .replace(/<[^>]+>/g, "")
+      .replace(/&#x27;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, "&")
+      .replace(/^· /, ""),
+  );
+};
 
 describe("a duty-conflict card's written procedure", () => {
   const profile: PracticeProfile = { ...defaultProfile("general"), procedures: [] };
@@ -119,31 +136,117 @@ describe("duty-conflict controls on a touch screen", () => {
 });
 
 describe("the What to do first box", () => {
-  /** The box's items, as text. */
-  const boxItems = (page: string) => {
-    const box = page.split('data-box="what-to-do-first"')[1]?.split("</ul>")[0] ?? "";
-    return [...box.matchAll(/<li[^>]*>((?:(?!<\/li>).)*)<\/li>/g)].map((m) =>
-      m[1]
-        .replace(/<[^>]+>/g, "")
-        .replace(/&#x27;/g, "'")
-        .replace(/&quot;/g, '"')
-        .replace(/&amp;/g, "&")
-        .replace(/^· /, ""),
-    );
-  };
-
   it.each(INDUSTRIES.map((i) => i.id))(
     "%s sample: leads with the first step Start here lists",
     (industry) => {
       const profile: PracticeProfile = { ...defaultProfile(industry), procedures: [] };
       const template = resolveTemplate(profile);
-      const first = buildStartHereModel({ profile, template, today: new Date(2026, 8, 26) })
-        .firstSteps.steps[0];
-      expect(first).toBeDefined();
+      const { firstLine } = buildStartHereModel({
+        profile,
+        template,
+        today: new Date(2026, 8, 26),
+      }).firstSteps;
+      expect(firstLine).toBeTruthy();
       const items = boxItems(render(profile));
-      expect(items[0]).toBe(`First, as on Start here: ${first.control.label}`);
+      expect(items[0]).toBe(`First, as on Start here: ${firstLine}`);
       // No later line names a different first move.
       expect(items.slice(1).join(" ")).not.toMatch(/\bStart by\b|\bfirst\b/i);
     },
   );
+});
+
+describe("Start here and Who controls what name one first step, for the person in conflict", () => {
+  // Bayside Dental: Lisa releases payments and reconciles the bank but banks
+  // no money; Carmen takes, records and banks it and holds 5 of the 11 core
+  // money duties. Start here once said "Someone other than the person who
+  // banks the money reconciles the account" while Lisa's card said "Someone
+  // who releases no payments reconciles the account".
+  const PEOPLE: Person[] = [
+    {
+      id: "own-dana",
+      name: "Dana Reyes",
+      role: "Owner",
+      active: true,
+      owner: true,
+      entitlements: ["approve_payroll", "sign_checks"],
+    },
+    {
+      id: "own-lisa",
+      name: "Lisa Park",
+      role: "Office Manager",
+      active: true,
+      entitlements: ["release_payment", "bank_reconcile"],
+    },
+    {
+      id: "own-carmen",
+      name: "Carmen Ruiz",
+      role: "Front desk",
+      active: true,
+      entitlements: [
+        "collect_cash",
+        "post_payments",
+        "prepare_deposit",
+        "enter_invoices",
+        "issue_refunds",
+      ],
+    },
+  ];
+  const profile: PracticeProfile = {
+    ...ownSetupProfile({
+      industry: "dental",
+      practiceName: "Bayside Dental",
+      people: PEOPLE,
+      answers: { ...UNANSWERED, ownerReadsStatement: "yes" },
+    }),
+    procedures: [],
+  };
+  const model = buildStartHereModel({
+    profile,
+    template: resolveTemplate(profile),
+    today: new Date(2026, 8, 26),
+  });
+  const LINE =
+    "Lisa Park can both reconcile the bank account and release payments: someone other than Lisa Park reconciles the account";
+  const page = render(profile);
+
+  it("words Start here's item 1 and the What to do first box alike, naming Lisa and her two duties", () => {
+    expect(model.firstSteps.steps[0].control.id).toBe("independent-bank-reconciliation");
+    const startHere = renderToStaticMarkup(
+      <StartHereFirstStepsSection model={model.firstSteps} part="actions" />,
+    );
+    const first = /<p class="min-w-0 grow[^"]*">([^<]*)<\/p>/.exec(startHere)?.[1];
+    expect(first).toBe(LINE);
+    expect(startHere).not.toContain("the person who banks the money");
+    expect(boxItems(page)[0]).toBe(`First, as on Start here: ${LINE}`);
+  });
+
+  it("says the list opens with Lisa by her most severe pair, not with Carmen whom the summary names", () => {
+    expect(page).toContain("Carmen Ruiz (Front desk) holds 5 of the 11 core money duties");
+    expect(page).not.toContain("most severe first");
+    expect(page.replace(/&#x27;/g, "'")).toContain(
+      "Grouped by person, in order of each person's most severe pair: Lisa Park comes first, not Carmen Ruiz, who holds 5 of the 11 core money duties.",
+    );
+    const openList = page.split('data-list="open"')[1] ?? "";
+    expect(/<section aria-label="([^"]+)"/.exec(openList)?.[1]).toBe("Lisa Park");
+  });
+
+  it("keeps the plain heading where the summary names nobody for the money cycle", () => {
+    // Carmen with three money duties: no one holds most of the cycle.
+    const people = PEOPLE.map((p) =>
+      p.id === "own-carmen"
+        ? { ...p, entitlements: ["collect_cash", "post_payments", "prepare_deposit"] }
+        : p,
+    ) as Person[];
+    const plain = render({
+      ...ownSetupProfile({
+        industry: "dental",
+        practiceName: "Bayside Dental",
+        people,
+        answers: { ...UNANSWERED, ownerReadsStatement: "yes" },
+      }),
+      procedures: [],
+    });
+    expect(plain).not.toContain("core money duties");
+    expect(plain).toContain("Each pair of duties one person holds, most severe first");
+  });
 });

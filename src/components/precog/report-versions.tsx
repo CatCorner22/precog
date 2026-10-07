@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Link2, Lock, PenLine, Send, ShieldOff, Undo2, UserCheck } from "lucide-react";
@@ -56,6 +57,9 @@ import {
   withdrawLabel,
 } from "./report-versions-actions";
 import { ReportSharePanel } from "./report-share-panel";
+
+/** The return form's note box, which the toolbar's Return to preparer focuses. */
+const RETURN_NOTE_ID = "return-note";
 
 /** The work the caller does on the business, as the versions list reports it (businessWork). */
 type BusinessWork = Awaited<ReturnType<typeof listReports>>["work"];
@@ -458,14 +462,19 @@ export function ReportVersionsPanel() {
  * is independent. Nothing shows to a signed-out visitor or to an account
  * that only reads the versions. After a sign-off, a return or a withdrawal,
  * `onChange` receives the version as it now reads, so the page above it
- * prints that provenance rather than the one it opened with.
+ * prints that provenance rather than the one it opened with. With
+ * `toolbar`, the page's bar that stays on screen while the reader scrolls,
+ * Sign off as reviewer and Return to preparer also sit in that bar on a
+ * version awaiting this reviewer (screen only, never printed).
  */
 export function OpenVersionReview({
   version,
   onChange,
+  toolbar = null,
 }: {
   version: ReportVersionRow;
   onChange?: (version: ReportVersionRow) => void;
+  toolbar?: HTMLElement | null;
 }) {
   const { user, isPending } = useCurrentUserState();
   const [versions, setVersions] = useState<ReportVersionRow[] | null>(null);
@@ -628,6 +637,35 @@ export function OpenVersionReview({
   }
 
   const ready = !overrideNeeded || overrideNoteReady(overrideNote);
+  // The bar's Return to preparer opens the return form above and puts the
+  // cursor in its note, so a reader far down the report lands on it.
+  const openReturnForm = () => {
+    setReturning(true);
+    requestAnimationFrame(() => document.getElementById(RETURN_NOTE_ID)?.focus());
+  };
+  // Sign off as reviewer and Return to preparer, at the top and in the toolbar.
+  const reviewOrReturn = (onReturn: () => void, expanded?: boolean) => (
+    <>
+      <Button
+        size="sm"
+        onClick={() => openDialog(false)}
+        disabled={busy}
+        aria-label={reviewVersionLabel(current.versionNo)}
+      >
+        <PenLine className="size-3.5" /> {SIGN_OFF_TEXT.review}
+      </Button>
+      <Button
+        size="sm"
+        variant="secondary"
+        onClick={onReturn}
+        disabled={busy}
+        aria-label={returnVersionLabel(current.versionNo)}
+        aria-expanded={expanded}
+      >
+        <Undo2 className="size-3.5" /> {REVIEW_WORKFLOW_TEXT.returnToPreparer}
+      </Button>
+    </>
+  );
 
   return (
     <section
@@ -639,28 +677,7 @@ export function OpenVersionReview({
         {versionNotes(current, versions, assigned)}
         {issueAloneReason && <p className="mt-1 text-xs text-neutral-700">{issueAloneReason}</p>}
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {buttons.reviewOrReturn && (
-            <>
-              <Button
-                size="sm"
-                onClick={() => openDialog(false)}
-                disabled={busy}
-                aria-label={reviewVersionLabel(current.versionNo)}
-              >
-                <PenLine className="size-3.5" /> {SIGN_OFF_TEXT.review}
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setReturning((cur) => !cur)}
-                disabled={busy}
-                aria-label={returnVersionLabel(current.versionNo)}
-                aria-expanded={returning}
-              >
-                <Undo2 className="size-3.5" /> {REVIEW_WORKFLOW_TEXT.returnToPreparer}
-              </Button>
-            </>
-          )}
+          {buttons.reviewOrReturn && reviewOrReturn(() => setReturning((cur) => !cur), returning)}
           {buttons.issueAlone && (
             <Button
               size="sm"
@@ -693,6 +710,7 @@ export function OpenVersionReview({
             <label className="block text-xs text-neutral-700">
               {returnNoteLabel(current.versionNo)}
               <textarea
+                id={RETURN_NOTE_ID}
                 className="mt-1 w-full rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900"
                 value={returnNote}
                 onChange={(e) => setReturnNote(e.target.value)}
@@ -731,6 +749,14 @@ export function OpenVersionReview({
             onCancel: () => setWithdrawing(false),
           })}
       </div>
+      {toolbar &&
+        buttons.reviewOrReturn &&
+        createPortal(
+          <span data-toolbar="review" className="flex flex-wrap items-center gap-2 print:hidden">
+            {reviewOrReturn(openReturnForm)}
+          </span>,
+          toolbar,
+        )}
       {dialog && text && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-neutral-900/40 p-4"
