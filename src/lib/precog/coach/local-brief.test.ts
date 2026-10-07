@@ -180,6 +180,18 @@ describe("local advisor brief", () => {
     },
   );
 
+  it("answers the scenario the question names, not the first shared word", () => {
+    const profile = pioneerProfileFrom(defaultProfile("construction") as never);
+    const answers = scenarioAnswer(
+      "Walk me through the Payments to a subcontractor that does not exist scenario",
+      resolveTemplate(profile),
+      profile,
+    );
+    const titles = (answers ?? []).filter((line) => line.startsWith("**"));
+    expect(titles).toHaveLength(1);
+    expect(titles[0]).toContain("**Payments to a subcontractor that does not exist**");
+  });
+
   it("compares the vendor and cash scenarios in the order named for retail", () => {
     const profile = pioneerProfileFrom(defaultProfile("retail") as never);
     const question = "Compare the vendor fraud and cash skimming scenarios for my store.";
