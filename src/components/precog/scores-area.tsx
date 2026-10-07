@@ -65,6 +65,14 @@ export function ScoresArea({
           tactical:
             "How each figure is produced: residual risk, COSO component coverage, and the pattern screens.",
         }}
+        method={
+          <p>
+            {say(
+              "What is still exposed scores each risk from your business profile after the controls you have; Coverage check maps those controls onto the five parts of a sound control system; Patterns reads the signals, reasoning and reach behind them. Each figure shows the inputs it came from, with a sensitivity range where the weights matter.",
+              "Residual scores each risk from the business profile after the controls in place; COSO maps those controls onto the five components; Intel holds the signal, reasoning and meta-analysis screens. Each figure exposes its inputs, with a ±20% weight-sensitivity range.",
+            )}
+          </p>
+        }
       />
       <div
         className="flex flex-wrap gap-2"

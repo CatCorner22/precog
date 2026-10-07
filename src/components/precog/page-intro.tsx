@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { tabLabel, type NavTarget } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
@@ -46,6 +46,17 @@ export function PageIntro({
   );
 }
 
+/**
+ * Space toggles the fold even where a page-wide key handler (the process
+ * map's pan key) cancels the browser's own Space activation.
+ */
+function toggleOnSpace(e: KeyboardEvent<HTMLElement>) {
+  if (e.key !== " ") return;
+  e.preventDefault();
+  const details = e.currentTarget.parentElement;
+  if (details instanceof HTMLDetailsElement) details.open = !details.open;
+}
+
 /** The method behind a page or section, closed by default. */
 export function HowThisWorks({
   children,
@@ -58,7 +69,10 @@ export function HowThisWorks({
 }) {
   return (
     <details className={cn("group max-w-2xl rounded-xl border border-border", className)}>
-      <summary className="flex cursor-pointer items-center gap-2 px-4 py-2 text-sm font-medium">
+      <summary
+        className="flex cursor-pointer items-center gap-2 px-4 py-2 text-sm font-medium"
+        onKeyDown={toggleOnSpace}
+      >
         <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden />
         {summary}
       </summary>
