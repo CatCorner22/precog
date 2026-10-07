@@ -60,8 +60,7 @@ describe("buildStartHereModel on the dental sample", () => {
         gapBadge(g.conflict, model.exposure.partialCoverage.get(g.conflict.ruleId)),
       ),
     ).toEqual(["Critical", "Critical", "Critical"]);
-    expect(model.exposure.narrowedCount).toBe(0);
-    expect(model.exposure.coveredCount).toBe(0);
+    expect(model.exposure.gaps.some((g) => g.conflict.dualReleaseMitigated)).toBe(false);
   });
 
   it("counts only the cases that show the open gaps, and quotes their median", () => {
@@ -132,12 +131,20 @@ describe("buildStartHereModel with dual release on", () => {
     const writeoff = model.exposure.gaps.find((g) => g.conflict.ruleId === "rule-writeoff");
     expect(model.exposure.partialCoverage.get("rule-writeoff")).toBe(150);
     expect(writeoff && gapBadge(writeoff.conflict, 150)).toBe("Reduced, not closed");
-    expect(model.exposure.narrowedCount).toBeGreaterThan(0);
+    expect(
+      model.exposure.gaps.filter((g) => model.exposure.partialCoverage.has(g.conflict.ruleId))
+        .length,
+    ).toBeGreaterThan(0);
   });
 
   it("closes a rule any channel covers at every amount", () => {
     expect(model.exposure.partialCoverage.has("rule-vendor-create-pay")).toBe(false);
-    expect(model.exposure.coveredCount).toBeGreaterThan(0);
+    expect(
+      model.exposure.gaps.filter(
+        (g) =>
+          g.conflict.dualReleaseMitigated && !model.exposure.partialCoverage.has(g.conflict.ruleId),
+      ).length,
+    ).toBeGreaterThan(0);
   });
 
   it("gives the same case count and median as the printed report", () => {

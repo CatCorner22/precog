@@ -21,7 +21,11 @@ import {
   dualReleaseSplit,
   openSodHint,
 } from "@/lib/precog/sod/open-findings";
-import { acceptanceDates } from "@/lib/precog/headline/open-conflicts";
+import {
+  acceptanceDates,
+  openConflictHeadline,
+  type OpenConflictHeadline,
+} from "@/lib/precog/headline/open-conflicts";
 import { sodScopeLine } from "@/lib/precog/integrations/drift-signals";
 import { trackRegisterFreshness } from "@/lib/precog/continuity/register-state";
 import { mapAssessed, mapNotAssessedNote, mapSource } from "@/lib/precog/builder/map-state";
@@ -35,7 +39,7 @@ import { PRIORITY_BAND_LABEL, PRIORITY_TOP } from "@/lib/precog/map-vision";
 import { PRIORITY_BAND_LABEL_PRINTED_V4 } from "@/lib/precog/scoring/bands";
 import { Button } from "@/components/ui/button";
 import { formatUsd } from "@/lib/utils";
-import { isSampleBusiness, printedBusinessName } from "@/lib/precog/business-lifecycle";
+import { isSampleBusiness, printedBusinessName, teamSource } from "@/lib/precog/business-lifecycle";
 import {
   engagementLine,
   versionProvenance,
@@ -49,6 +53,7 @@ import { scenarioUnfolding } from "@/lib/precog/scenario-unfolding";
 import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import {
   lockedFigures,
+  printsLayoutSix,
   recalculationNote,
   REPORT_LAYOUT_VERSION,
   reviveReportModel,
@@ -149,6 +154,11 @@ export function ControlReport({
   const month = layoutFive ? reportPeriod(today) : today.slice(0, 7);
   const priorityLabel = layoutFive ? PRIORITY_BAND_LABEL : PRIORITY_BAND_LABEL_PRINTED_V4;
   const kindLabel = layoutThree ? DECISION_KIND_LABEL : DECISION_KIND_LABEL_PRINTED_V1;
+  // Layout 6 sizes the header from the owner's own active people, names an
+  // untouched starter map as such, counts the segregation sentence as the
+  // executive summary does, and words the residual tile in the residual
+  // bands (report/stored-model `printsLayoutSix`).
+  const layoutSix = printsLayoutSix(layoutVersion);
   const data = useMemo(
     () =>
       storedModel
@@ -187,6 +197,19 @@ export function ControlReport({
     () => (layoutFive ? acceptanceDates(sod.conflicts, profile.decisions, profile.industry) : null),
     [layoutFive, sod.conflicts, profile.decisions, profile.industry],
   );
+  // Each segregation row's Status, Response and Review by, worked out once
+  // for both the table and the phone list.
+  const sodRows = sod.conflicts
+    .slice()
+    .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.score - a.score)
+    .map((conflict) => ({
+      conflict,
+      status: acceptedOn
+        ? conflictStatus(conflict, data.partialCoverage, acceptedOn.get(conflict.id))
+        : conflictStatusPrintedV4(conflict, data.partialCoverage),
+      response: responseLine(conflict.id, responses, notValid),
+      reviewBy: reviewByLine(responses[conflict.id]?.reviewBy),
+    }));
   const sodNote = belowThresholdNote(sodOpen);
   // Pairs dual release reduces stay among the open conflicts; count them once.
   // Layouts 1 to 3 also counted the owner's own pairs dual release covers at
@@ -199,9 +222,6 @@ export function ControlReport({
         (c) => c.ownerHeld && c.dualReleaseMitigated && !data.partialCoverage.has(c.ruleId),
       ).length;
   const mapIssues = data.issues.filter((i) => i.severity !== "info");
-  const sodRows = sod.conflicts
-    .slice()
-    .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || b.score - a.score);
   const offTeamDuties = dutiesOffTeam(profile.setupAnswers);
   const unheld = sod.summary.unheldDuties
     .filter((d) => !offTeamDuties.has(d))
@@ -212,13 +232,19 @@ export function ControlReport({
     item,
     latest: latestReview(profile.monthlyReviews ?? [], item.key, month),
   }));
-  const mapLine = `${industry.label} · ${profile.staff.teamSize}-person ${industry.teamLabel} · ${
-    mapFrom === "starter"
-      ? "sample process map"
-      : mapCustomized
-        ? "custom process map"
-        : "industry template map"
+  const team = layoutSix
+    ? teamSizeLine(profile, tpl.people, industry.teamLabel)
+    : `${profile.staff.teamSize}-person ${industry.teamLabel}`;
+  const starter = layoutSix ? "starter process map (not yet edited)" : "sample process map";
+  const mapLine = `${industry.label} · ${team} · ${
+    mapFrom === "starter" ? starter : mapCustomized ? "custom process map" : "industry template map"
   }`;
+  // Layout 6's segregation sentence: the open count the executive summary
+  // prints, with the same breakdown, from the same model.
+  const openHeadline = useMemo(
+    () => (layoutSix ? openConflictHeadline(sod, data.partialCoverage) : null),
+    [layoutSix, sod, data.partialCoverage],
+  );
   // Firm letterhead on a report no one has locked or reviewed: say so.
   const draft = firm && !locked ? `DRAFT: not locked or reviewed by ${firm.name}` : null;
   const letterhead = firm && (
@@ -387,11 +413,21 @@ export function ControlReport({
             />
           ) : (
             <Kpi
-              label={layoutFive ? "Fix first on the residual index" : "Residual risks by band"}
+              label={
+                layoutSix
+                  ? "Severe on the residual index"
+                  : layoutFive
+                    ? "Fix first on the residual index"
+                    : "Residual risks by band"
+              }
               value={
                 layoutFive ? String(portfolio.criticalPath) : `${portfolio.criticalPath} fix first`
               }
-              hint={`${layoutFive ? "Residual" : "Fix first at"} ${RISK_SCALE.critical} or more · ${portfolio.actNow} fix soon · ${portfolio.mitigate} worth doing`}
+              hint={
+                layoutSix
+                  ? `Residual ${RISK_SCALE.critical} or more · ${portfolio.actNow} high · ${portfolio.mitigate} moderate`
+                  : `${layoutFive ? "Residual" : "Fix first at"} ${RISK_SCALE.critical} or more · ${portfolio.actNow} fix soon · ${portfolio.mitigate} worth doing`
+              }
             />
           )}
           <Kpi
@@ -574,13 +610,19 @@ export function ControlReport({
         )}
 
         <Section title="Segregation of duties">
-          <p className="text-sm text-neutral-700">
-            {sod.summary.critical} critical, {sod.summary.high} high, {sod.summary.medium} medium
-            open conflicts across {sod.summary.peopleWithConflicts} of {sod.assignments.length}{" "}
-            people. {dualClosed} covered by dual release at every amount.
-            {dual.reduced > 0 &&
-              ` ${dual.reduced} more reduced by dual release but not closed, counted open above.`}
-          </p>
+          {openHeadline ? (
+            <p className="text-sm text-neutral-700">
+              {segregationSentence(openHeadline, sod.assignments.length)}
+            </p>
+          ) : (
+            <p className="text-sm text-neutral-700">
+              {sod.summary.critical} critical, {sod.summary.high} high, {sod.summary.medium} medium
+              open conflicts across {sod.summary.peopleWithConflicts} of {sod.assignments.length}{" "}
+              people. {dualClosed} covered by dual release at every amount.
+              {dual.reduced > 0 &&
+                ` ${dual.reduced} more reduced by dual release but not closed, counted open above.`}
+            </p>
+          )}
           {unheld.length > 0 && (
             <p className="mt-2 text-sm text-neutral-700">
               The register marks nobody still working here for: {unheld.join(", ")}. Somebody does{" "}
@@ -592,7 +634,7 @@ export function ControlReport({
           {sodScope && <p className="mt-2 text-sm text-neutral-700">{sodScope}</p>}
           {sodRows.length > 0 && (
             <>
-              <table className="mt-3 w-full border-collapse text-sm">
+              <table className="mt-3 hidden w-full border-collapse text-sm sm:table print:table">
                 <thead>
                   <tr className="border-b border-neutral-300 text-left text-xs tracking-wide text-neutral-500 uppercase">
                     <th className="py-1.5 pr-2">Person</th>
@@ -608,7 +650,7 @@ export function ControlReport({
                   </tr>
                 </thead>
                 <tbody>
-                  {sodRows.map((c) => (
+                  {sodRows.map(({ conflict: c, ...row }) => (
                     <tr key={c.id} className="border-b border-neutral-200 align-top">
                       <td className="py-1.5 pr-2">{c.personName}</td>
                       <td className="py-1.5 pr-2">
@@ -620,22 +662,38 @@ export function ControlReport({
                           layoutThree ? "py-1.5 pr-2 text-neutral-700" : "py-1.5 text-neutral-700"
                         }
                       >
-                        {acceptedOn
-                          ? conflictStatus(c, data.partialCoverage, acceptedOn.get(c.id))
-                          : conflictStatusPrintedV4(c, data.partialCoverage)}
+                        {row.status}
                       </td>
                       {layoutThree && (
                         <>
-                          <td className="py-1.5 pr-2">{responseLine(c.id, responses, notValid)}</td>
-                          <td className="py-1.5 tabular text-neutral-700">
-                            {reviewByLine(responses[c.id]?.reviewBy)}
-                          </td>
+                          <td className="py-1.5 pr-2">{row.response}</td>
+                          <td className="py-1.5 tabular text-neutral-700">{row.reviewBy}</td>
                         </>
                       )}
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {/* On a phone the table's columns overflow the screen, so the same
+                  rows stack instead. Screen only: print keeps the table. */}
+              <ul className="mt-3 space-y-2 text-sm sm:hidden print:hidden">
+                {sodRows.map(({ conflict: c, ...row }) => (
+                  <li key={c.id} className="border-b border-neutral-200 pb-2">
+                    <p className="font-medium">{c.personName}</p>
+                    <p>
+                      {c.labelA} + {midSentence(c.labelB)}
+                    </p>
+                    <p className="text-neutral-700">
+                      Severity: {SEVERITY_LABEL[c.severity]} · Status: {row.status}
+                    </p>
+                    {layoutThree && (
+                      <p className="text-neutral-700">
+                        Response: {row.response} · Review by: {row.reviewBy}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
               <p className="mt-1 text-xs text-neutral-500">
                 Each row says what one person&apos;s duties allow, not anything they have done.
               </p>
@@ -700,7 +758,9 @@ export function ControlReport({
         <Section title="Process map">
           {mapFrom === "starter" && (
             <p className="mb-2 text-sm text-neutral-700">
-              Sample process map from the {industry.label.toLowerCase()} sample:{" "}
+              {layoutSix
+                ? `Starter process map from the ${industry.label.toLowerCase()} template, not yet edited:`
+                : `Sample process map from the ${industry.label.toLowerCase()} sample:`}{" "}
               {tpl.processes.length} processes, none with an owner yet.
             </p>
           )}
@@ -781,6 +841,41 @@ export function ControlReport({
       </article>
     </div>
   );
+}
+
+/**
+ * Layout 6's segregation sentence: the open count and its breakdown as the
+ * executive summary counts them (headline/open-conflicts), then the pairs
+ * left out of that count and why.
+ */
+function segregationSentence(headline: OpenConflictHeadline, people: number): string {
+  const holders = new Set(headline.findings.map((c) => c.personId)).size;
+  let line =
+    headline.open === 0
+      ? "No open duty conflicts among staff."
+      : `${count(headline.open, "open duty conflict")}: ${headline.critical} critical, ${headline.high} high, ${headline.medium} medium, ${headline.family} related duties, held by ${holders} of ${count(people, "person", "people")}.`;
+  if (headline.reducedNotClosed > 0) {
+    line += ` ${headline.reducedNotClosed} of them ${verb(headline.reducedNotClosed, "is", "are")} reduced by dual release but not closed.`;
+  }
+  if (headline.ownerHeld > 0) {
+    line += ` The owner holds ${count(headline.ownerHeld, "pair")} of conflicting duties, listed below and not counted open.`;
+  }
+  return `${line} ${headline.closedByDualRelease} covered by dual release at every amount, not counted open.`;
+}
+
+/**
+ * Layout 6's team size in the header. An own team is sized by its active
+ * people on the map, whatever size setup recorded; the sample keeps the size
+ * it was built with.
+ */
+function teamSizeLine(
+  profile: Parameters<typeof teamSource>[0] & { staff: { teamSize: number } },
+  people: readonly { active: boolean }[],
+  teamLabel: string,
+): string {
+  if (teamSource(profile) !== "own") return `${profile.staff.teamSize}-person ${teamLabel}`;
+  const active = people.filter((p) => p.active).length;
+  return active > 0 ? `${active}-person ${teamLabel}` : `${teamLabel} with nobody on the map yet`;
 }
 
 /**

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { defaultReviewer } from "@/lib/precog/industry";
 import { createPortal } from "react-dom";
 import { formatDay } from "@/lib/precog/dates";
 import {
@@ -179,7 +180,7 @@ export function ProcedurePrint({
             <footer className="border-t border-neutral-300 pt-2 text-[9pt] text-neutral-600">
               Does it today: {nameOf(p.ownerPersonId) ?? "not set"} · Stand-ins:{" "}
               {p.backupPersonIds.map((id) => nameOf(id)).join(", ") || "nobody named yet"} ·
-              Reviewer: {nameOf(p.reviewerPersonId) ?? "the owner"}
+              Reviewer: {nameOf(p.reviewerPersonId) ?? defaultReviewer(p.industry)}
               {items ? ` · Covers: ${items}` : ""}
             </footer>
           </article>

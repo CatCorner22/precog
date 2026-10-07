@@ -6,6 +6,7 @@ import { joinWithAnd, verb, count } from "../text";
 import { clamp } from "../number";
 import { lossPhrase } from "../evidence";
 import { RISK_SCALE } from "../scoring/bands";
+import { RESIDUAL_BAND_LABEL, bandForScore } from "../scoring/weights";
 
 /**
  * The brief's sections, in reading order: the answer first (what to do this
@@ -13,16 +14,40 @@ import { RISK_SCALE } from "../scoring/bands";
  * writes them and the model is asked for the same list.
  */
 export const BRIEF_SECTION = {
+  answer: "Answer",
   situation: "Situation",
   thisWeek: "This week",
   moves: "Recommended moves",
   warnings: "Warnings",
   risks: "Biggest open risks",
   cases: "What this has cost other businesses",
-  conditions: "Watched conditions",
   cascades: "What else moves",
   limits: "Limits",
 } as const;
+
+export function leverAction(label: string): string {
+  if (!label.endsWith(" (stack)")) return label;
+  const parts = label
+    .slice(0, -" (stack)".length)
+    .split(/\s+\+\s+/)
+    .map((part) => part.charAt(0).toLowerCase() + part.slice(1));
+  return `Put ${joinWithAnd(parts)} in place together`;
+}
+
+export function destack(text: string): string {
+  const wording = (first: string, second: string, third: string) =>
+    `${first}, ${joinWithAnd(
+      [second, third].map((part) => part.charAt(0).toLowerCase() + part.slice(1)),
+    )} together`;
+  return text
+    .replace(
+      /([^\n]*?)\s+\+\s+([^+\n]+)\s+\+\s+([^+\n]+) \(stack\)/g,
+      (_match, first, second, third) => wording(first, second, third),
+    )
+    .replace(/([^\n]*?),\s*([^,\n]+),\s*([^,\n]+) \(stack\)/g, (_match, first, second, third) =>
+      wording(first, second, third),
+    );
+}
 
 /**
  * When a warning fires. Every threshold is this app's own choice, not a
@@ -287,8 +312,6 @@ export function extractVariableCascades(tools: ToolResult[]): string[] {
     ];
   }
 
-  // Scenario retained dollars read as rounded estimates, as on every screen;
-  // the tool's data keeps the exact figures for any arithmetic.
   const lines: string[] = [];
   if (cas.baseline) {
     lines.push(
@@ -318,6 +341,21 @@ export function extractVariableCascades(tools: ToolResult[]): string[] {
     const secondOrder = index === 0 ? row.secondOrderNotes[0] : undefined;
     lines.push(
       `**${leverLabel(row.label)}**: ${changes}.${affects ? ` Also: ${affects}.` : ""}${secondOrder ? ` ${secondOrder}` : ""}`,
+  for (const row of cas.topByCostOfRisk.slice(0, 4)) {
+    const dollarDelta = (value: number, format: (delta: number) => string) => {
+      const formatted = format(value);
+      return formatted.includes("$0") ? "no change" : formatted;
+    };
+    const riskDelta =
+      row.deltaResidual === 0
+        ? "no change"
+        : `${Number.isInteger(row.deltaResidual) ? Math.abs(row.deltaResidual) : Math.abs(row.deltaResidual).toFixed(1)} points ${row.deltaResidual < 0 ? "lower" : "higher"}`;
+    const days =
+      Math.round(row.deltaP50) === 0
+        ? "found no sooner"
+        : `found ${Math.abs(Math.round(row.deltaP50))} days ${row.deltaP50 < 0 ? "sooner" : "later"}`;
+    lines.push(
+      `**${leverAction(row.label)}**: assumed retained ${dollarDelta(row.deltaRetained, formatEstimateUsdDelta)}, premium ${dollarDelta(row.deltaPremium, formatUsdDelta)}, risk index ${riskDelta}, ${days}. Also: ${row.affects.slice(0, 3).join("; ")}. ${row.secondOrderNotes[0] ?? ""}`.trim(),
     );
   }
   return lines;
@@ -348,11 +386,13 @@ export function chickenLittleCritique(tools: ToolResult[]): string[] {
 
   if ((residual?.averageResidual ?? 0) >= WARNING_RULES.averageResidual) {
     warnings.push(
-      `The average risk index is ${residual!.averageResidual}/100, in the "fix soon" band (${WARNING_RULES.averageResidual} or more on Precog's own index).`,
+      `The average risk index is ${residual!.averageResidual}/100, in the "${bandForScore(residual!.averageResidual!).label}" band on Precog's own index (Precog warns at ${WARNING_RULES.averageResidual} or more).`,
     );
   }
   if ((residual?.criticalPath ?? 0) >= WARNING_RULES.criticalPathCount) {
-    warnings.push(`${residual!.criticalPath} risks are in the "fix first" band.`);
+    warnings.push(
+      `${residual!.criticalPath} risks are in the "${RESIDUAL_BAND_LABEL.critical_path}" band.`,
+    );
   }
   if (leading && (leading.breached ?? 0) > 0) {
     warnings.push(`${count(leading.breached!, "watched condition")} breached.`);
@@ -391,7 +431,7 @@ export function chickenLittleCritique(tools: ToolResult[]): string[] {
 }
 
 export function localSynthesize(
-  question: string,
+  _question: string,
   tools: ToolResult[],
   evidence: EvidenceRef[],
   warnings: string[],
@@ -799,7 +839,7 @@ export function localSynthesize(
   const uncommittedSpof = ordinarySpofs?.find((s) => !s.committed);
   const decisions: PioneerDecision[] = [
     {
-      action:
+      action: leverAction(
         beamAction ||
         (bestCascade ? leverLabel(bestCascade.label) : undefined) ||
         "Turn on a second signer for payments and an independent bank reconciliation",
@@ -808,6 +848,11 @@ export function localSynthesize(
         : bestCascade
           ? `The what-else-moves check puts this first: it moves the risk index the most. ${bestCascade.secondOrderNotes[0] ?? ""}`.trim()
           : "Default when no ranking ran: a second signer on payments and an independent bank reconciliation each remove a path one person can use alone.",
+          bestCascade?.label ||
+          "Turn on a second signer for payments and an independent bank reconciliation",
+      ),
+      rationale:
+        "Precog's own weights rank this combination first. Read it as an order, not a measurement.",
       evidenceIds: evidence
         .filter((e) => e.kind === "cascade" || e.kind === "ml" || e.kind === "reasoning")
         .map((e) => e.id)
@@ -890,7 +935,10 @@ export function localSynthesize(
 
   const frontierNextMove = bestCascade
     ? `This week: **${leverLabel(bestCascade.label)}**, then re-check the watched conditions and What is still exposed.`
+    ? `This week: **${leverAction(bestCascade.label)}**, then re-check the watched conditions and What is still exposed.`
     : "This week: turn on a second signer for payments and an independent bank reconciliation, then ask again and re-check the watched conditions.";
+  const thisWeek = frontierNextMove.replace(/^This week:\s*/, "");
+  const thisWeekBody = `${thisWeek.charAt(0).toUpperCase()}${thisWeek.slice(1)}`;
 
   const situation = `**${snap?.practice ?? "This business"}**: coverage check **${coso ? `${coso.gaps} of ${coso.principles}` : "?"}** with a gap, average risk index **${residual?.averageResidual ?? "?"}/100**, **${leading?.breached ?? "?"}** watched conditions breached. Second payment signer: ${snap?.staff.dualControlPayments ? "on" : "off"}; bank reconciliation: ${snap?.staff.independentBankRec ? "independent" : "not independent"}. Question: _${question}_`;
 
@@ -911,8 +959,10 @@ export function localSynthesize(
     ...highestRisks.map((r, i) => `${i + 1}. ${r}`),
     "",
     `## ${BRIEF_SECTION.conditions}`,
+  const situation = `**${snap?.practice ?? "This business"}**: average risk index **${residual?.averageResidual ?? "?"}/100** · **${leading?.breached ?? "?"}** watched conditions breached · **${coso ? `${coso.gaps} of ${coso.principles}` : "?"}** control checks have a gap. Second signer on payments: ${snap?.staff.dualControlPayments ? "on" : "off"}. Independent bank reconciliation: ${snap?.staff.independentBankRec ? "on" : "off"}.`;
+  const conditions = [
     leading
-      ? `- **${leading.breached} breached**, ${leading.watch} at watch (thresholds set in Precog, not benchmarks)`
+      ? `- Watched conditions: **${leading.breached} breached**, ${leading.watch} at watch (thresholds set in Precog, not benchmarks)`
       : "- Not checked in this run",
     ...(scenario?.warningSigns?.length
       ? [
@@ -925,12 +975,30 @@ export function localSynthesize(
             .join("; ")}.`,
         ]
       : []),
+  ];
+  const markdownWarnings = leading
+    ? warnings.filter((warning) => !/^\d+ watched conditions? breached/i.test(warning))
+    : warnings;
+
+  const markdown = [
+    `## ${BRIEF_SECTION.situation}`,
+    situation,
     "",
-    `## ${BRIEF_SECTION.cascades}`,
-    ...variableCascades.map((c) => `- ${c}`),
+    `## ${BRIEF_SECTION.thisWeek}`,
+    thisWeekBody,
     "",
     `## ${BRIEF_SECTION.limits}`,
     ...limitsLines(tradeoffs, advancedReasoning).map((line) => `- ${line}`),
+    `## ${BRIEF_SECTION.moves}`,
+    ...decisions.map(renderDecision),
+    "",
+    `## ${BRIEF_SECTION.warnings}`,
+    ...markdownWarnings.map((w) => `- ${w}`),
+    ...conditions,
+    "",
+    `## ${BRIEF_SECTION.risks}`,
+    ...highestRisks.map((r, i) => `${i + 1}. ${r}`),
+    "",
   ].join("\n");
 
   return {

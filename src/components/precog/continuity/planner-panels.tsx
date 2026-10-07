@@ -23,7 +23,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { type CoverageReport } from "@/lib/precog/continuity/coverage";
 import { handoverDeadline } from "@/lib/precog/continuity/leavers";
-import { CRITICALITY_LABEL, NOT_ASSESSED_ABSENCE } from "@/lib/precog/continuity/planner-copy";
+import {
+  CRITICALITY_LABEL,
+  NOT_ASSESSED_ABSENCE,
+  noNoticeText,
+} from "@/lib/precog/continuity/planner-copy";
 import { inputClass } from "./styles";
 import { handoffDeadline } from "@/lib/precog/continuity/planned-absence";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
@@ -267,10 +271,9 @@ export function PlannedLeaveCard({
           Out today and planned leave
         </CardTitle>
         <CardDescription>
-          Someone called in sick? Press their name and today&apos;s stand-in sheet appears: what
-          stops, who steps in, where the procedure lives. Known absences — holidays, parental leave,
-          surgery — go in the form. Precog flags overlapping absences, and once anyone is back a
-          debrief asks whether the stand-in can now run it alone.
+          Someone called in sick? Press their name for today&apos;s stand-in sheet. Add known
+          absences, like holidays or surgery, in the form. Precog flags overlaps and, once someone
+          is back, asks whether the stand-in can now run it alone.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
@@ -347,9 +350,8 @@ export function PlannedLeaveCard({
         )}
         {leave.report.windows.length === 0 && leaveHistory.length === 0 && people.length > 0 && (
           <p className="text-xs text-muted">
-            Nobody is out and nobody has booked leave. Add leave you know about, and the weekly
-            plan, the printed report and Pioneer will warn before it starts. The day someone calls
-            in sick, press their name above.
+            Nobody is out or booked. Add leave you know about and Precog warns before it starts. The
+            day someone calls in sick, press their name above.
           </p>
         )}
         {leave.debriefs.map((d) => (
@@ -440,9 +442,9 @@ export function LeavingTeamCard({
           Leaving the team
         </CardTitle>
         <CardDescription>
-          Someone has given notice? Record their last day. They keep counting as a stand-in until
-          then, and the hand-off below lists everything only they can run, who to train and what to
-          write down &mdash; each step due before they go.
+          Someone gave notice? Record their last day. They count as a stand-in until then, and the
+          hand-off below lists what only they can run, who to train and what to write down, each due
+          before they go.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -481,10 +483,10 @@ export function LeavingTeamCard({
           </div>
         )}
         {leaving.list.length === 0 && (
+          <p className="text-xs text-muted">{noNoticeText(leaving.leftNames)}</p>
           <p className="text-xs text-muted">
-            Nobody has given notice. When someone does, record the date here rather than removing
-            them &mdash; the printed report and Pioneer will count down to it and chase the
-            hand-off.
+            Nobody has given notice. When someone does, record their date here instead of removing
+            them; Precog counts down and chases the hand-off.
           </p>
         )}
         {leaving.list.map((l) => (
@@ -518,10 +520,9 @@ export function DependenceCard({
       <CardHeader>
         <CardTitle>Who the business leans on</CardTitle>
         <CardDescription>
-          Share of must-do work that stops if each person is out — Precog&apos;s own index, in which
-          an item the business stops without counts three, one that hurts within a week counts two,
-          and one that can wait counts nothing. Spread the top names&apos; sole items to bring these
-          down.
+          Share of must-do work that stops if each person is out. In Precog&apos;s index, work the
+          business stops without counts 3, work that hurts within a week counts 2, and work that can
+          wait counts 0. Spread the top names&apos; sole items to lower it.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">

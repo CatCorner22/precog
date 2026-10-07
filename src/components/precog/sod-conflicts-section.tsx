@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { FileText, Shield } from "lucide-react";
+import { ChevronDown, FileText, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { NavFn } from "@/lib/precog/navigation";
@@ -27,8 +27,8 @@ export function SodConflictsSection({
   model: SodPanelModel;
   onNavigate?: NavFn;
 }) {
-  const { report, filterSeverity, setFilterSeverity, locations, placesOf, filtered } = model;
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const { report, filterSeverity, setFilterSeverity, locations, filteredOpen, filteredNotOpen } =
+    model;
   const tpl = useTemplate();
   const { procedures, industry } = model.profile;
   // The written procedure each pair leads to: the business's own once
@@ -53,9 +53,8 @@ export function SodConflictsSection({
           Detected conflicts
         </CardTitle>
         <CardDescription>
-          Each pair of duties one person holds, whether dual release narrows it, and whether you
-          have accepted the risk. Precog lists the most severe first; each card names who holds the
-          pair and the staffing that leaves it open.
+          Each pair of duties one person holds, most severe first: who holds it, whether dual
+          release narrows it, and whether you accepted the risk.
         </CardDescription>
         <IndexBasis />
         <div
@@ -70,7 +69,7 @@ export function SodConflictsSection({
               aria-pressed={filterSeverity === option.id}
               onClick={() => setFilterSeverity(option.id)}
               className={cn(
-                "rounded-full border px-2.5 py-0.5 text-xs",
+                "rounded-full border px-2.5 py-0.5 text-xs pointer-coarse:min-h-11",
                 filterSeverity === option.id
                   ? "border-primary/40 bg-primary/10"
                   : "border-border bg-elevated text-muted",
@@ -95,50 +94,97 @@ export function SodConflictsSection({
             </ul>
           </div>
         )}
-        {filtered.length === 0 && (
-          <p className="text-sm text-muted">No duty conflicts in this filter.</p>
+        {filteredOpen.length === 0 && (
+          <p className="text-sm text-muted">
+            {filteredNotOpen.length === 0
+              ? "No duty conflicts in this filter."
+              : "No open duty conflicts in this filter."}
+          </p>
         )}
-        {conflictsByPerson(filtered).map((group) => {
-          const open = expanded.has(group.personId);
-          const shown = open ? group.conflicts : group.conflicts.slice(0, CARDS_PER_PERSON);
-          const hidden = group.conflicts.length - shown.length;
-          const places = placesOf.get(group.personId);
-          return (
-            <section key={group.personId} aria-label={group.personName} className="space-y-2">
-              <h3 className="text-sm font-semibold">
-                {group.personName}
-                <span className="font-normal text-muted">
-                  {" "}
-                  · {group.role}
-                  {places && places.length > 0 && ` · ${joinWithAnd(places)}`} ·{" "}
-                  {count(group.conflicts.length, "conflict")}
-                </span>
-              </h3>
-              {shown.map((c) => (
-                <ConflictCardDetails
-                  key={c.id}
-                  conflict={c}
-                  model={model}
-                  procedure={procedureLinks.get(c.ruleId) ?? null}
-                  onNavigate={onNavigate}
-                />
-              ))}
-              {hidden > 0 && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs"
-                  onClick={() => setExpanded((current) => new Set(current).add(group.personId))}
-                >
-                  Show {hidden} more for {group.personName}
-                </Button>
-              )}
-            </section>
-          );
-        })}
+        <div data-list="open" aria-label="Open duty conflicts" className="space-y-4">
+          <ConflictsByPerson
+            conflicts={filteredOpen}
+            model={model}
+            procedureLinks={procedureLinks}
+            onNavigate={onNavigate}
+          />
+        </div>
+        {filteredNotOpen.length > 0 && (
+          <details data-list="not-open" className="group rounded-xl border border-border">
+            <summary className="flex cursor-pointer items-center gap-2 px-4 py-2 text-sm font-medium">
+              <ChevronDown
+                className="size-4 transition-transform group-open:rotate-180"
+                aria-hidden
+              />
+              Not counted as open ({filteredNotOpen.length}): your own pairs and pairs dual release
+              covers at every amount
+            </summary>
+            <div className="space-y-4 px-4 pb-4">
+              <ConflictsByPerson
+                conflicts={filteredNotOpen}
+                model={model}
+                procedureLinks={procedureLinks}
+                onNavigate={onNavigate}
+              />
+            </div>
+          </details>
+        )}
       </CardContent>
     </Card>
   );
+}
+
+/** Conflicts grouped by the person who holds them, a few cards each until "Show more". */
+function ConflictsByPerson({
+  conflicts,
+  model,
+  procedureLinks,
+  onNavigate,
+}: {
+  conflicts: readonly DetectedConflict[];
+  model: SodPanelModel;
+  procedureLinks: ReadonlyMap<string, ReturnType<typeof conflictProcedureLink>>;
+  onNavigate?: NavFn;
+}) {
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  return conflictsByPerson(conflicts).map((group) => {
+    const open = expanded.has(group.personId);
+    const shown = open ? group.conflicts : group.conflicts.slice(0, CARDS_PER_PERSON);
+    const hidden = group.conflicts.length - shown.length;
+    const places = model.placesOf.get(group.personId);
+    return (
+      <section key={group.personId} aria-label={group.personName} className="space-y-2">
+        <h3 className="text-sm font-semibold">
+          {group.personName}
+          <span className="font-normal text-muted">
+            {" "}
+            · {group.role}
+            {places && places.length > 0 && ` · ${joinWithAnd(places)}`} ·{" "}
+            {count(group.conflicts.length, "conflict")}
+          </span>
+        </h3>
+        {shown.map((c) => (
+          <ConflictCardDetails
+            key={c.id}
+            conflict={c}
+            model={model}
+            procedure={procedureLinks.get(c.ruleId) ?? null}
+            onNavigate={onNavigate}
+          />
+        ))}
+        {hidden > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            onClick={() => setExpanded((current) => new Set(current).add(group.personId))}
+          >
+            Show {hidden} more for {group.personName}
+          </Button>
+        )}
+      </section>
+    );
+  });
 }
 
 /** One conflict with what is in place, what to do until the duties are split, the case, and links. */
@@ -168,13 +214,13 @@ function ConflictCardDetails({
       )}
       {stillToDo.length > 0 && (
         <p className="mt-2 text-xs text-muted">
-          Until different people hold the duties: {stillToDo.join("; ")}
+          Until you split the duties: {stillToDo.join("; ")}
         </p>
       )}
       {procedure && (
         <button
           type="button"
-          className="mt-1 inline-flex items-center gap-1 text-left text-xs text-primary underline-offset-2 [overflow-wrap:anywhere] hover:underline"
+          className="mt-1 inline-flex items-center gap-1 text-left text-xs text-primary underline-offset-2 [overflow-wrap:anywhere] hover:underline pointer-coarse:min-h-11"
           onClick={() => onNavigate?.("procedures", procedure.item)}
         >
           <FileText className="size-3.5 shrink-0" aria-hidden />
@@ -225,8 +271,15 @@ function ConflictCardDetails({
   );
 }
 
+/**
+ * One button per location, each with its open duty conflicts counted as the
+ * tile above counts them (headline/open-conflicts): the owner's own pairs and
+ * pairs dual release covers at every amount are left out of every count, as
+ * they are left out of the open list under the buttons.
+ */
 function LocationFilter({ model }: { model: SodPanelModel }) {
-  const { report, locations, placesOf, unplaced, shownLocation, setLocation } = model;
+  const { headline, locations, placesOf, unplaced, shownLocation, setLocation } = model;
+  const open = headline.findings;
   return (
     <div
       role="group"
@@ -241,9 +294,8 @@ function LocationFilter({ model }: { model: SodPanelModel }) {
       ].map((option) => {
         const count =
           option.value === "all"
-            ? report.conflicts.length
-            : report.conflicts.filter((c) => worksAt(placesOf.get(c.personId), option.value))
-                .length;
+            ? open.length
+            : open.filter((c) => worksAt(placesOf.get(c.personId), option.value)).length;
         return (
           <button
             key={option.key}
@@ -251,7 +303,7 @@ function LocationFilter({ model }: { model: SodPanelModel }) {
             aria-pressed={shownLocation === option.value}
             onClick={() => setLocation(option.value)}
             className={cn(
-              "rounded-full border px-2.5 py-0.5 text-xs",
+              "rounded-full border px-2.5 py-0.5 text-xs pointer-coarse:min-h-11",
               shownLocation === option.value
                 ? "border-primary/40 bg-primary/10"
                 : "border-border bg-elevated text-muted",

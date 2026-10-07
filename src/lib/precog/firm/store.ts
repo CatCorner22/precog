@@ -97,6 +97,11 @@ export interface ClientEngagementRow {
   months: PeriodResults[];
   /** Versions this firm locked whose review was requested, neither reviewed nor returned yet. */
   awaitingReview: number;
+  /**
+   * The newest of those versions that no newer version the viewer reads
+   * supersedes, which "Open report" opens; null when none waits.
+   */
+  awaitingVersionId: string | null;
 }
 
 /** "unsent": saved before confirmation existed, so no link has gone out yet. */
@@ -973,6 +978,7 @@ export async function listClientEngagements(
     ended_at: string | null;
     granted: boolean;
     awaiting_review: number | string;
+    awaiting_version_id: string | null;
   }>`
     select
       b.id, b.user_id, b.name, e.started_at, e.map_completed_at, e.report_sent_at,
@@ -980,19 +986,36 @@ export async function listClientEngagements(
       e.owner_email_confirmed_at, e.owner_email_unsubscribed_at,
       e.status, e.ended_at, b.granted_at is not null as granted,
       r.last_review_at,
-      (
-        select count(*) from report_versions v
-        where v.user_id = b.user_id and v.business_id = b.id
-          -- Only versions this firm locked: after a hand-back and a new
-          -- grant, the earlier firm's versions are not this firm's to review.
-          and (v.firm_user_id = b.firm_user_id or (v.firm_user_id is null and b.granted_at is null))
-          and v.review_requested_at is not null
-          and v.reviewed_at is null
-          and v.returned_at is null
-      ) as awaiting_review
+      w.awaiting_review, w.awaiting_version_id
     from businesses b
     left join engagement_marks e
       on e.user_id = b.user_id and e.business_id = b.id
+    left join lateral (
+      select count(*) as awaiting_review,
+        -- "Open report" opens the version the report's review banner names
+        -- (versionAwaitingReview): it skips a version that a newer one the
+        -- viewer reads supersedes (supersededBy over listReportVersions,
+        -- which shows the business's own account every version and a firm
+        -- only FIRM_READS_VERSION's). The count above keeps such versions.
+        (array_agg(v.id order by v.version_no desc) filter (
+          where not exists (
+            select 1 from report_versions n
+            where n.user_id = v.user_id and n.business_id = v.business_id
+              and n.version_no > v.version_no
+              and (n.user_id = ${userId}
+                or n.firm_user_id = b.firm_user_id
+                or (n.firm_user_id is null and b.granted_at is null))
+          )
+        ))[1] as awaiting_version_id
+      from report_versions v
+      where v.user_id = b.user_id and v.business_id = b.id
+        -- Only versions this firm locked: after a hand-back and a new
+        -- grant, the earlier firm's versions are not this firm's to review.
+        and (v.firm_user_id = b.firm_user_id or (v.firm_user_id is null and b.granted_at is null))
+        and v.review_requested_at is not null
+        and v.reviewed_at is null
+        and v.returned_at is null
+    ) w on true
     left join lateral (
       select max(x.recorded_at) as last_review_at
       from review_events x
@@ -1048,6 +1071,7 @@ export async function listClientEngagements(
     granted: Boolean(r.granted),
     months: monthsFor(r.user_id, r.id),
     awaitingReview: Number(r.awaiting_review),
+    awaitingVersionId: r.awaiting_version_id,
   }));
 }
 

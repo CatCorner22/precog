@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Download, Plus, Trash2, Upload, UserMinus } from "lucide-react";
+import { Download, Plus, Trash2, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { inputCls } from "@/components/ui/field-classes";
 import { ChipPicker, type ChipOption } from "@/components/precog/builder/chips";
-import { localDateKey } from "@/lib/precog/dates";
+import {
+  hasLeftBy,
+  raisesLeaverCheck,
+  recordLastDay,
+  restorePerson,
+} from "@/lib/precog/continuity/access-removal";
+import { formatDay, isCalendarDate, localDateKey } from "@/lib/precog/dates";
 import { downloadCsv } from "@/lib/download";
 import { householdMark, MAX_HOUSEHOLD_MARK } from "@/lib/precog/import/people-backup";
 import {
@@ -37,6 +43,7 @@ import { OPERATING_DUTIES, type EntitlementId } from "@/lib/precog/sod/conflict-
 import { isOwnerRole, ownersMarked, ownsBusiness } from "@/lib/precog/sod/owner-role";
 import { confirmTitleDutiesFor } from "@/lib/precog/sod/title-duties";
 import { count, joinWithAnd, stripInvisibleControls, uniqueId, verb } from "@/lib/precog/text";
+import { getIndustryTemplate } from "@/lib/precog/templates";
 import type { Person } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";
 
@@ -65,7 +72,7 @@ export function ConfirmTitleDuties({
           onChange(confirmTitleDutiesFor(people, person.id));
           toast.success(`${person.name}'s duties confirmed.`);
         }}
-        className="shrink-0 text-subtle hover:text-primary"
+        className={cn("shrink-0 text-subtle hover:text-primary", ROW_CONTROL)}
         aria-label={`Confirm duties for ${person.name}`}
       >
         Confirm duties
@@ -74,7 +81,7 @@ export function ConfirmTitleDuties({
   );
 }
 
-/** The builder's team list: add, import, mark as left, and set each person's duties. */
+/** The builder's team list: add, import, record who left, and set each person's duties. */
 export function TeamEditor({
   people,
   onChange,
@@ -96,6 +103,12 @@ export function TeamEditor({
   const [showPaste, setShowPaste] = useState(false);
   const [howMany, setHowMany] = useState(1);
   const [paste, setPaste] = useState("");
+  const [leaving, setLeaving] = useState<{ id: string; lastDay: string } | null>(null);
+  // The team as it stands now, for an Undo pressed after other edits.
+  const latestPeople = useRef(people);
+  useEffect(() => {
+    latestPeople.current = people;
+  }, [people]);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const useCustom = role === "__custom";
   const catalogChoice = role.startsWith("catalog:") ? jobCatalogEntry(role.slice(8)) : undefined;
@@ -202,24 +215,20 @@ export function TeamEditor({
   }
 
   /**
-   * They have left: kept on the list for history, holding no live duties.
+   * The owner gave the last day in the inline form: recorded, with Undo.
    * The owner is then asked, once, to confirm their pay and logins are stopped.
    */
-  function markAsLeft(id: string) {
-    const p = people.find((x) => x.id === id);
-    if (!p || !p.active) return;
-    if (people.filter((x) => x.active).length <= 1) {
-      toast.error("Keep at least one person working here.");
-      return;
-    }
-    if (
-      !window.confirm(
-        `Mark ${p.name} as left? They stay on the list for history but no longer hold any duty or count as a stand-in.`,
-      )
-    ) {
-      return;
-    }
-    updatePerson(id, { active: false });
+  function confirmLeaving() {
+    if (!leaving) return;
+    const done = recordLeaving({
+      people,
+      personId: leaving.id,
+      lastDay: leaving.lastDay,
+      today: localDateKey(new Date()),
+      onChange,
+      latest: () => latestPeople.current,
+    });
+    if (done) setLeaving(null);
   }
 
   async function importCsv(file: File) {
@@ -322,8 +331,8 @@ export function TeamEditor({
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
       <p className="text-xs text-muted">
-        Each person&apos;s job title sets their usual duties, and the duty-conflict check reads
-        those duties. Pick the closest title, then adjust the duties if they differ.
+        A job title sets the person&apos;s usual duties, and the duty-conflict check reads them.
+        Pick the closest title, then adjust the duties.
       </p>
       <div className="flex flex-wrap items-center gap-1.5">
         <Button size="sm" variant="secondary" onClick={() => csvInputRef.current?.click()}>
@@ -398,9 +407,9 @@ export function TeamEditor({
               key={p.id}
               className="rounded-md border border-border bg-elevated px-2 py-1.5 text-xs"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span
-                  className="min-w-0 flex-1 truncate"
+                  className="min-w-0 flex-[1_1_12rem] truncate"
                   title={[p.name, p.role, p.department, p.employeeId && `ID ${p.employeeId}`]
                     .filter(Boolean)
                     .join(" · ")}
@@ -415,8 +424,8 @@ export function TeamEditor({
                   {p.householdKey && (
                     <span className="text-subtle"> · household {p.householdKey}</span>
                   )}
-                  {p.active && p.lastDay && (
-                    <span className="text-subtle"> · last day {p.lastDay}</span>
+                  {p.lastDay && (
+                    <span className="text-subtle"> · last day {formatDay(p.lastDay)}</span>
                   )}
                   {dutiesUnknown(p, roleTemplates) && (
                     <span className="text-warn"> · needs duties</span>
@@ -436,18 +445,24 @@ export function TeamEditor({
                 {p.active && (
                   <button
                     type="button"
-                    onClick={() => markAsLeft(p.id)}
-                    className="text-subtle hover:text-warn"
-                    aria-label={`Mark ${p.name} as left`}
-                    title="Mark as left"
+                    onClick={() =>
+                      setLeaving(
+                        leaving?.id === p.id
+                          ? null
+                          : { id: p.id, lastDay: p.lastDay ?? localDateKey(new Date()) },
+                      )
+                    }
+                    className={cn("shrink-0 text-subtle hover:text-warn", ROW_CONTROL)}
+                    aria-expanded={leaving?.id === p.id}
+                    aria-label={`${p.name} left the business`}
                   >
-                    <UserMinus className="size-3" />
+                    Left the business
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setEditingId(editing ? null : p.id)}
-                  className="text-subtle hover:text-primary"
+                  className={cn("shrink-0 text-subtle hover:text-primary", ROW_CONTROL)}
                   aria-expanded={editing}
                   aria-label={editing ? `Done with ${p.name}'s duties` : `Duties of ${p.name}`}
                 >
@@ -456,12 +471,27 @@ export function TeamEditor({
                 <button
                   type="button"
                   onClick={() => remove(p.id)}
-                  className="text-subtle hover:text-danger"
+                  className={cn(
+                    "ml-1 shrink-0 text-subtle hover:text-danger pointer-coarse:min-w-11",
+                    ROW_CONTROL,
+                  )}
                   aria-label={`Remove ${p.name}`}
+                  title={`Remove ${p.name}`}
                 >
-                  <Trash2 className="size-3" />
+                  <Trash2 className="size-3.5" />
                 </button>
               </div>
+              {p.active && leaving?.id === p.id && (
+                <LeavingForm
+                  person={p}
+                  lastDay={leaving.lastDay}
+                  today={localDateKey(new Date())}
+                  raisesCheck={raisesLeaverCheck(p, getIndustryTemplate(tpl.id).people)}
+                  onLastDay={(lastDay) => setLeaving({ id: p.id, lastDay })}
+                  onConfirm={confirmLeaving}
+                  onCancel={() => setLeaving(null)}
+                />
+              )}
               {editing && industryHasOwner(tpl.id) && (
                 <label className="mt-2 flex items-center gap-1.5 text-xs text-muted">
                   <input
@@ -597,6 +627,116 @@ export function TeamEditor({
       </Button>
     </div>
   );
+}
+
+/** A row control at least 44px tall on a touch screen. */
+const ROW_CONTROL =
+  "pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center";
+
+/**
+ * Asks for someone's last day before recording that they left. Today or an
+ * earlier day marks them as left; a later day keeps them at work on notice.
+ */
+export function LeavingForm({
+  person,
+  lastDay,
+  today,
+  raisesCheck = true,
+  onLastDay,
+  onConfirm,
+  onCancel,
+}: {
+  person: Person;
+  lastDay: string;
+  today: string;
+  /** False for a sample person, whose leaving raises no pay-and-sign-ins checklist. */
+  raisesCheck?: boolean;
+  onLastDay: (lastDay: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const valid = isCalendarDate(lastDay);
+  const later = valid && !hasLeftBy(lastDay, today);
+  const fieldId = `last-day-${person.id}`;
+  return (
+    <div className="mt-2 space-y-1.5 rounded-md border border-border bg-panel px-2 py-1.5">
+      <div className="flex flex-wrap items-end gap-2">
+        <label htmlFor={fieldId} className="text-xs text-muted">
+          Last day
+        </label>
+        <input
+          id={fieldId}
+          type="date"
+          className={cn(inputCls, "w-auto")}
+          value={lastDay}
+          onChange={(e) => onLastDay(e.target.value)}
+        />
+        <Button size="sm" disabled={!valid} onClick={onConfirm}>
+          {later ? "Record last day" : `Mark ${person.name} as left`}
+        </Button>
+        <Button size="sm" variant="secondary" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+      <p className="text-xs text-muted">
+        {later
+          ? `${person.name} keeps working and keeps their duties until then.`
+          : `${person.name} stays on the list for history but no longer holds any duty or counts as a stand-in. ${
+              raisesCheck
+                ? "Then check their pay and sign-ins below the team list."
+                : "On your own business, a checklist of pay and sign-ins to remove then appears below the team list."
+            }`}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Records someone's last day, says so, and offers Undo, which puts that one
+ * person back as they were and leaves any other change on the team. Returns
+ * false, changing nothing, when they are the last person working here.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- tested on its own, next to the editor that calls it.
+export function recordLeaving({
+  people,
+  personId,
+  lastDay,
+  today,
+  onChange,
+  latest,
+}: {
+  people: Person[];
+  personId: string;
+  lastDay: string;
+  today: string;
+  onChange: (next: Person[]) => void;
+  /** The team when Undo is pressed. */
+  latest: () => Person[];
+}): boolean {
+  const prior = people.find((p) => p.id === personId);
+  if (!prior || !prior.active || !isCalendarDate(lastDay)) return false;
+  const gone = hasLeftBy(lastDay, today);
+  if (gone && people.filter((p) => p.active).length <= 1) {
+    toast.error("Keep at least one person working here.");
+    return false;
+  }
+  onChange(recordLastDay(people, personId, lastDay, today));
+  toast.success(
+    gone
+      ? `${prior.name} marked as left, last day ${formatDay(lastDay)}.`
+      : `${prior.name}'s last day is ${formatDay(lastDay)}.`,
+    {
+      duration: 15_000,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          onChange(restorePerson(latest(), prior));
+          toast.success(`${prior.name} is back on the team as before.`);
+        },
+      },
+    },
+  );
+  return true;
 }
 
 /**

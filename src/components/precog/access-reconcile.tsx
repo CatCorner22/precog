@@ -94,10 +94,9 @@ export function AccessReconcile() {
     <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-lg font-semibold">Access and payroll import</h2>
       <p className="mt-1 text-sm text-muted">
-        Upload a user export and a vendor export from QuickBooks Online or Xero. We compare each
-        file with this client’s Duty assignments and never write to the accounting system. Rows that
-        do not match wait here until you map or dismiss them; mapping a row gives that person the
-        duty on the map.
+        Upload user and vendor exports from QuickBooks Online or Xero. Precog compares them with
+        this client&apos;s Duty assignments and never writes to the accounting system. Rows that do
+        not match wait here: map one to give that person the duty, or dismiss it.
       </p>
       <div className="mt-3 flex flex-wrap gap-3 text-sm">
         <label className="cursor-pointer rounded-md border border-border px-3 py-2 hover:bg-elevated">

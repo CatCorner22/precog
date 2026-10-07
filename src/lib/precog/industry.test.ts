@@ -5,6 +5,7 @@ import {
   industryMeta,
   pluralTeamLabel,
   type IndustryId,
+  defaultReviewer,
 } from "./industry";
 import { getIndustryTemplate } from "./templates";
 import { getIndustryCopy } from "./templates/industry-copy";
@@ -39,5 +40,13 @@ describe("an industry the app does not know", () => {
     expect(industryMeta(unknown).id).toBe(DEFAULT_INDUSTRY);
     expect(getIndustryTemplate(unknown).id).toBe(DEFAULT_INDUSTRY);
     expect(getIndustryCopy(unknown)).toBe(getIndustryCopy(DEFAULT_INDUSTRY));
+  });
+});
+
+describe("defaultReviewer", () => {
+  it("names the owner, and the executive director where there is no owner", () => {
+    expect(defaultReviewer("dental")).toBe("the owner");
+    expect(defaultReviewer("nonprofit")).toBe("the executive director");
+    expect(defaultReviewer("nonprofit", true)).toBe("The executive director");
   });
 });

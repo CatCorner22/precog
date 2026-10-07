@@ -61,6 +61,38 @@ export function cutoffsOutsideBands(files: { path: string; text: string }[]): st
   return found;
 }
 
+/**
+ * Files that may still put an urgency word next to a residual count, each
+ * with its reason. Keep this short.
+ */
+const RESIDUAL_URGENCY_KNOWN: Record<string, string> = {
+  // Report layouts 1 to 5 print the words they printed when a version was locked.
+  "src/components/precog/control-report.tsx": "locked report layouts",
+};
+
+const URGENCY = /\b(?:fix first|fix soon|worth doing)\b/i;
+// A residual count or average (portfolioSummary's fields), or an urgency word named as a band.
+const RESIDUAL_COUNT = /\b(?:criticalPath|actNow|mitigate|averageResidual)\b/;
+const URGENCY_BAND = /\b(?:fix first|fix soon|worth doing)\W{0,2}\s+band\b/i;
+
+/**
+ * `file:line: text` for every line that names a residual count in the
+ * priority list's urgency words ("Fix first", "Fix soon", "Worth doing").
+ * The residual bands read Severe, High, Moderate and Low (RESIDUAL_BAND_LABEL).
+ */
+export function residualUrgencyWords(files: { path: string; text: string }[]): string[] {
+  const found: string[] = [];
+  for (const { path, text } of files) {
+    if (RESIDUAL_URGENCY_KNOWN[path]) continue;
+    text.split("\n").forEach((line, i) => {
+      if (URGENCY.test(line) && (RESIDUAL_COUNT.test(line) || URGENCY_BAND.test(line))) {
+        found.push(`${path}:${i + 1}: ${line.trim().slice(0, 80)}`);
+      }
+    });
+  }
+  return found;
+}
+
 describe("band cutoffs", () => {
   it("are written only in scoring/bands.ts", () => {
     const root = join(SRC, "..");
@@ -72,18 +104,21 @@ describe("band cutoffs", () => {
     expect(cutoffsOutsideBands(files)).toEqual([]);
   });
 
-  it("name the priority bands in the residual bands' urgency words", () => {
-    // One scale of urgency: each index keeps its own cutoffs, never its own words.
-    expect(
-      [RISK_SCALE.critical, RISK_SCALE.actNow, RISK_SCALE.mitigate, 0].map(
-        (s) => bandForScore(s).label,
-      ),
-    ).toEqual([
+  it("name the residual bands by risk left, and keep the urgency words for the priority list", () => {
+    // "Fix first" has one meaning: the priority list's top band. The residual
+    // index, on its own cutoffs, reads Severe, High, Moderate and Low.
+    const residual = [RISK_SCALE.critical, RISK_SCALE.actNow, RISK_SCALE.mitigate, 0].map(
+      (s) => bandForScore(s).label,
+    );
+    expect(residual).toEqual(["Severe", "High", "Moderate", "Low"]);
+    const priority = [
       PRIORITY_BAND_LABEL.white_hot,
       PRIORITY_BAND_LABEL.critical,
       PRIORITY_BAND_LABEL.elevated,
       PRIORITY_BAND_LABEL.watch,
-    ]);
+    ];
+    expect(priority).toEqual(["Fix first", "Fix soon", "Worth doing", "Watch"]);
+    for (const label of residual) expect(priority).not.toContain(label);
     const root = join(SRC, "..");
     // Only the words report layouts 1 to 4 printed (PRIORITY_BAND_LABEL_PRINTED_V4)
     // keep the retired names, so a version locked then prints as it did.
@@ -97,6 +132,24 @@ describe("band cutoffs", () => {
       "Medium priority",
       "Low priority",
     ]);
+  });
+
+  it("never count residual risks in the priority list's urgency words", () => {
+    const root = join(SRC, "..");
+    const files = sourceFiles(SRC).map((path) => ({
+      path: relative(root, path).split("\\").join("/"),
+      text: readFileSync(path, "utf8"),
+    }));
+    expect(residualUrgencyWords(files)).toEqual([]);
+    const flagged = (text: string) => residualUrgencyWords([{ path: "src/x.ts", text }]);
+    expect(flagged('`${count(portfolio.criticalPath, "item")} to fix first`')).toHaveLength(1);
+    expect(
+      flagged("`${portfolio.actNow} to fix soon and ${portfolio.mitigate} worth doing`"),
+    ).toHaveLength(1);
+    expect(flagged('`${n} risks are in the "fix first" band.`')).toHaveLength(1);
+    expect(flagged('`The average risk index is in the "fix soon" band.`')).toHaveLength(1);
+    expect(flagged("`${fixFirst} are Fix first on the priority list`")).toEqual([]);
+    expect(flagged("`${portfolio.criticalPath} ${RESIDUAL_BAND_LABEL.critical_path}`")).toEqual([]);
   });
 
   it("catches each shape a cutoff takes", () => {

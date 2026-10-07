@@ -6,8 +6,11 @@ import {
   NO_ALERT_WARNING,
   renderDecision,
 } from "./agent-brief";
+import { chickenLittleCritique, destack, localSynthesize, NO_ALERT_WARNING } from "./agent-brief";
 import type { ScenarioRunData } from "./scenario-tools";
 import type { ToolResult } from "./types";
+import { RISK_SCALE } from "../scoring/bands";
+import { RESIDUAL_BAND_LABEL } from "../scoring/weights";
 
 function makeScenarioResult(warningSigns?: readonly string[]): ToolResult {
   const data: ScenarioRunData = {
@@ -30,8 +33,30 @@ function synthesize(scenario: ToolResult) {
   };
 }
 
+describe("stack wording", () => {
+  it("turns a stacked label into an owner-facing phrase inside longer text", () => {
+    expect(destack("Cameras + dual release + bank reconciliation (stack)")).toBe(
+      "Cameras, dual release and bank reconciliation together",
+    );
+    expect(
+      destack(
+        "Levers in the order Precog prefers: Cameras, dual release, bank reconciliation (stack).",
+      ),
+    ).toBe(
+      "Levers in the order Precog prefers: Cameras, dual release and bank reconciliation together.",
+    );
+    expect(
+      destack(
+        "First: Cameras + dual release + bank reconciliation (stack). Next: Cameras + dual release + bank reconciliation (stack).",
+      ),
+    ).toBe(
+      "First: Cameras, dual release and bank reconciliation together. Next: Cameras, dual release and bank reconciliation together.",
+    );
+  });
+});
+
 describe("Pioneer early scenario signs", () => {
-  it("adds the first three signs under watched conditions without changing alerts", () => {
+  it("adds the first three early signs under warnings without changing alerts", () => {
     const { brief, warnings } = synthesize(
       makeScenarioResult(["First sign.", "Second sign.", "Third sign.", "Fourth sign."]),
     );
@@ -155,5 +180,29 @@ describe("rules-authored move text", () => {
     );
     expect(renderDecision(move, 0)).not.toContain("Also moves");
     expect(move.cascadeEffects).toEqual(["risk index ↓"]);
+describe("Pioneer's residual warnings", () => {
+  const warn = (averageResidual: number, criticalPath: number) =>
+    chickenLittleCritique([
+      {
+        tool: "get_residual_portfolio",
+        ok: true,
+        summary: "",
+        data: { averageResidual, criticalPath },
+      },
+    ]);
+
+  it("names the residual band the average sits in, never a priority-list word", () => {
+    expect(warn(RISK_SCALE.actNow, 0)).toContain(
+      `The average risk index is ${RISK_SCALE.actNow}/100, in the "${RESIDUAL_BAND_LABEL.act_now}" band on Precog's own index (Precog warns at ${RISK_SCALE.actNow} or more).`,
+    );
+    expect(warn(RISK_SCALE.critical + 5, 0).join(" ")).toContain(
+      `in the "${RESIDUAL_BAND_LABEL.critical_path}" band`,
+    );
+  });
+
+  it("counts the residual risks in the Severe band, not in Fix first", () => {
+    const warnings = warn(0, 3);
+    expect(warnings).toContain(`3 risks are in the "${RESIDUAL_BAND_LABEL.critical_path}" band.`);
+    expect(warnings.join(" ")).not.toMatch(/fix first|fix soon|worth doing/i);
   });
 });

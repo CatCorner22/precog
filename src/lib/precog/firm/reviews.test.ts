@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   appendReview,
   clientTablePeriods,
+  isReviewItemKey,
   latestReview,
   MAX_REVIEW_RECORDS,
   monthlyReviewTasks,
@@ -12,9 +13,13 @@ import {
   periodWithDue,
   recordReview,
   reportPeriod,
+  resolvedNote,
   reviewDueText,
+  reviewItemsFor,
   reviewResultLine,
+  reviewSaveProblem,
   reviewTrimNotice,
+  savedResultLine,
   trimReviewRecords,
 } from "./reviews";
 import type { Person } from "../types";
@@ -412,5 +417,134 @@ describe("open periods", () => {
     expect(periodStanding(recorded, "2026-09", "2027-03-01").overdue).toBe(false);
     const skippedAll = [{ period: "2026-09", done: 0, exceptions: 0, skipped: 4 }];
     expect(periodStanding(skippedAll, "2026-09", "2026-10-11").overdue).toBe(false);
+  });
+});
+
+describe("the deposit and duplicate-payment checks from November 2026", () => {
+  it("keeps five checks for October and has seven from November", () => {
+    expect(reviewItemsFor("2026-10")).toHaveLength(5);
+    expect(reviewItemsFor("2026-11").map((i) => i.key)).toEqual([
+      "bank_statement",
+      "cleared_checks",
+      "payroll_headcount",
+      "new_vendors",
+      "card_statement",
+      "deposits_match",
+      "duplicate_payments",
+    ]);
+    expect(reviewItemsFor("2027-03")).toHaveLength(7);
+    const titles = Object.fromEntries(reviewItemsFor("2026-11").map((i) => [i.key, i.title]));
+    expect(titles.deposits_match).toBe(
+      "Match each deposit to the takings, donations or payments recorded for that day",
+    );
+    expect(titles.duplicate_payments).toBe("Look for the same invoice paid twice");
+  });
+
+  it("counts seven checks toward a November month's completion", () => {
+    expect(periodStanding([], "2026-11", "2026-12-11")).toMatchObject({
+      total: 7,
+      overdue: true,
+    });
+    expect(
+      periodStanding(
+        [{ period: "2026-11", done: 5, exceptions: 0, skipped: 0 }],
+        "2026-11",
+        "2026-12-11",
+      ).overdue,
+    ).toBe(true);
+  });
+
+  it("gives every sample business a reviewer for each new check", () => {
+    for (const { id } of INDUSTRIES) {
+      const tpl = getIndustryTemplate(id);
+      const tasks = monthlyReviewTasks("2026-11-05", tpl.people, tpl.roleTemplates);
+      expect(tasks).toHaveLength(7);
+      for (const key of ["deposits_match", "duplicate_payments"]) {
+        const task = tasks.find((t) => t.key === key);
+        expect(tpl.people.some((p) => p.name === task?.suggestedOwner)).toBe(true);
+      }
+    }
+  });
+
+  it("loads saved results for the new checks", () => {
+    expect(isReviewItemKey("deposits_match")).toBe(true);
+    expect(isReviewItemKey("duplicate_payments")).toBe(true);
+    const saved = normalizeReviewRecords([
+      {
+        key: "duplicate_payments",
+        period: "2026-11",
+        result: "done",
+        ownerName: "Ada",
+        notes: "",
+        recordedAt: "2026-12-02T00:00:00.000Z",
+      },
+    ]);
+    expect(saved.map((r) => r.key)).toEqual(["duplicate_payments"]);
+  });
+});
+
+describe("what a monthly result needs before Precog saves it", () => {
+  it("asks who did the check", () => {
+    expect(reviewSaveProblem({ result: "done", ownerName: " ", notes: "Read it" })).toBe(
+      "Choose who did this check.",
+    );
+  });
+
+  it("refuses an Exception with a blank note", () => {
+    expect(reviewSaveProblem({ result: "exception", ownerName: "Dana", notes: "  " })).toBe(
+      "Say what you found.",
+    );
+    expect(
+      reviewSaveProblem({ result: "exception", ownerName: "Dana", notes: "Paid ACME twice" }),
+    ).toBeNull();
+  });
+
+  it("takes Done and Skipped without a note", () => {
+    expect(reviewSaveProblem({ result: "done", ownerName: "Dana", notes: "" })).toBeNull();
+    expect(reviewSaveProblem({ result: "skipped", ownerName: "Dana", notes: "" })).toBeNull();
+  });
+});
+
+describe("savedResultLine", () => {
+  it("says what was saved, by whom and on which day", () => {
+    expect(
+      savedResultLine(
+        {
+          result: "done",
+          ownerName: "Dana",
+          notes: "",
+          recordedAt: "2026-10-07T15:00:00.000Z",
+        },
+        "2026-10-07",
+      ),
+    ).toBe("Saved: Done by Dana on Oct 7");
+    expect(
+      savedResultLine(
+        {
+          result: "exception",
+          ownerName: "Dana",
+          notes: "Paid ACME twice",
+          recordedAt: "2026-10-07T15:00:00.000Z",
+        },
+        "2027-01-04",
+      ),
+    ).toBe("Saved: Exception by Dana on Oct 7, 2026 — Paid ACME twice");
+  });
+
+  it("leaves out an empty name", () => {
+    expect(
+      savedResultLine(
+        { result: "skipped", ownerName: "", notes: "", recordedAt: "2026-10-07T15:00:00.000Z" },
+        "2026-10-07",
+      ),
+    ).toBe("Saved: Skipped on Oct 7");
+  });
+});
+
+describe("resolvedNote", () => {
+  it("records what resolved the problem, or the problem itself when nothing was typed", () => {
+    expect(resolvedNote("Refund received", "Paid ACME twice")).toBe("Resolved: Refund received");
+    expect(resolvedNote("  ", "Paid ACME twice")).toBe("Resolved: Paid ACME twice");
+    expect(resolvedNote("", "")).toBe("Resolved");
   });
 });

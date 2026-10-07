@@ -892,6 +892,38 @@ describe("client engagement figures", () => {
     // no firm before the grant.
     expect(rows.find((r) => r.ownerUserId === "ua")!.awaitingReview).toBe(2);
     expect(rows.find((r) => r.ownerUserId === "uc")!.awaitingReview).toBe(1);
+    // "Open report" opens the newest of them that no newer version the viewer
+    // reads supersedes: a3 to a5 supersede a2 on the owner's own report, so
+    // it opens the live report; c2 and c3 are not this firm's to read.
+    expect(rows.find((r) => r.ownerUserId === "ua")!.awaitingVersionId).toBeNull();
+    expect(rows.find((r) => r.ownerUserId === "uc")!.awaitingVersionId).toBe("c1");
+  });
+
+  it("opens no superseded version, as the report's review banner skips one, and keeps the count", async () => {
+    await saveFirm(db.sql, "ua", "North", "assessment");
+    await db.pg.query(
+      "update businesses set firm_user_id = 'ua', granted_at = now() where user_id = 'uc'",
+    );
+    await db.pg.query(`
+      insert into report_versions (id, user_id, business_id, version_no, profile, firm_user_id,
+        review_requested_at, reviewed_at, returned_at)
+      values
+        ('a1', 'ua', 'biz_1', 1, '{}'::jsonb, 'ua', now(), null, null),
+        ('a2', 'ua', 'biz_1', 2, '{}'::jsonb, 'ua', now(), null, null),
+        ('a3', 'ua', 'biz_1', 3, '{}'::jsonb, 'ua', null, null, null),
+        ('c1', 'uc', 'biz_1', 1, '{}'::jsonb, 'ua', now(), null, null),
+        ('c2', 'uc', 'biz_1', 2, '{}'::jsonb, 'ua', now(), null, null),
+        ('c3', 'uc', 'biz_1', 3, '{}'::jsonb, 'elsewhere', null, null, null)
+    `);
+    const rows = await listClientEngagements(db.sql, "ua", "ua");
+    const own = rows.find((r) => r.ownerUserId === "ua")!;
+    const client = rows.find((r) => r.ownerUserId === "uc")!;
+    // Version 3, locked without a review asked, supersedes 1 and 2: the
+    // report marks version 2 "Superseded by version 3" with no review banner.
+    expect([own.awaitingReview, own.awaitingVersionId]).toEqual([2, null]);
+    // c3 belongs to another firm, which this firm's report does not list, so
+    // c2 is the newest version this firm reads.
+    expect([client.awaitingReview, client.awaitingVersionId]).toEqual([2, "c2"]);
   });
 });
 

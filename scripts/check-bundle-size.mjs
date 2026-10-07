@@ -146,6 +146,16 @@
  * 3.9 KB (a new chunk), sod-panel 3.0 KB, scenario-runner 0.9 KB, the rest
  * under 0.3 KB each. The total goes from 840.6 KB to 849.0 KB. Total budget
  * raised from 845 KB to 855 KB; slice S43 in wave 4 still lowers it.
+ *
+ * 2026-10-07: wave 3 (the usability fixes from the October intuitiveness
+ * evaluation) adds 13.1 KB gzipped across many chunks, measured against a
+ * build of main at bd26e58 (851.6 KB, 139 chunks) and the integrated branch
+ * (864.7 KB, 140 chunks). The largest parts: the glossary dialog 2.8 KB (a
+ * new chunk, loaded only when "Words used here" opens), Start here's words
+ * 2.2 KB, the leaver checklists by industry 1.6 KB, Monthly review 1.1 KB,
+ * the firm page 1.1 KB; the rest is 1 KB or less per chunk. No module is
+ * duplicated and the largest chunk is unchanged at 109 KB. Total budget
+ * raised from 855 KB to 870 KB; slice S43 in wave 4 still lowers it.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -154,7 +164,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 855 * 1024,
+  totalGzipBytes: 870 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

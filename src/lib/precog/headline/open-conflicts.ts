@@ -3,6 +3,7 @@ import type { IndustryId } from "../industry";
 import type { DecisionEntry } from "../practice-profile";
 import type { DetectedConflict } from "../sod/detect";
 import { dualReleaseSplit, openFindings } from "../sod/open-findings";
+import { count } from "../text";
 
 /** The parts of a finding the headline reads. */
 type HeadlineFinding = Pick<
@@ -13,9 +14,11 @@ type HeadlineFinding = Pick<
 
 /**
  * Every figure a screen prints about open duty conflicts, counted once
- * through sod/open-findings `openFindings`. Start here, the report, the
- * duty-conflict screen and the firm's client list read this one model, so a
- * reader never meets two numbers for the same thing.
+ * through sod/open-findings `openFindings`. Start here (its tile, its
+ * exposure sentence and its first step), the report, the duty-conflict
+ * screen (its tile, sub-tab and location filter), the coach and the firm's
+ * client list read this one model, so a reader never meets two numbers for
+ * the same thing.
  */
 export interface OpenConflictHeadline<T extends HeadlineFinding = DetectedConflict> {
   /** The open findings themselves, one row each, as the report's conflict table lists them. */
@@ -38,6 +41,9 @@ export interface OpenConflictHeadline<T extends HeadlineFinding = DetectedConfli
   /** Staff pairs dual release covers at every amount: never in `open`. */
   closedByDualRelease: number;
 }
+
+/** The open count and its parts, as the tiles and the coach state them. */
+export type OpenConflictTotals = Pick<OpenConflictHeadline, "open" | "critical" | "high" | "other">;
 
 /**
  * The open duty conflicts among a detection report's findings, with their
@@ -70,6 +76,36 @@ export function openConflictHeadline<T extends HeadlineFinding>(
     ).length,
     ownerHeld: report.conflicts.filter((c) => c.ownerHeld).length,
     closedByDualRelease: split.closed,
+  };
+}
+
+/**
+ * The open count's parts, as every tile hint and the coach word them:
+ * "4 critical · 15 high · 1 other". The parts add up to `open`; "other"
+ * (medium and related duties) is left out when there is none.
+ */
+export function openConflictBreakdown(
+  headline: Pick<OpenConflictHeadline<HeadlineFinding>, "critical" | "high" | "other">,
+): string {
+  const parts = [`${headline.critical} critical`, `${headline.high} high`];
+  if (headline.other > 0) parts.push(`${headline.other} other`);
+  return parts.join(" · ");
+}
+
+/**
+ * The "Who controls what" tab's badge: the open duty-conflict count the
+ * Duty conflicts tile and Start here print, read aloud with its critical
+ * part ("20 open duty conflicts, 4 critical"); danger while a critical one is
+ * open. Null when none is open.
+ */
+export function openConflictBadge(
+  headline: Pick<OpenConflictHeadline<HeadlineFinding>, "open" | "critical">,
+): { n: number; tone: "warn" | "danger"; text: string } | null {
+  if (headline.open === 0) return null;
+  return {
+    n: headline.open,
+    tone: headline.critical > 0 ? "danger" : "warn",
+    text: `${count(headline.open, "open duty conflict")}, ${headline.critical} critical`,
   };
 }
 

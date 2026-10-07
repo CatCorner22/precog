@@ -23,7 +23,7 @@ import {
 } from "./meta-analysis-gaps";
 import { INVENTORY_WORDS, type InventoryWords } from "./meta-analysis-words";
 import { residualScope } from "../scoring/scope";
-import { DEFAULT_WEIGHTS } from "../scoring/weights";
+import { DEFAULT_WEIGHTS, RESIDUAL_BAND_LABEL } from "../scoring/weights";
 
 export type EpistemicClass = "known_known" | "known_unknown" | "unknown_unknown" | "unknown_known";
 
@@ -222,7 +222,7 @@ function inventoryItems(
       id: "kk-residual-portfolio",
       classification: "known_known",
       title: "Residual risk ranking",
-      description: `Average residual ${portfolio.averageResidual}; ${portfolio.criticalPath} in the "fix first" band.`,
+      description: `Average residual ${portfolio.averageResidual}; ${portfolio.criticalPath} in the "${RESIDUAL_BAND_LABEL.critical_path}" band.`,
       severity: "low",
       affects: ["residual", "pioneer"],
       confidenceDrag: 0,

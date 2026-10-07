@@ -17,6 +17,7 @@ import { journalEntry, type CoachDecision } from "@/lib/precog/coach/journal-ent
 import {
   BUSINESS_CHANGED_MESSAGE,
   CoachResultView,
+  briefClipboardText,
   coachErrorMessage,
   type CoachResult,
 } from "./pioneer-coach-parts";
@@ -54,13 +55,14 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
 
   async function run() {
     const id = ++runId.current;
+    const askedQuestion = question.trim();
     running.current = true;
     setLoading(true);
     setError(null);
     try {
       const res = await runPioneerCoach({
         data: {
-          question,
+          question: askedQuestion,
           today: localDateKey(new Date()),
           profile: {
             industry: profile.industry,
@@ -90,7 +92,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
         setError(res.error);
         setResult(null);
       } else {
-        setResult(res);
+        setResult({ ...res, question: askedQuestion || res.question });
         setLogged(new Set());
       }
     } catch (e) {
@@ -107,7 +109,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
   async function copyBrief() {
     if (!result?.markdown) return;
     try {
-      await navigator.clipboard.writeText(result.markdown);
+      await navigator.clipboard.writeText(briefClipboardText(result));
       setCopied(true);
       if (copiedTimer.current) clearTimeout(copiedTimer.current);
       copiedTimer.current = setTimeout(() => setCopied(false), 2000);
@@ -137,6 +139,13 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
               what, scenarios, guidance and real cases. Rankings use Precog&rsquo;s weights, not
               measurements. When you are signed in, Grok picks the moves most relevant to your
               question; it never writes or changes them.
+          purpose="Pioneer is Precog's assistant. Ask about your team, a person leaving, or what to fix first; it answers from your own records."
+          purpose="Ask about risks, someone being away, or what to fix first. Answers come from your own records."
+          method={
+            <p>
+              Precog's rules write every answer from your records, scenarios, the guidance library
+              and prosecuted cases. Fix order uses Precog's weights, not measurements. When Grok is
+              on, it only picks which statements show first; it writes none.
             </p>
           }
         />
@@ -178,12 +187,12 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
               {loading ? (
                 <>
                   <Loader2 className="size-4 animate-spin" aria-hidden />
-                  Building the brief…
+                  Writing the answer…
                 </>
               ) : (
                 <>
                   <Sparkles className="size-4" aria-hidden />
-                  Get the brief
+                  Ask
                 </>
               )}
             </Button>
@@ -205,7 +214,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
             </p>
           )}
           <p role="status" className="sr-only">
-            {loading ? "Building the brief" : result ? "Brief ready" : ""}
+            {loading ? "Writing the answer" : result ? "Answer ready" : ""}
           </p>
         </CardContent>
       </Card>

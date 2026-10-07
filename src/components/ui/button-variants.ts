@@ -15,7 +15,10 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-10 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
+        // On a touch screen (`pointer-coarse`) a control is at least 44px
+        // each way; a mouse keeps the compact sizes.
+        sm: "h-8 rounded-md px-3 text-xs pointer-coarse:min-h-11 pointer-coarse:min-w-11",
+        icon: "size-8 shrink-0 rounded-md p-0 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

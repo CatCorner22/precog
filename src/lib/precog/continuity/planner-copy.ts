@@ -1,4 +1,5 @@
 import { isMarked, STATUS_LABEL, type CoverageStatus, type ItemCoverage } from "./coverage";
+import { joinWithAnd } from "../text";
 import type { Criticality, KnowledgeKind, KnowledgeLevel } from "../types";
 
 /** Wording the continuity planner and its cards share. */
@@ -52,3 +53,16 @@ export function coverageBadge(row: ItemCoverage): {
 
 /** Check-in tab for stale items nobody on the active team holds. */
 export const UNHELD_VIEW = "__unheld__";
+
+/**
+ * The "Leaving the team" card's line when nobody on the team has a last day
+ * recorded. `leftNames` are the people who left whose access checklist is
+ * open on the same card (`leaverAccessNames`); the line does not say "nobody"
+ * over them, and names nobody whose checklist is not on screen.
+ */
+export function noNoticeText(leftNames: readonly string[]): string {
+  const advice =
+    "When someone gives notice, record the date here rather than removing them. The printed report and Pioneer count down to it and chase the hand-off.";
+  if (leftNames.length === 0) return `Nobody has given notice. ${advice}`;
+  return `Nobody still on the team has given notice. ${joinWithAnd(leftNames)} left; check their access above. ${advice}`;
+}

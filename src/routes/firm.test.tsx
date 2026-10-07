@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from "react";
+import { isValidElement, type ComponentType, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHookRuntime, type HookRuntime } from "@/test/hook-runtime";
 
@@ -23,9 +23,10 @@ vi.mock("react", async (importOriginal) => {
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: unknown) => ({ options, useSearch: () => ({}) }),
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
-  useNavigate: () => vi.fn(),
+  useNavigate: () => practice.navigate,
 }));
 const state = vi.hoisted(() => ({ userId: "ada" as string | null }));
+const practice = vi.hoisted(() => ({ navigate: vi.fn(), createBusiness: vi.fn() }));
 // A new object on every call, as the real session hook builds one on every render.
 vi.mock("@/lib/auth/use-current-user", () => ({
   useCurrentUserState: () => ({
@@ -45,6 +46,7 @@ vi.mock("@/lib/precog/practice-context", () => ({
     template: {},
     replaceProfile: vi.fn(),
     switchBusiness: vi.fn(),
+    createBusiness: practice.createBusiness,
   }),
 }));
 vi.mock("@/lib/precog/firm/engagement", () => ({
@@ -89,6 +91,11 @@ vi.mock("@/lib/precog/firm/entitlements-server", () => ({
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
 
 import { Route } from "./firm";
+import { ClientList } from "@/components/precog/firm/client-list";
+import { FirmBilling } from "@/components/precog/firm/firm-billing";
+import { FirmMembers } from "@/components/precog/firm/firm-members";
+import { QuickBooksPanel } from "@/components/precog/firm/quickbooks-panel";
+import { toast } from "sonner";
 
 const Page = (Route as unknown as { options: { component: ComponentType } }).options
   .component as () => unknown;
@@ -130,5 +137,92 @@ describe("the firm workspace loads the firm", () => {
     state.userId = null;
     await runtime.settle(Page);
     expect(server.getFirm).not.toHaveBeenCalled();
+  });
+});
+
+/** Every element in the tree, in document order. Child components are not rendered. */
+function elements(node: unknown): ReactElement<Record<string, unknown>>[] {
+  if (Array.isArray(node)) return node.flatMap(elements);
+  if (!isValidElement<Record<string, unknown>>(node)) return [];
+  return [node, ...elements(node.props.children)];
+}
+
+const ownerFirm = {
+  firm: { id: "f1", name: "North Advisors", role: "owner", plan: "assessment" },
+  members: [],
+  invites: [],
+  billing: null,
+};
+
+describe("the firm workspace's order", () => {
+  it("lists the clients before the firm's settings, which are folded", async () => {
+    server.getFirm.mockResolvedValue(ownerFirm);
+    const tree = await runtime.settle(Page);
+    const all = elements(tree);
+    const at = (type: unknown) => all.findIndex((el) => el.type === type);
+    expect(at(ClientList)).toBeGreaterThan(-1);
+    expect(at(ClientList)).toBeLessThan(at(FirmBilling));
+    expect(at(ClientList)).toBeLessThan(at(FirmMembers));
+    expect(at(ClientList)).toBeLessThan(at(QuickBooksPanel));
+    // Billing, members and QuickBooks sit inside one folded "Firm settings".
+    const fold = all.find((el) => el.type === "details");
+    expect(fold).toBeDefined();
+    expect(fold!.props.open).toBe(false);
+    const inside = elements(fold!.props.children);
+    for (const type of [FirmBilling, FirmMembers, QuickBooksPanel]) {
+      expect(inside.some((el) => el.type === type)).toBe(true);
+    }
+    const summary = inside.find((el) => el.type === "summary");
+    expect(JSON.stringify(summary!.props.children)).toContain("Firm settings");
+  });
+});
+
+describe("Add client on the firm workspace", () => {
+  it("starts the business with its name and line of business, then goes to its setup", async () => {
+    practice.createBusiness.mockResolvedValue({ ok: true });
+    const tree = await runtime.settle(Page);
+    const list = elements(tree).find((el) => el.type === ClientList)!;
+    const add = list.props.onAddClient as (name: string, industry: string) => Promise<boolean>;
+    await expect(add("Bayside Dental", "dental")).resolves.toBe(true);
+    expect(practice.createBusiness).toHaveBeenCalledWith("dental", "Bayside Dental");
+    expect(practice.navigate).toHaveBeenCalledWith({ to: "/" });
+  });
+
+  it("stays on the page and says why when Precog refuses", async () => {
+    practice.createBusiness.mockResolvedValue({ ok: false, reason: "Your plan holds 3 clients." });
+    const tree = await runtime.settle(Page);
+    const list = elements(tree).find((el) => el.type === ClientList)!;
+    const add = list.props.onAddClient as (name: string, industry: string) => Promise<boolean>;
+    await expect(add("Bayside Dental", "dental")).resolves.toBe(false);
+    expect(practice.navigate).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith("Precog could not add the client.", {
+      description: "Your plan holds 3 clients.",
+    });
+  });
+});
+
+describe("Firm settings while the account loads", () => {
+  it("offers no firm name form, so a submit cannot rename the firm or reset its plan", async () => {
+    // The firm never arrives: the page stays on its first answer.
+    server.getFirm.mockReturnValue(new Promise(() => undefined));
+    const tree = await runtime.settle(Page);
+    const fold = elements(tree).find((el) => el.type === "details");
+    expect(fold).toBeDefined();
+    expect(fold!.props.open).toBe(false);
+    const inside = elements(fold!.props.children);
+    expect(inside.some((el) => el.type === "form")).toBe(false);
+    const text = JSON.stringify(fold!.props.children);
+    expect(text).toContain("Loading the account…");
+    expect(text).not.toContain("Create the firm");
+    expect(text).not.toContain("Set up the firm");
+  });
+
+  it("offers to create the firm, open, once the account shows there is none", async () => {
+    const tree = await runtime.settle(Page);
+    const fold = elements(tree).find((el) => el.type === "details")!;
+    expect(fold.props.open).toBe(true);
+    const inside = elements(fold.props.children);
+    expect(inside.some((el) => el.type === "form")).toBe(true);
+    expect(JSON.stringify(fold.props.children)).toContain("Create the firm");
   });
 });

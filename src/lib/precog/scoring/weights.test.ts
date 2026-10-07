@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WEIGHTS, SCORING_VERSION, bandForScore } from "./weights";
+import { DEFAULT_WEIGHTS, RESIDUAL_BAND_LABEL, SCORING_VERSION, bandForScore } from "./weights";
 
 describe("scoring weights", () => {
   it("versions the scenario-kind, control-guard and cross-training changes", () => {
@@ -24,5 +24,28 @@ describe("scoring weights", () => {
     expect(bandForScore(80).band).toBe("critical_path");
     expect(bandForScore(-3).band).toBe("accept_monitor");
     expect(bandForScore(140).band).toBe("critical_path");
+  });
+});
+
+describe("residual bands", () => {
+  it("name the residual bands Severe, High, Moderate and Low, never the priority list's words", () => {
+    expect([80, 60, 40, 0].map((s) => bandForScore(s).label)).toEqual([
+      "Severe",
+      "High",
+      "Moderate",
+      "Low",
+    ]);
+    expect(RESIDUAL_BAND_LABEL).toEqual({
+      critical_path: "Severe",
+      act_now: "High",
+      mitigate: "Moderate",
+      accept_monitor: "Low",
+    });
+  });
+
+  it("gives each band plain guidance with no priority-list words", () => {
+    for (const s of [0, 40, 60, 80]) {
+      expect(bandForScore(s).guidance).not.toMatch(/fix first|fix soon|worth doing|should/i);
+    }
   });
 });

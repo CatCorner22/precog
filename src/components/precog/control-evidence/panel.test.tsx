@@ -35,7 +35,7 @@ beforeEach(() => {
 describe("control log presentation", () => {
   it("explains the bridge from monthly review to the evidence log", () => {
     const html = renderToStaticMarkup(<ControlEvidencePanel />);
-    expect(html).toContain("matching preparer entries");
+    expect(html).toContain("as preparer entries when you are signed in");
     expect(html).toContain("not an audit opinion");
   });
   it("gates account logging while signed out or using the shared dev identity", () => {
@@ -140,16 +140,18 @@ describe("control log presentation", () => {
     const html = renderToStaticMarkup(<ControlEvidencePanel />);
     expect(html).toContain("invite a reviewer under People at the firm");
     expect(html).not.toContain("Firm members");
-    expect(html).toContain("use the control evidence log");
+    expect(html).toContain("Sign in and open a saved business to use this log.");
   });
   it("names the Monthly review in plain text and says which record a reviewer relies on", () => {
     const html = renderToStaticMarkup(<ControlEvidencePanel />);
-    expect(html).toContain("Results recorded in the Monthly review create matching");
+    expect(html).toContain(
+      "Monthly review results appear here as preparer entries when you are signed in.",
+    );
     expect(html).not.toContain("This month’s review");
     expect(html).not.toContain("separate record");
     expect(html).not.toContain('href="/firm"');
     expect(html).toContain(
-      "The control evidence log is the record a reviewer relies on. Process Done marks, Decisions log entries and procedure proofs stay on this business and do not enter it.",
+      "Reviewers rely on this log. Done marks on processes, Decisions log entries and procedure proofs stay on the business and are not part of it.",
     );
   });
   it("labels evidence as references rather than uploaded files", () => {

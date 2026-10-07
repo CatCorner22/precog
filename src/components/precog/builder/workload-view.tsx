@@ -68,7 +68,7 @@ export function WorkloadView({
                       <button
                         type="button"
                         onClick={() => onSelectProcess(p.id)}
-                        className="min-w-0 flex-1 truncate text-left text-fg hover:underline"
+                        className="min-w-0 flex-1 truncate text-left text-fg hover:underline pointer-coarse:min-h-11"
                       >
                         {p.name}
                       </button>
@@ -76,7 +76,7 @@ export function WorkloadView({
                         <button
                           type="button"
                           onClick={() => onReassign(r.person.id, p.id)}
-                          className="shrink-0 text-xs text-primary hover:underline"
+                          className="shrink-0 text-xs text-primary hover:underline pointer-coarse:min-h-11"
                           title="Move to the next best owner"
                         >
                           Reassign

@@ -1,15 +1,25 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ClientList } from "./client-list";
-import { openClientReport } from "./open-client-report";
+import { AddClientForm, ClientList } from "./client-list";
+import { addClientFromForm, clientReportSearch, openClientReport } from "./open-client-report";
 import type { ClientEngagementRow } from "@/lib/precog/firm/store";
 
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { success: vi.fn(), error: toastError }),
+}));
 vi.mock("@/lib/precog/firm/server", () => ({
   restoreDeletedClient: vi.fn(),
   setClientOwnerEmail: vi.fn(),
 }));
 
 describe("Open report on the client list", () => {
+  it("opens the newest version awaiting review, and the live report when none waits", () => {
+    expect(clientReportSearch({ awaitingVersionId: "v_7" })).toEqual({ version: "v_7" });
+    expect(clientReportSearch({ awaitingVersionId: null })).toEqual({});
+    expect(clientReportSearch(undefined)).toEqual({});
+  });
+
   it("goes to the report only after the switch to that business succeeded", async () => {
     let finish!: (r: { ok: true }) => void;
     const switchBusiness = vi.fn(
@@ -121,6 +131,7 @@ const row: ClientEngagementRow = {
     { period: "2026-10", done: 0, exceptions: 0, skipped: 0 },
   ],
   awaitingReview: 0,
+  awaitingVersionId: null,
 };
 
 /** The row with September's and October's counts. */
@@ -154,7 +165,7 @@ function table(clients: ClientEngagementRow[], today = "2026-10-12") {
 }
 
 describe("client table", () => {
-  it("heads each column, sorted by Exceptions first", () => {
+  it("heads each column, sorted by who needs the firm first rather than by any one column", () => {
     const html = table([row]);
     const headers = [...html.matchAll(/<th scope="col"[^>]*>(.*?)<\/th>/g)].map((m) =>
       m[1].replace(/<[^>]+>/g, ""),
@@ -171,12 +182,22 @@ describe("client table", () => {
       "Awaiting review",
       "",
     ]);
-    expect(html.match(/aria-sort="descending"/g)).toHaveLength(1);
-    expect(html).toMatch(/aria-sort="descending"[^>]*><button[^>]*>Exceptions/);
-    expect(html.match(/aria-sort="none"/g)).toHaveLength(8);
+    expect(html).not.toContain('aria-sort="descending"');
+    expect(html.match(/aria-sort="none"/g)).toHaveLength(9);
+    // The way back to that order shows only once a column is chosen.
+    expect(html).not.toContain("Most urgent first");
   });
 
-  it("lists the clients with exceptions first, then the rest by name, until another column is chosen", () => {
+  it("lists a client with nothing recorded this month above a complete one", () => {
+    const html = table([
+      { ...row, id: "a", name: "Acme Dental", ...counted({ done: 4 }, { done: 5 }) },
+      { ...row, id: "z", name: "Zinc Works", ...counted({ done: 4 }, { done: 0 }) },
+    ]);
+    expect(html.indexOf("Zinc Works")).toBeLessThan(html.indexOf("Acme Dental"));
+    expect(html).toContain("1 needs you now: 1 with nothing recorded this month.");
+  });
+
+  it("lists the clients with exceptions first, then the rest by name", () => {
     const html = table([
       { ...row, id: "z", name: "Zinc Works" },
       { ...row, id: "a", name: "Acme Dental" },
@@ -260,6 +281,7 @@ describe("client table", () => {
       { ...row, ...counted({ done: 4 }, { done: 2 }), awaitingReview: 1 },
       { ...row, id: "b2", name: "Other", ...counted({ done: 4 }, { done: 5 }), awaitingReview: 2 },
     ]);
+    expect(html).toContain("2 need you now: 3 versions awaiting review.");
     expect(html).toContain(
       "2 clients · 1 with this month&#x27;s review open · 0 with last month overdue · 0 with exceptions · 3 versions awaiting review",
     );
@@ -272,9 +294,97 @@ describe("client table", () => {
     const html = table([]);
     expect(html).not.toContain("Export clients (CSV)</button>");
     expect(html).not.toContain(" clients · ");
+    expect(html).not.toContain("you now");
     expect(html).not.toContain("Sort by any column");
     expect(html).toContain("Precog sends nothing else to it.</p>");
     expect(html).toContain("No saved clients yet.");
+  });
+});
+
+describe("Add client on the client list", () => {
+  const render = (onAddClient?: (name: string, industry: string) => Promise<boolean>) =>
+    renderToStaticMarkup(
+      <ClientList
+        clients={[]}
+        deleted={[]}
+        activeId="none"
+        onOpen={() => undefined}
+        onOpenReport={() => undefined}
+        onRestored={() => undefined}
+        onClientsChange={() => undefined}
+        onExport={() => undefined}
+        onAddClient={onAddClient}
+        canRestore
+      />,
+    );
+
+  it("offers Add client when the page can add one, even with no clients yet", () => {
+    const html = render(async () => true);
+    expect(html).toContain(">Add client</button>");
+    expect(render()).not.toContain(">Add client</button>");
+  });
+
+  it("asks for the name and line of business, and says when the client is listed", () => {
+    const html = renderToStaticMarkup(
+      <AddClientForm onAdd={async () => true} onCancel={() => undefined} />,
+    );
+    expect(html).toContain('aria-label="New client name"');
+    expect(html).toContain('aria-label="Line of business"');
+    expect(html).toContain(">Dental office</option>");
+    expect(html).toContain(">Add client and open setup</button>");
+    expect(html).toContain(
+      "Setup opens next. Precog lists the client here once you finish its setup; a client you leave in the middle of setup is not kept.",
+    );
+  });
+});
+
+describe("Add client and open setup", () => {
+  it("frees the form and closes it once the client is added", async () => {
+    const busy: boolean[] = [];
+    const added = vi.fn();
+    await addClientFromForm(
+      async () => true,
+      "Bayside Dental",
+      "dental",
+      (b) => busy.push(b),
+      added,
+    );
+    expect(busy).toEqual([true, false]);
+    expect(added).toHaveBeenCalledTimes(1);
+  });
+
+  it("frees the form and keeps it open when Precog refuses", async () => {
+    const busy: boolean[] = [];
+    const added = vi.fn();
+    await addClientFromForm(
+      async () => false,
+      "Bayside Dental",
+      "dental",
+      (b) => busy.push(b),
+      added,
+    );
+    expect(busy).toEqual([true, false]);
+    expect(added).not.toHaveBeenCalled();
+  });
+
+  it("frees the form and says why when adding fails", async () => {
+    toastError.mockClear();
+    const busy: boolean[] = [];
+    const added = vi.fn();
+    await expect(
+      addClientFromForm(
+        () => Promise.reject(new Error("Precog could not reach the server.")),
+        "Bayside Dental",
+        "dental",
+        (b) => busy.push(b),
+        added,
+      ),
+    ).resolves.toBeUndefined();
+    expect(busy).toEqual([true, false]);
+    expect(added).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith("Precog could not add the client.", {
+      description: "Precog could not reach the server.",
+    });
   });
 });
 

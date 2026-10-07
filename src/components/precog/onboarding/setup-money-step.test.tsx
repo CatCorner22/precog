@@ -25,6 +25,12 @@ describe("setup money step", () => {
     expect(html.match(/aria-checked="false"/g)?.length).toBeGreaterThan(0);
   });
 
+  it("makes each answer at least 44px tall on a touch screen", () => {
+    const radios = render().match(/<button[^>]*role="radio"[^>]*>/g) ?? [];
+    expect(radios.length).toBeGreaterThan(0);
+    for (const tag of radios) expect(tag).toContain("pointer-coarse:min-h-11");
+  });
+
   it("hides the camera question when cash and paper checks are not taken", () => {
     const html = render({ ...UNANSWERED, cashOrChecks: "no" });
     expect(html).not.toContain("Are security cameras in place?");

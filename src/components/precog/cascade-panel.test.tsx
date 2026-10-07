@@ -8,7 +8,7 @@ import type { Person } from "@/lib/precog/types";
 
 /** The note both panels show while an own dental business has confirmed no scenario. */
 const DENTAL_SCOPE_NOTE =
-  'Sample scenarios from the dental office sample (5) stay out: their losses and timelines are the sample\'s assumptions, not facts about your business. To make one your own, open it on What could happen and choose "This could happen here"; it then counts in the priority list and your totals.';
+  'Sample scenarios from the dental office sample (6) stay out: their losses and timelines are the sample\'s assumptions, not facts about your business. To make one your own, open it on What could happen and choose "This could happen here"; it then counts in the priority list and your totals.';
 
 const ownDental: PracticeProfile = {
   ...defaultProfile("dental"),
@@ -43,7 +43,7 @@ describe("What else moves", () => {
       "average residual risk falls 4 points. Better overall, with some tradeoffs.",
     );
     expect(text).toContain(
-      'Portfolio average residual</p><p class="mt-1 tabular">58.00 → <span class="font-semibold">54.00</span>',
+      'Portfolio average residual</p><p class="mt-1 tabular">60.00 → <span class="font-semibold">56.00</span>',
     );
   });
 });

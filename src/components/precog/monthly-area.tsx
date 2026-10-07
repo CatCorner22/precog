@@ -6,10 +6,9 @@ import { TabLoading } from "@/components/precog/home-shell-parts";
 import { MonthlyReview } from "@/components/precog/monthly-review";
 import { tabLabel } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
+import { revealMonthlyItem } from "./monthly-area.logic";
+import { checkPeriod } from "./monthly-check-id";
 import { PageIntro } from "./page-intro";
-
-/** The sections the Monthly review tab can open on; `item` names one of them. */
-const SECTIONS = ["checks", "evidence", "calendar", "decisions", "number-patterns"] as const;
 
 /**
  * The Monthly review tab: this month's checks, the control evidence log, the
@@ -21,17 +20,18 @@ export function MonthlyArea({
   item,
   openTab,
 }: {
-  /** A section to scroll to: "decisions" opens on the Decisions log. */
+  /**
+   * A section to scroll to ("decisions" opens on the Decisions log), or one
+   * check, "check-<period>-<key>", to scroll to and focus.
+   */
   item: string | null;
   openTab: (tab: string, item?: string | null, build?: boolean) => void;
 }) {
   const { say } = usePresentation();
 
   useEffect(() => {
-    if (!item || !(SECTIONS as readonly string[]).includes(item)) return;
-    const frame = requestAnimationFrame(() =>
-      document.getElementById(item)?.scrollIntoView({ block: "start" }),
-    );
+    if (!item) return;
+    const frame = requestAnimationFrame(() => revealMonthlyItem(item, document));
     return () => cancelAnimationFrame(frame);
   }, [item]);
 
@@ -49,7 +49,7 @@ export function MonthlyArea({
         }
       />
       <section id="checks">
-        <MonthlyReview />
+        <MonthlyReview focusPeriod={checkPeriod(item)} />
       </section>
       <section id="evidence">
         <ControlEvidencePanel />

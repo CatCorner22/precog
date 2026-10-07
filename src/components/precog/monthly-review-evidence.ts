@@ -79,3 +79,12 @@ export function evidenceLogLine(
   const status = statuses?.get(executionRunId(period, itemKey));
   return status ? `Evidence log: ${EVIDENCE_STATUS_LABEL[status]}` : null;
 }
+
+/** The "Who did this check" choice that asks for a name not on the team. */
+export const SOMEONE_ELSE = "__someone_else__";
+
+/** One check's "Who did this check": a team member's name, or SOMEONE_ELSE with `other` typed. */
+export interface WhoPick {
+  choice: string;
+  other: string;
+}

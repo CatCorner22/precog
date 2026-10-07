@@ -14,6 +14,7 @@ import {
   coreDutiesForTitle,
   firstRowForIndustry,
   firstUnnamedWithDuties,
+  fitDutiesToAnswers,
   isLeaderTitle,
   onLeavePersonIds,
   ownerRow,
@@ -25,9 +26,13 @@ import {
   rowOwnsBusiness,
   rowSeat,
   sharedTitles,
+  titleTickedDuties,
+  titleTicksFor,
   untickDutyForTitle,
+  withoutDutiesOffTeam,
   type OwnTeamRow,
 } from "./own-team";
+import { UNANSWERED, type SetupAnswers } from "./setup-answers";
 import {
   addPastedRows,
   addRowsByTitle,
@@ -715,5 +720,137 @@ describe("rows to review before finishing", () => {
   });
   it("does not count unused blank rows", () => {
     expect(rowNeedsReview({ name: " ", role: " ", duties: [] }, undefined)).toBe(false);
+  });
+});
+
+describe("setup answers decide what a job title ticks", () => {
+  const outside: SetupAnswers = { ...UNANSWERED, bankRec: "outside" };
+  const noPayroll: SetupAnswers = { ...UNANSWERED, payroll: "none" };
+
+  it("never ticks bank reconciliation for a Bookkeeper when an outside firm reconciles the bank", () => {
+    expect(suggestedDuties("Bookkeeper", false, "dental")).toContain("bank_reconcile");
+    expect(suggestedDuties("Bookkeeper", false, "dental", outside)).not.toContain("bank_reconcile");
+    expect(coreDutiesForTitle("Bookkeeper", "dental", outside)).not.toContain("bank_reconcile");
+  });
+
+  it("never ticks payroll duties when the business has no payroll, for the owner either", () => {
+    const office = suggestedDuties("Office Manager", true, "dental", noPayroll);
+    expect(office).not.toContain("enter_payroll");
+    expect(office).not.toContain("approve_payroll");
+    expect(office).toContain("approve_vendor");
+  });
+
+  it("drops duties off the team from added rows, but leaves the fresh first row as it is", () => {
+    const owner = ownerRow();
+    const bookkeeper: OwnTeamRow = {
+      name: "Lisa",
+      role: "Bookkeeper",
+      duties: suggestedDuties("Bookkeeper", false, "dental"),
+      suggestedFor: "Bookkeeper",
+    };
+    const [first, lisa] = withoutDutiesOffTeam([owner, bookkeeper], outside);
+    expect(first).toBe(owner);
+    expect(lisa.duties).not.toContain("bank_reconcile");
+    expect(lisa.duties).toContain("release_payment");
+    const rows = [owner];
+    expect(withoutDutiesOffTeam(rows, outside)).toBe(rows);
+  });
+
+  it("keeps the 'from the job title' mark when only duties off the team were left out", () => {
+    const owner: OwnTeamRow = { ...ownerRow(), name: "Dana" };
+    const lisa: OwnTeamRow = {
+      name: "Lisa",
+      role: "Bookkeeper",
+      duties: suggestedDuties("Bookkeeper", false, "dental", noPayroll),
+      suggestedFor: "Bookkeeper",
+    };
+    const people = buildOwnTeam([owner, lisa], "dental", noPayroll);
+    expect(people.map((p) => p.dutiesFromTitle)).toEqual([true, true]);
+  });
+
+  it("lists the duties a row still holds from its job title, without hidden ones", () => {
+    const lisa: OwnTeamRow = {
+      name: "Lisa",
+      role: "Bookkeeper",
+      duties: suggestedDuties("Bookkeeper", false, "dental").filter((d) => d !== "enter_payroll"),
+      suggestedFor: "Bookkeeper",
+    };
+    const held = titleTickedDuties(lisa, "dental", outside);
+    expect(held).toEqual([
+      "post_payments",
+      "enter_invoices",
+      "create_vendor",
+      "release_payment",
+      "post_journal_entries",
+      "review_card_statement",
+    ]);
+    // Ticks set by hand under another title are not the title's.
+    expect(titleTickedDuties({ ...lisa, suggestedFor: "Clerk" }, "dental")).toEqual([]);
+    expect(titleTickedDuties({ ...lisa, role: "" }, "dental")).toEqual([]);
+  });
+});
+
+describe("changing a setup answer back re-ticks what the job title ticks", () => {
+  const outside: SetupAnswers = { ...UNANSWERED, bankRec: "outside" };
+  const inHouse: SetupAnswers = { ...UNANSWERED, bankRec: "team" };
+  const bookkeeper = jobCatalogEntry("bookkeeper")!;
+  const named = (rows: OwnTeamRow[]) =>
+    rows.map((row) => (row.role === "Bookkeeper" ? { ...row, name: "Lisa" } : row));
+
+  it("bank reconciliation outside, a Bookkeeper added, then in house: the Bookkeeper holds it again", () => {
+    const added = named(addRowsByTitle([ownerRow()], bookkeeper, 1, "dental").rows);
+    const whileOutside = fitDutiesToAnswers(added, outside, "dental");
+    const lisa = whileOutside.find((row) => row.name === "Lisa")!;
+    expect(lisa.duties).not.toContain("bank_reconcile");
+    const back = fitDutiesToAnswers(whileOutside, inHouse, "dental");
+    const again = back.find((row) => row.name === "Lisa")!;
+    expect(again.duties).toContain("bank_reconcile");
+    expect(again.duties).toEqual(suggestedDuties("Bookkeeper", false, "dental"));
+    // The title-ticks review lists it, and Finish gives the Bookkeeper the duty.
+    expect(titleTickedDuties(again, "dental", inHouse)).toContain("bank_reconcile");
+    const people = buildOwnTeam(back, "dental", inHouse);
+    expect(people.find((p) => p.name === "Lisa")?.entitlements).toContain("bank_reconcile");
+  });
+
+  it("does the same for a job title typed while the answer was outside", () => {
+    const typed = titleTicksFor(
+      { name: "Lisa", role: "Bookkeeper", duties: [] },
+      "dental",
+      outside,
+    );
+    expect(typed.duties).not.toContain("bank_reconcile");
+    expect(typed.suggestedFor).toBe("Bookkeeper");
+    const [back] = fitDutiesToAnswers([typed], inHouse, "dental");
+    expect(back.duties).toEqual(suggestedDuties("Bookkeeper", false, "dental"));
+  });
+
+  it("keeps a duty the owner unticked by hand before the answer changed", () => {
+    const added = named(addRowsByTitle([ownerRow()], bookkeeper, 1, "dental").rows);
+    const unticked = added.map((row) =>
+      row.name === "Lisa"
+        ? { ...row, duties: row.duties.filter((d) => d !== "bank_reconcile") }
+        : row,
+    );
+    const back = fitDutiesToAnswers(
+      fitDutiesToAnswers(unticked, outside, "dental"),
+      inHouse,
+      "dental",
+    );
+    expect(back.find((row) => row.name === "Lisa")!.duties).not.toContain("bank_reconcile");
+  });
+
+  it("does not re-tick for a row whose job title changed by hand since", () => {
+    const added = named(addRowsByTitle([ownerRow()], bookkeeper, 1, "dental").rows);
+    const whileOutside = fitDutiesToAnswers(added, outside, "dental");
+    const renamed = whileOutside.map((row) =>
+      row.name === "Lisa" ? { ...row, role: "Front Desk" } : row,
+    );
+    const back = fitDutiesToAnswers(renamed, inHouse, "dental");
+    expect(back.find((row) => row.name === "Lisa")!.duties).not.toContain("bank_reconcile");
+  });
+
+  it("returns the same rows when the answers change nothing", () => {
+    const rows = [ownerRow()];
+    expect(fitDutiesToAnswers(rows, inHouse, "dental")).toBe(rows);
   });
 });

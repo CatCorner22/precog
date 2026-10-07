@@ -28,7 +28,7 @@ describe("scenario dollars in the brief and the tools", () => {
     expect((scenario.data as { retained: { expected: number } }).retained.expected).toBe(5_000);
     expect(run.steps[0].detail).toBe(`${run.toolsUsed.length} checks of your records`);
     expect(run.brief.variableCascades[0]).toBe(
-      "Baseline: likelihood ×1.18, premium $4,200, assumed retained about $5,000, risk index 58.",
+      "Baseline: likelihood ×1.18, premium $4,200, assumed retained about $5,000, risk index 60.",
     );
   });
 
@@ -67,6 +67,8 @@ describe("scenario dollars in the brief and the tools", () => {
     );
     expect(row).toBe(
       "**Turn on dual release**: risk index −4.0, found 13 days sooner, assumed retained about −$1,200, premium −$150. Also: lowers fraud likelihood.",
+    expect(row).toMatch(
+      /^\*\*Turn on dual release\*\*: assumed retained about -\$1,200, premium -\$150, risk index 4 points lower, found 13 days sooner\./,
     );
     const scenario: ToolResult = {
       tool: "run_precog_scenario",

@@ -30,7 +30,16 @@ import { gzipSync } from "node:zlib";
  * the reason and date here.
  */
 export const PAGE_BUDGETS_KB = {
-  "/": 421,
+  // Raised from 421 KB to 430 KB on 2026-10-07 for wave 3 (the usability
+  // fixes from the October intuitiveness evaluation): CI measured / at
+  // 425.8 KB. The home page now carries Start here's plainer words, the
+  // glossary link and the cost sentence (start-here-copy +2.2 KB), the leaver
+  // checklist by industry, which the bundler folded into the stand-in-owner
+  // chunk the home page loads (+1.6 KB), and the grouped Needs attention menu
+  // and Monthly review links (practice-context and routes, +1.0 KB each).
+  // Loading the leaver checklist only with the Team tab is the change to make
+  // before raising this again.
+  "/": 430,
   "/login": 167,
   "/privacy": 154,
   "/terms": 152,

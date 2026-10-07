@@ -7,12 +7,15 @@ import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "../sod/open-findings";
 import { buildStartHereModel } from "../start-here/model";
 import type { IntegrationDriftSummary } from "../integrations/drift-summary";
+import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
+import { concentrationMove } from "../report/report-summary";
 import {
   DO_NEXT_DRIFT_MAX,
   DO_NEXT_STEPS_MAX,
   doNextDrift,
   doNextList,
   doNextSteps,
+  SPLIT_STEP_WITHOUT_NAMED_ROLE,
 } from "./do-next";
 
 const TODAY = new Date(2026, 8, 26);
@@ -127,5 +130,68 @@ describe("doNextList", () => {
         accessReconciliation: null,
       }),
     ).toEqual([]);
+  });
+});
+
+describe("the split-one-duty-out step", () => {
+  const firstStep = (profile: ReturnType<typeof defaultProfile>) => {
+    const template = resolveTemplate(profile);
+    return buildStartHereModel({ profile, template, today: TODAY }).firstSteps.steps[0];
+  };
+
+  it.each(INDUSTRIES.map((i) => i.id))(
+    "%s sample: names the person and the duty, or says which duty to move",
+    (industry) => {
+      const { profile, open } = sample(industry);
+      const step = firstStep(profile);
+      expect(step?.control.id).toBe("split-one-duty-out");
+      const label = step!.control.label;
+      expect(label).not.toMatch(/concentrated role|even just/);
+      const move = concentrationMove(open);
+      if (move) {
+        expect(label).toBe(
+          `Move one duty, ${move.dutyLabel[0].toLowerCase()}${move.dutyLabel.slice(1)}, away from ${move.personName}: it closes ${move.closes} of the ${open.length} open duty conflicts`,
+        );
+      } else {
+        expect(label).toBe(SPLIT_STEP_WITHOUT_NAMED_ROLE);
+      }
+    },
+  );
+
+  it("names Maya Chen on the dental sample", () => {
+    expect(firstStep(defaultProfile("dental"))?.control.label).toBe(
+      "Move one duty, enter write-offs, away from Maya Chen: it closes 4 of the 20 open duty conflicts",
+    );
+  });
+
+  it("never names the bank reconciliation when someone else does it", () => {
+    const people = buildOwnTeam(
+      [
+        {
+          name: "Robin Lead",
+          role: "Office Manager",
+          duties: [
+            "create_vendor",
+            "release_payment",
+            "enter_invoices",
+            "approve_writeoffs",
+            "post_adjustments",
+            "post_payments",
+          ],
+        },
+        { name: "Sam Books", role: "Outside bookkeeper", duties: ["bank_reconcile"] },
+        { name: "Kim Desk", role: "Front Desk", duties: ["collect_cash"] },
+      ],
+      "general",
+    );
+    const profile = ownBusinessProfile(defaultProfile("general"), {
+      practiceName: "Robin's shop",
+      people,
+    });
+    const label = firstStep(profile)?.control.label ?? "";
+    expect(label).toContain("Robin Lead");
+    expect(label).not.toMatch(/bank/i);
+    // With nobody holding half the conflicts, the step still names no bank duty.
+    expect(SPLIT_STEP_WITHOUT_NAMED_ROLE).not.toMatch(/bank/i);
   });
 });
