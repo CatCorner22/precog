@@ -18,7 +18,7 @@ import { teamHeldDuties } from "@/lib/precog/sod/rule-match";
 import { citingCaseStats, isOwnSector, type CaseStudy } from "@/lib/precog/evidence";
 import { casesBehindScenario } from "@/lib/precog/evidence/scenario-cases";
 import { dateAfter } from "@/lib/precog/dates";
-import { count } from "@/lib/precog/text";
+import { count, midSentence } from "@/lib/precog/text";
 import { formatEstimateUsdDelta, formatUsd, formatUsdDelta } from "@/lib/utils";
 
 export interface ScenarioCases {
@@ -170,8 +170,7 @@ export function scenarioWatch(
 
 /** A duty's label in running text: "enter payroll". */
 function dutyWords(duty: EntitlementId): string {
-  const label = entitlementLabel(duty);
-  return label.charAt(0).toLowerCase() + label.slice(1);
+  return midSentence(entitlementLabel(duty));
 }
 
 /**

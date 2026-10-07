@@ -1,7 +1,7 @@
 import type { Departure } from "../continuity/access-removal";
 import { MAX_BUSINESS_NAME } from "../business-id";
 import { INDUSTRIES, type IndustryId } from "../industry";
-import type { StorageLike } from "../local-data";
+import { browserSessionStorage, type StorageLike } from "../local-data";
 import { normalizeSetupAnswers, type SetupAnswers } from "./setup-answers";
 import {
   ONBOARDING_FACTS_VERSION,
@@ -54,14 +54,6 @@ export interface SetupDraft {
   unresolvedRows?: number;
 }
 
-function sessionArea(): StorageLike | null {
-  try {
-    return typeof window === "undefined" ? null : window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
 const INDUSTRY_IDS = new Set<string>(INDUSTRIES.map((i) => i.id));
 const QUESTION_IDS = new Set<string>(ONBOARDING_QUESTION_IDS);
 
@@ -110,7 +102,9 @@ function isDeparture(value: unknown): value is Departure {
  * version can read, such as a draft for a line of business this version does
  * not know.
  */
-export function readSetupDraft(storage: StorageLike | null = sessionArea()): SetupDraft | null {
+export function readSetupDraft(
+  storage: StorageLike | null = browserSessionStorage(),
+): SetupDraft | null {
   let raw: string | null;
   try {
     raw = storage?.getItem(SETUP_DRAFT_KEY) ?? null;
@@ -172,7 +166,7 @@ export function readSetupDraft(storage: StorageLike | null = sessionArea()): Set
 /** Saves the draft, or clears it with null; storage that refuses leaves it in memory only. */
 export function writeSetupDraft(
   draft: SetupDraft | null,
-  storage: StorageLike | null = sessionArea(),
+  storage: StorageLike | null = browserSessionStorage(),
 ): boolean {
   if (!storage) return false;
   try {

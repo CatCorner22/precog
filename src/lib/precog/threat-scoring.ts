@@ -40,7 +40,7 @@ import {
 } from "./scoring/dynamic-variables";
 import type { DualReleasePolicy } from "./controls/dual-release";
 import { formatEstimateUsd } from "../utils";
-import { count } from "./text";
+import { count, verb } from "./text";
 
 type ThreatDomain = "control" | "sod" | "knowledge" | "scenario" | "portfolio";
 
@@ -332,7 +332,7 @@ export function buildThreatAssessment(input: {
     missionBrief: [
       `${practiceName}: where money can move without a second person in this ${industryNoun(tpl.id)}, and what to fix first.`,
       `Residual risks by band on Precog's index: ${portfolio.criticalPath} ${RESIDUAL_BAND_LABEL.critical_path}, ${portfolio.actNow} ${RESIDUAL_BAND_LABEL.act_now} and ${portfolio.mitigate} ${RESIDUAL_BAND_LABEL.mitigate}.`,
-      `On the priority list, ${fixFirst} ${fixFirst === 1 ? "is" : "are"} ${PRIORITY_BAND_LABEL.white_hot} (priority ${PRIORITY_SCALE.top} or more).`,
+      `On the priority list, ${fixFirst} ${verb(fixFirst, "is", "are")} ${PRIORITY_BAND_LABEL.white_hot} (priority ${PRIORITY_SCALE.top} or more).`,
       `Duties: ${count(sod.summary.critical, "critical duty conflict")}; ${count(openSod, "control")} the template lists as not yet separated.`,
       registerAssessed(tpl)
         ? `Know-how: ${count(soleHeld, "item")} only one person can do; ${unheld} nobody can.`

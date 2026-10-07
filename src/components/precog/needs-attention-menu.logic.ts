@@ -9,6 +9,7 @@ import {
 } from "@/lib/precog/firm/reviews";
 import { count, verb } from "@/lib/precog/text";
 import type { Person } from "@/lib/precog/types";
+import { checkItemId } from "./monthly-area.logic";
 
 /**
  * One line of the Needs attention menu: how many, what, the tab it opens,
@@ -50,11 +51,6 @@ interface AttentionInput {
   leavers: number;
   /** The Monthly review's results, newest first. */
   reviews: readonly ReviewRecord[];
-}
-
-/** The Monthly review's DOM id for one check of one month, for example "check-2026-09-bank_statement". */
-export function checkItemId(period: string, key: string): string {
-  return `check-${period}-${key}`;
 }
 
 /** The name of the active team member with this id, or null. */

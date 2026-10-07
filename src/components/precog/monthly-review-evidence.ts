@@ -1,6 +1,7 @@
 import type { ControlExecution, ExecutionStatus } from "@/lib/precog/controls/executions/model";
 import { executionRunId, monthlyChainRunId } from "@/lib/precog/controls/review-bridge";
 import type { ReviewItemKey } from "@/lib/precog/firm/reviews";
+import { browserSessionStorage, readLocalJson, writeLocal } from "@/lib/precog/local-data";
 
 /** The evidence log's state, in the short words the monthly review prints beside a result. */
 export const EVIDENCE_STATUS_LABEL: Record<ExecutionStatus, string> = {
@@ -94,39 +95,21 @@ function pickKey(businessId: string | null): string {
   return `precog:monthly-review:who:${businessId ?? "this-device"}`;
 }
 
-/** This browser session's store, or null where there is none or it is blocked. */
-function sessionStore(): Pick<Storage, "getItem" | "setItem"> | null {
-  try {
-    return typeof sessionStorage === "undefined" ? null : sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * The last "Who did this check" saved on this business in this browser
  * session, or null: the Monthly review starts the next check on it.
  */
 export function readRememberedPick(businessId: string | null): WhoPick | null {
-  try {
-    const raw = sessionStore()?.getItem(pickKey(businessId));
-    if (!raw) return null;
-    const value = JSON.parse(raw) as Partial<WhoPick> | null;
-    if (!value || typeof value.choice !== "string" || !value.choice) return null;
-    return {
-      choice: value.choice.slice(0, 80),
-      other: typeof value.other === "string" ? value.other.slice(0, 80) : "",
-    };
-  } catch {
-    return null;
-  }
+  const value = readLocalJson(pickKey(businessId), browserSessionStorage()) as
+    Partial<WhoPick> | null | undefined;
+  if (!value || typeof value.choice !== "string" || !value.choice) return null;
+  return {
+    choice: value.choice.slice(0, 80),
+    other: typeof value.other === "string" ? value.other.slice(0, 80) : "",
+  };
 }
 
 /** Keeps `pick` for the rest of this browser session; a blocked store keeps nothing. */
 export function rememberPick(businessId: string | null, pick: WhoPick): void {
-  try {
-    sessionStore()?.setItem(pickKey(businessId), JSON.stringify(pick));
-  } catch {
-    // Nothing to keep: the next check starts empty.
-  }
+  writeLocal(pickKey(businessId), JSON.stringify(pick), browserSessionStorage());
 }

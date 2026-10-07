@@ -3,7 +3,6 @@ import {
   addableDuties,
   coreDutyLabel,
   dutyShortName,
-  GRID_DUTY_HEADING,
   type SeatReading,
 } from "@/lib/precog/onboarding/own-team";
 import { clamp } from "@/lib/precog/number";
@@ -163,7 +162,7 @@ export function DutyHeading({ duty }: { duty: EntitlementId }) {
       aria-describedby={id}
       className="group relative inline-block cursor-help rounded-sm outline-hidden focus-visible:ring-2 focus-visible:ring-primary"
     >
-      {GRID_DUTY_HEADING[duty] ?? full}
+      {dutyShortName(duty)}
       <span
         id={id}
         role="tooltip"

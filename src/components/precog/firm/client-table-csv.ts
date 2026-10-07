@@ -9,7 +9,7 @@ import {
   type PeriodStanding,
 } from "@/lib/precog/firm/reviews";
 import { csvCell } from "@/lib/precog/import/csv";
-import { count, slug } from "@/lib/precog/text";
+import { count, slug, verb } from "@/lib/precog/text";
 
 /**
  * The firm's client table, without React: its columns, the text of its
@@ -137,16 +137,46 @@ export function skippedText(client: ClientEngagementRow, today: string): string 
   return byMonthText(byMonth(client, today, "skipped"));
 }
 
-/** Both months' checks reported with `field`'s result, as the totals and the sort count them. */
+/** Both months' checks reported with `field`'s result, as the sort counts them. */
 function bothMonths(client: ClientEngagementRow, today: string, field: CountedResult): number {
   const { last, current } = byMonth(client, today, field);
   return last + current;
 }
 
-/** Open from the grace day of its month, as Needs attention counts it, until every check is Done. */
-function monthOpen(client: ClientEngagementRow, today: string): boolean {
-  const standing = thisMonthStanding(client, today);
-  return checksCountOn(today) && standing.done < standing.total;
+/**
+ * Why a client needs the firm on `today`, in the order the urgency sort ranks
+ * them, and whether this month's review is open (from the grace day of its
+ * month, as Needs attention counts it, until every check is Done). An ended
+ * engagement's months are neither overdue nor open, in the totals, the
+ * urgency line and the sort alike.
+ */
+function needs(client: ClientEngagementRow, today: string) {
+  const active = client.status === "active";
+  const last = lastMonthStanding(client, today);
+  const current = thisMonthStanding(client, today);
+  const counted = checksCountOn(today);
+  return {
+    overdue: active && last.overdue,
+    exceptions: last.exceptions + current.exceptions > 0,
+    nothingRecorded: active && counted && current.done + current.exceptions + current.skipped === 0,
+    awaiting: client.awaitingReview > 0,
+    open: active && counted && current.done < current.total,
+  };
+}
+
+type Needs = ReturnType<typeof needs>;
+
+/** How many clients have each reason, from one `needs` pass per client. */
+function needsTally(clients: readonly ClientEngagementRow[], today: string) {
+  const all: Needs[] = clients.map((c) => needs(c, today));
+  return {
+    all,
+    open: all.filter((n) => n.open).length,
+    overdue: all.filter((n) => n.overdue).length,
+    exceptions: all.filter((n) => n.exceptions).length,
+    nothing: all.filter((n) => n.nothingRecorded).length,
+    awaiting: clients.reduce((sum, c) => sum + c.awaitingReview, 0),
+  };
 }
 
 /**
@@ -155,29 +185,8 @@ function monthOpen(client: ClientEngagementRow, today: string): boolean {
  * engagement's months are not counted as open or overdue.
  */
 export function clientTotals(clients: readonly ClientEngagementRow[], today: string): string {
-  const active = clients.filter((c) => c.status === "active");
-  const open = active.filter((c) => monthOpen(c, today)).length;
-  const overdue = active.filter((c) => lastMonthStanding(c, today).overdue).length;
-  const exceptions = clients.filter((c) => bothMonths(c, today, "exceptions") > 0).length;
-  const awaiting = clients.reduce((sum, c) => sum + c.awaitingReview, 0);
+  const { open, overdue, exceptions, awaiting } = needsTally(clients, today);
   return `${count(clients.length, "client")} · ${open} with this month's review open · ${overdue} with last month overdue · ${exceptions} with exceptions · ${count(awaiting, "version")} awaiting review`;
-}
-
-/**
- * Why a client needs the firm on `today`, in the order the urgency sort ranks
- * them. An ended engagement's months are neither overdue nor open, as the
- * totals count them.
- */
-function needs(client: ClientEngagementRow, today: string) {
-  const active = client.status === "active";
-  const current = thisMonthStanding(client, today);
-  return {
-    overdue: active && lastMonthStanding(client, today).overdue,
-    exceptions: bothMonths(client, today, "exceptions") > 0,
-    nothingRecorded:
-      active && checksCountOn(today) && current.done + current.exceptions + current.skipped === 0,
-    awaiting: client.awaitingReview > 0,
-  };
 }
 
 /**
@@ -202,21 +211,16 @@ function urgencyValue(client: ClientEngagementRow, today: string): number {
  * no client has is left out; with none, "No client needs you now."
  */
 export function clientUrgencyText(clients: readonly ClientEngagementRow[], today: string): string {
-  const all = clients.map((c) => needs(c, today));
+  const { all, overdue, exceptions, nothing, awaiting } = needsTally(clients, today);
   const need = all.filter((n) => n.overdue || n.exceptions || n.nothingRecorded || n.awaiting);
   if (need.length === 0) return "No client needs you now.";
-  const overdue = all.filter((n) => n.overdue).length;
-  const exceptions = all.filter((n) => n.exceptions).length;
-  const nothing = all.filter((n) => n.nothingRecorded).length;
-  const awaiting = clients.reduce((sum, c) => sum + c.awaitingReview, 0);
   const parts = [
     overdue > 0 ? `${overdue} with last month overdue` : "",
     exceptions > 0 ? `${exceptions} with exceptions` : "",
     nothing > 0 ? `${nothing} with nothing recorded this month` : "",
     awaiting > 0 ? `${count(awaiting, "version")} awaiting review` : "",
   ].filter(Boolean);
-  const verb = need.length === 1 ? "needs" : "need";
-  return `${need.length} ${verb} you now: ${parts.join(", ")}.`;
+  return `${need.length} ${verb(need.length, "needs", "need")} you now: ${parts.join(", ")}.`;
 }
 
 /** The share of the month's checks Done; an overdue month sorts below every other. */
@@ -261,13 +265,15 @@ export function sortClients(
   today: string,
 ): ClientEngagementRow[] {
   const sign = sort.dir === "asc" ? 1 : -1;
-  return [...clients].sort((a, b) => {
-    const x = sortValue(a, sort.key, today);
-    const y = sortValue(b, sort.key, today);
-    const order =
-      typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y));
-    return order * sign || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
-  });
+  // Each client's value is worked out once, not again in every comparison.
+  return clients
+    .map((client) => ({ client, value: sortValue(client, sort.key, today) }))
+    .sort(({ client: a, value: x }, { client: b, value: y }) => {
+      const order =
+        typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y));
+      return order * sign || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+    })
+    .map(({ client }) => client);
 }
 
 /** The columns of the client table, in order, as the CSV's first line names them. */

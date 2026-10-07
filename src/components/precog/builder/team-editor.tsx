@@ -661,15 +661,10 @@ export function LeavingForm({
           value={lastDay}
           onChange={(e) => onLastDay(e.target.value)}
         />
-        <Button size="sm" className="pointer-coarse:min-h-11" disabled={!valid} onClick={onConfirm}>
+        <Button size="sm" disabled={!valid} onClick={onConfirm}>
           {later ? "Record last day" : `Mark ${person.name} as left`}
         </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="pointer-coarse:min-h-11"
-          onClick={onCancel}
-        >
+        <Button size="sm" variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
       </div>

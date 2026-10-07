@@ -23,6 +23,18 @@ export function browserStorage(): StorageLike | null {
   }
 }
 
+/**
+ * This browser session's storage, or null where there is none (the server) or
+ * where even touching it throws (site data blocked).
+ */
+export function browserSessionStorage(): StorageLike | null {
+  try {
+    return typeof sessionStorage === "undefined" ? null : sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
 /** One stored value, or null when it is absent or the browser refuses the read. */
 export function readLocal(key: string, storage = browserStorage()): string | null {
   try {

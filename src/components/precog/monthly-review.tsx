@@ -36,6 +36,7 @@ import { monthlyWorkpaperFacts, type WorkpaperFact } from "@/lib/precog/firm/wor
 import { clientErrorStatus } from "@/lib/request-errors";
 import { formatDay, formatMonth, localDateKey } from "@/lib/precog/dates";
 import { HowThisWorks } from "./page-intro";
+import { checkItemId } from "./monthly-area.logic";
 
 /** A note draft's and a save's key: the month and the check, so switching months keeps each apart. */
 function draftKey(period: string, key: string): string {
@@ -370,7 +371,7 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
           return (
             <li
               key={task.key}
-              id={`check-${task.period}-${task.key}`}
+              id={checkItemId(task.period, task.key)}
               tabIndex={-1}
               className="scroll-mt-4 rounded-lg border border-border p-3"
             >

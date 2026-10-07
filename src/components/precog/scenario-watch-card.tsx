@@ -1,6 +1,6 @@
 import { ShieldOff } from "lucide-react";
 import type { ScenarioTemplate } from "@/lib/precog/types";
-import { joinWithAnd } from "@/lib/precog/text";
+import { joinWithAnd, verb } from "@/lib/precog/text";
 import type { ScenarioUnfolding } from "@/lib/precog/scenario-unfolding";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,7 +65,7 @@ export function ScenarioWatchCard({
                     <p>
                       Nobody on the team is ticked for {joinWithAnd(watch.unassignedDuties)}, so
                       Precog cannot tell whether one person holds both duties this needs. Tick
-                      whoever does {watch.unassignedDuties.length === 1 ? "it" : "them"} on the Team
+                      whoever does {verb(watch.unassignedDuties.length, "it", "them")} on the Team
                       tab.
                     </p>
                     {watch.offTeamDuties.length > 0 && (

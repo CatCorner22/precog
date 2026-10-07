@@ -70,12 +70,7 @@ function AccessChecklist({
         ))}
       </ul>
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          className="pointer-coarse:min-h-11"
-          disabled={!allTicked}
-          onClick={onConfirm}
-        >
+        <Button size="sm" disabled={!allTicked} onClick={onConfirm}>
           {confirmLabel}
         </Button>
         {children}
@@ -140,7 +135,6 @@ export function LeaverAccessList({ explainOnSample = false }: { explainOnSample?
               </span>
               <Button
                 size="sm"
-                className="pointer-coarse:min-h-11"
                 variant={expanded === check.id ? "secondary" : "default"}
                 aria-expanded={expanded === check.id}
                 onClick={() => setExpanded(expanded === check.id ? null : check.id)}
