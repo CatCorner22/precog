@@ -102,18 +102,27 @@ describe("IndustryOnboarding, first render", () => {
   it("says under the header that the business is kept only once setup finishes", () => {
     const { html, text } = firstRender("Ruiz Dental", "dental", "team");
     const notice =
-      "Precog keeps this business once you press “Show me my gaps”. Until then it stays only in this browser tab.";
+      "Precog keeps this business once you press “Show me my gaps”. Until then your answers stay in this browser tab, even through a reload.";
     expect(text).toContain(notice);
     expect(html.indexOf("Precog keeps this business")).toBeLessThan(html.indexOf("<table"));
     expect(text).not.toContain("Your progress stays in this tab until you finish.");
+    expect(text).not.toContain("it stays only in this browser tab");
   });
 
-  it("names the owner row's suggested duties under its job title, not counted yet", () => {
-    const { text } = firstRender("Ruiz Dental", "dental", "team");
-    expect(text).toContain(
-      "From the job title, not counted yet: Approve payroll, Approve write-offs and voids,",
-    );
-    expect(text).not.toContain("Catalog job: Owner");
+  it("ticks none of the owner row's duties: the job title's suggestions wait in the review", () => {
+    for (const industry of ["dental", "nonprofit"]) {
+      const { html, text } = firstRender("Ruiz Dental", industry, "team");
+      const dutyBoxes = html.match(/<input type="checkbox"[^>]*aria-label="[^"]*: [^"]*"[^>]*>/g);
+      expect(dutyBoxes?.length).toBeGreaterThan(5);
+      expect(dutyBoxes?.filter((box) => /\schecked/.test(box))).toEqual([]);
+      // No tag under the title stands for a suggested duty either.
+      expect(html).not.toMatch(/aria-label="[^"]*: other duties"/);
+      expect(text).not.toContain("check the suggested ticks");
+      expect(text).toMatch(
+        /The job title suggests \d+ duties: keep or remove each below the table\./,
+      );
+      expect(text).not.toContain("From the job title, not counted yet");
+    }
   });
 
   it("makes the duty catalog discoverable and explains the one-person completion choice", () => {

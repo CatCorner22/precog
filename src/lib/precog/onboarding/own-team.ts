@@ -402,6 +402,35 @@ export function toggleDutyByHand(row: OwnTeamRow, duty: EntitlementId): OwnTeamR
 }
 
 /**
+ * The duties the grid shows as ticked: only those the owner chose, ticked or
+ * added by hand or kept in the review. A duty the job title only suggested
+ * stays unticked until the owner keeps it, so a ticked box never stands for
+ * a guess.
+ */
+export function chosenDuties(
+  row: Pick<OwnTeamRow, "role" | "duties" | "suggestedFor" | "owner" | "keptDuties">,
+  industry?: string,
+): EntitlementId[] {
+  const waiting = new Set(unconfirmedDuties(row, industry));
+  return row.duties.filter((d) => !waiting.has(d));
+}
+
+/**
+ * A tick or untick by hand in the grid. Ticking a duty the job title only
+ * suggested (shown unticked) keeps it; any other duty toggles as
+ * toggleDutyByHand does.
+ */
+export function tickDutyByHand(
+  row: OwnTeamRow,
+  duty: EntitlementId,
+  industry?: string,
+): OwnTeamRow {
+  return unconfirmedDuties(row, industry).includes(duty)
+    ? keepDuties(row, [duty])
+    : toggleDutyByHand(row, duty);
+}
+
+/**
  * The catalog seat behind a row's ticks: what the pasted roster read the
  * title as, while the title is unchanged, and otherwise the catalog's own
  * reading of the title as typed. Undefined for a row with no title.

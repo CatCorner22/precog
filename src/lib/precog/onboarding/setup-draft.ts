@@ -209,8 +209,26 @@ export function namedPeople(draft: Pick<SetupDraft, "rows">): number {
 }
 
 /**
+ * Whether a draft holds anything the owner did beyond opening setup: a
+ * business name other than the one they came in with, a person, a pasted
+ * roster, an answered question, or a step past the first.
+ */
+export function draftHasProgress(draft: SetupDraft, typedName = ""): boolean {
+  return (
+    (draft.businessName.trim().length > 0 && draft.businessName.trim() !== typedName.trim()) ||
+    draft.paste.trim().length > 0 ||
+    namedPeople(draft) > 0 ||
+    draft.step === "money" ||
+    draft.step === "team" ||
+    Boolean(draft.actor ?? draft.workforceBand ?? draft.locationBand ?? draft.setupMethod) ||
+    (draft.answeredQuestions?.length ?? 0) > 0
+  );
+}
+
+/**
  * Where setup starts. A draft entered for this same unfinished business (a
- * reload mid-setup) comes back exactly as it was. A draft from an earlier
+ * reload mid-setup) comes back exactly as it was, with `resumed` when it
+ * holds progress, so the dialog can say so and offer to start over. A draft from an earlier
  * setup in this tab, one the owner left to load the sample, comes back when
  * it holds typed work, with the name and line of business chosen for this
  * business, and `restoredEarlier` so the dialog can say so and offer to start
@@ -221,7 +239,7 @@ export function initialSetup(
   draft: SetupDraft | null,
   business: { businessId: string; industry: IndustryId; typedName: string },
   freshRows: () => OwnTeamRow[],
-): { draft: SetupDraft; restoredEarlier: boolean } {
+): { draft: SetupDraft; restoredEarlier: boolean; resumed: boolean } {
   const fresh: SetupDraft = {
     schemaVersion: ONBOARDING_FACTS_VERSION,
     currentQuestionId: "actor",
@@ -233,13 +251,17 @@ export function initialSetup(
     paste: "",
     businessId: business.businessId,
   };
-  if (!draft) return { draft: fresh, restoredEarlier: false };
+  if (!draft) return { draft: fresh, restoredEarlier: false, resumed: false };
   const sameSetup =
     draft.businessId === business.businessId ||
     (draft.businessId === undefined && draftHasTypedWork(draft));
   if (sameSetup)
-    return { draft: { ...draft, businessId: business.businessId }, restoredEarlier: false };
-  if (!draftHasTypedWork(draft)) return { draft: fresh, restoredEarlier: false };
+    return {
+      draft: { ...draft, businessId: business.businessId },
+      restoredEarlier: false,
+      resumed: draftHasProgress(draft, business.typedName),
+    };
+  if (!draftHasTypedWork(draft)) return { draft: fresh, restoredEarlier: false, resumed: false };
   return {
     draft: {
       ...draft,
@@ -249,5 +271,6 @@ export function initialSetup(
       businessId: business.businessId,
     },
     restoredEarlier: true,
+    resumed: false,
   };
 }

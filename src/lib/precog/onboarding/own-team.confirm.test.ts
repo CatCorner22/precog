@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildOwnTeam,
+  chosenDuties,
   fitDutiesToAnswers,
   keepDuties,
   suggestedDuties,
+  tickDutyByHand,
   titleTicksFor,
   toggleDutyByHand,
   unconfirmedDuties,
@@ -99,6 +101,25 @@ describe("a duty a job title suggests counts only once the owner keeps it", () =
     const outside = { ...UNANSWERED, bankRec: "outside" as const };
     const [row] = fitDutiesToAnswers([ruth()], outside, "restaurant");
     expect(unconfirmedDuties(row, "restaurant", outside)).not.toContain("bank_reconcile");
+  });
+});
+
+describe("the grid ticks only what the owner chose", () => {
+  it("shows none of a job title's suggestions ticked until each is kept", () => {
+    expect(chosenDuties(ruth(), "restaurant")).toEqual([]);
+    const kept = keepDuties(ruth(), ["release_payment"]);
+    expect(chosenDuties(kept, "restaurant")).toEqual(["release_payment"]);
+  });
+
+  it("keeps a suggested duty the owner ticks by hand, and unticks a chosen one", () => {
+    const ticked = tickDutyByHand(ruth(), "bank_reconcile", "restaurant");
+    expect(chosenDuties(ticked, "restaurant")).toEqual(["bank_reconcile"]);
+    expect(duties(ticked)).toEqual(["bank_reconcile"]);
+    const unticked = tickDutyByHand(ticked, "bank_reconcile", "restaurant");
+    expect(unticked.duties).not.toContain("bank_reconcile");
+    // A duty no title suggested is ticked by hand as before.
+    const extra = tickDutyByHand(ruth(), "approve_writeoffs", "restaurant");
+    expect(chosenDuties(extra, "restaurant")).toEqual(["approve_writeoffs"]);
   });
 });
 

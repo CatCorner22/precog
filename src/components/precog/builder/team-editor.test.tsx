@@ -57,6 +57,19 @@ function buttons(node: ReactNode): Button[] {
   return [...own, ...buttons(node.props.children)];
 }
 
+/** Every element with an onClick in what a hook-free component returns, buttons of any kind. */
+function renderedButtons(element: ReactNode): Button[] {
+  if (!isValidElement<Record<string, unknown>>(element)) return [];
+  const tree = (element.type as (props: unknown) => ReactNode)(element.props);
+  const walk = (node: ReactNode): Button[] => {
+    if (Array.isArray(node)) return node.flatMap(walk);
+    if (!isValidElement<{ children?: ReactNode; onClick?: unknown }>(node)) return [];
+    const own = typeof node.props.onClick === "function" ? [node as unknown as Button] : [];
+    return [...own, ...walk(node.props.children)];
+  };
+  return walk(tree);
+}
+
 describe("Team's per-person Confirm duties", () => {
   it("tags and offers Confirm duties only for an active person whose duties came from their title", () => {
     const html = render(people);
@@ -177,15 +190,19 @@ describe("Undo after a team import that replaced the team", () => {
   });
 });
 
-describe("Left the business", () => {
+describe("Mark as left…", () => {
   const TODAY = "2026-10-07";
 
-  it("is a labelled button for each person still working, not an icon beside the trash can", () => {
+  it("is a bordered button for each person still working, and only someone who left reads as left", () => {
     const html = render(people);
-    expect(html.match(/>Left the business</g)).toHaveLength(2);
-    expect(html).toContain('aria-label="Ana Ruiz left the business"');
-    expect(html).not.toContain("Cal Diaz left the business");
-    expect(html).not.toContain("Mark Ana Ruiz as left");
+    expect(html).not.toContain("Left the business");
+    expect(html.match(/>Mark as left…</g)).toHaveLength(2);
+    expect(html).toMatch(/<button[^>]*class="[^"]*\bborder\b[^"]*"[^>]*>Mark as left…</);
+    expect(html).toContain('aria-label="Mark Ana Ruiz as left…"');
+    expect(html).not.toContain("Mark Cal Diaz as left");
+    // The one status reading "left" belongs to Cal, who has left.
+    expect(html.match(/>left</g)).toHaveLength(1);
+    expect(html.indexOf(">left<")).toBeGreaterThan(html.indexOf("Cal Diaz"));
   });
 
   it("shows when someone who has left had their last day", () => {
@@ -193,7 +210,30 @@ describe("Left the business", () => {
     expect(html).toContain("last day Oct 3, 2026");
   });
 
-  it("asks for the last day, today unless changed", () => {
+  it("starts with no last day and will not mark anyone as left until one is chosen", () => {
+    const onLastDay = vi.fn();
+    const blank = (
+      <LeavingForm
+        person={people[1]}
+        lastDay=""
+        today={TODAY}
+        onLastDay={onLastDay}
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />
+    );
+    const html = renderToStaticMarkup(blank);
+    expect(html).toContain(">Last day<");
+    expect(html).toContain('value=""');
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Mark Ben Cole as left</);
+    expect(html).toContain("Choose Ben Cole&#x27;s last day, or press Today.");
+    // "Today" is one tap, not a default.
+    const todayButton = renderedButtons(blank).find((b) => b.props.children === "Today");
+    todayButton?.props.onClick();
+    expect(onLastDay).toHaveBeenCalledWith(TODAY);
+  });
+
+  it("asks for the last day, and offers to mark them as left once it is today", () => {
     const today = renderToStaticMarkup(
       <LeavingForm
         person={people[1]}
@@ -207,6 +247,7 @@ describe("Left the business", () => {
     expect(today).toContain(">Last day<");
     expect(today).toContain('value="2026-10-07"');
     expect(today).toContain(">Mark Ben Cole as left<");
+    expect(today).not.toMatch(/disabled=""[^>]*>Mark Ben Cole as left</);
     const later = renderToStaticMarkup(
       <LeavingForm
         person={people[1]}
