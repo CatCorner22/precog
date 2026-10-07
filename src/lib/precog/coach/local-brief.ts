@@ -292,6 +292,8 @@ const ABSENCE_QUESTION =
   /\b(leav(?:e|es|ing)|quits?|resign\w*|retir\w*|sick|vacation|holiday|away|absen\w*|without)\b/i;
 const OUT_TODAY_QUESTION =
   /\b(?:(?:who|anyone|anybody)(?:'s|\s+is|\s+are)?\s+(?:out|off|away|absent)\b|out\s+(?:today|sick|now)\b|off\s+sick\b|called\s+in\s+sick\b)/i;
+const FUTURE_PERIOD =
+  /\b(?:tomorrow|next|upcoming|soon|later|weekend|month|monday|tuesday|wednesday|thursday|friday|saturday|sunday|will)\b/i;
 
 function isAbsenceQuestion(question: string): boolean {
   return ABSENCE_QUESTION.test(question);
@@ -503,6 +505,7 @@ function outTodayAnswer(
     lines.push(
       `- ${out.person.name} is out today (${out.unplanned ? "unplanned" : "planned leave"}).`,
     );
+    if (!brief.assessed) continue;
     if (out.stops.length === 0) {
       lines.push("  - Nothing rests on them alone.");
       continue;
@@ -517,7 +520,7 @@ function outTodayAnswer(
     }
   }
 
-  if (brief.out.length > 0 && !registerAssessed(tpl)) {
+  if (brief.out.length > 0 && !brief.assessed) {
     lines.push("Who knows what does not mark anyone yet, so Precog cannot say what stops.");
   }
   if (brief.startingSoon.length > 0) {
@@ -665,8 +668,9 @@ function ownFirstBrief(
   const policyNote = insuranceFigureNote(profile.riskVariables, ownBusiness);
   const scenarios = matchScenarios(question, tpl.scenarios);
   const absence =
-    (OUT_TODAY_QUESTION.test(question) ? outTodayAnswer(profile, tpl, known.today) : null) ??
-    (isAbsenceQuestion(question) ? absenceAnswer(question, known.toolResults) : null);
+    (OUT_TODAY_QUESTION.test(question) && !FUTURE_PERIOD.test(question)
+      ? outTodayAnswer(profile, tpl, known.today)
+      : null) ?? (isAbsenceQuestion(question) ? absenceAnswer(question, known.toolResults) : null);
   const leadWithConflicts =
     !absence && scenarios.length === 0 && isConflictQuestion(question) && people.length > 0;
   const assessed = registerAssessed(tpl);

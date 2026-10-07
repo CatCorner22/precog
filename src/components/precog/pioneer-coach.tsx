@@ -69,6 +69,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
             practiceName: profile.practiceName,
             staff: profile.staff,
             riskVariables: profile.riskVariables,
+            setupAnswers: profile.setupAnswers ?? null,
             dualRelease: profile.dualRelease,
             customProcesses: profile.customProcesses ?? null,
             customPeople: profile.customPeople ?? null,

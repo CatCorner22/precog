@@ -248,6 +248,90 @@ describe("local advisor brief", () => {
     expect(brief.markdown).not.toContain("Nobody on the team holds both duties this needs.");
   });
 
+  it("does not describe stops for an absence when the register is unassessed", () => {
+    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+    const person = resolveTemplate(sample).people.find(
+      (candidate) => candidate.name === "Jordan Blake",
+    );
+    if (!person) throw new Error("Missing dental sample person Jordan Blake");
+    const today = "2025-11-05";
+    const profile = pioneerProfileFrom({
+      industry: "dental",
+      customRelations: [],
+      plannedAbsences: [
+        {
+          id: "unplanned-jordan-unassessed",
+          personId: person.id,
+          industry: "dental",
+          from: today,
+          to: today,
+          unplanned: true,
+        },
+      ],
+    });
+    const question = "Who is out today?";
+    const { brief } = localBrief(question, { profile, question, today }, profile);
+
+    expect(brief.markdown).toContain("- Jordan Blake is out today (unplanned).");
+    expect(brief.markdown).not.toContain("  - Nothing rests on them alone.");
+    expect(brief.markdown).not.toMatch(/^\s+- .+; hand-off /m);
+    expect(brief.markdown).toContain(
+      "Who knows what does not mark anyone yet, so Precog cannot say what stops.",
+    );
+  });
+
+  it("uses setup answers for off-team duties in Pioneer scenario facts", () => {
+    const team = buildOwnTeam([
+      {
+        name: "Payroll administrator",
+        role: "Payroll administrator",
+        duties: ["edit_payroll_master"],
+      },
+      {
+        name: "Payment releaser",
+        role: "Bookkeeper",
+        duties: ["release_payment"],
+      },
+    ]);
+    const profile = pioneerProfileFrom({
+      industry: "general",
+      customPeople: team,
+      setupAnswers: { payroll: "none", bankRec: "outside" },
+    });
+    const question = "Walk me through the ghost payroll scenario.";
+    const { brief } = localBrief(question, { profile, question }, profile);
+
+    expect(brief.markdown).toContain(
+      "Your setup answers place enter payroll outside the team, so nobody on the team holds both duties this needs.",
+    );
+    expect(brief.markdown).not.toContain("Tick whoever");
+  });
+
+  it("does not route a future absence question to today's answer", () => {
+    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+    const person = resolveTemplate(sample).people.find(
+      (candidate) => candidate.name === "Jordan Blake",
+    );
+    if (!person) throw new Error("Missing dental sample person Jordan Blake");
+    const today = "2025-11-05";
+    const profile = {
+      ...sample,
+      plannedAbsences: [
+        {
+          id: "planned-next-week",
+          personId: person.id,
+          industry: "dental" as const,
+          from: "2025-11-08",
+          to: "2025-11-10",
+        },
+      ],
+    };
+    const question = "Who is out next week?";
+    const { brief } = localBrief(question, { profile, question, today }, profile);
+
+    expect(brief.markdown).not.toContain("Nobody is recorded as out today.");
+  });
+
   it("does not treat an unassessed register as proof nobody can run a scenario alone", () => {
     const profile = clinic();
     const template = resolveTemplate(profile);
