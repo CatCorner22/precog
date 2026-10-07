@@ -14,6 +14,7 @@ import {
   openAccessChecks,
   recordLastDay,
   restorePerson,
+  leaverAccessKeys,
 } from "./access-removal";
 import { leaverAccessItems } from "./leaver-access-items";
 
@@ -335,7 +336,14 @@ describe("the leaver checklist in each industry's words", () => {
       expect(items.some((item) => item.id === "bank")).toBe(true);
       expect(new Set(items.map((item) => item.id)).size).toBe(items.length);
     }
-    expect(leaverAccessItems("general")).toEqual(leaverAccessItems("general"));
+  });
+
+  it("words exactly the items the first-load key list holds, in its order", () => {
+    for (const { id } of INDUSTRIES) {
+      expect(leaverAccessItems(id).map(({ id: item, short }) => ({ id: item, short }))).toEqual(
+        leaverAccessKeys(id).map(({ id: item, short }) => ({ id: item, short })),
+      );
+    }
   });
 
   it("words every item of every industry's checklist", () => {
