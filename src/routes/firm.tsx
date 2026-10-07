@@ -56,6 +56,7 @@ import type {
 import type { DeletedBusinessRow } from "@/lib/precog/business-store";
 import { formatPct } from "@/lib/utils";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
+import type { IndustryId } from "@/lib/precog/industry";
 
 export const Route = createFileRoute("/firm")({
   component: FirmPage,
@@ -69,7 +70,7 @@ export const Route = createFileRoute("/firm")({
       {
         name: "description",
         content:
-          "Firm workspace: firm members and roles, client list, plan and billing, reminders, change history and accounting connections.",
+          "Firm workspace: the client list with the clients who need you first, the open client's figures and history, and the firm's settings: members and roles, plan and billing, reminders and accounting connections.",
       },
     ],
   }),
@@ -101,7 +102,7 @@ const QUICKBOOKS_MESSAGE: Record<string, string> = {
 
 function FirmPage() {
   const { user, isPending } = useCurrentUserState();
-  const { profile, template, replaceProfile, switchBusiness } = usePractice();
+  const { profile, template, replaceProfile, switchBusiness, createBusiness } = usePractice();
   const search = Route.useSearch();
   const navigate = useNavigate();
   const [firm, setFirm] = useState<FirmContext | null>(null);
@@ -116,6 +117,9 @@ function FirmPage() {
   const [deleted, setDeleted] = useState<DeletedBusinessRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [awaitingStripe, setAwaitingStripe] = useState(false);
+  // Firm settings stay folded below the clients unless the viewer opens
+  // them; see `settingsOpen` for when they open by themselves.
+  const [settingsChoice, setSettingsChoice] = useState<boolean | null>(null);
   const signedIn = Boolean(user) && !isPending;
   // The hook builds a new user object on every render, so the effects below
   // key on the id: keyed on the object, each answer re-ran the load.
@@ -316,6 +320,17 @@ function FirmPage() {
     }
   }
 
+  /** Start a new client from the client list and open its setup on the home screen. */
+  async function addClient(clientName: string, industry: IndustryId): Promise<boolean> {
+    const result = await createBusiness(industry, clientName);
+    if (!result.ok) {
+      toast.error("Precog could not add the client.", { description: result.reason });
+      return false;
+    }
+    void navigate({ to: "/" });
+    return true;
+  }
+
   const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
   const isOwner = firm?.role === "owner";
   // The firm's plan as the server computes it (a member sees the firm's state,
@@ -325,62 +340,21 @@ function FirmPage() {
     entitlements && !entitlements.features.quickbooks && !entitlements.closedAt
       ? closedToolsNote(billingConfigured ? planAmounts(true, prices) : null, entitlements)
       : null;
+  // Open by themselves when a link from Stripe, QuickBooks or a payment email
+  // lands here, or when there is no firm yet to set up.
+  const settingsOpen =
+    settingsChoice ??
+    (Boolean(search.billing || search.quickbooks) || (signedIn && loaded && !firm));
 
   return (
     <main className="mx-auto min-h-[calc(100dvh-var(--grok-banner-h,0px))] max-w-3xl px-6 py-8">
       <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">Firm workspace</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">{firm?.name || "Firm"}</h1>
       <p className="mt-2 text-sm text-muted">
-        One firm, its people, and each client kept apart. The open business is the one the history,
-        value proof and accounting panels below work on. Its Monthly review and team are on its own
-        screen.
+        Your clients, with the ones who need you first. This client, value proof and history work on
+        the open business; its Monthly review and team are on its own screen. Firm settings (name,
+        plan and billing, members, notifications and QuickBooks) are folded below This client.
       </p>
-
-      <section className="mt-6 rounded-xl border border-border bg-surface p-4">
-        <h2 className="text-lg font-semibold">{firm ? "Firm name" : "Set up the firm"}</h2>
-        {isPending || !loaded ? (
-          <p className="mt-3 text-sm text-muted">Loading the account…</p>
-        ) : !user ? (
-          <p className="mt-3 text-sm">
-            <Link to="/login" className="underline-offset-4 hover:underline">
-              Sign in
-            </Link>{" "}
-            to keep a firm, invite colleagues and hold a client list. Value proof below still works
-            on this device.
-          </p>
-        ) : firm && !isOwner ? (
-          <p className="mt-3 text-sm text-muted">
-            You work at {firm.name} as a {firm.role}. The owner sets the name and plan.
-          </p>
-        ) : (
-          <form
-            className="mt-3 flex flex-wrap items-end gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void saveFirm(firm?.plan ?? "assessment");
-            }}
-          >
-            <label className="min-w-[16rem] flex-1 text-xs text-muted">
-              Firm name and letterhead on reports
-              <input
-                className="mt-1 w-full rounded-md border border-border bg-bg px-2 py-1.5 text-sm text-fg"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                aria-label="Firm name"
-                required
-              />
-            </label>
-            <button
-              type="submit"
-              className="rounded-md border border-border px-3 py-2 text-sm hover:bg-elevated"
-            >
-              {firm ? "Save name" : "Create the firm"}
-            </button>
-          </form>
-        )}
-        {signedIn && firm && isOwner && <FirmLetterhead firm={firm} onSaved={setFirm} />}
-        {signedIn && firm && isOwner && <FirmRetention />}
-      </section>
 
       {signedIn && firm && (
         <div className="mt-4 space-y-4">
@@ -390,57 +364,61 @@ function FirmPage() {
             </p>
           )}
           <PaymentOverdueBanner variant="firm" />
-          <FirmBilling
-            plan={firm.plan}
-            billing={billing}
-            billingConfigured={billingConfigured}
-            prices={prices}
-            entitlements={entitlements}
-            canManage={isOwner}
-            onMarkPlan={saveFirm}
-          />
-          <FirmMembers
-            firm={firm}
-            members={members}
-            invites={invites}
-            onChange={(next) => {
-              if (next.left) {
-                void leftFirm();
-                return;
-              }
-              if (next.members) setMembers(next.members);
-              if (next.invites) setInvites(next.invites);
-              if (next.firm !== undefined) {
-                // The firm changed owner: the caller is a reviewer now, with
-                // no invitations or billing to see; the server says so.
-                setFirm(next.firm);
-                void getFirm()
-                  .then((res) => {
-                    setFirm(res.firm);
-                    setMembers(res.members);
-                    setInvites(res.invites);
-                    setBilling(res.billing);
-                  })
-                  .catch(() => undefined);
-                // The old owner's own clients now list under the new owner's account.
-                void listFirmClients()
-                  .then((res) => setClients(res.clients))
-                  .catch(() => undefined);
-              }
-              if (next.removed) {
-                for (const line of removedMemberToasts(next.removed.name, next.removed.moved)) {
-                  toast.success(line);
-                }
-                // The handed-over clients, deleted ones included, now list
-                // under the owner's account.
-                void listFirmClients()
-                  .then((res) => setClients(res.clients))
-                  .catch(() => undefined);
-                void listDeletedClients()
-                  .then((res) => setDeleted(res.deleted))
-                  .catch(() => undefined);
-              }
+        </div>
+      )}
+
+      {isPending || !loaded ? (
+        <p className="mt-6 text-sm text-muted">Loading the account…</p>
+      ) : (
+        !user && (
+          <section className="mt-6 rounded-xl border border-border bg-surface p-4">
+            <h2 className="text-lg font-semibold">Clients</h2>
+            <p className="mt-2 text-sm">
+              <Link to="/login" className="underline-offset-4 hover:underline">
+                Sign in
+              </Link>{" "}
+              to keep a firm, invite colleagues and hold a client list. Value proof below still
+              works on this device.
+            </p>
+          </section>
+        )
+      )}
+
+      {signedIn && (
+        <div className="mt-4">
+          <ClientList
+            clients={clients}
+            deleted={deleted}
+            activeId={activeId}
+            onOpen={(id) =>
+              // Open a client on its Monthly review, once the switch to it succeeded.
+              void openClientReport(
+                id,
+                switchBusiness,
+                () => void navigate({ to: "/", search: { tab: "monthly" } }),
+                (reason) => toast.error(reason),
+              )
+            }
+            onOpenReport={(id) =>
+              void openClientReport(
+                id,
+                switchBusiness,
+                () => void navigate({ to: "/report" }),
+                (reason) => toast.error(reason),
+              )
+            }
+            onRestored={(id) => {
+              setDeleted((cur) => cur.filter((d) => d.id !== id));
+              void listFirmClients()
+                .then((res) => setClients(res.clients))
+                .catch(() => undefined);
             }}
+            onClientsChange={setClients}
+            onExport={(rows) =>
+              downloadCsv(clientTableFileName(firm?.name ?? ""), clientTableCsv(rows))
+            }
+            canRestore={!firm || isOwner}
+            onAddClient={addClient}
           />
         </div>
       )}
@@ -518,48 +496,124 @@ function FirmPage() {
       </section>
 
       {signedIn && (
-        <div className="mt-4 space-y-4">
-          <ClientList
-            clients={clients}
-            deleted={deleted}
-            activeId={activeId}
-            onOpen={(id) =>
-              // Open a client on its Monthly review, once the switch to it succeeded.
-              void openClientReport(
-                id,
-                switchBusiness,
-                () => void navigate({ to: "/", search: { tab: "monthly" } }),
-                (reason) => toast.error(reason),
-              )
-            }
-            onOpenReport={(id) =>
-              void openClientReport(
-                id,
-                switchBusiness,
-                () => void navigate({ to: "/report" }),
-                (reason) => toast.error(reason),
-              )
-            }
-            onRestored={(id) => {
-              setDeleted((cur) => cur.filter((d) => d.id !== id));
-              void listFirmClients()
-                .then((res) => setClients(res.clients))
-                .catch(() => undefined);
-            }}
-            onClientsChange={setClients}
-            onExport={(rows) =>
-              downloadCsv(clientTableFileName(firm?.name ?? ""), clientTableCsv(rows))
-            }
-            canRestore={!firm || isOwner}
-          />
-          <NotificationSettingsPanel signedIn={signedIn} />
-          {closedNote && (
-            <p className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
-              {closedNote}
-            </p>
-          )}
-          <QuickBooksPanel signedIn={signedIn} />
-        </div>
+        <details
+          id="firm-settings"
+          className="mt-4 rounded-xl border border-border bg-surface p-4"
+          open={settingsOpen}
+          onToggle={(e) => setSettingsChoice(e.currentTarget.open)}
+        >
+          <summary className="cursor-pointer">
+            <h2 className="inline text-lg font-semibold">Firm settings</h2>
+            <span className="ml-2 text-sm text-muted">
+              {firm
+                ? "Firm name and letterhead, retention, plan and billing, members, notifications and QuickBooks"
+                : "Set up the firm, notifications and QuickBooks"}
+            </span>
+          </summary>
+          <div className="mt-4 space-y-4">
+            <section className="rounded-xl border border-border p-4">
+              <h3 className="font-semibold">{firm ? "Firm name" : "Set up the firm"}</h3>
+              {firm && !isOwner ? (
+                <p className="mt-3 text-sm text-muted">
+                  You work at {firm.name} as a {firm.role}. The owner sets the name and plan.
+                </p>
+              ) : (
+                <form
+                  className="mt-3 flex flex-wrap items-end gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void saveFirm(firm?.plan ?? "assessment");
+                  }}
+                >
+                  <label className="min-w-[16rem] flex-1 text-xs text-muted">
+                    Firm name and letterhead on reports
+                    <input
+                      className="mt-1 w-full rounded-md border border-border bg-bg px-2 py-1.5 text-sm text-fg"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      aria-label="Firm name"
+                      required
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="rounded-md border border-border px-3 py-2 text-sm hover:bg-elevated"
+                  >
+                    {firm ? "Save name" : "Create the firm"}
+                  </button>
+                </form>
+              )}
+              {firm && isOwner && <FirmLetterhead firm={firm} onSaved={setFirm} />}
+              {firm && isOwner && <FirmRetention />}
+            </section>
+            {firm && (
+              <>
+                <FirmBilling
+                  plan={firm.plan}
+                  billing={billing}
+                  billingConfigured={billingConfigured}
+                  prices={prices}
+                  entitlements={entitlements}
+                  canManage={isOwner}
+                  onMarkPlan={saveFirm}
+                />
+                <FirmMembers
+                  firm={firm}
+                  members={members}
+                  invites={invites}
+                  onChange={(next) => {
+                    if (next.left) {
+                      void leftFirm();
+                      return;
+                    }
+                    if (next.members) setMembers(next.members);
+                    if (next.invites) setInvites(next.invites);
+                    if (next.firm !== undefined) {
+                      // The firm changed owner: the caller is a reviewer now, with
+                      // no invitations or billing to see; the server says so.
+                      setFirm(next.firm);
+                      void getFirm()
+                        .then((res) => {
+                          setFirm(res.firm);
+                          setMembers(res.members);
+                          setInvites(res.invites);
+                          setBilling(res.billing);
+                        })
+                        .catch(() => undefined);
+                      // The old owner's own clients now list under the new owner's account.
+                      void listFirmClients()
+                        .then((res) => setClients(res.clients))
+                        .catch(() => undefined);
+                    }
+                    if (next.removed) {
+                      for (const line of removedMemberToasts(
+                        next.removed.name,
+                        next.removed.moved,
+                      )) {
+                        toast.success(line);
+                      }
+                      // The handed-over clients, deleted ones included, now list
+                      // under the owner's account.
+                      void listFirmClients()
+                        .then((res) => setClients(res.clients))
+                        .catch(() => undefined);
+                      void listDeletedClients()
+                        .then((res) => setDeleted(res.deleted))
+                        .catch(() => undefined);
+                    }
+                  }}
+                />
+              </>
+            )}
+            <NotificationSettingsPanel signedIn={signedIn} />
+            {closedNote && (
+              <p className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
+                {closedNote}
+              </p>
+            )}
+            <QuickBooksPanel signedIn={signedIn} />
+          </div>
+        </details>
       )}
 
       {/* Outside the signed-in blocks: value proof is kept on this device, so a

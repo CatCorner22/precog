@@ -29,12 +29,13 @@ export type ClientColumn =
   | "awaiting";
 
 export interface ClientSort {
-  key: ClientColumn;
+  /** A column, or "urgency": the clients who need the firm first (see `urgencyValue`). */
+  key: ClientColumn | "urgency";
   dir: "asc" | "desc";
 }
 
-/** The table opens with the clients that reported exceptions on top, the rest by name. */
-export const DEFAULT_CLIENT_SORT: ClientSort = { key: "exceptions", dir: "desc" };
+/** The table opens with the clients who need the firm most on top, the rest by name. */
+export const DEFAULT_CLIENT_SORT: ClientSort = { key: "urgency", dir: "desc" };
 
 export const CLIENT_COLUMNS: readonly { key: ClientColumn; label: string }[] = [
   { key: "client", label: "Client" },
@@ -162,14 +163,76 @@ export function clientTotals(clients: readonly ClientEngagementRow[], today: str
   return `${count(clients.length, "client")} · ${open} with this month's review open · ${overdue} with last month overdue · ${exceptions} with exceptions · ${count(awaiting, "version")} awaiting review`;
 }
 
+/**
+ * Why a client needs the firm on `today`, in the order the urgency sort ranks
+ * them. An ended engagement's months are neither overdue nor open, as the
+ * totals count them.
+ */
+function needs(client: ClientEngagementRow, today: string) {
+  const active = client.status === "active";
+  const current = thisMonthStanding(client, today);
+  return {
+    overdue: active && lastMonthStanding(client, today).overdue,
+    exceptions: bothMonths(client, today, "exceptions") > 0,
+    nothingRecorded:
+      active && checksCountOn(today) && current.done + current.exceptions + current.skipped === 0,
+    awaiting: client.awaitingReview > 0,
+  };
+}
+
+/**
+ * Last month overdue outweighs everything below it, then open exceptions,
+ * then nothing recorded once this month's checks are open, then versions
+ * awaiting review. A client with several reasons ranks above one with only
+ * the first of them.
+ */
+function urgencyValue(client: ClientEngagementRow, today: string): number {
+  const n = needs(client, today);
+  return (
+    (n.overdue ? 8 : 0) +
+    (n.exceptions ? 4 : 0) +
+    (n.nothingRecorded ? 2 : 0) +
+    (n.awaiting ? 1 : 0)
+  );
+}
+
+/**
+ * "{N} need you now: {O} with last month overdue, {E} with exceptions, {R}
+ * with nothing recorded this month, {K} versions awaiting review." A reason
+ * no client has is left out; with none, "No client needs you now."
+ */
+export function clientUrgencyText(clients: readonly ClientEngagementRow[], today: string): string {
+  const all = clients.map((c) => needs(c, today));
+  const need = all.filter((n) => n.overdue || n.exceptions || n.nothingRecorded || n.awaiting);
+  if (need.length === 0) return "No client needs you now.";
+  const overdue = all.filter((n) => n.overdue).length;
+  const exceptions = all.filter((n) => n.exceptions).length;
+  const nothing = all.filter((n) => n.nothingRecorded).length;
+  const awaiting = clients.reduce((sum, c) => sum + c.awaitingReview, 0);
+  const parts = [
+    overdue > 0 ? `${overdue} with last month overdue` : "",
+    exceptions > 0 ? `${exceptions} with exceptions` : "",
+    nothing > 0 ? `${nothing} with nothing recorded this month` : "",
+    awaiting > 0 ? `${count(awaiting, "version")} awaiting review` : "",
+  ].filter(Boolean);
+  const verb = need.length === 1 ? "needs" : "need";
+  return `${need.length} ${verb} you now: ${parts.join(", ")}.`;
+}
+
 /** The share of the month's checks Done; an overdue month sorts below every other. */
 function monthSortValue(standing: PeriodStanding): number {
   const share = standing.done / standing.total;
   return standing.overdue ? share - 1 : share;
 }
 
-function sortValue(client: ClientEngagementRow, key: ClientColumn, today: string): number | string {
+function sortValue(
+  client: ClientEngagementRow,
+  key: ClientSort["key"],
+  today: string,
+): number | string {
   switch (key) {
+    case "urgency":
+      return urgencyValue(client, today);
     case "client":
       return client.name.toLocaleLowerCase();
     case "status":
