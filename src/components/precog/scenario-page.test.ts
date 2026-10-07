@@ -12,6 +12,7 @@ import {
   applyWhatIf,
   deltaTone,
   formatDaysChange,
+  formatEstimateChange,
   formatMoneyChange,
   mitigationCostPhrase,
   pickScenario,
@@ -22,6 +23,7 @@ import {
   whatIfApplies,
   whatIfDiffers,
 } from "./scenario-page";
+import { estimateUsdChange } from "@/lib/utils";
 
 const dental = getIndustryTemplate("dental");
 
@@ -165,6 +167,17 @@ describe("baseline changes", () => {
     expect(formatDaysChange(-56)).toBe("-56 days");
     expect(formatDaysChange(1)).toBe("+1 day");
     expect(formatDaysChange(0)).toBe("no change");
+  });
+
+  it("prints a change as the difference of the two printed estimates", () => {
+    // 28,753 and 36,533 print "about $29,000" and "about $37,000": the line
+    // beside them reads +$8,000, not the exact difference (+$7,800).
+    expect(formatEstimateChange(estimateUsdChange(28_753, 36_533))).toBe("about +$8,000");
+    expect(formatMoneyChange(36_533 - 28_753)).toBe("about +$7,800");
+    // A difference of two rounded figures is not rounded again.
+    expect(formatEstimateChange(estimateUsdChange(28_753, 140_400))).toBe("about +$111,000");
+    expect(formatEstimateChange(estimateUsdChange(36_533, 28_753))).toBe("about -$8,000");
+    expect(formatEstimateChange(estimateUsdChange(36_533, 36_933))).toBe("no change");
   });
 
   it("labels a mitigation cost as the scenario's assumption", () => {
