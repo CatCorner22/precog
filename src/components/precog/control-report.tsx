@@ -46,6 +46,7 @@ import {
   type ReportVersionRow,
 } from "@/lib/precog/firm/reports";
 import type { FirmSnapshot } from "@/lib/precog/firm/store";
+import type { OnboardingFacts } from "@/lib/precog/onboarding/decision-model";
 import { OpenVersionReview, ReportVersionsPanel } from "@/components/precog/report-versions";
 import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
 import { fixFirstOf } from "@/lib/precog/threat-scoring";
@@ -235,7 +236,8 @@ export function ControlReport({
   const team = layoutSix
     ? teamSizeLine(profile, tpl.people, industry.teamLabel)
     : `${profile.staff.teamSize}-person ${industry.teamLabel}`;
-  const starter = layoutSix ? "starter process map (not yet edited)" : "sample process map";
+  const example = `Precog's example ${industry.label.toLowerCase()} processes`;
+  const starter = layoutSix ? `${example}, not yet edited` : "sample process map";
   const mapLine = `${industry.label} · ${team} · ${
     mapFrom === "starter" ? starter : mapCustomized ? "custom process map" : "industry template map"
   }`;
@@ -759,7 +761,7 @@ export function ControlReport({
           {mapFrom === "starter" && (
             <p className="mb-2 text-sm text-neutral-700">
               {layoutSix
-                ? `Starter process map from the ${industry.label.toLowerCase()} template, not yet edited:`
+                ? `${example}, not this business's own map yet:`
                 : `Sample process map from the ${industry.label.toLowerCase()} sample:`}{" "}
               {tpl.processes.length} processes, none with an owner yet.
             </p>
@@ -864,18 +866,35 @@ function segregationSentence(headline: OpenConflictHeadline, people: number): st
 }
 
 /**
- * Layout 6's team size in the header. An own team is sized by its active
- * people on the map, whatever size setup recorded; the sample keeps the size
- * it was built with.
+ * Layout 6's team in the header. An own team is the count of active people on
+ * the map, never read as the business's size, with the headcount the owner
+ * gave at setup beside it when there is one; the sample keeps the size it was
+ * built with.
  */
 function teamSizeLine(
-  profile: Parameters<typeof teamSource>[0] & { staff: { teamSize: number } },
+  profile: Parameters<typeof teamSource>[0] & {
+    staff: { teamSize: number };
+    onboardingFacts?: Pick<OnboardingFacts, "workforceBand" | "workforceCount">;
+  },
   people: readonly { active: boolean }[],
   teamLabel: string,
 ): string {
   if (teamSource(profile) !== "own") return `${profile.staff.teamSize}-person ${teamLabel}`;
   const active = people.filter((p) => p.active).length;
-  return active > 0 ? `${active}-person ${teamLabel}` : `${teamLabel} with nobody on the map yet`;
+  const mapped = active > 0 ? `${count(active, "person", "people")} mapped` : "nobody mapped yet";
+  const setup = setupHeadcount(profile.onboardingFacts);
+  return setup ? `${mapped} (setup: ${setup})` : mapped;
+}
+
+/** The headcount answered at setup: the count when given, else the band ("7–30 people"). */
+function setupHeadcount(
+  facts: Pick<OnboardingFacts, "workforceBand" | "workforceCount"> | undefined,
+): string | null {
+  if (facts?.workforceCount) return count(facts.workforceCount, "person", "people");
+  if (!facts?.workforceBand) return null;
+  return facts.workforceBand === "1"
+    ? "1 person"
+    : `${facts.workforceBand.replace("-", "–")} people`;
 }
 
 /**
