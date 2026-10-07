@@ -5,12 +5,16 @@ import { CONTROL_CATALOG, controlForIndustry } from "../evidence/controls";
 import { runPrecogScenario } from "../engine";
 import type { IndustryId } from "../industry";
 import { runLocalAgentLoop, type LocalAgentRun } from "../llm/agent-loop";
+import { BRIEF_SECTION, leverLabel, renderDecision, renderThisWeekLine } from "../llm/agent-brief";
 import { BRIEF_SECTION, destack, renderDecision } from "../llm/agent-brief";
 import { describeScenarioFigures, type ScenarioRunData } from "../llm/scenario-tools";
 import { readSpofData } from "../llm/spof-data";
+import { describeScenarioFigures } from "../llm/scenario-tools";
 import type { ToolContext } from "../llm/tools";
 import type { PioneerDecision, StructuredBrief, ToolResult } from "../llm/types";
 import type { PracticeProfile } from "../practice-profile";
+import { scenarioUnfolding } from "../scenario-unfolding";
+import { insuranceFigureNote, policyDefaultsInForce } from "../scoring/dynamic-variables";
 import {
   DEFAULT_RISK_VARIABLES,
   insuranceFigureNote,
@@ -92,6 +96,18 @@ export function localBrief(
       tpl,
       people,
       toolResults: result.toolResults,
+    });
+    return {
+      ...result,
+      steps: result.steps.map((step) =>
+        step.phase === "synthesize"
+          ? {
+              ...step,
+              detail: `${brief.decisions.length} recommended moves · ${brief.specialistNotes.length} review lenses`,
+            }
+          : step,
+      ),
+      brief,
       today: ctx.today,
     });
     return {
@@ -242,11 +258,17 @@ export function fallbackBrief(
     situation,
     "",
     `## ${BRIEF_SECTION.thisWeek}`,
+    renderThisWeekLine(frontierNextMove),
+    "",
+    `## ${OWN_CONFLICTS}`,
+    ...(people.length ? people.slice(0, 5).map(conflictLine) : ["- None open."]),
     thisWeekBody(frontierNextMove),
     "",
     `## ${BRIEF_SECTION.moves}`,
     ...decisions.map(renderDecision),
     "",
+    `## ${BRIEF_SECTION.limits}`,
+    "- Rankings use Precog's weights, not a measurement of this business.",
     `## ${BRIEF_SECTION.warnings}`,
     `- ${warning}`,
     "",
@@ -311,6 +333,10 @@ const SEVERITY_WORDS: Record<DetectedConflict["severity"], string> = {
   family: "a duty conflict",
 };
 
+/** The heading for the business's own conflicts, inserted after the situation. */
+const OWN_CONFLICTS = "Your open duty conflicts";
+/** The heading for the answer to a question about someone being away. */
+const YOUR_QUESTION = "Your question";
 /** Short form for the conflict list: "critical", "high", "medium", "duty conflict". */
 const SEVERITY_SHORT: Record<DetectedConflict["severity"], string> = {
   critical: "critical",
@@ -325,20 +351,16 @@ function pairWords(c: Pick<DetectedConflict, "labelA" | "labelB">): string {
 }
 
 /** The owner-doable statement step, phrased for "This week: ...". */
-const STATEMENT_THIS_WEEK = "open the bank statement yourself before anyone else handles it";
+const STATEMENT_THIS_WEEK = "open the bank statement yourself, before anyone else";
 
 /** The decision for one person's conflicts: move one duty, and what covers it meanwhile. */
 function conflictDecision(
   person: PersonConflicts,
   profile: Pick<PracticeProfile, "dualRelease">,
 ): PioneerDecision {
-  const [first, ...rest] = person.conflicts;
-  const also = rest.length
-    ? `; also ${rest
-        .slice(0, 2)
-        .map((c) => pairWords(c))
-        .join("; ")}`
-    : "";
+  const [first] = person.conflicts;
+  const severity = SEVERITY_WORDS[first.severity].replace(/^a /, "");
+  const reason = first.why.split(". ")[0].replace(/\.$/, "");
   const meanwhile = closingSteps(
     first.compensatingControls,
     profile.dualRelease,
@@ -347,7 +369,7 @@ function conflictDecision(
   )[0];
   return {
     action: `Give one of ${person.personName}'s duties to someone else: ${midSentence(first.labelA)} or ${midSentence(first.labelB)}`,
-    rationale: `${personLabel(person.personName, person.role)} can both ${pairWords(first)}, ${SEVERITY_WORDS[first.severity]}${also}. ${first.why.split(". ")[0].replace(/\.$/, "")}.${meanwhile ? ` Until the duty moves: ${midSentence(meanwhile).replace(/\.$/, "")}.` : ""}`,
+    rationale: `${severity.charAt(0).toUpperCase()}${severity.slice(1)}: ${reason}.${meanwhile ? ` Until it moves: ${midSentence(meanwhile).replace(/\.$/, "")}.` : ""}`,
     evidenceIds: [],
     effort: "medium",
     horizonDays: 14,
@@ -361,7 +383,7 @@ function ownerStatementDecision(industry: IndustryId): PioneerDecision {
   const control = controlForIndustry(CONTROL_CATALOG["owner-opens-bank-statement"], industry);
   return {
     action: control.label,
-    rationale: `${control.why} You can do this yourself this week; it takes minutes and needs nobody else's help.`,
+    rationale: `${control.why} You can do this yourself this week; it takes minutes.`,
     evidenceIds: [],
     effort: "low",
     horizonDays: 7,
@@ -412,8 +434,10 @@ function dayWording(line: string): string {
   return line.replace(/\bp50 ([+-]?\d+)d\b/g, "assumed days until found $1");
 }
 
-/** "- **Grace Kim** (Bookkeeper): set up suppliers and release payments (critical)" */
+/** "- **Grace Kim**: set up suppliers and release payments" */
 function conflictLine(p: PersonConflicts): string {
+  const pairs = p.conflicts.slice(0, 3).map(pairWords).join("; ");
+  return `- **${p.personName}**: ${pairs}`;
   const pairs = p.conflicts
     .slice(0, 1)
     .map((c) => `${pairWords(c)} (${SEVERITY_SHORT[c.severity]})`)
@@ -424,8 +448,7 @@ function conflictLine(p: PersonConflicts): string {
 
 /** The one move for the next seven days when a conflict leads. */
 function thisWeek(p: PersonConflicts): string {
-  const c = p.conflicts[0];
-  return `This week: give one of ${p.personName}'s duties (${midSentence(c.labelA)} or ${midSentence(c.labelB)}) to someone else, and ${STATEMENT_THIS_WEEK}.`;
+  return `This week: move one of ${p.personName}'s duties to someone else, and ${STATEMENT_THIS_WEEK}.`;
 }
 
 function thisWeekBody(line: string): string {
@@ -480,6 +503,111 @@ function absenceAnswer(question: string, toolResults: ToolResult[]): string[] | 
       5,
     )}.`,
   ];
+}
+
+const SCENARIO_QUESTION = /\b(scenario|walk me through|compare|what would happen|how would)\b/i;
+const SCENARIO_STOP_WORDS = new Set([
+  "about",
+  "after",
+  "before",
+  "could",
+  "every",
+  "first",
+  "from",
+  "money",
+  "never",
+  "other",
+  "person",
+  "posted",
+  "someone",
+  "their",
+  "there",
+  "these",
+  "those",
+  "through",
+  "under",
+  "until",
+  "which",
+  "while",
+  "without",
+  "would",
+]);
+
+/** Match a scenario only when the question asks about scenarios and names one. */
+export function scenarioAnswer(
+  question: string,
+  tpl: IndustryTemplate,
+  profile: PracticeProfile,
+): string[] | null {
+  if (!SCENARIO_QUESTION.test(question)) return null;
+  const matches = tpl.scenarios
+    .map((scenario, templateIndex) => {
+      const hitIndexes = [...scenarioKeywords(scenario)]
+        .map((keyword) => scenarioKeywordPattern(keyword).exec(question)?.index ?? -1)
+        .filter((index) => index >= 0);
+      return {
+        scenario,
+        templateIndex,
+        firstHit: hitIndexes.length ? Math.min(...hitIndexes) : -1,
+      };
+    })
+    .filter((match) => match.firstHit >= 0)
+    .sort((a, b) => a.firstHit - b.firstHit || a.templateIndex - b.templateIndex)
+    .slice(0, 2);
+  if (!matches.length) return null;
+
+  const answers: string[] = [];
+  for (const { scenario } of matches) {
+    const result = runPrecogScenario(tpl, scenario.id, {
+      staff: profile.staff,
+      riskVariables: profile.riskVariables,
+    });
+    if (!result) continue;
+    if (answers.length) answers.push("");
+    const unfolding = scenarioUnfolding(scenario.id);
+    answers.push(
+      `**${scenario.title}**: ${describeScenarioFigures({
+        retained: result.retainedImpact,
+        timelineDays: result.timelineDays,
+        dynamic: result.dynamic ?? null,
+      })}`,
+    );
+    if (unfolding?.steps.length) {
+      answers.push("How it unfolds:", ...unfolding.steps.map((step, i) => `${i + 1}. ${step}`));
+    }
+    if (unfolding?.warningSigns.length) {
+      answers.push("Warning signs:", ...unfolding.warningSigns.map((sign) => `- ${sign}`));
+    }
+  }
+  return answers.length ? answers : null;
+}
+
+function scenarioKeywords(scenario: IndustryTemplate["scenarios"][number]): Set<string> {
+  const titleWords = scenario.title.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  const idWords = scenario.id.replace(/^sc-/, "").toLowerCase().split("-");
+  return new Set([
+    ...titleWords.filter((word) => word.length >= 5 && !SCENARIO_STOP_WORDS.has(word)),
+    ...idWords.filter((word) => !SCENARIO_STOP_WORDS.has(word)),
+  ]);
+}
+
+function scenarioKeywordPattern(keyword: string): RegExp {
+  const pattern =
+    keyword === "writeoff"
+      ? "write(?:[-\\s]?off)s?"
+      : keyword === "skim"
+        ? "skim(?:m(?:ing|ed)|s)?"
+        : `${keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}s?`;
+  return new RegExp(`\\b${pattern}\\b`, "i");
+}
+
+function scenarioMoveIsRelevant(
+  action: string,
+  scenario: IndustryTemplate["scenarios"][number],
+): boolean {
+  return [...scenarioKeywords(scenario)].some((keyword) =>
+    scenarioKeywordPattern(keyword).test(action),
+  );
 }
 
 /** Whether the question names these words as whole words ("Jordan", "front desk lead"). */
@@ -601,15 +729,18 @@ function ownFirstBrief(
   const stripInsurance = policyDefaultsInForce(profile.riskVariables);
   const policyNote = insuranceFigureNote(profile.riskVariables, ownBusiness);
   const absence = isAbsenceQuestion(question) ? absenceAnswer(question, known.toolResults) : null;
+  const scenario = absence ? null : scenarioAnswer(question, tpl, profile);
+  const leadWithConflicts = !absence && isConflictQuestion(question) && people.length > 0;
   const scenarios = absence ? [] : matchScenarios(question, tpl.scenarios);
   const leadWithConflicts =
     !absence && scenarios.length === 0 && isConflictQuestion(question) && people.length > 0;
   const assessed = registerAssessed(tpl);
 
   let decisions = brief.decisions.flatMap((d) => {
-    if (!stripInsurance) return [d];
-    const action = withoutInsuranceSteps(d.action);
-    return action ? [{ ...d, action }] : [];
+    const action = leverLabel(d.action);
+    if (!stripInsurance) return [{ ...d, action }];
+    const kept = withoutInsuranceSteps(action);
+    return kept ? [{ ...d, action: kept }] : [];
   });
   if (!assessed) {
     // Cross-training advice needs a register someone filled in; until then the
@@ -633,11 +764,21 @@ function ownFirstBrief(
     ];
   }
 
-  let frontierNextMove = brief.frontierNextMove;
+  const scenarioTitle = scenario?.[0] ? /^\*\*(.+?)\*\*:/.exec(scenario[0])?.[1] : undefined;
+  const scenarioTemplate = tpl.scenarios.find((s) => s.title === scenarioTitle);
+  const scenarioMove =
+    decisions[0] &&
+    scenarioTemplate &&
+    scenarioMoveIsRelevant(decisions[0].action, scenarioTemplate)
+      ? decisions[0]
+      : null;
+  let frontierNextMove = leverLabel(brief.frontierNextMove);
   if (leadWithConflicts) {
     frontierNextMove = thisWeek(people[0]);
   } else if (absence && decisions[0] && isContinuityDecision(decisions[0])) {
     frontierNextMove = `This week: ${midSentence(decisions[0].action)}.`;
+  } else if (scenarioMove) {
+    frontierNextMove = `This week: ${midSentence(scenarioMove.action)}.`;
   } else if (stripInsurance && INSURANCE_LEVER.test(frontierNextMove)) {
     frontierNextMove = `This week: ${STATEMENT_THIS_WEEK}, then re-check the watched conditions.`;
   }
@@ -652,6 +793,9 @@ function ownFirstBrief(
     const kept = withoutInsuranceSteps(l);
     return kept ? [kept] : [];
   });
+  const verifyNext = advancedReasoning?.find((line) =>
+    line.startsWith("Most useful thing to verify next:"),
+  );
 
   const conflictLines = people.slice(0, 5).map(conflictLine);
 
@@ -659,6 +803,7 @@ function ownFirstBrief(
     switch (s.heading) {
       case BRIEF_SECTION.situation:
         if (absence) return [s, { heading: YOUR_QUESTION, body: [...absence, ""] }];
+        if (scenario) return [s, { heading: YOUR_QUESTION, body: [...scenario, ""] }];
         return leadWithConflicts
           ? [
               s,
@@ -675,17 +820,22 @@ function ownFirstBrief(
           : [s];
       case BRIEF_SECTION.cascades:
         return [{ heading: s.heading, body: [...variableCascades.map((c) => `- ${c}`), ""] }];
-      case BRIEF_SECTION.order:
+      case BRIEF_SECTION.limits:
         return [
           {
             heading: s.heading,
-            body: [...(advancedReasoning ?? []).map((x) => `- ${dayWording(x)}`), ""],
+            body: [
+              ...(brief.tradeoffs[0] ? [`- ${brief.tradeoffs[0]}`] : []),
+              ...(verifyNext ? [`- ${verifyNext}`] : []),
+              "- Rankings use Precog's weights, not a measurement of this business.",
+              "",
+            ],
           },
         ];
       case BRIEF_SECTION.moves:
         return [{ heading: s.heading, body: [...decisions.map(renderDecision), ""] }];
       case BRIEF_SECTION.thisWeek:
-        return [{ heading: s.heading, body: [frontierNextMove, ""] }];
+        return [{ heading: s.heading, body: [renderThisWeekLine(frontierNextMove), ""] }];
       default:
         return [s];
     }

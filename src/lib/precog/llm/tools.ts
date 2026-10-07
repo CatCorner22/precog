@@ -477,7 +477,9 @@ function retrieveGuidance({ tpl, question }: ToolInputs): ToolOutput {
   const hits = retrieveKnowledge(query, { topK: 4, industry: tpl.id });
   return {
     ok: true,
-    summary: hits.length ? `RAG: ${hits.map((h) => h.chunk.id).join(", ")}` : "RAG: no hits",
+    summary: hits.length
+      ? `Guidance: ${hits.map((h) => h.chunk.id).join(", ")}`
+      : "Guidance: no hits",
     data: {
       query,
       hits: hits.map((h) => ({

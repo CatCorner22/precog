@@ -57,7 +57,7 @@ export function runLocalAgentLoop(question: string, ctx: ToolContext = {}): Loca
   steps.push({
     phase: "plan",
     title: "Chose the tools to run",
-    detail: `${planned.length} tools: ${planned.join(", ")}`,
+    detail: `${planned.length} checks of your records`,
   });
 
   const toolResults = executeTools(planned, toolCtx);
@@ -177,6 +177,7 @@ export async function runGrokAgentLoop<T extends LocalAgentRun>(
       messages: buildGrokAgentMessages(local, claims),
       maxTokens: 256,
       temperature: 0.3,
+      jsonObject: true,
       feature: "pioneer",
     });
     if (!response) {

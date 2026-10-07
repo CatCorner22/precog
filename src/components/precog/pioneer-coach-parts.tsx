@@ -81,6 +81,8 @@ export function CoachResultView({
           <CardHeader className="pb-2">
             <CardTitle>Recommended moves</CardTitle>
             <CardDescription>
+              A logged move gets a review date. The next brief follows it up instead of repeating
+              it.
               {`Add one to the ${tabLabel("journal", say)}. The next brief follows it up instead of repeating it.`}
             </CardDescription>
           </CardHeader>
@@ -97,7 +99,6 @@ export function CoachResultView({
                     <Badge variant="default">{d.effort} effort</Badge>
                     <span className="text-xs text-muted">within {count(d.horizonDays, "day")}</span>
                   </div>
-                  <p className="mt-1 text-xs text-muted">{d.rationale}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <Button size="sm" variant="secondary" disabled={done} onClick={() => onLog(d)}>
                       {done ? <Check className="size-3.5" /> : <BookOpen className="size-3.5" />}
@@ -135,7 +136,7 @@ export function CoachResultView({
           {result.steps.length > 0 && (
             <section>
               <h3 className="text-sm font-semibold">
-                Steps · {count(result.toolsUsed.length, "tool")} · {result.latencyMs} ms
+                Steps · {count(result.toolsUsed.length, "check")}
               </h3>
               <ol className="mt-2 space-y-2">
                 {result.steps.map((s, i) => (
@@ -265,6 +266,8 @@ export function withoutSection(markdown: string, heading: string): string {
 /** Who wrote the brief, in one line the owner can repeat to their accountant. */
 export function briefAuthorLine(result: Pick<CoachResult, "modelStatus" | "model">): string {
   return result.modelStatus === "answered"
+    ? `Grok (${result.model ?? "model"}) picked the top moves. Precog's rules wrote every word.`
+    : "Written by Precog's rules from your records. No AI wrote it.";
     ? `Grok (${result.model ?? "model"}) picked what to show first from Precog's statements. It wrote none of them.`
     : "Written by Precog's rules from your records. No AI model wrote it.";
 }
@@ -289,6 +292,7 @@ export function coachErrorMessage(e: unknown): string {
     e && typeof e === "object" && "status" in e ? (e as { status: unknown }).status : null;
   const refusal = typeof status === "number" && status >= 400 && status < 500;
   if (refusal && e instanceof Error && e.message.trim()) return e.message;
+  return "Pioneer could not build a brief. Try again in a moment.";
   return "Pioneer could not answer just now. Try again in a moment.";
 }
 

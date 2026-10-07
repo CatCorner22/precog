@@ -68,6 +68,11 @@ type PioneerCoachError = {
   error: string;
 };
 
+export const PIONEER_FAILED_MESSAGE = "Pioneer could not build a brief. Try again in a moment.";
+
+/** The warning when the model was asked and gave no answer. */
+export const MODEL_FAILED_WARNING =
+  "Grok did not answer this time. Precog's rules wrote this brief.";
 export const PIONEER_FAILED_MESSAGE = "Pioneer could not answer just now. Try again in a moment.";
 
 /** The warning when the model was asked and gave no answer. */
@@ -82,15 +87,15 @@ export const MODEL_FAILED_WARNING = "Grok was unavailable, so Precog's rules wro
  */
 export function dailyLimitWarning(l: DailyLimitInfo): string {
   if (l.scope === "global") {
-    return "Precog has reached its AI limit for today across every account, so its rules built this brief. Try again tomorrow.";
+    return "Precog has reached its AI limit for today across every account. Precog's rules wrote this brief. Try again tomorrow.";
   }
   if (l.scope === "pool") {
-    return "Precog has reached today's AI limit shared by your account and others, so its rules built this brief. Try again tomorrow.";
+    return "Precog has reached today's AI limit shared by your account and others. Precog's rules wrote this brief. Try again tomorrow.";
   }
   if (l.plan === "paid") {
-    return `Precog has reached today's AI limit for your plan (${l.limit} calls), so its rules built this brief. Try again tomorrow.`;
+    return `Precog has reached today's AI limit for your plan (${l.limit} calls). Precog's rules wrote this brief. Try again tomorrow.`;
   }
-  return `Precog has reached today's AI limit for the free plan (${l.limit} calls), so its rules built this brief. Try again tomorrow, or start the Firm plan for ${l.paidLimit} a day.`;
+  return `Precog has reached today's AI limit for the free plan (${l.limit} calls). Precog's rules wrote this brief. Try again tomorrow, or start the Firm plan for ${l.paidLimit} a day.`;
 }
 
 /** Validates the coach request; a profile the schema let through but the builder rejects is a 400. */
@@ -184,14 +189,14 @@ export async function answerPioneer(
 function modelWarning(grok: GrokAccess, outcome: ModelOutcome): string | null {
   const status = outcome.modelStatus;
   if (grok === "unauthenticated") {
-    return "Sign in to have Grok select the most relevant details; Precog's rules built this brief.";
+    return "Sign in to let Grok pick the most relevant moves. Precog's rules wrote this brief.";
   }
   if (grok === "rate_limited") {
-    return "Grok is busy for the moment, so Precog's rules built this brief.";
+    return "Grok is busy right now. Precog's rules wrote this brief.";
   }
   if (status === "daily-limit" && outcome.dailyLimit) return dailyLimitWarning(outcome.dailyLimit);
   if (status === "rejected") {
-    return "The model's response could not be validated and was not shown. This is the unchanged brief from Precog's rules.";
+    return "Grok's reply failed Precog's checks and is not shown. Precog's rules wrote this brief.";
   }
   return status === "failed" ? MODEL_FAILED_WARNING : null;
 }

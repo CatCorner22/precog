@@ -112,7 +112,18 @@ describe("answerPioneer", () => {
       access("unauthenticated"),
     );
     if (!res.ok) throw new Error(res.error);
-    expect(res.warnings.at(-1)).toMatch(/^Sign in to have Grok select the most relevant details/);
+    expect(res.warnings.at(-1)).toBe(
+      "Sign in to let Grok pick the most relevant moves. Precog's rules wrote this brief.",
+    );
+  });
+
+  it("says when Grok is busy", async () => {
+    const res = await answerPioneer(
+      request("What should I fix this week?"),
+      access("rate_limited"),
+    );
+    if (!res.ok) throw new Error(res.error);
+    expect(res.warnings.at(-1)).toBe("Grok is busy right now. Precog's rules wrote this brief.");
   });
 
   it("says so when the model was allowed but failed", async () => {
@@ -122,7 +133,12 @@ describe("answerPioneer", () => {
     const res = await answerPioneer(request("What should I fix this week?"), access("allowed"));
     if (!res.ok) throw new Error(res.error);
     expect(res.modelStatus).toBe("failed");
-    expect(res.warnings).toContain(MODEL_FAILED_WARNING);
+    expect(MODEL_FAILED_WARNING).toBe(
+      "Grok did not answer this time. Precog's rules wrote this brief.",
+    );
+    expect(res.warnings).toContain(
+      "Grok did not answer this time. Precog's rules wrote this brief.",
+    );
   });
 
   it("says today's AI limit is reached, not that Grok failed, once the daily budget is spent", async () => {
@@ -137,7 +153,7 @@ describe("answerPioneer", () => {
       expect(res.source).toBe("local-agent");
       // A free account hears its own figure and the Firm plan's, the figures in force.
       expect(res.warnings).toContain(
-        "Precog has reached today's AI limit for the free plan (100 calls), so its rules built this brief. Try again tomorrow, or start the Firm plan for 400 a day.",
+        "Precog has reached today's AI limit for the free plan (100 calls). Precog's rules wrote this brief. Try again tomorrow, or start the Firm plan for 400 a day.",
       );
       expect(res.warnings).not.toContain(MODEL_FAILED_WARNING);
       expect(fetchMock).not.toHaveBeenCalled();
@@ -155,14 +171,14 @@ describe("answerPioneer", () => {
       const paid = await answerPioneer(request("x"), access("allowed"));
       if (!paid.ok) throw new Error(paid.error);
       expect(paid.warnings).toContain(
-        "Precog has reached today's AI limit for your plan (400 calls), so its rules built this brief. Try again tomorrow.",
+        "Precog has reached today's AI limit for your plan (400 calls). Precog's rules wrote this brief. Try again tomorrow.",
       );
       budget.state = "spent-global";
       const global = await answerPioneer(request("x"), access("allowed"));
       if (!global.ok) throw new Error(global.error);
       expect(global.modelStatus).toBe("daily-limit");
       expect(global.warnings).toContain(
-        "Precog has reached its AI limit for today across every account, so its rules built this brief. Try again tomorrow.",
+        "Precog has reached its AI limit for today across every account. Precog's rules wrote this brief. Try again tomorrow.",
       );
       // A shared pool (one office address, say) names no figure of the account's own.
       budget.state = "spent-pool";
@@ -170,7 +186,7 @@ describe("answerPioneer", () => {
       if (!pool.ok) throw new Error(pool.error);
       expect(pool.modelStatus).toBe("daily-limit");
       expect(pool.warnings).toContain(
-        "Precog has reached today's AI limit shared by your account and others, so its rules built this brief. Try again tomorrow.",
+        "Precog has reached today's AI limit shared by your account and others. Precog's rules wrote this brief. Try again tomorrow.",
       );
     } finally {
       budget.state = "allowed";
@@ -181,25 +197,26 @@ describe("answerPioneer", () => {
   it("prints the limits in force, not typed figures", () => {
     const free = { scope: "user" as const, plan: "free" as const, limit: 100, paidLimit: 400 };
     expect(dailyLimitWarning(free)).toBe(
-      "Precog has reached today's AI limit for the free plan (100 calls), so its rules built this brief. Try again tomorrow, or start the Firm plan for 400 a day.",
+      "Precog has reached today's AI limit for the free plan (100 calls). Precog's rules wrote this brief. Try again tomorrow, or start the Firm plan for 400 a day.",
     );
     expect(dailyLimitWarning({ ...free, limit: 80, paidLimit: 600 })).toBe(
-      "Precog has reached today's AI limit for the free plan (80 calls), so its rules built this brief. Try again tomorrow, or start the Firm plan for 600 a day.",
+      "Precog has reached today's AI limit for the free plan (80 calls). Precog's rules wrote this brief. Try again tomorrow, or start the Firm plan for 600 a day.",
     );
     expect(dailyLimitWarning({ ...free, plan: "paid", limit: 600, paidLimit: 600 })).toBe(
-      "Precog has reached today's AI limit for your plan (600 calls), so its rules built this brief. Try again tomorrow.",
+      "Precog has reached today's AI limit for your plan (600 calls). Precog's rules wrote this brief. Try again tomorrow.",
     );
     expect(dailyLimitWarning({ ...free, scope: "global" })).toBe(
-      "Precog has reached its AI limit for today across every account, so its rules built this brief. Try again tomorrow.",
+      "Precog has reached its AI limit for today across every account. Precog's rules wrote this brief. Try again tomorrow.",
     );
     for (const plan of ["free", "paid"] as const) {
       expect(dailyLimitWarning({ ...free, plan, scope: "pool" })).toBe(
-        "Precog has reached today's AI limit shared by your account and others, so its rules built this brief. Try again tomorrow.",
+        "Precog has reached today's AI limit shared by your account and others. Precog's rules wrote this brief. Try again tomorrow.",
       );
     }
   });
 
   it("returns the plain error envelope when building the brief throws", async () => {
+    expect(PIONEER_FAILED_MESSAGE).toBe("Pioneer could not build a brief. Try again in a moment.");
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(localBrief).mockImplementationOnce(() => {
       throw new Error("boom");
