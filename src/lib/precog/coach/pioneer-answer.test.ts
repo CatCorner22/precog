@@ -85,10 +85,10 @@ describe("answerPioneer", () => {
   });
 
   it("uses the requested local and unavailable-model messages", () => {
-    expect(PIONEER_FAILED_MESSAGE).toBe(
-      "Pioneer could not answer just now. Try again in a moment.",
+    expect(PIONEER_FAILED_MESSAGE).toBe("Pioneer could not build a brief. Try again in a moment.");
+    expect(MODEL_FAILED_WARNING).toBe(
+      "Grok did not answer this time. Precog's rules wrote this brief.",
     );
-    expect(MODEL_FAILED_WARNING).toBe("Grok was unavailable, so Precog's rules wrote this brief.");
   });
 
   it("answers the default question when none is sent, with the rules brief and no model", async () => {
@@ -98,8 +98,9 @@ describe("answerPioneer", () => {
     expect(res.modelStatus).toBe("not-asked");
     expect(res.partial).toBe(false);
     expect(res.question).toBe("What are my biggest risks, and what do I do this week?");
-    expect(res.markdown).toContain("## Answer");
-    expect(res.markdown).not.toContain("Question:");
+    expect(res.markdown).toMatch(
+      /Question: _What are my biggest risks, and what do I do this week\?_/,
+    );
     // No key on the server: nothing for the owner to do, so no model warning.
     expect(res.warnings.some((w) => /Grok/.test(w))).toBe(false);
     expect(res.decisions.length).toBeGreaterThan(0);

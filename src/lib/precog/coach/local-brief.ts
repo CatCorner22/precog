@@ -1,13 +1,10 @@
 import { resolveTemplate } from "../active-template";
-import { todayBrief } from "../continuity/today";
 import { registerAssessed } from "../continuity/register-state";
 import { CONTROL_CATALOG, controlForIndustry } from "../evidence/controls";
 import { runPrecogScenario } from "../engine";
 import type { IndustryId } from "../industry";
 import { runLocalAgentLoop, type LocalAgentRun } from "../llm/agent-loop";
 import { BRIEF_SECTION, leverLabel, renderDecision, renderThisWeekLine } from "../llm/agent-brief";
-import { BRIEF_SECTION, destack, renderDecision } from "../llm/agent-brief";
-import { describeScenarioFigures, type ScenarioRunData } from "../llm/scenario-tools";
 import { readSpofData } from "../llm/spof-data";
 import { describeScenarioFigures } from "../llm/scenario-tools";
 import type { ToolContext } from "../llm/tools";
@@ -15,11 +12,6 @@ import type { PioneerDecision, StructuredBrief, ToolResult } from "../llm/types"
 import type { PracticeProfile } from "../practice-profile";
 import { scenarioUnfolding } from "../scenario-unfolding";
 import { insuranceFigureNote, policyDefaultsInForce } from "../scoring/dynamic-variables";
-import {
-  DEFAULT_RISK_VARIABLES,
-  insuranceFigureNote,
-  policyDefaultsInForce,
-} from "../scoring/dynamic-variables";
 import {
   REGISTER_NOT_ASSESSED,
   confirmedScenarioIds,
@@ -40,13 +32,9 @@ import {
   type OpenConflictTotals,
 } from "../headline/open-conflicts";
 import type { IndustryTemplate } from "../templates/types";
-import type { ScenarioTemplate } from "../types";
 import { closingSteps } from "../controls/dual-release-wording";
 import { personLabel } from "../person-label";
-import { scenarioUnfolding } from "../scenario-unfolding";
-import { scenarioRuleIds, scenarioWatch } from "../scenario-watch";
 import { count, firstName, joinWithAnd, midSentence, verb } from "../text";
-import { matchScenarios } from "./scenario-question";
 
 /**
  * The local advisor brief, made to answer for this business.
@@ -73,6 +61,14 @@ interface LocalBrief extends LocalAgentRun {
   partial: boolean;
 }
 
+/** The internal suffix on a bundled lever's label ("Cameras + dual release (stack)"). */
+const STACK_SUFFIX = / \(stack\)/g;
+
+/** The text without a bundled lever's internal suffix, as `leverLabel` shows it. */
+function unstack(text: string): string {
+  return text.replace(STACK_SUFFIX, "");
+}
+
 /** The question the coach answers when the owner sends none. */
 export const DEFAULT_COACH_QUESTION = "What are my biggest risks, and what do I do this week?";
 
@@ -95,40 +91,22 @@ export function localBrief(
     const brief = ownFirstBrief(result.brief, profile, question, {
       tpl,
       people,
+      totals,
       toolResults: result.toolResults,
     });
     return {
       ...result,
-      steps: result.steps.map((step) =>
-        step.phase === "synthesize"
-          ? {
-              ...step,
-              detail: `${brief.decisions.length} recommended moves · ${brief.specialistNotes.length} review lenses`,
-            }
-          : step,
-      ),
-      brief,
-      today: ctx.today,
-    });
-    return {
-      ...result,
-      brief: ownFirstBrief(result.brief, profile, question, {
-        tpl,
-        people,
-        totals,
-        toolResults: result.toolResults,
-      brief,
-      steps: result.steps.map((step) => {
-        const detail =
-          step.title === "Wrote the brief from Precog's rules"
+      // A bundled lever's internal " (stack)" suffix never reaches the owner,
+      // in the brief (leverLabel) or in the steps.
+      steps: result.steps.map((step) => ({
+        ...step,
+        title: unstack(step.title),
+        detail:
+          step.phase === "synthesize"
             ? `${brief.decisions.length} recommended moves · ${brief.specialistNotes.length} review lenses`
-            : step.detail;
-        return {
-          ...step,
-          title: destack(step.title),
-          detail: destack(detail),
-        };
-      }),
+            : unstack(step.detail),
+      })),
+      brief,
       latencyMs: Date.now() - started,
       partial: false,
     };
@@ -144,7 +122,6 @@ export function localBrief(
       toolsUsed: [],
       toolResults: [],
       brief: fallbackBrief(profile, question, { tpl, people, totals }),
-      brief: fallbackBrief(profile, question, { tpl, people, today: ctx.today }),
       contextFingerprint: "fallback",
       latencyMs: Date.now() - started,
       partial: true,
@@ -227,12 +204,6 @@ export function fallbackBrief(
   profile: PracticeProfile,
   question: string,
   known: { tpl?: IndustryTemplate; people?: PersonConflicts[]; totals?: OpenConflictTotals } = {},
-  known: {
-    tpl?: IndustryTemplate;
-    people?: PersonConflicts[];
-    today?: string;
-    toolResults?: ToolResult[];
-  } = {},
 ): StructuredBrief {
   const tpl = known.tpl ?? resolveTemplate(profile);
   const { people, totals } =
@@ -249,7 +220,6 @@ export function fallbackBrief(
     totals.open > 0
       ? `**${profile.practiceName}**: ${totalSentence(totals, people.length)}. Question: _${question}_`
       : `**${profile.practiceName}**: no open duty conflicts. Question: _${question}_`;
-  const situation = `**${profile.practiceName}**: ${people.length} ${people.length === 1 ? "person holds" : "people hold"} an open duty conflict.`;
   const frontierNextMove = people[0] ? thisWeek(people[0]) : `This week: ${STATEMENT_THIS_WEEK}.`;
   const warning =
     "Pioneer could not compute part of the full brief for this business, so it built this one from your team's duty conflicts alone.";
@@ -262,18 +232,15 @@ export function fallbackBrief(
     "",
     `## ${OWN_CONFLICTS}`,
     ...(people.length ? people.slice(0, 5).map(conflictLine) : ["- None open."]),
-    thisWeekBody(frontierNextMove),
     "",
     `## ${BRIEF_SECTION.moves}`,
     ...decisions.map(renderDecision),
     "",
     `## ${BRIEF_SECTION.limits}`,
     "- Rankings use Precog's weights, not a measurement of this business.",
-    `## ${BRIEF_SECTION.warnings}`,
-    `- ${warning}`,
     "",
   ].join("\n");
-  const fallback: StructuredBrief = {
+  return {
     situation,
     highestRisks: [],
     tradeoffs: [],
@@ -285,16 +252,6 @@ export function fallbackBrief(
     markdown,
     evidence: [],
   };
-  try {
-    return ownFirstBrief(fallback, profile, question, {
-      tpl,
-      people,
-      toolResults: known.toolResults ?? [],
-      today: known.today,
-    });
-  } catch {
-    return fallback;
-  }
 }
 
 /**
@@ -337,13 +294,6 @@ const SEVERITY_WORDS: Record<DetectedConflict["severity"], string> = {
 const OWN_CONFLICTS = "Your open duty conflicts";
 /** The heading for the answer to a question about someone being away. */
 const YOUR_QUESTION = "Your question";
-/** Short form for the conflict list: "critical", "high", "medium", "duty conflict". */
-const SEVERITY_SHORT: Record<DetectedConflict["severity"], string> = {
-  critical: "critical",
-  high: "high",
-  medium: "medium",
-  family: "duty conflict",
-};
 
 /** "set up suppliers and release payments" */
 function pairWords(c: Pick<DetectedConflict, "labelA" | "labelB">): string {
@@ -434,26 +384,19 @@ function dayWording(line: string): string {
   return line.replace(/\bp50 ([+-]?\d+)d\b/g, "assumed days until found $1");
 }
 
-/** "- **Grace Kim**: set up suppliers and release payments" */
+/**
+ * "- **Grace Kim**: set up suppliers and release payments; 2 more": the
+ * person's worst pair, and how many more they hold. The total line above the
+ * list gives the one open-conflict count, so each person's line stays short.
+ */
 function conflictLine(p: PersonConflicts): string {
-  const pairs = p.conflicts.slice(0, 3).map(pairWords).join("; ");
-  return `- **${p.personName}**: ${pairs}`;
-  const pairs = p.conflicts
-    .slice(0, 1)
-    .map((c) => `${pairWords(c)} (${SEVERITY_SHORT[c.severity]})`)
-    .join("; ");
-  const more = p.conflicts.length > 1 ? `; ${p.conflicts.length - 1} more conflicts` : "";
-  return `- **${p.personName}**: ${pairs}${more}`;
+  const more = p.conflicts.length - 1;
+  return `- **${p.personName}**: ${pairWords(p.conflicts[0])}${more > 0 ? `; ${more} more` : ""}`;
 }
 
 /** The one move for the next seven days when a conflict leads. */
 function thisWeek(p: PersonConflicts): string {
   return `This week: move one of ${p.personName}'s duties to someone else, and ${STATEMENT_THIS_WEEK}.`;
-}
-
-function thisWeekBody(line: string): string {
-  const body = line.replace(/^This week:\s*/, "");
-  return body ? `${body.charAt(0).toUpperCase()}${body.slice(1)}` : body;
 }
 
 /** Decisions about who can run the work: cross-training, hand-offs, leavers, the register. */
@@ -618,94 +561,6 @@ function mentions(question: string, words: string): boolean {
   return new RegExp(`\\b${pattern}\\b`, "i").test(question);
 }
 
-function scenarioAnswer(
-  scenarios: readonly ScenarioTemplate[],
-  profile: PracticeProfile,
-  tpl: IndustryTemplate,
-  people: PersonConflicts[],
-  today?: string,
-): string[] {
-  const outTodayIds = new Set(
-    today
-      ? todayBrief(
-          tpl,
-          profile.plannedAbsences ?? [],
-          profile.decisions,
-          profile.industry,
-          today,
-        ).out.map((out) => out.person.id)
-      : [],
-  );
-  const openConflicts = people.flatMap((person) => person.conflicts);
-  const lines: string[] = [];
-
-  for (const scenario of scenarios) {
-    lines.push(`### ${scenario.title}`, scenario.description, "");
-    const unfolding = scenarioUnfolding(scenario.id);
-    if (unfolding) {
-      lines.push(
-        "**How it unfolds**",
-        ...unfolding.steps.map((step, index) => `${index + 1}. ${step}`),
-        "",
-        "**Warning signs**",
-        ...unfolding.warningSigns.slice(0, 3).map((sign) => `- ${sign}`),
-        "",
-      );
-    }
-
-    const watch = scenarioWatch(tpl, scenario, openConflicts, outTodayIds);
-    const facts: string[] = [];
-    if (scenarioRuleIds(scenario).length > 0) {
-      if (watch.conflicts.length === 0) {
-        facts.push("- Nobody on the team holds both duties this needs.");
-      } else {
-        facts.push(
-          ...watch.conflicts.slice(0, 3).map((conflict) => {
-            return `- ${conflict.personName} holds both duties: ${conflict.title}`;
-          }),
-        );
-        if (watch.conflicts.length > 3) {
-          facts.push(`- and ${watch.conflicts.length - 3} more`);
-        }
-      }
-    }
-    if (watch.control) {
-      facts.push(
-        `- "${watch.control.name}" ${watch.control.inPlace ? "is marked in place." : "is not marked in place."}`,
-      );
-    }
-    if (watch.knowledge) {
-      const holders = watch.knowledge.holders.length
-        ? `${joinWithAnd(watch.knowledge.holders)} can run it alone.`
-        : "nobody can run it alone.";
-      facts.push(`- ${watch.knowledge.name}: ${holders}`);
-      if (watch.knowledge.outToday.length > 0) {
-        facts.push(`- ${joinWithAnd(watch.knowledge.outToday)} out today.`);
-      }
-    }
-    if (facts.length > 0) lines.push("**In your business now**", ...facts, "");
-
-    const mitigations = scenario.mitigations.map((mitigation) => mitigation.label);
-    if (mitigations.length > 0) {
-      lines.push(`**What stops it:** ${mitigations.join("; ")}.`);
-    }
-    const result = runPrecogScenario(tpl, scenario.id, {
-      staff: profile.staff,
-      riskVariables: profile.riskVariables ?? DEFAULT_RISK_VARIABLES,
-    });
-    if (result) {
-      const data: Pick<ScenarioRunData, "retained" | "timelineDays" | "dynamic"> = {
-        retained: result.retainedImpact,
-        timelineDays: result.timelineDays,
-        dynamic: result.dynamic ?? null,
-      };
-      lines.push(`**Precog's assumptions:** ${describeScenarioFigures(data)}.`);
-    }
-    lines.push("");
-  }
-  return lines;
-}
-
 /**
  * The brief with this business's own conflicts first, no insurance lever
  * while the policy figures are defaults, and a direct answer to a question
@@ -720,8 +575,6 @@ function ownFirstBrief(
     people: PersonConflicts[];
     totals: OpenConflictTotals;
     toolResults: ToolResult[];
-    toolResults: ToolResult[];
-    today?: string;
   },
 ): StructuredBrief {
   const { tpl, people } = known;
@@ -731,9 +584,6 @@ function ownFirstBrief(
   const absence = isAbsenceQuestion(question) ? absenceAnswer(question, known.toolResults) : null;
   const scenario = absence ? null : scenarioAnswer(question, tpl, profile);
   const leadWithConflicts = !absence && isConflictQuestion(question) && people.length > 0;
-  const scenarios = absence ? [] : matchScenarios(question, tpl.scenarios);
-  const leadWithConflicts =
-    !absence && scenarios.length === 0 && isConflictQuestion(question) && people.length > 0;
   const assessed = registerAssessed(tpl);
 
   let decisions = brief.decisions.flatMap((d) => {
@@ -857,62 +707,14 @@ function ownFirstBrief(
     starterTitles.some((t) => line.includes(t)) && !line.includes(starterTag)
       ? `${line} ${starterTag}`
       : line;
-  const postProcess = (line: string) => destack(labelStarter(labelPremium(dayWording(line))));
   // General insurance guidance (what a deductible or a policy limit does) is
   // about a policy this business has not entered; it stays out with the levers.
   const policyTalk = (line: string) => stripInsurance && POLICY_TERMS.test(line);
-  const variableCascades = brief.variableCascades
-    .filter((line) => !policyTalk(line))
-    .map(postProcess);
-  const advancedReasoning = brief.advancedReasoning?.flatMap((line) => {
-    if (!stripInsurance) return [postProcess(line)];
-    const kept = withoutInsuranceSteps(line);
-    return kept ? [postProcess(kept)] : [];
-  });
-  const tradeoffs = brief.tradeoffs.filter((line) => !policyTalk(line)).map(postProcess);
-  const specialistNotes = brief.specialistNotes.map((note) => ({
-    ...note,
-    title: postProcess(note.title),
-    bullets: note.bullets.filter((line) => !policyTalk(line)).map(postProcess),
-  }));
-  const sourceSections = splitSections(brief.markdown);
-  const sourceSection = (heading: string) =>
-    sourceSections.find((section) => section.heading === heading);
-  const warnings =
-    sourceSection(BRIEF_SECTION.warnings)?.body.filter((line) => line.trim()) ??
-    brief.chickenLittleWarnings.map((warning) => `- ${warning}`);
-  const watchedConditions = sourceSection("Watched conditions")?.body.filter((line) => line.trim());
-  const answer = absence
-    ? absence
-    : scenarios.length > 0
-      ? scenarioAnswer(scenarios, profile, tpl, people, known.today)
-      : leadWithConflicts
-        ? [
-            ...people.slice(0, 3).map(conflictLine),
-            ...(people.length > 3 ? [`- and ${people.length - 3} more`] : []),
-            `- The step you can take alone: **${statement.action.replace(/\.$/, "")}**.`,
-          ]
-        : null;
-  const sections: Section[] = [
-    ...(answer ? [{ heading: BRIEF_SECTION.answer, body: [...answer, ""] }] : []),
-    { heading: BRIEF_SECTION.situation, body: [brief.situation, ""] },
-    { heading: BRIEF_SECTION.thisWeek, body: [thisWeekBody(frontierNextMove), ""] },
-    { heading: BRIEF_SECTION.moves, body: [...decisions.map(renderDecision), ""] },
-    {
-      heading: BRIEF_SECTION.warnings,
-      body: [...warnings, ...(watchedConditions ?? []), ""],
-    },
-  ];
-  const risks = sourceSection(BRIEF_SECTION.risks)?.body.filter((line) => line.trim()) ?? [];
-  if (risks.length > 0) sections.push({ heading: BRIEF_SECTION.risks, body: [...risks, ""] });
   const markdown = joinSections(sections)
     .split("\n")
     .filter((line) => !(line.startsWith("- ") && policyTalk(line)))
-    .map(postProcess)
+    .map((line) => labelStarter(labelPremium(dayWording(line))))
     .join("\n");
-  const chickenLittleWarnings = brief.chickenLittleWarnings
-    .filter((line) => !policyTalk(line))
-    .map(postProcess);
 
   return {
     ...brief,
@@ -920,15 +722,16 @@ function ownFirstBrief(
     frontierNextMove,
     variableCascades,
     advancedReasoning,
-    tradeoffs,
-    specialistNotes,
-    chickenLittleWarnings,
-    evidence: brief.evidence.flatMap((item) => {
-      const label = postProcess(item.label);
-      const metric = item.metric ? postProcess(item.metric) : undefined;
-      if (policyTalk(label) || (metric && policyTalk(metric))) return [];
-      return [{ ...item, label, ...(metric ? { metric } : {}) }];
-    }),
+    tradeoffs: brief.tradeoffs.filter((t) => !policyTalk(t)),
+    specialistNotes: brief.specialistNotes.map((n) => ({
+      ...n,
+      bullets: n.bullets.filter((b) => !policyTalk(b)).map(unstack),
+    })),
+    evidence: brief.evidence.map((e) => ({
+      ...e,
+      label: unstack(e.label),
+      ...(e.metric ? { metric: unstack(labelPremium(dayWording(e.metric))) } : {}),
+    })),
     markdown,
   };
 }

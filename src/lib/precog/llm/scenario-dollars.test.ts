@@ -67,8 +67,6 @@ describe("scenario dollars in the brief and the tools", () => {
     );
     expect(row).toBe(
       "**Turn on dual release**: risk index −4.0, found 13 days sooner, assumed retained about −$1,200, premium −$150. Also: lowers fraud likelihood.",
-    expect(row).toMatch(
-      /^\*\*Turn on dual release\*\*: assumed retained about -\$1,200, premium -\$150, risk index 4 points lower, found 13 days sooner\./,
     );
     const scenario: ToolResult = {
       tool: "run_precog_scenario",

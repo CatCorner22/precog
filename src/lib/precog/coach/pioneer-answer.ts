@@ -60,7 +60,6 @@ export type PioneerCoachResult = {
     link?: DecisionLink;
   }[];
   specialistNotes: { agent: string; title: string; bullets: string[] }[];
-  details: { title: string; lines: string[] }[];
 };
 
 type PioneerCoachError = {
@@ -73,10 +72,6 @@ export const PIONEER_FAILED_MESSAGE = "Pioneer could not build a brief. Try agai
 /** The warning when the model was asked and gave no answer. */
 export const MODEL_FAILED_WARNING =
   "Grok did not answer this time. Precog's rules wrote this brief.";
-export const PIONEER_FAILED_MESSAGE = "Pioneer could not answer just now. Try again in a moment.";
-
-/** The warning when the model was asked and gave no answer. */
-export const MODEL_FAILED_WARNING = "Grok was unavailable, so Precog's rules wrote this brief.";
 
 /**
  * The warning when today's model budget is used up; it lasts until tomorrow.
@@ -163,14 +158,6 @@ export async function answerPioneer(
         link: d.link,
       })),
       specialistNotes: result.brief.specialistNotes,
-      details: [
-        { title: "What else moves", lines: result.brief.variableCascades },
-        {
-          title: "Order of fixes (Precog's model)",
-          lines: result.brief.advancedReasoning ?? [],
-        },
-        { title: "Tradeoffs", lines: result.brief.tradeoffs },
-      ].filter((section) => section.lines.length > 0),
     };
   } catch (e) {
     // Logged in full here; the caller gets a plain message, never the

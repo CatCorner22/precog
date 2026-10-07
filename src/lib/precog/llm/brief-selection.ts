@@ -61,8 +61,4 @@ export function renderBriefSelection(
       ? `\n\n### Important limits\n${brief.chickenLittleWarnings.map((text) => `- ${text}`).join("\n")}`
       : "";
   return `## Most relevant to your question\n\n${highlights.map((text) => `- **${text}**`).join("\n")}\n\nGrok picked these from Precog's moves below without rewriting them. It did not rank the risks or check them.${limits}\n\n---\n\n${brief.markdown}`;
-  const limits = brief.chickenLittleWarnings.length
-    ? `\n\n### Important limits\n${brief.chickenLittleWarnings.map((text) => `- ${text}`).join("\n")}`
-    : "";
-  return `## Picked for your question\n\n${highlights.join("\n\n")}\n\n_Grok picked these from Precog's own statements without changing them. They are not a new ranking._${limits}\n\n---\n\n${brief.markdown}`;
 }

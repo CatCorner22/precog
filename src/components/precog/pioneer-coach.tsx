@@ -132,20 +132,13 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
           tab="pioneer"
           className="mt-3"
           icon={<Compass className="size-5 text-primary" aria-hidden />}
-          purpose="Ask about your team, someone leaving, or what to fix first. Answers come from your records."
+          purpose="Pioneer is Precog's assistant. Ask about your team, someone leaving, or what to fix first. Answers come from your records."
           method={
             <p>
               Precog&rsquo;s rules write every answer from your records: duty conflicts, who knows
               what, scenarios, guidance and real cases. Rankings use Precog&rsquo;s weights, not
               measurements. When you are signed in, Grok picks the moves most relevant to your
               question; it never writes or changes them.
-          purpose="Pioneer is Precog's assistant. Ask about your team, a person leaving, or what to fix first; it answers from your own records."
-          purpose="Ask about risks, someone being away, or what to fix first. Answers come from your own records."
-          method={
-            <p>
-              Precog's rules write every answer from your records, scenarios, the guidance library
-              and prosecuted cases. Fix order uses Precog's weights, not measurements. When Grok is
-              on, it only picks which statements show first; it writes none.
             </p>
           }
         />

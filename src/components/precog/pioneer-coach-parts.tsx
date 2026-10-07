@@ -72,18 +72,17 @@ export function CoachResultView({
           )}
         </CardHeader>
         <CardContent>
-          <BriefMarkdown markdown={withoutSection(result.markdown, "Recommended moves")} />
+          <BriefMarkdown markdown={result.markdown} />
         </CardContent>
       </Card>
 
       {result.decisions.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle>Recommended moves</CardTitle>
+            <CardTitle>{`Add a move to the ${tabLabel("journal", say)}`}</CardTitle>
             <CardDescription>
               A logged move gets a review date. The next brief follows it up instead of repeating
               it.
-              {`Add one to the ${tabLabel("journal", say)}. The next brief follows it up instead of repeating it.`}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -175,26 +174,6 @@ export function CoachResultView({
             </section>
           )}
 
-          {result.details.length > 0 && (
-            <section>
-              <div className="space-y-3">
-                {result.details.map((detail) => (
-                  <div
-                    key={detail.title}
-                    className="rounded-xl border border-border bg-elevated px-3 py-3"
-                  >
-                    <h3 className="text-sm font-medium">{detail.title}</h3>
-                    <ul className="mt-2 space-y-1 text-xs text-muted">
-                      {detail.lines.map((line, index) => (
-                        <li key={`${index}-${line}`}>· {renderInline(line)}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
           {result.evidence.length > 0 && (
             <section>
               <h3 className="text-sm font-semibold">Where the figures come from</h3>
@@ -255,21 +234,11 @@ export function BriefMarkdown({ markdown }: { markdown: string }) {
   );
 }
 
-export function withoutSection(markdown: string, heading: string): string {
-  const lines = markdown.split("\n");
-  const start = lines.findIndex((line) => line === `## ${heading}`);
-  if (start < 0) return markdown;
-  const end = lines.findIndex((line, index) => index > start && line.startsWith("## "));
-  return [...lines.slice(0, start), ...(end < 0 ? [] : lines.slice(end))].join("\n");
-}
-
 /** Who wrote the brief, in one line the owner can repeat to their accountant. */
 export function briefAuthorLine(result: Pick<CoachResult, "modelStatus" | "model">): string {
   return result.modelStatus === "answered"
     ? `Grok (${result.model ?? "model"}) picked the top moves. Precog's rules wrote every word.`
     : "Written by Precog's rules from your records. No AI wrote it.";
-    ? `Grok (${result.model ?? "model"}) picked what to show first from Precog's statements. It wrote none of them.`
-    : "Written by Precog's rules from your records. No AI model wrote it.";
 }
 
 /** Warnings the brief's own Warnings section does not already list (sign in, the model failed). */
@@ -293,7 +262,6 @@ export function coachErrorMessage(e: unknown): string {
   const refusal = typeof status === "number" && status >= 400 && status < 500;
   if (refusal && e instanceof Error && e.message.trim()) return e.message;
   return "Pioneer could not build a brief. Try again in a moment.";
-  return "Pioneer could not answer just now. Try again in a moment.";
 }
 
 export function briefClipboardText(result: Pick<CoachResult, "question" | "markdown">): string {

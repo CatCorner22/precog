@@ -61,8 +61,9 @@ export const UNHELD_VIEW = "__unheld__";
  * over them, and names nobody whose checklist is not on screen.
  */
 export function noNoticeText(leftNames: readonly string[]): string {
+  if (leftNames.length === 0)
+    return "Nobody has given notice. When someone does, record their date here instead of removing them; Precog counts down and chases the hand-off.";
   const advice =
-    "When someone gives notice, record the date here rather than removing them. The printed report and Pioneer count down to it and chase the hand-off.";
-  if (leftNames.length === 0) return `Nobody has given notice. ${advice}`;
+    "When someone gives notice, record their date here instead of removing them; Precog counts down and chases the hand-off.";
   return `Nobody still on the team has given notice. ${joinWithAnd(leftNames)} left; check their access above. ${advice}`;
 }

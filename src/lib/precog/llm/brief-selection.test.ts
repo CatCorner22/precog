@@ -56,9 +56,9 @@ describe("bounded selection protocol", () => {
       claims,
     )!;
     const result = renderBriefSelection(brief, claims, selected);
-    expect(result).toContain("## Picked for your question");
+    expect(result).toContain("## Most relevant to your question");
     expect(result).toContain(
-      "_Grok picked these from Precog's own statements without changing them. They are not a new ranking._",
+      "Grok picked these from Precog's moves below without rewriting them. It did not rank the risks or check them.",
     );
     expect(result).toContain("### Important limits");
     expect(result.indexOf("Action 0")).toBeLessThan(result.indexOf("Action 2"));
