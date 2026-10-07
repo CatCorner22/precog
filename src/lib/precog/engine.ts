@@ -251,7 +251,7 @@ export function runPrecogScenario(
     cascade,
     mitigations: scenario.mitigations,
     residualIfNothing:
-      "If you accept this risk as it is, the exposure stays until your staffing, your insurance terms, or your controls change. The figures update when you change any setting.",
+      "Accept this risk and the exposure stays until your staffing, insurance or controls change.",
     sources: [DEFAULT_FRAUD_STATS.source],
     assumptions: [
       "The base timeline and loss figures are assumptions the scenario author wrote; they do not come from a study or from any business.",

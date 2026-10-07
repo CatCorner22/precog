@@ -396,9 +396,8 @@ export function ProceduresPanel({ initialItem }: { initialItem?: string | null }
             <CardHeader>
               <CardTitle>Not written yet</CardTitle>
               <CardDescription>
-                Items on Who knows what with no steps written here and nothing written elsewhere,
-                duties first. Starting one creates an empty procedure; Precog fills in nothing for
-                you.
+                Items on Who knows what with no written steps anywhere, duties first. Starting one
+                creates an empty procedure; Precog fills nothing in.
               </CardDescription>
             </CardHeader>
             <CardContent>

@@ -47,7 +47,7 @@ export function StaffWhatIfCard({
       <CardHeader>
         <CardTitle className="text-base">Try different staffing</CardTitle>
         <CardDescription>
-          Only the figures on this page follow these settings. Your business keeps its saved
+          These settings change only this page&apos;s figures. Your business keeps its saved
           staffing until you choose &ldquo;Apply to my business&rdquo;.
         </CardDescription>
       </CardHeader>

@@ -39,7 +39,9 @@ describe("QuickBooks workpaper employee-list evidence", () => {
 
   it("keeps payment status unknown when no reading is available", () => {
     const fact = monthlyWorkpaperFacts(null)[0];
-    expect(fact.detail).toContain("No QuickBooks reading is stored.");
+    expect(fact.detail).toContain(
+      "No QuickBooks reading yet, so the monthly checks are the record.",
+    );
     expect(fact.detail).toContain("Payment status not checked.");
   });
 });

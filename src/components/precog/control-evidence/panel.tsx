@@ -32,20 +32,20 @@ export function ControlEvidencePanel() {
     >
       <h2 className="text-lg font-semibold">Control evidence log</h2>
       <p className="mt-1 text-sm text-muted">
-        Record the work, evidence references and review for a stated period. A recorded result is
-        not an audit opinion, a guarantee or a risk-score reduction. Results recorded in the Monthly
-        review create matching preparer entries here when you are signed in.
+        Record the work, the evidence and the review for each period. A recorded result is not an
+        audit opinion, a guarantee or a lower risk score. Monthly review results appear here as
+        preparer entries when you are signed in.
       </p>
       <p className="mt-2 text-xs text-muted">{EVIDENCE_RECORD_NOTE}</p>
       <p className="mt-2 text-xs text-muted">
-        To get a check reviewed, create a firm and invite a reviewer under People at the firm. One
-        account can record work, but cannot independently approve its own entries. A reviewer must
-        examine the referenced records, not just this log.
+        To have a check reviewed, create a firm and invite a reviewer under People at the firm.
+        Nobody can approve their own entries, and the reviewer checks the records, not just this
+        log.
       </p>
       {!user || user.isDevFallback || !ready || !profile.businessId || switchingBusiness ? (
         <p className="mt-3 text-sm">
-          Sign in and open a saved business to use the control evidence log. Results you mark in the
-          Monthly review stay on this business.
+          Sign in and open a saved business to use this log. Monthly review results stay on this
+          business.
         </p>
       ) : (
         <ExecutionWorkspace

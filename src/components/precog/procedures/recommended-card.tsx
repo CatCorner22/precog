@@ -57,9 +57,9 @@ export function RecommendedCard({
       <CardHeader>
         <CardTitle>Recommended procedures</CardTitle>
         <CardDescription>
-          Procedures we recommend for a business like yours, with suggested steps from recognized
-          control practice. Each suggested step stays marked as a suggestion until you change it to
-          match your business or verify the procedure.
+          Suggested procedures for a business like yours, with steps from recognized control
+          practice. Each step stays marked as a suggestion until you edit it or verify the
+          procedure.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">

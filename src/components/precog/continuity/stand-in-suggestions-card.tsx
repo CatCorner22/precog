@@ -72,10 +72,10 @@ export function StandInSuggestionsCard() {
         <div>
           <CardTitle>Stand-in suggestions</CardTitle>
           <CardDescription>
-            For high-risk money duties only one person holds: people who already hold a duty of
-            weight 4 or more in the same process and hold no conflict, where adding the duty creates
-            no conflict the rules detect. Check each person can actually do the work before you
-            assign it. Change review under <TeamLink>Team</TeamLink> can discard it.
+            People who could cover a high-risk money duty only one person holds. Each already holds
+            a duty weighted 4 or more in the same process, and taking it on creates no duty
+            conflict. Check they can do the work before you assign it; Change review under{" "}
+            <TeamLink>Team</TeamLink> can undo it.
           </CardDescription>
         </div>
         {program.steps.length > 1 && (

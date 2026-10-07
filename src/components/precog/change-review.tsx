@@ -33,8 +33,8 @@ export function ChangeReviewCard() {
         <div>
           <CardTitle className="text-base">Change review</CardTitle>
           <CardDescription>
-            Duties granted and removed, people added and people gone since you last accepted the
-            team&apos;s duties. Accept them as the new baseline, or discard them to go back to it.
+            What changed since you last accepted the team&apos;s duties. Accept it as the new
+            baseline, or discard it.
           </CardDescription>
         </div>
         <div className="flex gap-2">

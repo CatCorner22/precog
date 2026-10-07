@@ -347,7 +347,7 @@ function buildCoverageReport(tpl: IndustryTemplate): CoverageReport {
       const doc =
         i.item.documented || i.item.linkedProcedures?.some((l) => !l.draft)
           ? ""
-          : " Write the steps down first so the stand-in has something to follow.";
+          : " Write the steps down first.";
       let action: string;
       if (i.status === "uncovered" && !marked) {
         action = `You have not marked anyone on "${i.item.name}" yet. Mark who can do it; if nobody can, choose someone to learn it and write the steps down.`;

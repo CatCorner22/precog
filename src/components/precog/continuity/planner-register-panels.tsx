@@ -117,9 +117,8 @@ export function DocumentationPlanCard({
       <CardHeader>
         <CardTitle>Write it down</CardTitle>
         <CardDescription>
-          A stand-in is only as good as the procedure the stand-in can follow. Items with nothing
-          written down, or a procedure nobody has said where to find, ranked by how much stops if
-          the one person who knows is out.
+          A stand-in needs steps to follow. These items have nothing written down, or nobody has
+          said where the steps are. The ones that stop the most work come first.
         </CardDescription>
       </CardHeader>
       <CardContent>
