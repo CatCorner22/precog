@@ -48,4 +48,57 @@ describe("ScenarioWatchCard", () => {
     button?.props.onClick();
     expect(onOpenFailure).toHaveBeenCalledWith("control:c-sod-ap");
   });
+
+  it("says a needed duty is ticked for nobody instead of saying nobody holds both", () => {
+    const dental = getIndustryTemplate("dental");
+    const scenario = dental.scenarios.find((item) => item.id === "sc-vendor-fraud")!;
+    const tpl = {
+      ...dental,
+      roleTemplates: {},
+      people: [
+        {
+          id: "tom",
+          name: "Tom Reyes",
+          role: "Bookkeeper",
+          active: true,
+          entitlements: ["release_payment", "enter_invoices"],
+        },
+      ],
+    };
+    const watch = scenarioWatch(tpl, scenario, [], new Set());
+    expect(watch.unassignedDuties).toEqual(["set up suppliers"]);
+    const html = renderToStaticMarkup(
+      ScenarioWatchCard({ scenario, unfolding: scenarioUnfolding(scenario.id)!, watch }),
+    );
+    expect(html).not.toContain("Nobody on the team holds both duties this needs.");
+    expect(html).toContain(
+      "Nobody on the team is ticked for set up suppliers, so Precog cannot tell whether one person holds both duties this needs. Tick whoever does it on the Team tab.",
+    );
+
+    // With every needed duty ticked for someone and no open pair, the card says so.
+    const split = scenarioWatch(
+      {
+        ...tpl,
+        people: [
+          ...tpl.people,
+          {
+            id: "sue",
+            name: "Sue Lam",
+            role: "Owner",
+            active: true,
+            entitlements: ["create_vendor"],
+          },
+        ],
+      },
+      scenario,
+      [],
+      new Set(),
+    );
+    expect(split.unassignedDuties).toEqual([]);
+    expect(
+      renderToStaticMarkup(
+        ScenarioWatchCard({ scenario, unfolding: scenarioUnfolding(scenario.id)!, watch: split }),
+      ),
+    ).toContain("Nobody on the team holds both duties this needs.");
+  });
 });

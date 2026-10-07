@@ -30,6 +30,7 @@ const SCENARIO_KINDS: Record<string, ScenarioKind> = {
   "sc-cash-sod-failure": CASH_FRAUD,
   "sc-vendor-fraud": CASH_FRAUD,
   "sc-writeoff-abuse": FRAUD,
+  "sc-payroll-ghost": CASH_FRAUD,
   "sc-key-person-leaves": NOT_FRAUD,
   // Dental and medical
   "sc-front-desk-leaves": NOT_FRAUD,

@@ -18,7 +18,7 @@ import { scenarioFlags } from "./scenario-kind";
 import { DEFAULT_WEIGHTS, type ScoringWeights } from "./weights";
 
 /** The label every scenario dollar and day figure carries. */
-export const ILLUSTRATIVE_LABEL = "Illustrative example, not sized to your business";
+export const ILLUSTRATIVE_LABEL = "Example figures, not from your books";
 
 /** What the illustrative figures do not do, for the screens that print them. */
 export const ILLUSTRATIVE_RANK_NOTE =

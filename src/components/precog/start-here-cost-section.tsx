@@ -7,6 +7,7 @@ import {
   durationPhrase,
   DETECTION_LABEL,
 } from "@/lib/precog/evidence";
+import { ILLUSTRATIVE_LABEL } from "@/lib/precog/scoring/scenario-level";
 import { count } from "@/lib/precog/text";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatUsd } from "@/lib/utils";
@@ -38,6 +39,15 @@ export function StartHereCostSection({ model }: { model: StartHereModel["cost"] 
               : "No matching cases, because no gaps are open."
         }
       />
+
+      <p className="text-sm leading-relaxed text-muted">
+        Precog shows three kinds of dollar figure: real cases like yours, the losses in prosecuted
+        cases with the gaps above; the fraud study&rsquo;s median for{" "}
+        {smallOrg ? "organizations under 100 employees" : "organizations of every size"}
+        {medianLoss ? ` (${medianLossValue ?? medianLoss.value})` : ""}, the typical loss once a
+        fraud is found; and Precog&rsquo;s example scenarios under What could happen, which carry{" "}
+        {ILLUSTRATIVE_LABEL.toLowerCase()}, for comparing fixes.
+      </p>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {lossRange && (
