@@ -43,7 +43,7 @@ export function StartHereFirstStepsSection({
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-          <p className="min-w-0 flex-1 text-sm leading-relaxed">{s.control.label}</p>
+          <p className="min-w-0 grow basis-56 text-sm leading-relaxed">{s.control.label}</p>
           {onOpenDetail && (
             <Button
               size="sm"
