@@ -186,10 +186,10 @@ describe("report layout 7", () => {
 
   it("prints versions locked under layout 6 exactly as before", () => {
     expect(storedUnder(empty, 6)).toContain(
-      "|Dental office · 2 people mapped · custom process map · generated",
+      "|Dental office · 2-person practice · custom process map · generated",
     );
     const six = storedUnder(partial, 6);
-    expect(six).toContain("|Dental office · 2 people mapped · custom process map · generated");
+    expect(six).toContain("|Dental office · 2-person practice · custom process map · generated");
     expect(six).not.toContain("Precog's example, not yet edited");
     expect(storedUnder(own, 6)).not.toContain(EXAMPLE_CONTROL);
     expect(storedUnder(own, 7)).toContain(EXAMPLE_CONTROL);

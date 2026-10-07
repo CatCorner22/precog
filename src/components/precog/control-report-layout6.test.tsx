@@ -112,7 +112,18 @@ describe("report layout 6", () => {
     expect(printsLayoutSix(6)).toBe(true);
   });
 
-  it("names the people mapped, not a team size, and the starter map as Precog's example", () => {
+  it("prints versions locked under layout 6 as layout 6 printed them", () => {
+    const text = textOf(storedUnder(dana, 6));
+    expect(text).toContain(
+      "|Dental office · 12-person practice · starter process map (not yet edited) · generated",
+    );
+    expect(text).toContain(
+      "|Starter process map from the dental office template, not yet edited: 8 processes, none with an owner yet.",
+    );
+    expect(text).toContain("This does not mean you are uninsured..|");
+  });
+
+  it("names the people mapped, not a team size, and the starter map as Precog's example (layout 7)", () => {
     const text = textOf(live(dana));
     expect(text).toContain(
       "|Dental office · 12 people mapped · Precog's example dental office processes, not yet edited · generated",
@@ -234,7 +245,11 @@ describe("another problem in the report's monthly section", () => {
   };
   const monthly = (text: string) => between(text, "|Monthly review|", "|Priority stack|");
 
-  it("prints each problem as its own line under layout 6, after the checks", () => {
+  it("prints nothing new in versions locked under layout 6", () => {
+    expect(monthly(textOf(storedUnder(withProblem, 6)))).not.toContain(DONATION);
+  });
+
+  it("prints each problem as its own line under layout 7, after the checks", () => {
     const section = monthly(textOf(live(withProblem)));
     expect(section).toContain("|Open the bank statement: Done — Priya|");
     expect(section).toContain("|Read the cleared-check images: not recorded|");

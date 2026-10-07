@@ -246,16 +246,22 @@ export function ControlReport({
     item,
     latest: latestReview(profile.monthlyReviews ?? [], item.key, month),
   }));
-  // Layout 6 prints each other problem of the month on its own line after
-  // the checks; layouts 1 to 5 print the checks alone, as they did.
-  const problemLines = layoutSix
+  // Layout 7 prints each other problem of the month on its own line after
+  // the checks; layouts 1 to 6 print the checks alone, as they did.
+  const problemLines = layoutSeven
     ? otherProblems(profile.monthlyReviews ?? [], month).map(otherProblemReportLine)
     : [];
-  const team = layoutSix
+  const team = layoutSeven
     ? teamSizeLine(profile, tpl.people, industry.teamLabel)
-    : `${profile.staff.teamSize}-person ${industry.teamLabel}`;
+    : layoutSix
+      ? teamSizeLineSix(profile, tpl.people, industry.teamLabel)
+      : `${profile.staff.teamSize}-person ${industry.teamLabel}`;
   const example = `Precog's example ${industry.label.toLowerCase()} processes`;
-  const starter = layoutSix ? `${example}, not yet edited` : "sample process map";
+  const starter = layoutSeven
+    ? `${example}, not yet edited`
+    : layoutSix
+      ? "starter process map (not yet edited)"
+      : "sample process map";
   // Layout 7: Precog's examples on an own business, as the model stored them:
   // the processes on an own map still as the starter map had them (the
   // header already names an untouched starter map as the example), and the
@@ -630,7 +636,7 @@ export function ControlReport({
           {layoutThree ? (
             data.policyNote && (
               <p className="mt-2 text-xs text-neutral-600">
-                Insurance: {layoutSix ? endSentence(data.policyNote) : `${data.policyNote}.`}
+                Insurance: {layoutSeven ? endSentence(data.policyNote) : `${data.policyNote}.`}
               </p>
             )
           ) : (
@@ -811,9 +817,11 @@ export function ControlReport({
         <Section title="Process map">
           {mapFrom === "starter" && (
             <p className="mb-2 text-sm text-neutral-700">
-              {layoutSix
+              {layoutSeven
                 ? `${example}, not this business's own map yet:`
-                : `Sample process map from the ${industry.label.toLowerCase()} sample:`}{" "}
+                : layoutSix
+                  ? `Starter process map from the ${industry.label.toLowerCase()} template, not yet edited:`
+                  : `Sample process map from the ${industry.label.toLowerCase()} sample:`}{" "}
               {tpl.processes.length} processes, none with an owner yet.
             </p>
           )}
@@ -922,8 +930,19 @@ function segregationSentence(headline: OpenConflictHeadline, people: number): st
   return `${line} ${headline.closedByDualRelease} covered by dual release at every amount, not counted open.`;
 }
 
+/** Layout 6's team in the header, as layout 6 printed it: an own team is the count of active people on the map. */
+function teamSizeLineSix(
+  profile: Parameters<typeof teamSource>[0] & { staff: { teamSize: number } },
+  people: readonly { active: boolean }[],
+  teamLabel: string,
+): string {
+  if (teamSource(profile) !== "own") return `${profile.staff.teamSize}-person ${teamLabel}`;
+  const active = people.filter((p) => p.active).length;
+  return active > 0 ? `${active}-person ${teamLabel}` : `${teamLabel} with nobody on the map yet`;
+}
+
 /**
- * Layout 6's team in the header. An own team is the count of active people on
+ * Layout 7's team in the header. An own team is the count of active people on
  * the map, never read as the business's size, with the headcount the owner
  * gave at setup beside it when there is one; the sample keeps the size it was
  * built with.
