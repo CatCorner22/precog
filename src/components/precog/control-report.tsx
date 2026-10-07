@@ -55,11 +55,9 @@ import {
   lockedFigures,
   printsLayoutSix,
   recalculationNote,
-  ReportLayoutContext,
   REPORT_LAYOUT_VERSION,
   reviveReportModel,
   type FrozenReport,
-  type ReportLayout,
 } from "@/lib/precog/report/stored-model";
 import {
   REPORT_BASIS,
@@ -159,13 +157,8 @@ export function ControlReport({
   // Layout 6 sizes the header from the owner's own active people, names an
   // untouched starter map as such, counts the segregation sentence as the
   // executive summary does, and words the residual tile in the residual
-  // bands. Every section inside the report reads the same answer from
-  // useReportLayout() (report/stored-model).
+  // bands (report/stored-model `printsLayoutSix`).
   const layoutSix = printsLayoutSix(layoutVersion);
-  const reportLayout = useMemo<ReportLayout>(
-    () => ({ version: layoutVersion, layoutSix }),
-    [layoutVersion, layoutSix],
-  );
   const data = useMemo(
     () =>
       storedModel
@@ -263,7 +256,7 @@ export function ControlReport({
     </div>
   );
 
-  const page = (
+  return (
     <div className="report min-h-[calc(100dvh-var(--grok-banner-h,0px))] bg-white text-neutral-900">
       {!shared && (
         <div className="print:hidden sticky top-[var(--grok-banner-h,0px)] z-10 border-b border-neutral-200 bg-white/95 backdrop-blur">
@@ -851,7 +844,6 @@ export function ControlReport({
       </article>
     </div>
   );
-  return <ReportLayoutContext.Provider value={reportLayout}>{page}</ReportLayoutContext.Provider>;
 }
 
 /**

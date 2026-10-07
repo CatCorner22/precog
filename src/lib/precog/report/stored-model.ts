@@ -1,4 +1,3 @@
-import { createContext, useContext } from "react";
 import { resolveTemplate } from "../active-template";
 import { mapAssessed } from "../builder/map-state";
 import { printedBusinessName } from "../business-lifecycle";
@@ -85,7 +84,7 @@ export interface FrozenReport {
  * counted as the executive summary counts it (`openConflictHeadline`), and
  * the residual tile in the residual band words ("Severe on the residual
  * index", "N high · N moderate"). Every printed-text change made after it
- * goes behind `printsLayoutSix` (or `useReportLayout().layoutSix`).
+ * goes behind `printsLayoutSix`.
  * Layout 5: the monthly checks for the oldest month still open on the
  * report's day, named with their due day; the priority bands in the
  * urgency words ("Fix first", "Fix soon", "Worth doing", "Watch"); each
@@ -109,33 +108,11 @@ export const PRINTED_LAYOUT_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, REPORT
  * Whether a report printed under `layoutVersion` prints layout 6's text. A
  * live report, and a locked one that recalculates, print the current layout;
  * a version locked under layouts 1 to 5 with stored figures prints what it
- * printed then. Components inside the report read the same answer from
- * `useReportLayout()`.
+ * printed then. A section that changes printed text keeps the old text
+ * behind `!printsLayoutSix(layoutVersion)`.
  */
 export function printsLayoutSix(layoutVersion: number): boolean {
   return layoutVersion >= 6;
-}
-
-/**
- * The layout the report on screen prints: the current one for a live report
- * and a locked one that recalculates, else the layout its stored figures were
- * locked under. `layoutSix` is true from layout 6 on (`printsLayoutSix`).
- * A section that changes printed text keeps the old text behind
- * `!layoutSix`, so a version locked under layouts 1 to 5 prints as it did
- * then. `ControlReport` provides it.
- */
-export interface ReportLayout {
-  version: number;
-  layoutSix: boolean;
-}
-
-export const ReportLayoutContext = createContext<ReportLayout | null>(null);
-
-/** The layout of the report this component prints in (see `ReportLayout`). */
-export function useReportLayout(): ReportLayout {
-  const layout = useContext(ReportLayoutContext);
-  if (!layout) throw new Error("useReportLayout needs a ControlReport around it.");
-  return layout;
 }
 
 /**

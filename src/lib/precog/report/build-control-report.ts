@@ -25,7 +25,6 @@ import {
   casesForSodRules,
   citingCaseStats,
   isOwnSector,
-  recommendedStepsForRules,
 } from "../evidence";
 import {
   openFindings,
@@ -34,8 +33,7 @@ import {
   ruleIdsOf,
 } from "../sod/open-findings";
 import { openConflictHeadline } from "../headline/open-conflicts";
-import { rankFirstSteps } from "../coach/first-steps";
-import { withNamedSplitStep } from "../actions/do-next";
+import { rankedFirstSteps } from "../actions/do-next";
 import { buildWeeklyActions } from "../weekly-actions/build";
 import { buildProcessMapGraph } from "../process-graph";
 import { scoreMap } from "../builder/scored-map";
@@ -170,20 +168,11 @@ export function buildControlReportModel({
     ...matched.filter((c) => isOwnSector(c, profile.industry)),
     ...matched.filter((c) => !isOwnSector(c, profile.industry)),
   ];
-  // Ranked as Start here ranks its "Do these first" list, so the screen and
-  // the printed report lead with the same step: first by how many of the
-  // open findings each control answers. The split step names the person and
-  // the duty as Start here's does (actions/do-next `withNamedSplitStep`).
+  // Built as Start here builds its "Do these first" list (actions/do-next
+  // `rankedFirstSteps`), so the screen and the printed report lead with the
+  // same step, worded the same.
   const inPlace = setupInPlaceControls(profile.setupAnswers);
-  const steps = withNamedSplitStep(
-    rankFirstSteps(
-      recommendedStepsForRules(openRuleIds, profile.industry).filter(
-        (step) => !inPlace.has(step.control.id),
-      ),
-      open,
-    ),
-    open,
-  ).slice(0, 6);
+  const steps = rankedFirstSteps(open, profile.industry, (id) => inPlace.has(id)).slice(0, 6);
   // Count, median and detection routes describe only the cases whose records
   // show these gaps. Cases that merely share a scheme are listed but never
   // counted, so when no case shows the gaps the report gives no loss figure.
@@ -208,7 +197,6 @@ export function buildControlReportModel({
     // pairs and the pairs dual release closes counted apart, as that section does.
     conflicts: openConflictHeadline(sod, partialCoverage),
     firstStep: steps[0]?.control.label ?? null,
-    firstStepId: steps[0]?.control.id ?? null,
     registerReady,
     coverageIndex: continuity.coverageIndex,
     singlePoints: continuity.singlePoints.length,

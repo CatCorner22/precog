@@ -140,8 +140,6 @@ interface StartHereExposureModel {
   topThree: StartHereGap[];
   /** Narrowed gaps below the top three. */
   narrowed: StartHereGap[];
-  narrowedCount: number;
-  coveredCount: number;
   /** Rules dual release covers only above a threshold: rule id to the lowest threshold. */
   partialCoverage: Map<string, number>;
   /** The person who holds half or more of the open conflicts, counted in findings as the report counts them. */
@@ -268,10 +266,6 @@ export function buildStartHereModel({
     gaps,
     topThree,
     narrowed: gaps.slice(3).filter((g) => partialCoverage.has(g.conflict.ruleId)),
-    narrowedCount: gaps.filter((g) => partialCoverage.has(g.conflict.ruleId)).length,
-    coveredCount: gaps.filter(
-      (g) => g.conflict.dualReleaseMitigated && !partialCoverage.has(g.conflict.ruleId),
-    ).length,
     partialCoverage,
     headline: concentrationHeadline(open, "finding"),
     keptApart: separatedPairs(sod.conflicts, sod.assignments),
