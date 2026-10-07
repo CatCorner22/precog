@@ -69,6 +69,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
             practiceName: profile.practiceName,
             staff: profile.staff,
             riskVariables: profile.riskVariables,
+            setupAnswers: profile.setupAnswers ?? null,
             dualRelease: profile.dualRelease,
             customProcesses: profile.customProcesses ?? null,
             customPeople: profile.customPeople ?? null,
@@ -132,7 +133,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
           tab="pioneer"
           className="mt-3"
           icon={<Compass className="size-5 text-primary" aria-hidden />}
-          purpose="Pioneer is Precog's assistant. Ask about your team, someone leaving, or what to fix first. Answers come from your records."
+          purpose="Pioneer is Precog's assistant. Ask about your team, someone leaving, or what to fix first; it answers from your records."
           method={
             <p>
               Precog&rsquo;s rules write every answer from your records: duty conflicts, who knows

@@ -51,7 +51,10 @@ export function renderBriefSelection(
   // Keep the rules engine's priority order, even when the model selects out of order.
   const highlights = claims
     .filter((claim) => selected.has(claim.id))
-    .map((claim) => claim.text.split("\n\n", 1)[0]);
+    .map((claim) => {
+      const [action, ...rest] = claim.text.split("\n\n");
+      return rest.length ? `- **${action}**: ${rest.join(" ")}` : `- **${action}**`;
+    });
   if (highlights.length === 0) return brief.markdown;
   const warningsAlreadyInBrief = brief.chickenLittleWarnings.every((warning) =>
     brief.markdown.includes(warning),
@@ -60,5 +63,5 @@ export function renderBriefSelection(
     brief.chickenLittleWarnings.length && !warningsAlreadyInBrief
       ? `\n\n### Important limits\n${brief.chickenLittleWarnings.map((text) => `- ${text}`).join("\n")}`
       : "";
-  return `## Most relevant to your question\n\n${highlights.map((text) => `- **${text}**`).join("\n")}\n\nGrok picked these from Precog's moves below without rewriting them. It did not rank the risks or check them.${limits}\n\n---\n\n${brief.markdown}`;
+  return `## Most relevant to your question\n\n${highlights.join("\n")}\n\nGrok picked these from Precog's moves below without rewriting them. It did not rank the risks or check them.${limits}\n\n---\n\n${brief.markdown}`;
 }

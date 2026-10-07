@@ -3,6 +3,7 @@ import { serverUtcDay } from "../dates";
 import { isIndustryId, type IndustryId } from "../industry";
 import { resolveTemplate } from "../active-template";
 import { mergeDualReleasePolicy, type DualReleasePolicy } from "../controls/dual-release";
+import { normalizeSetupAnswers } from "../onboarding/setup-answers";
 import {
   DECISION_KIND_LABEL,
   defaultProfile,
@@ -37,6 +38,7 @@ export interface PioneerProfileInput {
   customPeople?: Person[] | null;
   customKnowledge?: KnowledgeItem[] | null;
   customRelations?: KnowledgeRelation[] | null;
+  setupAnswers?: unknown;
   /** Journal entries, so Pioneer knows which continuity steps are already committed to. */
   decisions?: DecisionEntry[] | null;
   /** Known leave, so Pioneer can warn ahead of it. */
@@ -130,6 +132,7 @@ export function pioneerProfileFrom(
   const customRelations = Array.isArray(input.customRelations)
     ? input.customRelations.slice(0, PIONEER_LIST_CAPS.relations)
     : null;
+  const setupAnswers = normalizeSetupAnswers(input.setupAnswers);
   const dualRelease = mergeDualReleasePolicy(
     resolveTemplate({ industry, customProcesses, customPeople, customKnowledge, customRelations }),
     input.dualRelease,
@@ -171,6 +174,7 @@ export function pioneerProfileFrom(
     customPeople,
     customKnowledge,
     customRelations,
+    ...(setupAnswers ? { setupAnswers } : {}),
     decisions,
     plannedAbsences,
     ...(procedures.length ? { procedures } : {}),

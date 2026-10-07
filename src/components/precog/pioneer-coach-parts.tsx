@@ -72,17 +72,16 @@ export function CoachResultView({
           )}
         </CardHeader>
         <CardContent>
-          <BriefMarkdown markdown={result.markdown} />
+          <BriefMarkdown markdown={withoutSection(result.markdown, "Recommended moves")} />
         </CardContent>
       </Card>
 
       {result.decisions.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle>{`Add a move to the ${tabLabel("journal", say)}`}</CardTitle>
+            <CardTitle>Recommended moves</CardTitle>
             <CardDescription>
-              A logged move gets a review date. The next brief follows it up instead of repeating
-              it.
+              {`Add one to the ${tabLabel("journal", say)}. The next brief follows it up instead of repeating it.`}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -98,6 +97,7 @@ export function CoachResultView({
                     <Badge variant="default">{d.effort} effort</Badge>
                     <span className="text-xs text-muted">within {count(d.horizonDays, "day")}</span>
                   </div>
+                  <p className="mt-1 text-xs text-muted">{d.rationale}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <Button size="sm" variant="secondary" disabled={done} onClick={() => onLog(d)}>
                       {done ? <Check className="size-3.5" /> : <BookOpen className="size-3.5" />}
@@ -174,6 +174,26 @@ export function CoachResultView({
             </section>
           )}
 
+          {result.details.length > 0 && (
+            <section>
+              <div className="space-y-3">
+                {result.details.map((detail) => (
+                  <div
+                    key={detail.title}
+                    className="rounded-xl border border-border bg-elevated px-3 py-3"
+                  >
+                    <h3 className="text-sm font-medium">{detail.title}</h3>
+                    <ul className="mt-2 space-y-1 text-xs text-muted">
+                      {detail.lines.map((line, index) => (
+                        <li key={`${index}-${line}`}>· {renderInline(line)}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {result.evidence.length > 0 && (
             <section>
               <h3 className="text-sm font-semibold">Where the figures come from</h3>
@@ -234,20 +254,24 @@ export function BriefMarkdown({ markdown }: { markdown: string }) {
   );
 }
 
+export function withoutSection(markdown: string, heading: string): string {
+  const lines = markdown.split("\n");
+  const start = lines.findIndex((line) => line === `## ${heading}`);
+  if (start < 0) return markdown;
+  const end = lines.findIndex((line, index) => index > start && line.startsWith("## "));
+  return [...lines.slice(0, start), ...(end < 0 ? [] : lines.slice(end))].join("\n");
+}
+
 /** Who wrote the brief, in one line the owner can repeat to their accountant. */
 export function briefAuthorLine(result: Pick<CoachResult, "modelStatus" | "model">): string {
   return result.modelStatus === "answered"
-    ? `Grok (${result.model ?? "model"}) picked the top moves. Precog's rules wrote every word.`
+    ? `Grok (${result.model ?? "model"}) picked the moves most relevant to your question. Precog's rules wrote every word.`
     : "Written by Precog's rules from your records. No AI wrote it.";
 }
 
 /** Warnings the brief's own Warnings section does not already list (sign in, the model failed). */
 export function extraWarnings(result: Pick<CoachResult, "warnings" | "markdown">): string[] {
-  // The brief prints the breached count in its Watched conditions section (the
-  // rules brief) or in a "Watched conditions: **N breached**" line.
-  const watchedConditionsListed =
-    result.markdown.includes("## Watched conditions\n- **") ||
-    result.markdown.includes("Watched conditions: **");
+  const watchedConditionsListed = result.markdown.includes("Watched conditions: **");
   return result.warnings.filter(
     (warning) =>
       !result.markdown.includes(warning) &&
@@ -265,7 +289,7 @@ export function coachErrorMessage(e: unknown): string {
     e && typeof e === "object" && "status" in e ? (e as { status: unknown }).status : null;
   const refusal = typeof status === "number" && status >= 400 && status < 500;
   if (refusal && e instanceof Error && e.message.trim()) return e.message;
-  return "Pioneer could not build a brief. Try again in a moment.";
+  return "Pioneer could not answer just now. Try again in a moment.";
 }
 
 export function briefClipboardText(result: Pick<CoachResult, "question" | "markdown">): string {
