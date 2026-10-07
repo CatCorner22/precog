@@ -200,3 +200,29 @@ describe("Add client on the firm workspace", () => {
     });
   });
 });
+
+describe("Firm settings while the account loads", () => {
+  it("offers no firm name form, so a submit cannot rename the firm or reset its plan", async () => {
+    // The firm never arrives: the page stays on its first answer.
+    server.getFirm.mockReturnValue(new Promise(() => undefined));
+    const tree = await runtime.settle(Page);
+    const fold = elements(tree).find((el) => el.type === "details");
+    expect(fold).toBeDefined();
+    expect(fold!.props.open).toBe(false);
+    const inside = elements(fold!.props.children);
+    expect(inside.some((el) => el.type === "form")).toBe(false);
+    const text = JSON.stringify(fold!.props.children);
+    expect(text).toContain("Loading the account…");
+    expect(text).not.toContain("Create the firm");
+    expect(text).not.toContain("Set up the firm");
+  });
+
+  it("offers to create the firm, open, once the account shows there is none", async () => {
+    const tree = await runtime.settle(Page);
+    const fold = elements(tree).find((el) => el.type === "details")!;
+    expect(fold.props.open).toBe(true);
+    const inside = elements(fold.props.children);
+    expect(inside.some((el) => el.type === "form")).toBe(true);
+    expect(JSON.stringify(fold.props.children)).toContain("Create the firm");
+  });
+});

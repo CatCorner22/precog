@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AddClientForm, ClientList } from "./client-list";
-import { clientReportSearch, openClientReport } from "./open-client-report";
+import { addClientFromForm, clientReportSearch, openClientReport } from "./open-client-report";
 import type { ClientEngagementRow } from "@/lib/precog/firm/store";
 
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { success: vi.fn(), error: toastError }),
+}));
 vi.mock("@/lib/precog/firm/server", () => ({
   restoreDeletedClient: vi.fn(),
   setClientOwnerEmail: vi.fn(),
@@ -331,6 +335,56 @@ describe("Add client on the client list", () => {
     expect(html).toContain(
       "Setup opens next. Precog lists the client here once you finish its setup; a client you leave in the middle of setup is not kept.",
     );
+  });
+});
+
+describe("Add client and open setup", () => {
+  it("frees the form and closes it once the client is added", async () => {
+    const busy: boolean[] = [];
+    const added = vi.fn();
+    await addClientFromForm(
+      async () => true,
+      "Bayside Dental",
+      "dental",
+      (b) => busy.push(b),
+      added,
+    );
+    expect(busy).toEqual([true, false]);
+    expect(added).toHaveBeenCalledTimes(1);
+  });
+
+  it("frees the form and keeps it open when Precog refuses", async () => {
+    const busy: boolean[] = [];
+    const added = vi.fn();
+    await addClientFromForm(
+      async () => false,
+      "Bayside Dental",
+      "dental",
+      (b) => busy.push(b),
+      added,
+    );
+    expect(busy).toEqual([true, false]);
+    expect(added).not.toHaveBeenCalled();
+  });
+
+  it("frees the form and says why when adding fails", async () => {
+    toastError.mockClear();
+    const busy: boolean[] = [];
+    const added = vi.fn();
+    await expect(
+      addClientFromForm(
+        () => Promise.reject(new Error("Precog could not reach the server.")),
+        "Bayside Dental",
+        "dental",
+        (b) => busy.push(b),
+        added,
+      ),
+    ).resolves.toBeUndefined();
+    expect(busy).toEqual([true, false]);
+    expect(added).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith("Precog could not add the client.", {
+      description: "Precog could not reach the server.",
+    });
   });
 });
 

@@ -8,6 +8,7 @@ import type { DeletedBusinessRow } from "@/lib/precog/business-store";
 import { fieldCls } from "@/components/ui/field-classes";
 import { INDUSTRIES, type IndustryId } from "@/lib/precog/industry";
 import { cn } from "@/lib/utils";
+import { addClientFromForm } from "./open-client-report";
 import {
   CLIENT_COLUMNS,
   clientStatusText,
@@ -395,11 +396,7 @@ export function AddClientForm({
       onSubmit={(e) => {
         e.preventDefault();
         if (!name.trim() || busy) return;
-        setBusy(true);
-        void onAdd(name.trim(), industry).then((ok) => {
-          setBusy(false);
-          if (ok) onCancel();
-        });
+        void addClientFromForm(onAdd, name.trim(), industry, setBusy, onCancel);
       }}
     >
       <div className="flex flex-wrap items-end gap-2">
