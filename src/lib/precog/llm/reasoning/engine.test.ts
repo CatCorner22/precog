@@ -150,7 +150,7 @@ function scopedReasoning(profile: PracticeProfile) {
 const STACK = "Cameras + dual release + bank reconciliation (stack)";
 const CASH_CUT = "Cut daily cash exposure 20%";
 const DENTAL_SCOPE_NOTE =
-  'Sample scenarios from the dental office sample (5) stay out: their losses and timelines are the sample\'s assumptions, not facts about your business. To make one your own, open it on What could happen and choose "This could happen here"; it then counts in the priority list and your totals.';
+  'Sample scenarios from the dental office sample (6) stay out: their losses and timelines are the sample\'s assumptions, not facts about your business. To make one your own, open it on What could happen and choose "This could happen here"; it then counts in the priority list and your totals.';
 
 describe("one scenario scope for the beam, the counterfactual and Pioneer", () => {
   it("never puts the daily cash cut in the beam for an own business with nothing confirmed", () => {
@@ -196,7 +196,7 @@ describe("one scenario scope for the beam, the counterfactual and Pioneer", () =
     const tool = executeTool("simulate_variable_cascades", { profile });
     const data = tool.data as { scenarioId: string; baseline: { residualAverage: number } };
     expect(data.scenarioId).toBe("sc-vendor-fraud");
-    expect(panel.baseline.residualAverage).toBe(57);
+    expect(panel.baseline.residualAverage).toBe(59);
     expect(data.baseline.residualAverage).toBe(panel.baseline.residualAverage);
   });
 
@@ -211,8 +211,8 @@ describe("one scenario scope for the beam, the counterfactual and Pioneer", () =
       undefined,
       { confirmedScenarioIds: new Set() },
     );
-    expect(cameras.before.residualAverage).toBe(58);
-    expect(cameras.after.residualAverage).toBe(57);
+    expect(cameras.before.residualAverage).toBe(60);
+    expect(cameras.after.residualAverage).toBe(59);
     expect(cameras.overallVerdict).toBe(
       "average residual risk falls 1 point. No tradeoffs in this model.",
     );
@@ -222,7 +222,7 @@ describe("one scenario scope for the beam, the counterfactual and Pioneer", () =
       'Switching on "Install security cameras (cash/safe/front)" lowers the residual index by about 1 point and lowers the cost-of-risk figure.',
     );
     expect(narratives).toContain(
-      `Switching on "${STACK}" lowers the residual index by about 8 points and lowers the cost-of-risk figure.`,
+      `Switching on "${STACK}" lowers the residual index by about 9 points and lowers the cost-of-risk figure.`,
     );
   });
 });

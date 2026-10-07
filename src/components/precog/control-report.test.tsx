@@ -594,10 +594,10 @@ describe("report cover headlines", () => {
     const tiles = (industry: "dental" | "retail") =>
       between(textOf(render(defaultProfile(industry))), "|Fix first on the", "|Duty separation|");
     expect(tiles("dental")).toBe(
-      "|Fix first on the priority list|3|Priority 88 or more|Severe on the residual index|4|Residual 80 or more · 8 high · 7 moderate",
+      "|Fix first on the priority list|3|Priority 88 or more|Severe on the residual index|5|Residual 80 or more · 9 high · 6 moderate",
     );
     expect(tiles("retail")).toBe(
-      "|Fix first on the priority list|4|Priority 88 or more|Severe on the residual index|6|Residual 80 or more · 6 high · 5 moderate",
+      "|Fix first on the priority list|4|Priority 88 or more|Severe on the residual index|7|Residual 80 or more · 7 high · 4 moderate",
     );
   });
 
@@ -605,7 +605,7 @@ describe("report cover headlines", () => {
     for (const layoutVersion of [2, 3, 4]) {
       const text = textOf(renderStored(defaultProfile("dental"), layoutVersion));
       expect(text).toContain(
-        "|Top-priority items|3|Priority 88 or more|Residual risks by band|4 fix first|Fix first at 80 or more · 8 fix soon · 7 worth doing|",
+        "|Top-priority items|3|Priority 88 or more|Residual risks by band|5 fix first|Fix first at 80 or more · 9 fix soon · 6 worth doing|",
       );
       expect(text).not.toContain("Fix first on the priority list");
       expect(text).not.toContain("on the residual index");

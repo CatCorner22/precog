@@ -147,7 +147,7 @@ describe("report layout 6", () => {
   it("prints the residual tile in the residual band words", () => {
     const text = textOf(live(defaultProfile("dental")));
     expect(between(text, "|Severe on the residual index|", "|Duty separation|")).toBe(
-      "|Severe on the residual index|4|Residual 80 or more · 8 high · 7 moderate",
+      "|Severe on the residual index|5|Residual 80 or more · 9 high · 6 moderate",
     );
     expect(text).not.toContain("Fix first on the residual index");
   });
@@ -162,7 +162,7 @@ describe("report layout 6", () => {
     );
     const sample = textOf(storedUnder(defaultProfile("dental"), 5));
     expect(sample).toContain(
-      "|Fix first on the residual index|4|Residual 80 or more · 8 fix soon · 7 worth doing|",
+      "|Fix first on the residual index|5|Residual 80 or more · 9 fix soon · 6 worth doing|",
     );
     expect(sample).not.toContain("Severe on the residual index");
   });
