@@ -153,6 +153,14 @@ describe("report layout 6", () => {
     expect(textOf(live(empty))).toContain("|Dental office · nobody mapped yet ·");
   });
 
+  it("ends the insurance sentence with one full stop", () => {
+    const text = textOf(live(dana));
+    expect(text).toContain(
+      "|Insurance: Nobody has assessed insurance, so Precog models no recovery. This does not mean you are uninsured.|",
+    );
+    expect(text).not.toContain("uninsured..");
+  });
+
   it("keeps the sample's own size on the sample", () => {
     const text = textOf(live(defaultProfile("dental")));
     expect(text).toContain("|Dental office · 6-person practice · industry template map");
@@ -188,6 +196,8 @@ describe("report layout 6", () => {
     expect(text).toContain("|Sample process map from the dental office sample:");
     expect(text).not.toContain("not yet edited");
     expect(text).not.toContain("Precog's example");
+    // Layout 5 keeps the double full stop it printed.
+    expect(text).toContain("This does not mean you are uninsured..|");
     expect(text).toMatch(
       /\|Segregation of duties\|\d+ critical, \d+ high, \d+ medium open conflicts across \d+ of 12 people\. \d+ covered by dual release at every amount\./,
     );

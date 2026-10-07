@@ -74,7 +74,7 @@ import {
 import { Kpi, Section } from "@/components/precog/control-report-parts";
 import { formatDay, formatMonth, localDateKey } from "@/lib/precog/dates";
 import { decidedOn } from "@/lib/precog/decisions/decided-on";
-import { count, firstName, midSentence, verb } from "@/lib/precog/text";
+import { count, endSentence, firstName, midSentence, verb } from "@/lib/precog/text";
 
 /**
  * Print-friendly control priorities report — File → Print → Save as PDF.
@@ -580,7 +580,9 @@ export function ControlReport({
           </div>
           {layoutThree ? (
             data.policyNote && (
-              <p className="mt-2 text-xs text-neutral-600">Insurance: {data.policyNote}.</p>
+              <p className="mt-2 text-xs text-neutral-600">
+                Insurance: {layoutSix ? endSentence(data.policyNote) : `${data.policyNote}.`}
+              </p>
             )
           ) : (
             <p className="mt-2 text-xs text-neutral-600">
