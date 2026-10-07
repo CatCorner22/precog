@@ -1,21 +1,26 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { BellDot, ChevronDown } from "lucide-react";
 import { openAccessChecks } from "@/lib/precog/continuity/access-removal";
 import { localDateKey } from "@/lib/precog/dates";
 import { continuitySlips, decisionsDue } from "@/lib/precog/decisions/follow-through";
-import { openMonthlyChecks } from "@/lib/precog/firm/reviews";
 import { usePracticeState, useTemplate } from "@/lib/precog/practice-context";
 import { useToday } from "@/lib/use-today";
 import { cn } from "@/lib/utils";
-import { buildNeedsAttentionItems, openNeedsAttentionItem } from "./needs-attention-menu.logic";
+import {
+  buildNeedsAttentionItems,
+  groupNeedsAttentionItems,
+  openNeedsAttentionItem,
+  type AttentionGroup,
+  type AttentionItem,
+} from "./needs-attention-menu.logic";
 
 /**
- * Everything that waits on the owner, behind one header button: decisions
- * past their review date, decisions undone since they were marked done,
- * people who left whose access is unchecked, and the Monthly review's checks
- * not done or with an exception to resolve: last month's through its due day
- * (the 10th) and this month's from the 5th, as the firm's client table counts
- * them (`openMonthlyChecks`).
+ * Everything that waits on the team, behind one header button and grouped by
+ * person: decisions past their review date, decisions undone since they were
+ * marked done, people who left whose access is unchecked, the Monthly
+ * review's checks not done for the month that is due (last month through the
+ * 10th, then this month), and each check with an exception to resolve in
+ * either open month.
  * Hidden when nothing waits. The list exists only while it is open, so the
  * tab walk's count of the Advanced menu never sees these items.
  */
@@ -32,16 +37,17 @@ export function NeedsAttentionMenu({
   const today = useToday();
   const day = localDateKey(today);
 
-  const items = useMemo(() => {
-    const overdue = decisionsDue(profile.decisions, day).overdue.length;
-    const slipped = continuitySlips(profile.decisions, tpl).length;
-    const leavers = openAccessChecks(
-      profile.leaverAccessChecks,
-      profile.industry,
-      tpl.people,
-    ).length;
-    const months = openMonthlyChecks(day, profile.monthlyReviews ?? []);
-    return buildNeedsAttentionItems({ overdue, slipped, leavers, months });
+  const groups = useMemo(() => {
+    const items = buildNeedsAttentionItems({
+      day,
+      people: tpl.people,
+      roleDuties: tpl.roleTemplates,
+      overdue: decisionsDue(profile.decisions, day).overdue,
+      slipped: continuitySlips(profile.decisions, tpl).map((slip) => slip.decision),
+      leavers: openAccessChecks(profile.leaverAccessChecks, profile.industry, tpl.people).length,
+      reviews: profile.monthlyReviews ?? [],
+    });
+    return groupNeedsAttentionItems(items, tpl.people);
   }, [
     day,
     tpl,
@@ -66,7 +72,10 @@ export function NeedsAttentionMenu({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  const total = items.reduce((n, item) => n + item.n, 0);
+  const total = groups.reduce(
+    (n, group) => n + group.items.reduce((sum, item) => sum + item.n, 0),
+    0,
+  );
   if (total === 0) return null;
 
   function onMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -126,28 +135,68 @@ export function NeedsAttentionMenu({
           role="menu"
           aria-label="Needs attention"
           onKeyDown={onMenuKeyDown}
-          className="absolute right-0 z-30 mt-1 w-72 rounded-lg border border-border bg-surface p-1 shadow-xl"
+          className="absolute right-0 z-30 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface p-1 shadow-xl"
         >
-          {items.map((item, i) => (
-            <button
-              key={item.id}
-              ref={(el) => {
-                itemRefs.current[i] = el;
-              }}
-              type="button"
-              role="menuitem"
-              tabIndex={-1}
-              onClick={() => {
-                setOpen(false);
-                openNeedsAttentionItem(item, onOpen);
-              }}
-              className="flex w-full items-center rounded-md px-2.5 py-2 text-left text-sm text-muted hover:bg-elevated hover:text-fg focus:bg-elevated focus:text-fg"
-            >
-              {item.text}
-            </button>
-          ))}
+          <NeedsAttentionList
+            groups={groups}
+            itemRefs={itemRefs}
+            onPick={(item) => {
+              setOpen(false);
+              openNeedsAttentionItem(item, onOpen);
+            }}
+          />
         </div>
       )}
     </div>
   );
+}
+
+/**
+ * The open menu's rows: each person's name over their items, then
+ * "Unassigned". Every row is a menu item at least 44px tall on a touch
+ * screen; `itemRefs` holds them in order for the arrow keys.
+ */
+export function NeedsAttentionList({
+  groups,
+  itemRefs,
+  onPick,
+}: {
+  groups: readonly AttentionGroup[];
+  itemRefs?: { current: (HTMLButtonElement | null)[] };
+  onPick: (item: AttentionItem) => void;
+}) {
+  const base = useId();
+  let index = 0;
+  return groups.map((group, g) => {
+    const headingId = `${base}-${g}`;
+    return (
+      <div key={group.who ?? ""} role="group" aria-labelledby={headingId}>
+        <div
+          id={headingId}
+          role="presentation"
+          className="px-2.5 pt-2 pb-1 text-xs font-semibold tracking-wide text-subtle uppercase"
+        >
+          {group.heading}
+        </div>
+        {group.items.map((item) => {
+          const i = index++;
+          return (
+            <button
+              key={item.id}
+              ref={(el) => {
+                if (itemRefs) itemRefs.current[i] = el;
+              }}
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              onClick={() => onPick(item)}
+              className="flex w-full items-center rounded-md px-2.5 py-2 text-left text-sm text-muted hover:bg-elevated hover:text-fg focus:bg-elevated focus:text-fg pointer-coarse:min-h-11"
+            >
+              {item.text}
+            </button>
+          );
+        })}
+      </div>
+    );
+  });
 }
