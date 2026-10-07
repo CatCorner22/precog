@@ -10,7 +10,7 @@ import { partialDualReleaseCoverage } from "../sod/open-findings";
 import { rankedActionPlan, type ActionStepTier } from "./action-plan";
 import { splitStepLabel } from "../actions/do-next";
 import { openFindings } from "../sod/open-findings";
-import { acceptanceDates, openConflictHeadline } from "./open-conflicts";
+import { acceptanceDates, openConflictBadge, openConflictHeadline } from "./open-conflicts";
 
 const TODAY = "2026-09-26";
 
@@ -106,6 +106,28 @@ describe("one open count on Start here, the report and the firm's client list", 
       general: [13, 4, 9, 0, 0, 0],
       "general with dual release": [8, 2, 6, 0, 2, 5],
     });
+  });
+});
+
+describe("openConflictBadge", () => {
+  it("counts the open duty conflicts the Duty conflicts tile and Start here count", () => {
+    const { report, start } = screens(defaultProfile("dental"));
+    const headline = openConflictHeadline(report.sod, report.partialCoverage);
+    expect(openConflictBadge(headline)).toEqual({
+      n: 20,
+      tone: "danger",
+      text: "20 open duty conflicts, 4 critical",
+    });
+    expect(openConflictBadge(headline)?.n).toBe(start.figures.open);
+  });
+
+  it("warns without a critical one, and shows nothing with none open", () => {
+    expect(openConflictBadge({ open: 1, critical: 0 })).toEqual({
+      n: 1,
+      tone: "warn",
+      text: "1 open duty conflict, 0 critical",
+    });
+    expect(openConflictBadge({ open: 0, critical: 0 })).toBeNull();
   });
 });
 

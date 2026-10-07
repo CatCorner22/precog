@@ -3,6 +3,7 @@ import type { IndustryId } from "../industry";
 import type { DecisionEntry } from "../practice-profile";
 import type { DetectedConflict } from "../sod/detect";
 import { dualReleaseSplit, openFindings } from "../sod/open-findings";
+import { count } from "../text";
 
 /** The parts of a finding the headline reads. */
 type HeadlineFinding = Pick<
@@ -89,6 +90,23 @@ export function openConflictBreakdown(
   const parts = [`${headline.critical} critical`, `${headline.high} high`];
   if (headline.other > 0) parts.push(`${headline.other} other`);
   return parts.join(" · ");
+}
+
+/**
+ * The "Who controls what" tab's badge: the open duty-conflict count the
+ * Duty conflicts tile and Start here print, read aloud with its critical
+ * part ("20 open duty conflicts, 4 critical"); danger while a critical one is
+ * open. Null when none is open.
+ */
+export function openConflictBadge(
+  headline: Pick<OpenConflictHeadline<HeadlineFinding>, "open" | "critical">,
+): { n: number; tone: "warn" | "danger"; text: string } | null {
+  if (headline.open === 0) return null;
+  return {
+    n: headline.open,
+    tone: headline.critical > 0 ? "danger" : "warn",
+    text: `${count(headline.open, "open duty conflict")}, ${headline.critical} critical`,
+  };
 }
 
 const ACCEPT_KINDS: ReadonlySet<string> = new Set(["accept_residual"]);

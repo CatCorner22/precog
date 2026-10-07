@@ -43,7 +43,8 @@ import {
 import { usePracticeActions, usePracticeState, useTemplate } from "@/lib/precog/practice-context";
 import { usePresentation } from "@/lib/precog/presentation";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { count } from "@/lib/precog/text";
+import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
+import { openConflictBadge, openConflictHeadline } from "@/lib/precog/headline/open-conflicts";
 import { AccountDataControls } from "@/components/precog/account-menu";
 import { BusinessSwitcher } from "@/components/precog/business-switcher";
 import { DigestConsentPrompt } from "@/components/precog/digest-consent-prompt";
@@ -250,7 +251,18 @@ function Home() {
     () => detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease)),
     [tpl, profile.staff, profile.dualRelease],
   );
-  const critical = sodReport.summary.critical;
+  // The badge counts what the Duty conflicts tile and Start here count
+  // (headline/open-conflicts), so the strip never shows a second number.
+  const conflictBadge = useMemo(
+    () =>
+      openConflictBadge(
+        openConflictHeadline(
+          sodReport,
+          partialDualReleaseCoverage(profile.dualRelease, sodReport.conflicts),
+        ),
+      ),
+    [sodReport, profile.dualRelease],
+  );
 
   /** Roving focus for the tab strip: arrow keys, Home, and End move between tabs. */
   function onTabKeyDown(event: KeyboardEvent<HTMLElement>) {
@@ -416,13 +428,7 @@ function Home() {
                 >
                   <Icon className="size-4" aria-hidden />
                   {say(t.label, t.tactical)}
-                  {t.id === "sod" && critical > 0 && (
-                    <CountBadge
-                      n={critical}
-                      tone="danger"
-                      text={count(critical, "critical duty conflict")}
-                    />
-                  )}
+                  {t.id === "sod" && conflictBadge && <CountBadge {...conflictBadge} />}
                 </button>
               );
             })}
