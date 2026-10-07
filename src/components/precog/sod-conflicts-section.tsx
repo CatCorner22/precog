@@ -53,9 +53,8 @@ export function SodConflictsSection({
           Detected conflicts
         </CardTitle>
         <CardDescription>
-          Each pair of duties one person holds, whether dual release narrows it, and whether you
-          have accepted the risk. Precog lists the most severe first; each card names who holds the
-          pair and the staffing that leaves it open.
+          Each pair of duties one person holds, most severe first: who holds it, whether dual
+          release narrows it, and whether you accepted the risk.
         </CardDescription>
         <IndexBasis />
         <div
@@ -168,7 +167,7 @@ function ConflictCardDetails({
       )}
       {stillToDo.length > 0 && (
         <p className="mt-2 text-xs text-muted">
-          Until different people hold the duties: {stillToDo.join("; ")}
+          Until you split the duties: {stillToDo.join("; ")}
         </p>
       )}
       {procedure && (

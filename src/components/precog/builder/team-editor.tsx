@@ -322,8 +322,8 @@ export function TeamEditor({
   return (
     <div className="space-y-2 rounded-lg border border-border bg-panel p-2.5">
       <p className="text-xs text-muted">
-        Each person&apos;s job title sets their usual duties, and the duty-conflict check reads
-        those duties. Pick the closest title, then adjust the duties if they differ.
+        A job title sets the person&apos;s usual duties, and the duty-conflict check reads them.
+        Pick the closest title, then adjust the duties.
       </p>
       <div className="flex flex-wrap items-center gap-1.5">
         <Button size="sm" variant="secondary" onClick={() => csvInputRef.current?.click()}>

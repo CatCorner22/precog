@@ -20,10 +20,6 @@ import { DEFAULT_WEIGHTS, type ScoringWeights } from "./weights";
 /** The label every scenario dollar and day figure carries. */
 export const ILLUSTRATIVE_LABEL = "Illustrative example, not sized to your business";
 
-/** What the illustrative figures do not do, for the screens that print them. */
-export const ILLUSTRATIVE_RANK_NOTE =
-  "The dollars and days do not set where a scenario ranks: the residual index and the priority list rank it by its likelihood and severity levels.";
-
 type StaffFactorKey = Exclude<keyof ScoringWeights["scenarioStaff"], "timelineReliefShare">;
 
 /**
