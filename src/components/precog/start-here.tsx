@@ -4,7 +4,7 @@ import { tabLabel, type NavFn } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
 import type { SodDetectionReport } from "@/lib/precog/sod/detect";
 import { buttonClass } from "@/components/ui/button-variants";
-import { HowThisWorks } from "./page-intro";
+import { HowThisWorks, WordsUsedHere } from "./page-intro";
 import { EvidenceFooter } from "./start-here-parts";
 import { StartHereContinuitySection } from "./start-here-continuity-section";
 import { StartHereCostSection } from "./start-here-cost-section";
@@ -63,18 +63,22 @@ export function StartHere({
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
           What to do first, who is out today, and whether the work goes on without them.
         </p>
+        <WordsUsedHere tab="start" />
         <HowThisWorks>
           <p>
-            Two headline figures, who is out today, then the three actions that answer the most of
-            your open gaps; most are detective controls, which shorten how long a scheme runs, and
-            that is what decides the loss. {WHY_WE_SAY_THIS} holds the evidence: where one person
-            controls too much, what that same exposure has cost real businesses, your continuity
-            figures, what Precog cannot tell you, and every case it cites.
+            This page shows two key numbers, who is out today, and the three steps that close the
+            most gaps. Most of the steps are checks that catch a problem sooner. The sooner a theft
+            is found, the smaller the loss.
           </p>
           <p>
-            Every dollar figure and duration on this page links to the case or study it came from.
-            The continuity percentages are Precog&rsquo;s own indices; {tabLabel("knowledge", say)}{" "}
-            explains how Precog counts each.
+            {WHY_WE_SAY_THIS} holds the proof. It shows where one person does too much, what the
+            same gap has cost real businesses, and who can cover for whom. It also says what Precog
+            cannot tell you, and lists every case it uses.
+          </p>
+          <p>
+            Each dollar figure and time span links to the case or study it came from. The cover
+            percentages are Precog&rsquo;s own scores; {tabLabel("knowledge", say)} explains how
+            each one is counted.
           </p>
         </HowThisWorks>
       </header>

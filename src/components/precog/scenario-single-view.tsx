@@ -22,7 +22,7 @@ import { usePractice } from "@/lib/precog/practice-context";
 import { useTabName } from "@/lib/precog/presentation";
 import { DEFAULT_FRAUD_STATS } from "@/lib/precog/templates/shared-controls";
 import { ILLUSTRATIVE_LABEL, ILLUSTRATIVE_RANK_NOTE } from "@/lib/precog/scoring/scenario-level";
-import { CaseCard, UnverifiedListNote } from "@/components/precog/case-card";
+import { CaseCard, listNoteShown, UnverifiedListNote } from "@/components/precog/case-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -414,7 +414,7 @@ function RealCasesCard({ cases }: { cases: ScenarioCases }) {
                 From your line of business
               </p>
             )}
-            <CaseCard study={c} />
+            <CaseCard study={c} unverifiedMarker={!listNoteShown(cases.shown)} />
           </div>
         ))}
         {total > cases.shown.length && (

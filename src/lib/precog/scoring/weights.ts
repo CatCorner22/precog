@@ -279,6 +279,12 @@ export const WEIGHT_DESCRIPTIONS: Record<string, string> = {
 
 export type ActionBand = "accept_monitor" | "mitigate" | "act_now" | "critical_path";
 
+/**
+ * The residual index's bands, by how much risk is left: Low, Moderate, High
+ * and Severe. They are not the priority list's words: "Fix first" names only
+ * the priority list's top band (PRIORITY_BAND_LABEL in bands.ts), so the two
+ * scales never share a label with different cutoffs.
+ */
 const ACTION_BANDS: {
   band: ActionBand;
   min: number;
@@ -290,31 +296,36 @@ const ACTION_BANDS: {
     band: "accept_monitor",
     min: 0,
     max: RISK_SCALE.mitigate - 1,
-    label: "Watch",
-    guidance: "Residual risk is tolerable if monitoring stays live. Set a re-review date.",
+    label: "Low",
+    guidance: "Little risk is left. Keep your checks running and look again at your next review.",
   },
   {
     band: "mitigate",
     min: RISK_SCALE.mitigate,
     max: RISK_SCALE.actNow - 1,
-    label: "Worth doing",
-    guidance: "Install compensating controls or reduce likelihood within one planning cycle.",
+    label: "Moderate",
+    guidance: "Add a check, or a second person, in the next few months.",
   },
   {
     band: "act_now",
     min: RISK_SCALE.actNow,
     max: RISK_SCALE.critical - 1,
-    label: "Fix soon",
-    guidance: "Priority remediation. Do not accept residual risk without owner sign-off.",
+    label: "High",
+    guidance: "Close this gap soon. Leave it open only if the owner decides to and logs it.",
   },
   {
     band: "critical_path",
     min: RISK_SCALE.critical,
     max: 100,
-    label: "Fix first",
-    guidance: "Material control failure path. Address before other nice-to-haves.",
+    label: "Severe",
+    guidance: "A serious gap in your controls. Close it before other improvements.",
   },
 ];
+
+/** Each residual band's label, for tiles and notes that name a band without a score. */
+export const RESIDUAL_BAND_LABEL = Object.fromEntries(
+  ACTION_BANDS.map((b) => [b.band, b.label]),
+) as Record<ActionBand, string>;
 
 /**
  * The band a 0–100 score falls in: the highest band whose minimum it reaches,

@@ -1,4 +1,8 @@
-import { DEFAULT_WEIGHTS, type ActionBand } from "@/lib/precog/scoring/weights";
+import {
+  DEFAULT_WEIGHTS,
+  RESIDUAL_BAND_LABEL,
+  type ActionBand,
+} from "@/lib/precog/scoring/weights";
 import { ILLUSTRATIVE_LABEL } from "@/lib/precog/scoring/scenario-level";
 import {
   REGISTER_NOT_ASSESSED,
@@ -86,21 +90,21 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
         />
         <FigureTile
           className="bg-surface p-4"
-          label="Fix first"
+          label={RESIDUAL_BAND_LABEL.critical_path}
           value={String(summary.criticalPath)}
-          hint={`Index ${RISK_SCALE.critical} or more`}
+          hint={`Residual ${RISK_SCALE.critical} or more`}
         />
         <FigureTile
           className="bg-surface p-4"
-          label="Fix soon"
+          label={RESIDUAL_BAND_LABEL.act_now}
           value={String(summary.actNow)}
-          hint={`Index ${RISK_SCALE.actNow}–${RISK_SCALE.critical - 1}`}
+          hint={`Residual ${RISK_SCALE.actNow}–${RISK_SCALE.critical - 1}`}
         />
         <FigureTile
           className="bg-surface p-4"
-          label="Worth doing"
+          label={RESIDUAL_BAND_LABEL.mitigate}
           value={String(summary.mitigate)}
-          hint={`Index ${RISK_SCALE.mitigate}–${RISK_SCALE.actNow - 1}; ${summary.watch} more to watch`}
+          hint={`Residual ${RISK_SCALE.mitigate}–${RISK_SCALE.actNow - 1}; ${summary.watch} more ${RESIDUAL_BAND_LABEL.accept_monitor}`}
         />
       </div>
       <IndexBasis />
@@ -110,11 +114,12 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
           <CardHeader>
             <CardTitle>{say("Risks left after your controls", "Residual risk register")}</CardTitle>
             <CardDescription>
-              Inherent × (1 − control effectiveness) × staff modifiers, each a weight Precog chose,
-              sorted by the resulting index. Scenario rows blend a likelihood level and a severity
-              level that already include your controls and staffing, so they take no further credit.
-              A scenario&rsquo;s dollar and day figures are an illustrative example, not sized to
-              your business, and never set its rank.
+              {say(
+                "Each risk starts from the harm it could do, drops for each control you have, and rises for a small or new team. Precog chose these weights. Scenario rows already include your controls and team, so they get no more credit.",
+                "Inherent × (1 − control effectiveness) × staff modifiers, each a weight Precog chose, sorted by the resulting index. Scenario rows blend a likelihood level and a severity level that already include your controls and staffing, so they take no further credit.",
+              )}{" "}
+              A scenario&rsquo;s dollar and day figures are examples, not from your books, and never
+              change its place in the list.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -135,8 +140,10 @@ export function ResidualRadar({ onNavigate }: { onNavigate: (target: DeepLinkTar
               {showAll
                 ? `All ${summary.all.length} risks, highest residual risk first.`
                 : `Top ${rows.length} of ${summary.all.length} risks, highest residual risk first.`}{" "}
-              Each row shows inherent risk, control effectiveness, and the range across weight
-              trials.
+              {say(
+                "Each row shows the risk before and after your controls, and how far its score moves if Precog's weights change.",
+                "Each row shows inherent risk, control effectiveness, and the range across weight trials.",
+              )}
             </p>
             <div
               role="group"
@@ -347,17 +354,18 @@ function ItemSensitivityMeta({
   sensitivity: ReturnType<typeof weightSensitivity>;
   id: string;
 }) {
+  const { say } = usePresentation();
   const item = sensitivity.items.find((candidate) => candidate.id === id);
   if (!item) return null;
 
   return (
     <>
       <span className="block text-xs tabular text-muted">
-        {item.low}–{item.high} across weight trials
+        {item.low}–{item.high} {say("if the weights change", "across weight trials")}
       </span>
       {!item.bandStable && (
         <Badge variant="warn" className="mt-1">
-          band sensitive
+          {say("band could change", "band sensitive")}
         </Badge>
       )}
     </>

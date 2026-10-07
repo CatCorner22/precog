@@ -22,8 +22,18 @@ import { cn } from "@/lib/utils";
  * The card leads with the amount and the time it ran, because those two
  * numbers are what make an abstract control recommendation land. Everything
  * else is collapsed until asked for.
+ *
+ * `unverifiedMarker={false}` drops the "Unverified" chip, for a list that
+ * says it once above every card (`UnverifiedListNote`). A verified case keeps
+ * its own marker.
  */
-export function CaseCard({ study }: { study: CaseStudy }) {
+export function CaseCard({
+  study,
+  unverifiedMarker = true,
+}: {
+  study: CaseStudy;
+  unverifiedMarker?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const hasLoss = study.lossUsd > 0;
 
@@ -43,7 +53,7 @@ export function CaseCard({ study }: { study: CaseStudy }) {
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex flex-wrap items-center gap-2">
             <Badge variant="default">{SECTOR_LABEL[study.sector]}</Badge>
-            <CaseMarker study={study} />
+            {(unverifiedMarker || caseIsVerified(study)) && <CaseMarker study={study} />}
             {hasLoss && (
               <span className="font-mono text-sm font-semibold text-danger">
                 {lossPhrase(study)}
@@ -164,6 +174,18 @@ export function UnverifiedMarker() {
 }
 
 /**
+ * Whether a list shows the one note above it: several cases and none of them
+ * checked against its source. A list that shows it passes
+ * `unverifiedMarker={false}` to each card, so "Unverified" reads once.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- the note's own rule, kept beside the note and the card that read it.
+export function listNoteShown(
+  studies: readonly Pick<CaseStudy, "verifiedOn" | "verifiedBy">[],
+): boolean {
+  return studies.length >= 2 && allCasesUnverified(studies);
+}
+
+/**
  * The one note above a list of several cases when none of them has been
  * checked against its source, so the list says it once. A single case, or a
  * list with any verified case, shows no note; each card's own marker carries
@@ -176,8 +198,12 @@ export function UnverifiedListNote({
   studies: readonly Pick<CaseStudy, "verifiedOn" | "verifiedBy">[];
   className?: string;
 }) {
-  if (studies.length < 2 || !allCasesUnverified(studies)) return null;
-  return <p className={cn("text-xs text-subtle", className)}>{UNVERIFIED_CASE.listNote}</p>;
+  if (!listNoteShown(studies)) return null;
+  return (
+    <p className={cn("text-xs text-subtle", className)}>
+      <span className="font-medium">{UNVERIFIED_CASE.label}.</span> {UNVERIFIED_CASE.listNote}
+    </p>
+  );
 }
 
 /** The small "Verified against its source" marker on a case a named person has checked. */
