@@ -65,6 +65,20 @@ describe("matchScenarios", () => {
     expect(matched).toEqual(expect.arrayContaining(expected));
   });
 
+  it("matches a bounded how-would question when it asks how a scenario unfolds", () => {
+    expect(
+      matchScenarios("How would write-off abuse unfold?", sampleScenarios("dental")).map(
+        (scenario) => scenario.id,
+      ),
+    ).toEqual(["sc-writeoff-abuse"]);
+  });
+
+  it("does not treat a general how-would question as a scenario request", () => {
+    expect(
+      matchScenarios("How would I reduce embezzlement risk?", sampleScenarios("dental")),
+    ).toEqual([]);
+  });
+
   it("ranks the more specific scenario first when candidates share cash", () => {
     const templateScenario = sampleScenarios("retail").find(
       (scenario) => scenario.id === "sc-cash-sod-failure",

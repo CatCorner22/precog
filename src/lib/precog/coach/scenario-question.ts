@@ -1,7 +1,7 @@
 import type { ScenarioTemplate } from "../types";
 
 const SCENARIO_TRIGGER =
-  /\b(scenarios?|walk me through|compare|step by step|what happens (if|when))\b/i;
+  /\b(?:scenarios?|walk me through|compare|step by step|what happens (?:if|when)|how (?:would|could|does|do)\b.*\b(?:unfold|happen|play out)\b|what would happen)\b/i;
 const SCENARIO_STOP_WORDS = new Set([
   "the",
   "a",

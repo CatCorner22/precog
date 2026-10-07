@@ -155,6 +155,15 @@ describe("local advisor brief", () => {
     );
   });
 
+  it("answers a write-off question about how the abuse unfolds", () => {
+    const profile = pioneerProfileFrom(defaultProfile("dental") as never);
+    const question = "How would write-off abuse unfold?";
+    const { brief } = localBrief(question, { profile, question }, profile);
+
+    expect(brief.markdown).toContain("## Answer");
+    expect(brief.markdown).toContain("Write-offs posted without a second approval");
+  });
+
   it("shows the departure scenario before the absence answer", () => {
     const sample = pioneerProfileFrom(defaultProfile("dental") as never);
     const question = "Walk me through the front desk lead leaves scenario.";
