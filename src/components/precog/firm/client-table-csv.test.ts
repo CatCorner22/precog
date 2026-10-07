@@ -7,6 +7,7 @@ import {
   clientTableCsv,
   clientTableFileName,
   clientTotals,
+  clientUrgencyText,
   DEFAULT_CLIENT_SORT,
   exceptionsText,
   lastMonthStanding,
@@ -283,12 +284,85 @@ describe("client table sort", () => {
     expect(order("awaiting", "desc")).toEqual(["c", "b", "a"]);
   });
 
-  it("opens with the clients that reported exceptions on top, the rest by name", () => {
-    expect(DEFAULT_CLIENT_SORT).toEqual({ key: "exceptions", dir: "desc" });
+  it("opens with the clients who need the firm first: overdue, exceptions, then versions awaiting review", () => {
+    expect(DEFAULT_CLIENT_SORT).toEqual({ key: "urgency", dir: "desc" });
+    // Alpha's September is overdue; Cedar has an exception this month; beta
+    // only has a version awaiting review.
     expect(sortClients(clients, DEFAULT_CLIENT_SORT, today).map((c) => c.id)).toEqual([
-      "c",
       "a",
+      "c",
       "b",
     ]);
+  });
+});
+
+describe("client table urgency", () => {
+  const complete = months({}, { done: 5 });
+  const nothing = months({}, { done: 0 });
+  const urgent = (rows: ClientEngagementRow[], day = today) =>
+    sortClients(rows, DEFAULT_CLIENT_SORT, day).map((c) => c.name);
+
+  it("puts a client with nothing recorded this month above a complete one", () => {
+    const rows = [
+      row({ id: "a", name: "Acme Dental", months: complete, awaitingReview: 0 }),
+      row({ id: "z", name: "Zinc Works", months: nothing, awaitingReview: 0 }),
+    ];
+    expect(urgent(rows)).toEqual(["Zinc Works", "Acme Dental"]);
+    // Before the 5th this month's checks are not open yet: by name.
+    expect(urgent(rows, "2026-10-04")).toEqual(["Acme Dental", "Zinc Works"]);
+  });
+
+  it("ranks overdue, then exceptions, then nothing recorded, then versions awaiting review, then by name", () => {
+    const rows = [
+      row({ id: "1", name: "Awaiting", months: complete, awaitingReview: 2 }),
+      row({ id: "2", name: "Calm", months: complete, awaitingReview: 0 }),
+      row({ id: "3", name: "Blank", months: nothing, awaitingReview: 0 }),
+      row({
+        id: "4",
+        name: "Exception",
+        months: months({}, { done: 4, exceptions: 1 }),
+        awaitingReview: 0,
+      }),
+      row({
+        id: "5",
+        name: "Overdue",
+        months: months({ done: 1 }, { done: 5 }),
+        awaitingReview: 0,
+      }),
+      row({ id: "6", name: "Also calm", months: complete, awaitingReview: 0 }),
+    ];
+    expect(urgent(rows)).toEqual([
+      "Overdue",
+      "Exception",
+      "Blank",
+      "Awaiting",
+      "Also calm",
+      "Calm",
+    ]);
+    // An ended engagement's months are neither overdue nor open.
+    const ended = row({
+      name: "Ended",
+      status: "ended",
+      months: months({ done: 0 }, { done: 0 }),
+      awaitingReview: 0,
+    });
+    expect(urgent([ended, rows[1]])).toEqual(["Calm", "Ended"]);
+  });
+
+  it("says how many clients need the firm now and why", () => {
+    const rows = [
+      row({ id: "1", months: complete, awaitingReview: 2 }),
+      row({ id: "2", months: complete, awaitingReview: 0 }),
+      row({ id: "3", months: nothing, awaitingReview: 0 }),
+      row({ id: "4", months: months({ done: 1 }, { done: 4, exceptions: 1 }), awaitingReview: 0 }),
+    ];
+    expect(clientUrgencyText(rows, today)).toBe(
+      "3 need you now: 1 with last month overdue, 1 with exceptions, 1 with nothing recorded this month, 2 versions awaiting review.",
+    );
+    expect(clientUrgencyText([rows[2]], today)).toBe(
+      "1 needs you now: 1 with nothing recorded this month.",
+    );
+    expect(clientUrgencyText([rows[1]], today)).toBe("No client needs you now.");
+    expect(clientUrgencyText([rows[2]], "2026-10-04")).toBe("No client needs you now.");
   });
 });
