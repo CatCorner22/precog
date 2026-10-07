@@ -117,7 +117,7 @@ const DEFAULT_EDGE_OPTIONS = { type: "smoothstep" } as const;
 const PRIORITY_LIST_LENGTH = 12;
 
 /** Elements that handle Enter themselves; build mode's Enter-to-rename leaves them alone. */
-const OWN_ENTER_KEY = "button, a, [role=button], .react-flow__node, .react-flow__edge";
+const OWN_ENTER_KEY = "button, a, summary, [role=button], .react-flow__node, .react-flow__edge";
 
 export function ProcessMap({
   onNavigate,
