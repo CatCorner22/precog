@@ -91,7 +91,7 @@ export const PRIORITY_BAND_LABEL_PRINTED_V4: Record<PriorityBand, string> = {
  */
 export const CONFLICT_SEVERITY_KEY = "Critical and high duty conflicts are Fix first and Fix soon.";
 
-/** The colour of a higher-is-worse figure on RISK_SCALE: red from "Fix soon" up, amber from "Worth doing". */
+/** The colour of a higher-is-worse figure on RISK_SCALE: red from "High" up, amber from "Moderate". */
 export function riskTone(score: number): "danger" | "warn" | "ok" {
   if (score >= RISK_SCALE.actNow) return "danger";
   if (score >= RISK_SCALE.mitigate) return "warn";
@@ -101,7 +101,7 @@ export function riskTone(score: number): "danger" | "warn" | "ok" {
 /**
  * The colour of the share of must-do work that stops when someone is out,
  * stricter than `riskTone` so a large share never looks calm: red from
- * RISK_SCALE "Worth doing" (40%), amber once the work that keeps running
+ * RISK_SCALE "Moderate" (40%), amber once the work that keeps running
  * falls below HEALTH_SCALE "strong" (more than 20% stops), green below that.
  */
 export function dependenceTone(share: number): "danger" | "warn" | "ok" {

@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { getIndustryTemplate } from "@/lib/precog/templates";
 import { scenarioUnfolding } from "@/lib/precog/scenario-unfolding";
+import { dutiesOffTeam, UNANSWERED } from "@/lib/precog/onboarding/setup-answers";
 import { scenarioWatch } from "./scenario-page";
 import { ScenarioWatchCard } from "./scenario-watch-card";
 
@@ -100,5 +101,57 @@ describe("ScenarioWatchCard", () => {
         ScenarioWatchCard({ scenario, unfolding: scenarioUnfolding(scenario.id)!, watch: split }),
       ),
     ).toContain("Nobody on the team holds both duties this needs.");
+  });
+
+  describe("a scenario whose duty the setup answers place outside the team", () => {
+    const dental = getIndustryTemplate("dental");
+    const scenario = dental.scenarios.find((item) => item.id === "sc-payroll-ghost")!;
+    const card = (watch: ReturnType<typeof scenarioWatch>) =>
+      renderToStaticMarkup(
+        ScenarioWatchCard({ scenario, unfolding: scenarioUnfolding(scenario.id)!, watch }),
+      );
+    // Payroll master and payment release are ticked, on two people; nobody enters payroll.
+    const tpl = {
+      ...dental,
+      roleTemplates: {},
+      people: [
+        {
+          id: "sue",
+          name: "Sue Lam",
+          role: "Owner",
+          active: true,
+          entitlements: ["edit_payroll_master" as const],
+        },
+        {
+          id: "tom",
+          name: "Tom Reyes",
+          role: "Bookkeeper",
+          active: true,
+          entitlements: ["release_payment" as const],
+        },
+      ],
+    };
+
+    it("asks for a tick on enter payroll while the answers keep payroll in house", () => {
+      const watch = scenarioWatch(tpl, scenario, [], new Set(), dutiesOffTeam(UNANSWERED));
+      expect(watch.unassignedDuties).toEqual(["enter payroll"]);
+      expect(watch.offTeamDuties).toEqual([]);
+      expect(card(watch)).toContain(
+        "Nobody on the team is ticked for enter payroll, so Precog cannot tell whether one person holds both duties this needs. Tick whoever does it on the Team tab.",
+      );
+    });
+
+    it("says payroll is not run in house when the answers say payroll is none", () => {
+      const off = dutiesOffTeam({ ...UNANSWERED, payroll: "none" });
+      const watch = scenarioWatch(tpl, scenario, [], new Set(), off);
+      expect(watch.unassignedDuties).toEqual([]);
+      expect(watch.offTeamDuties).toEqual(["enter payroll"]);
+      const html = card(watch);
+      expect(html).not.toContain("Tick whoever");
+      expect(html).not.toContain("ticked for enter payroll");
+      expect(html).toContain(
+        "Your setup answers place enter payroll outside the team, so nobody on the team holds both duties this needs.",
+      );
+    });
   });
 });

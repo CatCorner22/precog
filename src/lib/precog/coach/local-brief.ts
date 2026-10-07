@@ -260,7 +260,7 @@ const POLICY_TERMS = /deductible|policy limit|claims load/i;
 
 /**
  * Severity in the words the Start here badges use ("Critical", "High",
- * "Medium"); "fix first" is kept for the residual band it names.
+ * "Medium"); "Fix first" is kept for the priority list's top band.
  */
 const SEVERITY_WORDS: Record<DetectedConflict["severity"], string> = {
   critical: "a critical duty conflict",

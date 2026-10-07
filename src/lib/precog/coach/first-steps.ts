@@ -134,8 +134,9 @@ export function rankFirstSteps<
 
 /**
  * How a gap card is badged: severity until dual release covers it. Severity
- * words, not the residual action bands ("Fix first" means a residual index
- * of 80 or more, scoring/bands), so one word never means two scales.
+ * words, not a band name: "Fix first" is the priority list's top band and
+ * the residual bands read Severe, High, Moderate and Low (scoring/bands),
+ * so one word never means two scales.
  */
 export type GapBadge =
   | "Critical"
