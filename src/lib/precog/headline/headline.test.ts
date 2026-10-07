@@ -8,6 +8,8 @@ import { buildStartHereModel } from "../start-here/model";
 import type { DetectedConflict } from "../sod/detect";
 import { partialDualReleaseCoverage } from "../sod/open-findings";
 import { rankedActionPlan, type ActionStepTier } from "./action-plan";
+import { splitStepLabel } from "../actions/do-next";
+import { openFindings } from "../sod/open-findings";
 import { acceptanceDates, openConflictHeadline } from "./open-conflicts";
 
 const TODAY = "2026-09-26";
@@ -327,6 +329,27 @@ describe("rankedActionPlan", () => {
     expect(
       plan.filter((s) => s.source !== "concentration").every((s) => s.who === "Board treasurer"),
     ).toBe(true);
+  });
+
+  it("words the split step as Start here and the report do, never the catalog's label", () => {
+    let listed = 0;
+    for (const { name, profile } of [
+      ...variants,
+      // Nobody holds half the open conflicts, so no concentration move leads.
+      { name: "general", profile: defaultProfile("general") },
+    ]) {
+      const { report } = screens(profile);
+      const plan = rankedActionPlan(profile, report.sod, { partial: report.partialCoverage });
+      const open = openFindings(report.sod.conflicts, report.partialCoverage);
+      for (const step of plan) {
+        expect(step.what, name).not.toMatch(/concentrated role/);
+        if (step.source === "first-step" && step.keys.includes("control:split-one-duty-out")) {
+          listed++;
+          expect(step.what, name).toBe(splitStepLabel(open));
+        }
+      }
+    }
+    expect(listed).toBeGreaterThan(0);
   });
 
   it("is empty for a business with no open conflict and no week's actions", () => {

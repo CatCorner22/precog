@@ -37,9 +37,8 @@ interface SummaryInput {
     OpenConflictHeadline,
     "findings" | "open" | "critical" | "ownerHeld" | "closedByDualRelease"
   >;
+  /** The first step, as the step list words it (actions/do-next `rankedFirstSteps`). */
   firstStep: string | null;
-  /** The first step's control id (evidence/controls), when it has one. */
-  firstStepId?: string | null;
   registerReady: boolean;
   coverageIndex: number;
   singlePoints: number;
@@ -47,13 +46,11 @@ interface SummaryInput {
   topPriority: string | null;
 }
 
-/** The control (evidence/controls) whose label names "the concentrated role". */
-const SPLIT_ONE_DUTY_OUT = "split-one-duty-out";
-
 /**
- * That step, worded for a business where no one person holds half the open
- * conflicts. It names no duty: the bank reconciliation may already sit with
- * someone else, for example an outside bookkeeper.
+ * The split-one-duty-out step (evidence/controls), worded for a business
+ * where no one person holds half the open conflicts. It names no duty: the
+ * bank reconciliation may already sit with someone else, for example an
+ * outside bookkeeper.
  */
 export const SPLIT_STEP_WITHOUT_NAMED_ROLE =
   "Move one duty of a conflicting pair to someone who holds neither duty";
@@ -82,7 +79,6 @@ export const REPORT_BASIS =
  */
 export function executiveSummary(input: SummaryInput): string[] {
   const lines: string[] = [];
-  let roleNamed = false;
   const { findings, open, critical } = input.conflicts;
   if (open === 0) {
     lines.push(closedConflictsLine(input.conflicts.ownerHeld, input.conflicts.closedByDualRelease));
@@ -93,23 +89,12 @@ export function executiveSummary(input: SummaryInput): string[] {
     );
     const move = concentrationMove(findings);
     if (move) {
-      roleNamed = true;
       lines.push(
         `One person holds ${move.held} of the ${open} open duty conflicts; moving one duty, ${midSentence(move.dutyLabel)}, to someone who holds none of the others closes ${move.closes} of them.`,
       );
     }
   }
-  if (input.firstStep) {
-    // The report names the split step for this business (actions/do-next
-    // `withNamedSplitStep`). A caller that passes the catalog label, which
-    // points at "the concentrated role", gets the unnamed wording whenever
-    // the concentration sentence above is absent.
-    const step =
-      !roleNamed && input.firstStepId === SPLIT_ONE_DUTY_OUT
-        ? SPLIT_STEP_WITHOUT_NAMED_ROLE
-        : input.firstStep;
-    lines.push(`First step: ${midSentence(step)}.`);
-  }
+  if (input.firstStep) lines.push(`First step: ${midSentence(input.firstStep)}.`);
   // A figure that is not a number (a damaged register) leaves its sentence
   // out rather than print "NaN%".
   if (!input.registerReady) {

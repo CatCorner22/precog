@@ -168,6 +168,37 @@ describe("report layout 6", () => {
   });
 });
 
+describe("a locked version's executive summary and steps", () => {
+  it("prints the words stored under layout 5, not the step as Precog names it now", () => {
+    const model = buildReportModelForProfile(defaultProfile("general"), "2026-09-26");
+    const catalog =
+      "Move any single duty out of the concentrated role — even just the bank reconciliation";
+    const stored = {
+      ...model,
+      summary: model.summary.map((line) =>
+        line.startsWith("First step: ") ? `First step: ${catalog}.` : line,
+      ),
+      steps: model.steps.map((step, i) =>
+        i === 0 ? { ...step, control: { ...step.control, label: catalog } } : step,
+      ),
+    };
+    const text = textOf(
+      renderToStaticMarkup(
+        <ReadOnlyPracticeProvider profile={defaultProfile("general")}>
+          <ControlReport
+            locked={locked}
+            frozen={{ layoutVersion: 5, model: serializeReportModel(stored) }}
+          />
+        </ReadOnlyPracticeProvider>,
+      ),
+    );
+    expect(model.summary.some((line) => line.startsWith("First step: "))).toBe(true);
+    expect(text).toContain(`|First step: ${catalog}.|`);
+    expect(text).toContain(catalog);
+    expect(text).not.toContain(model.steps[0]!.control.label);
+  });
+});
+
 describe("report on a phone", () => {
   /** Every opening tag in `html` whose class list holds `token`. */
   const tagsWith = (html: string, token: string) =>

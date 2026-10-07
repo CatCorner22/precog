@@ -1,5 +1,5 @@
 import { recommendedStepsForRules } from "../evidence";
-import type { ControlDefinition, ControlId } from "../evidence/controls";
+import type { ControlId } from "../evidence/controls";
 import type { IndustryId } from "../industry";
 import { rankFirstSteps, UNIVERSAL_FIX } from "../coach/first-steps";
 import type { AccessReconciliation } from "../firm/reconcile";
@@ -7,6 +7,7 @@ import { buildDriftActions, type DriftAction } from "../integrations/drift-signa
 import type { IntegrationDriftSummary } from "../integrations/drift-summary";
 import { concentrationMove, SPLIT_STEP_WITHOUT_NAMED_ROLE } from "../report/report-summary";
 import type { DetectedConflict } from "../sod/detect";
+import { ruleIdsOf } from "../sod/open-findings";
 import { midSentence } from "../text";
 
 /** The most ranked controls one list shows. */
@@ -57,15 +58,23 @@ export function splitStepLabel(open: readonly DetectedConflict[]): string {
 }
 
 /**
- * Ranked steps with the universal step's catalog label ("the concentrated
- * role") replaced by `splitStepLabel`. Applied after ranking, so the order
- * (whose last tie-break is the label) is the catalog's.
+ * The ranked controls for the open findings, built once for every list that
+ * shows them (Start here's "Do these first", the printed report's steps and
+ * the action plan): the catalog's steps for the findings' rules, less the
+ * controls `skip` says already run, ranked by rankFirstSteps. The universal
+ * step carries `splitStepLabel` in place of its catalog label ("the
+ * concentrated role"), so every list words it the same. It is named after
+ * ranking, so the order (whose last tie-break is the label) is the catalog's.
  */
-export function withNamedSplitStep<T extends { control: ControlDefinition }>(
-  steps: readonly T[],
+export function rankedFirstSteps(
   open: readonly DetectedConflict[],
-): T[] {
-  return steps.map((step) =>
+  industry: IndustryId,
+  skip?: (id: ControlId) => boolean,
+): DoNextStep[] {
+  const recommended = recommendedStepsForRules(ruleIdsOf(open), industry).filter(
+    (step) => !skip?.(step.control.id),
+  );
+  return rankFirstSteps(recommended, open).map((step) =>
     step.control.id === UNIVERSAL_FIX
       ? { ...step, control: { ...step.control, label: splitStepLabel(open) } }
       : step,
@@ -85,11 +94,7 @@ export function doNextList({
   accessReconciliation,
   inPlace,
 }: DoNextInput): DoNextItem[] {
-  const ruleIds = [...new Set(open.map((f) => f.ruleId))];
-  const recommended = recommendedStepsForRules(ruleIds, industry).filter(
-    (step) => !inPlace?.has(step.control.id),
-  );
-  const steps = withNamedSplitStep(rankFirstSteps(recommended, open), open)
+  const steps = rankedFirstSteps(open, industry, (id) => inPlace?.has(id) ?? false)
     .slice(0, DO_NEXT_STEPS_MAX)
     .map((step): DoNextItem => ({ kind: "step", id: step.control.id, step }));
   const drift = buildDriftActions({ summary: integrationDriftSummary, accessReconciliation })
