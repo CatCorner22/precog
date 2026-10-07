@@ -3,10 +3,16 @@ import { ownersMarked, ownsBusiness } from "../sod/owner-role";
 import { personDuties } from "../sod/assignments";
 import { BANK_ACTIVITY_DUTIES } from "../sod/derive-staff";
 import type { Person } from "../types";
-import { formatMonth, shiftDay, utcDateKey } from "../dates";
+import { formatDayNear, formatMonth, shiftDay, utcDateKey } from "../dates";
 
 export type ReviewItemKey =
-  "bank_statement" | "cleared_checks" | "payroll_headcount" | "new_vendors" | "card_statement";
+  | "bank_statement"
+  | "cleared_checks"
+  | "payroll_headcount"
+  | "new_vendors"
+  | "card_statement"
+  | "deposits_match"
+  | "duplicate_payments";
 
 export type ReviewResult = "done" | "exception" | "skipped";
 
@@ -81,6 +87,26 @@ export const REVIEW_ITEMS: readonly {
     checkedDuties: ["hold_company_card", "review_card_statement", "approve_expenses"],
     since: "2026-10",
   },
+  {
+    key: "deposits_match",
+    title: "Match each deposit to the takings, donations or payments recorded for that day",
+    why: "Cash or a donation that was recorded but never reached the bank, or a cash drawer that came up short, shows only when someone sets each deposit beside what was taken in that day.",
+    checkedDuties: ["collect_cash", "post_payments", "prepare_deposit"],
+    since: "2026-11",
+  },
+  {
+    key: "duplicate_payments",
+    title: "Look for the same invoice paid twice",
+    why: "An invoice paid twice, for example once by check and once online, or under a changed invoice number, is an easy way for the second payment to go somewhere else.",
+    checkedDuties: [
+      "enter_invoices",
+      "approve_invoices",
+      "release_payment",
+      "sign_checks",
+      "initiate_ach",
+    ],
+    since: "2026-11",
+  },
 ];
 
 /** Which record a reviewer relies on, said the same way on the Monthly review and the evidence log. */
@@ -109,7 +135,10 @@ export function isReviewPeriod(value: unknown): value is string {
   return typeof value === "string" && PERIOD.test(value);
 }
 
-/** Most monthly results a business keeps: five checks a month for twenty years. */
+/**
+ * Most monthly results a business keeps: five checks a month for twenty years,
+ * or seven a month (from November 2026) for over fourteen.
+ */
 export const MAX_REVIEW_RECORDS = 1200;
 
 export function monthKey(day: string): string {
@@ -412,6 +441,42 @@ export function reviewResultLine(record: Pick<ReviewRecord, "result" | "ownerNam
   const owner = record.ownerName.trim();
   const notes = record.notes.trim();
   return `${RESULT_LABEL[record.result]}${owner ? ` — ${owner}` : ""}${notes ? `: ${notes}` : ""}`;
+}
+
+/**
+ * Why Precog cannot save a result yet, or null when it can: someone has to be
+ * named as the person who did the check, and an Exception needs a note that
+ * says what was found.
+ */
+export function reviewSaveProblem(
+  input: Pick<ReviewRecord, "result" | "ownerName" | "notes">,
+): string | null {
+  if (!input.ownerName.trim()) return "Choose who did this check.";
+  if (input.result === "exception" && !input.notes.trim()) return "Say what you found.";
+  return null;
+}
+
+/**
+ * "Saved: Done by Dana on Oct 7 — note": the latest saved result, as the
+ * Monthly review shows it under the check. The day carries its year when it
+ * is not in the year of `today` (YYYY-MM-DD).
+ */
+export function savedResultLine(
+  record: Pick<ReviewRecord, "result" | "ownerName" | "notes" | "recordedAt">,
+  today: string,
+): string {
+  const owner = record.ownerName.trim();
+  const notes = record.notes.trim();
+  return `Saved: ${RESULT_LABEL[record.result]}${owner ? ` by ${owner}` : ""} on ${formatDayNear(record.recordedAt, today)}${notes ? ` — ${notes}` : ""}`;
+}
+
+/**
+ * The note "Mark resolved" saves with its Done: what the person typed, or the
+ * Exception's own note when they typed nothing.
+ */
+export function resolvedNote(typed: string, exceptionNote: string): string {
+  const said = typed.trim() || exceptionNote.trim();
+  return said ? `Resolved: ${said}` : "Resolved";
 }
 
 /** Latest record for one item in one month, if any. */
