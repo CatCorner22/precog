@@ -9,6 +9,7 @@ import { detectSodConflicts } from "../sod/detect";
 import { soleOwnerId } from "../sod/owner-role";
 import { CONFLICT_RULES } from "../sod/conflict-rules";
 import { casesBehindScenario as scenarioCases } from "../evidence/scenario-cases";
+import { SCENARIO_FIGURES } from "./shared-controls";
 
 const findings = (id: Parameters<typeof getIndustryTemplate>[0]) =>
   detectSodConflicts(getIndustryTemplate(id)).conflicts.map((c) => `${c.role}: ${c.ruleId}`);
@@ -193,6 +194,37 @@ describe("every sample's scenarios", () => {
       expect(bare).toEqual([]);
     });
   }
+
+  for (const { id } of INDUSTRIES) {
+    it(`${id}: carries the fake-employee payroll scenario on the payroll control`, () => {
+      const tpl = getIndustryTemplate(id);
+      const ghost = tpl.scenarios.find((s) => s.id === "sc-payroll-ghost");
+      expect(ghost, id).toBeDefined();
+      expect(ghost!.title).toBe("One person adds people to payroll and runs it");
+      expect(ghost!.controlId).toBe("c-payroll");
+      expect(tpl.controls.some((c) => c.id === "c-payroll")).toBe(true);
+      expect({
+        baseTimelineDays: ghost!.baseTimelineDays,
+        baseFinancialImpact: ghost!.baseFinancialImpact,
+      }).toEqual(SCENARIO_FIGURES.cash);
+      expect(ghost!.mitigations.map((m) => m.label).join(" ")).toMatch(/payroll register/i);
+      expect(ghost!.mitigations.map((m) => m.label).join(" ")).toMatch(/second person/i);
+    });
+  }
+
+  it("leads the fake-employee payroll scenario with the two library cases that show it", () => {
+    const ghost = getIndustryTemplate("general").scenarios.find(
+      (s) => s.id === "sc-payroll-ghost",
+    )!;
+    const cases = scenarioCases(ghost);
+    expect(cases.slice(0, 2).map((c) => c.id)).toEqual([
+      "case-restaurant-franchisee-idaho",
+      "case-st-louis-floor-covering",
+    ]);
+    // Every case it names is in the library with a primary source a reader can open.
+    for (const c of cases.slice(0, 2))
+      expect(c.source.url).toMatch(/^https:\/\/www\.justice\.gov\//);
+  });
 
   it("leads the drug-diversion scenario with the case it names", () => {
     const diversion = getIndustryTemplate("dental").scenarios.find(

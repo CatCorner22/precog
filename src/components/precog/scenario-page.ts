@@ -8,7 +8,9 @@ import type { ScenarioTemplate, StaffComposition } from "@/lib/precog/types";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
 import { relationLevel, STRONG_LEVELS } from "@/lib/precog/continuity/coverage";
-import { CONFLICT_RULES } from "@/lib/precog/sod/conflict-rules";
+import { CONFLICT_RULES, entitlementLabel } from "@/lib/precog/sod/conflict-rules";
+import { buildAssignments } from "@/lib/precog/sod/assignments";
+import { teamHeldDuties } from "@/lib/precog/sod/rule-match";
 import { citingCaseStats, isOwnSector, type CaseStudy } from "@/lib/precog/evidence";
 import { casesBehindScenario } from "@/lib/precog/evidence/scenario-cases";
 import { dateAfter } from "@/lib/precog/dates";
@@ -81,6 +83,12 @@ export function scenarioRuleIds(scenario: Pick<ScenarioTemplate, "id" | "sodRule
 export interface ScenarioWatch {
   /** Open findings on the scenario's duty-conflict rules, one per person and rule. */
   conflicts: { personName: string; title: string }[];
+  /**
+   * Duties the scenario's rules need that nobody active holds, in plain words.
+   * With one of them unticked Precog cannot tell whether anyone holds a pair,
+   * so the card says so instead of "Nobody on the team holds both duties".
+   */
+  unassignedDuties: string[];
   /** The control the scenario relies on, when the template has it. */
   control: { id: string; name: string; inPlace: boolean } | null;
   /** The register entry the scenario turns on, when the template has it. */
@@ -88,7 +96,8 @@ export interface ScenarioWatch {
 }
 
 export function scenarioWatch(
-  tpl: Pick<IndustryTemplate, "controls" | "knowledge" | "relations" | "people">,
+  tpl: Pick<IndustryTemplate, "controls" | "knowledge" | "relations" | "people"> &
+    Partial<Pick<IndustryTemplate, "roleTemplates">>,
   scenario: Pick<ScenarioTemplate, "id" | "sodRuleIds" | "controlId" | "knowledgeId">,
   openConflicts: readonly Pick<DetectedConflict, "ruleId" | "personName" | "title">[],
   outTodayIds: ReadonlySet<string>,
@@ -102,6 +111,15 @@ export function scenarioWatch(
     if (seen.has(key)) continue;
     seen.add(key);
     conflicts.push({ personName: conflict.personName, title: conflict.title });
+  }
+
+  const held = teamHeldDuties(
+    buildAssignments({ people: tpl.people, roleTemplates: tpl.roleTemplates ?? {} }),
+  );
+  const unassigned = new Set<string>();
+  for (const rule of CONFLICT_RULES) {
+    if (!ruleIds.has(rule.id)) continue;
+    for (const duty of [rule.a, rule.b]) if (!held.has(duty)) unassigned.add(duty);
   }
 
   const control = scenario.controlId
@@ -121,6 +139,10 @@ export function scenarioWatch(
 
   return {
     conflicts,
+    unassignedDuties: [...unassigned].map((duty) => {
+      const label = entitlementLabel(duty);
+      return label.charAt(0).toLowerCase() + label.slice(1);
+    }),
     control: control ? { id: control.id, name: control.name, inPlace: control.segregated } : null,
     knowledge: item
       ? {
