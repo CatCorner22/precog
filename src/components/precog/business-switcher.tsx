@@ -203,7 +203,7 @@ export function BusinessSwitcher() {
         ref={trigger}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="group flex min-w-0 items-center gap-1 rounded-md text-left hover:bg-elevated/60"
+        className="group flex max-w-full min-w-0 items-center gap-1 rounded-md text-left hover:bg-elevated/60"
         aria-expanded={open}
         aria-controls="business-switcher-panel"
         aria-label={`Precog ${profile.practiceName}${needsName ? " (name it)" : ""}: switch business${
