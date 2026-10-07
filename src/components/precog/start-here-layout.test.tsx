@@ -79,7 +79,25 @@ describe("Start here, Do these first on one screen", () => {
     button?.props.onClick();
     expect(open).toHaveBeenCalledWith(stepDestination(first));
     expect(stepDestination({ answers: 2 })).toBe("sod");
-    expect(stepDestination({ answers: 0 })).toBe("control");
+    expect(stepDestination({ answers: 0 })).toBeNull();
+  });
+
+  it("gives a step that answers no finding no button, since no screen lists it", () => {
+    const firstSteps = model().firstSteps;
+    const quiet = { ...steps[0], answers: 0 };
+    const html = renderToStaticMarkup(
+      <StartHereFirstStepsSection
+        model={{
+          ...firstSteps,
+          items: [{ kind: "step" as const, id: quiet.control.id, step: quiet }],
+        }}
+        part="actions"
+        onOpenDetail={() => {}}
+      />,
+    );
+    expect(html).toContain(quiet.control.label);
+    expect(html).not.toContain("Open the conflicts it answers");
+    expect(html).not.toContain('aria-label="Open');
   });
 
   it("has no button when nothing opens a screen, as the report renders it", () => {

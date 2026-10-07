@@ -36,57 +36,60 @@ export function StartHereFirstStepsSection({
   const hasNotes = Boolean(tips) || soleKnowledge.length > 0;
   if (part === "notes" && !hasNotes) return null;
 
-  const renderStep = (s: DoNextStep, i: number) => (
-    <li key={s.control.id} className="flex gap-3">
-      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-xs text-muted">
-        {i + 1}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-          <p className="min-w-0 grow basis-56 text-sm leading-relaxed">{s.control.label}</p>
-          {onOpenDetail && (
-            <Button
-              size="sm"
-              variant="secondary"
-              className="shrink-0"
-              aria-label={`Open ${tabName(stepDestination(s))}: ${s.control.label}`}
-              onClick={() => onOpenDetail(stepDestination(s))}
-            >
-              {s.answers > 0 ? "Open the conflicts it answers" : `Open ${tabName("control")}`}
-              <ArrowRight className="size-3.5" aria-hidden />
-            </Button>
-          )}
+  const renderStep = (s: DoNextStep, i: number) => {
+    const destination = stepDestination(s);
+    return (
+      <li key={s.control.id} className="flex gap-3">
+        <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-xs text-muted">
+          {i + 1}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+            <p className="min-w-0 grow basis-56 text-sm leading-relaxed">{s.control.label}</p>
+            {onOpenDetail && destination && (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="shrink-0"
+                aria-label={`Open ${tabName(destination)}: ${s.control.label}`}
+                onClick={() => onOpenDetail(destination)}
+              >
+                Open the conflicts it answers
+                <ArrowRight className="size-3.5" aria-hidden />
+              </Button>
+            )}
+          </div>
+          <p className="mt-0.5 text-sm leading-relaxed text-muted">{s.control.why}</p>
+          <div className="mt-1 text-xs text-subtle">
+            {effortPhrase(s.control)} ·{" "}
+            {s.answers > 0
+              ? `answers ${s.answers} of your open ${s.answers === 1 ? "gap" : "gaps"} · `
+              : ""}
+            would plausibly have caught {s.supportingCaseIds.length}{" "}
+            {s.supportingCaseIds.length === 1 ? "case" : "cases"} below
+            {s.supportingCaseIds.length > 0 && (
+              <details className="inline">
+                <summary className="ml-1 inline cursor-pointer font-medium text-primary hover:underline">
+                  · which {s.supportingCaseIds.length === 1 ? "case" : "cases"}
+                </summary>
+                <ul className="mt-1 space-y-0.5 text-xs text-muted">
+                  {s.supportingCaseIds.map((id) => {
+                    const c = caseById.get(id);
+                    return c ? (
+                      <li key={id}>
+                        · {c.title}
+                        {c.lossUsd > 0 ? ` (${lossPhrase(c)})` : ""}
+                      </li>
+                    ) : null;
+                  })}
+                </ul>
+              </details>
+            )}
+          </div>
         </div>
-        <p className="mt-0.5 text-sm leading-relaxed text-muted">{s.control.why}</p>
-        <div className="mt-1 text-xs text-subtle">
-          {effortPhrase(s.control)} ·{" "}
-          {s.answers > 0
-            ? `answers ${s.answers} of your open ${s.answers === 1 ? "gap" : "gaps"} · `
-            : ""}
-          would plausibly have caught {s.supportingCaseIds.length}{" "}
-          {s.supportingCaseIds.length === 1 ? "case" : "cases"} below
-          {s.supportingCaseIds.length > 0 && (
-            <details className="inline">
-              <summary className="ml-1 inline cursor-pointer font-medium text-primary hover:underline">
-                · which {s.supportingCaseIds.length === 1 ? "case" : "cases"}
-              </summary>
-              <ul className="mt-1 space-y-0.5 text-xs text-muted">
-                {s.supportingCaseIds.map((id) => {
-                  const c = caseById.get(id);
-                  return c ? (
-                    <li key={id}>
-                      · {c.title}
-                      {c.lossUsd > 0 ? ` (${lossPhrase(c)})` : ""}
-                    </li>
-                  ) : null;
-                })}
-              </ul>
-            </details>
-          )}
-        </div>
-      </div>
-    </li>
-  );
+      </li>
+    );
+  };
 
   return (
     <section className="space-y-3">
