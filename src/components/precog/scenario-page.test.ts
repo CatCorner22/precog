@@ -15,7 +15,9 @@ import {
   formatEstimateChange,
   formatMoneyChange,
   mitigationCostPhrase,
+  NARROW_SCENARIO_QUERY,
   pickScenario,
+  revealScenarioFigures,
   scenarioCases,
   scenarioConfirmation,
   scenarioRuleIds,
@@ -244,5 +246,34 @@ describe("staffing what-if", () => {
     expect(whatIfApplies(saved, scoreOnly, { ownBusiness: false })).toBe(true);
     const withTeam = { ...scoreOnly, teamSize: saved.teamSize + 1 };
     expect(whatIfApplies(saved, withTeam, { ownBusiness: true })).toBe(true);
+  });
+});
+
+describe("revealScenarioFigures", () => {
+  /** A window whose media queries match `matching`, and an element that records its scrolls. */
+  const setup = (matching: string[]) => {
+    const calls: ScrollIntoViewOptions[] = [];
+    const win = { matchMedia: (query: string) => ({ matches: matching.includes(query) }) };
+    const el = { scrollIntoView: (options: ScrollIntoViewOptions) => calls.push(options) };
+    return { calls, win, el };
+  };
+
+  it("scrolls the figures into view on a narrow screen, smoothly", () => {
+    const { calls, win, el } = setup([NARROW_SCENARIO_QUERY]);
+    expect(revealScenarioFigures(el, win)).toBe(true);
+    expect(calls).toEqual([{ block: "start", behavior: "smooth" }]);
+  });
+
+  it("jumps without animation when the reader asks for reduced motion", () => {
+    const { calls, win, el } = setup([NARROW_SCENARIO_QUERY, "(prefers-reduced-motion: reduce)"]);
+    expect(revealScenarioFigures(el, win)).toBe(true);
+    expect(calls).toEqual([{ block: "start", behavior: "auto" }]);
+  });
+
+  it("leaves a wider screen, where the cards sit side by side, where it is", () => {
+    const { calls, win, el } = setup([]);
+    expect(revealScenarioFigures(el, win)).toBe(false);
+    expect(calls).toEqual([]);
+    expect(revealScenarioFigures(null, setup([NARROW_SCENARIO_QUERY]).win)).toBe(false);
   });
 });

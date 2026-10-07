@@ -82,12 +82,22 @@ export function SodConflictsSection({
         {locations.length > 1 && <LocationFilter model={model} />}
       </CardHeader>
       <CardContent className="space-y-4">
-        {report.recommendations.length > 0 && (
+        {(model.firstStep || report.recommendations.length > 0) && (
           <div className="rounded-lg border border-border bg-panel p-3">
             <p className="text-xs font-medium tracking-wide text-subtle uppercase">
               What to do first
             </p>
-            <ul className="mt-2 space-y-1 text-sm text-muted">
+            {/*
+              One first step on every screen: the step Start here lists first
+              leads, and the recommendations under it explain the findings.
+            */}
+            <ul data-box="what-to-do-first" className="mt-2 space-y-1 text-sm text-muted">
+              {model.firstStep && (
+                <li className="text-fg">
+                  · <span className="font-medium">First, as on Start here:</span>{" "}
+                  {model.firstStep.control.label}
+                </li>
+              )}
               {report.recommendations.map((r) => (
                 <li key={r}>· {r}</li>
               ))}

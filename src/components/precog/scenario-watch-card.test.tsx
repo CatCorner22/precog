@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import { getIndustryTemplate } from "@/lib/precog/templates";
 import { scenarioUnfolding } from "@/lib/precog/scenario-unfolding";
 import { dutiesOffTeam, UNANSWERED } from "@/lib/precog/onboarding/setup-answers";
+import { defaultProfile } from "@/lib/precog/practice-profile";
+import { openConflictHeadline } from "@/lib/precog/headline/open-conflicts";
+import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
+import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { scenarioWatch } from "./scenario-page";
 import { ScenarioWatchCard } from "./scenario-watch-card";
 
@@ -151,6 +155,70 @@ describe("ScenarioWatchCard", () => {
       expect(html).not.toContain("ticked for enter payroll");
       expect(html).toContain(
         "Your setup answers place enter payroll outside the team, so nobody on the team holds both duties this needs.",
+      );
+    });
+  });
+
+  describe("a pair someone holds that is not counted as open", () => {
+    // The owner sets up suppliers and pays them: the Duty conflicts tab shows
+    // the pair under "Not counted as open", so the card names it too instead
+    // of saying nobody holds both duties.
+    const dental = getIndustryTemplate("dental");
+    const scenario = dental.scenarios.find((item) => item.id === "sc-vendor-fraud")!;
+    const tpl = {
+      ...dental,
+      roleTemplates: {},
+      people: [
+        {
+          id: "marco",
+          name: "Marco Rossi",
+          role: "Owner",
+          active: true,
+          entitlements: ["create_vendor" as const, "release_payment" as const],
+        },
+        {
+          id: "ruth",
+          name: "Ruth Ames",
+          role: "Bookkeeper",
+          active: true,
+          entitlements: ["enter_invoices" as const],
+        },
+      ],
+    };
+    const { staff, dualRelease } = defaultProfile("dental");
+    const report = detectSodConflicts(tpl, staff, sodDetectionOptions(tpl, dualRelease));
+    // The open findings as the Duty conflicts tab counts them.
+    const open = openConflictHeadline(
+      report,
+      partialDualReleaseCoverage(dualRelease, report.conflicts),
+    ).findings;
+    const watch = scenarioWatch(
+      tpl,
+      scenario,
+      open,
+      new Set(),
+      new Set(),
+      report.assignments,
+      report.conflicts,
+    );
+
+    it("lists the owner's own pair with why it is not open", () => {
+      const pair = report.conflicts.find(
+        (c) => c.personName === "Marco Rossi" && c.ruleId === "rule-vendor-create-pay",
+      )!;
+      expect(pair.ownerHeld).toBe(true);
+      expect(watch.conflicts).toEqual([]);
+      expect(watch.notOpen).toContainEqual({
+        personName: "Marco Rossi",
+        title: pair.title,
+        reason: "owner",
+      });
+      const html = renderToStaticMarkup(
+        ScenarioWatchCard({ scenario, unfolding: scenarioUnfolding(scenario.id)!, watch }),
+      );
+      expect(html).not.toContain("Nobody on the team holds both duties");
+      expect(html).toContain(
+        `Marco Rossi holds both duties: ${pair.title}. Not counted as open: it is the owner&#x27;s own pair.`,
       );
     });
   });

@@ -61,11 +61,13 @@ export function sodRecommendations(
   const recommendations: string[] = [];
   if (critical > 0) {
     recommendations.push(
-      `Close the ${count(critical, "critical pair")} first, or narrow ${verb(critical, "it", "them")} with a dual-release rule.`,
+      `Close the ${count(critical, "critical pair")} before the others, or narrow ${verb(critical, "it", "them")} with a dual-release rule.`,
     );
   }
   // One employee holding most of the money cycle is the finding a CPA leads
-  // with: every pair above is then in the same pair of hands.
+  // with: every pair above is then in the same pair of hands. It explains;
+  // it names no first move, because the first step every screen leads with
+  // is the ranked one (actions/do-next `rankedFirstSteps`).
   for (const person of assignments) {
     if (person.personId === overseer.soleOwnerId) continue;
     const cycle = moneyCycleHeld(person.entitlements);
@@ -73,8 +75,8 @@ export function sodRecommendations(
     recommendations.push(
       `${personLabel(person.personName, person.role)} holds ${cycle.length} of the ${MONEY_CYCLE.length} core money duties, so most of the money cycle runs through one person with nobody in between. ${
         cycle.includes("bank_reconcile")
-          ? "Start by moving the bank reconciliation to someone who holds none of the others."
-          : "Start by having someone who holds none of them reconcile the bank account."
+          ? "Moving the bank reconciliation to someone who holds none of the others puts a second person in the cycle."
+          : "Having someone who holds none of them reconcile the bank account puts a second person in the cycle."
       }`,
     );
   }

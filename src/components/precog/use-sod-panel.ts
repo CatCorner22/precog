@@ -17,6 +17,8 @@ import { businessLocations, locationsById, worksAt } from "@/lib/precog/person-l
 import { findingsWithoutDecision } from "@/lib/precog/decisions/not-valid";
 import { openSeverityCountsOf, partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { openConflictHeadline } from "@/lib/precog/headline/open-conflicts";
+import { firstDoNextStep } from "@/lib/precog/actions/do-next";
+import { setupInPlaceControls } from "@/lib/precog/onboarding/setup-answers";
 import { rulesDualReleaseCanNarrow, type ConflictSeverity } from "./sod-conflict-view";
 
 /** The six views an address can name (`?tab=sod&item=matrix`); every one keeps working. */
@@ -113,6 +115,26 @@ export function useSodPanel(
   // parts and its findings: the tile, the sub-tab, the location filter and the
   // list under them all read this one object.
   const headline = useMemo(() => openConflictHeadline(report, partial), [report, partial]);
+  // The step Start here's "Do these first" lists first, from the same open
+  // findings, setup answers and books reading: the "What to do first" box
+  // leads with it.
+  const firstStep = useMemo(
+    () =>
+      firstDoNextStep({
+        open: headline.findings,
+        industry: profile.industry,
+        integrationDriftSummary: profile.integrationDriftSummary,
+        accessReconciliation: profile.accessReconciliation,
+        inPlace: setupInPlaceControls(profile.setupAnswers),
+      }),
+    [
+      headline,
+      profile.industry,
+      profile.integrationDriftSummary,
+      profile.accessReconciliation,
+      profile.setupAnswers,
+    ],
+  );
   // The open critical and high findings that cap the band word, from the same findings.
   const openSeverity = useMemo(() => openSeverityCountsOf(headline.findings), [headline]);
   // Open findings nobody has logged a decision on: the "No decision yet" tile.
@@ -171,6 +193,7 @@ export function useSodPanel(
     profile,
     report,
     headline,
+    firstStep,
     openSeverity,
     withoutDecision,
     addDecision,

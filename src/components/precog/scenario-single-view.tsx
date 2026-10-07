@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { CheckCircle2, GitBranch, GitCompare, SlidersHorizontal } from "lucide-react";
 import type { IndustryTemplate } from "@/lib/precog/templates";
 import type { MatrixLayerId, PrecogResult, ScenarioTemplate } from "@/lib/precog/types";
@@ -7,7 +7,8 @@ import { localDateKey } from "@/lib/precog/dates";
 import { scenarioUnfolding } from "@/lib/precog/scenario-unfolding";
 import { useToday } from "@/lib/use-today";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
-import { openFindings, partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
+import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
+import { openConflictHeadline } from "@/lib/precog/headline/open-conflicts";
 import { dutiesOffTeam } from "@/lib/precog/onboarding/setup-answers";
 import {
   insuranceBasis,
@@ -33,6 +34,7 @@ import { FigureTile } from "./figure-tile";
 import {
   mitigationCostPhrase,
   reductionPhrase,
+  revealScenarioFigures,
   scenarioCases,
   scenarioConfirmation,
   scenarioWatch,
@@ -82,20 +84,22 @@ export function SingleScenarioView({
     () => scenarioCases(scenario, profile.industry),
     [scenario, profile.industry],
   );
-  // The open findings, and the assignments the check built, which the watch
-  // card reads for the duties nobody holds.
-  const { openConflicts, assignments } = useMemo(() => {
+  // The open findings as the Duty conflicts tab counts them
+  // (headline/open-conflicts), every finding, so the card can name a pair
+  // held but not counted as open, and the assignments the check built, which
+  // the watch card reads for the duties nobody holds.
+  const { openConflicts, conflicts, assignments } = useMemo(() => {
     const report = detectSodConflicts(
       tpl,
       profile.staff,
       sodDetectionOptions(tpl, profile.dualRelease),
     );
-    const { conflicts } = report;
     return {
-      openConflicts: openFindings(
-        conflicts,
-        partialDualReleaseCoverage(profile.dualRelease, conflicts),
-      ),
+      openConflicts: openConflictHeadline(
+        report,
+        partialDualReleaseCoverage(profile.dualRelease, report.conflicts),
+      ).findings,
+      conflicts: report.conflicts,
       assignments: report.assignments,
     };
   }, [tpl, profile.staff, profile.dualRelease]);
@@ -122,10 +126,18 @@ export function SingleScenarioView({
         outTodayIds,
         dutiesOffTeam(profile.setupAnswers),
         assignments,
+        conflicts,
       ),
-    [tpl, scenario, openConflicts, outTodayIds, profile.setupAnswers, assignments],
+    [tpl, scenario, openConflicts, outTodayIds, profile.setupAnswers, assignments, conflicts],
   );
   const unfolding = scenarioUnfolding(scenario.id);
+  // The figures card: a pick on a phone scrolls it into view.
+  const figuresRef = useRef<HTMLDivElement | null>(null);
+  const pick = (id: string) => {
+    onPick(id);
+    // After the picked scenario renders, so the scroll lands on its figures.
+    requestAnimationFrame(() => revealScenarioFigures(figuresRef.current, window));
+  };
   if (!result) return null;
   const scenarioIsStarter = ownBusiness && !confirmed.has(scenario.id);
   const noPolicy = insuranceBasis(riskVariables, ownBusiness) === "none";
@@ -155,7 +167,7 @@ export function SingleScenarioView({
             key={s.id}
             type="button"
             aria-pressed={scenario.id === s.id}
-            onClick={() => onPick(s.id)}
+            onClick={() => pick(s.id)}
             className={cn(
               "rounded-xl border p-4 text-left",
               scenario.id === s.id
@@ -199,7 +211,7 @@ export function SingleScenarioView({
 
       {cases && <RealCasesCard cases={cases} />}
 
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+      <div ref={figuresRef} id="scenario-figures" className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <Card>
           <CardHeader>
             <CardTitle>What this scenario assumes</CardTitle>
