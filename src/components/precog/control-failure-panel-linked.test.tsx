@@ -23,6 +23,10 @@ vi.mock("react", async (importOriginal) => {
       state.runtime?.active ? state.runtime.useState(initial) : actual.useState(initial),
     useMemo: (factory: () => unknown, deps: readonly unknown[]) =>
       state.runtime?.active ? factory() : actual.useMemo(factory, deps),
+    useEffect: (effect: () => void | (() => void), deps?: readonly unknown[]) =>
+      state.runtime?.active
+        ? state.runtime.useEffect(effect, deps)
+        : actual.useEffect(effect, deps),
   };
 });
 vi.mock("@/lib/precog/practice-context", () => ({
@@ -60,6 +64,9 @@ function elementOfType<T extends ReactElement>(node: ReactNode, type: string): T
 }
 
 beforeEach(() => {
+  // The panel scrolls its picker into view after render; node has no frame.
+  vi.stubGlobal("requestAnimationFrame", () => 0);
+  vi.stubGlobal("cancelAnimationFrame", () => {});
   const profile = defaultProfile("dental");
   state.profile = profile;
   state.template = resolveTemplate(profile);

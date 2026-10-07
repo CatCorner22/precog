@@ -104,6 +104,7 @@ export function ScenarioRunner({ item, onNavigate }: { item?: string | null; onN
   function pick(id: string) {
     setPicked(id);
     setMitigations([]);
+    onNavigate?.("precog", scenarioItem(view, id, failureTarget));
   }
 
   function toggleMitigation(id: string) {

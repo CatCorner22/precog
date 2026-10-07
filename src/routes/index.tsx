@@ -188,8 +188,12 @@ function Home() {
         },
         resetScroll: false,
       });
+      // Another tab is another page: it opens from its top, and a section the
+      // item names scrolls itself into view from there. An item on the same
+      // tab keeps the owner's place.
+      if (next !== tab) window.scrollTo({ top: 0 });
     },
-    [navigate],
+    [navigate, tab],
   );
   const openDeepLink = useCallback(
     (target: DeepLinkTarget) =>

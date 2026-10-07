@@ -297,6 +297,50 @@ async function shellChecks(page) {
     timeout,
   });
 
+  // Picking a scenario puts it in the address, so reload and a shared link
+  // open the scenario on screen, not the one picked before it.
+  await home("?tab=precog");
+  const scenarioCards = page.locator('[role="group"][aria-label="Scenarios"] button');
+  await scenarioCards.first().waitFor({ timeout });
+  await scenarioCards.nth(1).click();
+  await page.waitForURL(/[?&]item=(?!failure|compare|variables|cascades)[^&]+/, { timeout });
+  const pickedScenario = new URL(page.url()).searchParams.get("item");
+  await page.reload({ waitUntil: "networkidle", timeout });
+  await page
+    .locator('[role="group"][aria-label="Scenarios"] button[aria-pressed="true"]')
+    .waitFor({ timeout });
+  if (new URL(page.url()).searchParams.get("item") !== pickedScenario) {
+    throw new Error(`reload lost the picked scenario: ${page.url()}`);
+  }
+  const pressedScenario = await scenarioCards.evaluateAll((nodes) =>
+    nodes.findIndex((n) => n.getAttribute("aria-pressed") === "true"),
+  );
+  if (pressedScenario !== 1) {
+    throw new Error(`reload shows scenario ${pressedScenario}, not the picked second one`);
+  }
+
+  // "What if this fails?" from the bottom of the Controls list opens What
+  // could happen from its top: the picker is on screen, not above the header.
+  await home("?tab=sod&item=controls");
+  const whatIfFails = page.getByRole("button", { name: /^What if .+ fails\?$/ }).first();
+  await whatIfFails.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await whatIfFails.click();
+  await page.waitForURL(/[?&]item=failure(:|%3A)control(:|%3A)/, { timeout });
+  await page.locator("#control-failure-target").waitFor({ timeout });
+  const picker = await page.evaluate(() => {
+    const el = document.getElementById("control-failure-target");
+    return {
+      top: el ? Math.round(el.getBoundingClientRect().top) : null,
+      view: window.innerHeight,
+    };
+  });
+  const pickerTop = picker.top;
+  if (pickerTop === null || pickerTop < 0 || pickerTop > picker.view) {
+    throw new Error(`control-failure picker is off screen at y=${pickerTop}`);
+  }
+  console.log(`  ✓ "What if this fails?" lands with the picker at y=${pickerTop}`);
+
   // The header opens Ask Pioneer, and "Someone is out" lands on the absence
   // cards of Who knows what, with the section focused.
   await home();
