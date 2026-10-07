@@ -1,10 +1,18 @@
-import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
 import {
   askForReviewLabel,
-  askReturnNote,
+  awaitingReviewText,
+  lockButtonVariant,
+  openVersionText,
+  RETURN_NOTE_TEXT,
   returnedNoteLine,
+  returnNoteConfirmLabel,
+  returnNoteLabel,
+  returnNoteReady,
   returnVersionLabel,
-  returnWithNote,
+  versionAwaitingReview,
   reviewButtonsFor,
   REVIEW_WORKFLOW_TEXT,
   reviewRequestedToast,
@@ -215,33 +223,90 @@ describe("withdrawing a review", () => {
   });
 });
 
-describe("returnWithNote", () => {
-  it("asks for what to change, naming the version", () => {
-    const ask = vi.fn(() => null);
-    expect(askReturnNote(4, ask)).toBeNull();
-    expect(ask).toHaveBeenCalledWith(
-      "Return version 4 to its preparer? Say what to change (up to 600 characters):",
+describe("the return note", () => {
+  it("is asked inline, never in a browser prompt", () => {
+    const source = readFileSync(
+      fileURLToPath(new URL("./report-versions-actions.ts", import.meta.url)),
+      "utf8",
     );
+    const panel = readFileSync(
+      fileURLToPath(new URL("./report-versions.tsx", import.meta.url)),
+      "utf8",
+    );
+    expect(source).not.toContain("window.prompt");
+    expect(panel).not.toContain("window.prompt");
   });
 
-  it("sends nothing when the reviewer cancels", async () => {
-    const send = vi.fn(async (note: string) => ({ note }));
-    await expect(returnWithNote(4, send, () => null)).resolves.toBeNull();
-    expect(send).not.toHaveBeenCalled();
-  });
-
-  it("sends nothing for an empty note and says so", async () => {
-    const send = vi.fn(async (note: string) => ({ note }));
-    await expect(returnWithNote(4, send, () => "   ")).resolves.toBe("empty");
-    expect(send).not.toHaveBeenCalled();
-    expect(REVIEW_WORKFLOW_TEXT.noteRequired).toBe("Add a note saying what to change.");
-  });
-
-  it("sends the trimmed note", async () => {
-    const send = vi.fn(async (note: string) => ({ note }));
-    await expect(returnWithNote(4, send, () => " Add the payroll duties. ")).resolves.toEqual({
-      note: "Add the payroll duties.",
+  it("labels its box with the version, that it is required and its length", () => {
+    expect(RETURN_NOTE_TEXT).toEqual({
+      confirm: "Return with this note",
+      cancel: "Cancel",
     });
+    expect(returnNoteLabel(4)).toBe(
+      "What to change before version 4 goes back to its preparer (required, up to 600 characters)",
+    );
+    expect(returnNoteConfirmLabel(4)).toBe("Return version 4 with this note");
+  });
+
+  it("is ready only with words in it, and at most 600 characters", () => {
+    expect(returnNoteReady("")).toBe(false);
+    expect(returnNoteReady("   ")).toBe(false);
+    expect(returnNoteReady(" Add the payroll duties. ")).toBe(true);
+    expect(returnNoteReady("x".repeat(600))).toBe(true);
+    expect(returnNoteReady("x".repeat(601))).toBe(false);
+  });
+});
+
+describe("the version waiting for the viewer's review", () => {
+  const base = {
+    id: "rv_1",
+    versionNo: 1,
+    preparedBy: "ada",
+    reviewedAt: null,
+    returnedAt: null,
+    reviewRequestedAt: "2026-10-06T09:00:00.000Z",
+    reviewRequestedFrom: "bea",
+  };
+  const view = { viewerId: "bea", role: "reviewer" as const, firmClient: true };
+
+  it("is the newest version asked of the viewer, or of the firm's reviewers", () => {
+    const v2 = { ...base, id: "rv_2", versionNo: 2, reviewRequestedFrom: null };
+    expect(versionAwaitingReview({ ...view, versions: [v2, base] })).toBe(2);
+    expect(versionAwaitingReview({ ...view, versions: [base] })).toBe(1);
+  });
+
+  it("is none for a version asked of someone else, not asked, reviewed, returned or prepared by the viewer", () => {
+    for (const patch of [
+      { reviewRequestedFrom: "own" },
+      { reviewRequestedAt: null, reviewRequestedFrom: null },
+      { reviewedAt: "2026-10-07T09:00:00.000Z" },
+      { returnedAt: "2026-10-07T09:00:00.000Z" },
+      { preparedBy: "bea" },
+    ]) {
+      expect(versionAwaitingReview({ ...view, versions: [{ ...base, ...patch }] })).toBeNull();
+    }
+    expect(versionAwaitingReview({ ...view, role: "preparer", versions: [base] })).toBeNull();
+    expect(versionAwaitingReview({ ...view, readOnly: true, versions: [base] })).toBeNull();
+  });
+
+  it("is never a version a newer one superseded", () => {
+    const v2 = { ...base, id: "rv_2", versionNo: 2, reviewRequestedAt: null };
+    expect(versionAwaitingReview({ ...view, versions: [v2, base] })).toBeNull();
+  });
+
+  it("is named in the banner and its link", () => {
+    expect(awaitingReviewText(3)).toBe("Version 3 waits for your review.");
+    expect(openVersionText(3)).toBe("Open version 3");
+  });
+});
+
+describe("Lock this version", () => {
+  it("is an outline button for a firm reviewer and for anyone a version waits on", () => {
+    expect(lockButtonVariant({ role: "reviewer", awaiting: false })).toBe("outline");
+    expect(lockButtonVariant({ role: "owner", awaiting: true })).toBe("outline");
+    expect(lockButtonVariant({ role: "owner", awaiting: false })).toBe("default");
+    expect(lockButtonVariant({ role: "preparer", awaiting: false })).toBe("default");
+    expect(lockButtonVariant({ role: null, awaiting: false })).toBe("default");
   });
 });
 
@@ -258,7 +323,16 @@ describe("request-and-return wording", () => {
     });
     expect(reviewRequestedToast("Bea Lin")).toBe("Review requested from Bea Lin.");
     expect(reviewRequestedToast(null)).toBe("Review requested from the firm's reviewers.");
-    expect(returnedNoteLine("Add the payroll duties.")).toBe("Returned: Add the payroll duties.");
+    expect(
+      returnedNoteLine({
+        returnNote: "Add the payroll duties.",
+        returnedByName: "Bea Lin",
+        returnedAt: "2026-10-07T15:00:00.000Z",
+      }),
+    ).toBe("Returned: Add the payroll duties. by Bea Lin on Oct 7, 2026");
+    expect(
+      returnedNoteLine({ returnNote: "Add it.", returnedByName: null, returnedAt: null }),
+    ).toBe("Returned: Add it. by a reviewer");
     expect(SHARED_BUSINESS_NOTE).toBe(
       "The firm working on this business locks, reviews, sends and shares its report versions. Open any version to read it.",
     );
