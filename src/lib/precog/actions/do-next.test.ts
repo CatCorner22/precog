@@ -15,7 +15,7 @@ import {
   doNextDrift,
   doNextList,
   doNextSteps,
-  SPLIT_STEP_WITHOUT_NAMED_PERSON,
+  SPLIT_STEP_WITHOUT_NAMED_ROLE,
 } from "./do-next";
 
 const TODAY = new Date(2026, 8, 26);
@@ -153,7 +153,7 @@ describe("the split-one-duty-out step", () => {
           `Move one duty, ${move.dutyLabel[0].toLowerCase()}${move.dutyLabel.slice(1)}, away from ${move.personName}: it closes ${move.closes} of the ${open.length} open duty conflicts`,
         );
       } else {
-        expect(label).toBe(SPLIT_STEP_WITHOUT_NAMED_PERSON);
+        expect(label).toBe(SPLIT_STEP_WITHOUT_NAMED_ROLE);
       }
     },
   );
@@ -192,6 +192,6 @@ describe("the split-one-duty-out step", () => {
     expect(label).toContain("Robin Lead");
     expect(label).not.toMatch(/bank/i);
     // With nobody holding half the conflicts, the step still names no bank duty.
-    expect(SPLIT_STEP_WITHOUT_NAMED_PERSON).not.toMatch(/bank/i);
+    expect(SPLIT_STEP_WITHOUT_NAMED_ROLE).not.toMatch(/bank/i);
   });
 });

@@ -20,8 +20,8 @@ import {
   REPORT_BASIS,
   REPORT_BASIS_TITLE,
   REPORT_CAVEATS,
-  SPLIT_STEP_WITHOUT_NAMED_ROLE,
 } from "./report-summary";
+import { SPLIT_STEP_WITHOUT_NAMED_ROLE } from "../actions/do-next";
 
 function decision(id: string, extra: Partial<DecisionEntry> = {}): DecisionEntry {
   return {

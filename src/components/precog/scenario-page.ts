@@ -13,7 +13,7 @@ import {
   entitlementLabel,
   type EntitlementId,
 } from "@/lib/precog/sod/conflict-rules";
-import { buildAssignments } from "@/lib/precog/sod/assignments";
+import { buildAssignments, type RoleAssignment } from "@/lib/precog/sod/assignments";
 import { teamHeldDuties } from "@/lib/precog/sod/rule-match";
 import { citingCaseStats, isOwnSector, type CaseStudy } from "@/lib/precog/evidence";
 import { casesBehindScenario } from "@/lib/precog/evidence/scenario-cases";
@@ -111,6 +111,14 @@ export function scenarioWatch(
   outTodayIds: ReadonlySet<string>,
   /** Duties the setup answers place outside the team: `dutiesOffTeam(profile.setupAnswers)`. */
   offTeam: ReadonlySet<EntitlementId> = new Set(),
+  /**
+   * The team's duty assignments, when the caller's conflict check already
+   * built them from `tpl` (the detection report's `assignments`).
+   */
+  assignments: readonly Pick<RoleAssignment, "entitlements">[] = buildAssignments({
+    people: tpl.people,
+    roleTemplates: tpl.roleTemplates ?? {},
+  }),
 ): ScenarioWatch {
   const ruleIds = new Set(scenarioRuleIds(scenario));
   const seen = new Set<string>();
@@ -123,9 +131,7 @@ export function scenarioWatch(
     conflicts.push({ personName: conflict.personName, title: conflict.title });
   }
 
-  const held = teamHeldDuties(
-    buildAssignments({ people: tpl.people, roleTemplates: tpl.roleTemplates ?? {} }),
-  );
+  const held = teamHeldDuties(assignments);
   const unassigned = new Set<EntitlementId>();
   const offTeamUnheld = new Set<EntitlementId>();
   for (const rule of CONFLICT_RULES) {

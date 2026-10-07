@@ -3,7 +3,7 @@ import type { IndustryId } from "../industry";
 import type { EntitlementId } from "../sod/conflict-rules";
 import type { DetectedConflict } from "../sod/detect";
 import type { HandSetFigures } from "../sod/derive-staff";
-import { concentrationHeadline } from "../sod/verdict";
+import { concentrationHeadline, type ConcentrationHeadline } from "../sod/verdict";
 import type { OpenConflictHeadline } from "../headline/open-conflicts";
 import { isDecisionOpen, linkedKnowledgeId } from "../decisions/follow-through";
 import { count, midSentence } from "../text";
@@ -39,21 +39,17 @@ interface SummaryInput {
   >;
   /** The first step, as the step list words it (actions/do-next `rankedFirstSteps`). */
   firstStep: string | null;
+  /**
+   * `concentrationMove` of `conflicts.findings`, when the caller has already
+   * worked it out; worked out here when absent.
+   */
+  move?: ConcentrationMove | null;
   registerReady: boolean;
   coverageIndex: number;
   singlePoints: number;
   mapHealth: { score: number; bandLabel: string } | null;
   topPriority: string | null;
 }
-
-/**
- * The split-one-duty-out step (evidence/controls), worded for a business
- * where no one person holds half the open conflicts. It names no duty: the
- * bank reconciliation may already sit with someone else, for example an
- * outside bookkeeper.
- */
-export const SPLIT_STEP_WITHOUT_NAMED_ROLE =
-  "Move one duty of a conflicting pair to someone who holds neither duty";
 
 /** How many decisions the printed log lists before it says how many it left out. */
 const DECISION_LOG_MAX = 10;
@@ -87,7 +83,7 @@ export function executiveSummary(input: SummaryInput): string[] {
     lines.push(
       `${count(open, "open duty conflict")}${critical > 0 ? `, ${critical} of them critical,` : ""} held by ${count(people, "person", "people")}.`,
     );
-    const move = concentrationMove(findings);
+    const move = input.move === undefined ? concentrationMove(findings) : input.move;
     if (move) {
       lines.push(
         `One person holds ${move.held} of the ${open} open duty conflicts; moving one duty, ${midSentence(move.dutyLabel)}, to someone who holds none of the others closes ${move.closes} of them.`,
@@ -116,7 +112,7 @@ export function executiveSummary(input: SummaryInput): string[] {
 }
 
 /** The concentration move, counted in the conflict table's rows. */
-interface ConcentrationMove {
+export interface ConcentrationMove {
   personId: string;
   personName: string;
   duty: EntitlementId;
@@ -139,8 +135,10 @@ interface ConcentrationMove {
  * share and at least half of the open count the sentence before it prints
  * ("12 of the 20"); with no such person there is no move, never "5 of the 13".
  */
-export function concentrationMove(open: readonly DetectedConflict[]): ConcentrationMove | null {
-  const headline = concentrationHeadline(open, "finding");
+export function concentrationMove(
+  open: readonly DetectedConflict[],
+  headline: ConcentrationHeadline | null = concentrationHeadline(open, "finding"),
+): ConcentrationMove | null {
   if (!headline) return null;
   const held = open.filter((c) => c.personId === headline.personId);
   const closed = held.filter(

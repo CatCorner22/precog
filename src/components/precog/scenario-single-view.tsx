@@ -82,13 +82,22 @@ export function SingleScenarioView({
     () => scenarioCases(scenario, profile.industry),
     [scenario, profile.industry],
   );
-  const openConflicts = useMemo(() => {
-    const conflicts = detectSodConflicts(
+  // The open findings, and the assignments the check built, which the watch
+  // card reads for the duties nobody holds.
+  const { openConflicts, assignments } = useMemo(() => {
+    const report = detectSodConflicts(
       tpl,
       profile.staff,
       sodDetectionOptions(tpl, profile.dualRelease),
-    ).conflicts;
-    return openFindings(conflicts, partialDualReleaseCoverage(profile.dualRelease, conflicts));
+    );
+    const { conflicts } = report;
+    return {
+      openConflicts: openFindings(
+        conflicts,
+        partialDualReleaseCoverage(profile.dualRelease, conflicts),
+      ),
+      assignments: report.assignments,
+    };
   }, [tpl, profile.staff, profile.dualRelease]);
   const outTodayIds = useMemo(
     () =>
@@ -106,8 +115,15 @@ export function SingleScenarioView({
   // Duties the setup answers place outside the team, as the Duty conflicts screen reads them.
   const watch = useMemo(
     () =>
-      scenarioWatch(tpl, scenario, openConflicts, outTodayIds, dutiesOffTeam(profile.setupAnswers)),
-    [tpl, scenario, openConflicts, outTodayIds, profile.setupAnswers],
+      scenarioWatch(
+        tpl,
+        scenario,
+        openConflicts,
+        outTodayIds,
+        dutiesOffTeam(profile.setupAnswers),
+        assignments,
+      ),
+    [tpl, scenario, openConflicts, outTodayIds, profile.setupAnswers, assignments],
   );
   const unfolding = scenarioUnfolding(scenario.id);
   if (!result) return null;

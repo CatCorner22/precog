@@ -140,20 +140,28 @@ export function useSodPanel(
   const shownLocation =
     location === "all" || location === null || locations.includes(location) ? location : "all";
 
-  const filtered = report.conflicts
-    .filter((c) => filterSeverity === "all" || c.severity === filterSeverity)
-    .filter(
-      (c) =>
-        locations.length < 2 ||
-        shownLocation === "all" ||
-        worksAt(placesOf.get(c.personId), shownLocation),
-    );
+  const filtered = useMemo(
+    () =>
+      report.conflicts
+        .filter((c) => filterSeverity === "all" || c.severity === filterSeverity)
+        .filter(
+          (c) =>
+            locations.length < 2 ||
+            shownLocation === "all" ||
+            worksAt(placesOf.get(c.personId), shownLocation),
+        ),
+    [report.conflicts, filterSeverity, locations, shownLocation, placesOf],
+  );
   // The list under the open count shows the open findings first, the ones the
   // count and the location buttons count; the owner's own pairs and pairs dual
   // release covers at every amount follow in a folded group of their own.
-  const openSet = new Set(headline.findings);
-  const filteredOpen = filtered.filter((c) => openSet.has(c));
-  const filteredNotOpen = filtered.filter((c) => !openSet.has(c));
+  const { filteredOpen, filteredNotOpen } = useMemo(() => {
+    const openSet = new Set(headline.findings);
+    return {
+      filteredOpen: filtered.filter((c) => openSet.has(c)),
+      filteredNotOpen: filtered.filter((c) => !openSet.has(c)),
+    };
+  }, [filtered, headline.findings]);
 
   function confirmTitleGuesses() {
     setCustomPeople((people) => confirmTitleDuties(people));

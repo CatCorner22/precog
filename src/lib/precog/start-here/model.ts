@@ -21,6 +21,7 @@ import {
 import { partialDualReleaseCoverage, ruleIdsOf } from "../sod/open-findings";
 import { openConflictHeadline, type OpenConflictHeadline } from "../headline/open-conflicts";
 import { concentrationHeadline, separatedPairs } from "../sod/verdict";
+import { concentrationMove } from "../report/report-summary";
 import { entitlementLabel } from "../sod/conflict-rules";
 import { ownerHeldPairs } from "../coach/first-steps";
 import { continuitySlips, decisionsDue } from "../decisions/follow-through";
@@ -253,6 +254,10 @@ export function buildStartHereModel({
   const gaps = groupGaps(openConflicts, partialCoverage);
   const topThree = gaps.slice(0, 3);
   const placesOf = locationsById(template.people);
+  // Worked out once: the exposure section's headline, and the move the
+  // "Do these first" list names in its split step.
+  const headline = concentrationHeadline(open, "finding");
+  const move = concentrationMove(open, headline);
   const offTeamDuties = dutiesOffTeam(profile.setupAnswers);
   const exposure: StartHereExposureModel = {
     industryId: profile.industry,
@@ -267,7 +272,7 @@ export function buildStartHereModel({
     topThree,
     narrowed: gaps.slice(3).filter((g) => partialCoverage.has(g.conflict.ruleId)),
     partialCoverage,
-    headline: concentrationHeadline(open, "finding"),
+    headline,
     keptApart: separatedPairs(sod.conflicts, sod.assignments),
     ownerHeld: ownerHeldPairs(sod.conflicts),
     titleDuties: isSampleTeam ? "" : titleDutiesSentence(template.people),
@@ -305,6 +310,7 @@ export function buildStartHereModel({
   const inPlace = setupInPlaceControls(profile.setupAnswers);
   const doNextInput = {
     open,
+    move,
     industry: profile.industry,
     integrationDriftSummary: profile.integrationDriftSummary,
     accessReconciliation: profile.accessReconciliation,

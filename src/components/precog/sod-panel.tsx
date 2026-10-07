@@ -187,7 +187,7 @@ export function SodPanel({
         </div>
       )}
 
-      <ViewSwitcher model={model} open={headline.open} />
+      <ViewSwitcher model={model} />
 
       <div
         role="tabpanel"
@@ -253,8 +253,9 @@ function Section({
 }
 
 /** The three sub-tabs; Duty conflicts carries the open count, as the tile above it does. */
-function ViewSwitcher({ model, open }: { model: SodPanelModel; open: number }) {
+function ViewSwitcher({ model }: { model: SodPanelModel }) {
   const { group, openGroup } = model;
+  const { open } = model.headline;
   const groups: { id: SodGroup; label: string; icon: LucideIcon }[] = [
     { id: "conflicts", label: `Duty conflicts (${open})`, icon: AlertTriangle },
     { id: "duties", label: "Duty assignments", icon: Network },

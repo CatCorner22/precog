@@ -135,7 +135,7 @@ export function rankedActionPlan(
   const inPlace = setupInPlaceControls(profile.setupAnswers);
   const running = (id: ControlId) =>
     inPlace.has(id) || (id === DUAL_RELEASE && profile.dualRelease.enabled);
-  const steps = rankedFirstSteps(open, profile.industry, running).slice(0, DO_NEXT_STEPS_MAX);
+  const steps = rankedFirstSteps(open, profile.industry, running, move).slice(0, DO_NEXT_STEPS_MAX);
   for (const step of steps) {
     const hits = answered([step.control.id]);
     if (hits.length === 0) continue;
