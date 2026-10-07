@@ -16,6 +16,7 @@ import {
 import { businessLocations, locationsById, worksAt } from "@/lib/precog/person-location";
 import { findingsWithoutDecision } from "@/lib/precog/decisions/not-valid";
 import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
+import { openConflictHeadline } from "@/lib/precog/headline/open-conflicts";
 import { rulesDualReleaseCanNarrow, type ConflictSeverity } from "./sod-conflict-view";
 
 /** The six views an address can name (`?tab=sod&item=matrix`); every one keeps working. */
@@ -103,17 +104,22 @@ export function useSodPanel(
       detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease)),
     [shellReport, tpl, profile.staff, profile.dualRelease],
   );
+  // Rules dual release covers only above a threshold: their pairs stay open.
+  const partial = useMemo(
+    () => partialDualReleaseCoverage(profile.dualRelease, report.conflicts),
+    [profile.dualRelease, report.conflicts],
+  );
+  // The open count every screen gives (headline/open-conflicts), with its
+  // parts and its findings: the tile, the sub-tab, the location filter and the
+  // list under them all read this one object.
+  const headline = useMemo(() => openConflictHeadline(report, partial), [report, partial]);
   // Open findings nobody has logged a decision on: the "No decision yet" tile.
   // It reads the same decided-on rule as the pilot metrics, so the two move together.
   const withoutDecision = useMemo(
     () =>
-      findingsWithoutDecision(
-        report.conflicts,
-        partialDualReleaseCoverage(profile.dualRelease, report.conflicts),
-        profile.decisions,
-        profile.industry,
-      ).length,
-    [report.conflicts, profile.dualRelease, profile.decisions, profile.industry],
+      findingsWithoutDecision(report.conflicts, partial, profile.decisions, profile.industry)
+        .length,
+    [report.conflicts, partial, profile.decisions, profile.industry],
   );
   const narrowable = useMemo(
     () => rulesDualReleaseCanNarrow(profile.dualRelease),
@@ -140,6 +146,12 @@ export function useSodPanel(
         shownLocation === "all" ||
         worksAt(placesOf.get(c.personId), shownLocation),
     );
+  // The list under the open count shows the open findings first, the ones the
+  // count and the location buttons count; the owner's own pairs and pairs dual
+  // release covers at every amount follow in a folded group of their own.
+  const openSet = new Set(headline.findings);
+  const filteredOpen = filtered.filter((c) => openSet.has(c));
+  const filteredNotOpen = filtered.filter((c) => !openSet.has(c));
 
   function confirmTitleGuesses() {
     setCustomPeople((people) => confirmTitleDuties(people));
@@ -148,6 +160,7 @@ export function useSodPanel(
   return {
     profile,
     report,
+    headline,
     withoutDecision,
     addDecision,
     narrowable,
@@ -167,7 +180,8 @@ export function useSodPanel(
     unplaced,
     shownLocation,
     setLocation,
-    filtered,
+    filteredOpen,
+    filteredNotOpen,
     confirmTitleGuesses,
   };
 }

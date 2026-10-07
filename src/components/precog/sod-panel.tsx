@@ -4,12 +4,8 @@ import { dutiesOffTeam } from "@/lib/precog/onboarding/setup-answers";
 import { AlertTriangle, Network, ShieldCheck, type LucideIcon } from "lucide-react";
 import { segregationLevel } from "@/lib/precog/scoring/bands";
 import { CONFLICT_RULES, entitlementLabel } from "@/lib/precog/sod/conflict-rules";
-import {
-  belowThresholdNote,
-  openSeverityCounts,
-  partialDualReleaseCoverage,
-} from "@/lib/precog/sod/open-findings";
-import { openConflictBreakdown, openConflictHeadline } from "@/lib/precog/headline/open-conflicts";
+import { belowThresholdNote, openSeverityCounts } from "@/lib/precog/sod/open-findings";
+import { openConflictBreakdown } from "@/lib/precog/headline/open-conflicts";
 import { sodScopeLine } from "@/lib/precog/integrations/drift-signals";
 import type { NavFn } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
@@ -49,7 +45,8 @@ export function SodPanel({
 }) {
   const { say } = usePresentation();
   const model = useSodPanel(shellReport, initialView, onNavigate);
-  const { profile, report, sodExamples, titleDuties, titleDutyNames, group, setView } = model;
+  const { profile, report, headline, sodExamples, titleDuties, titleDutyNames, group, setView } =
+    model;
   // A view that is a section of its sub-tab (matrix, roles, dual) comes into
   // view and takes focus when the address names it, as a tab landing would.
   useEffect(() => {
@@ -68,11 +65,6 @@ export function SodPanel({
   const level = segregationLevel(health, open);
   // The open tiles count what dual release covers only above a threshold; say why.
   const belowNote = belowThresholdNote(open);
-  // The open count every screen gives (headline/open-conflicts), with its parts.
-  const headline = openConflictHeadline(
-    report,
-    partialDualReleaseCoverage(profile.dualRelease, report.conflicts),
-  );
   const reduced = headline.reducedNotClosed;
   // The findings cover only the people on the map; say so when the books show more.
   const scope = sodScopeLine(profile.integrationDriftSummary);
