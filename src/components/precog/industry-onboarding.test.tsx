@@ -99,6 +99,21 @@ describe("IndustryOnboarding, first render", () => {
     expect(html.indexOf("<table")).toBeLessThan(html.indexOf("Fill the table faster"));
   });
 
+  it("says under the header that the business is kept only once setup finishes", () => {
+    const { html, text } = firstRender("Ruiz Dental", "dental", "team");
+    const notice =
+      "Precog keeps this business once you press “Show me my gaps”. Until then it stays only in this browser tab.";
+    expect(text).toContain(notice);
+    expect(html.indexOf("Precog keeps this business")).toBeLessThan(html.indexOf("<table"));
+    expect(text).not.toContain("Your progress stays in this tab until you finish.");
+  });
+
+  it("names the owner row's ticks under its job title", () => {
+    const { text } = firstRender("Ruiz Dental", "dental", "team");
+    expect(text).toContain("From the job title: Approve payroll, Approve write-offs and voids,");
+    expect(text).not.toContain("Catalog job: Owner");
+  });
+
   it("makes the duty catalog discoverable and explains the one-person completion choice", () => {
     const { html, text } = firstRender("Ruiz Dental", "dental", "team");
     expect(html).toMatch(

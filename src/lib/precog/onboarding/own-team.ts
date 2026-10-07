@@ -13,6 +13,7 @@ import type { Person } from "../types";
 import { stripInvisibleControls, titleKey } from "../text";
 import { clamp } from "../number";
 import { MAX_ROLE_LENGTH, OWN_TEAM_MAX } from "./own-business";
+import { dutiesOffTeam, hiddenDuties, type SetupAnswers } from "./setup-answers";
 
 // Kept with the catalog-free setup pieces (./own-business); re-exported for existing importers.
 export {
@@ -113,6 +114,11 @@ export function coreDutyLabel(id: EntitlementId): string {
   return ENTITLEMENTS.find((e) => e.id === id)?.label ?? id;
 }
 
+/** A duty's short name, as its grid column heads it; a duty with no column uses its full wording. */
+export function dutyShortName(id: EntitlementId): string {
+  return GRID_DUTY_HEADING[id] ?? coreDutyLabel(id);
+}
+
 /** A row's duties that are not grid columns: shown as chips so nothing a title carries is hidden. */
 export function extraDuties(duties: readonly EntitlementId[]): EntitlementId[] {
   return duties.filter((d) => !GRID.has(d) && d !== "view_reports_only");
@@ -154,21 +160,104 @@ export function rowOwnsBusiness(
   );
 }
 
-/** The catalog's usual duties for a title, every one of them: columns and chips alike. */
-export function coreDutiesForTitle(title: string, industry?: string): EntitlementId[] {
-  return entitlementsForTitle(title, industry).filter((d) => d !== "view_reports_only");
+/**
+ * The catalog's usual duties for a title, every one of them: columns and
+ * chips alike. With the setup answers, a duty the answers place outside the
+ * team (no payroll, an outside bank reconciliation, no cash) is left out.
+ */
+export function coreDutiesForTitle(
+  title: string,
+  industry?: string,
+  answers?: SetupAnswers,
+): EntitlementId[] {
+  return withoutOffTeam(
+    entitlementsForTitle(title, industry).filter((d) => d !== "view_reports_only"),
+    answers,
+  );
 }
 
 /**
  * The duties the grid ticks for a row's title. A row that owns the business
  * keeps the owner's usual duties (approving, signing) whatever the owner calls
- * their job ("Dentist", "Head Chef"), plus any the title adds.
+ * their job ("Dentist", "Head Chef"), plus any the title adds. A duty the
+ * setup answers place outside the team is never ticked.
  */
-export function suggestedDuties(role: string, owns: boolean, industry?: string): EntitlementId[] {
-  const title = coreDutiesForTitle(role, industry);
+export function suggestedDuties(
+  role: string,
+  owns: boolean,
+  industry?: string,
+  answers?: SetupAnswers,
+): EntitlementId[] {
+  const title = coreDutiesForTitle(role, industry, answers);
   if (!owns) return title;
-  const owner = coreDutiesForTitle("Owner", industry);
+  const owner = coreDutiesForTitle("Owner", industry, answers);
   return [...owner, ...title.filter((d) => !owner.includes(d))];
+}
+
+/** The duties without those the setup answers place outside the team. */
+export function withoutOffTeam(
+  duties: readonly EntitlementId[],
+  answers: SetupAnswers | undefined,
+): EntitlementId[] {
+  const off = dutiesOffTeam(answers);
+  return duties.filter((d) => !off.has(d));
+}
+
+/**
+ * Whether a row's ticks are still exactly a title's suggestion, leaving
+ * aside duties the setup answers place outside the team: a row ticked before
+ * the answers changed still counts as the suggestion.
+ */
+export function stillSuggested(
+  duties: readonly EntitlementId[],
+  suggestion: readonly EntitlementId[],
+  answers: SetupAnswers | undefined,
+): boolean {
+  return sameDuties(withoutOffTeam(duties, answers), withoutOffTeam(suggestion, answers));
+}
+
+/**
+ * The rows with every duty the setup answers place outside the team
+ * unticked, for rows a paste or "Add people by job title" just filled. The
+ * grid's untouched first row keeps its ticks so it stays recognizable as
+ * untouched; those duties have no column and Finish drops them. Returns the
+ * same array when nothing changed.
+ */
+export function withoutDutiesOffTeam(
+  rows: OwnTeamRow[],
+  answers: SetupAnswers | undefined,
+): OwnTeamRow[] {
+  const off = dutiesOffTeam(answers);
+  if (off.size === 0) return rows;
+  let changed = false;
+  const next = rows.map((row) => {
+    // The fresh first row keeps its ticks (see above).
+    const untouched: boolean = isUntouchedLeaderRow(row);
+    if (untouched) return row;
+    if (!row.duties.some((d) => off.has(d))) return row;
+    changed = true;
+    return { ...row, duties: row.duties.filter((d) => !off.has(d)) };
+  });
+  return changed ? next : rows;
+}
+
+/**
+ * The duties a row holds because its job title ticked them, in the grid's
+ * column order and then the title's other duties: empty when the ticks were
+ * set by hand under another title. Duties the setup answers hide are left
+ * out, since they have no column and Finish drops them.
+ */
+export function titleTickedDuties(
+  row: Pick<OwnTeamRow, "role" | "duties" | "suggestedFor" | "owner">,
+  industry?: string,
+  answers?: SetupAnswers,
+): EntitlementId[] {
+  const role = row.role.trim();
+  if (!role || (row.suggestedFor ?? "").trim() !== role) return [];
+  const usual = new Set(suggestedDuties(role, rowOwnsBusiness(row, industry), industry));
+  const hidden = answers ? hiddenDuties(answers) : new Set<EntitlementId>();
+  const held = row.duties.filter((d) => usual.has(d) && !hidden.has(d));
+  return [...CORE_DUTIES, ...extraDuties(held)].filter((d) => held.includes(d));
 }
 
 /**
@@ -328,10 +417,14 @@ export function onLeavePersonIds(rows: readonly OwnTeamRow[]): string[] {
  * the duties ticked for them so duty-conflict detection reads them directly
  * instead of guessing from a job title.
  */
-export function buildOwnTeam(rows: readonly OwnTeamRow[], industry?: string): Person[] {
+export function buildOwnTeam(
+  rows: readonly OwnTeamRow[],
+  industry?: string,
+  answers?: SetupAnswers,
+): Person[] {
   return teamRows(rows)
     .map((row) => ({
-      fromTitle: dutiesStillFromTitle(row, industry),
+      fromTitle: dutiesStillFromTitle(row, industry, answers),
       name: row.name.trim().slice(0, 60),
       role: row.role.trim().slice(0, MAX_ROLE_LENGTH) || "Team member",
       duties: row.duties.filter((d) => ENTITLEMENT_IDS.has(d)),
@@ -401,12 +494,12 @@ function isUntouchedLeaderRow(row: OwnTeamRow | undefined): row is OwnTeamRow {
  * the title that ticked them is the row's title now, and nobody has added or
  * removed a duty since. A row with no duties at all has nothing guessed.
  */
-function dutiesStillFromTitle(row: OwnTeamRow, industry?: string): boolean {
+function dutiesStillFromTitle(row: OwnTeamRow, industry?: string, answers?: SetupAnswers): boolean {
   const role = row.role.trim();
   if (!role || row.duties.length === 0) return false;
   if ((row.suggestedFor ?? "").trim() !== role) return false;
-  const usual = suggestedDuties(role, rowOwnsBusiness(row, industry), industry);
-  return sameDuties(row.duties, usual);
+  const usual = suggestedDuties(role, rowOwnsBusiness(row, industry), industry, answers);
+  return stillSuggested(row.duties, usual, answers);
 }
 
 /**
