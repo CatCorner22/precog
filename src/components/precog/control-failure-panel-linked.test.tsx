@@ -1,6 +1,6 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveTemplate } from "@/lib/precog/active-template";
 import { localDateKey } from "@/lib/precog/dates";
 import { defaultProfile, type PracticeProfile } from "@/lib/precog/practice-profile";
@@ -73,6 +73,10 @@ beforeEach(() => {
   runtime.reset();
 });
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("linked control-failure targets", () => {
   it("follows a changed initial target without remounting", async () => {
     const profile = state.profile as PracticeProfile;
@@ -107,5 +111,27 @@ describe("linked control-failure targets", () => {
     select?.props.onChange({ target: { value: "control:c-sod-cash" } });
 
     expect(onTargetChange).toHaveBeenCalledWith("control:c-sod-cash");
+  });
+
+  it("scrolls the picker when it is beneath sticky-header clearance", async () => {
+    const scrollIntoView = vi.fn();
+    const picker = {
+      getBoundingClientRect: () => ({ top: 36, bottom: 100 }),
+      scrollIntoView,
+    };
+    vi.stubGlobal("document", {
+      documentElement: {},
+      getElementById: () => picker,
+    });
+    vi.stubGlobal("window", { innerHeight: 800 });
+    vi.stubGlobal("getComputedStyle", () => ({ scrollPaddingTop: "80px" }));
+    vi.stubGlobal("requestAnimationFrame", (callback: (time: number) => void) => {
+      callback(0);
+      return 1;
+    });
+
+    await runtime.settle(() => ControlFailurePanel({ initialTarget: "control:c-sod-cash" }));
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
   });
 });

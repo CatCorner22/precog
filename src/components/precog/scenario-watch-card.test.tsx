@@ -54,6 +54,20 @@ describe("ScenarioWatchCard", () => {
     expect(onOpenFailure).toHaveBeenCalledWith("control:c-sod-ap");
   });
 
+  it("marks an unassessed linked knowledge item as not recorded", () => {
+    const tpl = { ...getIndustryTemplate("dental"), relations: [] };
+    const scenario = tpl.scenarios.find((item) => item.id === "sc-front-desk-leaves");
+    if (!scenario) throw new Error("Missing dental departure scenario");
+    const watch = scenarioWatch(tpl, scenario, [], new Set());
+    const html = renderToStaticMarkup(
+      ScenarioWatchCard({ scenario, unfolding: scenarioUnfolding(scenario.id)!, watch }),
+    );
+
+    expect(html).toContain(
+      "Insurance denial appeals: who can run it alone isn&#x27;t recorded yet; mark it on Who knows what.",
+    );
+  });
+
   it("says a needed duty is ticked for nobody instead of saying nobody holds both", () => {
     const dental = getIndustryTemplate("dental");
     const scenario = dental.scenarios.find((item) => item.id === "sc-vendor-fraud")!;

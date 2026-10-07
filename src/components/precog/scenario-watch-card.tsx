@@ -1,7 +1,8 @@
 import { ShieldOff } from "lucide-react";
 import type { ScenarioTemplate } from "@/lib/precog/types";
-import { joinWithAnd, verb } from "@/lib/precog/text";
+import { joinWithAnd } from "@/lib/precog/text";
 import type { ScenarioUnfolding } from "@/lib/precog/scenario-unfolding";
+import { dutyFacts, knowledgeFact } from "@/lib/precog/scenario-watch";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { scenarioRuleIds, type ScenarioWatch } from "./scenario-page";
@@ -51,52 +52,7 @@ export function ScenarioWatchCard({
             </p>
             <div className="mt-2 space-y-1 text-sm text-muted">
               {ruleIds.length > 0 &&
-                (watch.conflicts.length > 0 ? (
-                  <>
-                    {watch.conflicts.slice(0, 3).map((conflict, index) => (
-                      <p key={`${conflict.personName}:${index}`}>
-                        {conflict.personName} holds both duties: {conflict.title}
-                      </p>
-                    ))}
-                    {watch.conflicts.length > 3 && <p>and {watch.conflicts.length - 3} more</p>}
-                  </>
-                ) : watch.notOpen.length > 0 ? (
-                  // Held, but left out of the open count, as the Duty
-                  // conflicts tab's "Not counted as open" group says.
-                  <>
-                    {watch.notOpen.slice(0, 3).map((pair, index) => (
-                      <p key={`${pair.personName}:${index}`}>
-                        {pair.personName} holds both duties: {pair.title}. Not counted as open:{" "}
-                        {pair.reason === "owner"
-                          ? "it is the owner's own pair."
-                          : "dual release covers it at every amount."}
-                      </p>
-                    ))}
-                    {watch.notOpen.length > 3 && <p>and {watch.notOpen.length - 3} more</p>}
-                  </>
-                ) : watch.unassignedDuties.length > 0 ? (
-                  <>
-                    <p>
-                      Nobody on the team is ticked for {joinWithAnd(watch.unassignedDuties)}, so
-                      Precog cannot tell whether one person holds both duties this needs. Tick
-                      whoever does {verb(watch.unassignedDuties.length, "it", "them")} on the Team
-                      tab.
-                    </p>
-                    {watch.offTeamDuties.length > 0 && (
-                      <p>
-                        Your setup answers place {joinWithAnd(watch.offTeamDuties)} outside the
-                        team.
-                      </p>
-                    )}
-                  </>
-                ) : watch.offTeamDuties.length > 0 ? (
-                  <p>
-                    Your setup answers place {joinWithAnd(watch.offTeamDuties)} outside the team, so
-                    nobody on the team holds both duties this needs.
-                  </p>
-                ) : (
-                  <p>Nobody on the team holds both duties this needs.</p>
-                ))}
+                dutyFacts(watch).map((fact, index) => <p key={`${fact}:${index}`}>{fact}</p>)}
               {control &&
                 (control.example ? (
                   <p>
@@ -111,12 +67,7 @@ export function ScenarioWatchCard({
                 ))}
               {watch.knowledge && (
                 <>
-                  <p>
-                    {watch.knowledge.name}:{" "}
-                    {watch.knowledge.holders.length > 0
-                      ? `${joinWithAnd(watch.knowledge.holders)} can run it alone.`
-                      : "nobody can run it alone."}
-                  </p>
+                  <p>{knowledgeFact(watch.knowledge)}</p>
                   {watch.knowledge.outToday.length > 0 && (
                     <p className="text-warn">{joinWithAnd(watch.knowledge.outToday)} out today.</p>
                   )}

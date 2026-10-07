@@ -290,6 +290,7 @@ const pioneerProfileSchema = z.looseObject({
   practiceName: optString,
   staff: z.nullish(staffSchema),
   riskVariables: z.nullish(riskVariablesSchema),
+  setupAnswers: z.nullish(z.unknown()),
   dualRelease: z.nullish(z.looseObject({})),
   customProcesses: z.nullish(list(processSchema, PIONEER_LIST_CAPS.nodes)),
   customPeople: z.nullish(list(personSchema, PIONEER_LIST_CAPS.nodes)),

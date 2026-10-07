@@ -8,6 +8,7 @@ import { isWritten, procedureWhere } from "../continuity/documentation";
 import { LINK_ONLY_STEP, writtenProcedureLinks } from "../procedures/coverage-link";
 import { newProcedure, newStep } from "../procedures/lifecycle";
 import { parsePioneerInput } from "../public-inputs";
+import { UNANSWERED } from "../onboarding/setup-answers";
 
 const dental = getIndustryTemplate("dental");
 const retail = getIndustryTemplate("retail");
@@ -17,6 +18,25 @@ describe("pioneerProfileFrom", () => {
     const p = pioneerProfileFrom({ industry: "retail", practiceName: "Harbor Lane Boutique" });
     expect(p.industry).toBe("retail");
     expect(p.practiceName).toBe("Harbor Lane Boutique");
+  });
+
+  it("preserves normalized setup answers and drops malformed values", () => {
+    const setupAnswers = {
+      payroll: "none",
+      bankRec: "outside",
+      cashOrChecks: "not-an-answer",
+      extra: "discard me",
+    };
+    const request = parsePioneerInput({ profile: { industry: "retail", setupAnswers } });
+    expect(request.profile.setupAnswers).toEqual(setupAnswers);
+    expect(pioneerProfileFrom(request.profile).setupAnswers).toEqual({
+      ...UNANSWERED,
+      payroll: "none",
+      bankRec: "outside",
+    });
+    expect(
+      pioneerProfileFrom({ industry: "retail", setupAnswers: "not-an-object" }).setupAnswers,
+    ).toBeUndefined();
   });
 
   it("falls back to general, never dental, when the industry is missing or unknown", () => {

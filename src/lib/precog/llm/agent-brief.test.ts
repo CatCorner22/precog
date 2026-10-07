@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   chickenLittleCritique,
+  destack,
   extractVariableCascades,
   localSynthesize,
   NO_ALERT_WARNING,
@@ -32,8 +33,30 @@ function synthesize(scenario: ToolResult) {
   };
 }
 
+describe("stack wording", () => {
+  it("turns a stacked label into an owner-facing phrase inside longer text", () => {
+    expect(destack("Cameras + dual release + bank reconciliation (stack)")).toBe(
+      "Cameras, dual release and bank reconciliation together",
+    );
+    expect(
+      destack(
+        "Levers in the order Precog prefers: Cameras, dual release, bank reconciliation (stack).",
+      ),
+    ).toBe(
+      "Levers in the order Precog prefers: Cameras, dual release and bank reconciliation together.",
+    );
+    expect(
+      destack(
+        "First: Cameras + dual release + bank reconciliation (stack). Next: Cameras + dual release + bank reconciliation (stack).",
+      ),
+    ).toBe(
+      "First: Cameras, dual release and bank reconciliation together. Next: Cameras, dual release and bank reconciliation together.",
+    );
+  });
+});
+
 describe("Pioneer early scenario signs", () => {
-  it("adds the first three signs under watched conditions without changing alerts", () => {
+  it("adds the first three early signs under warnings without changing alerts", () => {
     const { brief, warnings } = synthesize(
       makeScenarioResult(["First sign.", "Second sign.", "Third sign.", "Fourth sign."]),
     );
@@ -52,6 +75,65 @@ describe("Pioneer early scenario signs", () => {
     expect(brief.markdown).not.toContain("Early signs of");
     expect(warnings).toEqual([NO_ALERT_WARNING]);
     expect(brief.chickenLittleWarnings).toEqual([NO_ALERT_WARNING]);
+  });
+});
+
+describe("Pioneer's residual warnings", () => {
+  const warn = (averageResidual: number, criticalPath: number) =>
+    chickenLittleCritique([
+      {
+        tool: "get_residual_portfolio",
+        ok: true,
+        summary: "",
+        data: { averageResidual, criticalPath },
+      },
+    ]);
+
+  it("names the residual band the average sits in, never a priority-list word", () => {
+    expect(warn(RISK_SCALE.actNow, 0)).toContain(
+      `The average risk index is ${RISK_SCALE.actNow}/100, in the "${RESIDUAL_BAND_LABEL.act_now}" band on Precog's own index (Precog warns at ${RISK_SCALE.actNow} or more).`,
+    );
+    expect(warn(RISK_SCALE.critical + 5, 0).join(" ")).toContain(
+      `in the "${RESIDUAL_BAND_LABEL.critical_path}" band`,
+    );
+  });
+
+  it("counts the residual risks in the Severe band, not in Fix first", () => {
+    const warnings = warn(0, 3);
+    expect(warnings).toContain(`3 risks are in the "${RESIDUAL_BAND_LABEL.critical_path}" band.`);
+    expect(warnings.join(" ")).not.toMatch(/fix first|fix soon|worth doing/i);
+  });
+});
+
+describe("Pioneer breached-condition count", () => {
+  const leading: ToolResult = {
+    tool: "get_leading_indicators",
+    ok: true,
+    summary: "Watched conditions",
+    data: { breached: 3, watch: 1, topActions: [] },
+  };
+  const residual: ToolResult = {
+    tool: "get_residual_portfolio",
+    ok: true,
+    summary: "Risk index",
+    data: { averageResidual: 90, criticalPath: 0 },
+  };
+
+  function section(markdown: string, heading: string) {
+    return markdown.match(
+      new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=\\n## |(?![\\s\\S]))`, "m"),
+    )?.[1];
+  }
+
+  it("states the breached count once in Warnings", () => {
+    const tools = [leading, residual];
+    const warnings = chickenLittleCritique(tools);
+    const brief = localSynthesize("What can happen?", tools, [], warnings, [], [], []);
+    const warningSection = section(brief.markdown, "Warnings");
+
+    expect(warnings).toContain("3 watched conditions breached.");
+    expect(warningSection).toContain("Watched conditions: **3 breached**, 1 at watch");
+    expect(warningSection).not.toMatch(/^- \d+ watched conditions? breached/m);
   });
 });
 
@@ -114,14 +196,16 @@ describe("variable cascade brief lines", () => {
     const lines = extractVariableCascades([result]);
 
     expect(lines[0]).toBe(
-      "**Cameras + dual release**: risk index −8.0, found 71 days sooner. Also: lowers likelihood. Shorter detection reduces assumed loss.",
+      "**Put cameras and dual release in place together**: risk index 8 points lower, found 71 days sooner. Also: lowers likelihood. Shorter detection reduces assumed loss.",
     );
     expect(lines[1]).toContain("found 12 days later");
     expect(lines[1]).not.toContain("Shorter detection");
     expect(lines[2]).toBe(
       "**No-op lever**: no change in Precog's figures. Also: lowers likelihood.",
     );
-    expect(lines.join("\n")).not.toMatch(/assumed retained \$0|premium \$0|risk index \+?0\.0/);
+    expect(lines.join("\n")).not.toMatch(
+      /assumed retained \$0|premium \$0|risk index \+?0\.0|0 points/,
+    );
   });
 });
 
@@ -151,80 +235,11 @@ describe("rules-authored move text", () => {
       cascadeEffects: ["risk index ↓"],
     };
 
-    expect(brief.decisions[0].action).toBe("Cameras + dual release");
+    expect(brief.decisions[0].action).toBe("Put cameras and dual release in place together");
     expect(brief.decisions[0].rationale).toBe(
       "Precog's model ranks this first, using its own weights. It is an ordering, not a measurement.",
     );
     expect(renderDecision(move, 0)).not.toContain("Also moves");
     expect(move.cascadeEffects).toEqual(["risk index ↓"]);
-  });
-});
-
-describe("Pioneer's residual warnings", () => {
-  const warn = (averageResidual: number, criticalPath: number) =>
-    chickenLittleCritique([
-      {
-        tool: "get_residual_portfolio",
-        ok: true,
-        summary: "",
-        data: { averageResidual, criticalPath },
-      },
-    ]);
-
-  it("names the residual band the average sits in, never a priority-list word", () => {
-    expect(warn(RISK_SCALE.actNow, 0)).toContain(
-      `The average risk index is ${RISK_SCALE.actNow}/100, in the "${RESIDUAL_BAND_LABEL.act_now}" band on Precog's own index (Precog warns at ${RISK_SCALE.actNow} or more).`,
-    );
-    expect(warn(RISK_SCALE.critical + 5, 0).join(" ")).toContain(
-      `in the "${RESIDUAL_BAND_LABEL.critical_path}" band`,
-    );
-  });
-
-  it("counts the residual risks in the Severe band, not in Fix first", () => {
-    const warnings = warn(0, 3);
-    expect(warnings).toContain(`3 risks are in the "${RESIDUAL_BAND_LABEL.critical_path}" band.`);
-    expect(warnings.join(" ")).not.toMatch(/fix first|fix soon|worth doing/i);
-  });
-});
-
-describe("Pioneer breached-condition count", () => {
-  const leading: ToolResult = {
-    tool: "get_leading_indicators",
-    ok: true,
-    summary: "Watched conditions",
-    data: { breached: 3, watch: 1, topActions: [] },
-  };
-  const residual: ToolResult = {
-    tool: "get_residual_portfolio",
-    ok: true,
-    summary: "Risk index",
-    data: { averageResidual: 90, criticalPath: 0 },
-  };
-
-  function section(markdown: string, heading: string) {
-    return markdown.match(
-      new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=\\n## |(?![\\s\\S]))`, "m"),
-    )?.[1];
-  }
-
-  it("states the count once, under Watched conditions, not again under Warnings", () => {
-    const tools = [leading, residual];
-    const warnings = chickenLittleCritique(tools);
-    const brief = localSynthesize("What can happen?", tools, [], warnings, [], [], []);
-
-    expect(warnings).toContain("3 watched conditions breached.");
-    expect(section(brief.markdown, "Watched conditions")).toContain("**3 breached**, 1 at watch");
-    expect(section(brief.markdown, "Warnings")).toContain("The average risk index is 90/100");
-    expect(section(brief.markdown, "Warnings")).not.toMatch(/watched conditions? breached/i);
-  });
-
-  it("leaves out an empty Warnings section when the count was its only line", () => {
-    const tools = [leading];
-    const warnings = chickenLittleCritique(tools);
-    const brief = localSynthesize("What can happen?", tools, [], warnings, [], [], []);
-
-    expect(warnings).toEqual(["3 watched conditions breached."]);
-    expect(brief.markdown).not.toContain("## Warnings");
-    expect(section(brief.markdown, "Watched conditions")).toContain("**3 breached**, 1 at watch");
   });
 });

@@ -23,6 +23,10 @@ const INDUSTRIES: IndustryId[] = [
 ];
 const TODAY = "2026-04-12";
 const REMOVED_HEADINGS = [
+  "Your question",
+  "Your open duty conflicts",
+  "Watched conditions",
+  "What else moves",
   "Order of fixes (Precog's model)",
   "Four review lenses",
   "Tradeoffs",
@@ -85,7 +89,7 @@ function runBrief(industry: IndustryId, question: string) {
 }
 
 describe("Pioneer brief contract", () => {
-  it("keeps every industry prompt in the short section order, concise, and free of malformed deltas", async () => {
+  it("keeps every industry prompt answer-first, concise, and free of malformed deltas", async () => {
     for (const industry of INDUSTRIES) {
       const questions = [DEFAULT_COACH_QUESTION, ...getIndustryCopy(industry).pioneerPrompts];
       for (const question of questions) {
@@ -97,16 +101,17 @@ describe("Pioneer brief contract", () => {
         expect(brief.markdown).not.toContain("If you ");
         expect(brief.markdown).not.toContain("(stack)");
         expect(brief.markdown).not.toContain(" $0");
+        expect(
+          /^\s*-\s*\d+ watched conditions? breached\b/im.test(brief.markdown) &&
+            /breached\*\*/.test(brief.markdown),
+        ).toBe(false);
         const headingOrder = [
+          "Answer",
           "Situation",
-          "Your question",
-          "Your open duty conflicts",
           "This week",
           "Recommended moves",
           "Warnings",
           "Biggest open risks",
-          "Watched conditions",
-          "What else moves",
           "Limits",
         ];
         const headings = brief.markdown
@@ -119,14 +124,15 @@ describe("Pioneer brief contract", () => {
         );
         const thisWeek = brief.markdown.match(/^## This week\n([^\n]*)/m)?.[1] ?? "";
         expect(thisWeek).not.toMatch(/^This week:/);
+        const situation = brief.markdown.match(/^## Situation\n([^\n]*)/m)?.[1] ?? "";
+        expect(situation).not.toContain("Question:");
         const wordCount = brief.markdown.trim().split(/\s+/).length;
-        // Two scenario answers with their unfolding run longest (about 1,030 words).
-        expect(wordCount, `${industry} · ${question}`).toBeLessThanOrEqual(1100);
+        expect(wordCount, `${industry} · ${question}`).toBeLessThanOrEqual(900);
         for (const decision of brief.decisions) {
           expect(brief.markdown).toContain(decision.action);
         }
         if (question === DEFAULT_COACH_QUESTION) {
-          expect(brief.markdown.startsWith("## Situation\n")).toBe(true);
+          expect(brief.markdown.startsWith("## Answer\n")).toBe(true);
           for (const step of run.steps) {
             expect(`${step.title}\n${step.detail}`).not.toContain("(stack)");
           }
@@ -144,6 +150,7 @@ describe("Pioneer brief contract", () => {
           expect(
             JSON.stringify({
               markdown: answer.markdown,
+              details: answer.details,
               steps: answer.steps,
               evidence: answer.evidence,
               specialistNotes: answer.specialistNotes,
@@ -161,12 +168,16 @@ describe("Pioneer brief contract", () => {
       const profile = sampleProfile(industry);
       const tpl = resolveTemplate(profile);
       const { brief } = localBrief(question, { profile, question, today: TODAY }, profile);
-      const answer = brief.markdown.split("## Your question\n")[1]?.split("\n## ")[0] ?? "";
-      expect(brief.markdown).toContain("## Your question");
+      const answer = brief.markdown.split("\n## Situation")[0];
+      expect(answer).toContain("## Answer");
+      expect(answer).toContain("**In your business now**");
 
       for (const id of ids) {
         const scenario = tpl.scenarios.find((item) => item.id === id);
         expect(scenario).toBeDefined();
+        expect(answer).toContain(`### ${scenario?.title}`);
+        expect(answer).toContain("**How it unfolds**");
+        expect(answer).toContain("**What stops it:**");
         const result = runPrecogScenario(tpl, id, {
           staff: profile.staff,
           riskVariables: profile.riskVariables ?? DEFAULT_RISK_VARIABLES,
@@ -174,11 +185,11 @@ describe("Pioneer brief contract", () => {
         expect(result).not.toBeNull();
         if (!result) throw new Error(`Missing scenario ${id}`);
         expect(answer).toContain(
-          `**${scenario?.title}**: ${describeScenarioFigures({
+          `**Precog's assumptions:** ${describeScenarioFigures({
             retained: result.retainedImpact,
             timelineDays: result.timelineDays,
             dynamic: result.dynamic ?? null,
-          })}`,
+          })}.`,
         );
       }
     },

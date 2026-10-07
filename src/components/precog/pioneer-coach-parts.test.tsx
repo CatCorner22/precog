@@ -5,8 +5,8 @@ import {
   BriefMarkdown,
   CoachResultView,
   MOVES_PREVIEW,
-  briefAuthorLine,
   briefClipboardText,
+  briefAuthorLine,
   coachErrorMessage,
   extraWarnings,
   type CoachResult,
@@ -35,6 +35,7 @@ function result(over: Partial<CoachResult> = {}): CoachResult {
       horizonDays: 7,
     })),
     specialistNotes: [{ agent: "critic", title: "Critic: what could go wrong", bullets: ["b"] }],
+    details: [],
     ...over,
   };
 }
@@ -61,10 +62,10 @@ describe("coachErrorMessage", () => {
 
   it("shows a plain sentence for an error the server did not explain", () => {
     expect(coachErrorMessage(new Error("TypeError: x is undefined"))).toBe(
-      "Pioneer could not build a brief. Try again in a moment.",
+      "Pioneer could not answer just now. Try again in a moment.",
     );
     expect(coachErrorMessage("boom")).toBe(
-      "Pioneer could not build a brief. Try again in a moment.",
+      "Pioneer could not answer just now. Try again in a moment.",
     );
   });
 });
@@ -85,8 +86,8 @@ describe("briefAuthorLine", () => {
     expect(briefAuthorLine({ modelStatus: "failed" })).toBe(
       "Written by Precog's rules from your records. No AI wrote it.",
     );
-    expect(briefAuthorLine({ modelStatus: "answered", model: "grok-4.5" })).toMatch(
-      /^Grok \(grok-4\.5\) picked the top moves\. Precog's rules wrote every word\.$/,
+    expect(briefAuthorLine({ modelStatus: "answered", model: "grok-4.5" })).toBe(
+      "Grok (grok-4.5) picked the moves most relevant to your question. Precog's rules wrote every word.",
     );
   });
 });
@@ -95,7 +96,7 @@ describe("CoachResultView", () => {
   it("puts the brief first and the trace behind a closed disclosure", () => {
     const html = view(result());
     const brief = html.indexOf("Your brief");
-    const moves = html.indexOf("Add a move to the Decisions log");
+    const moves = html.indexOf("Recommended moves");
     const built = html.indexOf("How Pioneer built this brief");
     expect(brief).toBeGreaterThanOrEqual(0);
     expect(brief).toBeLessThan(moves);
@@ -115,13 +116,50 @@ describe("CoachResultView", () => {
     expect(html).toContain("Added to the Decisions log");
     expect(html).toContain("Show all 5");
     expect(html).not.toContain("Move 5");
-    expect(html).not.toContain("Because.");
+    expect(html.match(/<p class="mt-1 text-xs text-muted">Because\.<\/p>/g)).toHaveLength(
+      MOVES_PREVIEW,
+    );
+  });
+
+  it("hides copied move Markdown on screen and renders the structured details in the disclosure", () => {
+    const html = view(
+      result({
+        markdown:
+          "## Situation\nAll fine.\n\n## Recommended moves\n- Markdown-only move\n\n## Warnings\n- Nothing.",
+        details: [
+          { title: "What else moves", lines: ["**Cameras**: no change"] },
+          { title: "Order of fixes (Precog's model)", lines: ["First, change access."] },
+          { title: "Tradeoffs", lines: ["Fewer handoffs; more review."] },
+        ],
+      }),
+    );
+    expect(html).not.toContain("Markdown-only move");
+    expect(html).toContain("What else moves");
+    expect(html).toContain("Order of fixes (Precog");
+    expect(html).toMatch(/<strong[^>]*>Cameras<\/strong>/);
+    expect(html.indexOf("Critic: what could go wrong")).toBeLessThan(
+      html.indexOf("What else moves"),
+    );
+    expect(html.indexOf("What else moves")).toBeLessThan(
+      html.indexOf("Where the figures come from"),
+    );
+    expect(html).toContain(
+      "Add one to the Decisions log. The next brief follows it up instead of repeating it.",
+    );
   });
 
   it("labels a source by its tab's name, not its internal id", () => {
     const html = view(result());
     expect(html).toContain("Open Who knows what");
     expect(html).not.toMatch(/spof · ev-1/);
+  });
+});
+
+describe("brief copy", () => {
+  it("captures the question that produced the brief before the full Markdown", () => {
+    expect(briefClipboardText({ question: "What changed?", markdown: "## Answer\nNothing." })).toBe(
+      "**Question:** What changed?\n\n## Answer\nNothing.",
+    );
   });
 });
 
@@ -150,24 +188,6 @@ describe("extraWarnings", () => {
     expect(extraWarnings({ ...r, markdown: "## Warnings\n- Not checked in this run" })).toEqual([
       warning,
     ]);
-  });
-
-  it("hides the watched-condition warning when the Watched conditions section prints the count", () => {
-    const warning = "3 watched conditions breached.";
-    const r = result({
-      markdown:
-        "## Situation\nAll fine.\n\n## Watched conditions\n- **3 breached**, 1 at watch (thresholds set in Precog, not benchmarks)",
-      warnings: [warning],
-    });
-    expect(extraWarnings(r)).toEqual([]);
-  });
-});
-
-describe("brief copy", () => {
-  it("captures the question that produced the brief before the full Markdown", () => {
-    expect(briefClipboardText({ question: "What changed?", markdown: "## Answer\nNothing." })).toBe(
-      "**Question:** What changed?\n\n## Answer\nNothing.",
-    );
   });
 });
 

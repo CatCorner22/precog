@@ -14,16 +14,40 @@ import { RESIDUAL_BAND_LABEL, bandForScore } from "../scoring/weights";
  * writes them and the model is asked for the same list.
  */
 export const BRIEF_SECTION = {
+  answer: "Answer",
   situation: "Situation",
   thisWeek: "This week",
   moves: "Recommended moves",
   warnings: "Warnings",
   risks: "Biggest open risks",
   cases: "What this has cost other businesses",
-  conditions: "Watched conditions",
   cascades: "What else moves",
   limits: "Limits",
 } as const;
+
+export function leverAction(label: string): string {
+  if (!label.endsWith(" (stack)")) return label;
+  const parts = label
+    .slice(0, -" (stack)".length)
+    .split(/\s+\+\s+/)
+    .map((part) => part.charAt(0).toLowerCase() + part.slice(1));
+  return `Put ${joinWithAnd(parts)} in place together`;
+}
+
+export function destack(text: string): string {
+  const wording = (first: string, second: string, third: string) =>
+    `${first}, ${joinWithAnd(
+      [second, third].map((part) => part.charAt(0).toLowerCase() + part.slice(1)),
+    )} together`;
+  return text
+    .replace(
+      /([^\n]*?)\s+\+\s+([^+\n]+)\s+\+\s+([^+\n]+) \(stack\)/g,
+      (_match, first, second, third) => wording(first, second, third),
+    )
+    .replace(/([^\n]*?),\s*([^,\n]+),\s*([^,\n]+) \(stack\)/g, (_match, first, second, third) =>
+      wording(first, second, third),
+    );
+}
 
 /**
  * When a warning fires. Every threshold is this app's own choice, not a
@@ -41,13 +65,6 @@ export const WARNING_RULES = {
   /** At this team size or below, separating every duty is rarely realistic. */
   smallTeamSize: 6,
 } as const;
-
-/**
- * The warning that counts breached watched conditions. The Watched conditions
- * section prints the same count, so the Markdown brief and the screen state it
- * there only.
- */
-export const BREACHED_CONDITIONS_WARNING = /^\d+ watched conditions? breached/i;
 
 /** The warning when nothing crosses a threshold; the critic lens says the same. */
 export const NO_ALERT_WARNING =
@@ -295,8 +312,6 @@ export function extractVariableCascades(tools: ToolResult[]): string[] {
     ];
   }
 
-  // Scenario retained dollars read as rounded estimates, as on every screen;
-  // the tool's data keeps the exact figures for any arithmetic.
   const lines: string[] = [];
   if (cas.baseline) {
     lines.push(
@@ -307,42 +322,26 @@ export function extractVariableCascades(tools: ToolResult[]): string[] {
     const parts: string[] = [];
     const riskDelta = Number(row.deltaResidual.toFixed(1));
     if (riskDelta !== 0) {
-      parts.push(`risk index ${riskDelta < 0 ? "−" : "+"}${Math.abs(riskDelta).toFixed(1)}`);
+      parts.push(
+        `risk index ${Number.isInteger(riskDelta) ? Math.abs(riskDelta) : Math.abs(riskDelta).toFixed(1)} points ${riskDelta < 0 ? "lower" : "higher"}`,
+      );
     }
     const days = Math.round(row.deltaP50);
-    if (days !== 0) {
-      parts.push(`found ${Math.abs(days)} days ${days < 0 ? "sooner" : "later"}`);
-    }
+    if (days !== 0) parts.push(`found ${Math.abs(days)} days ${days < 0 ? "sooner" : "later"}`);
     const retained = formatEstimateUsdDelta(row.deltaRetained);
-    if (row.deltaRetained !== 0 && retained !== "$0") {
-      parts.push(`assumed retained ${retained.replace(/-\$/, "−$")}`);
+    if (row.deltaRetained !== 0 && !retained.includes("$0")) {
+      parts.push(`assumed retained ${retained}`);
     }
     const premium = formatUsdDelta(row.deltaPremium);
-    if (row.deltaPremium !== 0 && premium !== "$0") {
-      parts.push(`premium ${premium.replace(/-\$/, "−$")}`);
-    }
+    if (row.deltaPremium !== 0 && !premium.includes("$0")) parts.push(`premium ${premium}`);
     const changes = parts.length ? parts.join(", ") : "no change in Precog's figures";
     const affects = row.affects.slice(0, 3).join("; ");
     const secondOrder = index === 0 ? row.secondOrderNotes[0] : undefined;
     lines.push(
-      `**${leverLabel(row.label)}**: ${changes}.${affects ? ` Also: ${affects}.` : ""}${secondOrder ? ` ${secondOrder}` : ""}`,
+      `**${leverAction(row.label)}**: ${changes}.${affects ? ` Also: ${affects}.` : ""}${secondOrder ? ` ${secondOrder}` : ""}`,
     );
   }
   return lines;
-}
-
-/** Remove the internal suffix used to identify a bundled lever. */
-export function leverLabel(label: string): string {
-  return label.replace(/ \(stack\)$/, "");
-}
-
-export function renderThisWeekLine(line: string): string {
-  const body = line.replace(/^This week:\s*/, "");
-  return body.replace(
-    /^(\*\*)?([a-z])/,
-    (_match, emphasis: string | undefined, first: string) =>
-      `${emphasis ?? ""}${first.toUpperCase()}`,
-  );
 }
 
 export function chickenLittleCritique(tools: ToolResult[]): string[] {
@@ -401,7 +400,7 @@ export function chickenLittleCritique(tools: ToolResult[]): string[] {
 }
 
 export function localSynthesize(
-  question: string,
+  _question: string,
   tools: ToolResult[],
   evidence: EvidenceRef[],
   warnings: string[],
@@ -587,7 +586,7 @@ export function localSynthesize(
       ? `Watched conditions: **${leading.breached} breached**, ${leading.watch} at watch. ${leading.topActions[0] ?? ""}`
       : "Check the watched conditions on Patterns for what comes before a loss.",
     bestCascade
-      ? `Biggest knock-on effect: **${leverLabel(bestCascade.label)}**. ${bestCascade.secondOrderNotes[0] ?? ""}`
+      ? `Biggest knock-on effect: **${leverAction(bestCascade.label)}**. ${bestCascade.secondOrderNotes[0] ?? ""}`
       : "Run the what-else-moves check on What could happen.",
     rag?.hits?.[0]
       ? `Guidance: _${rag.hits[0].title}_: ${rag.hits[0].text.slice(0, 140)}…`
@@ -794,7 +793,7 @@ export function localSynthesize(
     horizonDays: REVIEW_HORIZON_DAYS.journal,
     cascadeEffects: ["register accuracy ↑"],
   });
-  const beamAction = adv?.recommendedSequence?.map(leverLabel).join(" → ");
+  const beamAction = adv?.recommendedSequence?.map(leverAction).join(" → ");
   // Entries a leaver must hand off are advised as their hand-off, not as
   // ordinary cross-training on top.
   const handingOver = new Set(
@@ -809,10 +808,11 @@ export function localSynthesize(
   const uncommittedSpof = ordinarySpofs?.find((s) => !s.committed);
   const decisions: PioneerDecision[] = [
     {
-      action:
+      action: leverAction(
         beamAction ||
-        (bestCascade ? leverLabel(bestCascade.label) : undefined) ||
-        "Turn on a second signer for payments and an independent bank reconciliation",
+          bestCascade?.label ||
+          "Turn on a second signer for payments and an independent bank reconciliation",
+      ),
       rationale: beamAction
         ? "Precog's model ranks this first, using its own weights. It is an ordering, not a measurement."
         : bestCascade
@@ -899,34 +899,15 @@ export function localSynthesize(
   ];
 
   const frontierNextMove = bestCascade
-    ? `This week: **${leverLabel(bestCascade.label)}**, then re-check the watched conditions and What is still exposed.`
+    ? `This week: **${leverAction(bestCascade.label)}**, then re-check the watched conditions and What is still exposed.`
     : "This week: turn on a second signer for payments and an independent bank reconciliation, then ask again and re-check the watched conditions.";
+  const thisWeek = frontierNextMove.replace(/^This week:\s*/, "");
+  const thisWeekBody = `${thisWeek.charAt(0).toUpperCase()}${thisWeek.slice(1)}`;
 
-  const situation = `**${snap?.practice ?? "This business"}**: coverage check **${coso ? `${coso.gaps} of ${coso.principles}` : "?"}** with a gap, average risk index **${residual?.averageResidual ?? "?"}/100**, **${leading?.breached ?? "?"}** watched conditions breached. Second payment signer: ${snap?.staff.dualControlPayments ? "on" : "off"}; bank reconciliation: ${snap?.staff.independentBankRec ? "independent" : "not independent"}. Question: _${question}_`;
-
-  const markdownWarnings = leading
-    ? warnings.filter((warning) => !BREACHED_CONDITIONS_WARNING.test(warning))
-    : warnings;
-
-  const markdown = [
-    `## ${BRIEF_SECTION.situation}`,
-    situation,
-    "",
-    `## ${BRIEF_SECTION.thisWeek}`,
-    renderThisWeekLine(frontierNextMove),
-    "",
-    `## ${BRIEF_SECTION.moves}`,
-    ...decisions.map(renderDecision),
-    "",
-    ...(markdownWarnings.length
-      ? [`## ${BRIEF_SECTION.warnings}`, ...markdownWarnings.map((w) => `- ${w}`), ""]
-      : []),
-    `## ${BRIEF_SECTION.risks}`,
-    ...highestRisks.map((r, i) => `${i + 1}. ${r}`),
-    "",
-    `## ${BRIEF_SECTION.conditions}`,
+  const situation = `**${snap?.practice ?? "This business"}**: average risk index **${residual?.averageResidual ?? "?"}/100** · **${leading?.breached ?? "?"}** watched conditions breached · **${coso ? `${coso.gaps} of ${coso.principles}` : "?"}** control checks have a gap. Second signer on payments: ${snap?.staff.dualControlPayments ? "on" : "off"}. Independent bank reconciliation: ${snap?.staff.independentBankRec ? "on" : "off"}.`;
+  const conditions = [
     leading
-      ? `- **${leading.breached} breached**, ${leading.watch} at watch (thresholds set in Precog, not benchmarks)`
+      ? `- Watched conditions: **${leading.breached} breached**, ${leading.watch} at watch (thresholds set in Precog, not benchmarks)`
       : "- Not checked in this run",
     ...(scenario?.warningSigns?.length
       ? [
@@ -939,9 +920,29 @@ export function localSynthesize(
             .join("; ")}.`,
         ]
       : []),
+  ];
+  const markdownWarnings = leading
+    ? warnings.filter((warning) => !/^\d+ watched conditions? breached/i.test(warning))
+    : warnings;
+
+  const markdown = [
+    `## ${BRIEF_SECTION.situation}`,
+    situation,
     "",
-    `## ${BRIEF_SECTION.cascades}`,
-    ...variableCascades.map((c) => `- ${c}`),
+    `## ${BRIEF_SECTION.thisWeek}`,
+    thisWeekBody,
+    "",
+    `## ${BRIEF_SECTION.moves}`,
+    ...decisions.map(renderDecision),
+    "",
+    `## ${BRIEF_SECTION.warnings}`,
+    ...markdownWarnings.map((w) => `- ${w}`),
+    ...conditions,
+    "",
+    `## ${BRIEF_SECTION.risks}`,
+    ...highestRisks.map((r, i) =>
+      r.startsWith(`**${BRIEF_SECTION.cases}**`) ? `\n\n${r}` : `${i + 1}. ${r}`,
+    ),
     "",
     `## ${BRIEF_SECTION.limits}`,
     ...limitsLines(tradeoffs, advancedReasoning).map((line) => `- ${line}`),
