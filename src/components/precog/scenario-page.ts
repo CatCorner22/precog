@@ -273,3 +273,25 @@ export function mitigationCostPhrase(costAnnual: number): string {
     ? `Assumed yearly cost ${formatUsd(costAnnual)}`
     : "No cash cost assumed (staff time)";
 }
+
+/**
+ * Below the `md` breakpoint the scenario cards stack in one column, so the
+ * figures of the scenario just picked render several screens below the card.
+ */
+export const NARROW_SCENARIO_QUERY = "(max-width: 767.98px)";
+
+/**
+ * After a scenario card is picked on a narrow screen, bring its figures into
+ * view: otherwise only the card's outline changes and the figures sit below
+ * every card. Smooth unless the reader asks for reduced motion. Returns
+ * whether it scrolled; a wider screen stays where it is.
+ */
+export function revealScenarioFigures(
+  el: Pick<HTMLElement, "scrollIntoView"> | null,
+  win: { matchMedia: (query: string) => { matches: boolean } },
+): boolean {
+  if (!el || !win.matchMedia(NARROW_SCENARIO_QUERY).matches) return false;
+  const reduce = win.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+  return true;
+}
