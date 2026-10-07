@@ -169,7 +169,7 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
   );
 }
 
-/** A person's authority on RISK_SCALE; below "Worth doing" it stays the plain accent. */
+/** A person's authority on RISK_SCALE; below "Moderate" it stays the plain accent. */
 const AUTHORITY_TEXT: Record<ReturnType<typeof riskTone>, string> = {
   danger: "text-danger",
   warn: "text-warn",

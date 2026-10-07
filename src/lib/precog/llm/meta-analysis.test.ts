@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { IndustryId } from "../industry";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import { runMetaAnalysis } from "./meta-analysis";
+import { RESIDUAL_BAND_LABEL } from "../scoring/weights";
 
 const OTHERS: IndustryId[] = [
   "retail",
@@ -113,5 +114,18 @@ describe("runMetaAnalysis follows the business's own facts", () => {
       (i) => i.id === "uu-cyber-ransomware-ops",
     );
     expect(cyber?.link).toEqual({ tab: "sod", id: "controls" });
+  });
+});
+
+describe("the residual ranking item", () => {
+  it("counts the residual risks in the Severe band, the residual screen's word", () => {
+    const profile = defaultProfile("dental");
+    const item = runMetaAnalysis(profile).items.find((i) => i.id === "kk-residual-portfolio")!;
+    expect(item.description).toMatch(
+      new RegExp(
+        `^Average residual \\d+; \\d+ in the "${RESIDUAL_BAND_LABEL.critical_path}" band\\.$`,
+      ),
+    );
+    expect(item.description).not.toMatch(/fix first|fix soon|worth doing/i);
   });
 });

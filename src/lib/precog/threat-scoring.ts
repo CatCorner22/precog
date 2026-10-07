@@ -16,7 +16,7 @@ import { industryNoun } from "./industry";
 import { controlOptions, detectSodConflicts, sodDetectionOptions } from "./sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "./sod/open-findings";
 import { portfolioSummary } from "./scoring/residual-engine";
-import { DEFAULT_WEIGHTS } from "./scoring/weights";
+import { DEFAULT_WEIGHTS, RESIDUAL_BAND_LABEL } from "./scoring/weights";
 import { registerAssessed } from "./continuity/register-state";
 import {
   MAKE_SCENARIO_YOURS,
@@ -25,7 +25,13 @@ import {
   starterScenarioLabel,
   starterScenariosLeftOut,
 } from "./scoring/scope";
-import { priorityBand, scorePriority, type PriorityTarget } from "./map-vision";
+import {
+  PRIORITY_BAND_LABEL,
+  priorityBand,
+  scorePriority,
+  type PriorityTarget,
+} from "./map-vision";
+import { PRIORITY_SCALE } from "./scoring/bands";
 import type { StaffComposition } from "./types";
 import {
   DEFAULT_RISK_VARIABLES,
@@ -317,14 +323,16 @@ export function buildThreatAssessment(input: {
   const openSod = tpl.controls.filter((c) => !c.segregated).length;
   const soleHeld = knowledgeRisks.filter((r) => r.soleOwner).length;
   const unheld = knowledgeRisks.filter((r) => r.ownerCount === 0).length;
+  const fixFirst = fixFirstCount(allTargets);
 
   return {
     ao: practiceName,
     targetDeck: deck,
-    fixFirst: fixFirstCount(allTargets),
+    fixFirst,
     missionBrief: [
       `${practiceName}: where money can move without a second person in this ${industryNoun(tpl.id)}, and what to fix first.`,
-      `Residual risks by band on Precog's index: ${count(portfolio.criticalPath, "item")} to fix first, ${portfolio.actNow} to fix soon and ${portfolio.mitigate} worth doing.`,
+      `Residual risks by band on Precog's index: ${portfolio.criticalPath} ${RESIDUAL_BAND_LABEL.critical_path}, ${portfolio.actNow} ${RESIDUAL_BAND_LABEL.act_now} and ${portfolio.mitigate} ${RESIDUAL_BAND_LABEL.mitigate}.`,
+      `On the priority list, ${fixFirst} ${fixFirst === 1 ? "is" : "are"} ${PRIORITY_BAND_LABEL.white_hot} (priority ${PRIORITY_SCALE.top} or more).`,
       `Duties: ${count(sod.summary.critical, "critical duty conflict")}; ${count(openSod, "control")} the template lists as not yet separated.`,
       registerAssessed(tpl)
         ? `Know-how: ${count(soleHeld, "item")} only one person can do; ${unheld} nobody can.`

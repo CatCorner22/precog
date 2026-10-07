@@ -7,6 +7,7 @@ import { clamp } from "../number";
 import { lossPhrase } from "../evidence";
 import { tabLabel } from "../navigation";
 import { RISK_SCALE } from "../scoring/bands";
+import { RESIDUAL_BAND_LABEL, bandForScore } from "../scoring/weights";
 
 /**
  * The brief's sections, in reading order: the answer first (what to do this
@@ -318,11 +319,13 @@ export function chickenLittleCritique(tools: ToolResult[]): string[] {
 
   if ((residual?.averageResidual ?? 0) >= WARNING_RULES.averageResidual) {
     warnings.push(
-      `The average risk index is ${residual!.averageResidual}/100, in the "fix soon" band (${WARNING_RULES.averageResidual} or more on Precog's own index).`,
+      `The average risk index is ${residual!.averageResidual}/100, in the "${bandForScore(residual!.averageResidual!).label}" band on Precog's own index (Precog warns at ${WARNING_RULES.averageResidual} or more).`,
     );
   }
   if ((residual?.criticalPath ?? 0) >= WARNING_RULES.criticalPathCount) {
-    warnings.push(`${residual!.criticalPath} risks are in the "fix first" band.`);
+    warnings.push(
+      `${residual!.criticalPath} risks are in the "${RESIDUAL_BAND_LABEL.critical_path}" band.`,
+    );
   }
   if (leading && (leading.breached ?? 0) > 0) {
     warnings.push(
