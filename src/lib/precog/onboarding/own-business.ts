@@ -8,12 +8,9 @@
 import { defaultDualReleasePolicy, mitigatedSodRuleIds } from "../controls/dual-release";
 import { resolveTemplate } from "../active-template";
 import { MAX_BUSINESS_NAME } from "../business-id";
-import { inPlaceEntry } from "../control-entries";
-import { industryHasOwner } from "../industry";
 import { deriveStaffFromTeam, independentReconciliationFromTeam } from "../sod/derive-staff";
 import { mergeStaffIntoVariables } from "../scoring/dynamic-variables";
-import { withDecision } from "../profile-actions";
-import { makeDecisionId, type PracticeProfile } from "../practice-profile";
+import type { PracticeProfile } from "../practice-profile";
 import type { EntitlementId } from "../sod/conflict-rules";
 import type { Person } from "../types";
 import { DAILY_TAKINGS_USD, hiddenDuties, type SetupAnswers } from "./setup-answers";
@@ -99,47 +96,13 @@ export function ownBusinessProfile(
     answers?.bankRec === "outside"
       ? { ...staff, independentBankRec: true, bankRecSource: "outside" as const }
       : { ...staff, independentBankRec: independentReconciliationFromTeam(people) };
-  let profile: PracticeProfile = {
+  // The setup answers that record a control already in place (the owner reads
+  // the statement, an outside bookkeeper reconciles) credit their controls
+  // through `setupAnswers` (active-template `setupControlsInPlace`). They are
+  // not logged as decisions: an owner's own business starts with none.
+  return {
     ...withTeam,
     staff: finalStaff,
     riskVariables: mergeStaffIntoVariables(riskVariables, finalStaff),
   };
-
-  if (answers) {
-    const controls = resolveTemplate(profile).controls;
-    const now = new Date();
-    const statementControlIds = ["c-sod-cash", "c-sod-ap"] as const;
-    if (answers.ownerReadsStatement === "yes") {
-      const statementText = industryHasOwner(profile.industry)
-        ? "The owner opens and reads the bank statement each month (answered at setup)."
-        : "A board member opens and reads the bank statement each month (answered at setup).";
-      for (const id of statementControlIds) {
-        const control = controls.find((item) => item.id === id);
-        if (control)
-          profile = withDecision(
-            profile,
-            inPlaceEntry(control, statementText, now),
-            makeDecisionId(),
-            now,
-          );
-      }
-    }
-    if (answers.bankRec === "outside") {
-      const control = controls.find((item) => item.id === "c-sod-cash");
-      if (control) {
-        profile = withDecision(
-          profile,
-          inPlaceEntry(
-            control,
-            "An outside bookkeeper or CPA reconciles the bank account each month (answered at setup).",
-            now,
-          ),
-          makeDecisionId(),
-          now,
-        );
-      }
-    }
-  }
-
-  return profile;
 }
