@@ -3,6 +3,7 @@ import type { DetectedConflict } from "../sod/detect";
 import type { KnowledgeItem } from "../types";
 import {
   RECOMMENDED_PROCEDURES,
+  recommendationFor,
   writtenProcedure,
   type LibraryRow,
   type RecommendedProcedure,
@@ -44,13 +45,16 @@ export const RULE_PROCEDURE: Readonly<
   "rule-card-review": { primary: "lib-card-review" },
   "rule-cash-admin": { primary: "lib-cash-deposit", also: ["lib-leaver-access"] },
   "rule-cash-rec": { primary: "lib-bank-rec", also: ["lib-cash-deposit"] },
-  "rule-cash-refund": { primary: "lib-refund-review" },
-  "rule-cash-void": { primary: "lib-refund-review" },
+  "rule-cash-refund": { primary: "lib-refund-review", also: ["lib-drawer-close"] },
+  "rule-cash-void": { primary: "lib-refund-review", also: ["lib-drawer-close"] },
   "rule-claims-writeoff": { primary: "lib-refund-review" },
   "rule-collect-adjust": { primary: "lib-refund-review" },
-  "rule-collect-post": { primary: "lib-cash-deposit" },
-  "rule-custody-rec": { primary: "lib-bank-rec" },
-  "rule-deposit-post": { primary: "lib-cash-deposit" },
+  "rule-collect-post": {
+    primary: "lib-cash-deposit",
+    also: ["lib-mailed-checks", "lib-drawer-close"],
+  },
+  "rule-custody-rec": { primary: "lib-bank-rec", also: ["lib-mailed-checks"] },
+  "rule-deposit-post": { primary: "lib-cash-deposit", also: ["lib-mailed-checks"] },
   "rule-invoice-approve": { primary: "lib-release-payments" },
   "rule-invoice-pay": { primary: "lib-release-payments" },
   // Interim until PB: no manual journal entry procedure yet.
@@ -127,7 +131,7 @@ export function writtenProcedureFor(
 /**
  * Where a conflict card's procedure link goes and what it reads: the
  * business's own procedure when one is written, else the recommendation on
- * the Procedures tab, ready to start.
+ * the Procedures tab, ready to start, in this line of business's words.
  */
 export function conflictProcedureLink(
   ruleId: string,
@@ -135,8 +139,9 @@ export function conflictProcedureLink(
   knowledge: readonly Pick<KnowledgeItem, "id" | "name">[],
   industry: IndustryId,
 ): { title: string; item: string; started: boolean } | null {
-  const recommendation = procedureForConflict(ruleId);
-  if (!recommendation) return null;
+  const shared = procedureForConflict(ruleId);
+  if (!shared) return null;
+  const recommendation = recommendationFor(shared, industry);
   const own = writtenProcedureFor(recommendation.id, procedures, knowledge, industry);
   return own
     ? { title: own.title || recommendation.title, item: own.id, started: true }
