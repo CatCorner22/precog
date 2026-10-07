@@ -353,7 +353,7 @@ function Home() {
                 }
               />
             </div>
-            <div className="order-2 flex shrink-0 items-center gap-2 sm:order-3">
+            <div className="order-2 flex min-w-0 items-center gap-2 sm:order-3">
               <NeedsAttentionMenu compactOnPhone onOpen={(target, item) => openTab(target, item)} />
               <SignedOut>
                 <Link to="/login" className={buttonClass({ variant: "secondary", size: "sm" })}>
