@@ -72,18 +72,21 @@ describe("band cutoffs", () => {
     expect(cutoffsOutsideBands(files)).toEqual([]);
   });
 
-  it("name the priority bands in the residual bands' urgency words", () => {
-    // One scale of urgency: each index keeps its own cutoffs, never its own words.
-    expect(
-      [RISK_SCALE.critical, RISK_SCALE.actNow, RISK_SCALE.mitigate, 0].map(
-        (s) => bandForScore(s).label,
-      ),
-    ).toEqual([
+  it("name the residual bands by risk left, and keep the urgency words for the priority list", () => {
+    // "Fix first" has one meaning: the priority list's top band. The residual
+    // index, on its own cutoffs, reads Severe, High, Moderate and Low.
+    const residual = [RISK_SCALE.critical, RISK_SCALE.actNow, RISK_SCALE.mitigate, 0].map(
+      (s) => bandForScore(s).label,
+    );
+    expect(residual).toEqual(["Severe", "High", "Moderate", "Low"]);
+    const priority = [
       PRIORITY_BAND_LABEL.white_hot,
       PRIORITY_BAND_LABEL.critical,
       PRIORITY_BAND_LABEL.elevated,
       PRIORITY_BAND_LABEL.watch,
-    ]);
+    ];
+    expect(priority).toEqual(["Fix first", "Fix soon", "Worth doing", "Watch"]);
+    for (const label of residual) expect(priority).not.toContain(label);
     const root = join(SRC, "..");
     // Only the words report layouts 1 to 4 printed (PRIORITY_BAND_LABEL_PRINTED_V4)
     // keep the retired names, so a version locked then prints as it did.

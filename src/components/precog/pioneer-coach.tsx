@@ -130,7 +130,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
           tab="pioneer"
           className="mt-3"
           icon={<Compass className="size-5 text-primary" aria-hidden />}
-          purpose="Ask about your team, a person leaving, or what to fix first; the answer comes from your own records."
+          purpose="Pioneer is Precog's assistant. Ask about your team, a person leaving, or what to fix first; it answers from your own records."
           method={
             <p>
               Pioneer builds every answer from Precog&rsquo;s own records: the exposure that
@@ -179,12 +179,12 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
               {loading ? (
                 <>
                   <Loader2 className="size-4 animate-spin" aria-hidden />
-                  Building the brief…
+                  Writing the answer…
                 </>
               ) : (
                 <>
                   <Sparkles className="size-4" aria-hidden />
-                  Get the brief
+                  Ask
                 </>
               )}
             </Button>
@@ -206,7 +206,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
             </p>
           )}
           <p role="status" className="sr-only">
-            {loading ? "Building the brief" : result ? "Brief ready" : ""}
+            {loading ? "Writing the answer" : result ? "Answer ready" : ""}
           </p>
         </CardContent>
       </Card>

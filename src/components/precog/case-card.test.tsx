@@ -7,7 +7,7 @@ import {
   UNVERIFIED_CASE,
   VERIFIED_CASE,
 } from "@/lib/precog/evidence";
-import { CaseCard, RuleCaseCard, UnverifiedListNote } from "./case-card";
+import { CaseCard, listNoteShown, RuleCaseCard, UnverifiedListNote } from "./case-card";
 
 describe("CaseCard", () => {
   it("marks a record nobody has checked as unverified, with the reason on hover", () => {
@@ -64,8 +64,22 @@ describe("UnverifiedListNote", () => {
   it("says once, above a list of several cases, that none has been checked", () => {
     const html = renderToStaticMarkup(<UnverifiedListNote studies={CASE_LIBRARY.slice(0, 3)} />);
     expect(html).toBe(
-      '<p class="text-xs text-subtle">None of these case records has been checked against its source yet.</p>',
+      '<p class="text-xs text-subtle"><span class="font-medium">Unverified.</span> None of these case records has been checked against its source yet.</p>',
     );
+  });
+
+  it("lets a list that shows the note drop the marker from each card", () => {
+    const html = renderToStaticMarkup(
+      <CaseCard study={CASE_LIBRARY[0]} unverifiedMarker={false} />,
+    );
+    expect(html).not.toContain(UNVERIFIED_CASE.label);
+    expect(listNoteShown(CASE_LIBRARY.slice(0, 3))).toBe(true);
+    expect(listNoteShown(CASE_LIBRARY.slice(0, 1))).toBe(false);
+  });
+
+  it("still marks a verified case when the list drops the unverified marker", () => {
+    const html = renderToStaticMarkup(<CaseCard study={verified} unverifiedMarker={false} />);
+    expect(html).toContain(VERIFIED_CASE.label);
   });
 
   it("says nothing for a single case, a mixed list or a verified list", () => {

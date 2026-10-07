@@ -7,15 +7,15 @@
  *
  * - HEALTH_SCALE, higher is better: COSO, map health, segregation health,
  *   the "Has a stand-in" and "Written down" shares.
- * - RISK_SCALE, higher is worse: residual risk (the "Fix first", "Fix soon",
- *   "Worth doing" and "Watch" action bands), knowledge risk, departure
- *   impact, a person's authority, and (stricter, `dependenceTone`) how much
- *   must-do work stops when someone is out.
+ * - RISK_SCALE, higher is worse: residual risk (the "Severe", "High",
+ *   "Moderate" and "Low" bands in scoring/weights.ts), knowledge risk,
+ *   departure impact, a person's authority, and (stricter, `dependenceTone`)
+ *   how much must-do work stops when someone is out.
  * - PRIORITY_SCALE, higher is worse: what the map and the priority list look
  *   at first. Process heat, a priority item and a person's workload band on
- *   it. Its bands read in the same urgency words as the residual action
- *   bands ("Fix first", "Fix soon", "Worth doing", "Watch"), so a reader
- *   meets one scale of urgency; the cutoffs stay each scale's own.
+ *   it. Its bands read in urgency words ("Fix first", "Fix soon", "Worth
+ *   doing", "Watch"), which no other scale uses, so "Fix first" always means
+ *   priority 88 or more.
  *
  * An index is Precog's weighting of the owner's answers. It is never a
  * measurement, and the cutoffs are presentation choices that order attention;
@@ -58,11 +58,9 @@ export function priorityBand(score: number): PriorityBand {
 }
 
 /**
- * Priority bands in the one urgency scale every screen uses: "Fix first",
- * "Fix soon", "Worth doing", "Watch", the words of the residual action
- * bands. Each scale keeps its own cutoffs: "Fix first" is priority 88 or
- * more here and residual 80 or more there. Below "Watch" an item is "Not
- * urgent".
+ * Priority bands in urgency words: "Fix first", "Fix soon", "Worth doing",
+ * "Watch". Only the priority list uses them; the residual bands read Severe,
+ * High, Moderate and Low. Below "Watch" an item is "Not urgent".
  */
 export const PRIORITY_BAND_LABEL: Record<PriorityBand, string> = {
   white_hot: "Fix first",

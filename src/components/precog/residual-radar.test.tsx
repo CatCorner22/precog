@@ -24,3 +24,23 @@ describe("the selected risk's scenario dollars", () => {
     expect(radarText("dental")).not.toContain("$77,411");
   });
 });
+
+describe("the residual tiles and register", () => {
+  it("name the bands Severe, High and Moderate, and never say Fix first", () => {
+    const html = radarText("dental");
+    expect(html).toMatch(/>Severe<[\s\S]*?Residual 80 or more/);
+    expect(html).toMatch(/>High<[\s\S]*?Residual 60–79/);
+    expect(html).toMatch(/>Moderate<[\s\S]*?Residual 40–59; \d+ more Low/);
+    expect(html).not.toMatch(/Fix first|Fix soon|Worth doing/);
+  });
+
+  it("says in plain words how a row is scored and that scenario figures are examples", () => {
+    const html = radarText("dental");
+    expect(html).not.toContain("Inherent × (1 − control effectiveness)");
+    expect(html).not.toContain("not sized to your business, and never set its rank");
+    expect(html).toContain(
+      "A scenario’s dollar and day figures are examples, not from your books, and never change its place in the list.",
+    );
+    expect(html).not.toContain("weight trials");
+  });
+});

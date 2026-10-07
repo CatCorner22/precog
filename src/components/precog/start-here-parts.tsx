@@ -3,7 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { detectionBreakdown, isOwnSector, type SchemeKind } from "@/lib/precog/evidence";
 import type { StartHereModel } from "@/lib/precog/start-here/model";
 import { Badge } from "@/components/ui/badge";
-import { CaseCard, UnverifiedListNote } from "./case-card";
+import { CaseCard, listNoteShown, UnverifiedListNote } from "./case-card";
 import { SCHEME_ORDER, SCHEME_PHRASE } from "./start-here-copy";
 
 /** The filter chips: every case, the cases that show a gap on this page, or one scheme shape. */
@@ -42,6 +42,8 @@ export function EvidenceFooter({ model }: { model: StartHereModel["footer"] }) {
   const ordered = [...shown].sort((a, b) => rank(a) - rank(b));
   // Counted over the cases listed here, so the note matches the list.
   const found = detectionBreakdown(ordered);
+  // When the note above says none is checked, the cards do not repeat it.
+  const noted = listNoteShown(ordered);
   return (
     <section className="space-y-3">
       <SectionHeading
@@ -71,7 +73,7 @@ export function EvidenceFooter({ model }: { model: StartHereModel["footer"] }) {
         {ordered.map((c) => (
           <div key={c.id} className="space-y-1">
             {citingIds.has(c.id) && <Badge variant="primary">Shows a gap on this page</Badge>}
-            <CaseCard study={c} />
+            <CaseCard study={c} unverifiedMarker={!noted} />
           </div>
         ))}
       </div>

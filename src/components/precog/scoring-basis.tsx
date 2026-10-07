@@ -11,6 +11,7 @@ import {
 } from "@/lib/precog/scoring/bands";
 import {
   DEFAULT_WEIGHTS,
+  RESIDUAL_BAND_LABEL,
   SCORING_VERSION,
   WEIGHT_DESCRIPTIONS,
 } from "@/lib/precog/scoring/weights";
@@ -58,9 +59,10 @@ export function ScoringBasis({ sensitivity }: { sensitivity: SensitivityReport }
               <div className="rounded-lg border border-border bg-elevated p-3">
                 <p className="font-medium">Risk scale · higher is worse</p>
                 <p className="mt-1 text-muted">
-                  Watch under {RISK_SCALE.mitigate} · Worth doing {RISK_SCALE.mitigate}–
-                  {RISK_SCALE.actNow - 1} · Fix soon {RISK_SCALE.actNow}–{RISK_SCALE.critical - 1} ·
-                  Fix first {RISK_SCALE.critical}+
+                  {RESIDUAL_BAND_LABEL.accept_monitor} under {RISK_SCALE.mitigate} ·{" "}
+                  {RESIDUAL_BAND_LABEL.mitigate} {RISK_SCALE.mitigate}–{RISK_SCALE.actNow - 1} ·{" "}
+                  {RESIDUAL_BAND_LABEL.act_now} {RISK_SCALE.actNow}–{RISK_SCALE.critical - 1} ·{" "}
+                  {RESIDUAL_BAND_LABEL.critical_path} {RISK_SCALE.critical}+
                 </p>
                 <p className="mt-1 text-muted">
                   The share of must-do work that stops when someone is out reads amber above{" "}
@@ -90,7 +92,9 @@ export function ScoringBasis({ sensitivity }: { sensitivity: SensitivityReport }
                   {PRIORITY_BAND_LABEL.white_hot} {PRIORITY_SCALE.top}+
                 </p>
                 <p className="mt-1 text-muted">
-                  The process map&apos;s heat, the priority list and workload read this scale.
+                  The process map&apos;s heat, the priority list and workload read this scale. Only
+                  this scale says &ldquo;{PRIORITY_BAND_LABEL.white_hot}&rdquo;; the risk scale
+                  names its bands by how much risk is left.
                 </p>
               </div>
             </div>
