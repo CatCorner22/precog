@@ -57,6 +57,7 @@ import {
   loadReportVersion,
   lockReportVersion,
   markReportVersionSent,
+  RETURN_NOTE_MAX,
   signOffReportVersion,
   versionFirmName,
   withdrawReportVersionReview,
@@ -706,7 +707,7 @@ export const signOffReport = createServerFn({ method: "POST" })
       overrideNote?: string;
     }) => ({
       ...idInput(input),
-      note: typeof input.note === "string" ? input.note.trim().slice(0, 600) : "",
+      note: typeof input.note === "string" ? input.note.trim().slice(0, RETURN_NOTE_MAX) : "",
       issueWithoutIndependentReview: requireObject(input).issueWithoutIndependentReview === true,
       // The store refuses a short or over-long note with its own words.
       overrideNote: typeof input.overrideNote === "string" ? input.overrideNote.slice(0, 2000) : "",

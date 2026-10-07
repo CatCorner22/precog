@@ -86,14 +86,20 @@ export function acceptanceDates(
   decisions: readonly DecisionEntry[],
   industry: IndustryId,
 ): Map<string, string> {
+  // The newest acceptance logged against each rule or control id, in one
+  // pass. decidedOn, given the decision's own link as the rule, checks all but
+  // the link; a finding then takes the newer of its rule's and its control's.
+  const newestOn = new Map<string, string>();
+  for (const d of decisions) {
+    if (!/^\d{4}-\d{2}-\d{2}/.test(d.createdAt) || !d.linkedId) continue;
+    if (!decidedOn({ ruleId: d.linkedId }, ACCEPT_KINDS, [d], industry)) continue;
+    if (d.createdAt > (newestOn.get(d.linkedId) ?? "")) newestOn.set(d.linkedId, d.createdAt);
+  }
   const dates = new Map<string, string>();
   for (const finding of conflicts) {
-    let newest = "";
-    for (const d of decisions) {
-      if (!/^\d{4}-\d{2}-\d{2}/.test(d.createdAt)) continue;
-      if (!decidedOn(finding, ACCEPT_KINDS, [d], industry)) continue;
-      if (d.createdAt > newest) newest = d.createdAt;
-    }
+    const byRule = newestOn.get(finding.ruleId) ?? "";
+    const byControl = (finding.linkedControlId && newestOn.get(finding.linkedControlId)) || "";
+    const newest = byControl > byRule ? byControl : byRule;
     if (newest) dates.set(finding.id, newest.slice(0, 10));
   }
   return dates;

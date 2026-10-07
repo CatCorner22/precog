@@ -7,6 +7,7 @@ import type { PracticeProfile } from "../practice-profile";
 import { concentrationMove } from "../report/report-summary";
 import type { DetectedConflict } from "../sod/detect";
 import { openFindings, ruleIdsOf } from "../sod/open-findings";
+import { inOverseerWords } from "../sod/recommendations";
 import { firstName, midSentence } from "../text";
 
 /** Where a step on the plan comes from. */
@@ -108,7 +109,7 @@ export function rankedActionPlan(
   options: ActionPlanOptions,
 ): ActionStep[] {
   const open = openFindings(report.conflicts, options.partial);
-  const reader = industryHasOwner(profile.industry) ? "Owner" : "Board treasurer";
+  const reader = inOverseerWords("Owner", industryHasOwner(profile.industry));
   const answered = (controls: readonly ControlId[]) => {
     const duties = new Set(controls.flatMap((id) => CONTROL_DUTIES[id] ?? []));
     return open.filter((c) => duties.has(c.entitlementA) || duties.has(c.entitlementB));
@@ -117,11 +118,6 @@ export function rankedActionPlan(
 
   const move = concentrationMove(open);
   if (move) {
-    const closed = open.filter(
-      (c) =>
-        c.personId === move.personId &&
-        (c.entitlementA === move.duty || c.entitlementB === move.duty),
-    );
     const first = firstName(move.personName);
     candidates.push({
       who: move.personName,
@@ -129,7 +125,7 @@ export function rankedActionPlan(
       minutes: MOVE_MINUTES,
       closes: move.closes,
       source: "concentration",
-      tier: tierOf(closed),
+      tier: tierOf(move.closed),
       keys: [`control:${UNIVERSAL_FIX}`, ...move.ruleIds.map((id) => `pair:${id}`)],
     });
   }

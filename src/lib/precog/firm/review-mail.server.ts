@@ -1,7 +1,7 @@
 import type { Sql } from "@/lib/db";
 import { escapeHtml, type RenderedEmail } from "../reminders/email";
 import { NOT_SUPPRESSED } from "../reminders/suppression-store";
-import { eligibleReviewers, type ReportVersionRow } from "./reports";
+import { businessReviewers, type ReportVersionRow } from "./reports";
 import { TRUSTED_EMAIL } from "./vouched-email";
 
 /**
@@ -21,25 +21,20 @@ import { TRUSTED_EMAIL } from "./vouched-email";
  * reviewer or preparer made: the request or return is already stored.
  */
 
-/** How the emails go out; tests and callers without a request pass their own. */
-export interface ReviewMailOptions {
-  send?: (to: string, message: RenderedEmail) => Promise<void>;
-  configured?: () => boolean;
-  origin?: () => string;
-  report?: (err: unknown, at: string) => Promise<void>;
-}
+/** How an email goes out once this deployment can send one. */
+type Send = (to: string, message: RenderedEmail) => Promise<void>;
 
 /** The subject of the request email. */
-export function reviewRequestedSubject(clientName: string, versionNo: number): string {
+function reviewRequestedSubject(clientName: string, versionNo: number): string {
   return `Review requested: ${clientName} version ${versionNo}`;
 }
 
 /** The subject of the return email. */
-export function returnedSubject(clientName: string, versionNo: number): string {
+function returnedSubject(clientName: string, versionNo: number): string {
   return `Returned: ${clientName} version ${versionNo}`;
 }
 
-export function renderReviewRequested(input: {
+function renderReviewRequested(input: {
   clientName: string;
   versionNo: number;
   requesterName: string | null;
@@ -55,7 +50,7 @@ export function renderReviewRequested(input: {
   });
 }
 
-export function renderReturned(input: {
+function renderReturned(input: {
   clientName: string;
   versionNo: number;
   returnerName: string | null;
@@ -76,13 +71,12 @@ export function renderReturned(input: {
 export async function mailReviewRequested(
   sql: Sql,
   input: { ownerUserId: string; version: ReportVersionRow; requestedBy: string },
-  options: ReviewMailOptions = {},
 ): Promise<void> {
-  await guarded(options, "review-requested-email", async (o) => {
+  await guarded("review-requested-email", async (send, origin) => {
     const { version } = input;
     const recipients = version.reviewRequestedFrom
       ? [version.reviewRequestedFrom]
-      : await firmReviewers(sql, input.ownerUserId, version);
+      : await businessReviewers(sql, input.ownerUserId, version.businessId, version.preparedBy);
     const to = recipients.filter((id) => id !== input.requestedBy);
     if (to.length === 0) return;
     const [clientName, requesterName] = await Promise.all([
@@ -93,11 +87,11 @@ export async function mailReviewRequested(
       clientName,
       versionNo: version.versionNo,
       requesterName,
-      link: versionLink(o.origin(), version.id),
+      link: versionLink(origin(), version.id),
     });
     await sendEach(sql, { ownerUserId: input.ownerUserId, businessId: version.businessId }, to, {
       message,
-      o,
+      send,
     });
   });
 }
@@ -106,9 +100,8 @@ export async function mailReviewRequested(
 export async function mailReturned(
   sql: Sql,
   input: { ownerUserId: string; version: ReportVersionRow; returnedBy: string },
-  options: ReviewMailOptions = {},
 ): Promise<void> {
-  await guarded(options, "version-returned-email", async (o) => {
+  await guarded("version-returned-email", async (send, origin) => {
     const { version } = input;
     if (!version.preparedBy || version.preparedBy === input.returnedBy) return;
     const clientName = await clientNameOf(sql, input.ownerUserId, version.businessId);
@@ -117,40 +110,44 @@ export async function mailReturned(
       versionNo: version.versionNo,
       returnerName: version.returnedByName,
       note: version.returnNote,
-      link: versionLink(o.origin(), version.id),
+      link: versionLink(origin(), version.id),
     });
     await sendEach(
       sql,
       { ownerUserId: input.ownerUserId, businessId: version.businessId },
       [version.preparedBy],
-      { message, o },
+      { message, send },
     );
   });
 }
 
-type ResolvedOptions = Required<ReviewMailOptions>;
-
+/**
+ * Runs one email's work once this deployment can send email, with the mailer
+ * and the request's origin, which the work reads only when someone gets mail.
+ * A failure is reported, never thrown.
+ */
 async function guarded(
-  options: ReviewMailOptions,
   at: string,
-  run: (o: ResolvedOptions) => Promise<void>,
+  run: (send: Send, origin: () => string) => Promise<void>,
 ): Promise<void> {
-  const report =
-    options.report ??
-    (async (err: unknown, where: string) => {
-      const { reportServerError } = await import("@/lib/observability/report.server");
-      await reportServerError(err, where);
-    });
   try {
-    const mailer =
-      options.send && options.configured ? null : await import("../reminders/mailer.server");
-    const configured = options.configured ?? mailer!.mailConfigured;
-    if (!configured()) return;
-    const origin = options.origin ?? (await import("@/lib/request-origin.server")).requestOrigin;
-    await run({ send: options.send ?? mailer!.sendEmail, configured, origin, report });
+    const { mailConfigured, sendEmail } = await import("../reminders/mailer.server");
+    if (!mailConfigured()) return;
+    const { requestOrigin } = await import("@/lib/request-origin.server");
+    await run(sendEmail, requestOrigin);
   } catch (err) {
     // The request or return is stored; the email is a courtesy on top.
-    await report(err, at).catch(() => undefined);
+    await report(err, at);
+  }
+}
+
+/** Reports a failed email. A report that fails is dropped, so this never throws. */
+async function report(err: unknown, at: string): Promise<void> {
+  try {
+    const { reportServerError } = await import("@/lib/observability/report.server");
+    await reportServerError(err, at);
+  } catch {
+    // The request or return stands either way.
   }
 }
 
@@ -165,9 +162,9 @@ async function sendEach(
   sql: Sql,
   business: { ownerUserId: string; businessId: string },
   userIds: string[],
-  mail: { message: RenderedEmail; o: ResolvedOptions },
+  mail: { message: RenderedEmail; send: Send },
 ): Promise<void> {
-  const { message, o } = mail;
+  const { message, send } = mail;
   const rows = await sql.query<{ email: string }>(
     `select u.email from "user" u
      join businesses b on b.user_id = $2 and b.id = $3
@@ -182,24 +179,11 @@ async function sendEach(
   );
   for (const row of rows) {
     try {
-      await o.send(row.email, message);
+      await send(row.email, message);
     } catch (err) {
-      await o.report(err, "review-email").catch(() => undefined);
+      await report(err, "review-email");
     }
   }
-}
-
-async function firmReviewers(
-  sql: Sql,
-  ownerUserId: string,
-  version: ReportVersionRow,
-): Promise<string[]> {
-  const rows = await sql<{ firm_user_id: string | null }>`
-    select firm_user_id from businesses
-    where user_id = ${ownerUserId} and id = ${version.businessId}
-  `;
-  const firmUserId = rows[0]?.firm_user_id;
-  return firmUserId ? eligibleReviewers(sql, firmUserId, version.preparedBy) : [];
 }
 
 async function clientNameOf(sql: Sql, ownerUserId: string, businessId: string): Promise<string> {

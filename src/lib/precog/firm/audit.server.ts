@@ -65,28 +65,16 @@ const DEFAULT_RETENTION_YEARS = 7;
 /**
  * Writes one row inside the caller's transaction and throws on failure, so a
  * change and its record commit together or not at all (the operator's
- * actions). The actor's name is read in the same statement, as it is now.
+ * actions): insertAudits with that one row.
  */
-export async function insertAudit(tx: Sql, input: AuditInput): Promise<void> {
-  await tx`
-    insert into firm_audit_log
-      (firm_user_id, actor_user_id, actor_name, event, business_id, subject_user_id, detail)
-    values (
-      ${input.firmUserId},
-      ${input.actorUserId},
-      coalesce((select coalesce(nullif(u.name, ''), u.email, '') from "user" u
-        where u.id = ${input.actorUserId}), ''),
-      ${input.event},
-      ${input.businessId ?? null},
-      ${input.subjectUserId ?? null},
-      ${JSON.stringify(input.detail ?? {})}::jsonb
-    )
-  `;
+export function insertAudit(tx: Sql, input: AuditInput): Promise<void> {
+  return insertAudits(tx, [input]);
 }
 
 /**
  * Writes several rows in one statement, in the order given, inside the
- * caller's transaction; as insertAudit, each actor's name is read as it is now.
+ * caller's transaction. Each actor's name is read in the same statement, as
+ * it is now.
  */
 export async function insertAudits(tx: Sql, inputs: AuditInput[]): Promise<void> {
   if (!inputs.length) return;
@@ -112,7 +100,11 @@ export async function insertAudits(tx: Sql, inputs: AuditInput[]): Promise<void>
   `;
 }
 
-/** insertAudits after the action has committed; a failure is reported, as recordAudit's. */
+/**
+ * Writes rows after the action they record has committed (insertAudits). A
+ * failed write is reported and swallowed: the log never fails the action it
+ * rides on. Never call it inside a transaction (a failed insert would abort it).
+ */
 export async function recordAudits(sql: Sql, inputs: AuditInput[]): Promise<void> {
   try {
     await insertAudits(sql, inputs);
@@ -121,17 +113,9 @@ export async function recordAudits(sql: Sql, inputs: AuditInput[]): Promise<void
   }
 }
 
-/**
- * Writes one row after the action it records has committed. A failed write
- * is reported and swallowed: the log never fails the action it rides on.
- * Never call it inside a transaction (a failed insert would abort it).
- */
-export async function recordAudit(sql: Sql, input: AuditInput): Promise<void> {
-  try {
-    await insertAudit(sql, input);
-  } catch (err) {
-    await reportServerError(err, "audit");
-  }
+/** recordAudits with one row. */
+export function recordAudit(sql: Sql, input: AuditInput): Promise<void> {
+  return recordAudits(sql, [input]);
 }
 
 /**
@@ -219,26 +203,34 @@ export interface FirmActivityRow {
   occurredAt: string;
 }
 
-/** The firm's log, newest first, for the firm owner's export. */
-export async function listFirmActivity(sql: Sql, firmUserId: string): Promise<FirmActivityRow[]> {
-  const rows = await sql<{
-    actor_name: string;
-    event: string;
-    business_id: string | null;
-    subject_user_id: string | null;
-    detail: unknown;
-    occurred_at: string;
-  }>`
-    select actor_name, event, business_id, subject_user_id, detail, occurred_at
-    from firm_audit_log where firm_user_id = ${firmUserId}
-    order by occurred_at desc, id desc
-  `;
-  return rows.map((r) => ({
+/** One row of the firm's log as Postgres returns it. */
+interface FirmActivityRecord {
+  actor_name: string;
+  event: string;
+  business_id: string | null;
+  subject_user_id: string | null;
+  detail: unknown;
+  occurred_at: string;
+}
+
+/** One row of the firm's log as the firm owner's export writes it. */
+export function toFirmActivityRow(r: FirmActivityRecord): FirmActivityRow {
+  return {
     actorName: r.actor_name,
     event: r.event,
     businessId: r.business_id,
     subjectUserId: r.subject_user_id,
     detail: r.detail,
     occurredAt: toIsoTimestamp(r.occurred_at),
-  }));
+  };
+}
+
+/** The firm's log, newest first, for the firm owner's export. */
+export async function listFirmActivity(sql: Sql, firmUserId: string): Promise<FirmActivityRow[]> {
+  const rows = await sql<FirmActivityRecord>`
+    select actor_name, event, business_id, subject_user_id, detail, occurred_at
+    from firm_audit_log where firm_user_id = ${firmUserId}
+    order by occurred_at desc, id desc
+  `;
+  return rows.map(toFirmActivityRow);
 }

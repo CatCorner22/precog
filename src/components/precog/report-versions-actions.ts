@@ -82,16 +82,8 @@ export function signOffDialogText(input: {
     lines.push(`${supersededLabel(input.supersededBy)}: a newer version exists.`);
   }
   return input.sole
-    ? {
-        title: `Issue version ${input.versionNo} without an independent review?`,
-        lines,
-        confirm: SIGN_OFF_TEXT.issueAlone,
-      }
-    : {
-        title: `Review version ${input.versionNo} for issuance?`,
-        lines,
-        confirm: SIGN_OFF_TEXT.review,
-      };
+    ? { title: `${issueAloneLabel(input.versionNo)}?`, lines, confirm: SIGN_OFF_TEXT.issueAlone }
+    : { title: `${reviewVersionLabel(input.versionNo)}?`, lines, confirm: SIGN_OFF_TEXT.review };
 }
 
 /**
@@ -166,7 +158,7 @@ export function canWithdrawReview(input: {
  * again afterwards, so this is not an irreversible step.
  */
 export function withdrawConfirmText(versionNo: number): string {
-  return `Withdraw the review of version ${versionNo}? It reads as not reviewed for issuance again: nobody can mark it sent or share it, and its report links stop opening it, until someone reviews it again. The activity log records the withdrawal.`;
+  return `${withdrawLabel(versionNo)}? It reads as not reviewed for issuance again: nobody can mark it sent or share it, and its report links stop opening it, until someone reviews it again. The activity log records the withdrawal.`;
 }
 
 /** The words of the request-and-return buttons and toasts on the versions panel. */

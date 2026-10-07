@@ -224,9 +224,20 @@ export function useCloudSync(input: {
   // revision: what a refused save compares both copies with before asking.
   // Held in memory only, so after a reload a refused save asks, as before.
   const accountBase = useRef(new Map<string, AccountBase>());
+  /**
+   * Business `id` now builds on the account's copy `profile` at `revision`:
+   * the revision its next save names, and the copy a refused save compares
+   * with. A null revision (a legacy account copy, which has none) clears
+   * both. Keeping the revision for a reload is rememberRevision's.
+   */
   const noteBase = useCallback((id: string, revision: number | null, profile: PracticeProfile) => {
-    if (revision === null) accountBase.current.delete(id);
-    else accountBase.current.set(id, { revision, profile });
+    if (revision === null) {
+      cloudRevision.current.delete(id);
+      accountBase.current.delete(id);
+    } else {
+      cloudRevision.current.set(id, revision);
+      accountBase.current.set(id, { revision, profile });
+    }
   }, []);
   // Merged copies the account took, by the open-business object that shows one.
   const acceptedMerges = useRef(new WeakMap<PracticeProfile, AcceptedMerge>());
@@ -1030,7 +1041,6 @@ export function useCloudSync(input: {
       acceptedMerges.current.delete(profile);
       // The open business now builds on the merged copy the account holds.
       const id = merged.businessId;
-      cloudRevision.current.set(id, merged.revision);
       noteBase(id, merged.revision, merged.saved);
       lineage.add(id, merged.saved.updatedAt);
       if (merged.tookTheirs) toast(MERGED_MESSAGE);
@@ -1343,8 +1353,6 @@ export function useCloudSync(input: {
         // The choice applies to that business's copy on this device, not to
         // the one open now.
         if (conflict.reason === "other-tab") return;
-        if (conflict.revision !== null) cloudRevision.current.set(id, conflict.revision);
-        else cloudRevision.current.delete(id);
         // Whichever copy the owner keeps now builds on the account's.
         noteBase(id, conflict.revision, { ...conflict.remote, businessId: id });
         const local = loadPortfolio(workspace.local)[id];
@@ -1417,10 +1425,8 @@ export function useCloudSync(input: {
         return;
       }
 
-      // A legacy account copy has no revision: saving over it creates one.
-      if (conflict.revision !== null) cloudRevision.current.set(id, conflict.revision);
-      else cloudRevision.current.delete(id);
-      // Whichever copy the owner keeps now builds on the account's.
+      // Whichever copy the owner keeps now builds on the account's. A legacy
+      // account copy has no revision: saving over it creates one.
       noteBase(id, conflict.revision, { ...conflict.remote, businessId: id });
 
       // As between two tabs, the version the owner did not pick stays

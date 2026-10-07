@@ -53,6 +53,11 @@ export function withMasterSwitch(policy: DualReleasePolicy, enabled: boolean): D
   return { ...policy, enabled };
 }
 
+/** An amount to the cent: 12.75 stays 12.75, never 13. */
+export function keepCents(usd: number): number {
+  return Math.round(usd * 100) / 100;
+}
+
 /**
  * True when the form's end date is before its start date. Such an exception
  * would never be in force on any day, and the date is more likely a typo
@@ -82,9 +87,7 @@ export function exceptionFromForm(
     channels: form.channels,
     action: form.action,
     // To the cent, as the channel thresholds are: 999.50 stays 999.50.
-    thresholdUsd: setsThreshold
-      ? Math.max(0, Math.round(form.thresholdUsd * 100) / 100)
-      : undefined,
+    thresholdUsd: setsThreshold ? Math.max(0, keepCents(form.thresholdUsd)) : undefined,
     payeeContains: form.payee.trim() || undefined,
     personId: form.personId || undefined,
     role: form.role || undefined,

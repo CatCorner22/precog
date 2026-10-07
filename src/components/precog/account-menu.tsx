@@ -21,6 +21,7 @@ import {
 } from "@/lib/precog/account-server";
 import {
   assembleAccountExport,
+  decodeBase64Json,
   decodeExportPage,
   EXPORT_CHANGED,
   ExportChangedError,
@@ -38,6 +39,7 @@ import { downloadText, downloadUrl } from "@/lib/download";
 import { localDateKey } from "@/lib/precog/dates";
 import { clientErrorStatus } from "@/lib/request-errors";
 import { slug } from "@/lib/precog/text";
+import { showSignInAgain } from "./sign-in-again";
 
 /** The sessions dialog, loaded only when the entry is used. */
 const AccountSessionsDialog = lazy(() => import("./account-sessions"));
@@ -99,12 +101,6 @@ function historyKey(b: HistoryBusiness): string {
   return `${b.ownerUserId}:${b.businessId}`;
 }
 
-/** One page as the server sends it: the rows' JSON in base64 (see encodeHistoryPage). */
-function decodeHistoryPage(base64: string): unknown[] {
-  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  return JSON.parse(new TextDecoder().decode(bytes)) as unknown[];
-}
-
 /** Fetches every page of one business's past versions and saves them as one file. */
 async function downloadBusinessHistory(business: HistoryBusiness): Promise<void> {
   const versions: unknown[] = [];
@@ -119,7 +115,8 @@ async function downloadBusinessHistory(business: HistoryBusiness): Promise<void>
         },
       },
     );
-    versions.push(...decodeHistoryPage(page.base64));
+    // One page as the server sends it: the rows' JSON in base64.
+    versions.push(...decodeBase64Json<unknown[]>(page.base64));
     before = page.nextBeforeRevision;
   } while (before !== null);
   const file = {
@@ -518,7 +515,7 @@ function LocalRecoveryControl({ disabled }: { disabled: boolean }) {
 }
 
 /** The button on the refusal when the sign-in is too old to delete the account. */
-export const SIGN_IN_AGAIN_LABEL = "Sign in again";
+export { SIGN_IN_AGAIN_LABEL } from "./sign-in-again";
 
 /**
  * Says why the deletion did not go through. The 403 for an old sign-in asks
@@ -530,17 +527,7 @@ export function showDeletionFailure(error: unknown): void {
   const status = clientErrorStatus(error);
   const message = error instanceof Error ? error.message : "";
   if (status === 403 && message === SIGN_IN_AGAIN_TO_DELETE) {
-    toast.error(message, {
-      duration: Infinity,
-      action: {
-        label: SIGN_IN_AGAIN_LABEL,
-        onClick: () => {
-          void signOut("/login").catch(() => {
-            toast.error("Precog could not sign you out. Reload and try again.");
-          });
-        },
-      },
-    });
+    showSignInAgain(message, signOut);
     return;
   }
   toast.error(

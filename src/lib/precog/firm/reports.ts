@@ -387,13 +387,26 @@ export async function loadReportVersion<TProfile = unknown>(
   ownerUserId: string,
   id: string,
 ): Promise<{ version: ReportVersionRow; profile: TProfile } | null> {
-  const rows = await sql.query<RawVersion & { profile: TProfile }>(
-    `select ${VERSION_COLUMNS}, v.firm_logo_data_url, v.profile from report_versions v ${VERSION_JOINS}
+  const row = await selectVersion<{ profile: TProfile }>(sql, ownerUserId, id, ", v.profile");
+  return row ? { version: toRow(row), profile: row.profile } : null;
+}
+
+/**
+ * One version's row with the firm's frozen logo and the `extra` columns, or
+ * undefined. Without `extra`, the frozen profile (up to 2 MB) stays unread.
+ */
+async function selectVersion<T extends object = object>(
+  sql: Sql,
+  ownerUserId: string,
+  id: string,
+  extra = "",
+): Promise<(RawVersion & T) | undefined> {
+  const rows = await sql.query<RawVersion & T>(
+    `select ${VERSION_COLUMNS}, v.firm_logo_data_url${extra} from report_versions v ${VERSION_JOINS}
      where v.user_id = $1 and v.id = $2`,
     [ownerUserId, id],
   );
-  const row = rows[0];
-  return row ? { version: toRow(row), profile: row.profile } : null;
+  return rows[0];
 }
 
 /**
@@ -573,8 +586,12 @@ export async function issueAloneFor(
   sql: Sql,
   input: { ownerUserId: string; businessId: string; preparedBy: string },
 ): Promise<IssueAloneStatus> {
-  const firmUserId = await businessFirm(sql, input.ownerUserId, input.businessId);
-  const others = firmUserId ? await eligibleReviewers(sql, firmUserId, input.preparedBy) : [];
+  const others = await businessReviewers(
+    sql,
+    input.ownerUserId,
+    input.businessId,
+    input.preparedBy,
+  );
   return others.length === 0
     ? { canIssueAlone: true, reason: ISSUE_ALONE_ALLOWED }
     : { canIssueAlone: false, reason: ISSUE_ALONE_REFUSED };
@@ -610,6 +627,20 @@ async function businessFirm(
     where user_id = ${ownerUserId} and id = ${businessId}
   `;
   return firms[0]?.firm_user_id ?? null;
+}
+
+/**
+ * Who at the business's firm may review a version `preparedBy` prepared
+ * (eligibleReviewers); nobody for a business with no firm.
+ */
+export async function businessReviewers(
+  sql: Sql,
+  ownerUserId: string,
+  businessId: string,
+  preparedBy: string | null,
+): Promise<string[]> {
+  const firmUserId = await businessFirm(sql, ownerUserId, businessId);
+  return firmUserId ? eligibleReviewers(sql, firmUserId, preparedBy) : [];
 }
 
 /**
@@ -688,7 +719,8 @@ export async function withdrawReportVersionReview(
       role === "owner" ||
       role === "reviewer" ||
       (issuedAlone && role !== null);
-    if (!firmOwner && !mayWithdraw) throw new ReportVersionError(403, WITHDRAW_ROLE_REFUSED);
+    // The firm owner holds the owner role, so mayWithdraw covers them too.
+    if (!mayWithdraw) throw new ReportVersionError(403, WITHDRAW_ROLE_REFUSED);
     if (row.sent_at) throw new ReportVersionError(409, WITHDRAW_AFTER_SENT);
     if (!row.reviewed_at) throw new ReportVersionError(409, NOTHING_TO_WITHDRAW);
     await tx`
@@ -696,9 +728,9 @@ export async function withdrawReportVersionReview(
       set reviewed_by = null, reviewed_at = null, review_note = '', review_override_note = null
       where user_id = ${input.ownerUserId} and id = ${input.id}
     `;
-    const updated = await loadReportVersion(tx, input.ownerUserId, input.id);
+    const updated = await selectVersion(tx, input.ownerUserId, input.id);
     if (!updated) throw new Error("Unable to withdraw the review");
-    return { version: updated.version, withdrawnReviewer: row.reviewed_by };
+    return { version: toRow(updated), withdrawnReviewer: row.reviewed_by };
   });
 }
 
