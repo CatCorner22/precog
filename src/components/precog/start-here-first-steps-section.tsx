@@ -63,7 +63,7 @@ export function StartHereFirstStepsSection({
           <div className="mt-1 text-xs text-subtle">
             {effortPhrase(s.control)} ·{" "}
             {s.answers > 0
-              ? `answers ${s.answers} of your open ${s.answers === 1 ? "gap" : "gaps"} · `
+              ? `covers ${s.answers === 1 ? "1 duty pair" : `${s.answers} of the duty pairs`} behind your open conflicts · `
               : ""}
             would plausibly have caught {s.supportingCaseIds.length}{" "}
             {s.supportingCaseIds.length === 1 ? "case" : "cases"} below
@@ -98,7 +98,7 @@ export function StartHereFirstStepsSection({
           <SectionHeading
             icon={<ArrowRight className="size-4" aria-hidden />}
             title="Do these first"
-            subtitle="Ranked by how many of your open gaps each answers, then by how many of the real cases below it would plausibly have caught."
+            subtitle="Ranked by how many of the duty pairs behind your open conflicts each covers, then by how many of the real cases below it would plausibly have caught."
           />
 
           <Card>

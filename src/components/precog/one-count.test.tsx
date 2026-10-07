@@ -17,6 +17,7 @@ import { count } from "@/lib/precog/text";
 import { SodPanel } from "./sod-panel";
 import { StartHereExposureSection } from "./start-here-exposure-section";
 import { StartHereFiguresSection } from "./start-here-figures-section";
+import { StartHereFirstStepsSection } from "./start-here-first-steps-section";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
@@ -99,6 +100,19 @@ describe("one open-conflict count on every screen", () => {
       if (move && first?.control.id === "split-one-duty-out") {
         expect(first.control.label).toContain(move.personName);
         expect(first.control.label).toContain(`of the ${open} open duty conflicts`);
+      }
+      // Its pair count names duty pairs, never "open gaps", so it never reads
+      // as a second count of the open duty conflicts.
+      const steps = renderToStaticMarkup(
+        <StartHereFirstStepsSection model={start.firstSteps} part="actions" />,
+      );
+      expect(steps).not.toContain("open gap");
+      for (const step of doNextSteps(start.firstSteps.items).slice(0, 3)) {
+        if (step.answers > 1) {
+          expect(steps).toContain(
+            `covers ${step.answers} of the duty pairs behind your open conflicts`,
+          );
+        }
       }
 
       // The conflict tab: the tile and the sub-tab's count.
