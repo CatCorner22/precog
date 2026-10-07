@@ -17,3 +17,13 @@ export async function openClientReport(
   goToReport();
   return true;
 }
+
+/**
+ * Where "Open report" lands for a client: the newest version awaiting the
+ * firm's review when one waits, otherwise the live report.
+ */
+export function clientReportSearch(client: { awaitingVersionId: string | null } | undefined): {
+  version?: string;
+} {
+  return client?.awaitingVersionId ? { version: client.awaitingVersionId } : {};
+}

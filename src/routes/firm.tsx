@@ -15,7 +15,7 @@ import {
   clientTableFileName,
   withEngagementStatus,
 } from "@/components/precog/firm/client-table-csv";
-import { openClientReport } from "@/components/precog/firm/open-client-report";
+import { clientReportSearch, openClientReport } from "@/components/precog/firm/open-client-report";
 import { ClientHistory } from "@/components/precog/firm/client-history";
 import { QuickBooksPanel } from "@/components/precog/firm/quickbooks-panel";
 import { NotificationSettingsPanel } from "@/components/precog/firm/notification-settings";
@@ -403,7 +403,11 @@ function FirmPage() {
               void openClientReport(
                 id,
                 switchBusiness,
-                () => void navigate({ to: "/report" }),
+                () =>
+                  void navigate({
+                    to: "/report",
+                    search: clientReportSearch(clients.find((c) => c.id === id)),
+                  }),
                 (reason) => toast.error(reason),
               )
             }

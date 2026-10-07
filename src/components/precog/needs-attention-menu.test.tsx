@@ -99,6 +99,7 @@ function firmRow(records: readonly ReviewRecord[]): ClientEngagementRow {
     granted: false,
     months,
     awaitingReview: 0,
+    awaitingVersionId: null,
   };
 }
 

@@ -892,6 +892,9 @@ describe("client engagement figures", () => {
     // no firm before the grant.
     expect(rows.find((r) => r.ownerUserId === "ua")!.awaitingReview).toBe(2);
     expect(rows.find((r) => r.ownerUserId === "uc")!.awaitingReview).toBe(1);
+    // "Open report" opens the newest of them.
+    expect(rows.find((r) => r.ownerUserId === "ua")!.awaitingVersionId).toBe("a2");
+    expect(rows.find((r) => r.ownerUserId === "uc")!.awaitingVersionId).toBe("c1");
   });
 });
 

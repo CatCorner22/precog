@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AddClientForm, ClientList } from "./client-list";
-import { openClientReport } from "./open-client-report";
+import { clientReportSearch, openClientReport } from "./open-client-report";
 import type { ClientEngagementRow } from "@/lib/precog/firm/store";
 
 vi.mock("@/lib/precog/firm/server", () => ({
@@ -10,6 +10,12 @@ vi.mock("@/lib/precog/firm/server", () => ({
 }));
 
 describe("Open report on the client list", () => {
+  it("opens the newest version awaiting review, and the live report when none waits", () => {
+    expect(clientReportSearch({ awaitingVersionId: "v_7" })).toEqual({ version: "v_7" });
+    expect(clientReportSearch({ awaitingVersionId: null })).toEqual({});
+    expect(clientReportSearch(undefined)).toEqual({});
+  });
+
   it("goes to the report only after the switch to that business succeeded", async () => {
     let finish!: (r: { ok: true }) => void;
     const switchBusiness = vi.fn(
@@ -121,6 +127,7 @@ const row: ClientEngagementRow = {
     { period: "2026-10", done: 0, exceptions: 0, skipped: 0 },
   ],
   awaitingReview: 0,
+  awaitingVersionId: null,
 };
 
 /** The row with September's and October's counts. */

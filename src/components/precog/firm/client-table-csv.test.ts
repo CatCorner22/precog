@@ -49,6 +49,7 @@ function row(over: Partial<ClientEngagementRow> = {}): ClientEngagementRow {
     granted: false,
     months: months(),
     awaitingReview: 1,
+    awaitingVersionId: null,
     ...over,
   };
 }
