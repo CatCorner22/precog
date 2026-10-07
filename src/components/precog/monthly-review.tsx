@@ -329,8 +329,8 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
               data-period={p}
               className={
                 p === shownPeriod
-                  ? "rounded-md border border-primary bg-primary/10 px-2 py-1 text-xs font-medium"
-                  : "rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+                  ? "rounded-md border border-primary bg-primary/10 px-2 py-1 text-xs font-medium pointer-coarse:min-h-11"
+                  : "rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated pointer-coarse:min-h-11"
               }
               onClick={() => setChosen(p)}
             >
@@ -438,8 +438,8 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
                       disabled={busy === draft}
                       className={
                         pressed
-                          ? "rounded-md border border-primary bg-primary px-2 py-1 text-xs font-medium text-primary-fg disabled:opacity-50"
-                          : "rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated disabled:opacity-50"
+                          ? "rounded-md border border-primary bg-primary px-2 py-1 text-xs font-medium text-primary-fg disabled:opacity-50 pointer-coarse:min-h-11"
+                          : "rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated disabled:opacity-50 pointer-coarse:min-h-11"
                       }
                       onClick={() => void save(task.key, result, task.dueOn, task.period)}
                     >
@@ -451,7 +451,7 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
                   <button
                     type="button"
                     disabled={busy === draft}
-                    className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated disabled:opacity-50"
+                    className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated disabled:opacity-50 pointer-coarse:min-h-11"
                     onClick={() =>
                       void save(
                         task.key,

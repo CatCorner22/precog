@@ -119,7 +119,7 @@ export function NeedsAttentionMenu({
             setOpen(true);
           }
         }}
-        className="inline-flex items-center gap-1.5 rounded-md border border-warn/40 bg-warn/10 px-2 py-1 text-xs text-warn"
+        className="inline-flex items-center gap-1.5 rounded-md border border-warn/40 bg-warn/10 px-2 py-1 text-xs text-warn pointer-coarse:min-h-11"
       >
         <BellDot className="size-3.5" aria-hidden />
         {compactOnPhone ? (

@@ -31,7 +31,7 @@ export function WordsUsedHere({ tab, className }: { tab: NavTarget; className?: 
         aria-haspopup="dialog"
         onClick={() => setOpen(true)}
         className={cn(
-          "inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline",
+          "inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline pointer-coarse:min-h-11",
           className,
         )}
       >

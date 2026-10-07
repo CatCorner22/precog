@@ -218,6 +218,13 @@ const lisa = {
 const none = { overdue: [], slipped: [], leavers: 0, reviews: [] };
 
 describe("Needs attention menu", () => {
+  it("makes the header button 44px tall on a touch screen, and keeps its mouse size", () => {
+    const button = /<button[^>]*data-needs-attention[^>]*class="([^"]*)"/.exec(view());
+    const classes = button?.[1].split(" ") ?? [];
+    expect(classes).toContain("pointer-coarse:min-h-11");
+    expect(classes).toContain("py-1");
+  });
+
   it("on the 1st with no results, counts only the month that is due, with its due day", () => {
     const items = buildNeedsAttentionItems({ ...none, day: "2026-10-01", people: [state.owner] });
     expect(items.map(({ id, n, text, who }) => [id, n, text, who])).toEqual([

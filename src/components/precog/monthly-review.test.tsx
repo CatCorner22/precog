@@ -386,6 +386,25 @@ describe("monthly review records last month until its due day", () => {
     expect(closed).toMatch(/aria-pressed="true"[^>]*>September \(due October 10\)<\/button>/);
   });
 
+  it("makes the month toggles and the result buttons 44px tall on a touch screen", () => {
+    state.today = new Date(2026, 9, 3);
+    const html = view();
+    const classOf = (label: string) =>
+      [...html.matchAll(/<button[^>]*class="([^"]*)"[^>]*>([^<]*)<\/button>/g)]
+        .filter((m) => m[2] === label)
+        .map((m) => m[1].split(" "));
+    for (const label of ["September (due October 10)", "October", "Done", "Skipped"]) {
+      const found = classOf(label);
+      expect(found.length, label).toBeGreaterThan(0);
+      for (const classes of found) {
+        expect(classes, label).toContain("pointer-coarse:min-h-11");
+        // The mouse layout keeps its compact padding.
+        expect(classes, label).toContain("py-1");
+      }
+    }
+    expect(classOf("Exception (found a problem)")[0]).toContain("pointer-coarse:min-h-11");
+  });
+
   it("offers this month alone from the 11th", () => {
     state.today = new Date(2026, 9, 11);
     const html = view();

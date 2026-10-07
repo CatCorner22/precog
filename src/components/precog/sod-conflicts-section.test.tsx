@@ -98,3 +98,20 @@ describe("the duty-conflict list under the open count", () => {
     expect(rest.slice(0, rest.indexOf(">"))).not.toMatch(/\bopen\b/);
   });
 });
+
+describe("duty-conflict controls on a touch screen", () => {
+  it("makes the severity chips and the written-procedure links 44px tall", () => {
+    const page = render({ ...defaultProfile("general"), procedures: [] });
+    const group = page
+      .split('aria-label="Show duty conflicts of one severity"')[1]
+      .split("</div>")[0];
+    const chips = [...group.matchAll(/<button[^>]*class="([^"]*)"/g)];
+    expect(chips).toHaveLength(5);
+    for (const chip of chips) expect(chip[1].split(" ")).toContain("pointer-coarse:min-h-11");
+    const links = [
+      ...page.matchAll(/<button[^>]*class="([^"]*)"[^>]*>(?:(?!<\/button>).)*Written procedure: /g),
+    ];
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) expect(link[1].split(" ")).toContain("pointer-coarse:min-h-11");
+  });
+});

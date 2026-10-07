@@ -70,7 +70,7 @@ export function SodConflictsSection({
               aria-pressed={filterSeverity === option.id}
               onClick={() => setFilterSeverity(option.id)}
               className={cn(
-                "rounded-full border px-2.5 py-0.5 text-xs",
+                "rounded-full border px-2.5 py-0.5 text-xs pointer-coarse:min-h-11",
                 filterSeverity === option.id
                   ? "border-primary/40 bg-primary/10"
                   : "border-border bg-elevated text-muted",
@@ -221,7 +221,7 @@ function ConflictCardDetails({
       {procedure && (
         <button
           type="button"
-          className="mt-1 inline-flex items-center gap-1 text-left text-xs text-primary underline-offset-2 [overflow-wrap:anywhere] hover:underline"
+          className="mt-1 inline-flex items-center gap-1 text-left text-xs text-primary underline-offset-2 [overflow-wrap:anywhere] hover:underline pointer-coarse:min-h-11"
           onClick={() => onNavigate?.("procedures", procedure.item)}
         >
           <FileText className="size-3.5 shrink-0" aria-hidden />
@@ -304,7 +304,7 @@ function LocationFilter({ model }: { model: SodPanelModel }) {
             aria-pressed={shownLocation === option.value}
             onClick={() => setLocation(option.value)}
             className={cn(
-              "rounded-full border px-2.5 py-0.5 text-xs",
+              "rounded-full border px-2.5 py-0.5 text-xs pointer-coarse:min-h-11",
               shownLocation === option.value
                 ? "border-primary/40 bg-primary/10"
                 : "border-border bg-elevated text-muted",
