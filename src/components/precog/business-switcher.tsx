@@ -214,19 +214,23 @@ export function BusinessSwitcher() {
         <span className="min-w-0">
           <span className="block truncate text-sm font-semibold tracking-tight">Precog</span>
           <span className="flex items-center gap-1 text-xs text-muted" aria-hidden>
-            <span className="truncate">{profile.practiceName}</span>
+            <span className="min-w-0 truncate">{profile.practiceName}</span>
             {needsName && (
-              <span className="rounded-full bg-warn/15 px-1.5 text-xs text-warn">Name it</span>
+              <span className="shrink-0 rounded-full bg-warn/15 px-1.5 text-xs text-warn">
+                Name it
+              </span>
             )}
             {businesses.length > 1 && (
-              <span className="rounded-full bg-elevated px-1.5 text-xs text-subtle">
+              <span className="shrink-0 rounded-full bg-elevated px-1.5 text-xs text-subtle">
                 {businesses.length}
               </span>
             )}
             {switchingBusiness ? (
-              <Loader2 className="size-3 animate-spin" />
+              <Loader2 className="size-3 shrink-0 animate-spin" />
             ) : (
-              <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} />
+              <ChevronDown
+                className={cn("size-3 shrink-0 transition-transform", open && "rotate-180")}
+              />
             )}
           </span>
         </span>
