@@ -35,6 +35,7 @@ import {
 } from "../sod/open-findings";
 import { openConflictHeadline } from "../headline/open-conflicts";
 import { rankFirstSteps } from "../coach/first-steps";
+import { withNamedSplitStep } from "../actions/do-next";
 import { buildWeeklyActions } from "../weekly-actions/build";
 import { buildProcessMapGraph } from "../process-graph";
 import { scoreMap } from "../builder/scored-map";
@@ -171,11 +172,15 @@ export function buildControlReportModel({
   ];
   // Ranked as Start here ranks its "Do these first" list, so the screen and
   // the printed report lead with the same step: first by how many of the
-  // open findings each control answers.
+  // open findings each control answers. The split step names the person and
+  // the duty as Start here's does (actions/do-next `withNamedSplitStep`).
   const inPlace = setupInPlaceControls(profile.setupAnswers);
-  const steps = rankFirstSteps(
-    recommendedStepsForRules(openRuleIds, profile.industry).filter(
-      (step) => !inPlace.has(step.control.id),
+  const steps = withNamedSplitStep(
+    rankFirstSteps(
+      recommendedStepsForRules(openRuleIds, profile.industry).filter(
+        (step) => !inPlace.has(step.control.id),
+      ),
+      open,
     ),
     open,
   ).slice(0, 6);

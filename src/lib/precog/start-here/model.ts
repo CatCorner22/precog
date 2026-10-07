@@ -18,12 +18,8 @@ import {
   type DetectedConflict,
   type SodDetectionReport,
 } from "../sod/detect";
-import {
-  openFindings,
-  openSeverityCounts,
-  partialDualReleaseCoverage,
-  ruleIdsOf,
-} from "../sod/open-findings";
+import { partialDualReleaseCoverage, ruleIdsOf } from "../sod/open-findings";
+import { openConflictHeadline, type OpenConflictHeadline } from "../headline/open-conflicts";
 import { concentrationHeadline, separatedPairs } from "../sod/verdict";
 import { entitlementLabel } from "../sod/conflict-rules";
 import { ownerHeldPairs } from "../coach/first-steps";
@@ -94,10 +90,17 @@ interface StartHerePreambleModel {
 
 /** Home's headline figures: at most two, each one a figure another screen explains. */
 interface StartHereFiguresModel {
+  /**
+   * Open duty conflicts, every severity (headline/open-conflicts): the number
+   * the report, the duty-conflict tab and the coach give.
+   */
+  open: number;
   /** Open critical duty conflicts, counted as the band word counts them (sod/open-findings). */
   openCritical: number;
   /** Open high duty conflicts. */
   openHigh: number;
+  /** Open medium and related-duties conflicts: the rest of `open`. */
+  openOther: number;
   /** Whether anyone is marked on the register yet; the stand-in figure waits for it. */
   registerReady: boolean;
   /** Share of must-do work two or more people can run (continuity/coverage). */
@@ -125,8 +128,13 @@ interface StartHereContinuityModel {
 interface StartHereExposureModel {
   industryId: PracticeProfile["industry"];
   dualRelease: PracticeProfile["dualRelease"];
-  /** Open conflicts (sod/open-findings, accepted ones included), unmitigated first. */
+  /**
+   * Every employee's conflict, dual release or not, unmitigated first. Pairs
+   * dual release covers at every amount are here but not in `counts.open`.
+   */
   openConflicts: DetectedConflict[];
+  /** The open count and its parts (headline/open-conflicts), as every screen gives them. */
+  counts: Pick<OpenConflictHeadline, "open" | "reducedNotClosed" | "closedByDualRelease">;
   /** One entry per rule, worst first: unmitigated, then narrowed, then covered. */
   gaps: StartHereGap[];
   topThree: StartHereGap[];
@@ -136,6 +144,7 @@ interface StartHereExposureModel {
   coveredCount: number;
   /** Rules dual release covers only above a threshold: rule id to the lowest threshold. */
   partialCoverage: Map<string, number>;
+  /** The person who holds half or more of the open conflicts, counted in findings as the report counts them. */
   headline: ReturnType<typeof concentrationHeadline>;
   keptApart: ReturnType<typeof separatedPairs>;
   ownerHeld: ReturnType<typeof ownerHeldPairs>;
@@ -241,7 +250,8 @@ export function buildStartHereModel({
         Number(a.dualReleaseMitigated) - Number(b.dualReleaseMitigated) || b.score - a.score,
     );
   // The open findings, as the report counts them.
-  const open = openFindings(sod.conflicts, partialCoverage);
+  const counts = openConflictHeadline(sod, partialCoverage);
+  const open = counts.findings;
   const gaps = groupGaps(openConflicts, partialCoverage);
   const topThree = gaps.slice(0, 3);
   const placesOf = locationsById(template.people);
@@ -250,6 +260,11 @@ export function buildStartHereModel({
     industryId: profile.industry,
     dualRelease: profile.dualRelease,
     openConflicts,
+    counts: {
+      open: counts.open,
+      reducedNotClosed: counts.reducedNotClosed,
+      closedByDualRelease: counts.closedByDualRelease,
+    },
     gaps,
     topThree,
     narrowed: gaps.slice(3).filter((g) => partialCoverage.has(g.conflict.ruleId)),
@@ -258,7 +273,7 @@ export function buildStartHereModel({
       (g) => g.conflict.dualReleaseMitigated && !partialCoverage.has(g.conflict.ruleId),
     ).length,
     partialCoverage,
-    headline: concentrationHeadline(open),
+    headline: concentrationHeadline(open, "finding"),
     keptApart: separatedPairs(sod.conflicts, sod.assignments),
     ownerHeld: ownerHeldPairs(sod.conflicts),
     titleDuties: isSampleTeam ? "" : titleDutiesSentence(template.people),
@@ -293,7 +308,6 @@ export function buildStartHereModel({
     delayCurve: BENCHMARK_BY_ID["bm-duration-cost-curve"],
   };
 
-  const sodOpen = openSeverityCounts(sod.conflicts, profile.dualRelease);
   const inPlace = setupInPlaceControls(profile.setupAnswers);
   const doNextInput = {
     open,
@@ -319,8 +333,10 @@ export function buildStartHereModel({
       industryLabel,
     },
     figures: {
-      openCritical: sodOpen.openCritical,
-      openHigh: sodOpen.openHigh,
+      open: counts.open,
+      openCritical: counts.critical,
+      openHigh: counts.high,
+      openOther: counts.other,
       registerReady: continuity.registerReady,
       coverageIndex: coverage.coverageIndex,
     },

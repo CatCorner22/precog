@@ -50,9 +50,13 @@ interface SummaryInput {
 /** The control (evidence/controls) whose label names "the concentrated role". */
 const SPLIT_ONE_DUTY_OUT = "split-one-duty-out";
 
-/** That step, worded for a summary that names no concentrated role. */
+/**
+ * That step, worded for a business where no one person holds half the open
+ * conflicts. It names no duty: the bank reconciliation may already sit with
+ * someone else, for example an outside bookkeeper.
+ */
 export const SPLIT_STEP_WITHOUT_NAMED_ROLE =
-  "Move one duty of a conflicting pair to someone who holds neither duty — even just the bank reconciliation";
+  "Move one duty of a conflicting pair to someone who holds neither duty";
 
 /** How many decisions the printed log lists before it says how many it left out. */
 const DECISION_LOG_MAX = 10;
@@ -96,9 +100,10 @@ export function executiveSummary(input: SummaryInput): string[] {
     }
   }
   if (input.firstStep) {
-    // The split step's own label points at "the concentrated role", which
-    // only the concentration sentence above names. Without that sentence the
-    // step says on its own terms which duty to move.
+    // The report names the split step for this business (actions/do-next
+    // `withNamedSplitStep`). A caller that passes the catalog label, which
+    // points at "the concentrated role", gets the unnamed wording whenever
+    // the concentration sentence above is absent.
     const step =
       !roleNamed && input.firstStepId === SPLIT_ONE_DUTY_OUT
         ? SPLIT_STEP_WITHOUT_NAMED_ROLE

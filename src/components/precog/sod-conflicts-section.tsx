@@ -6,6 +6,8 @@ import type { NavFn } from "@/lib/precog/navigation";
 import { useTemplate } from "@/lib/precog/practice-context";
 import { conflictProcedureLink, RULE_PROCEDURE } from "@/lib/precog/procedures/rule-procedures";
 import { useTabName } from "@/lib/precog/presentation";
+import { openConflictHeadline } from "@/lib/precog/headline/open-conflicts";
+import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { worksAt } from "@/lib/precog/person-location";
 import type { DetectedConflict } from "@/lib/precog/sod/detect";
 import { count, joinWithAnd } from "@/lib/precog/text";
@@ -225,8 +227,17 @@ function ConflictCardDetails({
   );
 }
 
+/**
+ * One button per location, each with its open duty conflicts counted as the
+ * tile above counts them (headline/open-conflicts): the owner's own pairs and
+ * pairs dual release covers at every amount are left out of every count.
+ */
 function LocationFilter({ model }: { model: SodPanelModel }) {
-  const { report, locations, placesOf, unplaced, shownLocation, setLocation } = model;
+  const { report, profile, locations, placesOf, unplaced, shownLocation, setLocation } = model;
+  const open = openConflictHeadline(
+    report,
+    partialDualReleaseCoverage(profile.dualRelease, report.conflicts),
+  ).findings;
   return (
     <div
       role="group"
@@ -241,9 +252,8 @@ function LocationFilter({ model }: { model: SodPanelModel }) {
       ].map((option) => {
         const count =
           option.value === "all"
-            ? report.conflicts.length
-            : report.conflicts.filter((c) => worksAt(placesOf.get(c.personId), option.value))
-                .length;
+            ? open.length
+            : open.filter((c) => worksAt(placesOf.get(c.personId), option.value)).length;
         return (
           <button
             key={option.key}

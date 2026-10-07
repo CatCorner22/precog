@@ -22,7 +22,12 @@ import {
   sodDetectionOptions,
   type DetectedConflict,
 } from "../sod/detect";
-import { openFindings, partialDualReleaseCoverage } from "../sod/open-findings";
+import { partialDualReleaseCoverage } from "../sod/open-findings";
+import {
+  openConflictBreakdown,
+  openConflictHeadline,
+  type OpenConflictHeadline,
+} from "../headline/open-conflicts";
 import type { IndustryTemplate } from "../templates/types";
 import { closingSteps } from "../controls/dual-release-wording";
 import { personLabel } from "../person-label";
@@ -48,6 +53,9 @@ interface PersonConflicts {
   conflicts: DetectedConflict[];
 }
 
+/** The open count every screen gives (headline/open-conflicts), as the coach states it. */
+type OpenConflictTotals = Pick<OpenConflictHeadline, "open" | "critical" | "high" | "other">;
+
 /** A rules brief for this business; `partial` when only the conflict-only brief could be built. */
 interface LocalBrief extends LocalAgentRun {
   partial: boolean;
@@ -70,7 +78,7 @@ export function localBrief(
 ): LocalBrief {
   const started = Date.now();
   const tpl = resolveTemplate(profile);
-  const people = openConflictsByPerson(profile, tpl);
+  const { people, totals } = ownConflicts(profile, tpl);
   try {
     const result = runLocalAgentLoop(question, ctx);
     return {
@@ -78,6 +86,7 @@ export function localBrief(
       brief: ownFirstBrief(result.brief, profile, question, {
         tpl,
         people,
+        totals,
         toolResults: result.toolResults,
       }),
       latencyMs: Date.now() - started,
@@ -94,7 +103,7 @@ export function localBrief(
       steps: [],
       toolsUsed: [],
       toolResults: [],
-      brief: fallbackBrief(profile, question, { tpl, people }),
+      brief: fallbackBrief(profile, question, { tpl, people, totals }),
       contextFingerprint: "fallback",
       latencyMs: Date.now() - started,
       partial: true,
@@ -109,22 +118,39 @@ export function localBrief(
  * every amount. People with the worst pair come first.
  */
 export function openConflictsByPerson(
-  profile: Pick<
-    PracticeProfile,
-    | "industry"
-    | "staff"
-    | "dualRelease"
-    | "customPeople"
-    | "customProcesses"
-    | "customKnowledge"
-    | "customRelations"
-  >,
+  profile: ConflictProfile,
   tpl: IndustryTemplate = resolveTemplate(profile),
 ): PersonConflicts[] {
+  return ownConflicts(profile, tpl).people;
+}
+
+/** The profile fields the duty-conflict check reads. */
+type ConflictProfile = Pick<
+  PracticeProfile,
+  | "industry"
+  | "staff"
+  | "dualRelease"
+  | "customPeople"
+  | "customProcesses"
+  | "customKnowledge"
+  | "customRelations"
+>;
+
+/**
+ * The open duty conflicts by person, and their total as every screen gives it
+ * (headline/open-conflicts `openConflictHeadline`), from one run of the check.
+ */
+function ownConflicts(
+  profile: ConflictProfile,
+  tpl: IndustryTemplate,
+): { people: PersonConflicts[]; totals: OpenConflictTotals } {
   const sod = detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease));
   const byPerson = new Map<string, PersonConflicts>();
-  const partial = partialDualReleaseCoverage(profile.dualRelease, sod.conflicts);
-  for (const c of openFindings(sod.conflicts, partial)) {
+  const headline = openConflictHeadline(
+    sod,
+    partialDualReleaseCoverage(profile.dualRelease, sod.conflicts),
+  );
+  for (const c of headline.findings) {
     const entry = byPerson.get(c.personId) ?? {
       personId: c.personId,
       personName: c.personName,
@@ -137,9 +163,19 @@ export function openConflictsByPerson(
   const worst = (p: PersonConflicts) =>
     Math.min(...p.conflicts.map((c) => SEVERITY_RANK[c.severity]));
   const top = (p: PersonConflicts) => Math.max(...p.conflicts.map((c) => c.score));
-  return [...byPerson.values()].sort(
+  const people = [...byPerson.values()].sort(
     (a, b) => worst(a) - worst(b) || top(b) - top(a) || a.personName.localeCompare(b.personName),
   );
+  return { people, totals: headline };
+}
+
+/**
+ * "20 open duty conflicts (4 critical · 15 high · 1 other), held by 3
+ * people": the total the Start here tile, the duty-conflict tab and the
+ * report give.
+ */
+function totalSentence(totals: OpenConflictTotals, people: number): string {
+  return `${count(totals.open, "open duty conflict")} (${openConflictBreakdown(totals)}), held by ${count(people, "person", "people")}`;
 }
 
 /**
@@ -149,17 +185,23 @@ export function openConflictsByPerson(
 export function fallbackBrief(
   profile: PracticeProfile,
   question: string,
-  known: { tpl?: IndustryTemplate; people?: PersonConflicts[] } = {},
+  known: { tpl?: IndustryTemplate; people?: PersonConflicts[]; totals?: OpenConflictTotals } = {},
 ): StructuredBrief {
   const tpl = known.tpl ?? resolveTemplate(profile);
-  const people = known.people ?? openConflictsByPerson(profile, tpl);
+  const { people, totals } =
+    known.people && known.totals
+      ? { people: known.people, totals: known.totals }
+      : ownConflicts(profile, tpl);
   const statement = ownerStatementDecision(profile.industry);
   const decisions = [
     ...people.slice(0, 3).map((p) => conflictDecision(p, profile)),
     statement,
     ...(registerAssessed(tpl) ? [] : [registerDecision()]),
   ];
-  const situation = `**${profile.practiceName}**: ${people.length} ${people.length === 1 ? "person holds" : "people hold"} an open duty conflict. Question: _${question}_`;
+  const situation =
+    totals.open > 0
+      ? `**${profile.practiceName}**: ${totalSentence(totals, people.length)}. Question: _${question}_`
+      : `**${profile.practiceName}**: no open duty conflicts. Question: _${question}_`;
   const frontierNextMove = people[0] ? thisWeek(people[0]) : `This week: ${STATEMENT_THIS_WEEK}.`;
   const warning =
     "Pioneer could not compute part of the full brief for this business, so it built this one from your team's duty conflicts alone.";
@@ -414,7 +456,12 @@ function ownFirstBrief(
   brief: StructuredBrief,
   profile: PracticeProfile,
   question: string,
-  known: { tpl: IndustryTemplate; people: PersonConflicts[]; toolResults: ToolResult[] },
+  known: {
+    tpl: IndustryTemplate;
+    people: PersonConflicts[];
+    totals: OpenConflictTotals;
+    toolResults: ToolResult[];
+  },
 ): StructuredBrief {
   const { tpl, people } = known;
   const ownBusiness = isOwnBusiness(tpl);
@@ -483,6 +530,7 @@ function ownFirstBrief(
               {
                 heading: OWN_CONFLICTS,
                 body: [
+                  `- ${totalSentence(known.totals, people.length)}.`,
                   ...conflictLines,
                   `- The step you can take alone: **${statement.action.replace(/\.$/, "")}**.`,
                   "",

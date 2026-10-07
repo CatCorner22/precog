@@ -25,12 +25,10 @@ export function StartHereExposureSection({
   const tabName = useTabName();
   const {
     industryId,
-    openConflicts,
+    counts,
     gaps,
     topThree,
     narrowed,
-    narrowedCount,
-    coveredCount,
     partialCoverage,
     headline,
     keptApart,
@@ -49,17 +47,7 @@ export function StartHereExposureSection({
       <SectionHeading
         icon={<ShieldAlert className="size-4" aria-hidden />}
         title="Where one person controls too much"
-        subtitle={
-          gaps.length === 0
-            ? "Nothing open right now."
-            : `${count(gaps.length, "gap")} across ${count(openConflicts.length, "duty conflict")}, worst first.` +
-              (narrowedCount > 0
-                ? ` ${narrowedCount} of them your dual-release policy narrows rather than closes.`
-                : "") +
-              (coveredCount > 0
-                ? ` ${coveredCount} ${coveredCount === 1 ? "is" : "are"} covered by dual release at every amount.`
-                : "")
-        }
+        subtitle={exposureSubtitle(counts, gaps.length)}
       />
 
       {titleDuties && (
@@ -91,7 +79,7 @@ export function StartHereExposureSection({
             {placesOf.has(headline.personId)
               ? `, at ${joinWithAnd(placesOf.get(headline.personId) ?? [])},`
               : ""}{" "}
-            holds {headline.gaps} of the {headline.totalGaps} open gaps.
+            holds {headline.gaps} of the {headline.totalGaps} open duty conflicts.
           </span>{" "}
           <span className="text-muted">
             Moving one duty, {midSentence(headline.dutyLabel)}, to someone who holds none of the
@@ -264,6 +252,28 @@ export function StartHereExposureSection({
       )}
     </section>
   );
+}
+
+/**
+ * The section's count, in open duty conflicts as every screen counts them
+ * (headline/open-conflicts): the narrowed ones are part of it, and the pairs
+ * dual release covers at every amount are named apart, never counted in it.
+ */
+function exposureSubtitle(counts: StartHereModel["exposure"]["counts"], pairs: number): string {
+  if (pairs === 0) return "Nothing open right now.";
+  const { open, reducedNotClosed: reduced, closedByDualRelease: closed } = counts;
+  const covered =
+    closed > 0
+      ? `Dual release covers ${count(closed, "more duty conflict")} at every amount, so ${verb(closed, "it is", "they are")} not counted.`
+      : "";
+  if (open === 0) return `No open duty conflicts. ${covered}`.trim();
+  return [
+    `${count(open, "open duty conflict")}, grouped by pair of duties, worst first.`,
+    reduced > 0 ? `${reduced} of them your dual-release policy narrows rather than closes.` : "",
+    covered,
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 /**
