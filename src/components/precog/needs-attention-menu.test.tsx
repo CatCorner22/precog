@@ -17,6 +17,7 @@ import { clientTotals } from "./firm/client-table-csv";
 import {
   buildNeedsAttentionItems,
   groupNeedsAttentionItems,
+  needsAttentionTotal,
   openNeedsAttentionItem,
 } from "./needs-attention-menu.logic";
 import { NeedsAttentionList, NeedsAttentionMenu } from "./needs-attention-menu";
@@ -275,6 +276,48 @@ describe("Needs attention menu", () => {
     const onOpen = vi.fn();
     openNeedsAttentionItem(items[2], onOpen);
     expect(onOpen).toHaveBeenCalledWith("monthly", "check-2026-10-cleared_checks");
+  });
+
+  it("asks to resolve another problem as an exception, and leaves the checks not done as they were", () => {
+    const found: ReviewRecord = {
+      key: "other_problem",
+      period: "2026-09",
+      result: "exception",
+      ownerName: "Owner",
+      notes: "A family's mailed donation check never reached the bank",
+      recordedAt: "2026-10-02T15:00:00.000Z",
+    };
+    const input = { ...none, day: "2026-10-07", people: [state.owner] };
+    const items = buildNeedsAttentionItems({ ...input, reviews: [found] });
+    expect(items.map(({ id, n, text, item, who }) => [id, n, text, item, who])).toEqual([
+      [
+        "monthly-Owner",
+        4,
+        "4 checks for September, due October 10",
+        "check-2026-09-bank_statement",
+        "Owner",
+      ],
+      [
+        "exception-2026-09-other_problem-20261002150000000",
+        1,
+        "Resolve the September exception: Another problem — A family's mailed donation check never reached the bank",
+        "check-2026-09-other_problem-20261002150000000",
+        "Owner",
+      ],
+    ]);
+    expect(needsAttentionTotal({ ...input, reviews: [found] })).toBe(5);
+    // Resolved, it waits on nothing; the four checks still wait.
+    const fixed: ReviewRecord = {
+      ...found,
+      result: "done",
+      notes: "Resolved: found in the office",
+      recordedAt: "2026-10-03T15:00:00.000Z",
+      resolves: found.recordedAt,
+    };
+    expect(
+      buildNeedsAttentionItems({ ...input, reviews: [fixed, found] }).map((i) => i.text),
+    ).toEqual(["4 checks for September, due October 10"]);
+    expect(needsAttentionTotal({ ...input, reviews: [fixed, found] })).toBe(4);
   });
 
   it("splits the checks by the person each is suggested for and groups every item by person", () => {

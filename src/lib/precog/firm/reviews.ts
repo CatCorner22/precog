@@ -16,10 +16,27 @@ export type ReviewItemKey =
 
 export type ReviewResult = "done" | "exception" | "skipped";
 
+/**
+ * The key of a problem the owner found that none of the month's checks
+ * covers, for example a mailed donation check that never reached the bank.
+ * It is not a check: it never counts toward a month's checks, stays on the
+ * business (never in the monthly review log or the control evidence log),
+ * and `isReviewItemKey` refuses it.
+ */
+export const OTHER_PROBLEM_KEY: OtherProblemKey = "other_problem";
+
+/** The key of another problem; a named type, so an object holding it keeps the literal. */
+export type OtherProblemKey = "other_problem";
+
+/** What a saved monthly result is about: one of the checks, or another problem. */
+export type ReviewRecordKey = ReviewItemKey | OtherProblemKey;
+
 interface ReviewTask {
   key: ReviewItemKey;
   title: string;
   why: string;
+  /** One plain line: what the check covers, and what it does not (`reviewCovers`). */
+  covers: string;
   /** Calendar month the work covers, YYYY-MM. */
   period: string;
   /** Who Precog suggests for the check: someone who does not hold the duties it checks. */
@@ -36,23 +53,32 @@ interface ReviewTask {
 }
 
 export interface ReviewRecord {
-  key: ReviewItemKey;
+  key: ReviewRecordKey;
   period: string;
   result: ReviewResult;
   ownerName: string;
   notes: string;
   recordedAt: string;
+  /**
+   * Another problem's Done only: the `recordedAt` of the problem it
+   * resolves, since a month can hold more than one.
+   */
+  resolves?: string;
 }
 
 /**
  * The monthly checks. `checkedDuties` are the duties whose work each check
  * looks at. `since` is the first period a check applies to, so an earlier
- * month keeps the checks it had then.
+ * month keeps the checks it had then. `covers` says in one plain line what
+ * the check covers and what it does not; `coversFrom` replaces it from a
+ * later month, when a newer check takes over part of what it sent elsewhere.
  */
 export const REVIEW_ITEMS: readonly {
   key: ReviewItemKey;
   title: string;
   why: string;
+  covers: string;
+  coversFrom?: { since: string; covers: string };
   checkedDuties: readonly EntitlementId[];
   since?: string;
 }[] = [
@@ -60,30 +86,44 @@ export const REVIEW_ITEMS: readonly {
     key: "bank_statement",
     title: "Open the bank statement",
     why: "The check works only if someone other than the person who pays the bills sees the real statement, not only the books.",
+    covers:
+      "The statement the bank sends for each business account. Payroll and suppliers have their own checks.",
     checkedDuties: ["bank_reconcile", ...BANK_ACTIVITY_DUTIES],
   },
   {
     key: "cleared_checks",
     title: "Read the cleared-check images",
     why: "A check coded as supplies can still be payable to a person. The image is the only place that shows.",
+    covers:
+      "Checks your business wrote that cleared the bank. A check you received, or a bill paid twice, belongs under Another problem.",
+    coversFrom: {
+      since: "2026-11",
+      covers:
+        "Checks your business wrote that cleared the bank. A check you received belongs under the deposit check, and a bill paid twice under its own check.",
+    },
     checkedDuties: ["sign_checks", "release_payment", "initiate_ach", "prepare_deposit"],
   },
   {
     key: "payroll_headcount",
     title: "Compare the payroll register with who still works here, and with last run's rates",
     why: "A name on the payroll register who no longer works here, or a pay rate that changed since the last run without a reason, is one way money leaves through payroll.",
+    covers:
+      "The people paid this month and their pay rates. Bills and checks to suppliers are not part of it.",
     checkedDuties: ["approve_payroll", "enter_payroll", "edit_payroll_master"],
   },
   {
     key: "new_vendors",
     title: "Review vendors added or changed",
     why: "A new supplier, or a new bank account on an old one, is how shell-vendor payments start.",
+    covers:
+      "Suppliers added this month, and any change to a supplier's name, address or bank account. Payments to suppliers are not part of it.",
     checkedDuties: ["create_vendor", "approve_vendor"],
   },
   {
     key: "card_statement",
     title: "Read the company card statement line by line",
     why: "Personal charges and cash advances on a company card are among the commonest schemes in Precog's case library, and once someone codes a charge it reads as supplies.",
+    covers: "Each charge on the company card. Checks and bank transfers are not part of it.",
     checkedDuties: ["hold_company_card", "review_card_statement", "approve_expenses"],
     since: "2026-10",
   },
@@ -91,6 +131,8 @@ export const REVIEW_ITEMS: readonly {
     key: "deposits_match",
     title: "Match each deposit to the takings, donations or payments recorded for that day",
     why: "Cash or a donation that was recorded but never reached the bank, or a cash drawer that came up short, shows only when someone sets each deposit beside what was taken in that day.",
+    covers:
+      "Money that came in: cash, checks you received, donations and card payments. Money you paid out is not part of it.",
     checkedDuties: ["collect_cash", "post_payments", "prepare_deposit"],
     since: "2026-11",
   },
@@ -98,6 +140,8 @@ export const REVIEW_ITEMS: readonly {
     key: "duplicate_payments",
     title: "Look for the same invoice paid twice",
     why: "An invoice paid twice, for example once by check and once online, or under a changed invoice number, is an easy way for the second payment to go somewhere else.",
+    covers:
+      "Bills you paid this month, by check, card or online. Money that came in is not part of it.",
     checkedDuties: [
       "enter_invoices",
       "approve_invoices",
@@ -112,6 +156,11 @@ export const REVIEW_ITEMS: readonly {
 /** Which record a reviewer relies on, said the same way on the Monthly review and the evidence log. */
 export const EVIDENCE_RECORD_NOTE =
   "The control evidence log is the record a reviewer relies on. Process Done marks, Decisions log entries and procedure proofs stay on this business and do not enter it.";
+
+/** What a check covers in `period` (YYYY-MM), and what it does not, in one plain line. */
+export function reviewCovers(item: (typeof REVIEW_ITEMS)[number], period: string): string {
+  return item.coversFrom && period >= item.coversFrom.since ? item.coversFrom.covers : item.covers;
+}
 
 /** The checks that apply to one period, YYYY-MM. */
 export function reviewItemsFor(period: string): typeof REVIEW_ITEMS {
@@ -306,7 +355,9 @@ export function countedOpenPeriods(day: string): string[] {
  * MONTHLY_REVIEW_GRACE_DAY. Only Done closes a check, as the firm's client
  * table counts it, each check by its latest result: a check with no result,
  * or Skipped, is not done, and one reported as Exception is recorded but not
- * resolved. A month with nothing waiting is left out.
+ * resolved. A month with nothing waiting is left out. Another problem
+ * (OTHER_PROBLEM_KEY) is not a check and is not counted here, as the table
+ * does not count it; Needs attention lists each open one on its own.
  */
 export function openMonthlyChecks(
   day: string,
@@ -347,6 +398,7 @@ export function monthlyReviewTasks(
       key: item.key,
       title: item.title,
       why: item.why,
+      covers: reviewCovers(item, period),
       period,
       dueOn,
       suggestedOwner: reviewer.name,
@@ -366,18 +418,23 @@ export function normalizeReviewRecords(value: unknown): ReviewRecord[] {
   for (const entry of value) {
     if (!entry || typeof entry !== "object") continue;
     const raw = entry as Record<string, unknown>;
-    if (!isReviewItemKey(raw.key)) continue;
+    const other = raw.key === OTHER_PROBLEM_KEY;
+    if (!other && !isReviewItemKey(raw.key)) continue;
     if (!isReviewPeriod(raw.period)) continue;
     if (!isReviewResult(raw.result)) continue;
     if (typeof raw.recordedAt !== "string" || !raw.recordedAt) continue;
-    out.push({
-      key: raw.key as ReviewItemKey,
+    const record: ReviewRecord = {
+      key: raw.key as ReviewRecordKey,
       period: raw.period,
       result: raw.result as ReviewResult,
       ownerName: typeof raw.ownerName === "string" ? raw.ownerName.trim().slice(0, 80) : "",
       notes: typeof raw.notes === "string" ? raw.notes.trim().slice(0, 500) : "",
       recordedAt: raw.recordedAt.slice(0, 40),
-    });
+    };
+    if (other && raw.result === "done" && typeof raw.resolves === "string" && raw.resolves) {
+      record.resolves = raw.resolves.slice(0, 40);
+    }
+    out.push(record);
   }
   return trimReviewRecords(out).records;
 }
@@ -393,7 +450,8 @@ export interface ReviewTrim {
  * Keeps at most MAX_REVIEW_RECORDS results, newest first. Past the cap it
  * first removes results a later one replaced for the same check and month,
  * oldest first, so every month keeps its latest result; only then does it
- * remove the oldest months. `removed` counts what it took out, and
+ * remove the oldest months. Another problem is never replaced: each one, and
+ * each Done that resolves one, is its own. `removed` counts what it took out, and
  * `replaced` how many of those a later result replaced (which can be from a
  * recent month).
  */
@@ -406,7 +464,10 @@ export function trimReviewRecords(
   const latest = new Set<string>();
   const superseded: number[] = [];
   records.forEach((record, index) => {
-    const slot = `${record.key}\u0000${record.period}`;
+    const slot =
+      record.key === OTHER_PROBLEM_KEY
+        ? `${record.key}\u0000${record.period}\u0000${record.recordedAt}`
+        : `${record.key}\u0000${record.period}`;
     if (latest.has(slot)) superseded.push(index);
     else latest.add(slot);
   });
@@ -495,6 +556,65 @@ export function latestReview(
   return records.find((r) => r.key === key && r.period === period);
 }
 
+/** Another problem of one month, and the Done that resolved it, if any. */
+export interface OtherProblem {
+  problem: ReviewRecord;
+  resolved: ReviewRecord | null;
+}
+
+/** Another problem's records of `period`, each with what resolved it, oldest first. */
+export function otherProblems(records: readonly ReviewRecord[], period: string): OtherProblem[] {
+  const mine = records.filter((r) => r.key === OTHER_PROBLEM_KEY && r.period === period);
+  return mine
+    .filter((r) => r.result === "exception")
+    .reverse()
+    .map((problem) => ({
+      problem,
+      resolved: mine.find((r) => r.result === "done" && r.resolves === problem.recordedAt) ?? null,
+    }));
+}
+
+/**
+ * Another problem's key among the month's items, for example
+ * "other_problem-20261002150000000", from the day and time it was recorded:
+ * the Monthly review's id for it (`checkItemId`) and Needs attention's.
+ */
+export function otherProblemItemKey(recordedAt: string): string {
+  return `${OTHER_PROBLEM_KEY}-${recordedAt.replace(/\D/g, "")}`;
+}
+
+/**
+ * Why Precog cannot save another problem yet, or null when it can: someone
+ * has to be named as the person who found it, and the note says what it is.
+ */
+export function otherProblemSaveProblem(
+  input: Pick<ReviewRecord, "ownerName" | "notes">,
+): string | null {
+  if (!input.ownerName.trim()) return "Choose who found it.";
+  if (!input.notes.trim()) return "Say what the problem is.";
+  return null;
+}
+
+/**
+ * "Another problem: Invoice 88 paid twice — found by Marco on Oct 3", as the
+ * Monthly review lists it. The day carries its year outside `today`'s year.
+ */
+export function otherProblemLine(
+  problem: Pick<ReviewRecord, "ownerName" | "notes" | "recordedAt">,
+  today: string,
+): string {
+  const owner = problem.ownerName.trim();
+  return `Another problem: ${problem.notes.trim()}${owner ? ` — found by ${owner}` : ""} on ${formatDayNear(problem.recordedAt, today)}`;
+}
+
+/**
+ * "Another problem: Exception — Marco: Invoice 88 paid twice", as the report
+ * prints it (layout 6 on): its latest result, as a check's line reads.
+ */
+export function otherProblemReportLine({ problem, resolved }: OtherProblem): string {
+  return `Another problem: ${reviewResultLine(resolved ?? problem)}`;
+}
+
 /**
  * Append a result. The previous result for that item and month stays in the
  * list until the list passes MAX_REVIEW_RECORDS (see `trimReviewRecords`).
@@ -519,6 +639,7 @@ export function appendReview(
     notes: input.notes.trim().slice(0, 500),
     recordedAt: input.recordedAt ?? new Date().toISOString(),
   };
+  if (input.resolves) next.resolves = input.resolves;
   return trimReviewRecords([next, ...records]);
 }
 

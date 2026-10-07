@@ -2,6 +2,8 @@ import {
   countedOpenPeriods,
   latestReview,
   monthlyReviewTasks,
+  otherProblemItemKey,
+  otherProblems,
   periodMonthName,
   reportPeriod,
   reviewDueText,
@@ -125,8 +127,10 @@ interface WaitingCheck {
  * The Monthly review's checks that wait on `day`, each read by its latest
  * result once: every check whose latest result is Exception in either open
  * month (`countedOpenPeriods`), and every check not done (no result yet, or
- * Skipped) of the month that is due (`reportPeriod`). `who` is the person
- * the Monthly review suggests, when they are on the team.
+ * Skipped) of the month that is due (`reportPeriod`), and every other
+ * problem not yet resolved in either open month. `who` is the person the
+ * Monthly review suggests (for another problem, who found it), when they are
+ * on the team.
  */
 function waitingChecks(
   day: string,
@@ -144,8 +148,29 @@ function waitingChecks(
       const who = people.some((p) => p.name === task.suggestedOwner) ? task.suggestedOwner : null;
       out.push({ period, key: task.key, title: task.title, who, exception });
     }
+    // Another problem is not a check: it never counts as not done, and each
+    // one still open waits to be resolved, on whoever found it.
+    for (const { problem, resolved } of otherProblems(reviews, period)) {
+      if (resolved) continue;
+      const finder = problem.ownerName.trim();
+      out.push({
+        period,
+        key: otherProblemItemKey(problem.recordedAt),
+        title: `Another problem — ${shortNote(problem.notes)}`,
+        who: people.some((p) => p.name === finder) ? finder : null,
+        exception: true,
+      });
+    }
   }
   return out;
+}
+
+/** The longest note Needs attention prints of another problem before it cuts it short. */
+const NOTE_LENGTH = 80;
+
+function shortNote(notes: string): string {
+  const said = notes.trim();
+  return said.length > NOTE_LENGTH ? `${said.slice(0, NOTE_LENGTH - 1).trimEnd()}…` : said;
 }
 
 /**
@@ -155,7 +180,8 @@ function waitingChecks(
  *   suggests, for example "4 checks for September, due October 10". Each opens
  *   that person's first check not done.
  * - Each check whose latest result is Exception, in either open month
- *   (`countedOpenPeriods`), as its own item that opens that check.
+ *   (`countedOpenPeriods`), as its own item that opens that check, and each
+ *   other problem not yet resolved, which opens that problem.
  */
 export function monthlyAttentionItems(
   day: string,
