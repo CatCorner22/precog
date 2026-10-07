@@ -180,6 +180,14 @@ export function noteDepartures(
 }
 
 /**
+ * Whether marking `person` as left raises a pay-and-sign-ins check: a sample
+ * team's person (same id and name as `sample`) is nobody's staff and never does.
+ */
+export function raisesLeaverCheck(person: Person, sample: readonly Person[]): boolean {
+  return !sample.some((s) => s.id === person.id && nameKey(s.name) === nameKey(person.name));
+}
+
+/**
  * People on the team who went from working here to left in this change,
  * or who arrive already marked as left (an imported roster's terminated
  * rows). The sample team's people are not anyone's staff and never count.
@@ -191,11 +199,9 @@ export function departuresBetween(
 ): Departure[] {
   if (!after) return [];
   const was = new Map((before ?? []).map((person) => [person.id, person]));
-  const isSample = (person: Person) =>
-    sample.some((s) => s.id === person.id && nameKey(s.name) === nameKey(person.name));
   return after
     .filter((person) => !person.active && (was.get(person.id)?.active ?? true))
-    .filter((person) => !isSample(person))
+    .filter((person) => raisesLeaverCheck(person, sample))
     .map((person) => ({ personId: person.id, name: person.name, role: person.role }));
 }
 

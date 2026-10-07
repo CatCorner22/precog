@@ -8,6 +8,7 @@ import { INDUSTRIES } from "../industry";
 import {
   confirmAccessRemoved,
   departuresBetween,
+  raisesLeaverCheck,
   leaverAccessNames,
   leaverLine,
   noteDepartures,
@@ -397,5 +398,22 @@ describe("the names the 'Leaving the team' card gives for people who left", () =
 
   it("names nobody on a team with inactive people but no checks, like the sample team", () => {
     expect(leaverAccessNames(undefined, "retail", after)).toEqual([]);
+  });
+});
+
+describe("raisesLeaverCheck", () => {
+  it("is false for a sample person and true for anyone else, as departuresBetween counts them", () => {
+    const sample = getIndustryTemplate("dental").people;
+    const someone = sample[1];
+    expect(raisesLeaverCheck(someone, sample)).toBe(false);
+    expect(
+      departuresBetween(
+        sample,
+        sample.map((p) => (p.id === someone.id ? { ...p, active: false } : p)),
+        sample,
+      ),
+    ).toEqual([]);
+    expect(raisesLeaverCheck({ ...someone, name: "Ana Ruiz" }, sample)).toBe(true);
+    expect(raisesLeaverCheck({ ...someone, id: "own-1" }, sample)).toBe(true);
   });
 });

@@ -221,6 +221,27 @@ describe("Left the business", () => {
     expect(later).toContain("keeps working");
   });
 
+  it("on a sample person, says the pay and sign-ins checklist comes on the owner's own business", () => {
+    const form = (raisesCheck?: boolean) =>
+      renderToStaticMarkup(
+        <LeavingForm
+          person={people[1]}
+          lastDay={TODAY}
+          today={TODAY}
+          raisesCheck={raisesCheck}
+          onLastDay={() => {}}
+          onConfirm={() => {}}
+          onCancel={() => {}}
+        />,
+      );
+    expect(form()).toContain("Then check their pay and sign-ins below the team list.");
+    const sample = form(false);
+    expect(sample).not.toContain("Then check their pay and sign-ins");
+    expect(sample).toContain(
+      "On your own business, a checklist of pay and sign-ins to remove then appears below the team list.",
+    );
+  });
+
   it("records the chosen last day, and Undo puts them back at work", () => {
     const onChange = vi.fn();
     vi.mocked(toast.success).mockClear();

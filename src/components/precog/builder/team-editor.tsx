@@ -5,7 +5,12 @@ import { Download, Plus, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { inputCls } from "@/components/ui/field-classes";
 import { ChipPicker, type ChipOption } from "@/components/precog/builder/chips";
-import { hasLeftBy, recordLastDay, restorePerson } from "@/lib/precog/continuity/access-removal";
+import {
+  hasLeftBy,
+  raisesLeaverCheck,
+  recordLastDay,
+  restorePerson,
+} from "@/lib/precog/continuity/access-removal";
 import { formatDay, isCalendarDate, localDateKey } from "@/lib/precog/dates";
 import { downloadCsv } from "@/lib/download";
 import { householdMark, MAX_HOUSEHOLD_MARK } from "@/lib/precog/import/people-backup";
@@ -38,6 +43,7 @@ import { OPERATING_DUTIES, type EntitlementId } from "@/lib/precog/sod/conflict-
 import { isOwnerRole, ownersMarked, ownsBusiness } from "@/lib/precog/sod/owner-role";
 import { confirmTitleDutiesFor } from "@/lib/precog/sod/title-duties";
 import { count, joinWithAnd, stripInvisibleControls, uniqueId, verb } from "@/lib/precog/text";
+import { getIndustryTemplate } from "@/lib/precog/templates";
 import type { Person } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";
 
@@ -480,6 +486,7 @@ export function TeamEditor({
                   person={p}
                   lastDay={leaving.lastDay}
                   today={localDateKey(new Date())}
+                  raisesCheck={raisesLeaverCheck(p, getIndustryTemplate(tpl.id).people)}
                   onLastDay={(lastDay) => setLeaving({ id: p.id, lastDay })}
                   onConfirm={confirmLeaving}
                   onCancel={() => setLeaving(null)}
@@ -634,6 +641,7 @@ export function LeavingForm({
   person,
   lastDay,
   today,
+  raisesCheck = true,
   onLastDay,
   onConfirm,
   onCancel,
@@ -641,6 +649,8 @@ export function LeavingForm({
   person: Person;
   lastDay: string;
   today: string;
+  /** False for a sample person, whose leaving raises no pay-and-sign-ins checklist. */
+  raisesCheck?: boolean;
   onLastDay: (lastDay: string) => void;
   onConfirm: () => void;
   onCancel: () => void;
@@ -671,7 +681,11 @@ export function LeavingForm({
       <p className="text-xs text-muted">
         {later
           ? `${person.name} keeps working and keeps their duties until then.`
-          : `${person.name} stays on the list for history but no longer holds any duty or counts as a stand-in. Then check their pay and sign-ins below the team list.`}
+          : `${person.name} stays on the list for history but no longer holds any duty or counts as a stand-in. ${
+              raisesCheck
+                ? "Then check their pay and sign-ins below the team list."
+                : "On your own business, a checklist of pay and sign-ins to remove then appears below the team list."
+            }`}
       </p>
     </div>
   );
