@@ -13,7 +13,7 @@ import { citingCaseStats, isOwnSector, type CaseStudy } from "@/lib/precog/evide
 import { casesBehindScenario } from "@/lib/precog/evidence/scenario-cases";
 import { dateAfter } from "@/lib/precog/dates";
 import { count } from "@/lib/precog/text";
-import { formatEstimateUsdDelta, formatUsd } from "@/lib/utils";
+import { formatEstimateUsdDelta, formatUsd, formatUsdDelta } from "@/lib/utils";
 
 export interface ScenarioCases {
   /** Up to three cases to show: cases that cite a linked rule first, the owner's sector first within each group. */
@@ -146,6 +146,16 @@ export function deltaTone(delta: number): "ok" | "danger" | "muted" {
 /** A change in scenario dollars: "about -$1,200", "about +$300", or "no change". */
 export function formatMoneyChange(delta: number): string {
   return Math.round(delta) === 0 ? "no change" : formatEstimateUsdDelta(delta);
+}
+
+/**
+ * The change between two scenario dollar figures as their printed estimates
+ * give it: "about $29,000" to "about $37,000" reads "about +$8,000", not the
+ * exact difference ("about +$7,800"), so a line printed beside the two
+ * figures matches a reader's subtraction (estimateUsdChange).
+ */
+export function formatEstimateChange(change: number): string {
+  return change === 0 ? "no change" : `about ${formatUsdDelta(change)}`;
 }
 
 /** "-56 days", "+1 day", or "no change". */

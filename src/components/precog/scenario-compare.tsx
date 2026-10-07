@@ -25,10 +25,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn, formatEstimateUsd, formatEstimateUsdRange } from "@/lib/utils";
+import { cn, estimateUsdChange, formatEstimateUsd, formatEstimateUsdRange } from "@/lib/utils";
 import { count, verb } from "@/lib/precog/text";
 import { ILLUSTRATIVE_LABEL } from "@/lib/precog/scoring/scenario-level";
-import { deltaTone, formatDaysChange, formatMoneyChange, pickScenario } from "./scenario-page";
+import { deltaTone, formatDaysChange, formatEstimateChange, pickScenario } from "./scenario-page";
 import { FigureTile } from "./figure-tile";
 import { StaffWhatIfCard, type StaffWhatIf } from "./staff-what-if";
 
@@ -332,6 +332,11 @@ function CompareResults({
   const retained = (c: CompareReport["columns"][number]) =>
     c.result.retainedImpact?.expected ?? c.result.financialImpact.expected;
   const labelOf = (id: string) => report.columns.find((c) => c.id === id)?.label;
+  // The change against the baseline as the two printed estimates give it, so
+  // "about $29,000" and "about $37,000" read "about +$8,000" beside them.
+  const baseline = report.columns.find((c) => c.id === report.baselineId);
+  const retainedChange = (c: CompareReport["columns"][number]) =>
+    baseline ? estimateUsdChange(retained(baseline), retained(c)) : 0;
   // When every option retains the same amount, a "lowest" title would rest
   // only on the hidden tie-break, so none is shown.
   const allTie =
@@ -423,13 +428,8 @@ function CompareResults({
                 {!isBase && d && (
                   <div className="rounded-lg border border-border bg-elevated px-2 py-2 text-xs">
                     <p className="text-subtle">Against the baseline</p>
-                    <p
-                      className={cn(
-                        "mt-1 font-medium",
-                        TONE[deltaTone(d.vsBaseline.retainedDelta)],
-                      )}
-                    >
-                      Assumed retained loss {formatMoneyChange(d.vsBaseline.retainedDelta)}
+                    <p className={cn("mt-1 font-medium", TONE[deltaTone(retainedChange(col))])}>
+                      Assumed retained loss {formatEstimateChange(retainedChange(col))}
                     </p>
                     <p className={TONE[deltaTone(d.vsBaseline.p50DaysDelta)]}>
                       Assumed days until found {formatDaysChange(d.vsBaseline.p50DaysDelta)}
@@ -492,15 +492,10 @@ function CompareResults({
                     </td>
                     <td className="py-2.5 pr-3 tabular">{formatEstimateUsd(retained(c))}</td>
                     <td className="py-2.5 pr-3 tabular">about {c.result.timelineDays.p50} days</td>
-                    <td
-                      className={cn(
-                        "py-2.5 tabular",
-                        d && TONE[deltaTone(d.vsBaseline.retainedDelta)],
-                      )}
-                    >
+                    <td className={cn("py-2.5 tabular", d && TONE[deltaTone(retainedChange(c))])}>
                       {c.id === report.baselineId || !d
                         ? "—"
-                        : formatMoneyChange(d.vsBaseline.retainedDelta)}
+                        : formatEstimateChange(retainedChange(c))}
                     </td>
                   </tr>
                 );
