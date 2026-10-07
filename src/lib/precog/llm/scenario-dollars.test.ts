@@ -65,7 +65,7 @@ describe("scenario dollars in the brief and the tools", () => {
       "Baseline: likelihood ×1.18, premium $4,200, assumed retained about $11,000, risk index 58.",
     );
     expect(row).toMatch(
-      /^\*\*If you Turn on dual release\*\*: assumed retained about -\$1,200, premium -\$150, /,
+      /^\*\*Turn on dual release\*\*: assumed retained about -\$1,200, premium -\$150, risk index 4 points lower, found 13 days sooner\./,
     );
     const scenario: ToolResult = {
       tool: "run_precog_scenario",
