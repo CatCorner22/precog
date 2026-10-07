@@ -5,10 +5,13 @@ import {
   ownerRow,
   rowSeat,
   sharedTitles,
+  titleTickedDuties,
   type OwnTeamRow,
   type SeatReading,
 } from "@/lib/precog/onboarding/own-team";
+import type { SetupAnswers } from "@/lib/precog/onboarding/setup-answers";
 import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
+import type { TitleTicksItem } from "./industry-onboarding-parts";
 import {
   Briefcase,
   Car,
@@ -156,6 +159,24 @@ export function dutiesHeldByTitle(rows: readonly OwnTeamRow[], role: string): En
     for (const duty of row.duties) held.add(duty);
   }
   return [...CORE_DUTIES, ...extraDuties([...held])].filter((d) => held.has(d));
+}
+
+/**
+ * The people whose job title ticked duties they still hold, for the review
+ * before Finish: named rows only, since Finish drops a row with no name.
+ */
+export function titleTicksItems(
+  rows: readonly OwnTeamRow[],
+  industry: string,
+  answers: SetupAnswers,
+): TitleTicksItem[] {
+  return rows.flatMap((row) => {
+    const who = row.name.trim();
+    const duties = who ? titleTickedDuties(row, industry, answers) : [];
+    return duties.length > 0
+      ? [{ rowId: row.rowId ?? "", who, role: row.role.trim(), duties }]
+      : [];
+  });
 }
 
 /** Whether leaving setup now loses typed work: the browser keeps nothing, or the draft write failed. */
