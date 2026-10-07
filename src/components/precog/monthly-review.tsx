@@ -26,6 +26,7 @@ import { evidenceLogLine, monthlyRunIds, readMonthlyEvidence } from "./monthly-r
 import { monthlyWorkpaperFacts, type WorkpaperFact } from "@/lib/precog/firm/workpaper";
 import { clientErrorStatus } from "@/lib/request-errors";
 import { formatDay, localDateKey } from "@/lib/precog/dates";
+import { HowThisWorks } from "./page-intro";
 
 /** A note draft's and a save's key: the month and the check, so switching months keeps each apart. */
 function draftKey(period: string, key: string): string {
@@ -224,15 +225,19 @@ export function MonthlyReview() {
     <section className="rounded-xl border border-border bg-surface p-4">
       <h2 className="text-lg font-semibold">Monthly review</h2>
       <p className="mt-1 text-sm text-muted">
-        The checks below come from the register. Record a result with an owner and a note. The
-        monthly log keeps every result. When you are signed in, each Done or Exception for a check
-        and month also goes into the control evidence log as a preparer entry dated the day you
-        record it, and a changed result as a correction (a firm reviewer still records review
-        separately). Through the 10th, you can still record last month. Two facts from QuickBooks,
-        then the checks. Duty ticks on the map are starting duties, not system access. Lock the
-        report to send this page. Recording “Done” does not establish independent verification.
+        The checks below come from the register; record each result with an owner and a note.
       </p>
-      <p className="mt-2 text-xs text-muted">{EVIDENCE_RECORD_NOTE}</p>
+      <HowThisWorks className="mt-3">
+        <p>
+          The monthly log keeps every result. When you are signed in, each Done or Exception for a
+          check and month also goes into the control evidence log as a preparer entry dated the day
+          you record it, and a changed result as a correction (a firm reviewer still records review
+          separately). Through the 10th, you can still record last month. Two facts from QuickBooks,
+          then the checks. Duty ticks on the map are starting duties, not system access. Lock the
+          report to send this page. Recording “Done” does not establish independent verification.
+        </p>
+        <p className="text-xs">{EVIDENCE_RECORD_NOTE}</p>
+      </HowThisWorks>
       {periods.length > 1 && (
         <div role="group" aria-label="Month to record" className="mt-3 flex flex-wrap gap-2">
           {periods.map((p, index) => (

@@ -22,6 +22,7 @@ import type { NavFn } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
 import type { SodDetectionReport } from "@/lib/precog/sod/detect";
 import { DualReleasePanel } from "@/components/precog/dual-release-panel";
+import { PageIntro } from "@/components/precog/page-intro";
 import { PowerMapBuilder } from "@/components/precog/power-map-builder";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -81,15 +82,34 @@ export function SodPanel({
             Edit the team
           </Link>
         </div>
-        <h1 className="mt-3 text-xl font-semibold tracking-tight">
-          Who can move money, or hide it, on their own
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
-          We check every pair of duties a person holds against {CONFLICT_RULES.length} named rules,
-          plus a catch-all for related duties in the same process. Turning on dual release puts a
-          second person on the payment channels you choose; the conflicts it covers drop in rank and
-          say so.
-        </p>
+        <PageIntro
+          tab="sod"
+          className="mt-3"
+          purpose="Who can move money, or hide it, on their own, and where a second person stops them."
+          method={
+            <>
+              <p>
+                Precog checks every pair of duties a person holds against {CONFLICT_RULES.length}{" "}
+                named rules, plus a catch-all for related duties in the same process. Turning on
+                dual release puts a second person on the payment channels you choose; the conflicts
+                it covers drop in rank and say so.
+              </p>
+              <div className="grid gap-3 md:grid-cols-2">
+                {FRAMEWORK_DUTIES.map((f) => (
+                  <Card key={f.duty}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">{f.duty}</CardTitle>
+                      <CardDescription>{f.meaning}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-xs text-muted">{sodExamples[f.key]}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </>
+          }
+        />
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
@@ -168,20 +188,6 @@ export function SodPanel({
           </div>
         </div>
       )}
-
-      <div className="grid gap-3 md:grid-cols-4">
-        {FRAMEWORK_DUTIES.map((f) => (
-          <Card key={f.duty}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">{f.duty}</CardTitle>
-              <CardDescription>{f.meaning}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted">{sodExamples[f.key]}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
       <ViewSwitcher model={model} />
 

@@ -26,8 +26,7 @@ export function IntelligencePanel({ onNavigate }: { onNavigate?: NavFn }) {
 
   return (
     <div className="space-y-4">
-      {/* Each view below has its own heading; this names the tab. */}
-      <h1 className="sr-only">Patterns</h1>
+      <h2 className="sr-only">Patterns</h2>
       <div className="flex flex-wrap gap-2" role="group" aria-label="Patterns view">
         {VIEWS.map(({ id, label, icon: Icon }) => (
           <Button

@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Brain, Gauge, Grid3x3 } from "lucide-react";
 import { TabLoading } from "@/components/precog/home-shell-parts";
+import { PageIntro } from "@/components/precog/page-intro";
 import { Button } from "@/components/ui/button";
 import type { DeepLinkTarget } from "@/lib/precog/coso";
 import { tabLabel, type AliasId } from "@/lib/precog/navigation";
@@ -56,6 +57,15 @@ export function ScoresArea({
 
   return (
     <div className="space-y-4">
+      <PageIntro
+        tab="scores"
+        purpose={{
+          plain:
+            "How Precog arrives at each figure: what is still exposed after your controls, how well they cover a sound control system, and the patterns it reads.",
+          tactical:
+            "How each figure is produced: residual risk, COSO component coverage, and the pattern screens.",
+        }}
+      />
       <div
         className="flex flex-wrap gap-2"
         role="group"
@@ -80,9 +90,9 @@ export function ScoresArea({
         ) : (
           <div className="space-y-4">
             <div>
-              <h1 className="text-lg font-semibold">
+              <h2 className="text-base font-semibold">
                 {say(tabLabel(activeView.alias), VIEW_INTROS[active].heading)}
-              </h1>
+              </h2>
               <p className="text-sm text-muted">
                 {say(VIEW_INTROS[active].plain, VIEW_INTROS[active].tactical)}
               </p>
