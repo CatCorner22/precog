@@ -19,7 +19,14 @@ import { buildNeedsAttentionItems, openNeedsAttentionItem } from "./needs-attent
  * Hidden when nothing waits. The list exists only while it is open, so the
  * tab walk's count of the Advanced menu never sees these items.
  */
-export function NeedsAttentionMenu({ onOpen }: { onOpen: (tab: string, item?: string) => void }) {
+export function NeedsAttentionMenu({
+  onOpen,
+  compactOnPhone = false,
+}: {
+  onOpen: (tab: string, item?: string) => void;
+  /** Bell and count only on a phone; the words stay for screen readers. */
+  compactOnPhone?: boolean;
+}) {
   const tpl = useTemplate();
   const { profile } = usePracticeState();
   const today = useToday();
@@ -102,7 +109,13 @@ export function NeedsAttentionMenu({ onOpen }: { onOpen: (tab: string, item?: st
         className="inline-flex items-center gap-1.5 rounded-md border border-warn/40 bg-warn/10 px-2 py-1 text-xs text-warn"
       >
         <BellDot className="size-3.5" aria-hidden />
-        Needs attention ({total})
+        {compactOnPhone ? (
+          <>
+            <span className="sr-only sm:not-sr-only">Needs attention </span>({total})
+          </>
+        ) : (
+          <>Needs attention ({total})</>
+        )}
         <ChevronDown
           className={cn("size-3 transition-transform", open && "rotate-180")}
           aria-hidden

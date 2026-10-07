@@ -291,10 +291,11 @@ function Home() {
           ref={headerRef}
           className="sticky top-[var(--grok-banner-h,0px)] z-20 border-b border-border bg-bg/90 backdrop-blur"
         >
-          {/* On a phone Report and Needs attention stay in the row and the rest
-              folds behind "More" instead of wrapping to a second row. */}
+          {/* On a phone the header is two rows: the business with Needs attention
+              and the account beside it, then "Someone is out", Ask Pioneer and a
+              "More" that holds the rest instead of a third row. */}
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
-            <div className="order-1 flex min-w-0 items-center gap-2">
+            <div className="order-1 flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
               <span className="inline-flex size-8 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <Eye className="size-4" aria-hidden />
               </span>
@@ -305,18 +306,11 @@ function Home() {
                 leading={
                   <>
                     <PresentationToggle />
-                    <SyncStatusBadge compactOnPhone />
+                    <SyncStatusBadge />
                   </>
                 }
                 inline={
                   <>
-                    <Link
-                      to="/report"
-                      className={buttonClass({ variant: "secondary", size: "sm" })}
-                    >
-                      Report
-                    </Link>
-                    <NeedsAttentionMenu onOpen={(target, item) => openTab(target, item)} />
                     <button
                       type="button"
                       data-header-link="absences"
@@ -326,10 +320,6 @@ function Home() {
                       <UserX className="size-3.5" aria-hidden />
                       {tabLabel("absences", say)}
                     </button>
-                  </>
-                }
-                trailing={
-                  <>
                     <button
                       type="button"
                       data-header-tab="pioneer"
@@ -340,6 +330,16 @@ function Home() {
                       <MessageSquare className="size-3.5" aria-hidden />
                       {tabLabel("pioneer", say)}
                     </button>
+                  </>
+                }
+                trailing={
+                  <>
+                    <Link
+                      to="/report"
+                      className={buttonClass({ variant: "secondary", size: "sm" })}
+                    >
+                      Report
+                    </Link>
                     <SignedIn>
                       <Link
                         to="/firm"
@@ -353,7 +353,8 @@ function Home() {
                 }
               />
             </div>
-            <div className="order-2 flex items-center gap-2 sm:order-3">
+            <div className="order-2 flex shrink-0 items-center gap-2 sm:order-3">
+              <NeedsAttentionMenu compactOnPhone onOpen={(target, item) => openTab(target, item)} />
               <SignedOut>
                 <Link to="/login" className={buttonClass({ variant: "secondary", size: "sm" })}>
                   Sign in

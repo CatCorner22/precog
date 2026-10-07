@@ -2,18 +2,8 @@ import { usePracticeSync, type SyncStatus } from "@/lib/precog/practice-context"
 import { Cloud, CloudAlert, CloudOff, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/**
- * Where the open business is saved. `compactOnPhone` shows only the icon on
- * narrow screens (the words stay in the tooltip and for screen readers), so
- * a phone still shows whether an edit is saved.
- */
-export function SyncStatusBadge({
-  className,
-  compactOnPhone = false,
-}: {
-  className?: string;
-  compactOnPhone?: boolean;
-}) {
+/** Where the open business is saved. */
+export function SyncStatusBadge({ className }: { className?: string }) {
   const { syncStatus, downloadRecovery } = usePracticeSync();
   const label = LABEL[syncStatus];
   if (!label) return null;
@@ -41,7 +31,7 @@ export function SyncStatusBadge({
       )}
     >
       <Icon className={cn("size-3", busy && "animate-spin")} aria-hidden />
-      <span className={cn(compactOnPhone && "sr-only sm:not-sr-only")}>{label}</span>
+      <span>{label}</span>
       {/* Work that is not saved everywhere can always leave as a file. */}
       {ANNOUNCED.has(syncStatus) && (
         <button
@@ -51,9 +41,7 @@ export function SyncStatusBadge({
           className="ml-1 inline-flex items-center gap-1 underline underline-offset-2"
         >
           <Download className="size-3" aria-hidden />
-          <span className={cn(compactOnPhone && "sr-only sm:not-sr-only")}>
-            Download a recovery copy
-          </span>
+          <span>Download a recovery copy</span>
         </button>
       )}
       {/* Announced only when work is not saved, not on every save. */}
