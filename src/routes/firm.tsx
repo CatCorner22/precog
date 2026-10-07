@@ -509,15 +509,22 @@ function FirmPage() {
           <summary className="cursor-pointer">
             <h2 className="inline text-lg font-semibold">Firm settings</h2>
             <span className="ml-2 text-sm text-muted">
-              {firm
-                ? "Firm name and letterhead, retention, plan and billing, members, notifications and QuickBooks"
-                : "Set up the firm, notifications and QuickBooks"}
+              {!loaded
+                ? "Loading the account…"
+                : firm
+                  ? "Firm name and letterhead, retention, plan and billing, members, notifications and QuickBooks"
+                  : "Set up the firm, notifications and QuickBooks"}
             </span>
           </summary>
           <div className="mt-4 space-y-4">
             <section className="rounded-xl border border-border p-4">
-              <h3 className="font-semibold">{firm ? "Firm name" : "Set up the firm"}</h3>
-              {firm && !isOwner ? (
+              <h3 className="font-semibold">{firm || !loaded ? "Firm name" : "Set up the firm"}</h3>
+              {/* Until the firm arrives, `firm` is null for an owner too: the
+                  form would offer to create a firm and, on submit, rename the
+                  existing one and reset its plan. */}
+              {!loaded ? (
+                <p className="mt-3 text-sm text-muted">Loading the account…</p>
+              ) : firm && !isOwner ? (
                 <p className="mt-3 text-sm text-muted">
                   You work at {firm.name} as a {firm.role}. The owner sets the name and plan.
                 </p>
