@@ -1,11 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { resolveTemplate } from "@/lib/precog/active-template";
+import { INDUSTRIES } from "@/lib/precog/industry";
 import { defaultProfile, type PracticeProfile } from "@/lib/precog/practice-profile";
 import { libraryRows, procedureFromLibrary } from "@/lib/precog/procedures/library";
 import { procedureForConflict } from "@/lib/precog/procedures/rule-procedures";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
+import { buildStartHereModel } from "@/lib/precog/start-here/model";
 import { SodPanel } from "./sod-panel";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -114,4 +116,34 @@ describe("duty-conflict controls on a touch screen", () => {
     expect(links.length).toBeGreaterThan(0);
     for (const link of links) expect(link[1].split(" ")).toContain("pointer-coarse:min-h-11");
   });
+});
+
+describe("the What to do first box", () => {
+  /** The box's items, as text. */
+  const boxItems = (page: string) => {
+    const box = page.split('data-box="what-to-do-first"')[1]?.split("</ul>")[0] ?? "";
+    return [...box.matchAll(/<li[^>]*>((?:(?!<\/li>).)*)<\/li>/g)].map((m) =>
+      m[1]
+        .replace(/<[^>]+>/g, "")
+        .replace(/&#x27;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, "&")
+        .replace(/^· /, ""),
+    );
+  };
+
+  it.each(INDUSTRIES.map((i) => i.id))(
+    "%s sample: leads with the first step Start here lists",
+    (industry) => {
+      const profile: PracticeProfile = { ...defaultProfile(industry), procedures: [] };
+      const template = resolveTemplate(profile);
+      const first = buildStartHereModel({ profile, template, today: new Date(2026, 8, 26) })
+        .firstSteps.steps[0];
+      expect(first).toBeDefined();
+      const items = boxItems(render(profile));
+      expect(items[0]).toBe(`First, as on Start here: ${first.control.label}`);
+      // No later line names a different first move.
+      expect(items.slice(1).join(" ")).not.toMatch(/\bStart by\b|\bfirst\b/i);
+    },
+  );
 });

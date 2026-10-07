@@ -127,3 +127,12 @@ export function doNextSteps(items: readonly DoNextItem[]): DoNextStep[] {
 export function doNextDrift(items: readonly DoNextItem[]): DriftAction[] {
   return items.flatMap((item) => (item.kind === "drift" ? [item.action] : []));
 }
+
+/**
+ * The step "Do these first" lists first (Start here's item 1), or null when
+ * no control answers the open findings. The duty-conflict tab's "What to do
+ * first" box leads with it, so the two screens name one first step.
+ */
+export function firstDoNextStep(input: DoNextInput): DoNextStep | null {
+  return doNextSteps(doNextList(input))[0] ?? null;
+}
