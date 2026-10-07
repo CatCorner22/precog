@@ -105,6 +105,38 @@ describe("Pioneer's residual warnings", () => {
   });
 });
 
+describe("Pioneer breached-condition count", () => {
+  const leading: ToolResult = {
+    tool: "get_leading_indicators",
+    ok: true,
+    summary: "Watched conditions",
+    data: { breached: 3, watch: 1, topActions: [] },
+  };
+  const residual: ToolResult = {
+    tool: "get_residual_portfolio",
+    ok: true,
+    summary: "Risk index",
+    data: { averageResidual: 90, criticalPath: 0 },
+  };
+
+  function section(markdown: string, heading: string) {
+    return markdown.match(
+      new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=\\n## |(?![\\s\\S]))`, "m"),
+    )?.[1];
+  }
+
+  it("states the breached count once in Warnings", () => {
+    const tools = [leading, residual];
+    const warnings = chickenLittleCritique(tools);
+    const brief = localSynthesize("What can happen?", tools, [], warnings, [], [], []);
+    const warningSection = section(brief.markdown, "Warnings");
+
+    expect(warnings).toContain("3 watched conditions breached.");
+    expect(warningSection).toContain("Watched conditions: **3 breached**, 1 at watch");
+    expect(warningSection).not.toMatch(/^- \d+ watched conditions? breached/m);
+  });
+});
+
 describe("Pioneer concise brief", () => {
   it("keeps the short limits section and omits the removed sections and stack labels", () => {
     const { brief } = synthesize(makeScenarioResult());
