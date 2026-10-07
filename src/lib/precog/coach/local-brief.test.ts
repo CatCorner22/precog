@@ -62,7 +62,7 @@ describe("local advisor brief", () => {
     const { brief } = localBrief(SOD, { profile: sample, question: SOD }, sample);
     const moves = [...brief.decisions.map((d) => d.action), brief.frontierNextMove].join(" ");
     expect(moves).not.toMatch(/deductible|policy limit|premium/i);
-    expect(brief.markdown).toContain("## Your open duty conflicts");
+    expect(brief.markdown).toContain("## Answer");
     expect(brief.markdown).toContain("Maya Chen");
   });
 
@@ -81,7 +81,7 @@ describe("local advisor brief", () => {
       "Mark who can do each item on Who knows what",
     );
     expect(brief.markdown).toContain(
-      "**Grace Kim** (Bookkeeper): set up suppliers and release payments (critical)",
+      "**Grace Kim**: set up suppliers and release payments (critical)",
     );
   });
 
@@ -99,7 +99,9 @@ describe("local advisor brief", () => {
     const other = "Give me a plain-English board brief on residual risk.";
     const asked = localBrief(leaves, { profile: sample, question: leaves }, sample).brief;
     const generic = localBrief(other, { profile: sample, question: other }, sample).brief;
-    expect(asked.markdown).toContain("## Your question");
+    expect(asked.markdown).toContain("## Answer");
+    expect(asked.markdown).not.toContain("Your question");
+    expect(asked.markdown).not.toMatch(/^Question:/m);
     expect(asked.markdown).toMatch(/If Jordan Blake \(Front Desk Lead\) is away or leaves/);
     expect(asked.frontierNextMove).not.toBe(generic.frontierNextMove);
     // The move carries its register link, so a Journal entry logged from it is

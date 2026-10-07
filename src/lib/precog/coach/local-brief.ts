@@ -1,14 +1,21 @@
 import { resolveTemplate } from "../active-template";
+import { todayBrief } from "../continuity/today";
 import { registerAssessed } from "../continuity/register-state";
 import { CONTROL_CATALOG, controlForIndustry } from "../evidence/controls";
+import { runPrecogScenario } from "../engine";
 import type { IndustryId } from "../industry";
 import { runLocalAgentLoop, type LocalAgentRun } from "../llm/agent-loop";
 import { BRIEF_SECTION, renderDecision } from "../llm/agent-brief";
+import { describeScenarioFigures, type ScenarioRunData } from "../llm/scenario-tools";
 import { readSpofData } from "../llm/spof-data";
 import type { ToolContext } from "../llm/tools";
 import type { PioneerDecision, StructuredBrief, ToolResult } from "../llm/types";
 import type { PracticeProfile } from "../practice-profile";
-import { insuranceFigureNote, policyDefaultsInForce } from "../scoring/dynamic-variables";
+import {
+  DEFAULT_RISK_VARIABLES,
+  insuranceFigureNote,
+  policyDefaultsInForce,
+} from "../scoring/dynamic-variables";
 import {
   REGISTER_NOT_ASSESSED,
   confirmedScenarioIds,
@@ -24,9 +31,13 @@ import {
 } from "../sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "../sod/open-findings";
 import type { IndustryTemplate } from "../templates/types";
+import type { ScenarioTemplate } from "../types";
 import { closingSteps } from "../controls/dual-release-wording";
 import { personLabel } from "../person-label";
+import { scenarioUnfolding } from "../scenario-unfolding";
+import { scenarioRuleIds, scenarioWatch } from "../scenario-watch";
 import { count, firstName, joinWithAnd, midSentence, verb } from "../text";
+import { matchScenarios } from "./scenario-question";
 
 /**
  * The local advisor brief, made to answer for this business.
@@ -54,8 +65,7 @@ interface LocalBrief extends LocalAgentRun {
 }
 
 /** The question the coach answers when the owner sends none. */
-export const DEFAULT_COACH_QUESTION =
-  "Brief me on my biggest risks, the conditions Precog watches, and what to do this week.";
+export const DEFAULT_COACH_QUESTION = "What are my biggest risks, and what do I do this week?";
 
 /**
  * The deterministic local brief with this business's own duty conflicts first
@@ -73,13 +83,23 @@ export function localBrief(
   const people = openConflictsByPerson(profile, tpl);
   try {
     const result = runLocalAgentLoop(question, ctx);
+    const brief = ownFirstBrief(result.brief, profile, question, {
+      tpl,
+      people,
+      toolResults: result.toolResults,
+      today: ctx.today,
+    });
     return {
       ...result,
-      brief: ownFirstBrief(result.brief, profile, question, {
-        tpl,
-        people,
-        toolResults: result.toolResults,
-      }),
+      brief,
+      steps: result.steps.map((step) =>
+        step.title === "Wrote the brief from Precog's rules"
+          ? {
+              ...step,
+              detail: `${brief.decisions.length} recommended moves · ${brief.specialistNotes.length} review lenses`,
+            }
+          : step,
+      ),
       latencyMs: Date.now() - started,
       partial: false,
     };
@@ -94,7 +114,7 @@ export function localBrief(
       steps: [],
       toolsUsed: [],
       toolResults: [],
-      brief: fallbackBrief(profile, question, { tpl, people }),
+      brief: fallbackBrief(profile, question, { tpl, people, today: ctx.today }),
       contextFingerprint: "fallback",
       latencyMs: Date.now() - started,
       partial: true,
@@ -149,7 +169,12 @@ export function openConflictsByPerson(
 export function fallbackBrief(
   profile: PracticeProfile,
   question: string,
-  known: { tpl?: IndustryTemplate; people?: PersonConflicts[] } = {},
+  known: {
+    tpl?: IndustryTemplate;
+    people?: PersonConflicts[];
+    today?: string;
+    toolResults?: ToolResult[];
+  } = {},
 ): StructuredBrief {
   const tpl = known.tpl ?? resolveTemplate(profile);
   const people = known.people ?? openConflictsByPerson(profile, tpl);
@@ -159,7 +184,7 @@ export function fallbackBrief(
     statement,
     ...(registerAssessed(tpl) ? [] : [registerDecision()]),
   ];
-  const situation = `**${profile.practiceName}**: ${people.length} ${people.length === 1 ? "person holds" : "people hold"} an open duty conflict. Question: _${question}_`;
+  const situation = `**${profile.practiceName}**: ${people.length} ${people.length === 1 ? "person holds" : "people hold"} an open duty conflict.`;
   const frontierNextMove = people[0] ? thisWeek(people[0]) : `This week: ${STATEMENT_THIS_WEEK}.`;
   const warning =
     "Pioneer could not compute part of the full brief for this business, so it built this one from your team's duty conflicts alone.";
@@ -168,27 +193,37 @@ export function fallbackBrief(
     situation,
     "",
     `## ${BRIEF_SECTION.thisWeek}`,
-    frontierNextMove,
-    "",
-    `## ${OWN_CONFLICTS}`,
-    ...(people.length ? people.slice(0, 5).map(conflictLine) : ["- None open."]),
+    thisWeekBody(frontierNextMove),
     "",
     `## ${BRIEF_SECTION.moves}`,
     ...decisions.map(renderDecision),
     "",
+    `## ${BRIEF_SECTION.warnings}`,
+    `- ${warning}`,
+    "",
   ].join("\n");
-  return {
-    situation,
-    highestRisks: [],
-    tradeoffs: [],
-    decisions,
-    frontierNextMove,
-    chickenLittleWarnings: [warning],
-    variableCascades: [],
-    specialistNotes: [],
-    markdown,
-    evidence: [],
-  };
+  return ownFirstBrief(
+    {
+      situation,
+      highestRisks: [],
+      tradeoffs: [],
+      decisions,
+      frontierNextMove,
+      chickenLittleWarnings: [warning],
+      variableCascades: [],
+      specialistNotes: [],
+      markdown,
+      evidence: [],
+    },
+    profile,
+    question,
+    {
+      tpl,
+      people,
+      toolResults: known.toolResults ?? [],
+      today: known.today,
+    },
+  );
 }
 
 /**
@@ -234,11 +269,6 @@ const SEVERITY_SHORT: Record<DetectedConflict["severity"], string> = {
   medium: "medium",
   family: "duty conflict",
 };
-
-/** The heading for the business's own conflicts, inserted after the situation. */
-const OWN_CONFLICTS = "Your open duty conflicts";
-/** The heading for the answer to a question about someone being away. */
-const YOUR_QUESTION = "Your question";
 
 /** "set up suppliers and release payments" */
 function pairWords(c: Pick<DetectedConflict, "labelA" | "labelB">): string {
@@ -336,16 +366,22 @@ function dayWording(line: string): string {
 /** "- **Grace Kim** (Bookkeeper): set up suppliers and release payments (critical)" */
 function conflictLine(p: PersonConflicts): string {
   const pairs = p.conflicts
-    .slice(0, 3)
+    .slice(0, 1)
     .map((c) => `${pairWords(c)} (${SEVERITY_SHORT[c.severity]})`)
     .join("; ");
-  return `- **${p.personName}** (${p.role}): ${pairs}`;
+  const more = p.conflicts.length > 1 ? `; ${p.conflicts.length - 1} more conflicts` : "";
+  return `- **${p.personName}**: ${pairs}${more}`;
 }
 
 /** The one move for the next seven days when a conflict leads. */
 function thisWeek(p: PersonConflicts): string {
   const c = p.conflicts[0];
   return `This week: give one of ${p.personName}'s duties (${midSentence(c.labelA)} or ${midSentence(c.labelB)}) to someone else, and ${STATEMENT_THIS_WEEK}.`;
+}
+
+function thisWeekBody(line: string): string {
+  const body = line.replace(/^This week:\s*/, "");
+  return body ? `${body.charAt(0).toUpperCase()}${body.slice(1)}` : body;
 }
 
 /** Decisions about who can run the work: cross-training, hand-offs, leavers, the register. */
@@ -405,6 +441,94 @@ function mentions(question: string, words: string): boolean {
   return new RegExp(`\\b${pattern}\\b`, "i").test(question);
 }
 
+function scenarioAnswer(
+  scenarios: readonly ScenarioTemplate[],
+  profile: PracticeProfile,
+  tpl: IndustryTemplate,
+  people: PersonConflicts[],
+  today?: string,
+): string[] {
+  const outTodayIds = new Set(
+    today
+      ? todayBrief(
+          tpl,
+          profile.plannedAbsences ?? [],
+          profile.decisions,
+          profile.industry,
+          today,
+        ).out.map((out) => out.person.id)
+      : [],
+  );
+  const openConflicts = people.flatMap((person) => person.conflicts);
+  const lines: string[] = [];
+
+  for (const scenario of scenarios) {
+    lines.push(`### ${scenario.title}`, scenario.description, "");
+    const unfolding = scenarioUnfolding(scenario.id);
+    if (unfolding) {
+      lines.push(
+        "**How it unfolds**",
+        ...unfolding.steps.map((step, index) => `${index + 1}. ${step}`),
+        "",
+        "**Warning signs**",
+        ...unfolding.warningSigns.slice(0, 3).map((sign) => `- ${sign}`),
+        "",
+      );
+    }
+
+    const watch = scenarioWatch(tpl, scenario, openConflicts, outTodayIds);
+    const facts: string[] = [];
+    if (scenarioRuleIds(scenario).length > 0) {
+      if (watch.conflicts.length === 0) {
+        facts.push("- Nobody on the team holds both duties this needs.");
+      } else {
+        facts.push(
+          ...watch.conflicts.slice(0, 3).map((conflict) => {
+            return `- ${conflict.personName} holds both duties: ${conflict.title}`;
+          }),
+        );
+        if (watch.conflicts.length > 3) {
+          facts.push(`- and ${watch.conflicts.length - 3} more`);
+        }
+      }
+    }
+    if (watch.control) {
+      facts.push(
+        `- "${watch.control.name}" ${watch.control.inPlace ? "is marked in place." : "is not marked in place."}`,
+      );
+    }
+    if (watch.knowledge) {
+      const holders = watch.knowledge.holders.length
+        ? `${joinWithAnd(watch.knowledge.holders)} can run it alone.`
+        : "nobody can run it alone.";
+      facts.push(`- ${watch.knowledge.name}: ${holders}`);
+      if (watch.knowledge.outToday.length > 0) {
+        facts.push(`- ${joinWithAnd(watch.knowledge.outToday)} out today.`);
+      }
+    }
+    if (facts.length > 0) lines.push("**In your business now**", ...facts, "");
+
+    const mitigations = scenario.mitigations.map((mitigation) => mitigation.label);
+    if (mitigations.length > 0) {
+      lines.push(`**What stops it:** ${mitigations.join("; ")}.`);
+    }
+    const result = runPrecogScenario(tpl, scenario.id, {
+      staff: profile.staff,
+      riskVariables: profile.riskVariables ?? DEFAULT_RISK_VARIABLES,
+    });
+    if (result) {
+      const data: Pick<ScenarioRunData, "retained" | "timelineDays" | "dynamic"> = {
+        retained: result.retainedImpact,
+        timelineDays: result.timelineDays,
+        dynamic: result.dynamic ?? null,
+      };
+      lines.push(`**Precog's assumptions:** ${describeScenarioFigures(data)}.`);
+    }
+    lines.push("");
+  }
+  return lines;
+}
+
 /**
  * The brief with this business's own conflicts first, no insurance lever
  * while the policy figures are defaults, and a direct answer to a question
@@ -414,14 +538,21 @@ function ownFirstBrief(
   brief: StructuredBrief,
   profile: PracticeProfile,
   question: string,
-  known: { tpl: IndustryTemplate; people: PersonConflicts[]; toolResults: ToolResult[] },
+  known: {
+    tpl: IndustryTemplate;
+    people: PersonConflicts[];
+    toolResults: ToolResult[];
+    today?: string;
+  },
 ): StructuredBrief {
   const { tpl, people } = known;
   const ownBusiness = isOwnBusiness(tpl);
   const stripInsurance = policyDefaultsInForce(profile.riskVariables);
   const policyNote = insuranceFigureNote(profile.riskVariables, ownBusiness);
   const absence = isAbsenceQuestion(question) ? absenceAnswer(question, known.toolResults) : null;
-  const leadWithConflicts = !absence && isConflictQuestion(question) && people.length > 0;
+  const scenarios = absence ? [] : matchScenarios(question, tpl.scenarios);
+  const leadWithConflicts =
+    !absence && scenarios.length === 0 && isConflictQuestion(question) && people.length > 0;
   const assessed = registerAssessed(tpl);
 
   let decisions = brief.decisions.flatMap((d) => {
@@ -460,54 +591,6 @@ function ownFirstBrief(
     frontierNextMove = `This week: ${STATEMENT_THIS_WEEK}, then re-check the watched conditions.`;
   }
 
-  const variableCascades = brief.variableCascades
-    .filter((l) => !stripInsurance || !POLICY_TERMS.test(l))
-    .map((l) =>
-      dayWording(policyNote && l.startsWith("Baseline:") ? `${l} Insurance: ${policyNote}.` : l),
-    );
-  const advancedReasoning = brief.advancedReasoning?.flatMap((l) => {
-    if (!stripInsurance) return [l];
-    const kept = withoutInsuranceSteps(l);
-    return kept ? [kept] : [];
-  });
-
-  const conflictLines = people.slice(0, 5).map(conflictLine);
-
-  const sections = splitSections(brief.markdown).flatMap((s): Section[] => {
-    switch (s.heading) {
-      case BRIEF_SECTION.situation:
-        if (absence) return [s, { heading: YOUR_QUESTION, body: [...absence, ""] }];
-        return leadWithConflicts
-          ? [
-              s,
-              {
-                heading: OWN_CONFLICTS,
-                body: [
-                  ...conflictLines,
-                  `- The step you can take alone: **${statement.action.replace(/\.$/, "")}**.`,
-                  "",
-                ],
-              },
-            ]
-          : [s];
-      case BRIEF_SECTION.cascades:
-        return [{ heading: s.heading, body: [...variableCascades.map((c) => `- ${c}`), ""] }];
-      case BRIEF_SECTION.order:
-        return [
-          {
-            heading: s.heading,
-            body: [...(advancedReasoning ?? []).map((x) => `- ${dayWording(x)}`), ""],
-          },
-        ];
-      case BRIEF_SECTION.moves:
-        return [{ heading: s.heading, body: [...decisions.map(renderDecision), ""] }];
-      case BRIEF_SECTION.thisWeek:
-        return [{ heading: s.heading, body: [frontierNextMove, ""] }];
-      default:
-        return [s];
-    }
-  });
-
   // Any other line that quotes a premium or a retained loss on default policy
   // figures says so (a "$0" change between levers is not a policy figure).
   const labelPremium = (line: string) =>
@@ -524,14 +607,62 @@ function ownFirstBrief(
     starterTitles.some((t) => line.includes(t)) && !line.includes(starterTag)
       ? `${line} ${starterTag}`
       : line;
+  const postProcess = (line: string) => labelStarter(labelPremium(dayWording(line)));
   // General insurance guidance (what a deductible or a policy limit does) is
   // about a policy this business has not entered; it stays out with the levers.
   const policyTalk = (line: string) => stripInsurance && POLICY_TERMS.test(line);
+  const variableCascades = brief.variableCascades
+    .filter((line) => !policyTalk(line))
+    .map(postProcess);
+  const advancedReasoning = brief.advancedReasoning?.flatMap((line) => {
+    if (!stripInsurance) return [postProcess(line)];
+    const kept = withoutInsuranceSteps(line);
+    return kept ? [postProcess(kept)] : [];
+  });
+  const tradeoffs = brief.tradeoffs.filter((line) => !policyTalk(line)).map(postProcess);
+  const specialistNotes = brief.specialistNotes.map((note) => ({
+    ...note,
+    title: postProcess(note.title),
+    bullets: note.bullets.filter((line) => !policyTalk(line)).map(postProcess),
+  }));
+  const sourceSections = splitSections(brief.markdown);
+  const sourceSection = (heading: string) =>
+    sourceSections.find((section) => section.heading === heading);
+  const warnings =
+    sourceSection(BRIEF_SECTION.warnings)?.body.filter((line) => line.trim()) ??
+    brief.chickenLittleWarnings.map((warning) => `- ${warning}`);
+  const watchedConditions = sourceSection("Watched conditions")?.body.filter((line) => line.trim());
+  const answer = absence
+    ? absence
+    : scenarios.length > 0
+      ? scenarioAnswer(scenarios, profile, tpl, people, known.today)
+      : leadWithConflicts
+        ? [
+            ...people.slice(0, 3).map(conflictLine),
+            ...(people.length > 3 ? [`- and ${people.length - 3} more`] : []),
+            `- The step you can take alone: **${statement.action.replace(/\.$/, "")}**.`,
+          ]
+        : null;
+  const sections: Section[] = [
+    ...(answer ? [{ heading: BRIEF_SECTION.answer, body: [...answer, ""] }] : []),
+    { heading: BRIEF_SECTION.situation, body: [brief.situation, ""] },
+    { heading: BRIEF_SECTION.thisWeek, body: [thisWeekBody(frontierNextMove), ""] },
+    { heading: BRIEF_SECTION.moves, body: [...decisions.map(renderDecision), ""] },
+    {
+      heading: BRIEF_SECTION.warnings,
+      body: [...warnings, ...(watchedConditions ?? []), ""],
+    },
+  ];
+  const risks = sourceSection(BRIEF_SECTION.risks)?.body.filter((line) => line.trim()) ?? [];
+  if (risks.length > 0) sections.push({ heading: BRIEF_SECTION.risks, body: [...risks, ""] });
   const markdown = joinSections(sections)
     .split("\n")
     .filter((line) => !(line.startsWith("- ") && policyTalk(line)))
-    .map((line) => labelStarter(labelPremium(dayWording(line))))
+    .map(postProcess)
     .join("\n");
+  const chickenLittleWarnings = brief.chickenLittleWarnings
+    .filter((line) => !policyTalk(line))
+    .map(postProcess);
 
   return {
     ...brief,
@@ -539,14 +670,15 @@ function ownFirstBrief(
     frontierNextMove,
     variableCascades,
     advancedReasoning,
-    tradeoffs: brief.tradeoffs.filter((t) => !policyTalk(t)),
-    specialistNotes: brief.specialistNotes.map((n) => ({
-      ...n,
-      bullets: n.bullets.filter((b) => !policyTalk(b)),
-    })),
-    evidence: brief.evidence.map((e) =>
-      e.metric ? { ...e, metric: labelPremium(dayWording(e.metric)) } : e,
-    ),
+    tradeoffs,
+    specialistNotes,
+    chickenLittleWarnings,
+    evidence: brief.evidence.flatMap((item) => {
+      const label = postProcess(item.label);
+      const metric = item.metric ? postProcess(item.metric) : undefined;
+      if (policyTalk(label) || (metric && policyTalk(metric))) return [];
+      return [{ ...item, label, ...(metric ? { metric } : {}) }];
+    }),
     markdown,
   };
 }

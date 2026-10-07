@@ -25,7 +25,7 @@ function synthesize(scenario: ToolResult) {
 }
 
 describe("Pioneer early scenario signs", () => {
-  it("adds the first three signs under watched conditions without changing alerts", () => {
+  it("adds the first three early signs under warnings without changing alerts", () => {
     const { brief, warnings } = synthesize(
       makeScenarioResult(["First sign.", "Second sign.", "Third sign.", "Fourth sign."]),
     );

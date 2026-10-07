@@ -16,7 +16,7 @@ export type { CoachDecision };
 
 /** The message when the business changes while a brief is being built for the old one. */
 export const BUSINESS_CHANGED_MESSAGE =
-  "The business changed while Pioneer was building the brief; ask again for this one.";
+  "You switched businesses while Pioneer was working. Ask again for this one.";
 
 /** How many recommended moves show before "Show all". */
 export const MOVES_PREVIEW = 3;
@@ -72,17 +72,16 @@ export function CoachResultView({
           )}
         </CardHeader>
         <CardContent>
-          <BriefMarkdown markdown={result.markdown} />
+          <BriefMarkdown markdown={withoutSection(result.markdown, "Recommended moves")} />
         </CardContent>
       </Card>
 
       {result.decisions.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle>{`Add a move to the ${tabLabel("journal", say)}`}</CardTitle>
+            <CardTitle>Recommended moves</CardTitle>
             <CardDescription>
-              A logged move gets a review date, and the next brief follows it up instead of
-              recommending it again.
+              {`Add one to the ${tabLabel("journal", say)}. The next brief follows it up instead of repeating it.`}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -175,6 +174,26 @@ export function CoachResultView({
             </section>
           )}
 
+          {result.details.length > 0 && (
+            <section>
+              <div className="space-y-3">
+                {result.details.map((detail) => (
+                  <div
+                    key={detail.title}
+                    className="rounded-xl border border-border bg-elevated px-3 py-3"
+                  >
+                    <h3 className="text-sm font-medium">{detail.title}</h3>
+                    <ul className="mt-2 space-y-1 text-xs text-muted">
+                      {detail.lines.map((line, index) => (
+                        <li key={`${index}-${line}`}>· {renderInline(line)}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {result.evidence.length > 0 && (
             <section>
               <h3 className="text-sm font-semibold">Where the figures come from</h3>
@@ -235,11 +254,19 @@ export function BriefMarkdown({ markdown }: { markdown: string }) {
   );
 }
 
+export function withoutSection(markdown: string, heading: string): string {
+  const lines = markdown.split("\n");
+  const start = lines.findIndex((line) => line === `## ${heading}`);
+  if (start < 0) return markdown;
+  const end = lines.findIndex((line, index) => index > start && line.startsWith("## "));
+  return [...lines.slice(0, start), ...(end < 0 ? [] : lines.slice(end))].join("\n");
+}
+
 /** Who wrote the brief, in one line the owner can repeat to their accountant. */
 export function briefAuthorLine(result: Pick<CoachResult, "modelStatus" | "model">): string {
   return result.modelStatus === "answered"
-    ? `Selected by Grok (${result.model ?? "model"}) from complete statements written by Precog's rules. No model-written claims were added.`
-    : "Written by Precog's rules from your data. No AI model wrote it.";
+    ? `Grok (${result.model ?? "model"}) picked what to show first from Precog's statements. It wrote none of them.`
+    : "Written by Precog's rules from your records. No AI model wrote it.";
 }
 
 /** Warnings the brief's own Warnings section does not already list (sign in, the model failed). */
@@ -257,7 +284,11 @@ export function coachErrorMessage(e: unknown): string {
     e && typeof e === "object" && "status" in e ? (e as { status: unknown }).status : null;
   const refusal = typeof status === "number" && status >= 400 && status < 500;
   if (refusal && e instanceof Error && e.message.trim()) return e.message;
-  return "Pioneer could not build the brief. Try again in a moment.";
+  return "Pioneer could not answer just now. Try again in a moment.";
+}
+
+export function briefClipboardText(result: Pick<CoachResult, "question" | "markdown">): string {
+  return `**Question:** ${result.question}\n\n${result.markdown}`;
 }
 
 function renderInline(text: string): ReactNode[] {
