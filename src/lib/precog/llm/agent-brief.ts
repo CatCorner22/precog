@@ -5,7 +5,6 @@ import { formatEstimateUsd, formatEstimateUsdDelta, formatUsd, formatUsdDelta } 
 import { joinWithAnd, verb, count } from "../text";
 import { clamp } from "../number";
 import { lossPhrase } from "../evidence";
-import { tabLabel } from "../navigation";
 import { RISK_SCALE } from "../scoring/bands";
 
 /**
@@ -22,10 +21,7 @@ export const BRIEF_SECTION = {
   cases: "What this has cost other businesses",
   conditions: "Watched conditions",
   cascades: "What else moves",
-  order: "Order of fixes (Precog's model)",
-  lenses: "Four review lenses",
-  tradeoffs: "Tradeoffs",
-  sources: "Where the figures come from",
+  limits: "Limits",
 } as const;
 
 /**
@@ -299,12 +295,46 @@ export function extractVariableCascades(tools: ToolResult[]): string[] {
       `Baseline: likelihood ×${cas.baseline.likelihoodMultiplier.toFixed(2)}, premium ${formatUsd(cas.baseline.premiumAnnualNet)}, assumed retained ${formatEstimateUsd(cas.baseline.retainedExpected)}, risk index ${cas.baseline.residualAverage}.`,
     );
   }
-  for (const row of cas.topByCostOfRisk.slice(0, 4)) {
+  for (const [index, row] of cas.topByCostOfRisk.slice(0, 4).entries()) {
+    const parts: string[] = [];
+    const riskDelta = Number(row.deltaResidual.toFixed(1));
+    if (riskDelta !== 0) {
+      parts.push(`risk index ${riskDelta < 0 ? "−" : "+"}${Math.abs(riskDelta).toFixed(1)}`);
+    }
+    const days = Math.round(row.deltaP50);
+    if (days !== 0) {
+      parts.push(`found ${Math.abs(days)} days ${days < 0 ? "sooner" : "later"}`);
+    }
+    const retained = formatEstimateUsdDelta(row.deltaRetained);
+    if (row.deltaRetained !== 0 && retained !== "$0") {
+      parts.push(`assumed retained ${retained.replace(/-\$/, "−$")}`);
+    }
+    const premium = formatUsdDelta(row.deltaPremium);
+    if (row.deltaPremium !== 0 && premium !== "$0") {
+      parts.push(`premium ${premium.replace(/-\$/, "−$")}`);
+    }
+    const changes = parts.length ? parts.join(", ") : "no change in Precog's figures";
+    const affects = row.affects.slice(0, 3).join("; ");
+    const secondOrder = index === 0 ? row.secondOrderNotes[0] : undefined;
     lines.push(
-      `**If you ${row.label}**: assumed retained ${formatEstimateUsdDelta(row.deltaRetained)}, premium ${formatUsdDelta(row.deltaPremium)}, risk index ${row.deltaResidual >= 0 ? "+" : ""}${row.deltaResidual.toFixed(1)}, assumed days until found ${row.deltaP50 >= 0 ? "+" : ""}${Math.round(row.deltaP50)}. Also: ${row.affects.slice(0, 3).join("; ")}. ${row.secondOrderNotes[0] ?? ""}`.trim(),
+      `**${leverLabel(row.label)}**: ${changes}.${affects ? ` Also: ${affects}.` : ""}${secondOrder ? ` ${secondOrder}` : ""}`,
     );
   }
   return lines;
+}
+
+/** Remove the internal suffix used to identify a bundled lever. */
+export function leverLabel(label: string): string {
+  return label.replace(/ \(stack\)$/, "");
+}
+
+export function renderThisWeekLine(line: string): string {
+  const body = line.replace(/^This week:\s*/, "");
+  return body.replace(
+    /^(\*\*)?([a-z])/,
+    (_match, emphasis: string | undefined, first: string) =>
+      `${emphasis ?? ""}${first.toUpperCase()}`,
+  );
 }
 
 export function chickenLittleCritique(tools: ToolResult[]): string[] {
@@ -325,9 +355,7 @@ export function chickenLittleCritique(tools: ToolResult[]): string[] {
     warnings.push(`${residual!.criticalPath} risks are in the "fix first" band.`);
   }
   if (leading && (leading.breached ?? 0) > 0) {
-    warnings.push(
-      `${count(leading.breached!, "watched condition")} breached: the conditions that come before a loss are present.`,
-    );
+    warnings.push(`${count(leading.breached!, "watched condition")} breached.`);
   }
   if (
     scenario &&
@@ -508,8 +536,9 @@ export function localSynthesize(
     synthesis?: string[];
   } | null;
 
-  const highestRisks = top.slice(0, 4).map((t) => {
+  const highestRisks = top.slice(0, 3).map((t) => {
     const drivers = t.drivers
+      .filter((d) => !["severity level", "likelihood level"].includes(d.label.trim().toLowerCase()))
       .slice(0, 2)
       .map((d) => d.label)
       .join("; ");
@@ -526,12 +555,12 @@ export function localSynthesize(
   if (caseEv && caseEv.matchingCases > 0) {
     const largest = caseEv.largest;
     highestRisks.push(
-      `**${BRIEF_SECTION.cases}**: ${caseEv.matchingCases} prosecuted ${verb(caseEv.matchingCases, "case matches", "cases match")} the open duty conflicts` +
+      `**${BRIEF_SECTION.cases}**: ${caseEv.matchingCases} prosecuted ${verb(caseEv.matchingCases, "case matches", "cases match")} these conflicts` +
         (caseEv.lossRange
-          ? `; median stated loss ${formatUsd(caseEv.lossRange.median)} across ${caseEv.lossRange.n} with a figure`
+          ? `; median stated loss ${formatUsd(caseEv.lossRange.median)} across ${caseEv.lossRange.n} cases`
           : "") +
-        (largest ? `. Largest: "${largest.title}" (${lossPhrase(largest)}).` : ".") +
-        " Other businesses, not this one; see Start here for the sources.",
+        (largest ? `; largest ${lossPhrase(largest)}` : "") +
+        ". Not this business; see Start here.",
     );
   }
 
@@ -541,14 +570,14 @@ export function localSynthesize(
       if (typeof n !== "number")
         return "Team size unknown: enter your team to see how far duties can be separated.";
       return n <= WARNING_RULES.smallTeamSize
-        ? `Team of ${n}: at ${WARNING_RULES.smallTeamSize} people or fewer (Precog's cut-off), separating every duty is rarely realistic, so compensating controls and owner review carry the load.`
+        ? `Team of ${n}: at Precog's ${WARNING_RULES.smallTeamSize}-person cutoff, separating every duty is rarely realistic; owner review and compensating controls help.`
         : `Team of ${n}: enough people to separate the critical duties; resolve the open conflicts before adding compensating controls.`;
     })(),
     leading
       ? `Watched conditions: **${leading.breached} breached**, ${leading.watch} at watch. ${leading.topActions[0] ?? ""}`
       : "Check the watched conditions on Patterns for what comes before a loss.",
     bestCascade
-      ? `Biggest knock-on effect: **${bestCascade.label}**. ${bestCascade.secondOrderNotes[0] ?? ""}`
+      ? `Biggest knock-on effect: **${leverLabel(bestCascade.label)}**. ${bestCascade.secondOrderNotes[0] ?? ""}`
       : "Run the what-else-moves check on What could happen.",
     rag?.hits?.[0]
       ? `Guidance: _${rag.hits[0].title}_: ${rag.hits[0].text.slice(0, 140)}…`
@@ -755,7 +784,7 @@ export function localSynthesize(
     horizonDays: REVIEW_HORIZON_DAYS.journal,
     cascadeEffects: ["register accuracy ↑"],
   });
-  const beamAction = adv?.recommendedSequence?.join(" → ");
+  const beamAction = adv?.recommendedSequence?.map(leverLabel).join(" → ");
   // Entries a leaver must hand off are advised as their hand-off, not as
   // ordinary cross-training on top.
   const handingOver = new Set(
@@ -772,10 +801,10 @@ export function localSynthesize(
     {
       action:
         beamAction ||
-        bestCascade?.label ||
+        (bestCascade ? leverLabel(bestCascade.label) : undefined) ||
         "Turn on a second signer for payments and an independent bank reconciliation",
       rationale: beamAction
-        ? "The order Precog's lever model prefers, using its own weights; read it as an ordering, not a measurement."
+        ? "Precog's model ranks this first, using its own weights. It is an ordering, not a measurement."
         : bestCascade
           ? `The what-else-moves check puts this first: it moves the risk index the most. ${bestCascade.secondOrderNotes[0] ?? ""}`.trim()
           : "Default when no ranking ran: a second signer on payments and an independent bank reconciliation each remove a path one person can use alone.",
@@ -860,21 +889,17 @@ export function localSynthesize(
   ];
 
   const frontierNextMove = bestCascade
-    ? `This week: **${bestCascade.label}**, then re-check the watched conditions and What is still exposed.`
+    ? `This week: **${leverLabel(bestCascade.label)}**, then re-check the watched conditions and What is still exposed.`
     : "This week: turn on a second signer for payments and an independent bank reconciliation, then ask again and re-check the watched conditions.";
 
-  const situation = `**${snap?.practice ?? "This business"}**: coverage check **${coso ? `${coso.gaps} of ${coso.principles}` : "?"}** with a gap, average risk index **${residual?.averageResidual ?? "?"}/100**, **${leading?.breached ?? "?"}** watched conditions breached. Second signer on payments: ${snap?.staff.dualControlPayments ? "on" : "off"}; independent bank reconciliation: ${snap?.staff.independentBankRec ? "on" : "off"}. Question: _${question}_`;
-
-  const specialistMd = specialistNotes
-    .map((n) => `### ${n.title}\n${n.bullets.map((b) => `- ${b}`).join("\n")}`)
-    .join("\n\n");
+  const situation = `**${snap?.practice ?? "This business"}**: coverage check **${coso ? `${coso.gaps} of ${coso.principles}` : "?"}** with a gap, average risk index **${residual?.averageResidual ?? "?"}/100**, **${leading?.breached ?? "?"}** watched conditions breached. Second payment signer: ${snap?.staff.dualControlPayments ? "on" : "off"}; bank reconciliation: ${snap?.staff.independentBankRec ? "independent" : "not independent"}. Question: _${question}_`;
 
   const markdown = [
     `## ${BRIEF_SECTION.situation}`,
     situation,
     "",
     `## ${BRIEF_SECTION.thisWeek}`,
-    frontierNextMove,
+    renderThisWeekLine(frontierNextMove),
     "",
     `## ${BRIEF_SECTION.moves}`,
     ...decisions.map(renderDecision),
@@ -904,19 +929,8 @@ export function localSynthesize(
     `## ${BRIEF_SECTION.cascades}`,
     ...variableCascades.map((c) => `- ${c}`),
     "",
-    `## ${BRIEF_SECTION.order}`,
-    ...advancedReasoning.map((x) => `- ${x}`),
-    "",
-    `## ${BRIEF_SECTION.lenses}`,
-    specialistMd,
-    "",
-    `## ${BRIEF_SECTION.tradeoffs}`,
-    ...tradeoffs.map((t) => `- ${t}`),
-    "",
-    `## ${BRIEF_SECTION.sources}`,
-    ...evidence
-      .slice(0, 12)
-      .map((e) => `- **${e.label}**: ${e.metric ?? e.kind} (see ${tabLabel(e.link.tab)})`),
+    `## ${BRIEF_SECTION.limits}`,
+    ...limitsLines(tradeoffs, advancedReasoning).map((line) => `- ${line}`),
   ].join("\n");
 
   return {
@@ -934,8 +948,19 @@ export function localSynthesize(
   };
 }
 
-/** "1. **Move one duty** (medium effort · within 14 days): why. *Also moves:* …" */
+function limitsLines(tradeoffs: string[], advancedReasoning: string[]): string[] {
+  const teamSize = tradeoffs[0];
+  const verifyNext = advancedReasoning.find((line) =>
+    line.startsWith("Most useful thing to verify next:"),
+  );
+  return [
+    ...(teamSize ? [teamSize] : []),
+    ...(verifyNext ? [verifyNext] : []),
+    "Rankings use Precog's weights, not a measurement of this business.",
+  ];
+}
+
+/** "1. **Move one duty** (medium effort · within 14 days): why." */
 export function renderDecision(d: PioneerDecision, i: number): string {
-  const also = d.cascadeEffects?.length ? ` *Also moves:* ${d.cascadeEffects.join("; ")}.` : "";
-  return `${i + 1}. **${d.action}** (${d.effort} effort · within ${count(d.horizonDays, "day")}): ${d.rationale}${also}`;
+  return `${i + 1}. **${d.action}** (${d.effort} effort · within ${count(d.horizonDays, "day")}): ${d.rationale}`;
 }

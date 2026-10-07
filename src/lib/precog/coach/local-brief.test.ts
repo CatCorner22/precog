@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { resolveTemplate } from "../active-template";
 import { runLocalAgentLoop } from "../llm/agent-loop";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import { defaultProfile } from "../practice-profile";
 import { withDecision } from "../profile-actions";
+import { CONTROL_CATALOG, controlForIndustry } from "../evidence/controls";
+import { starterScenarioLabel } from "../scoring/scope";
 import { journalEntry } from "./journal-entry";
 import {
   DEFAULT_COACH_QUESTION,
@@ -10,6 +13,7 @@ import {
   isConflictQuestion,
   localBrief,
   openConflictsByPerson,
+  scenarioAnswer,
 } from "./local-brief";
 import { pioneerProfileFrom } from "./pioneer-profile";
 import { nonprofitLeaderPeople } from "@/test/nonprofit-leader-team";
@@ -49,10 +53,11 @@ describe("local advisor brief", () => {
       true,
     );
     expect(brief.frontierNextMove).toBe(
-      "This week: give one of Grace Kim's duties (set up suppliers or release payments) to someone else, and open the bank statement yourself before anyone else handles it.",
+      "This week: move one of Grace Kim's duties to someone else, and open the bank statement yourself, before anyone else.",
     );
     expect(brief.markdown).toContain("Sofia Delgado");
     expect(brief.markdown).not.toMatch(/deductible|policy limit/i);
+    expect(brief.markdown).not.toContain("## This week\nThis week:");
     // The industry example's register and people never appear as this clinic's.
     expect(brief.markdown).not.toMatch(/Insurance denial appeals|Jordan|Maya Chen/);
   });
@@ -80,15 +85,31 @@ describe("local advisor brief", () => {
     expect(brief.decisions.map((d) => d.action)).toContain(
       "Mark who can do each item on Who knows what",
     );
-    expect(brief.markdown).toContain(
-      "**Grace Kim** (Bookkeeper): set up suppliers and release payments (critical)",
-    );
+    expect(brief.markdown).toContain("**Grace Kim**: set up suppliers and release payments");
+    expect(brief.markdown).not.toContain("## This week\nThis week:");
+  });
+
+  it("uses the industry-specific owner statement rationale", () => {
+    for (const industry of ["dental", "retail"] as const) {
+      const profile = pioneerProfileFrom(defaultProfile(industry) as never);
+      const { brief } = localBrief(
+        DEFAULT_COACH_QUESTION,
+        { profile, question: DEFAULT_COACH_QUESTION },
+        profile,
+      );
+      const control = controlForIndustry(CONTROL_CATALOG["owner-opens-bank-statement"], industry);
+      const decision = brief.decisions.find((move) => move.action === control.label);
+
+      expect(decision?.rationale).toBe(
+        `${control.why} You can do this yourself this week; it takes minutes.`,
+      );
+    }
   });
 
   it("names a conflict's severity in the Start here badge words, not a residual band", () => {
     const profile = clinic();
     const { brief } = localBrief(EMBEZZLEMENT, { profile, question: EMBEZZLEMENT }, profile);
-    expect(brief.decisions[0].rationale).toContain("a critical duty conflict");
+    expect(brief.decisions[0].rationale).toContain("Critical duty conflict");
     // "Fix first" names the residual band (index 80 or more), not a severity.
     expect(brief.markdown).not.toMatch(/conflict to fix first|\(fix first\)/);
   });
@@ -107,6 +128,111 @@ describe("local advisor brief", () => {
     expect(asked.decisions[0].link).toMatchObject({ tab: "knowledge", step: "cover" });
     expect(asked.decisions[0].link?.id).toBeTruthy();
     expect(asked.decisions[0].link?.personId).toBeTruthy();
+  });
+
+  it("answers a named write-off scenario with its figures, unfolding, and warning signs", () => {
+    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+    const question = "Walk me through a write-off abuse scenario and its controls.";
+    const { brief, steps } = localBrief(question, { profile: sample, question }, sample);
+
+    expect(brief.markdown).toContain("## Your question");
+    expect(brief.markdown).toMatch(
+      /\*\*Write-offs posted without a second approval\*\*:.*assumed retained/,
+    );
+    expect(brief.markdown).toContain("How it unfolds:");
+    expect(brief.markdown).toContain(
+      "1. A staff member posts a large adjustment against a customer balance.",
+    );
+    expect(brief.markdown).toContain("Warning signs:");
+    expect(brief.markdown).toContain("Large adjustments post under one login.");
+    expect(brief.markdown).not.toContain("not counted in your totals");
+    expect(steps.find((step) => step.phase === "synthesize")?.detail).toContain(
+      `${brief.decisions.length} recommended moves`,
+    );
+  });
+
+  it("labels an unconfirmed owner-business starter scenario in its scenario answer", () => {
+    const profile = clinic();
+    const question = "Walk me through a write-off abuse scenario and its controls.";
+    const { brief } = localBrief(question, { profile, question }, profile);
+    const line = brief.markdown
+      .split("\n")
+      .find((text) => text.includes("**Write-offs posted without a second approval**"));
+    const tag = `(${starterScenarioLabel(profile.industry).replace(/^Sample scenarios/, "sample scenario")}, not counted in your totals)`;
+
+    expect(line).toBeDefined();
+    expect(line).toContain(tag);
+  });
+
+  it.each(["writeoff", "write-off", "write off"])(
+    "recognizes the %s spelling of the write-off scenario",
+    (phrase) => {
+      const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+      const answers = scenarioAnswer(
+        `Walk me through a ${phrase} abuse scenario and its controls.`,
+        resolveTemplate(sample),
+        sample,
+      );
+
+      expect(answers?.join("\n")).toContain("Write-offs posted without a second approval");
+    },
+  );
+
+  it("compares the vendor and cash scenarios in the order named for retail", () => {
+    const profile = pioneerProfileFrom(defaultProfile("retail") as never);
+    const question = "Compare the vendor fraud and cash skimming scenarios for my store.";
+    const { brief } = localBrief(question, { profile, question }, profile);
+    const vendor = brief.markdown.indexOf("One person sets up vendors and pays them");
+    const cash = brief.markdown.indexOf("One person posts payments and reconciles the bank");
+
+    expect(brief.markdown).toContain("## Your question");
+    expect(vendor).toBeGreaterThan(-1);
+    expect(cash).toBeGreaterThan(-1);
+    expect(vendor).toBeLessThan(cash);
+  });
+
+  it.each([DEFAULT_COACH_QUESTION, "What do I fix first this week to reduce embezzlement risk?"])(
+    "does not add a scenario section for a general question: %s",
+    (question) => {
+      const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+      const { brief } = localBrief(question, { profile: sample, question }, sample);
+      expect(brief.markdown).not.toContain("## Your question");
+    },
+  );
+
+  it("keeps the Dental default brief below 900 words and within the short section order", () => {
+    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+    const { brief } = localBrief(
+      DEFAULT_COACH_QUESTION,
+      {
+        profile: sample,
+        question: DEFAULT_COACH_QUESTION,
+      },
+      sample,
+    );
+    const words = brief.markdown.match(/\S+/g)?.length ?? 0;
+
+    expect(words).toBeLessThanOrEqual(900);
+    expect(brief.markdown).not.toMatch(
+      /^## (Order of fixes \(Precog's model\)|Four review lenses|Tradeoffs|Where the figures come from)$/m,
+    );
+    expect(brief.markdown).toContain("## Limits");
+    expect(brief.markdown).toContain("Team of ");
+    expect(brief.markdown).toContain("Most useful thing to verify next:");
+    expect(brief.markdown).toContain(
+      "Rankings use Precog's weights, not a measurement of this business.",
+    );
+    expect(brief.markdown).not.toMatch(/\(stack\)|If you /);
+    expect(brief.markdown).not.toContain("## This week\nThis week:");
+    expect(brief.markdown).not.toContain("not counted in your totals");
+    expect(
+      `${brief.frontierNextMove}\n${brief.decisions.map((d) => d.action).join("\n")}`,
+    ).not.toContain("(stack)");
+    const riskSection =
+      brief.markdown.split("## Biggest open risks\n")[1]?.split("\n\n## ")[0] ?? "";
+    const risks = riskSection.match(/^\d+\. \*\*/gm) ?? [];
+    expect(risks).toHaveLength(4);
+    expect(riskSection).not.toMatch(/Drivers: (?:Severity level|Likelihood level)/);
   });
 
   it("follows up a cross-training move logged from the brief instead of recommending it again", () => {

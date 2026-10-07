@@ -38,7 +38,7 @@ const local: LocalAgentRun = {
     variableCascades: [],
     specialistNotes: [],
     markdown:
-      "## Situation\nA payment destination changed.\n\n## Warnings\nCoverage is not established.\n\n## Sources\nPopulation evidence, not this business's probability.",
+      "## Situation\nA payment destination changed.\n\n## Recommended moves\n1. **Verify the changed payment destination**: Use a previously known contact before any payment. Coverage has not been established.\n\n## Warnings\nCoverage is not established.\n\nPopulation evidence, not this business's probability.",
     evidence: [{ id: "ev-1", kind: "sod", label: "Payment-change check", link: { tab: "sod" } }],
   },
 };
@@ -67,6 +67,7 @@ describe("model output cannot reassign a real number to an invented claim", () =
   it("renders selected claims only from the complete local statement", async () => {
     const result = await answer(JSON.stringify({ version: 1, highlightIds: ["move-0"] }));
     expect(result.modelStatus).toBe("answered");
+    expect(vi.mocked(callModel).mock.calls[0]?.[1].jsonObject).toBe(true);
     expect(result.brief.markdown).toContain(local.brief.decisions[0].action);
     expect(result.brief.markdown).toContain(local.brief.decisions[0].rationale);
     expect(result.brief.markdown).toContain(local.brief.chickenLittleWarnings[0]);

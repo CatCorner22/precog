@@ -58,20 +58,24 @@ describe("coachErrorMessage", () => {
 
   it("shows a plain sentence for an error the server did not explain", () => {
     expect(coachErrorMessage(new Error("TypeError: x is undefined"))).toBe(
-      "Pioneer could not build the brief. Try again in a moment.",
+      "Pioneer could not build a brief. Try again in a moment.",
     );
     expect(coachErrorMessage("boom")).toBe(
-      "Pioneer could not build the brief. Try again in a moment.",
+      "Pioneer could not build a brief. Try again in a moment.",
     );
   });
 });
 
 describe("briefAuthorLine", () => {
   it("says plainly whether a model wrote the brief", () => {
-    expect(briefAuthorLine({ modelStatus: "not-asked" })).toMatch(/No AI model wrote it/);
-    expect(briefAuthorLine({ modelStatus: "failed" })).toMatch(/No AI model wrote it/);
+    expect(briefAuthorLine({ modelStatus: "not-asked" })).toBe(
+      "Written by Precog's rules from your records. No AI wrote it.",
+    );
+    expect(briefAuthorLine({ modelStatus: "failed" })).toBe(
+      "Written by Precog's rules from your records. No AI wrote it.",
+    );
     expect(briefAuthorLine({ modelStatus: "answered", model: "grok-4.5" })).toMatch(
-      /^Selected by Grok \(grok-4\.5\)/,
+      /^Grok \(grok-4\.5\) picked the top moves\. Precog's rules wrote every word\.$/,
     );
   });
 });
@@ -89,7 +93,9 @@ describe("CoachResultView", () => {
     expect(html).not.toContain("<details open");
     expect(html).not.toContain("local-agent");
     expect(html).not.toContain("avg=64");
-    expect(html).toContain("No AI model wrote it");
+    expect(html).toContain("No AI wrote it");
+    expect(html).toContain("Steps · 1 check");
+    expect(html).not.toContain("120 ms");
   });
 
   it("shows the top moves with 'Show all', and a logged move as added", () => {
@@ -98,6 +104,7 @@ describe("CoachResultView", () => {
     expect(html).toContain("Added to the Decisions log");
     expect(html).toContain("Show all 5");
     expect(html).not.toContain("Move 5");
+    expect(html).not.toContain("Because.");
   });
 
   it("labels a source by its tab's name, not its internal id", () => {
@@ -110,9 +117,14 @@ describe("CoachResultView", () => {
 describe("extraWarnings", () => {
   it("keeps only the warnings the brief text does not already list", () => {
     const r = result({
-      warnings: ["Nothing is at a red alert.", "Sign in to have Grok write it."],
+      warnings: [
+        "Nothing is at a red alert.",
+        "Sign in to let Grok pick the most relevant moves. Precog's rules wrote this brief.",
+      ],
     });
-    expect(extraWarnings(r)).toEqual(["Sign in to have Grok write it."]);
+    expect(extraWarnings(r)).toEqual([
+      "Sign in to let Grok pick the most relevant moves. Precog's rules wrote this brief.",
+    ]);
   });
 });
 

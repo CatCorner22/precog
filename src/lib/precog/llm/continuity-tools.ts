@@ -79,7 +79,7 @@ export function knowledgeSpofs({ profile, tpl, today }: ContinuityToolInput): To
       : "";
   return {
     ok: true,
-    summary: `${risks.length} SPOF/unowned item(s); ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of must-do work alone` : ""}; ${docs.counts.none} item(s) with nothing written down${freshnessSummary}${commitmentSummary}`,
+    summary: `${risks.length} item${risks.length === 1 ? "" : "s"} only one person can run or nobody owns; ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of must-do work alone` : ""}; ${docs.counts.none} item(s) with nothing written down${freshnessSummary}${commitmentSummary}`,
     data: risks.map((r) => {
       const move = moveByItem.get(r.knowledgeId);
       const commitment = committed.get(continuityStepKey(r.knowledgeId, "cover"));

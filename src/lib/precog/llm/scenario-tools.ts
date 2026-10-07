@@ -200,7 +200,7 @@ export function variableCascades({
   }));
   return {
     ok: true,
-    summary: `Best CoR lever: ${topCor[0]?.label ?? "—"}`,
+    summary: `Biggest cost-of-risk lever: ${topCor[0]?.label ?? "—"}`,
     data: {
       mode: "portfolio",
       scenarioId,

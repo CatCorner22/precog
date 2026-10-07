@@ -8,7 +8,7 @@ import { usePresentation } from "@/lib/precog/presentation";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Brain, Compass, GitBranch, Loader2, Sparkles } from "lucide-react";
 import { tabLabel, type NavFn } from "@/lib/precog/navigation";
 import { PageIntro } from "@/components/precog/page-intro";
@@ -125,18 +125,18 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
   return (
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
-        <Badge variant="primary">Grounded in Precog&rsquo;s tools</Badge>
+        <Badge variant="primary">Built from your records</Badge>
         <PageIntro
           tab="pioneer"
           className="mt-3"
           icon={<Compass className="size-5 text-primary" aria-hidden />}
-          purpose="Ask about your team, a person leaving, or what to fix first; the answer comes from your own records."
+          purpose="Ask about your team, someone leaving, or what to fix first. Answers come from your records."
           method={
             <p>
-              Pioneer builds every answer from Precog&rsquo;s own records: the exposure that
-              remains, duty conflicts, scenarios, the guidance library, and the prosecuted cases.
-              Where it orders fixes, it uses Precog&rsquo;s weights and says so. It never invents a
-              measurement.
+              Precog&rsquo;s rules write every answer from your records: duty conflicts, who knows
+              what, scenarios, guidance and real cases. Rankings use Precog&rsquo;s weights, not
+              measurements. When you are signed in, Grok picks the moves most relevant to your
+              question; it never writes or changes them.
             </p>
           }
         />
@@ -145,7 +145,6 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
       <Card>
         <CardHeader>
           <CardTitle>Ask Pioneer</CardTitle>
-          <CardDescription>Answers use only Precog&rsquo;s own figures.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <textarea
