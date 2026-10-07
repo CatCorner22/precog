@@ -13,23 +13,23 @@ import { StartHereFiguresSection } from "./start-here-figures-section";
 import { StartHereFirstStepsSection } from "./start-here-first-steps-section";
 import { StartHereLimitsSection } from "./start-here-limits-section";
 import { StartHerePreamble } from "./start-here-preamble";
+import { WHY_WE_SAY_THIS } from "@/lib/precog/start-here/layout";
 import { useStartHere } from "./use-start-here";
 
 /**
- * Home: the first screen an owner sees.
+ * Home: the first screen an owner sees, kept to one screen.
  *
- * After the two headline figures it answers, in this order and in plain
- * words:
+ *   1. Two headline figures.
+ *   2. Who is out today, when someone is.
+ *   3. The three actions that answer the most open gaps, each with a button
+ *      to the screen that gets it done.
  *
- *   1. What to do first.
- *   2. Where this business is exposed right now.
- *   3. What that exposure has actually cost organizations like it.
- *   4. Whether the business can run if someone is out.
- *
- * and then says what Precog cannot tell. Every dollar figure and duration
- * resolves to a prosecuted case or a published study; the continuity
- * percentages are Precog's own indices and say so. Where Precog cannot
- * support a claim, it says so rather than filling the space.
+ * Everything behind those — where one person controls too much, what that
+ * exposure has cost organizations like this one, the continuity figures,
+ * what Precog cannot tell, and every case it cites — sits under a closed
+ * "Why we say this". Every dollar figure and duration there resolves to a
+ * prosecuted case or a published study; the continuity percentages are
+ * Precog's own indices and say so.
  */
 export function StartHere({
   onOpenDetail,
@@ -61,14 +61,15 @@ export function StartHere({
           )}
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          Where your business stands today, what to do first, and whether the work goes on when
-          someone is out.
+          What to do first, who is out today, and whether the work goes on without them.
         </p>
         <HowThisWorks>
           <p>
-            Two headline figures, then what to do first, then where a business like yours carries
-            exposure, what that same exposure has cost real businesses, and whether the work goes on
-            when someone is out.
+            Two headline figures, who is out today, then the three actions that answer the most of
+            your open gaps; most are detective controls, which shorten how long a scheme runs, and
+            that is what decides the loss. {WHY_WE_SAY_THIS} holds the evidence: where one person
+            controls too much, what that same exposure has cost real businesses, your continuity
+            figures, what Precog cannot tell you, and every case it cites.
           </p>
           <p>
             Every dollar figure and duration on this page links to the case or study it came from.
@@ -80,13 +81,33 @@ export function StartHere({
 
       <StartHerePreamble model={model.preamble} onOpenDetail={onOpenDetail} />
       <StartHereFiguresSection model={model.figures} onOpenDetail={onOpenDetail} />
-      <StartHereFirstStepsSection model={model.firstSteps} />
-      <StartHereExposureSection model={model.exposure} onOpenDetail={onOpenDetail} />
-      <StartHereCostSection model={model.cost} />
-      <StartHereContinuitySection model={model.continuity} onOpenDetail={onOpenDetail} />
-      <StartHereLimitsSection />
+      <StartHereContinuitySection
+        model={model.continuity}
+        onOpenDetail={onOpenDetail}
+        part="today"
+      />
+      <StartHereFirstStepsSection
+        model={model.firstSteps}
+        onOpenDetail={onOpenDetail}
+        part="actions"
+      />
 
-      <EvidenceFooter model={model.footer} />
+      <HowThisWorks
+        summary={WHY_WE_SAY_THIS}
+        className="max-w-none"
+        bodyClassName="space-y-8 pt-2 text-base text-fg"
+      >
+        <StartHereExposureSection model={model.exposure} onOpenDetail={onOpenDetail} />
+        <StartHereCostSection model={model.cost} />
+        <StartHereFirstStepsSection model={model.firstSteps} part="notes" />
+        <StartHereContinuitySection
+          model={model.continuity}
+          onOpenDetail={onOpenDetail}
+          part="readiness"
+        />
+        <StartHereLimitsSection />
+        <EvidenceFooter model={model.footer} />
+      </HowThisWorks>
     </div>
   );
 }

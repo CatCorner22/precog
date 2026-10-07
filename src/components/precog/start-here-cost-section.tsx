@@ -120,8 +120,8 @@ export function StartHereCostSection({ model }: { model: StartHereModel["cost"] 
                     Where the source says how the scheme came to light, it was{" "}
                     {joinClauses(found.byRoute.map((r) => ROUTE_CLAUSE[r.route] ?? r.route))}{" "}
                     &mdash; never a reconciliation, an audit, or a report from staff. That is what
-                    the controls below change: they put someone in the position to look before the
-                    business runs out of money.
+                    the controls under Do these first change: they put someone in the position to
+                    look before the business runs out of money.
                   </p>
                 )}
             </div>
