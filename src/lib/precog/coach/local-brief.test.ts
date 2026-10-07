@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveTemplate } from "../active-template";
+import { formatDayRange } from "../dates";
 import { runLocalAgentLoop } from "../llm/agent-loop";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import { defaultProfile } from "../practice-profile";
+import { firstName } from "../text";
 import { withDecision } from "../profile-actions";
 import { CONTROL_CATALOG, controlForIndustry } from "../evidence/controls";
 import { starterScenarioLabel } from "../scoring/scope";
@@ -184,6 +186,152 @@ describe("local advisor brief", () => {
     expect(absenceStart).toBeGreaterThan(scenarioStart);
   });
 
+  it("does not select a departure scenario from a person's name and leaves alone", () => {
+    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+    const question = "What would happen if Jordan Blake leaves?";
+    const { brief } = localBrief(question, { profile: sample, question }, sample);
+
+    expect(brief.markdown).not.toMatch(/^### /m);
+    expect(brief.markdown).toContain("If Jordan Blake (Front Desk Lead) is away or leaves");
+  });
+
+  it("answers who is out today from the absence records", () => {
+    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+    const profile = { ...sample, plannedAbsences: [] };
+    const question = "Who is out today?";
+    const { brief } = localBrief(question, { profile, question, today: "2025-11-05" }, profile);
+
+    expect(brief.markdown).toContain(
+      "Nobody is recorded as out today. When someone calls in, press Someone is out at the top of the page.",
+    );
+  });
+
+  it("reports today's unplanned absence, stopped work, hand-off state, and upcoming leave", () => {
+    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+    const template = resolveTemplate(sample);
+    const absentPerson = template.people.find((person) => person.name === "Jordan Blake");
+    const upcomingPerson = template.people.find((person) => person.id !== absentPerson?.id);
+    if (!absentPerson) throw new Error("Missing dental sample person Jordan Blake");
+    if (!upcomingPerson) throw new Error("Missing another dental sample person");
+    const today = "2025-11-05";
+    const profile = {
+      ...sample,
+      decisions: [],
+      plannedAbsences: [
+        {
+          id: "unplanned-jordan",
+          personId: absentPerson.id,
+          industry: "dental" as const,
+          from: today,
+          to: today,
+          unplanned: true,
+        },
+        {
+          id: "planned-soon",
+          personId: upcomingPerson.id,
+          industry: "dental" as const,
+          from: "2025-11-08",
+          to: "2025-11-10",
+        },
+      ],
+    };
+    const question = "Who is out today?";
+    const { brief } = localBrief(question, { profile, question, today }, profile);
+
+    expect(brief.markdown).toContain("- Jordan Blake is out today (unplanned).");
+    expect(brief.markdown).toContain(
+      "  - Insurance denial appeals: Chris Patel covers; hand-off not logged yet.",
+    );
+    expect(brief.markdown).toContain(
+      `Starting within a week: ${firstName(upcomingPerson.name)} (${formatDayRange("2025-11-08", "2025-11-10")}).`,
+    );
+    expect(brief.markdown).not.toContain("Nobody on the team holds both duties this needs.");
+  });
+
+  it("does not describe stops for an absence when the register is unassessed", () => {
+    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+    const person = resolveTemplate(sample).people.find(
+      (candidate) => candidate.name === "Jordan Blake",
+    );
+    if (!person) throw new Error("Missing dental sample person Jordan Blake");
+    const today = "2025-11-05";
+    const profile = pioneerProfileFrom({
+      industry: "dental",
+      customRelations: [],
+      plannedAbsences: [
+        {
+          id: "unplanned-jordan-unassessed",
+          personId: person.id,
+          industry: "dental",
+          from: today,
+          to: today,
+          unplanned: true,
+        },
+      ],
+    });
+    const question = "Who is out today?";
+    const { brief } = localBrief(question, { profile, question, today }, profile);
+
+    expect(brief.markdown).toContain("- Jordan Blake is out today (unplanned).");
+    expect(brief.markdown).not.toContain("  - Nothing rests on them alone.");
+    expect(brief.markdown).not.toMatch(/^\s+- .+; hand-off /m);
+    expect(brief.markdown).toContain(
+      "Who knows what does not mark anyone yet, so Precog cannot say what stops.",
+    );
+  });
+
+  it("uses setup answers for off-team duties in Pioneer scenario facts", () => {
+    const team = buildOwnTeam([
+      {
+        name: "Payroll administrator",
+        role: "Payroll administrator",
+        duties: ["edit_payroll_master"],
+      },
+      {
+        name: "Payment releaser",
+        role: "Bookkeeper",
+        duties: ["release_payment"],
+      },
+    ]);
+    const profile = pioneerProfileFrom({
+      industry: "general",
+      customPeople: team,
+      setupAnswers: { payroll: "none", bankRec: "outside" },
+    });
+    const question = "Walk me through the ghost payroll scenario.";
+    const { brief } = localBrief(question, { profile, question }, profile);
+
+    expect(brief.markdown).toContain(
+      "Your setup answers place enter payroll outside the team, so nobody on the team holds both duties this needs.",
+    );
+    expect(brief.markdown).not.toContain("Tick whoever");
+  });
+
+  it("does not route a future absence question to today's answer", () => {
+    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+    const person = resolveTemplate(sample).people.find(
+      (candidate) => candidate.name === "Jordan Blake",
+    );
+    if (!person) throw new Error("Missing dental sample person Jordan Blake");
+    const today = "2025-11-05";
+    const profile = {
+      ...sample,
+      plannedAbsences: [
+        {
+          id: "planned-next-week",
+          personId: person.id,
+          industry: "dental" as const,
+          from: "2025-11-08",
+          to: "2025-11-10",
+        },
+      ],
+    };
+    const question = "Who is out next week?";
+    const { brief } = localBrief(question, { profile, question, today }, profile);
+
+    expect(brief.markdown).not.toContain("Nobody is recorded as out today.");
+  });
+
   it("does not treat an unassessed register as proof nobody can run a scenario alone", () => {
     const profile = clinic();
     const template = resolveTemplate(profile);
@@ -197,6 +345,65 @@ describe("local advisor brief", () => {
       "Insurance denial appeals: who can run it alone isn't recorded yet; mark it on Who knows what.",
     );
     expect(answer).not.toContain("nobody can run it alone");
+  });
+
+  it("uses item-level recording when another item makes the register assessed", () => {
+    const profile = clinic();
+    const template = resolveTemplate(profile);
+    const scenario = template.scenarios.find((item) => item.id === "sc-front-desk-leaves");
+    if (!scenario?.knowledgeId) throw new Error("Missing dental departure scenario knowledge");
+    const scenarioItem = template.knowledge.find((item) => item.id === scenario.knowledgeId);
+    const otherItem = template.knowledge.find((item) => item.id !== scenario.knowledgeId);
+    const activePerson = template.people.find((person) => person.active);
+    if (!scenarioItem || !otherItem || !activePerson) {
+      throw new Error("Missing dental sample scenario facts");
+    }
+    const partiallyAssessed = {
+      ...template,
+      relations: [
+        { personId: activePerson.id, knowledgeId: otherItem.id, level: "aware" as const },
+      ],
+    };
+    const answer = scenarioAnswer(
+      "Walk me through the front desk lead leaves scenario.",
+      partiallyAssessed,
+      profile,
+    )?.join("\n");
+
+    expect(answer).toContain(
+      `${scenarioItem.name}: who can run it alone isn't recorded yet; mark it on Who knows what.`,
+    );
+    expect(answer).not.toContain(`${scenarioItem.name}: nobody can run it alone.`);
+  });
+
+  it("explains unassigned scenario duties instead of claiming there is no conflict", () => {
+    const profile = clinic();
+    const template = resolveTemplate(profile);
+    const person = template.people[0];
+    if (!person) throw new Error("Missing dental sample person");
+    const answer = scenarioAnswer(
+      "Walk me through a vendor fraud scenario.",
+      {
+        ...template,
+        roleTemplates: {},
+        people: [
+          {
+            ...person,
+            id: "single-team-member",
+            name: "Alex Example",
+            role: "Bookkeeper",
+            entitlements: ["release_payment", "enter_invoices"],
+          },
+        ],
+        relations: [],
+      },
+      profile,
+    )?.join("\n");
+
+    expect(answer).toContain(
+      "Nobody on the team is ticked for set up suppliers, so Precog cannot tell whether one person holds both duties this needs. Tick whoever does it on the Team tab.",
+    );
+    expect(answer).not.toContain("Nobody on the team holds both duties this needs.");
   });
 
   it("reports recorded holders when the sample register is assessed", () => {

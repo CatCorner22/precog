@@ -54,7 +54,9 @@ export function ControlFailurePanel({
       const el = document.getElementById("control-failure-target");
       if (!el) return;
       const { top, bottom } = el.getBoundingClientRect();
-      if (top < 0 || bottom > window.innerHeight) el.scrollIntoView({ block: "center" });
+      const clearance =
+        parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+      if (top < clearance || bottom > window.innerHeight) el.scrollIntoView({ block: "center" });
     });
     return () => cancelAnimationFrame(frame);
   }, [initialTarget]);

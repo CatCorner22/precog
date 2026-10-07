@@ -1,4 +1,5 @@
 import { resolveTemplate } from "../active-template";
+import { formatDayRange } from "../dates";
 import { todayBrief } from "../continuity/today";
 import { registerAssessed } from "../continuity/register-state";
 import { CONTROL_CATALOG, controlForIndustry } from "../evidence/controls";
@@ -38,9 +39,10 @@ import {
 import type { IndustryTemplate } from "../templates/types";
 import type { ScenarioTemplate } from "../types";
 import { closingSteps } from "../controls/dual-release-wording";
+import { dutiesOffTeam } from "../onboarding/setup-answers";
 import { personLabel } from "../person-label";
 import { scenarioUnfolding } from "../scenario-unfolding";
-import { scenarioRuleIds, scenarioWatch } from "../scenario-watch";
+import { dutyFacts, knowledgeFact, scenarioRuleIds, scenarioWatch } from "../scenario-watch";
 import { count, firstName, joinWithAnd, midSentence, verb } from "../text";
 import { matchScenarios, mentionsScenario } from "./scenario-question";
 
@@ -288,6 +290,10 @@ export function isConflictQuestion(question: string): boolean {
 /** Questions about someone being away or leaving: the ones the register answers. */
 const ABSENCE_QUESTION =
   /\b(leav(?:e|es|ing)|quits?|resign\w*|retir\w*|sick|vacation|holiday|away|absen\w*|without)\b/i;
+const OUT_TODAY_QUESTION =
+  /\b(?:(?:who|anyone|anybody)(?:'s|\s+is|\s+are)?\s+(?:out|off|away|absent)\b|out\s+(?:today|sick|now)\b|off\s+sick\b|called\s+in\s+sick\b)/i;
+const FUTURE_PERIOD =
+  /\b(?:tomorrow|next|upcoming|soon|later|weekend|month|monday|tuesday|wednesday|thursday|friday|saturday|sunday|will)\b/i;
 
 function isAbsenceQuestion(question: string): boolean {
   return ABSENCE_QUESTION.test(question);
@@ -475,6 +481,61 @@ function absenceAnswer(question: string, toolResults: ToolResult[]): string[] | 
   ];
 }
 
+function outTodayAnswer(
+  profile: PracticeProfile,
+  tpl: IndustryTemplate,
+  today: string | undefined,
+): string[] | null {
+  if (today === undefined) return null;
+  const brief = todayBrief(
+    tpl,
+    profile.plannedAbsences ?? [],
+    profile.decisions,
+    profile.industry,
+    today,
+  );
+  const lines =
+    brief.out.length === 0
+      ? [
+          "Nobody is recorded as out today. When someone calls in, press Someone is out at the top of the page.",
+        ]
+      : [];
+
+  for (const out of brief.out) {
+    lines.push(
+      `- ${out.person.name} is out today (${out.unplanned ? "unplanned" : "planned leave"}).`,
+    );
+    if (!brief.assessed) continue;
+    if (out.stops.length === 0) {
+      lines.push("  - Nothing rests on them alone.");
+      continue;
+    }
+    for (const stop of out.stops.slice(0, 5)) {
+      lines.push(
+        `  - ${stop.item.name}: ${stop.standIn ? `${stop.standIn.name} covers${stop.cold ? ", starting cold" : ""}` : "nobody left can pick it up"}; hand-off ${stop.handoffLogged ? "logged" : "not logged yet"}.`,
+      );
+    }
+    if (out.stops.length > 5) {
+      lines.push(`  - and ${out.stops.length - 5} more`);
+    }
+  }
+
+  if (brief.out.length > 0 && !brief.assessed) {
+    lines.push("Who knows what does not mark anyone yet, so Precog cannot say what stops.");
+  }
+  if (brief.startingSoon.length > 0) {
+    lines.push(
+      `Starting within a week: ${brief.startingSoon
+        .map(
+          (upcoming) =>
+            `${firstName(upcoming.person.name)} (${formatDayRange(upcoming.window.absence.from, upcoming.window.absence.to)})`,
+        )
+        .join(", ")}.`,
+    );
+  }
+  return lines;
+}
+
 /** Whether the question names these words as whole words ("Jordan", "front desk lead"). */
 function mentions(question: string, words: string): boolean {
   const trimmed = words.trim();
@@ -514,7 +575,6 @@ function scenarioAnswerLines(
       : [],
   );
   const openConflicts = people.flatMap((person) => person.conflicts);
-  const assessed = registerAssessed(tpl);
   const starterIds = new Set(
     starterScenariosLeftOut(tpl, confirmedScenarioIds(profile.decisions, profile.industry)).map(
       (scenario) => scenario.id,
@@ -540,21 +600,16 @@ function scenarioAnswerLines(
       );
     }
 
-    const watch = scenarioWatch(tpl, scenario, openConflicts, outTodayIds);
+    const watch = scenarioWatch(
+      tpl,
+      scenario,
+      openConflicts,
+      outTodayIds,
+      dutiesOffTeam(profile.setupAnswers),
+    );
     const facts: string[] = [];
     if (scenarioRuleIds(scenario).length > 0) {
-      if (watch.conflicts.length === 0) {
-        facts.push("- Nobody on the team holds both duties this needs.");
-      } else {
-        facts.push(
-          ...watch.conflicts.slice(0, 3).map((conflict) => {
-            return `- ${conflict.personName} holds both duties: ${conflict.title}`;
-          }),
-        );
-        if (watch.conflicts.length > 3) {
-          facts.push(`- and ${watch.conflicts.length - 3} more`);
-        }
-      }
+      facts.push(...dutyFacts(watch).map((fact) => `- ${fact}`));
     }
     if (watch.control) {
       facts.push(
@@ -562,16 +617,7 @@ function scenarioAnswerLines(
       );
     }
     if (watch.knowledge) {
-      if (!assessed) {
-        facts.push(
-          `- ${watch.knowledge.name}: who can run it alone isn't recorded yet; mark it on Who knows what.`,
-        );
-      } else {
-        const holders = watch.knowledge.holders.length
-          ? `${joinWithAnd(watch.knowledge.holders)} can run it alone.`
-          : "nobody can run it alone.";
-        facts.push(`- ${watch.knowledge.name}: ${holders}`);
-      }
+      facts.push(`- ${knowledgeFact(watch.knowledge)}`);
       if (watch.knowledge.outToday.length > 0) {
         facts.push(`- ${joinWithAnd(watch.knowledge.outToday)} out today.`);
       }
@@ -621,7 +667,10 @@ function ownFirstBrief(
   const stripInsurance = policyDefaultsInForce(profile.riskVariables);
   const policyNote = insuranceFigureNote(profile.riskVariables, ownBusiness);
   const scenarios = matchScenarios(question, tpl.scenarios);
-  const absence = isAbsenceQuestion(question) ? absenceAnswer(question, known.toolResults) : null;
+  const absence =
+    (OUT_TODAY_QUESTION.test(question) && !FUTURE_PERIOD.test(question)
+      ? outTodayAnswer(profile, tpl, known.today)
+      : null) ?? (isAbsenceQuestion(question) ? absenceAnswer(question, known.toolResults) : null);
   const leadWithConflicts =
     !absence && scenarios.length === 0 && isConflictQuestion(question) && people.length > 0;
   const assessed = registerAssessed(tpl);
