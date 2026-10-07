@@ -8,7 +8,14 @@ import type { Person } from "@/lib/precog/types";
 import { getIndustryTemplate } from "@/lib/precog/templates";
 import { parsePeopleCsv } from "@/lib/precog/import/people-csv";
 import { createHookRuntime, type HookRuntime } from "@/test/hook-runtime";
-import { ConfirmTitleDuties, HouseholdMarkInput, putImportedTeam, TeamEditor } from "./team-editor";
+import {
+  ConfirmTitleDuties,
+  HouseholdMarkInput,
+  LeavingForm,
+  putImportedTeam,
+  recordLeaving,
+  TeamEditor,
+} from "./team-editor";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 // The household field runs as a plain function under src/test/hook-runtime.ts,
@@ -167,5 +174,106 @@ describe("Undo after a team import that replaced the team", () => {
       onChange: vi.fn(),
     });
     expect(vi.mocked(toast.success).mock.calls[0][1]).toBeUndefined();
+  });
+});
+
+describe("Left the business", () => {
+  const TODAY = "2026-10-07";
+
+  it("is a labelled button for each person still working, not an icon beside the trash can", () => {
+    const html = render(people);
+    expect(html.match(/>Left the business</g)).toHaveLength(2);
+    expect(html).toContain('aria-label="Ana Ruiz left the business"');
+    expect(html).not.toContain("Cal Diaz left the business");
+    expect(html).not.toContain("Mark Ana Ruiz as left");
+  });
+
+  it("shows when someone who has left had their last day", () => {
+    const html = render([...people.slice(0, 2), { ...people[2], lastDay: "2026-10-03" }]);
+    expect(html).toContain("last day Oct 3, 2026");
+  });
+
+  it("asks for the last day, today unless changed", () => {
+    const today = renderToStaticMarkup(
+      <LeavingForm
+        person={people[1]}
+        lastDay={TODAY}
+        today={TODAY}
+        onLastDay={() => {}}
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    expect(today).toContain(">Last day<");
+    expect(today).toContain('value="2026-10-07"');
+    expect(today).toContain(">Mark Ben Cole as left<");
+    const later = renderToStaticMarkup(
+      <LeavingForm
+        person={people[1]}
+        lastDay="2026-10-20"
+        today={TODAY}
+        onLastDay={() => {}}
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    expect(later).toContain(">Record last day<");
+    expect(later).toContain("keeps working");
+  });
+
+  it("records the chosen last day, and Undo puts them back at work", () => {
+    const onChange = vi.fn();
+    vi.mocked(toast.success).mockClear();
+    let current = people;
+    onChange.mockImplementation((next: Person[]) => (current = next));
+    const done = recordLeaving({
+      people,
+      personId: "p-ben",
+      lastDay: "2026-10-06",
+      today: TODAY,
+      onChange,
+      latest: () => current,
+    });
+    expect(done).toBe(true);
+    expect(current[1]).toMatchObject({ id: "p-ben", active: false, lastDay: "2026-10-06" });
+    const [message, options] = vi.mocked(toast.success).mock.calls[0];
+    expect(message).toBe("Ben Cole marked as left, last day Oct 6, 2026.");
+    const action = (options as { action: { label: string; onClick: () => void } }).action;
+    expect(action.label).toBe("Undo");
+    action.onClick();
+    expect(current[1]).toEqual(people[1]);
+    expect(toast.success).toHaveBeenLastCalledWith("Ben Cole is back on the team as before.");
+  });
+
+  it("keeps someone with a later last day at work", () => {
+    const onChange = vi.fn();
+    vi.mocked(toast.success).mockClear();
+    recordLeaving({
+      people,
+      personId: "p-ben",
+      lastDay: "2026-10-20",
+      today: TODAY,
+      onChange,
+      latest: () => people,
+    });
+    expect(onChange.mock.calls[0][0][1]).toMatchObject({ active: true, lastDay: "2026-10-20" });
+    expect(vi.mocked(toast.success).mock.calls[0][0]).toBe("Ben Cole's last day is Oct 20, 2026.");
+  });
+
+  it("keeps at least one person working here", () => {
+    const onChange = vi.fn();
+    const alone: Person[] = [people[1], people[2]];
+    expect(
+      recordLeaving({
+        people: alone,
+        personId: "p-ben",
+        lastDay: TODAY,
+        today: TODAY,
+        onChange,
+        latest: () => alone,
+      }),
+    ).toBe(false);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith("Keep at least one person working here.");
   });
 });
