@@ -126,6 +126,12 @@ export function buildThreatAssessment(input: {
     ];
   };
 
+  /** A ranked scenario's plain reasons: days until found and the retained loss. */
+  const scenarioReasons = (row: (typeof ranked)[number]): string[] => [
+    `about ${row.result.timelineDays.p50} assumed days until found`,
+    `Retained ${formatEstimateUsd(retainedLoss(row.result))}${policyNote ? ` (${policyNote})` : ""}`,
+  ];
+
   for (const item of portfolio.top.slice(0, 6)) {
     const scenarioRow =
       item.category === "scenario" && item.linkedScenarioId
@@ -166,7 +172,13 @@ export function buildThreatAssessment(input: {
         band,
         heat: item.residual,
         impactHint: scored.impactHint,
-        reasons: scored.reasons.slice(0, 3),
+        // A scenario's residual row, which can lead its ranked row on the
+        // list, says first what the ranked row says: days until found and
+        // the retained loss.
+        reasons: [...(scenarioRow ? scenarioReasons(scenarioRow) : []), ...scored.reasons].slice(
+          0,
+          3,
+        ),
         immediate: scored.immediate,
         domain:
           item.category === "knowledge"
@@ -284,10 +296,7 @@ export function buildThreatAssessment(input: {
         band,
         heat: residualProxy,
         impactHint: scored.impactHint,
-        reasons: [
-          `about ${row.result.timelineDays.p50} assumed days until found`,
-          `Retained ${formatEstimateUsd(retainedLoss(row.result))}${policyNote ? ` (${policyNote})` : ""}`,
-        ],
+        reasons: scenarioReasons(row),
         immediate: scored.immediate,
         domain: "scenario",
         residual: residualProxy,

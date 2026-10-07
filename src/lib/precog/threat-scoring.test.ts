@@ -161,8 +161,26 @@ describe("a scenario row's retained dollars", () => {
     }).targetDeck.flatMap((t) => t.reasons);
   };
 
+  it("keeps a scenario card's days until found and retained loss when its residual row leads", () => {
+    // The payroll scenario is both a residual-index row and a ranked scenario
+    // on every sample; the card keeps the ranked row's plain reasons first.
+    for (const { id } of INDUSTRIES) {
+      const p = defaultProfile(id as IndustryId);
+      const card = buildThreatAssessment({
+        tpl: resolveTemplate(p),
+        practiceName: "x",
+        staff: p.staff,
+        riskVariables: p.riskVariables,
+        dualRelease: p.dualRelease,
+      }).targetDeck.find((t) => t.scenario?.id === "sc-payroll-ghost");
+      expect(card, id).toBeDefined();
+      expect(card!.reasons[0], id).toMatch(/^about \d+ assumed days until found$/);
+      expect(card!.reasons[1], id).toMatch(/^Retained /);
+    }
+  });
+
   it("prints the retained loss as a rounded estimate, never to the dollar", () => {
-    expect(reasonsFor("professional_services")).toContain(
+    expect(reasonsFor("dental")).toContain(
       "Retained about $5,000 (Precog default, enter your policy)",
     );
     for (const { id } of INDUSTRIES) {
