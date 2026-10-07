@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   latestReview,
   MONTHLY_REVIEW_GRACE_DAY,
+  monthlyReviewTasks,
   openMonthlyChecks,
   periodStanding,
   reviewItemsFor,
@@ -15,10 +16,10 @@ import type { Person } from "@/lib/precog/types";
 import { clientTotals } from "./firm/client-table-csv";
 import {
   buildNeedsAttentionItems,
-  monthlyAttentionItems,
+  groupNeedsAttentionItems,
   openNeedsAttentionItem,
 } from "./needs-attention-menu.logic";
-import { NeedsAttentionMenu } from "./needs-attention-menu";
+import { NeedsAttentionList, NeedsAttentionMenu } from "./needs-attention-menu";
 
 const state = vi.hoisted(() => ({
   today: new Date(2026, 9, 5),
@@ -196,33 +197,110 @@ describe("open monthly checks", () => {
   });
 });
 
+/** A team of two: Dana owns the business and enters payroll; Lisa adds vendors. */
+const dana = {
+  id: "dana",
+  name: "Dana",
+  role: "Owner",
+  active: true,
+  owner: true,
+  entitlements: ["enter_payroll"],
+} as Person;
+const lisa = {
+  id: "lisa",
+  name: "Lisa",
+  role: "Office manager",
+  active: true,
+  entitlements: ["create_vendor"],
+} as Person;
+
+const none = { overdue: [], slipped: [], leavers: 0, reviews: [] };
+
 describe("Needs attention menu", () => {
-  it("names checks not done and exceptions to resolve as separate items", () => {
-    expect(
-      monthlyAttentionItems([
-        { period: "2026-09", notDone: 2, exceptions: 1 },
-        { period: "2026-10", notDone: 4, exceptions: 0 },
-      ]).map(({ id, n, text, target }) => [id, n, text, target]),
-    ).toEqual([
-      ["monthly", 6, "6 Monthly review checks not done", "monthly"],
-      ["monthly-exceptions", 1, "1 Monthly review exception to resolve", "monthly"],
+  it("on the 1st with no results, counts only the month that is due, with its due day", () => {
+    const items = buildNeedsAttentionItems({ ...none, day: "2026-10-01", people: [state.owner] });
+    expect(items.map(({ id, n, text, who }) => [id, n, text, who])).toEqual([
+      ["monthly-Owner", 4, "4 checks for September, due October 10", "Owner"],
     ]);
-    expect(monthlyAttentionItems([{ period: "2026-10", notDone: 1, exceptions: 2 }])).toEqual([
-      {
-        id: "monthly",
-        n: 1,
-        text: "1 Monthly review check not done",
-        target: "monthly",
-        item: "checks",
-      },
-      {
-        id: "monthly-exceptions",
-        n: 2,
-        text: "2 Monthly review exceptions to resolve",
-        target: "monthly",
-        item: "checks",
-      },
+  });
+
+  it("from the 5th to the 10th still counts only last month's checks, not this month's", () => {
+    const items = buildNeedsAttentionItems({ ...none, day: "2026-10-07", people: [state.owner] });
+    expect(items.map((item) => item.text)).toEqual(["4 checks for September, due October 10"]);
+    // After the 10th, this month is the one due.
+    const later = buildNeedsAttentionItems({ ...none, day: "2026-10-11", people: [state.owner] });
+    expect(later.map((item) => item.text)).toEqual(["5 checks for October, due November 10"]);
+  });
+
+  it("counts exceptions from both open months, one item for each check, opening that check", () => {
+    const reviews = [
+      result("cleared_checks", "2026-10", "exception"),
+      result("bank_statement", "2026-09", "exception"),
+      result("new_vendors", "2026-09", "done"),
+    ];
+    const items = buildNeedsAttentionItems({
+      ...none,
+      day: "2026-10-07",
+      people: [state.owner],
+      reviews,
+    });
+    expect(items.map(({ id, n, text, item }) => [id, n, text, item])).toEqual([
+      [
+        "monthly-Owner",
+        2,
+        "2 checks for September, due October 10",
+        "check-2026-09-cleared_checks",
+      ],
+      [
+        "exception-2026-09-bank_statement",
+        1,
+        "Resolve the September exception: Open the bank statement",
+        "check-2026-09-bank_statement",
+      ],
+      [
+        "exception-2026-10-cleared_checks",
+        1,
+        "Resolve the October exception: Read the cleared-check images",
+        "check-2026-10-cleared_checks",
+      ],
     ]);
+    const onOpen = vi.fn();
+    openNeedsAttentionItem(items[2], onOpen);
+    expect(onOpen).toHaveBeenCalledWith("monthly", "check-2026-10-cleared_checks");
+  });
+
+  it("splits the checks by the person each is suggested for and groups every item by person", () => {
+    const day = "2026-10-07";
+    const items = buildNeedsAttentionItems({
+      day,
+      people: [dana, lisa],
+      overdue: [{ linkedPersonId: "lisa" }, {}],
+      slipped: [{ linkedPersonId: "someone-gone" }],
+      leavers: 1,
+      reviews: [],
+    });
+    // Each check counts under the person the Monthly review suggests for it.
+    const tasks = monthlyReviewTasks(day, [dana, lisa], {}, "2026-09");
+    for (const task of tasks) {
+      const mine = items.find((item) => item.id === `monthly-${task.suggestedOwner}`);
+      expect(mine?.who).toBe(task.suggestedOwner);
+    }
+    expect(tasks.find((t) => t.key === "payroll_headcount")?.suggestedOwner).toBe("Lisa");
+    expect(tasks.find((t) => t.key === "new_vendors")?.suggestedOwner).toBe("Dana");
+    const groups = groupNeedsAttentionItems(items, [dana, lisa]);
+    expect(groups.map((g) => g.heading)).toEqual(["Dana", "Lisa", "Unassigned"]);
+    const lisaGroup = groups[1].items.map((item) => item.text);
+    expect(lisaGroup).toContain("1 decision to review");
+    // A decision about nobody, or about someone not on the team, and the leaver check go to Unassigned.
+    expect(groups[2].items.map((item) => item.text)).toEqual([
+      "1 decision to review",
+      "1 decision undone since you marked it done",
+      "1 person who left: check their access",
+    ]);
+    // Nothing is lost or counted twice.
+    const total = (list: readonly { n: number }[]) => list.reduce((n, i) => n + i.n, 0);
+    expect(total(groups.flatMap((g) => g.items))).toBe(total(items));
+    expect(total(items.filter((i) => i.id.startsWith("monthly-")))).toBe(4);
   });
 
   it("shows last month's checks before the 5th, while last month is still open", () => {
@@ -237,9 +315,9 @@ describe("Needs attention menu", () => {
     expect(view()).toBe("");
   });
 
-  it("counts both open months from the 5th, and this month alone after the 10th", () => {
+  it("counts last month alone through the 10th, and this month alone after it", () => {
     state.today = new Date(2026, 9, 5);
-    expect(view()).toContain("Needs attention (9)");
+    expect(view()).toContain("Needs attention (4)");
     state.records = [
       result("cleared_checks", "2026-10", "exception"),
       result("payroll_headcount", "2026-10", "skipped"),
@@ -251,10 +329,11 @@ describe("Needs attention menu", () => {
 
   it("opens a leaver reminder at the leaving section", () => {
     const [leavers] = buildNeedsAttentionItems({
-      overdue: 0,
-      slipped: 0,
+      ...none,
+      day: "2026-10-07",
+      people: [state.owner],
+      reviews: [...all("2026-09", "done"), ...all("2026-10", "done")],
       leavers: 1,
-      months: [],
     });
     const onOpen = vi.fn();
 
@@ -263,31 +342,47 @@ describe("Needs attention menu", () => {
     expect(onOpen).toHaveBeenCalledWith("knowledge", "leaving");
   });
 
-  it("opens monthly reminders at checks and keeps journal reminders on their alias", () => {
+  it("opens the checks not done at the first one and keeps journal reminders on their alias", () => {
     const items = buildNeedsAttentionItems({
-      overdue: 1,
-      slipped: 1,
-      leavers: 0,
-      months: [{ period: "2026-10", notDone: 1, exceptions: 1 }],
+      ...none,
+      day: "2026-10-07",
+      people: [state.owner],
+      overdue: [{}],
+      reviews: [result("bank_statement", "2026-09", "done")],
     });
     const onOpen = vi.fn();
 
     openNeedsAttentionItem(
-      items.find((item) => item.id === "monthly")!,
+      items.find((item) => item.id === "monthly-Owner")!,
       onOpen,
     );
-    expect(onOpen).toHaveBeenLastCalledWith("monthly", "checks");
+    expect(onOpen).toHaveBeenLastCalledWith("monthly", "check-2026-09-cleared_checks");
 
     openNeedsAttentionItem(
-      items.find((item) => item.id === "monthly-exceptions")!,
-      onOpen,
-    );
-    expect(onOpen).toHaveBeenLastCalledWith("monthly", "checks");
-
-    openNeedsAttentionItem(
-      items.find((item) => item.id === "overdue")!,
+      items.find((item) => item.id === "overdue-")!,
       onOpen,
     );
     expect(onOpen).toHaveBeenLastCalledWith("journal");
+  });
+
+  it("renders each person's heading over their rows, each a menu item at least 44px tall on touch", () => {
+    const items = buildNeedsAttentionItems({
+      ...none,
+      day: "2026-10-07",
+      people: [dana, lisa],
+      leavers: 1,
+    });
+    const html = renderToStaticMarkup(
+      <NeedsAttentionList
+        groups={groupNeedsAttentionItems(items, [dana, lisa])}
+        onPick={() => {}}
+      />,
+    );
+    expect(html.match(/role="group"/g)).toHaveLength(3);
+    expect(html).toMatch(/role="group" aria-labelledby="([^"]+)"><div id="\1"[^>]*>Dana</);
+    expect(html).toContain(">Unassigned<");
+    const rows = html.match(/<button[^>]*role="menuitem"[^>]*>/g) ?? [];
+    expect(rows).toHaveLength(items.length);
+    for (const row of rows) expect(row).toContain("pointer-coarse:min-h-11");
   });
 });
