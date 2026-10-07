@@ -43,6 +43,7 @@ import {
   returnVersionLabel,
   reviewButtonsFor,
   reviewVersionLabel,
+  signOffHint,
   REVIEW_WORKFLOW_TEXT,
   reviewRequestedToast,
   SHARED_BUSINESS_NOTE,
@@ -684,6 +685,9 @@ export function OpenVersionReview({
             </Button>
           )}
         </div>
+        {buttons.reviewOrReturn && (
+          <p className="mt-1.5 text-xs text-neutral-700">{signOffHint(current.versionNo)}</p>
+        )}
         {returning && buttons.reviewOrReturn && (
           <div className="mt-2 rounded-md border border-neutral-300 bg-white p-3">
             <label className="block text-xs text-neutral-700">

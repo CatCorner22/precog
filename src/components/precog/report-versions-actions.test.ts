@@ -23,6 +23,7 @@ import {
   overrideNoteLabel,
   overrideNoteReady,
   signOffDialogText,
+  signOffHint,
   SIGN_OFF_TEXT,
   supersededBy,
   supersededLabel,
@@ -39,9 +40,9 @@ describe("the sign-off dialog", () => {
         supersededBy: null,
       }),
     ).toEqual({
-      title: "Review version 7 for issuance?",
+      title: "Sign off version 7 as reviewer?",
       lines: ["Prepared by Ada Park", "Independent review"],
-      confirm: "Review for issuance",
+      confirm: "Sign off as reviewer",
     });
   });
 
@@ -63,7 +64,7 @@ describe("the sign-off dialog", () => {
     expect(SIGN_OFF_TEXT).toEqual({
       heading: "Review this version",
       openToReview: "Open to review",
-      review: "Review for issuance",
+      review: "Sign off as reviewer",
       issueAlone: "Issue without an independent review",
       independent: "Independent review",
       notIndependent: "Not an independent review",
@@ -76,6 +77,12 @@ describe("the sign-off dialog", () => {
       withdrawn: "Review withdrawn. The version reads as not reviewed for issuance.",
       withdrawFailed: "Precog did not withdraw the review.",
     });
+  });
+
+  it("says under Sign off as reviewer what signing off records and what follows", () => {
+    expect(signOffHint(1)).toBe(
+      "Signing off records you as the reviewer of version 1 for issuance. The version can then be marked sent and shared with the client.",
+    );
   });
 });
 
@@ -329,10 +336,10 @@ describe("request-and-return wording", () => {
         returnedByName: "Bea Lin",
         returnedAt: "2026-10-07T15:00:00.000Z",
       }),
-    ).toBe("Returned: Add the payroll duties. by Bea Lin on Oct 7, 2026");
+    ).toBe("Returned by Bea Lin on Oct 7, 2026: “Add the payroll duties.”");
     expect(
       returnedNoteLine({ returnNote: "Add it.", returnedByName: null, returnedAt: null }),
-    ).toBe("Returned: Add it. by a reviewer");
+    ).toBe("Returned by a reviewer: “Add it.”");
     expect(SHARED_BUSINESS_NOTE).toBe(
       "The firm working on this business locks, reviews, sends and shares its report versions. Open any version to read it.",
     );

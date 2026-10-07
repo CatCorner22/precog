@@ -18,7 +18,8 @@ import { formatDay } from "@/lib/precog/dates";
 export const SIGN_OFF_TEXT = {
   heading: "Review this version",
   openToReview: "Open to review",
-  review: "Review for issuance",
+  // Records the viewer as the version's reviewer for issuance (signOffReport).
+  review: "Sign off as reviewer",
   issueAlone: "Issue without an independent review",
   independent: "Independent review",
   notIndependent: NOT_INDEPENDENT,
@@ -37,7 +38,12 @@ export function openToReviewLabel(versionNo: number): string {
   return `Open version ${versionNo} to review`;
 }
 export function reviewVersionLabel(versionNo: number): string {
-  return `Review version ${versionNo} for issuance`;
+  return `Sign off version ${versionNo} as reviewer`;
+}
+
+/** The line under Sign off as reviewer: what signing off records and what can follow. */
+export function signOffHint(versionNo: number): string {
+  return `Signing off records you as the reviewer of version ${versionNo} for issuance. The version can then be marked sent and shared with the client.`;
 }
 export function issueAloneLabel(versionNo: number): string {
   return `Issue version ${versionNo} without an independent review`;
@@ -188,7 +194,7 @@ export function returnedNoteLine(
   version: Pick<ReportVersionRow, "returnNote" | "returnedByName" | "returnedAt">,
 ): string {
   const when = version.returnedAt ? ` on ${formatDay(version.returnedAt)}` : "";
-  return `Returned: ${version.returnNote} by ${version.returnedByName ?? "a reviewer"}${when}`;
+  return `Returned by ${version.returnedByName ?? "a reviewer"}${when}: “${version.returnNote}”`;
 }
 
 /**
@@ -291,7 +297,7 @@ export interface ReviewButtons {
    * reviewed or returned, when the review rules allow it (canIssueAlone).
    */
   issueAlone: boolean;
-  /** "Review for issuance" and "Return to preparer": an owner or reviewer who did not prepare it, on a version not yet reviewed or returned. */
+  /** "Sign off as reviewer" and "Return to preparer": an owner or reviewer who did not prepare it, on a version not yet reviewed or returned. */
   reviewOrReturn: boolean;
 }
 

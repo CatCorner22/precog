@@ -10,10 +10,10 @@ import { INDUSTRIES, type IndustryId } from "@/lib/precog/industry";
 import { cn } from "@/lib/utils";
 import { addClientFromForm } from "./open-client-report";
 import {
-  CLIENT_COLUMNS,
+  clientColumns,
   clientStatusText,
   clientTotals,
-  clientUrgencyText,
+  clientUrgency,
   DEFAULT_CLIENT_SORT,
   exceptionsText,
   lastMonthStanding,
@@ -33,7 +33,10 @@ import {
  * reminders, and the businesses deleted within the grace period. The
  * clients who need the firm sort to the top (last month overdue, then
  * exceptions, then nothing recorded this month, then versions awaiting
- * review) until a column is chosen. With `onAddClient`, Add client starts a
+ * review) until a column is chosen. The client's name opens it as Open
+ * does; each row's actions sit on a line under the name, so they stay on
+ * screen on a laptop. The versions awaiting review, in the summary and in
+ * the column, open the version. With `onAddClient`, Add client starts a
  * new business from here.
  */
 export function ClientList({
@@ -126,7 +129,13 @@ export function ClientList({
 
   const sorted = useMemo(() => sortClients(clients, sort, today), [clients, sort, today]);
   const totals = useMemo(() => clientTotals(clients, today), [clients, today]);
-  const urgency = useMemo(() => clientUrgencyText(clients, today), [clients, today]);
+  const urgency = useMemo(() => clientUrgency(clients, today), [clients, today]);
+  const columns = useMemo(() => clientColumns(today), [today]);
+  // The summary's link opens the version of the most urgent client with one waiting.
+  const firstWaiting = useMemo(
+    () => sortClients(clients, DEFAULT_CLIENT_SORT, today).find((c) => c.awaitingVersionId),
+    [clients, today],
+  );
 
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
@@ -168,20 +177,36 @@ export function ClientList({
       )}
       {clients.length > 0 && (
         <>
-          <p className="mt-1 text-sm font-medium">{urgency}</p>
+          <p className="mt-1 text-sm font-medium">
+            {urgency.before}
+            {urgency.awaiting &&
+              (firstWaiting ? (
+                <button
+                  type="button"
+                  className={linkCls}
+                  aria-label={`Open the version awaiting review for ${firstWaiting.name}`}
+                  onClick={() => onOpenReport(firstWaiting.id)}
+                >
+                  {urgency.awaiting}
+                </button>
+              ) : (
+                urgency.awaiting
+              ))}
+            {urgency.after}
+          </p>
           <p className="mt-0.5 text-xs text-muted">{totals}</p>
         </>
       )}
       <p className="mt-1 text-sm text-muted">
         {clients.length > 0 &&
           "The clients who need you come first: last month overdue, then exceptions, then nothing recorded once this month's checks open on the 5th, then versions awaiting review. "}
-        Last review is the newest monthly result Precog holds for that client. Last month and This
-        month count Done checks only; Exceptions and Skipped count the others. Last month stays open
-        until its due day, the 10th; after it, Last month shows Overdue while a check has no result.
-        An owner address receives the reminders about their own business once its owner confirms it
+        Last review is the newest monthly result Precog holds for that client. The two month columns
+        count Done checks only; Exceptions and Skipped count the others. Last month stays open until
+        its due day, the 10th; after it, its column shows Overdue while a check has no result. An
+        owner address receives the reminders about their own business once its owner confirms it
         from an email; Precog sends nothing else to it.
         {clients.length > 0 &&
-          " Sort by any column; Export clients (CSV) downloads the same columns."}
+          " Sort by any column; Export clients (CSV) downloads these figures, one column each (done and total apart, last month and this month apart), plus the client id and the owner address's state."}
       </p>
       {clients.length === 0 ? (
         <p className="mt-3 text-sm text-muted">
@@ -189,14 +214,18 @@ export function ClientList({
         </p>
       ) : (
         <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[60rem] text-left text-sm">
+          <table className="w-full min-w-[48rem] text-left text-sm">
             <thead>
               <tr className="border-b border-border text-xs text-muted">
-                {CLIENT_COLUMNS.map((col) => (
+                {columns.map((col) => (
                   <th
                     key={col.key}
                     scope="col"
-                    className="py-1.5 pr-3 font-medium"
+                    title={col.title}
+                    className={cn(
+                      "py-1.5 pr-3 align-bottom font-medium",
+                      col.key === "client" ? "min-w-[16rem]" : "max-w-[7.5rem]",
+                    )}
                     aria-sort={
                       sort.key === col.key
                         ? sort.dir === "asc"
@@ -207,7 +236,7 @@ export function ClientList({
                   >
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 hover:text-fg"
+                      className="inline-flex items-end gap-1 text-left hover:text-fg"
                       onClick={() =>
                         setSort((cur) =>
                           cur.key === col.key
@@ -226,14 +255,20 @@ export function ClientList({
                     </button>
                   </th>
                 ))}
-                <th scope="col" className="py-1.5" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {sorted.map((client) => (
                 <tr key={`${client.ownerUserId}/${client.id}`} className="align-top">
                   <td className="py-2 pr-3">
-                    <span className="font-medium">{client.name}</span>
+                    <button
+                      type="button"
+                      className={cn(linkCls, "text-left font-medium")}
+                      title="Open the Monthly review"
+                      onClick={() => onOpen(client.id)}
+                    >
+                      {client.name}
+                    </button>
                     {client.id === activeId && (
                       <span className="ml-2 text-xs text-primary">open</span>
                     )}
@@ -244,30 +279,7 @@ export function ClientList({
                         {client.granted ? "Client's own" : "another firm member's"}
                       </span>
                     )}
-                  </td>
-                  <td className="py-2 pr-3 text-xs">{clientStatusText(client)}</td>
-                  <td className="py-2 pr-3 text-xs">
-                    {client.lastReviewAt ? client.lastReviewAt.slice(0, 10) : "None"}
-                  </td>
-                  <td className="py-2 pr-3 text-xs">
-                    {lastMonthText(client, today)}
-                    {lastMonthStanding(client, today).overdue && (
-                      <span className="ml-1.5 rounded border border-danger/40 px-1 py-0.5 font-medium text-danger">
-                        Overdue
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-3 text-xs">{thisMonthText(client, today)}</td>
-                  <td className="py-2 pr-3 text-xs">{exceptionsText(client, today)}</td>
-                  <td className="py-2 pr-3 text-xs">{skippedText(client, today)}</td>
-                  <td className="py-2 pr-3 text-xs">
-                    {client.openFindings === null ? "Not counted yet" : client.openFindings}
-                  </td>
-                  <td className="py-2 pr-3 text-xs">
-                    {client.awaitingReview > 0 ? client.awaitingReview : "None"}
-                  </td>
-                  <td className="py-2">
-                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       {editing === client.id ? (
                         <form
                           className="flex items-center gap-1.5"
@@ -335,6 +347,40 @@ export function ClientList({
                         Open report
                       </button>
                     </div>
+                  </td>
+                  <td className="py-2 pr-3 text-xs">{clientStatusText(client)}</td>
+                  <td className="py-2 pr-3 text-xs whitespace-nowrap">
+                    {client.lastReviewAt ? client.lastReviewAt.slice(0, 10) : "None"}
+                  </td>
+                  <td className="py-2 pr-3 text-xs">
+                    {lastMonthText(client, today)}
+                    {lastMonthStanding(client, today).overdue && (
+                      <span className="ml-1.5 rounded border border-danger/40 px-1 py-0.5 font-medium text-danger">
+                        Overdue
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3 text-xs">{thisMonthText(client, today)}</td>
+                  <td className="py-2 pr-3 text-xs">{exceptionsText(client, today)}</td>
+                  <td className="py-2 pr-3 text-xs">{skippedText(client, today)}</td>
+                  <td className="py-2 pr-3 text-xs">
+                    {client.openFindings === null ? "Not counted yet" : client.openFindings}
+                  </td>
+                  <td className="py-2 pr-3 text-xs">
+                    {client.awaitingReview === 0 ? (
+                      "None"
+                    ) : client.awaitingVersionId ? (
+                      <button
+                        type="button"
+                        className={linkCls}
+                        aria-label={`Open the version of ${client.name} awaiting review`}
+                        onClick={() => onOpenReport(client.id)}
+                      >
+                        {client.awaitingReview}
+                      </button>
+                    ) : (
+                      client.awaitingReview
+                    )}
                   </td>
                 </tr>
               ))}
@@ -448,6 +494,9 @@ export function AddClientForm({
     </form>
   );
 }
+
+/** A button that reads as a link: the client's name and the versions awaiting review. */
+const linkCls = "text-primary underline underline-offset-4 hover:text-fg";
 
 /** Whether reminders reach the owner address, after the address itself. */
 function ownerStatusText(status: ClientEngagementRow["ownerEmailStatus"]): string {
