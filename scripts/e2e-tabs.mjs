@@ -266,17 +266,36 @@ async function shellChecks(page) {
   if (!/[?&]item=controls/.test(page.url())) {
     throw new Error(`?tab=layers did not open the Controls view: ${page.url()}`);
   }
-  await page.locator('#sod-tab-controls[aria-selected="true"]').waitFor({ timeout });
-  await page.locator("#sod-view-controls").getByRole("heading", { name: "Controls" }).waitFor();
+  await page.locator('#sod-tab-safeguards[aria-selected="true"]').waitFor({ timeout });
+  await page
+    .locator("#sod-view-safeguards")
+    .getByRole("heading", { name: "Controls", exact: true })
+    .waitFor();
+  // Dual release sits below the controls on the same sub-tab.
+  await page.locator("#sod-section-dual").waitFor();
 
-  // Choosing a view puts it in the address, so a reload opens the view on screen.
-  await page.locator("#sod-tab-matrix").click();
-  await page.waitForURL(/[?&]item=matrix/, { timeout });
+  // Choosing a sub-tab puts its first view in the address, so a reload opens it on screen.
+  await page.locator("#sod-tab-duties").click();
+  await page.waitForURL(/[?&]item=power/, { timeout });
   await page.reload({ waitUntil: "networkidle", timeout });
-  await page.locator('#sod-tab-matrix[aria-selected="true"]').waitFor({ timeout });
+  await page.locator('#sod-tab-duties[aria-selected="true"]').waitFor({ timeout });
   // A later link to Controls still switches the view in place.
   await page.goBack({ waitUntil: "networkidle", timeout });
-  await page.locator('#sod-tab-controls[aria-selected="true"]').waitFor({ timeout });
+  await page.locator('#sod-tab-safeguards[aria-selected="true"]').waitFor({ timeout });
+
+  // The older view addresses still work: the matrix opens its fold under
+  // Duty conflicts and takes focus; Duties by person is a section of Duty assignments.
+  await home("?tab=sod&item=matrix");
+  await page.locator('#sod-tab-conflicts[aria-selected="true"]').waitFor({ timeout });
+  await page.locator("#sod-section-matrix details[open]").waitFor({ timeout });
+  await page.waitForFunction(() => document.activeElement?.id === "sod-section-matrix", null, {
+    timeout,
+  });
+  await home("?tab=sod&item=roles");
+  await page.locator('#sod-tab-duties[aria-selected="true"]').waitFor({ timeout });
+  await page.waitForFunction(() => document.activeElement?.id === "sod-section-roles", null, {
+    timeout,
+  });
 
   // The header opens Ask Pioneer, and "Someone is out" lands on the absence
   // cards of Who knows what, with the section focused.
