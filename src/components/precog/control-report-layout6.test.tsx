@@ -168,6 +168,53 @@ describe("report layout 6", () => {
   });
 });
 
+describe("another problem in the report's monthly section", () => {
+  const DONATION = "A family's mailed donation check never reached the bank";
+  const withProblem: PracticeProfile = {
+    ...dana,
+    monthlyReviews: [
+      {
+        key: "other_problem",
+        period: "2026-09",
+        result: "exception",
+        ownerName: "Priya",
+        notes: DONATION,
+        recordedAt: "2026-09-25T15:00:00.000Z",
+      },
+      {
+        key: "bank_statement",
+        period: "2026-09",
+        result: "done",
+        ownerName: "Priya",
+        notes: "",
+        recordedAt: "2026-09-24T15:00:00.000Z",
+      },
+    ],
+  };
+  const monthly = (text: string) => between(text, "|Monthly review|", "|Priority stack|");
+
+  it("prints each problem as its own line under layout 6, after the checks", () => {
+    const section = monthly(textOf(live(withProblem)));
+    expect(section).toContain("|Open the bank statement: Done — Priya|");
+    expect(section).toContain("|Read the cleared-check images: not recorded|");
+    expect(section).toMatch(
+      /\|Review vendors added or changed: not recorded\|Another problem: Exception — Priya: A family(&#x27;|')s mailed donation check never reached the bank$/,
+    );
+  });
+
+  it("prints a version locked under layout 5 exactly as before", () => {
+    const before = monthly(
+      textOf(
+        storedUnder({ ...withProblem, monthlyReviews: withProblem.monthlyReviews!.slice(1) }, 5),
+      ),
+    );
+    const after = monthly(textOf(storedUnder(withProblem, 5)));
+    expect(after).toBe(before);
+    expect(after).not.toContain("Another problem");
+    expect(after).toContain("|Open the bank statement: Done — Priya|");
+  });
+});
+
 describe("a locked version's executive summary and steps", () => {
   it("prints the words stored under layout 5, not the step as Precog names it now", () => {
     const model = buildReportModelForProfile(defaultProfile("general"), "2026-09-26");

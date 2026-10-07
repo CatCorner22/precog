@@ -5,6 +5,8 @@ import { INDEX_BASIS } from "@/lib/precog/scoring/bands";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import {
   latestReview,
+  otherProblemReportLine,
+  otherProblems,
   periodWithDue,
   reportPeriod,
   reviewItemsFor,
@@ -232,6 +234,11 @@ export function ControlReport({
     item,
     latest: latestReview(profile.monthlyReviews ?? [], item.key, month),
   }));
+  // Layout 6 prints each other problem of the month on its own line after
+  // the checks; layouts 1 to 5 print the checks alone, as they did.
+  const problemLines = layoutSix
+    ? otherProblems(profile.monthlyReviews ?? [], month).map(otherProblemReportLine)
+    : [];
   const team = layoutSix
     ? teamSizeLine(profile, tpl.people, industry.teamLabel)
     : `${profile.staff.teamSize}-person ${industry.teamLabel}`;
@@ -514,12 +521,15 @@ export function ControlReport({
           {layoutFive && (
             <p className="mb-1 text-sm font-medium">Monthly checks for {periodWithDue(month)}</p>
           )}
-          {reviews.some((r) => r.latest) ? (
+          {reviews.some((r) => r.latest) || problemLines.length > 0 ? (
             <ul className="space-y-1 text-sm">
               {reviews.map(({ item, latest }) => (
                 <li key={item.key}>
                   {item.title}: {latest ? reviewResultLine(latest) : "not recorded"}
                 </li>
+              ))}
+              {problemLines.map((line, i) => (
+                <li key={`other-${i}`}>{line}</li>
               ))}
             </ul>
           ) : (
