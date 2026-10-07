@@ -37,6 +37,14 @@ export interface OwnTeamRow {
    * the owner set by hand stay.
    */
   suggestedFor?: string;
+  /**
+   * Duties the job title ticked that the setup answers then left out (no
+   * payroll, an outside bank reconciliation, no cash). They have no column
+   * while left out, so the owner cannot have changed them by hand; when the
+   * answers bring one back onto the team it is ticked again (see
+   * fitDutiesToAnswers).
+   */
+  answersUnticked?: EntitlementId[];
   /** The pasted roster says this person is on leave; they stay on the team and are recorded as out. */
   onLeave?: boolean;
   /**
@@ -216,12 +224,25 @@ export function stillSuggested(
   return sameDuties(withoutOffTeam(duties, answers), withoutOffTeam(suggestion, answers));
 }
 
+/** One row without the duties in `off`, remembering them as left out by the answers. */
+function dropOffTeam(row: OwnTeamRow, off: ReadonlySet<EntitlementId>): OwnTeamRow {
+  const removed = row.duties.filter((d) => off.has(d));
+  if (removed.length === 0) return row;
+  const remembered = row.answersUnticked ?? [];
+  return {
+    ...row,
+    duties: row.duties.filter((d) => !off.has(d)),
+    answersUnticked: [...remembered, ...removed.filter((d) => !remembered.includes(d))],
+  };
+}
+
 /**
  * The rows with every duty the setup answers place outside the team
  * unticked, for rows a paste or "Add people by job title" just filled. The
  * grid's untouched first row keeps its ticks so it stays recognizable as
- * untouched; those duties have no column and Finish drops them. Returns the
- * same array when nothing changed.
+ * untouched; those duties have no column and Finish drops them. Each row
+ * remembers what the answers unticked (`answersUnticked`). Returns the same
+ * array when nothing changed.
  */
 export function withoutDutiesOffTeam(
   rows: OwnTeamRow[],
@@ -234,11 +255,79 @@ export function withoutDutiesOffTeam(
     // The fresh first row keeps its ticks (see above).
     const untouched: boolean = isUntouchedLeaderRow(row);
     if (untouched) return row;
-    if (!row.duties.some((d) => off.has(d))) return row;
-    changed = true;
-    return { ...row, duties: row.duties.filter((d) => !off.has(d)) };
+    const fitted = dropOffTeam(row, off);
+    if (fitted !== row) changed = true;
+    return fitted;
   });
   return changed ? next : rows;
+}
+
+/**
+ * The rows fitted to the setup answers, run when the owner leaves the "How
+ * money moves here" step. Duties the answers place outside the team are
+ * unticked (withoutDutiesOffTeam). A duty the answers unticked earlier and
+ * now bring back onto the team is ticked again, on a row whose ticks still
+ * come from its job title (the title that ticked them is the row's title
+ * now) and whose title still ticks that duty. A duty the owner unticked by
+ * hand was never unticked by the answers, so it stays unticked. Returns the
+ * same array when nothing changed.
+ */
+export function fitDutiesToAnswers(
+  rows: OwnTeamRow[],
+  answers: SetupAnswers | undefined,
+  industry?: string,
+): OwnTeamRow[] {
+  const off = dutiesOffTeam(answers);
+  const hidden = answers ? hiddenDuties(answers) : new Set<EntitlementId>();
+  let changed = false;
+  const restored = rows.map((row) => {
+    if (!row.answersUnticked) return row;
+    const role = row.role.trim();
+    const fromTitle = Boolean(role) && (row.suggestedFor ?? "").trim() === role;
+    const usual = fromTitle ? suggestedDuties(role, rowOwnsBusiness(row, industry), industry) : [];
+    const back = row.answersUnticked.filter(
+      (d) => usual.includes(d) && !off.has(d) && !hidden.has(d) && !row.duties.includes(d),
+    );
+    // Still left out (or hidden) by the answers: remember it for later.
+    const waiting = row.answersUnticked.filter(
+      (d) => usual.includes(d) && (off.has(d) || hidden.has(d)) && !row.duties.includes(d),
+    );
+    if (back.length === 0 && waiting.length === row.answersUnticked.length) return row;
+    changed = true;
+    const held = new Set([...row.duties, ...back]);
+    const { answersUnticked: _forgotten, ...rest } = row;
+    return {
+      ...rest,
+      // In the title's order, then any duty ticked by hand.
+      duties: [
+        ...usual.filter((d) => held.has(d)),
+        ...row.duties.filter((d) => !usual.includes(d)),
+      ],
+      ...(waiting.length > 0 ? { answersUnticked: waiting } : {}),
+    };
+  });
+  const fitted = withoutDutiesOffTeam(restored, answers);
+  return changed || fitted !== restored ? fitted : rows;
+}
+
+/**
+ * A row with its job title's usual duties ticked, as typing a title does:
+ * duties the setup answers place outside the team are left unticked and
+ * remembered (`answersUnticked`), so changing the answer back ticks them.
+ */
+export function titleTicksFor(
+  row: OwnTeamRow,
+  industry?: string,
+  answers?: SetupAnswers,
+): OwnTeamRow {
+  const role = row.role.trim();
+  const { answersUnticked: _old, ...rest } = row;
+  const ticked: OwnTeamRow = {
+    ...rest,
+    duties: suggestedDuties(role, rowOwnsBusiness(row, industry), industry),
+    suggestedFor: role,
+  };
+  return dropOffTeam(ticked, dutiesOffTeam(answers));
 }
 
 /**

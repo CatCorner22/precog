@@ -10,6 +10,7 @@ import {
   departuresBetween,
   LEAVER_ACCESS_ITEMS,
   leaverAccessItems,
+  leaverAccessNames,
   leaverLine,
   noteDepartures,
   openAccessChecks,
@@ -343,5 +344,46 @@ describe("the leaver checklist in each industry's words", () => {
     const { decisions } = confirmAccessRemoved([check], [check.id], TODAY);
     expect(decisions[0].note).toContain("donor database");
     expect(decisions[0].note).not.toContain("point of sale");
+  });
+});
+
+describe("the names the 'Leaving the team' card gives for people who left", () => {
+  const after = [...team, person("p-tony", "Tony Ruiz", "Cashier", false)];
+
+  it("names only the people whose access checklist is open", () => {
+    const old = { ...person("p-sam", "Sam Old", "Cashier", false), lastDay: "2024-09-01" };
+    const people = [...after, old];
+    const first = noteDepartures(
+      [],
+      [{ personId: "p-sam", name: "Sam Old" }],
+      "marked",
+      "retail",
+      "2024-09-01",
+    );
+    const { checks } = confirmAccessRemoved(first, [first[0].id], "2024-09-02");
+    const open = noteDepartures(
+      checks,
+      [{ personId: "p-tony", name: "Tony Ruiz" }],
+      "marked",
+      "retail",
+      TODAY,
+    );
+    expect(leaverAccessNames(open, "retail", people)).toEqual(["Tony Ruiz"]);
+  });
+
+  it("names nobody when every check is confirmed, so the card says nobody has given notice", () => {
+    const first = noteDepartures(
+      [],
+      [{ personId: "p-tony", name: "Tony Ruiz" }],
+      "marked",
+      "retail",
+      TODAY,
+    );
+    const { checks } = confirmAccessRemoved(first, [first[0].id], TODAY);
+    expect(leaverAccessNames(checks, "retail", after)).toEqual([]);
+  });
+
+  it("names nobody on a team with inactive people but no checks, like the sample team", () => {
+    expect(leaverAccessNames(undefined, "retail", after)).toEqual([]);
   });
 });

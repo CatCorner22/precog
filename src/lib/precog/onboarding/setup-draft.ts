@@ -78,6 +78,9 @@ function isRow(value: unknown): value is OwnTeamRow {
     typeof row.role === "string" &&
     Array.isArray(row.duties) &&
     row.duties.every((d) => typeof d === "string") &&
+    (row.answersUnticked === undefined ||
+      (Array.isArray(row.answersUnticked) &&
+        row.answersUnticked.every((d) => typeof d === "string"))) &&
     optional(row.owner, "boolean") &&
     optional(row.onLeave, "boolean") &&
     (row.tenureYears === undefined ||

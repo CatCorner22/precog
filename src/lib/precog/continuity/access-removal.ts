@@ -350,6 +350,19 @@ export function openAccessChecks(
 }
 
 /**
+ * The names of the people whose pay-and-sign-ins checklist is on screen
+ * (the open checks), each once, in checklist order. The "Leaving the team"
+ * card names exactly these people when it points at the checklist.
+ */
+export function leaverAccessNames(
+  checks: readonly LeaverAccessCheck[] | undefined,
+  industry: IndustryId,
+  people: readonly Person[],
+): string[] {
+  return [...new Set(openAccessChecks(checks, industry, people).map((check) => check.name))];
+}
+
+/**
  * The owner confirmed, on `today`, that these people are off payroll and
  * their logins are removed. Closes their checks and returns one decisions-log
  * entry per person, dated, saying what was confirmed.

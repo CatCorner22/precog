@@ -37,6 +37,8 @@ import {
   titleTickedDuties,
   untickDutyForTitle,
   withoutDutiesOffTeam,
+  fitDutiesToAnswers,
+  titleTicksFor,
   MAX_ROLE_LENGTH,
   onLeavePersonIds,
   firstRowForIndustry,
@@ -494,9 +496,8 @@ export function IndustryOnboarding({
           ? suggestedDuties(row.suggestedFor, owns, selected, answers)
           : [];
         const untouched = row.duties.length === 0 || stillSuggested(row.duties, previous, answers);
-        return untouched
-          ? { ...row, duties: suggestedDuties(role, owns, selected, answers), suggestedFor: role }
-          : row;
+        // Duties the answers leave out are remembered, so changing the answer back ticks them.
+        return untouched ? titleTicksFor(row, selected, answers) : row;
       }),
     );
   }
@@ -894,8 +895,9 @@ export function IndustryOnboarding({
                 onChange={setAnswers}
                 industry={selected}
                 onNext={() => {
-                  // Answers changed after people were added untick what they rule out.
-                  setRows((current) => withoutDutiesOffTeam(current, answers));
+                  // Answers changed after people were added untick what they rule out, and
+                  // tick again what an earlier answer unticked and these bring back.
+                  setRows((current) => fitDutiesToAnswers(current, answers, selected));
                   if (facts.setupMethod !== "person_grid") setPasteOpen(true);
                   setStep("team");
                 }}

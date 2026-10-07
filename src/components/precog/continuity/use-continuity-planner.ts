@@ -88,6 +88,7 @@ import {
   setLastDay,
   type Leaver,
 } from "@/lib/precog/continuity/leavers";
+import { leaverAccessNames } from "@/lib/precog/continuity/access-removal";
 import { makePlannedAbsenceId, type PracticeProfile } from "@/lib/precog/practice-profile";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
 import type {
@@ -745,10 +746,10 @@ function useLeaving(
     () => leavers(tpl, profile.decisions, today, conflictsFor),
     [tpl, profile.decisions, today, conflictsFor],
   );
-  /** People already marked as left; their access checklist shows on the same card. */
+  /** People who left whose access checklist shows on the same card (the open checks only). */
   const leftNames = useMemo(
-    () => tpl.people.filter((p) => !p.active).map((p) => p.name),
-    [tpl.people],
+    () => leaverAccessNames(profile.leaverAccessChecks, profile.industry, tpl.people),
+    [profile.leaverAccessChecks, profile.industry, tpl.people],
   );
   /** People still on the team with no last day recorded yet. */
   const staying = useMemo(() => people.filter((p) => !p.lastDay), [people]);

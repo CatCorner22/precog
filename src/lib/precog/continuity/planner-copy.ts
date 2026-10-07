@@ -56,8 +56,9 @@ export const UNHELD_VIEW = "__unheld__";
 
 /**
  * The "Leaving the team" card's line when nobody on the team has a last day
- * recorded. `leftNames` are the people already marked as left, whose access
- * checklist shows on the same card; the line does not say "nobody" over them.
+ * recorded. `leftNames` are the people who left whose access checklist is
+ * open on the same card (`leaverAccessNames`); the line does not say "nobody"
+ * over them, and names nobody whose checklist is not on screen.
  */
 export function noNoticeText(leftNames: readonly string[]): string {
   const advice =
