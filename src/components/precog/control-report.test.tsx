@@ -878,8 +878,8 @@ describe("report layout 3", () => {
   };
 
   it("is the layout a live report prints", () => {
-    expect(REPORT_LAYOUT_VERSION).toBe(6);
-    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(REPORT_LAYOUT_VERSION).toBe(7);
+    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4, 5, 6, 7]);
     const html = renderToStaticMarkup(
       <ReadOnlyPracticeProvider profile={answered}>
         <ControlReport />

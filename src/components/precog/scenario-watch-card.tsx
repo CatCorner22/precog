@@ -97,12 +97,18 @@ export function ScenarioWatchCard({
                 ) : (
                   <p>Nobody on the team holds both duties this needs.</p>
                 ))}
-              {control && (
-                <p>
-                  &ldquo;{control.name}&rdquo; is{" "}
-                  {control.inPlace ? "marked in place." : "not marked in place."}
-                </p>
-              )}
+              {control &&
+                (control.example ? (
+                  <p>
+                    &ldquo;{control.name}&rdquo; is Precog&rsquo;s example. You have not confirmed
+                    it runs here.
+                  </p>
+                ) : (
+                  <p>
+                    &ldquo;{control.name}&rdquo; is{" "}
+                    {control.inPlace ? "marked in place." : "not marked in place."}
+                  </p>
+                ))}
               {watch.knowledge && (
                 <>
                   <p>

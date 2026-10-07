@@ -10,6 +10,7 @@ import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect
 import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { openConflictHeadline } from "@/lib/precog/headline/open-conflicts";
 import { dutiesOffTeam } from "@/lib/precog/onboarding/setup-answers";
+import { confirmedControlIds } from "@/lib/precog/active-template";
 import {
   insuranceBasis,
   insuranceFigureNote,
@@ -38,6 +39,7 @@ import {
   scenarioCases,
   scenarioConfirmation,
   scenarioWatch,
+  teamClosesPath,
   type ScenarioCases,
 } from "./scenario-page";
 import type { ScenarioView } from "./scenario-link";
@@ -116,6 +118,12 @@ export function SingleScenarioView({
       ),
     [tpl, profile.plannedAbsences, profile.decisions, profile.industry, day],
   );
+  // On an owner's own business a control reads as in place only once the
+  // owner confirmed it; the sample's controls are the sample's own facts.
+  const ownerConfirmed = useMemo(
+    () => (ownBusiness ? new Set(confirmedControlIds(profile.decisions, profile.industry)) : null),
+    [ownBusiness, profile.decisions, profile.industry],
+  );
   // Duties the setup answers place outside the team, as the Duty conflicts screen reads them.
   const watch = useMemo(
     () =>
@@ -127,8 +135,18 @@ export function SingleScenarioView({
         dutiesOffTeam(profile.setupAnswers),
         assignments,
         conflicts,
+        ownerConfirmed,
       ),
-    [tpl, scenario, openConflicts, outTodayIds, profile.setupAnswers, assignments, conflicts],
+    [
+      tpl,
+      scenario,
+      openConflicts,
+      outTodayIds,
+      profile.setupAnswers,
+      assignments,
+      conflicts,
+      ownerConfirmed,
+    ],
   );
   const unfolding = scenarioUnfolding(scenario.id);
   // The figures card: a pick on a phone scrolls it into view.
@@ -147,6 +165,11 @@ export function SingleScenarioView({
   const withPolicyNote = (text: string) => (policyNote ? `${text} · ${policyNote}` : text);
   const teamLabel = industryNoun(profile.industry);
   const dynamic = result.dynamic;
+  // The owner's own team holds no pair this scenario needs: the card leads
+  // with that, and the assumed loss stays as the example figure, smaller.
+  const pathClosed = ownBusiness && teamClosesPath(scenario, watch);
+  const lossSize = pathClosed ? "sm" : "lg";
+  const lossLabel = (label: string) => (pathClosed ? `Example: ${label}` : label);
 
   return (
     <>
@@ -221,6 +244,12 @@ export function SingleScenarioView({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
+            {pathClosed && (
+              <p className="rounded-lg border border-ok/40 bg-ok/10 p-3 text-sm">
+                <strong>Your team closes this path:</strong> nobody on it holds both duties. The
+                loss below is the scenario&rsquo;s example figure.
+              </p>
+            )}
             <p className="rounded-lg border border-border bg-panel p-3 text-xs leading-relaxed text-muted">
               <strong className="text-fg">{ILLUSTRATIVE_LABEL}.</strong> These are assumptions
               written into the scenario and scaled by your settings, not predictions or
@@ -241,14 +270,14 @@ export function SingleScenarioView({
                 hint={result.confidenceLabel}
               />
               <FigureTile
-                size="lg"
-                label="Assumed loss if it happens"
+                size={lossSize}
+                label={lossLabel("Assumed loss if it happens")}
                 value={formatEstimateUsd(result.financialImpact.expected)}
                 hint={`assumed range ${formatEstimateUsdRange(result.financialImpact.low, result.financialImpact.high)}`}
               />
               <FigureTile
-                size="lg"
-                label={`Assumed loss retained by ${teamLabel}`}
+                size={lossSize}
+                label={lossLabel(`Assumed loss retained by ${teamLabel}`)}
                 value={formatEstimateUsd(result.retainedImpact.expected)}
                 hint={
                   insuredLoss

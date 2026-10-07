@@ -39,6 +39,8 @@ import { buildProcessMapGraph } from "../process-graph";
 import { scoreMap } from "../builder/scored-map";
 import { registerAssessed } from "../continuity/register-state";
 import { setupInPlaceControls } from "../onboarding/setup-answers";
+import { confirmedControlIds, controlConfirmedByOwner } from "../active-template";
+import { mapSource, untouchedStarterProcessIds } from "../builder/map-state";
 import {
   concentrationMove,
   continuityFollowThrough,
@@ -252,6 +254,37 @@ export function buildControlReportModel({
     /** The decision on each duty-conflict finding and the findings judged not valid (layout 3). */
     responses: findingResponses(sod.conflicts, profile.decisions, profile.industry),
     followThrough: continuityFollowThrough(profile.decisions, profile.industry),
+    /** Precog's examples on an own business, which layout 7 marks as such. */
+    examples: ownBusinessExamples(tpl, profile),
+  };
+}
+
+/**
+ * What on an owner's own business is still Precog's example: the processes
+ * on their own map still exactly as the starter map had them, with nobody
+ * assigned, and the controls the owner never confirmed run there
+ * (`controlConfirmedByOwner`). Layout 7 marks each one where the report
+ * lists it. Stored with the model, so a locked version and its shared copy,
+ * which carries neither the journal nor the process descriptions, mark the
+ * same ones. None on the sample business, and no process on an untouched
+ * starter map, which the report already names as Precog's example.
+ */
+export interface ReportExamples {
+  processIds: string[];
+  /** The priority-stack target id of each such control (`ctrl-<control id>`). */
+  targetIds: string[];
+}
+
+export const NO_REPORT_EXAMPLES: ReportExamples = { processIds: [], targetIds: [] };
+
+function ownBusinessExamples(tpl: IndustryTemplate, profile: PracticeProfile): ReportExamples {
+  if (teamSource(profile) !== "own") return NO_REPORT_EXAMPLES;
+  const confirmed = new Set(confirmedControlIds(profile.decisions, profile.industry));
+  return {
+    processIds: mapSource(profile) === "own" ? [...untouchedStarterProcessIds(profile)].sort() : [],
+    targetIds: tpl.controls
+      .filter((c) => !controlConfirmedByOwner(c, confirmed))
+      .map((c) => `ctrl-${c.id}`),
   };
 }
 

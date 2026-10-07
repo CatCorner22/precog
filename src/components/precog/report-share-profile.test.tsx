@@ -190,7 +190,7 @@ const render = (profile: PracticeProfile, layoutVersion: number) =>
 
 describe("shareReportProfile", () => {
   it("prints the same report as the full profile under every printed layout", () => {
-    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(PRINTED_LAYOUT_VERSIONS).toEqual([1, 2, 3, 4, 5, 6, 7]);
     const projected = shareReportProfile(full);
     for (const layout of PRINTED_LAYOUT_VERSIONS) {
       const whole = render(full, layout);

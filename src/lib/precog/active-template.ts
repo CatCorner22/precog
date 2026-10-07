@@ -60,6 +60,22 @@ export function confirmedControlIds(
   return [...ids].sort();
 }
 
+/**
+ * Whether the owner of their own business has said a control runs there:
+ * they confirmed it ("This runs here", a journal entry linked to it) or
+ * recorded something in place against it (`controlsInPlace`, which
+ * `resolveTemplate` puts in its compensating controls). A control's
+ * "segregated" flag is not enough: on a starter control it is the sample's,
+ * and on a control a conflict rule links to it says only that nobody on the
+ * team holds both duties. Neither is the owner saying the control runs.
+ */
+export function controlConfirmedByOwner(
+  control: Pick<ControlItem, "id" | "compensatingControls">,
+  confirmed: ReadonlySet<string>,
+): boolean {
+  return confirmed.has(control.id) || control.compensatingControls.length > 0;
+}
+
 /** The linkedTab of a journal entry that records a control the owner already has against a duty gap. */
 export const CONTROL_IN_PLACE_TAB = "control-in-place";
 

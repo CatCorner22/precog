@@ -156,6 +156,14 @@
  * the firm page 1.1 KB; the rest is 1 KB or less per chunk. No module is
  * duplicated and the largest chunk is unchanged at 109 KB. Total budget
  * raised from 855 KB to 870 KB; slice S43 in wave 4 still lowers it.
+ *
+ * 2026-10-07: owner-confirmed controls and Precog's examples (the scenario
+ * card reads a control as in place only once the owner confirmed it, leads
+ * with a path the owner's team closes, and report layout 7 marks example
+ * processes and controls) add 0.5 KB gzipped: control-report 243 bytes,
+ * scenario-runner 229 bytes, measured against a build of da42bb2 (869.9 KB,
+ * 140 chunks; 97 bytes under the budget) and this change (870.4 KB, 140
+ * chunks). Total budget raised from 870 KB to 871 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -164,7 +172,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 870 * 1024,
+  totalGzipBytes: 871 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

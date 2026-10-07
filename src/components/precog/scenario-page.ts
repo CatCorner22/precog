@@ -11,7 +11,7 @@ import { dateAfter } from "@/lib/precog/dates";
 import { count } from "@/lib/precog/text";
 import { formatEstimateUsdDelta, formatUsd, formatUsdDelta } from "@/lib/utils";
 import { scenarioRuleIds } from "@/lib/precog/scenario-watch";
-export { scenarioRuleIds, scenarioWatch } from "@/lib/precog/scenario-watch";
+export { scenarioRuleIds, scenarioWatch, teamClosesPath } from "@/lib/precog/scenario-watch";
 export type { ScenarioWatch } from "@/lib/precog/scenario-watch";
 
 export interface ScenarioCases {

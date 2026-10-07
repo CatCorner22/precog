@@ -50,12 +50,16 @@ import {
 import type { FirmSnapshot } from "@/lib/precog/firm/store";
 import type { OnboardingFacts } from "@/lib/precog/onboarding/decision-model";
 import { OpenVersionReview, ReportVersionsPanel } from "@/components/precog/report-versions";
-import { buildControlReportModel } from "@/lib/precog/report/build-control-report";
+import {
+  buildControlReportModel,
+  NO_REPORT_EXAMPLES,
+} from "@/lib/precog/report/build-control-report";
 import { fixFirstOf } from "@/lib/precog/threat-scoring";
 import { scenarioUnfolding } from "@/lib/precog/scenario-unfolding";
 import { RISK_SCALE } from "@/lib/precog/scoring/bands";
 import {
   lockedFigures,
+  printsLayoutSeven,
   printsLayoutSix,
   recalculationNote,
   REPORT_LAYOUT_VERSION,
@@ -162,6 +166,10 @@ export function ControlReport({
   // executive summary does, and words the residual tile in the residual
   // bands (report/stored-model `printsLayoutSix`).
   const layoutSix = printsLayoutSix(layoutVersion);
+  // Layout 7 names a map with no processes as such, and marks the processes
+  // and controls on an own business that are still Precog's examples
+  // (report/stored-model `printsLayoutSeven`), from the ids the model stores.
+  const layoutSeven = printsLayoutSeven(layoutVersion);
   const data = useMemo(
     () =>
       storedModel
@@ -245,8 +253,20 @@ export function ControlReport({
     : `${profile.staff.teamSize}-person ${industry.teamLabel}`;
   const example = `Precog's example ${industry.label.toLowerCase()} processes`;
   const starter = layoutSix ? `${example}, not yet edited` : "sample process map";
+  // Layout 7: Precog's examples on an own business, as the model stored them:
+  // the processes on an own map still as the starter map had them (the
+  // header already names an untouched starter map as the example), and the
+  // controls the owner never confirmed, marked in the priority stack.
+  const examples = layoutSeven ? data.examples : NO_REPORT_EXAMPLES;
+  const exampleCount = examples.processIds.length;
+  const ownMapLine =
+    layoutSeven && tpl.processes.length === 0
+      ? "no processes mapped yet"
+      : exampleCount
+        ? `custom process map (${exampleCount} of ${tpl.processes.length} still Precog's examples)`
+        : "custom process map";
   const mapLine = `${industry.label} · ${team} · ${
-    mapFrom === "starter" ? starter : mapCustomized ? "custom process map" : "industry template map"
+    mapFrom === "starter" ? starter : mapCustomized ? ownMapLine : "industry template map"
   }`;
   // Layout 6's segregation sentence: the open count the executive summary
   // prints, with the same breakdown, from the same model.
@@ -558,7 +578,14 @@ export function ControlReport({
                 {threat.targetDeck.map((t, i) => (
                   <tr key={`${t.kind}-${t.id}`} className="border-b border-neutral-200 align-top">
                     <td className="py-1.5 pr-2 tabular text-neutral-500">{i + 1}</td>
-                    <td className="py-1.5 pr-2 font-medium">{t.label}</td>
+                    <td className="py-1.5 pr-2 font-medium">
+                      {t.label}
+                      {examples.targetIds.includes(t.id) && (
+                        <span className="block text-xs font-normal text-neutral-600">
+                          Precog&apos;s example, not confirmed by the owner
+                        </span>
+                      )}
+                    </td>
                     <td className="py-1.5 pr-2 text-neutral-700">
                       {(t.kinds ?? [t.kind]).map((k) => KIND_LABEL[k] ?? k).join(" · ")}
                     </td>
@@ -788,6 +815,12 @@ export function ControlReport({
               .map((p) => (
                 <li key={p.id} className="border-b border-neutral-200 py-1">
                   <span className="font-medium">{p.name}</span>
+                  {examples.processIds.includes(p.id) && (
+                    <span className="text-neutral-500">
+                      {" "}
+                      · Precog&apos;s example, not yet edited
+                    </span>
+                  )}
                   <span className="text-neutral-500">
                     {" "}
                     · {(p.risks ?? []).length} risks

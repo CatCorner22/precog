@@ -6,6 +6,7 @@ import { CONFLICT_RULES, entitlementLabel, type EntitlementId } from "./sod/conf
 import { buildAssignments, type RoleAssignment } from "./sod/assignments";
 import { teamHeldDuties } from "./sod/rule-match";
 import { midSentence } from "./text";
+import { controlConfirmedByOwner } from "./active-template";
 
 /** The duty-conflict rules a scenario plays out: those it names and those linked to it. */
 export function scenarioRuleIds(scenario: Pick<ScenarioTemplate, "id" | "sodRuleIds">): string[] {
@@ -35,8 +36,13 @@ export interface ScenarioWatch {
   unassignedDuties: string[];
   /** Duties the scenario's rules need that nobody holds because the setup answers place them outside the team. */
   offTeamDuties: string[];
-  /** The control the scenario relies on, when the template has it. */
-  control: { id: string; name: string; inPlace: boolean } | null;
+  /**
+   * The control the scenario relies on, when the template has it. On an
+   * owner's own business it is in place only when the owner confirmed it
+   * (`controlConfirmedByOwner`); `example` marks one the owner never
+   * confirmed, which the card names as Precog's example, not as in place.
+   */
+  control: { id: string; name: string; inPlace: boolean; example?: true } | null;
   /** The register entry the scenario turns on, when the template has it. */
   knowledge: { name: string; holders: string[]; outToday: string[] } | null;
 }
@@ -66,6 +72,13 @@ export function scenarioWatch(
     DetectedConflict,
     "ruleId" | "personName" | "title" | "ownerHeld"
   >[] = openConflicts.map((c) => ({ ...c, ownerHeld: false })),
+  /**
+   * On an owner's own business, the controls the owner confirmed
+   * (`confirmedControlIds`): only those, and those with something the owner
+   * recorded in place, read as in place. Null for the sample business, whose
+   * controls are the sample's own facts.
+   */
+  ownerConfirmedControls: ReadonlySet<string> | null = null,
 ): ScenarioWatch {
   const ruleIds = new Set(scenarioRuleIds(scenario));
   const seen = new Set<string>();
@@ -121,7 +134,7 @@ export function scenarioWatch(
     notOpen,
     unassignedDuties: [...unassigned].map(dutyWords),
     offTeamDuties: [...offTeamUnheld].map(dutyWords),
-    control: control ? { id: control.id, name: control.name, inPlace: control.segregated } : null,
+    control: control ? watchedControl(control, ownerConfirmedControls) : null,
     knowledge: item
       ? {
           name: item.name,
@@ -132,6 +145,35 @@ export function scenarioWatch(
         }
       : null,
   };
+}
+
+/** The scenario's control as the card reads it: in place, not in place, or Precog's example. */
+function watchedControl(
+  control: IndustryTemplate["controls"][number],
+  ownerConfirmed: ReadonlySet<string> | null,
+): NonNullable<ScenarioWatch["control"]> {
+  const { id, name } = control;
+  if (!ownerConfirmed) return { id, name, inPlace: control.segregated };
+  if (controlConfirmedByOwner(control, ownerConfirmed)) return { id, name, inPlace: true };
+  return { id, name, inPlace: false, example: true };
+}
+
+/**
+ * Whether the owner's own team closes the scenario's duty-conflict path: it
+ * plays out a rule, nobody holds a pair it needs (open or not counted as
+ * open), and every duty it needs is ticked for someone or placed outside the
+ * team by the setup answers.
+ */
+export function teamClosesPath(
+  scenario: Pick<ScenarioTemplate, "id" | "sodRuleIds">,
+  watch: Pick<ScenarioWatch, "conflicts" | "notOpen" | "unassignedDuties">,
+): boolean {
+  return (
+    scenarioRuleIds(scenario).length > 0 &&
+    watch.conflicts.length === 0 &&
+    watch.notOpen.length === 0 &&
+    watch.unassignedDuties.length === 0
+  );
 }
 
 /** A duty's label in running text: "enter payroll". */
