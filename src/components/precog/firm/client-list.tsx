@@ -1,16 +1,19 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, RotateCcw } from "lucide-react";
 import { localDateKey } from "@/lib/precog/dates";
 import { restoreDeletedClient, setClientOwnerEmail } from "@/lib/precog/firm/server";
 import type { ClientEngagementRow } from "@/lib/precog/firm/store";
 import type { DeletedBusinessRow } from "@/lib/precog/business-store";
 import { fieldCls } from "@/components/ui/field-classes";
+import { INDUSTRIES, type IndustryId } from "@/lib/precog/industry";
 import { cn } from "@/lib/utils";
+import { addClientFromForm } from "./open-client-report";
 import {
   CLIENT_COLUMNS,
   clientStatusText,
   clientTotals,
+  clientUrgencyText,
   DEFAULT_CLIENT_SORT,
   exceptionsText,
   lastMonthStanding,
@@ -27,8 +30,11 @@ import {
  * month marked Overdue after its due day while a check has no result), the
  * exceptions and skips, open
  * duty conflicts and the versions awaiting review, the owner's address for
- * reminders, and the businesses deleted within the grace period. Clients
- * with exceptions sort to the top until another column is chosen.
+ * reminders, and the businesses deleted within the grace period. The
+ * clients who need the firm sort to the top (last month overdue, then
+ * exceptions, then nothing recorded this month, then versions awaiting
+ * review) until a column is chosen. With `onAddClient`, Add client starts a
+ * new business from here.
  */
 export function ClientList({
   clients,
@@ -40,6 +46,7 @@ export function ClientList({
   onClientsChange,
   onExport,
   canRestore,
+  onAddClient,
   today = localDateKey(new Date()),
 }: {
   clients: ClientEngagementRow[];
@@ -54,10 +61,16 @@ export function ClientList({
   onClientsChange: (clients: ClientEngagementRow[]) => void;
   /** Download the table as CSV, in the order it is sorted. */
   onExport: (clients: ClientEngagementRow[]) => void;
+  /**
+   * Start a new business with this name and line of business and open its
+   * setup; resolves false when Precog refused (the page says why).
+   */
+  onAddClient?: (name: string, industry: IndustryId) => Promise<boolean>;
   /** YYYY-MM-DD; the viewer's day unless a test fixes it. */
   today?: string;
 }) {
   const [sort, setSort] = useState<ClientSort>(DEFAULT_CLIENT_SORT);
+  const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
 
@@ -113,23 +126,55 @@ export function ClientList({
 
   const sorted = useMemo(() => sortClients(clients, sort, today), [clients, sort, today]);
   const totals = useMemo(() => clientTotals(clients, today), [clients, today]);
+  const urgency = useMemo(() => clientUrgencyText(clients, today), [clients, today]);
 
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold">Clients</h2>
-        {clients.length > 0 && (
-          <button
-            type="button"
-            className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
-            onClick={() => onExport(sorted)}
-          >
-            Export clients (CSV)
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {onAddClient && !adding && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+              onClick={() => setAdding(true)}
+            >
+              <Plus className="size-3.5" aria-hidden />
+              Add client
+            </button>
+          )}
+          {clients.length > 0 && sort.key !== "urgency" && (
+            <button
+              type="button"
+              className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+              onClick={() => setSort(DEFAULT_CLIENT_SORT)}
+            >
+              Most urgent first
+            </button>
+          )}
+          {clients.length > 0 && (
+            <button
+              type="button"
+              className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated"
+              onClick={() => onExport(sorted)}
+            >
+              Export clients (CSV)
+            </button>
+          )}
+        </div>
       </div>
-      {clients.length > 0 && <p className="mt-1 text-sm font-medium">{totals}</p>}
+      {onAddClient && adding && (
+        <AddClientForm onAdd={onAddClient} onCancel={() => setAdding(false)} />
+      )}
+      {clients.length > 0 && (
+        <>
+          <p className="mt-1 text-sm font-medium">{urgency}</p>
+          <p className="mt-0.5 text-xs text-muted">{totals}</p>
+        </>
+      )}
       <p className="mt-1 text-sm text-muted">
+        {clients.length > 0 &&
+          "The clients who need you come first: last month overdue, then exceptions, then nothing recorded once this month's checks open on the 5th, then versions awaiting review. "}
         Last review is the newest monthly result Precog holds for that client. Last month and This
         month count Done checks only; Exceptions and Skipped count the others. Last month stays open
         until its due day, the 10th; after it, Last month shows Overdue while a check has no result.
@@ -327,6 +372,80 @@ export function ClientList({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * The name and line of business of a new client. Adding it opens its setup;
+ * Precog lists it once that setup is finished (an unfinished business is the
+ * sample behind the setup dialog, so it is not kept).
+ */
+export function AddClientForm({
+  onAdd,
+  onCancel,
+}: {
+  onAdd: (name: string, industry: IndustryId) => Promise<boolean>;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [industry, setIndustry] = useState<IndustryId>("general");
+  const [busy, setBusy] = useState(false);
+  return (
+    <form
+      className="mt-3 rounded-lg border border-border p-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!name.trim() || busy) return;
+        void addClientFromForm(onAdd, name.trim(), industry, setBusy, onCancel);
+      }}
+    >
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="min-w-[14rem] flex-1 text-xs text-muted">
+          Client name
+          <input
+            className={cn(fieldCls, "mt-1 w-full text-sm")}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-label="New client name"
+            autoFocus
+            required
+          />
+        </label>
+        <label className="text-xs text-muted">
+          Line of business
+          <select
+            className={cn(fieldCls, "mt-1 block text-sm")}
+            aria-label="Line of business"
+            value={industry}
+            onChange={(e) => setIndustry(e.target.value as IndustryId)}
+          >
+            {INDUSTRIES.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded-md border border-border px-3 py-2 text-sm hover:bg-elevated disabled:opacity-60"
+        >
+          Add client and open setup
+        </button>
+        <button
+          type="button"
+          className="rounded-md px-3 py-2 text-sm text-muted hover:text-fg"
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+      </div>
+      <p className="mt-2 text-xs text-muted">
+        Setup opens next. Precog lists the client here once you finish its setup; a client you leave
+        in the middle of setup is not kept.
+      </p>
+    </form>
   );
 }
 

@@ -46,6 +46,32 @@ export interface RecommendedProcedure {
    * `ifYouCannotSeparate`. Resolve it with `ifYouCannotSeparateFor`.
    */
   ifYouCannotSeparateByIndustry?: Partial<Record<IndustryId, string>>;
+  /**
+   * The same procedure in a line of business's own words, for example a
+   * nonprofit's donations in place of the day's sales. Only the fields given
+   * change. Resolve it with `recommendationFor`; `libraryRows` already does.
+   */
+  wordingByIndustry?: Partial<Record<IndustryId, IndustryWording>>;
+}
+
+/** The fields a line of business may word its own way. */
+export type IndustryWording = Partial<
+  Pick<
+    RecommendedProcedure,
+    "title" | "purpose" | "trigger" | "prerequisites" | "steps" | "evidenceToKeep"
+  >
+>;
+
+/**
+ * The recommendation as this line of business reads it: its own wording
+ * where it has some, else the recommendation itself (the same object).
+ */
+export function recommendationFor(
+  r: RecommendedProcedure,
+  industry: IndustryId,
+): RecommendedProcedure {
+  const own = r.wordingByIndustry?.[industry];
+  return own ? { ...r, ...own } : r;
 }
 
 /** The fallback text this line of business reads: its own where one is set, else the shared one. */
@@ -218,6 +244,139 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     ],
     ifYouCannotSeparate:
       "Someone who did not take the money ties out the deposits every week and reviews each variance.",
+    // A nonprofit has no drawer or sales report: its cash is donations and
+    // event receipts, counted against the donation log.
+    wordingByIndustry: {
+      nonprofit: {
+        title: "Deposit donations and event receipts",
+        purpose:
+          "Gets donations and event receipts to the bank and shows any shortage the same day. Done when the bank's deposit matches the donation log and the event's receipts list.",
+        trigger: "Each day donations arrive, and after each event",
+        prerequisites: [
+          "The donation log and the event's receipts list",
+          "Deposit slips and a deposit bag",
+        ],
+        steps: [
+          { text: "Count the cash and checks without looking at the expected total." },
+          { text: "Ask a second person to count them again." },
+          { text: "Compare the count with the donation log and the event's receipts list." },
+          {
+            text: "Record any over or short amount in the over-and-short log.",
+            caution: "Never make up a shortage from the next day's money or your own.",
+          },
+          { text: "Fill in the deposit slip." },
+          { text: "Seal the cash, checks and slip in the deposit bag." },
+          { text: "Take the bag to the bank the same or next business day." },
+          { text: "Compare the bank's deposit amount with the slip when it appears online." },
+        ],
+        evidenceToKeep: [
+          "Donation log",
+          "Deposit slip",
+          "Variance log",
+          ...RECEIPT_SETTLEMENT.evidence,
+        ],
+      },
+    },
+  },
+  {
+    id: "lib-mailed-checks",
+    title: "Log mailed checks on arrival",
+    purpose:
+      "Makes a record of every check before anyone who posts or deposits it touches it, so a check that goes missing shows up against the log. Done when two people have logged each check and the log matches the bank deposit.",
+    trigger: "Each day the mail arrives",
+    cadence: "daily",
+    dutyIds: ["collect_cash", "post_payments", "prepare_deposit"],
+    covers: /\b(?:mail(?:ed)? (?:checks?|payments?|gifts?)|mail opening|gift processing)\b/i,
+    prerequisites: ["A check log, on paper or in a spreadsheet", 'A "For deposit only" stamp'],
+    steps: [
+      { text: "Open the mail with a second person present." },
+      { text: "Write each check's date, payer, check number and amount in the check log." },
+      {
+        text: 'Stamp the back of each check "For deposit only" as you log it.',
+        caution: "Never set a check aside to log later.",
+      },
+      { text: "Ask the second person to initial each line of the check log." },
+      { text: "Hand the checks to the person who prepares the deposit." },
+      { text: "Send a copy of the check log to the person who reconciles the bank account." },
+      {
+        text: "Compare the check log with the bank deposit when it appears online.",
+        caution: "Ask about any logged check missing from the deposit the same day.",
+      },
+    ],
+    source: GREEN_BOOK_10,
+    evidenceToKeep: ["Check log", "Deposit slip", "Bank deposit detail"],
+    ifYouCannotSeparate:
+      "If one person opens the mail alone: ask the bank about a lockbox, ask payers to pay electronically, and each month someone who does not open the mail compares the check log with the deposits.",
+    wordingByIndustry: {
+      nonprofit: {
+        title: "Log mailed donation checks on arrival",
+        purpose:
+          "Makes a record of every donation check before anyone who enters or deposits it touches it, so a gift that goes missing shows up against the log. Done when two people have logged each check and the log matches the bank deposit and the donor database.",
+        steps: [
+          { text: "Open the mail with a second person present." },
+          { text: "Write each check's date, donor, check number and amount in the check log." },
+          {
+            text: 'Stamp the back of each check "For deposit only" as you log it.',
+            caution: "Never set a check aside to log later.",
+          },
+          { text: "Ask the second person to initial each line of the check log." },
+          { text: "Hand the checks to the person who prepares the deposit." },
+          {
+            text: "Send a copy of the check log to the person who enters gifts in the donor database.",
+          },
+          {
+            text: "Compare the check log with the bank deposit when it appears online.",
+            caution: "Ask about any logged check missing from the deposit the same day.",
+          },
+          {
+            text: "Compare the check log with the gifts entered in the donor database each month.",
+          },
+        ],
+        evidenceToKeep: ["Check log", "Deposit slip", "Donor database gift report"],
+      },
+    },
+  },
+  {
+    id: "lib-drawer-close",
+    title: "Close out the cash drawer",
+    purpose:
+      "Shows any shortage at the end of each shift, while the person who ran the drawer is still there. Done when the count matches the register total or the difference is in the over-and-short log, and a second person has signed the count sheet.",
+    trigger: "At the end of each shift, before the drawer leaves the register",
+    cadence: "daily",
+    // A nonprofit takes donations, not sales at a register; its cash is in
+    // the deposit and mailed-check procedures.
+    industries: [
+      "dental",
+      "retail",
+      "restaurant",
+      "professional_services",
+      "construction",
+      "automotive",
+      "general",
+    ],
+    dutyIds: ["collect_cash"],
+    covers: /\b(?:cash drawers?|drawer close|close out the drawer)\b/i,
+    prerequisites: ["A blank count sheet", "Access to the register's end-of-shift total"],
+    steps: [
+      {
+        text: "Count the cash, checks and card slips in the drawer.",
+        caution:
+          "Count before you print the register total, so the expected amount cannot steer the count.",
+      },
+      { text: "Write each amount on the count sheet." },
+      { text: "Print the register's end-of-shift total." },
+      { text: "Compare the count with the register total." },
+      {
+        text: "Record any over or short amount in the over-and-short log.",
+        caution: "Never make up a shortage from the next shift's cash or your own money.",
+      },
+      { text: "Ask a second person to recount the cash and sign the count sheet." },
+      { text: "Lock the cash and the count sheet in the safe until the deposit." },
+    ],
+    source: GREEN_BOOK_10,
+    evidenceToKeep: ["Signed count sheets", "Register end-of-shift reports", "Over-and-short log"],
+    ifYouCannotSeparate:
+      "If one person runs and counts the drawer: count it with the next shift present, and each week someone who takes no cash compares the over-and-short log with the register reports.",
   },
   {
     id: "lib-refund-review",
@@ -667,8 +826,9 @@ export function libraryRows(
   const written = new Set(own.flatMap((p) => p.knowledgeIds));
   const active = tpl.people.filter((p) => p.active);
   const rows: LibraryRow[] = [];
-  for (const recommendation of RECOMMENDED_PROCEDURES) {
-    if (recommendation.industries && !recommendation.industries.includes(industry)) continue;
+  for (const shared of RECOMMENDED_PROCEDURES) {
+    if (shared.industries && !shared.industries.includes(industry)) continue;
+    const recommendation = recommendationFor(shared, industry);
     if (writtenProcedure(recommendation, own, tpl.knowledge)) continue;
     const knowledgeIds = tpl.knowledge
       .filter((k) => recommendation.covers.test(k.name) && !written.has(k.id))

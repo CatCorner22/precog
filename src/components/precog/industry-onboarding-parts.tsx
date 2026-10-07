@@ -2,16 +2,28 @@ import { useState } from "react";
 import {
   addableDuties,
   coreDutyLabel,
-  GRID_DUTY_HEADING,
+  dutyShortName,
   type SeatReading,
 } from "@/lib/precog/onboarding/own-team";
 import { clamp } from "@/lib/precog/number";
+import { count } from "@/lib/precog/text";
 import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
 import { cn } from "@/lib/utils";
 import { fieldCls } from "@/components/ui/field-classes";
 
-/** The short note under a row's job title: which catalog job ticked its duties. */
-export function SeatNote({ seat }: { seat: SeatReading | undefined }) {
+/**
+ * The short note under a row's job title: every duty the title ticked, by
+ * name, so a tick in a column scrolled out of view is never a surprise; and a
+ * warning when only part of the title matched a catalog job.
+ */
+export function SeatNote({
+  seat,
+  duties = [],
+}: {
+  seat: SeatReading | undefined;
+  /** The duties the row still holds because its job title ticked them. */
+  duties?: readonly EntitlementId[];
+}) {
   if (!seat) return null;
   if (!seat.title) {
     return (
@@ -19,11 +31,68 @@ export function SeatNote({ seat }: { seat: SeatReading | undefined }) {
     );
   }
   return (
-    <p className={cn("mt-1 max-w-[11rem] text-xs", seat.partial ? "text-warn" : "text-muted")}>
-      {seat.partial
-        ? `Catalog job (partial match): ${seat.title}; check the ticks`
-        : `Catalog job: ${seat.title}`}
-    </p>
+    <>
+      {seat.partial ? (
+        <p className="mt-1 max-w-[11rem] text-xs text-warn">
+          {`Catalog job (partial match): ${seat.title}; check the ticks`}
+        </p>
+      ) : duties.length === 0 ? (
+        <p className="mt-1 max-w-[11rem] text-xs text-muted">{`Catalog job: ${seat.title}`}</p>
+      ) : null}
+      {duties.length > 0 && (
+        <p className="mt-1 max-w-[11rem] text-xs text-muted">
+          {`From the job title: ${duties.map(dutyShortName).join(", ")} — untick any this person does not do`}
+        </p>
+      )}
+    </>
+  );
+}
+
+/** One person whose duties a job title ticked, for the review before Finish. */
+export interface TitleTicksItem {
+  rowId: string;
+  who: string;
+  role: string;
+  duties: readonly EntitlementId[];
+}
+
+/**
+ * The review before Finish: how many duties job titles ticked, for whom, and
+ * a link to each person's row, so nobody keeps a duty the owner never named.
+ */
+export function TitleTicksReview({
+  items,
+  onShow,
+}: {
+  items: readonly TitleTicksItem[];
+  onShow: (rowId: string) => void;
+}) {
+  const ticked = items.reduce((sum, item) => sum + item.duties.length, 0);
+  if (ticked === 0) return null;
+  return (
+    <section
+      className="space-y-2 rounded-xl border border-warn/40 bg-warn/10 p-3"
+      aria-labelledby="title-ticks-heading"
+    >
+      <h3 id="title-ticks-heading" className="text-sm font-medium">
+        {`Precog ticked ${count(ticked, "duty", "duties")} from job titles for ${count(items.length, "person", "people")}: check them`}
+      </h3>
+      <ul className="space-y-1 text-xs text-muted">
+        {items.map((item) => (
+          <li key={item.rowId}>
+            <button
+              type="button"
+              className="min-h-6 font-medium text-primary underline underline-offset-2"
+              aria-label={`Go to ${item.who}'s row`}
+              onClick={() => onShow(item.rowId)}
+            >
+              {item.who}
+            </button>{" "}
+            {`(${item.role}): ${item.duties.map(dutyShortName).join(", ")}`}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -93,7 +162,7 @@ export function DutyHeading({ duty }: { duty: EntitlementId }) {
       aria-describedby={id}
       className="group relative inline-block cursor-help rounded-sm outline-hidden focus-visible:ring-2 focus-visible:ring-primary"
     >
-      {GRID_DUTY_HEADING[duty] ?? full}
+      {dutyShortName(duty)}
       <span
         id={id}
         role="tooltip"

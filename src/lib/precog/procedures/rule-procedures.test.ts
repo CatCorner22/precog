@@ -32,10 +32,15 @@ describe("the written procedure each duty-conflict rule leads to", () => {
     }
   });
 
-  it("names only procedures that apply to every line of business, as every rule does", () => {
+  it("links each rule to a procedure that applies to every line of business, as every rule does", () => {
     for (const rule of CONFLICT_RULES) {
-      for (const id of libraryIdsForRule(rule.id)) {
-        expect(LIBRARY.get(id)?.industries, `${rule.id} -> ${id}`).toBeUndefined();
+      const [primary, ...also] = libraryIdsForRule(rule.id);
+      expect(LIBRARY.get(primary)?.industries, `${rule.id} -> ${primary}`).toBeUndefined();
+      // Another procedure may be for some lines only (the cash drawer close
+      // is not a nonprofit's); a line that is not shown it ranks without it.
+      for (const id of also) {
+        const lines = LIBRARY.get(id)?.industries;
+        if (lines) expect(lines.length, `${rule.id} -> ${id}`).toBeGreaterThan(0);
       }
     }
     // So every industry's sample can start the procedure a conflict card names.

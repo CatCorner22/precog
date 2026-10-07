@@ -29,7 +29,12 @@ import {
   sodDetectionOptions,
   type DetectedConflict,
 } from "../sod/detect";
-import { openFindings, partialDualReleaseCoverage } from "../sod/open-findings";
+import { partialDualReleaseCoverage } from "../sod/open-findings";
+import {
+  openConflictBreakdown,
+  openConflictHeadline,
+  type OpenConflictTotals,
+} from "../headline/open-conflicts";
 import type { IndustryTemplate } from "../templates/types";
 import type { ScenarioTemplate } from "../types";
 import { closingSteps } from "../controls/dual-release-wording";
@@ -80,7 +85,7 @@ export function localBrief(
 ): LocalBrief {
   const started = Date.now();
   const tpl = resolveTemplate(profile);
-  const people = openConflictsByPerson(profile, tpl);
+  const { people, totals } = ownConflicts(profile, tpl);
   try {
     const result = runLocalAgentLoop(question, ctx);
     const brief = ownFirstBrief(result.brief, profile, question, {
@@ -91,6 +96,11 @@ export function localBrief(
     });
     return {
       ...result,
+      brief: ownFirstBrief(result.brief, profile, question, {
+        tpl,
+        people,
+        totals,
+        toolResults: result.toolResults,
       brief,
       steps: result.steps.map((step) => {
         const detail =
@@ -117,6 +127,7 @@ export function localBrief(
       steps: [],
       toolsUsed: [],
       toolResults: [],
+      brief: fallbackBrief(profile, question, { tpl, people, totals }),
       brief: fallbackBrief(profile, question, { tpl, people, today: ctx.today }),
       contextFingerprint: "fallback",
       latencyMs: Date.now() - started,
@@ -132,22 +143,39 @@ export function localBrief(
  * every amount. People with the worst pair come first.
  */
 export function openConflictsByPerson(
-  profile: Pick<
-    PracticeProfile,
-    | "industry"
-    | "staff"
-    | "dualRelease"
-    | "customPeople"
-    | "customProcesses"
-    | "customKnowledge"
-    | "customRelations"
-  >,
+  profile: ConflictProfile,
   tpl: IndustryTemplate = resolveTemplate(profile),
 ): PersonConflicts[] {
+  return ownConflicts(profile, tpl).people;
+}
+
+/** The profile fields the duty-conflict check reads. */
+type ConflictProfile = Pick<
+  PracticeProfile,
+  | "industry"
+  | "staff"
+  | "dualRelease"
+  | "customPeople"
+  | "customProcesses"
+  | "customKnowledge"
+  | "customRelations"
+>;
+
+/**
+ * The open duty conflicts by person, and their total as every screen gives it
+ * (headline/open-conflicts `openConflictHeadline`), from one run of the check.
+ */
+function ownConflicts(
+  profile: ConflictProfile,
+  tpl: IndustryTemplate,
+): { people: PersonConflicts[]; totals: OpenConflictTotals } {
   const sod = detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease));
   const byPerson = new Map<string, PersonConflicts>();
-  const partial = partialDualReleaseCoverage(profile.dualRelease, sod.conflicts);
-  for (const c of openFindings(sod.conflicts, partial)) {
+  const headline = openConflictHeadline(
+    sod,
+    partialDualReleaseCoverage(profile.dualRelease, sod.conflicts),
+  );
+  for (const c of headline.findings) {
     const entry = byPerson.get(c.personId) ?? {
       personId: c.personId,
       personName: c.personName,
@@ -160,9 +188,19 @@ export function openConflictsByPerson(
   const worst = (p: PersonConflicts) =>
     Math.min(...p.conflicts.map((c) => SEVERITY_RANK[c.severity]));
   const top = (p: PersonConflicts) => Math.max(...p.conflicts.map((c) => c.score));
-  return [...byPerson.values()].sort(
+  const people = [...byPerson.values()].sort(
     (a, b) => worst(a) - worst(b) || top(b) - top(a) || a.personName.localeCompare(b.personName),
   );
+  return { people, totals: headline };
+}
+
+/**
+ * "20 open duty conflicts (4 critical · 15 high · 1 other), held by 3
+ * people": the total the Start here tile, the duty-conflict tab and the
+ * report give.
+ */
+function totalSentence(totals: OpenConflictTotals, people: number): string {
+  return `${count(totals.open, "open duty conflict")} (${openConflictBreakdown(totals)}), held by ${count(people, "person", "people")}`;
 }
 
 /**
@@ -172,6 +210,7 @@ export function openConflictsByPerson(
 export function fallbackBrief(
   profile: PracticeProfile,
   question: string,
+  known: { tpl?: IndustryTemplate; people?: PersonConflicts[]; totals?: OpenConflictTotals } = {},
   known: {
     tpl?: IndustryTemplate;
     people?: PersonConflicts[];
@@ -180,13 +219,20 @@ export function fallbackBrief(
   } = {},
 ): StructuredBrief {
   const tpl = known.tpl ?? resolveTemplate(profile);
-  const people = known.people ?? openConflictsByPerson(profile, tpl);
+  const { people, totals } =
+    known.people && known.totals
+      ? { people: known.people, totals: known.totals }
+      : ownConflicts(profile, tpl);
   const statement = ownerStatementDecision(profile.industry);
   const decisions = [
     ...people.slice(0, 3).map((p) => conflictDecision(p, profile)),
     statement,
     ...(registerAssessed(tpl) ? [] : [registerDecision()]),
   ];
+  const situation =
+    totals.open > 0
+      ? `**${profile.practiceName}**: ${totalSentence(totals, people.length)}. Question: _${question}_`
+      : `**${profile.practiceName}**: no open duty conflicts. Question: _${question}_`;
   const situation = `**${profile.practiceName}**: ${people.length} ${people.length === 1 ? "person holds" : "people hold"} an open duty conflict.`;
   const frontierNextMove = people[0] ? thisWeek(people[0]) : `This week: ${STATEMENT_THIS_WEEK}.`;
   const warning =
@@ -256,7 +302,7 @@ const POLICY_TERMS = /deductible|policy limit|claims load/i;
 
 /**
  * Severity in the words the Start here badges use ("Critical", "High",
- * "Medium"); "fix first" is kept for the residual band it names.
+ * "Medium"); "Fix first" is kept for the priority list's top band.
  */
 const SEVERITY_WORDS: Record<DetectedConflict["severity"], string> = {
   critical: "a critical duty conflict",
@@ -544,6 +590,8 @@ function ownFirstBrief(
   known: {
     tpl: IndustryTemplate;
     people: PersonConflicts[];
+    totals: OpenConflictTotals;
+    toolResults: ToolResult[];
     toolResults: ToolResult[];
     today?: string;
   },
@@ -593,6 +641,55 @@ function ownFirstBrief(
   } else if (stripInsurance && INSURANCE_LEVER.test(frontierNextMove)) {
     frontierNextMove = `This week: ${STATEMENT_THIS_WEEK}, then re-check the watched conditions.`;
   }
+
+  const variableCascades = brief.variableCascades
+    .filter((l) => !stripInsurance || !POLICY_TERMS.test(l))
+    .map((l) =>
+      dayWording(policyNote && l.startsWith("Baseline:") ? `${l} Insurance: ${policyNote}.` : l),
+    );
+  const advancedReasoning = brief.advancedReasoning?.flatMap((l) => {
+    if (!stripInsurance) return [l];
+    const kept = withoutInsuranceSteps(l);
+    return kept ? [kept] : [];
+  });
+
+  const conflictLines = people.slice(0, 5).map(conflictLine);
+
+  const sections = splitSections(brief.markdown).flatMap((s): Section[] => {
+    switch (s.heading) {
+      case BRIEF_SECTION.situation:
+        if (absence) return [s, { heading: YOUR_QUESTION, body: [...absence, ""] }];
+        return leadWithConflicts
+          ? [
+              s,
+              {
+                heading: OWN_CONFLICTS,
+                body: [
+                  `- ${totalSentence(known.totals, people.length)}.`,
+                  ...conflictLines,
+                  `- The step you can take alone: **${statement.action.replace(/\.$/, "")}**.`,
+                  "",
+                ],
+              },
+            ]
+          : [s];
+      case BRIEF_SECTION.cascades:
+        return [{ heading: s.heading, body: [...variableCascades.map((c) => `- ${c}`), ""] }];
+      case BRIEF_SECTION.order:
+        return [
+          {
+            heading: s.heading,
+            body: [...(advancedReasoning ?? []).map((x) => `- ${dayWording(x)}`), ""],
+          },
+        ];
+      case BRIEF_SECTION.moves:
+        return [{ heading: s.heading, body: [...decisions.map(renderDecision), ""] }];
+      case BRIEF_SECTION.thisWeek:
+        return [{ heading: s.heading, body: [frontierNextMove, ""] }];
+      default:
+        return [s];
+    }
+  });
 
   // Any other line that quotes a premium or a retained loss on default policy
   // figures says so (a "$0" change between levers is not a policy figure).

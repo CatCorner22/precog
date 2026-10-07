@@ -6,8 +6,8 @@ import {
   type LeaverAccessCheck,
 } from "../practice-profile";
 import type { Person } from "../types";
-import { nameKey, uid } from "../text";
-import { formatDay } from "../dates";
+import { joinWithAnd, nameKey, uid } from "../text";
+import { formatDay, formatDayNear, isCalendarDate } from "../dates";
 
 /**
  * Someone who has left keeps whatever access nobody took away: a login, card
@@ -17,24 +17,108 @@ import { formatDay } from "../dates";
  * with the day.
  */
 
-/** The logins the owner confirms are removed, in the words the prompt uses. */
-export const LEAVER_ACCESS_ITEMS = [
-  { id: "payroll", label: "Off payroll: no more pay runs or direct deposits to them" },
-  {
-    id: "bank",
-    label: "Bank sign-ins and cards removed, and their name off the bank's signer list",
-  },
-  { id: "payroll_login", label: "Payroll system sign-in removed" },
-  { id: "pos", label: "Point-of-sale or till sign-in and PIN removed" },
-  {
-    id: "software",
-    label: "Practice or business software sign-ins removed (email, bookkeeping, scheduling)",
-  },
-] as const;
+/**
+ * One thing to check for someone who has left: its id, and how the decisions
+ * log names it ("donor database"). The checklist's longer wording for each
+ * line of business is in `leaver-access-items.ts`, loaded only by the Team
+ * tab's checklist.
+ */
+export interface LeaverAccessItemKey {
+  id: string;
+  short: string;
+}
 
-export type LeaverAccessItem = (typeof LEAVER_ACCESS_ITEMS)[number]["id"];
+const OFF_PAYROLL: LeaverAccessItemKey = { id: "payroll", short: "pay" };
+const PAYROLL_LOGIN: LeaverAccessItemKey = { id: "payroll_login", short: "payroll" };
+const BANK: LeaverAccessItemKey = { id: "bank", short: "bank" };
+const KEYS: LeaverAccessItemKey = { id: "keys", short: "keys" };
+const EMAIL: LeaverAccessItemKey = { id: "email", short: "email" };
+/** Email together with other software, under the id "software". */
+const EMAIL_SOFTWARE: LeaverAccessItemKey = { id: "software", short: "email" };
 
-/** One person leaving: who, and how the app learned. */
+/**
+ * What each line of business checks when someone leaves: a restaurant's safe
+ * combination and POS PIN, a nonprofit's PO box, donor database and online
+ * giving platform. Pay and the bank come first everywhere.
+ */
+const ITEMS_BY_INDUSTRY: Record<IndustryId, readonly LeaverAccessItemKey[]> = {
+  dental: [
+    OFF_PAYROLL,
+    BANK,
+    PAYROLL_LOGIN,
+    { id: "practice_software", short: "practice software" },
+    { id: "insurance", short: "insurance portals" },
+    KEYS,
+    EMAIL,
+  ],
+  retail: [
+    OFF_PAYROLL,
+    BANK,
+    PAYROLL_LOGIN,
+    { id: "pos", short: "point of sale" },
+    { id: "online_store", short: "online store" },
+    { id: "keys", short: "store keys" },
+    EMAIL,
+  ],
+  professional_services: [
+    OFF_PAYROLL,
+    { id: "bank", short: "bank and trust accounts" },
+    PAYROLL_LOGIN,
+    { id: "billing", short: "billing software" },
+    { id: "agency", short: "tax agency access" },
+    KEYS,
+    EMAIL,
+  ],
+  restaurant: [
+    OFF_PAYROLL,
+    BANK,
+    PAYROLL_LOGIN,
+    { id: "pos", short: "POS PIN" },
+    { id: "safe", short: "safe combination" },
+    KEYS,
+    { id: "ordering", short: "delivery apps" },
+    EMAIL,
+  ],
+  construction: [
+    OFF_PAYROLL,
+    BANK,
+    PAYROLL_LOGIN,
+    { id: "cards", short: "fuel cards" },
+    { id: "equipment", short: "job site keys" },
+    { id: "software", short: "project software" },
+  ],
+  automotive: [
+    OFF_PAYROLL,
+    BANK,
+    PAYROLL_LOGIN,
+    { id: "shop_system", short: "shop management system" },
+    { id: "parts", short: "parts accounts" },
+    KEYS,
+    EMAIL,
+  ],
+  nonprofit: [
+    OFF_PAYROLL,
+    BANK,
+    PAYROLL_LOGIN,
+    { id: "donors", short: "donor database" },
+    { id: "giving", short: "online giving platform" },
+    { id: "mail", short: "PO box" },
+    EMAIL_SOFTWARE,
+  ],
+  general: [OFF_PAYROLL, BANK, PAYROLL_LOGIN, KEYS, EMAIL_SOFTWARE],
+};
+
+/** The checklist's ids and short names for someone who has left this line of business. */
+export function leaverAccessKeys(industry: IndustryId): readonly LeaverAccessItemKey[] {
+  return ITEMS_BY_INDUSTRY[industry] ?? ITEMS_BY_INDUSTRY.general;
+}
+
+/** Whether someone whose last day is `lastDay` has left by `today` (both YYYY-MM-DD). */
+export function hasLeftBy(lastDay: string, today: string): boolean {
+  return lastDay <= today;
+}
+
+/** One person leaving: who, and how Precog learned. */
 export interface Departure {
   personId?: string;
   name: string;
@@ -96,6 +180,14 @@ export function noteDepartures(
 }
 
 /**
+ * Whether marking `person` as left raises a pay-and-sign-ins check: a sample
+ * team's person (same id and name as `sample`) is nobody's staff and never does.
+ */
+export function raisesLeaverCheck(person: Person, sample: readonly Person[]): boolean {
+  return !sample.some((s) => s.id === person.id && nameKey(s.name) === nameKey(person.name));
+}
+
+/**
  * People on the team who went from working here to left in this change,
  * or who arrive already marked as left (an imported roster's terminated
  * rows). The sample team's people are not anyone's staff and never count.
@@ -107,11 +199,9 @@ export function departuresBetween(
 ): Departure[] {
   if (!after) return [];
   const was = new Map((before ?? []).map((person) => [person.id, person]));
-  const isSample = (person: Person) =>
-    sample.some((s) => s.id === person.id && nameKey(s.name) === nameKey(person.name));
   return after
     .filter((person) => !person.active && (was.get(person.id)?.active ?? true))
-    .filter((person) => !isSample(person))
+    .filter((person) => raisesLeaverCheck(person, sample))
     .map((person) => ({ personId: person.id, name: person.name, role: person.role }));
 }
 
@@ -134,6 +224,19 @@ export function openAccessChecks(
 }
 
 /**
+ * The names of the people whose pay-and-sign-ins checklist is on screen
+ * (the open checks), each once, in checklist order. The "Leaving the team"
+ * card names exactly these people when it points at the checklist.
+ */
+export function leaverAccessNames(
+  checks: readonly LeaverAccessCheck[] | undefined,
+  industry: IndustryId,
+  people: readonly Person[],
+): string[] {
+  return [...new Set(openAccessChecks(checks, industry, people).map((check) => check.name))];
+}
+
+/**
  * The owner confirmed, on `today`, that these people are off payroll and
  * their logins are removed. Closes their checks and returns one decisions-log
  * entry per person, dated, saying what was confirmed.
@@ -153,7 +256,11 @@ export function confirmAccessRemoved(
       createdAt: now.toISOString(),
       subject: `${check.name} has left: pay and sign-ins stopped`.slice(0, 120),
       kind: "remediate",
-      note: `On ${formatDay(today)} you confirmed that ${leaverLabel(check)} is off payroll and that you have removed their sign-ins: bank, payroll, point of sale, and practice or business software. ${
+      note: `On ${formatDay(today)} you confirmed that ${leaverLabel(check)} is off payroll and that you have removed their access: ${joinWithAnd(
+        leaverAccessKeys(check.industry)
+          .filter((item) => item.id !== OFF_PAYROLL.id)
+          .map((item) => item.short),
+      )}. ${
         check.source === "roster"
           ? `Noted as left from a roster on ${formatDay(check.notedOn)}.`
           : `Marked as left on ${formatDay(check.notedOn)}.`
@@ -170,4 +277,43 @@ export function confirmAccessRemoved(
 /** How a leaver is named to the owner: "Jordan Lee (Keyholder)", or the name alone. */
 export function leaverLabel(check: Pick<LeaverAccessCheck, "name" | "role">): string {
   return check.role ? `${check.name} (${check.role})` : check.name;
+}
+
+/**
+ * The owner says someone left the business, with their last day. A last
+ * day today or earlier marks them as left: kept for history, holding no live
+ * duty. A later one keeps them at work on notice until then. A date that is
+ * not a calendar day changes nothing.
+ */
+export function recordLastDay(
+  people: readonly Person[],
+  personId: string,
+  lastDay: string,
+  today: string,
+): Person[] {
+  if (!isCalendarDate(lastDay) || !isCalendarDate(today)) return people as Person[];
+  const gone = hasLeftBy(lastDay, today);
+  return people.map((person) =>
+    person.id === personId ? { ...person, active: !gone, lastDay } : person,
+  );
+}
+
+/** Undo: puts one person back exactly as they were, leaving every other change on the team. */
+export function restorePerson(people: readonly Person[], prior: Person): Person[] {
+  return people.map((person) => (person.id === prior.id ? prior : person));
+}
+
+/** "last day Oct 3, marked as left Oct 7": when they went, and when Precog was told. */
+export function leaverLine(
+  check: Pick<LeaverAccessCheck, "notedOn" | "source">,
+  person: Pick<Person, "lastDay"> | undefined,
+  today: string,
+): string {
+  const lastDay =
+    person?.lastDay && isCalendarDate(person.lastDay)
+      ? `last day ${formatDayNear(person.lastDay, today)}, `
+      : "";
+  return check.source === "roster"
+    ? `${lastDay}listed as no longer working here in the roster you pasted on ${formatDayNear(check.notedOn, today)}`
+    : `${lastDay}marked as left ${formatDayNear(check.notedOn, today)}`;
 }

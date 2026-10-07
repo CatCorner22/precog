@@ -74,7 +74,7 @@ describe("sample scenarios", () => {
       "Sample scenarios from the restaurant / hospitality sample",
     );
     expect(starterScenarioNote(own)).toBe(
-      'Sample scenarios from the restaurant / hospitality sample (6) stay out: their losses and timelines are the sample\'s assumptions, not facts about your business. To make one your own, open it on What could happen and choose "This could happen here"; it then counts in the priority list and your totals.',
+      'Sample scenarios from the restaurant / hospitality sample (7) stay out: their losses and timelines are the sample\'s assumptions, not facts about your business. To make one your own, open it on What could happen and choose "This could happen here"; it then counts in the priority list and your totals.',
     );
     expect(starterScenarioNote(getIndustryTemplate("restaurant"))).toBeNull();
   });

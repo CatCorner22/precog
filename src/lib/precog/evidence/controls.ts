@@ -120,6 +120,10 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "payroll-register-review": {
     id: "payroll-register-review",
     label: "Owner reviews the payroll register every cycle — one page, names and amounts",
+    labelByIndustry: {
+      nonprofit:
+        "A board member or the executive director reviews the payroll register every cycle — one page, names and amounts",
+    },
     why: "Whoever runs payroll can change what payroll says, including their own pay.",
     setup: "minutes",
     cadence: "each payroll",
@@ -141,6 +145,10 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "expected-receipts-vs-deposits": {
     id: "expected-receipts-vs-deposits",
     label: "Owner compares the money expected in with the deposits, monthly",
+    labelByIndustry: {
+      nonprofit:
+        "A board member or the executive director compares the donations and grants expected in with the deposits, monthly",
+    },
     why: "Money that never arrives leaves no trace in the books. Only an outside expectation reveals it.",
     setup: "an hour",
     cadence: "monthly",
@@ -149,6 +157,10 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
     id: "new-payee-review",
     label:
       "Owner reads the month's list of new suppliers and changed supplier bank details, and confirms any they do not recognize",
+    labelByIndustry: {
+      nonprofit:
+        "A board member or the executive director reads the month's list of new suppliers and changed supplier bank details, and confirms any they do not recognize",
+    },
     why: "Someone adds an invented supplier once and pays it for years, and the payments look entirely ordinary in the accounts. The one moment it is visible is the month it appears on the list of additions and bank-detail changes, read by someone who cannot add them.",
     setup: "minutes",
     cadence: "monthly",
@@ -178,6 +190,10 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
   "card-statement-line-review": {
     id: "card-statement-line-review",
     label: "Owner reads the company card statement line by line, every month",
+    labelByIndustry: {
+      nonprofit:
+        "A board member or the executive director reads the organization's card statement line by line, every month",
+    },
     why: "A consumer marketplace charge is indistinguishable from a supplier line until someone asks what it was for.",
     setup: "minutes",
     cadence: "monthly",
@@ -330,6 +346,10 @@ export const CONTROL_CATALOG: Record<ControlId, ControlDefinition> = {
     id: "recovery-copy-out-of-reach",
     label:
       "Keep one backup copy that no employee sign-in can delete — under the owner's own account, or offline",
+    labelByIndustry: {
+      nonprofit:
+        "Keep one backup copy that no employee sign-in can delete — under a board member's own account, or offline",
+    },
     why: "A backup the administrator can reach is a backup the administrator can erase, and an angry administrator erases it first. A copy only the owner controls turns a wipe into an afternoon's restore.",
     setup: "an hour",
     cadence: "once",

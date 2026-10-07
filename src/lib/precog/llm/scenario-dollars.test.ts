@@ -27,7 +27,7 @@ describe("scenario dollars in the brief and the tools", () => {
     );
     expect((scenario.data as { retained: { expected: number } }).retained.expected).toBe(5_000);
     expect(run.brief.variableCascades[0]).toBe(
-      "Baseline: likelihood ×1.18, premium $4,200, assumed retained about $5,000, risk index 58.",
+      "Baseline: likelihood ×1.18, premium $4,200, assumed retained about $5,000, risk index 60.",
     );
   });
 

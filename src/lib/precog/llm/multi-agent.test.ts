@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RISK_SCALE } from "../scoring/bands";
+import { RESIDUAL_BAND_LABEL } from "../scoring/weights";
 import { defaultProfile } from "../practice-profile";
 import { runSpecialistAgents } from "./multi-agent";
 import { executeTool } from "./tools";
@@ -17,9 +18,15 @@ function critic(averageResidual: number): string[] {
 
 describe("the critic's residual threshold", () => {
   it("calls residual elevated at the app's act-now band and not below it", () => {
-    const elevated = /"fix soon" band/;
+    const elevated = /The average risk index is in the "(?:High|Severe)" band/;
     expect(critic(RISK_SCALE.actNow - 3).some((b) => elevated.test(b))).toBe(false);
-    expect(critic(RISK_SCALE.actNow).some((b) => elevated.test(b))).toBe(true);
+    expect(critic(RISK_SCALE.actNow)).toContain(
+      `The average risk index is in the "${RESIDUAL_BAND_LABEL.act_now}" band; waiting is a choice with a price.`,
+    );
+    expect(critic(RISK_SCALE.critical).join(" ")).toContain(
+      `in the "${RESIDUAL_BAND_LABEL.critical_path}" band`,
+    );
+    expect(critic(RISK_SCALE.critical).join(" ")).not.toMatch(/fix first|fix soon|worth doing/i);
   });
 });
 

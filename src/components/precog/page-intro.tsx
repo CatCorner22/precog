@@ -1,5 +1,5 @@
-import type { KeyboardEvent, ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { lazy, Suspense, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { BookOpen, ChevronDown } from "lucide-react";
 import { tabLabel, type NavTarget } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
 import { cn } from "@/lib/utils";
@@ -11,10 +11,53 @@ function pick(wording: Wording, say: (plain: string, tactical: string) => string
   return typeof wording === "string" ? wording : say(wording.plain, wording.tactical);
 }
 
+// Loaded on press, so the definitions stay out of the code every page loads first.
+const GlossaryDialog = lazy(() =>
+  import("./glossary-dialog").then((m) => ({ default: m.GlossaryDialog })),
+);
+
+/**
+ * "Words used here": opens the glossary with this page's words first. Every
+ * page heading carries it (words-lint.test.tsx checks).
+ */
+export function WordsUsedHere({ tab, className }: { tab: NavTarget; className?: string }) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <button
+        ref={trigger}
+        type="button"
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+        className={cn(
+          "inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline pointer-coarse:min-h-11",
+          className,
+        )}
+      >
+        <BookOpen className="size-3.5" aria-hidden />
+        Words used here
+      </button>
+      {open && (
+        <Suspense fallback={null}>
+          <GlossaryDialog
+            tab={tab}
+            onClose={() => {
+              setOpen(false);
+              trigger.current?.focus();
+            }}
+          />
+        </Suspense>
+      )}
+    </>
+  );
+}
+
 /**
  * The top of a page: its name, which is the tab that opened it in the active
- * wording, one sentence saying what the page is for, and the method folded
- * under "How this works" so the work comes first.
+ * wording, one sentence saying what the page is for, the "Words used here"
+ * glossary link, and the method folded under "How this works" so the work
+ * comes first.
  */
 export function PageIntro({
   tab,
@@ -40,6 +83,7 @@ export function PageIntro({
           {tabLabel(tab, say)}
         </h1>
         <p className="max-w-2xl text-sm text-muted">{pick(purpose, say)}</p>
+        <WordsUsedHere tab={tab} className="mt-1" />
       </div>
       {method && <HowThisWorks>{method}</HowThisWorks>}
     </div>

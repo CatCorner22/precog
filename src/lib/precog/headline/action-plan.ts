@@ -1,12 +1,12 @@
-import { DO_NEXT_STEPS_MAX } from "../actions/do-next";
-import { CONTROL_DUTIES, rankFirstSteps, UNIVERSAL_FIX } from "../coach/first-steps";
-import { recommendedStepsForRules, type ControlDefinition, type ControlId } from "../evidence";
+import { DO_NEXT_STEPS_MAX, rankedFirstSteps } from "../actions/do-next";
+import { CONTROL_DUTIES, UNIVERSAL_FIX } from "../coach/first-steps";
+import type { ControlDefinition, ControlId } from "../evidence";
 import { industryHasOwner } from "../industry";
 import { setupInPlaceControls } from "../onboarding/setup-answers";
 import type { PracticeProfile } from "../practice-profile";
 import { concentrationMove } from "../report/report-summary";
 import type { DetectedConflict } from "../sod/detect";
-import { openFindings, ruleIdsOf } from "../sod/open-findings";
+import { openFindings } from "../sod/open-findings";
 import { inOverseerWords } from "../sod/recommendations";
 import { firstName, midSentence } from "../text";
 
@@ -135,12 +135,7 @@ export function rankedActionPlan(
   const inPlace = setupInPlaceControls(profile.setupAnswers);
   const running = (id: ControlId) =>
     inPlace.has(id) || (id === DUAL_RELEASE && profile.dualRelease.enabled);
-  const steps = rankFirstSteps(
-    recommendedStepsForRules(ruleIdsOf(open), profile.industry).filter(
-      (step) => !running(step.control.id),
-    ),
-    open,
-  ).slice(0, DO_NEXT_STEPS_MAX);
+  const steps = rankedFirstSteps(open, profile.industry, running, move).slice(0, DO_NEXT_STEPS_MAX);
   for (const step of steps) {
     const hits = answered([step.control.id]);
     if (hits.length === 0) continue;

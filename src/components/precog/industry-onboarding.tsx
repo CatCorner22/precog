@@ -32,9 +32,13 @@ import {
   firstUnnamedWithDuties,
   rowNeedsReview,
   rowOwnsBusiness,
-  sameDuties,
+  stillSuggested,
   suggestedDuties,
+  titleTickedDuties,
   untickDutyForTitle,
+  withoutDutiesOffTeam,
+  fitDutiesToAnswers,
+  titleTicksFor,
   MAX_ROLE_LENGTH,
   onLeavePersonIds,
   firstRowForIndustry,
@@ -79,11 +83,19 @@ import {
   leaveSetupConfirm,
   nameInputId,
   sharedTitlesWithDuties,
+  titleTicksItems,
   typedSeat,
   whoIs,
   withRowIds,
+  onePersonNote,
 } from "./industry-onboarding-helpers";
-import { AddDutyControl, DutyHeading, SeatNote, YearsHereInput } from "./industry-onboarding-parts";
+import {
+  AddDutyControl,
+  DutyHeading,
+  SeatNote,
+  TitleTicksReview,
+  YearsHereInput,
+} from "./industry-onboarding-parts";
 import { localDateKey } from "@/lib/precog/dates";
 import { teamSizeScaleWarning } from "@/lib/precog/continuity/scale-message";
 import { clamp } from "@/lib/precog/number";
@@ -432,7 +444,8 @@ export function IndustryOnboarding({
       );
       return;
     }
-    setRows(result.rows);
+    // A title never ticks a duty the setup answers place outside the team.
+    setRows(withoutDutiesOffTeam(result.rows, answers));
     setFinishNote("");
     setQuickNote(
       result.notAdded > 0
@@ -442,6 +455,7 @@ export function IndustryOnboarding({
   }
   const industry = INDUSTRIES.find((i) => i.id === selected);
   const namedRows = rows.filter((r) => r.name.trim().length > 0);
+  const onePerson = onePersonNote(namedRows.length);
   const hidden = useMemo(() => hiddenDuties(answers), [answers]);
   const visibleCoreDuties = CORE_DUTIES.filter((duty) => !hidden.has(duty));
   const effects = useMemo(() => setupEffects(answers, selected), [answers, selected]);
@@ -467,9 +481,10 @@ export function IndustryOnboarding({
   }
 
   /**
-   * When a role is typed, tick what that title usually holds. A later role
-   * change re-ticks as long as the ticks are still the earlier suggestion or
-   * empty; ticks the owner set by hand stay.
+   * When a role is typed, tick what that title usually holds, leaving out
+   * duties the setup answers place outside the team. A later role change
+   * re-ticks as long as the ticks are still the earlier suggestion or empty;
+   * ticks the owner set by hand stay.
    */
   function suggestDuties(index: number) {
     setRows((current) =>
@@ -478,11 +493,12 @@ export function IndustryOnboarding({
         const role = row.role.trim();
         if (!role || role === row.suggestedFor) return row;
         const owns = rowOwnsBusiness(row, selected);
-        const previous = row.suggestedFor ? suggestedDuties(row.suggestedFor, owns, selected) : [];
-        const untouched = row.duties.length === 0 || sameDuties(row.duties, previous);
-        return untouched
-          ? { ...row, duties: suggestedDuties(role, owns, selected), suggestedFor: role }
-          : row;
+        const previous = row.suggestedFor
+          ? suggestedDuties(row.suggestedFor, owns, selected, answers)
+          : [];
+        const untouched = row.duties.length === 0 || stillSuggested(row.duties, previous, answers);
+        // Duties the answers leave out are remembered, so changing the answer back ticks them.
+        return untouched ? titleTicksFor(row, selected, answers) : row;
       }),
     );
   }
@@ -501,7 +517,7 @@ export function IndustryOnboarding({
     // A changed roster needs a fresh statement about what the resulting map covers.
     setFacts((current) => ({ ...current, mappingScope: undefined }));
     if (applied.rows) {
-      setRows(applied.rows);
+      setRows(withoutDutiesOffTeam(applied.rows, answers));
       setFinishNote("");
     }
     setPasteNote(applied.note);
@@ -588,7 +604,7 @@ export function IndustryOnboarding({
       document.getElementById(nameInputId(unnamed))?.focus();
       return;
     }
-    const people = buildOwnTeam(rows, selected);
+    const people = buildOwnTeam(rows, selected, answers);
     if (people.length === 0) return;
     if (scopeRequired && !facts.mappingScope) {
       setFinishNote(
@@ -675,6 +691,37 @@ export function IndustryOnboarding({
   const scopeRequired = requiresMappingScope(facts, unresolvedRows);
   const scopedAssessment =
     scopeRequired && (unresolvedRows > 0 || facts.mappingScope !== "whole_business");
+
+  const finishLabel = scopedAssessment ? "Show scoped findings" : "Show me my gaps";
+  // Where the setup lives until Finish, said once under the header; a
+  // browser that keeps nothing shows its own warning instead.
+  const keptNotice =
+    keepsNothing || draftSaved === false ? null : (
+      <p className="text-xs text-muted">
+        Precog keeps this business once you press &ldquo;{finishLabel}&rdquo;. Until then it stays
+        only in this browser tab.
+      </p>
+    );
+  // Each row's duties ticked from its job title, worked out once for both the
+  // grid's note under each title and the review of them.
+  const titleTicked = useMemo(
+    () => new Map(rows.map((row) => [row, titleTickedDuties(row, selected, answers)])),
+    [rows, selected, answers],
+  );
+  const titleTicks = useMemo(
+    () => titleTicksItems(rows, selected, answers, (row) => titleTicked.get(row) ?? []),
+    [rows, selected, answers, titleTicked],
+  );
+
+  /** Brings a person's row into view from the review, with focus on their job title. */
+  function showRow(rowId: string) {
+    setReviewOnly(false);
+    focusSoon(() => {
+      const input = document.querySelector<HTMLElement>(`[data-role-cell="${rowId}"] input`);
+      input?.scrollIntoView({ block: "center" });
+      return input;
+    });
+  }
 
   /** Arrow keys, Home and End move the choice between lines of business, as in any radio group. */
   function moveIndustry(event: ReactKeyboardEvent<HTMLButtonElement>) {
@@ -858,6 +905,9 @@ export function IndustryOnboarding({
                 onChange={setAnswers}
                 industry={selected}
                 onNext={() => {
+                  // Answers changed after people were added untick what they rule out, and
+                  // tick again what an earlier answer unticked and these bring back.
+                  setRows((current) => fitDutiesToAnswers(current, answers, selected));
                   if (facts.setupMethod !== "person_grid") setPasteOpen(true);
                   setStep("team");
                 }}
@@ -885,6 +935,7 @@ export function IndustryOnboarding({
                 Name your people and tick the money duties each one handles today; you can refine
                 everything later in {tabName("sod")}.
               </CardDescription>
+              {keptNotice}
             </CardHeader>
             <CardContent className="space-y-4">
               {storageNote}
@@ -1127,7 +1178,10 @@ export function IndustryOnboarding({
                               onBlur={() => suggestDuties(index)}
                               maxLength={MAX_ROLE_LENGTH}
                             />
-                            <SeatNote seat={typedSeat(row, selected)} />
+                            <SeatNote
+                              seat={typedSeat(row, selected)}
+                              duties={titleTicked.get(row) ?? []}
+                            />
                             {extraDuties(row.duties).length > 0 && (
                               <ul
                                 className="mt-1 flex max-w-[11rem] flex-wrap gap-1.5"
@@ -1461,10 +1515,12 @@ export function IndustryOnboarding({
                   </CardContent>
                 </Card>
               </div>
-              <p className="rounded-lg border border-border bg-elevated/50 px-3 py-2 text-xs text-muted">
-                You can continue with one person. Precog will assess that sole-owner setup; add the
-                rest of your team later under Team for a fuller team assessment.
-              </p>
+              {onePerson && (
+                <p className="rounded-lg border border-border bg-elevated/50 px-3 py-2 text-xs text-muted">
+                  {onePerson}
+                </p>
+              )}
+              <TitleTicksReview items={titleTicks} onShow={showRow} />
               {finishNote && (
                 <p className="text-xs text-danger" role="alert">
                   {finishNote}
@@ -1477,14 +1533,13 @@ export function IndustryOnboarding({
                   onClick={finish}
                   disabled={namedRows.length === 0}
                 >
-                  {scopedAssessment ? "Show scoped findings" : "Show me my gaps"}
+                  {finishLabel}
                 </Button>
                 <Button className="w-full" variant="secondary" onClick={() => setStep("money")}>
                   Back
                 </Button>
               </div>
               <p className="text-center text-xs text-subtle">
-                {draftSaved ? "Your progress stays in this tab until you finish. " : ""}
                 Nothing leaves this browser until you sign in and choose to sync.
               </p>
               {cancelLink}

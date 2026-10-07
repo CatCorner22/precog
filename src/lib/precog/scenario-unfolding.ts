@@ -62,6 +62,20 @@ export const SCENARIO_UNFOLDING: Readonly<Record<string, ScenarioUnfolding>> = {
       "No one outside finance matches invoices to evidence of delivery.",
     ],
   },
+  "sc-payroll-ghost": {
+    steps: [
+      "The person who runs payroll adds a new name or keeps someone who has left on the list.",
+      "They enter hours for that person and point the pay at an account they control.",
+      "The extra pay goes out with the normal pay run, so the total looks ordinary.",
+      "Someone compares the people paid with the people who work there and finds the stranger.",
+    ],
+    warningSigns: [
+      "More people are paid than work the schedule.",
+      "Someone who has left still appears in a pay run.",
+      "Two employees share a bank account or a home address.",
+      "Nobody but the person who runs payroll reads the payroll register.",
+    ],
+  },
   "sc-drug-diversion": {
     steps: [
       "The person who handles controlled medication also keeps the log and counts.",

@@ -47,3 +47,71 @@ describe("a duty-conflict card's written procedure", () => {
     expect(render({ ...profile, procedures: [started] })).toContain("Written procedure: Ours");
   });
 });
+
+describe("the duty-conflict list under the open count", () => {
+  // A team with open pairs, the owner's own pairs (p6) and pairs dual release
+  // covers at every amount (p4; dual release is off, so no threshold applies).
+  const profile: PracticeProfile = { ...defaultProfile("general"), procedures: [] };
+  const tpl = resolveTemplate(profile);
+  const detected = detectSodConflicts(
+    tpl,
+    profile.staff,
+    sodDetectionOptions(tpl, profile.dualRelease),
+  );
+  const report = {
+    ...detected,
+    conflicts: detected.conflicts.map((c) =>
+      c.personId === "p6"
+        ? { ...c, ownerHeld: true }
+        : c.personId === "p4"
+          ? { ...c, dualReleaseMitigated: true }
+          : c,
+    ),
+  };
+  const ownerHeld = report.conflicts.filter((c) => c.ownerHeld).length;
+  const covered = report.conflicts.filter((c) => c.dualReleaseMitigated).length;
+  const page = renderToStaticMarkup(
+    <ReadOnlyPracticeProvider profile={profile}>
+      <SodPanel initialView="conflicts" onNavigate={() => {}} report={report} />
+    </ReadOnlyPracticeProvider>,
+  );
+  /** The conflicts each person's heading counts, added up, in one stretch of the page. */
+  const cardsIn = (html: string) =>
+    [...html.matchAll(/ · (\d+) conflicts?<\/span><\/h3>/g)].reduce((n, m) => n + Number(m[1]), 0);
+  const [before, rest = ""] = page.split('data-list="not-open"');
+  const openList = before.split('data-list="open"')[1] ?? "";
+
+  it("lists exactly the open findings the sub-tab counts", () => {
+    expect(ownerHeld).toBeGreaterThan(0);
+    expect(covered).toBeGreaterThan(0);
+    const counted = Number(/Duty conflicts \((\d+)\)/.exec(page)![1]);
+    expect(counted).toBe(report.conflicts.length - ownerHeld - covered);
+    expect(cardsIn(openList)).toBe(counted);
+  });
+
+  it("puts the owner's own pairs and the fully covered pairs in a folded group below", () => {
+    expect(rest).toContain(
+      `Not counted as open (${ownerHeld + covered}): your own pairs and pairs dual release covers at every amount`,
+    );
+    expect(cardsIn(rest)).toBe(ownerHeld + covered);
+    // Folded: the group is closed until the owner opens it.
+    expect(rest.slice(0, rest.indexOf(">"))).not.toMatch(/\bopen\b/);
+  });
+});
+
+describe("duty-conflict controls on a touch screen", () => {
+  it("makes the severity chips and the written-procedure links 44px tall", () => {
+    const page = render({ ...defaultProfile("general"), procedures: [] });
+    const group = page
+      .split('aria-label="Show duty conflicts of one severity"')[1]
+      .split("</div>")[0];
+    const chips = [...group.matchAll(/<button[^>]*class="([^"]*)"/g)];
+    expect(chips).toHaveLength(5);
+    for (const chip of chips) expect(chip[1].split(" ")).toContain("pointer-coarse:min-h-11");
+    const links = [
+      ...page.matchAll(/<button[^>]*class="([^"]*)"[^>]*>(?:(?!<\/button>).)*Written procedure: /g),
+    ];
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) expect(link[1].split(" ")).toContain("pointer-coarse:min-h-11");
+  });
+});

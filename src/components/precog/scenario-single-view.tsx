@@ -8,6 +8,7 @@ import { scenarioUnfolding } from "@/lib/precog/scenario-unfolding";
 import { useToday } from "@/lib/use-today";
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
+import { dutiesOffTeam } from "@/lib/precog/onboarding/setup-answers";
 import {
   insuranceBasis,
   insuranceFigureNote,
@@ -21,6 +22,8 @@ import { industryNoun } from "@/lib/precog/industry";
 import { usePractice } from "@/lib/precog/practice-context";
 import { useTabName } from "@/lib/precog/presentation";
 import { DEFAULT_FRAUD_STATS } from "@/lib/precog/templates/shared-controls";
+import { ILLUSTRATIVE_LABEL, ILLUSTRATIVE_RANK_NOTE } from "@/lib/precog/scoring/scenario-level";
+import { CaseCard, listNoteShown, UnverifiedListNote } from "@/components/precog/case-card";
 import { ILLUSTRATIVE_LABEL } from "@/lib/precog/scoring/scenario-level";
 import { CaseCard, UnverifiedListNote } from "@/components/precog/case-card";
 import { Badge } from "@/components/ui/badge";
@@ -81,13 +84,22 @@ export function SingleScenarioView({
     () => scenarioCases(scenario, profile.industry),
     [scenario, profile.industry],
   );
-  const openConflicts = useMemo(() => {
-    const conflicts = detectSodConflicts(
+  // The open findings, and the assignments the check built, which the watch
+  // card reads for the duties nobody holds.
+  const { openConflicts, assignments } = useMemo(() => {
+    const report = detectSodConflicts(
       tpl,
       profile.staff,
       sodDetectionOptions(tpl, profile.dualRelease),
-    ).conflicts;
-    return openFindings(conflicts, partialDualReleaseCoverage(profile.dualRelease, conflicts));
+    );
+    const { conflicts } = report;
+    return {
+      openConflicts: openFindings(
+        conflicts,
+        partialDualReleaseCoverage(profile.dualRelease, conflicts),
+      ),
+      assignments: report.assignments,
+    };
   }, [tpl, profile.staff, profile.dualRelease]);
   const outTodayIds = useMemo(
     () =>
@@ -102,9 +114,18 @@ export function SingleScenarioView({
       ),
     [tpl, profile.plannedAbsences, profile.decisions, profile.industry, day],
   );
+  // Duties the setup answers place outside the team, as the Duty conflicts screen reads them.
   const watch = useMemo(
-    () => scenarioWatch(tpl, scenario, openConflicts, outTodayIds),
-    [tpl, scenario, openConflicts, outTodayIds],
+    () =>
+      scenarioWatch(
+        tpl,
+        scenario,
+        openConflicts,
+        outTodayIds,
+        dutiesOffTeam(profile.setupAnswers),
+        assignments,
+      ),
+    [tpl, scenario, openConflicts, outTodayIds, profile.setupAnswers, assignments],
   );
   const unfolding = scenarioUnfolding(scenario.id);
   if (!result) return null;
@@ -414,7 +435,7 @@ function RealCasesCard({ cases }: { cases: ScenarioCases }) {
                 From your line of business
               </p>
             )}
-            <CaseCard study={c} />
+            <CaseCard study={c} unverifiedMarker={!listNoteShown(cases.shown)} />
           </div>
         ))}
         {total > cases.shown.length && (

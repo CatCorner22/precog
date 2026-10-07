@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { LEVEL_LABEL, STATUS_LABEL } from "@/lib/precog/continuity/coverage";
 import {
   DOCUMENTATION_LABEL,
@@ -39,6 +40,15 @@ type ContinuityModel = Pick<
   | "registerReady"
   | "procedures"
 >;
+
+/** A small table that scrolls sideways on a narrow screen instead of overflowing it. */
+function ReportTable({ children }: { children: ReactNode }) {
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <table className="w-full text-xs">{children}</table>
+    </div>
+  );
+}
 
 export function ControlReportContinuitySections({
   model,
@@ -300,7 +310,7 @@ function ControlReportLeaveSection({
                 </p>
               )}
               {w.impact.stops.length > 0 ? (
-                <table className="mt-2 w-full text-xs">
+                <ReportTable>
                   <thead>
                     <tr className="text-left text-neutral-500">
                       <th className="py-0.5 font-normal">Stops</th>
@@ -336,7 +346,7 @@ function ControlReportLeaveSection({
                       );
                     })}
                   </tbody>
-                </table>
+                </ReportTable>
               ) : (
                 <p className="mt-2 text-xs text-neutral-600">
                   Nothing on the register stops; someone else can run everything they hold.
@@ -391,7 +401,7 @@ function ControlReportDebriefSection({ debriefs }: { debriefs: ControlReportMode
                 {d.daysSince > 0 ? `, ended ${count(d.daysSince, "day")} ago` : ", ended today"}
               </span>
             </div>
-            <table className="mt-2 w-full text-xs">
+            <ReportTable>
               <thead>
                 <tr className="text-left text-neutral-500">
                   <th className="py-0.5 font-normal">Covered</th>
@@ -422,7 +432,7 @@ function ControlReportDebriefSection({ debriefs }: { debriefs: ControlReportMode
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </ReportTable>
           </li>
         ))}
       </ul>
@@ -470,7 +480,7 @@ function ControlReportLeavingSection({
               </span>
             </div>
             {l.handover.length > 0 && (
-              <table className="mt-2 w-full text-xs">
+              <ReportTable>
                 <thead>
                   <tr className="text-left text-neutral-500">
                     <th className="py-0.5 font-normal">Only they can run</th>
@@ -509,7 +519,7 @@ function ControlReportLeavingSection({
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </ReportTable>
             )}
             {l.orphanedProcesses.length > 0 && (
               <p className="mt-2 text-xs text-neutral-600">
@@ -553,7 +563,7 @@ function ControlReportCardsSection({ cards }: { cards: ControlReportModel["cards
               </span>
             </div>
             {c.stops.length > 0 && (
-              <table className="mt-2 w-full text-xs">
+              <ReportTable>
                 <thead>
                   <tr className="text-left text-neutral-500">
                     <th className="py-0.5 font-normal">Stops</th>
@@ -578,7 +588,7 @@ function ControlReportCardsSection({ cards }: { cards: ControlReportModel["cards
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </ReportTable>
             )}
             {c.orphanedProcesses.length > 0 && (
               <p className="mt-2 text-xs text-neutral-600">

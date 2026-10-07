@@ -75,8 +75,9 @@ export function baseFraudScenarios(opts: {
 }
 
 /**
- * The three fraud scenarios every sample shares (cash posting and
- * reconciliation, write-offs, vendor setup and payment), reworded by id.
+ * The four fraud scenarios every sample shares (cash posting and
+ * reconciliation, write-offs, vendor setup and payment, a fake employee on
+ * payroll), reworded by id.
  */
 export function sharedFraudScenarios(
   changes: Partial<Record<string, ScenarioChange>> = {},
@@ -90,8 +91,8 @@ export function sharedFraudScenarios(
  * examples, not sized to any business and not measurements, and they never
  * set a scenario's rank (see scoring/scenario-level). Every sample reuses
  * the set for the closest scheme so one change moves them all: the cash
- * scenario for skimming, card abuse, payroll padding, trust money, sales
- * tax, repair-order cash and padded field time; the write-off scenario for
+ * scenario for skimming, card abuse, payroll padding, a fake employee on
+ * payroll, trust money, sales tax, repair-order cash and padded field time; the write-off scenario for
  * non-cash theft, parts and materials, restricted funds and the tip pool;
  * vendor fraud for invented vendors, subcontractors, kickbacks, deal fees
  * and wires covered by journal entries.
@@ -313,6 +314,38 @@ const SHARED_FRAUD_SCENARIOS: readonly ScenarioTemplate[] = [
         label: "Dual release on electronic payments above the amount you set",
         effort: "medium",
         riskReduction: 0.75,
+        costAnnual: 0,
+      },
+    ],
+  },
+  {
+    // A fake employee is a payment to a payee, so it takes the cash figures
+    // (SCENARIO_FIGURES) like vendor fraud. The two library cases that show it
+    // outright lead its page: an Idaho district manager who paid employees
+    // who had left, and a St. Louis supervisor who kept someone who never
+    // worked there on payroll.
+    id: "sc-payroll-ghost",
+    title: "One person adds people to payroll and runs it",
+    description:
+      "The person who runs payroll can also add people to it or keep someone who has left on it, so they can pay someone who does not work there and nobody else reads the register.",
+    controlId: "c-payroll",
+    sodRuleIds: ["rule-payroll-master-run", "rule-payroll-master-release", "rule-payroll-release"],
+    caseIds: ["case-restaurant-franchisee-idaho", "case-st-louis-floor-covering"],
+    ...SCENARIO_FIGURES.cash,
+    cascadeLayers: ["control", "source", "process", "continuity"],
+    mitigations: [
+      {
+        id: "m-pay-1",
+        label: "Someone who does not run payroll reads the payroll register each pay run",
+        effort: "low",
+        riskReduction: 0.5,
+        costAnnual: 0,
+      },
+      {
+        id: "m-pay-2",
+        label: "A second person adds each new employee and approves each bank account change",
+        effort: "low",
+        riskReduction: 0.6,
         costAnnual: 0,
       },
     ],

@@ -1,9 +1,20 @@
-import type { OpenMonthChecks } from "@/lib/precog/firm/reviews";
+import {
+  countedOpenPeriods,
+  latestReview,
+  monthlyReviewTasks,
+  periodMonthName,
+  reportPeriod,
+  reviewDueText,
+  type ReviewRecord,
+} from "@/lib/precog/firm/reviews";
 import { count, verb } from "@/lib/precog/text";
+import type { Person } from "@/lib/precog/types";
+import { checkItemId } from "./monthly-check-id";
 
 /**
- * One line of the Needs attention menu: how many, what, the tab it opens and,
- * when set, the section of that tab it opens on.
+ * One line of the Needs attention menu: how many, what, the tab it opens,
+ * when set, the section or check of that tab it opens on, and who it waits
+ * on (a team member's name, or null when nobody is named).
  */
 export interface AttentionItem {
   id: string;
@@ -11,71 +22,222 @@ export interface AttentionItem {
   text: string;
   target: string;
   item?: string;
+  who: string | null;
 }
 
-interface AttentionCounts {
-  overdue: number;
-  slipped: number;
+/** One person's items, under their name; "Unassigned" holds the items that name nobody. */
+export interface AttentionGroup {
+  who: string | null;
+  heading: string;
+  items: AttentionItem[];
+}
+
+/** A decision as the menu counts it: the person it concerns, if any. */
+interface DecisionLink {
+  linkedPersonId?: string;
+}
+
+export interface AttentionInput {
+  /** The owner's calendar day, YYYY-MM-DD. */
+  day: string;
+  /** The team, as the Monthly review suggests a person for each check from it. */
+  people: readonly Person[];
+  roleDuties?: Readonly<Record<string, readonly string[]>>;
+  /** Decisions past their review date. */
+  overdue: readonly DecisionLink[];
+  /** Decisions undone since they were marked done. */
+  slipped: readonly DecisionLink[];
+  /** People who left whose access is unchecked. */
   leavers: number;
-  /** The Monthly review's months still open, as `openMonthlyChecks` counts them. */
-  months: readonly OpenMonthChecks[];
+  /** The Monthly review's results, newest first. */
+  reviews: readonly ReviewRecord[];
+}
+
+/** The name of the active team member with this id, or null. */
+function personName(people: readonly Person[], id: string | undefined): string | null {
+  if (!id) return null;
+  return people.find((p) => p.id === id && p.active !== false)?.name ?? null;
+}
+
+/** Splits decisions by the person each concerns, in the order first seen. */
+function byPerson(
+  decisions: readonly DecisionLink[],
+  people: readonly Person[],
+): Map<string | null, number> {
+  const out = new Map<string | null, number>();
+  for (const decision of decisions) {
+    const who = personName(people, decision.linkedPersonId);
+    out.set(who, (out.get(who) ?? 0) + 1);
+  }
+  return out;
 }
 
 export function buildNeedsAttentionItems({
+  day,
+  people,
+  roleDuties = {},
   overdue,
   slipped,
   leavers,
-  months,
-}: AttentionCounts): AttentionItem[] {
+  reviews,
+}: AttentionInput): AttentionItem[] {
+  const decisionItems = (
+    decisions: readonly DecisionLink[],
+    id: string,
+    text: (n: number) => string,
+  ): AttentionItem[] =>
+    [...byPerson(decisions, people)].map(([who, n]) => ({
+      id: `${id}-${who ?? ""}`,
+      n,
+      text: text(n),
+      target: "journal",
+      who,
+    }));
   return [
-    {
-      id: "overdue",
-      n: overdue,
-      text: `${count(overdue, "decision")} to review`,
-      target: "journal",
-    },
-    {
-      id: "slipped",
-      n: slipped,
-      text: `${count(slipped, "decision")} undone since you marked ${verb(slipped, "it", "them")} done`,
-      target: "journal",
-    },
+    ...monthlyAttentionItems(day, reviews, people, roleDuties),
+    ...decisionItems(overdue, "overdue", (n) => `${count(n, "decision")} to review`),
+    ...decisionItems(
+      slipped,
+      "slipped",
+      (n) => `${count(n, "decision")} undone since you marked ${verb(n, "it", "them")} done`,
+    ),
     {
       id: "leavers",
       n: leavers,
       text: `${count(leavers, "person", "people")} who left: check their access`,
       target: "knowledge",
       item: "leaving",
+      who: null,
     },
-    ...monthlyAttentionItems(months),
   ].filter((item) => item.n > 0);
 }
 
+/** One monthly check that waits: an Exception to resolve, or a check not done in the month that is due. */
+interface WaitingCheck {
+  period: string;
+  key: string;
+  title: string;
+  who: string | null;
+  exception: boolean;
+}
+
 /**
- * The Monthly review's two items: the checks not done (no result yet, or
- * Skipped) and the checks reported as Exception, which are recorded but wait
- * to be resolved, across the months still open (`openMonthlyChecks`). Both
- * open the Monthly review at its checks.
+ * The Monthly review's checks that wait on `day`, each read by its latest
+ * result once: every check whose latest result is Exception in either open
+ * month (`countedOpenPeriods`), and every check not done (no result yet, or
+ * Skipped) of the month that is due (`reportPeriod`). `who` is the person
+ * the Monthly review suggests, when they are on the team.
  */
-export function monthlyAttentionItems(months: readonly OpenMonthChecks[]): AttentionItem[] {
-  const notDone = months.reduce((sum, m) => sum + m.notDone, 0);
-  const exceptions = months.reduce((sum, m) => sum + m.exceptions, 0);
+function waitingChecks(
+  day: string,
+  reviews: readonly ReviewRecord[],
+  people: readonly Person[],
+  roleDuties: Readonly<Record<string, readonly string[]>>,
+): WaitingCheck[] {
+  const due = reportPeriod(day);
+  const out: WaitingCheck[] = [];
+  for (const period of countedOpenPeriods(day)) {
+    for (const task of monthlyReviewTasks(day, people, roleDuties, period)) {
+      const result = latestReview(reviews, task.key, period)?.result;
+      const exception = result === "exception";
+      if (!exception && (result === "done" || period !== due)) continue;
+      const who = people.some((p) => p.name === task.suggestedOwner) ? task.suggestedOwner : null;
+      out.push({ period, key: task.key, title: task.title, who, exception });
+    }
+  }
+  return out;
+}
+
+/**
+ * The Monthly review's items on `day`:
+ * - The checks not done (no result yet, or Skipped) of the month that is due
+ *   (`reportPeriod`) only, one item for each person the Monthly review
+ *   suggests, for example "4 checks for September, due October 10". Each opens
+ *   that person's first check not done.
+ * - Each check whose latest result is Exception, in either open month
+ *   (`countedOpenPeriods`), as its own item that opens that check.
+ */
+export function monthlyAttentionItems(
+  day: string,
+  reviews: readonly ReviewRecord[],
+  people: readonly Person[],
+  roleDuties: Readonly<Record<string, readonly string[]>> = {},
+): AttentionItem[] {
+  const due = reportPeriod(day);
+  const notDone = new Map<string | null, { n: number; first: string }>();
+  const exceptions: AttentionItem[] = [];
+  for (const check of waitingChecks(day, reviews, people, roleDuties)) {
+    const item = checkItemId(check.period, check.key);
+    if (check.exception) {
+      exceptions.push({
+        id: `exception-${check.period}-${check.key}`,
+        n: 1,
+        text: `Resolve the ${periodMonthName(check.period)} exception: ${check.title}`,
+        target: "monthly",
+        item,
+        who: check.who,
+      });
+    } else {
+      const mine = notDone.get(check.who);
+      if (mine) mine.n += 1;
+      else notDone.set(check.who, { n: 1, first: item });
+    }
+  }
+  const month = periodMonthName(due);
+  const dueText = reviewDueText(due);
   return [
-    {
-      id: "monthly",
-      n: notDone,
-      text: `${count(notDone, "Monthly review check")} not done`,
+    ...[...notDone].map(([who, { n, first }]) => ({
+      id: `monthly-${who ?? ""}`,
+      n,
+      text: `${count(n, "check")} for ${month}, due ${dueText}`,
       target: "monthly",
-      item: "checks",
-    },
-    {
-      id: "monthly-exceptions",
-      n: exceptions,
-      text: `${count(exceptions, "Monthly review exception")} to resolve`,
-      target: "monthly",
-      item: "checks",
-    },
+      item: first,
+      who,
+    })),
+    ...exceptions,
   ];
+}
+
+/**
+ * The number the Needs attention button shows: every item's count added up,
+ * worked out without building the items or their words.
+ */
+export function needsAttentionTotal({
+  day,
+  people,
+  roleDuties = {},
+  overdue,
+  slipped,
+  leavers,
+  reviews,
+}: AttentionInput): number {
+  return (
+    waitingChecks(day, reviews, people, roleDuties).length +
+    overdue.length +
+    slipped.length +
+    Math.max(leavers, 0)
+  );
+}
+
+/**
+ * The items by person: one group for each team member with an item, in team
+ * order, then "Unassigned" for the items that name nobody.
+ */
+export function groupNeedsAttentionItems(
+  items: readonly AttentionItem[],
+  people: readonly Person[],
+): AttentionGroup[] {
+  const names = [...new Set(people.map((p) => p.name))];
+  const groups: AttentionGroup[] = names
+    .map((name) => ({
+      who: name,
+      heading: name,
+      items: items.filter((item) => item.who === name),
+    }))
+    .filter((group) => group.items.length > 0);
+  const rest = items.filter((item) => item.who === null || !names.includes(item.who));
+  if (rest.length > 0) groups.push({ who: null, heading: "Unassigned", items: rest });
+  return groups;
 }
 
 export function openNeedsAttentionItem(

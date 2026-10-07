@@ -7,7 +7,7 @@ import { secretKindsIn, SECRET_WARNING } from "@/lib/precog/procedures/credentia
 import { LIBRARY_NOTES_TITLE, libraryNotes } from "@/lib/precog/procedures/export";
 import { newStep, stepHasContent, withoutDraftMarks } from "@/lib/precog/procedures/lifecycle";
 import type { ProcedureDraft } from "@/lib/precog/procedures/draft";
-import { industryMeta } from "@/lib/precog/industry";
+import { defaultReviewer, industryMeta } from "@/lib/precog/industry";
 import {
   MAX_REVIEW_DAYS,
   MIN_REVIEW_DAYS,
@@ -458,7 +458,7 @@ export function ProcedureEditor({
               value={draft.reviewerPersonId ?? ""}
               onChange={(e) => set("reviewerPersonId", e.target.value || undefined)}
             >
-              <option value="">The owner</option>
+              <option value="">{defaultReviewer(draft.industry, true)}</option>
               {activePeople.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}

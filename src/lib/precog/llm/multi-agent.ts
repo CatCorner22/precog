@@ -7,6 +7,7 @@ import { readSpofData } from "./spof-data";
 import { describeScenarioFigures, type ScenarioRunData } from "./scenario-tools";
 import { NO_ALERT_WARNING, WARNING_RULES } from "./agent-brief";
 import { count } from "../text";
+import { bandForScore } from "../scoring/weights";
 
 type SpecialistId = "operator" | "shield" | "precog" | "critic";
 
@@ -92,7 +93,7 @@ export function runSpecialistAgents(tools: ToolResult[]): SpecialistNote[] {
   const criticBullets: string[] = [];
   if ((residual?.averageResidual ?? 0) >= WARNING_RULES.averageResidual) {
     criticBullets.push(
-      `The average risk index is in the "fix soon" band; waiting is a choice with a price.`,
+      `The average risk index is in the "${bandForScore(residual!.averageResidual).label}" band; waiting is a choice with a price.`,
     );
   }
   if (leading && leading.breached > 0) {

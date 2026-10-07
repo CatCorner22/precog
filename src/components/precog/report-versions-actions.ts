@@ -5,6 +5,7 @@ import {
   type ReportVersionRow,
 } from "@/lib/precog/firm/reports";
 import type { FirmRole } from "@/lib/precog/firm/store";
+import { formatDay } from "@/lib/precog/dates";
 
 /**
  * The words of reviewing a version for issuance (CPA-7). A reviewer opens a
@@ -179,35 +180,98 @@ export function reviewRequestedToast(fromName: string | null): string {
     : "Review requested from the firm's reviewers.";
 }
 
-/** What a returned version shows in place of its review buttons. */
-export function returnedNoteLine(note: string): string {
-  return `Returned: ${note}`;
-}
-
-/** The question a reviewer answers to return a version; null when they cancel. */
-export function askReturnNote(
-  versionNo: number,
-  ask: (message: string) => string | null = (message) => window.prompt(message),
-): string | null {
-  return ask(
-    `Return version ${versionNo} to its preparer? Say what to change (up to 600 characters):`,
-  );
+/**
+ * What a returned version shows, on the versions list and on the open
+ * version: the reviewer's note, who returned it and when.
+ */
+export function returnedNoteLine(
+  version: Pick<ReportVersionRow, "returnNote" | "returnedByName" | "returnedAt">,
+): string {
+  const when = version.returnedAt ? ` on ${formatDay(version.returnedAt)}` : "";
+  return `Returned: ${version.returnNote} by ${version.returnedByName ?? "a reviewer"}${when}`;
 }
 
 /**
- * Asks for the return note, then returns the version with it. Cancel sends
- * nothing and resolves to null; an empty note sends nothing and resolves to
- * "empty", so the panel can say a note is needed.
+ * The words of the return form on the open version: the reviewer writes what
+ * to change in a box under "Return to preparer", and nothing is sent until
+ * its confirm button.
  */
-export async function returnWithNote<T>(
-  versionNo: number,
-  send: (note: string) => Promise<T>,
-  ask?: (message: string) => string | null,
-): Promise<T | null | "empty"> {
-  const note = askReturnNote(versionNo, ask);
-  if (note === null) return null;
-  if (!note.trim()) return "empty";
-  return send(note.trim());
+export const RETURN_NOTE_TEXT = {
+  confirm: "Return with this note",
+  cancel: "Cancel",
+} as const;
+
+export function returnNoteLabel(versionNo: number): string {
+  return `What to change before version ${versionNo} goes back to its preparer (required, up to ${RETURN_NOTE_MAX} characters)`;
+}
+export function returnNoteConfirmLabel(versionNo: number): string {
+  return `Return version ${versionNo} with this note`;
+}
+
+/** True when the return note has words in it and is not too long, after trimming. */
+export function returnNoteReady(note: string): boolean {
+  const n = note.trim().length;
+  return n > 0 && n <= RETURN_NOTE_MAX;
+}
+
+/**
+ * The newest version waiting for the viewer's review, or null: review was
+ * asked of the viewer or of the firm's reviewers, the viewer may review or
+ * return it (reviewButtonsFor), and no newer version supersedes it.
+ */
+export function versionAwaitingReview<
+  V extends Pick<
+    ReportVersionRow,
+    | "id"
+    | "versionNo"
+    | "preparedBy"
+    | "reviewedAt"
+    | "returnedAt"
+    | "reviewRequestedAt"
+    | "reviewRequestedFrom"
+  >,
+>(input: {
+  versions: readonly V[];
+  viewerId: string;
+  role: FirmRole | null;
+  firmClient: boolean;
+  readOnly?: boolean;
+}): V | null {
+  let newest: V | null = null;
+  for (const v of input.versions) {
+    if (!v.reviewRequestedAt) continue;
+    if (v.reviewRequestedFrom !== null && v.reviewRequestedFrom !== input.viewerId) continue;
+    if (supersededBy(v, input.versions) !== null) continue;
+    const buttons = reviewButtonsFor({
+      version: v,
+      viewerId: input.viewerId,
+      role: input.role,
+      firmClient: input.firmClient,
+      readOnly: input.readOnly,
+    });
+    if (buttons.reviewOrReturn && (newest === null || v.versionNo > newest.versionNo)) newest = v;
+  }
+  return newest;
+}
+
+/** The banner on the current report when a version waits for the viewer's review, and its link. */
+export function awaitingReviewText(versionNo: number): string {
+  return `Version ${versionNo} waits for your review.`;
+}
+export function openVersionText(versionNo: number): string {
+  return `Open version ${versionNo}`;
+}
+
+/**
+ * The look of "Lock this version": an outline button for a firm reviewer and
+ * for anyone a version waits on, so the filled button never pulls a reviewer
+ * toward locking the draft in place of reviewing the version.
+ */
+export function lockButtonVariant(input: {
+  role: FirmRole | null;
+  awaiting: boolean;
+}): "default" | "outline" {
+  return input.role === "reviewer" || input.awaiting ? "outline" : "default";
 }
 
 /** The accessible names of the request-and-return buttons, naming the version. */

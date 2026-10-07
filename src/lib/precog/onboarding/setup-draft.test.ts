@@ -315,4 +315,14 @@ describe("a draft this version cannot read", () => {
     ];
     expect(stored({ ...draft, rows })?.rows.map((r) => r.name)).toEqual(["Dee"]);
   });
+
+  it("keeps the duties the setup answers unticked, so changing the answer back ticks them", () => {
+    const rows = [
+      { name: "Lisa", role: "Bookkeeper", duties: [], answersUnticked: ["bank_reconcile"] },
+      { name: "Moe", role: "Bookkeeper", duties: [], answersUnticked: "bank_reconcile" },
+    ];
+    const read = stored({ ...draft, rows })?.rows;
+    expect(read?.map((r) => r.name)).toEqual(["Lisa"]);
+    expect(read?.[0].answersUnticked).toEqual(["bank_reconcile"]);
+  });
 });

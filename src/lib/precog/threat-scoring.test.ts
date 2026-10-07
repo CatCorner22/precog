@@ -5,7 +5,9 @@ import { defaultProfile } from "./practice-profile";
 import { rankDangerousScenarios } from "./engine";
 import { buildThreatAssessment, fixFirstCount, fixFirstOf, rankTargets } from "./threat-scoring";
 import { PRIORITY_BAND_LABEL, priorityBand } from "./map-vision";
-import { CONFLICT_SEVERITY_KEY } from "./scoring/bands";
+import { CONFLICT_SEVERITY_KEY, PRIORITY_SCALE } from "./scoring/bands";
+import { portfolioSummary } from "./scoring/residual-engine";
+import { RESIDUAL_BAND_LABEL } from "./scoring/weights";
 import { INDUSTRIES, type IndustryId } from "./industry";
 import { detectSodConflicts, sodDetectionOptions } from "./sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "./sod/open-findings";
@@ -79,6 +81,23 @@ describe("buildThreatAssessment for the sample", () => {
     expect(report.missionBrief).toContain(
       "Know-how: 5 items only one person can do; 0 nobody can.",
     );
+  });
+
+  it("counts residual risks in the residual band words and keeps Fix first for the priority list", () => {
+    const tpl = getIndustryTemplate("dental");
+    const p = defaultProfile("dental");
+    const report = buildThreatAssessment({ tpl, practiceName: "x", staff: p.staff });
+    const portfolio = portfolioSummary(tpl, p.staff);
+    const L = RESIDUAL_BAND_LABEL;
+    expect(report.missionBrief[1]).toBe(
+      `Residual risks by band on Precog's index: ${portfolio.criticalPath} ${L.critical_path}, ${portfolio.actNow} ${L.act_now} and ${portfolio.mitigate} ${L.mitigate}.`,
+    );
+    expect(report.missionBrief[2]).toBe(
+      `On the priority list, ${report.fixFirst} ${report.fixFirst === 1 ? "is" : "are"} ${PRIORITY_BAND_LABEL.white_hot} (priority ${PRIORITY_SCALE.top} or more).`,
+    );
+    // Only the opening line ("what to fix first") and the priority-list line use the urgency words.
+    const others = report.missionBrief.filter((_, i) => i !== 0 && i !== 2);
+    expect(others.join(" ")).not.toMatch(/fix first|fix soon|worth doing/i);
   });
 
   it("writes the executive summary and footer without military or internal shorthand", () => {
@@ -161,8 +180,26 @@ describe("a scenario row's retained dollars", () => {
     }).targetDeck.flatMap((t) => t.reasons);
   };
 
+  it("keeps a scenario card's days until found and retained loss when its residual row leads", () => {
+    // The payroll scenario is both a residual-index row and a ranked scenario
+    // on every sample; the card keeps the ranked row's plain reasons first.
+    for (const { id } of INDUSTRIES) {
+      const p = defaultProfile(id as IndustryId);
+      const card = buildThreatAssessment({
+        tpl: resolveTemplate(p),
+        practiceName: "x",
+        staff: p.staff,
+        riskVariables: p.riskVariables,
+        dualRelease: p.dualRelease,
+      }).targetDeck.find((t) => t.scenario?.id === "sc-payroll-ghost");
+      expect(card, id).toBeDefined();
+      expect(card!.reasons[0], id).toMatch(/^about \d+ assumed days until found$/);
+      expect(card!.reasons[1], id).toMatch(/^Retained /);
+    }
+  });
+
   it("prints the retained loss as a rounded estimate, never to the dollar", () => {
-    expect(reasonsFor("professional_services")).toContain(
+    expect(reasonsFor("dental")).toContain(
       "Retained about $5,000 (Precog default, enter your policy)",
     );
     for (const { id } of INDUSTRIES) {

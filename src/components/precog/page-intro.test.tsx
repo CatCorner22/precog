@@ -19,6 +19,15 @@ describe("PageIntro", () => {
     expect(html).not.toContain("<details");
   });
 
+  it("makes Words used here 44px tall on a touch screen, with its text centred", () => {
+    const html = renderToStaticMarkup(<PageIntro tab="sod" purpose="Who can move money." />);
+    const classes = /<button[^>]*class="([^"]*)"[^>]*>(?:(?!<\/button>).)*Words used here/
+      .exec(html)?.[1]
+      .split(" ");
+    expect(classes).toContain("pointer-coarse:min-h-11");
+    expect(classes).toContain("items-center");
+  });
+
   it("HowThisWorks is closed by default and can carry its own summary", () => {
     const html = renderToStaticMarkup(
       <HowThisWorks summary="Why this order">Because.</HowThisWorks>,

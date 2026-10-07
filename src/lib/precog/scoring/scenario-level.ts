@@ -18,7 +18,7 @@ import { scenarioFlags } from "./scenario-kind";
 import { DEFAULT_WEIGHTS, type ScoringWeights } from "./weights";
 
 /** The label every scenario dollar and day figure carries. */
-export const ILLUSTRATIVE_LABEL = "Illustrative example, not sized to your business";
+export const ILLUSTRATIVE_LABEL = "Example figures, not from your books";
 
 type StaffFactorKey = Exclude<keyof ScoringWeights["scenarioStaff"], "timelineReliefShare">;
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { continuityTemplate, knowledgeItem } from "@/test/fixtures";
 import { coverageReport } from "./coverage";
-import { coverageBadge } from "./planner-copy";
+import { coverageBadge, noNoticeText } from "./planner-copy";
 
 const people = [
   { id: "a", name: "Ana", role: "Owner", active: true },
@@ -20,5 +20,18 @@ describe("coverageBadge", () => {
     const [unmarked, aware] = report.items;
     expect(coverageBadge(unmarked)).toEqual({ label: "Not marked yet", variant: "default" });
     expect(coverageBadge(aware)).toEqual({ label: "Nobody can do this alone", variant: "danger" });
+  });
+});
+
+describe("noNoticeText", () => {
+  it("says nobody has given notice only while nobody has left either", () => {
+    expect(noNoticeText([])).toMatch(/^Nobody has given notice\./);
+  });
+
+  it("does not contradict the access checklist for someone who has left", () => {
+    const text = noNoticeText(["Tony Ruiz"]);
+    expect(text).not.toMatch(/^Nobody has given notice/);
+    expect(text).toMatch(/^Nobody still on the team has given notice\. Tony Ruiz left/);
+    expect(noNoticeText(["Ana", "Ben"])).toContain("Ana and Ben left");
   });
 });

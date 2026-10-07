@@ -25,7 +25,6 @@ import {
   casesForSodRules,
   citingCaseStats,
   isOwnSector,
-  recommendedStepsForRules,
 } from "../evidence";
 import {
   openFindings,
@@ -34,13 +33,14 @@ import {
   ruleIdsOf,
 } from "../sod/open-findings";
 import { openConflictHeadline } from "../headline/open-conflicts";
-import { rankFirstSteps } from "../coach/first-steps";
+import { rankedFirstSteps } from "../actions/do-next";
 import { buildWeeklyActions } from "../weekly-actions/build";
 import { buildProcessMapGraph } from "../process-graph";
 import { scoreMap } from "../builder/scored-map";
 import { registerAssessed } from "../continuity/register-state";
 import { setupInPlaceControls } from "../onboarding/setup-answers";
 import {
+  concentrationMove,
   continuityFollowThrough,
   decisionLog,
   executiveSummary,
@@ -169,16 +169,13 @@ export function buildControlReportModel({
     ...matched.filter((c) => isOwnSector(c, profile.industry)),
     ...matched.filter((c) => !isOwnSector(c, profile.industry)),
   ];
-  // Ranked as Start here ranks its "Do these first" list, so the screen and
-  // the printed report lead with the same step: first by how many of the
-  // open findings each control answers.
+  // Built as Start here builds its "Do these first" list (actions/do-next
+  // `rankedFirstSteps`), so the screen and the printed report lead with the
+  // same step, worded the same.
   const inPlace = setupInPlaceControls(profile.setupAnswers);
-  const steps = rankFirstSteps(
-    recommendedStepsForRules(openRuleIds, profile.industry).filter(
-      (step) => !inPlace.has(step.control.id),
-    ),
-    open,
-  ).slice(0, 6);
+  // The concentration move, worked out once for the step list and the summary.
+  const move = concentrationMove(open);
+  const steps = rankedFirstSteps(open, profile.industry, (id) => inPlace.has(id), move).slice(0, 6);
   // Count, median and detection routes describe only the cases whose records
   // show these gaps. Cases that merely share a scheme are listed but never
   // counted, so when no case shows the gaps the report gives no loss figure.
@@ -203,7 +200,7 @@ export function buildControlReportModel({
     // pairs and the pairs dual release closes counted apart, as that section does.
     conflicts: openConflictHeadline(sod, partialCoverage),
     firstStep: steps[0]?.control.label ?? null,
-    firstStepId: steps[0]?.control.id ?? null,
+    move,
     registerReady,
     coverageIndex: continuity.coverageIndex,
     singlePoints: continuity.singlePoints.length,

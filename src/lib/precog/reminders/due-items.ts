@@ -1,4 +1,5 @@
 import { profileStandInConflicts } from "../continuity/standin-conflicts";
+import { defaultReviewer } from "../industry";
 import { resolveTemplate } from "../active-template";
 import { decisionsDue } from "../decisions/follow-through";
 import { absencesNeedingAttention, plannedAbsenceReport } from "../continuity/planned-absence";
@@ -152,7 +153,7 @@ export function dueItemsFor(
     today,
   );
   for (const { procedure, dueOn, overdue } of attention.reviewDue) {
-    const checker = nameOf(procedure.reviewerPersonId) ?? "The owner";
+    const checker = nameOf(procedure.reviewerPersonId) ?? defaultReviewer(profile.industry, true);
     const detail = `${checker} checks the steps still match the software or the place. They were last checked on ${formatDay(procedure.verifiedAt ?? dueOn)}.`;
     add({
       key: `procedure-review:${procedure.id}`,

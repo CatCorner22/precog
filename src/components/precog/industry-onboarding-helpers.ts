@@ -5,10 +5,13 @@ import {
   ownerRow,
   rowSeat,
   sharedTitles,
+  titleTickedDuties,
   type OwnTeamRow,
   type SeatReading,
 } from "@/lib/precog/onboarding/own-team";
+import type { SetupAnswers } from "@/lib/precog/onboarding/setup-answers";
 import type { EntitlementId } from "@/lib/precog/sod/conflict-rules";
+import type { TitleTicksItem } from "./industry-onboarding-parts";
 import {
   Briefcase,
   Car,
@@ -158,6 +161,25 @@ export function dutiesHeldByTitle(rows: readonly OwnTeamRow[], role: string): En
   return [...CORE_DUTIES, ...extraDuties([...held])].filter((d) => held.has(d));
 }
 
+/**
+ * The people whose job title ticked duties they still hold, for the review
+ * before Finish: named rows only, since Finish drops a row with no name.
+ */
+export function titleTicksItems(
+  rows: readonly OwnTeamRow[],
+  industry: string,
+  answers: SetupAnswers,
+  ticked: (row: OwnTeamRow) => EntitlementId[] = (row) => titleTickedDuties(row, industry, answers),
+): TitleTicksItem[] {
+  return rows.flatMap((row) => {
+    const who = row.name.trim();
+    const duties = who ? ticked(row) : [];
+    return duties.length > 0
+      ? [{ rowId: row.rowId ?? "", who, role: row.role.trim(), duties }]
+      : [];
+  });
+}
+
 /** Whether leaving setup now loses typed work: the browser keeps nothing, or the draft write failed. */
 export function setupLeaveLosesWork(input: {
   keepsNothing: boolean;
@@ -195,4 +217,12 @@ export function cancelSetupConfirm(input: {
 }): string | null {
   if (!input.typed || !setupLeaveLosesWork(input)) return null;
   return "Cancel setup? This browser will not keep what you typed.";
+}
+
+export const ONE_PERSON_NOTE =
+  "You can continue with one person. Precog will assess that sole-owner setup; add the rest of your team later under Team for a fuller team assessment.";
+
+/** The one-person note under the team table, shown only while nobody or one person is named. */
+export function onePersonNote(namedCount: number): string | null {
+  return namedCount <= 1 ? ONE_PERSON_NOTE : null;
 }

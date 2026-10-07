@@ -1,43 +1,52 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { KeyRound, UserMinus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { usePractice } from "@/lib/precog/practice-context";
 import { teamSource } from "@/lib/precog/team-source";
 import { useTabName } from "@/lib/precog/presentation";
+import { leaverLabel, leaverLine, openAccessChecks } from "@/lib/precog/continuity/access-removal";
 import {
-  LEAVER_ACCESS_ITEMS,
-  leaverLabel,
-  openAccessChecks,
-  type LeaverAccessItem,
-} from "@/lib/precog/continuity/access-removal";
-import { formatDay } from "@/lib/precog/dates";
+  leaverAccessItems,
+  type LeaverAccessItemDef,
+} from "@/lib/precog/continuity/leaver-access-items";
+import { localDateKey } from "@/lib/precog/dates";
+import type { IndustryId } from "@/lib/precog/industry";
 
-const WHY =
-  "Someone who has left but whose sign-in, card or PIN still works can move money or copy customer records. Checking each one takes a few minutes.";
+/** Whose records a leaver could still copy, in each line of business's words. */
+const RECORDS: Partial<Record<IndustryId, string>> = {
+  dental: "patient records",
+  professional_services: "client files",
+  nonprofit: "donor records",
+};
+
+const why = (industry: IndustryId) =>
+  `Someone who has left but whose sign-in, card or PIN still works can move money or copy ${RECORDS[industry] ?? "customer records"}. Checking each one takes a few minutes.`;
 
 /** The logins and pay to check for someone who has left, ticked one by one before confirming. */
 function AccessChecklist({
+  items,
   idPrefix,
   onConfirm,
   confirmLabel,
   children,
 }: {
+  items: readonly LeaverAccessItemDef[];
   idPrefix: string;
   onConfirm: () => void;
   confirmLabel: string;
   children?: React.ReactNode;
 }) {
-  const [ticked, setTicked] = useState<Set<LeaverAccessItem>>(new Set());
-  const allTicked = LEAVER_ACCESS_ITEMS.every((item) => ticked.has(item.id));
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
+  const allTicked = items.every((item) => ticked.has(item.id));
   return (
     <div className="space-y-2">
       <ul className="space-y-1">
-        {LEAVER_ACCESS_ITEMS.map((item) => (
+        {items.map((item) => (
           <li key={item.id}>
             <label
               htmlFor={`${idPrefix}-${item.id}`}
-              className="flex items-start gap-2 text-sm leading-snug"
+              className="flex items-start gap-2 text-sm leading-snug pointer-coarse:min-h-11 pointer-coarse:items-center"
             >
               <input
                 id={`${idPrefix}-${item.id}`}
@@ -86,6 +95,8 @@ export function LeaverAccessList({ explainOnSample = false }: { explainOnSample?
     [profile.leaverAccessChecks, profile.industry, template.people],
   );
   const [expanded, setExpanded] = useState<string | null>(null);
+  const titleId = useId();
+  const today = localDateKey(new Date());
   if (open.length === 0) {
     return explainOnSample && teamSource(profile) === "sample" ? (
       <p className="flex items-center gap-2 text-sm text-muted">
@@ -96,17 +107,14 @@ export function LeaverAccessList({ explainOnSample = false }: { explainOnSample?
     ) : null;
   }
   return (
-    <section
-      aria-labelledby="leaver-access-list-title"
-      className="rounded-lg border border-warn/30 bg-warn/5 p-4"
-    >
-      <p id="leaver-access-list-title" className="flex items-center gap-2 text-sm font-medium">
+    <section aria-labelledby={titleId} className="rounded-lg border border-warn/30 bg-warn/5 p-4">
+      <p id={titleId} className="flex items-center gap-2 text-sm font-medium">
         <UserMinus className="size-4 shrink-0" aria-hidden />
         {open.length === 1
           ? "1 person who left still needs their pay and sign-ins checked"
           : `${open.length} people who left still need their pay and sign-ins checked`}
       </p>
-      <p className="mt-1 text-sm leading-relaxed text-muted">{WHY}</p>
+      <p className="mt-1 text-sm leading-relaxed text-muted">{why(profile.industry)}</p>
       <ul className="mt-3 space-y-2">
         {open.map((check) => (
           <li key={check.id} className="rounded-md border border-border bg-surface px-3 py-2">
@@ -116,9 +124,11 @@ export function LeaverAccessList({ explainOnSample = false }: { explainOnSample?
                 <span className="text-muted">
                   {" "}
                   ·{" "}
-                  {check.source === "roster"
-                    ? `listed as no longer working here in the roster you pasted on ${formatDay(check.notedOn)}`
-                    : `marked as left on ${formatDay(check.notedOn)}`}
+                  {leaverLine(
+                    check,
+                    template.people.find((person) => person.id === check.personId),
+                    today,
+                  )}
                 </span>
               </span>
               <Button
@@ -133,6 +143,7 @@ export function LeaverAccessList({ explainOnSample = false }: { explainOnSample?
             {expanded === check.id && (
               <div className="mt-2">
                 <AccessChecklist
+                  items={leaverAccessItems(check.industry)}
                   idPrefix={`leaver-${check.id}`}
                   confirmLabel={`Confirm for ${check.name}`}
                   onConfirm={() => {

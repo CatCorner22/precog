@@ -754,11 +754,16 @@ describe("a control's wording for a business with no owner", () => {
     expect({ ...nonprofit, label: owner?.label }).toEqual(owner);
   });
 
-  it("changes no other control's wording for a nonprofit", () => {
+  it("changes only an owner control's wording for a nonprofit", () => {
     const owner = new Map(steps("dental").map((s) => [s.control.id, s.control.label]));
     for (const s of steps("nonprofit")) {
-      if (s.control.id === "owner-opens-bank-statement") continue;
-      expect(s.control.label).toBe(owner.get(s.control.id));
+      const dental = owner.get(s.control.id);
+      if (/\bowner\b/i.test(dental ?? "")) {
+        expect(s.control.label, s.control.id).not.toMatch(/\bowner\b/i);
+        expect(s.control.label, s.control.id).toMatch(/board member|executive director/);
+      } else {
+        expect(s.control.label).toBe(dental);
+      }
     }
   });
 });

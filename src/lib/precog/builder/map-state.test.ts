@@ -145,7 +145,7 @@ describe("the sample business's map figures do not change", () => {
       ["documentation", 0],
     ]);
     expect(health.issueCount).toEqual({ errors: 0, warns: 0, infos: 8 });
-    expect(health.hotProcesses).toBe(4);
+    expect(health.hotProcesses).toBe(5);
     expect(health.unownedProcesses).toBe(0);
     expect(issues.map((i) => i.id)).toEqual([
       "record-proc-schedule",
