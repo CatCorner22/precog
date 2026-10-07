@@ -27,6 +27,7 @@ import {
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { DEFAULT_BUSINESS_ID } from "@/lib/precog/business-id";
+import { useStickyHeaderHeight } from "@/lib/use-sticky-header-height";
 import type { DeepLinkTarget } from "@/lib/precog/coso";
 import {
   isTabId,
@@ -132,6 +133,8 @@ function Home() {
   // account no longer sees, or a visitor who is signed out).
   const wantedBusiness = search.business ?? null;
   const switchedTo = useRef<string | null>(null);
+  const headerRef = useRef<HTMLElement | null>(null);
+  useStickyHeaderHeight(headerRef);
   useEffect(() => {
     if (!ready || !wantedBusiness || switchedTo.current === wantedBusiness) return;
     const activeId = profile.businessId ?? DEFAULT_BUSINESS_ID;
@@ -284,7 +287,10 @@ function Home() {
         >
           Skip to content
         </a>
-        <header className="sticky top-[var(--grok-banner-h,0px)] z-20 border-b border-border bg-bg/90 backdrop-blur">
+        <header
+          ref={headerRef}
+          className="sticky top-[var(--grok-banner-h,0px)] z-20 border-b border-border bg-bg/90 backdrop-blur"
+        >
           {/* On a phone Report and Needs attention stay in the row and the rest
               folds behind "More" instead of wrapping to a second row. */}
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:px-6">

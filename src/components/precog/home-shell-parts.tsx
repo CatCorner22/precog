@@ -424,10 +424,13 @@ export function HeaderActions({
       </>
     );
   }
+  // The panel hangs from the sticky header's right edge, not from the
+  // button: the button can sit far left in the row (a short label beside
+  // it), and a panel anchored there would run off the left of a phone.
   return (
     <>
       {inline}
-      <div ref={ref} className="relative">
+      <div ref={ref} className="static">
         <button
           ref={triggerRef}
           type="button"
@@ -443,7 +446,7 @@ export function HeaderActions({
             id="header-more"
             role="group"
             aria-label="More header actions"
-            className="absolute top-full right-0 z-30 mt-1 flex min-w-56 flex-col items-stretch gap-2 rounded-lg border border-border bg-surface p-3 shadow-xl"
+            className="absolute top-full right-4 z-30 mt-1 flex w-max max-w-[calc(100vw-2rem)] min-w-56 flex-col items-stretch gap-2 rounded-lg border border-border bg-surface p-3 shadow-xl"
           >
             {leading}
             {trailing}
