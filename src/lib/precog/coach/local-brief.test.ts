@@ -166,6 +166,20 @@ describe("local advisor brief", () => {
     expect(brief.markdown).toContain("Write-offs posted without a second approval");
   });
 
+  it("answers only the named subcontractor scenario", () => {
+    const profile = pioneerProfileFrom(defaultProfile("construction") as never);
+    const tpl = resolveTemplate(profile);
+    const answer = scenarioAnswer(
+      "Walk me through the Payments to a subcontractor that does not exist scenario",
+      tpl,
+      profile,
+    );
+
+    expect(answer?.filter((line) => line.startsWith("### "))).toEqual([
+      "### Payments to a subcontractor that does not exist",
+    ]);
+  });
+
   it("shows the departure scenario before the absence answer", () => {
     const sample = pioneerProfileFrom(defaultProfile("dental") as never);
     const question = "Walk me through the front desk lead leaves scenario.";
