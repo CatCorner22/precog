@@ -60,6 +60,7 @@ import {
 } from "@/components/precog/home-shell-parts";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { NeedsAttentionMenu } from "@/components/precog/needs-attention-menu";
+import { PageIntro, type Wording } from "@/components/precog/page-intro";
 import { PaymentOverdueBanner } from "@/components/precog/payment-overdue-banner";
 import { PresentationToggle } from "@/components/precog/presentation-toggle";
 import { SaveConflictBanner } from "@/components/precog/save-conflict-banner";
@@ -475,19 +476,19 @@ function Home() {
 }
 
 /**
- * The heading of a tab that has one: the tab's own name in plain wording, so
- * the owner lands under the word they clicked, and the framework name in
- * tactical wording.
+ * The top of a tab the shell composes itself: the tab's own name in the active
+ * wording, so the owner lands under the word they clicked, one sentence of
+ * purpose, and the method folded away.
  */
 function TabIntro({ id }: { id: keyof typeof TAB_INTROS }) {
   const { say } = usePresentation();
-  const tab = TABS.find((t) => t.id === id)!;
   const intro = TAB_INTROS[id];
   return (
-    <div>
-      <h1 className="text-lg font-semibold">{say(tab.label, intro.heading)}</h1>
-      <p className="text-sm text-muted">{say(intro.plain, intro.tactical)}</p>
-    </div>
+    <PageIntro
+      tab={id}
+      purpose={intro.purpose}
+      method={<p>{say(intro.method.plain, intro.method.tactical)}</p>}
+    />
   );
 }
 
@@ -576,29 +577,49 @@ const ROUTE_LINK_IDS: readonly RouteAliasId[] = ["value", "snapshots"];
 const PRIMARY_TABS = PRIMARY_TAB_IDS.map((id) => TABS.find((t) => t.id === id)!);
 const ADVANCED_TABS = TABS.filter((t) => !PRIMARY_TAB_IDS.includes(t.id));
 
-/** Heading (tactical) and one-line purpose, in both wordings, for the tabs that open on a heading. */
+/** One sentence of purpose per page, with the method folded under "How this works". */
 const TAB_INTROS = {
   knowledge: {
-    heading: "Continuity of operations",
-    plain:
+    purpose:
       "List the duties and know-how the business runs on, mark who can do each, and close the gaps where one absence would stop work.",
-    tactical:
-      "List the duties and know-how the business runs on, mark who can do each, and close the gaps where one absence would stop work.",
+    method: {
+      plain:
+        "Each register entry names who can do it alone and who is still learning. One holder means the work stops when that person is out; a second holder is a stand-in. Check-ins per person keep the register current, and a written, findable procedure lowers the exposure of the entry it covers.",
+      tactical:
+        "Each register entry names who can do it alone and who is still learning. A single holder is a single point of failure; a second holder is a stand-in. Check-ins per person keep the register current, and a written, findable procedure is credited in know-how residual scoring.",
+    },
   },
   procedures: {
-    heading: "Procedures",
-    plain:
-      "Write the steps for each task, in the software screen or the physical place where it happens, so someone else can do it when the usual person is away.",
-    tactical:
-      "Step-by-step desk procedures by platform and module, linked to the register, with review dates.",
+    purpose: {
+      plain:
+        "Write the steps for each task, in the software screen or the physical place where it happens, so someone else can do it when the usual person is away.",
+      tactical:
+        "Step-by-step desk procedures by platform and module, linked to the register, with review dates.",
+    },
+    method: {
+      plain:
+        "Each procedure belongs to a register entry and names the software or place where the task happens. A review date says when to read it again, and a written, findable procedure lowers the exposure of the entry it belongs to.",
+      tactical:
+        "Each procedure is linked to a register entry and names its platform and module. A review date drives staleness, and a written procedure is credited in know-how residual scoring.",
+    },
   },
   precog: {
-    heading: "Scenario engine",
-    plain:
-      "Pick a scenario to see the assumed loss and how long it would run undetected, then test what two people releasing a payment, someone else checking the bank statement, or your insurance would change.",
-    tactical: "Timelines, insurance cost of risk, multi-scenario compare, cascades.",
+    purpose: {
+      plain:
+        "Pick a scenario to see the assumed loss and how long it would run undetected, then test what a second signer, an independent bank check or your insurance would change.",
+      tactical:
+        "Timelines, insurance cost of risk, multi-scenario compare, cascades, control failure.",
+    },
+    method: {
+      plain:
+        "Every scenario carries assumed days and dollars drawn from the prosecuted cases it cites; Precog never invents a figure. Compare what-ifs puts scenarios side by side, Settings and insurance changes the inputs, What else moves shows what a scenario drags with it, and If a control fails prices a safeguard that stops working.",
+      tactical:
+        "Every scenario carries assumed days and dollars drawn from the prosecuted cases it cites. Compare what-ifs runs several timelines at once, Settings and insurance changes the risk variables, What else moves shows cascades, and If a control fails re-scores residual risk with a safeguard failed or absent.",
+    },
   },
-} satisfies Partial<Record<TabId, { heading: string; plain: string; tactical: string }>>;
+} satisfies Partial<
+  Record<TabId, { purpose: Wording; method: { plain: string; tactical: string } }>
+>;
 
 /** Covers the page from the first frame while the setup dialog's code loads. */
 function SetupLoading() {

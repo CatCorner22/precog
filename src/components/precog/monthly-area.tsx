@@ -6,6 +6,7 @@ import { TabLoading } from "@/components/precog/home-shell-parts";
 import { MonthlyReview } from "@/components/precog/monthly-review";
 import { tabLabel } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
+import { PageIntro } from "./page-intro";
 
 /** The sections the Monthly review tab can open on; `item` names one of them. */
 const SECTIONS = ["checks", "evidence", "calendar", "decisions", "number-patterns"] as const;
@@ -36,14 +37,17 @@ export function MonthlyArea({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold">{tabLabel("monthly", say)}</h1>
-        <p className="text-sm text-muted">
-          The checks to run this month, the record of each check, the control work due this week,
-          the decisions you logged, with their review dates, and a screen for number patterns in a
-          CSV of transactions.
-        </p>
-      </div>
+      <PageIntro
+        tab="monthly"
+        purpose="Run this month's checks, record each result, and keep the decisions you logged under review."
+        method={
+          <p>
+            In order down the page: the checks to run this month, the record of each check, the
+            control work due this week, the decisions you logged with their review dates, and a
+            screen for number patterns in a CSV of transactions.
+          </p>
+        }
+      />
       <section id="checks">
         <MonthlyReview />
       </section>

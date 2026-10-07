@@ -12,8 +12,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { reassignOwner, undoOwnerChange } from "@/lib/precog/builder/stand-in-owner";
 import { analyzeWorkload } from "@/lib/precog/builder/workload";
 import { usePracticeActions, usePracticeState } from "@/lib/precog/practice-context";
-import { usePresentation } from "@/lib/precog/presentation";
 import { tabLabel } from "@/lib/precog/navigation";
+import { usePresentation } from "@/lib/precog/presentation";
+import { PageIntro } from "./page-intro";
 
 /**
  * The Team tab: who works here and which money duties each person holds,
@@ -25,8 +26,8 @@ import { tabLabel } from "@/lib/precog/navigation";
 export function TeamArea() {
   const { template: tpl, profile } = usePracticeState();
   const { setCustomPeople, setCustomProcesses } = usePracticeActions();
-  const { say } = usePresentation();
   const navigate = useNavigate();
+  const { say } = usePresentation();
   const [showJobs, setShowJobs] = useState(false);
   const workload = useMemo(
     () => analyzeWorkload(tpl, tpl.processes, tpl.people, profile.staff, profile.dualRelease),
@@ -51,13 +52,18 @@ export function TeamArea() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold">{tabLabel("team", say)}</h1>
-          <p className="text-sm text-muted">
-            Who works here and which money duties each person holds. Who controls what, Who knows
-            what and the report all read this list.
-          </p>
-        </div>
+        <PageIntro
+          tab="team"
+          purpose="Who works here and which money duties each person holds."
+          method={
+            <p>
+              {tabLabel("sod", say)}, {tabLabel("knowledge", say)} and the report all read this
+              list. A title from the role list brings that job&rsquo;s usual duties; change them to
+              match what each person really does, and mark a last working day when someone leaves so
+              their record stays in history without counting as cover.
+            </p>
+          }
+        />
         <Button
           size="sm"
           variant="secondary"

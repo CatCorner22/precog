@@ -1,8 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { FileText } from "lucide-react";
-import type { NavFn } from "@/lib/precog/navigation";
+import { tabLabel, type NavFn } from "@/lib/precog/navigation";
+import { usePresentation } from "@/lib/precog/presentation";
 import type { SodDetectionReport } from "@/lib/precog/sod/detect";
 import { buttonClass } from "@/components/ui/button-variants";
+import { HowThisWorks } from "./page-intro";
 import { EvidenceFooter } from "./start-here-parts";
 import { StartHereContinuitySection } from "./start-here-continuity-section";
 import { StartHereCostSection } from "./start-here-cost-section";
@@ -38,6 +40,7 @@ export function StartHere({
   sod?: SodDetectionReport;
 }) {
   const model = useStartHere(sod);
+  const { say } = usePresentation();
 
   return (
     <div className="space-y-6">
@@ -58,15 +61,21 @@ export function StartHere({
           )}
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          Two headline figures, then what to do first, then where a business like yours carries
-          exposure, what that same exposure has cost real businesses, and whether the work goes on
-          when someone is out.
+          Where your business stands today, what to do first, and whether the work goes on when
+          someone is out.
         </p>
-        <p className="max-w-2xl text-sm leading-relaxed text-muted">
-          Every dollar figure and duration on this page links to the case or study it came from. The
-          continuity percentages are Precog&rsquo;s own indices; Who knows what explains how Precog
-          counts each.
-        </p>
+        <HowThisWorks>
+          <p>
+            Two headline figures, then what to do first, then where a business like yours carries
+            exposure, what that same exposure has cost real businesses, and whether the work goes on
+            when someone is out.
+          </p>
+          <p>
+            Every dollar figure and duration on this page links to the case or study it came from.
+            The continuity percentages are Precog&rsquo;s own indices; {tabLabel("knowledge", say)}{" "}
+            explains how Precog counts each.
+          </p>
+        </HowThisWorks>
       </header>
 
       <StartHerePreamble model={model.preamble} onOpenDetail={onOpenDetail} />

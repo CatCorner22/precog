@@ -101,6 +101,7 @@ import { shownProcess } from "@/components/precog/process-map/selection";
 import { IndexBasis } from "@/components/precog/index-basis";
 import { count, slug } from "@/lib/precog/text";
 import { usePresentation } from "@/lib/precog/presentation";
+import { PageIntro } from "@/components/precog/page-intro";
 
 /**
  * Stable identity matters: React Flow syncs this prop into its store on every
@@ -116,7 +117,7 @@ const DEFAULT_EDGE_OPTIONS = { type: "smoothstep" } as const;
 const PRIORITY_LIST_LENGTH = 12;
 
 /** Elements that handle Enter themselves; build mode's Enter-to-rename leaves them alone. */
-const OWN_ENTER_KEY = "button, a, [role=button], .react-flow__node, .react-flow__edge";
+const OWN_ENTER_KEY = "button, a, summary, [role=button], .react-flow__node, .react-flow__edge";
 
 export function ProcessMap({
   onNavigate,
@@ -713,15 +714,21 @@ export function ProcessMap({
             mapCustomized && <Badge variant="ok">Your custom map</Badge>
           )}
         </div>
-        <h1 className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
-          Map your business · see risk light up · fix what matters
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
-          Start from the industry template, then press <strong className="text-fg">Build</strong> to
-          add your own processes, owners, risks, and controls; every edit re-scores residual risk at
-          once. Switch to <strong className="text-fg">Heat</strong> to color each card by its heat,
-          or <strong className="text-fg">Priority</strong> to pick out what to act on now.
-        </p>
+        <PageIntro
+          tab="map"
+          className="mt-3"
+          purpose="Each process your business runs, who owns it, and where the risk sits."
+          method={
+            <p>
+              Start from the industry template, then press{" "}
+              <strong className="text-fg">Build</strong> to add your own processes, owners, risks,
+              and controls; every edit{" "}
+              {say("re-scores what is still exposed", "re-scores residual risk")} at once. Switch to{" "}
+              <strong className="text-fg">Heat</strong> to color each card by its heat, or{" "}
+              <strong className="text-fg">Priority</strong> to pick out what to act on now.
+            </p>
+          }
+        />
 
         {/* View switcher */}
         <div className="mt-4 flex flex-wrap gap-2">

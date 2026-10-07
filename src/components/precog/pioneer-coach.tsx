@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Brain, Compass, GitBranch, Loader2, Sparkles } from "lucide-react";
 import { tabLabel, type NavFn } from "@/lib/precog/navigation";
+import { PageIntro } from "@/components/precog/page-intro";
 import { localDateKey } from "@/lib/precog/dates";
 import { journalEntry, type CoachDecision } from "@/lib/precog/coach/journal-entry";
 import {
@@ -125,15 +126,20 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
         <Badge variant="primary">Grounded in Precog&rsquo;s tools</Badge>
-        <h1 className="mt-3 flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
-          <Compass className="size-6 text-primary" aria-hidden />
-          {tabLabel("pioneer", say)}
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted sm:text-base">
-          Pioneer builds every answer from Precog&rsquo;s own records: the exposure that remains,
-          duty conflicts, scenarios, the guidance library, and the prosecuted cases. Where it orders
-          fixes, it uses Precog&rsquo;s weights and says so. It never invents a measurement.
-        </p>
+        <PageIntro
+          tab="pioneer"
+          className="mt-3"
+          icon={<Compass className="size-5 text-primary" aria-hidden />}
+          purpose="Ask about your team, a person leaving, or what to fix first; the answer comes from your own records."
+          method={
+            <p>
+              Pioneer builds every answer from Precog&rsquo;s own records: the exposure that
+              remains, duty conflicts, scenarios, the guidance library, and the prosecuted cases.
+              Where it orders fixes, it uses Precog&rsquo;s weights and says so. It never invents a
+              measurement.
+            </p>
+          }
+        />
       </section>
 
       <Card>
