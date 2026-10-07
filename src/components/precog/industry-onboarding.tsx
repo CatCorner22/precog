@@ -35,7 +35,8 @@ import {
   keepDuties,
   stillSuggested,
   suggestedDuties,
-  toggleDutyByHand,
+  tickDutyByHand,
+  chosenDuties,
   unconfirmedDuties,
   untickDutyForTitle,
   withoutDutiesOffTeam,
@@ -199,6 +200,8 @@ export function IndustryOnboarding({
   const [restored, setRestored] = useState(false);
   // A team typed in an earlier setup in this tab came back with this one.
   const [restoredEarlier, setRestoredEarlier] = useState(false);
+  // This setup's own answers came back from this tab, for example after a reload.
+  const [resumed, setResumed] = useState(false);
   // This browser keeps nothing the app writes (site data blocked).
   const [keepsNothing, setKeepsNothing] = useState(false);
   const businessId = profile.businessId ?? DEFAULT_BUSINESS_ID;
@@ -238,6 +241,7 @@ export function IndustryOnboarding({
     setUnresolvedRows(start.draft.unresolvedRows ?? 0);
     setPasteOpen(start.draft.paste.trim().length > 0);
     setRestoredEarlier(start.restoredEarlier);
+    setResumed(start.resumed);
     setKeepsNothing(!canKeepLocalData());
     setRestored(true);
     // Once per setup: later edits are the owner's.
@@ -400,6 +404,22 @@ export function IndustryOnboarding({
     setAnswers(UNANSWERED);
     setAnswered([]);
     setRestoredEarlier(false);
+  }
+
+  /**
+   * Throws away the answers that came back from this tab and starts setup
+   * again from its first question, after the owner confirms.
+   */
+  function discardDraft() {
+    if (!window.confirm("Clear your answers and start again? You cannot undo this.")) return;
+    startOver();
+    setSelected(profile.industry);
+    setRows(firstRowForIndustry(freshRows(), profile.industry));
+    setStep(typedName ? "questions" : "industry");
+    setQuestion("actor");
+    setFacts({ schemaVersion: ONBOARDING_FACTS_VERSION, ...(profile.onboardingFacts ?? {}) });
+    setResumed(false);
+    clearDraft();
   }
 
   /**
@@ -593,14 +613,19 @@ export function IndustryOnboarding({
   function addDuty(index: number, duty: EntitlementId) {
     setRows((current) =>
       current.map((row, i) =>
-        i === index && !row.duties.includes(duty) ? toggleDutyByHand(row, duty) : row,
+        i === index && !chosenDuties(row, selected).includes(duty)
+          ? tickDutyByHand(row, duty, selected)
+          : row,
       ),
     );
   }
-  /** Ticks or unticks a duty by hand; a duty ticked by hand counts at once. */
+  /**
+   * Ticks or unticks a duty by hand; a duty ticked by hand counts at once,
+   * including one the job title only suggested (shown unticked).
+   */
   function toggleDuty(index: number, duty: EntitlementId) {
     setRows((current) =>
-      current.map((row, i) => (i === index ? toggleDutyByHand(row, duty) : row)),
+      current.map((row, i) => (i === index ? tickDutyByHand(row, duty, selected) : row)),
     );
   }
   /**
@@ -623,25 +648,24 @@ export function IndustryOnboarding({
       current.map((row) => (row.rowId === rowId ? keepDuties(row, duties) : row)),
     );
     setGridStatus({
-      text:
-        duties.length === 1
-          ? `Kept ${coreDutyLabel(duties[0])} for ${whoIs(rows[index], index)}.`
-          : `Kept ${count(duties.length, "duty", "duties")} for ${whoIs(rows[index], index)}.`,
+      text: `Kept ${duties.length === 1 ? coreDutyLabel(duties[0]) : count(duties.length, "duty", "duties")} for ${whoIs(rows[index], index)}.`,
     });
     if (finishNote) setFinishNote("");
     focusNextDecision(rowId);
   }
-  /** Removes one suggested duty from one person. */
-  function removeSuggested(rowId: string, duty: EntitlementId) {
+  /** Removes suggested duties from one person: one, or all of them at once. */
+  function removeSuggested(rowId: string, duties: readonly EntitlementId[]) {
     const index = rows.findIndex((row) => row.rowId === rowId);
-    if (index < 0) return;
+    if (index < 0 || duties.length === 0) return;
     setRows((current) =>
       current.map((row) =>
-        row.rowId === rowId ? { ...row, duties: row.duties.filter((d) => d !== duty) } : row,
+        row.rowId === rowId
+          ? { ...row, duties: row.duties.filter((d) => !duties.includes(d)) }
+          : row,
       ),
     );
     setGridStatus({
-      text: `Removed ${coreDutyLabel(duty)} from ${whoIs(rows[index], index)}.`,
+      text: `Removed ${duties.length === 1 ? coreDutyLabel(duties[0]) : count(duties.length, "duty", "duties")} from ${whoIs(rows[index], index)}.`,
     });
     if (finishNote) setFinishNote("");
     focusNextDecision(rowId);
@@ -704,7 +728,7 @@ export function IndustryOnboarding({
 
   // One warning when this browser cannot keep the setup: site data is
   // blocked, or this tab could not save the draft.
-  const storageNote =
+  const keepsNothingNote =
     keepsNothing || draftSaved === false ? (
       <p
         className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn"
@@ -712,6 +736,29 @@ export function IndustryOnboarding({
       >
         This browser will not keep your progress: finish in this sitting.
       </p>
+    ) : null;
+  // Answers that came back from this tab, with the way to throw them away.
+  const startOverNote = (text: string, onClick: () => void) => (
+    <p className="rounded-lg border border-border bg-elevated/60 px-3 py-2 text-xs text-muted">
+      {text}{" "}
+      <button
+        type="button"
+        className="font-medium text-primary underline underline-offset-2"
+        onClick={onClick}
+      >
+        Start over
+      </button>
+    </p>
+  );
+  const resumedNote = resumed
+    ? startOverNote("Your answers from earlier in this tab are back.", discardDraft)
+    : null;
+  const storageNote =
+    keepsNothingNote || resumedNote ? (
+      <>
+        {keepsNothingNote}
+        {resumedNote}
+      </>
     ) : null;
 
   // Setting up an added business: the owner can go back without finishing.
@@ -757,8 +804,8 @@ export function IndustryOnboarding({
   const keptNotice =
     keepsNothing || draftSaved === false ? null : (
       <p className="text-xs text-muted">
-        Precog keeps this business once you press &ldquo;{finishLabel}&rdquo;. Until then it stays
-        only in this browser tab.
+        Precog keeps this business once you press &ldquo;{finishLabel}&rdquo;. Until then your
+        answers stay in this browser tab, even through a reload.
       </p>
     );
   // Each row's duties a job title suggested and the owner has not yet kept,
@@ -1021,18 +1068,11 @@ export function IndustryOnboarding({
             </CardHeader>
             <CardContent className="space-y-4">
               {storageNote}
-              {restoredEarlier && (
-                <p className="rounded-lg border border-border bg-elevated/60 px-3 py-2 text-xs text-muted">
-                  The team you started entering earlier in this tab is back below.{" "}
-                  <button
-                    type="button"
-                    className="font-medium text-primary underline underline-offset-2"
-                    onClick={startOver}
-                  >
-                    Start over
-                  </button>
-                </p>
-              )}
+              {restoredEarlier &&
+                startOverNote(
+                  "The team you started entering earlier in this tab is back below.",
+                  startOver,
+                )}
               {facts.setupMethod && facts.setupMethod !== "person_grid" && (
                 <section
                   className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-4"
@@ -1138,9 +1178,9 @@ export function IndustryOnboarding({
                 {gridOverflows && gridScrolled
                   ? "Scroll sideways for more duties. Names stay on the left; duty names stay on top."
                   : `${rowsInUse} of up to ${OWN_TEAM_MAX} people.`}{" "}
-                A job title&rsquo;s other duties show as small tags under it; remove one with ×, or
-                add another with &ldquo;Add a duty&rdquo;. A recognized job title is not proof of
-                actual access: check the suggested ticks.
+                Duties with no column show as small tags under the job title; remove one with ×, or
+                add another with &ldquo;Add a duty&rdquo;. A job title only suggests duties: keep or
+                remove each below the table.
               </p>
               <div
                 ref={gridBoxRef}
@@ -1188,6 +1228,8 @@ export function IndustryOnboarding({
                         return null;
                       const who = whoIs(row, index);
                       const rowKey = row.rowId ?? `row-${index}`;
+                      // Only what the owner chose shows ticked; title suggestions wait in the review.
+                      const chosen = chosenDuties(row, selected);
                       return (
                         <tr key={rowKey}>
                           <th
@@ -1266,12 +1308,12 @@ export function IndustryOnboarding({
                               seat={typedSeat(row, selected)}
                               duties={titleTicked.get(row) ?? []}
                             />
-                            {extraDuties(row.duties).length > 0 && (
+                            {extraDuties(chosen).length > 0 && (
                               <ul
                                 className="mt-1 flex max-w-[11rem] flex-wrap gap-1.5"
                                 aria-label={`${who}: other duties`}
                               >
-                                {extraDuties(row.duties).map((duty) => (
+                                {extraDuties(chosen).map((duty) => (
                                   <li key={duty}>
                                     <button
                                       type="button"
@@ -1289,29 +1331,19 @@ export function IndustryOnboarding({
                             )}
                             <AddDutyControl
                               who={who}
-                              duties={row.duties}
+                              duties={chosen}
                               hidden={hidden}
                               onAdd={(duty) => addDuty(index, duty)}
                             />
                           </td>
                           {visibleCoreDuties.map((duty) => (
                             <td key={duty} className="border-b border-border p-0 text-center">
-                              <label
-                                className={cn(
-                                  "flex min-h-11 w-full items-center justify-center p-1.5",
-                                  titleTicked.get(row)?.includes(duty) && "bg-warn/15",
-                                )}
-                                title={
-                                  titleTicked.get(row)?.includes(duty)
-                                    ? "From the job title, not counted yet: keep or remove it below the table"
-                                    : undefined
-                                }
-                              >
+                              <label className="flex min-h-11 w-full items-center justify-center p-1.5">
                                 <input
                                   type="checkbox"
                                   className="size-4"
                                   aria-label={`${who}: ${coreDutyLabel(duty)}`}
-                                  checked={row.duties.includes(duty)}
+                                  checked={chosen.includes(duty)}
                                   onChange={() => toggleDuty(index, duty)}
                                 />
                               </label>

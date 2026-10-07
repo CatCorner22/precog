@@ -69,6 +69,22 @@ describe("reloading in the middle of setup", () => {
     });
   });
 
+  it("says the answers came back, so the dialog can offer Start over, only when there are any", () => {
+    expect(reload(base).resumed).toBe(false);
+    // The name the owner came in with is not progress made in setup.
+    expect(
+      reload({ ...base, step: "questions", businessName: "Ruiz Dental" }, "Ruiz Dental").resumed,
+    ).toBe(false);
+    expect(
+      reload({ ...base, step: "questions", schemaVersion: 1, actor: "business_leader" }).resumed,
+    ).toBe(true);
+    expect(reload({ ...base, step: "money" }).resumed).toBe(true);
+    expect(reload({ ...base, step: "team", businessName: "Reload Test Shop" }).resumed).toBe(true);
+    expect(reload({ ...base, rows: [{ name: "Marco", role: "Owner", duties: [] }] }).resumed).toBe(
+      true,
+    );
+  });
+
   it("round-trips the money step and normalizes saved answers", () => {
     const answers = { ...UNANSWERED, bankRec: "outside" as const };
     const back = reload({

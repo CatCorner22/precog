@@ -12,17 +12,17 @@ import { cn } from "@/lib/utils";
 import { fieldCls } from "@/components/ui/field-classes";
 
 /**
- * The short note under a row's job title: every duty the title suggested
- * that the owner has not yet kept, by name, so a tick in a column scrolled
- * out of view is never a surprise; and a warning when only part of the
- * title matched a catalog job.
+ * The short note under a row's job title: how many duties the title
+ * suggested that the owner has not yet kept, pointing to the review below
+ * the table where each is kept or removed (the grid never ticks them); and a
+ * warning when only part of the title matched a catalog job.
  */
 export function SeatNote({
   seat,
   duties = [],
 }: {
   seat: SeatReading | undefined;
-  /** The duties the row holds only because its job title suggested them. */
+  /** The duties the row's job title suggested that the owner has not yet kept or removed. */
   duties?: readonly EntitlementId[];
 }) {
   if (!seat) return null;
@@ -35,14 +35,14 @@ export function SeatNote({
     <>
       {seat.partial ? (
         <p className="mt-1 max-w-[11rem] text-xs text-warn">
-          {`Catalog job (partial match): ${seat.title}; check the ticks`}
+          {`Catalog job (partial match): ${seat.title}; check its suggested duties`}
         </p>
       ) : duties.length === 0 ? (
         <p className="mt-1 max-w-[11rem] text-xs text-muted">{`Catalog job: ${seat.title}`}</p>
       ) : null}
       {duties.length > 0 && (
         <p className="mt-1 max-w-[11rem] text-xs text-warn">
-          {`From the job title, not counted yet: ${duties.map(dutyShortName).join(", ")}. Keep or remove each below the table.`}
+          {`The job title suggests ${count(duties.length, "duty", "duties")}: keep or remove each below the table.`}
         </p>
       )}
     </>
@@ -60,7 +60,8 @@ export interface TitleTicksItem {
 /**
  * The review before Finish: every duty a job title suggested and the owner
  * has not yet decided, column or not, by its full name, person by person,
- * each with Keep and Remove. "Keep all" sits under the duties it keeps. A
+ * each with Keep and Remove. "Keep all" and "Remove all", of equal weight,
+ * sit side by side under the duties they decide. A
  * suggested duty counts only once kept, and Finish waits until none is left.
  */
 export function TitleTicksReview({
@@ -72,7 +73,7 @@ export function TitleTicksReview({
   items: readonly TitleTicksItem[];
   onShow: (rowId: string) => void;
   onKeep: (rowId: string, duties: readonly EntitlementId[]) => void;
-  onRemove: (rowId: string, duty: EntitlementId) => void;
+  onRemove: (rowId: string, duties: readonly EntitlementId[]) => void;
 }) {
   const waiting = items.reduce((sum, item) => sum + item.duties.length, 0);
   if (waiting === 0) return null;
@@ -135,7 +136,7 @@ export function TitleTicksReview({
                           "border-border bg-panel text-muted hover:border-danger hover:text-danger",
                         )}
                         aria-label={`Remove ${label} from ${item.who}`}
-                        onClick={() => onRemove(item.rowId, duty)}
+                        onClick={() => onRemove(item.rowId, [duty])}
                       >
                         Remove
                       </button>
@@ -145,13 +146,22 @@ export function TitleTicksReview({
               })}
             </ul>
             {item.duties.length > 1 && (
-              <button
-                type="button"
-                className={cn(small, "border-primary/50 bg-primary/10 font-medium text-fg")}
-                onClick={() => onKeep(item.rowId, item.duties)}
-              >
-                {`Keep all ${item.duties.length} for ${item.who}`}
-              </button>
+              <span className="flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  className={cn(small, "border-primary/50 bg-primary/10 font-medium text-fg")}
+                  onClick={() => onKeep(item.rowId, item.duties)}
+                >
+                  {`Keep all ${item.duties.length} for ${item.who}`}
+                </button>
+                <button
+                  type="button"
+                  className={cn(small, "border-danger/50 bg-danger/10 font-medium text-fg")}
+                  onClick={() => onRemove(item.rowId, item.duties)}
+                >
+                  {`Remove all ${item.duties.length} from ${item.who}`}
+                </button>
+              </span>
             )}
           </li>
         ))}

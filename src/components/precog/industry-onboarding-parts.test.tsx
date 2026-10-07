@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isValidElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FinishWaitsNote, SeatNote, TitleTicksReview } from "./industry-onboarding-parts";
 
@@ -9,7 +10,7 @@ const text = (html: string) =>
     .trim();
 
 describe("SeatNote", () => {
-  it("names every duty the job title suggested that is not counted yet", () => {
+  it("counts the duties the job title suggested and points to the review, naming none", () => {
     const html = renderToStaticMarkup(
       <SeatNote
         seat={{ title: "Bookkeeper", partial: false }}
@@ -17,16 +18,20 @@ describe("SeatNote", () => {
       />,
     );
     expect(text(html)).toBe(
-      "From the job title, not counted yet: Enter bills, Release payments, Reconcile bank. Keep or remove each below the table.",
+      "The job title suggests 3 duties: keep or remove each below the table.",
     );
   });
 
-  it("keeps the partial-match warning and still names the suggestions", () => {
+  it("keeps the partial-match warning and still points to the suggestions", () => {
     const html = renderToStaticMarkup(
       <SeatNote seat={{ title: "Bookkeeper", partial: true }} duties={["enter_invoices"]} />,
     );
-    expect(text(html)).toContain("Catalog job (partial match): Bookkeeper; check the ticks");
-    expect(text(html)).toContain("From the job title, not counted yet: Enter bills.");
+    expect(text(html)).toContain(
+      "Catalog job (partial match): Bookkeeper; check its suggested duties",
+    );
+    expect(text(html)).toContain(
+      "The job title suggests 1 duty: keep or remove each below the table.",
+    );
   });
 
   it("names the catalog job when every suggestion is decided", () => {
@@ -38,6 +43,22 @@ describe("SeatNote", () => {
 });
 
 const noop = () => {};
+
+/** The button in a rendered element tree whose only child is `label`. */
+function findButton(node: unknown, label: string): ReactElement<{ onClick: () => void }> {
+  const found: ReactElement<{ onClick: () => void }>[] = [];
+  const walk = (n: unknown) => {
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (!isValidElement(n)) return;
+    const props = n.props as { children?: unknown };
+    if (n.type === "button" && props.children === label)
+      found.push(n as ReactElement<{ onClick: () => void }>);
+    walk(props.children);
+  };
+  walk(node);
+  expect(found).toHaveLength(1);
+  return found[0];
+}
 const review = (items: Parameters<typeof TitleTicksReview>[0]["items"]) =>
   renderToStaticMarkup(
     <TitleTicksReview items={items} onShow={noop} onKeep={noop} onRemove={noop} />,
@@ -67,6 +88,48 @@ describe("TitleTicksReview", () => {
       html.indexOf("Remove Post manual journal entries from Lisa"),
     );
     expect(text(html)).not.toContain("Keep all 1");
+  });
+
+  it("puts Remove all beside every Keep all, at the same weight, and removes every duty", () => {
+    const removed: string[][] = [];
+    const items = [
+      {
+        rowId: "r1",
+        who: "Marco",
+        role: "Owner",
+        duties: ["approve_payroll", "approve_writeoffs"],
+      },
+      {
+        rowId: "r2",
+        who: "Lisa",
+        role: "Bookkeeper",
+        duties: ["enter_invoices", "bank_reconcile"],
+      },
+    ] as Parameters<typeof TitleTicksReview>[0]["items"];
+    const html = review(items);
+    expect(html.match(/>Keep all \d+ for /g)).toHaveLength(2);
+    expect(html.match(/>Remove all \d+ from /g)).toHaveLength(2);
+    const keep = /<button[^>]*class="([^"]*)"[^>]*>Keep all 2 for Marco</.exec(html);
+    const remove = /<button[^>]*class="([^"]*)"[^>]*>Remove all 2 from Marco</.exec(html);
+    expect(remove).not.toBeNull();
+    // Same size and type weight; only the colour says which one removes.
+    const weight = (cls: string) =>
+      cls.split(" ").filter((c) => !/^(border|bg|text)-(primary|danger)/.test(c));
+    expect(weight(remove![1])).toEqual(weight(keep![1]));
+    // Right beside Keep all, before the next person.
+    expect(html.indexOf("Remove all 2 from Marco")).toBeGreaterThan(
+      html.indexOf("Keep all 2 for Marco"),
+    );
+    expect(html.indexOf("Remove all 2 from Marco")).toBeLessThan(html.indexOf("Lisa"));
+    const tree = TitleTicksReview({
+      items,
+      onShow: noop,
+      onKeep: noop,
+      onRemove: (_rowId, duties) => removed.push([...duties]),
+    });
+    const button = findButton(tree, "Remove all 2 from Marco");
+    button.props.onClick();
+    expect(removed).toEqual([["approve_payroll", "approve_writeoffs"]]);
   });
 
   it("uses the singular for one duty and one person, and shows nothing once all are decided", () => {
