@@ -18,13 +18,42 @@ import { findingsWithoutDecision } from "@/lib/precog/decisions/not-valid";
 import { partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { rulesDualReleaseCanNarrow, type ConflictSeverity } from "./sod-conflict-view";
 
+/** The six views an address can name (`?tab=sod&item=matrix`); every one keeps working. */
 export type SodView = "conflicts" | "matrix" | "roles" | "dual" | "power" | "controls";
 
 const SOD_VIEWS: readonly SodView[] = ["conflicts", "matrix", "roles", "dual", "power", "controls"];
 
+/**
+ * The three sub-tabs on screen, one per question: who holds which duties,
+ * which pairs conflict, and what stops a person acting alone.
+ */
+export type SodGroup = "duties" | "conflicts" | "safeguards";
+
+export const SOD_GROUP_OF: Record<SodView, SodGroup> = {
+  power: "duties",
+  roles: "duties",
+  conflicts: "conflicts",
+  matrix: "conflicts",
+  controls: "safeguards",
+  dual: "safeguards",
+};
+
+/** The view a sub-tab opens on; the other views in the group are sections below it. */
+export const SOD_GROUP_HOME: Record<SodGroup, SodView> = {
+  duties: "power",
+  conflicts: "conflicts",
+  safeguards: "controls",
+};
+
 /** The view an address names (`?tab=sod&item=controls`), or null for any other item. */
 export function sodViewFrom(item: string | null | undefined): SodView | null {
   return item && (SOD_VIEWS as readonly string[]).includes(item) ? (item as SodView) : null;
+}
+
+/** The section an address scrolls to: a view that is not its sub-tab's first one. */
+export function sodSectionFrom(item: string | null | undefined): SodView | null {
+  const view = sodViewFrom(item);
+  return view && SOD_GROUP_HOME[SOD_GROUP_OF[view]] !== view ? view : null;
 }
 
 /**
@@ -43,20 +72,27 @@ export function useSodPanel(
   const [view, setShownView] = useState<SodView>(() => sodViewFrom(initialView) ?? "conflicts");
   // A later link (?tab=sod&item=controls) switches the view in place, so the
   // severity and location filters stay as the owner left them.
+  // The matrix sits folded under the conflict list; a link to it opens the fold.
+  const [matrixOpen, setMatrixOpen] = useState(sodViewFrom(initialView) === "matrix");
   const [viewFor, setViewFor] = useState(initialView ?? null);
   if ((initialView ?? null) !== viewFor) {
     setViewFor(initialView ?? null);
-    setShownView(sodViewFrom(initialView) ?? "conflicts");
+    const next = sodViewFrom(initialView) ?? "conflicts";
+    setShownView(next);
+    if (next === "matrix") setMatrixOpen(true);
   }
   // Every view change also goes into the address, so a reload or a copied
   // link opens the view on screen.
   const setView = useCallback(
     (next: SodView) => {
       setShownView(next);
+      if (next === "matrix") setMatrixOpen(true);
       onNavigate?.("sod", next);
     },
     [onNavigate],
   );
+  const group = SOD_GROUP_OF[view];
+  const openGroup = useCallback((next: SodGroup) => setView(SOD_GROUP_HOME[next]), [setView]);
   const [filterSeverity, setFilterSeverity] = useState<ConflictSeverity | "all">("all");
   // null: people with no location on record.
   const [location, setLocation] = useState<string | null | "all">("all");
@@ -120,6 +156,10 @@ export function useSodPanel(
     titleDutyNames,
     view,
     setView,
+    group,
+    openGroup,
+    matrixOpen,
+    setMatrixOpen,
     filterSeverity,
     setFilterSeverity,
     locations,

@@ -49,8 +49,15 @@ describe("the duty-conflict tab's views", () => {
     expect(render(true).html).toContain('id="sod-view-conflicts"');
     expect(render(true, "nonsense").html).toContain('id="sod-view-conflicts"');
     const controls = render(true, "controls").html;
-    expect(controls).toContain('id="sod-view-controls"');
+    expect(controls).toContain('id="sod-view-safeguards"');
     expect(controls).toMatch(/<h2[^>]*>Controls<\/h2>/);
+    expect(controls).toContain('id="sod-section-dual"');
+    expect(render(true, "dual").html).toContain('id="sod-view-safeguards"');
+    const matrix = render(true, "matrix").html;
+    expect(matrix).toContain('id="sod-view-conflicts"');
+    expect(matrix).toMatch(/<details[^>]*\sopen/);
+    expect(render(true).html).not.toMatch(/<details[^>]*\sopen/);
+    expect(render(true, "roles").html).toContain('id="sod-view-duties"');
   });
 
   it("names the views and the figure in plain words, and links to the team", () => {

@@ -1,14 +1,7 @@
+import { useEffect, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { dutiesOffTeam } from "@/lib/precog/onboarding/setup-answers";
-import {
-  AlertTriangle,
-  Grid3x3,
-  ListChecks,
-  Network,
-  ShieldCheck,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { AlertTriangle, Network, ShieldCheck, type LucideIcon } from "lucide-react";
 import { segregationLevel } from "@/lib/precog/scoring/bands";
 import { CONFLICT_RULES, entitlementLabel } from "@/lib/precog/sod/conflict-rules";
 import {
@@ -22,7 +15,7 @@ import type { NavFn } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
 import type { SodDetectionReport } from "@/lib/precog/sod/detect";
 import { DualReleasePanel } from "@/components/precog/dual-release-panel";
-import { PageIntro } from "@/components/precog/page-intro";
+import { HowThisWorks, PageIntro } from "@/components/precog/page-intro";
 import { PowerMapBuilder } from "@/components/precog/power-map-builder";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +28,13 @@ import { SodConflictsSection } from "./sod-conflicts-section";
 import { SodControlsSection } from "./sod-controls-section";
 import { SodMatrixSection } from "./sod-matrix-section";
 import { SodRolesSection } from "./sod-roles-section";
-import { useSodPanel, type SodPanelModel, type SodView } from "./use-sod-panel";
+import {
+  sodSectionFrom,
+  useSodPanel,
+  type SodGroup,
+  type SodPanelModel,
+  type SodView,
+} from "./use-sod-panel";
 
 export function SodPanel({
   onNavigate,
@@ -50,7 +49,19 @@ export function SodPanel({
 }) {
   const { say } = usePresentation();
   const model = useSodPanel(shellReport, initialView, onNavigate);
-  const { profile, report, sodExamples, titleDuties, titleDutyNames, view, setView } = model;
+  const { profile, report, sodExamples, titleDuties, titleDutyNames, group, setView } = model;
+  // A view that is a section of its sub-tab (matrix, roles, dual) comes into
+  // view and takes focus when the address names it, as a tab landing would.
+  useEffect(() => {
+    const section = sodSectionFrom(initialView);
+    if (!section) return;
+    const frame = requestAnimationFrame(() => {
+      const el = document.getElementById(`sod-section-${section}`);
+      el?.scrollIntoView({ block: "start" });
+      el?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [initialView]);
   const health = report.summary.segregationHealth;
   // Never "strong" or "adequate" while a critical or high finding is open.
   const open = openSeverityCounts(report.conflicts, profile.dualRelease);
@@ -191,45 +202,88 @@ export function SodPanel({
 
       <ViewSwitcher model={model} />
 
-      <div role="tabpanel" id={`sod-view-${view}`} aria-labelledby={`sod-tab-${view}`}>
-        {view === "dual" && (
-          <DualReleasePanel
-            onOpenSod={() => setView("conflicts")}
-            onOpenFailure={() => onNavigate?.("precog", "failure:safeguard:dual_release")}
-          />
+      <div
+        role="tabpanel"
+        id={`sod-view-${group}`}
+        aria-labelledby={`sod-tab-${group}`}
+        className="space-y-4"
+      >
+        {group === "duties" && (
+          <>
+            <PowerMapBuilder />
+            <Section id="roles" label="Who holds which duties">
+              <SodRolesSection model={model} />
+            </Section>
+          </>
         )}
-        {view === "power" && <PowerMapBuilder />}
-        {view === "conflicts" && <SodConflictsSection model={model} onNavigate={onNavigate} />}
-        {view === "matrix" && <SodMatrixSection report={report} />}
-        {view === "roles" && <SodRolesSection model={model} />}
-        {view === "controls" && <SodControlsSection onNavigate={onNavigate} />}
+        {group === "conflicts" && (
+          <>
+            <SodConflictsSection model={model} onNavigate={onNavigate} />
+            <Section id="matrix" label="Duty conflict matrix">
+              <HowThisWorks
+                summary="Duty conflict matrix: every pair of duties"
+                className="max-w-none"
+                bodyClassName="text-fg"
+                open={model.matrixOpen}
+                onToggle={model.setMatrixOpen}
+              >
+                <SodMatrixSection report={report} />
+              </HowThisWorks>
+            </Section>
+          </>
+        )}
+        {group === "safeguards" && (
+          <>
+            <SodControlsSection onNavigate={onNavigate} />
+            <Section id="dual" label="Dual release">
+              <DualReleasePanel
+                onOpenSod={() => setView("conflicts")}
+                onOpenFailure={() => onNavigate?.("precog", "failure:safeguard:dual_release")}
+              />
+            </Section>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
+/** A view below its sub-tab's first one, addressable (`?tab=sod&item=dual`) and focusable. */
+function Section({
+  id,
+  label,
+  children,
+}: {
+  id: Exclude<SodView, "power" | "conflicts" | "controls">;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <section id={`sod-section-${id}`} tabIndex={-1} aria-label={label} className="scroll-mt-4">
+      {children}
+    </section>
+  );
+}
+
 function ViewSwitcher({ model }: { model: SodPanelModel }) {
-  const { view, setView, report } = model;
-  const views: { id: SodView; label: string; icon: LucideIcon }[] = [
-    { id: "power", label: "Duty assignments", icon: Network },
-    { id: "dual", label: "Dual release", icon: ShieldCheck },
+  const { group, openGroup, report } = model;
+  const groups: { id: SodGroup; label: string; icon: LucideIcon }[] = [
     { id: "conflicts", label: `Duty conflicts (${report.conflicts.length})`, icon: AlertTriangle },
-    { id: "matrix", label: "Duty conflict matrix", icon: Grid3x3 },
-    { id: "roles", label: "Duties by person", icon: Users },
-    { id: "controls", label: "Controls", icon: ListChecks },
+    { id: "duties", label: "Duty assignments", icon: Network },
+    { id: "safeguards", label: "Controls", icon: ShieldCheck },
   ];
   return (
-    <div role="tablist" aria-label="Duty conflict views" className="flex flex-wrap gap-2">
-      {views.map(({ id, label, icon: Icon }) => (
+    <div role="tablist" aria-label="Who controls what views" className="flex flex-wrap gap-2">
+      {groups.map(({ id, label, icon: Icon }) => (
         <Button
           key={id}
           id={`sod-tab-${id}`}
           role="tab"
-          aria-selected={view === id}
+          aria-selected={group === id}
           aria-controls={`sod-view-${id}`}
           size="sm"
-          variant={view === id ? "default" : "secondary"}
-          onClick={() => setView(id)}
+          variant={group === id ? "default" : "secondary"}
+          onClick={() => openGroup(id)}
         >
           <Icon className="size-3.5" aria-hidden />
           {label}

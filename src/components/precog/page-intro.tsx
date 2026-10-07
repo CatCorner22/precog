@@ -63,15 +63,24 @@ export function HowThisWorks({
   className,
   bodyClassName,
   summary = "How this works",
+  open,
+  onToggle,
 }: {
   children: ReactNode;
   className?: string;
   /** Classes for the body, for a fold that holds whole sections rather than a note. */
   bodyClassName?: string;
   summary?: string;
+  /** Set both to drive the fold from outside, for example when an address names what it holds. */
+  open?: boolean;
+  onToggle?: (open: boolean) => void;
 }) {
   return (
-    <details className={cn("group max-w-2xl rounded-xl border border-border", className)}>
+    <details
+      className={cn("group max-w-2xl rounded-xl border border-border", className)}
+      open={open}
+      onToggle={onToggle ? (e) => onToggle(e.currentTarget.open) : undefined}
+    >
       <summary
         className="flex cursor-pointer items-center gap-2 px-4 py-2 text-sm font-medium"
         onKeyDown={toggleOnSpace}
