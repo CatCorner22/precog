@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { formatDay, serverUtcDay } from "@/lib/precog/dates";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { alertQuickBooksProblems } from "./alerts.server";
 import { markSynced } from "./store";
@@ -8,7 +9,7 @@ const report = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/observability/report.server", () => ({ reportServerError: report.error }));
 
-const TODAY = "2026-10-06";
+const TODAY = serverUtcDay();
 const REFUSED = "QuickBooks no longer accepts this connection. Disconnect and connect again.";
 
 describe("QuickBooks alerts", () => {
@@ -50,8 +51,8 @@ describe("QuickBooks alerts", () => {
     await connect("mem", "biz_1", "now() + interval '90 days'");
     await db.sql`
       update integration_connections set last_error = ${REFUSED},
-        last_error_at = timestamptz '2026-10-05T09:00:00Z',
-        last_synced_at = timestamptz '2026-09-01T09:00:00Z'
+        last_error_at = now() - interval '1 day',
+        last_synced_at = now() - interval '35 days'
       where business_id = 'biz_1'
     `;
     await connect("adv", "biz_2", "now() + interval '10 days'");
@@ -97,17 +98,35 @@ describe("QuickBooks alerts", () => {
     expect(sent.map((s) => s.to).sort()).toEqual(["adv@firm.test", "solo@shop.test"]);
     const firm = sent.find((s) => s.to === "adv@firm.test")!;
     expect(firm.subject).toBe("Precog: QuickBooks needs attention for 2 clients");
+    const fixtureDays = await db.sql<{
+      business_id: string;
+      last_error_day: string | null;
+      last_synced_day: string | null;
+      refresh_expires_day: string;
+    }>`
+      select business_id,
+        to_char(last_error_at at time zone 'UTC', 'YYYY-MM-DD') as last_error_day,
+        to_char(last_synced_at at time zone 'UTC', 'YYYY-MM-DD') as last_synced_day,
+        to_char(refresh_expires_at at time zone 'UTC', 'YYYY-MM-DD') as refresh_expires_day
+      from integration_connections
+    `;
+    const fixtureDay = (
+      businessId: string,
+      field: "last_error_day" | "last_synced_day" | "refresh_expires_day",
+    ) => formatDay(fixtureDays.find((row) => row.business_id === businessId)![field]!);
     expect(firm.text).toContain(
-      `Precog could not read the QuickBooks books of Ortiz Dental on Oct 5, 2026: ${REFUSED} Until it is read again, the vendor and employee-list comparison uses the reading of Sep 1, 2026. Payment status is not checked by this reading.`,
+      `Precog could not read the QuickBooks books of Ortiz Dental on ${fixtureDay("biz_1", "last_error_day")}: ${REFUSED} Until it is read again, the vendor and employee-list comparison uses the reading of ${fixtureDay("biz_1", "last_synced_day")}. Payment status is not checked by this reading.`,
     );
-    expect(firm.text).toMatch(/QuickBooks' permission for Hill Dental ends on Oct \d+, 2026\./);
+    expect(firm.text).toContain(
+      `QuickBooks' permission for Hill Dental ends on ${fixtureDay("biz_2", "refresh_expires_day")}.`,
+    );
     expect(firm.text).not.toContain("Healthy Books");
     expect(firm.text).toContain("Open the firm workspace: https://app.example/firm");
     expect(firm.text).toContain("in North Advisors on Precog");
     const solo = sent.find((s) => s.to === "solo@shop.test")!;
     expect(solo.subject).toBe("Precog: QuickBooks needs attention for Riverside Plumbing");
-    expect(solo.text).toMatch(
-      /QuickBooks' permission for Riverside Plumbing ended on Sep \d+, 2026, so the monthly reading has stopped\./,
+    expect(solo.text).toContain(
+      `QuickBooks' permission for Riverside Plumbing ended on ${fixtureDay("biz_3", "refresh_expires_day")}, so the monthly reading has stopped.`,
     );
     expect(await stamps()).toEqual([
       { business_id: "biz_1", failure: true, expiry: false },
