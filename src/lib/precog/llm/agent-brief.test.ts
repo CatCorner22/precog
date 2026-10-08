@@ -243,3 +243,47 @@ describe("rules-authored move text", () => {
     expect(move.cascadeEffects).toEqual(["risk index ↓"]);
   });
 });
+
+describe("default control recommendations", () => {
+  function briefWithControls(dualControlPayments: boolean, independentBankRec: boolean) {
+    const snapshot: ToolResult = {
+      tool: "get_practice_snapshot",
+      ok: true,
+      summary: "Practice snapshot",
+      data: {
+        practice: "Northside",
+        staff: {
+          teamSize: 2,
+          segregationScore: 0,
+          dualControlPayments,
+          independentBankRec,
+        },
+      },
+    };
+    return localSynthesize("What next?", [snapshot], [], [NO_ALERT_WARNING], [], [], []);
+  }
+
+  it("recommends only the independent bank reconciliation when a second signer is already on", () => {
+    const brief = briefWithControls(true, false);
+    const text = JSON.stringify(brief);
+
+    expect(brief.decisions[0]?.action).toBe("Set up an independent bank reconciliation");
+    expect(brief.frontierNextMove).toContain("Set up an independent bank reconciliation");
+    expect(text).not.toContain("Turn on a second signer");
+  });
+
+  it("uses the existing Decisions log action when both controls are already on", () => {
+    const brief = briefWithControls(true, true);
+
+    expect(brief.decisions[0]?.action).toBe(
+      "Write down in the Decisions log which open gaps you accept and which you will fix, each with a review date",
+    );
+    expect(brief.decisions[0]?.rationale).toBe(
+      "An open gap stays flagged until you record a decision on it, and the record is the trail an outside reviewer asks for.",
+    );
+    expect(
+      brief.decisions.filter((decision) => decision.action === brief.decisions[0]?.action),
+    ).toHaveLength(1);
+    expect(brief.frontierNextMove).toContain("Write down in the Decisions log");
+  });
+});

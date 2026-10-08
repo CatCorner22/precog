@@ -321,29 +321,43 @@ describe("local advisor brief", () => {
     expect(brief.markdown).not.toContain("Tick whoever");
   });
 
-  it("does not route a future absence question to today's answer", () => {
-    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
-    const person = resolveTemplate(sample).people.find(
-      (candidate) => candidate.name === "Jordan Blake",
-    );
-    if (!person) throw new Error("Missing dental sample person Jordan Blake");
-    const today = "2025-11-05";
-    const profile = {
-      ...sample,
+  it("lists planned leave next week with the person's full name and date range", () => {
+    const today = "2026-10-08";
+    const profile = pioneerProfileFrom({
+      industry: "dental",
+      customPeople: [
+        {
+          id: "casey-front",
+          name: "Casey Front",
+          role: "Front Desk",
+          active: true,
+          entitlements: [],
+        },
+      ],
       plannedAbsences: [
         {
           id: "planned-next-week",
-          personId: person.id,
-          industry: "dental" as const,
-          from: "2025-11-08",
-          to: "2025-11-10",
+          personId: "casey-front",
+          industry: "dental",
+          from: "2026-10-12",
+          to: "2026-10-16",
         },
       ],
-    };
+    } as never);
     const question = "Who is out next week?";
     const { brief } = localBrief(question, { profile, question, today }, profile);
 
-    expect(brief.markdown).not.toContain("Nobody is recorded as out today.");
+    expect(brief.markdown).toContain("- Casey Front: planned leave Oct 12–16, 2026.");
+  });
+
+  it("gives the upcoming-window empty message when nobody is out tomorrow", () => {
+    const profile = pioneerProfileFrom(defaultProfile("dental") as never);
+    const question = "Who is out tomorrow?";
+    const { brief } = localBrief(question, { profile, question, today: "2026-10-08" }, profile);
+
+    expect(brief.markdown).toContain(
+      "Nobody is recorded as out tomorrow. Add known leave under Who knows what → Someone is out.",
+    );
   });
 
   it("does not treat an unassessed register as proof nobody can run a scenario alone", () => {

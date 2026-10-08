@@ -308,11 +308,13 @@ export function simulateAllCascades(
 
   // Levers that cannot be modelled yet are listed, never ranked.
   const available = simulations.filter((sim) => sim.available);
-  const rankedByCor = [...available].sort((a, b) => {
-    const da = a.after.expectedAnnualCostOfRisk - a.before.expectedAnnualCostOfRisk;
-    const db = b.after.expectedAnnualCostOfRisk - b.before.expectedAnnualCostOfRisk;
-    return da - db; // most negative first
-  });
+  const rankedByCor = scenario.inScope
+    ? [...available].sort((a, b) => {
+        const da = a.after.expectedAnnualCostOfRisk - a.before.expectedAnnualCostOfRisk;
+        const db = b.after.expectedAnnualCostOfRisk - b.before.expectedAnnualCostOfRisk;
+        return da - db; // most negative first
+      })
+    : [];
 
   return {
     scenarioId: scenario.id,
@@ -555,9 +557,7 @@ function secondOrderNotes(leverId: CascadeLeverId, deltas: MetricDelta[]): strin
     byKey.residualAverage?.direction === "improves" &&
     byKey.expectedAnnualCostOfRisk?.direction === "improves"
   ) {
-    notes.push(
-      "Average residual risk and annual cost of risk fall together: the control design and the insurance terms both improved.",
-    );
+    notes.push("Average residual risk and annual cost of risk fall together.");
   }
 
   if (leverId === "raise_deductible_10k") {
