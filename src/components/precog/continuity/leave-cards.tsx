@@ -122,7 +122,8 @@ export function LeaveWindow({
                 aria-label={`${first} is back`}
                 onClick={onBack}
               >
-                <UserCheck className="size-3.5" /> Back
+                <UserCheck className="size-3.5" />{" "}
+                {w.absence.from >= today ? "Cancel — back today" : "Back"}
               </Button>
             </>
           )}

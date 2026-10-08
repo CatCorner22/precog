@@ -8,7 +8,7 @@
  * described in `suggestBackups`.
  */
 import type { IndustryTemplate } from "../templates";
-import { registerAssessed } from "./register-state";
+import { itemRecorded, registerAssessed } from "./register-state";
 import type {
   Criticality,
   KnowledgeItem,
@@ -337,10 +337,9 @@ function buildCoverageReport(tpl: IndustryTemplate): CoverageReport {
     );
 
   const plan: CrossTrainingMove[] = items
-    .filter((i) => i.status !== "covered")
+    .filter((i) => i.status !== "covered" && itemRecorded(tpl, i.item.id))
     .map((i) => {
-      const marked = isMarked(i);
-      const trainee = marked ? (i.suggestedBackups[0]?.person ?? null) : null;
+      const trainee = i.suggestedBackups[0]?.person ?? null;
       const trainer = i.primaries[0] ?? null;
       const priority = CRITICALITY_WEIGHT[i.item.criticality] * STATUS_URGENCY[i.status];
       // Read here rather than through documentation.ts, which imports this module.
@@ -349,9 +348,7 @@ function buildCoverageReport(tpl: IndustryTemplate): CoverageReport {
           ? ""
           : " Write the steps down first.";
       let action: string;
-      if (i.status === "uncovered" && !marked) {
-        action = `You have not marked anyone on "${i.item.name}" yet. Mark who can do it; if nobody can, choose someone to learn it and write the steps down.`;
-      } else if (i.status === "uncovered") {
+      if (i.status === "uncovered") {
         action = trainee
           ? `Nobody can run "${i.item.name}" alone. Pick ${trainee.name} to own it and get it documented.`
           : `Nobody can run "${i.item.name}" alone and there is no one free to learn it. Consider an outside provider or a written procedure.`;

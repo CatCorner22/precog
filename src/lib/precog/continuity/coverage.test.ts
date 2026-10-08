@@ -321,8 +321,8 @@ describe("coverageReport", () => {
       ],
     );
     const r = coverageReport(t);
-    expect(r.plan.map((m) => m.item.id)).toEqual(["crit-single", "imp-uncovered", "crit-thin"]);
-    const thin = r.plan[2];
+    expect(r.plan.map((m) => m.item.id)).toEqual(["crit-single", "crit-thin"]);
+    const thin = r.plan[1];
     expect(thin.trainer?.id).toBe("a");
     expect(thin.trainee?.id).toBe("b");
     expect(thin.action).toContain("Finish training Ben");
@@ -429,14 +429,14 @@ describe("absenceImpact", () => {
     );
   });
 
-  it("reports nothing more stopping for a fully backed-up person and flags sole-owned processes", () => {
+  it("ignores unmarked starter items and flags sole-owned processes", () => {
     const b = absenceImpact(t, ["b"])!;
     expect(b.stops).toEqual([]);
     expect(b.continues.map((k) => k.id)).toEqual(["ordering"]);
-    expect(b.alreadyStopped.map((k) => k.id)).toEqual(["filing"]);
+    expect(b.alreadyStopped).toEqual([]);
     expect(b.actions).toEqual([
       {
-        text: 'Nothing more stops if Ben is out; "filing" already waits because nobody can run it alone.',
+        text: "Nothing stops if Ben is out. Keep it that way as duties change.",
         step: "cover",
         knowledgeIds: [],
       },
@@ -448,6 +448,25 @@ describe("absenceImpact", () => {
 
     const solo = { ...t, processes: [{ ...t.processes[0], ownerPersonIds: ["b", "d"] }] };
     expect(absenceImpact(solo, ["b"])!.orphanedProcesses).toEqual(["Payroll run"]);
+  });
+
+  it("only reports already-stopped items that the register records", () => {
+    const dental = ownClinic();
+    const marked = ownClinic([
+      { personId: "own-1", knowledgeId: dental.knowledge[0].id, level: "expert" },
+    ]);
+    expect(absenceImpact(marked, ["own-1"])!.alreadyStopped).toEqual([]);
+
+    const former = tpl(
+      [knowledgeItem("former")],
+      [{ personId: "d", knowledgeId: "former", level: "expert" }],
+    );
+    expect(absenceImpact(former, ["a"])!.alreadyStopped.map((item) => item.id)).toEqual(["former"]);
+
+    const ownerWritten = tpl([knowledgeItem("owner-written")], []);
+    expect(absenceImpact(ownerWritten, ["a"])!.alreadyStopped.map((item) => item.id)).toEqual([
+      "owner-written",
+    ]);
   });
 
   it("names a cold stand-in for a backed-up item when every holder is out at once", () => {
@@ -630,6 +649,18 @@ describe("documentationDebt", () => {
     expect(documentationDebt(tpl([], [])).documentedIndex).toBe(100);
   });
 
+  it("uses neutral wording for an unmarked item when another item is marked", () => {
+    const d = documentationDebt(
+      tpl(
+        [knowledgeItem("marked"), knowledgeItem("unmarked")],
+        [{ personId: "a", knowledgeId: "marked", level: "expert" }],
+      ),
+    );
+    expect(d.gaps.find((gap) => gap.item.id === "unmarked")?.action).toBe(
+      'Nobody is marked on "unmarked" yet and nothing is written down — mark who can run it, then get the steps on paper.',
+    );
+  });
+
   it("does not mutate the register or change who holds what", () => {
     const before = JSON.stringify(t);
     documentationDebt(t);
@@ -761,16 +792,9 @@ function ownClinic(relations: KnowledgeRelation[] | null = null): IndustryTempla
 }
 
 describe("sample register nobody has marked", () => {
-  it("names nobody to own a sample item, instead of the alphabetically first employee", () => {
+  it("does not offer cross-training for unmarked starter items", () => {
     const r = coverageReport(ownClinic());
-    expect(r.plan.length).toBe(r.items.length);
-    for (const move of r.plan) {
-      expect(move.trainee).toBeNull();
-      expect(move.action).toBe(
-        `You have not marked anyone on "${move.item.name}" yet. Mark who can do it; if nobody can, choose someone to learn it and write the steps down.`,
-      );
-      expect(move.action).not.toMatch(/Anjali|Kevin|Zoe/);
-    }
+    expect(r.plan).toEqual([]);
   });
 
   it("still names a trainee on an item once someone is marked on it", () => {
@@ -854,14 +878,14 @@ describe("absence simulator on a register with gaps", () => {
     [{ personId: "a", knowledgeId: "payroll", level: "expert" }],
   );
 
-  it("lists items nobody can run as already stopped and never says nothing stops", () => {
+  it("does not call unmarked items already stopped", () => {
     const c = absenceImpact(t, ["c"])!;
     expect(c.stops).toEqual([]);
-    expect(c.alreadyStopped.map((k) => k.id)).toEqual(["deposit", "orders"]);
+    expect(c.alreadyStopped).toEqual([]);
     expect(c.actions.map((a) => a.text)).toEqual([
-      'Already stopped, whoever is in: nobody can run "deposit" or "orders" alone. Mark who can, or line up an outside provider.',
+      "Nothing stops if Cy is out. Keep it that way as duties change.",
     ]);
-    expect(c.actions[0].knowledgeIds).toEqual(["deposit", "orders"]);
+    expect(c.actions[0].knowledgeIds).toEqual([]);
   });
 
   it("with the whole team out, says nobody is left and that the work stops", () => {
