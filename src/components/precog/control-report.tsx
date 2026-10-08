@@ -78,7 +78,7 @@ import {
   ControlReportEvidenceSection,
 } from "@/components/precog/control-report-evidence-section";
 import { Kpi, Section } from "@/components/precog/control-report-parts";
-import { formatDay, formatMonth, localDateKey } from "@/lib/precog/dates";
+import { formatDay, formatMonth, localDateKey, utcDateKey } from "@/lib/precog/dates";
 import { decidedOn } from "@/lib/precog/decisions/decided-on";
 import { count, endSentence, firstName, midSentence, verb } from "@/lib/precog/text";
 
@@ -133,7 +133,6 @@ export function ControlReport({
   const provenance = version ? versionProvenance(version) : null;
   const industry = industryMeta(profile.industry);
   const generated = locked ? new Date(locked.preparedAt) : new Date();
-  const today = localDateKey(generated);
   const trackFreshness = trackRegisterFreshness(profile, tpl);
   const mapReady = mapAssessed(profile);
   const mapNote = mapNotAssessedNote(profile);
@@ -145,6 +144,11 @@ export function ControlReport({
 
   const figures = locked ? lockedFigures(frozen) : null;
   const storedModel = figures && "model" in figures ? figures.model : null;
+  // New locks freeze the preparer's day. A legacy lock has only a timestamp:
+  // its UTC day is the stable fallback, never the reader's local calendar.
+  const today = locked
+    ? (storedModel?.reportingScope?.day ?? utcDateKey(generated))
+    : localDateKey(generated);
   // A live report, and a locked one that recalculates, print the current
   // layout; a locked version with stored figures prints its own. Layout 1's
   // map score still counts heat, and it carries the average residual, not
@@ -161,7 +165,9 @@ export function ControlReport({
   // finding's risk. Earlier layouts print the report's own month and the
   // words they printed then.
   const layoutFive = layoutVersion >= 5;
-  const month = layoutFive ? reportPeriod(today) : today.slice(0, 7);
+  const month = layoutFive
+    ? (storedModel?.reportingScope?.period ?? reportPeriod(today))
+    : today.slice(0, 7);
   const priorityLabel = layoutFive ? PRIORITY_BAND_LABEL : PRIORITY_BAND_LABEL_PRINTED_V4;
   const kindLabel = layoutThree ? DECISION_KIND_LABEL : DECISION_KIND_LABEL_PRINTED_V1;
   // Layout 6 sizes the header from the owner's own active people, names an
@@ -208,8 +214,13 @@ export function ControlReport({
   // The day a logged decision accepted each finding's risk, for layout 5's
   // status column; layouts 1 to 4 read only the control's setting.
   const acceptedOn = useMemo(
-    () => (layoutFive ? acceptanceDates(sod.conflicts, profile.decisions, profile.industry) : null),
-    [layoutFive, sod.conflicts, profile.decisions, profile.industry],
+    () =>
+      layoutFive
+        ? storedModel?.reportingScope
+          ? new Map(storedModel.reportingScope.acceptedOn)
+          : acceptanceDates(sod.conflicts, profile.decisions, profile.industry)
+        : null,
+    [layoutFive, storedModel, sod.conflicts, profile.decisions, profile.industry],
   );
   // Each segregation row's Status, Response and Review by, worked out once
   // for both the table and the phone list.
@@ -399,7 +410,7 @@ export function ControlReport({
             </p>
           )}
           <p className="mt-1 text-sm text-neutral-600">
-            {mapLine} · generated {formatDay(generated)}
+            {mapLine} · generated {formatDay(today)}
           </p>
         </header>
 

@@ -94,12 +94,16 @@ export function shiftDay(day: string, delta: number): string {
 
 /** "Nov 3, 2026". A "YYYY-MM-DD" day prints as that day; a timestamp prints in the owner's time zone. */
 export function formatDay(value: string | Date): string {
+  const calendar = calendarDay(value);
+  if (calendar) return CALENDAR_DAY.format(calendar);
   const date = toDate(value);
   return date ? DAY.format(date) : String(value);
 }
 
 /** "Nov 3". */
 export function formatDayShort(value: string | Date): string {
+  const calendar = calendarDay(value);
+  if (calendar) return CALENDAR_DAY_SHORT.format(calendar);
   const date = toDate(value);
   return date ? DAY_SHORT.format(date) : String(value);
 }
@@ -112,7 +116,9 @@ export function formatDayNear(value: string, today: string): string {
 /** "March 2026" for a "YYYY-MM" month; anything else prints as given. */
 export function formatMonth(value: string): string {
   const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value);
-  return match ? MONTH.format(new Date(Number(match[1]), Number(match[2]) - 1, 1)) : value;
+  return match
+    ? MONTH.format(new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)))
+    : value;
 }
 
 /** "Nov 3, 2026, 4:05 PM". */
@@ -167,8 +173,26 @@ function toDate(value: string | Date): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/** Date-only values are calendar facts, not instants in the viewer's zone. */
+function calendarDay(value: string | Date): Date | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+const CALENDAR_DAY = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const CALENDAR_DAY_SHORT = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
 const DAY = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
-const MONTH = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });
+const MONTH = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 const DAY_SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 const DAY_TIME = new Intl.DateTimeFormat("en-US", {
   month: "short",
