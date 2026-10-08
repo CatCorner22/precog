@@ -81,6 +81,7 @@ export function LeaveWindow({
   const impact = current && w.todayImpact ? w.todayImpact : w.impact;
   const deadline = handoffDeadline(w, today);
   const unplanned = Boolean(w.absence.unplanned);
+  const cancelToday = w.absence.from >= today;
   return (
     <div className={cn("rounded-md border p-3", current ? "border-danger/50" : "border-border")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -119,11 +120,12 @@ export function LeaveWindow({
                 size="sm"
                 variant="outline"
                 className="h-6 px-2 text-xs"
-                aria-label={`${first} is back`}
+                aria-label={
+                  cancelToday ? `Cancel ${first}'s absence — back today` : `${first} is back`
+                }
                 onClick={onBack}
               >
-                <UserCheck className="size-3.5" />{" "}
-                {w.absence.from >= today ? "Cancel — back today" : "Back"}
+                <UserCheck className="size-3.5" /> {cancelToday ? "Cancel — back today" : "Back"}
               </Button>
             </>
           )}

@@ -321,8 +321,8 @@ describe("coverageReport", () => {
       ],
     );
     const r = coverageReport(t);
-    expect(r.plan.map((m) => m.item.id)).toEqual(["crit-single", "crit-thin"]);
-    const thin = r.plan[1];
+    expect(r.plan.map((m) => m.item.id)).toEqual(["crit-single", "imp-uncovered", "crit-thin"]);
+    const thin = r.plan[2];
     expect(thin.trainer?.id).toBe("a");
     expect(thin.trainee?.id).toBe("b");
     expect(thin.action).toContain("Finish training Ben");
@@ -792,9 +792,16 @@ function ownClinic(relations: KnowledgeRelation[] | null = null): IndustryTempla
 }
 
 describe("sample register nobody has marked", () => {
-  it("does not offer cross-training for unmarked starter items", () => {
+  it("names nobody to own a sample item, instead of the alphabetically first employee", () => {
     const r = coverageReport(ownClinic());
-    expect(r.plan).toEqual([]);
+    expect(r.plan.length).toBe(r.items.length);
+    for (const move of r.plan) {
+      expect(move.trainee).toBeNull();
+      expect(move.action).toBe(
+        `You have not marked anyone on "${move.item.name}" yet. Mark who can do it; if nobody can, choose someone to learn it and write the steps down.`,
+      );
+      expect(move.action).not.toMatch(/Anjali|Kevin|Zoe/);
+    }
   });
 
   it("still names a trainee on an item once someone is marked on it", () => {

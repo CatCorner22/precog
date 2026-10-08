@@ -119,7 +119,7 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
             const holdersText = !assessed
               ? "not assessed yet"
               : !recordedIds.has(k.id)
-                ? "Not marked yet"
+                ? "not marked yet"
                 : holders === 0
                   ? "nobody can run it"
                   : holders === 1
