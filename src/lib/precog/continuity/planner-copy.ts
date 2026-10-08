@@ -37,6 +37,15 @@ export const STATUS_VARIANT: Record<CoverageStatus, "danger" | "warn" | "accent"
   covered: "ok",
 };
 
+export function statusBadge(
+  status: CoverageStatus,
+  recorded: boolean,
+): { label: string; variant: (typeof STATUS_VARIANT)[CoverageStatus] | "default" } {
+  return status === "uncovered" && !recorded
+    ? { label: "Not marked yet", variant: "default" }
+    : { label: STATUS_LABEL[status], variant: STATUS_VARIANT[status] };
+}
+
 /**
  * The coverage badge for one register row. Until someone is marked on it at
  * any level the row is not a gap yet, so it reads "Not marked yet" in a
@@ -46,9 +55,7 @@ export function coverageBadge(row: ItemCoverage): {
   label: string;
   variant: (typeof STATUS_VARIANT)[CoverageStatus] | "default";
 } {
-  return isMarked(row)
-    ? { label: STATUS_LABEL[row.status], variant: STATUS_VARIANT[row.status] }
-    : { label: "Not marked yet", variant: "default" };
+  return statusBadge(row.status, isMarked(row));
 }
 
 /** Check-in tab for stale items nobody on the active team holds. */

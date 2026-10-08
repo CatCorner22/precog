@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { continuityTemplate, knowledgeItem } from "@/test/fixtures";
 import { coverageReport } from "./coverage";
-import { coverageBadge, noNoticeText } from "./planner-copy";
+import { coverageBadge, noNoticeText, statusBadge } from "./planner-copy";
 
 const people = [
   { id: "a", name: "Ana", role: "Owner", active: true },
@@ -20,6 +20,20 @@ describe("coverageBadge", () => {
     const [unmarked, aware] = report.items;
     expect(coverageBadge(unmarked)).toEqual({ label: "Not marked yet", variant: "default" });
     expect(coverageBadge(aware)).toEqual({ label: "Nobody can do this alone", variant: "danger" });
+  });
+});
+
+describe("statusBadge", () => {
+  it("uses a neutral badge only for unrecorded uncovered entries", () => {
+    expect(statusBadge("uncovered", false)).toEqual({
+      label: "Not marked yet",
+      variant: "default",
+    });
+    expect(statusBadge("uncovered", true)).toEqual({
+      label: "Nobody can do this alone",
+      variant: "danger",
+    });
+    expect(statusBadge("single", false)).toEqual({ label: "Only one person", variant: "danger" });
   });
 });
 
