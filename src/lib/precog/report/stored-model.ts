@@ -15,6 +15,8 @@ import {
   type ControlReportModel,
 } from "./build-control-report";
 import { NO_FINDING_RESPONSES, type FindingResponses } from "./finding-responses";
+import { buildReportScope, type ReportScope } from "./report-scope";
+import { utcDateKey } from "../dates";
 
 /**
  * The report model as a locked version stores it: plain JSON, so it reads
@@ -25,6 +27,8 @@ export type StoredReportModel = Omit<
   ControlReportModel,
   "committed" | "partialCoverage" | "responses" | "sod" | "benchmark" | "examples"
 > & {
+  /** Absent before layout 8; new locks keep the preparer's calendar scope. */
+  reportingScope?: ReportScope;
   /**
    * Absent in a model stored under layouts 1 to 6, which did not store
    * Precog's examples. Such a model revives with none; those layouts print
@@ -88,6 +92,9 @@ export interface FrozenReport {
  * stored model with another layout version recalculates instead of printing,
  * unless `ControlReport` still prints that layout with its own labels.
  *
+ * Layout 8: freezes the preparer's reporting day, selected month and derived
+ * acceptance dates. Public projection uses that exact period, not a reader's
+ * timezone. Older stored layouts remain readable.
  * Layout 7: the header names a map with no processes as "no processes
  * mapped yet", not "custom process map", and counts the processes on an
  * own map still exactly as Precog's example had them; the process map list
@@ -116,10 +123,19 @@ export interface FrozenReport {
  * Layout 2: map completeness (no heat part) and residual rows counted by band.
  * Layout 1: map health score (with heat) and the average residual score.
  */
-export const REPORT_LAYOUT_VERSION = 7;
+export const REPORT_LAYOUT_VERSION = 8;
 
 /** The layouts `ControlReport` prints from stored figures, each with its own labels. */
-export const PRINTED_LAYOUT_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, REPORT_LAYOUT_VERSION];
+export const PRINTED_LAYOUT_VERSIONS: readonly number[] = [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  REPORT_LAYOUT_VERSION,
+];
 
 /**
  * Whether a report printed under `layoutVersion` prints layout 6's text. A
@@ -488,7 +504,11 @@ export function serializeReportModel(model: ControlReportModel): StoredReportMod
  * fields) in full.
  */
 export function reviveReportModel(stored: StoredReportModel): ControlReportModel {
-  const model = restoreRepeatedObjects(restoreColumns(stored) as StoredReportModel);
+  // Calendar scope is read around the figures, not part of the core engine
+  // model. Keep the revived figure shape identical to pre-scope models.
+  const { reportingScope: _scope, ...model } = restoreRepeatedObjects(
+    restoreColumns(stored) as StoredReportModel,
+  );
   const { conflicts } = model.sod;
   return {
     ...model,
@@ -550,7 +570,11 @@ export function freezeReport(
       { profile: stored, industry: stored.industry ?? "", name: stored.practiceName ?? "" },
       today,
     );
-    const model = serializeReportModel(slimReportModel(build(profile, today)));
+    const built = build(profile, today);
+    const model: StoredReportModel = {
+      ...serializeReportModel(slimReportModel(built)),
+      reportingScope: buildReportScope(profile, today, built.sod.conflicts, REPORT_LAYOUT_VERSION),
+    };
     if (JSON.stringify(model).length > REPORT_MODEL_MAX_CHARS) {
       return { ...versions, model: null, tooLarge: true };
     }
@@ -575,6 +599,33 @@ export function lockedFigures(
   if (!frozen.model) return { reason: "not-stored" };
   if (!PRINTED_LAYOUT_VERSIONS.includes(frozen.layoutVersion)) return { reason: "other-layout" };
   return { model: frozen.model, layoutVersion: frozen.layoutVersion };
+}
+
+/**
+ * Legacy locks did not record the preparer's day. Use the UTC lock day as
+ * a deterministic fallback; never infer that day from the reader's timezone.
+ * Derive only printable acceptance dates from the locked profile, before a
+ * public projection drops its private decisions. Nothing is written back.
+ */
+export function reportScopeFor(
+  frozen: Pick<FrozenReport, "layoutVersion" | "model"> | null,
+  profile: PracticeProfile,
+  preparedAt: string,
+): ReportScope | null {
+  const figures = lockedFigures(frozen);
+  if (!("model" in figures)) return null;
+  const scope = figures.model.reportingScope;
+  if (scope) {
+    return figures.layoutVersion >= 5
+      ? scope
+      : { ...scope, period: scope.day.slice(0, 7), acceptedOn: [] };
+  }
+  return buildReportScope(
+    profile,
+    utcDateKey(new Date(preparedAt)),
+    reviveReportModel(figures.model).sod.conflicts,
+    figures.layoutVersion,
+  );
 }
 
 const RECALCULATION_REASON: Record<RecalculationReason, string> = {

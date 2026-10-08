@@ -10,7 +10,7 @@ import {
   type ReportVersionRow,
 } from "../firm/reports";
 import type { FirmSnapshot } from "../firm/store";
-import type { StoredReportModel } from "../report/stored-model";
+import { reportScopeFor, type StoredReportModel } from "../report/stored-model";
 import type { PracticeProfile } from "../practice-profile";
 import { mergeProfile } from "../profile-merge";
 import { shareReportProfile } from "./report-share-profile";
@@ -515,7 +515,7 @@ export async function loadSharedReport(
     row.reportVersionId,
   );
   if (!loaded || !loaded.version.reviewedAt) return null;
-  const [frozen, name] = await Promise.all([
+  const [stored, name] = await Promise.all([
     loadFrozenReport<StoredReportModel>(sql, row.ownerUserId, row.reportVersionId),
     versionFirmName(sql, row.ownerUserId, row.reportVersionId),
   ]);
@@ -527,6 +527,13 @@ export async function loadSharedReport(
     },
     today,
   );
+  const scope = reportScopeFor(stored, merged, loaded.version.preparedAt);
+  // Legacy stored models gain only derived printable scope in this response.
+  // The immutable database version and its private decision log stay intact.
+  const frozen =
+    stored?.model && scope
+      ? { ...stored, model: { ...stored.model, reportingScope: scope } }
+      : stored;
   return {
     // Who a review was requested from, who returned it and the return note
     // are the firm's own working notes: a public link never names them.
@@ -538,6 +545,7 @@ export async function loadSharedReport(
     profile: shareReportProfile(
       { ...merged, businessId: row.businessId },
       loaded.version.preparedAt,
+      scope,
     ),
   };
 }

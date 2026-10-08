@@ -4,7 +4,7 @@ import type { ReportVersionRow } from "@/lib/precog/firm/reports";
 import type { ReviewRecord } from "@/lib/precog/firm/reviews";
 import { defaultProfile, type PracticeProfile } from "@/lib/precog/practice-profile";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
-import { freezeReport } from "@/lib/precog/report/stored-model";
+import { freezeReport, REPORT_LAYOUT_VERSION } from "@/lib/precog/report/stored-model";
 import { shareReportProfile } from "@/lib/precog/share/report-share-profile";
 import { ControlReport } from "./control-report";
 
@@ -89,7 +89,7 @@ function fixture(preparedAt: string, preparerDay: string) {
   // freezer once. A viewer cannot choose a new reporting month afterwards.
   const frozen = freezeReport(profile, preparerDay);
   expect(frozen.model, "fixture must contain stored figures").not.toBeNull();
-  expect(frozen.layoutVersion).toBe(5);
+  expect(frozen.layoutVersion).toBe(REPORT_LAYOUT_VERSION);
   return { profile, locked, frozen, current, previous };
 }
 
