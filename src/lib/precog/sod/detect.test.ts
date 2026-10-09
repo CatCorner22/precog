@@ -85,6 +85,25 @@ describe("detectSodConflicts", () => {
     );
   });
 
+  it("does not treat report-view-only access as an assessed money duty", () => {
+    const report = detectAssignments({
+      industry: "general",
+      assignments: [
+        {
+          personId: "p1",
+          personName: "Pat",
+          role: "Owner",
+          entitlements: ["view_reports_only"],
+        },
+      ],
+    });
+
+    expect(report.summary.dutiesMarked).toBe(false);
+    expect(report.recommendations).toContain(
+      "Mark who does each money duty. Precog cannot judge separation until you do.",
+    );
+  });
+
   it("flags one person who can create a vendor and release payment", () => {
     const report = detectSodConflicts(oneClerk(["create_vendor", "release_payment"]));
     const hit = report.conflicts.find((c) => c.ruleId === "rule-vendor-create-pay");

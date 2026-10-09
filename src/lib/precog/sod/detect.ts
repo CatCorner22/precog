@@ -102,7 +102,7 @@ export interface SodDetectionReport {
     ownerHeld: number;
     /** Money duties no active person holds: a CPA asks who banks the deposits before asking who does two things. */
     unheldDuties: EntitlementId[];
-    /** Whether any active assignment holds at least one entitlement. */
+    /** Whether any active assignment holds at least one money duty beyond viewing reports. */
     dutiesMarked: boolean;
     segregationHealth: number;
   };
@@ -475,7 +475,7 @@ function summarize(
     dualReleaseMitigated: conflicts.filter((c) => c.dualReleaseMitigated).length,
     ownerHeld: conflicts.filter((c) => c.ownerHeld).length,
     unheldDuties: UNHELD_WATCH.filter((d) => !held.has(d) && (d !== "prepare_deposit" || collects)),
-    dutiesMarked: held.size > 0,
+    dutiesMarked: [...held].some((d) => d !== "view_reports_only"),
     segregationHealth: segregationHealthIndex(segregationPressure(conflicts)),
   };
 }
