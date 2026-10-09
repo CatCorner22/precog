@@ -734,7 +734,7 @@ export function IndustryOnboarding({
         className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn"
         role="status"
       >
-        This browser won’t save your progress. Finish setup in this session.
+        This browser will not save your progress. Finish setup in this session.
       </p>
     ) : null;
   // Answers that came back from this tab, with the way to throw them away.
@@ -1177,7 +1177,7 @@ export function IndustryOnboarding({
                   ? "Scroll sideways to see more duties. Names stay on the left. Duty names stay at the top."
                   : `${rowsInUse} of up to ${OWN_TEAM_MAX} people.`}{" "}
                 Duties without a column appear as tags under each job title. Remove one with × or
-                add one with &ldquo;Add a duty.&rdquo; Job titles only suggest duties. Keep or
+                add one with &ldquo;Add a duty&rdquo;. Job titles only suggest duties. Keep or
                 remove each suggestion below the table.
               </p>
               <div
@@ -1738,7 +1738,7 @@ export function MappingScopeAttestation({
       ))}
       {scope && scopedAssessment && (
         <p role="status" className="text-xs font-medium text-warn">
-          Precog will map only this scope. It has not fully assessed people outside it.
+          Precog maps only this scope. It does not fully assess people outside it.
         </p>
       )}
     </fieldset>

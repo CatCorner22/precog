@@ -90,7 +90,7 @@ export const OnboardingQuestionShell = forwardRef<HTMLHeadingElement, Props>(
             : orderedSetupMethods(facts);
     const heading = {
       actor: "What is your role?",
-      workforce: "How many people work here?",
+      workforce: "How many people work in the whole organization?",
       locations: "How many locations do you have?",
       setup_method: "How do you want to start?",
     }[question];

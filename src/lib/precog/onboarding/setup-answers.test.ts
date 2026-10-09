@@ -146,8 +146,8 @@ describe("setup answer effects", () => {
       effects.assumed.slice(0, -2).every((line) => line.endsWith("because you answered Not sure.")),
     ).toBe(true);
     expect(effects.assumed.slice(-2)).toEqual([
-      "We did not ask about insurance. Precog treats it as unverified until you add a policy.",
-      'We did not ask who can cover each duty. "Who knows what" starts with the sample list and no one assigned.',
+      "Precog did not ask about insurance. Precog treats it as unverified until you add a policy.",
+      'Precog did not ask who can cover each duty. "Who knows what" starts with the sample list and no one assigned.',
     ]);
     expect(effects.assumed.filter((line) => line.includes("does not count"))).toHaveLength(5);
   });

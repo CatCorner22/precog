@@ -303,7 +303,7 @@ export function pasteSummary(input: {
     input.onLeaveNames.length > 0
       ? `${joinWithAnd(input.onLeaveNames, 5)} ${verb(input.onLeaveNames.length, "is", "are")} on leave. Finishing keeps them on the team and records them as out today in Who knows what. Extend the absence there until they return.`
       : "",
-    changed > 0 ? "Review every row. Job titles suggest duties; they do not confirm them." : "",
+    changed > 0 ? "Review every row. Job titles suggest duties. They do not confirm them." : "",
   ];
   return { note: sentences.filter(Boolean).join(" "), keepPaste };
 }

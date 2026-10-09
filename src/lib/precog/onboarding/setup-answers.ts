@@ -243,8 +243,8 @@ export function setupEffects(
     );
 
   assumed.push(
-    "We did not ask about insurance. Precog treats it as unverified until you add a policy.",
-    'We did not ask who can cover each duty. "Who knows what" starts with the sample list and no one assigned.',
+    "Precog did not ask about insurance. Precog treats it as unverified until you add a policy.",
+    'Precog did not ask who can cover each duty. "Who knows what" starts with the sample list and no one assigned.',
   );
   return { changed, assumed };
 }

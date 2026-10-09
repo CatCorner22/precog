@@ -156,7 +156,8 @@ describe("large-roster scope attestation", () => {
     expect(html).toContain('role="status"');
     expect(text).toContain("60 valid roster rows are not in the review grid");
     expect(text).toContain("Precog gives no control credit for unknown or unresolved people");
-    expect(text).toContain("map only this scope");
-    expect(text).toContain("not fully assessed");
+    expect(text).toContain(
+      "Precog maps only this scope. It does not fully assess people outside it.",
+    );
   });
 });
