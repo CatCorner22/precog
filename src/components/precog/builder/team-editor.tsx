@@ -85,9 +85,12 @@ export function ConfirmTitleDuties({
 export function TeamEditor({
   people,
   onChange,
+  focus = null,
 }: {
   people: Person[];
   onChange: (next: Person[]) => void;
+  /** A link from Start here: open this person and mark these two duties. */
+  focus?: { personId: string; duties: readonly string[] } | null;
 }) {
   const tpl = useTemplate();
   const { setPlannedAbsences } = usePracticeActions();
@@ -106,6 +109,17 @@ export function TeamEditor({
   const [leaving, setLeaving] = useState<{ id: string; lastDay: string } | null>(null);
   // The team as it stands now, for an Undo pressed after other edits.
   const latestPeople = useRef(people);
+  useEffect(() => {
+    if (!focus?.personId) return;
+    setEditingId(focus.personId);
+    const personId = focus.personId;
+    const frame = requestAnimationFrame(() => {
+      document
+        .querySelector(`[data-person="${CSS.escape(personId)}"]`)
+        ?.scrollIntoView({ block: "center" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focus]);
   useEffect(() => {
     latestPeople.current = people;
   }, [people]);
@@ -405,6 +419,7 @@ export function TeamEditor({
           return (
             <li
               key={p.id}
+              data-person={p.id}
               className="rounded-md border border-border bg-elevated px-2 py-1.5 text-xs"
             >
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -521,6 +536,7 @@ export function TeamEditor({
                     // The duties the conflict engine reads for this person,
                     // their role's when none are set, so a tick edits that set.
                     selected={effectiveDuties(p, roleTemplates)}
+                    marked={focus?.personId === p.id ? focus.duties : []}
                     onToggle={(id) => {
                       const next = toggleIn(effectiveDuties(p, roleTemplates), id);
                       updatePerson(p.id, {

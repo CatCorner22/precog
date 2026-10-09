@@ -232,7 +232,7 @@ export function draftHasProgress(draft: SetupDraft, typedName = ""): boolean {
  * setup in this tab, one the owner left to load the sample, comes back when
  * it holds typed work, with the name and line of business chosen for this
  * business, and `restoredEarlier` so the dialog can say so and offer to start
- * over. Otherwise setup starts fresh, on the setup questions when the business
+ * over. Otherwise setup starts fresh, on the team grid when the business
  * already has a name.
  */
 export function initialSetup(
@@ -243,7 +243,7 @@ export function initialSetup(
   const fresh: SetupDraft = {
     schemaVersion: ONBOARDING_FACTS_VERSION,
     currentQuestionId: "actor",
-    step: business.typedName ? "questions" : "industry",
+    step: business.typedName ? "team" : "industry",
     selected: business.industry,
     businessName: business.typedName,
     // A nonprofit's grid starts with its executive director, not an owner.

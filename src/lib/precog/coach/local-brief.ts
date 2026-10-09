@@ -497,7 +497,7 @@ function outTodayAnswer(
   const lines =
     brief.out.length === 0
       ? [
-          "Nobody is recorded as out today. When someone calls in, press Someone is out at the top of the page.",
+          "Nobody is recorded as out today. When someone calls in, open Who knows what and record them as out today.",
         ]
       : [];
 

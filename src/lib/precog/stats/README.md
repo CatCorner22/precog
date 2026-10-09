@@ -14,6 +14,6 @@ error and should never be used to accuse anyone.
 - `transactions-csv.ts` — parses date/amount transaction CSV files (ISO or US dates) with optional
   kind, memo, and person columns.
 
-The entry point is the **Number patterns in a CSV** section of the Monthly review tab (the
+The entry point is the **Number patterns in a CSV** view of How Precog scores (the
 badge reads "Forensic screen" in tactical mode). It keeps imported and
 pasted data in local component state only; nothing is persisted.
