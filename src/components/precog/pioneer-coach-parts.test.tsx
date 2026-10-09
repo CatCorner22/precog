@@ -1,9 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
+  askButtonLabel,
   BUSINESS_CHANGED_MESSAGE,
   BriefMarkdown,
   CoachResultView,
+  effortWords,
   MOVES_PREVIEW,
   briefClipboardText,
   briefAuthorLine,
@@ -78,6 +80,16 @@ describe("business changes during a run", () => {
   });
 });
 
+describe("ask button", () => {
+  it("asks what to do this week when the box is empty, and says what the wait is", () => {
+    expect(askButtonLabel(false, false)).toBe("What do I do this week?");
+    expect(askButtonLabel(false, true)).toBe("Ask");
+    expect(askButtonLabel(true, true)).toBe("Checking your records…");
+    expect(effortWords("high")).toBe("Large job");
+    expect(effortWords("custom")).toBe("custom");
+  });
+});
+
 describe("briefAuthorLine", () => {
   it("says plainly whether a model wrote the brief", () => {
     expect(briefAuthorLine({ modelStatus: "not-asked" })).toBe(
@@ -95,7 +107,7 @@ describe("briefAuthorLine", () => {
 describe("CoachResultView", () => {
   it("puts the brief first and the trace behind a closed disclosure", () => {
     const html = view(result());
-    const brief = html.indexOf("Your brief");
+    const brief = html.indexOf("What should I do this week?");
     const moves = html.indexOf("Recommended moves");
     const built = html.indexOf("How Pioneer built this brief");
     expect(brief).toBeGreaterThanOrEqual(0);
@@ -115,6 +127,8 @@ describe("CoachResultView", () => {
     expect(html.match(/Add to the Decisions log</g)).toHaveLength(MOVES_PREVIEW - 1);
     expect(html).toContain("Added to the Decisions log");
     expect(html).toContain("Show all 5");
+    expect(html).toContain("Small job");
+    expect(html).not.toContain("low effort");
     expect(html).not.toContain("Move 5");
     expect(html.match(/<p class="mt-1 text-xs text-muted">Because\.<\/p>/g)).toHaveLength(
       MOVES_PREVIEW,
@@ -146,6 +160,45 @@ describe("CoachResultView", () => {
     expect(html).toContain(
       "Add one to the Decisions log. The next brief follows it up instead of repeating it.",
     );
+  });
+
+  it("opens the screen a move is about", () => {
+    const html = view(
+      result({
+        decisions: [
+          {
+            action: "Give one duty to someone else",
+            rationale: "Because.",
+            effort: "medium",
+            horizonDays: 14,
+            link: { tab: "sod", personId: "p2" },
+          },
+        ],
+      }),
+    );
+    expect(html).toContain("Open Who controls what");
+    expect(html).toContain("Medium job");
+    expect(html).not.toContain("medium effort");
+  });
+
+  it("offers the next questions under the moves", () => {
+    const html = renderToStaticMarkup(
+      <CoachResultView
+        result={result()}
+        onLog={() => {}}
+        logged={new Set()}
+        onCopy={() => {}}
+        copied={false}
+        nextQuestions={["If my front desk lead leaves, what breaks first?"]}
+        onAsk={() => {}}
+      />,
+    );
+    const moves = html.indexOf("Recommended moves");
+    const next = html.indexOf("Ask next");
+    const built = html.indexOf("How Pioneer built this brief");
+    expect(moves).toBeLessThan(next);
+    expect(next).toBeLessThan(built);
+    expect(html).toContain("If my front desk lead leaves, what breaks first?");
   });
 
   it("labels a source by its tab's name, not its internal id", () => {

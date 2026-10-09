@@ -234,6 +234,11 @@ function Home() {
   // together and no typed setup work is lost either way. When the question
   // closes with setup still to do, focus goes to setup's question.
   const [guestPromptOpen, setGuestPromptOpen] = useState(false);
+  // Ask Pioneer stays mounted after the first visit, so opening the Decisions
+  // log from a move does not throw the brief away. Set during render so the
+  // first visit does not paint an empty panel.
+  const [pioneerHeld, setPioneerHeld] = useState(tab === "pioneer");
+  if (tab === "pioneer" && !pioneerHeld) setPioneerHeld(true);
   const guestPromptWasOpen = useRef(false);
   useEffect(() => {
     if (guestPromptWasOpen.current && !guestPromptOpen && showOnboarding) {
@@ -465,7 +470,6 @@ function Home() {
                     onNavigate={openTab}
                   />
                 )}
-                {tab === "pioneer" && <PioneerCoach onNavigate={openTab} />}
                 {tab === "scores" && (
                   <ScoresArea view={item} openTab={openTab} onNavigate={openDeepLink} />
                 )}
@@ -491,6 +495,11 @@ function Home() {
                 )}
                 {tab === "sod" && (
                   <SodPanel onNavigate={openTab} report={sodReport} initialView={item} />
+                )}
+                {pioneerHeld && (
+                  <div hidden={tab !== "pioneer"}>
+                    <PioneerCoach onNavigate={openTab} />
+                  </div>
                 )}
               </Suspense>
             </TabErrorBoundary>

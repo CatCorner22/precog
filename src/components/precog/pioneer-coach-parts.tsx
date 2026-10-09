@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { PioneerCoachResult } from "@/lib/precog/coach/pioneer-answer";
 import type { CoachDecision } from "@/lib/precog/coach/journal-entry";
 import { tabLabel, type NavFn } from "@/lib/precog/navigation";
@@ -21,6 +21,23 @@ export const BUSINESS_CHANGED_MESSAGE =
 /** How many recommended moves show before "Show all". */
 export const MOVES_PREVIEW = 3;
 
+/** The brief heading, focused when an answer arrives. */
+export const PIONEER_BRIEF_TITLE_ID = "pioneer-brief-title";
+
+/** The Ask button's words. An empty box still asks what to do this week. */
+export function askButtonLabel(loading: boolean, hasQuestion: boolean): string {
+  if (loading) return "Checking your records…";
+  return hasQuestion ? "Ask" : "What do I do this week?";
+}
+
+/** The effort badge in owner words. The stored value stays low, medium, or high. */
+export function effortWords(effort: string): string {
+  if (effort === "low") return "Small job";
+  if (effort === "medium") return "Medium job";
+  if (effort === "high") return "Large job";
+  return effort;
+}
+
 /**
  * The brief, the moves to log, and, behind a closed disclosure, how the brief
  * was built. The answer comes first; the trace, the review lenses and the
@@ -33,6 +50,9 @@ export function CoachResultView({
   logged,
   onCopy,
   copied,
+  nextQuestions = [],
+  onAsk,
+  asking = false,
 }: {
   result: CoachResult;
   onNavigate?: NavFn;
@@ -40,11 +60,21 @@ export function CoachResultView({
   logged: ReadonlySet<string>;
   onCopy: () => void;
   copied: boolean;
+  /** Other questions, asked in one press. Hidden when none are passed. */
+  nextQuestions?: readonly string[];
+  onAsk?: (question: string) => void;
+  asking?: boolean;
 }) {
   const { say } = usePresentation();
   const [allMoves, setAllMoves] = useState(false);
   const moves = allMoves ? result.decisions : result.decisions.slice(0, MOVES_PREVIEW);
   const notes = extraWarnings(result);
+
+  useEffect(() => {
+    const title = document.getElementById(PIONEER_BRIEF_TITLE_ID);
+    title?.scrollIntoView({ block: "start" });
+    if (title instanceof HTMLElement) title.focus({ preventScroll: true });
+  }, [result.question, result.contextFingerprint]);
 
   return (
     <>
@@ -52,7 +82,9 @@ export function CoachResultView({
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <CardTitle>Your brief</CardTitle>
+              <CardTitle id={PIONEER_BRIEF_TITLE_ID} tabIndex={-1}>
+                {result.question}
+              </CardTitle>
               <CardDescription>{briefAuthorLine(result)}</CardDescription>
             </div>
             <Button size="sm" variant="secondary" onClick={onCopy}>
@@ -87,6 +119,7 @@ export function CoachResultView({
           <CardContent className="space-y-2">
             {moves.map((d) => {
               const done = logged.has(d.action);
+              const where = d.link;
               return (
                 <div
                   key={d.action}
@@ -94,7 +127,7 @@ export function CoachResultView({
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{d.action}</span>
-                    <Badge variant="default">{d.effort} effort</Badge>
+                    <Badge variant="default">{effortWords(d.effort)}</Badge>
                     <span className="text-xs text-muted">within {count(d.horizonDays, "day")}</span>
                   </div>
                   <p className="mt-1 text-xs text-muted">{d.rationale}</p>
@@ -106,6 +139,15 @@ export function CoachResultView({
                     {done && (
                       <Button size="sm" variant="ghost" onClick={() => onNavigate?.("journal")}>
                         Open {tabLabel("journal", say)}
+                      </Button>
+                    )}
+                    {where?.tab && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onNavigate?.(where.tab, where.id)}
+                      >
+                        Open {tabLabel(where.tab, say)}
                       </Button>
                     )}
                   </div>
@@ -124,6 +166,23 @@ export function CoachResultView({
             )}
           </CardContent>
         </Card>
+      )}
+
+      {nextQuestions.length > 0 && onAsk && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-subtle">Ask next</p>
+          {nextQuestions.map((prompt) => (
+            <button
+              key={prompt}
+              type="button"
+              disabled={asking}
+              onClick={() => onAsk(prompt)}
+              className="rounded-xl border border-border bg-surface px-3 py-2 text-left text-sm hover:border-border-strong disabled:opacity-50 pointer-coarse:min-h-11"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
       )}
 
       <details className="group rounded-2xl border border-border bg-surface">
