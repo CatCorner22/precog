@@ -431,6 +431,15 @@ function leverAlreadyOnReason(
   vars: RiskVariableState,
   staff: StaffComposition,
 ): string | null {
+  if (leverId === "add_cameras_discount_stack") {
+    const controls = [vars.hasSecurityCameras, staff.dualControlPayments, staff.independentBankRec];
+    if (controls.every(Boolean)) {
+      return "Already in place in your settings, so this lever changes nothing.";
+    }
+    if (controls.some(Boolean)) {
+      return "Part of this stack is already in place in your settings; pick the remaining levers on their own.";
+    }
+  }
   const on: Partial<Record<CascadeLeverId, boolean>> = {
     enable_dual_control: staff.dualControlPayments,
     enable_independent_bank_rec: staff.independentBankRec,
