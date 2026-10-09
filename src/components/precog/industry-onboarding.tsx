@@ -893,9 +893,8 @@ export function IndustryOnboarding({
                 Which line of business is this?
               </h2>
               <CardDescription>
-                Pick the closest line of business. Next, enter your own team or explore a sample
-                first. You can change the line of business later in Business settings, from the
-                business menu.
+                Pick the closest one. You can change the line of business later in Business
+                settings, from the business menu.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -907,7 +906,6 @@ export function IndustryOnboarding({
               >
                 {INDUSTRIES.map((ind) => {
                   const Icon = ICONS[ind.id];
-                  const tpl = getIndustryTemplate(ind.id);
                   const active = selected === ind.id;
                   return (
                     <button
@@ -938,40 +936,35 @@ export function IndustryOnboarding({
                         <div className="min-w-0">
                           <p className="font-medium">{ind.label}</p>
                           <p className="mt-0.5 text-xs text-muted">{ind.tagline}</p>
-                          <p className="mt-1 text-xs text-subtle">{ind.sampleNote}</p>
-                          <p className="mt-2 text-xs text-subtle">
-                            Sample: {tpl.processes.length} processes, {tpl.people.length} people
-                          </p>
-                          <p className="mt-0.5 text-xs text-subtle">{CASE_PHRASE[ind.id]}</p>
                         </div>
                       </div>
                     </button>
                   );
                 })}
               </div>
+              <IndustryPackDetails industry={selected} />
               <div className="sticky bottom-0 -mx-6 border-t border-border bg-surface px-6 py-3">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Button
-                    className="w-full"
-                    onClick={() => {
-                      // A nonprofit's first row is its executive director, not an owner.
-                      setRows((current) => firstRowForIndustry(current, selected));
-                      setStep("team");
-                    }}
-                  >
-                    Set up my own business
-                  </Button>
-                  <Button
-                    className="w-full"
-                    variant="secondary"
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    // A nonprofit's first row is its executive director, not an owner.
+                    setRows((current) => firstRowForIndustry(current, selected));
+                    setStep("team");
+                  }}
+                >
+                  Set up my own business
+                </Button>
+                <p className="mt-2 text-center text-xs text-subtle">
+                  Just looking?{" "}
+                  <button
+                    type="button"
                     data-testid="explore-sample-business"
                     onClick={loadSample}
+                    className="text-primary underline-offset-2 hover:underline"
                   >
                     Explore the fictional sample
-                  </Button>
-                </div>
-                <p className="mt-2 text-center text-xs text-subtle">
-                  The sample team is fictional. Every gap on it says so until you enter your own.
+                  </button>
+                  . Its team is fictional, and every gap on it says so.
                 </p>
               </div>
               <LegalFooter className="justify-center" />
@@ -1759,3 +1752,24 @@ const DRAFT_WRITE_DELAY_MS = 250;
 const CASE_PHRASE = Object.fromEntries(
   INDUSTRIES.map((ind) => [ind.id, caseCoveragePhrase(ind.id)]),
 ) as Record<IndustryId, string>;
+
+/**
+ * What the chosen line of business brings: the sample it offers and the
+ * cases behind its findings. Folded, so the first screen is the eight names
+ * and nothing else; it opens for the owner who wants to know what a pack is.
+ */
+function IndustryPackDetails({ industry }: { industry: IndustryId }) {
+  const ind = INDUSTRIES.find((candidate) => candidate.id === industry) ?? INDUSTRIES[0];
+  const tpl = getIndustryTemplate(ind.id);
+  return (
+    <details className="rounded-lg border border-border bg-elevated px-3 py-2 text-xs text-muted">
+      <summary className="cursor-pointer font-medium text-fg">
+        What the {ind.label} pack includes
+      </summary>
+      <p className="mt-2">{ind.sampleNote}</p>
+      <p className="mt-1 text-subtle">
+        Sample: {tpl.processes.length} processes, {tpl.people.length} people. {CASE_PHRASE[ind.id]}.
+      </p>
+    </details>
+  );
+}
