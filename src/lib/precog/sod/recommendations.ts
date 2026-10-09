@@ -72,7 +72,7 @@ export function sodRecommendations(
   // is the ranked one (actions/do-next `rankedFirstSteps`).
   for (const { person, cycle } of moneyCycleHolders(assignments, overseer.soleOwnerId)) {
     recommendations.push(
-      `${personLabel(person.personName, person.role)} holds ${cycle.length} of the ${MONEY_CYCLE.length} core money duties, so most of the money cycle runs through one person with nobody in between. ${
+      `${personLabel(person.personName, person.role)} holds ${cycle.length} of the ${MONEY_CYCLE.length} core money duties, so ${cycle.length * 2 > MONEY_CYCLE.length ? "most" : "much"} of the money cycle runs through one person with nobody in between. ${
         cycle.includes("bank_reconcile")
           ? "Moving the bank reconciliation to someone who holds none of the others puts a second person in the cycle."
           : "Having someone who holds none of them reconcile the bank account puts a second person in the cycle."

@@ -30,11 +30,9 @@ async function writeVerifyAndLink(page, errors) {
   step("open the dental sample and choose Procedures from Analyze");
   await openSetup(page, base, options.timeout);
   await exploreSample(page, "Dental");
+  // Procedures sits under Analyze, not in the tab strip.
   await page.locator("[data-more-tabs]").click();
-  await page
-    .getByRole("menu", { name: "Analyze views" })
-    .getByRole("menuitem", { name: "Procedures", exact: true })
-    .click();
+  await page.locator('[role="menu"] [role="menuitem"][data-tab-id="procedures"]').click();
   await page.getByRole("heading", { name: "Procedures", level: 1 }).waitFor();
 
   step("add a place from the suggestions");

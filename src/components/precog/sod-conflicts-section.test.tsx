@@ -155,6 +155,85 @@ describe("the What to do first box", () => {
   );
 });
 
+describe("the What to do first box says each thing once", () => {
+  it.each(INDUSTRIES.map((i) => i.id))(
+    "%s sample: the first step and two recommendations show; the rest fold",
+    (industry) => {
+      const profile: PracticeProfile = { ...defaultProfile(industry), procedures: [] };
+      const template = resolveTemplate(profile);
+      const total = detectSodConflicts(
+        template,
+        profile.staff,
+        sodDetectionOptions(template, profile.dualRelease),
+      ).recommendations.length;
+      const page = render(profile);
+      const items = boxItems(page);
+      expect(items.length).toBeLessThanOrEqual(3);
+      if (total > 2) {
+        expect(items).toHaveLength(3);
+        expect(page).toContain(`Show the other ${total - 2} recommendation`);
+        // The folded list holds exactly the rest, each once.
+        const folded = page.split("Show the other")[1]?.split("</details>")[0] ?? "";
+        expect(folded.match(/<li>/g) ?? []).toHaveLength(total - 2);
+      } else {
+        expect(page).not.toContain("Show the other");
+      }
+    },
+  );
+
+  it("calls five of eleven money duties much of the cycle, and seven most of it", () => {
+    const five: Person[] = [
+      {
+        id: "o",
+        name: "Owner",
+        role: "Owner",
+        active: true,
+        owner: true,
+        entitlements: ["sign_checks"],
+      },
+      {
+        id: "k",
+        name: "Kim",
+        role: "Office Manager",
+        active: true,
+        entitlements: [
+          "collect_cash",
+          "post_payments",
+          "prepare_deposit",
+          "enter_invoices",
+          "enter_payroll",
+        ],
+      },
+    ];
+    const text = (people: Person[]) => {
+      const profile: PracticeProfile = {
+        ...ownSetupProfile({
+          industry: "dental",
+          practiceName: "Test",
+          people,
+          answers: UNANSWERED,
+        }),
+        procedures: [],
+      };
+      const template = resolveTemplate(profile);
+      return detectSodConflicts(
+        template,
+        profile.staff,
+        sodDetectionOptions(template, profile.dualRelease),
+      ).recommendations.join(" ");
+    };
+    expect(text(five)).toMatch(/holds 5 of the 11 core money duties, so much of the money cycle/);
+    const seven: Person[] = [
+      five[0],
+      {
+        ...five[1],
+        entitlements: [...(five[1].entitlements ?? []), "initiate_ach", "bank_reconcile"],
+      },
+    ];
+    expect(text(seven)).toMatch(/holds 7 of the 11 core money duties, so most of the money cycle/);
+  });
+});
+
 describe("Start here and Who controls what name one first step, for the person in conflict", () => {
   // Bayside Dental: Lisa releases payments and reconciles the bank but banks
   // no money; Carmen takes, records and banks it and holds 5 of the 11 core
