@@ -28,6 +28,8 @@ import {
 import { buildSharePayload } from "./share-payload";
 import type { ProcessNode } from "../types";
 import type { ReviewRecord } from "../firm/reviews";
+import { reportPeriod } from "../firm/reviews";
+import { utcDateKey } from "../dates";
 
 // createReportShare runs as a plain handler: the validator, then the handler
 // with the caller's id, against this file's PGlite.
@@ -193,7 +195,7 @@ async function lock(
     preparedBy,
     scopeNote: "",
     id,
-    freeze: withFigures ? (profile) => freezeReport(profile, "2026-09-26") : undefined,
+    freeze: withFigures ? (profile) => freezeReport(profile, utcDateKey(new Date())) : undefined,
   });
 }
 
@@ -222,6 +224,88 @@ function reportLink(tok: string, maker: string, versionId: string, businessId = 
 }
 
 describe("sharing a locked report version", () => {
+  it("projects exactly the frozen reporting period and carries only derived acceptance dates", async () => {
+    const profile: PracticeProfile = {
+      ...client,
+      customPeople: client.customPeople!.map((person) =>
+        person.id === "b"
+          ? { ...person, entitlements: ["create_vendor", "release_payment"] }
+          : person,
+      ),
+      monthlyReviews: [
+        {
+          key: "bank_statement",
+          period: "2026-10",
+          result: "exception",
+          ownerName: "Ada",
+          notes: "OUTSIDE_SELECTED_PERIOD",
+          recordedAt: "2026-10-10T12:00:00Z",
+        },
+        {
+          key: "bank_statement",
+          period: "2026-09",
+          result: "done",
+          ownerName: "Ada",
+          notes: "SELECTED_PERIOD_RESULT",
+          recordedAt: "2026-10-09T12:00:00Z",
+        },
+      ],
+      decisions: [
+        {
+          id: "accepted",
+          createdAt: "2026-09-20T12:00:00Z",
+          subject: "Accept vendor setup and payment",
+          kind: "accept_residual",
+          linkedTab: "sod",
+          linkedId: "rule-vendor-create-pay",
+          linkedIndustry: "dental",
+          note: "PRIVATE_ACCEPTANCE_NOTE",
+        },
+      ],
+    };
+    const frozen = freezeReport(profile, "2026-10-10");
+    await db.pg.query(
+      `insert into report_versions
+        (id, user_id, business_id, version_no, profile, prepared_at, prepared_by,
+         reviewed_by, reviewed_at, scoring_version, layout_version, report_model)
+       values ('rv_scope', 'prep', 'client', 1, $1::jsonb, '2026-10-11T02:00:00Z',
+         'prep', 'owner', now(), $2, $3, $4::jsonb)`,
+      [
+        JSON.stringify(profile),
+        frozen.scoringVersion,
+        frozen.layoutVersion,
+        JSON.stringify(frozen.model),
+      ],
+    );
+    const before = (
+      await db.sql`select report_model from report_versions where id = 'rv_scope'`
+    )[0];
+    const shared = await loadSharedReport(
+      db.sql,
+      { ownerUserId: "prep", businessId: "client", reportVersionId: "rv_scope" },
+      "2026-10-15",
+    );
+    expect(shared?.frozen?.model?.reportingScope).toMatchObject({
+      day: "2026-10-10",
+      period: "2026-09",
+    });
+    expect(shared?.frozen?.model?.reportingScope?.acceptedOn).toContainEqual([
+      "b:rule-vendor-create-pay",
+      "2026-09-20",
+    ]);
+    expect(shared?.profile.monthlyReviews?.map((review) => review.notes)).toEqual([
+      "SELECTED_PERIOD_RESULT",
+    ]);
+    expect(shared?.profile.decisions).toEqual([]);
+    expect(JSON.stringify(shared?.profile)).not.toContain("PRIVATE_ACCEPTANCE_NOTE");
+    expect(JSON.stringify(shared?.frozen?.model?.reportingScope)).not.toContain(
+      "PRIVATE_ACCEPTANCE_NOTE",
+    );
+    expect(
+      (await db.sql`select report_model from report_versions where id = 'rv_scope'`)[0],
+    ).toEqual(before);
+  });
+
   it("refuses a solo business, an unreviewed version and a version without figures", async () => {
     await lock("solo", "solo_biz", "rv_solo");
     await review("rv_solo");
@@ -631,9 +715,9 @@ const notedProcess: ProcessNode = {
   procedureLocation: "Shared drive > Payroll > Procedure",
 };
 
-/** This month's result (printed), an earlier draft for the same check, and a past month's note. */
+/** The selected period's result, an earlier draft, and a private past month's note. */
 function reviewsFor(now: Date): ReviewRecord[] {
-  const period = now.toISOString().slice(0, 7);
+  const period = reportPeriod(utcDateKey(now));
   return [
     {
       key: "bank_statement",
