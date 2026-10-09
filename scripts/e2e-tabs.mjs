@@ -70,7 +70,7 @@ await withPage(options, async (page, errors) => {
         .waitFor({ state: "detached", timeout: 15000 })
         .catch(() => {});
 
-    // The primary tabs sit in the strip; Ask Pioneer is a header button; the
+    // The primary tabs sit in the strip; Ask Voyager is a header button; the
     // rest are behind "Analyze".
     const primary = await page.locator('nav [role="tab"]').allInnerTexts();
     let lastLabel = "";
@@ -181,7 +181,7 @@ async function shellChecks(page) {
     await page.locator("nav[data-tab-count]").waitFor();
   };
 
-  // Ten tabs: five in the strip, four under Analyze, Ask Pioneer in the header.
+  // Ten tabs: five in the strip, four under Analyze, Ask Voyager in the header.
   await home();
   const tabCount = await page.locator("nav[data-tab-count]").getAttribute("data-tab-count");
   if (tabCount !== "10") throw new Error(`expected 10 tabs, data-tab-count is ${tabCount}`);
@@ -346,13 +346,13 @@ async function shellChecks(page) {
   }
   console.log(`  ✓ "What if this fails?" lands with the picker at y=${pickerTop}`);
 
-  // The header opens Ask Pioneer. Someone is out lives on Who knows what;
+  // The header opens Ask Voyager. Someone is out lives on Who knows what;
   // Needs attention and older links open the same absence cards.
   await home();
   await page.locator("[data-header-tab=pioneer]").click();
   await page.waitForURL(/[?&]tab=pioneer/, { timeout });
-  if ((await selectedTab()) !== "Ask Pioneer") {
-    throw new Error(`the header's Ask Pioneer opened "${await selectedTab()}"`);
+  if ((await selectedTab()) !== "Ask Voyager") {
+    throw new Error(`the header's Ask Voyager opened "${await selectedTab()}"`);
   }
   await home("?tab=knowledge&item=absences");
   if (!/[?&]tab=knowledge(&|$)/.test(page.url()) || !/[?&]item=absences/.test(page.url())) {
@@ -386,7 +386,7 @@ async function shellChecks(page) {
   }
 
   // On a phone the header is two rows: the business with Needs attention and
-  // Sign in, then wording, save status and Ask Pioneer. No More disclosure.
+  // Sign in, then wording, save status and Ask Voyager. No More disclosure.
   await page.setViewportSize({ width: 390, height: 844 });
   await home();
   if (await page.locator("[aria-controls=header-more]").count()) {
@@ -412,13 +412,13 @@ async function shellChecks(page) {
   }
   if (rows.pioneer <= rows.business || rows.tabs <= rows.pioneer) {
     throw new Error(
-      `phone header: Ask Pioneer is not between the business and the tabs: ${JSON.stringify(rows)}`,
+      `phone header: Ask Voyager is not between the business and the tabs: ${JSON.stringify(rows)}`,
     );
   }
   if (rows.header > 220) {
     throw new Error(`phone header: ${rows.header}px tall: ${JSON.stringify(rows)}`);
   }
-  console.log(`  ✓ phone header is ${rows.header}px: Ask Pioneer under the business, no More`);
+  console.log(`  ✓ phone header is ${rows.header}px: Ask Voyager under the business, no More`);
 
   // On a phone the strip shows the open tab, with its label, and "All
   // sections" names every main section, so none hides off the edge.
