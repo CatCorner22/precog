@@ -50,48 +50,35 @@ describe("bounded selection protocol", () => {
       parseBriefSelection(JSON.stringify({ version: 1, highlightIds: [0] }), claims),
     ).toBeNull();
   });
-  it("preserves the rules priority, complete conditions, warnings and full brief", () => {
+  it("returns the selected statements in rules order and does not append the brief", () => {
     const selected = parseBriefSelection(
       '{"version":1,"highlightIds":["move-2","move-0"]}',
       claims,
     )!;
     const result = renderBriefSelection(brief, claims, selected);
-    expect(result).toContain("## Most relevant to your question");
-    expect(result).toContain(
-      "Grok picked these from Precog's moves below without rewriting them. It did not rank the risks or check them.",
-    );
-    expect(result).toContain("### Important limits");
     expect(result.indexOf("Action 0")).toBeLessThan(result.indexOf("Action 2"));
     expect(result).toContain("Only when condition 0 holds.");
     expect(result).toContain("Only when condition 2 holds.");
-    for (const warning of brief.chickenLittleWarnings) expect(result).toContain(warning);
-    expect(result.endsWith(brief.markdown)).toBe(true);
+    expect(result).not.toContain("Most relevant");
+    expect(result).not.toContain("## Source brief");
+    expect(result).not.toContain("Grok picked");
+    for (const warning of brief.chickenLittleWarnings) expect(result).not.toContain(warning);
   });
-  it("renders action and rationale bullets and skips warnings already present in the brief", () => {
-    const withWarnings = {
-      ...brief,
-      markdown: `${brief.markdown}\n${brief.chickenLittleWarnings.map((warning) => `- ${warning}`).join("\n")}`,
-    };
-    const result = renderBriefSelection(withWarnings, claims, ["move-0", "move-2"]);
-    const selection = result.split("\n\n---\n\n")[0];
-
-    expect(selection).toContain("## Most relevant to your question");
-    expect(selection).toContain("- **Action 0**: Only when condition 0 holds.");
-    expect(selection).toContain("- **Action 2**: Only when condition 2 holds.");
-    expect(selection).toContain(
-      "Grok picked these from Precog's moves below without rewriting them. It did not rank the risks or check them.",
-    );
-    expect(selection).not.toContain("Important limits");
+  it("keeps each selected condition and adds no limits block", () => {
+    const result = renderBriefSelection(brief, claims, ["move-0", "move-2"]);
+    expect(result).toContain("Action 0: Only when condition 0 holds.");
+    expect(result).toContain("Action 2: Only when condition 2 holds.");
+    expect(result).not.toContain("Important limits");
+    expect(result).not.toContain(brief.markdown);
   });
-  it("keeps the limits block when even one warning is not in the brief", () => {
+  it("does not copy warnings into the selection", () => {
     const partiallyCovered = {
       ...brief,
       markdown: `${brief.markdown}\n- ${brief.chickenLittleWarnings[0]}`,
     };
     const result = renderBriefSelection(partiallyCovered, claims, ["move-0"]);
-
-    expect(result).toContain("### Important limits");
-    expect(result).toContain(brief.chickenLittleWarnings[1]);
+    expect(result).toBe("Action 0: Only when condition 0 holds.");
+    expect(result).not.toContain(brief.chickenLittleWarnings[1]);
   });
   it("omits an overlong statement instead of truncating its condition", () => {
     const long = {

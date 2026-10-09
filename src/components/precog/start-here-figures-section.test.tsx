@@ -110,3 +110,20 @@ describe("Start here's note that the business is saved on this device only", () 
     expect(await startHere(own())).not.toContain("keep-it-note");
   });
 });
+
+describe("Start here order", () => {
+  it("leads with the steps, then the conflict count, and parks the stand-in figure under Why we say this", async () => {
+    auth.user = null;
+    auth.isPending = false;
+    const html = await startHere();
+    const steps = html.indexOf("Do these first");
+    const conflicts = html.indexOf("Open duty conflicts");
+    const why = html.lastIndexOf("Why we say this");
+    expect(steps).toBeGreaterThan(0);
+    expect(steps).toBeLessThan(conflicts);
+    expect(conflicts).toBeLessThan(why);
+    const standIn = html.indexOf("Has a stand-in");
+    const next = html.indexOf("Mark stand-ins");
+    expect(Math.max(standIn, next)).toBeGreaterThan(why);
+  });
+});

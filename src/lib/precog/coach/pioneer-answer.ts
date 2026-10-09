@@ -52,6 +52,8 @@ export type PioneerCoachResult = {
   steps: { phase: string; title: string; detail: string }[];
   evidence: EvidenceRef[];
   warnings: string[];
+  /** Rules-authored statement ids the model selected. Empty when it did not. */
+  highlightIds: readonly string[];
   decisions: {
     action: string;
     rationale: string;
@@ -131,7 +133,7 @@ export async function answerPioneer(
     const result =
       grok === "allowed"
         ? await runGrokAgentLoop(local, access)
-        : { ...local, modelStatus: "not-asked" as const };
+        : { ...local, modelStatus: "not-asked" as const, highlightIds: [] as readonly string[] };
     const warnings = [...result.brief.chickenLittleWarnings];
     const why = modelWarning(grok, result);
     if (why) warnings.push(why);
@@ -150,6 +152,7 @@ export async function answerPioneer(
       steps: result.steps.map((s) => ({ phase: s.phase, title: s.title, detail: s.detail })),
       evidence: result.brief.evidence,
       warnings,
+      highlightIds: result.highlightIds ? [...result.highlightIds] : [],
       decisions: result.brief.decisions.map((d) => ({
         action: d.action,
         rationale: d.rationale,
@@ -194,4 +197,51 @@ function modelWarning(grok: GrokAccess, outcome: ModelOutcome): string | null {
     return "Grok's reply failed Precog's checks and is not shown. Precog's rules wrote this brief.";
   }
   return status === "failed" ? MODEL_FAILED_WARNING : null;
+}
+
+/** The rules brief only. The screen paints this before any model call. */
+export async function answerPioneerRules(
+  data: PioneerRequestData,
+): Promise<PioneerCoachResult | PioneerCoachError> {
+  return answerPioneer(data, { userId: null, grok: "no_api_key" });
+}
+
+/** Ids only. The screen applies them when the fingerprint still matches the painted brief. */
+export async function selectPioneerHighlights(
+  data: PioneerRequestData,
+  access: LlmAccess,
+): Promise<
+  | {
+      ok: true;
+      contextFingerprint: string;
+      highlightIds: readonly string[];
+      modelStatus: ModelStatus;
+      model?: string;
+      source: AgentRunResult["source"];
+      warning: string | null;
+    }
+  | PioneerCoachError
+> {
+  const grok = access.grok;
+  const question = data.question || DEFAULT_COACH_QUESTION;
+  const ctx: ToolContext = { profile: data.profile, question, today: data.today };
+  try {
+    const local = localBrief(question, ctx, data.profile);
+    const result =
+      grok === "allowed"
+        ? await runGrokAgentLoop(local, access)
+        : { ...local, modelStatus: "not-asked" as const, highlightIds: [] as readonly string[] };
+    return {
+      ok: true,
+      contextFingerprint: result.contextFingerprint,
+      highlightIds: result.highlightIds ? [...result.highlightIds] : [],
+      modelStatus: result.modelStatus,
+      model: result.model,
+      source: result.source,
+      warning: modelWarning(grok, result),
+    };
+  } catch (e) {
+    console.error("[pioneer] highlight failed", e);
+    return { ok: false, error: PIONEER_FAILED_MESSAGE };
+  }
 }
