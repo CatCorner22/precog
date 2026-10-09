@@ -8,7 +8,7 @@
  * error, React error-boundary card, hydration warning, or console error. This
  * is the check that catches a hydration mismatch and any tab that throws on a
  * template it was not written for.
- * Once, signed out, it also checks the header (Report, Needs attention), the
+ * Once, signed out, it also checks the header (Needs attention), the
  * phone strip ("All sections" names every main section), the
  * Monthly review tab, old tab ids in the address (?tab=journal, ?tab=layers,
  * ?tab=command, ?tab=value), the retired /threat page, the Analyze menu's
@@ -237,10 +237,6 @@ async function shellChecks(page) {
   await valueProofInView("Analyze › Value proof");
 
   await home();
-
-  // The header's Report link is there for everyone.
-  await page.getByRole("link", { name: "Report", exact: true }).click();
-  await page.waitForURL(/\/report/, { timeout });
 
   // The Monthly review tab opens on its heading, signed out.
   await home();

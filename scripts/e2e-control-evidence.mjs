@@ -65,7 +65,7 @@ try {
   );
   // Readiness comes from the loaded account-log controls, not global network silence.
   // The control evidence log lives in each business's Monthly review, not on /firm.
-  await page.goto(base + "/?tab=monthly", { waitUntil: "domcontentloaded" });
+  await page.goto(base + "/?tab=monthly&item=evidence", { waitUntil: "domcontentloaded" });
   const panel = page.getByRole("region", { name: "Control evidence log" });
   await panel.getByText("Record a check with evidence", { exact: true }).waitFor();
   step("Real preparer session can open the control evidence log");
@@ -80,7 +80,7 @@ try {
       (await (await context.request.get(base + "/api/auth/get-session")).json()).user.id,
       actor[key],
     );
-    await page.goto(base + "/?tab=monthly", { waitUntil: "domcontentloaded" });
+    await page.goto(base + "/?tab=monthly&item=evidence", { waitUntil: "domcontentloaded" });
   };
   await panel.getByText("Record a check with evidence", { exact: true }).click();
   let form = panel.locator("form").first();
