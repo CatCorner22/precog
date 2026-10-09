@@ -165,9 +165,9 @@ export const GLOSSARY: readonly GlossaryTerm[] = [
   },
   {
     id: "pioneer",
-    term: "Pioneer",
+    term: "Voyager",
     definition:
-      "Precog's assistant; it answers from your own records. It uses only Precog's own figures.",
+      "Precog's assistant. It answers from your own records and uses only Precog's own figures.",
     tabs: ["pioneer", "start"],
   },
   {

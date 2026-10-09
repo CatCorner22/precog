@@ -363,11 +363,11 @@ function realtimeCapabilitiesFor(words: InventoryWords): RealtimeCapability[] {
     },
     {
       id: "rt-pioneer",
-      label: "Pioneer brief",
+      label: "Voyager brief",
       ready: true,
       latencyClass: "subsecond",
       description:
-        "Pioneer rebuilds its brief from the current profile without waiting for a batch job.",
+        "Voyager rebuilds its brief from the current profile without waiting for a batch job.",
       dependency: "tool catalog",
     },
     {

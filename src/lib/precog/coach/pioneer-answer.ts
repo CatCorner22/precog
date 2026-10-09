@@ -1,4 +1,6 @@
 import { runGrokAgentLoop, type ModelOutcome, type ModelStatus } from "../llm/agent-loop";
+import { briefClaims } from "../llm/brief-selection";
+import { chooseHighlightIds, type RankerName, rankClaimsWithHuggingFace } from "../llm/hf-rank";
 import type { LlmAccess } from "../llm/guard.server";
 import type { ToolContext } from "../llm/tools";
 import type {
@@ -54,6 +56,8 @@ export type PioneerCoachResult = {
   warnings: string[];
   /** Rules-authored statement ids the model selected. Empty when it did not. */
   highlightIds: readonly string[];
+  /** Which model ranked those ids. Absent when none did. */
+  ranker?: RankerName;
   decisions: {
     action: string;
     rationale: string;
@@ -70,7 +74,7 @@ type PioneerCoachError = {
   error: string;
 };
 
-export const PIONEER_FAILED_MESSAGE = "Pioneer could not answer just now. Try again in a moment.";
+export const PIONEER_FAILED_MESSAGE = "Voyager could not answer just now. Try again in a moment.";
 
 /** The warning when the model was asked and gave no answer. */
 export const MODEL_FAILED_WARNING = "Grok did not answer, so Precog's rules wrote this brief.";
@@ -187,10 +191,10 @@ export async function answerPioneer(
 function modelWarning(grok: GrokAccess, outcome: ModelOutcome): string | null {
   const status = outcome.modelStatus;
   if (grok === "unauthenticated") {
-    return "Sign in to let Grok pick the most relevant moves. Precog's rules wrote this brief.";
+    return "Sign in to let Voyager rank the most relevant moves. Precog's rules wrote this brief.";
   }
   if (grok === "rate_limited") {
-    return "Grok is busy right now. Precog's rules wrote this brief.";
+    return "Voyager is busy right now. Precog's rules wrote this brief.";
   }
   if (status === "daily-limit" && outcome.dailyLimit) return dailyLimitWarning(outcome.dailyLimit);
   if (status === "rejected") {
@@ -217,6 +221,7 @@ export async function selectPioneerHighlights(
       highlightIds: readonly string[];
       modelStatus: ModelStatus;
       model?: string;
+      ranker?: RankerName;
       source: AgentRunResult["source"];
       warning: string | null;
     }
@@ -227,21 +232,57 @@ export async function selectPioneerHighlights(
   const ctx: ToolContext = { profile: data.profile, question, today: data.today };
   try {
     const local = localBrief(question, ctx, data.profile);
+    const claims = briefClaims(local.brief);
+    const hf = (await hfMayRank(access, grok))
+      ? await rankClaimsWithHuggingFace(question, claims)
+      : null;
     const result =
       grok === "allowed"
         ? await runGrokAgentLoop(local, access)
         : { ...local, modelStatus: "not-asked" as const, highlightIds: [] as readonly string[] };
+    const grokIds = result.highlightIds ?? [];
+    const chosen = chooseHighlightIds({
+      claimIds: claims.map((claim) => claim.id),
+      embedScores: hf?.scores ?? null,
+      llmIds: grokIds.length > 0 ? grokIds : (hf?.llmIds ?? null),
+    });
+    const ranker = chosen
+      ? rankerFor(chosen.source, grokIds.length > 0, Boolean(hf?.scores))
+      : undefined;
+    const modelStatus: ModelStatus = chosen && ranker ? "answered" : result.modelStatus;
     return {
       ok: true,
       contextFingerprint: result.contextFingerprint,
-      highlightIds: result.highlightIds ? [...result.highlightIds] : [],
-      modelStatus: result.modelStatus,
-      model: result.model,
+      highlightIds: chosen?.ids ?? [],
+      modelStatus,
+      model: ranker === "huggingface" ? "sentence-transformers/all-MiniLM-L6-v2" : result.model,
+      ranker,
       source: result.source,
-      warning: modelWarning(grok, result),
+      warning: modelWarning(grok, { ...result, modelStatus }),
     };
   } catch (e) {
-    console.error("[pioneer] highlight failed", e);
+    console.error("[voyager] highlight failed", e);
     return { ok: false, error: PIONEER_FAILED_MESSAGE };
   }
+}
+
+function rankerFor(
+  source: "huggingface" | "llm" | "both",
+  grokPicked: boolean,
+  embedded: boolean,
+): RankerName {
+  if (source === "huggingface" || (embedded && !grokPicked)) return "huggingface";
+  if (source === "both" && grokPicked) return "both";
+  if (source === "both") return "huggingface";
+  return "grok";
+}
+
+/** Hugging Face runs for a signed-in caller. When Grok will not run, this spends one daily unit. */
+async function hfMayRank(access: LlmAccess, grok: GrokAccess): Promise<boolean> {
+  if (!access.userId || !process.env.HF_TOKEN?.trim()) return false;
+  if (grok === "unauthenticated" || grok === "rate_limited") return false;
+  if (grok === "allowed") return true;
+  const { checkDailyBudget } = await import("../llm/daily-usage");
+  const { getSql } = await import("@/lib/db");
+  return (await checkDailyBudget(getSql, access.userId)) === "allowed";
 }
