@@ -95,6 +95,19 @@ export function StartHere({
         onOpenDetail={onOpenDetail}
         part="actions"
       />
+      {model.exposure.titleDuties && (
+        <p className="text-xs text-muted" data-testid="title-duties-note">
+          {model.exposure.titleDuties} The steps above count those duties; untick or confirm them on{" "}
+          <button
+            type="button"
+            onClick={() => onOpenDetail("team")}
+            className="font-medium text-primary underline underline-offset-2 hover:text-fg"
+          >
+            Team
+          </button>
+          .
+        </p>
+      )}
 
       <HowThisWorks
         summary={WHY_WE_SAY_THIS}

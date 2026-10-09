@@ -182,17 +182,6 @@ export function titleTicksItems(
   });
 }
 
-/**
- * What holds Finish back: the suggested duties still to keep or remove, and
- * the first person they belong to; null once every one is decided.
- */
-export function finishWaits(
-  items: readonly TitleTicksItem[],
-): { waiting: number; first: TitleTicksItem } | null {
-  const waiting = items.reduce((sum, item) => sum + item.duties.length, 0);
-  return waiting > 0 && items[0] ? { waiting, first: items[0] } : null;
-}
-
 /** Whether leaving setup now loses typed work: the browser keeps nothing, or the draft write failed. */
 export function setupLeaveLosesWork(input: {
   keepsNothing: boolean;

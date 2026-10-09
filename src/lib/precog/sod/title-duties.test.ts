@@ -21,7 +21,7 @@ const guessed = (id: string, name: string): Person => ({
 });
 
 describe("findings that rest on duties guessed from job titles", () => {
-  it("setup marks nobody: a suggested duty counts only once the owner keeps it", () => {
+  it("setup marks the person whose ticks are still the title's, and the sentence says so", () => {
     const bookkeeper = rowsForJobTitle(jobCatalogEntry("bookkeeper")!, 1, [], "dental")[0];
     const owner = { ...ownerRow(), name: "Olga Owner" };
     const people = buildOwnTeam(
@@ -32,11 +32,13 @@ describe("findings that rest on duties guessed from job titles", () => {
       ],
       "dental",
     );
-    expect(people.map((p) => p.dutiesFromTitle ?? false)).toEqual([false, false, false]);
-    // Ben's suggested duties were never kept, so none of them counts.
-    expect(people[1].entitlements).toEqual(["view_reports_only"]);
+    expect(people.map((p) => p.dutiesFromTitle ?? false)).toEqual([false, true, false]);
+    // Ben's ticks count from the start; the mark says they are the title's guess.
+    expect(people[1].entitlements).toEqual([...bookkeeper.duties, "view_reports_only"]);
     expect(people[0].entitlements).toEqual([...owner.duties, "view_reports_only"]);
-    expect(titleDutiesSentence(people)).toBe("");
+    expect(titleDutiesSentence(people)).toBe(
+      "One of your 3 people carries the usual duties for their job title.",
+    );
   });
 
   it("names the people an import marked, and nobody else", () => {
