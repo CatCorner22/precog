@@ -806,24 +806,46 @@ export function localSynthesize(
   const committedSpof = ordinarySpofs?.find((s) => s.committed);
   const commitment = committedSpof?.committed;
   const uncommittedSpof = ordinarySpofs?.find((s) => !s.committed);
+  const secondSignerOff = !snap?.staff.dualControlPayments;
+  const bankRecOff = !snap?.staff.independentBankRec;
+  const journalAction =
+    "Write down in the Decisions log which open gaps you accept and which you will fix, each with a review date";
+  const journalRationale =
+    "An open gap stays flagged until you record a decision on it, and the record is the trail an outside reviewer asks for.";
+  const defaultControl = secondSignerOff
+    ? bankRecOff
+      ? {
+          action: "Turn on a second signer for payments and an independent bank reconciliation",
+          rationale:
+            "Default when no ranking ran: a second signer on payments and an independent bank reconciliation each remove a path one person can use alone.",
+        }
+      : {
+          action: "Turn on a second signer for payments",
+          rationale:
+            "Default when no ranking ran: a second signer on payments removes a path one person can use alone.",
+        }
+    : bankRecOff
+      ? {
+          action: "Set up an independent bank reconciliation",
+          rationale:
+            "Default when no ranking ran: an independent bank reconciliation adds a separate check on bank activity.",
+        }
+      : { action: journalAction, rationale: journalRationale };
+  const journalFallback = !secondSignerOff && !bankRecOff && !beamAction && !bestCascade;
   const decisions: PioneerDecision[] = [
     {
-      action: leverAction(
-        beamAction ||
-          bestCascade?.label ||
-          "Turn on a second signer for payments and an independent bank reconciliation",
-      ),
+      action: leverAction(beamAction || bestCascade?.label || defaultControl.action),
       rationale: beamAction
         ? "Precog's model ranks this first, using its own weights. It is an ordering, not a measurement."
         : bestCascade
           ? `The what-else-moves check puts this first: it moves the risk index the most. ${bestCascade.secondOrderNotes[0] ?? ""}`.trim()
-          : "Default when no ranking ran: a second signer on payments and an independent bank reconciliation each remove a path one person can use alone.",
+          : defaultControl.rationale,
       evidenceIds: evidence
         .filter((e) => e.kind === "cascade" || e.kind === "ml" || e.kind === "reasoning")
         .map((e) => e.id)
         .slice(0, 4),
-      effort: "medium",
-      horizonDays: REVIEW_HORIZON_DAYS.control,
+      effort: journalFallback ? "low" : "medium",
+      horizonDays: journalFallback ? REVIEW_HORIZON_DAYS.journal : REVIEW_HORIZON_DAYS.control,
       cascadeEffects: bestCascade?.affects?.slice(0, 5),
     },
     ...leaveDecision(),
@@ -884,23 +906,25 @@ export function localSynthesize(
     // Register freshness comes from the check-in tool alone; it always runs.
     ...(checkIns?.checkIns[0] ? [checkInDecision(checkIns.checkIns)] : []),
     ...(checkIns && checkIns.unheld.length > 0 ? [reconfirmDecision(checkIns.unheld)] : []),
-    {
-      action:
-        "Write down in the Decisions log which open gaps you accept and which you will fix, each with a review date",
-      rationale:
-        "An open gap stays flagged until you record a decision on it, and the record is the trail an outside reviewer asks for.",
-      evidenceIds: evidence
-        .filter((e) => e.kind === "sod" || e.kind === "rag")
-        .map((e) => e.id)
-        .slice(0, 2),
-      effort: "low",
-      horizonDays: REVIEW_HORIZON_DAYS.journal,
-    },
+    ...(!journalFallback
+      ? [
+          {
+            action: journalAction,
+            rationale: journalRationale,
+            evidenceIds: evidence
+              .filter((e) => e.kind === "sod" || e.kind === "rag")
+              .map((e) => e.id)
+              .slice(0, 2),
+            effort: "low" as const,
+            horizonDays: REVIEW_HORIZON_DAYS.journal,
+          },
+        ]
+      : []),
   ];
 
   const frontierNextMove = bestCascade
     ? `This week: **${leverAction(bestCascade.label)}**, then re-check the watched conditions and What is still exposed.`
-    : "This week: turn on a second signer for payments and an independent bank reconciliation, then ask again and re-check the watched conditions.";
+    : `This week: **${leverAction(defaultControl.action)}**, then ask again and re-check the watched conditions.`;
   const thisWeek = frontierNextMove.replace(/^This week:\s*/, "");
   const thisWeekBody = `${thisWeek.charAt(0).toUpperCase()}${thisWeek.slice(1)}`;
 

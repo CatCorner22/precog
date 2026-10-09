@@ -41,6 +41,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
         registerAssessed={p.registerAssessed}
         report={p.report}
         docs={p.docs}
+        tpl={p.tpl}
         figures={p.figures}
       />
 

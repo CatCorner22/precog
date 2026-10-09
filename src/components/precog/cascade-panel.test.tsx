@@ -4,6 +4,7 @@ import { AdvancedReasoningPanel } from "@/components/precog/advanced-reasoning-p
 import { CascadePanel } from "@/components/precog/cascade-panel";
 import { defaultProfile, type PracticeProfile } from "@/lib/precog/practice-profile";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
+import { MAKE_SCENARIO_YOURS } from "@/lib/precog/scoring/scope";
 import type { Person } from "@/lib/precog/types";
 
 /** The note both panels show while an own dental business has confirmed no scenario. */
@@ -32,13 +33,45 @@ function renderedText(profile: PracticeProfile, panel: "cascade" | "reasoning"):
 }
 
 describe("What else moves", () => {
-  it("shows the note when an own business has no confirmed scenarios", () => {
-    expect(renderedText(ownDental, "cascade")).toContain(DENTAL_SCOPE_NOTE);
+  it("shows no lever figures until an own business confirms a scenario", () => {
+    const text = renderedText(ownDental, "cascade");
+
+    expect(text).toContain(DENTAL_SCOPE_NOTE);
+    expect(text).toContain("No figures yet");
+    expect(text).toContain(MAKE_SCENARIO_YOURS);
+    expect(text).toContain("The lever list returns once a scenario counts toward your business.");
+    expect(text).not.toContain("Pick a lever");
+    expect(text).not.toContain("Retained loss");
+    expect(text).not.toContain("$");
+  });
+
+  it("keeps the lever ranking when an own business confirms a scenario", () => {
+    const profile: PracticeProfile = {
+      ...ownDental,
+      decisions: [
+        {
+          id: "confirm-cash",
+          createdAt: "2026-10-08T00:00:00.000Z",
+          subject: "Cash could happen here",
+          kind: "monitor",
+          note: "",
+          linkedTab: "precog",
+          linkedId: "sc-cash-sod-failure",
+          linkedIndustry: "dental",
+        },
+      ],
+    };
+    const text = renderedText(profile, "cascade");
+
+    expect(text).not.toContain("No figures yet");
+    expect(text).toContain("Pick a lever");
+    expect(text).toContain("Retained loss");
   });
 
   it("shows no note on the sample, with dual release's residual and verdict", () => {
     const text = renderedText(defaultProfile("dental"), "cascade");
     expect(text).not.toContain("stay out:");
+    expect(text).toContain("Pick a lever");
     expect(text).toContain(
       "average residual risk falls 4 points. Better overall, with some tradeoffs.",
     );
