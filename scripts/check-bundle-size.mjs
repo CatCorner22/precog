@@ -170,6 +170,10 @@
  * 2026-10-09: the merged onboarding copy pass and main updates measure
  * 872.1 KB in 140 chunks, 0.1 KB over the budget. Total budget raised from
  * 872 KB to 873 KB.
+ * 2026-10-08: unheld check-in rows now show coverage badges and distinguish
+ * unrecorded items in their guidance. The full build measures 872.2 KB,
+ * against 871.8 KB on main; total budget raised to 873 KB. The largest chunk
+ * is unchanged.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";

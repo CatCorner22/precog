@@ -16,6 +16,8 @@ import {
 } from "./variable-cascade";
 
 const dental = getIndustryTemplate("dental");
+const simulateStack = (vars: RiskVariableState, staff: typeof dental.staffComposition) =>
+  simulateCascadeLever(dental, "add_cameras_discount_stack", vars, staff, "sc-cash-sod-failure");
 
 describe("assumed days until found", () => {
   it("counts fewer days as better, so detection improves them", () => {
@@ -202,6 +204,8 @@ describe("which scenario the cascade models", () => {
     expect(all.scenarioInScope).toBe(false);
     expect(all.scopeNote).toMatch(/stay out/);
     expect(all.scenarioTitle).toBe(own.scenarios.find((s) => s.id === all.scenarioId)!.title);
+    expect(all.rankedByCor).toEqual([]);
+    expect(all.simulations).toHaveLength(CASCADE_LEVERS.length);
   });
 
   it("models a confirmed scenario, preferring a cash one", () => {
@@ -218,6 +222,7 @@ describe("which scenario the cascade models", () => {
     expect(onlyVendor.scenarioId).toBe(vendor.id);
     expect(onlyVendor.scenarioInScope).toBe(true);
     expect(onlyVendor.scopeNote).toBeNull();
+    expect(onlyVendor.rankedByCor.length).toBeGreaterThan(0);
     const withCash = simulateAllCascades(
       own,
       DEFAULT_RISK_VARIABLES,
@@ -234,7 +239,15 @@ describe("which scenario the cascade models", () => {
     const all = simulateAllCascades(dental);
     expect(all.scenarioInScope).toBe(true);
     expect(all.scopeNote).toBeNull();
+    expect(all.rankedByCor.length).toBeGreaterThan(0);
   });
+});
+
+it("describes residual risk and annual cost moving together without attributing both to insurance", () => {
+  const simulation = simulateCascadeLever(dental, "enable_dual_control");
+  expect(simulation.secondOrderNotes).toContain(
+    "Average residual risk and annual cost of risk fall together.",
+  );
 });
 
 describe("what a lever says it moves", () => {
@@ -288,6 +301,32 @@ describe("what a lever says it moves", () => {
 });
 
 describe("levers that change nothing", () => {
+  it("keeps the camera stack unavailable when one of its controls is already on", () => {
+    const vars = { ...DEFAULT_RISK_VARIABLES, hasSecurityCameras: false };
+    const staff = {
+      ...dental.staffComposition,
+      dualControlPayments: true,
+      independentBankRec: false,
+    };
+    const stack = simulateStack(vars, staff);
+    expect(stack.available).toBe(false);
+    expect(stack.unavailableReason).toBe(
+      "Part of this stack is already in place in your settings; pick the remaining levers on their own.",
+    );
+    const all = simulateAllCascades(dental, vars, staff, "sc-cash-sod-failure");
+    expect(all.rankedByCor.map((s) => s.lever.id)).not.toContain("add_cameras_discount_stack");
+  });
+
+  it("keeps the camera stack available when none of its controls are on", () => {
+    const vars = { ...DEFAULT_RISK_VARIABLES, hasSecurityCameras: false };
+    const staff = {
+      ...dental.staffComposition,
+      dualControlPayments: false,
+      independentBankRec: false,
+    };
+    expect(simulateStack(vars, staff).available).toBe(true);
+  });
+
   it("are unavailable when no recovery is modelled for the scenario", () => {
     const vars = {
       ...enteredPolicy,

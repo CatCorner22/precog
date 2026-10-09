@@ -8,6 +8,7 @@ import {
 } from "./coverage";
 import type { ContinuityStep } from "../decisions/follow-through";
 import { firstName } from "../text";
+import { itemRecorded } from "./register-state";
 
 /**
  * How far an item's know-how is written down: nothing, a procedure that exists
@@ -75,7 +76,9 @@ export function documentationDebt(tpl: IndustryTemplate): DocumentationReport {
     let action: string;
     if (state === "none") {
       if (!author) {
-        action = `Nobody can run "${i.item.name}" and nobody has written it down — find the last person who did it, or an outside provider, and get the steps on paper.`;
+        action = itemRecorded(tpl, i.item.id)
+          ? `Nobody can run "${i.item.name}" and nobody has written it down — find the last person who did it, or an outside provider, and get the steps on paper.`
+          : `Nobody is marked on "${i.item.name}" yet and nothing is written down — mark who can run it, then get the steps on paper.`;
       } else if (i.status === "single" || i.status === "uncovered") {
         action = `Have ${author.name} write down "${i.item.name}" — it lives only in ${firstName(author.name)}'s head today.`;
       } else {

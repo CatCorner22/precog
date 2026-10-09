@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { registerAssessed, registerSource, trackRegisterFreshness } from "./register-state";
+import {
+  itemRecorded,
+  registerAssessed,
+  registerSource,
+  trackRegisterFreshness,
+} from "./register-state";
 import { resolveTemplate } from "../active-template";
 import { buildOwnTeam, ownBusinessProfile } from "../onboarding/own-team";
 import { defaultProfile } from "../practice-profile";
@@ -60,6 +65,26 @@ describe("registerAssessed", () => {
     });
     expect(marked.relations).toHaveLength(1);
     expect(registerAssessed(marked)).toBe(true);
+  });
+});
+
+describe("itemRecorded", () => {
+  it("distinguishes unmarked starter items from an owner-written list", () => {
+    const profile = ownBusinessProfile(defaultProfile(), { practiceName: "Ruiz Dental", people });
+    const starter = resolveTemplate(profile);
+    expect(itemRecorded(starter, starter.knowledge[0].id)).toBe(false);
+
+    const marked = resolveTemplate({
+      ...profile,
+      customRelations: [
+        { personId: "own-2", knowledgeId: starter.knowledge[0].id, level: "expert" },
+      ],
+    });
+    expect(itemRecorded(marked, starter.knowledge[0].id)).toBe(true);
+    expect(itemRecorded(marked, starter.knowledge[1].id)).toBe(false);
+
+    const written = resolveTemplate({ ...profile, customKnowledge: [starter.knowledge[0]] });
+    expect(itemRecorded(written, starter.knowledge[0].id)).toBe(true);
   });
 });
 
