@@ -198,6 +198,7 @@ export function CheckInCard({
   } = checkIn;
   const tpl = useTemplate();
   if (!trackFreshness || checkIn.staleCount === 0) return null;
+  const allUnheldUnrecorded = checkIns.unheld.every((entry) => !itemRecorded(tpl, entry.item.id));
   return (
     <Card>
       <CardHeader>
@@ -317,8 +318,12 @@ export function CheckInCard({
         ) : (
           <div className="space-y-2">
             <p className="text-xs text-muted">
-              Nobody on the active team holds these, so there is no one to ask — confirm they still
-              matter, or assign someone in the grid.
+              Nobody on the active team{" "}
+              {allUnheldUnrecorded
+                ? "is marked on these yet."
+                : "holds these, so there is no one to ask."}{" "}
+              Confirm they still matter, or{" "}
+              {allUnheldUnrecorded ? "mark who can run them" : "assign someone"} in the grid.
             </p>
             <ol className="space-y-2">
               {checkIns.unheld.map((entry, i) => (
@@ -328,7 +333,13 @@ export function CheckInCard({
                 >
                   <span className="font-mono text-xs text-muted">{i + 1}.</span>
                   <div className="min-w-0 flex-1 space-y-1">
-                    <div className="font-medium">{entry.item.name}</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{entry.item.name}</span>
+                      <CoverageStatusBadge
+                        status={entry.coverage}
+                        recorded={itemRecorded(tpl, entry.item.id)}
+                      />
+                    </div>
                     <p className="text-muted">{entry.action}</p>
                     <Button
                       size="sm"

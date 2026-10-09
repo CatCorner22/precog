@@ -166,6 +166,11 @@
  * step, a Needs attention count that matches its lines, reviewer actions in
  * the sticky bar) 0.7 KB. Total budget raised from 870 KB to 872 KB; slice
  * S43 in wave 4 still lowers it.
+ *
+ * 2026-10-08: unheld check-in rows now show coverage badges and distinguish
+ * unrecorded items in their guidance. The full build measures 872.2 KB,
+ * against 871.8 KB on main; total budget raised to 873 KB. The largest chunk
+ * is unchanged.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -174,7 +179,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 872 * 1024,
+  totalGzipBytes: 873 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
