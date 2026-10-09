@@ -312,7 +312,15 @@ function Home() {
       <SignedIn>
         <GuestImportPrompt onOpenChange={setGuestPromptOpen} />
       </SignedIn>
-      <div inert={showOnboarding}>
+      {/* Behind setup the page is hidden as well as inert: a new owner's
+          first frame is not another business's dashboard and its "Needs
+          attention" count. The wordmark alone sits behind the dialog. */}
+      {showOnboarding && (
+        <div aria-hidden className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
+          <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">Precog</p>
+        </div>
+      )}
+      <div inert={showOnboarding} hidden={showOnboarding}>
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:border focus:border-border focus:bg-elevated focus:px-3 focus:py-2 focus:text-sm"

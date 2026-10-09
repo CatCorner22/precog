@@ -65,6 +65,8 @@ try {
   );
   // Readiness comes from the loaded account-log controls, not global network silence.
   // The control evidence log lives in each business's Monthly review, not on /firm.
+  // The control evidence log lives in each business's Monthly review, not on
+  // /firm, closed under the month's checks; its deep link opens it.
   await page.goto(base + "/?tab=monthly&item=evidence", { waitUntil: "domcontentloaded" });
   const panel = page.getByRole("region", { name: "Control evidence log" });
   await panel.getByText("Record a check with evidence", { exact: true }).waitFor();

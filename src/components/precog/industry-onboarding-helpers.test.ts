@@ -4,7 +4,7 @@ import { INDUSTRIES } from "@/lib/precog/industry";
 import { suggestedDuties } from "@/lib/precog/onboarding/own-team";
 import { UNANSWERED } from "@/lib/precog/onboarding/setup-answers";
 import { ONE_PERSON_NOTE, onePersonNote } from "./industry-onboarding-helpers";
-import { caseCoveragePhrase, finishWaits, titleTicksItems } from "./industry-onboarding-helpers";
+import { caseCoveragePhrase, titleTicksItems } from "./industry-onboarding-helpers";
 
 const total = CASE_LIBRARY.length;
 const inSectors = (...sectors: string[]) =>
@@ -131,25 +131,6 @@ describe("titleTicksItems", () => {
         ],
       },
     ]);
-  });
-});
-
-describe("finishWaits", () => {
-  it("holds Finish back until every suggestion is decided, naming the first person", () => {
-    const lisa = {
-      rowId: "b",
-      who: "Lisa",
-      role: "Bookkeeper",
-      duties: ["post_payments"] as const,
-    };
-    const cal = {
-      rowId: "c",
-      who: "Cal",
-      role: "Front Desk",
-      duties: ["collect_cash", "issue_refunds"] as const,
-    };
-    expect(finishWaits([lisa, cal])).toEqual({ waiting: 3, first: lisa });
-    expect(finishWaits([])).toBeNull();
   });
 });
 

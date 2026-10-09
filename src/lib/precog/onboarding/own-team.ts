@@ -359,12 +359,14 @@ export function titleTickedDuties(
 }
 
 /**
- * The duties a row holds only because a job title suggested them and the
- * owner has not yet kept: in the grid's column order, then the duties with
- * no column. They come from the title that ticked them (`suggestedFor`),
- * even after the title was retyped, so a retyped title never confirms the
- * old title's guesses. With the setup answers, duties the answers hide are
- * left out: they have no column and do not count either way.
+ * The duties a row holds because a job title ticked them and the owner has
+ * not yet kept: in the grid's column order, then the duties with no column.
+ * They count like any other tick; this is the "from the job title" mark the
+ * grid, Team and the findings show until the owner keeps or unticks them.
+ * They come from the title that ticked them (`suggestedFor`), even after
+ * the title was retyped, so a retyped title never confirms the old title's
+ * guesses. With the setup answers, duties the answers hide are left out:
+ * they have no column and do not count either way.
  */
 export function unconfirmedDuties(
   row: Pick<OwnTeamRow, "role" | "duties" | "suggestedFor" | "owner" | "keptDuties">,
@@ -402,32 +404,29 @@ export function toggleDutyByHand(row: OwnTeamRow, duty: EntitlementId): OwnTeamR
 }
 
 /**
- * The duties the grid shows as ticked: only those the owner chose, ticked or
- * added by hand or kept in the review. A duty the job title only suggested
- * stays unticked until the owner keeps it, so a ticked box never stands for
- * a guess.
+ * The duties the grid shows as ticked: everything the row holds, including
+ * the duties its job title ticked. Those carry the "from the job title" mark
+ * (see unconfirmedDuties) until the owner keeps them or unticks them, and
+ * they count from the start: setup does not wait on a second pass.
  */
 export function chosenDuties(
   row: Pick<OwnTeamRow, "role" | "duties" | "suggestedFor" | "owner" | "keptDuties">,
-  industry?: string,
+  _industry?: string,
 ): EntitlementId[] {
-  const waiting = new Set(unconfirmedDuties(row, industry));
-  return row.duties.filter((d) => !waiting.has(d));
+  return [...row.duties];
 }
 
 /**
- * A tick or untick by hand in the grid. Ticking a duty the job title only
- * suggested (shown unticked) keeps it; any other duty toggles as
- * toggleDutyByHand does.
+ * A tick or untick by hand in the grid. Unticking a duty the job title
+ * ticked removes it like any other; ticking a duty is the owner's own entry
+ * and is confirmed at once (see toggleDutyByHand).
  */
 export function tickDutyByHand(
   row: OwnTeamRow,
   duty: EntitlementId,
-  industry?: string,
+  _industry?: string,
 ): OwnTeamRow {
-  return unconfirmedDuties(row, industry).includes(duty)
-    ? keepDuties(row, [duty])
-    : toggleDutyByHand(row, duty);
+  return toggleDutyByHand(row, duty);
 }
 
 /**
@@ -598,11 +597,14 @@ export function buildOwnTeam(
 ): Person[] {
   return teamRows(rows)
     .map((row) => {
-      const unconfirmed = new Set(unconfirmedDuties(row, industry));
+      // Duties the job title ticked count, marked so Team and the findings
+      // say how many rest on a title until the owner confirms them.
+      const fromTitle = unconfirmedDuties(row, industry).length > 0;
       return {
         name: row.name.trim().slice(0, 60),
         role: row.role.trim().slice(0, MAX_ROLE_LENGTH) || "Team member",
-        duties: row.duties.filter((d) => ENTITLEMENT_IDS.has(d) && !unconfirmed.has(d)),
+        duties: row.duties.filter((d) => ENTITLEMENT_IDS.has(d)),
+        fromTitle,
         tenureYears:
           typeof row.tenureYears === "number" && Number.isFinite(row.tenureYears)
             ? clamp(row.tenureYears, 0, 60)
@@ -625,8 +627,7 @@ export function buildOwnTeam(
       ...(row.department ? { department: row.department } : {}),
       ...(row.employeeId ? { employeeId: row.employeeId } : {}),
       ...(row.lastDay ? { lastDay: row.lastDay } : {}),
-      // Every duty here was kept or entered by the owner, so none carries
-      // the "duties from the job title" mark.
+      ...(row.fromTitle ? { dutiesFromTitle: true as const } : {}),
       entitlements: Array.from(new Set<string>([...row.duties, "view_reports_only"])),
     }));
 }

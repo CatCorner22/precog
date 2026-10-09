@@ -18,6 +18,7 @@ import {
   recordReview,
   resolvedNote,
   reviewDueText,
+  reviewIndependenceLabel,
   reviewIndependenceMessage,
   reviewSaveProblem,
   reviewTrimNotice,
@@ -39,6 +40,7 @@ import {
 import { monthlyWorkpaperFacts, type WorkpaperFact } from "@/lib/precog/firm/workpaper";
 import { clientErrorStatus } from "@/lib/request-errors";
 import { formatDay, formatMonth, localDateKey } from "@/lib/precog/dates";
+import { cn } from "@/lib/utils";
 import { HowThisWorks } from "./page-intro";
 import { checkItemId } from "./monthly-check-id";
 
@@ -399,6 +401,9 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
     );
   }
 
+  // Each independence status the month's checks carry, explained once above
+  // the list instead of under every check.
+  const independenceLegend = [...new Set(tasks.map((task) => task.reviewerIndependence))];
   const problemDraft = shownPeriod ? draftKey(shownPeriod, OTHER_PROBLEM_KEY) : "";
   const found = shownPeriod ? otherProblems(records, shownPeriod) : [];
 
@@ -453,6 +458,24 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
           ))}
         </ul>
       )}
+      {independenceLegend.length > 0 && (
+        <ul className="mt-3 space-y-1 text-xs text-muted" aria-label="Reviewer independence">
+          {independenceLegend.map((status) => {
+            const label = reviewIndependenceLabel(status);
+            const message = reviewIndependenceMessage(status);
+            // The self-review message already opens with its label.
+            const rest = message.startsWith(`${label}:`)
+              ? message.slice(label.length + 1)
+              : message;
+            return (
+              <li key={status}>
+                <span className="font-medium text-fg">{label}:</span>
+                {rest.startsWith(" ") ? rest : ` ${rest}`}
+              </li>
+            );
+          })}
+        </ul>
+      )}
       <ul className="mt-4 space-y-4">
         {tasks.map((task) => {
           const latest = latestReview(records, task.key, task.period);
@@ -479,8 +502,14 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
                 {task.covers}
               </p>
               <p className="mt-1 text-sm text-muted">{task.why}</p>
-              <p className="mt-2 text-xs" data-review-independence={task.reviewerIndependence}>
-                {reviewIndependenceMessage(task.reviewerIndependence)}
+              <p
+                className={cn(
+                  "mt-2 text-xs",
+                  task.reviewerIndependence === "self_review" ? "text-warn" : "text-muted",
+                )}
+                data-review-independence={task.reviewerIndependence}
+              >
+                {reviewIndependenceLabel(task.reviewerIndependence)}
               </p>
               {latest && (
                 <p className="mt-2 text-xs font-medium" data-saved-result={latest.result}>
@@ -574,12 +603,11 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
                   </button>
                 )}
               </div>
-              <p className="mt-1 text-xs text-muted">
-                Press Exception when the check turned up a problem, and say what you found in the
-                note.
-                {latest?.result === "exception" &&
-                  " Once it is sorted out, press Mark resolved: Precog saves Done with what fixed it."}
-              </p>
+              {latest?.result === "exception" && (
+                <p className="mt-1 text-xs text-muted">
+                  Once it is sorted out, press Mark resolved: Precog saves Done with what fixed it.
+                </p>
+              )}
               {problem && (
                 <p role="alert" className="mt-1 text-xs font-medium text-danger">
                   {problem}
