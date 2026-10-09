@@ -194,7 +194,10 @@ export function StartHereContinuitySection({
                     {readiness.coverageIndex}%
                   </p>
                   <p className="mt-1 text-sm font-medium">Has a stand-in</p>
-                  <p className="mt-1 text-xs text-subtle">work two or more people can run</p>
+                  <p className="mt-1 text-xs text-subtle">
+                    Share of work two or more people can run alone (weighted by criticality). Not a
+                    measured loss.
+                  </p>
                 </div>
                 <div className="rounded-lg border border-border bg-panel/60 p-4">
                   <p

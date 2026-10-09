@@ -1,5 +1,8 @@
 import type { DailyLimitInfo, GrokAccess } from "@/lib/precog/llm/types";
 
+/** Shown next to words Grok wrote. Precog does not check them. */
+export const UNCHECKED_MODEL_NOTE = "Grok wrote this. Precog did not check the words.";
+
 /**
  * Why a suggestion or review came from the built-in rules rather than
  * Grok, in one sentence for the owner; null when Grok answered. When today's

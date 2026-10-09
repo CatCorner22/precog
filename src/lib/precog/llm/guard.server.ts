@@ -40,6 +40,11 @@ export interface LlmAccessOptions {
    * allowance there, and signed-out callers to a much smaller one.
    */
   heavy?: boolean;
+  /**
+   * Local work only, such as the rules brief. Same-site and account checks
+   * still run. This call does not take a per-minute model slot.
+   */
+  unmetered?: boolean;
 }
 
 /**
@@ -70,7 +75,7 @@ export async function resolveLlmAccess(
     if (expectedAccountId !== undefined) assertExpectedAccount(expectedAccountId, userId ?? "");
   }
 
-  if (options.heavy && !userId) {
+  if (!options.unmetered && options.heavy && !userId) {
     const anonymous = anonymousHeavyGate(ipKey);
     if (!anonymous.allowed) {
       throw new TooManyRequestsError(anonymous.retryAfterMs, SIGN_IN_OR_TRY_AGAIN);
@@ -78,7 +83,7 @@ export async function resolveLlmAccess(
   }
   // Taken for every signed-in caller, with or without a key, so the heavy
   // local analysis is capped per account and not only per address.
-  const userResult = userId ? perUserLimiter.take(userId) : null;
+  const userResult = !options.unmetered && userId ? perUserLimiter.take(userId) : null;
   const userAllowed = userResult?.allowed ?? true;
   if (options.heavy && userResult && !userResult.allowed) {
     throw new TooManyRequestsError(userResult.retryAfterMs, TRY_AGAIN);
@@ -86,8 +91,9 @@ export async function resolveLlmAccess(
 
   if (!process.env.XAI_API_KEY?.trim()) return { userId, grok: "no_api_key" };
   if (!userId) return { userId, grok: "unauthenticated" };
-  if (!userAllowed) return { userId, grok: "rate_limited" };
-  if (!globalLimiter.take("global").allowed) return { userId, grok: "rate_limited" };
+  if (!options.unmetered && !userAllowed) return { userId, grok: "rate_limited" };
+  if (!options.unmetered && !globalLimiter.take("global").allowed)
+    return { userId, grok: "rate_limited" };
   return { userId, grok: "allowed" };
 }
 

@@ -4,7 +4,7 @@ import { AlertTriangle, Lightbulb, Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { labelCls } from "@/components/ui/field-classes";
-import { ruleBasedReason } from "@/components/precog/builder/grok-status";
+import { ruleBasedReason, UNCHECKED_MODEL_NOTE } from "@/components/precog/builder/grok-status";
 import type { SuggestionResult } from "@/lib/precog/builder/suggest";
 import { suggestForProcess } from "@/lib/precog/builder/suggest-server";
 import { industryMeta } from "@/lib/precog/industry";
@@ -89,6 +89,9 @@ export function SuggestPanel({
             </Badge>
             <span>{result.rationale}</span>
           </div>
+          {result.source === "grok" && (
+            <p className="text-xs text-subtle">{UNCHECKED_MODEL_NOTE}</p>
+          )}
           {ruleBasedReason(result.source, result.grokStatus, result.dailyLimit) && (
             <p className="text-xs text-subtle">
               {ruleBasedReason(result.source, result.grokStatus, result.dailyLimit)}

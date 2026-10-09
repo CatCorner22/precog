@@ -53,7 +53,9 @@ describe("Start here's second figure", () => {
 
   it("is the stand-in share once the register is marked", () => {
     const html = figures(true);
-    expect(text(html)).toContain("Has a stand-in 41% work two or more people can run");
+    expect(text(html)).toContain(
+      "Has a stand-in 41% Share of work two or more people can run alone (weighted by criticality). Not a measured loss.",
+    );
     expect(text(html)).not.toContain("Next step");
   });
 });

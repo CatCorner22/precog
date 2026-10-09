@@ -277,11 +277,10 @@ function rankerFor(
   return "grok";
 }
 
-/** Hugging Face runs for a signed-in caller. When Grok will not run, this spends one daily unit. */
+/** Hugging Face runs for a signed-in caller and spends one daily unit, including when Grok will also run. */
 async function hfMayRank(access: LlmAccess, grok: GrokAccess): Promise<boolean> {
   if (!access.userId || !process.env.HF_TOKEN?.trim()) return false;
   if (grok === "unauthenticated" || grok === "rate_limited") return false;
-  if (grok === "allowed") return true;
   const { checkDailyBudget } = await import("../llm/daily-usage");
   const { getSql } = await import("@/lib/db");
   return (await checkDailyBudget(getSql, access.userId)) === "allowed";

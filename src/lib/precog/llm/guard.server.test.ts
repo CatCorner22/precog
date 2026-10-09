@@ -112,6 +112,25 @@ describe("resolveLlmAccess", () => {
     await expect(resolveLlmAccess()).resolves.toEqual({ userId: null, grok: "unauthenticated" });
   });
 
+  it("does not spend a heavy slot on an unmetered local call", async () => {
+    const { resolveLlmAccess } = await guard();
+    for (let i = 0; i < 4; i++) await resolveLlmAccess(undefined, { unmetered: true });
+    await expect(resolveLlmAccess(undefined, { heavy: true })).resolves.toEqual({
+      userId: null,
+      grok: "unauthenticated",
+    });
+  });
+
+  it("does not spend a signed-in minute slot on an unmetered local call", async () => {
+    const { resolveLlmAccess } = await guard();
+    seams.user = { id: "u-local" };
+    for (let i = 0; i < 10; i++) await resolveLlmAccess(undefined, { unmetered: true });
+    await expect(resolveLlmAccess(undefined, { heavy: true })).resolves.toEqual({
+      userId: "u-local",
+      grok: "allowed",
+    });
+  });
+
   it("gives signed-out callers a few heavy runs a minute, then asks them to sign in", async () => {
     const { resolveLlmAccess } = await guard();
     for (let i = 0; i < 4; i++) await resolveLlmAccess(undefined, { heavy: true });
