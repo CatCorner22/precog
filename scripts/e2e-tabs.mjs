@@ -238,9 +238,12 @@ async function shellChecks(page) {
 
   await home();
 
-  // The header's Report link is there for everyone.
-  await page.getByRole("link", { name: "Report", exact: true }).click();
-  await page.waitForURL(/\/report/, { timeout });
+  // The header no longer carries a Report link: the sample hides the Control
+  // report (its link on Start here is for an owner's own business), and the
+  // page itself still renders signed out.
+  await page.locator('a[href="/report"]').waitFor({ state: "detached", timeout });
+  await page.goto(`${baseUrl}/report`, { waitUntil: "networkidle", timeout });
+  await page.getByRole("button", { name: "Print / Save as PDF" }).waitFor({ timeout });
 
   // The Monthly review tab opens on its heading, signed out.
   await home();
