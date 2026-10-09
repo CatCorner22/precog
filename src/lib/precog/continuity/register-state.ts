@@ -75,6 +75,15 @@ export function registerAssessed(
   return !isStarterList(tpl.knowledge, tpl.id);
 }
 
+/** Whether the register records anything about this item: someone (current or former) is marked on it at any level, or the owner wrote the list and has marked nobody anywhere yet. */
+export function itemRecorded(
+  tpl: Pick<IndustryTemplate, "id" | "knowledge" | "relations">,
+  itemId: string,
+): boolean {
+  if (tpl.relations.some((r) => r.knowledgeId === itemId)) return true;
+  return tpl.relations.length === 0 && registerAssessed(tpl);
+}
+
 /**
  * Freshness (when each item was last confirmed) is tracked only for a
  * register the owner filled in: the sample register carries no confirmation

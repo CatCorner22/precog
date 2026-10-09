@@ -167,6 +167,11 @@
  * the sticky bar) 0.7 KB. Total budget raised from 870 KB to 872 KB; slice
  * S43 in wave 4 still lowers it.
  *
+ * 2026-10-08: unheld check-in rows now show coverage badges and distinguish
+ * unrecorded items in their guidance. The full build measures 872.2 KB,
+ * against 871.8 KB on main; total budget raised to 873 KB. The largest chunk
+ * is unchanged.
+ *
  * 2026-10-09: 5685dfd2 (the shorter path from a finding to its screen: the
  * header without Report and "Someone is out", Do these first opening the
  * person, Monthly review with its records folded) measures 872.3 KB in 140

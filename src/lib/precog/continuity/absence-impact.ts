@@ -2,7 +2,7 @@ import type { IndustryTemplate } from "../templates";
 import type { KnowledgeItem, Person } from "../types";
 import type { ContinuityStep } from "../decisions/follow-through";
 import { joinWithAnd, joinWithOr, firstName, quoted } from "../text";
-import { registerAssessed } from "./register-state";
+import { itemRecorded, registerAssessed } from "./register-state";
 import { coverageReport, CRITICALITY_WEIGHT, dependenceFor, suggestBackups } from "./coverage";
 import { documentationState, draftPointer, isWritten, procedurePointer } from "./documentation";
 import type { DetectedConflict } from "../sod/detect";
@@ -193,7 +193,7 @@ export function absenceImpact(
 
   const assessed = registerAssessed(tpl);
   const alreadyStopped = report.items
-    .filter((i) => assessed && i.primaries.length === 0)
+    .filter((i) => assessed && i.primaries.length === 0 && itemRecorded(tpl, i.item.id))
     .map((i) => i.item)
     .sort(
       (a, b) =>
