@@ -222,9 +222,9 @@ export function unknownUnknowns(words: InventoryWords): Omit<EpistemicItem, "cla
     },
     {
       id: "uu-ai-tooling-risk",
-      title: "Pioneer's own model risk",
+      title: "Voyager's own model risk",
       description:
-        "Pioneer's advice can create false confidence. This list exists to say that residual risk scores rest on Precog's assumptions, not on measurements.",
+        "Voyager's advice can create false confidence. This list exists to say that residual risk scores rest on Precog's assumptions, not on measurements.",
       severity: "medium",
       affects: ["pioneer", "all modules"],
       confidenceDrag: 0.06,

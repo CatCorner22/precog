@@ -16,7 +16,7 @@ export type { CoachDecision };
 
 /** The message when the business changes while a brief is being built for the old one. */
 export const BUSINESS_CHANGED_MESSAGE =
-  "You switched businesses while Pioneer was working. Ask again for this one.";
+  "You switched businesses while Voyager was working. Ask again for this one.";
 
 /** How many moves show before "Show other moves". One: the move to open. */
 export const MOVES_PREVIEW = 1;
@@ -309,7 +309,7 @@ export function CoachResultView({
       <details className="group rounded-2xl border border-border bg-surface">
         <summary className="flex cursor-pointer items-center gap-2 px-6 py-4 text-sm font-semibold">
           <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden />
-          How Pioneer built this brief
+          How Voyager built this brief
         </summary>
         <div className="space-y-4 px-6 pb-6">
           {result.steps.length > 0 && (
@@ -458,7 +458,15 @@ export function withoutSection(markdown: string, heading: string): string {
 }
 
 /** Who wrote the brief, in one line the owner can repeat to their accountant. */
-export function briefAuthorLine(result: Pick<CoachResult, "modelStatus" | "model">): string {
+export function briefAuthorLine(
+  result: Pick<CoachResult, "modelStatus" | "model" | "ranker">,
+): string {
+  if (result.ranker === "huggingface") {
+    return "A Hugging Face model ranked these moves. Precog's rules wrote every word.";
+  }
+  if (result.ranker === "both") {
+    return "A Hugging Face model and Grok agreed on these moves. Precog's rules wrote every word.";
+  }
   return result.modelStatus === "answered"
     ? `Grok (${result.model ?? "model"}) picked the moves most relevant to your question. Precog's rules wrote every word.`
     : "Written by Precog's rules from your records. No AI wrote it.";
@@ -484,7 +492,7 @@ export function coachErrorMessage(e: unknown): string {
     e && typeof e === "object" && "status" in e ? (e as { status: unknown }).status : null;
   const refusal = typeof status === "number" && status >= 400 && status < 500;
   if (refusal && e instanceof Error && e.message.trim()) return e.message;
-  return "Pioneer could not answer just now. Try again in a moment.";
+  return "Voyager could not answer just now. Try again in a moment.";
 }
 
 export function briefClipboardText(result: Pick<CoachResult, "question" | "markdown">): string {

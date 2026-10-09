@@ -67,10 +67,10 @@ describe("coachErrorMessage", () => {
 
   it("shows a plain sentence for an error the server did not explain", () => {
     expect(coachErrorMessage(new Error("TypeError: x is undefined"))).toBe(
-      "Pioneer could not answer just now. Try again in a moment.",
+      "Voyager could not answer just now. Try again in a moment.",
     );
     expect(coachErrorMessage("boom")).toBe(
-      "Pioneer could not answer just now. Try again in a moment.",
+      "Voyager could not answer just now. Try again in a moment.",
     );
   });
 });
@@ -78,7 +78,7 @@ describe("coachErrorMessage", () => {
 describe("business changes during a run", () => {
   it("asks for a new answer for the newly selected business", () => {
     expect(BUSINESS_CHANGED_MESSAGE).toBe(
-      "You switched businesses while Pioneer was working. Ask again for this one.",
+      "You switched businesses while Voyager was working. Ask again for this one.",
     );
   });
 });
@@ -112,7 +112,7 @@ describe("CoachResultView", () => {
     const html = view(result());
     const brief = html.indexOf("What should I do this week?");
     const moves = html.indexOf("Do this");
-    const built = html.indexOf("How Pioneer built this brief");
+    const built = html.indexOf("How Voyager built this brief");
     expect(brief).toBeGreaterThanOrEqual(0);
     expect(brief).toBeLessThan(moves);
     expect(moves).toBeLessThan(built);
@@ -281,7 +281,7 @@ describe("CoachResultView", () => {
     );
     const moves = html.indexOf("Do this");
     const next = html.indexOf("Ask next");
-    const built = html.indexOf("How Pioneer built this brief");
+    const built = html.indexOf("How Voyager built this brief");
     expect(moves).toBeLessThan(next);
     expect(next).toBeLessThan(built);
     expect(html).toContain("If my front desk lead leaves, what breaks first?");

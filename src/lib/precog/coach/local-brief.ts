@@ -233,7 +233,7 @@ export function fallbackBrief(
       : `**${profile.practiceName}**: no open duty conflicts.`;
   const frontierNextMove = people[0] ? thisWeek(people[0]) : `This week: ${STATEMENT_THIS_WEEK}.`;
   const warning =
-    "Pioneer could not compute part of the full brief for this business, so it built this one from your team's duty conflicts alone.";
+    "Voyager could not compute part of the full brief for this business, so it built this one from your team's duty conflicts alone.";
   const markdown = [
     `## ${BRIEF_SECTION.situation}`,
     situation,

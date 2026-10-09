@@ -67,6 +67,7 @@ describe("parseHomeSearch", () => {
 
   it("drops an item on a tab that has none, an empty item, and an oversized one", () => {
     expect(parseHomeSearch({ tab: "pioneer", item: "x" })).toEqual({ tab: "pioneer" });
+    expect(parseHomeSearch({ tab: "voyager" })).toEqual({ tab: "pioneer" });
     expect(parseHomeSearch({ tab: "precog", item: "  " })).toEqual({ tab: "precog" });
     expect(parseHomeSearch({ tab: "precog", item: "x".repeat(121) })).toEqual({ tab: "precog" });
   });

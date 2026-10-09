@@ -165,10 +165,10 @@ function PrivacyPage() {
           one without asking.
         </p>
         <p>
-          Pioneer and the <strong>Review</strong>, <strong>Suggest</strong>, and{" "}
+          Voyager and the <strong>Review</strong>, <strong>Suggest</strong>, and{" "}
           <strong>Draft steps from notes</strong> buttons run on Precog’s server, whether or not you
           are signed in. When you use one of them, this browser sends the server the parts of the
-          profile that feature needs. Pioneer, for example, sends the business name, team, duties,
+          profile that feature needs. Voyager, for example, sends the business name, team, duties,
           processes, risk inputs, planned absences, the Decisions log entries it reads, and which
           items have a written procedure. The server works out the answer and does not save what the
           browser sent.
@@ -318,16 +318,19 @@ function PrivacyPage() {
       <section className={sectionCls}>
         <h2 className={headingCls}>What Precog sends to the model</h2>
         <p>
-          Precog sends nothing to the model unless you are signed in and Precog has a model key.
-          Signed out, or without a key, Pioneer, Review, Suggest, and Draft steps from notes answer
+          Precog sends nothing to a model unless you are signed in and Precog has a model key.
+          Signed out, or without a key, Voyager, Review, Suggest, and Draft steps from notes answer
           from Precog’s rules.
         </p>
         <p>
-          Pioneer builds its brief from your profile with Precog’s rules. When you ask Pioneer for a
-          brief, Precog sends your question, plus the complete rule-based statements and their
-          warnings and evidence references (which can include names, duties, gaps, and notes you
-          typed), to xAI to select relevant details. Precog keeps the statements intact and
-          withholds responses that do not follow this selection format.
+          Voyager builds its brief from your profile with Precog’s rules. When you ask Voyager for a
+          brief, Precog may send your question and the complete rule-based statements to Hugging
+          Face, so a sentence-similarity model can rank them and a small language model can name
+          which statements to mark. When an xAI key is set, Precog also sends that same question and
+          those statements to xAI to name statement ids. Precog keeps the statements intact. It does
+          not show text either model writes. It withholds a selection that does not name ids from
+          that brief. The encoder’s ranking is kept only when it agrees with those ids, or, when
+          they disagree, the single nearest statement.
         </p>
         <p>
           The other three features send text to xAI and show the model’s reply in its own words.

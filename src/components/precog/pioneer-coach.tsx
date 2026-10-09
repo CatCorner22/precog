@@ -114,7 +114,8 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
           highlightIds: picked.highlightIds,
           modelStatus: picked.modelStatus,
           model: picked.model,
-          source: picked.modelStatus === "answered" ? "grok-agent" : prev.source,
+          ranker: picked.ranker,
+          source: picked.ranker === "grok" || picked.ranker === "both" ? "grok-agent" : prev.source,
           warnings,
         };
       });
@@ -194,13 +195,13 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
           tab="pioneer"
           className="mt-3"
           icon={<Compass className="size-5 text-primary" aria-hidden />}
-          purpose="Pioneer is Precog's assistant. Ask about your team, someone leaving, or what to fix first; it answers from your records."
+          purpose="Voyager is Precog's assistant. Ask about your team, someone leaving, or what to fix first. It answers from your records."
           method={
             <p>
               Precog&rsquo;s rules write every answer from your records: duty conflicts, who knows
               what, scenarios, guidance and real cases. Rankings use Precog&rsquo;s weights, not
-              measurements. When you are signed in, Grok picks the moves most relevant to your
-              question; it never writes or changes them.
+              measurements. When you are signed in, a Hugging Face model ranks those moves, and Grok
+              may pick from the same list. Neither one writes or changes the words.
             </p>
           }
         />
