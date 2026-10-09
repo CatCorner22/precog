@@ -37,9 +37,7 @@ describe("adaptive onboarding question shell", () => {
     const { text } = render("setup_method", facts("7-30"));
     expect(text.indexOf("Enter people now")).toBeLessThan(text.indexOf("Paste a roster"));
     expect(text).toContain("Start with job groups");
-    expect(text).toContain(
-      "Findings come from the control participants and duties you actually map.",
-    );
+    expect(text).toContain("Findings use only the control participants and duties you map.");
   });
 
   it("leads a 120-person organization into roster or staged job groups, not the person grid", () => {
@@ -47,7 +45,7 @@ describe("adaptive onboarding question shell", () => {
     expect(text).toContain("Paste a roster");
     expect(text).toContain("Start with job groups");
     expect(text).not.toContain("Enter people now");
-    expect(text).toContain("it does not treat total workforce as the mapped team");
+    expect(text).toContain("Total workforce is not the mapped team.");
     expect(text).toContain("Staged path");
   });
 

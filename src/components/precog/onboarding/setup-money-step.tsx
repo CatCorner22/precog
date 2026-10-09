@@ -197,7 +197,7 @@ export function SetupMoneyStep({
             onChange={(value) => setAnswer(answers, onChange, "bankRec", value)}
           />
           <SegmentedQuestion
-            label="About how much do you take in each day across all payment types?"
+            label="About how much do you take in each day from all payment types?"
             value={answers.dailyTakings}
             answered={has("dailyTakings")}
             choices={[
@@ -213,7 +213,7 @@ export function SetupMoneyStep({
       </fieldset>
 
       <fieldset className="space-y-3 rounded-xl border border-border bg-elevated/40 p-3 sm:p-4">
-        <legend className="px-1 text-sm font-semibold">What already runs</legend>
+        <legend className="px-1 text-sm font-semibold">What is already in place?</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <SegmentedQuestion
             label={statementQuestion}
@@ -256,7 +256,7 @@ export function SetupMoneyStep({
       </fieldset>
 
       <p className="text-xs text-muted" role="status">
-        {`${progress.answered} of ${progress.shown} answered. A question you leave counts as Not sure.`}
+        {`Answered ${progress.answered} of ${progress.shown}. Unanswered questions count as Not sure.`}
       </p>
       <div className="flex flex-wrap gap-2 border-t border-border pt-3">
         <Button variant="secondary" onClick={onBack}>

@@ -61,7 +61,7 @@ describe("Start here, Do these first on one screen", () => {
     for (const s of steps.slice(0, FIRST_STEPS_SHOWN)) expect(html).toContain(s.control.label);
     expect(html).toContain(`Show the other ${steps.length - FIRST_STEPS_SHOWN}`);
     expect(html).toMatch(/<details(?! open)[^>]*><summary[^>]*>Show the other/);
-    expect(html).not.toContain("Give your staff a way to raise a concern");
+    expect(html).not.toContain("Give staff a way to report concerns");
     expect(html).not.toContain("on exactly one person.");
   });
 
@@ -124,7 +124,7 @@ describe("Start here, Do these first on one screen", () => {
   it("has no button when nothing opens a screen, as the report renders it", () => {
     const html = renderToStaticMarkup(<StartHereFirstStepsSection model={model().firstSteps} />);
     expect(html).not.toContain("Open the conflicts it answers");
-    expect(html).toContain("Give your staff a way to raise a concern");
+    expect(html).toContain("Give staff a way to report concerns");
   });
 
   it("keeps the notes under their own heading in the fold", () => {

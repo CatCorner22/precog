@@ -227,7 +227,7 @@ async function refusedDraftStorage(page, errors) {
   await openSetup(page, base, options.timeout);
   await page.getByRole("button", { name: "Set up my own business", exact: true }).click();
   await page.getByLabel("Business name", { exact: true }).fill("Unsaved draft example");
-  await page.getByText(/This browser will not keep your progress/).waitFor();
+  await page.getByText(/This browser will not save your progress/).waitFor();
   noErrors(errors);
 }
 

@@ -608,40 +608,40 @@ const ANALYZE_TABS = TABS.filter(
 const TAB_INTROS = {
   knowledge: {
     purpose:
-      "List the duties and know-how the business runs on, mark who can do each, and close the gaps where one absence would stop work.",
+      "List the duties and know-how the business relies on. Mark who can do each. Close gaps that could stop work during an absence.",
     method: {
       plain:
-        "Each register entry names who can do it alone and who is still learning. One holder means the work stops when that person is out; a second holder is a stand-in. Check-ins per person keep the register current, and a written, findable procedure lowers the exposure of the entry it covers.",
+        "Each entry shows who can do the work alone and who is learning. One holder means the work stops when they are away. A second holder is a stand-in. Check-ins for each person keep the register current. A written, findable procedure lowers the entry's exposure.",
       tactical:
-        "Each register entry names who can do it alone and who is still learning. A single holder is a single point of failure; a second holder is a stand-in. Check-ins per person keep the register current, and a written, findable procedure is credited in know-how residual scoring.",
+        "Each entry shows who can do it alone and who is learning. A single holder is a single point of failure. A second holder is a stand-in. Check-ins per person keep the register current. A written, findable procedure is credited in know-how residual scoring.",
     },
   },
   procedures: {
     purpose: {
       plain:
-        "Write the steps for each task, in the software screen or the physical place where it happens, so someone else can do it when the usual person is away.",
+        "Write each task's steps in the software or place where it happens. A stand-in can follow them when the usual person is away.",
       tactical:
         "Step-by-step desk procedures by platform and module, linked to the register, with review dates.",
     },
     method: {
       plain:
-        "Each procedure belongs to a register entry and names the software or place where the task happens. A review date says when to read it again, and a written, findable procedure lowers the exposure of the entry it belongs to.",
+        "Each procedure links to a register entry and names where the task happens. Its review date tells you when to read it again. A written, findable procedure lowers that entry's exposure.",
       tactical:
-        "Each procedure is linked to a register entry and names its platform and module. A review date drives staleness, and a written procedure is credited in know-how residual scoring.",
+        "Each procedure links to a register entry and names its platform and module. The review date drives staleness. A written procedure is credited in know-how residual scoring.",
     },
   },
   precog: {
     purpose: {
       plain:
-        "Pick a scenario to see the assumed loss and how long it would run undetected, then test what a second signer, an independent bank check or your insurance would change.",
+        "Choose a scenario to see its assumed loss and time undetected. Test how a second signer, independent bank check, or your insurance changes it.",
       tactical:
         "Timelines, insurance cost of risk, multi-scenario compare, cascades, control failure.",
     },
     method: {
       plain:
-        "Every scenario carries assumed days and dollars drawn from the prosecuted cases it cites; Precog never invents a figure. Compare what-ifs puts scenarios side by side, Settings and insurance changes the inputs, What else moves shows what a scenario drags with it, and If a control fails prices a safeguard that stops working.",
+        "Each scenario uses assumed days and dollars from the prosecuted cases it cites. Precog never invents figures. Compare what-ifs puts scenarios side by side. Settings and insurance change the inputs. What else moves shows a scenario's effects. If a control fails prices a safeguard that stops working.",
       tactical:
-        "Every scenario carries assumed days and dollars drawn from the prosecuted cases it cites. Compare what-ifs runs several timelines at once, Settings and insurance changes the risk variables, What else moves shows cascades, and If a control fails re-scores residual risk with a safeguard failed or absent.",
+        "Each scenario uses assumed days and dollars from the prosecuted cases it cites. Compare what-ifs runs several timelines at once. Settings and insurance change the risk variables. What else moves shows cascades. If a control fails re-scores residual risk with a failed or absent safeguard.",
     },
   },
 } satisfies Partial<

@@ -229,7 +229,7 @@ describe("Export data", () => {
     expect(EXPORT_CHANGED).toBe(
       "Your data changed while Precog prepared the download, so Precog did not save the file. Try again.",
     );
-    expect(EXPORT_FAILED).toBe("The export failed. Try again in a moment.");
+    expect(EXPORT_FAILED).toBe("Export failed. Try again soon.");
     expect(EXPORT_RETRY_LABEL).toBe("Try again");
     const retry = vi.fn();
     showExportFailure(new ExportChangedError(), retry);
@@ -280,7 +280,7 @@ describe("the weekly digest switch in the header", () => {
     expect(on).toContain("Weekly digest: on");
     expect(on).toContain('role="switch"');
     expect(on).toContain('aria-checked="true"');
-    expect(on).toContain('title="Once a week, Precog emails what is due on your businesses"');
+    expect(on).toContain('title="Once a week, Precog emails what is due for your businesses"');
     const off = render({ weeklyDigest: false, mailConfigured: true });
     expect(off).toContain("Weekly digest: off");
     expect(off).toContain('aria-checked="false"');
@@ -312,9 +312,9 @@ describe("the weekly digest switch in the header", () => {
 
 describe("the note when the digest cannot reach the account", () => {
   const X_NOTE =
-    "Precog cannot email the address your X sign-in carries, so the weekly digest cannot reach you. Sign in with Google or an email-and-password account to receive it.";
+    "Precog cannot email the address linked to your X sign-in. Sign in with Google or email and password to get the weekly digest.";
   const UNCONFIRMED_NOTE =
-    "Precog cannot confirm the address on this account, so the weekly digest cannot reach you. Sign in with a Google account whose address Google has confirmed, or with an email-and-password account.";
+    "Precog cannot confirm this email address. Sign in with Google using an address Google has confirmed, or with email and password, to get the weekly digest.";
 
   function withProblem(
     weeklyDigest: boolean,
@@ -367,9 +367,7 @@ describe("the sessions entry", () => {
     expect(SESSIONS_ENTRY.label).toBe("Sessions");
     expect(html).toContain(">Sessions</button>");
     expect(html).toContain('aria-haspopup="dialog"');
-    expect(html).toContain(
-      'title="See where this account is signed in, and sign out other sessions"',
-    );
+    expect(html).toContain('title="See where you are signed in and sign out other sessions"');
     // The dialog loads only when the entry is used.
     expect(html).not.toContain("Signed-in sessions");
   });
@@ -377,9 +375,8 @@ describe("the sessions entry", () => {
 
 describe("the account deletion prompt", () => {
   it("says Stripe keeps its invoices and tax records, and that it cannot be undone", () => {
-    expect(DELETE_ACCOUNT_PROMPT).toContain(
-      "the billing record (Stripe keeps its invoices and tax records) and the QuickBooks link.",
-    );
+    expect(DELETE_ACCOUNT_PROMPT).toContain("the billing record, and the QuickBooks link.");
+    expect(DELETE_ACCOUNT_PROMPT).toContain("Stripe keeps its invoices and tax records.");
     expect(DELETE_ACCOUNT_PROMPT).toContain("You cannot undo this.");
     expect(DELETE_ACCOUNT_PROMPT).toContain("Type DELETE to confirm.");
   });

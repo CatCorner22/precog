@@ -160,33 +160,29 @@ export function setupEffects(
   const statementReader = industryHasOwner(industry) ? "The owner" : "A board member";
 
   if (a.cashOrChecks === "no")
-    changed.push("Cash and paper-check duties are left off because you do not take them.");
+    changed.push("Precog leaves out cash and paper-check duties because you do not take them.");
   if (a.companyCard === "no")
-    changed.push("The company-card duty is left off because nobody uses a company card.");
+    changed.push("Precog leaves out the company-card duty because nobody uses a company card.");
   if (a.refunds === "no")
-    changed.push("Refund and write-off duties are left off because you do not give them.");
+    changed.push("Precog leaves out refund and write-off duties because you do not give them.");
   if (a.payroll === "in-house")
     changed.push(
-      "Payroll is run in-house, so the people who enter it and approve the run still count.",
+      "Payroll runs in-house. The people who enter it and approve each run still count.",
     );
   if (a.payroll === "provider")
     changed.push(
-      "Payroll uses a provider, but whoever enters hours and whoever approves the run still count.",
+      "A provider runs payroll. The people who enter hours and approve each run still count.",
     );
   if (a.payroll === "none")
-    changed.push("Payroll duties are left off because you do not run payroll.");
+    changed.push("Precog leaves out payroll duties because you do not run payroll.");
   if (a.bankRec === "team")
-    changed.push(
-      "Bank reconciliation stays with the team, and the person with that duty still counts.",
-    );
+    changed.push("Your team reconciles the bank. The person with that duty still counts.");
   if (a.bankRec === "outside")
     changed.push(
-      "An outside bookkeeper or CPA reconciles the bank account, and that independent review is counted.",
+      "An outside bookkeeper or CPA reconciles the bank. Precog counts that independent review.",
     );
   if (a.bankRec === "nobody")
-    changed.push(
-      "Nobody reconciles the bank account, so the bank-reconciliation duty is left off.",
-    );
+    changed.push("Nobody reconciles the bank, so Precog leaves out that duty.");
   if (a.dailyTakings !== "unsure") {
     const usd = DAILY_TAKINGS_USD[a.dailyTakings];
     const referenceUsd = DEFAULT_WEIGHTS.likelihood.cashReferenceUsd;
@@ -199,48 +195,56 @@ export function setupEffects(
           ? " (the least Precog applies)"
           : "";
     changed.push(
-      `About $${usd.toLocaleString("en-US")} comes in on a typical day, so cash-scheme figures are scaled ×${intensity.toFixed(2)} against Precog's $${referenceUsd.toLocaleString("en-US")} reference day${clampNote}.`,
+      `About $${usd.toLocaleString("en-US")} comes in on a typical day. Precog scales cash-scheme figures by ×${intensity.toFixed(2)} against its $${referenceUsd.toLocaleString("en-US")} reference day${clampNote}.`,
     );
   }
   if (a.ownerReadsStatement === "yes")
     changed.push(`${statementReader} opens and reads the bank statement each month.`);
   if (a.bankSecondApproval === "yes")
     changed.push(
-      "The bank requires a second person to approve payments, so dual release starts on.",
+      "Bank rules require a second person to approve payments. Precog counts dual release as in place.",
     );
-  if (a.cameras === "yes") changed.push("Security cameras are counted as in place.");
-  if (a.alarm === "yes") changed.push("An alarm or access-control system is counted as in place.");
+  if (a.cameras === "yes") changed.push("Precog counts security cameras as in place.");
+  if (a.alarm === "yes")
+    changed.push("Precog counts an alarm or access-control system as in place.");
   if (a.backgroundChecks === "yes")
-    changed.push("Background checks for money handlers are counted as in place.");
+    changed.push("Precog counts background checks for money handlers as in place.");
 
   if (a.cashOrChecks === "unsure")
-    assumed.push(`Cash and paper-check duties stay in the team list ${why("cashOrChecks")}`);
+    assumed.push(
+      `Precog keeps cash and paper-check duties on the team list ${why("cashOrChecks")}`,
+    );
   if (a.companyCard === "unsure")
-    assumed.push(`Company-card duties stay in the team list ${why("companyCard")}`);
+    assumed.push(`Precog keeps company-card duties on the team list ${why("companyCard")}`);
   if (a.refunds === "unsure")
-    assumed.push(`Refund and write-off duties stay in the team list ${why("refunds")}`);
-  if (a.payroll === "unsure") assumed.push(`Payroll is treated as run in-house ${why("payroll")}`);
+    assumed.push(`Precog keeps refund and write-off duties on the team list ${why("refunds")}`);
+  if (a.payroll === "unsure") assumed.push(`Precog treats payroll as in-house ${why("payroll")}`);
   if (a.bankRec === "unsure")
-    assumed.push(`Bank reconciliation is read from who has the duty ticked ${why("bankRec")}`);
+    assumed.push(
+      `Precog reads bank reconciliation from the person marked with that duty ${why("bankRec")}`,
+    );
   if (a.dailyTakings === "unsure")
     assumed.push(
-      `Daily takings are assumed to be $${DEFAULT_RISK_VARIABLES.dailyCashExposure.toLocaleString("en-US")} ${why("dailyTakings")}`,
+      `Precog assumes $${DEFAULT_RISK_VARIABLES.dailyCashExposure.toLocaleString("en-US")} in daily takings ${why("dailyTakings")}`,
     );
   if (a.ownerReadsStatement === "unsure")
     assumed.push(
-      `${statementReader} opening and reading the bank statement is not counted ${why("ownerReadsStatement")}`,
+      `Precog does not count ${statementReader.toLowerCase()} reading the bank statement ${why("ownerReadsStatement")}`,
     );
   if (a.bankSecondApproval === "unsure")
-    assumed.push(`A second bank approval is not counted ${why("bankSecondApproval")}`);
-  if (a.cameras === "unsure") assumed.push(`Security cameras are not counted ${why("cameras")}`);
+    assumed.push(`Precog does not count a second bank approver ${why("bankSecondApproval")}`);
+  if (a.cameras === "unsure")
+    assumed.push(`Precog does not count security cameras ${why("cameras")}`);
   if (a.alarm === "unsure")
-    assumed.push(`An alarm or access-control system is not counted ${why("alarm")}`);
+    assumed.push(`Precog does not count an alarm or access-control system ${why("alarm")}`);
   if (a.backgroundChecks === "unsure")
-    assumed.push(`Background checks for money handlers are not counted ${why("backgroundChecks")}`);
+    assumed.push(
+      `Precog does not count background checks for money handlers ${why("backgroundChecks")}`,
+    );
 
   assumed.push(
-    "Insurance was not asked, and Precog treats it as unverified until a policy is added.",
-    'Who can cover each duty was not asked yet. "Who knows what" starts from the sample\'s list with nobody assigned.',
+    "Precog did not ask about insurance. Precog treats it as unverified until you add a policy.",
+    'Precog did not ask who can cover each duty. "Who knows what" starts with the sample list and no one assigned.',
   );
   return { changed, assumed };
 }

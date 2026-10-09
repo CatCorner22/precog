@@ -91,10 +91,9 @@ export function StartHereExposureSection({
       {gaps.length === 0 ? (
         <Card>
           <CardContent className="pt-5 text-sm leading-relaxed text-muted">
-            No unmitigated conflicts remain in the current setup. That is the right outcome, and it
-            is worth re-checking whenever someone joins, leaves, or changes role — these gaps reopen
-            through ordinary staffing changes far more often than through any decision to remove a
-            control.
+            No unmitigated conflicts remain in this setup. That is the right outcome. Recheck when
+            someone joins, leaves, or changes roles. Ordinary staffing changes reopen gaps far more
+            often than decisions to remove a control.
           </CardContent>
         </Card>
       ) : (
@@ -235,8 +234,8 @@ export function StartHereExposureSection({
         <div className="rounded-lg border border-border bg-panel/60 p-4">
           <p className="text-sm font-medium">Duties you hold yourself</p>
           <p className="mt-1 text-sm leading-relaxed text-muted">
-            These pairs sit with you as the owner. You cannot steal from yourself, so they are not
-            theft findings; the exposure is error, tax and lender reliance.{" "}
+            These pairs are yours as the owner. You cannot steal from yourself, so they are not
+            theft findings. The exposure is error, tax, and lender reliance.{" "}
             {ownerHeld[0].suggestion
               ? `What closes it: ${ownerHeld[0].suggestion.replace(/^An /, "an ")}.`
               : ""}
@@ -290,17 +289,17 @@ function TenureNote({ note }: { note: TenureNoteModel }) {
       {longServing.length === 1
         ? `${longServing[0].name} has ${longServing[0].years} years here.`
         : `${longServing.map((p) => `${p.name} (${p.years} years)`).join(", ")} have long service here.`}{" "}
-      Length of service is not a control. The library holds {n} cases whose source states how long
-      the person had served. The longest-serving, {longest.tenureYearsStated} years in, cost the
+      Length of service is not a control. The library has {n} cases with stated tenure. The
+      longest-serving person had {longest.tenureYearsStated} years of service. That case cost the
       business {lossPhrase(longest)}.
       {shortest
-        ? ` The shortest-serving began ${
+        ? ` The shortest-serving started ${
             shortest.tenureYearsStated === 0
               ? "within months of hire"
               : `after ${shortest.tenureYearsStated} years`
-          } and cost ${lossPhrase(shortest)}.`
+          }. That case cost ${lossPhrase(shortest)}.`
         : ""}{" "}
-      Their employers trusted the people in those cases for the same reason you trust yours.
+      Their employers trusted them for the same reason you trust your team.
     </p>
   );
 }

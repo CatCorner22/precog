@@ -12,14 +12,14 @@ const source = readFileSync(new URL("./join.$token.tsx", import.meta.url), "utf8
 describe("the invitation page", () => {
   it("tells a visitor which sign-ins can join, and offers Google alone", () => {
     expect(source).toContain(
-      'Sign in to join. The firm sent the invitation to <span className="text-fg">{email}</span>. Sign in with Google or with the email address the invitation was sent to.',
+      'Sign in to join. The firm sent this invite to <span className="text-fg">{email}</span>. Use Google or the invited email address to sign in.',
     );
     expect(source).toContain('GROK_PROVIDERS.filter((p) => p.providerId === "grok-google")');
   });
 
-  it("refuses an address Precog cannot vouch for with the way in", () => {
+  it("refuses an unconfirmed address and explains how to join", () => {
     expect(source).toContain(
-      'Precog cannot vouch for this account\'s address. Sign in with Google under{" "} <span className="text-fg">{invitedEmail}</span>, or with an email-and-password account that has confirmed it, then open the invitation again.',
+      'Precog cannot confirm this account&rsquo;s email. Sign in with Google as{" "} <span className="text-fg">{invitedEmail}</span>, or use an email-and-password account with a confirmed address. Then reopen the invitation.',
     );
   });
 
@@ -27,14 +27,14 @@ describe("the invitation page", () => {
     expect(source).toContain("Map clients and lock reports");
     expect(source).toContain("Record monthly review results and control checks");
     expect(source).toContain("Review control checks");
-    expect(source).toContain("Sign off reports someone else prepared");
-    expect(source).toContain("Only the firm owner deletes or restores a client.");
+    expect(source).toContain("Approve reports someone else prepared");
+    expect(source).toContain("Only the firm owner can delete or restore a client.");
   });
 
   it("tells a throttled visitor to wait rather than calling the link closed", () => {
     expect(source).toContain("Too many opens from this address");
     expect(source).toContain(
-      "Wait a minute, then check the invitation again. The link itself is unchanged.",
+      "Wait one minute, then check this invitation again. The link stays the same.",
     );
   });
 });
