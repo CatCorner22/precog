@@ -57,8 +57,14 @@ describe("IndustryOnboarding, first render", () => {
     expect(text).not.toContain("Business profile");
   });
 
-  it("opens a named business on the accessible setup questions before its team grid", () => {
-    const { html, text } = firstRender("Ruiz Dental");
+  it("opens a named business on the team grid, not the question list", () => {
+    const { text } = firstRender("Ruiz Dental");
+    expect(text).toContain("Your people and their money duties");
+    expect(text).not.toContain("Question 1 of 4");
+  });
+
+  it("still offers the setup questions when opened there", () => {
+    const { html, text } = firstRender("Ruiz Dental", "dental", "questions");
     expect(text).toContain("Question 1 of 4");
     expect(text).toContain("What is your role?");
     expect(html).toContain('aria-labelledby="industry-onboarding-title"');

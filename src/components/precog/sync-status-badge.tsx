@@ -3,7 +3,14 @@ import { Cloud, CloudAlert, CloudOff, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** Where the open business is saved. */
-export function SyncStatusBadge({ className }: { className?: string }) {
+export function SyncStatusBadge({
+  className,
+  compactOnPhone = false,
+}: {
+  className?: string;
+  /** The icon stays; the words stay available to a screen reader and on wider screens. */
+  compactOnPhone?: boolean;
+}) {
   const { syncStatus, downloadRecovery } = usePracticeSync();
   const label = LABEL[syncStatus];
   if (!label) return null;
@@ -31,7 +38,7 @@ export function SyncStatusBadge({ className }: { className?: string }) {
       )}
     >
       <Icon className={cn("size-3", busy && "animate-spin")} aria-hidden />
-      <span>{label}</span>
+      <span className={cn(compactOnPhone && "sr-only sm:not-sr-only")}>{label}</span>
       {/* Work that is not saved everywhere can always leave as a file. */}
       {ANNOUNCED.has(syncStatus) && (
         <button

@@ -12,7 +12,6 @@ import {
 import { INDUSTRIES, industryHasOwner, type IndustryId } from "@/lib/precog/industry";
 import { getIndustryTemplate } from "@/lib/precog/templates";
 import { usePractice } from "@/lib/precog/practice-context";
-import { useTabName } from "@/lib/precog/presentation";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
 import { ownBusinessName } from "@/lib/precog/business-lifecycle";
 import { canKeepLocalData } from "@/lib/precog/local-data";
@@ -134,7 +133,6 @@ export function IndustryOnboarding({
 }: {
   initialStep?: "industry" | "questions" | "money" | "team";
 } = {}) {
-  const tabName = useTabName();
   const workspace = useWorkspace();
   const {
     profile,
@@ -149,7 +147,7 @@ export function IndustryOnboarding({
   const typedName = ownBusinessName(profile);
   const [selected, setSelected] = useState<IndustryId>(profile.industry);
   const [step, setStep] = useState<"industry" | "questions" | "money" | "team">(
-    initialStep ?? (typedName ? "questions" : "industry"),
+    initialStep ?? (typedName ? "team" : "industry"),
   );
   const [answers, setAnswers] = useState<SetupAnswers>(UNANSWERED);
   // The money questions the owner chose an answer for; the rest stay Not sure for the engines.
@@ -415,7 +413,7 @@ export function IndustryOnboarding({
     startOver();
     setSelected(profile.industry);
     setRows(firstRowForIndustry(freshRows(), profile.industry));
-    setStep(typedName ? "questions" : "industry");
+    setStep(typedName ? "team" : "industry");
     setQuestion("actor");
     setFacts({ schemaVersion: ONBOARDING_FACTS_VERSION, ...(profile.onboardingFacts ?? {}) });
     setResumed(false);
@@ -957,8 +955,7 @@ export function IndustryOnboarding({
                     onClick={() => {
                       // A nonprofit's first row is its executive director, not an owner.
                       setRows((current) => firstRowForIndustry(current, selected));
-                      setStep("questions");
-                      setQuestion("actor");
+                      setStep("team");
                     }}
                   >
                     Set up my own business
@@ -1061,9 +1058,17 @@ export function IndustryOnboarding({
                 Your people and their money duties
               </h2>
               <CardDescription>
-                Name each person and mark the money duties they handle today. Refine this later in{" "}
-                {tabName("sod")}.
+                Name each person and mark the money duties they handle today. Change who holds a
+                duty later on Team. How money moves here is optional and changes which duties start
+                ticked.
               </CardDescription>
+              <button
+                type="button"
+                className="w-fit text-sm font-medium text-primary underline underline-offset-2"
+                onClick={() => setStep("money")}
+              >
+                How money moves here
+              </button>
               {keptNotice}
             </CardHeader>
             <CardContent className="space-y-4">

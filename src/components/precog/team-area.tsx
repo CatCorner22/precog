@@ -14,6 +14,7 @@ import { reassignOwner, undoOwnerChange } from "@/lib/precog/builder/stand-in-ow
 import { analyzeWorkload } from "@/lib/precog/builder/workload";
 import { usePracticeActions, usePracticeState } from "@/lib/precog/practice-context";
 import { tabLabel } from "@/lib/precog/navigation";
+import { parseTeamFocus } from "@/lib/precog/start-here/layout";
 import { usePresentation } from "@/lib/precog/presentation";
 import { PageIntro } from "./page-intro";
 
@@ -25,12 +26,13 @@ import { PageIntro } from "./page-intro";
  * Workload who carries the processes, and the access and payroll import
  * checks the list against the exports from the business's systems.
  */
-export function TeamArea() {
+export function TeamArea({ item = null }: { item?: string | null }) {
   const { template: tpl, profile } = usePracticeState();
   const { setCustomPeople, setCustomProcesses } = usePracticeActions();
   const navigate = useNavigate();
   const { say } = usePresentation();
   const [showJobs, setShowJobs] = useState(false);
+  const focus = useMemo(() => parseTeamFocus(item), [item]);
   const workload = useMemo(
     () => analyzeWorkload(tpl, tpl.processes, tpl.people, profile.staff, profile.dualRelease),
     [tpl, profile.staff, profile.dualRelease],
@@ -89,7 +91,11 @@ export function TeamArea() {
       )}
       <Card>
         <CardContent className="p-4">
-          <TeamEditor people={tpl.people} onChange={(next) => setCustomPeople(next)} />
+          <TeamEditor
+            people={tpl.people}
+            onChange={(next) => setCustomPeople(next)}
+            focus={focus}
+          />
         </CardContent>
       </Card>
       <LeaverAccessList explainOnSample />

@@ -67,9 +67,17 @@ describe("parseHomeSearch", () => {
 
   it("drops an item on a tab that has none, an empty item, and an oversized one", () => {
     expect(parseHomeSearch({ tab: "pioneer", item: "x" })).toEqual({ tab: "pioneer" });
-    expect(parseHomeSearch({ tab: "team", item: "x" })).toEqual({ tab: "team" });
     expect(parseHomeSearch({ tab: "precog", item: "  " })).toEqual({ tab: "precog" });
     expect(parseHomeSearch({ tab: "precog", item: "x".repeat(121) })).toEqual({ tab: "precog" });
+  });
+
+  it("keeps a person focus on Team", () => {
+    expect(
+      parseHomeSearch({ tab: "team", item: "person~p2~cash_receipts~bank_reconcile" }),
+    ).toEqual({
+      tab: "team",
+      item: "person~p2~cash_receipts~bank_reconcile",
+    });
   });
 
   it("keeps build mode on How work flows only", () => {

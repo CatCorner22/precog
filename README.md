@@ -157,7 +157,7 @@ The “If a control fails” view in What could happen compares a safeguard or c
 
 ## Control evidence log
 
-On the Firm page, signed-in users can record a monthly check with its scope,
+On Monthly review, signed-in users can record a monthly check with its scope,
 reported performer, method, evidence references and conclusion. The first
 release covers bank-statement review, cleared-check images, payroll headcount,
 and vendor changes. References are pointers to restricted records, not uploaded
