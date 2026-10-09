@@ -53,8 +53,8 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-      <div className="overflow-x-auto rounded-xl border border-border bg-panel matrix-grid">
+    <div className="grid min-w-0 gap-4 lg:grid-cols-[1fr_280px]">
+      <div className="min-w-0 overflow-x-auto rounded-xl border border-border bg-panel matrix-grid">
         <svg
           viewBox={`0 0 ${MAP_WIDTH} ${layout.height}`}
           className="w-full min-w-[560px]"
@@ -189,7 +189,7 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
         </svg>
       </div>
 
-      <aside className="rounded-xl border border-border bg-surface p-4">
+      <aside className="min-w-0 rounded-xl border border-border bg-surface p-4">
         <p className="text-xs font-medium tracking-wide text-subtle uppercase">Selected item</p>
         {!assessed ? (
           <p className="mt-3 text-sm text-muted">
@@ -199,7 +199,9 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
         ) : selected ? (
           <div className="mt-3 space-y-3">
             <div>
-              <h3 className="font-semibold">{selected.item.name}</h3>
+              <h3 className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] font-semibold">
+                {selected.item.name}
+              </h3>
               {selected.item.description && (
                 <p className="mt-1 text-sm text-muted">{selected.item.description}</p>
               )}
@@ -252,13 +254,15 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
                       onClick={() => setSelectedId(r.knowledgeId)}
                       aria-pressed={selectedId === r.knowledgeId}
                       className={cn(
-                        "w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors",
+                        "min-w-0 max-w-full w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors",
                         selectedId === r.knowledgeId
                           ? "border-primary/40 bg-primary/10"
                           : "border-border bg-elevated hover:border-border-strong",
                       )}
                     >
-                      <span className="font-medium">{r.name}</span>
+                      <span className="break-words [overflow-wrap:anywhere] font-medium">
+                        {r.name}
+                      </span>
                       <span className="mt-0.5 block text-xs text-muted">
                         {r.ownerCount === 0 ? "Nobody can run it alone" : "One person only"} ·
                         attention index {r.riskScore} of 100 (Precog&apos;s own scale)

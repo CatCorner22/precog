@@ -116,6 +116,56 @@ describe("Start here, Do these first on one screen", () => {
 });
 
 describe("Start here, continuity split into today and readiness", () => {
+  it("wraps long duty names in the Today strip and sole-duty list", () => {
+    const longName = "D".repeat(83);
+    const today = new Date(2026, 8, 26);
+    const profile = {
+      ...defaultProfile("dental"),
+      customPeople: [{ id: "avery", name: "Avery", role: "Team member", active: true }],
+      customKnowledge: [
+        {
+          id: "long-duty",
+          name: longName,
+          criticality: "critical" as const,
+          category: "process" as const,
+          description: "",
+          linkedProcessIds: [],
+          documented: false,
+          kind: "duty" as const,
+        },
+      ],
+      customRelations: [
+        { personId: "avery", knowledgeId: "long-duty", level: "proficient" as const },
+      ],
+      plannedAbsences: [
+        {
+          id: "avery-out",
+          personId: "avery",
+          industry: "dental" as const,
+          from: "2026-09-26",
+          to: "2026-09-26",
+          unplanned: true,
+        },
+      ],
+    };
+    const m = buildStartHereModel({
+      profile,
+      template: resolveTemplate(profile),
+      today,
+    });
+    const todayHtml = renderToStaticMarkup(
+      <StartHereContinuitySection model={m.continuity} onOpenDetail={() => {}} part="today" />,
+    );
+    const notesHtml = renderToStaticMarkup(
+      <StartHereFirstStepsSection model={m.firstSteps} part="notes" />,
+    );
+
+    expect(todayHtml).toContain(longName);
+    expect(todayHtml).toContain("[overflow-wrap:anywhere]");
+    expect(notesHtml).toContain(longName);
+    expect(notesHtml).toContain("[overflow-wrap:anywhere]");
+  });
+
   it("renders nothing for today when nobody is out and nothing is pending", () => {
     const m = model().continuity;
     const quiet = { ...m, staffingToday: { ...m.staffingToday, headline: null } };

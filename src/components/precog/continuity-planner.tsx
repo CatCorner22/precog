@@ -53,8 +53,8 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
         trackFreshness={p.trackFreshness}
       />
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-        <div className="space-y-4">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[1fr_1fr]">
+        <div className="min-w-0 space-y-4">
           <CrossTrainingPlanCard
             registerAssessed={p.registerAssessed}
             report={p.report}
@@ -70,7 +70,7 @@ export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?:
           />
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <SelectedKnowledgeCard register={p.register} trackFreshness={p.trackFreshness} />
           <section id="absences" tabIndex={-1} aria-label="Who is out" className="space-y-4">
             <PlannedLeaveCard

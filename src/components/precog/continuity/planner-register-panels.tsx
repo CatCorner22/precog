@@ -82,7 +82,7 @@ export function CrossTrainingPlanCard({
                     <ItemButton item={m.item} onSelect={onSelect} />
                     <Badge variant={STATUS_VARIANT[m.status]}>{STATUS_LABEL[m.status]}</Badge>
                   </div>
-                  <p className="text-muted">{m.action}</p>
+                  <p className="break-words text-muted [overflow-wrap:anywhere]">{m.action}</p>
                   <JournalStepStatus
                     commitment={journal.trackedBy(m.item.id, "cover")}
                     onLog={() => journal.logMove(m)}
@@ -143,7 +143,7 @@ export function DocumentationPlanCard({
                     </Badge>
                     <Badge variant={STATUS_VARIANT[g.coverage]}>{STATUS_LABEL[g.coverage]}</Badge>
                   </div>
-                  <p className="text-muted">{g.action}</p>
+                  <p className="break-words text-muted [overflow-wrap:anywhere]">{g.action}</p>
                   <JournalStepStatus
                     commitment={journal.trackedBy(g.item.id, g.step)}
                     onLog={() => journal.logGap(g)}
@@ -315,7 +315,9 @@ export function CheckInCard({
                     <div className="min-w-0 break-words [overflow-wrap:anywhere] font-medium">
                       {entry.item.name}
                     </div>
-                    <p className="text-muted">{entry.action}</p>
+                    <p className="break-words text-muted [overflow-wrap:anywhere]">
+                      {entry.action}
+                    </p>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -384,7 +386,7 @@ export function CheckInDropsCard({
                     <Badge variant={STATUS_VARIANT[d.to]}>{STATUS_LABEL[d.to]}</Badge>
                     <span className="text-xs text-muted">was: {STATUS_LABEL[d.from]}</span>
                   </div>
-                  <p className="text-muted">
+                  <p className="break-words text-muted [overflow-wrap:anywhere]">
                     {d.remaining.length === 0
                       ? "Nobody still on the team can run this alone."
                       : `${joinWithAnd(d.remaining.map((p) => p.name))} ${verb(
@@ -427,7 +429,7 @@ export function SelectedKnowledgeCard({
     <Card>
       <CardHeader>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <CardTitle className="min-w-0 break-words [overflow-wrap:anywhere]">
+          <CardTitle className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]">
             {selected.item.name}
           </CardTitle>
           <Badge variant={coverageBadge(selected).variant}>{coverageBadge(selected).label}</Badge>

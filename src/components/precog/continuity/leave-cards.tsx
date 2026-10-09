@@ -227,7 +227,7 @@ export function LeaveWindow({
               </div>
               <ol className="list-decimal space-y-1 pl-5">
                 {impact.actions.map((a) => (
-                  <li key={a.text}>
+                  <li key={a.text} className="break-words [overflow-wrap:anywhere]">
                     {a.text}
                     {a.knowledgeIds.length > 0 && (
                       <JournalStepStatus inline commitment={tracked(a)} onLog={() => onLog(a)} />
@@ -363,7 +363,7 @@ export function LeaverCard({
           </div>
           <ol className="list-decimal space-y-1 pl-5">
             {l.actions.map((a) => (
-              <li key={a.text}>
+              <li key={a.text} className="break-words [overflow-wrap:anywhere]">
                 {a.text}
                 {a.knowledgeIds.length > 0 && (
                   <JournalStepStatus inline commitment={tracked(a)} onLog={() => onLog(a)} />

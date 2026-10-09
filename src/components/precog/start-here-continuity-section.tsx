@@ -99,7 +99,9 @@ export function StartHereContinuitySection({
                       <ul className="mt-1 space-y-1 text-xs text-muted">
                         {o.stops.slice(0, 4).map((s) => (
                           <li key={s.item.id} className="flex flex-wrap items-center gap-x-2">
-                            <span className="text-fg">{s.item.name}</span>
+                            <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] text-fg">
+                              {s.item.name}
+                            </span>
                             <span>
                               {s.standIn
                                 ? `→ ${firstName(s.standIn.name)}${s.cold ? " (starting cold)" : ""}`
