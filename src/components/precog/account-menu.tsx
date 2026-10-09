@@ -49,13 +49,13 @@ const WorkspaceRecoveryDialog = lazy(() => import("./workspace-recovery-dialog")
 /** The account menu entry for local guest copy and legacy export. */
 export const RECOVERY_ENTRY = {
   label: "Local recovery",
-  title: "Copy guest businesses or export older browser records from this device",
+  title: "Copy guest businesses or export older records saved on this device",
 } as const;
 
 /** The menu entry's label and hover text. */
 export const SESSIONS_ENTRY = {
   label: "Sessions",
-  title: "See where this account is signed in, and sign out other sessions",
+  title: "See where you are signed in and sign out other sessions",
 } as const;
 
 /** The "Sessions" entry and, once used, its dialog; focus returns to the entry on close. */
@@ -205,7 +205,7 @@ export async function downloadAccountExport(
 /** The button on a failed export's message, which starts the download again. */
 export const EXPORT_RETRY_LABEL = "Try again";
 /** The message when an export fails for any other reason. */
-export const EXPORT_FAILED = "The export failed. Try again in a moment.";
+export const EXPORT_FAILED = "Export failed. Try again soon.";
 
 /**
  * Says why the export saved nothing, with a button that starts it again: the
@@ -271,7 +271,7 @@ function HistoryDownloads({
       await downloadBusinessHistory(business);
       toast.success(`Past versions of ${business.name} are downloading as one JSON file.`);
     } catch {
-      toast.error("The history download failed. Try again in a moment.");
+      toast.error("History download failed. Try again soon.");
     } finally {
       setBusyId(null);
       onBusy(false);
@@ -288,7 +288,7 @@ function HistoryDownloads({
           if (event.key === "Escape") setOpen(false);
         }}
         disabled={disabled}
-        title="Download each business's past versions, one file per business"
+        title="Download one file per business with its past versions"
         className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-fg disabled:opacity-50"
       >
         <History className="size-3.5" aria-hidden />
@@ -334,7 +334,7 @@ function HistoryDownloads({
 }
 
 export const DELETE_ACCOUNT_PROMPT =
-  "This deletes your account and everything in it: every business and its history, report versions, snapshots, shared links, your firm workspace and its members' access, reminders, the billing record (Stripe keeps its invoices and tax records) and the QuickBooks link. You cannot undo this. Export data and Download history first if you want a copy. Type DELETE to confirm.";
+  "Delete your account and everything in it: every business and its history, report versions, snapshots, shared links, your firm workspace and member access, reminders, the billing record, and the QuickBooks link. Stripe keeps its invoices and tax records. You cannot undo this. Export data and Download history first if you want a copy. Type DELETE to confirm.";
 
 /** The header's wording for the weekly digest switch. */
 export function digestSwitchLabel(weeklyDigest: boolean): string {
@@ -347,10 +347,10 @@ export type DigestAddressProblem = "x_only" | "unconfirmed" | null;
 /** The note under the digest switch when the digest is on but cannot reach the account. */
 export function digestAddressNote(problem: DigestAddressProblem): string | null {
   if (problem === "x_only") {
-    return "Precog cannot email the address your X sign-in carries, so the weekly digest cannot reach you. Sign in with Google or an email-and-password account to receive it.";
+    return "Precog cannot email the address linked to your X sign-in. Sign in with Google or email and password to get the weekly digest.";
   }
   if (problem === "unconfirmed") {
-    return "Precog cannot confirm the address on this account, so the weekly digest cannot reach you. Sign in with a Google account whose address Google has confirmed, or with an email-and-password account.";
+    return "Precog cannot confirm this email address. Sign in with Google using an address Google has confirmed, or with email and password, to get the weekly digest.";
   }
   return null;
 }
@@ -401,7 +401,7 @@ export function DigestSwitch({
       aria-checked={on}
       onClick={onToggle}
       disabled={disabled}
-      title="Once a week, Precog emails what is due on your businesses"
+      title="Once a week, Precog emails what is due for your businesses"
       className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-fg disabled:opacity-50"
     >
       <Icon className="size-3.5" aria-hidden />
@@ -595,7 +595,7 @@ export function AccountDataControls() {
         type="button"
         onClick={() => void exportAll()}
         disabled={busy !== null}
-        title="Download this account's data as one JSON file; past versions download with Download history"
+        title="Download this account's data as one JSON file. Use Download history for past versions."
         className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-fg disabled:opacity-50"
       >
         <Download className="size-3.5" aria-hidden />

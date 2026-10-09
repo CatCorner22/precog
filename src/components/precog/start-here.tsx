@@ -67,19 +67,18 @@ export function StartHere({
         <WordsUsedHere tab="start" />
         <HowThisWorks>
           <p>
-            This page shows two key numbers, who is out today, and the three steps that close the
-            most gaps. Most of the steps are checks that catch a problem sooner. The sooner a theft
-            is found, the smaller the loss.
+            This page shows two key numbers, who is out today, and three steps to close the most
+            gaps. Most steps are checks that catch problems sooner. The sooner a theft is found, the
+            smaller the loss.
           </p>
           <p>
-            {WHY_WE_SAY_THIS} holds the proof. It shows where one person does too much, what the
-            same gap has cost real businesses, and who can cover for whom. It also says what Precog
-            cannot tell you, and lists every case it uses.
+            {WHY_WE_SAY_THIS} shows where one person controls too much, what these gaps have cost
+            real businesses, and who can cover for whom. It also explains what Precog cannot tell
+            you and lists every case it uses.
           </p>
           <p>
-            Each dollar figure and time span links to the case or study it came from. The cover
-            percentages are Precog&rsquo;s own scores; {tabLabel("knowledge", say)} explains how
-            each one is counted.
+            Each dollar figure and time span links to its case or study. Precog calculates the
+            coverage percentages. {tabLabel("knowledge", say)} explains how.
           </p>
         </HowThisWorks>
       </header>

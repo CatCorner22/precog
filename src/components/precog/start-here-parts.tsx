@@ -66,7 +66,7 @@ export function EvidenceFooter({ model }: { model: StartHereModel["footer"] }) {
         ))}
       </div>
       <p className="text-xs text-subtle">
-        {`Each card's "what would have caught it" is our reading of the record. The source states how the theft came to light in ${found.known} of ${found.n} ${found.n === 1 ? "case" : "cases"}; in the other ${found.unknown} it does not say.`}
+        {`Each card's "what would have caught it" is Precog's reading of the record. The source says how the theft came to light in ${found.known} of ${found.n} ${found.n === 1 ? "case" : "cases"}. It does not say for the other ${found.unknown}.`}
       </p>
       <UnverifiedListNote studies={ordered} />
       <div className="space-y-2">

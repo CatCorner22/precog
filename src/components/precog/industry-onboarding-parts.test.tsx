@@ -34,6 +34,11 @@ describe("SeatNote", () => {
     );
     expect(text(html)).toBe("Catalog job: Bookkeeper");
   });
+
+  it("says to tick by hand when the job title is not in the catalog", () => {
+    const html = renderToStaticMarkup(<SeatNote seat={{ title: "", partial: false }} />);
+    expect(text(html)).toBe("Not in the catalog: tick by hand");
+  });
 });
 
 const noop = () => {};
@@ -73,7 +78,7 @@ describe("TitleTicksReview", () => {
     expect(text(html)).toContain("They count now.");
     expect(text(html)).toContain("marked “from the job title” on Team until you confirm it.");
     expect(text(html)).not.toContain("keep or remove each");
-    expect(text(html)).toContain("Lisa (Bookkeeper) does these, from the job title:");
+    expect(text(html)).toContain("Lisa (Bookkeeper) job-title suggestions:");
     // The no-column duty is in the review, by its full plain name.
     expect(html).toContain('aria-label="Keep Post manual journal entries for Lisa"');
     expect(html).toContain('aria-label="Remove Post manual journal entries from Lisa"');

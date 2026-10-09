@@ -225,7 +225,7 @@ export function StartHereContinuitySection({
                   <p className="font-mono text-2xl font-semibold tracking-tight">{slippedCount}</p>
                   <p className="mt-1 text-sm font-medium">Slipped</p>
                   <p className="mt-1 text-xs text-subtle">
-                    done items whose coverage or documentation regressed
+                    done items whose coverage or documentation got worse
                   </p>
                 </div>
                 <p className="text-xs leading-relaxed text-subtle sm:col-span-2 lg:col-span-4">
