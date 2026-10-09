@@ -350,6 +350,120 @@ describe("local advisor brief", () => {
     expect(brief.markdown).toContain("- Casey Front: planned leave Oct 12–16, 2026.");
   });
 
+  it("answers a weekday question for the next single occurrence", () => {
+    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+    const person = resolveTemplate(sample).people[0];
+    const profile = {
+      ...sample,
+      plannedAbsences: [
+        {
+          id: "next-monday",
+          personId: person.id,
+          industry: "dental" as const,
+          from: "2026-10-12",
+          to: "2026-10-12",
+        },
+        {
+          id: "following-monday",
+          personId: person.id,
+          industry: "dental" as const,
+          from: "2026-10-19",
+          to: "2026-10-19",
+        },
+      ],
+    };
+    const question = "Who is out Monday?";
+    const { brief } = localBrief(question, { profile, question, today: "2026-10-07" }, profile);
+    const answer = brief.markdown.split("\n\n## Situation")[0];
+
+    expect(answer).toContain(`- ${person.name}: planned leave Oct 12, 2026.`);
+    expect(answer).not.toContain("Oct 19");
+  });
+
+  it("moves a weekday question to the next week when today is that weekday", () => {
+    const profile = pioneerProfileFrom(defaultProfile("dental") as never);
+    const question = "Who is out Monday?";
+    const { brief } = localBrief(question, { profile, question, today: "2026-10-12" }, profile);
+
+    expect(brief.markdown).toContain("Nobody is recorded as out on Monday, Oct 19.");
+  });
+
+  it("includes Sunday in this week's window from Wednesday", () => {
+    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+    const people = resolveTemplate(sample).people;
+    const profile = {
+      ...sample,
+      plannedAbsences: [
+        {
+          id: "sunday",
+          personId: people[0].id,
+          industry: "dental" as const,
+          from: "2026-10-11",
+          to: "2026-10-11",
+        },
+        {
+          id: "monday",
+          personId: people[1].id,
+          industry: "dental" as const,
+          from: "2026-10-12",
+          to: "2026-10-12",
+        },
+      ],
+    };
+    const question = "Who is out this week?";
+    const { brief } = localBrief(question, { profile, question, today: "2026-10-07" }, profile);
+    const answer = brief.markdown.split("\n\n## Situation")[0];
+
+    expect(answer).toContain(`- ${people[0].name}: planned leave Oct 11, 2026.`);
+    expect(answer).not.toContain(people[1].name);
+
+    const emptyProfile = { ...profile, plannedAbsences: [] };
+    expect(
+      localBrief(question, { profile: emptyProfile, question, today: "2026-10-07" }, emptyProfile)
+        .brief.markdown,
+    ).toContain("Nobody is recorded as out this week.");
+  });
+
+  it("limits this week's Sunday window to today when today is Sunday", () => {
+    const sample = pioneerProfileFrom(defaultProfile("dental") as never);
+    const people = resolveTemplate(sample).people;
+    const profile = {
+      ...sample,
+      plannedAbsences: [
+        {
+          id: "today",
+          personId: people[0].id,
+          industry: "dental" as const,
+          from: "2026-10-11",
+          to: "2026-10-11",
+        },
+        {
+          id: "tomorrow",
+          personId: people[1].id,
+          industry: "dental" as const,
+          from: "2026-10-12",
+          to: "2026-10-12",
+        },
+      ],
+    };
+    const question = "Who is out this week?";
+    const { brief } = localBrief(question, { profile, question, today: "2026-10-11" }, profile);
+    const answer = brief.markdown.split("\n\n## Situation")[0];
+
+    expect(answer).toContain(`- ${people[0].name}: planned leave Oct 11, 2026.`);
+    expect(answer).not.toContain(people[1].name);
+  });
+
+  it("keeps a question that says today on the today answer path", () => {
+    const profile = pioneerProfileFrom(defaultProfile("dental") as never);
+    const question = "Who will be out today?";
+    const { brief } = localBrief(question, { profile, question, today: "2026-10-08" }, profile);
+
+    expect(brief.markdown).toContain(
+      "Nobody is recorded as out today. When someone calls in, press Someone is out at the top of the page.",
+    );
+  });
+
   it("gives the upcoming-window empty message when nobody is out tomorrow", () => {
     const profile = pioneerProfileFrom(defaultProfile("dental") as never);
     const question = "Who is out tomorrow?";

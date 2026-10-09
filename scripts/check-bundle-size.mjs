@@ -174,7 +174,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 872 * 1024,
+  totalGzipBytes: 873 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

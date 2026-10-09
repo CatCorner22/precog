@@ -1,5 +1,5 @@
 import { resolveTemplate } from "../active-template";
-import { formatDayRange, shiftDay } from "../dates";
+import { formatDayNear, formatDayRange, shiftDay } from "../dates";
 import { todayBrief } from "../continuity/today";
 import { registerAssessed } from "../continuity/register-state";
 import { CONTROL_CATALOG, controlForIndustry } from "../evidence/controls";
@@ -291,9 +291,10 @@ export function isConflictQuestion(question: string): boolean {
 const ABSENCE_QUESTION =
   /\b(leav(?:e|es|ing)|quits?|resign\w*|retir\w*|sick|vacation|holiday|away|absen\w*|without)\b/i;
 const OUT_TODAY_QUESTION =
-  /\b(?:(?:who|anyone|anybody)(?:'s|\s+is|\s+are)?\s+(?:out|off|away|absent)\b|out\s+(?:today|sick|now)\b|off\s+sick\b|called\s+in\s+sick\b)/i;
+  /\b(?:(?:who|anyone|anybody)(?:'s|\s+(?:is|are|will(?:\s+be)?))?\s+(?:out|off|away|absent)\b|out\s+(?:today|sick|now)\b|off\s+sick\b|called\s+in\s+sick\b)/i;
 const FUTURE_PERIOD =
-  /\b(?:tomorrow|next|upcoming|soon|later|weekend|month|monday|tuesday|wednesday|thursday|friday|saturday|sunday|will)\b/i;
+  /\b(?:tomorrow|next|this\s+week|upcoming|soon|later|weekend|month|monday|tuesday|wednesday|thursday|friday|saturday|sunday|will)\b/i;
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function isAbsenceQuestion(question: string): boolean {
   return ABSENCE_QUESTION.test(question);
@@ -547,19 +548,35 @@ function upcomingAbsenceAnswer(
   let from: string;
   let to: string;
   let period: string;
+  const currentWeekday = new Date(`${today}T00:00:00Z`).getUTCDay();
   if (/\btomorrow\b/i.test(question)) {
     from = shiftDay(today, 1);
     to = from;
     period = "tomorrow";
+  } else if (/\bthis\s+week\b/i.test(question)) {
+    from = today;
+    to = shiftDay(today, (7 - currentWeekday) % 7);
+    period = "this week";
   } else if (/\bnext\s+week\b/i.test(question)) {
-    const weekday = new Date(`${today}T00:00:00Z`).getUTCDay();
-    from = shiftDay(today, (8 - weekday) % 7 || 7);
+    from = shiftDay(today, (8 - currentWeekday) % 7 || 7);
     to = shiftDay(from, 6);
     period = "next week";
   } else {
-    from = shiftDay(today, 1);
-    to = shiftDay(today, 30);
-    period = "in the next 30 days";
+    const weekdayMatch = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.exec(
+      question,
+    );
+    if (weekdayMatch) {
+      const targetWeekday = WEEKDAYS.findIndex(
+        (day) => day.toLowerCase() === weekdayMatch[1].toLowerCase(),
+      );
+      from = shiftDay(today, (targetWeekday - currentWeekday + 7) % 7 || 7);
+      to = from;
+      period = `on ${WEEKDAYS[targetWeekday]}, ${formatDayNear(from, today)}`;
+    } else {
+      from = shiftDay(today, 1);
+      to = shiftDay(today, 30);
+      period = "in the next 30 days";
+    }
   }
 
   const people = new Map(tpl.people.map((person) => [person.id, person]));
@@ -715,8 +732,9 @@ function ownFirstBrief(
   const stripInsurance = policyDefaultsInForce(profile.riskVariables);
   const policyNote = insuranceFigureNote(profile.riskVariables, ownBusiness);
   const scenarios = matchScenarios(question, tpl.scenarios);
+  const asksAboutToday = /\btoday\b/i.test(question);
   const absence = OUT_TODAY_QUESTION.test(question)
-    ? FUTURE_PERIOD.test(question)
+    ? FUTURE_PERIOD.test(question) && !asksAboutToday
       ? upcomingAbsenceAnswer(profile, tpl, known.today, question)
       : outTodayAnswer(profile, tpl, known.today)
     : isAbsenceQuestion(question)
