@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { SignedOut } from "@/lib/auth/gates";
 import { FileText } from "lucide-react";
 import { tabLabel, type NavFn } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
@@ -84,6 +85,19 @@ export function StartHere({
       </header>
 
       <StartHerePreamble model={model.preamble} onOpenDetail={onOpenDetail} />
+      {!model.preamble.isSampleTeam && (
+        <SignedOut>
+          <p
+            data-testid="keep-it-note"
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-border bg-elevated/50 px-3 py-2 text-xs text-muted"
+          >
+            <span>Saved on this device only. Sign in to keep this business on every device.</span>
+            <Link to="/login" className="font-medium text-primary underline underline-offset-2">
+              Sign in
+            </Link>
+          </p>
+        </SignedOut>
+      )}
       <StartHereFiguresSection model={model.figures} onOpenDetail={onOpenDetail} />
       <StartHereContinuitySection
         model={model.continuity}
