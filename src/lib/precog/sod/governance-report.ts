@@ -27,7 +27,7 @@ export function createGovernanceReport(
     "",
     "## Summary",
     "",
-    `- Duty-conflict health: **${summary.segregationHealth}/100**`,
+    `- Duty-conflict health: **${summary.dutiesMarked ? `${summary.segregationHealth}/100` : "Not assessed"}**`,
     `- Continuity resilience: **${coverage.resilienceScore}/100**`,
     `- Open conflicts: **${open}** (${summary.critical} critical, ${summary.high} high)`,
     ...(summary.ownerHeld

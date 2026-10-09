@@ -70,6 +70,33 @@ describe("the duty-conflict tab's views", () => {
     expect(html).toContain(">Edit the team<");
   });
 
+  it("shows duty separation as not assessed when nobody holds a duty", () => {
+    const profile = defaultProfile("general");
+    const tpl = resolveTemplate(profile);
+    const report = detect.detectSodConflicts(tpl, profile.staff, {
+      ...detect.sodDetectionOptions(tpl, profile.dualRelease),
+      assignments: [
+        {
+          personId: "p1",
+          personName: "Pat",
+          role: "Owner",
+          entitlements: [],
+        },
+      ],
+    });
+    const html = renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={profile}>
+        <SodPanel report={report} />
+      </ReadOnlyPracticeProvider>,
+    );
+    const labelIndex = html.indexOf("Duties kept apart");
+    const tile = html.slice(labelIndex - 180, labelIndex + 300);
+
+    expect(tile).toContain("bg-elevated text-muted");
+    expect(tile).toContain(">—<");
+    expect(tile).toContain("Not assessed: nobody holds a money duty yet");
+  });
+
   it("counts open conflicts with no decision, and lets each card log one or judge it not valid", () => {
     const { html } = render(true);
     expect(html).toContain("No decision yet");

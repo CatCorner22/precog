@@ -480,12 +480,12 @@ describe("setup grid: pasting, adding and reading titles", () => {
       ownerRow: "kept",
       onLeaveNames: [],
     });
-    expect(summary.note).toContain("Added 59 of the 5,000 people.");
-    expect(summary.note).toContain("Rows read: 250.");
-    expect(summary.note).toContain("Rows mapped now: 59.");
-    expect(summary.note).toContain("Rows still requiring action: 4,941.");
-    expect(summary.note).toContain("one paste reads the first 250 rows");
-    expect(summary.note).toContain("this table holds 60 people");
+    expect(summary.note).toContain("Added 59 of 5,000 people.");
+    expect(summary.note).toContain("Read 250 rows.");
+    expect(summary.note).toContain("Mapped now: 59.");
+    expect(summary.note).toContain("Still need action: 4,941.");
+    expect(summary.note).toContain("the paste reads only the first 250 rows");
+    expect(summary.note).toContain("the table holds 60 people");
     expect(summary.note).toContain("How work flows > Build > Team");
     expect(summary.keepPaste).toBe(true);
   });
@@ -512,7 +512,7 @@ describe("setup grid: pasting, adding and reading titles", () => {
       ownerRow: "kept",
       onLeaveNames: [],
     });
-    expect(summary.note).toContain("Added none of the 2 people.");
+    expect(summary.note).toContain("Added none of 2 people.");
     expect(summary.note).not.toContain("Owner row");
     expect(summary.note).toContain("How work flows > Build > Team");
     expect(summary.note).not.toContain("Who controls what");
@@ -535,9 +535,9 @@ describe("setup grid: pasting, adding and reading titles", () => {
     const outcome = applyPaste([], result, "general");
     expect(outcome.rows).toHaveLength(12);
     expect(outcome.unresolvedRows).toBe(0);
-    expect(outcome.note).toContain("Rows read: 12.");
-    expect(outcome.note).toContain("Rows mapped now: 12.");
-    expect(outcome.note).toContain("Rows still requiring action: 0.");
+    expect(outcome.note).toContain("Read 12 rows.");
+    expect(outcome.note).toContain("Mapped now: 12.");
+    expect(outcome.note).toContain("Still need action: 0.");
   });
 
   it("holds 60 of 120 valid rows for review and reports every unresolved row", () => {
@@ -551,10 +551,10 @@ describe("setup grid: pasting, adding and reading titles", () => {
     const outcome = applyPaste([], result, "general");
     expect(outcome.rows).toHaveLength(OWN_TEAM_MAX);
     expect(outcome.unresolvedRows).toBe(60);
-    expect(outcome.note).toContain("Rows read: 120.");
-    expect(outcome.note).toContain("Duplicate or invalid rows: 0.");
-    expect(outcome.note).toContain("Rows mapped now: 60.");
-    expect(outcome.note).toContain("Rows still requiring action: 60.");
+    expect(outcome.note).toContain("Read 120 rows.");
+    expect(outcome.note).toContain("Duplicates or invalid: 0.");
+    expect(outcome.note).toContain("Mapped now: 60.");
+    expect(outcome.note).toContain("Still need action: 60.");
     expect(outcome.keepPaste).toBe(true);
   });
 
@@ -576,8 +576,8 @@ describe("setup grid: pasting, adding and reading titles", () => {
       ownerRow: "kept",
       onLeaveNames: ["Ana Morales"],
     });
-    expect(note).toContain("Left out 1 person the roster marks inactive: Bo Chen.");
-    expect(note).toContain("Ana Morales is on leave");
+    expect(note).toContain("Left out 1 inactive person: Bo Chen.");
+    expect(note).toContain("Ana Morales is on leave.");
   });
 
   it("adding one more server after removing Server 2 gives Server 4, not a second Server 3", () => {

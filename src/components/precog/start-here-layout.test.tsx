@@ -6,7 +6,7 @@ import { defaultProfile } from "@/lib/precog/practice-profile";
 import { buildStartHereModel } from "@/lib/precog/start-here/model";
 import { doNextSteps, stepFocus } from "@/lib/precog/actions/do-next";
 import { StartHereContinuitySection } from "./start-here-continuity-section";
-import { FIRST_STEPS_SHOWN, stepDestination } from "@/lib/precog/start-here/layout";
+import { FIRST_STEPS_SHOWN, parseTeamFocus, stepDestination } from "@/lib/precog/start-here/layout";
 import { StartHereFirstStepsSection } from "./start-here-first-steps-section";
 
 // The tree walk below calls components as functions, outside React, so the
@@ -61,7 +61,7 @@ describe("Start here, Do these first on one screen", () => {
     for (const s of steps.slice(0, FIRST_STEPS_SHOWN)) expect(html).toContain(s.control.label);
     expect(html).toContain(`Show the other ${steps.length - FIRST_STEPS_SHOWN}`);
     expect(html).toMatch(/<details(?! open)[^>]*><summary[^>]*>Show the other/);
-    expect(html).not.toContain("Give your staff a way to raise a concern");
+    expect(html).not.toContain("Give staff a way to report concerns");
     expect(html).not.toContain("on exactly one person.");
   });
 
@@ -124,7 +124,7 @@ describe("Start here, Do these first on one screen", () => {
   it("has no button when nothing opens a screen, as the report renders it", () => {
     const html = renderToStaticMarkup(<StartHereFirstStepsSection model={model().firstSteps} />);
     expect(html).not.toContain("Open the conflicts it answers");
-    expect(html).toContain("Give your staff a way to raise a concern");
+    expect(html).toContain("Give staff a way to report concerns");
   });
 
   it("keeps the notes under their own heading in the fold", () => {
@@ -137,6 +137,56 @@ describe("Start here, Do these first on one screen", () => {
 });
 
 describe("Start here, continuity split into today and readiness", () => {
+  it("wraps long duty names in the Today strip and sole-duty list", () => {
+    const longName = "D".repeat(83);
+    const today = new Date(2026, 8, 26);
+    const profile = {
+      ...defaultProfile("dental"),
+      customPeople: [{ id: "avery", name: "Avery", role: "Team member", active: true }],
+      customKnowledge: [
+        {
+          id: "long-duty",
+          name: longName,
+          criticality: "critical" as const,
+          category: "process" as const,
+          description: "",
+          linkedProcessIds: [],
+          documented: false,
+          kind: "duty" as const,
+        },
+      ],
+      customRelations: [
+        { personId: "avery", knowledgeId: "long-duty", level: "proficient" as const },
+      ],
+      plannedAbsences: [
+        {
+          id: "avery-out",
+          personId: "avery",
+          industry: "dental" as const,
+          from: "2026-09-26",
+          to: "2026-09-26",
+          unplanned: true,
+        },
+      ],
+    };
+    const m = buildStartHereModel({
+      profile,
+      template: resolveTemplate(profile),
+      today,
+    });
+    const todayHtml = renderToStaticMarkup(
+      <StartHereContinuitySection model={m.continuity} onOpenDetail={() => {}} part="today" />,
+    );
+    const notesHtml = renderToStaticMarkup(
+      <StartHereFirstStepsSection model={m.firstSteps} part="notes" />,
+    );
+
+    expect(todayHtml).toContain(longName);
+    expect(todayHtml).toContain("[overflow-wrap:anywhere]");
+    expect(notesHtml).toContain(longName);
+    expect(notesHtml).toContain("[overflow-wrap:anywhere]");
+  });
+
   it("renders nothing for today when nobody is out and nothing is pending", () => {
     const m = model().continuity;
     const quiet = { ...m, staffingToday: { ...m.staffingToday, headline: null } };
@@ -161,5 +211,18 @@ describe("Start here, continuity split into today and readiness", () => {
     );
     expect(today).toContain("Maya is out today.");
     expect(today).not.toContain("Continuity readiness");
+  });
+});
+
+describe("parseTeamFocus", () => {
+  it("opens a person, and marks two duties only when the address names both", () => {
+    expect(parseTeamFocus("person~own-2")).toEqual({ personId: "own-2", duties: [] });
+    expect(parseTeamFocus("person~p2~create_vendor~release_payment")).toEqual({
+      personId: "p2",
+      duties: ["create_vendor", "release_payment"],
+    });
+    expect(parseTeamFocus("person~")).toBeNull();
+    expect(parseTeamFocus("person~p2~create_vendor")).toBeNull();
+    expect(parseTeamFocus("sod")).toBeNull();
   });
 });

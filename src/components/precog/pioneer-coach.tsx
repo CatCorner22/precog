@@ -4,17 +4,16 @@ import { runPioneerCoach } from "@/lib/precog/coach/pioneer-server";
 import { PIONEER_LIST_CAPS } from "@/lib/precog/coach/pioneer-caps";
 import { CONTROL_CONFIRM_TAB, CONTROL_IN_PLACE_TAB } from "@/lib/precog/active-template";
 import { usePractice } from "@/lib/precog/practice-context";
-import { usePresentation } from "@/lib/precog/presentation";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Brain, Compass, GitBranch, Loader2, Sparkles } from "lucide-react";
-import { tabLabel, type NavFn } from "@/lib/precog/navigation";
+import { Compass, Loader2, Sparkles } from "lucide-react";
+import { type NavFn } from "@/lib/precog/navigation";
 import { PageIntro } from "@/components/precog/page-intro";
 import { localDateKey } from "@/lib/precog/dates";
 import { journalEntry, type CoachDecision } from "@/lib/precog/coach/journal-entry";
 import {
+  askButtonLabel,
   BUSINESS_CHANGED_MESSAGE,
   CoachResultView,
   briefClipboardText,
@@ -24,7 +23,6 @@ import {
 
 export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
   const { profile, addDecision } = usePractice();
-  const { say } = usePresentation();
   const prompts = getIndustryCopy(profile.industry).pioneerPrompts;
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
@@ -53,9 +51,10 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
     setLoading(false);
   }, [profile.industry, profile.businessId]);
 
-  async function run() {
+  async function run(asked?: string) {
     const id = ++runId.current;
-    const askedQuestion = question.trim();
+    const askedQuestion = (asked ?? question).trim();
+    setQuestion(askedQuestion);
     running.current = true;
     setLoading(true);
     setError(null);
@@ -125,6 +124,43 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
     setLogged((prev) => new Set(prev).add(d.action));
   }
 
+  function questionBox(rows: number) {
+    return (
+      <textarea
+        aria-label="Your question"
+        placeholder="Ask about your team, a person leaving, or what to fix first"
+        value={question}
+        onChange={(e) => setQuestion(e.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            if (!loading) void run();
+          }
+        }}
+        rows={rows}
+        className="w-full rounded-xl border border-border bg-elevated px-3 py-2 text-sm"
+      />
+    );
+  }
+
+  function askButton() {
+    return (
+      <Button onClick={() => void run()} disabled={loading}>
+        {loading ? (
+          <>
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+            {askButtonLabel(true, false)}
+          </>
+        ) : (
+          <>
+            <Sparkles className="size-4" aria-hidden />
+            {askButtonLabel(false, question.trim().length > 0)}
+          </>
+        )}
+      </Button>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
@@ -143,75 +179,57 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
             </p>
           }
         />
-      </section>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Ask Pioneer</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <textarea
-            aria-label="Your question"
-            placeholder="Ask about your team, a person leaving, or what to fix first"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            rows={3}
-            className="w-full rounded-xl border border-border bg-elevated px-3 py-2 text-sm"
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-subtle">Try:</span>
-            {prompts.map((p) => (
-              <button
-                key={p}
-                type="button"
-                aria-pressed={question === p}
-                onClick={() => setQuestion(p)}
-                className={
-                  question === p
-                    ? "rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-left text-xs"
-                    : "rounded-full border border-border bg-elevated px-3 py-1.5 text-left text-xs text-muted hover:border-border-strong"
-                }
-              >
-                {p}
-              </button>
-            ))}
+        {!result && !loading && (
+          <div className="mt-4 space-y-3">
+            {questionBox(3)}
+            <div className="flex flex-col gap-2">
+              <span className="text-xs text-subtle">Or start from one of these</span>
+              {prompts.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  aria-pressed={question === p}
+                  disabled={loading}
+                  onClick={() => void run(p)}
+                  className={
+                    question === p
+                      ? "rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-left text-sm pointer-coarse:min-h-11"
+                      : "rounded-xl border border-border bg-elevated px-3 py-2 text-left text-sm text-muted hover:border-border-strong pointer-coarse:min-h-11"
+                  }
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">{askButton()}</div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={run} disabled={loading || !question.trim()}>
-              {loading ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" aria-hidden />
-                  Writing the answer…
-                </>
-              ) : (
-                <>
-                  <Sparkles className="size-4" aria-hidden />
-                  Ask
-                </>
-              )}
-            </Button>
-            <Button variant="secondary" onClick={() => onNavigate?.("intel")}>
-              <Brain className="size-3.5" aria-hidden />
-              Open {tabLabel("intel", say)}
-            </Button>
-            <Button variant="secondary" onClick={() => onNavigate?.("precog")}>
-              <GitBranch className="size-3.5" aria-hidden />
-              Open {tabLabel("precog", say)}
-            </Button>
-          </div>
-          {error && (
-            <p
-              role="alert"
-              className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-            >
-              {error}
+        )}
+        {!result && loading && (
+          <div className="mt-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-4">
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+              Checking your records…
             </p>
-          )}
-          <p role="status" className="sr-only">
-            {loading ? "Writing the answer" : result ? "Answer ready" : ""}
+            <p className="mt-2 text-sm text-muted">
+              {question.trim() || "What do I do this week?"}
+            </p>
+            <p className="mt-2 text-xs text-subtle">
+              Precog&rsquo;s rules write every word from your records.
+            </p>
+          </div>
+        )}
+        {error && !result && (
+          <p
+            role="alert"
+            className="mt-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+          >
+            {error}
           </p>
-        </CardContent>
-      </Card>
+        )}
+        <p role="status" className="sr-only">
+          {loading ? "Checking your records" : result ? "Answer ready" : ""}
+        </p>
+      </section>
 
       {result && (
         <CoachResultView
@@ -221,7 +239,26 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
           logged={logged}
           onCopy={copyBrief}
           copied={copied}
+          nextQuestions={prompts.filter((prompt) => prompt !== result.question)}
+          onAsk={(prompt) => void run(prompt)}
+          asking={loading}
         />
+      )}
+
+      {result && (
+        <section className="space-y-3 rounded-2xl border border-border bg-surface px-6 py-4">
+          <p className="text-xs text-subtle">Ask something else</p>
+          {questionBox(2)}
+          <div className="flex flex-wrap gap-2">{askButton()}</div>
+          {error && (
+            <p
+              role="alert"
+              className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+            >
+              {error}
+            </p>
+          )}
+        </section>
       )}
     </div>
   );

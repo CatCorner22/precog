@@ -19,10 +19,10 @@ describe("applyPaste", () => {
     );
     expect(applied.rows?.map((r) => r.name)).toEqual(["", "Ana Ruiz", "Ben Cole"]);
     expect(applied.note).toContain(
-      "Rows read: 2. Duplicate or invalid rows: 0. Rows mapped now: 2. Rows still requiring action: 0.",
+      "Read 2 rows. Duplicates or invalid: 0. Mapped now: 2. Still need action: 0.",
     );
     expect(applied.note).toContain(
-      "Added 2 people. Found 1 title in the catalog and ticked their duties",
+      "Added 2 people. Precog matched 1 job title to its catalog and marked the usual duties.",
     );
     expect(applied.keepPaste).toBe(false);
   });
@@ -36,7 +36,7 @@ describe("applyPaste", () => {
     );
     expect(applied.rows?.map((r) => r.name)).toEqual(["Maria Lopez", "Jon Ruiz"]);
     expect(applied.note).toContain(
-      "The executive director in your paste takes the place of the empty Executive Director row.",
+      "The executive director in your roster replaces the blank Executive Director row.",
     );
   });
 
@@ -49,7 +49,7 @@ describe("applyPaste", () => {
     );
     expect(applied.rows?.map((r) => r.name)).toEqual(["", "Cy Dunn"]);
     expect(applied.leftOut).toEqual([{ name: "Jose Perez", role: "Cashier" }]);
-    expect(applied.note).toContain("Left out 1 person the roster marks inactive: José Pérez.");
+    expect(applied.note).toContain("Left out 1 inactive person: José Pérez.");
   });
 
   it("keeps the grid and the paste when everyone pasted is inactive", () => {
@@ -62,10 +62,10 @@ describe("applyPaste", () => {
     expect(applied.rows).toBeNull();
     expect(applied.keepPaste).toBe(true);
     expect(applied.note).toContain(
-      "Rows read: 2. Duplicate or invalid rows: 0. Rows mapped now: 0. Rows still requiring action: 0.",
+      "Read 2 rows. Duplicates or invalid: 0. Mapped now: 0. Still need action: 0.",
     );
     expect(applied.note).toContain(
-      "The paste marks all 2 people as having left, so the table adds none of them: Bo Chen and Al Wu.",
+      "The roster marks all 2 people as having left. Precog added none: Bo Chen and Al Wu.",
     );
     expect(applied.leftOut.map((who) => who.name)).toEqual(["Bo Chen", "Al Wu"]);
   });

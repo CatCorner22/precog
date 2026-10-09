@@ -99,7 +99,9 @@ export function StartHereContinuitySection({
                       <ul className="mt-1 space-y-1 text-xs text-muted">
                         {o.stops.slice(0, 4).map((s) => (
                           <li key={s.item.id} className="flex flex-wrap items-center gap-x-2">
-                            <span className="text-fg">{s.item.name}</span>
+                            <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] text-fg">
+                              {s.item.name}
+                            </span>
                             <span>
                               {s.standIn
                                 ? `→ ${firstName(s.standIn.name)}${s.cold ? " (starting cold)" : ""}`
@@ -225,7 +227,7 @@ export function StartHereContinuitySection({
                   <p className="font-mono text-2xl font-semibold tracking-tight">{slippedCount}</p>
                   <p className="mt-1 text-sm font-medium">Slipped</p>
                   <p className="mt-1 text-xs text-subtle">
-                    done items whose coverage or documentation regressed
+                    done items whose coverage or documentation got worse
                   </p>
                 </div>
                 <p className="text-xs leading-relaxed text-subtle sm:col-span-2 lg:col-span-4">

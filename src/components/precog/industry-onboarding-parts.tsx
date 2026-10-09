@@ -108,7 +108,7 @@ export function TitleTicksReview({
               >
                 {item.who}
               </button>{" "}
-              <span className="text-muted">{`(${item.role}) does these, from the job title:`}</span>
+              <span className="text-muted">{`(${item.role}) job-title suggestions:`}</span>
             </p>
             <ul className="space-y-1" aria-label={`Suggested duties for ${item.who}`}>
               {item.duties.map((duty) => {

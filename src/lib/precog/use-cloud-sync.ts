@@ -241,6 +241,10 @@ export function useCloudSync(input: {
   }, []);
   // Merged copies the account took, by the open-business object that shows one.
   const acceptedMerges = useRef(new WeakMap<PracticeProfile, AcceptedMerge>());
+  // How many merges the account has taken for each business. A save queued
+  // before one ran holds a copy that never saw the merge; once the merged
+  // copy shows, that queued copy must not save over it (see saveCloud).
+  const mergesTaken = useRef(new Map<string, number>());
   useEffect(
     () =>
       registerExitCleanup(() => {
@@ -410,6 +414,7 @@ export function useCloudSync(input: {
       acknowledged.current.set(id, saved);
       rememberStamp(id, saved.updatedAt);
       lastCloudError.current = null;
+      mergesTaken.current.set(id, (mergesTaken.current.get(id) ?? 0) + 1);
       const accepted: AcceptedMerge = {
         businessId: id,
         revision,
@@ -446,8 +451,18 @@ export function useCloudSync(input: {
       const identity = identitySnapshot();
       if (!mounted.current || !identityUnchanged(identity) || identity.accountId !== userId)
         return false;
+      const mergesSeen = mergesTaken.current.get(id) ?? 0;
       return queue.current.run(id, async () => {
         if (!mounted.current || !identityUnchanged(identity) || !userId) return false;
+        // The account took a merge while this copy waited its turn, and the
+        // merged copy has replaced it as the open business: this copy lacks
+        // the sections the merge brought, and the merged one saves instead.
+        // The open business still being this copy means the merge did not
+        // apply to it; its save goes on, and is refused and merged or asked
+        // about as any other.
+        if ((mergesTaken.current.get(id) ?? 0) !== mergesSeen && profileRef.current !== current) {
+          return false;
+        }
         // The account holds this very copy already: saving it again would only
         // add an identical version to the business's history.
         if (acknowledged.current.get(id) === current) {

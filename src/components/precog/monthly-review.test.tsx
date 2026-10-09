@@ -922,6 +922,9 @@ describe("monthly review saves who actually did the check", () => {
     ];
     const html = await settle();
     expect(html.match(/>Mark resolved<\/button>/g)).toHaveLength(1);
+    expect(html).toContain(
+      "After you fix it, press Mark resolved. Precog saves Done with the fix.",
+    );
     whoField(render(), BANK).props.onChange({ target: { value: "Owner" } });
     noteField(render(), BANK).props.onChange({
       target: { value: "Found it in the Sep 13 deposit" },

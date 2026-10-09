@@ -21,17 +21,16 @@ function firstParagraph(html: string): string {
 }
 
 describe("StartHereCostSection", () => {
-  it("opens with one sentence naming each kind of dollar figure and where it comes from", () => {
+  it("names each kind of dollar figure, its source, and the study scope", () => {
     const sentence = firstParagraph(costHtml("dental"));
-    expect(sentence).toMatch(/^Precog shows three kinds of dollar figure: /);
-    expect(sentence).toContain("real cases like yours");
+    expect(sentence).toContain("Precog shows three kinds of dollar figures.");
+    expect(sentence).toContain("real prosecuted cases with the gaps above.");
     expect(sentence).toContain(
-      "the fraud study’s median for organizations under 100 employees ($126,000)",
+      "The fraud study’s median is the typical loss once a fraud is found for organizations under 100 employees ($126,000).",
     );
-    expect(sentence).toContain("Precog’s example scenarios under What could happen");
+    expect(sentence).toContain("Example scenarios under What could happen carry");
     expect(sentence).toContain(ILLUSTRATIVE_LABEL.toLowerCase());
-    // One sentence: a single full stop, at the end.
-    expect(sentence.match(/\.(\s|$)/g)?.length).toBe(1);
+    expect(sentence).toContain("Use them to compare fixes.");
     expect(sentence).not.toMatch(/\bshould\b|\be\.g\.|\bthe app\b/i);
   });
 });

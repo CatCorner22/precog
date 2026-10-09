@@ -724,7 +724,7 @@ export function IndustryOnboarding({
         className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn"
         role="status"
       >
-        This browser will not keep your progress: finish in this sitting.
+        This browser will not save your progress. Finish setup in this session.
       </p>
     ) : null;
   // Answers that came back from this tab, with the way to throw them away.
@@ -741,7 +741,7 @@ export function IndustryOnboarding({
     </p>
   );
   const resumedNote = resumed
-    ? startOverNote("Your answers from earlier in this tab are back.", discardDraft)
+    ? startOverNote("Your earlier answers are back.", discardDraft)
     : null;
   const storageNote =
     keepsNothingNote || resumedNote ? (
@@ -768,7 +768,7 @@ export function IndustryOnboarding({
           if (!ask || window.confirm(ask)) void cancelSetup();
         }}
       >
-        Cancel and go back to {setupReturnsTo.name}
+        Cancel and return to {setupReturnsTo.name}
       </button>
     </p>
   ) : null;
@@ -794,8 +794,8 @@ export function IndustryOnboarding({
   const keptNotice =
     keepsNothing || draftSaved === false ? null : (
       <p className="text-xs text-muted">
-        Precog keeps this business once you press &ldquo;{finishLabel}&rdquo;. Until then your
-        answers stay in this browser tab, even through a reload.
+        Precog saves this business when you press &ldquo;{finishLabel}&rdquo;. Until then, your
+        answers stay in this browser tab, even after a reload.
       </p>
     );
   // Each row's duties a job title ticked and the owner has not yet kept,
@@ -870,11 +870,12 @@ export function IndustryOnboarding({
                 Welcome to Precog
               </Badge>
               <h2 id="industry-onboarding-title" ref={titleRef} tabIndex={-1} className={titleCls}>
-                Which line of business is this?
+                What kind of organization is this?
               </h2>
               <CardDescription>
-                Pick the closest one. You can change the line of business later in Business
-                settings, from the business menu.
+                Choose the closest fit. Next, enter your team or explore a sample. Change this later
+                in Business settings, from the business menu. Pick the closest one. You can change
+                the line of business later in Business settings, from the business menu.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -983,8 +984,8 @@ export function IndustryOnboarding({
                 How money moves here
               </h2>
               <CardDescription>
-                A few quick answers tailor the duties and first steps to how this business works.
-                Not sure is fine.
+                A few answers tailor the duties and first steps to this business. You can choose Not
+                sure.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1028,12 +1029,12 @@ export function IndustryOnboarding({
                 {industry?.label}
               </Badge>
               <h2 id="industry-onboarding-title" ref={titleRef} tabIndex={-1} className={titleCls}>
-                Your business and who does the money work
+                Your people and their money duties
               </h2>
               <CardDescription>
-                Name your people and tick the money duties each one handles today. Change who holds
-                a duty later on Team. How money moves here is optional and changes which duties
-                start ticked.
+                Name each person and mark the money duties they handle today. Change who holds a
+                duty later on Team. How money moves here is optional and changes which duties start
+                ticked.
               </CardDescription>
               <button
                 type="button"
@@ -1047,10 +1048,7 @@ export function IndustryOnboarding({
             <CardContent className="space-y-4">
               {storageNote}
               {restoredEarlier &&
-                startOverNote(
-                  "The team you started entering earlier in this tab is back below.",
-                  startOver,
-                )}
+                startOverNote("Your earlier team entries are back below.", startOver)}
               {facts.setupMethod && facts.setupMethod !== "person_grid" && (
                 <section
                   className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-4"
@@ -1058,13 +1056,13 @@ export function IndustryOnboarding({
                 >
                   <h3 id="roster-start-heading" className="font-medium">
                     {facts.setupMethod === "job_groups"
-                      ? "Start the staged job-group path"
+                      ? "Start with job groups"
                       : "Start from your roster"}
                   </h3>
                   <p className="text-xs text-muted">
                     {facts.setupMethod === "job_groups"
-                      ? "Grouped-role setup is staged. Paste the existing roster here; Precog groups recognized job titles while keeping named people available for control findings."
-                      : "Paste an HR or payroll export, header row included, or one person per line as Name, Job title. You will review the mapped control participants next."}
+                      ? "Job-group setup is still staged. Paste the roster here. Precog groups recognized job titles and keeps named people for control findings."
+                      : "Paste an HR or payroll export with its header, or list one person per line as Name, Job title. Next, review the mapped control participants."}
                   </p>
                   <textarea
                     className={cn(fieldCls, "min-h-28 w-full font-mono text-xs")}
@@ -1126,8 +1124,8 @@ export function IndustryOnboarding({
                   {reviewOnly && (
                     <p role="status" className="text-xs text-muted">
                       {attentionIndices.size === 0
-                        ? "No name or job title remains to review. Show all rows to check their suggested duties."
-                        : "Showing rows to review. Rows you fix stay in view; hidden rows stay on your team."}
+                        ? "No names or job titles need review. Show all rows to check suggested duties."
+                        : "Showing rows to review. Rows you fix stay in view. Hidden rows stay on your team."}
                     </p>
                   )}
                 </div>
@@ -1138,7 +1136,7 @@ export function IndustryOnboarding({
                     onClick={() => finishRef.current?.focus()}
                     disabled={namedRows.length === 0}
                   >
-                    Skip to the finish button
+                    Skip to Finish
                   </Button>
                 )}
               </section>
@@ -1147,16 +1145,19 @@ export function IndustryOnboarding({
                   role="status"
                   className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn"
                 >
-                  Scroll sideways for more duties. Names stay on the left; duty names stay on top.
+                  Scroll sideways to see more duties. Names stay on the left. Duty names stay at the
+                  top.
                 </p>
               ) : null}
               <p className="text-xs text-muted">
                 {gridOverflows && gridScrolled
-                  ? "Scroll sideways for more duties. Names stay on the left; duty names stay on top."
+                  ? "Scroll sideways to see more duties. Names stay on the left. Duty names stay at the top."
                   : `${rowsInUse} of up to ${OWN_TEAM_MAX} people.`}{" "}
-                Duties with no column show as small tags under the job title; remove one with ×, or
-                add another with &ldquo;Add a duty&rdquo;. A job title ticks its usual duties:
-                untick any that are wrong.
+                Duties without a column appear as tags under each job title. Remove one with × or
+                add one with &ldquo;Add a duty&rdquo;. Job titles only suggest duties. Keep or
+                remove each suggestion below the table. Duties with no column show as small tags
+                under the job title; remove one with ×, or add another with &ldquo;Add a
+                duty&rdquo;. A job title ticks its usual duties: untick any that are wrong.
               </p>
               <div
                 ref={gridBoxRef}
@@ -1507,12 +1508,12 @@ export function IndustryOnboarding({
 
                 <details className="rounded-xl border border-border bg-elevated/50 p-3">
                   <summary className="cursor-pointer text-sm font-medium">
-                    No roster handy? Add people by job title
+                    No roster? Add people by job title
                   </summary>
                   <div className="mt-2 space-y-2">
                     <p className="text-xs text-muted">
-                      Pick a common job, say how many, and rows appear with placeholder names and
-                      that job&rsquo;s usual duties ticked. Rename them as you go.
+                      Choose a common job and count. Precog adds rows with placeholder names and
+                      that job&rsquo;s usual duties marked. Rename each person as you go.
                     </p>
                     <button
                       type="button"
@@ -1568,7 +1569,7 @@ export function IndustryOnboarding({
                     </div>
                     <p role="status" className="text-xs text-muted empty:hidden">
                       {tableFull && !quickNote
-                        ? `The table holds ${OWN_TEAM_MAX} people and is full. Add more in ${MORE_PEOPLE_PLACE} after setup.`
+                        ? `This table is full at ${OWN_TEAM_MAX} people. Add more in ${MORE_PEOPLE_PLACE} after setup.`
                         : quickNote}
                     </p>
                     {quickEntry && (
@@ -1596,7 +1597,7 @@ export function IndustryOnboarding({
                 <SetupPreviewCard rows={rows} industry={selected} answers={answers} />
                 <Card className="border-border bg-elevated/40">
                   <CardContent className="space-y-3 pt-5">
-                    <h3 className="text-sm font-semibold">What your answers change</h3>
+                    <h3 className="text-sm font-semibold">Changes from your answers</h3>
                     {effects.changed.length > 0 ? (
                       <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed text-muted">
                         {effects.changed.map((effect) => (
@@ -1605,7 +1606,7 @@ export function IndustryOnboarding({
                       </ul>
                     ) : (
                       <p className="text-xs text-muted">
-                        No duties or safeguards changed based on these answers.
+                        These answers changed no duties or safeguards.
                       </p>
                     )}
                     <details className="rounded-lg border border-border bg-panel/60 p-2.5">
@@ -1683,15 +1684,15 @@ export function MappingScopeAttestation({
   const options: readonly (readonly [MappingScope, string])[] = [
     [
       "whole_business",
-      "This roster includes everyone who handles or controls money across the whole business.",
+      "This roster includes everyone in the business who handles or controls money.",
     ],
     [
       "one_location",
-      "This is a scoped map of one location; the rest of the business is not fully assessed.",
+      "This map covers one location. Precog has not fully assessed the rest of the business.",
     ],
     [
       "one_team",
-      "This is a scoped map of one team; the rest of the business is not fully assessed.",
+      "This map covers one team. Precog has not fully assessed the rest of the business.",
     ],
   ];
   return (
@@ -1699,8 +1700,8 @@ export function MappingScopeAttestation({
       <legend className="px-1 text-sm font-medium">Confirm what this map covers</legend>
       <p className="text-xs text-muted">
         {unresolvedRows > 0
-          ? `${unresolvedRows.toLocaleString("en-US")} valid roster ${unresolvedRows === 1 ? "row is" : "rows are"} not in the review grid. Unknown or unresolved people earn no control credit.`
-          : "A workforce of 100 or more needs an explicit scope before Precog produces findings."}
+          ? `${unresolvedRows.toLocaleString("en-US")} valid roster ${unresolvedRows === 1 ? "row is" : "rows are"} not in the review grid. Precog gives no control credit for unknown or unresolved people.`
+          : "A workforce of 100 or more needs an explicit scope before Precog shows findings."}
       </p>
       {options.map(([value, label]) => (
         <label key={value} className="flex items-start gap-2 text-xs">
@@ -1717,7 +1718,7 @@ export function MappingScopeAttestation({
       ))}
       {scope && scopedAssessment && (
         <p role="status" className="text-xs font-medium text-warn">
-          Precog will produce a scoped map. People outside it are not fully assessed.
+          Precog maps only this scope. It does not fully assess people outside it.
         </p>
       )}
     </fieldset>

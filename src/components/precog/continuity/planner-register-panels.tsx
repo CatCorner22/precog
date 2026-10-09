@@ -94,7 +94,7 @@ export function CrossTrainingPlanCard({
                       recorded={itemRecorded(tpl, m.item.id)}
                     />
                   </div>
-                  <p className="text-muted">{m.action}</p>
+                  <p className="break-words text-muted [overflow-wrap:anywhere]">{m.action}</p>
                   <JournalStepStatus
                     commitment={journal.trackedBy(m.item.id, "cover")}
                     onLog={() => journal.logMove(m)}
@@ -159,7 +159,7 @@ export function DocumentationPlanCard({
                       recorded={itemRecorded(tpl, g.item.id)}
                     />
                   </div>
-                  <p className="text-muted">{g.action}</p>
+                  <p className="break-words text-muted [overflow-wrap:anywhere]">{g.action}</p>
                   <JournalStepStatus
                     commitment={journal.trackedBy(g.item.id, g.step)}
                     onLog={() => journal.logGap(g)}
@@ -252,7 +252,9 @@ export function CheckInCard({
                   <span className="font-mono text-xs text-muted">{i + 1}.</span>
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{entry.item.name}</span>
+                      <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] font-medium">
+                        {entry.item.name}
+                      </span>
                       <CoverageStatusBadge
                         status={entry.coverage}
                         recorded={itemRecorded(tpl, entry.item.id)}
@@ -333,14 +335,18 @@ export function CheckInCard({
                 >
                   <span className="font-mono text-xs text-muted">{i + 1}.</span>
                   <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{entry.item.name}</span>
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] font-medium">
+                        {entry.item.name}
+                      </span>
                       <CoverageStatusBadge
                         status={entry.coverage}
                         recorded={itemRecorded(tpl, entry.item.id)}
                       />
                     </div>
-                    <p className="text-muted">{entry.action}</p>
+                    <p className="break-words text-muted [overflow-wrap:anywhere]">
+                      {entry.action}
+                    </p>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -403,11 +409,13 @@ export function CheckInDropsCard({
                 <span className="font-mono text-xs text-muted">{i + 1}.</span>
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{d.item.name}</span>
+                    <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] font-medium">
+                      {d.item.name}
+                    </span>
                     <Badge variant={STATUS_VARIANT[d.to]}>{STATUS_LABEL[d.to]}</Badge>
                     <span className="text-xs text-muted">was: {STATUS_LABEL[d.from]}</span>
                   </div>
-                  <p className="text-muted">
+                  <p className="break-words text-muted [overflow-wrap:anywhere]">
                     {d.remaining.length === 0
                       ? "Nobody still on the team can run this alone."
                       : `${joinWithAnd(d.remaining.map((p) => p.name))} ${verb(
@@ -451,8 +459,10 @@ export function SelectedKnowledgeCard({
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-wrap items-center gap-2">
-          <CardTitle>{selected.item.name}</CardTitle>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <CardTitle className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]">
+            {selected.item.name}
+          </CardTitle>
           <Badge variant={badge.variant}>{badge.label}</Badge>
         </div>
         <CardDescription>

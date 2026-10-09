@@ -41,12 +41,11 @@ export function StartHereCostSection({ model }: { model: StartHereModel["cost"] 
       />
 
       <p className="text-sm leading-relaxed text-muted">
-        Precog shows three kinds of dollar figure: real cases like yours, the losses in prosecuted
-        cases with the gaps above; the fraud study&rsquo;s median for{" "}
-        {smallOrg ? "organizations under 100 employees" : "organizations of every size"}
-        {medianLoss ? ` (${medianLossValue ?? medianLoss.value})` : ""}, the typical loss once a
-        fraud is found; and Precog&rsquo;s example scenarios under What could happen, which carry{" "}
-        {ILLUSTRATIVE_LABEL.toLowerCase()}, for comparing fixes.
+        Precog shows three kinds of dollar figures. Case figures come from real prosecuted cases
+        with the gaps above. The fraud study&rsquo;s median is the typical loss once a fraud is
+        found for {smallOrg ? "organizations under 100 employees" : "organizations of every size"}
+        {medianLoss ? ` (${medianLossValue ?? medianLoss.value})` : ""}. Example scenarios under
+        What could happen carry {ILLUSTRATIVE_LABEL.toLowerCase()}. Use them to compare fixes.
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

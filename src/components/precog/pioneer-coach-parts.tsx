@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { PioneerCoachResult } from "@/lib/precog/coach/pioneer-answer";
 import type { CoachDecision } from "@/lib/precog/coach/journal-entry";
 import { tabLabel, type NavFn } from "@/lib/precog/navigation";
@@ -21,6 +21,78 @@ export const BUSINESS_CHANGED_MESSAGE =
 /** How many recommended moves show before "Show all". */
 export const MOVES_PREVIEW = 3;
 
+/** The brief heading, focused when an answer arrives. */
+export const PIONEER_BRIEF_TITLE_ID = "pioneer-brief-title";
+
+/** The Ask button's words. An empty box still asks what to do this week. */
+export function askButtonLabel(loading: boolean, hasQuestion: boolean): string {
+  if (loading) return "Checking your records…";
+  return hasQuestion ? "Ask" : "What do I do this week?";
+}
+
+/** The effort badge in owner words. The stored value stays low, medium, or high. */
+export function effortWords(effort: string): string {
+  if (effort === "low") return "Small job";
+  if (effort === "medium") return "Medium job";
+  if (effort === "high") return "Large job";
+  return effort;
+}
+
+/**
+ * The two lines a brief leads with, lifted out of the markdown so the screen
+ * can show them once. The rest of the brief stays in reading order, without
+ * the recommended-moves section the move list already shows.
+ */
+export function briefBoard(markdown: string): {
+  situation: string | null;
+  thisWeek: string | null;
+  rest: string;
+} {
+  const situation = sectionText(markdown, "Situation");
+  const week = sectionText(markdown, "This week");
+  let rest = markdown;
+  for (const heading of ["Situation", "This week", "Recommended moves"]) {
+    rest = withoutSection(rest, heading);
+  }
+  return {
+    situation,
+    thisWeek: week ? dropThisWeekLabel(week) : null,
+    rest: rest.trim(),
+  };
+}
+
+function sectionText(markdown: string, heading: string): string | null {
+  const lines = markdown.split("\n");
+  const start = lines.findIndex((line) => line === `## ${heading}`);
+  if (start < 0) return null;
+  const end = lines.findIndex((line, index) => index > start && line.startsWith("## "));
+  const body = (end < 0 ? lines.slice(start + 1) : lines.slice(start + 1, end)).join("\n").trim();
+  return body || null;
+}
+
+/** The screen labels the line "This week", so the body does not say it again. */
+function dropThisWeekLabel(body: string): string {
+  const stripped = body.replace(/^This week:\s*/i, "");
+  if (!stripped || stripped === body) return body;
+  return `${stripped.charAt(0).toUpperCase()}${stripped.slice(1)}`;
+}
+
+/**
+ * Where a recommended move opens. A duty conflict names Who controls what and
+ * the person who holds the pair; Team is the duty editor, so that move opens
+ * the person there. The link itself stays on Who controls what.
+ */
+export function moveDestination(link: { tab: string; id?: string; personId?: string }): {
+  tab: string;
+  item?: string;
+} {
+  if (link.personId && (link.tab === "sod" || link.tab === "team")) {
+    const item = link.id?.startsWith("person~") ? link.id : `person~${link.personId}`;
+    return { tab: "team", item };
+  }
+  return { tab: link.tab, item: link.id };
+}
+
 /**
  * The brief, the moves to log, and, behind a closed disclosure, how the brief
  * was built. The answer comes first; the trace, the review lenses and the
@@ -33,6 +105,9 @@ export function CoachResultView({
   logged,
   onCopy,
   copied,
+  nextQuestions = [],
+  onAsk,
+  asking = false,
 }: {
   result: CoachResult;
   onNavigate?: NavFn;
@@ -40,41 +115,73 @@ export function CoachResultView({
   logged: ReadonlySet<string>;
   onCopy: () => void;
   copied: boolean;
+  /** Other questions, asked in one press. Hidden when none are passed. */
+  nextQuestions?: readonly string[];
+  onAsk?: (question: string) => void;
+  asking?: boolean;
 }) {
   const { say } = usePresentation();
   const [allMoves, setAllMoves] = useState(false);
   const moves = allMoves ? result.decisions : result.decisions.slice(0, MOVES_PREVIEW);
   const notes = extraWarnings(result);
+  const board = briefBoard(result.markdown);
+
+  useEffect(() => {
+    const title = document.getElementById(PIONEER_BRIEF_TITLE_ID);
+    title?.scrollIntoView({ block: "start" });
+    if (title instanceof HTMLElement) title.focus({ preventScroll: true });
+  }, [result.question, result.contextFingerprint]);
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <CardTitle>Your brief</CardTitle>
-              <CardDescription>{briefAuthorLine(result)}</CardDescription>
-            </div>
-            <Button size="sm" variant="secondary" onClick={onCopy}>
-              <Copy className="size-3.5" />
-              {copied ? "Copied" : "Copy"}
-            </Button>
+      <section className="matrix-grid rounded-2xl border border-primary/30 bg-surface p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2
+              id={PIONEER_BRIEF_TITLE_ID}
+              tabIndex={-1}
+              className="text-xl font-semibold tracking-tight"
+            >
+              {result.question}
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted">{briefAuthorLine(result)}</p>
           </div>
-          {notes.length > 0 && (
-            <ul className="mt-2 space-y-1 rounded-lg border border-warn/30 bg-warn/5 px-3 py-2 text-sm text-muted">
-              {notes.map((w) => (
-                <li key={w} className="flex gap-2">
-                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
-                  {w}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardHeader>
-        <CardContent>
-          <BriefMarkdown markdown={withoutSection(result.markdown, "Recommended moves")} />
-        </CardContent>
-      </Card>
+          <Button size="sm" variant="secondary" onClick={onCopy}>
+            <Copy className="size-3.5" />
+            {copied ? "Copied" : "Copy"}
+          </Button>
+        </div>
+        {board.thisWeek && (
+          <div className="glow-primary mt-5 rounded-xl border border-primary/40 bg-primary/5 px-4 py-4">
+            <p className="text-xs font-medium text-primary">This week</p>
+            <BriefLines
+              markdown={board.thisWeek}
+              className="text-lg font-medium leading-snug text-fg"
+            />
+          </div>
+        )}
+        {board.situation && (
+          <div className="mt-3">
+            <BriefLines markdown={board.situation} className="text-sm text-muted" />
+          </div>
+        )}
+        {notes.length > 0 && (
+          <ul className="mt-4 space-y-1 rounded-lg border border-warn/30 bg-warn/5 px-3 py-2 text-sm text-muted">
+            {notes.map((w) => (
+              <li key={w} className="flex gap-2">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
+                {w}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {board.rest && (
+        <section className="rounded-2xl border border-border bg-surface px-6 py-5">
+          <BriefMarkdown markdown={board.rest} />
+        </section>
+      )}
 
       {result.decisions.length > 0 && (
         <Card>
@@ -85,16 +192,27 @@ export function CoachResultView({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {moves.map((d) => {
+            {moves.map((d, index) => {
               const done = logged.has(d.action);
+              const where = d.link;
+              const rank = index + 1;
+              const lead = rank === 1 && result.decisions.length > 1;
               return (
                 <div
                   key={d.action}
-                  className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
+                  className={
+                    lead
+                      ? "rounded-xl border border-primary/40 bg-elevated px-3 py-3 text-sm"
+                      : "rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
+                  }
                 >
                   <div className="flex flex-wrap items-center gap-2">
+                    <span className="tabular font-mono text-xs text-subtle">
+                      {String(rank).padStart(2, "0")}
+                    </span>
                     <span className="font-medium">{d.action}</span>
-                    <Badge variant="default">{d.effort} effort</Badge>
+                    {lead && <Badge variant="primary">Start with this one</Badge>}
+                    <Badge variant="default">{effortWords(d.effort)}</Badge>
                     <span className="text-xs text-muted">within {count(d.horizonDays, "day")}</span>
                   </div>
                   <p className="mt-1 text-xs text-muted">{d.rationale}</p>
@@ -106,6 +224,20 @@ export function CoachResultView({
                     {done && (
                       <Button size="sm" variant="ghost" onClick={() => onNavigate?.("journal")}>
                         Open {tabLabel("journal", say)}
+                      </Button>
+                    )}
+                    {where?.tab && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          const dest = moveDestination(where);
+                          onNavigate?.(dest.tab, dest.item);
+                        }}
+                      >
+                        {where.personId && (where.tab === "sod" || where.tab === "team")
+                          ? "Open this person on Team"
+                          : `Open ${tabLabel(where.tab, say)}`}
                       </Button>
                     )}
                   </div>
@@ -124,6 +256,23 @@ export function CoachResultView({
             )}
           </CardContent>
         </Card>
+      )}
+
+      {nextQuestions.length > 0 && onAsk && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-subtle">Ask next</p>
+          {nextQuestions.map((prompt) => (
+            <button
+              key={prompt}
+              type="button"
+              disabled={asking}
+              onClick={() => onAsk(prompt)}
+              className="rounded-xl border border-border bg-surface px-3 py-2 text-left text-sm hover:border-border-strong disabled:opacity-50 pointer-coarse:min-h-11"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
       )}
 
       <details className="group rounded-2xl border border-border bg-surface">
@@ -216,6 +365,21 @@ export function CoachResultView({
         </div>
       </details>
     </>
+  );
+}
+
+/** Lines of brief markdown, with bold and italics, and no section headings. */
+export function BriefLines({ markdown, className }: { markdown: string; className?: string }) {
+  return (
+    <div className="space-y-2">
+      {markdown.split("\n").map((line, i) =>
+        line.trim() === "" ? null : (
+          <p key={i} className={className}>
+            {renderInline(line)}
+          </p>
+        ),
+      )}
+    </div>
   );
 }
 

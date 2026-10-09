@@ -416,15 +416,15 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
       </p>
       <HowThisWorks className="mt-3">
         <p>
-          Precog keeps every result you save, with who did the check and the day. Last month stays
-          open until the 10th, so you can still record it. Pressing Done says the check was done; it
-          does not prove that someone separate checked it.
+          Precog saves each result with the person who did the check and the date. You can still
+          record last month&rsquo;s checks until the 10th. Done records that the check was done. It
+          does not prove that someone else checked it.
         </p>
         <p>
-          When you are signed in, each Done or Exception also goes into the control evidence log as
-          a preparer entry dated the day you record it. A changed result goes in as a correction. A
-          firm reviewer still records their review separately. Duty ticks on the map are starting
-          duties, not system access. Lock the report to send this page.
+          When you are signed in, each Done or Exception also enters the control evidence log as a
+          preparer entry dated the day you record it. Precog saves a changed result as a correction.
+          A firm reviewer records their review separately. Map duty ticks show starting duties, not
+          system access. Lock the report to send this page.
         </p>
         <p className="text-xs">{EVIDENCE_RECORD_NOTE}</p>
       </HowThisWorks>
@@ -605,7 +605,7 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
               </div>
               {latest?.result === "exception" && (
                 <p className="mt-1 text-xs text-muted">
-                  Once it is sorted out, press Mark resolved: Precog saves Done with what fixed it.
+                  After you fix it, press Mark resolved. Precog saves Done with the fix.
                 </p>
               )}
               {problem && (
@@ -624,9 +624,9 @@ export function MonthlyReview({ focusPeriod = null }: { focusPeriod?: string | n
           >
             <h3 className="font-medium">Record another problem this month</h3>
             <p className="mt-1 text-sm">
-              A problem none of the checks above covers, for example a donation check that never
-              reached the bank. It is not a check, so it does not change how many checks are done,
-              and it does not go into the control evidence log.
+              This is for problems the checks above do not cover, for example, a donation check that
+              never reached the bank. It does not count as a check or go into the control evidence
+              log.
             </p>
             {found.length > 0 && (
               <ul className="mt-2 space-y-2">

@@ -47,10 +47,10 @@ export function StartHerePreamble({
               Why the gaps are the sample&rsquo;s
             </summary>
             <p className="mt-1">
-              The names and duty assignments below come from the loaded {industryLabel} sample.
-              Staff settings such as team size affect the scoring but cannot say who does what, so
-              the conflicts shown are the sample&rsquo;s until you enter your own people and their
-              duties. Setup opens for your own business; the sample stays in the business menu.
+              Names and duties below come from the loaded {industryLabel} sample. Staff settings
+              such as team size affect scores but cannot show who does what. These conflicts remain
+              the sample&rsquo;s until you enter your own people and duties. Setup opens your own
+              business. The sample stays in the business menu.
             </p>
           </details>
         </div>

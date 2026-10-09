@@ -9,7 +9,7 @@ import { insuranceFigureNote } from "../scoring/dynamic-variables";
 import { detectSodConflicts, sodDetectionOptions } from "../sod/detect";
 import { handSetFigures } from "../sod/derive-staff";
 import { segregationLevel } from "../scoring/bands";
-import { coverageReport } from "../continuity/coverage";
+import { coverageReport, criticalSinglePoints } from "../continuity/coverage";
 import { checkInPlan, staleItems } from "../continuity/staleness";
 import { contingencyCards } from "../continuity/absence-impact";
 import { documentationDebt } from "../continuity/documentation";
@@ -205,7 +205,10 @@ export function buildControlReportModel({
     move,
     registerReady,
     coverageIndex: continuity.coverageIndex,
-    singlePoints: continuity.singlePoints.length,
+    criticalSinglePoints: criticalSinglePoints(tpl).count,
+    importantSinglePoints: continuity.items.filter(
+      (item) => item.item.criticality === "important" && item.primaries.length <= 1,
+    ).length,
     mapHealth: mapReady ? mapHealth : null,
     topPriority: threat.targetDeck[0]?.label ?? null,
   });

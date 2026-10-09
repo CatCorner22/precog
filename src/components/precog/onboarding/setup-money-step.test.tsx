@@ -25,10 +25,10 @@ describe("setup money step", () => {
     const html = render();
     const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
     expect(html).toContain("How money moves");
-    expect(html).toContain("What already runs");
+    expect(html).toContain("What is already in place?");
     expect(html.match(/role="radiogroup"/g)).toHaveLength(11);
     expect(html).not.toContain('aria-checked="true"');
-    expect(text).toContain("0 of 11 answered. A question you leave counts as Not sure.");
+    expect(text).toContain("Answered 0 of 11. Unanswered questions count as Not sure.");
     // Each unanswered group still takes the keyboard on its first choice.
     expect(html.match(/role="radio"[^>]*tabindex="0"|tabindex="0"[^>]*role="radio"/g)).toHaveLength(
       11,
@@ -41,7 +41,7 @@ describe("setup money step", () => {
   it("shows a chosen Not sure as chosen and counts it", () => {
     const html = render(UNANSWERED, "general", ["payroll", "cameras"]);
     expect(html.match(/aria-checked="true"/g)).toHaveLength(2);
-    expect(html).toContain("2 of 11 answered.");
+    expect(html).toContain("Answered 2 of 11.");
   });
 
   it("makes each answer at least 44px tall on a touch screen", () => {
@@ -54,6 +54,6 @@ describe("setup money step", () => {
     const html = render({ ...UNANSWERED, cashOrChecks: "no" }, "general", ["cashOrChecks"]);
     expect(html).not.toContain("Are security cameras in place?");
     expect(html.match(/role="radiogroup"/g)).toHaveLength(10);
-    expect(html).toContain("1 of 10 answered.");
+    expect(html).toContain("Answered 1 of 10.");
   });
 });

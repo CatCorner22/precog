@@ -191,7 +191,9 @@ function inventoryItems(
       severity: "low",
       affects: ["sod", "coso"],
       confidenceDrag: 0,
-      metric: `health ${sod.summary.segregationHealth}/100`,
+      metric: sod.summary.dutiesMarked
+        ? `health ${sod.summary.segregationHealth}/100`
+        : "not assessed; nobody holds a money duty",
       link: { tab: "sod" },
     },
     {
