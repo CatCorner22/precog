@@ -10,6 +10,8 @@
   "src/lib/precog/builder/review-server.ts#reviewMap": "9e784a00ca00d5411ec1c3057e6984afff19cc1b3d354a416e317de56c8e31e5",
   "src/lib/precog/builder/suggest-server.ts#suggestForProcess": "7442bb91ba5dae30b9b337eff3153862b375573ed6bf48153caae4f28a02ee3a",
   "src/lib/precog/coach/pioneer-server.ts#runPioneerCoach": "cfc440f402ece3554989f673bac3825de12dcfa31bc39fc7a0592cbafed35d83",
+  "src/lib/precog/coach/pioneer-server.ts#runPioneerHighlights": "9947f4c3d75674a548ae662164abf29a008e4dbbc5272ac3244c2f7ef82d60a1",
+  "src/lib/precog/coach/pioneer-server.ts#runPioneerRules": "7637226e77e3b74fa9c60253ac6ee5667d769c3be07bb6f0de8fe4a62fb64cd0",
   "src/lib/precog/controls/executions/server.ts#getControlExecutionLog": "40cba4ab4cf1bb0f6412c83b6e203adcd68ad391ef87c60bc0b7c5ff4b63ecf5",
   "src/lib/precog/controls/executions/server.ts#recordControlExecution": "7db235514740af78cf6e61630ff1460cea96b6e57a2f718721f8c041d3ffc970",
   "src/lib/precog/firm/engagement-server.ts#getEngagement": "1715e2b1dab6a849722da9705a70bc4334268a2d12257dee0c8eeaaa12f1b85d",
