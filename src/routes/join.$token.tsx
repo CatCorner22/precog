@@ -72,7 +72,7 @@ function JoinPage() {
               Too many opens from this address
             </h1>
             <p className="mt-2 text-sm text-muted">
-              Wait a minute, then check the invitation again. The link itself is unchanged.
+              Wait one minute, then check this invitation again. The link stays the same.
             </p>
             <Button
               className="mt-4"
@@ -90,8 +90,8 @@ function JoinPage() {
               This invitation is no longer open
             </h1>
             <p className="mt-2 text-sm text-muted">
-              It may have expired (invitations last two weeks), or someone may already have used it.
-              Ask the firm owner for a new link.
+              The link may have expired after two weeks, or someone may have used it. Ask the firm
+              owner for a new link.
             </p>
           </>
         ) : (
@@ -105,14 +105,14 @@ function JoinPage() {
                 "Map clients and lock reports",
                 "Record monthly review results and control checks",
                 ...(invite.role === "reviewer"
-                  ? ["Review control checks", "Sign off reports someone else prepared"]
+                  ? ["Review control checks", "Approve reports someone else prepared"]
                   : []),
               ].map((duty) => (
                 <li key={duty}>{duty}</li>
               ))}
             </ul>
             <p className="mt-2 text-sm text-muted">
-              Only the firm owner deletes or restores a client.
+              Only the firm owner can delete or restore a client.
             </p>
             {isPending ? (
               <p className="mt-4 text-sm text-muted">Checking your sign-in…</p>
@@ -175,15 +175,15 @@ function JoinAs({
       <p className="mt-4 text-sm text-muted">
         {fit?.fit === "mismatch" ? (
           <>
-            The firm sent this invitation to <span className="text-fg">{invitedEmail}</span>, and
-            you are signed in as <span className="text-fg">{fit.accountEmail}</span>. Sign in with
-            the invited address, or ask the firm owner to invite {fit.accountEmail}.
+            This invite was sent to <span className="text-fg">{invitedEmail}</span>. You are signed
+            in as <span className="text-fg">{fit.accountEmail}</span>. Sign in with the invited
+            address, or ask the firm owner to invite {fit.accountEmail}.
           </>
         ) : (
           <>
-            Precog cannot vouch for this account's address. Sign in with Google under{" "}
-            <span className="text-fg">{invitedEmail}</span>, or with an email-and-password account
-            that has confirmed it, then open the invitation again.
+            Precog cannot confirm this account&rsquo;s email. Sign in with Google as{" "}
+            <span className="text-fg">{invitedEmail}</span>, or use an email-and-password account
+            with a confirmed address. Then reopen the invitation.
           </>
         )}
       </p>
@@ -217,8 +217,8 @@ function SignInHere({ token, email }: { token: string; email: string }) {
   return (
     <>
       <p className="mt-4 text-sm text-muted">
-        Sign in to join. The firm sent the invitation to <span className="text-fg">{email}</span>.
-        Sign in with Google or with the email address the invitation was sent to.
+        Sign in to join. The firm sent this invite to <span className="text-fg">{email}</span>. Use
+        Google or the invited email address to sign in.
       </p>
       <div className="mt-4 space-y-2">
         {GROK_PROVIDERS.filter((p) => p.providerId === "grok-google").map((p) => (
@@ -240,11 +240,11 @@ function SignInHere({ token, email }: { token: string; email: string }) {
       </div>
       {emailAndPasswordEnabled && (
         <p className="mt-3 text-xs text-muted">
-          Use an email and password instead?{" "}
+          Prefer email and password?{" "}
           <Link to="/login" className="underline-offset-4 hover:underline">
             Sign in with email
           </Link>
-          , then open this invitation link again.
+          , then open this invitation again.
         </p>
       )}
     </>
