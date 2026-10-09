@@ -193,6 +193,8 @@ interface StartHereFirstStepsModel {
   /** Small organizations with a reporting channel, against larger ones. */
   hotlineGap: Benchmark | undefined;
   soleKnowledge: ReturnType<typeof findKnowledgeRisks>;
+  /** Open duty conflicts, so a step can open the person who holds the pair. */
+  open: DetectedConflict[];
 }
 
 interface StartHereFooterModel {
@@ -365,6 +367,7 @@ export function buildStartHereModel({
       tips: BENCHMARK_BY_ID["bm-tips"],
       hotlineGap: BENCHMARK_BY_ID["bm-small-org-hotline-gap"],
       soleKnowledge: findKnowledgeRisks(template).filter((r) => r.soleOwner),
+      open,
     },
     footer: {
       cases: evidence,

@@ -2,9 +2,8 @@ import { ArrowRight, ExternalLink } from "lucide-react";
 import { SectionHeading } from "./start-here-parts";
 import { TeamLink } from "./team-link";
 import { Button } from "@/components/ui/button";
-import { doNextDrift, doNextSteps, type DoNextStep } from "@/lib/precog/actions/do-next";
+import { doNextDrift, doNextSteps, stepFocus, type DoNextStep } from "@/lib/precog/actions/do-next";
 import type { NavFn } from "@/lib/precog/navigation";
-import { useTabName } from "@/lib/precog/presentation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { FIRST_STEPS_SHOWN, stepDestination } from "@/lib/precog/start-here/layout";
@@ -25,7 +24,6 @@ export function StartHereFirstStepsSection({
    */
   part?: "actions" | "notes";
 }) {
-  const tabName = useTabName();
   const { items, caseById, tips, hotlineGap, soleKnowledge, alreadyInPlace } = model;
   const steps = doNextSteps(items);
   const driftActions = doNextDrift(items);
@@ -37,7 +35,8 @@ export function StartHereFirstStepsSection({
   if (part === "notes" && !hasNotes) return null;
 
   const renderStep = (s: DoNextStep, i: number) => {
-    const destination = stepDestination(s);
+    const focus = stepFocus(s, model.open ?? []);
+    const landing = stepDestination(s, focus);
     // Item 1 names the person and duties in conflict, in the words the
     // duty-conflict tab's "What to do first" box gives it.
     const label = (i === 0 && model.firstLine) || s.control.label;
@@ -49,15 +48,16 @@ export function StartHereFirstStepsSection({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
             <p className="min-w-0 grow basis-56 text-sm leading-relaxed">{label}</p>
-            {onOpenDetail && destination && (
+            {onOpenDetail && landing && (
               <Button
                 size="sm"
                 variant="secondary"
                 className="shrink-0"
-                aria-label={`Open ${tabName(destination)}: ${label}`}
-                onClick={() => onOpenDetail(destination)}
+                data-step-id={s.control.id}
+                aria-label={`${landing.button}: ${label}`}
+                onClick={() => onOpenDetail(landing.tab, landing.item)}
               >
-                Open the conflicts it answers
+                {landing.button}
                 <ArrowRight className="size-3.5" aria-hidden />
               </Button>
             )}
@@ -130,6 +130,7 @@ export function StartHereFirstStepsSection({
                   {alreadyInPlace.map((control) => control.label).join(", ")}.
                 </p>
               )}
+              {onOpenDetail && <SoleTaskLine sole={model.soleKnowledge[0]} onOpen={onOpenDetail} />}
             </CardContent>
           </Card>
 
@@ -212,5 +213,34 @@ export function StartHereFirstStepsSection({
         </Card>
       )}
     </section>
+  );
+}
+
+/** One sole-held task, beside the ranked controls, opening that register row. */
+function SoleTaskLine({
+  sole,
+  onOpen,
+}: {
+  sole: StartHereModel["firstSteps"]["soleKnowledge"][number] | undefined;
+  onOpen: NavFn;
+}) {
+  const person = sole?.owners[0];
+  if (!sole || !person) return null;
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+      <p className="min-w-0 text-sm leading-relaxed">
+        Only {person.name} can run {sole.name}.
+      </p>
+      <Button
+        size="sm"
+        variant="secondary"
+        className="shrink-0"
+        aria-label={`Open Who knows what: ${sole.name}`}
+        onClick={() => onOpen("knowledge", sole.knowledgeId)}
+      >
+        Open that task
+        <ArrowRight className="size-3.5" aria-hidden />
+      </Button>
+    </div>
   );
 }

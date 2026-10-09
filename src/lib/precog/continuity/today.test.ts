@@ -1,4 +1,5 @@
 import { getIndustryTemplate } from "../templates";
+import { resolveTemplate } from "../active-template";
 import { describe, expect, it } from "vitest";
 import { continuityTemplate, knowledgeItem } from "@/test/fixtures";
 import type { DecisionEntry, PlannedAbsence } from "../practice-profile";
@@ -322,15 +323,29 @@ describe("today's brief over a sample register nobody has marked", () => {
   });
 });
 
-describe("today's brief when register items wait on nobody", () => {
-  it("does not say nothing stops while must-do items have nobody who can run them", () => {
+describe("today's brief when some items are unmarked", () => {
+  it("does not say unmarked items already wait", () => {
     const gaps = tpl(
       [{ personId: "sam", knowledgeId: "payroll", level: "expert" }],
       [knowledgeItem("payroll"), knowledgeItem("deposit")],
     );
     const brief = todayBrief(gaps, [absence()], [], "general", TODAY);
-    expect(brief.headline).toBe(
-      "Maya is out unexpectedly today — nothing more on the register stops, but 1 entry nobody can run alone already waits.",
-    );
+    expect(brief.headline).toBe("Maya is out unexpectedly today — nothing on the register stops.");
+  });
+
+  it("does not say unmarked starter items already wait once one item is marked", () => {
+    const dental = resolveTemplate({
+      industry: "dental",
+      customPeople: people,
+      customRelations: [
+        {
+          personId: "maya",
+          knowledgeId: getIndustryTemplate("dental").knowledge[0].id,
+          level: "expert",
+        },
+      ],
+    });
+    const brief = todayBrief(dental, [absence({ industry: "dental" })], [], "dental", TODAY);
+    expect(brief.headline).not.toContain("nobody can run alone already wait");
   });
 });

@@ -16,11 +16,14 @@ export function ChipPicker({
   options,
   selected,
   onToggle,
+  marked = [],
 }: {
   label: string;
   options: ChipOption[];
   selected: readonly string[];
   onToggle: (id: string) => void;
+  /** Duties a link asked the owner to look at. They stay editable. */
+  marked?: readonly string[];
 }) {
   return (
     <div>
@@ -29,12 +32,14 @@ export function ChipPicker({
         {options.length === 0 && <span className="text-xs text-subtle">None available</span>}
         {options.map((o) => {
           const on = selected.includes(o.id);
+          const markedDuty = marked.includes(o.id);
           return (
             <button
               key={o.id}
               type="button"
               aria-pressed={on}
               title={o.title}
+              data-marked={markedDuty || undefined}
               onClick={() => onToggle(o.id)}
               className={cn(
                 "rounded-md border px-2 py-0.5 text-xs transition-colors",
@@ -43,6 +48,7 @@ export function ChipPicker({
                     ? "border-danger/50 bg-danger/15 text-fg"
                     : "border-primary/50 bg-primary/15 text-fg"
                   : "border-border bg-elevated text-muted hover:text-fg",
+                markedDuty && "ring-2 ring-primary",
               )}
             >
               {o.label}

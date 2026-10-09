@@ -5,7 +5,7 @@ import { findKnowledgeRisks } from "@/lib/precog/engine";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { coverageReport, STRONG_LEVELS } from "@/lib/precog/continuity/coverage";
-import { registerAssessed } from "@/lib/precog/continuity/register-state";
+import { itemRecorded, registerAssessed } from "@/lib/precog/continuity/register-state";
 import { CRITICALITY_LABEL, KIND_LABEL } from "@/lib/precog/continuity/planner-copy";
 import { count, firstName } from "@/lib/precog/text";
 import {
@@ -18,6 +18,11 @@ import {
 export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: string | null }) {
   const tpl = useTemplate();
   const assessed = registerAssessed(tpl);
+  const recordedIds = useMemo(
+    () =>
+      new Set(tpl.knowledge.filter((item) => itemRecorded(tpl, item.id)).map((item) => item.id)),
+    [tpl],
+  );
   const risks = useMemo(() => findKnowledgeRisks(tpl), [tpl]);
   const coverage = useMemo(
     () => new Map(coverageReport(tpl).items.map((i) => [i.item.id, i])),
@@ -113,11 +118,13 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
             const isSelected = selectedId === k.id;
             const holdersText = !assessed
               ? "not assessed yet"
-              : holders === 0
-                ? "nobody can run it"
-                : holders === 1
-                  ? "one person only"
-                  : `${holders} can run it`;
+              : !recordedIds.has(k.id)
+                ? "not marked yet"
+                : holders === 0
+                  ? "nobody can run it"
+                  : holders === 1
+                    ? "one person only"
+                    : `${holders} can run it`;
             return (
               <g
                 key={k.id}
@@ -146,7 +153,7 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
                       ? "var(--color-primary)"
                       : sole
                         ? "var(--color-danger)"
-                        : assessed && holders === 0
+                        : assessed && recordedIds.has(k.id) && holders === 0
                           ? "var(--color-warn)"
                           : "var(--color-border)"
                   }
@@ -207,8 +214,18 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
               )}
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge variant={selected.primaries.length >= 2 ? "ok" : "danger"}>
-                {count(selected.primaries.length, "person", "people")} can run it alone
+              <Badge
+                variant={
+                  !recordedIds.has(selected.item.id)
+                    ? "default"
+                    : selected.primaries.length >= 2
+                      ? "ok"
+                      : "danger"
+                }
+              >
+                {recordedIds.has(selected.item.id)
+                  ? `${count(selected.primaries.length, "person", "people")} can run it alone`
+                  : "Not marked yet"}
               </Badge>
               <Badge variant="default">{KIND_LABEL[selected.item.kind ?? "knowledge"]}</Badge>
               <Badge variant={selected.item.criticality === "critical" ? "warn" : "default"}>
@@ -219,7 +236,11 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
               <p className="text-xs text-subtle">Can run it alone</p>
               <ul className="mt-1 space-y-1">
                 {selected.primaries.length === 0 && (
-                  <li className="text-sm text-warn">Nobody can run this alone yet</li>
+                  <li className="text-sm text-warn">
+                    {recordedIds.has(selected.item.id)
+                      ? "Nobody can run this alone yet"
+                      : "Not marked yet"}
+                  </li>
                 )}
                 {selected.primaries.map((o) => (
                   <li key={o.id} className="text-sm">
@@ -264,8 +285,12 @@ export function KnowledgeMap({ initialKnowledgeId }: { initialKnowledgeId?: stri
                         {r.name}
                       </span>
                       <span className="mt-0.5 block text-xs text-muted">
-                        {r.ownerCount === 0 ? "Nobody can run it alone" : "One person only"} ·
-                        attention index {r.riskScore} of 100 (Precog&apos;s own scale)
+                        {!recordedIds.has(r.knowledgeId)
+                          ? "Not marked yet"
+                          : r.ownerCount === 0
+                            ? "Nobody can run it alone"
+                            : "One person only"}{" "}
+                        · attention index {r.riskScore} of 100 (Precog&apos;s own scale)
                       </span>
                     </button>
                   </li>

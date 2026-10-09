@@ -1,5 +1,5 @@
 /** The sections the Monthly review tab can open on; `item` names one of them. */
-const SECTIONS = ["checks", "evidence", "calendar", "decisions", "number-patterns"] as const;
+const SECTIONS = ["checks", "evidence", "calendar", "decisions"] as const;
 
 /** The element lookup `revealMonthlyItem` needs: `document` on the page. */
 export type ElementLookup = { getElementById(id: string): HTMLElement | null };

@@ -18,6 +18,7 @@ import {
   LEVEL_ORDER,
   STATUS_LABEL,
   type CoverageReport,
+  type CoverageStatus,
 } from "@/lib/precog/continuity/coverage";
 import {
   DOCUMENTATION_LABEL,
@@ -28,8 +29,10 @@ import {
   CRITICALITY_LABEL,
   NOT_ASSESSED_PLAN,
   STATUS_VARIANT,
+  statusBadge,
   UNHELD_VIEW,
 } from "@/lib/precog/continuity/planner-copy";
+import { itemRecorded } from "@/lib/precog/continuity/register-state";
 import { CONFIRMATION_MAX_AGE_DAYS } from "@/lib/precog/continuity/staleness";
 import { inputClass } from "./styles";
 import type { Criticality, KnowledgeItem, KnowledgeLevel } from "@/lib/precog/types";
@@ -39,6 +42,11 @@ import { formatDay } from "@/lib/precog/dates";
 
 /** How many steps each plan card lists before "more not shown". */
 const PLAN_SHOWN = 8;
+
+function CoverageStatusBadge({ status, recorded }: { status: CoverageStatus; recorded: boolean }) {
+  const badge = statusBadge(status, recorded);
+  return <Badge variant={badge.variant}>{badge.label}</Badge>;
+}
 
 /** Who to train on what, most urgent first, each step loggable as a decision. */
 export function CrossTrainingPlanCard({
@@ -52,6 +60,7 @@ export function CrossTrainingPlanCard({
   journal: JournalSteps;
   onSelect: (knowledgeId: string) => void;
 }) {
+  const tpl = useTemplate();
   return (
     <Card>
       <CardHeader>
@@ -80,7 +89,10 @@ export function CrossTrainingPlanCard({
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <ItemButton item={m.item} onSelect={onSelect} />
-                    <Badge variant={STATUS_VARIANT[m.status]}>{STATUS_LABEL[m.status]}</Badge>
+                    <CoverageStatusBadge
+                      status={m.status}
+                      recorded={itemRecorded(tpl, m.item.id)}
+                    />
                   </div>
                   <p className="break-words text-muted [overflow-wrap:anywhere]">{m.action}</p>
                   <JournalStepStatus
@@ -112,6 +124,7 @@ export function DocumentationPlanCard({
   journal: JournalSteps;
   onSelect: (knowledgeId: string) => void;
 }) {
+  const tpl = useTemplate();
   return (
     <Card>
       <CardHeader>
@@ -141,7 +154,10 @@ export function DocumentationPlanCard({
                     <Badge variant={g.state === "none" ? "danger" : "warn"}>
                       {DOCUMENTATION_LABEL[g.state]}
                     </Badge>
-                    <Badge variant={STATUS_VARIANT[g.coverage]}>{STATUS_LABEL[g.coverage]}</Badge>
+                    <CoverageStatusBadge
+                      status={g.coverage}
+                      recorded={itemRecorded(tpl, g.item.id)}
+                    />
                   </div>
                   <p className="break-words text-muted [overflow-wrap:anywhere]">{g.action}</p>
                   <JournalStepStatus
@@ -180,7 +196,9 @@ export function CheckInCard({
     setLevel: checkInSetLevel,
     confirmItems,
   } = checkIn;
+  const tpl = useTemplate();
   if (!trackFreshness || checkIn.staleCount === 0) return null;
+  const allUnheldUnrecorded = checkIns.unheld.every((entry) => !itemRecorded(tpl, entry.item.id));
   return (
     <Card>
       <CardHeader>
@@ -237,9 +255,10 @@ export function CheckInCard({
                       <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] font-medium">
                         {entry.item.name}
                       </span>
-                      <Badge variant={STATUS_VARIANT[entry.coverage]}>
-                        {STATUS_LABEL[entry.coverage]}
-                      </Badge>
+                      <CoverageStatusBadge
+                        status={entry.coverage}
+                        recorded={itemRecorded(tpl, entry.item.id)}
+                      />
                       <span className="text-xs text-muted">
                         {entry.confirmedAt
                           ? `last confirmed ${formatDay(entry.confirmedAt)}`
@@ -301,8 +320,12 @@ export function CheckInCard({
         ) : (
           <div className="space-y-2">
             <p className="text-xs text-muted">
-              Nobody on the active team holds these, so there is no one to ask — confirm they still
-              matter, or assign someone in the grid.
+              Nobody on the active team{" "}
+              {allUnheldUnrecorded
+                ? "is marked on these yet."
+                : "holds these, so there is no one to ask."}{" "}
+              Confirm they still matter, or{" "}
+              {allUnheldUnrecorded ? "mark who can run them" : "assign someone"} in the grid.
             </p>
             <ol className="space-y-2">
               {checkIns.unheld.map((entry, i) => (
@@ -312,8 +335,14 @@ export function CheckInCard({
                 >
                   <span className="font-mono text-xs text-muted">{i + 1}.</span>
                   <div className="min-w-0 flex-1 space-y-1">
-                    <div className="min-w-0 break-words [overflow-wrap:anywhere] font-medium">
-                      {entry.item.name}
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] font-medium">
+                        {entry.item.name}
+                      </span>
+                      <CoverageStatusBadge
+                        status={entry.coverage}
+                        recorded={itemRecorded(tpl, entry.item.id)}
+                      />
                     </div>
                     <p className="break-words text-muted [overflow-wrap:anywhere]">
                       {entry.action}
@@ -423,8 +452,10 @@ export function SelectedKnowledgeCard({
   register: Pick<RegisterEditor, "selected" | "updateItem" | "confirmItems">;
   trackFreshness: boolean;
 }) {
+  const tpl = useTemplate();
   const { selected, updateItem } = register;
   if (!selected) return null;
+  const badge = coverageBadge(selected, tpl);
   return (
     <Card>
       <CardHeader>
@@ -432,7 +463,7 @@ export function SelectedKnowledgeCard({
           <CardTitle className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]">
             {selected.item.name}
           </CardTitle>
-          <Badge variant={coverageBadge(selected).variant}>{coverageBadge(selected).label}</Badge>
+          <Badge variant={badge.variant}>{badge.label}</Badge>
         </div>
         <CardDescription>
           {selected.item.description || CRITICALITY_LABEL[selected.item.criticality]}
@@ -498,7 +529,7 @@ export function SelectedKnowledgeCard({
         <PeopleLine label="Learning" people={selected.learners.map((p) => p.name)} />
         <PeopleLine label="Aware only" people={selected.aware.map((p) => p.name)} />
         {selected.suggestedBackups.length > 0 &&
-          (isMarked(selected) ? (
+          (isMarked(tpl, selected) ? (
             <div>
               <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
                 Best people to train next

@@ -272,8 +272,9 @@ export function PlannedLeaveCard({
         </CardTitle>
         <CardDescription>
           Someone called in sick? Press their name for today&apos;s stand-in sheet. Add known
-          absences, like holidays or surgery, in the form. Precog flags overlaps and, once someone
-          is back, asks whether the stand-in can now run it alone.
+          absences, like holidays or surgery, in the form. Precog flags overlaps and, once a covered
+          absence ends, asks whether the stand-in can now run it alone. Back on the first day
+          cancels the entry.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">

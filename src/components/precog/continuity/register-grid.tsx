@@ -223,6 +223,7 @@ export function RegisterGrid({
               <tbody>
                 {visibleItems.map((row) => {
                   const isSelected = selected?.item.id === row.item.id;
+                  const badge = coverageBadge(row, tpl);
                   return (
                     <tr
                       key={row.item.id}
@@ -261,9 +262,7 @@ export function RegisterGrid({
                         </div>
                       </th>
                       <td className="px-3 py-2">
-                        <Badge variant={coverageBadge(row).variant}>
-                          {coverageBadge(row).label}
-                        </Badge>
+                        <Badge variant={badge.variant}>{badge.label}</Badge>
                       </td>
                       {visiblePeople.map((p) => {
                         const level = relationLevel(tpl.relations, p.id, row.item.id);

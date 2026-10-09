@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { resolveTemplate } from "@/lib/precog/active-template";
 import { defaultProfile } from "@/lib/precog/practice-profile";
 import { buildStartHereModel } from "@/lib/precog/start-here/model";
-import { doNextSteps } from "@/lib/precog/actions/do-next";
+import { doNextSteps, stepFocus } from "@/lib/precog/actions/do-next";
 import { StartHereContinuitySection } from "./start-here-continuity-section";
 import { FIRST_STEPS_SHOWN, stepDestination } from "@/lib/precog/start-here/layout";
 import { StartHereFirstStepsSection } from "./start-here-first-steps-section";
@@ -67,18 +67,38 @@ describe("Start here, Do these first on one screen", () => {
 
   it("gives every step one button to the screen that fixes it", () => {
     const open = vi.fn();
+    const built = model();
     const tree = (
-      <StartHereFirstStepsSection model={model().firstSteps} part="actions" onOpenDetail={open} />
+      <StartHereFirstStepsSection model={built.firstSteps} part="actions" onOpenDetail={open} />
     );
     const first = steps[0];
+    const landing = stepDestination(first, stepFocus(first, built.firstSteps.open));
     const button = findByAriaLabel(
       tree,
-      new RegExp(`: ${first.control.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`),
+      new RegExp(`^${landing!.button.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: `),
     );
     expect(button).not.toBeNull();
     button?.props.onClick();
-    expect(open).toHaveBeenCalledWith(stepDestination(first));
-    expect(stepDestination({ answers: 2 })).toBe("sod");
+    expect(open).toHaveBeenCalledWith(landing!.tab, landing!.item);
+    expect(stepDestination({ answers: 2 })).toMatchObject({
+      tab: "sod",
+      button: "Open the conflicts it answers",
+    });
+    expect(
+      stepDestination(
+        { answers: 2 },
+        {
+          personId: "p2",
+          personName: "Maya Chen",
+          entitlementA: "cash_receipts",
+          entitlementB: "bank_reconcile",
+        },
+      ),
+    ).toEqual({
+      tab: "team",
+      item: "person~p2~cash_receipts~bank_reconcile",
+      button: "Change Maya Chen's duties",
+    });
     expect(stepDestination({ answers: 0 })).toBeNull();
   });
 
@@ -97,7 +117,8 @@ describe("Start here, Do these first on one screen", () => {
     );
     expect(html).toContain(quiet.control.label);
     expect(html).not.toContain("Open the conflicts it answers");
-    expect(html).not.toContain('aria-label="Open');
+    expect(html).not.toMatch(/aria-label="Change /);
+    expect(html).toContain('aria-label="Open Who knows what: Insurance denial appeals"');
   });
 
   it("has no button when nothing opens a screen, as the report renders it", () => {

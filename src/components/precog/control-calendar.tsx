@@ -156,7 +156,7 @@ export function ControlCalendarCard({
                 </p>
               )}
               <Button size="sm" variant="secondary" onClick={onOpenBuilder}>
-                <ClipboardList className="size-3.5" /> Open map builder
+                <ClipboardList className="size-3.5" /> Open procedures
               </Button>
             </div>
           ) : (

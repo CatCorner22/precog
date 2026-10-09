@@ -181,7 +181,7 @@ async function shellChecks(page) {
     await page.locator("nav[data-tab-count]").waitFor();
   };
 
-  // Ten tabs: six in the strip, three under Analyze, Ask Pioneer in the header.
+  // Ten tabs: five in the strip, four under Analyze, Ask Pioneer in the header.
   await home();
   const tabCount = await page.locator("nav[data-tab-count]").getAttribute("data-tab-count");
   if (tabCount !== "10") throw new Error(`expected 10 tabs, data-tab-count is ${tabCount}`);
@@ -338,18 +338,17 @@ async function shellChecks(page) {
   }
   console.log(`  ✓ "What if this fails?" lands with the picker at y=${pickerTop}`);
 
-  // The header opens Ask Pioneer, and "Someone is out" lands on the absence
-  // cards of Who knows what, with the section focused.
+  // The header opens Ask Pioneer. Someone is out lives on Who knows what;
+  // Needs attention and older links open the same absence cards.
   await home();
   await page.locator("[data-header-tab=pioneer]").click();
   await page.waitForURL(/[?&]tab=pioneer/, { timeout });
   if ((await selectedTab()) !== "Ask Pioneer") {
     throw new Error(`the header's Ask Pioneer opened "${await selectedTab()}"`);
   }
-  await page.locator("[data-header-link=absences]").click();
-  await page.waitForURL(/[?&]tab=knowledge(&|$)/, { timeout });
-  if (!/[?&]item=absences/.test(page.url())) {
-    throw new Error(`"Someone is out" did not open the absence cards: ${page.url()}`);
+  await home("?tab=knowledge&item=absences");
+  if (!/[?&]tab=knowledge(&|$)/.test(page.url()) || !/[?&]item=absences/.test(page.url())) {
+    throw new Error(`the absence cards did not open: ${page.url()}`);
   }
   await page.locator("#absences").waitFor({ timeout });
   await page.waitForFunction(() => document.activeElement?.id === "absences", null, { timeout });
@@ -378,20 +377,22 @@ async function shellChecks(page) {
     throw new Error(`Needs attention items counted as Analyze views: ${leaked.join(", ")}`);
   }
 
-  // On a phone the header is two rows above the tabs: the business with Needs
-  // attention and Sign in, then "Someone is out", Ask Pioneer and More, with
-  // nothing wrapping and no third row.
+  // On a phone the header is two rows: the business with Needs attention and
+  // Sign in, then wording, save status and Ask Pioneer. No More disclosure.
   await page.setViewportSize({ width: 390, height: 844 });
   await home();
-  await page.locator("[aria-controls=header-more]").waitFor({ timeout });
+  if (await page.locator("[aria-controls=header-more]").count()) {
+    throw new Error("phone header still folds actions behind More");
+  }
+  if (await page.locator("[data-header-link=absences]").count()) {
+    throw new Error('phone header still shows "Someone is out"');
+  }
   const rows = await page.evaluate(() => {
     const top = (sel) => Math.round(document.querySelector(sel)?.getBoundingClientRect().top ?? -1);
     return {
       business: top("[aria-controls=business-switcher-panel]"),
       attention: top("[data-needs-attention]"),
-      absences: top("[data-header-link=absences]"),
       pioneer: top("[data-header-tab=pioneer]"),
-      more: top("[aria-controls=header-more]"),
       tabs: top("nav[data-tab-count]"),
       header: Math.round(document.querySelector("header")?.getBoundingClientRect().height ?? 0),
     };
@@ -401,18 +402,15 @@ async function shellChecks(page) {
       `phone header: Needs attention is not beside the business: ${JSON.stringify(rows)}`,
     );
   }
-  const sameRow = (a, b) => Math.abs(a - b) <= 4;
-  if (
-    !sameRow(rows.absences, rows.pioneer) ||
-    !sameRow(rows.absences, rows.more) ||
-    rows.absences <= rows.business
-  ) {
-    throw new Error(`phone header: actions wrapped: ${JSON.stringify(rows)}`);
+  if (rows.pioneer <= rows.business || rows.tabs <= rows.pioneer) {
+    throw new Error(
+      `phone header: Ask Pioneer is not between the business and the tabs: ${JSON.stringify(rows)}`,
+    );
   }
-  if (rows.tabs <= rows.more || rows.header > 170) {
+  if (rows.header > 220) {
     throw new Error(`phone header: ${rows.header}px tall: ${JSON.stringify(rows)}`);
   }
-  console.log(`  ✓ phone header is ${rows.header}px: two rows above the tabs`);
+  console.log(`  ✓ phone header is ${rows.header}px: Ask Pioneer under the business, no More`);
 
   // On a phone the strip shows the open tab, with its label, and "All
   // sections" names every main section, so none hides off the edge.

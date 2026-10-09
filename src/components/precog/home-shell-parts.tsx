@@ -400,13 +400,13 @@ export function MoreTabsMenu({
  * button. The server renders the wide row; a phone folds after hydration.
  */
 export function HeaderActions({
-  leading,
+  leading = null,
   inline,
-  trailing,
+  trailing = null,
 }: {
-  leading: ReactNode;
+  leading?: ReactNode;
   inline: ReactNode;
-  trailing: ReactNode;
+  trailing?: ReactNode;
 }) {
   const [wide, setWide] = useState(true);
   const [open, setOpen] = useState(false);
@@ -443,7 +443,8 @@ export function HeaderActions({
     };
   }, [open]);
 
-  if (wide) {
+  const folded = Boolean(leading) || Boolean(trailing);
+  if (wide || !folded) {
     return (
       <>
         {leading}
