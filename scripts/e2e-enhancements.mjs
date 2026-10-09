@@ -231,7 +231,7 @@ async function refusedDraftStorage(page, errors) {
   await answerSetupQuestions(page);
   await page.getByRole("button", { name: "Skip these questions", exact: true }).click();
   await page.getByLabel("Business name", { exact: true }).fill("Unsaved draft example");
-  await page.getByText(/This browser will not keep your progress/).waitFor();
+  await page.getByText(/This browser will not save your progress/).waitFor();
   noErrors(errors);
 }
 
