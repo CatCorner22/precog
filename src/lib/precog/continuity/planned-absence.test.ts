@@ -525,7 +525,7 @@ describe("leave booked over a sample register nobody has marked", () => {
     );
   });
 
-  it("does not call a day quiet while register items wait on nobody", () => {
+  it("does not describe unmarked items as already stopped", () => {
     const gaps = tpl(
       [knowledgeItem("payroll"), knowledgeItem("deposit")],
       [{ personId: "b", knowledgeId: "payroll", level: "expert" }],
@@ -536,8 +536,6 @@ describe("leave booked over a sample register nobody has marked", () => {
       "general",
       "2025-11-01",
     ).windows;
-    expect(describeWindow(w)).toBe(
-      "Ana is out Nov 2, tomorrow: nothing more stops, but nobody can run deposit alone even with Ana in.",
-    );
+    expect(describeWindow(w)).toBe("Ana is out Nov 2, tomorrow: nothing stops.");
   });
 });

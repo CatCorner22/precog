@@ -674,6 +674,18 @@ function reviewerFor(
   );
 }
 
+/** The short label beside a check for its reviewer's independence; the message explains it once per page. */
+export function reviewIndependenceLabel(status: ReviewTask["reviewerIndependence"]): string {
+  switch (status) {
+    case "self_review":
+      return "Self-review risk";
+    case "separate_duties":
+      return "Separate duties on record";
+    case "not_established":
+      return "Independence not established";
+  }
+}
+
 export function reviewIndependenceMessage(status: ReviewTask["reviewerIndependence"]): string {
   switch (status) {
     case "self_review":

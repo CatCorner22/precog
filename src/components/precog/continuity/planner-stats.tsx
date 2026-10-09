@@ -6,6 +6,7 @@ import type {
 import { NOT_ASSESSED_HINT } from "@/lib/precog/continuity/planner-copy";
 import type { CoverageReport } from "@/lib/precog/continuity/coverage";
 import type { DocumentationReport } from "@/lib/precog/continuity/documentation";
+import { itemRecorded } from "@/lib/precog/continuity/register-state";
 import { industryMeta, type IndustryId } from "@/lib/precog/industry";
 import { healthTone, dependenceTone } from "@/lib/precog/scoring/bands";
 import type { IndustryTemplate } from "@/lib/precog/templates/types";
@@ -16,13 +17,21 @@ export function PlannerStats({
   registerAssessed,
   report,
   docs,
+  tpl,
   figures: { singlePoints, importantSinglePoints, mostDepended },
 }: {
   registerAssessed: boolean;
   report: CoverageReport;
   docs: DocumentationReport;
+  tpl: IndustryTemplate;
   figures: PlannerFigures;
 }) {
+  const unmarkedSinglePoints = report.items.filter(
+    (item) =>
+      item.item.criticality === "critical" &&
+      item.status === "uncovered" &&
+      !itemRecorded(tpl, item.item.id),
+  ).length;
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
       <Stat
@@ -40,7 +49,9 @@ export function PlannerStats({
         value={registerAssessed ? String(singlePoints.count) : "—"}
         hint={
           registerAssessed
-            ? `Items the business stops without: ${singlePoints.nobody} with nobody and ${singlePoints.onePerson} with one person who can run them alone.${
+            ? `Items the business stops without: ${singlePoints.nobody - unmarkedSinglePoints} with nobody and ${singlePoints.onePerson} with one person who can run them alone${
+                unmarkedSinglePoints > 0 ? ` and ${unmarkedSinglePoints} not marked yet` : ""
+              }.${
                 importantSinglePoints > 0
                   ? ` ${importantSinglePoints} more ${importantSinglePoints === 1 ? "hurts" : "hurt"} within a week.`
                   : ""

@@ -10,7 +10,10 @@ import {
 import type { ScenarioRunData } from "./scenario-tools";
 import type { ToolResult } from "./types";
 import { RISK_SCALE } from "../scoring/bands";
+import { DEFAULT_RISK_VARIABLES } from "../scoring/dynamic-variables";
 import { RESIDUAL_BAND_LABEL } from "../scoring/weights";
+import { getIndustryTemplate } from "../templates";
+import { simulateAllCascades } from "../scoring/variable-cascade";
 
 function makeScenarioResult(warningSigns?: readonly string[]): ToolResult {
   const data: ScenarioRunData = {
@@ -241,5 +244,96 @@ describe("rules-authored move text", () => {
     );
     expect(renderDecision(move, 0)).not.toContain("Also moves");
     expect(move.cascadeEffects).toEqual(["risk index ↓"]);
+  });
+});
+
+describe("default control recommendations", () => {
+  function briefWithControls(
+    dualControlPayments: boolean,
+    independentBankRec: boolean,
+    extraTools: ToolResult[] = [],
+  ) {
+    const snapshot: ToolResult = {
+      tool: "get_practice_snapshot",
+      ok: true,
+      summary: "Practice snapshot",
+      data: {
+        practice: "Northside",
+        staff: {
+          teamSize: 2,
+          segregationScore: 0,
+          dualControlPayments,
+          independentBankRec,
+        },
+      },
+    };
+    return localSynthesize(
+      "What next?",
+      [snapshot, ...extraTools],
+      [],
+      [NO_ALERT_WARNING],
+      [],
+      [],
+      [],
+    );
+  }
+
+  it("recommends only the independent bank reconciliation when a second signer is already on", () => {
+    const brief = briefWithControls(true, false);
+    const text = JSON.stringify(brief);
+
+    expect(brief.decisions[0]?.action).toBe("Set up an independent bank reconciliation");
+    expect(brief.frontierNextMove).toContain("Set up an independent bank reconciliation");
+    expect(text).not.toContain("Turn on a second signer");
+  });
+
+  it("uses the existing Decisions log action when both controls are already on", () => {
+    const brief = briefWithControls(true, true);
+
+    expect(brief.decisions[0]?.action).toBe(
+      "Write down in the Decisions log which open gaps you accept and which you will fix, each with a review date",
+    );
+    expect(brief.decisions[0]?.rationale).toBe(
+      "An open gap stays flagged until you record a decision on it, and the record is the trail an outside reviewer asks for.",
+    );
+    expect(
+      brief.decisions.filter((decision) => decision.action === brief.decisions[0]?.action),
+    ).toHaveLength(1);
+    expect(brief.frontierNextMove).toContain("Write down in the Decisions log");
+  });
+
+  it("does not repeat dual release in the first action when ranking a confirmed scenario", () => {
+    const tpl = getIndustryTemplate("dental");
+    const scenarioId = "sc-cash-sod-failure";
+    const staff = {
+      ...tpl.staffComposition,
+      dualControlPayments: true,
+      independentBankRec: false,
+    };
+    const cascades = simulateAllCascades(
+      tpl,
+      { ...DEFAULT_RISK_VARIABLES, hasSecurityCameras: false },
+      staff,
+      scenarioId,
+      { confirmedScenarioIds: new Set([scenarioId]) },
+    );
+    const cascadeResult: ToolResult = {
+      tool: "simulate_variable_cascades",
+      ok: true,
+      summary: "Confirmed scenario cascades",
+      data: {
+        topByCostOfRisk: cascades.rankedByCor.slice(0, 5).map((simulation) => ({
+          label: simulation.lever.label,
+          deltaCor:
+            simulation.after.expectedAnnualCostOfRisk - simulation.before.expectedAnnualCostOfRisk,
+          affects: simulation.lever.affects,
+          secondOrderNotes: simulation.secondOrderNotes,
+        })),
+      },
+    };
+    const brief = briefWithControls(true, false, [cascadeResult]);
+
+    expect(brief.decisions[0]?.action.toLowerCase()).not.toContain("dual release");
+    expect(brief.frontierNextMove.toLowerCase()).not.toContain("dual release");
   });
 });

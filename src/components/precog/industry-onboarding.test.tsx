@@ -49,6 +49,36 @@ describe("IndustryOnboarding, first render", () => {
     expect(text).not.toMatch(/switch industry/);
   });
 
+  it("shows each line of business as a name and one line, with the pack's sample and cases folded", () => {
+    const { html, text } = firstRender("");
+    // The cards carry the name and tagline only: about 120 words for the
+    // whole choice, not a paragraph per card.
+    const cards = html.match(/<button[^>]*role="radio"[\s\S]*?<\/button>/g) ?? [];
+    expect(cards).toHaveLength(8);
+    for (const card of cards) {
+      expect(card).not.toContain("Sample:");
+      expect(card).not.toContain("prosecuted cases");
+      expect(
+        card
+          .replace(/<[^>]+>/g, " ")
+          .split(/\s+/)
+          .filter(Boolean).length,
+      ).toBeLessThan(16);
+    }
+    // The chosen pack's details sit in one closed disclosure below the grid.
+    expect(html).toMatch(/<details[^>]*>(?![^<]*open)/);
+    expect(text).toContain("What the Dental office pack includes");
+    expect(text).toContain("Sample: 8 processes, 6 people.");
+    expect(text).toContain("11 prosecuted cases in dental, medical and veterinary practices");
+    // One primary action; the sample is a text link under it, not a second button.
+    expect(html.match(/bg-primary text-primary-fg[^"]*"[^>]*>Set up my own business/)).toBeTruthy();
+    expect(html).toMatch(
+      /<button type="button" data-testid="explore-sample-business" class="text-primary[^"]*">Explore the fictional sample<\/button>/,
+    );
+    expect(text).toContain("Just looking?");
+    expect(text).toContain("Its team is fictional, and every gap on it says so.");
+  });
+
   it("links the privacy notice and the terms on the first step, and names Business settings", () => {
     const { html, text } = firstRender("");
     expect(html).toContain('<a href="/privacy">Privacy</a>');
@@ -115,19 +145,23 @@ describe("IndustryOnboarding, first render", () => {
     expect(text).not.toContain("it stays only in this browser tab");
   });
 
-  it("ticks none of the owner row's duties: the job title's suggestions wait in the review", () => {
+  it("ticks the owner row's usual duties from the start, each marked as from the job title", () => {
     for (const industry of ["dental", "nonprofit"]) {
       const { html, text } = firstRender("Ruiz Dental", industry, "team");
       const dutyBoxes = html.match(/<input type="checkbox"[^>]*aria-label="[^"]*: [^"]*"[^>]*>/g);
       expect(dutyBoxes?.length).toBeGreaterThan(5);
-      expect(dutyBoxes?.filter((box) => /\schecked/.test(box))).toEqual([]);
-      // No tag under the title stands for a suggested duty either.
-      expect(html).not.toMatch(/aria-label="[^"]*: other duties"/);
-      expect(text).not.toContain("check the suggested ticks");
-      expect(text).toMatch(
-        /The job title suggests \d+ duties: keep or remove each below the table\./,
-      );
-      expect(text).not.toContain("From the job title, not counted yet");
+      const ticked = dutyBoxes?.filter((box) => /\schecked/.test(box)) ?? [];
+      expect(ticked.length).toBeGreaterThan(0);
+      // Every tick the title set says so, and says what to do about a wrong one.
+      for (const box of ticked) {
+        expect(box).toContain("data-from-title");
+        expect(box).toContain('title="Ticked from the job title. Untick it if wrong."');
+      }
+      expect(text).toMatch(/\d+ duties ticked from the job title\. Untick any that are wrong\./);
+      expect(text).not.toContain("keep or remove each below the table");
+      // Nothing holds Finish back: the button carries no waiting note.
+      expect(html).not.toContain("finish-waits");
+      expect(text).not.toContain("works once you keep or remove");
     }
   });
 

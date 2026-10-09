@@ -21,6 +21,13 @@ import type { SodPanelModel } from "./use-sod-panel";
 
 /** Cards shown per person before "Show more". */
 const CARDS_PER_PERSON = 3;
+/**
+ * How many recommendations the What to do first box shows under the first
+ * step before folding the rest: Start here lists three actions, and this box
+ * leads with the first of them, so two more explain the findings without
+ * restating the page.
+ */
+const SHOWN_RECOMMENDATIONS = 2;
 
 export function SodConflictsSection({
   model,
@@ -103,10 +110,22 @@ export function SodConflictsSection({
                   · <span className="font-medium">First, as on Start here:</span> {model.firstStep}
                 </li>
               )}
-              {report.recommendations.map((r) => (
+              {report.recommendations.slice(0, SHOWN_RECOMMENDATIONS).map((r) => (
                 <li key={r}>· {r}</li>
               ))}
             </ul>
+            {report.recommendations.length > SHOWN_RECOMMENDATIONS && (
+              <details className="mt-2 text-sm text-muted">
+                <summary className="cursor-pointer text-xs font-medium text-primary">
+                  {`Show the other ${count(report.recommendations.length - SHOWN_RECOMMENDATIONS, "recommendation")}`}
+                </summary>
+                <ul className="mt-2 space-y-1">
+                  {report.recommendations.slice(SHOWN_RECOMMENDATIONS).map((r) => (
+                    <li key={r}>· {r}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
         )}
         {filteredOpen.length === 0 && (
