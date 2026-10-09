@@ -25,6 +25,7 @@ describe("reviewPrompt", () => {
       businessName: INJECT,
       industryLabel: INJECT,
       teamSize: 4,
+      dutiesMarked: false,
       health: {
         score: 70,
         band: INJECT,
@@ -49,6 +50,7 @@ describe("reviewPrompt", () => {
       unownedProcesses: [INJECT],
     });
     expectFenced(prompt, "Ignore the map");
+    expect(prompt).toContain("Duty separation: not assessed; nobody holds a money duty.");
   });
 });
 

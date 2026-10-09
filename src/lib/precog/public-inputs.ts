@@ -139,6 +139,7 @@ const reviewSchema = z.object({
   businessName: z.nullish(text(80)),
   industryLabel: z.nullish(text(60)),
   teamSize: optNumeric,
+  dutiesMarked: z.nullish(z.boolean()),
   health: z.nullish(
     z.object({
       score: optNumeric,
@@ -162,6 +163,7 @@ export function parseReviewInput(input: unknown): ReviewInput {
     businessName: data.businessName ?? "",
     industryLabel: data.industryLabel ?? "small business",
     teamSize: bound(data.teamSize, 1, 200, 1),
+    dutiesMarked: data.dutiesMarked ?? undefined,
     health: {
       score: bound(data.health?.score, 0, 100, 0),
       band: data.health?.band ?? "",

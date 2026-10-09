@@ -149,7 +149,7 @@ export function OutTomorrowCard({
               </div>
               <ol className="list-decimal space-y-1 pl-5">
                 {absence.actions.map((a) => (
-                  <li key={a.text}>
+                  <li key={a.text} className="break-words [overflow-wrap:anywhere]">
                     {a.text}
                     {a.knowledgeIds.length > 0 && (
                       <JournalStepStatus
@@ -543,7 +543,7 @@ export function DependenceCard({
                   />
                 </div>
                 {l.soleItems.length > 0 && (
-                  <div className="mt-1 text-xs text-muted">
+                  <div className="mt-1 break-words text-xs text-muted [overflow-wrap:anywhere]">
                     Only they can do: {l.soleItems.map((k) => k.name).join(", ")}
                   </div>
                 )}

@@ -9,11 +9,24 @@ import { gradeFromScore, reviewLocally, type MapReview, type ReviewInput } from 
 export const reviewMap = createServerFn({ method: "POST" })
   .middleware([llmMiddleware])
   .validator((input: ReviewInput): ReviewInput => parseReviewInput(input))
-  .handler(async ({ data, context }): Promise<MapReview> =>
-    withGrokFallback(context.llm, reviewLocally(data), data.processes.length > 0, (access) =>
-      reviewWithGrok(data, access),
-    ),
-  );
+  .handler(async ({ data, context }): Promise<MapReview> => {
+    const review = await withGrokFallback(
+      context.llm,
+      reviewLocally(data),
+      data.processes.length > 0,
+      (access) => reviewWithGrok(data, access),
+    );
+    if (
+      data.dutiesMarked !== false ||
+      review.headline.includes("Duty separation is not assessed")
+    ) {
+      return review;
+    }
+    return {
+      ...review,
+      headline: `${review.headline} Duty separation is not assessed: nobody holds a money duty yet.`,
+    };
+  });
 
 /**
  * The review prompt. Everything the browser sent (names, figures, issue
@@ -34,6 +47,7 @@ export function reviewPrompt(input: ReviewInput): string {
     .join("\n");
   const block = `Business: "${input.businessName}", a ${input.teamSize}-person ${input.industryLabel} business
 Map completeness: ${input.health.score}% (${input.health.band})
+${input.dutiesMarked === false ? "Duty separation: not assessed; nobody holds a money duty." : ""}
 Dimensions: ${input.health.dimensions.map((d) => `${d.label} ${d.score} (${d.hint})`).join("; ")}
 Processes:
 ${procLines}

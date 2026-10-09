@@ -198,8 +198,13 @@ export function StartHereFirstStepsSection({
             </p>
             <ul className="flex flex-wrap gap-1.5 pt-1">
               {soleKnowledge.slice(0, 6).map((k) => (
-                <li key={k.knowledgeId}>
-                  <Badge variant="warn">{k.name}</Badge>
+                <li key={k.knowledgeId} className="min-w-0 max-w-full">
+                  <Badge
+                    variant="warn"
+                    className="inline-block min-w-0 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]"
+                  >
+                    {k.name}
+                  </Badge>
                 </li>
               ))}
             </ul>

@@ -246,7 +246,6 @@ async function shellChecks(page) {
   // the page's own control rather than for network silence.
   await page.goto(`${baseUrl}/report`, { waitUntil: "domcontentloaded", timeout });
   await page.getByRole("button", { name: "Print / Save as PDF" }).waitFor({ timeout });
-
   // The Monthly review tab opens on its heading, signed out.
   await home();
   await page.locator('nav [role="tab"]', { hasText: "Monthly review" }).click();

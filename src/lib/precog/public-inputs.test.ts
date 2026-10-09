@@ -84,6 +84,7 @@ describe("parseReviewInput", () => {
     businessName: "Harbor Dental",
     industryLabel: "Dental practice",
     teamSize: 6,
+    dutiesMarked: false,
     health: {
       score: 64,
       band: "Adequate",

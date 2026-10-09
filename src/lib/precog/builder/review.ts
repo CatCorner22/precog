@@ -24,6 +24,7 @@ export interface ReviewInput {
   businessName: string;
   industryLabel: string;
   teamSize: number;
+  dutiesMarked?: boolean;
   health: {
     score: number;
     band: string;
@@ -167,16 +168,20 @@ export function reviewLocally(input: ReviewInput): MapReview {
 
   const headline =
     grade === "A"
-      ? `Strong map — ${input.health.score}% complete. Keep it current.`
+      ? `Strong process map — ${input.health.score}% complete. Keep it current.`
       : grade === "B"
         ? `Solid foundation at ${input.health.score}% complete; ${weakest?.label.toLowerCase() ?? "a few areas"} needs attention.`
         : grade === "C"
           ? `Workable but exposed — ${input.health.score}% complete. Ownership and controls need tightening.`
           : `Significant gaps at ${input.health.score}% complete — act on the next move before adding detail.`;
+  const reviewHeadline =
+    input.dutiesMarked === false
+      ? `${headline} Duty separation is not assessed: nobody holds a money duty yet.`
+      : headline;
 
   return {
     source: "local",
-    headline,
+    headline: reviewHeadline,
     grade,
     sections: [
       { heading: "What's working", points: strengths.slice(0, 4) },

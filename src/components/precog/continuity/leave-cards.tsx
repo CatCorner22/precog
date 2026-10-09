@@ -202,7 +202,9 @@ export function LeaveWindow({
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 text-xs text-muted">{s.note}</p>
+                  <p className="mt-0.5 break-words text-xs text-muted [overflow-wrap:anywhere]">
+                    {s.note}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -230,7 +232,7 @@ export function LeaveWindow({
               </div>
               <ol className="list-decimal space-y-1 pl-5">
                 {impact.actions.map((a) => (
-                  <li key={a.text}>
+                  <li key={a.text} className="break-words [overflow-wrap:anywhere]">
                     {a.text}
                     {a.knowledgeIds.length > 0 && (
                       <JournalStepStatus inline commitment={tracked(a)} onLog={() => onLog(a)} />
@@ -366,7 +368,7 @@ export function LeaverCard({
           </div>
           <ol className="list-decimal space-y-1 pl-5">
             {l.actions.map((a) => (
-              <li key={a.text}>
+              <li key={a.text} className="break-words [overflow-wrap:anywhere]">
                 {a.text}
                 {a.knowledgeIds.length > 0 && (
                   <JournalStepStatus inline commitment={tracked(a)} onLog={() => onLog(a)} />
@@ -406,7 +408,7 @@ function HandoverRow({ h, onSelect }: { h: HandoverItem; onSelect: (id: string) 
           </span>
         )}
       </div>
-      <p className="mt-0.5 text-xs text-muted">{h.note}</p>
+      <p className="mt-0.5 break-words text-xs text-muted [overflow-wrap:anywhere]">{h.note}</p>
     </li>
   );
 }
@@ -451,7 +453,11 @@ export function LeaveDebriefCard({
           <Badge variant="accent">Debrief</Badge>
           <span className="text-xs text-muted">
             {debrief.lengthDays} day{debrief.lengthDays === 1 ? "" : "s"} · back{" "}
-            {debrief.daysSince === 1 ? "yesterday" : `${debrief.daysSince} days ago`}
+            {debrief.daysSince === 1
+              ? "today"
+              : debrief.daysSince === 2
+                ? "yesterday"
+                : `${debrief.daysSince - 1} days ago`}
           </span>
         </div>
         <Button size="sm" variant="ghost" className="h-6 px-1.5 text-xs" onClick={onDismiss}>
@@ -477,7 +483,9 @@ export function LeaveDebriefCard({
           return (
             <li key={e.item.id} className="rounded-md border border-border bg-surface px-2.5 py-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{e.item.name}</span>
+                <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] font-medium">
+                  {e.item.name}
+                </span>
                 <Badge variant={e.item.criticality === "critical" ? "danger" : "default"}>
                   {CRITICALITY_LABEL[e.item.criticality]}
                 </Badge>
@@ -490,8 +498,14 @@ export function LeaveDebriefCard({
                   <span className="text-xs text-subtle">Hand-off in the {tabName("journal")}</span>
                 )}
               </div>
-              <p className="mt-0.5 text-xs text-muted">{describeDebriefItem(debrief, e)}</p>
-              {conflictNote && <p className="mt-0.5 text-xs text-warn">{conflictNote}</p>}
+              <p className="mt-0.5 break-words text-xs text-muted [overflow-wrap:anywhere]">
+                {describeDebriefItem(debrief, e)}
+              </p>
+              {conflictNote && (
+                <p className="mt-0.5 break-words text-xs text-warn [overflow-wrap:anywhere]">
+                  {conflictNote}
+                </p>
+              )}
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 {!e.standInConfirmed && (
                   <select

@@ -64,6 +64,7 @@ import { industryMeta } from "@/lib/precog/industry";
 import type { MapValidationIssue } from "@/lib/precog/process-validation";
 import { enrichProcess, processMapContext } from "@/lib/precog/process-graph";
 import { residualScope } from "@/lib/precog/scoring/scope";
+import { detectSodConflicts } from "@/lib/precog/sod/detect";
 import { validateProcessMap } from "@/lib/precog/process-validation";
 import { needsOwnName, ownBusinessName } from "@/lib/precog/business-lifecycle";
 import { usePractice, usePracticeSync, useTemplate } from "@/lib/precog/practice-context";
@@ -247,6 +248,7 @@ export function ProcessBuilder({
           businessName: profile.practiceName,
           industryLabel: industryMeta(profile.industry).label,
           teamSize: tpl.people.filter((p) => p.active).length,
+          dutiesMarked: detectSodConflicts(tpl).summary.dutiesMarked,
           health: {
             score: currentHealth.score,
             band: currentHealth.bandLabel,

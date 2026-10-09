@@ -46,7 +46,8 @@ interface SummaryInput {
   move?: ConcentrationMove | null;
   registerReady: boolean;
   coverageIndex: number;
-  singlePoints: number;
+  criticalSinglePoints: number;
+  importantSinglePoints: number;
   mapHealth: { score: number; bandLabel: string } | null;
   topPriority: string | null;
 }
@@ -98,8 +99,14 @@ export function executiveSummary(input: SummaryInput): string[] {
       "Precog has not assessed continuity yet: the register of duties and know-how marks nobody.",
     );
   } else if (Number.isFinite(input.coverageIndex)) {
+    const important =
+      input.importantSinglePoints > 0
+        ? `, and ${count(input.importantSinglePoints, "important item")} ${
+            input.importantSinglePoints === 1 ? "does" : "do"
+          } too`
+        : "";
     lines.push(
-      `${input.coverageIndex}% of the work on the register (weighted by how critical it is) has two or more people who can run it alone; ${count(input.singlePoints, "critical or important item")} ${input.singlePoints === 1 ? "relies" : "rely"} on one person or nobody.`,
+      `${input.coverageIndex}% of the work on the register (weighted by how critical it is) has two or more people who can run it alone; ${count(input.criticalSinglePoints, "critical item")} ${input.criticalSinglePoints === 1 ? "relies" : "rely"} on one person or nobody${important}.`,
     );
   }
   if (input.mapHealth && Number.isFinite(input.mapHealth.score)) {

@@ -22,6 +22,8 @@ interface Overseer {
   hasOwner: boolean;
   /** The one person who owns the business alone, when there is one. */
   soleOwnerId: string | null;
+  /** At least one active assignment holds an entitlement. */
+  dutiesMarked: boolean;
 }
 
 /**
@@ -117,7 +119,11 @@ export function sodRecommendations(
     );
   }
   if (!recommendations.length) {
-    recommendations.push("Duties look separated; scan again after any role change.");
+    recommendations.push(
+      overseer.dutiesMarked
+        ? "Duties look separated; scan again after any role change."
+        : "Mark who does each money duty. Precog cannot judge separation until you do.",
+    );
   }
   return recommendations.map((text) => inOverseerWords(text, overseer.hasOwner));
 }
