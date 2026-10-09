@@ -75,7 +75,7 @@ export function AlreadyStopped({
           <li key={item.id}>
             <button
               type="button"
-              className="rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated/60"
+              className="max-w-full break-words [overflow-wrap:anywhere] rounded-md border border-border px-2 py-1 text-xs hover:bg-elevated/60"
               onClick={() => onSelect(item.id)}
             >
               {item.name} · {CRITICALITY_LABEL[item.criticality]}
@@ -104,7 +104,7 @@ export function ItemButton({
   return (
     <button
       type="button"
-      className="text-left font-medium hover:underline"
+      className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] text-left font-medium hover:underline"
       aria-pressed={selected}
       onClick={() => onSelect(item.id)}
     >

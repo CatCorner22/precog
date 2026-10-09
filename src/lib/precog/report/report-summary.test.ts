@@ -102,7 +102,8 @@ const noOpenFindings = {
   firstStep: null,
   registerReady: false,
   coverageIndex: 0,
-  singlePoints: 0,
+  criticalSinglePoints: 0,
+  importantSinglePoints: 0,
   mapHealth: null,
   topPriority: null,
 };
@@ -339,12 +340,40 @@ describe("executive summary", () => {
       firstStep: null,
       registerReady: true,
       coverageIndex: Number.NaN,
-      singlePoints: 2,
+      criticalSinglePoints: 2,
+      importantSinglePoints: 0,
       mapHealth: { score: Number.NaN, bandLabel: "Partial" },
       topPriority: null,
     });
     expect(lines.join(" ")).not.toContain("NaN");
     expect(lines).toHaveLength(1);
+  });
+
+  it("reports critical and important single points separately", () => {
+    const lines = executiveSummary({
+      ...noOpenFindings,
+      registerReady: true,
+      coverageIndex: 80,
+      criticalSinglePoints: 5,
+      importantSinglePoints: 2,
+    });
+
+    expect(lines).toContain(
+      "80% of the work on the register (weighted by how critical it is) has two or more people who can run it alone; 5 critical items rely on one person or nobody, and 2 important items do too.",
+    );
+  });
+
+  it("omits the important count when none rely on one person or nobody", () => {
+    const lines = executiveSummary({
+      ...noOpenFindings,
+      registerReady: true,
+      coverageIndex: 80,
+      criticalSinglePoints: 1,
+      importantSinglePoints: 0,
+    });
+
+    expect(lines.join(" ")).toContain("; 1 critical item relies on one person or nobody.");
+    expect(lines.join(" ")).not.toContain("important item");
   });
 
   it("writes its own caveats instead of the threat screen's demo-priors line", () => {

@@ -454,7 +454,11 @@ function sodConflicts({ sodReport }: ToolInputs): ToolOutput {
   const findings = report.conflicts.filter((c) => !c.ownerHeld);
   return {
     ok: true,
-    summary: `${report.summary.critical} critical, ${report.summary.high} high open duty conflict(s) across ${report.summary.peopleWithConflicts} people; ${report.summary.ownerHeld} held by the owner; segregation health ${report.summary.segregationHealth}/100`,
+    summary: `${report.summary.critical} critical, ${report.summary.high} high open duty conflict(s) across ${report.summary.peopleWithConflicts} people; ${report.summary.ownerHeld} held by the owner; segregation health ${
+      report.summary.dutiesMarked
+        ? `${report.summary.segregationHealth}/100`
+        : "not assessed; nobody holds a money duty"
+    }`,
     data: findings.map((c) => ({
       id: c.id,
       name: `${c.personName} (${c.role}): ${c.title}`,

@@ -102,6 +102,8 @@ export interface SodDetectionReport {
     ownerHeld: number;
     /** Money duties no active person holds: a CPA asks who banks the deposits before asking who does two things. */
     unheldDuties: EntitlementId[];
+    /** Whether any active assignment holds at least one entitlement. */
+    dutiesMarked: boolean;
     segregationHealth: number;
   };
   recommendations: string[];
@@ -246,16 +248,18 @@ export function detectSodConflicts(
   );
   const conflicts = scored.map((s) => s.finding);
   const open = openFindings(conflicts, options?.dualReleaseThresholds ?? new Map());
+  const summary = summarize(assignments, conflicts, open);
 
   return {
     assignments,
     conflicts,
     matrix: sodMatrix(),
     entitlementOrder: ENTITLEMENT_ORDER,
-    summary: summarize(assignments, conflicts, open),
+    summary,
     recommendations: sodRecommendations(assignments, conflicts, open, {
       hasOwner: context.hasOwner,
       soleOwnerId: ownerId,
+      dutiesMarked: summary.dutiesMarked,
     }),
   };
 }
@@ -471,6 +475,7 @@ function summarize(
     dualReleaseMitigated: conflicts.filter((c) => c.dualReleaseMitigated).length,
     ownerHeld: conflicts.filter((c) => c.ownerHeld).length,
     unheldDuties: UNHELD_WATCH.filter((d) => !held.has(d) && (d !== "prepare_deposit" || collects)),
+    dutiesMarked: held.size > 0,
     segregationHealth: segregationHealthIndex(segregationPressure(conflicts)),
   };
 }

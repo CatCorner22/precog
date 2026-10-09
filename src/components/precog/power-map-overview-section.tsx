@@ -50,7 +50,11 @@ export function PowerMapOverviewSection({ model }: { model: PowerMapBuilderModel
           icon={ShieldCheck}
           label="Critical open"
           value={String(criticalCount)}
-          hint={`${say("Duties kept apart", "Duty separation")} ${report.summary.segregationHealth}/100`}
+          hint={
+            report.summary.dutiesMarked
+              ? `${say("Duties kept apart", "Duty separation")} ${report.summary.segregationHealth}/100`
+              : "Duty separation not assessed"
+          }
           tone={criticalCount > 0 ? "danger" : "primary"}
         />
       </div>

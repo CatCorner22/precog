@@ -59,6 +59,7 @@ export function SodPanel({
     });
     return () => cancelAnimationFrame(frame);
   }, [initialView]);
+  const dutiesMarked = report.summary.dutiesMarked;
   const health = report.summary.segregationHealth;
   // Never "strong" or "adequate" while a critical or high finding is open.
   const level = segregationLevel(health, open);
@@ -119,9 +120,21 @@ export function SodPanel({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <StatTile
           label={say("Duties kept apart", "Duty separation")}
-          value={String(health)}
-          hint={`0 to 100 · ${level} · Precog's index`}
-          tone={level === "critical" ? "danger" : level === "weak" ? "warn" : "ok"}
+          value={dutiesMarked ? String(health) : "—"}
+          hint={
+            dutiesMarked
+              ? `0 to 100 · ${level} · Precog's index`
+              : "Not assessed: nobody holds a money duty yet"
+          }
+          tone={
+            !dutiesMarked
+              ? "default"
+              : level === "critical"
+                ? "danger"
+                : level === "weak"
+                  ? "warn"
+                  : "ok"
+          }
         />
         <StatTile
           label="Open duty conflicts"

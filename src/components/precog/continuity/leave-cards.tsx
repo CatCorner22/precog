@@ -448,7 +448,11 @@ export function LeaveDebriefCard({
           <Badge variant="accent">Debrief</Badge>
           <span className="text-xs text-muted">
             {debrief.lengthDays} day{debrief.lengthDays === 1 ? "" : "s"} · back{" "}
-            {debrief.daysSince === 1 ? "yesterday" : `${debrief.daysSince} days ago`}
+            {debrief.daysSince === 1
+              ? "today"
+              : debrief.daysSince === 2
+                ? "yesterday"
+                : `${debrief.daysSince - 1} days ago`}
           </span>
         </div>
         <Button size="sm" variant="ghost" className="h-6 px-1.5 text-xs" onClick={onDismiss}>
@@ -474,7 +478,9 @@ export function LeaveDebriefCard({
           return (
             <li key={e.item.id} className="rounded-md border border-border bg-surface px-2.5 py-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{e.item.name}</span>
+                <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] font-medium">
+                  {e.item.name}
+                </span>
                 <Badge variant={e.item.criticality === "critical" ? "danger" : "default"}>
                   {CRITICALITY_LABEL[e.item.criticality]}
                 </Badge>

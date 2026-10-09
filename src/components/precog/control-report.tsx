@@ -490,8 +490,10 @@ export function ControlReport({
           )}
           <Kpi
             label={layoutThree ? "Duty separation" : "Duty separation index"}
-            value={String(sod.summary.segregationHealth)}
-            hint={`${sodLevel} · ${openSodHint(sodOpen)}`}
+            value={sod.summary.dutiesMarked ? String(sod.summary.segregationHealth) : "—"}
+            hint={
+              sod.summary.dutiesMarked ? `${sodLevel} · ${openSodHint(sodOpen)}` : "Not assessed"
+            }
           />
         </section>
         {sodNote && <p className="mt-2 text-xs leading-relaxed text-neutral-600">{sodNote}</p>}

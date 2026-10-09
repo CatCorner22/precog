@@ -234,7 +234,9 @@ export function CheckInCard({
                   <span className="font-mono text-xs text-muted">{i + 1}.</span>
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{entry.item.name}</span>
+                      <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] font-medium">
+                        {entry.item.name}
+                      </span>
                       <Badge variant={STATUS_VARIANT[entry.coverage]}>
                         {STATUS_LABEL[entry.coverage]}
                       </Badge>
@@ -310,7 +312,9 @@ export function CheckInCard({
                 >
                   <span className="font-mono text-xs text-muted">{i + 1}.</span>
                   <div className="min-w-0 flex-1 space-y-1">
-                    <div className="font-medium">{entry.item.name}</div>
+                    <div className="min-w-0 break-words [overflow-wrap:anywhere] font-medium">
+                      {entry.item.name}
+                    </div>
                     <p className="text-muted">{entry.action}</p>
                     <Button
                       size="sm"
@@ -374,7 +378,9 @@ export function CheckInDropsCard({
                 <span className="font-mono text-xs text-muted">{i + 1}.</span>
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{d.item.name}</span>
+                    <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere] font-medium">
+                      {d.item.name}
+                    </span>
                     <Badge variant={STATUS_VARIANT[d.to]}>{STATUS_LABEL[d.to]}</Badge>
                     <span className="text-xs text-muted">was: {STATUS_LABEL[d.from]}</span>
                   </div>
@@ -420,8 +426,10 @@ export function SelectedKnowledgeCard({
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-wrap items-center gap-2">
-          <CardTitle>{selected.item.name}</CardTitle>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <CardTitle className="min-w-0 break-words [overflow-wrap:anywhere]">
+            {selected.item.name}
+          </CardTitle>
           <Badge variant={coverageBadge(selected).variant}>{coverageBadge(selected).label}</Badge>
         </div>
         <CardDescription>

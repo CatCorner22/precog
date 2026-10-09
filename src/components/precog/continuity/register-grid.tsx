@@ -234,11 +234,11 @@ export function RegisterGrid({
                       <th
                         scope="row"
                         className={cn(
-                          "sticky left-0 z-10 px-3 py-2 text-left font-normal",
+                          "sticky left-0 z-10 min-w-0 px-3 py-2 text-left font-normal",
                           isSelected ? "bg-elevated" : "bg-surface",
                         )}
                       >
-                        <div className="flex max-w-[9rem] flex-wrap items-center gap-2 sm:max-w-xs">
+                        <div className="flex min-w-0 max-w-[9rem] flex-wrap items-center gap-2 sm:max-w-xs">
                           <ItemButton
                             item={row.item}
                             selected={isSelected}
@@ -272,7 +272,7 @@ export function RegisterGrid({
                             <select
                               className={cn(
                                 inputClass,
-                                "w-full",
+                                "min-h-11 w-full sm:min-h-0",
                                 level === "expert" || level === "proficient"
                                   ? "border-ok/40 text-ok"
                                   : level === "basic"

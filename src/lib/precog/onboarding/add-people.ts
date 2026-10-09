@@ -457,7 +457,9 @@ function headline(
 /** How many titles the catalog knew, how many only partly, and how many it did not. */
 function titlesSentence(input: { recognised: number; partial: number; unmatched: number }): string {
   const partial =
-    input.partial > 0 ? `, ${input.partial} of them only partly (marked in the Role column)` : "";
+    input.partial > 0
+      ? `, ${input.partial} of them only partly (marked in the Job title column)`
+      : "";
   const unmatched =
     input.unmatched > 0
       ? `; ${count(input.unmatched, "title is", "titles are")} not in the catalog: tick those duties below`
