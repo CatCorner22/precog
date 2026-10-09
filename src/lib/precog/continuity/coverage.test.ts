@@ -58,6 +58,25 @@ describe("coverageReport", () => {
     expect(coverageReport(next).items[0].status).toBe("covered");
     expect(coverageReport(t).items[0].status).toBe("single");
   });
+
+  it("uses former-only relations for coverage guidance but keeps untouched items unmarked", () => {
+    const t = tpl(
+      [knowledgeItem("former-held"), knowledgeItem("untouched")],
+      [{ personId: "d", knowledgeId: "former-held", level: "expert" }],
+    );
+    const report = coverageReport(t);
+    const formerHeld = report.plan.find((move) => move.item.id === "former-held")!;
+    const untouched = report.plan.find((move) => move.item.id === "untouched")!;
+
+    expect(formerHeld.action).toContain('Nobody can run "former-held" alone.');
+    expect(formerHeld.action).not.toContain("You have not marked anyone");
+    expect(untouched.action).toContain('You have not marked anyone on "untouched" yet.');
+
+    const ownerWritten = tpl([knowledgeItem("owner-written")], []);
+    expect(coverageReport(ownerWritten).plan[0].action).toContain(
+      'You have not marked anyone on "owner-written" yet.',
+    );
+  });
 });
 
 describe("coverageStatus", () => {

@@ -444,14 +444,16 @@ export function SelectedKnowledgeCard({
   register: Pick<RegisterEditor, "selected" | "updateItem" | "confirmItems">;
   trackFreshness: boolean;
 }) {
+  const tpl = useTemplate();
   const { selected, updateItem } = register;
   if (!selected) return null;
+  const badge = coverageBadge(selected, tpl);
   return (
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-center gap-2">
           <CardTitle>{selected.item.name}</CardTitle>
-          <Badge variant={coverageBadge(selected).variant}>{coverageBadge(selected).label}</Badge>
+          <Badge variant={badge.variant}>{badge.label}</Badge>
         </div>
         <CardDescription>
           {selected.item.description || CRITICALITY_LABEL[selected.item.criticality]}
@@ -517,7 +519,7 @@ export function SelectedKnowledgeCard({
         <PeopleLine label="Learning" people={selected.learners.map((p) => p.name)} />
         <PeopleLine label="Aware only" people={selected.aware.map((p) => p.name)} />
         {selected.suggestedBackups.length > 0 &&
-          (isMarked(selected) ? (
+          (isMarked(tpl, selected) ? (
             <div>
               <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
                 Best people to train next

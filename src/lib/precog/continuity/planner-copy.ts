@@ -1,6 +1,7 @@
 import { isMarked, STATUS_LABEL, type CoverageStatus, type ItemCoverage } from "./coverage";
 import { joinWithAnd } from "../text";
 import type { Criticality, KnowledgeKind, KnowledgeLevel } from "../types";
+import type { IndustryTemplate } from "../templates/types";
 
 /** Wording the continuity planner and its cards share. */
 export const CRITICALITY_LABEL: Record<Criticality, string> = {
@@ -51,11 +52,14 @@ export function statusBadge(
  * any level the row is not a gap yet, so it reads "Not marked yet" in a
  * neutral badge instead of "Nobody can do this alone".
  */
-export function coverageBadge(row: ItemCoverage): {
+export function coverageBadge(
+  row: ItemCoverage,
+  tpl: Pick<IndustryTemplate, "id" | "knowledge" | "relations">,
+): {
   label: string;
   variant: (typeof STATUS_VARIANT)[CoverageStatus] | "default";
 } {
-  return statusBadge(row.status, isMarked(row));
+  return statusBadge(row.status, isMarked(tpl, row));
 }
 
 /** Check-in tab for stale items nobody on the active team holds. */
