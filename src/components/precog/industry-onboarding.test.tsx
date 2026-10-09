@@ -119,7 +119,7 @@ describe("IndustryOnboarding, first render", () => {
       expect(html).not.toMatch(/aria-label="[^"]*: other duties"/);
       expect(text).not.toContain("check the suggested ticks");
       expect(text).toMatch(
-        /The job title suggests \d+ duties: keep or remove each below the table\./,
+        /The job title suggests \d+ duties\. Keep or remove each below the table\./,
       );
       expect(text).not.toContain("From the job title, not counted yet");
     }

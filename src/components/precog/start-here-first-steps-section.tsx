@@ -101,7 +101,7 @@ export function StartHereFirstStepsSection({
           <SectionHeading
             icon={<ArrowRight className="size-4" aria-hidden />}
             title="Do these first"
-            subtitle="Ranked by how many of the duty pairs behind your open conflicts each covers, then by how many of the real cases below it would plausibly have caught."
+            subtitle="Precog ranks actions by open conflict pairs covered, then by real cases below each could plausibly have caught."
           />
 
           <Card>
@@ -126,7 +126,7 @@ export function StartHereFirstStepsSection({
               )}
               {alreadyInPlace.length > 0 && (
                 <p className="mt-3 text-xs text-muted">
-                  Left off because you said at setup they already run:{" "}
+                  Not shown: you said at setup that these controls already run:{" "}
                   {alreadyInPlace.map((control) => control.label).join(", ")}.
                 </p>
               )}
@@ -161,8 +161,8 @@ export function StartHereFirstStepsSection({
         <Card>
           <CardContent className="space-y-1 pt-5">
             <p className="text-sm font-medium">
-              Give your staff a way to raise a concern that does not run through the person they are
-              worried about.
+              Give staff a way to report concerns without going through the person they are worried
+              about.
             </p>
             <p className="text-sm leading-relaxed text-muted">{tips.soWhat}</p>
             {hotlineGap && (
@@ -192,9 +192,8 @@ export function StartHereFirstStepsSection({
               on exactly one person.
             </p>
             <p className="text-sm leading-relaxed text-muted">
-              This is a continuity problem and an oversight problem at the same time. Nobody can
-              review work they do not understand, so sole knowledge quietly removes the second pair
-              of eyes as well.
+              One-person knowledge creates a continuity and oversight gap. No one else can review
+              work they do not understand.
             </p>
             <ul className="flex flex-wrap gap-1.5 pt-1">
               {soleKnowledge.slice(0, 6).map((k) => (

@@ -18,7 +18,7 @@ describe("SeatNote", () => {
       />,
     );
     expect(text(html)).toBe(
-      "The job title suggests 3 duties: keep or remove each below the table.",
+      "The job title suggests 3 duties. Keep or remove each below the table.",
     );
   });
 
@@ -26,11 +26,9 @@ describe("SeatNote", () => {
     const html = renderToStaticMarkup(
       <SeatNote seat={{ title: "Bookkeeper", partial: true }} duties={["enter_invoices"]} />,
     );
+    expect(text(html)).toContain("Partial catalog match: Bookkeeper. Review the suggested duties.");
     expect(text(html)).toContain(
-      "Catalog job (partial match): Bookkeeper; check its suggested duties",
-    );
-    expect(text(html)).toContain(
-      "The job title suggests 1 duty: keep or remove each below the table.",
+      "The job title suggests 1 duty. Keep or remove each below the table.",
     );
   });
 
@@ -76,8 +74,8 @@ describe("TitleTicksReview", () => {
       { rowId: "r2", who: "Maria", role: "Office Manager", duties: ["prepare_deposit"] },
     ]);
     expect(text(html)).toContain("Job titles suggested 3 duties for 2 people: keep or remove each");
-    expect(text(html)).toContain("Precog counts a suggested duty only once you keep it.");
-    expect(text(html)).toContain("Lisa (Bookkeeper) does these, from the job title:");
+    expect(text(html)).toContain("Precog counts a duty only after you keep it.");
+    expect(text(html)).toContain("Lisa (Bookkeeper) job-title suggestions:");
     // The no-column duty is in the review, by its full plain name.
     expect(html).toContain('aria-label="Keep Post manual journal entries for Lisa"');
     expect(html).toContain('aria-label="Remove Post manual journal entries from Lisa"');
@@ -151,7 +149,7 @@ describe("FinishWaitsNote", () => {
       />,
     );
     expect(text(html)).toBe(
-      "“Show me my gaps” works once you keep or remove each duty a job title suggested: 8 duties left. Start with Ruth",
+      "Keep or remove each suggested duty before “Show me my gaps”. 8 duties left. Start with Ruth",
     );
   });
 });

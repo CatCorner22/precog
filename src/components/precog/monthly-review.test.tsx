@@ -853,7 +853,7 @@ describe("monthly review saves who actually did the check", () => {
     state.people = [owner()];
     const html = view();
     expect(html).toContain(">Exception (found a problem)</button>");
-    expect(html).toContain("Press Exception when the check turned up a problem");
+    expect(html).toContain("Press Exception when a check finds a problem");
   });
 
   it("marks the latest result's button as pressed and shows a lasting Saved line", () => {
@@ -967,7 +967,7 @@ describe("monthly review saves who actually did the check", () => {
     const html = view();
     expect(html).not.toContain("come from the register");
     expect(html).toContain(
-      "Do each check below. Choose who did it, then press Done, or Exception if you found a problem and say what you found.",
+      "Do each check below. Choose who did it. Press Done to record it, or press Exception if you found a problem. Describe what you found.",
     );
   });
 });

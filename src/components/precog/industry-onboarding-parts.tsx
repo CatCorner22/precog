@@ -28,21 +28,23 @@ export function SeatNote({
   if (!seat) return null;
   if (!seat.title) {
     return (
-      <p className="mt-1 max-w-[11rem] text-xs text-muted">Not in the catalog: tick by hand</p>
+      <p className="mt-1 max-w-[11rem] text-xs text-muted">
+        Not in the catalog. Mark duties by hand.
+      </p>
     );
   }
   return (
     <>
       {seat.partial ? (
         <p className="mt-1 max-w-[11rem] text-xs text-warn">
-          {`Catalog job (partial match): ${seat.title}; check its suggested duties`}
+          {`Partial catalog match: ${seat.title}. Review the suggested duties.`}
         </p>
       ) : duties.length === 0 ? (
         <p className="mt-1 max-w-[11rem] text-xs text-muted">{`Catalog job: ${seat.title}`}</p>
       ) : null}
       {duties.length > 0 && (
         <p className="mt-1 max-w-[11rem] text-xs text-warn">
-          {`The job title suggests ${count(duties.length, "duty", "duties")}: keep or remove each below the table.`}
+          {`The job title suggests ${count(duties.length, "duty", "duties")}. Keep or remove each below the table.`}
         </p>
       )}
     </>
@@ -89,8 +91,8 @@ export function TitleTicksReview({
         {`Job titles suggested ${count(waiting, "duty", "duties")} for ${count(items.length, "person", "people")}: keep or remove each`}
       </h3>
       <p className="text-xs text-muted">
-        Precog counts a suggested duty only once you keep it. Keep what each person does today;
-        remove the rest.
+        Precog counts a duty only after you keep it. Keep each person's current duties. Remove the
+        rest.
       </p>
       <ul className="space-y-2">
         {items.map((item) => (
@@ -108,7 +110,7 @@ export function TitleTicksReview({
               >
                 {item.who}
               </button>{" "}
-              <span className="text-muted">{`(${item.role}) does these, from the job title:`}</span>
+              <span className="text-muted">{`(${item.role}) job-title suggestions:`}</span>
             </p>
             <ul className="space-y-1" aria-label={`Suggested duties for ${item.who}`}>
               {item.duties.map((duty) => {
@@ -189,7 +191,7 @@ export function FinishWaitsNote({
 }) {
   return (
     <p id={id} className="text-xs text-warn" role="status">
-      {`“${finishLabel}” works once you keep or remove each duty a job title suggested: ${count(waiting, "duty", "duties")} left. `}
+      {`Keep or remove each suggested duty before “${finishLabel}”. ${count(waiting, "duty", "duties")} left. `}
       <button
         type="button"
         className="min-h-6 font-medium text-primary underline underline-offset-2"
