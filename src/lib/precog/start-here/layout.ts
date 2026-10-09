@@ -1,3 +1,6 @@
+import { UNIVERSAL_FIX } from "../coach/first-steps";
+import type { ControlId } from "../evidence/controls";
+
 /** The fold on Start here that holds the evidence behind the first screen. */
 export const WHY_WE_SAY_THIS = "Why we say this";
 
@@ -38,13 +41,13 @@ export function parseTeamFocus(
 }
 
 /**
- * The screen that fixes a ranked control. A step that names the person who
- * holds the pair opens that person on Team, with the two duties marked.
- * A step that answers an open finding but names nobody opens the conflicts.
+ * The split-duty step opens its person on Team, with the two duties marked.
+ * Review and other controls open the conflicts they answer, not a person's
+ * duties: a related finding does not make a control a duty reassignment.
  * A step that answers no finding has no screen of its own.
  */
 export function stepDestination(
-  step: { answers: number },
+  step: { answers: number; control: { id: ControlId } },
   focus?: {
     personId: string;
     personName: string;
@@ -53,7 +56,7 @@ export function stepDestination(
   } | null,
 ): StepLanding | null {
   if (step.answers <= 0) return null;
-  if (focus?.personId && focus.personName) {
+  if (step.control.id === UNIVERSAL_FIX && focus?.personId && focus.personName) {
     return {
       tab: "team",
       item: teamFocusItem(focus.personId, focus.entitlementA, focus.entitlementB),
