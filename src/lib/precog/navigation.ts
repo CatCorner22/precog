@@ -50,7 +50,7 @@ export const TAB_ALIASES = {
   coso: { tab: "scores", item: "coverage", label: "Coverage check", tactical: "COSO" },
   intel: { tab: "scores", item: "patterns", label: "Patterns", tactical: "Intel" },
   journal: { tab: "monthly", item: "decisions", label: "Decisions log", tactical: "Journal" },
-  // The header's "Someone is out" opens Who knows what on the absence cards:
+  // Needs attention, and older links, open Who knows what on the absence cards:
   // out today, planned leave, and the cover sheet for each.
   absences: { tab: "knowledge", item: "absences", label: "Someone is out", tactical: "Absences" },
   // The retired Dashboard opens Start here; the retired blueprint screen opens Procedures.
@@ -212,12 +212,13 @@ export function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
 }
 
 /**
- * The tabs that open on one item: a scenario, a register entry, a procedure
- * (or a recommended one, `lib:<library id>`, passed through as given) or a
- * process. On Who controls what, How Precog scores and Monthly
- * review, the item names a view or a section.
+ * The tabs that open on one item: a person on Team, a scenario, a register
+ * entry, a procedure (or a recommended one, `lib:<library id>`, passed
+ * through as given) or a process. On Who controls what, How Precog scores and
+ * Monthly review, the item names a view or a section.
  */
 const ITEM_TABS: ReadonlySet<TabId> = new Set([
+  "team",
   "precog",
   "knowledge",
   "procedures",

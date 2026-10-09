@@ -7,7 +7,7 @@ import type { DeepLinkTarget } from "@/lib/precog/coso";
 import { tabLabel, type AliasId } from "@/lib/precog/navigation";
 import { usePresentation } from "@/lib/precog/presentation";
 
-type ScoresView = "residual" | "coverage" | "patterns";
+type ScoresView = "residual" | "coverage" | "patterns" | "csv";
 
 /** Each view, the alias whose wording names it, and its icon. */
 const VIEWS: { id: ScoresView; alias: AliasId; icon: typeof Brain }[] = [
@@ -33,7 +33,7 @@ const VIEW_INTROS = {
 } satisfies Partial<Record<ScoresView, { heading: string; plain: string; tactical: string }>>;
 
 function isScoresView(value: string | null): value is ScoresView {
-  return VIEWS.some((v) => v.id === value);
+  return value === "csv" || VIEWS.some((v) => v.id === value);
 }
 
 /**
@@ -53,7 +53,8 @@ export function ScoresArea({
 }) {
   const { say } = usePresentation();
   const active: ScoresView = isScoresView(view) ? view : "residual";
-  const activeView = VIEWS.find((v) => v.id === active)!;
+  const activeView = VIEWS.find((v) => v.id === active);
+  const intro = active === "residual" || active === "coverage" ? VIEW_INTROS[active] : null;
 
   return (
     <div className="space-y-4">
@@ -91,28 +92,50 @@ export function ScoresArea({
             {tabLabel(alias, say)}
           </Button>
         ))}
+        <Button
+          size="sm"
+          variant={active === "csv" ? "default" : "secondary"}
+          aria-pressed={active === "csv"}
+          onClick={() => openTab("scores", "csv")}
+        >
+          <Brain className="size-4" aria-hidden />
+          Number patterns
+        </Button>
       </div>
-      <Suspense fallback={<TabLoading />}>
-        {active === "patterns" ? (
-          <IntelligencePanel onNavigate={openTab} />
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-base font-semibold">
-                {say(tabLabel(activeView.alias), VIEW_INTROS[active].heading)}
-              </h2>
-              <p className="text-sm text-muted">
-                {say(VIEW_INTROS[active].plain, VIEW_INTROS[active].tactical)}
-              </p>
+      {active === "csv" ? (
+        <section
+          id="number-patterns"
+          aria-labelledby="number-patterns-heading"
+          className="space-y-3"
+        >
+          <h2 id="number-patterns-heading" className="text-lg font-semibold">
+            Number patterns in a CSV
+          </h2>
+          <Suspense fallback={<TabLoading />}>
+            <ForensicPanel headingLevel={3} />
+          </Suspense>
+        </section>
+      ) : (
+        <Suspense fallback={<TabLoading />}>
+          {intro && activeView ? (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-base font-semibold">
+                  {say(tabLabel(activeView.alias), intro.heading)}
+                </h2>
+                <p className="text-sm text-muted">{say(intro.plain, intro.tactical)}</p>
+              </div>
+              {active === "residual" ? (
+                <ResidualRadar onNavigate={onNavigate} />
+              ) : (
+                <CosoHeatmap onNavigate={onNavigate} />
+              )}
             </div>
-            {active === "residual" ? (
-              <ResidualRadar onNavigate={onNavigate} />
-            ) : (
-              <CosoHeatmap onNavigate={onNavigate} />
-            )}
-          </div>
-        )}
-      </Suspense>
+          ) : (
+            <IntelligencePanel onNavigate={openTab} />
+          )}
+        </Suspense>
+      )}
     </div>
   );
 }
@@ -128,5 +151,10 @@ const CosoHeatmap = lazy(() =>
 const IntelligencePanel = lazy(() =>
   import("@/components/precog/intelligence-panel").then((module) => ({
     default: module.IntelligencePanel,
+  })),
+);
+const ForensicPanel = lazy(() =>
+  import("@/components/precog/forensic-panel").then((module) => ({
+    default: module.ForensicPanel,
   })),
 );
