@@ -457,8 +457,7 @@ function headline(
 function titlesSentence(input: { recognised: number; partial: number; unmatched: number }): string {
   const partial =
     input.partial > 0
-      ? `, ${input.partial} of them only partly (marked in the Job title column)`
-      ? ` ${count(input.partial, "partial match", "partial matches")} (marked in the Role column).`
+      ? ` ${count(input.partial, "partial match", "partial matches")} (marked in the Job title column).`
       : "";
   const unmatched =
     input.unmatched > 0
