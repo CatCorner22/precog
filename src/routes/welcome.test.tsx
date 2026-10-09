@@ -36,6 +36,11 @@ type RouteLike = {
 const { options } = Route as unknown as RouteLike;
 const Page = options.component;
 const html = renderToStaticMarkup(<Page />);
+const text = html
+  .replace(/<[^>]+>/g, " ")
+  .replace(/&#x27;/g, "'")
+  .replace(/\s+/g, " ")
+  .trim();
 
 describe("the landing page", () => {
   it("describes itself for a share preview and leaves the title to the root", () => {
@@ -102,8 +107,22 @@ describe("the landing page", () => {
     expect(html).toContain("its team is fictional and every gap says so");
   });
 
-  it("shows Precog's own share picture as the illustration", () => {
-    expect(html).toContain('<img src="/og.svg" alt=""');
+  it("shows the sample's Do these first block in place of a picture, named as the sample", () => {
+    expect(html).not.toContain('<img src="/og.svg"');
+    expect(html).toContain('aria-label="What Start here shows for the sample business"');
+    expect(text).toContain(
+      "Ridgeview Family Dental · the fictional sample · 20 open duty conflicts, 4 critical",
+    );
+    expect(text).toContain("Do these first");
+    expect(text).toContain(
+      "1 Move one duty, enter write-offs, away from Maya Chen: it closes 4 of the 20 open duty conflicts",
+    );
+    expect(text).toContain(
+      "3 Review voids, refunds, discounts, and write-offs grouped by employee",
+    );
+    expect(text).toContain(
+      "Your own list comes from the people and duties you enter. About ten minutes.",
+    );
   });
 
   it("names the firm offer with links to pricing and the firm workspace, plus the footer", () => {

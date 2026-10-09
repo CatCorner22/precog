@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CASE_COUNT, VERIFIED_CASE_COUNT } from "@/lib/precog/evidence/case-count";
+import { LANDING_SAMPLE } from "@/lib/precog/landing-sample";
 import { LegalFooter } from "@/components/precog/legal-footer";
 import { buttonClass } from "@/components/ui/button-variants";
 
@@ -69,7 +70,7 @@ function WelcomePage() {
             first — its team is fictional and every gap says so.
           </p>
         </div>
-        <img src="/og.svg" alt="" className="w-full rounded-xl border border-border" />
+        <SampleFirstSteps />
       </div>
 
       <p className="mt-10 text-sm text-muted">
@@ -85,5 +86,38 @@ function WelcomePage() {
 
       <LegalFooter className="mt-10" />
     </main>
+  );
+}
+
+/**
+ * The product, not a picture of it: the sample's "Do these first" block as
+ * Start here prints it. Static copy pinned to the engine by a test, since
+ * this page loads no engine code.
+ */
+function SampleFirstSteps() {
+  return (
+    <section
+      aria-label="What Start here shows for the sample business"
+      className="rounded-xl border border-border bg-surface p-4 text-sm"
+    >
+      <p className="text-xs text-muted">
+        {LANDING_SAMPLE.businessName} · the fictional sample · {LANDING_SAMPLE.openConflicts} open
+        duty conflicts, {LANDING_SAMPLE.critical} critical
+      </p>
+      <p className="mt-3 text-xs font-medium tracking-wide text-subtle uppercase">Do these first</p>
+      <ol className="mt-2 space-y-2">
+        {LANDING_SAMPLE.steps.map((step, i) => (
+          <li key={step} className="flex gap-3">
+            <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-elevated font-mono text-xs text-muted">
+              {i + 1}
+            </span>
+            <span className="leading-relaxed">{step}</span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-3 text-xs text-muted">
+        Your own list comes from the people and duties you enter. About ten minutes.
+      </p>
+    </section>
   );
 }
