@@ -3,9 +3,11 @@ import type { Sql } from "@/lib/db";
 import { toSql } from "@/lib/sql-transaction";
 import { openTestDb, type TestDb } from "@/test/pglite";
 import { defaultProfile } from "../practice-profile";
+import { saveEngagement } from "./engagement-store";
 import {
   ALREADY_REVIEWED,
   lockReportVersion,
+  OVERRIDE_NOTE_REQUIRED,
   requestReportVersionReview,
   returnReportVersion,
   signOffReportVersion,
@@ -100,13 +102,25 @@ const lock = (id: string, preparedBy = "prep") =>
  */
 function racing(marker: string, between: () => Promise<unknown>): Sql {
   let fired = false;
-  return toSql(async (text, params) => {
+  const sql = toSql(async (text, params) => {
     if (!fired && text.includes(marker)) {
       fired = true;
       await between();
     }
     return db.sql.query(text, params);
   });
+  // A write inside a transaction: the other reviewer acts just before the
+  // unit opens, after the caller's read. The embedded database runs one
+  // connection, so nothing can act while the unit is open; on PostgreSQL the
+  // unit's row lock makes the other reviewer wait for it instead.
+  sql.transaction = async (work) => {
+    if (!fired) {
+      fired = true;
+      await between();
+    }
+    return db.sql.transaction!(work);
+  };
+  return sql;
 }
 
 const returnedBy =
@@ -128,6 +142,44 @@ async function refusal(work: Promise<unknown>): Promise<{ status: number; messag
 }
 
 describe("a reviewer acting between the read and the write", () => {
+  it("requires the override note when the client's reviewer was reassigned meanwhile", async () => {
+    await lock("rv_1");
+    const assign = (reviewerUserId: string) =>
+      saveEngagement(db.sql, {
+        ownerUserId: "own",
+        businessId: "biz_1",
+        actorUserId: "own",
+        scope: "Monthly review",
+        periodStart: "2026-09-01",
+        periodEnd: "2026-09-30",
+        preparerUserId: "prep",
+        reviewerUserId,
+      });
+    await assign("rev");
+    // rev is the assigned reviewer when the sign-off reads the version; the
+    // owner reassigns the client to rev2 before the sign-off's write.
+    const sql = racing("set reviewed_by", () => assign("rev2"));
+    expect(
+      await refusal(
+        signOffReportVersion(sql, { ownerUserId: "own", id: "rv_1", reviewedBy: "rev", note: "" }),
+      ),
+    ).toEqual({ status: 400, message: OVERRIDE_NOTE_REQUIRED });
+    const [row] = await db.sql<{ reviewed_by: string | null; review_override_note: string | null }>`
+      select reviewed_by, review_override_note from report_versions where id = 'rv_1'
+    `;
+    expect(row).toEqual({ reviewed_by: null, review_override_note: null });
+    // With the note, rev reviews in rev2's place and the note is stored.
+    const signed = await signOffReportVersion(db.sql, {
+      ownerUserId: "own",
+      id: "rv_1",
+      reviewedBy: "rev",
+      note: "",
+      overrideNote: "rev2 is out this week; the client asked for the file today.",
+    });
+    expect(signed.reviewedBy).toBe("rev");
+    expect(signed.reviewOverrideNote).toContain("rev2 is out this week");
+  });
+
   it("refuses a review for issuance of a version returned meanwhile, and stores no review", async () => {
     await lock("rv_1");
     const sql = racing("set reviewed_by", returnedBy("rev"));
