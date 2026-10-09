@@ -849,11 +849,26 @@ describe("monthly review saves who actually did the check", () => {
     });
   });
 
-  it("explains Exception in one line on the screen and keeps the report's label", () => {
+  it("explains Exception once, above the checks, and keeps the report's label", () => {
     state.people = [owner()];
     const html = view();
     expect(html).toContain(">Exception (found a problem)</button>");
-    expect(html).toContain("Press Exception when a check finds a problem");
+    // Said once in the page's one-line instruction, not again under each of the four checks.
+    expect(html.match(/or Exception if you found a problem/g)).toHaveLength(1);
+    expect(html).not.toContain("Press Exception when the check turned up a problem");
+    // The Mark resolved hint appears only under a check whose latest result is an exception.
+    expect(html).not.toContain("press Mark resolved");
+  });
+
+  it("explains each reviewer-independence status once, and labels every check in a few words", () => {
+    state.people = [owner()];
+    const html = view();
+    expect(html.match(/ownership alone does not make the review independent/g)).toHaveLength(1);
+    expect(html).not.toContain("Self-review risk: Self-review risk");
+    expect(
+      html.match(/data-review-independence="self_review"[^>]*>Self-review risk</g),
+    ).toHaveLength(4);
+    expect(html).toContain('aria-label="Reviewer independence"');
   });
 
   it("marks the latest result's button as pressed and shows a lasting Saved line", () => {
@@ -907,6 +922,9 @@ describe("monthly review saves who actually did the check", () => {
     ];
     const html = await settle();
     expect(html.match(/>Mark resolved<\/button>/g)).toHaveLength(1);
+    expect(html).toContain(
+      "After you fix it, press Mark resolved. Precog saves Done with the fix.",
+    );
     whoField(render(), BANK).props.onChange({ target: { value: "Owner" } });
     noteField(render(), BANK).props.onChange({
       target: { value: "Found it in the Sep 13 deposit" },
@@ -967,7 +985,7 @@ describe("monthly review saves who actually did the check", () => {
     const html = view();
     expect(html).not.toContain("come from the register");
     expect(html).toContain(
-      "Do each check below. Choose who did it. Press Done to record it, or press Exception if you found a problem. Describe what you found.",
+      "Do each check below. Choose who did it, then press Done, or Exception if you found a problem and say what you found.",
     );
   });
 });

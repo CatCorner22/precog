@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isValidElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { FinishWaitsNote, SeatNote, TitleTicksReview } from "./industry-onboarding-parts";
+import { SeatNote, TitleTicksReview } from "./industry-onboarding-parts";
 
 const text = (html: string) =>
   html
@@ -10,33 +10,34 @@ const text = (html: string) =>
     .trim();
 
 describe("SeatNote", () => {
-  it("counts the duties the job title suggested and points to the review, naming none", () => {
+  it("counts the duties the job title ticked and says to untick the wrong ones, naming none", () => {
     const html = renderToStaticMarkup(
       <SeatNote
         seat={{ title: "Bookkeeper", partial: false }}
         duties={["enter_invoices", "release_payment", "bank_reconcile"]}
       />,
     );
-    expect(text(html)).toBe(
-      "The job title suggests 3 duties. Keep or remove each below the table.",
-    );
+    expect(text(html)).toBe("3 duties ticked from the job title. Untick any that are wrong.");
   });
 
-  it("keeps the partial-match warning and still points to the suggestions", () => {
+  it("keeps the partial-match warning beside the count of ticks", () => {
     const html = renderToStaticMarkup(
       <SeatNote seat={{ title: "Bookkeeper", partial: true }} duties={["enter_invoices"]} />,
     );
-    expect(text(html)).toContain("Partial catalog match: Bookkeeper. Review the suggested duties.");
-    expect(text(html)).toContain(
-      "The job title suggests 1 duty. Keep or remove each below the table.",
-    );
+    expect(text(html)).toContain("Catalog job (partial match): Bookkeeper; check its ticks");
+    expect(text(html)).toContain("1 duty ticked from the job title. Untick any that are wrong.");
   });
 
-  it("names the catalog job when every suggestion is decided", () => {
+  it("names the catalog job when every tick is kept", () => {
     const html = renderToStaticMarkup(
       <SeatNote seat={{ title: "Bookkeeper", partial: false }} duties={[]} />,
     );
     expect(text(html)).toBe("Catalog job: Bookkeeper");
+  });
+
+  it("says to tick by hand when the job title is not in the catalog", () => {
+    const html = renderToStaticMarkup(<SeatNote seat={{ title: "", partial: false }} />);
+    expect(text(html)).toBe("Not in the catalog: tick by hand");
   });
 });
 
@@ -63,7 +64,7 @@ const review = (items: Parameters<typeof TitleTicksReview>[0]["items"]) =>
   );
 
 describe("TitleTicksReview", () => {
-  it("lists every suggested duty by its full name, column or not, each with Keep and Remove", () => {
+  it("lists every title tick by its full name, column or not, each with Keep and Remove", () => {
     const html = review([
       {
         rowId: "r1",
@@ -73,8 +74,10 @@ describe("TitleTicksReview", () => {
       },
       { rowId: "r2", who: "Maria", role: "Office Manager", duties: ["prepare_deposit"] },
     ]);
-    expect(text(html)).toContain("Job titles suggested 3 duties for 2 people: keep or remove each");
-    expect(text(html)).toContain("Precog counts a duty only after you keep it.");
+    expect(text(html)).toContain("Job titles ticked 3 duties for 2 people");
+    expect(text(html)).toContain("They count now.");
+    expect(text(html)).toContain("marked “from the job title” on Team until you confirm it.");
+    expect(text(html)).not.toContain("keep or remove each");
     expect(text(html)).toContain("Lisa (Bookkeeper) job-title suggestions:");
     // The no-column duty is in the review, by its full plain name.
     expect(html).toContain('aria-label="Keep Post manual journal entries for Lisa"');
@@ -130,26 +133,9 @@ describe("TitleTicksReview", () => {
     expect(removed).toEqual([["approve_payroll", "approve_writeoffs"]]);
   });
 
-  it("uses the singular for one duty and one person, and shows nothing once all are decided", () => {
+  it("uses the singular for one duty and one person, and shows nothing once all are kept", () => {
     const one = review([{ rowId: "r1", who: "Lisa", role: "Clerk", duties: ["post_payments"] }]);
-    expect(text(one)).toContain("Job titles suggested 1 duty for 1 person: keep or remove each");
+    expect(text(one)).toContain("Job titles ticked 1 duty for 1 person");
     expect(review([])).toBe("");
-  });
-});
-
-describe("FinishWaitsNote", () => {
-  it("says why the finish button waits and links the first person to decide", () => {
-    const html = renderToStaticMarkup(
-      <FinishWaitsNote
-        id="w"
-        finishLabel="Show me my gaps"
-        waiting={8}
-        first={{ rowId: "r1", who: "Ruth", role: "Bookkeeper", duties: ["post_payments"] }}
-        onShow={noop}
-      />,
-    );
-    expect(text(html)).toBe(
-      "Keep or remove each suggested duty before “Show me my gaps”. 8 duties left. Start with Ruth",
-    );
   });
 });

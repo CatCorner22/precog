@@ -12,7 +12,6 @@ import {
 import { INDUSTRIES, industryHasOwner, type IndustryId } from "@/lib/precog/industry";
 import { getIndustryTemplate } from "@/lib/precog/templates";
 import { usePractice } from "@/lib/precog/practice-context";
-import { useTabName } from "@/lib/precog/presentation";
 import { makePlannedAbsenceId } from "@/lib/precog/practice-profile";
 import { ownBusinessName } from "@/lib/precog/business-lifecycle";
 import { canKeepLocalData } from "@/lib/precog/local-data";
@@ -79,7 +78,6 @@ import {
   caseCoveragePhrase,
   dutiesHeldByTitle,
   EMPTY_ROW,
-  finishWaits,
   freshRows,
   focusableIn,
   focusSoon,
@@ -96,7 +94,6 @@ import {
 import {
   AddDutyControl,
   DutyHeading,
-  FinishWaitsNote,
   SeatNote,
   TitleTicksReview,
   YearsHereInput,
@@ -134,7 +131,6 @@ export function IndustryOnboarding({
 }: {
   initialStep?: "industry" | "questions" | "money" | "team";
 } = {}) {
-  const tabName = useTabName();
   const workspace = useWorkspace();
   const {
     profile,
@@ -149,7 +145,7 @@ export function IndustryOnboarding({
   const typedName = ownBusinessName(profile);
   const [selected, setSelected] = useState<IndustryId>(profile.industry);
   const [step, setStep] = useState<"industry" | "questions" | "money" | "team">(
-    initialStep ?? (typedName ? "questions" : "industry"),
+    initialStep ?? (typedName ? "team" : "industry"),
   );
   const [answers, setAnswers] = useState<SetupAnswers>(UNANSWERED);
   // The money questions the owner chose an answer for; the rest stay Not sure for the engines.
@@ -415,7 +411,7 @@ export function IndustryOnboarding({
     startOver();
     setSelected(profile.industry);
     setRows(firstRowForIndustry(freshRows(), profile.industry));
-    setStep(typedName ? "questions" : "industry");
+    setStep(typedName ? "team" : "industry");
     setQuestion("actor");
     setFacts({ schemaVersion: ONBOARDING_FACTS_VERSION, ...(profile.onboardingFacts ?? {}) });
     setResumed(false);
@@ -620,8 +616,8 @@ export function IndustryOnboarding({
     );
   }
   /**
-   * Ticks or unticks a duty by hand; a duty ticked by hand counts at once,
-   * including one the job title only suggested (shown unticked).
+   * Ticks or unticks a duty by hand. A duty ticked by hand is confirmed at
+   * once; unticking one the job title ticked removes it like any other.
    */
   function toggleDuty(index: number, duty: EntitlementId) {
     setRows((current) =>
@@ -679,12 +675,6 @@ export function IndustryOnboarding({
         `Person ${unnamed + 1}${role ? ` (${role})` : ""} has duties ticked but no name. Type a name, or remove the row.`,
       );
       document.getElementById(nameInputId(unnamed))?.focus();
-      return;
-    }
-    // A duty a job title suggested counts only once kept: every one is decided first.
-    const waits = finishWaits(titleTicks);
-    if (waits) {
-      showDecisions(waits.first.rowId);
       return;
     }
     const people = buildOwnTeam(rows, selected, answers);
@@ -808,9 +798,9 @@ export function IndustryOnboarding({
         answers stay in this browser tab, even through a reload.
       </p>
     );
-  // Each row's duties a job title suggested and the owner has not yet kept,
-  // worked out once for the grid's note under each title, the review of
-  // them, and what holds Finish back.
+  // Each row's duties a job title ticked and the owner has not yet kept,
+  // worked out once for the grid's marks, the note under each title, and
+  // the optional review of them below the table.
   const titleTicked = useMemo(
     () => new Map(rows.map((row) => [row, unconfirmedDuties(row, selected, answers)])),
     [rows, selected, answers],
@@ -819,18 +809,6 @@ export function IndustryOnboarding({
     () => titleTicksItems(rows, selected, answers, (row) => titleTicked.get(row) ?? []),
     [rows, selected, answers, titleTicked],
   );
-  const waits = finishWaits(titleTicks);
-
-  /** Brings one person's suggested duties into view in the review, with focus on the first Keep. */
-  function showDecisions(rowId: string) {
-    focusSoon(() => {
-      const button = document.querySelector<HTMLElement>(
-        `[data-confirm-row="${rowId}"] [data-keep]`,
-      );
-      button?.scrollIntoView({ block: "center" });
-      return button;
-    });
-  }
 
   /** Brings a person's row into view from the review, with focus on their job title. */
   function showRow(rowId: string) {
@@ -895,9 +873,8 @@ export function IndustryOnboarding({
                 Which line of business is this?
               </h2>
               <CardDescription>
-                Pick the closest line of business. Next, enter your own team or explore a sample
-                first. You can change the line of business later in Business settings, from the
-                business menu.
+                Pick the closest one. You can change the line of business later in Business
+                settings, from the business menu.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -909,7 +886,6 @@ export function IndustryOnboarding({
               >
                 {INDUSTRIES.map((ind) => {
                   const Icon = ICONS[ind.id];
-                  const tpl = getIndustryTemplate(ind.id);
                   const active = selected === ind.id;
                   return (
                     <button
@@ -940,41 +916,35 @@ export function IndustryOnboarding({
                         <div className="min-w-0">
                           <p className="font-medium">{ind.label}</p>
                           <p className="mt-0.5 text-xs text-muted">{ind.tagline}</p>
-                          <p className="mt-1 text-xs text-subtle">{ind.sampleNote}</p>
-                          <p className="mt-2 text-xs text-subtle">
-                            Sample: {tpl.processes.length} processes, {tpl.people.length} people
-                          </p>
-                          <p className="mt-0.5 text-xs text-subtle">{CASE_PHRASE[ind.id]}</p>
                         </div>
                       </div>
                     </button>
                   );
                 })}
               </div>
+              <IndustryPackDetails industry={selected} />
               <div className="sticky bottom-0 -mx-6 border-t border-border bg-surface px-6 py-3">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Button
-                    className="w-full"
-                    onClick={() => {
-                      // A nonprofit's first row is its executive director, not an owner.
-                      setRows((current) => firstRowForIndustry(current, selected));
-                      setStep("questions");
-                      setQuestion("actor");
-                    }}
-                  >
-                    Set up my own business
-                  </Button>
-                  <Button
-                    className="w-full"
-                    variant="secondary"
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    // A nonprofit's first row is its executive director, not an owner.
+                    setRows((current) => firstRowForIndustry(current, selected));
+                    setStep("team");
+                  }}
+                >
+                  Set up my own business
+                </Button>
+                <p className="mt-2 text-center text-xs text-subtle">
+                  Just looking?{" "}
+                  <button
+                    type="button"
                     data-testid="explore-sample-business"
                     onClick={loadSample}
+                    className="text-primary underline-offset-2 hover:underline"
                   >
                     Explore the fictional sample
-                  </Button>
-                </div>
-                <p className="mt-2 text-center text-xs text-subtle">
-                  The sample team is fictional. Every gap on it says so until you enter your own.
+                  </button>
+                  . Its team is fictional, and every gap on it says so.
                 </p>
               </div>
               <LegalFooter className="justify-center" />
@@ -1061,9 +1031,17 @@ export function IndustryOnboarding({
                 Your business and who does the money work
               </h2>
               <CardDescription>
-                Name your people and tick the money duties each one handles today; you can refine
-                everything later in {tabName("sod")}.
+                Name your people and tick the money duties each one handles today. Change who holds
+                a duty later on Team. How money moves here is optional and changes which duties
+                start ticked.
               </CardDescription>
+              <button
+                type="button"
+                className="w-fit text-sm font-medium text-primary underline underline-offset-2"
+                onClick={() => setStep("money")}
+              >
+                How money moves here
+              </button>
               {keptNotice}
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1157,9 +1135,7 @@ export function IndustryOnboarding({
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() =>
-                      waits ? showDecisions(waits.first.rowId) : finishRef.current?.focus()
-                    }
+                    onClick={() => finishRef.current?.focus()}
                     disabled={namedRows.length === 0}
                   >
                     Skip to the finish button
@@ -1179,8 +1155,8 @@ export function IndustryOnboarding({
                   ? "Scroll sideways for more duties. Names stay on the left; duty names stay on top."
                   : `${rowsInUse} of up to ${OWN_TEAM_MAX} people.`}{" "}
                 Duties with no column show as small tags under the job title; remove one with ×, or
-                add another with &ldquo;Add a duty&rdquo;. A job title only suggests duties: keep or
-                remove each below the table.
+                add another with &ldquo;Add a duty&rdquo;. A job title ticks its usual duties:
+                untick any that are wrong.
               </p>
               <div
                 ref={gridBoxRef}
@@ -1228,8 +1204,10 @@ export function IndustryOnboarding({
                         return null;
                       const who = whoIs(row, index);
                       const rowKey = row.rowId ?? `row-${index}`;
-                      // Only what the owner chose shows ticked; title suggestions wait in the review.
+                      // Everything the row holds shows ticked; a tick the job
+                      // title set carries the "from the job title" mark.
                       const chosen = chosenDuties(row, selected);
+                      const fromTitle = titleTicked.get(row) ?? [];
                       return (
                         <tr key={rowKey}>
                           <th
@@ -1341,8 +1319,17 @@ export function IndustryOnboarding({
                               <label className="flex min-h-11 w-full items-center justify-center p-1.5">
                                 <input
                                   type="checkbox"
-                                  className="size-4"
+                                  className={cn(
+                                    "size-4",
+                                    fromTitle.includes(duty) && "accent-warn",
+                                  )}
                                   aria-label={`${who}: ${coreDutyLabel(duty)}`}
+                                  data-from-title={fromTitle.includes(duty) ? "" : undefined}
+                                  title={
+                                    fromTitle.includes(duty)
+                                      ? "Ticked from the job title. Untick it if wrong."
+                                      : undefined
+                                  }
                                   checked={chosen.includes(duty)}
                                   onChange={() => toggleDuty(index, duty)}
                                 />
@@ -1657,22 +1644,12 @@ export function IndustryOnboarding({
                   {finishNote}
                 </p>
               )}
-              {waits && (
-                <FinishWaitsNote
-                  id="finish-waits"
-                  finishLabel={finishLabel}
-                  waiting={waits.waiting}
-                  first={waits.first}
-                  onShow={showDecisions}
-                />
-              )}
               <div className="grid gap-2 sm:grid-cols-2">
                 <Button
                   ref={finishRef}
                   className="w-full"
                   onClick={finish}
-                  disabled={namedRows.length === 0 || waits !== null}
-                  aria-describedby={waits ? "finish-waits" : undefined}
+                  disabled={namedRows.length === 0}
                 >
                   {finishLabel}
                 </Button>
@@ -1754,3 +1731,24 @@ const DRAFT_WRITE_DELAY_MS = 250;
 const CASE_PHRASE = Object.fromEntries(
   INDUSTRIES.map((ind) => [ind.id, caseCoveragePhrase(ind.id)]),
 ) as Record<IndustryId, string>;
+
+/**
+ * What the chosen line of business brings: the sample it offers and the
+ * cases behind its findings. Folded, so the first screen is the eight names
+ * and nothing else; it opens for the owner who wants to know what a pack is.
+ */
+function IndustryPackDetails({ industry }: { industry: IndustryId }) {
+  const ind = INDUSTRIES.find((candidate) => candidate.id === industry) ?? INDUSTRIES[0];
+  const tpl = getIndustryTemplate(ind.id);
+  return (
+    <details className="rounded-lg border border-border bg-elevated px-3 py-2 text-xs text-muted">
+      <summary className="cursor-pointer font-medium text-fg">
+        What the {ind.label} pack includes
+      </summary>
+      <p className="mt-2">{ind.sampleNote}</p>
+      <p className="mt-1 text-subtle">
+        Sample: {tpl.processes.length} processes, {tpl.people.length} people. {CASE_PHRASE[ind.id]}.
+      </p>
+    </details>
+  );
+}

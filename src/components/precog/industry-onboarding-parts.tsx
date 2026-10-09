@@ -12,46 +12,43 @@ import { cn } from "@/lib/utils";
 import { fieldCls } from "@/components/ui/field-classes";
 
 /**
- * The short note under a row's job title: how many duties the title
- * suggested that the owner has not yet kept, pointing to the review below
- * the table where each is kept or removed (the grid never ticks them); and a
- * warning when only part of the title matched a catalog job.
+ * The short note under a row's job title: how many duties the title ticked
+ * that the owner has not yet kept (they count, and are unticked in the grid
+ * if wrong); and a warning when only part of the title matched a catalog job.
  */
 export function SeatNote({
   seat,
   duties = [],
 }: {
   seat: SeatReading | undefined;
-  /** The duties the row's job title suggested that the owner has not yet kept or removed. */
+  /** The duties the row's job title ticked that the owner has not yet kept or unticked. */
   duties?: readonly EntitlementId[];
 }) {
   if (!seat) return null;
   if (!seat.title) {
     return (
-      <p className="mt-1 max-w-[11rem] text-xs text-muted">
-        Not in the catalog. Mark duties by hand.
-      </p>
+      <p className="mt-1 max-w-[11rem] text-xs text-muted">Not in the catalog: tick by hand</p>
     );
   }
   return (
     <>
       {seat.partial ? (
         <p className="mt-1 max-w-[11rem] text-xs text-warn">
-          {`Partial catalog match: ${seat.title}. Review the suggested duties.`}
+          {`Catalog job (partial match): ${seat.title}; check its ticks`}
         </p>
       ) : duties.length === 0 ? (
         <p className="mt-1 max-w-[11rem] text-xs text-muted">{`Catalog job: ${seat.title}`}</p>
       ) : null}
       {duties.length > 0 && (
-        <p className="mt-1 max-w-[11rem] text-xs text-warn">
-          {`The job title suggests ${count(duties.length, "duty", "duties")}. Keep or remove each below the table.`}
+        <p className="mt-1 max-w-[11rem] text-xs text-muted">
+          {`${count(duties.length, "duty", "duties")} ticked from the job title. Untick any that are wrong.`}
         </p>
       )}
     </>
   );
 }
 
-/** One person whose job title suggested duties the owner has not yet kept or removed. */
+/** One person whose job title ticked duties the owner has not yet kept or unticked. */
 export interface TitleTicksItem {
   rowId: string;
   who: string;
@@ -60,11 +57,12 @@ export interface TitleTicksItem {
 }
 
 /**
- * The review before Finish: every duty a job title suggested and the owner
- * has not yet decided, column or not, by its full name, person by person,
+ * An optional review under the table: every duty a job title ticked and the
+ * owner has not yet kept, column or not, by its full name, person by person,
  * each with Keep and Remove. "Keep all" and "Remove all", of equal weight,
- * sit side by side under the duties they decide. A
- * suggested duty counts only once kept, and Finish waits until none is left.
+ * sit side by side under the duties they decide. The ticks count either
+ * way; what is left unkept stays marked "from the job title" on Team, where
+ * the owner can confirm it later. Finish never waits on this review.
  */
 export function TitleTicksReview({
   items,
@@ -84,15 +82,15 @@ export function TitleTicksReview({
   return (
     <section
       id="title-ticks"
-      className="space-y-2 rounded-xl border border-warn/40 bg-warn/10 p-3"
+      className="space-y-2 rounded-xl border border-border bg-elevated/50 p-3"
       aria-labelledby="title-ticks-heading"
     >
       <h3 id="title-ticks-heading" className="text-sm font-medium">
-        {`Job titles suggested ${count(waiting, "duty", "duties")} for ${count(items.length, "person", "people")}: keep or remove each`}
+        {`Job titles ticked ${count(waiting, "duty", "duties")} for ${count(items.length, "person", "people")}`}
       </h3>
       <p className="text-xs text-muted">
-        Precog counts a duty only after you keep it. Keep each person's current duties. Remove the
-        rest.
+        They count now. Keep what each person does today and remove the rest, here or in the table.
+        What you leave is marked &ldquo;from the job title&rdquo; on Team until you confirm it.
       </p>
       <ul className="space-y-2">
         {items.map((item) => (
@@ -169,37 +167,6 @@ export function TitleTicksReview({
         ))}
       </ul>
     </section>
-  );
-}
-
-/**
- * Why the finish button waits: how many suggested duties are still to keep
- * or remove, and a link to the first person they belong to.
- */
-export function FinishWaitsNote({
-  id,
-  finishLabel,
-  waiting,
-  first,
-  onShow,
-}: {
-  id: string;
-  finishLabel: string;
-  waiting: number;
-  first: TitleTicksItem;
-  onShow: (rowId: string) => void;
-}) {
-  return (
-    <p id={id} className="text-xs text-warn" role="status">
-      {`Keep or remove each suggested duty before “${finishLabel}”. ${count(waiting, "duty", "duties")} left. `}
-      <button
-        type="button"
-        className="min-h-6 font-medium text-primary underline underline-offset-2"
-        onClick={() => onShow(first.rowId)}
-      >
-        {`Start with ${first.who}`}
-      </button>
-    </p>
   );
 }
 

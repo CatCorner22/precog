@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- the helpers next to the controls are tested on their own */
 import { useWorkspace } from "@/lib/precog/workspace-context";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   Bell,
@@ -583,6 +584,13 @@ export function AccountDataControls() {
     // On a phone the five controls wrap under one another instead of
     // pushing the header wider than the screen.
     <div className="flex min-w-0 flex-wrap items-center gap-1">
+      <Link
+        to="/firm"
+        title="For accountants and advisors who look after several businesses"
+        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted hover:bg-elevated hover:text-fg"
+      >
+        Firm workspace
+      </Link>
       <button
         type="button"
         onClick={() => void exportAll()}

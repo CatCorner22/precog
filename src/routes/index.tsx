@@ -22,7 +22,6 @@ import {
   Shield,
   Sparkles,
   Users,
-  UserX,
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -313,7 +312,15 @@ function Home() {
       <SignedIn>
         <GuestImportPrompt onOpenChange={setGuestPromptOpen} />
       </SignedIn>
-      <div inert={showOnboarding}>
+      {/* Behind setup the page is hidden as well as inert: a new owner's
+          first frame is not another business's dashboard and its "Needs
+          attention" count. The wordmark alone sits behind the dialog. */}
+      {showOnboarding && (
+        <div aria-hidden className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
+          <p className="text-xs font-semibold tracking-[0.2em] text-muted uppercase">Precog</p>
+        </div>
+      )}
+      <div inert={showOnboarding} hidden={showOnboarding}>
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:border focus:border-border focus:bg-elevated focus:px-3 focus:py-2 focus:text-sm"
@@ -324,69 +331,16 @@ function Home() {
           ref={headerRef}
           className="sticky top-[var(--grok-banner-h,0px)] z-20 border-b border-border bg-bg/90 backdrop-blur"
         >
-          {/* On a phone the header is two rows: the business with Needs attention
-              and the account beside it, then "Someone is out", Ask Pioneer and a
-              "More" that holds the rest instead of a third row. */}
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
-            <div className="order-1 flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
+          {/* On a phone the header is two rows: the business, Needs attention
+              and the account, then wording, save status and Ask Pioneer. */}
+          <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-3 sm:flex sm:flex-wrap sm:px-6">
+            <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 sm:flex-none">
               <span className="inline-flex size-8 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
                 <Eye className="size-4" aria-hidden />
               </span>
               <BusinessSwitcher />
             </div>
-            <div className="order-3 flex w-full flex-wrap items-center gap-2 sm:order-2 sm:ml-auto sm:w-auto">
-              <HeaderActions
-                leading={
-                  <>
-                    <PresentationToggle />
-                    <SyncStatusBadge />
-                  </>
-                }
-                inline={
-                  <>
-                    <button
-                      type="button"
-                      data-header-link="absences"
-                      onClick={() => openTab("absences")}
-                      className={buttonClass({ variant: "secondary", size: "sm" })}
-                    >
-                      <UserX className="size-3.5" aria-hidden />
-                      {tabLabel("absences", say)}
-                    </button>
-                    <button
-                      type="button"
-                      data-header-tab="pioneer"
-                      aria-pressed={tab === "pioneer"}
-                      onClick={() => openTab("pioneer")}
-                      className={buttonClass({ variant: "secondary", size: "sm" })}
-                    >
-                      <MessageSquare className="size-3.5" aria-hidden />
-                      {tabLabel("pioneer", say)}
-                    </button>
-                  </>
-                }
-                trailing={
-                  <>
-                    <Link
-                      to="/report"
-                      className={buttonClass({ variant: "secondary", size: "sm" })}
-                    >
-                      Report
-                    </Link>
-                    <SignedIn>
-                      <Link
-                        to="/firm"
-                        title="For accountants and advisors who look after several businesses"
-                        className={buttonClass({ variant: "secondary", size: "sm" })}
-                      >
-                        Firm workspace
-                      </Link>
-                    </SignedIn>
-                  </>
-                }
-              />
-            </div>
-            <div className="order-2 flex min-w-0 items-center gap-2 sm:order-3">
+            <div className="col-start-2 row-start-1 flex max-w-[58vw] min-w-0 flex-wrap items-center justify-end gap-2 sm:order-3 sm:max-w-none">
               <NeedsAttentionMenu compactOnPhone onOpen={(target, item) => openTab(target, item)} />
               <SignedOut>
                 <Link to="/login" className={buttonClass({ variant: "secondary", size: "sm" })}>
@@ -397,6 +351,24 @@ function Home() {
                 <UserButton />
                 <AccountDataControls />
               </SignedIn>
+            </div>
+            <div className="col-span-2 row-start-2 flex min-w-0 flex-wrap items-center gap-2 sm:order-2 sm:ml-auto sm:w-auto sm:flex-nowrap">
+              <PresentationToggle />
+              <SyncStatusBadge compactOnPhone />
+              <HeaderActions
+                inline={
+                  <button
+                    type="button"
+                    data-header-tab="pioneer"
+                    aria-pressed={tab === "pioneer"}
+                    onClick={() => openTab("pioneer")}
+                    className={buttonClass({ variant: "secondary", size: "sm" })}
+                  >
+                    <MessageSquare className="size-3.5" aria-hidden />
+                    {tabLabel("pioneer", say)}
+                  </button>
+                }
+              />
             </div>
           </div>
           <SignedIn>
@@ -483,7 +455,7 @@ function Home() {
                     <StartHere onOpenDetail={openTab} sod={sodReport} />
                   </>
                 )}
-                {tab === "team" && <TeamArea />}
+                {tab === "team" && <TeamArea item={item} />}
                 {tab === "map" && (
                   <ProcessMap
                     key={String(build)}
@@ -611,22 +583,15 @@ const TAB_ICONS: Record<TabId, ShellTab["icon"]> = {
 const TABS: readonly ShellTab[] = TAB_WORDS.map((t) => ({ ...t, icon: TAB_ICONS[t.id] }));
 
 /**
- * Six tabs carry the owner's jobs: where you stand, who works here, who
- * controls what, who knows what, how to do it when they are out, and what to
- * check each month. Ask Pioneer is a header button, since a question can come
- * up on any tab. The rest analyze the same inputs (how work flows, what could
- * happen, how Precog scores) and sit behind "Analyze". Every tab keeps its id
- * and deep link, and older ids open the view they became (TAB_ALIASES) or the
- * page they moved to (ROUTE_ALIASES).
+ * Five tabs carry the owner's jobs: where you stand, who works here, who
+ * controls what, who knows what, and what to check each month. Procedures
+ * open from Who knows what and also sit under Analyze, with how work flows,
+ * what could happen, and how Precog scores. Ask Pioneer is a header button,
+ * since a question can come up on any tab. Every tab keeps its id and deep
+ * link, and older ids open the view they became (TAB_ALIASES) or the page
+ * they moved to (ROUTE_ALIASES).
  */
-const PRIMARY_TAB_IDS: readonly TabId[] = [
-  "start",
-  "team",
-  "sod",
-  "knowledge",
-  "procedures",
-  "monthly",
-];
+const PRIMARY_TAB_IDS: readonly TabId[] = ["start", "team", "sod", "knowledge", "monthly"];
 const HEADER_TAB_IDS: readonly TabId[] = ["pioneer"];
 /**
  * Value proof and History live on the firm workspace. Analyze links there,

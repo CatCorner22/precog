@@ -4,6 +4,7 @@ import { defaultProfile } from "@/lib/precog/practice-profile";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
 import { IntelligencePanel } from "./intelligence-panel";
 import { MonthlyArea } from "./monthly-area";
+import { ScoresArea } from "./scores-area";
 
 function render(node: React.ReactNode) {
   return renderToStaticMarkup(
@@ -24,11 +25,19 @@ describe("Patterns view", () => {
 });
 
 describe("Monthly review", () => {
-  it("ends with the number-pattern section under its own heading", () => {
+  it("leads with this month's checks and keeps the record closed", () => {
     const html = render(<MonthlyArea item={null} openTab={() => {}} />);
     expect(html).toContain('<h1 class="text-lg font-semibold">Monthly review</h1>');
+    expect(html).toContain('id="checks"');
+    expect(html).toContain('id="evidence"');
+    expect(html).toContain('id="decisions"');
+    expect(html).not.toContain('id="number-patterns"');
+    expect(html).not.toMatch(/<details[^>]*id="evidence"[^>]* open/);
+  });
+
+  it("puts number patterns under How Precog scores", () => {
+    const html = render(<ScoresArea view="csv" openTab={() => {}} onNavigate={() => {}} />);
     expect(html).toContain('id="number-patterns"');
     expect(html).toMatch(/<h2 id="number-patterns-heading"[^>]*>Number patterns in a CSV<\/h2>/);
-    expect(html.indexOf('id="decisions"')).toBeLessThan(html.indexOf('id="number-patterns"'));
   });
 });
