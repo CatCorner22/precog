@@ -648,9 +648,11 @@ describe("adding people by job title and typing the title agree", () => {
         expect(row.duties, `${entry.id} in ${industry}`).toEqual(
           suggestedDuties(entry.title, owns, industry),
         );
-        // Nothing a title suggests counts until it is kept, and kept duties are no guess.
+        // A title's ticks count from the start and carry the "from the job
+        // title" mark; once kept they are the owner's and the mark goes.
         const [unkept] = buildOwnTeam([row], industry);
-        expect(unkept.entitlements, entry.id).toEqual(["view_reports_only"]);
+        expect(unkept.entitlements, entry.id).toEqual([...row.duties, "view_reports_only"]);
+        expect(unkept.dutiesFromTitle, entry.id).toBe(row.duties.length > 0 ? true : undefined);
         const [kept] = buildOwnTeam([keepDuties(row, row.duties)], industry);
         expect(kept.entitlements, entry.id).toEqual([...row.duties, "view_reports_only"]);
         expect(kept.dutiesFromTitle, entry.id).toBeUndefined();
@@ -761,7 +763,7 @@ describe("setup answers decide what a job title ticks", () => {
     expect(withoutDutiesOffTeam(rows, outside)).toBe(rows);
   });
 
-  it("leaves out suggested duties nobody kept, whatever the answers left out", () => {
+  it("counts a title's ticks, marked, and drops the mark once they are kept", () => {
     const owner: OwnTeamRow = { ...ownerRow(), name: "Dana" };
     const lisa: OwnTeamRow = {
       name: "Lisa",
@@ -769,9 +771,12 @@ describe("setup answers decide what a job title ticks", () => {
       duties: suggestedDuties("Bookkeeper", false, "dental", noPayroll),
       suggestedFor: "Bookkeeper",
     };
+    const marked = buildOwnTeam([owner, lisa], "dental", noPayroll);
+    expect(marked[1].dutiesFromTitle).toBe(true);
+    expect(marked[1].entitlements).toEqual([...lisa.duties, "view_reports_only"]);
     const people = buildOwnTeam([owner, keepDuties(lisa, lisa.duties)], "dental", noPayroll);
-    expect(people.map((p) => p.dutiesFromTitle)).toEqual([undefined, undefined]);
-    expect(people[0].entitlements).toEqual(["view_reports_only"]);
+    // Dana's owner row still holds its title's ticks, so the mark stays on her alone.
+    expect(people.map((p) => p.dutiesFromTitle)).toEqual([true, undefined]);
     expect(people[1].entitlements).toEqual([...lisa.duties, "view_reports_only"]);
   });
 

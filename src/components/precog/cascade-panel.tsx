@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { usePractice } from "@/lib/precog/practice-context";
 import {
   CASCADE_LEVERS,
@@ -10,7 +10,11 @@ import {
   type MetricSnapshot,
 } from "@/lib/precog/scoring/variable-cascade";
 import { insuranceFigureNote } from "@/lib/precog/scoring/dynamic-variables";
-import { confirmedScenarioIds, isOwnBusiness } from "@/lib/precog/scoring/scope";
+import {
+  confirmedScenarioIds,
+  isOwnBusiness,
+  MAKE_SCENARIO_YOURS,
+} from "@/lib/precog/scoring/scope";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatEstimateUsd, formatEstimateUsdDelta, formatUsd, cn } from "@/lib/utils";
@@ -71,7 +75,7 @@ export function CascadePanel() {
         {all.scopeNote && <p className="mt-2 max-w-2xl text-xs text-subtle">{all.scopeNote}</p>}
       </section>
 
-      <Card>
+      <ScopedCascadeCard visible={all.scenarioInScope}>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Pick a lever</CardTitle>
           <CardDescription>
@@ -119,9 +123,9 @@ export function CascadePanel() {
             );
           })}
         </CardContent>
-      </Card>
+      </ScopedCascadeCard>
 
-      <Card>
+      <ScopedCascadeCard visible={all.scenarioInScope}>
         <CardHeader>
           <CardTitle className="text-base">{selected.lever.label}</CardTitle>
           <CardDescription>{selected.overallVerdict}</CardDescription>
@@ -213,9 +217,27 @@ export function CascadePanel() {
             </ul>
           </details>
         </CardContent>
-      </Card>
+      </ScopedCascadeCard>
+
+      {!all.scenarioInScope && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">No figures yet</CardTitle>
+            <CardDescription>
+              The lever list returns once a scenario counts toward your business.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted">{MAKE_SCENARIO_YOURS}</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
+}
+
+function ScopedCascadeCard({ visible, children }: { visible: boolean; children: ReactNode }) {
+  return visible ? <Card>{children}</Card> : null;
 }
 
 /** "usd" is a premium the owner's terms set, printed exactly; "estimate" is scenario dollars, rounded. */

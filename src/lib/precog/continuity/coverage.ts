@@ -8,7 +8,7 @@
  * described in `suggestBackups`.
  */
 import type { IndustryTemplate } from "../templates";
-import { registerAssessed } from "./register-state";
+import { itemRecorded, registerAssessed } from "./register-state";
 import type {
   Criticality,
   KnowledgeItem,
@@ -161,12 +161,17 @@ export function setRelationLevel(
 }
 
 /**
- * Whether anyone is marked on the item at any level. Until then every stand-in
- * candidate ties on generic reasons and the pick would come down to the
- * alphabet, so Precog names nobody to train.
+ * Whether anyone is marked on the item at any level. Former people count as
+ * marked; an owner-written list with no relations keeps its unmarked guidance.
  */
-export function isMarked(row: Pick<ItemCoverage, "primaries" | "learners" | "aware">): boolean {
-  return row.primaries.length + row.learners.length + row.aware.length > 0;
+export function isMarked(
+  tpl: Pick<IndustryTemplate, "id" | "knowledge" | "relations">,
+  row: Pick<ItemCoverage, "item" | "primaries" | "learners" | "aware">,
+): boolean {
+  return (
+    row.primaries.length + row.learners.length + row.aware.length > 0 ||
+    (tpl.relations.length > 0 && itemRecorded(tpl, row.item.id))
+  );
 }
 
 export function coverageStatus(primaries: number, learners: number): CoverageStatus {
@@ -339,7 +344,7 @@ function buildCoverageReport(tpl: IndustryTemplate): CoverageReport {
   const plan: CrossTrainingMove[] = items
     .filter((i) => i.status !== "covered")
     .map((i) => {
-      const marked = isMarked(i);
+      const marked = isMarked(tpl, i);
       const trainee = marked ? (i.suggestedBackups[0]?.person ?? null) : null;
       const trainer = i.primaries[0] ?? null;
       const priority = CRITICALITY_WEIGHT[i.item.criticality] * STATUS_URGENCY[i.status];
