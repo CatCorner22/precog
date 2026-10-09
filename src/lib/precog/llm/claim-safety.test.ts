@@ -68,10 +68,9 @@ describe("model output cannot reassign a real number to an invented claim", () =
     const result = await answer(JSON.stringify({ version: 1, highlightIds: ["move-0"] }));
     expect(result.modelStatus).toBe("answered");
     expect(vi.mocked(callModel).mock.calls[0]?.[1].jsonObject).toBe(true);
-    expect(result.brief.markdown).toContain(local.brief.decisions[0].action);
-    expect(result.brief.markdown).toContain(local.brief.decisions[0].rationale);
-    expect(result.brief.markdown).toContain(local.brief.chickenLittleWarnings[0]);
-    expect(result.brief.markdown.endsWith(local.brief.markdown)).toBe(true);
+    expect(result.highlightIds).toEqual(["move-0"]);
+    expect(result.brief.markdown).toBe(local.brief.markdown);
+    expect(result.brief.markdown).not.toContain("Most relevant");
     expect(result.brief.decisions).toEqual(local.brief.decisions);
   });
   it.each([

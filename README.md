@@ -11,7 +11,7 @@ Built for owner-operated teams (2–50 people): dental and medical offices, reta
 | COSO heat map        | `coso.ts` + UI               | 5 components, 17 principles, deep links                                                                     |
 | Precog scenarios     | `engine.ts`                  | Assumed days until found and $ loss; an own business has no crime policy until you enter one                |
 | Knowledge SPOF map   | knowledge UI                 | Continuity / single points of failure                                                                       |
-| Pioneer LLM coach    | `coach/`                     | Grok `grok-4.5` when `XAI_API_KEY` present; local pioneer fallback always                                   |
+| Voyager coach        | `coach/`                     | Rules write every claim. Hugging Face ranks them when `HF_TOKEN` is set. Grok selects ids when `XAI_API_KEY` is set. |
 | Procedures library   | `procedures/library.ts` + UI | Recommended procedures per industry: steps, evidence to keep, and fallbacks (replaces the blueprint)        |
 | Power map builder    | SoD UI                       | Interactive staff-to-duty map, 20+ common job templates, live assignment sandbox, and conflict explanations |
 | Assessment snapshots | `snapshots.ts` + UI          | Private, versioned practice records with model/corpus provenance                                            |

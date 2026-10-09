@@ -426,6 +426,63 @@ describe("a save refused because another device saved the business (PERF-8)", ()
     expect(tab.sync.saveConflictRef.current?.reason).toBe("remote-edit");
   });
 
+  it("never saves a copy queued before the merge over the merged copy the account took", async () => {
+    // This device holds revision 4 with no monthly review. Another device
+    // saved one as revision 5. A register edit here meets that refusal and
+    // merges to revision 6; a second register edit queued its own save
+    // before the merge finished. Once the merged copy shows, the queued
+    // copy, which never saw the review, must not save over it.
+    const a = business("biz_a", "A Co");
+    const profileRef = { current: a };
+    const setProfile = vi.fn((action: ProfileAction) => {
+      const derive = (action as { derive?: (p: PracticeProfile) => PracticeProfile }).derive;
+      if (!derive) return;
+      // React shows the merge, and the hook's effect notes the new base.
+      const next = derive(profileRef.current);
+      profileRef.current = next;
+      tab.sync.cloudRevision.current.set("biz_a", 6);
+      tab.lineage.add("biz_a", next.updatedAt);
+    });
+    const tab = await syncTab(browser(), a, {
+      load: { found: true, profile: a, revision: 4, updatedAt: a.updatedAt },
+      store: { profileRef, setProfile, clearHistory: vi.fn() },
+    });
+    const opened = tab.profileRef.current;
+    const first = edit(opened, { customKnowledge: [item("Edited here")] });
+    tab.profileRef.current = first;
+    refusedWith(edit(opened, { monthlyReviews: [review] }));
+    server.saveBusinessProfile.mockResolvedValueOnce({ ok: true, revision: 6 });
+    // Anything the queued copy might save is accepted by the account.
+    server.saveBusinessProfile.mockResolvedValue({ ok: true, revision: 7 });
+
+    const firstSave = tab.sync.flushActive();
+    const second = edit(first, { customKnowledge: [item("Edited here"), item("And more")] });
+    tab.profileRef.current = second;
+    const secondSave = tab.sync.flushActive();
+    expect(await firstSave).toBe(true);
+    await secondSave;
+
+    // The refused save and the merge, and nothing from the pre-merge copy:
+    // the merge was built on the copy open at the refusal, so it already
+    // carries the second edit beside the other device's review.
+    expect(server.saveBusinessProfile).toHaveBeenCalledTimes(2);
+    const calls = server.saveBusinessProfile.mock.calls.map(([call]) => call.data);
+    expect(calls.map((c) => c.baseRevision)).toEqual([4, 5]);
+    expect(calls[1].profile.monthlyReviews).toEqual([review]);
+    expect(calls[1].profile.customKnowledge?.map((k: KnowledgeItem) => k.name)).toEqual([
+      "Edited here",
+      "And more",
+    ]);
+    // The open business is the merged copy the account holds...
+    const open = tab.profileRef.current;
+    expect(open).toBe(calls[1].profile);
+    expect(open.monthlyReviews).toEqual([review]);
+    // ...so saving again sends nothing, and the account keeps the review.
+    expect(await tab.sync.flushActive()).toBe(true);
+    expect(server.saveBusinessProfile).toHaveBeenCalledTimes(2);
+    expect(tab.sync.saveConflictRef.current).toBeNull();
+  });
+
   it("asks, with the newest copy, when a third save beats the merge", async () => {
     const { tab, opened } = await openedAt4();
     tab.profileRef.current = edit(opened, { customKnowledge: [item("Edited here")] });

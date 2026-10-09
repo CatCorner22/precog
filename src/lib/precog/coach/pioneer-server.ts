@@ -1,6 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { heavyLlmMiddleware } from "../llm/middleware";
-import { answerPioneer, readPioneerRequest, type PioneerCoachInput } from "./pioneer-answer";
+import {
+  answerPioneer,
+  answerPioneerRules,
+  readPioneerRequest,
+  selectPioneerHighlights,
+  type PioneerCoachInput,
+} from "./pioneer-answer";
 
 /**
  * The coach's server function: the heavy allowance decides who may run it and
@@ -10,3 +16,19 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
   .middleware([heavyLlmMiddleware])
   .validator((input: PioneerCoachInput) => readPioneerRequest(input))
   .handler(({ data, context }) => answerPioneer(data, context.llm));
+
+/** Rules brief, with no model call, so the screen can show a move before Grok answers. */
+export const runPioneerRules = createServerFn({ method: "POST" })
+  .middleware([heavyLlmMiddleware])
+  .validator((input: PioneerCoachInput) => readPioneerRequest(input))
+  .handler(({ data }) => answerPioneerRules(data));
+
+/**
+ * Statement ids only. A second heavy allowance: the brief is rebuilt on the
+ * server and the model may only select ids. The screen drops the ids when
+ * the fingerprint does not match the brief it already painted.
+ */
+export const runPioneerHighlights = createServerFn({ method: "POST" })
+  .middleware([heavyLlmMiddleware])
+  .validator((input: PioneerCoachInput) => readPioneerRequest(input))
+  .handler(({ data, context }) => selectPioneerHighlights(data, context.llm));

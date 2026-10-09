@@ -42,26 +42,22 @@ export function parseBriefSelection(text: string, claims: readonly BriefClaim[])
   return ids;
 }
 
+/**
+ * The selected statements, in the rules engine's order, and nothing else.
+ * The screen uses the ids. This string is the check that a selection cannot
+ * grow a second memo or any words the rules did not write.
+ */
 export function renderBriefSelection(
-  brief: StructuredBrief,
+  _brief: StructuredBrief,
   claims: readonly BriefClaim[],
   selectedIds: readonly string[],
 ): string {
   const selected = new Set(selectedIds);
-  // Keep the rules engine's priority order, even when the model selects out of order.
-  const highlights = claims
+  return claims
     .filter((claim) => selected.has(claim.id))
     .map((claim) => {
       const [action, ...rest] = claim.text.split("\n\n");
-      return rest.length ? `- **${action}**: ${rest.join(" ")}` : `- **${action}**`;
-    });
-  if (highlights.length === 0) return brief.markdown;
-  const warningsAlreadyInBrief = brief.chickenLittleWarnings.every((warning) =>
-    brief.markdown.includes(warning),
-  );
-  const limits =
-    brief.chickenLittleWarnings.length && !warningsAlreadyInBrief
-      ? `\n\n### Important limits\n${brief.chickenLittleWarnings.map((text) => `- ${text}`).join("\n")}`
-      : "";
-  return `## Most relevant to your question\n\n${highlights.join("\n")}\n\nGrok picked these from Precog's moves below without rewriting them. It did not rank the risks or check them.${limits}\n\n---\n\n${brief.markdown}`;
+      return rest.length ? `${action}: ${rest.join(" ")}` : action;
+    })
+    .join("\n");
 }

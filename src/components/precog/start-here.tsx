@@ -20,17 +20,16 @@ import { useStartHere } from "./use-start-here";
 /**
  * Home: the first screen an owner sees, kept to one screen.
  *
- *   1. Two headline figures.
- *   2. Who is out today, when someone is.
- *   3. The three actions that answer the most open gaps, each with a button
+ *   1. Who is out today, when someone is.
+ *   2. The three actions that answer the most open gaps, each with a button
  *      to the screen that gets it done.
+ *   3. The open duty-conflict count.
  *
- * Everything behind those — where one person controls too much, what that
- * exposure has cost organizations like this one, the continuity figures,
- * what Precog cannot tell, and every case it cites — sits under a closed
- * "Why we say this". Every dollar figure and duration there resolves to a
- * prosecuted case or a published study; the continuity percentages are
- * Precog's own indices and say so.
+ * The stand-in percentage is Precog's own index. It sits under "Why we say
+ * this", with where one person controls too much, what that exposure has cost
+ * organizations like this one, what Precog cannot tell, and every case it
+ * cites. Every dollar figure and duration there resolves to a prosecuted case
+ * or a published study.
  */
 export function StartHere({
   onOpenDetail,
@@ -67,9 +66,9 @@ export function StartHere({
         <WordsUsedHere tab="start" />
         <HowThisWorks>
           <p>
-            This page shows two key numbers, who is out today, and three steps to close the most
-            gaps. Most steps are checks that catch problems sooner. The sooner a theft is found, the
-            smaller the loss.
+            This page leads with who is out, three steps, and the open duty-conflict count. The
+            stand-in figure is under {WHY_WE_SAY_THIS}. Most steps are checks that catch problems
+            sooner. The sooner a theft is found, the smaller the loss.
           </p>
           <p>
             {WHY_WE_SAY_THIS} shows where one person controls too much, what these gaps have cost
@@ -97,7 +96,6 @@ export function StartHere({
           </p>
         </SignedOut>
       )}
-      <StartHereFiguresSection model={model.figures} onOpenDetail={onOpenDetail} />
       <StartHereContinuitySection
         model={model.continuity}
         onOpenDetail={onOpenDetail}
@@ -121,12 +119,14 @@ export function StartHere({
           .
         </p>
       )}
+      <StartHereFiguresSection model={model.figures} onOpenDetail={onOpenDetail} part="conflicts" />
 
       <HowThisWorks
         summary={WHY_WE_SAY_THIS}
         className="max-w-none"
         bodyClassName="space-y-8 pt-2 text-base text-fg"
       >
+        <StartHereFiguresSection model={model.figures} onOpenDetail={onOpenDetail} part="standin" />
         <StartHereExposureSection model={model.exposure} onOpenDetail={onOpenDetail} />
         <StartHereCostSection model={model.cost} />
         <StartHereFirstStepsSection model={model.firstSteps} part="notes" />

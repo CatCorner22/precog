@@ -16,12 +16,7 @@ import {
   type ReasoningStep,
   type ToolResult,
 } from "./types";
-import {
-  briefClaims,
-  parseBriefSelection,
-  renderBriefSelection,
-  type BriefClaim,
-} from "./brief-selection";
+import { briefClaims, parseBriefSelection, type BriefClaim } from "./brief-selection";
 import { ownerJson, ownerText } from "./prompt-text";
 import {
   chickenLittleCritique,
@@ -41,6 +36,8 @@ export type ModelStatus = "answered" | "failed" | "not-asked" | "rejected" | "da
 export interface ModelOutcome {
   modelStatus: ModelStatus;
   dailyLimit?: DailyLimitInfo;
+  /** Ids of rules-authored statements the model selected. Never model prose. */
+  highlightIds?: readonly string[];
 }
 
 /** A rules-built run and its source tools, retained unchanged by the selection path. */
@@ -204,6 +201,7 @@ export async function runGrokAgentLoop<T extends LocalAgentRun>(
     return {
       ...local,
       modelStatus: "answered",
+      highlightIds: selected,
       source: "grok-agent",
       model: response.model,
       steps: [
@@ -211,10 +209,9 @@ export async function runGrokAgentLoop<T extends LocalAgentRun>(
         {
           phase: "synthesize",
           title: "Selected complete statements without rewriting claims",
-          detail: `Model ${response.model} selected ${selected.length} statement(s). Their wording, limits, and the full rules brief were preserved.`,
+          detail: `Model ${response.model} selected ${selected.length} statement(s). Their wording stayed in the rules brief. Nothing the model wrote is shown.`,
         },
       ],
-      brief: { ...local.brief, markdown: renderBriefSelection(local.brief, claims, selected) },
       latencyMs: local.latencyMs + Date.now() - started,
     };
   } catch (error) {

@@ -4,9 +4,11 @@ import {
   askButtonLabel,
   BUSINESS_CHANGED_MESSAGE,
   BriefMarkdown,
+  briefBoard,
   CoachResultView,
   effortWords,
-  MOVES_PREVIEW,
+  moveDestination,
+  orderedMoves,
   briefClipboardText,
   briefAuthorLine,
   coachErrorMessage,
@@ -30,6 +32,7 @@ function result(over: Partial<CoachResult> = {}): CoachResult {
       { id: "ev-1", kind: "spof", label: "Insurance denial appeals", link: { tab: "knowledge" } },
     ],
     warnings: ["Nothing is at a red alert."],
+    highlightIds: [],
     decisions: Array.from({ length: 5 }, (_, i) => ({
       action: `Move ${i + 1}`,
       rationale: "Because.",
@@ -64,10 +67,10 @@ describe("coachErrorMessage", () => {
 
   it("shows a plain sentence for an error the server did not explain", () => {
     expect(coachErrorMessage(new Error("TypeError: x is undefined"))).toBe(
-      "Pioneer could not answer just now. Try again in a moment.",
+      "Voyager could not answer just now. Try again in a moment.",
     );
     expect(coachErrorMessage("boom")).toBe(
-      "Pioneer could not answer just now. Try again in a moment.",
+      "Voyager could not answer just now. Try again in a moment.",
     );
   });
 });
@@ -75,7 +78,7 @@ describe("coachErrorMessage", () => {
 describe("business changes during a run", () => {
   it("asks for a new answer for the newly selected business", () => {
     expect(BUSINESS_CHANGED_MESSAGE).toBe(
-      "You switched businesses while Pioneer was working. Ask again for this one.",
+      "You switched businesses while Voyager was working. Ask again for this one.",
     );
   });
 });
@@ -108,8 +111,8 @@ describe("CoachResultView", () => {
   it("puts the brief first and the trace behind a closed disclosure", () => {
     const html = view(result());
     const brief = html.indexOf("What should I do this week?");
-    const moves = html.indexOf("Recommended moves");
-    const built = html.indexOf("How Pioneer built this brief");
+    const moves = html.indexOf("Do this");
+    const built = html.indexOf("How Voyager built this brief");
     expect(brief).toBeGreaterThanOrEqual(0);
     expect(brief).toBeLessThan(moves);
     expect(moves).toBeLessThan(built);
@@ -119,20 +122,23 @@ describe("CoachResultView", () => {
     expect(html).not.toContain("avg=64");
     expect(html).toContain("No AI wrote it");
     expect(html).toContain("Steps · 1 check");
+    expect(html).toContain("Start with this one");
+    expect(html).toContain("All fine.");
+    expect(html.indexOf("Do this")).toBeLessThan(html.indexOf("Why we say this"));
+    expect(html.indexOf("Why we say this")).toBeLessThan(html.indexOf("All fine."));
     expect(html).not.toContain("120 ms");
   });
 
-  it("shows the top moves with 'Show all', and a logged move as added", () => {
+  it("shows one move, and the rest behind Show other moves", () => {
     const html = view(result(), ["Move 1"]);
-    expect(html.match(/Add to the Decisions log</g)).toHaveLength(MOVES_PREVIEW - 1);
     expect(html).toContain("Added to the Decisions log");
-    expect(html).toContain("Show all 5");
+    expect(html).not.toContain("Add to the Decisions log");
+    expect(html).toContain("Show other moves");
     expect(html).toContain("Small job");
     expect(html).not.toContain("low effort");
     expect(html).not.toContain("Move 5");
-    expect(html.match(/<p class="mt-1 text-xs text-muted">Because\.<\/p>/g)).toHaveLength(
-      MOVES_PREVIEW,
-    );
+    expect(html).toContain("Move 1");
+    expect(html.match(/<p class="mt-1 text-xs text-muted">Because\.<\/p>/g)).toHaveLength(1);
   });
 
   it("hides copied move Markdown on screen and renders the structured details in the disclosure", () => {
@@ -158,7 +164,7 @@ describe("CoachResultView", () => {
       html.indexOf("Where the figures come from"),
     );
     expect(html).toContain(
-      "Add one to the Decisions log. The next brief follows it up instead of repeating it.",
+      "Open the screen that does the move. Adding it to the Decisions log is separate.",
     );
   });
 
@@ -176,9 +182,89 @@ describe("CoachResultView", () => {
         ],
       }),
     );
-    expect(html).toContain("Open Who controls what");
+    expect(html).toContain("Open this person on Team");
+    expect(html).not.toContain("Open Who controls what");
+    expect(html.indexOf("Open this person on Team")).toBeLessThan(
+      html.indexOf("Add to the Decisions log"),
+    );
     expect(html).toContain("Medium job");
     expect(html).not.toContain("medium effort");
+    expect(
+      moveDestination({
+        tab: "sod",
+        personId: "p2",
+        id: "person~p2~create_vendor~release_payment",
+      }),
+    ).toEqual({ tab: "team", item: "person~p2~create_vendor~release_payment" });
+    expect(moveDestination({ tab: "sod", personId: "p2" })).toEqual({
+      tab: "team",
+      item: "person~p2",
+    });
+  });
+
+  it("keeps a knowledge move on Who knows what", () => {
+    const html = view(
+      result({
+        decisions: [
+          {
+            action: "Mark who can cover appeals",
+            rationale: "Because.",
+            effort: "low",
+            horizonDays: 7,
+            link: { tab: "knowledge", id: "k-appeals", personId: "p6" },
+          },
+        ],
+      }),
+    );
+    expect(html).toContain("Open Who knows what");
+    expect(html).not.toContain("Open this person on Team");
+    expect(moveDestination({ tab: "knowledge", id: "k-appeals", personId: "p6" })).toEqual({
+      tab: "knowledge",
+      item: "k-appeals",
+    });
+  });
+
+  it("leads with the move, and keeps this week inside Why we say this", () => {
+    const html = view(
+      result({
+        markdown: [
+          "## Answer",
+          "A staff member posts a large adjustment.",
+          "",
+          "## Situation",
+          "**Northside** has two open conflicts.",
+          "",
+          "## This week",
+          "This week: move one duty.",
+          "",
+          "## Warnings",
+          "- None.",
+        ].join("\n"),
+      }),
+    );
+    const question = html.indexOf("What should I do this week?");
+    const move = html.indexOf("Do this");
+    const why = html.indexOf("Why we say this");
+    const week = html.indexOf(">This week<");
+    const line = html.indexOf("Move one duty.");
+    expect(question).toBeGreaterThanOrEqual(0);
+    expect(question).toBeLessThan(move);
+    expect(move).toBeLessThan(why);
+    expect(why).toBeLessThan(week);
+    expect(week).toBeLessThan(line);
+    expect(html.match(/Move one duty/g)).toHaveLength(1);
+    expect(html.match(/Northside/g)).toHaveLength(1);
+    expect(html).not.toContain("This week: move one duty.");
+  });
+
+  it("puts a selected move first and badges it Most relevant", () => {
+    const html = view(result({ highlightIds: ["move-2"] }));
+    expect(html).toContain("Most relevant");
+    expect(html).toContain("Move 3");
+    expect(html).not.toContain("Move 1");
+    expect(html).not.toContain("Start with this one");
+    expect(orderedMoves(result().decisions, ["move-2"])[0]?.decision.action).toBe("Move 3");
+    expect(orderedMoves(result().decisions, ["nope"])[0]?.decision.action).toBe("Move 1");
   });
 
   it("offers the next questions under the moves", () => {
@@ -193,9 +279,9 @@ describe("CoachResultView", () => {
         onAsk={() => {}}
       />,
     );
-    const moves = html.indexOf("Recommended moves");
+    const moves = html.indexOf("Do this");
     const next = html.indexOf("Ask next");
-    const built = html.indexOf("How Pioneer built this brief");
+    const built = html.indexOf("How Voyager built this brief");
     expect(moves).toBeLessThan(next);
     expect(next).toBeLessThan(built);
     expect(html).toContain("If my front desk lead leaves, what breaks first?");
@@ -205,6 +291,28 @@ describe("CoachResultView", () => {
     const html = view(result());
     expect(html).toContain("Open Who knows what");
     expect(html).not.toMatch(/spof · ev-1/);
+  });
+});
+
+describe("briefBoard", () => {
+  it("lifts this week and the situation, and drops the label the screen adds", () => {
+    const board = briefBoard(
+      "## Situation\nAll fine.\n\n## This week\nThis week: open the statement.\n\n## Recommended moves\n- One\n\n## Warnings\n- None.",
+    );
+    expect(board.situation).toBe("All fine.");
+    expect(board.thisWeek).toBe("Open the statement.");
+    expect(board.rest).toContain("## Warnings");
+    expect(board.rest).not.toContain("All fine.");
+    expect(board.rest).not.toContain("open the statement");
+    expect(board.rest).not.toContain("Recommended moves");
+  });
+
+  it("leaves a brief with neither line alone", () => {
+    expect(briefBoard("## Warnings\n- None.")).toEqual({
+      situation: null,
+      thisWeek: null,
+      rest: "## Warnings\n- None.",
+    });
   });
 });
 

@@ -28,7 +28,7 @@ const REQUIRED = [
   "Residual risk",
   "Custody",
   "Stand-in",
-  "Pioneer",
+  "Voyager",
   "Plain and Tactical",
   "Unverified",
   "Exception",
@@ -49,9 +49,9 @@ describe("the glossary", () => {
     expect(new Set(GLOSSARY.map((t) => t.id)).size).toBe(GLOSSARY.length);
   });
 
-  it("calls Pioneer Precog's assistant that answers from the owner's own records", () => {
-    expect(GLOSSARY.find((t) => t.term === "Pioneer")?.definition).toMatch(
-      /^Precog's assistant; it answers from your own records\./,
+  it("calls Voyager Precog's assistant that answers from the owner's own records", () => {
+    expect(GLOSSARY.find((t) => t.term === "Voyager")?.definition).toMatch(
+      /^Precog's assistant\. It answers from your own records and uses only/,
     );
   });
 

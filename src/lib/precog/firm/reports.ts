@@ -520,48 +520,63 @@ export async function signOffReportVersion(
   if (current.version.returnedAt) throw new ReportVersionError(409, VERSION_RETURNED);
   const businessId = current.version.businessId;
   const self = current.version.preparedBy === input.reviewedBy;
-  if (self) {
-    if (!input.issueWithoutIndependentReview) {
-      throw new ReportVersionError(409, "The preparer cannot review their own report for issuance");
+  // Who may issue, who is assigned, and the write itself are one unit that
+  // holds the business row, in the order engagement writes lock it
+  // (businesses, then engagement_marks, then firm_members): a reassignment
+  // or a change of members either lands before this read or waits for this
+  // commit, so the review never records an assignment that no longer held.
+  await inTransaction(sql, async (tx) => {
+    await tx`
+      select id from businesses
+      where user_id = ${input.ownerUserId} and id = ${businessId}
+      for share
+    `;
+    if (self) {
+      if (!input.issueWithoutIndependentReview) {
+        throw new ReportVersionError(
+          409,
+          "The preparer cannot review their own report for issuance",
+        );
+      }
+      const alone = await issueAloneFor(tx, {
+        ownerUserId: input.ownerUserId,
+        businessId,
+        preparedBy: input.reviewedBy,
+      });
+      if (!alone.canIssueAlone) throw new ReportVersionError(409, alone.reason);
     }
-    const alone = await issueAloneFor(sql, {
+    const assigned = await assignedReviewerFor(tx, {
       ownerUserId: input.ownerUserId,
       businessId,
-      preparedBy: input.reviewedBy,
+      preparedBy: current.version.preparedBy,
     });
-    if (!alone.canIssueAlone) throw new ReportVersionError(409, alone.reason);
-  }
-  const assigned = await assignedReviewerFor(sql, {
-    ownerUserId: input.ownerUserId,
-    businessId,
-    preparedBy: current.version.preparedBy,
+    let overrideNote: string | null = null;
+    if (assigned !== null && assigned !== input.reviewedBy) {
+      overrideNote = (input.overrideNote ?? "").trim();
+      if (overrideNote.length < OVERRIDE_NOTE_MIN) {
+        throw new ReportVersionError(400, OVERRIDE_NOTE_REQUIRED);
+      }
+      if (overrideNote.length > RETURN_NOTE_MAX) {
+        throw new ReportVersionError(400, RETURN_NOTE_TOO_LONG);
+      }
+    }
+    const note = self
+      ? `${NOT_INDEPENDENT}. ${input.note}`.trim().slice(0, RETURN_NOTE_MAX)
+      : input.note;
+    const rows = await tx`
+      update report_versions
+      set reviewed_by = ${input.reviewedBy}, reviewed_at = now(), review_note = ${note},
+        review_override_note = ${overrideNote}
+      where user_id = ${input.ownerUserId} and id = ${input.id}
+        and reviewed_at is null and returned_at is null
+      returning id
+    `;
+    // Another reviewer acted between the read and the write. Throwing here
+    // keeps signOffReport from logging a review that was never stored.
+    if (!rows.length) {
+      throw await refusalAfterRace(tx, input.ownerUserId, input.id, SOMEONE_REVIEWED);
+    }
   });
-  let overrideNote: string | null = null;
-  if (assigned !== null && assigned !== input.reviewedBy) {
-    overrideNote = (input.overrideNote ?? "").trim();
-    if (overrideNote.length < OVERRIDE_NOTE_MIN) {
-      throw new ReportVersionError(400, OVERRIDE_NOTE_REQUIRED);
-    }
-    if (overrideNote.length > RETURN_NOTE_MAX) {
-      throw new ReportVersionError(400, RETURN_NOTE_TOO_LONG);
-    }
-  }
-  const note = self
-    ? `${NOT_INDEPENDENT}. ${input.note}`.trim().slice(0, RETURN_NOTE_MAX)
-    : input.note;
-  const rows = await sql`
-    update report_versions
-    set reviewed_by = ${input.reviewedBy}, reviewed_at = now(), review_note = ${note},
-      review_override_note = ${overrideNote}
-    where user_id = ${input.ownerUserId} and id = ${input.id}
-      and reviewed_at is null and returned_at is null
-    returning id
-  `;
-  // Another reviewer acted between the read and the write. Throwing here
-  // keeps signOffReport from logging a review that was never stored.
-  if (!rows.length) {
-    throw await refusalAfterRace(sql, input.ownerUserId, input.id, SOMEONE_REVIEWED);
-  }
   const updated = await loadReportVersion(sql, input.ownerUserId, input.id);
   if (!updated) throw new Error("Unable to record the review");
   return updated.version;

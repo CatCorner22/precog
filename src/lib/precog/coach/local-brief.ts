@@ -1,4 +1,5 @@
 import { resolveTemplate } from "../active-template";
+import { teamFocusItem } from "../start-here/layout";
 import { formatDayNear, formatDayRange, shiftDay } from "../dates";
 import { todayBrief } from "../continuity/today";
 import { registerAssessed } from "../continuity/register-state";
@@ -232,7 +233,7 @@ export function fallbackBrief(
       : `**${profile.practiceName}**: no open duty conflicts.`;
   const frontierNextMove = people[0] ? thisWeek(people[0]) : `This week: ${STATEMENT_THIS_WEEK}.`;
   const warning =
-    "Pioneer could not compute part of the full brief for this business, so it built this one from your team's duty conflicts alone.";
+    "Voyager could not compute part of the full brief for this business, so it built this one from your team's duty conflicts alone.";
   const markdown = [
     `## ${BRIEF_SECTION.situation}`,
     situation,
@@ -353,7 +354,11 @@ function conflictDecision(
     effort: "medium",
     horizonDays: 14,
     cascadeEffects: ["duty conflicts ↓", "segregation health ↑"],
-    link: { tab: "sod", personId: person.personId },
+    link: {
+      tab: "sod",
+      id: teamFocusItem(person.personId, first.entitlementA, first.entitlementB),
+      personId: person.personId,
+    },
   };
 }
 

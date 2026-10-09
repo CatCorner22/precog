@@ -86,7 +86,7 @@ describe("answerPioneer", () => {
 
   it("uses the requested local and unavailable-model messages", () => {
     expect(PIONEER_FAILED_MESSAGE).toBe(
-      "Pioneer could not answer just now. Try again in a moment.",
+      "Voyager could not answer just now. Try again in a moment.",
     );
     expect(MODEL_FAILED_WARNING).toBe("Grok did not answer, so Precog's rules wrote this brief.");
   });
@@ -113,7 +113,7 @@ describe("answerPioneer", () => {
     );
     if (!res.ok) throw new Error(res.error);
     expect(res.warnings.at(-1)).toBe(
-      "Sign in to let Grok pick the most relevant moves. Precog's rules wrote this brief.",
+      "Sign in to let Voyager rank the most relevant moves. Precog's rules wrote this brief.",
     );
   });
 
@@ -123,7 +123,9 @@ describe("answerPioneer", () => {
       access("rate_limited"),
     );
     if (!res.ok) throw new Error(res.error);
-    expect(res.warnings.at(-1)).toBe("Grok is busy right now. Precog's rules wrote this brief.");
+    expect(res.warnings.at(-1)).toBe(
+      "Voyager is busy right now. Precog's rules wrote this brief.",
+    );
   });
 
   it("says so when the model was allowed but failed", async () => {
@@ -213,7 +215,7 @@ describe("answerPioneer", () => {
 
   it("returns the plain error envelope when building the brief throws", async () => {
     expect(PIONEER_FAILED_MESSAGE).toBe(
-      "Pioneer could not answer just now. Try again in a moment.",
+      "Voyager could not answer just now. Try again in a moment.",
     );
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(localBrief).mockImplementationOnce(() => {

@@ -65,7 +65,7 @@ export function CascadePanel() {
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Dual release does more than separate duties: it also cuts likelihood, shrinks scheme size
           and changes the annual cost of risk, and on a policy you entered it can earn the credit
-          your carrier quotes. Pioneer uses this same engine.
+          your carrier quotes. Voyager uses this same engine.
         </p>
         {policyNote && (
           <p className="mt-2 max-w-2xl text-xs text-subtle">

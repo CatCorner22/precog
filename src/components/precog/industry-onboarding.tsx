@@ -873,8 +873,8 @@ export function IndustryOnboarding({
                 What kind of organization is this?
               </h2>
               <CardDescription>
-                Choose the closest fit. Change this later in Business settings, from the business
-                menu.
+                Choose the closest fit. Next, enter your team or explore a sample. Change this later
+                in Business settings, from the business menu.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1153,7 +1153,8 @@ export function IndustryOnboarding({
                   ? "Scroll sideways to see more duties. Names stay on the left. Duty names stay at the top."
                   : `${rowsInUse} of up to ${OWN_TEAM_MAX} people.`}{" "}
                 Duties without a column appear as tags under each job title. Remove one with × or
-                add one with &ldquo;Add a duty&rdquo;. A job title ticks its usual duties. Untick
+                add one with &ldquo;Add a duty&rdquo;. Job titles only suggest duties. Keep or
+                remove each suggestion below the table. A job title ticks its usual duties: untick
                 any that are wrong.
               </p>
               <div

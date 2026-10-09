@@ -6,7 +6,7 @@ import { defaultProfile } from "@/lib/precog/practice-profile";
 import { buildStartHereModel } from "@/lib/precog/start-here/model";
 import { doNextSteps, stepFocus } from "@/lib/precog/actions/do-next";
 import { StartHereContinuitySection } from "./start-here-continuity-section";
-import { FIRST_STEPS_SHOWN, stepDestination } from "@/lib/precog/start-here/layout";
+import { FIRST_STEPS_SHOWN, parseTeamFocus, stepDestination } from "@/lib/precog/start-here/layout";
 import { StartHereFirstStepsSection } from "./start-here-first-steps-section";
 
 // The tree walk below calls components as functions, outside React, so the
@@ -211,5 +211,18 @@ describe("Start here, continuity split into today and readiness", () => {
     );
     expect(today).toContain("Maya is out today.");
     expect(today).not.toContain("Continuity readiness");
+  });
+});
+
+describe("parseTeamFocus", () => {
+  it("opens a person, and marks two duties only when the address names both", () => {
+    expect(parseTeamFocus("person~own-2")).toEqual({ personId: "own-2", duties: [] });
+    expect(parseTeamFocus("person~p2~create_vendor~release_payment")).toEqual({
+      personId: "p2",
+      duties: ["create_vendor", "release_payment"],
+    });
+    expect(parseTeamFocus("person~")).toBeNull();
+    expect(parseTeamFocus("person~p2~create_vendor")).toBeNull();
+    expect(parseTeamFocus("sod")).toBeNull();
   });
 });

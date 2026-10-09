@@ -15,7 +15,7 @@ export const TAB_WORDS = [
   { id: "monthly", label: "Monthly review", tactical: "Monthly review" },
   { id: "map", label: "How work flows", tactical: "Process map" },
   { id: "precog", label: "What could happen", tactical: "Scenarios" },
-  { id: "pioneer", label: "Ask Pioneer", tactical: "Pioneer" },
+  { id: "pioneer", label: "Ask Voyager", tactical: "Voyager" },
   { id: "scores", label: "How Precog scores", tactical: "Scoring" },
 ] as const;
 
@@ -56,6 +56,8 @@ export const TAB_ALIASES = {
   // The retired Dashboard opens Start here; the retired blueprint screen opens Procedures.
   command: { tab: "start", label: "Start here", tactical: "Start here" },
   blueprint: { tab: "procedures", label: "Procedures", tactical: "Procedures" },
+  // The product name is Voyager. The tab id stays pioneer so saved links open.
+  voyager: { tab: "pioneer", label: "Ask Voyager", tactical: "Voyager" },
 } as const satisfies Record<string, { tab: TabId; item?: string; label: string; tactical: string }>;
 
 export type AliasId = keyof typeof TAB_ALIASES;
