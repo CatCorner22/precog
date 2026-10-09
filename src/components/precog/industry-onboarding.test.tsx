@@ -49,6 +49,36 @@ describe("IndustryOnboarding, first render", () => {
     expect(text).not.toMatch(/switch industry/);
   });
 
+  it("shows each line of business as a name and one line, with the pack's sample and cases folded", () => {
+    const { html, text } = firstRender("");
+    // The cards carry the name and tagline only: about 120 words for the
+    // whole choice, not a paragraph per card.
+    const cards = html.match(/<button[^>]*role="radio"[\s\S]*?<\/button>/g) ?? [];
+    expect(cards).toHaveLength(8);
+    for (const card of cards) {
+      expect(card).not.toContain("Sample:");
+      expect(card).not.toContain("prosecuted cases");
+      expect(
+        card
+          .replace(/<[^>]+>/g, " ")
+          .split(/\s+/)
+          .filter(Boolean).length,
+      ).toBeLessThan(16);
+    }
+    // The chosen pack's details sit in one closed disclosure below the grid.
+    expect(html).toMatch(/<details[^>]*>(?![^<]*open)/);
+    expect(text).toContain("What the Dental office pack includes");
+    expect(text).toContain("Sample: 8 processes, 6 people.");
+    expect(text).toContain("11 prosecuted cases in dental, medical and veterinary practices");
+    // One primary action; the sample is a text link under it, not a second button.
+    expect(html.match(/bg-primary text-primary-fg[^"]*"[^>]*>Set up my own business/)).toBeTruthy();
+    expect(html).toMatch(
+      /<button type="button" data-testid="explore-sample-business" class="text-primary[^"]*">Explore the fictional sample<\/button>/,
+    );
+    expect(text).toContain("Just looking?");
+    expect(text).toContain("Its team is fictional, and every gap on it says so.");
+  });
+
   it("links the privacy notice and the terms on the first step, and names Business settings", () => {
     const { html, text } = firstRender("");
     expect(html).toContain('<a href="/privacy">Privacy</a>');
