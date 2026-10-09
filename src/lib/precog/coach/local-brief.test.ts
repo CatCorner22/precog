@@ -460,7 +460,7 @@ describe("local advisor brief", () => {
     const { brief } = localBrief(question, { profile, question, today: "2026-10-08" }, profile);
 
     expect(brief.markdown).toContain(
-      "Nobody is recorded as out today. When someone calls in, press Someone is out at the top of the page.",
+      "Nobody is recorded as out today. When someone calls in, open Who knows what and record them as out today.",
     );
   });
 
