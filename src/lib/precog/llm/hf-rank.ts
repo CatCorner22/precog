@@ -51,7 +51,10 @@ export function topSimilar(
   return ranked.slice(0, k).map((row) => row.id);
 }
 
-function rulesOrder(claimIds: readonly string[], llmIds: readonly string[] | null): string[] | null {
+function rulesOrder(
+  claimIds: readonly string[],
+  llmIds: readonly string[] | null,
+): string[] | null {
   if (!llmIds || llmIds.length === 0) return null;
   const wanted = new Set(llmIds);
   const ids = claimIds.filter((id) => wanted.has(id)).slice(0, 3);
