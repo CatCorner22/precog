@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Headless end-to-end check of the Procedures tab, as a guest on the dental
+ * Headless end-to-end check of Procedures via Analyze, as a guest on the dental
  * sample: add a place, start a procedure from a register item nothing is
  * written for, write two steps (one that looks like a password, which must
  * warn), draft two more from notes, save, verify, follow it step by step and
@@ -27,10 +27,14 @@ const passed = await withPage(options, writeVerifyAndLink);
 if (passed) console.log(JSON.stringify({ ok: true, steps: step.names.length }));
 
 async function writeVerifyAndLink(page, errors) {
-  step("open the dental sample on Procedures");
+  step("open the dental sample and choose Procedures from Analyze");
   await openSetup(page, base, options.timeout);
   await exploreSample(page, "Dental");
-  await page.getByRole("tab", { name: /Procedures/ }).click();
+  await page.locator("[data-more-tabs]").click();
+  await page
+    .getByRole("menu", { name: "Analyze views" })
+    .getByRole("menuitem", { name: "Procedures", exact: true })
+    .click();
   await page.getByRole("heading", { name: "Procedures", level: 1 }).waitFor();
 
   step("add a place from the suggestions");
