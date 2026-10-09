@@ -199,7 +199,9 @@ export function LeaveWindow({
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 text-xs text-muted">{s.note}</p>
+                  <p className="mt-0.5 break-words text-xs text-muted [overflow-wrap:anywhere]">
+                    {s.note}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -403,7 +405,7 @@ function HandoverRow({ h, onSelect }: { h: HandoverItem; onSelect: (id: string) 
           </span>
         )}
       </div>
-      <p className="mt-0.5 text-xs text-muted">{h.note}</p>
+      <p className="mt-0.5 break-words text-xs text-muted [overflow-wrap:anywhere]">{h.note}</p>
     </li>
   );
 }
@@ -493,8 +495,14 @@ export function LeaveDebriefCard({
                   <span className="text-xs text-subtle">Hand-off in the {tabName("journal")}</span>
                 )}
               </div>
-              <p className="mt-0.5 text-xs text-muted">{describeDebriefItem(debrief, e)}</p>
-              {conflictNote && <p className="mt-0.5 text-xs text-warn">{conflictNote}</p>}
+              <p className="mt-0.5 break-words text-xs text-muted [overflow-wrap:anywhere]">
+                {describeDebriefItem(debrief, e)}
+              </p>
+              {conflictNote && (
+                <p className="mt-0.5 break-words text-xs text-warn [overflow-wrap:anywhere]">
+                  {conflictNote}
+                </p>
+              )}
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 {!e.standInConfirmed && (
                   <select
