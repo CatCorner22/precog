@@ -39,6 +39,45 @@ export function effortWords(effort: string): string {
 }
 
 /**
+ * The two lines a brief leads with, lifted out of the markdown so the screen
+ * can show them once. The rest of the brief stays in reading order, without
+ * the recommended-moves section the move list already shows.
+ */
+export function briefBoard(markdown: string): {
+  situation: string | null;
+  thisWeek: string | null;
+  rest: string;
+} {
+  const situation = sectionText(markdown, "Situation");
+  const week = sectionText(markdown, "This week");
+  let rest = markdown;
+  for (const heading of ["Situation", "This week", "Recommended moves"]) {
+    rest = withoutSection(rest, heading);
+  }
+  return {
+    situation,
+    thisWeek: week ? dropThisWeekLabel(week) : null,
+    rest: rest.trim(),
+  };
+}
+
+function sectionText(markdown: string, heading: string): string | null {
+  const lines = markdown.split("\n");
+  const start = lines.findIndex((line) => line === `## ${heading}`);
+  if (start < 0) return null;
+  const end = lines.findIndex((line, index) => index > start && line.startsWith("## "));
+  const body = (end < 0 ? lines.slice(start + 1) : lines.slice(start + 1, end)).join("\n").trim();
+  return body || null;
+}
+
+/** The screen labels the line "This week", so the body does not say it again. */
+function dropThisWeekLabel(body: string): string {
+  const stripped = body.replace(/^This week:\s*/i, "");
+  if (!stripped || stripped === body) return body;
+  return `${stripped.charAt(0).toUpperCase()}${stripped.slice(1)}`;
+}
+
+/**
  * Where a recommended move opens. A duty conflict names Who controls what and
  * the person who holds the pair; Team is the duty editor, so that move opens
  * the person there. The link itself stays on Who controls what.
@@ -85,6 +124,7 @@ export function CoachResultView({
   const [allMoves, setAllMoves] = useState(false);
   const moves = allMoves ? result.decisions : result.decisions.slice(0, MOVES_PREVIEW);
   const notes = extraWarnings(result);
+  const board = briefBoard(result.markdown);
 
   useEffect(() => {
     const title = document.getElementById(PIONEER_BRIEF_TITLE_ID);
@@ -94,35 +134,54 @@ export function CoachResultView({
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <CardTitle id={PIONEER_BRIEF_TITLE_ID} tabIndex={-1}>
-                {result.question}
-              </CardTitle>
-              <CardDescription>{briefAuthorLine(result)}</CardDescription>
-            </div>
-            <Button size="sm" variant="secondary" onClick={onCopy}>
-              <Copy className="size-3.5" />
-              {copied ? "Copied" : "Copy"}
-            </Button>
+      <section className="matrix-grid rounded-2xl border border-primary/30 bg-surface p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2
+              id={PIONEER_BRIEF_TITLE_ID}
+              tabIndex={-1}
+              className="text-xl font-semibold tracking-tight"
+            >
+              {result.question}
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted">{briefAuthorLine(result)}</p>
           </div>
-          {notes.length > 0 && (
-            <ul className="mt-2 space-y-1 rounded-lg border border-warn/30 bg-warn/5 px-3 py-2 text-sm text-muted">
-              {notes.map((w) => (
-                <li key={w} className="flex gap-2">
-                  <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
-                  {w}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardHeader>
-        <CardContent>
-          <BriefMarkdown markdown={withoutSection(result.markdown, "Recommended moves")} />
-        </CardContent>
-      </Card>
+          <Button size="sm" variant="secondary" onClick={onCopy}>
+            <Copy className="size-3.5" />
+            {copied ? "Copied" : "Copy"}
+          </Button>
+        </div>
+        {board.thisWeek && (
+          <div className="glow-primary mt-5 rounded-xl border border-primary/40 bg-primary/5 px-4 py-4">
+            <p className="text-xs font-medium text-primary">This week</p>
+            <BriefLines
+              markdown={board.thisWeek}
+              className="text-lg font-medium leading-snug text-fg"
+            />
+          </div>
+        )}
+        {board.situation && (
+          <div className="mt-3">
+            <BriefLines markdown={board.situation} className="text-sm text-muted" />
+          </div>
+        )}
+        {notes.length > 0 && (
+          <ul className="mt-4 space-y-1 rounded-lg border border-warn/30 bg-warn/5 px-3 py-2 text-sm text-muted">
+            {notes.map((w) => (
+              <li key={w} className="flex gap-2">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />
+                {w}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {board.rest && (
+        <section className="rounded-2xl border border-border bg-surface px-6 py-5">
+          <BriefMarkdown markdown={board.rest} />
+        </section>
+      )}
 
       {result.decisions.length > 0 && (
         <Card>
@@ -133,16 +192,26 @@ export function CoachResultView({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {moves.map((d) => {
+            {moves.map((d, index) => {
               const done = logged.has(d.action);
               const where = d.link;
+              const rank = index + 1;
+              const lead = rank === 1 && result.decisions.length > 1;
               return (
                 <div
                   key={d.action}
-                  className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
+                  className={
+                    lead
+                      ? "rounded-xl border border-primary/40 bg-elevated px-3 py-3 text-sm"
+                      : "rounded-lg border border-border bg-elevated px-3 py-2 text-sm"
+                  }
                 >
                   <div className="flex flex-wrap items-center gap-2">
+                    <span className="tabular font-mono text-xs text-subtle">
+                      {String(rank).padStart(2, "0")}
+                    </span>
                     <span className="font-medium">{d.action}</span>
+                    {lead && <Badge variant="primary">Start with this one</Badge>}
                     <Badge variant="default">{effortWords(d.effort)}</Badge>
                     <span className="text-xs text-muted">within {count(d.horizonDays, "day")}</span>
                   </div>
@@ -296,6 +365,21 @@ export function CoachResultView({
         </div>
       </details>
     </>
+  );
+}
+
+/** Lines of brief markdown, with bold and italics, and no section headings. */
+export function BriefLines({ markdown, className }: { markdown: string; className?: string }) {
+  return (
+    <div className="space-y-2">
+      {markdown.split("\n").map((line, i) =>
+        line.trim() === "" ? null : (
+          <p key={i} className={className}>
+            {renderInline(line)}
+          </p>
+        ),
+      )}
+    </div>
   );
 }
 

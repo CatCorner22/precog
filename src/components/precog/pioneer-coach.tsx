@@ -124,6 +124,43 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
     setLogged((prev) => new Set(prev).add(d.action));
   }
 
+  function questionBox(rows: number) {
+    return (
+      <textarea
+        aria-label="Your question"
+        placeholder="Ask about your team, a person leaving, or what to fix first"
+        value={question}
+        onChange={(e) => setQuestion(e.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            if (!loading) void run();
+          }
+        }}
+        rows={rows}
+        className="w-full rounded-xl border border-border bg-elevated px-3 py-2 text-sm"
+      />
+    );
+  }
+
+  function askButton() {
+    return (
+      <Button onClick={() => void run()} disabled={loading}>
+        {loading ? (
+          <>
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+            {askButtonLabel(true, false)}
+          </>
+        ) : (
+          <>
+            <Sparkles className="size-4" aria-hidden />
+            {askButtonLabel(false, question.trim().length > 0)}
+          </>
+        )}
+      </Button>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <section className="matrix-grid rounded-2xl border border-border bg-surface p-6">
@@ -142,22 +179,9 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
             </p>
           }
         />
-        <div className="mt-4 space-y-3">
-          <textarea
-            aria-label="Your question"
-            placeholder="Ask about your team, a person leaving, or what to fix first"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                if (!loading) void run();
-              }
-            }}
-            rows={3}
-            className="w-full rounded-xl border border-border bg-elevated px-3 py-2 text-sm"
-          />
-          {!result && (
+        {!result && !loading && (
+          <div className="mt-4 space-y-3">
+            {questionBox(3)}
             <div className="flex flex-col gap-2">
               <span className="text-xs text-subtle">Or start from one of these</span>
               {prompts.map((p) => (
@@ -177,34 +201,34 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
                 </button>
               ))}
             </div>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => void run()} disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" aria-hidden />
-                  {askButtonLabel(true, false)}
-                </>
-              ) : (
-                <>
-                  <Sparkles className="size-4" aria-hidden />
-                  {askButtonLabel(false, question.trim().length > 0)}
-                </>
-              )}
-            </Button>
+            <div className="flex flex-wrap gap-2">{askButton()}</div>
           </div>
-          {error && (
-            <p
-              role="alert"
-              className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-            >
-              {error}
+        )}
+        {!result && loading && (
+          <div className="mt-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-4">
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+              Checking your records…
             </p>
-          )}
-          <p role="status" className="sr-only">
-            {loading ? "Checking your records" : result ? "Answer ready" : ""}
+            <p className="mt-2 text-sm text-muted">
+              {question.trim() || "What do I do this week?"}
+            </p>
+            <p className="mt-2 text-xs text-subtle">
+              Precog&rsquo;s rules write every word from your records.
+            </p>
+          </div>
+        )}
+        {error && !result && (
+          <p
+            role="alert"
+            className="mt-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+          >
+            {error}
           </p>
-        </div>
+        )}
+        <p role="status" className="sr-only">
+          {loading ? "Checking your records" : result ? "Answer ready" : ""}
+        </p>
       </section>
 
       {result && (
@@ -219,6 +243,22 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
           onAsk={(prompt) => void run(prompt)}
           asking={loading}
         />
+      )}
+
+      {result && (
+        <section className="space-y-3 rounded-2xl border border-border bg-surface px-6 py-4">
+          <p className="text-xs text-subtle">Ask something else</p>
+          {questionBox(2)}
+          <div className="flex flex-wrap gap-2">{askButton()}</div>
+          {error && (
+            <p
+              role="alert"
+              className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+            >
+              {error}
+            </p>
+          )}
+        </section>
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import {
   askButtonLabel,
   BUSINESS_CHANGED_MESSAGE,
   BriefMarkdown,
+  briefBoard,
   CoachResultView,
   effortWords,
   moveDestination,
@@ -120,6 +121,8 @@ describe("CoachResultView", () => {
     expect(html).not.toContain("avg=64");
     expect(html).toContain("No AI wrote it");
     expect(html).toContain("Steps · 1 check");
+    expect(html).toContain("Start with this one");
+    expect(html).toContain("All fine.");
     expect(html).not.toContain("120 ms");
   });
 
@@ -216,6 +219,39 @@ describe("CoachResultView", () => {
     });
   });
 
+  it("leads with this week, once, and keeps the longer answer under it", () => {
+    const html = view(
+      result({
+        markdown: [
+          "## Answer",
+          "A staff member posts a large adjustment.",
+          "",
+          "## Situation",
+          "**Northside** has two open conflicts.",
+          "",
+          "## This week",
+          "This week: move one duty.",
+          "",
+          "## Warnings",
+          "- None.",
+        ].join("\n"),
+      }),
+    );
+    const question = html.indexOf("What should I do this week?");
+    const week = html.indexOf(">This week<");
+    const line = html.indexOf("Move one duty.");
+    const answer = html.indexOf("posts a large adjustment");
+    const moves = html.indexOf("Recommended moves");
+    expect(question).toBeGreaterThanOrEqual(0);
+    expect(question).toBeLessThan(week);
+    expect(week).toBeLessThan(line);
+    expect(line).toBeLessThan(answer);
+    expect(answer).toBeLessThan(moves);
+    expect(html.match(/Move one duty/g)).toHaveLength(1);
+    expect(html.match(/Northside/g)).toHaveLength(1);
+    expect(html).not.toContain("This week: move one duty.");
+  });
+
   it("offers the next questions under the moves", () => {
     const html = renderToStaticMarkup(
       <CoachResultView
@@ -240,6 +276,28 @@ describe("CoachResultView", () => {
     const html = view(result());
     expect(html).toContain("Open Who knows what");
     expect(html).not.toMatch(/spof · ev-1/);
+  });
+});
+
+describe("briefBoard", () => {
+  it("lifts this week and the situation, and drops the label the screen adds", () => {
+    const board = briefBoard(
+      "## Situation\nAll fine.\n\n## This week\nThis week: open the statement.\n\n## Recommended moves\n- One\n\n## Warnings\n- None.",
+    );
+    expect(board.situation).toBe("All fine.");
+    expect(board.thisWeek).toBe("Open the statement.");
+    expect(board.rest).toContain("## Warnings");
+    expect(board.rest).not.toContain("All fine.");
+    expect(board.rest).not.toContain("open the statement");
+    expect(board.rest).not.toContain("Recommended moves");
+  });
+
+  it("leaves a brief with neither line alone", () => {
+    expect(briefBoard("## Warnings\n- None.")).toEqual({
+      situation: null,
+      thisWeek: null,
+      rest: "## Warnings\n- None.",
+    });
   });
 });
 
