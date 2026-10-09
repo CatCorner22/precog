@@ -24,10 +24,16 @@ export function teamFocusItem(personId: string, dutyA: string, dutyB: string): s
 /** The person and duties a Team address item names, or null when it names neither. */
 export function parseTeamFocus(
   item: string | null | undefined,
-): { personId: string; duties: [string, string] } | null {
+): { personId: string; duties: readonly string[] } | null {
   if (!item?.startsWith("person~")) return null;
-  const [, personId, dutyA, dutyB] = item.split("~");
-  if (!personId || !dutyA || !dutyB || item.split("~").length !== 4) return null;
+  const parts = item.split("~");
+  const personId = parts[1];
+  const dutyA = parts[2];
+  const dutyB = parts[3];
+  if (!personId) return null;
+  // `person~id` opens the person. `person~id~duty~duty` also marks the pair.
+  if (parts.length === 2) return { personId, duties: [] };
+  if (parts.length !== 4 || !dutyA || !dutyB) return null;
   return { personId, duties: [dutyA, dutyB] };
 }
 

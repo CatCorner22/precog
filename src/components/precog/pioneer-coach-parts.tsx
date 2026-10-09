@@ -39,6 +39,22 @@ export function effortWords(effort: string): string {
 }
 
 /**
+ * Where a recommended move opens. A duty conflict names Who controls what and
+ * the person who holds the pair; Team is the duty editor, so that move opens
+ * the person there. The link itself stays on Who controls what.
+ */
+export function moveDestination(link: { tab: string; id?: string; personId?: string }): {
+  tab: string;
+  item?: string;
+} {
+  if (link.personId && (link.tab === "sod" || link.tab === "team")) {
+    const item = link.id?.startsWith("person~") ? link.id : `person~${link.personId}`;
+    return { tab: "team", item };
+  }
+  return { tab: link.tab, item: link.id };
+}
+
+/**
  * The brief, the moves to log, and, behind a closed disclosure, how the brief
  * was built. The answer comes first; the trace, the review lenses and the
  * sources are there for whoever wants to check it.
@@ -145,9 +161,14 @@ export function CoachResultView({
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => onNavigate?.(where.tab, where.id)}
+                        onClick={() => {
+                          const dest = moveDestination(where);
+                          onNavigate?.(dest.tab, dest.item);
+                        }}
                       >
-                        Open {tabLabel(where.tab, say)}
+                        {where.personId && (where.tab === "sod" || where.tab === "team")
+                          ? "Open this person on Team"
+                          : `Open ${tabLabel(where.tab, say)}`}
                       </Button>
                     )}
                   </div>

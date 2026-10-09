@@ -6,6 +6,7 @@ import {
   BriefMarkdown,
   CoachResultView,
   effortWords,
+  moveDestination,
   MOVES_PREVIEW,
   briefClipboardText,
   briefAuthorLine,
@@ -176,9 +177,43 @@ describe("CoachResultView", () => {
         ],
       }),
     );
-    expect(html).toContain("Open Who controls what");
+    expect(html).toContain("Open this person on Team");
+    expect(html).not.toContain("Open Who controls what");
     expect(html).toContain("Medium job");
     expect(html).not.toContain("medium effort");
+    expect(
+      moveDestination({
+        tab: "sod",
+        personId: "p2",
+        id: "person~p2~create_vendor~release_payment",
+      }),
+    ).toEqual({ tab: "team", item: "person~p2~create_vendor~release_payment" });
+    expect(moveDestination({ tab: "sod", personId: "p2" })).toEqual({
+      tab: "team",
+      item: "person~p2",
+    });
+  });
+
+  it("keeps a knowledge move on Who knows what", () => {
+    const html = view(
+      result({
+        decisions: [
+          {
+            action: "Mark who can cover appeals",
+            rationale: "Because.",
+            effort: "low",
+            horizonDays: 7,
+            link: { tab: "knowledge", id: "k-appeals", personId: "p6" },
+          },
+        ],
+      }),
+    );
+    expect(html).toContain("Open Who knows what");
+    expect(html).not.toContain("Open this person on Team");
+    expect(moveDestination({ tab: "knowledge", id: "k-appeals", personId: "p6" })).toEqual({
+      tab: "knowledge",
+      item: "k-appeals",
+    });
   });
 
   it("offers the next questions under the moves", () => {

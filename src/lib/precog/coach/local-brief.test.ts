@@ -52,6 +52,11 @@ describe("local advisor brief", () => {
     expect(brief.decisions[0].action).toBe(
       "Give one of Grace Kim's duties to someone else: set up suppliers or release payments",
     );
+    expect(brief.decisions[0].link).toEqual({
+      tab: "sod",
+      personId: "own-2",
+      id: "person~own-2~create_vendor~release_payment",
+    });
     expect(brief.decisions.some((d) => d.action.startsWith("Owner opens the bank statement"))).toBe(
       true,
     );

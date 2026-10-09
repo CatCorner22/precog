@@ -1,4 +1,5 @@
 import { resolveTemplate } from "../active-template";
+import { teamFocusItem } from "../start-here/layout";
 import { formatDayNear, formatDayRange, shiftDay } from "../dates";
 import { todayBrief } from "../continuity/today";
 import { registerAssessed } from "../continuity/register-state";
@@ -353,7 +354,11 @@ function conflictDecision(
     effort: "medium",
     horizonDays: 14,
     cascadeEffects: ["duty conflicts ↓", "segregation health ↑"],
-    link: { tab: "sod", personId: person.personId },
+    link: {
+      tab: "sod",
+      id: teamFocusItem(person.personId, first.entitlementA, first.entitlementB),
+      personId: person.personId,
+    },
   };
 }
 

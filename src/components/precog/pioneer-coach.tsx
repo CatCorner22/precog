@@ -7,7 +7,6 @@ import { usePractice } from "@/lib/precog/practice-context";
 import { getIndustryCopy } from "@/lib/precog/templates/industry-copy";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Compass, Loader2, Sparkles } from "lucide-react";
 import { type NavFn } from "@/lib/precog/navigation";
 import { PageIntro } from "@/components/precog/page-intro";
@@ -143,13 +142,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
             </p>
           }
         />
-      </section>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Ask Pioneer</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+        <div className="mt-4 space-y-3">
           <textarea
             aria-label="Your question"
             placeholder="Ask about your team, a person leaving, or what to fix first"
@@ -211,8 +204,8 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
           <p role="status" className="sr-only">
             {loading ? "Checking your records" : result ? "Answer ready" : ""}
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
       {result && (
         <CoachResultView
