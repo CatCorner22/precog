@@ -53,7 +53,6 @@ const PLACEHOLDERS = [
   "[STATE]",
   "[SUPPORT EMAIL]",
   "[AUTH BROKER OPERATOR]",
-  "[XAI API DATA POLICY URL]",
 ];
 
 describe("Terms", () => {
@@ -189,11 +188,13 @@ describe("Privacy", () => {
     ]);
   });
 
-  it("prints the placeholders and the xAI policy as text, not a link, while it is one", () => {
+  it("prints the remaining placeholders as text and links the xAI API data policy", () => {
     for (const placeholder of ["[SUPPORT EMAIL]", "[AUTH BROKER OPERATOR]"])
       expect(html).toContain(placeholder);
-    expect(html).toContain("xAI&#x27;s own policy for API data is at [XAI API DATA POLICY URL].");
-    expect(html).not.toContain('href="[XAI API DATA POLICY URL]"');
+    expect(html).toMatch(
+      /<a href="https:\/\/x\.ai\/legal\/terms-of-service-enterprise"[^>]*rel="noreferrer">/,
+    );
+    expect(html).not.toContain("[XAI API DATA POLICY URL]");
     expect(html).toContain("auth broker, operated by [AUTH BROKER OPERATOR]");
   });
 
