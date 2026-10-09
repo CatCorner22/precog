@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { writtenProcedureLinks } from "@/lib/precog/procedures/coverage-link";
-import { runPioneerCoach } from "@/lib/precog/coach/pioneer-server";
+import { runPioneerHighlights, runPioneerRules } from "@/lib/precog/coach/pioneer-server";
 import { PIONEER_LIST_CAPS } from "@/lib/precog/coach/pioneer-caps";
 import { CONTROL_CONFIRM_TAB, CONTROL_IN_PLACE_TAB } from "@/lib/precog/active-template";
 import { usePractice } from "@/lib/precog/practice-context";
@@ -26,6 +26,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
   const prompts = getIndustryCopy(profile.industry).pioneerPrompts;
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
+  const [choosing, setChoosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CoachResult | null>(null);
   const [logged, setLogged] = useState<ReadonlySet<string>>(new Set());
@@ -49,6 +50,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
     setError(running.current ? BUSINESS_CHANGED_MESSAGE : null);
     running.current = false;
     setLoading(false);
+    setChoosing(false);
   }, [profile.industry, profile.businessId]);
 
   async function run(asked?: string) {
@@ -57,51 +59,74 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
     setQuestion(askedQuestion);
     running.current = true;
     setLoading(true);
+    setChoosing(false);
     setError(null);
+    const data = {
+      question: askedQuestion,
+      today: localDateKey(new Date()),
+      profile: {
+        industry: profile.industry,
+        practiceName: profile.practiceName,
+        staff: profile.staff,
+        riskVariables: profile.riskVariables,
+        setupAnswers: profile.setupAnswers ?? null,
+        dualRelease: profile.dualRelease,
+        customProcesses: profile.customProcesses ?? null,
+        customPeople: profile.customPeople ?? null,
+        customKnowledge: profile.customKnowledge ?? null,
+        // Pioneer reads the first 2,500 and refuses more than 5,000.
+        customRelations: profile.customRelations?.slice(0, PIONEER_LIST_CAPS.relations) ?? null,
+        // The journal entries the server reads: continuity commitments,
+        // the scenarios the owner confirmed apply, the starter controls
+        // they confirmed run here, and the controls they already have,
+        // so Pioneer scores the same scope and controls as every other
+        // screen.
+        decisions: profile.decisions.filter((d) => PIONEER_JOURNAL_TABS.has(d.linkedTab ?? "")),
+        plannedAbsences: profile.plannedAbsences ?? [],
+        // Which register items have a written procedure; never the steps.
+        procedureLinks: writtenProcedureLinks(profile.procedures, profile.industry),
+      },
+    };
     try {
-      const res = await runPioneerCoach({
-        data: {
-          question: askedQuestion,
-          today: localDateKey(new Date()),
-          profile: {
-            industry: profile.industry,
-            practiceName: profile.practiceName,
-            staff: profile.staff,
-            riskVariables: profile.riskVariables,
-            setupAnswers: profile.setupAnswers ?? null,
-            dualRelease: profile.dualRelease,
-            customProcesses: profile.customProcesses ?? null,
-            customPeople: profile.customPeople ?? null,
-            customKnowledge: profile.customKnowledge ?? null,
-            // Pioneer reads the first 2,500 and refuses more than 5,000.
-            customRelations: profile.customRelations?.slice(0, PIONEER_LIST_CAPS.relations) ?? null,
-            // The journal entries the server reads: continuity commitments,
-            // the scenarios the owner confirmed apply, the starter controls
-            // they confirmed run here, and the controls they already have,
-            // so Pioneer scores the same scope and controls as every other
-            // screen.
-            decisions: profile.decisions.filter((d) => PIONEER_JOURNAL_TABS.has(d.linkedTab ?? "")),
-            plannedAbsences: profile.plannedAbsences ?? [],
-            // Which register items have a written procedure; never the steps.
-            procedureLinks: writtenProcedureLinks(profile.procedures, profile.industry),
-          },
-        },
-      });
+      const res = await runPioneerRules({ data });
       if (id !== runId.current) return;
       if (!res.ok) {
         setError(res.error);
         setResult(null);
-      } else {
-        setResult({ ...res, question: askedQuestion || res.question });
-        setLogged(new Set());
+        return;
       }
+      setResult({ ...res, question: askedQuestion || res.question });
+      setLogged(new Set());
+      setLoading(false);
+      running.current = false;
+      setChoosing(true);
+      const picked = await runPioneerHighlights({ data });
+      if (id !== runId.current) return;
+      if (!picked.ok) return;
+      setResult((prev) => {
+        if (!prev || prev.contextFingerprint !== picked.contextFingerprint) return prev;
+        const warnings =
+          picked.warning && !prev.warnings.includes(picked.warning)
+            ? [...prev.warnings, picked.warning]
+            : prev.warnings;
+        return {
+          ...prev,
+          highlightIds: picked.highlightIds,
+          modelStatus: picked.modelStatus,
+          model: picked.model,
+          source: picked.modelStatus === "answered" ? "grok-agent" : prev.source,
+          warnings,
+        };
+      });
     } catch (e) {
       if (id !== runId.current) return;
+      if (!running.current) return;
       setError(coachErrorMessage(e));
     } finally {
       if (id === runId.current) {
         running.current = false;
         setLoading(false);
+        setChoosing(false);
       }
     }
   }
@@ -239,6 +264,7 @@ export function PioneerCoach({ onNavigate }: { onNavigate?: NavFn }) {
           logged={logged}
           onCopy={copyBrief}
           copied={copied}
+          choosing={choosing}
           nextQuestions={prompts.filter((prompt) => prompt !== result.question)}
           onAsk={(prompt) => void run(prompt)}
           asking={loading}
