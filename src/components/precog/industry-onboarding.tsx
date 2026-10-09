@@ -78,7 +78,6 @@ import {
   caseCoveragePhrase,
   dutiesHeldByTitle,
   EMPTY_ROW,
-  finishWaits,
   freshRows,
   focusableIn,
   focusSoon,
@@ -95,7 +94,6 @@ import {
 import {
   AddDutyControl,
   DutyHeading,
-  FinishWaitsNote,
   SeatNote,
   TitleTicksReview,
   YearsHereInput,
@@ -618,8 +616,8 @@ export function IndustryOnboarding({
     );
   }
   /**
-   * Ticks or unticks a duty by hand; a duty ticked by hand counts at once,
-   * including one the job title only suggested (shown unticked).
+   * Ticks or unticks a duty by hand. A duty ticked by hand is confirmed at
+   * once; unticking one the job title ticked removes it like any other.
    */
   function toggleDuty(index: number, duty: EntitlementId) {
     setRows((current) =>
@@ -677,12 +675,6 @@ export function IndustryOnboarding({
         `Person ${unnamed + 1}${role ? ` (${role})` : ""} has duties ticked but no name. Type a name, or remove the row.`,
       );
       document.getElementById(nameInputId(unnamed))?.focus();
-      return;
-    }
-    // A duty a job title suggested counts only once kept: every one is decided first.
-    const waits = finishWaits(titleTicks);
-    if (waits) {
-      showDecisions(waits.first.rowId);
       return;
     }
     const people = buildOwnTeam(rows, selected, answers);
@@ -806,9 +798,9 @@ export function IndustryOnboarding({
         answers stay in this browser tab, even through a reload.
       </p>
     );
-  // Each row's duties a job title suggested and the owner has not yet kept,
-  // worked out once for the grid's note under each title, the review of
-  // them, and what holds Finish back.
+  // Each row's duties a job title ticked and the owner has not yet kept,
+  // worked out once for the grid's marks, the note under each title, and
+  // the optional review of them below the table.
   const titleTicked = useMemo(
     () => new Map(rows.map((row) => [row, unconfirmedDuties(row, selected, answers)])),
     [rows, selected, answers],
@@ -817,18 +809,6 @@ export function IndustryOnboarding({
     () => titleTicksItems(rows, selected, answers, (row) => titleTicked.get(row) ?? []),
     [rows, selected, answers, titleTicked],
   );
-  const waits = finishWaits(titleTicks);
-
-  /** Brings one person's suggested duties into view in the review, with focus on the first Keep. */
-  function showDecisions(rowId: string) {
-    focusSoon(() => {
-      const button = document.querySelector<HTMLElement>(
-        `[data-confirm-row="${rowId}"] [data-keep]`,
-      );
-      button?.scrollIntoView({ block: "center" });
-      return button;
-    });
-  }
 
   /** Brings a person's row into view from the review, with focus on their job title. */
   function showRow(rowId: string) {
@@ -1155,9 +1135,7 @@ export function IndustryOnboarding({
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() =>
-                      waits ? showDecisions(waits.first.rowId) : finishRef.current?.focus()
-                    }
+                    onClick={() => finishRef.current?.focus()}
                     disabled={namedRows.length === 0}
                   >
                     Skip to the finish button
@@ -1177,8 +1155,8 @@ export function IndustryOnboarding({
                   ? "Scroll sideways for more duties. Names stay on the left; duty names stay on top."
                   : `${rowsInUse} of up to ${OWN_TEAM_MAX} people.`}{" "}
                 Duties with no column show as small tags under the job title; remove one with ×, or
-                add another with &ldquo;Add a duty&rdquo;. A job title only suggests duties: keep or
-                remove each below the table.
+                add another with &ldquo;Add a duty&rdquo;. A job title ticks its usual duties:
+                untick any that are wrong.
               </p>
               <div
                 ref={gridBoxRef}
@@ -1226,8 +1204,10 @@ export function IndustryOnboarding({
                         return null;
                       const who = whoIs(row, index);
                       const rowKey = row.rowId ?? `row-${index}`;
-                      // Only what the owner chose shows ticked; title suggestions wait in the review.
+                      // Everything the row holds shows ticked; a tick the job
+                      // title set carries the "from the job title" mark.
                       const chosen = chosenDuties(row, selected);
+                      const fromTitle = titleTicked.get(row) ?? [];
                       return (
                         <tr key={rowKey}>
                           <th
@@ -1339,8 +1319,17 @@ export function IndustryOnboarding({
                               <label className="flex min-h-11 w-full items-center justify-center p-1.5">
                                 <input
                                   type="checkbox"
-                                  className="size-4"
+                                  className={cn(
+                                    "size-4",
+                                    fromTitle.includes(duty) && "accent-warn",
+                                  )}
                                   aria-label={`${who}: ${coreDutyLabel(duty)}`}
+                                  data-from-title={fromTitle.includes(duty) ? "" : undefined}
+                                  title={
+                                    fromTitle.includes(duty)
+                                      ? "Ticked from the job title. Untick it if wrong."
+                                      : undefined
+                                  }
                                   checked={chosen.includes(duty)}
                                   onChange={() => toggleDuty(index, duty)}
                                 />
@@ -1655,22 +1644,12 @@ export function IndustryOnboarding({
                   {finishNote}
                 </p>
               )}
-              {waits && (
-                <FinishWaitsNote
-                  id="finish-waits"
-                  finishLabel={finishLabel}
-                  waiting={waits.waiting}
-                  first={waits.first}
-                  onShow={showDecisions}
-                />
-              )}
               <div className="grid gap-2 sm:grid-cols-2">
                 <Button
                   ref={finishRef}
                   className="w-full"
                   onClick={finish}
-                  disabled={namedRows.length === 0 || waits !== null}
-                  aria-describedby={waits ? "finish-waits" : undefined}
+                  disabled={namedRows.length === 0}
                 >
                   {finishLabel}
                 </Button>

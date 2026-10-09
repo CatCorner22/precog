@@ -145,19 +145,23 @@ describe("IndustryOnboarding, first render", () => {
     expect(text).not.toContain("it stays only in this browser tab");
   });
 
-  it("ticks none of the owner row's duties: the job title's suggestions wait in the review", () => {
+  it("ticks the owner row's usual duties from the start, each marked as from the job title", () => {
     for (const industry of ["dental", "nonprofit"]) {
       const { html, text } = firstRender("Ruiz Dental", industry, "team");
       const dutyBoxes = html.match(/<input type="checkbox"[^>]*aria-label="[^"]*: [^"]*"[^>]*>/g);
       expect(dutyBoxes?.length).toBeGreaterThan(5);
-      expect(dutyBoxes?.filter((box) => /\schecked/.test(box))).toEqual([]);
-      // No tag under the title stands for a suggested duty either.
-      expect(html).not.toMatch(/aria-label="[^"]*: other duties"/);
-      expect(text).not.toContain("check the suggested ticks");
-      expect(text).toMatch(
-        /The job title suggests \d+ duties: keep or remove each below the table\./,
-      );
-      expect(text).not.toContain("From the job title, not counted yet");
+      const ticked = dutyBoxes?.filter((box) => /\schecked/.test(box)) ?? [];
+      expect(ticked.length).toBeGreaterThan(0);
+      // Every tick the title set says so, and says what to do about a wrong one.
+      for (const box of ticked) {
+        expect(box).toContain("data-from-title");
+        expect(box).toContain('title="Ticked from the job title. Untick it if wrong."');
+      }
+      expect(text).toMatch(/\d+ duties ticked from the job title\. Untick any that are wrong\./);
+      expect(text).not.toContain("keep or remove each below the table");
+      // Nothing holds Finish back: the button carries no waiting note.
+      expect(html).not.toContain("finish-waits");
+      expect(text).not.toContain("works once you keep or remove");
     }
   });
 
