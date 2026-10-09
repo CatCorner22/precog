@@ -64,7 +64,7 @@ describe("the setup grid's first row in a nonprofit", () => {
       ownerRow: "leader-replaced",
       onLeaveNames: [],
     }).note;
-    expect(note).toContain("takes the place of the empty Executive Director row");
+    expect(note).toContain("replaces the blank Executive Director row");
     expect(note).not.toContain("Owner row");
   });
 

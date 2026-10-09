@@ -82,8 +82,9 @@ export function applyPaste(
   if (incoming.length === 0) {
     const detail =
       result.people.length > 0
-        ? `The paste marks all ${count(result.people.length, "person", "people")} as having left, so the table adds none of them: ${joinWithAnd(inactiveNames, 5)}.`
-        : (result.issues[0]?.message ?? "No names found. One person per line: Name, Title.");
+        ? `The roster marks all ${count(result.people.length, "person", "people")} as having left. Precog added none: ${joinWithAnd(inactiveNames, 5)}.`
+        : (result.issues[0]?.message ??
+          "No names found. Add one person per line: Name, Job title.");
     const note = `${importCounts({
       added: 0,
       matched: 0,
@@ -295,16 +296,14 @@ export function pasteSummary(input: {
     headline(input, max),
     changed > 0 ? titlesSentence(input) : "",
     input.inactiveNames.length > 0
-      ? `Left out ${count(input.inactiveNames.length, "person", "people")} the roster marks inactive: ${joinWithAnd(input.inactiveNames, 5)}.`
+      ? `Left out ${count(input.inactiveNames.length, "inactive person", "inactive people")}: ${joinWithAnd(input.inactiveNames, 5)}.`
       : "",
     // Nothing changed in the table: the rest of the note would describe rows that are not there.
     changed > 0 ? FIRST_ROW_SENTENCE[input.ownerRow] : "",
     input.onLeaveNames.length > 0
-      ? `${joinWithAnd(input.onLeaveNames, 5)} ${verb(input.onLeaveNames.length, "is", "are")} on leave: finishing keeps them on the team and records them as out today in Who knows what; extend the absence there until they return.`
+      ? `${joinWithAnd(input.onLeaveNames, 5)} ${verb(input.onLeaveNames.length, "is", "are")} on leave. Finishing keeps them on the team and records them as out today in Who knows what. Extend the absence there until they return.`
       : "",
-    changed > 0
-      ? "Check every row: a title is a starting point, not a fact about your business."
-      : "",
+    changed > 0 ? "Review every row. Job titles suggest duties; they do not confirm them." : "",
   ];
   return { note: sentences.filter(Boolean).join(" "), keepPaste };
 }
@@ -322,7 +321,7 @@ function importCounts(input: {
   const mapped = input.added + input.matched;
   const rejected = (input.duplicates ?? 0) + (input.invalid ?? 0);
   const read = input.rowsRead ?? mapped + input.notAdded + rejected;
-  return `Rows read: ${read.toLocaleString("en-US")}. Duplicate or invalid rows: ${rejected.toLocaleString("en-US")}. Rows mapped now: ${mapped.toLocaleString("en-US")}. Rows still requiring action: ${(input.notAdded + input.dropped).toLocaleString("en-US")}.`;
+  return `Read ${read.toLocaleString("en-US")} rows. Duplicates or invalid: ${rejected.toLocaleString("en-US")}. Mapped now: ${mapped.toLocaleString("en-US")}. Still need action: ${(input.notAdded + input.dropped).toLocaleString("en-US")}.`;
 }
 
 /**
@@ -438,18 +437,18 @@ function headline(
     matched > 0 ? ` and updated ${count(matched, "person", "people")} already in the table` : "";
   if (leftOut > 0) {
     const limits = [
-      dropped > 0 ? `one paste reads the first ${input.readLimit ?? 250} rows` : "",
-      notAdded > 0 ? `this table holds ${max} people` : "",
+      dropped > 0 ? `the paste reads only the first ${input.readLimit ?? 250} rows` : "",
+      notAdded > 0 ? `the table holds ${max} people` : "",
     ].filter(Boolean);
     return [
-      `Added ${added === 0 && matched === 0 ? "none" : added} of the ${pasted.toLocaleString("en-US")} people${updated}.`,
-      `Could not add ${leftOut.toLocaleString("en-US")} because ${limits.join(" and ")}. The paste stays in the box: filter it to the people who handle or control money and import again, or attest below that this is a scoped map. You can add the rest later in ${MORE_PEOPLE_PLACE}.`,
+      `Added ${added === 0 && matched === 0 ? "none" : added} of ${pasted.toLocaleString("en-US")} people${updated}.`,
+      `Precog could not add ${leftOut.toLocaleString("en-US")} because ${limits.join(" and ")}. Your paste stays in the box. Filter it to people who handle or control money and paste again, or mark this as a scoped map below. Add the rest later in ${MORE_PEOPLE_PLACE}.`,
     ].join(" ");
   }
   if (added === 0 && matched > 0) {
     return matched === 1
-      ? "Updated the row of the person already in the table instead of adding them again."
-      : `Updated the rows of all ${matched} people already in the table instead of adding them again.`;
+      ? "Updated the existing row instead of adding the person again."
+      : `Updated all ${matched} existing rows instead of adding those people again.`;
   }
   return `Added ${count(added, "person", "people")}${updated}.`;
 }
@@ -457,21 +456,23 @@ function headline(
 /** How many titles the catalog knew, how many only partly, and how many it did not. */
 function titlesSentence(input: { recognised: number; partial: number; unmatched: number }): string {
   const partial =
-    input.partial > 0 ? `, ${input.partial} of them only partly (marked in the Role column)` : "";
+    input.partial > 0
+      ? ` ${count(input.partial, "partial match", "partial matches")} (marked in the Role column).`
+      : "";
   const unmatched =
     input.unmatched > 0
-      ? `; ${count(input.unmatched, "title is", "titles are")} not in the catalog: tick those duties below`
+      ? ` ${count(input.unmatched, "title is", "titles are")} not in the catalog. Mark those duties below.`
       : "";
-  return `Found ${count(input.recognised, "title", "titles")} in the catalog and ticked their duties${partial}${unmatched}.`;
+  return `Precog matched ${count(input.recognised, "job title", "job titles")} to its catalog and marked the usual duties.${partial}${unmatched}`;
 }
 
 /** What the note says about the grid's first row after a paste. */
 const FIRST_ROW_SENTENCE: Record<FirstRowOutcome, string> = {
-  kept: "The Owner row stays at the top with its duties ticked: type your name in it.",
-  replaced: "The owner in your paste takes the place of the empty Owner row.",
+  kept: "The Owner row stays first with its duties marked. Add your name there.",
+  replaced: "The owner in your roster replaces the blank Owner row.",
   "leader-kept":
-    "The Executive Director row stays at the top with its duties ticked: type their name in it.",
+    "The Executive Director row stays first with its duties marked. Add their name there.",
   "leader-replaced":
-    "The executive director in your paste takes the place of the empty Executive Director row.",
+    "The executive director in your roster replaces the blank Executive Director row.",
   none: "",
 };

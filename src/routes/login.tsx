@@ -38,8 +38,8 @@ function Login() {
         <p className="text-xs tracking-[0.2em] text-primary uppercase">Precog</p>
         <h1 className="mt-2 text-xl font-semibold tracking-tight">Sign in</h1>
         <p className="mt-1 text-sm text-muted">
-          An account keeps your businesses, snapshots, and shared map links on every device you sign
-          in from. Signing in is free. Advisors who look after several businesses can add the{" "}
+          Your account keeps businesses, snapshots, and shared map links. Open them on any device
+          where you sign in. Signing in is free. Advisors who manage several businesses can add the{" "}
           {PILOT_OFFER.monthlyLabel}
           {amounts ? ` (from ${amounts.monthly})` : ""}.{" "}
           <Link to="/pricing" className="underline-offset-4 hover:text-fg hover:underline">
@@ -176,7 +176,7 @@ function EmailPasswordForm() {
       if (result.error) {
         setError(
           result.error.code === "EMAIL_NOT_VERIFIED"
-            ? `Confirm your email first. Precog sent a link to ${address}; open it, then sign in. Precog now confirms every email address, so accounts made before this confirm once too.`
+            ? `Confirm your email first. Precog sent a link to ${address}. Open it, then sign in. Precog now confirms every email, so older accounts must confirm once too.`
             : (result.error.message ??
                 "Precog could not sign you in. Check the email and password."),
         );
@@ -186,7 +186,7 @@ function EmailPasswordForm() {
         setPassword("");
         switchTo("sign-in");
         setNotice(
-          `Check your email. Precog sent a confirmation link to ${address}. Open it within 24 hours, then sign in. If no email arrives, the address may already have an account: use Forgot password.`,
+          `Check your email. Precog sent a link to ${address}. Open it within 24 hours, then sign in. If no email arrives, this address may already have an account. Use Forgot password.`,
         );
         return;
       }
@@ -209,13 +209,13 @@ function EmailPasswordForm() {
       if (result.error) {
         setError(
           result.error.code === "RESET_PASSWORD_DISABLED"
-            ? "Precog cannot send email from this copy, so it cannot reset passwords here."
+            ? "This copy of Precog cannot send email or reset passwords."
             : (result.error.message ?? "Precog could not send the link. Try again in a moment."),
         );
         return;
       }
       setNotice(
-        `If ${address} has a Precog account, Precog sent it a link to set a new password. The link works for one hour.`,
+        `If ${address} has a Precog account, Precog sent a password reset link. It works for one hour.`,
       );
     } catch {
       setError("Precog could not reach the sign-in service. Try again in a moment.");

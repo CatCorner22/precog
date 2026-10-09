@@ -26,7 +26,7 @@ export function adjacentQuestion(question: ShellQuestion, direction: -1 | 1) {
 
 const ACTOR_LABEL: Record<OnboardingActor, string> = {
   business_leader: "I lead or own this business",
-  employee: "I work in this business",
+  employee: "I work here",
   advisor: "I advise this business",
 };
 const WORKFORCE_LABEL: Record<WorkforceBand, string> = {
@@ -47,16 +47,15 @@ const LOCATION_LABEL: Record<LocationBand, string> = {
 const METHOD: Record<SetupMethod, { title: string; detail: string }> = {
   person_grid: {
     title: "Enter people now",
-    detail: "Use the guided table to name each control participant and their money duties.",
+    detail: "Use the table to name each control participant and their money duties.",
   },
   roster_import: {
     title: "Paste a roster",
-    detail: "Start with an HR or payroll export, then check the people and duties Precog maps.",
+    detail: "Paste an HR or payroll list. Then review the people and duties Precog maps.",
   },
   job_groups: {
     title: "Start with job groups",
-    detail:
-      "Staged path: begin with the existing roster paste, then review people grouped by job title.",
+    detail: "Staged path: paste the roster first. Then review people grouped by job title.",
   },
 };
 
@@ -90,10 +89,10 @@ export const OnboardingQuestionShell = forwardRef<HTMLHeadingElement, Props>(
             ? LOCATION_BANDS
             : orderedSetupMethods(facts);
     const heading = {
-      actor: "What is your role here?",
-      workforce: "How many people work across the organization?",
-      locations: "How many locations does the organization have?",
-      setup_method: "How do you want to start the map?",
+      actor: "What is your role?",
+      workforce: "How many people work here?",
+      locations: "How many locations do you have?",
+      setup_method: "How do you want to start?",
     }[question];
 
     function choose(value: string) {
@@ -122,8 +121,8 @@ export const OnboardingQuestionShell = forwardRef<HTMLHeadingElement, Props>(
           </h2>
           <p className="text-sm text-muted">
             {question === "setup_method"
-              ? "Workforce size guides the setup path. Findings come from the control participants and duties you actually map."
-              : "Your answers tailor setup; you can go back and change them."}
+              ? "The number of people guides setup. Findings use only the control participants and duties you map."
+              : "Your answers shape setup. Go back to change them."}
           </p>
         </header>
         <div className="space-y-4 p-6">
@@ -131,9 +130,9 @@ export const OnboardingQuestionShell = forwardRef<HTMLHeadingElement, Props>(
           {question === "setup_method" &&
             (facts.workforceBand === "100-249" || facts.workforceBand === "250+") && (
               <p className="rounded-lg border border-border bg-elevated/60 px-3 py-2 text-xs text-muted">
-                For a larger organization, start from a roster or job groups. Precog still maps
-                named control participants before producing findings; it does not treat total
-                workforce as the mapped team.
+                For a larger organization, start with a roster or job groups. Precog maps named
+                control participants before it shows findings. Total workforce is not the mapped
+                team.
               </p>
             )}
           <fieldset className="grid gap-2">
@@ -178,7 +177,7 @@ export const OnboardingQuestionShell = forwardRef<HTMLHeadingElement, Props>(
           </fieldset>
           {question === "actor" && facts.actor === "advisor" && (
             <p className="text-xs text-muted">
-              Precog sets up the client&rsquo;s map. It never inserts the signed-in advisor into the
+              Precog sets up the client&rsquo;s map. It never adds the signed-in advisor to the
               client team.
             </p>
           )}

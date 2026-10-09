@@ -118,11 +118,11 @@ describe("setup answer effects", () => {
     const referenceUsd = DEFAULT_WEIGHTS.likelihood.cashReferenceUsd;
     const intensity = Math.min(3, Math.max(0.5, 10000 / referenceUsd));
     expect(effects.changed).toContain(
-      `About $10,000 comes in on a typical day, so cash-scheme figures are scaled ×${intensity.toFixed(2)} against Precog's $${referenceUsd.toLocaleString("en-US")} reference day (the most Precog applies).`,
+      `About $10,000 comes in on a typical day. Precog scales cash-scheme figures by ×${intensity.toFixed(2)} against its $${referenceUsd.toLocaleString("en-US")} reference day (the most Precog applies).`,
     );
     const lowerBand = setupEffects({ ...UNANSWERED, dailyTakings: "under-1k" }, "general");
     expect(lowerBand.changed).toContain(
-      `About $500 comes in on a typical day, so cash-scheme figures are scaled ×0.50 against Precog's $${referenceUsd.toLocaleString("en-US")} reference day (the least Precog applies).`,
+      `About $500 comes in on a typical day. Precog scales cash-scheme figures by ×0.50 against its $${referenceUsd.toLocaleString("en-US")} reference day (the least Precog applies).`,
     );
   });
 
@@ -131,25 +131,25 @@ describe("setup answer effects", () => {
     expect(effects.changed).toEqual([]);
     expect(effects.assumed).toHaveLength(13);
     expect(effects.assumed).toContain(
-      `Daily takings are assumed to be $${DEFAULT_RISK_VARIABLES.dailyCashExposure.toLocaleString("en-US")} because you answered Not sure.`,
+      `Precog assumes $${DEFAULT_RISK_VARIABLES.dailyCashExposure.toLocaleString("en-US")} in daily takings because you answered Not sure.`,
     );
     expect(effects.assumed).toContain(
-      "Cash and paper-check duties stay in the team list because you answered Not sure.",
+      "Precog keeps cash and paper-check duties on the team list because you answered Not sure.",
     );
     expect(effects.assumed).toContain(
-      "Payroll is treated as run in-house because you answered Not sure.",
+      "Precog treats payroll as in-house because you answered Not sure.",
     );
     expect(effects.assumed).toContain(
-      "Bank reconciliation is read from who has the duty ticked because you answered Not sure.",
+      "Precog reads bank reconciliation from the person marked with that duty because you answered Not sure.",
     );
     expect(
       effects.assumed.slice(0, -2).every((line) => line.endsWith("because you answered Not sure.")),
     ).toBe(true);
     expect(effects.assumed.slice(-2)).toEqual([
-      "Insurance was not asked, and Precog treats it as unverified until a policy is added.",
-      'Who can cover each duty was not asked yet. "Who knows what" starts from the sample\'s list with nobody assigned.',
+      "We did not ask about insurance. Precog treats it as unverified until you add a policy.",
+      'We did not ask who can cover each duty. "Who knows what" starts with the sample list and no one assigned.',
     ]);
-    expect(effects.assumed.filter((line) => line.includes("not counted"))).toHaveLength(5);
+    expect(effects.assumed.filter((line) => line.includes("does not count"))).toHaveLength(5);
   });
 });
 
@@ -160,11 +160,9 @@ describe("unanswered money questions", () => {
     expect(left.changed).toEqual(notSure.changed);
     expect(notSure).toEqual(setupEffects(UNANSWERED, "general"));
     expect(left.assumed).toHaveLength(notSure.assumed.length);
-    expect(left.assumed).toContain(
-      "Payroll is treated as run in-house because you did not answer.",
-    );
+    expect(left.assumed).toContain("Precog treats payroll as in-house because you did not answer.");
     expect(notSure.assumed).toContain(
-      "Payroll is treated as run in-house because you answered Not sure.",
+      "Precog treats payroll as in-house because you answered Not sure.",
     );
     expect(answeredSummary(UNANSWERED, [])).toEqual({ answered: 0, shown: 11 });
     expect(
