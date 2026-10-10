@@ -495,6 +495,7 @@ export function SelectedKnowledgeCard({
           <label className="flex items-center gap-2 self-end text-xs text-muted">
             <input
               type="checkbox"
+              className="pointer-coarse:min-h-11 pointer-coarse:min-w-11"
               checked={Boolean(selected.item.documented)}
               onChange={(e) => updateItem(selected.item.id, { documented: e.target.checked })}
             />

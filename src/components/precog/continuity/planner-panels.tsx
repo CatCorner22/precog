@@ -83,6 +83,7 @@ export function OutTomorrowCard({
               >
                 <input
                   type="checkbox"
+                  className="pointer-coarse:min-h-11 pointer-coarse:min-w-11"
                   checked={absentIds.includes(p.id)}
                   aria-label={p.name}
                   onChange={() => whatIf.toggle(p.id)}
@@ -385,7 +386,7 @@ export function PlannedLeaveCard({
           <div className="text-xs text-muted">
             <button
               type="button"
-              className="underline-offset-2 hover:underline"
+              className="underline-offset-2 hover:underline pointer-coarse:min-h-11"
               onClick={() => leave.setShowPast((v) => !v)}
             >
               {leave.showPast ? "Hide" : "Show"} {leaveHistory.length} past or unmatched{" "}

@@ -59,7 +59,7 @@ export function RegisterGrid({
             <button
               type="button"
               onClick={register.dismissImportIssues}
-              className="text-xs text-subtle underline hover:text-fg"
+              className="text-xs text-subtle underline hover:text-fg pointer-coarse:min-h-11"
             >
               Dismiss
             </button>
@@ -157,7 +157,7 @@ export function RegisterGrid({
                   </span>
                   <button
                     type="button"
-                    className="rounded border border-border px-2 py-1 disabled:opacity-40"
+                    className="rounded border border-border px-2 py-1 disabled:opacity-40 pointer-coarse:min-h-11"
                     disabled={itemPage === 0}
                     onClick={() => register.setItemPage(itemPage - 1)}
                   >
@@ -165,7 +165,7 @@ export function RegisterGrid({
                   </button>
                   <button
                     type="button"
-                    className="rounded border border-border px-2 py-1 disabled:opacity-40"
+                    className="rounded border border-border px-2 py-1 disabled:opacity-40 pointer-coarse:min-h-11"
                     disabled={itemPage >= itemPages - 1}
                     onClick={() => register.setItemPage(itemPage + 1)}
                   >
@@ -182,7 +182,7 @@ export function RegisterGrid({
                   </span>
                   <button
                     type="button"
-                    className="rounded border border-border px-2 py-1 disabled:opacity-40"
+                    className="rounded border border-border px-2 py-1 disabled:opacity-40 pointer-coarse:min-h-11"
                     disabled={peoplePage === 0}
                     onClick={() => register.setPeoplePage(peoplePage - 1)}
                   >
@@ -190,7 +190,7 @@ export function RegisterGrid({
                   </button>
                   <button
                     type="button"
-                    className="rounded border border-border px-2 py-1 disabled:opacity-40"
+                    className="rounded border border-border px-2 py-1 disabled:opacity-40 pointer-coarse:min-h-11"
                     disabled={peoplePage >= peoplePages - 1}
                     onClick={() => register.setPeoplePage(peoplePage + 1)}
                   >
@@ -301,7 +301,7 @@ export function RegisterGrid({
                       <td className="px-2 py-2">
                         <button
                           type="button"
-                          className="rounded p-1.5 text-muted hover:bg-danger/10 hover:text-danger"
+                          className="rounded p-1.5 text-muted hover:bg-danger/10 hover:text-danger pointer-coarse:min-h-11 pointer-coarse:min-w-11"
                           onClick={() => register.removeItem(row.item.id)}
                           aria-label={`Remove ${row.item.name}`}
                         >

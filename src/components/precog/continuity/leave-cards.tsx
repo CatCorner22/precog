@@ -299,7 +299,7 @@ export function LeaverCard({
             Change
             <input
               type="date"
-              className="h-6 rounded-md border border-border bg-elevated px-1.5 text-xs text-fg"
+              className="h-6 rounded-md border border-border bg-elevated px-1.5 text-xs text-fg pointer-coarse:min-h-11"
               value={l.lastDay}
               aria-label={`Change ${first}'s last day`}
               onChange={(e) => onChangeDate(e.target.value)}
