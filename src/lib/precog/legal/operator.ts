@@ -10,7 +10,7 @@ export const OPERATOR_LEGAL_NAME = "[OPERATOR LEGAL NAME]";
 export const OPERATOR_ADDRESS = "[OPERATOR ADDRESS]";
 export const GOVERNING_LAW = "[STATE]";
 export const AUTH_BROKER_OPERATOR = "[AUTH BROKER OPERATOR]";
-export const XAI_API_DATA_POLICY_URL = "[XAI API DATA POLICY URL]";
+export const XAI_API_DATA_POLICY_URL = "https://x.ai/legal/terms-of-service-enterprise";
 export const SUPPORT_EMAIL: string =
   (import.meta.env.SUPPORT_EMAIL as string | undefined)?.trim() || "[SUPPORT EMAIL]";
 /** True for a value the owner has not entered yet. */

@@ -167,7 +167,6 @@
  * the sticky bar) 0.7 KB. Total budget raised from 870 KB to 872 KB; slice
  * S43 in wave 4 still lowers it.
  *
- *
  * 2026-10-09: the merged onboarding copy pass and main updates measure
  * 872.1 KB in 140 chunks, 0.1 KB over the budget. Total budget raised from
  * 872 KB to 873 KB.
