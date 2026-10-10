@@ -213,6 +213,10 @@
  * duty-conflict "What to do first" box, and the action plan. The build
  * measures 876.9 KB gzipped in 138 chunks. Total budget raised from 876 KB
  * to 877 KB. The largest chunk stays under 118 KB.
+ *
+ * 2026-10-10: two merges left both totalGzipBytes values (878 KB and 877 KB)
+ * in BUDGET, so lint failed on a duplicate key and the 877 KB value won.
+ * main measures 877.9 KB. Keep the 878 KB budget the #244 review fixes set.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -222,7 +226,6 @@ const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
   totalGzipBytes: 878 * 1024,
-  totalGzipBytes: 877 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
