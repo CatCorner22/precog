@@ -541,6 +541,170 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     evidenceToKeep: ["Card statements", "Approval trail"],
     ifYouCannotSeparate: "A second person who holds no company card reviews every card statement.",
   },
+  {
+    id: "lib-payroll-bank-tie",
+    title: "Tie the payroll register to the bank debit",
+    purpose:
+      "Catches money leaving as payroll that the register does not explain: a raise nobody approved, a person who does not work here, or pay sent under another name. Done when the bank's payroll debits equal the register's net pay and taxes and a second person has signed the comparison.",
+    trigger: "After each payday, when the payroll debits appear in the bank's online transactions",
+    cadence: "weekly",
+    dutyIds: ["approve_payroll", "bank_reconcile"],
+    covers: /\bpayroll\b/i,
+    prerequisites: [
+      "The payroll register for the pay period",
+      "Read-only access to the bank's online transactions",
+    ],
+    steps: [
+      { text: "Open the payroll register for the pay period." },
+      { text: "Add up the net pay, the tax deposits and the provider's fee on the register." },
+      { text: "Open the bank's online transactions for the days after payday." },
+      { text: "Compare each payroll debit at the bank with the totals on the register." },
+      {
+        text: "List every debit that the register does not explain.",
+        caution:
+          "A payroll debit with no line on the register is money leaving under the name of payroll; stop and trace it the same day.",
+      },
+      { text: "Compare the number of people paid with the number of people who work here." },
+      {
+        text: "Check that each change to a bank account on the register has signed paperwork.",
+        caution:
+          "Pay going to a new account is how a leaver's pay or a second deposit reaches someone else; confirm every account change with the person.",
+      },
+      { text: "Sign and date the comparison." },
+    ],
+    source:
+      "Common small-business practice, drawn from federal cases in which one person with payroll or direct-deposit rights moved money under other employees' names (U.S. Attorney's Office, W.D. Louisiana, 2019), raised their own pay (D. Virgin Islands; N.D. Indiana) or paid ghost employees through an outside payroll provider (D.C.), and nobody compared the payroll register with the bank debit. The U.S. Trustee Program's small-business guidance has the person in charge review every reconciliation an employee prepares; this comparison is the payroll half of that.",
+    evidenceToKeep: ["Payroll register", "Bank payroll debits", "Signed comparison"],
+    ifYouCannotSeparate:
+      "If the person who runs payroll is the only one who can read the bank: give the person who runs the business read-only bank access and have them compare the payroll debits with the register total every payday, and ask the payroll provider to send its confirmation email to that person as well.",
+  },
+  {
+    id: "lib-access-review",
+    title: "Review who can do what in the books",
+    purpose:
+      "Keeps the power to add users, change roles and edit past entries with the person in charge, and finds edits nobody approved. Done when every user in the accounting system is a current person with the role their job needs, and a second person has read the audit log for the quarter.",
+    trigger: "The first week of each quarter, and whenever someone joins, leaves or changes jobs",
+    cadence: "quarterly",
+    dutyIds: ["manage_user_access", "pms_admin_roles", "review_audit_logs"],
+    covers: /\baccounting system\b|\bsystem admin\w*|\buser (?:roles|access)\b/i,
+    prerequisites: [
+      "Administrator access to the accounting system, or a printed user list from it",
+      "The current staff list",
+    ],
+    steps: [
+      { text: "Print the list of users and their roles from the accounting system." },
+      { text: "Compare the list with the current staff list." },
+      { text: "Remove every user who has left or no longer needs access." },
+      {
+        text: "Check that the primary administrator role belongs to the person who runs the business, not to the person who keeps the books.",
+        caution:
+          "The primary administrator can create users, change every role and edit bank rules; whoever holds it can hide what they do.",
+      },
+      { text: "Give the person who keeps the books a role that cannot manage users or payroll." },
+      {
+        text: "Invite the outside accountant as an accountant user rather than sharing a sign-in.",
+      },
+      { text: "Open the audit log for the quarter." },
+      {
+        text: "Read every deleted or voided transaction, every edited payee and every change to a bank rule or a user.",
+        caution:
+          "The audit log shows who changed what and when; a run of edits to past payments or payees is the trace a thief leaves.",
+      },
+      { text: "Ask the person who made each unexplained change to explain it." },
+      { text: "Sign and date the user list and the audit-log notes." },
+    ],
+    source:
+      "GAO Green Book, Principle 11: access rights match job need and management reviews them periodically. Intuit's guidance on user roles and the audit log in QuickBooks Online: only the primary admin can transfer that role, an in-house accountant role covers bookkeeping and reports but not payroll or user management, and the audit log keeps sign-ins, edits and deletions for two years, needs admin access and cannot be turned off. Federal cases (U.S. Attorney's Office, S.D. Illinois, 2017; D. Massachusetts, 2015) describe office managers who altered payees or coded stolen checks as expenses.",
+    evidenceToKeep: ["User list with roles", "Audit-log review notes", "Sign-off"],
+    ifYouCannotSeparate:
+      "If the person who keeps the books is also the administrator: have the outside accountant sign in as an accountant user each quarter to print the user list and read the audit log, and have the person who runs the business hold the primary administrator sign-in even if they never use it.",
+  },
+  {
+    id: "lib-journal-review",
+    title: "Review manual journal entries",
+    purpose:
+      "Finds an entry that moves a loss, a theft or a personal expense into an account nobody reads. Done when a second person who posts no entries has read every manual journal entry for the month, with its support, and signed the list.",
+    trigger: "After each month's close, before anyone signs the bank reconciliation",
+    cadence: "monthly",
+    // The bank reconciler is the natural reviewer, and the Penn guidance in
+    // `source` pairs the two duties; a business where either is held sees it.
+    dutyIds: ["post_journal_entries", "bank_reconcile"],
+    covers: /\bjournal entr|\bgeneral ledger\b|\bmonth[- ]end close\b|\bmonthly close\b/i,
+    prerequisites: [
+      "The journal-entry report for the month",
+      "The support for each entry: the invoice, statement or working that explains it",
+    ],
+    steps: [
+      { text: "Run the report of manual journal entries for the month." },
+      { text: "Read each entry's accounts, amount and description." },
+      { text: "Match each entry to the invoice, statement or working that explains it." },
+      { text: "List every entry with no support or with a description that does not say why." },
+      {
+        text: "List every entry that moves an amount out of cash, payroll or a customer's balance.",
+        caution:
+          "An entry that clears a cash difference, reduces a customer's balance or turns a payment into an expense is where someone hides a theft.",
+      },
+      {
+        text: "Ask the person who posted each listed entry to explain it.",
+        caution:
+          "The reviewer must not be a person who posts journal entries or reconciles the bank.",
+      },
+      { text: "Sign and date the journal-entry report." },
+    ],
+    source: `${GREEN_BOOK_10} University of Pennsylvania internal-controls guidance lists reconciling bank accounts while booking the related general-ledger entries as a duty conflict, and has a supervisor initial and date each reconciliation. Federal cases (U.S. Attorney's Office, D. Massachusetts, 2015; S.D. Illinois, 2017) describe office managers who entered stolen checks as business expenses or altered payees in the books.`,
+    evidenceToKeep: ["Journal-entry report", "Support for each entry", "Reviewer's sign-off"],
+    ifYouCannotSeparate:
+      "If the person who keeps the books is the only one who can read an entry: send the month's journal-entry report to the outside accountant with the bank reconciliation, and have the person who runs the business read every entry that touches cash or payroll.",
+  },
+  {
+    id: "lib-new-vendor",
+    title: "Set up and verify a new vendor before the first payment",
+    purpose:
+      "Stops payments to a vendor that does not exist, or that exists only on paper for an employee. Done when a second person has confirmed the vendor by a call to a number found independently, checked it against the vendor list and the staff list, and approved it.",
+    trigger: "Whenever someone asks to add a vendor to the books or the payment system",
+    cadence: "ad-hoc",
+    dutyIds: ["create_vendor", "approve_vendor"],
+    covers:
+      /\b(?:vendor|supplier|subcontractor)s?\s*(?:&\s*\w+\s+)?(?:master|onboarding|set-?up|relationships?)\b|\bnew vendors?\b/i,
+    prerequisites: [
+      "The vendor's invoice, quote or contract",
+      "The current vendor list and the staff list with addresses",
+    ],
+    steps: [
+      {
+        text: "Collect the vendor's legal name, address, phone number, tax identification number and bank details from its own invoice or contract.",
+      },
+      {
+        text: "Search the vendor list for the same name, address, phone number or bank account.",
+        caution:
+          "A second record for an existing vendor is how a duplicate payment or a diverted payment starts.",
+      },
+      {
+        text: "Compare the vendor's address and bank account with those of every employee.",
+        caution:
+          "A vendor whose address or bank account matches an employee's is a shell until proven otherwise.",
+      },
+      {
+        text: "Look up the vendor's phone number yourself, from its website or a directory, not from the request.",
+      },
+      {
+        text: "Call that number to confirm the vendor's name, address and bank details.",
+        caution:
+          "Never confirm by replying to the email or calling the number in the request; a criminal supplies both.",
+      },
+      { text: "Write down who you spoke to, the date and the number you called." },
+      {
+        text: "Send the record to a second person who sets up no vendors to approve.",
+        caution: "The person who sets up vendors must not approve them or release their payments.",
+      },
+      { text: "Enter the vendor only once the approval is on file." },
+    ],
+    source:
+      "Common accounts-payable control practice: the person who sets up a vendor does not approve it or release its payments, and someone confirms a new vendor's details by a call to a number found independently of the request. FBI guidance on business email compromise: look up the company's number yourself rather than use one the request supplies. A federal case (U.S. Attorney's Office, D. Minnesota) describes an operations director who made false vendor payments for years with nobody checking the vendors.",
+    evidenceToKeep: ["New vendor form", "Call record", "Approval", "Approved vendor list"],
+    ifYouCannotSeparate:
+      "If one person sets up vendors and pays them: have the bank alert the person who runs the business to every new payee, and each month that person reads the list of vendors added, with the call record for each, before the month's payments go out.",
+  },
   // By line of business.
   {
     id: "lib-controlled-count",
@@ -777,6 +941,342 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     evidenceToKeep: ["Certified payroll", "Field hours", "Signed payroll"],
     ifYouCannotSeparate:
       "A second person who does not enter payroll compares the certified payroll with the field hours.",
+  },
+  {
+    id: "lib-comp-void-review",
+    title: "Review comps and voids by server and manager",
+    purpose:
+      "Finds sales voided or comped after the customer paid in cash, so that the cash can go missing. Done when a second person who makes no voids has read every void and comp from the day, by the person who made it, and signed the report.",
+    trigger: "Every morning, for the day before",
+    cadence: "daily",
+    industries: ["restaurant"],
+    dutyIds: ["approve_writeoffs", "post_adjustments"],
+    covers: /\b(?:comps?|voids?|discounts?|over-?rings?|no[- ]sales?)\b/i,
+    prerequisites: [
+      "Access to the point-of-sale void, comp and discount reports",
+      "The list of who may approve a void or comp",
+    ],
+    steps: [
+      { text: "Run the voided items, voided payments and comps reports for yesterday." },
+      {
+        text: "Sort the voids and comps by the server who rang them and the manager who approved them.",
+      },
+      { text: "Check that each void or comp has a reason and a manager's approval." },
+      {
+        text: "List every void made after the customer paid.",
+        caution:
+          "Voids after a cash payment are how a manager keeps the cash; call the customer or match the receipt before accepting one.",
+      },
+      { text: "List any server or manager whose voids or comps run well above the rest." },
+      {
+        text: "Ask the person who made each unexplained void or comp to explain it.",
+        caution: "The reviewer must not be a person who makes or approves voids.",
+      },
+      { text: "Sign and date the report." },
+    ],
+    source:
+      "Point-of-sale control practice (for example Toast's exceptions reports and void rules): a void works only on the day of the sale, a later change is a refund, and the voided-items, voided-payments and no-sale reports list each one by employee. Police and court reports (Santa Rosa, California, 2025; Connecticut; Oklahoma; Oregon) describe managers who voided or discounted tickets after cash payment and kept the cash, found when an owner read the void report or detectives called the customers.",
+    evidenceToKeep: [
+      "Voided items report",
+      "Voided payments report",
+      "Comp report by employee",
+      "Reviewer's sign-off",
+    ],
+    ifYouCannotSeparate:
+      "If the one manager both approves voids and reviews them: set the point-of-sale system to require a manager code and a reason on every void and comp, and each week someone who works no shifts on the floor, for example the person who keeps the books, reads the void and comp report by employee.",
+  },
+  {
+    id: "lib-pos-deposit-tie",
+    title: "Tie the day's register sales to the bank deposit",
+    purpose:
+      "Shows that the cash the point-of-sale system says the restaurant took reached the bank. Done when each day's recorded cash deposit matches the bank's deposit for that day and every difference has a cause written next to it.",
+    trigger: "Each morning for the day before, by someone who did not count or bank the cash",
+    cadence: "daily",
+    industries: ["restaurant"],
+    dutyIds: ["bank_reconcile", "post_payments"],
+    covers: /\bdaily sales deposit\b|\bsales deposit/i,
+    prerequisites: [
+      "Read-only access to the bank's online transactions",
+      "The point-of-sale cash drawer history or deposit report",
+    ],
+    steps: [
+      { text: "Open the point-of-sale deposit report for yesterday." },
+      { text: "Open the bank's online transactions for the same day." },
+      {
+        text: "Compare the deposit the point-of-sale system recorded with the deposit the bank received.",
+      },
+      { text: "Compare the card sales total with the processor's deposit, allowing for its fees." },
+      {
+        text: "Write each difference on the tie-out sheet with its date and amount.",
+        caution: "Never adjust the sales figure to match the bank; find out where the cash went.",
+      },
+      { text: "Ask the person who closed the drawers about each difference the same day." },
+      { text: "Sign and date the tie-out sheet." },
+    ],
+    source:
+      "Restaurant control checklists from CPA firms (Plante Moran, 2024; BTCPA): the person who runs the register or handles the cash does not reconcile the day's sales to the deposit. Toast's cash-deposit guide: the deposit is the last cash operation of the day, leaves the starting balances in the drawers, and appears in the drawer history report to check against the bank deposit slip.",
+    evidenceToKeep: ["Point-of-sale deposit report", "Bank deposit detail", "Tie-out sheet"],
+    ifYouCannotSeparate:
+      "If the person who banks the cash is the only one who can check it: give the person who runs the business read-only bank access and have them compare each day's point-of-sale cash total with the bank's deposit once a week, and ask the bank for a deposit alert on that account.",
+  },
+  {
+    id: "lib-delivery-check",
+    title: "Check a food or drink delivery against the order and the invoice",
+    purpose:
+      "Pays only for what arrived, at the price agreed. Done when someone other than the person who ordered has counted the delivery and noted every shortage on the ticket, and the office has matched the ticket to the invoice before entering it for payment.",
+    trigger: "Whenever a vendor delivers food, drink or supplies",
+    cadence: "ad-hoc",
+    industries: ["restaurant"],
+    dutyIds: ["receive_goods", "order_supplies", "enter_invoices"],
+    covers: /\bfood vendor ordering\b|\bvendor ordering\b|\bdeliver(?:y|ies)\b/i,
+    prerequisites: [
+      "The order or standing-order sheet for the vendor",
+      "A scale for items sold by weight",
+    ],
+    steps: [
+      { text: "Count or weigh each item on the delivery ticket before signing it." },
+      { text: "Compare each count and weight with the order." },
+      { text: "Check the quality and temperature of anything perishable." },
+      {
+        text: "Write every short, damaged or refused item on the delivery ticket before the driver leaves.",
+      },
+      { text: "Ask the vendor for a credit memo for each short or refused item." },
+      { text: "Send the signed ticket to the office the same day." },
+      {
+        text: "Match the invoice to the signed ticket and the order before entering it.",
+        caution:
+          "The person who placed the order must not be the only person who signs for it or approves its invoice.",
+      },
+      { text: "Enter the invoice at the ticket's quantities, less any credit due." },
+    ],
+    source:
+      "Restaurant control guidance from CPA firms (BTCPA's lender-audit checklist) and receiving-control practice: the person who orders does not also receive the goods and approve the payment, and the office matches order, delivery ticket and invoice before paying. Forensic accountants (FSR Magazine) note that vendors inflate bills for more or pricier items than delivered when nobody tracks daily deliveries, and that kickbacks hide behind spoilage write-offs.",
+    evidenceToKeep: ["Signed delivery tickets", "Credit memos", "Matched invoices"],
+    ifYouCannotSeparate:
+      "If one person orders, receives and codes the bills: rotate who signs for deliveries week by week, and each month someone who places no orders picks five invoices and compares them with their delivery tickets and with the order.",
+  },
+  {
+    id: "lib-pour-cost",
+    title: "Count the bar and work out the pour cost",
+    purpose:
+      "Finds drinks poured but never rung in, and bottles that left the building. Done when two people have counted every bottle, the week's pour cost comes from the count rather than from purchases, and every variance has a cause.",
+    trigger: "Every Monday before the bar opens, for the week before",
+    cadence: "weekly",
+    industries: ["restaurant"],
+    dutyIds: ["receive_goods", "order_supplies"],
+    covers: /\bliquor\b|\bbar (?:inventory|stock)\b|\bpour cost\b/i,
+    prerequisites: [
+      "A count sheet listing every bottle and keg, printed without last week's counts",
+      "Last week's liquor purchases and point-of-sale drink sales",
+    ],
+    steps: [
+      {
+        text: "Count every bottle and keg on the count sheet, with a second person who does not work the bar.",
+      },
+      { text: "Enter the counts on the inventory sheet." },
+      { text: "Add last week's purchases to last week's closing count." },
+      { text: "Subtract this week's count from that total to get the drink the bar used." },
+      { text: "Price the drink used at cost." },
+      { text: "Divide that cost by the week's drink sales to get the pour cost." },
+      { text: "Compare the drink used with the drinks the point-of-sale system rang up." },
+      {
+        text: "List every product whose count differs from what the sales explain.",
+        caution:
+          "Never adjust the count to match the sales; the gap between the drink the bar used and the drinks it rang up is the loss you are looking for.",
+      },
+      { text: "Ask the bar manager to explain each variance." },
+      { text: "Sign the count sheet with the second person." },
+    ],
+    source:
+      "Bar-management practice (for example Sculpture Hospitality's and Restroworks' pour-cost guides): pour cost comes from inventory movement, opening count plus purchases minus closing count, not from purchases alone, and variance is what the bar poured against what it rang up. Restaurant forensic guidance (FSR Magazine; Porte Brown) has staff independent of the storeroom take the counts and compares expected usage from sales with actual usage.",
+    evidenceToKeep: ["Signed count sheets", "Pour-cost worksheet", "Variance list"],
+    ifYouCannotSeparate:
+      "If the bar manager is the only person who can count: have the person who runs the business or a cook count the bar with them once a month, and have someone who places no liquor orders compare each week's pour cost with the week before.",
+  },
+  {
+    id: "lib-change-order",
+    title: "Approve and bill a change order",
+    purpose:
+      "Keeps extra work from going unbilled, and keeps a project manager from pricing a change with a subcontractor for a kickback. Done when the client has signed the change order before the work starts, a second person has approved its price, and the contract value and the billing carry it.",
+    trigger: "Whenever the scope, price or schedule of a job changes",
+    cadence: "ad-hoc",
+    industries: ["construction"],
+    dutyIds: ["submit_claims", "approve_invoices"],
+    covers: /\bchange[- ]orders?\b/i,
+    prerequisites: [
+      "The signed contract and its schedule of values",
+      "The change-order log for the job",
+    ],
+    steps: [
+      {
+        text: "Write the change order with the scope, the price and the days added to the schedule.",
+      },
+      { text: "Attach the subcontractor's or supplier's quote for the extra work." },
+      {
+        text: "Give the change order to a second person who did not negotiate it to check the price against the contract rates.",
+        caution:
+          "The project manager who negotiated a change with a subcontractor must not be the person who approves it.",
+      },
+      { text: "Send the change order to the client for signature." },
+      {
+        text: "Start the extra work only once the client has signed.",
+        caution: "Work done on a verbal change is the usual cause of a bill the client disputes.",
+      },
+      {
+        text: "Enter the signed change order in the change-order log with its number and date.",
+      },
+      { text: "Add the amount to the contract value in the job cost system." },
+      { text: "Add the change order as its own line on the next progress bill." },
+      { text: "Update the estimated cost to complete for the job." },
+    ],
+    source:
+      "Construction control practice (for example eSub's guide to construction fraud): obtain the client's signature on every change order before work begins and revise the contract value, and the person who originates a change does not approve it. Two federal cases (U.S. Attorney's Office, E.D. Missouri, 2013; D. Connecticut, 2022) involved a project manager and a subcontractor who inflated change orders for the project manager's benefit. Unapproved change orders are a common pay-application error and a cause of underbillings (Baker Tilly).",
+    evidenceToKeep: ["Signed change orders", "Change-order log", "Second person's price approval"],
+    ifYouCannotSeparate:
+      "If one person negotiates, approves and bills change orders: have the person who runs the business sign every change order above a set amount before the work starts, and each month compare the change-order log with the billings and with the subcontractor invoices on the same job.",
+  },
+  {
+    id: "lib-progress-bill",
+    title: "Prepare the progress bill and track retainage",
+    purpose:
+      "Bills the client for the work in place each month and keeps track of the money the client holds back. Done when the bill matches the schedule of values, a second person has checked it, and the retainage schedule shows what each client still holds.",
+    trigger: "On each job's billing date, usually the 25th of the month",
+    cadence: "monthly",
+    industries: ["construction"],
+    dutyIds: ["submit_claims", "post_payments"],
+    covers: /\bpay applications?\b|\bprogress bill(?:ing)?s?\b|\bretainage\b/i,
+    prerequisites: [
+      "The contract's schedule of values and retainage rate",
+      "The superintendent's report of work in place and stored materials",
+    ],
+    steps: [
+      {
+        text: "Update the percent complete for each line of the schedule of values from the superintendent's report.",
+      },
+      { text: "Add the stored materials the contract allows you to bill." },
+      {
+        text: "Include only change orders the client has signed.",
+        caution: "A change order without the client's signature does not belong on the bill.",
+      },
+      { text: "Compute the retainage at the contract rate on the work completed to date." },
+      { text: "Subtract the retainage and the amounts billed before to get the amount due." },
+      {
+        text: "Check that the line totals on the schedule of values equal the total on the bill's front page.",
+      },
+      {
+        text: "Give the bill to a second person who did not prepare it to check before it goes to the client.",
+      },
+      { text: "Send the bill to the client or the architect for certification." },
+      { text: "Record the retainage the client holds on the retainage schedule for the job." },
+      {
+        text: "Update the retainage schedule each month with the amounts billed, released and still held.",
+        caution:
+          "Retainage is money the business has earned; follow it until the client releases it.",
+      },
+    ],
+    source:
+      "AIA pay-application practice: the schedule of values (G703) carries each line's work completed and stored materials, the application (G702) applies retainage and subtracts prior payments, and the architect or client certifies it before payment moves. Mismatched totals, miscalculated retainage and unapproved change orders are the usual errors that send a pay application back. Retainage the client holds is a receivable to track until release (New York Office of the State Comptroller, Accounting for retained percentages).",
+    evidenceToKeep: [
+      "Pay applications",
+      "Schedule of values",
+      "Retainage schedule",
+      "Second person's check",
+    ],
+    ifYouCannotSeparate:
+      "If one person prepares the bill and posts the client's payment: have the person who runs the business compare each month's bills with the superintendent's reports, and compare the retainage schedule with the contracts every quarter.",
+  },
+  {
+    id: "lib-sub-payment",
+    title: "Pay a subcontractor after the checks",
+    purpose:
+      "Pays a subcontractor only for work in place, under the subcontract, with the waivers on file. Done when someone other than the project manager has checked the invoice, the lien waiver is on file, the business has withheld the retainage and a second person has approved the payment.",
+    trigger: "When a subcontractor's invoice or pay application arrives",
+    cadence: "monthly",
+    industries: ["construction"],
+    dutyIds: ["approve_invoices", "release_payment"],
+    covers: /\bsubcontractor/i,
+    prerequisites: [
+      "The subcontract and its schedule of values",
+      "The project manager's record of work in place",
+    ],
+    steps: [
+      { text: "Compare the invoice with the subcontract and its schedule of values." },
+      {
+        text: "Ask the project manager to confirm in writing the percent of work in place on each line.",
+      },
+      {
+        text: "Give the invoice to a person who is not the project manager to check the amount against the subcontract and the work in place.",
+        caution:
+          "A project manager who approves a subcontractor's invoices alone can inflate them with the subcontractor for a kickback.",
+      },
+      { text: "Withhold the retainage at the rate in the subcontract." },
+      { text: "Check that the conditional lien waiver for this amount is on file." },
+      { text: "Check that the subcontractor's insurance certificate has not expired." },
+      { text: "Send the invoice with the checks to a second person to approve the payment." },
+      {
+        text: "Pay by check or electronic transfer, never in cash.",
+        caution: "A cash payment leaves nothing to match to a waiver or a job.",
+      },
+      {
+        text: "File the approved invoice, the project manager's confirmation and the waiver with the job.",
+      },
+    ],
+    source:
+      "Construction CPA guidance (LBMC; Yeo & Yeo): have an employee other than the project manager review supplier and subcontractor invoices, and require two approvals on every check or electronic payment. Corpay's subcontractor-payment guide: waiver gating, retainage tracking and approval routing on each payment matter more than the payment method, and cash leaves no record to tie to a waiver. In the federal change-order cases (E.D. Missouri, 2013; D. Connecticut, 2022) the project manager who approved the subcontractor's invoices was the one the subcontractor paid.",
+    evidenceToKeep: [
+      "Subcontractor invoices",
+      "Project manager's work-in-place confirmation",
+      "Payment approvals",
+    ],
+    ifYouCannotSeparate:
+      "If the project manager is the only person who knows what the subcontractor did: have the person who runs the business approve every subcontractor payment, walk the job before approving the larger ones, and compare the subcontractor's billings to date with the subcontract value each month.",
+  },
+  {
+    id: "lib-job-cost-review",
+    title: "Review the job-cost report against the estimate",
+    purpose:
+      "Catches costs charged to the wrong job, estimates that no longer hold and jobs billed behind their costs, before year end. Done when someone has compared every open job's cost with its estimate by cost code, approved each cost transfer in writing and explained each underbilling.",
+    trigger: "After each month's close, before the 15th",
+    cadence: "monthly",
+    industries: ["construction"],
+    dutyIds: ["post_journal_entries"],
+    covers: /\bjob cost|\bestimating\b/i,
+    prerequisites: [
+      "The job-cost report by cost code for every open job",
+      "The current estimate for each job, including signed change orders",
+      "The list of cost transfers between jobs for the month",
+    ],
+    steps: [
+      { text: "Run the job-cost report by cost code for every open job." },
+      { text: "Compare the cost to date on each cost code with its estimate." },
+      { text: "List every cost code whose cost to date exceeds its estimate." },
+      { text: "List every cost transfer between jobs made during the month." },
+      {
+        text: "Ask for a written reason and an approval for each transfer.",
+        caution:
+          "A cost moved from a losing job to a winning one hides the loss and can hide a theft; approve each transfer in writing.",
+      },
+      {
+        text: "Update the estimated cost to complete on each job where the costs say the estimate is wrong.",
+      },
+      { text: "List each job billed for less than its cost to date." },
+      {
+        text: "Write the reason next to each underbilled job.",
+        caution:
+          "An underbilling that lasts more than a month points to missed billing, an unapproved change order or an estimate that is too low.",
+      },
+      { text: "Give the report to the person who runs the business to read and sign." },
+    ],
+    source:
+      "Construction control practice (eSub): compare job-cost estimates with actuals and require approval for cost adjustments or transfers between jobs. Construction CPA guidance (Baker Tilly; HBK; Construction Executive): the work-in-progress schedule, with each job's costs to date, estimated cost to complete, percent complete and over- or underbillings, is a monthly management tool, not a year-end schedule; persistent underbillings point to billing problems, unapproved change orders or an overstated profit estimate, and sureties and lenders read those lines.",
+    evidenceToKeep: [
+      "Job-cost report",
+      "Cost transfer approvals",
+      "Over- and underbilling schedule",
+      "Sign-off",
+    ],
+    ifYouCannotSeparate:
+      "If the person who enters job costs is the only one who reads the report: send the job-cost report and the list of transfers each month to the person who runs the business or the outside accountant, who compares each job with its estimate and asks about every transfer.",
   },
 ];
 
