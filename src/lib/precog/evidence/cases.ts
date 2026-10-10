@@ -749,6 +749,46 @@ export const CASE_LIBRARY: CaseStudy[] = [
   },
 
   {
+    id: "case-webster-pharmacy-refunds-to-own-debit-card",
+    title:
+      "Pharmacy employee entered about 350 refund requests in customers' names, had the pharmacist on duty sign them, and paid the refunds to her own debit card, $578,944",
+    sector: "retail",
+    schemes: ["refund-fraud"],
+    howItWorked:
+      "A long-time employee of a Wegmans pharmacy in Webster, New York used the company's enterprise system to enter approximately 350 credit card refund requests in customers' names for fictitious amounts between 2014 and February 2023. She had the pharmacist on duty sign off on and authorize each request, then paid the refund to herself by swiping her own bank debit card in the point-of-sale system, $568,021.69 in all. Between 2020 and February 2023 she took a further $10,922.17 through gift cards.",
+    controlGap:
+      "The refund went to a card the customer had never used, and the approval was a signature on a request the employee had written, by a pharmacist with no way to see that the customer and the sale were invented. A refund that can be paid to any card, approved by whoever is standing nearest, is a cash drawer with a second person's initials on it.",
+    lossUsd: 578944,
+    lossIsFloor: false,
+    durationMonths: 109,
+    detection: "unknown",
+    resolvedYear: 2023,
+    sodRuleIds: ["rule-refund-adjust"],
+    wouldHaveCaughtIt: [
+      {
+        control: "void-refund-second-approval",
+        asApplied:
+          "A refund is approved only against the original sale and goes back to the card that paid for it; the approver reads the sale, not the request",
+      },
+      {
+        control: "adjustments-report-by-employee",
+        asApplied:
+          "Refunds listed by employee each week; one employee issuing refunds in customers' names stands out on the first report",
+      },
+      {
+        control: "gift-card-purchases-controlled",
+        asApplied:
+          "Gift cards sold or loaded at the counter are matched to a sale by someone other than the person who rang them",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Western District of New York",
+      url: "https://www.justice.gov/usao-wdny/pr/webster-woman-going-prison-stealing-hundreds-thousands-dollars-wegmans",
+    },
+    caveat:
+      "Alicia Torres was sentenced in November 2023 to a year in prison and $578,943.86 in restitution, recorded here rounded to the dollar as the sum of the $568,021.69 in refunds and $10,922.17 in gift cards the release states. The employer is a large regional grocery chain, not a small business; the record is admitted because the mechanism, a refund paid to the employee's own card behind an approval that checked nothing, is the one the small-retail record describes most often, and no small-business release surfaced that describes it this plainly. The 109 months count from January 2014 to February 2023 and may overstate by up to eleven months. The release, as quoted, does not say how the refunds were found or state her length of service beyond calling her a long-time employee. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
+  },
+  {
     id: "case-rio-rancho-auto-body-bookkeeper-checks-and-cards",
     title:
       "Auto body shop bookkeeper wrote checks to herself disguised as business expenses and put personal purchases on company cards for seven years, $2 million",
@@ -787,46 +827,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
     },
     caveat:
       "Christina Joyner pleaded guilty to wire fraud in September 2022 and was sentenced in August 2023 to 24 months in prison, three years of supervised release, 60 hours of community service, and $2,025,165.72 in restitution, recorded here rounded to the dollar. The 86 months are the July 2014 to September 2021 span the release gives. The release, as quoted, says the pay stubs were used by her husband to obtain loans; whether that loss sits inside the restitution is not stated. It does not say how the scheme was discovered. Autobody News reported that the business was acquired by Crash Champions in December 2021. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
-  },
-  {
-    id: "case-webster-pharmacy-refunds-to-own-debit-card",
-    title:
-      "Pharmacy employee entered about 350 refund requests in customers' names, had the pharmacist on duty sign them, and paid the refunds to her own debit card, $568,022",
-    sector: "retail",
-    schemes: ["refund-fraud"],
-    howItWorked:
-      "A long-time employee of a Wegmans pharmacy in Webster, New York used the company's enterprise system to enter approximately 350 credit card refund requests in customers' names for fictitious amounts between 2014 and February 2023. She had the pharmacist on duty sign off on and authorize each request, then paid the refund to herself by swiping her own bank debit card in the point-of-sale system, $568,021.69 in all. Between 2020 and February 2023 she took a further $10,922.17 through gift cards.",
-    controlGap:
-      "The refund went to a card the customer had never used, and the approval was a signature on a request the employee had written, by a pharmacist with no way to see that the customer and the sale were invented. A refund that can be paid to any card, approved by whoever is standing nearest, is a cash drawer with a second person's initials on it.",
-    lossUsd: 578944,
-    lossIsFloor: false,
-    durationMonths: 109,
-    detection: "unknown",
-    resolvedYear: 2023,
-    sodRuleIds: ["rule-refund-post"],
-    wouldHaveCaughtIt: [
-      {
-        control: "void-refund-second-approval",
-        asApplied:
-          "A refund is approved only against the original sale and goes back to the card that paid for it; the approver reads the sale, not the request",
-      },
-      {
-        control: "adjustments-report-by-employee",
-        asApplied:
-          "Refunds listed by employee each week; one employee issuing refunds in customers' names stands out on the first report",
-      },
-      {
-        control: "gift-card-purchases-controlled",
-        asApplied:
-          "Gift cards sold or loaded at the counter are matched to a sale by someone other than the person who rang them",
-      },
-    ],
-    source: {
-      publisher: "U.S. Attorney's Office, Western District of New York",
-      url: "https://www.justice.gov/usao-wdny/pr/webster-woman-going-prison-stealing-hundreds-thousands-dollars-wegmans",
-    },
-    caveat:
-      "Alicia Torres was sentenced in November 2023 to a year in prison and $578,943.86 in restitution, recorded here rounded to the dollar as the sum of the $568,021.69 in refunds and $10,922.17 in gift cards the release states. The employer is a large regional grocery chain, not a small business; the record is admitted because the mechanism, a refund paid to the employee's own card behind an approval that checked nothing, is the one the small-retail record describes most often, and no small-business release surfaced that describes it this plainly. The 109 months count from January 2014 to February 2023 and may overstate by up to eleven months. The release, as quoted, does not say how the refunds were found or state her length of service beyond calling her a long-time employee. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
   },
   {
     id: "case-baton-rouge-mattress-retailer-forged-checks",
@@ -1164,48 +1164,6 @@ export const CASE_LIBRARY: CaseStudy[] = [
       "The source describes the credit-card payments as dating back to at least 2008 without giving an end date, so no duration is recorded. The escalation pattern — starting small, growing when nothing happens — is the part worth noticing. Pamela Smith, 60, of Winter Park, was sentenced in December 2022 to three years.",
   },
   {
-    id: "case-franklin-remodeler-bounced-check",
-    title:
-      "Remodeling company bookkeeper diverted $315,000 and fed the accountant doctored bank statements; a bounced check ended it",
-    sector: "construction",
-    schemes: ["check-tampering"],
-    howItWorked:
-      "Within months of being hired as bookkeeper at Dukate Fine Remodeling in Franklin, Indiana, she began using her online access to the company's accounts to pay more than a dozen personal credit cards and buy electronics and other goods. Each year she gave the company's outside accountant false books together with bank statements she had altered so the two agreed. She also left hundreds of thousands of dollars of company bills unpaid. Police and the FBI were called after a company check bounced. The owners laid off workers and cashed in retirement savings to keep the business open.",
-    controlGap:
-      "The outside accountant received the bank statements from the bookkeeper instead of from the bank, so the one document that could not be faked was the one nobody independent saw. She also came with a ten-year record of fraud, forgery, and theft convictions that no one checked.",
-    lossUsd: 315000,
-    lossIsFloor: true,
-    durationMonths: 24,
-    tenureYearsStated: 2,
-    detection: "by-accident",
-    resolvedYear: 2018,
-    sodRuleIds: ["rule-cash-rec", "rule-ach-release"],
-    wouldHaveCaughtIt: [
-      {
-        control: "owner-opens-bank-statement",
-        asApplied:
-          "Owner and accountant each receive statements directly from the bank; nothing the bookkeeper hands over counts as the statement",
-      },
-      {
-        control: "background-check-money-handlers",
-        asApplied:
-          "A criminal-records check before giving anyone online access to the bank accounts",
-      },
-      {
-        control: "independent-financial-review",
-        asApplied:
-          "Accountant reconciles to bank-sourced records and reports unpaid supplier balances to the owner",
-      },
-    ],
-    source: {
-      publisher: "U.S. Attorney's Office, Southern District of Indiana",
-      url: "https://www.justice.gov/usao-sdin/pr/bookkeeper-sentenced-defrauding-small-franklin-indiana-business",
-    },
-    caveat:
-      "Erica Howard, 42, was sentenced in August 2018 to 58 months and ordered to repay more than $315,000. The release calls it a two-year scheme; the duration is recorded as 24 months on that basis. The release gives no hire date; because the scheme began within months of her being hired and ran two years, her time with the company when it ended is recorded as two years. Her prior convictions are stated in the release.",
-  },
-
-  {
     id: "case-great-falls-construction-bookkeeper-credit-accounts",
     title:
       "Construction company bookkeeper sent 72 payments from the company's bank account to her own credit accounts over three years, $611,665",
@@ -1214,13 +1172,13 @@ export const CASE_LIBRARY: CaseStudy[] = [
     howItWorked:
       "The bookkeeper and accountant of M&D Construction in Great Falls, Montana had access to the company's bank account. Between January 2017 and January 2020 she directed 72 payments from that account to her personal credit accounts. The plea release puts the amount at more than $611,000 and the sentencing release at about $632,362.65; restitution was set at $611,665.22.",
     controlGap:
-      "One person could send a payment out of the bank account and also kept the books in which it was described. A payment from a bank account to a card issuer is an electronic transfer that needs no signature, so the only point at which anyone else could have seen it was the bank statement, and the record does not show anyone outside the role reading it.",
+      "One person could send a payment out of the bank account, and the release calls her the bookkeeper and accountant without saying how the payments were entered in the books. A payment from a bank account to a card issuer is an electronic transfer that needs no signature, so the only point at which anyone else could have seen it was the bank statement, and the record does not show anyone outside the role reading it.",
     lossUsd: 611665,
     lossIsFloor: false,
     durationMonths: 36,
     detection: "unknown",
     resolvedYear: 2022,
-    sodRuleIds: ["rule-ach-release", "rule-release-je"],
+    sodRuleIds: ["rule-ach-release"],
     wouldHaveCaughtIt: [
       {
         control: "owner-opens-bank-statement",
@@ -1279,6 +1237,48 @@ export const CASE_LIBRARY: CaseStudy[] = [
     caveat:
       "William Sacco was sentenced in July 2022 to three months in prison and three years of supervised release. The release, as quoted in search results, states no loss figure, so the loss is recorded as zero and the case is excluded from loss arithmetic; it does not date the scheme, name the employer or the subcontractor, state the employer's size, or say how the scheme was found. The Defense Criminal Investigative Service published the same release. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
   },
+  {
+    id: "case-franklin-remodeler-bounced-check",
+    title:
+      "Remodeling company bookkeeper diverted $315,000 and fed the accountant doctored bank statements; a bounced check ended it",
+    sector: "construction",
+    schemes: ["check-tampering"],
+    howItWorked:
+      "Within months of being hired as bookkeeper at Dukate Fine Remodeling in Franklin, Indiana, she began using her online access to the company's accounts to pay more than a dozen personal credit cards and buy electronics and other goods. Each year she gave the company's outside accountant false books together with bank statements she had altered so the two agreed. She also left hundreds of thousands of dollars of company bills unpaid. Police and the FBI were called after a company check bounced. The owners laid off workers and cashed in retirement savings to keep the business open.",
+    controlGap:
+      "The outside accountant received the bank statements from the bookkeeper instead of from the bank, so the one document that could not be faked was the one nobody independent saw. She also came with a ten-year record of fraud, forgery, and theft convictions that no one checked.",
+    lossUsd: 315000,
+    lossIsFloor: true,
+    durationMonths: 24,
+    tenureYearsStated: 2,
+    detection: "by-accident",
+    resolvedYear: 2018,
+    sodRuleIds: ["rule-cash-rec", "rule-ach-release"],
+    wouldHaveCaughtIt: [
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner and accountant each receive statements directly from the bank; nothing the bookkeeper hands over counts as the statement",
+      },
+      {
+        control: "background-check-money-handlers",
+        asApplied:
+          "A criminal-records check before giving anyone online access to the bank accounts",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied:
+          "Accountant reconciles to bank-sourced records and reports unpaid supplier balances to the owner",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Southern District of Indiana",
+      url: "https://www.justice.gov/usao-sdin/pr/bookkeeper-sentenced-defrauding-small-franklin-indiana-business",
+    },
+    caveat:
+      "Erica Howard, 42, was sentenced in August 2018 to 58 months and ordered to repay more than $315,000. The release calls it a two-year scheme; the duration is recorded as 24 months on that basis. The release gives no hire date; because the scheme began within months of her being hired and ran two years, her time with the company when it ended is recorded as two years. Her prior convictions are stated in the release.",
+  },
+
   {
     id: "case-amk-hvac",
     title: "HVAC company office manager wrote 100+ checks to herself over two years",
@@ -1447,11 +1447,11 @@ export const CASE_LIBRARY: CaseStudy[] = [
     howItWorked:
       "The bookkeeper of an electrical contractor in Chickasha, Oklahoma used her payroll access to add her boyfriend to the weekly payroll as a fictitious worker from 2007. From 2006 she used the company's credit cards for personal expenses and kept the monthly card statements from her boss; after she resigned she changed one card's billing address to her own home. Restitution was set at $336,950.",
     controlGap:
-      "The person who could add a name to the payroll also ran it, so a worker who never existed was paid every week with no second person comparing the register to the crew on site. The card statements went to the cardholder, who was also the bookkeeper, so the owner saw neither the statement nor the entry.",
+      "The person who could add a name to the payroll had that right unreviewed, so a worker who never existed was paid every week with no second person comparing the register to the crew on site. The card statements went to the cardholder, who was also the bookkeeper, so the owner saw neither the statement nor the entry.",
     lossUsd: 336950,
     lossIsFloor: false,
     detection: "unknown",
-    sodRuleIds: ["rule-payroll-master-run", "rule-card-review"],
+    sodRuleIds: ["rule-card-review"],
     wouldHaveCaughtIt: [
       {
         control: "payroll-register-review",
@@ -1815,17 +1815,17 @@ export const CASE_LIBRARY: CaseStudy[] = [
     title:
       "Church employee who managed donations moved Cash App receipts to four personal accounts for four years and gave the board false monthly summaries, $410,574",
     sector: "nonprofit",
-    schemes: ["receivables-diversion", "financial-statement"],
+    schemes: ["receivables-diversion", "cash-larceny"],
     howItWorked:
       "An employee of Perfecting Church in Toledo, Ohio who managed parishioner donations wired money from the church's Cash App account, where members' gifts were received, to four personal bank accounts between about June 2019 and June 2023. She gave the church board fraudulent monthly financial summaries, and she obtained a credit card in the pastor's name and used it to pay church expenses, which covered the shortfall her transfers left.",
     controlGap:
-      "The person who administered the giving platform could also send money out of it, and the board's only view of the church's finances was the summary she wrote. A transfer out of a payment app leaves the bank statement untouched, so a board member reading the bank statement alone would not have seen it; the check that was missing was the platform's own payout report, read by someone who did not administer it. The card she obtained in the pastor's name had, as we read the record, a statement that reached only her.",
+      "The person who administered the giving platform could also send money out of it, and the board's only view of the church's finances was the summary she wrote. A transfer out of a payment app leaves the bank statement untouched, so a board member reading the bank statement alone would not have seen it; the check that was missing was the platform's own payout report, read by someone who did not administer it. The release does not say who saw the statement for the card she obtained in the pastor's name.",
     lossUsd: 410574,
     lossIsFloor: false,
     durationMonths: 48,
     detection: "unknown",
     resolvedYear: 2026,
-    sodRuleIds: ["rule-ach-release", "rule-card-review"],
+    sodRuleIds: ["rule-ach-release"],
     wouldHaveCaughtIt: [
       {
         control: "dual-release-above-threshold",
@@ -2064,7 +2064,7 @@ export const CASE_LIBRARY: CaseStudy[] = [
       url: "https://www.justice.gov/usao-mdfl/pr/former-church-records-and-finance-manager-sentenced-federal-prison-embezzling-over",
     },
     caveat:
-      "Heather Darrey was sentenced in November 2024 to 27 months in federal prison, with a forfeiture money judgment of $875,323.19, recorded here rounded to the dollar. The release, as quoted, does not date the scheme, state her length of service, or say how it was found; News4Jax and the Tampa Bay Times identified the parish as Christ the King. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
+      "Heather Darrey was sentenced in November 2024 to 27 months in federal prison, with a forfeiture money judgment of $875,323.19, recorded here rounded to the dollar. The release, as quoted, does not date the scheme, state her length of service, or say how it was found; The Tampa Bay Times identified the parish as Christ the King. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
   },
   {
     id: "case-nonprofit-human-first",

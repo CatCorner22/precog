@@ -14,15 +14,18 @@ The dataset is data only and test-only: no screen or engine module imports
 
 ## Adding a case
 
-1. Start from the research notes (`canon.md` §4 to §5 and the industry
-   notes' "incompatible duty pairs" sections), not from what the engine
-   prints. Write the team as rows of the setup grid (`name`, `role`,
+1. Start from published control guidance and prosecuted cases (for example
+   the GAO Green Book, the Washington State Auditor's segregation-of-duties
+   guide, the ADA, U.S. Attorney's Office releases), not from what the
+   engine prints. Each case's `basis` summarises those sources and names
+   the bodies; the research notes the lines condense live outside the
+   repository. Write the team as rows of the setup grid (`name`, `role`,
    `duties`), with a realistic small-team shape.
-2. Name the duty pairs at issue and the source in `basis`.
+2. Name the duty pairs at issue and the guidance or cases behind them in `basis`.
 3. Expect sets and orderings that follow from rule severity: `expectOpenRuleIds`,
-   `expectClosedRuleIds`, `expectOpenPairs` for a pair the research names
+   `expectClosedRuleIds`, `expectOpenPairs` for a pair the guidance names
    that has no rule id yet, `expectFirstStepRuleId` or `expectFirstStepDutyId`
-   only where the research makes the priority clear, `expectRecommendedProcedureIds`
+   only where the guidance makes the priority clear, `expectRecommendedProcedureIds`
    from `RULE_PROCEDURE`, and `expectActionPattern` for the brief. Never a
    numeric score or index.
 4. Run `npx vitest run src/lib/precog/golden`. Where the engine disagrees with

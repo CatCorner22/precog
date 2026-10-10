@@ -548,7 +548,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       "Catches money leaving as payroll that the register does not explain: a raise nobody approved, a person who does not work here, or pay sent under another name. Done when the bank's payroll debits equal the register's net pay and taxes and a second person has signed the comparison.",
     trigger: "After each payday, when the payroll debits appear in the bank's online transactions",
     cadence: "weekly",
-    dutyIds: ["approve_payroll", "bank_reconcile"],
+    dutyIds: ["enter_payroll", "approve_payroll", "bank_reconcile"],
     covers: /\bpayroll\b/i,
     prerequisites: [
       "The payroll register for the pay period",
@@ -626,8 +626,9 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       "Finds an entry that moves a loss, a theft or a personal expense into an account nobody reads. Done when a second person who posts no entries has read every manual journal entry for the month, with its support, and signed the list.",
     trigger: "After each month's close, before anyone signs the bank reconciliation",
     cadence: "monthly",
-    // The bank reconciler is the natural reviewer, and the Penn guidance in
-    // `source` pairs the two duties; a business where either is held sees it.
+    // The reviewer is anyone who did not post the entry; the bank reconciler
+    // may review when nobody else can. The Penn guidance in `source` pairs
+    // the two duties, so a business where either is held sees it.
     dutyIds: ["post_journal_entries", "bank_reconcile"],
     covers: /\bjournal entr|\bgeneral ledger\b|\bmonth[- ]end close\b|\bmonthly close\b/i,
     prerequisites: [
@@ -646,8 +647,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       },
       {
         text: "Ask the person who posted each listed entry to explain it.",
-        caution:
-          "The reviewer must not be a person who posts journal entries or reconciles the bank.",
+        caution: "The person who posted an entry never reviews it.",
       },
       { text: "Sign and date the journal-entry report." },
     ],
@@ -700,7 +700,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       { text: "Enter the vendor only once the approval is on file." },
     ],
     source:
-      "Common accounts-payable control practice: the person who sets up a vendor does not approve it or release its payments, and someone confirms a new vendor's details by a call to a number found independently of the request. FBI guidance on business email compromise: look up the company's number yourself rather than use one the request supplies. A federal case (U.S. Attorney's Office, D. Minnesota) describes an operations director who made false vendor payments for years with nobody checking the vendors.",
+      "Common accounts-payable control practice: the person who sets up a vendor does not approve it or release its payments, and someone confirms a new vendor's details by a call to a number found independently of the request. FBI guidance on business email compromise: look up the company's number yourself rather than use one the request supplies. A federal case (U.S. Attorney's Office, D. Minnesota) describes an operations director who controlled both the payables and the payroll entries and made false vendor payments.",
     evidenceToKeep: ["New vendor form", "Call record", "Approval", "Approved vendor list"],
     ifYouCannotSeparate:
       "If one person sets up vendors and pays them: have the bank alert the person who runs the business to every new payee, and each month that person reads the list of vendors added, with the call record for each, before the month's payments go out.",
@@ -975,7 +975,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       { text: "Sign and date the report." },
     ],
     source:
-      "Point-of-sale control practice (for example Toast's exceptions reports and void rules): a void works only on the day of the sale, a later change is a refund, and the voided-items, voided-payments and no-sale reports list each one by employee. Police and court reports (Santa Rosa, California, 2025; Connecticut; Oklahoma; Oregon) describe managers who voided or discounted tickets after cash payment and kept the cash, found when an owner read the void report or detectives called the customers.",
+      "Point-of-sale control practice (for example Toast's exceptions reports and void rules): a void works only on the day of the sale, a later change is a refund, and the voided-items, voided-payments and no-sale reports list each one by employee. News reports (Santa Rosa, California, 2025; Connecticut; Oklahoma; Oregon) describe managers who voided or discounted tickets after cash payment and kept the cash, found when someone read the void report or detectives called the customers.",
     evidenceToKeep: [
       "Voided items report",
       "Voided payments report",
@@ -1063,7 +1063,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     trigger: "Every Monday before the bar opens, for the week before",
     cadence: "weekly",
     industries: ["restaurant"],
-    dutyIds: ["receive_goods", "order_supplies"],
+    dutyIds: ["receive_goods"],
     covers: /\bliquor\b|\bbar (?:inventory|stock)\b|\bpour cost\b/i,
     prerequisites: [
       "A count sheet listing every bottle and keg, printed without last week's counts",
@@ -1101,7 +1101,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     trigger: "Whenever the scope, price or schedule of a job changes",
     cadence: "ad-hoc",
     industries: ["construction"],
-    dutyIds: ["submit_claims", "approve_invoices"],
+    dutyIds: ["submit_claims"],
     covers: /\bchange[- ]orders?\b/i,
     prerequisites: [
       "The signed contract and its schedule of values",
@@ -1130,7 +1130,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       { text: "Update the estimated cost to complete for the job." },
     ],
     source:
-      "Construction control practice (for example eSub's guide to construction fraud): obtain the client's signature on every change order before work begins and revise the contract value, and the person who originates a change does not approve it. Two federal cases (U.S. Attorney's Office, E.D. Missouri, 2013; D. Connecticut, 2022) involved a project manager and a subcontractor who inflated change orders for the project manager's benefit. Unapproved change orders are a common pay-application error and a cause of underbillings (Baker Tilly).",
+      "Construction control practice (for example eSub's guide to construction fraud): obtain the client's signature on every change order before work begins and revise the contract value. Common practice keeps the person who originates a change apart from the one who approves it. Two federal cases (U.S. Attorney's Office, E.D. Missouri, 2013; D. Connecticut, 2022) involved a project manager and a subcontractor who inflated change orders for the project manager's benefit. Unapproved change orders are a common pay-application error and a cause of underbillings (Baker Tilly).",
     evidenceToKeep: ["Signed change orders", "Change-order log", "Second person's price approval"],
     ifYouCannotSeparate:
       "If one person negotiates, approves and bills change orders: have the person who runs the business sign every change order above a set amount before the work starts, and each month compare the change-order log with the billings and with the subcontractor invoices on the same job.",
@@ -1143,7 +1143,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     trigger: "On each job's billing date, usually the 25th of the month",
     cadence: "monthly",
     industries: ["construction"],
-    dutyIds: ["submit_claims", "post_payments"],
+    dutyIds: ["submit_claims"],
     covers: /\bpay applications?\b|\bprogress bill(?:ing)?s?\b|\bretainage\b/i,
     prerequisites: [
       "The contract's schedule of values and retainage rate",
@@ -1175,7 +1175,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       },
     ],
     source:
-      "AIA pay-application practice: the schedule of values (G703) carries each line's work completed and stored materials, the application (G702) applies retainage and subtracts prior payments, and the architect or client certifies it before payment moves. Mismatched totals, miscalculated retainage and unapproved change orders are the usual errors that send a pay application back. Retainage the client holds is a receivable to track until release (New York Office of the State Comptroller, Accounting for retained percentages).",
+      "AIA pay-application practice: the schedule of values (G703) carries each line's work completed and stored materials, the application (G702) applies retainage and subtracts prior payments, and the architect or client certifies it before payment moves. Mismatched totals, miscalculated retainage and unapproved change orders are the usual errors that send a pay application back. Retainage the client holds is a receivable to track until release (Corpay's retainage guide).",
     evidenceToKeep: [
       "Pay applications",
       "Schedule of values",
@@ -1332,7 +1332,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     cadence: "ad-hoc",
     industries: ["dental"],
     dutyIds: ["post_payments", "post_adjustments"],
-    covers: /\binsurance (?:denials?|payments?|claims?)\b|\bexplanations? of benefits\b/i,
+    covers: /\binsurance (?:payments?|remittances?)\b|\bexplanations? of benefits\b|\bEOBs?\b/i,
     prerequisites: [
       "The explanation of benefits for the payment",
       "The check log, for a paper check",
@@ -1344,7 +1344,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
       {
         text: "Post the contractual write-off as the difference between the fee and the amount the plan allows, with the insurer's reason.",
         caution:
-          "Never write off a balance you billed to an insurer to make an account match; the AAPD warns that this is insurance fraud.",
+          "Never adjust off the patient's share after billing the insurer at the full fee; the American Academy of Pediatric Dentistry warns that this is insurance fraud.",
       },
       {
         text: "Check whether a second plan already paid or will pay on the same claim before you post the write-off.",
@@ -1402,9 +1402,9 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
         caution: "The person who approves the refund must not be the person who processes it.",
       },
       {
-        text: "Send the refund to the card or account that made the payment.",
+        text: "Send the refund to the card or account that made the payment, or by a check made out to the patient when the patient paid in cash.",
         caution:
-          "Never refund to a different card or to cash; a refund to an employee's own card is the commonest small dental theft on record.",
+          "Never refund in cash or to a different card; a refund to an employee's own card is the commonest small dental theft on record.",
       },
       { text: "File the approval, the ledger printout and the refund receipt together." },
       {
@@ -1475,7 +1475,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     cadence: "weekly",
     industries: ["automotive"],
     dutyIds: ["approve_writeoffs", "review_audit_logs"],
-    covers: /\brepair[- ]orders?\b|\bDMS\b/i,
+    covers: /\brepair[- ]orders?\b/i,
     prerequisites: [
       "The shop system's deleted and voided repair order report",
       "The open repair order list with each order's age",
@@ -1897,7 +1897,7 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     trigger: "Before each board meeting, and before the board reviews the Form 990 each year",
     cadence: "quarterly",
     industries: ["nonprofit"],
-    dutyIds: ["bank_reconcile", "post_journal_entries"],
+    dutyIds: ["bank_reconcile"],
     covers:
       /\b(?:treasurer'?s? report|board (?:report|packet|oversight)|form 990|audit preparation)\b/i,
     prerequisites: [
@@ -2275,7 +2275,12 @@ export function writtenProcedure<P extends Pick<Procedure, "libraryId" | "knowle
 
 /**
  * The recommended procedures for this line of business that are not already
- * written (writtenProcedure), each with what it would cover here. Ordered:
+ * written, each with what it would cover here. One started from the
+ * recommendation (it carries the `libraryId`) always counts as written. A
+ * procedure for the register items it matches counts only when nobody here
+ * holds one of its duties: two recommendations can match the same item (the
+ * payroll run and the payroll bank tie both match "payroll"), and starting
+ * one must not hide the other from the people whose work it is. Ordered:
  * those covering register items, then those whose duty someone holds, then
  * the rest.
  */
@@ -2291,14 +2296,15 @@ export function libraryRows(
   for (const shared of RECOMMENDED_PROCEDURES) {
     if (shared.industries && !shared.industries.includes(industry)) continue;
     const recommendation = recommendationFor(shared, industry);
-    if (writtenProcedure(recommendation, own, tpl.knowledge)) continue;
-    const knowledgeIds = tpl.knowledge
-      .filter((k) => recommendation.covers.test(k.name) && !written.has(k.id))
-      .map((k) => k.id);
     const duties = new Set<string>(recommendation.dutyIds);
     const heldBy = active
       .filter((p) => personDuties(p, tpl.roleTemplates).some((d) => duties.has(d)))
       .map((p) => p.id);
+    const already = writtenProcedure(recommendation, own, tpl.knowledge);
+    if (already && (already.libraryId === recommendation.id || heldBy.length === 0)) continue;
+    const knowledgeIds = tpl.knowledge
+      .filter((k) => recommendation.covers.test(k.name) && !written.has(k.id))
+      .map((k) => k.id);
     rows.push({
       recommendation,
       knowledgeIds,

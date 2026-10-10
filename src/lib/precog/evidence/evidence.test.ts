@@ -368,6 +368,7 @@ const UNCITED_RULES = [
   "rule-card-approve",
   "rule-cash-admin",
   "rule-claims-writeoff",
+  "rule-refund-post",
   "rule-writeoff",
 ];
 
@@ -536,6 +537,19 @@ describe("rule attachments", () => {
       ["case-dennys-franchise-vendors", "rule-order-receive"],
       ["case-caseyville-pediatrics-office-manager-five-ways", "rule-payroll-rec"],
       ["case-duncan-part-time-bookkeeper-found-on-vacation", "rule-admin-pay"],
+      // The refund went to her own card against a request she wrote, never a
+      // payment she recorded as received.
+      ["case-webster-pharmacy-refunds-to-own-debit-card", "rule-refund-post"],
+      // Each release shows one duty of the pair, not both: payroll-add rights
+      // but not running payroll (Chickasha), bank payments but not how they
+      // were entered in the books (Great Falls), a card in the pastor's name
+      // but not who saw its statement (Toledo).
+      [
+        "case-chickasha-electrical-contractor-bookkeeper-payroll-and-cards",
+        "rule-payroll-master-run",
+      ],
+      ["case-great-falls-construction-bookkeeper-credit-accounts", "rule-release-je"],
+      ["case-toledo-church-cash-app-donations", "rule-card-review"],
     ];
     for (const [caseId, ruleId] of removed) {
       expect(caseById(caseId)?.sodRuleIds, `${caseId} ${ruleId}`).not.toContain(ruleId);
@@ -606,7 +620,6 @@ describe("rule attachments", () => {
       "case-chickasha-electrical-contractor-bookkeeper-payroll-and-cards",
       "case-hutchinson-controller",
       "case-rio-rancho-auto-body-bookkeeper-checks-and-cards",
-      "case-toledo-church-cash-app-donations",
     ]);
     expect(RULE_SCHEMES["rule-card-review"]).toEqual(["expense-reimbursement"]);
     // A dentist reads the Bellevue practice card case as their own line of business.

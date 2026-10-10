@@ -16,21 +16,12 @@ import type { Procedure } from "./types";
  * pair. Every rule has an entry (rule-procedures.test.ts checks it against
  * CONFLICT_RULES) and every entry names a procedure in the general library,
  * so it applies to every line of business the rule does.
- *
- * Some entries are interim until the library has their own procedure (the
- * wave-3 procedures slice, PB, remaps them): manual journal entries
- * (rule-je-rec, rule-release-je) lead to the bank reconciliation and payment
- * release procedures, supplier set-up (rule-vendor-create-*) to the vendor
- * bank change, and access administration (rule-access-log,
- * rule-access-export) to the leaver's access removal.
  */
 export const RULE_PROCEDURE: Readonly<
   Record<string, { primary: string; also?: readonly string[] }>
 > = {
-  // Interim until PB: no access-review procedure yet.
-  "rule-access-export": { primary: "lib-leaver-access" },
-  // Interim until PB: no access-review procedure yet.
-  "rule-access-log": { primary: "lib-leaver-access" },
+  "rule-access-export": { primary: "lib-access-review", also: ["lib-leaver-access"] },
+  "rule-access-log": { primary: "lib-access-review", also: ["lib-leaver-access"] },
   "rule-access-release": { primary: "lib-release-payments", also: ["lib-leaver-access"] },
   "rule-ach-release": { primary: "lib-release-payments" },
   // Recording payments received is money coming in. The bank reconciliation
@@ -57,8 +48,7 @@ export const RULE_PROCEDURE: Readonly<
   "rule-deposit-post": { primary: "lib-cash-deposit", also: ["lib-mailed-checks"] },
   "rule-invoice-approve": { primary: "lib-release-payments" },
   "rule-invoice-pay": { primary: "lib-release-payments" },
-  // Interim until PB: no manual journal entry procedure yet.
-  "rule-je-rec": { primary: "lib-bank-rec" },
+  "rule-je-rec": { primary: "lib-journal-review", also: ["lib-bank-rec"] },
   "rule-order-receive": { primary: "lib-receiving" },
   "rule-payments-adjust": { primary: "lib-refund-review" },
   "rule-payroll": { primary: "lib-payroll" },
@@ -68,17 +58,13 @@ export const RULE_PROCEDURE: Readonly<
   "rule-payroll-release": { primary: "lib-payroll" },
   "rule-refund-adjust": { primary: "lib-refund-review" },
   "rule-refund-post": { primary: "lib-refund-review" },
-  // Interim until PB: no manual journal entry procedure yet.
-  "rule-release-je": { primary: "lib-release-payments" },
+  "rule-release-je": { primary: "lib-journal-review", also: ["lib-release-payments"] },
   "rule-release-rec": { primary: "lib-bank-rec" },
   "rule-sign-rec": { primary: "lib-bank-rec" },
   "rule-vendor-approve-pay": { primary: "lib-release-payments" },
-  // Interim until PB: no new-supplier procedure yet.
-  "rule-vendor-create-approve": { primary: "lib-vendor-bank-change" },
-  // Interim until PB: no new-supplier procedure yet.
-  "rule-vendor-create-invoice": { primary: "lib-vendor-bank-change" },
-  // Interim until PB: no new-supplier procedure yet.
-  "rule-vendor-create-pay": { primary: "lib-vendor-bank-change" },
+  "rule-vendor-create-approve": { primary: "lib-new-vendor" },
+  "rule-vendor-create-invoice": { primary: "lib-new-vendor" },
+  "rule-vendor-create-pay": { primary: "lib-new-vendor", also: ["lib-vendor-bank-change"] },
   "rule-writeoff": { primary: "lib-refund-review" },
 };
 

@@ -8,8 +8,12 @@
  * so it never reaches the client bundle (see README.md in this folder).
  *
  * Expectations are sets and orderings that follow from rule severity and
- * from the research notes (content/research/canon.md and the four industry
- * notes), never from hand-weighted scores. Where the engine disagrees with a
+ * from published control guidance and prosecuted cases, never from
+ * hand-weighted scores. Each case's `basis` summarises its sources and names
+ * the bodies behind them (for example the GAO Green Book, the Washington
+ * State Auditor's segregation-of-duties guide, the ADA, a U.S. Attorney's
+ * Office release); the research notes those lines condense live outside the
+ * repository. Where the engine disagrees with a
  * CPA-defensible expectation, the expectation stands and `knownGap` records
  * what the engine does today; the test reports that check as a todo.
  */
@@ -36,7 +40,7 @@ export interface GoldenCase {
   /** The calendar day the engine runs on (YYYY-MM-DD). */
   today: string;
   team: GoldenTeamRow[];
-  /** The duty pairs at issue and the source in the research notes. */
+  /** The duty pairs at issue and the guidance or cases behind them. */
   basis: string;
   /** Rule ids that must be open findings. */
   expectOpenRuleIds: string[];
@@ -44,7 +48,7 @@ export interface GoldenCase {
   expectClosedRuleIds: string[];
   /**
    * Duty pairs that must appear in an open finding under any rule, named or
-   * family. For pairs the research names that have no rule id of their own.
+   * family. For pairs the guidance names that have no rule id of their own.
    */
   expectOpenPairs?: [EntitlementId, EntitlementId][];
   /** The rule the first "Do these first" step is named for: the most severe open pair. */
@@ -82,7 +86,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       },
     ],
     basis:
-      "Dental note 1c pairs 2 and 3 (ADA: no one person handles both patient payments and bank deposits) and pair 1 (posts payments and posts adjustments on the same accounts; AAPD 2014). The dentist's own check signing plus reconciliation is the design, not a theft path (canon 4.2, GAO Green Book 10.03).",
+      "Dental note 1c pairs 2 and 3 (ADA: no one person handles both patient payments and bank deposits) and pair 1 (posts payments and posts adjustments on the same accounts; American Academy of Pediatric Dentistry, 2014). The dentist's own check signing plus reconciliation is the design, not a theft path (canon 4.2, GAO Green Book 10.03).",
     expectOpenRuleIds: [
       "rule-collect-post",
       "rule-deposit-post",
@@ -140,7 +144,6 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       "rule-admin-pay",
     ],
     expectClosedRuleIds: ["rule-writeoff", "rule-payroll", "rule-sign-rec"],
-    expectOpenPairs: [["submit_claims", "post_payments"]],
     expectFirstStepDutyId: "bank_reconcile",
     expectRecommendedProcedureIds: [
       "lib-bank-rec",
@@ -150,8 +153,6 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
     ],
     expectActionPattern: /away from Marisol Ortega: it closes \d+/,
     knownGap: {
-      pairs:
-        "No rule pairs issuing invoices or claims with recording payments received; both are recording duties, so the family catch-all is silent too. The dental note (1c pair 4, case D4) names the pair: the person who submits the claim and posts the insurer's payment can bill procedures never performed and post the remittance against them.",
       firstStep:
         "The split step picks the move that lowers the open count the most (sod/duty-split chooseDutySplit: net, then count, then critical count). Moving cash collection to the hygienist closes one critical and four high pairs (net 5), so it beats moving the bank reconciliation, which closes three critical pairs (net 3) and leaves the office manager collecting, paying and reconciling. The canon puts the independent reconciliation first (GAO Green Book 10.12; Minnesota OSA Exhibit A; Washington SAO guide).",
     },
@@ -233,6 +234,8 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       "lib-bank-rec",
       "lib-payroll",
       "lib-card-review",
+      "lib-journal-review",
+      "lib-access-review",
     ],
     expectActionPattern:
       /^Move .+ away from (Dana Kowalski|Tom Beckett|Gloria Fenn): it closes \d+/,
@@ -330,6 +333,8 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       "lib-bank-rec",
       "lib-vendor-bank-change",
       "lib-payroll",
+      "lib-journal-review",
+      "lib-new-vendor",
     ],
     expectActionPattern: /away from Beth Carlucci: it closes \d+/,
   },
@@ -398,6 +403,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       "lib-receiving",
       "lib-payroll",
       "lib-refund-review",
+      "lib-new-vendor",
     ],
     expectActionPattern: /^Move release payments away from Rosa Delgado: it closes \d+/,
   },
@@ -440,7 +446,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
     ],
     expectClosedRuleIds: ["rule-sign-rec", "rule-vendor-create-pay", "rule-payroll"],
     expectFirstStepRuleId: "rule-release-rec",
-    expectRecommendedProcedureIds: ["lib-bank-rec", "lib-release-payments"],
+    expectRecommendedProcedureIds: ["lib-bank-rec", "lib-release-payments", "lib-journal-review"],
     expectActionPattern: /^Move release payments away from Paul Dziedzic: it closes \d+/,
   },
   {
@@ -567,7 +573,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       },
     ],
     basis:
-      "Restaurant note 1c: running the register and reconciling receipts at close (Plante Moran), voiding a check after taking the cash for it (QSRweb; cases R5 to R8), and the derived pair closes the drawer and makes the deposit. Payroll entry apart from approval is the Florida construction office-manager pattern (rule-payroll).",
+      "Restaurant note 1c: running the register and reconciling receipts at close (Plante Moran), voiding a check after taking the cash for it (QSRweb; cases R5 to R8), and the derived pair closes the drawer and makes the deposit. Payroll entry apart from approval keeps rule-payroll closed; the construction note's cases C4 (a Chickasha bookkeeper with unreviewed payroll-add rights) and C5 (a Greenfield office manager who raised her own pay 466 times) show the pair this split avoids.",
     expectOpenRuleIds: ["rule-collect-post", "rule-deposit-post", "rule-cash-void"],
     expectClosedRuleIds: ["rule-payroll", "rule-custody-rec", "rule-cash-rec", "rule-sign-rec"],
     expectRecommendedProcedureIds: ["lib-cash-deposit", "lib-drawer-close", "lib-refund-review"],
@@ -626,6 +632,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       "lib-vendor-bank-change",
       "lib-payroll",
       "lib-receiving",
+      "lib-new-vendor",
     ],
     expectActionPattern: /^Move release payments away from Walter Simms: it closes \d+/,
   },
@@ -698,6 +705,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       "lib-refund-review",
       "lib-drawer-close",
       "lib-vendor-bank-change",
+      "lib-new-vendor",
     ],
     expectActionPattern: /^Move reconcile the bank account away from Yolanda Cruz: it closes \d+/,
   },
@@ -804,6 +812,8 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       "lib-bank-rec",
       "lib-release-payments",
       "lib-receiving",
+      "lib-journal-review",
+      "lib-new-vendor",
     ],
     expectActionPattern: /away from Denise Park: it closes \d+/,
     knownGap: {
@@ -876,6 +886,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       "lib-payroll",
       "lib-receiving",
       "lib-leaver-access",
+      "lib-new-vendor",
     ],
     expectActionPattern: /^Move release payments away from Susan Albright: it closes \d+/,
     knownGap: {
@@ -973,6 +984,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       "lib-release-payments",
       "lib-card-review",
       "lib-payroll",
+      "lib-journal-review",
     ],
     expectActionPattern: /\b[Mm]ove reconcile the bank account away from Carol Jensen\b/,
   },
@@ -1094,6 +1106,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       "lib-cash-deposit",
       "lib-release-payments",
       "lib-mailed-checks",
+      "lib-journal-review",
     ],
     expectActionPattern: /away from Harold Finch(?: to [^:]+)?: it closes \d+/,
   },
@@ -1125,7 +1138,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
     expectOpenRuleIds: ["rule-release-rec", "rule-vendor-create-invoice"],
     expectClosedRuleIds: ["rule-sign-rec", "rule-payroll", "rule-collect-post", "rule-invoice-pay"],
     expectFirstStepRuleId: "rule-release-rec",
-    expectRecommendedProcedureIds: ["lib-bank-rec", "lib-vendor-bank-change"],
+    expectRecommendedProcedureIds: ["lib-bank-rec", "lib-vendor-bank-change", "lib-new-vendor"],
     expectActionPattern:
       /^A board member opens the bank statement first, before anyone else handles it/,
   },
@@ -1203,6 +1216,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       "lib-receiving",
       "lib-cash-deposit",
       "lib-leaver-access",
+      "lib-new-vendor",
     ],
     expectActionPattern:
       /^A board member opens the bank statement first, before anyone else handles it/,
@@ -1385,6 +1399,9 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       "lib-vendor-bank-change",
       "lib-payroll",
       "lib-receiving",
+      "lib-journal-review",
+      "lib-access-review",
+      "lib-new-vendor",
     ],
     expectActionPattern: /^Move release payments away from Patricia Ngo: it closes \d+/,
   },
