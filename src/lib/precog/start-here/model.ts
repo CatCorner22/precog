@@ -41,6 +41,7 @@ import {
   stepLineOnScreen,
   type DoNextItem,
   type DoNextStep,
+  type DutySplitStaff,
 } from "../actions/do-next";
 import { joinWithAnd } from "../text";
 import { formatUsd } from "../../utils";
@@ -195,6 +196,8 @@ interface StartHereFirstStepsModel {
   soleKnowledge: ReturnType<typeof findKnowledgeRisks>;
   /** Open duty conflicts, so a step can open the person who holds the pair. */
   open: DetectedConflict[];
+  /** The team the split step checks before it names who can take the duty. */
+  staff: DutySplitStaff;
 }
 
 interface StartHereFooterModel {
@@ -322,9 +325,14 @@ export function buildStartHereModel({
   };
 
   const inPlace = setupInPlaceControls(profile.setupAnswers);
+  const staff: DutySplitStaff = {
+    assignments: sod.assignments,
+    teamSize: profile.staff.teamSize,
+  };
   const doNextInput = {
     open,
     move,
+    staff,
     industry: profile.industry,
     integrationDriftSummary: profile.integrationDriftSummary,
     accessReconciliation: profile.accessReconciliation,
@@ -361,13 +369,14 @@ export function buildStartHereModel({
     firstSteps: {
       items: doNext,
       steps,
-      firstLine: steps[0] ? stepLineOnScreen(steps[0], open) : null,
+      firstLine: steps[0] ? stepLineOnScreen(steps[0], open, staff) : null,
       alreadyInPlace,
       caseById: new Map(evidence.map((c) => [c.id, c])),
       tips: BENCHMARK_BY_ID["bm-tips"],
       hotlineGap: BENCHMARK_BY_ID["bm-small-org-hotline-gap"],
       soleKnowledge: findKnowledgeRisks(template).filter((r) => r.soleOwner),
       open,
+      staff,
     },
     footer: {
       cases: evidence,

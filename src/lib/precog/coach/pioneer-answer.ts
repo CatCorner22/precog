@@ -63,8 +63,9 @@ export type PioneerCoachResult = {
     rationale: string;
     effort: string;
     horizonDays: number;
-    link?: DecisionLink;
     evidenceIds?: readonly string[];
+    procedure?: readonly string[];
+    link?: DecisionLink;
   }[];
   specialistNotes: { agent: string; title: string; bullets: string[] }[];
   details: { title: string; lines: string[] }[];
@@ -163,6 +164,8 @@ export async function answerPioneer(
         rationale: d.rationale,
         effort: d.effort,
         horizonDays: d.horizonDays,
+        ...(d.evidenceIds?.length ? { evidenceIds: d.evidenceIds } : {}),
+        ...(d.procedure?.length ? { procedure: d.procedure } : {}),
         link: d.link,
       })),
       specialistNotes: result.brief.specialistNotes,
@@ -282,7 +285,6 @@ function rankerFor(
 async function hfMayRank(access: LlmAccess, grok: GrokAccess): Promise<boolean> {
   if (!access.userId || !process.env.HF_TOKEN?.trim()) return false;
   if (grok === "unauthenticated" || grok === "rate_limited") return false;
-  const { checkDailyBudget } = await import("../llm/daily-usage");
-  const { getSql } = await import("@/lib/db");
-  return (await checkDailyBudget(getSql, access.userId)) === "allowed";
+  const { spendCallerDailyUnit } = await import("../llm/guard.server");
+  return (await spendCallerDailyUnit(access.userId)).budget === "allowed";
 }

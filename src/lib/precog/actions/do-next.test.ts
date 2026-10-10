@@ -16,6 +16,7 @@ import {
   doNextList,
   doNextSteps,
   SPLIT_STEP_WITHOUT_NAMED_ROLE,
+  splitStepLabel,
   stepLineOnScreen,
   type DoNextStep,
 } from "./do-next";
@@ -46,16 +47,17 @@ function sample(industry: (typeof INDUSTRIES)[number]["id"], drift?: Integration
     sod.conflicts,
     partialDualReleaseCoverage(profile.dualRelease, sod.conflicts),
   );
-  return { profile, template, open };
+  return { profile, template, open, sod };
 }
 
 describe("doNextList", () => {
   it.each(INDUSTRIES.map((i) => i.id))("%s sample: Home's list is doNextList", (industry) => {
-    const { profile, template, open } = sample(industry);
+    const { profile, template, open, sod } = sample(industry);
     const home = buildStartHereModel({ profile, template, today: TODAY }).firstSteps;
     const list = doNextList({
       industry,
       open,
+      staff: { assignments: sod.assignments, teamSize: profile.staff.teamSize },
       integrationDriftSummary: profile.integrationDriftSummary,
       accessReconciliation: profile.accessReconciliation,
     });
@@ -68,10 +70,11 @@ describe("doNextList", () => {
   it.each(INDUSTRIES.map((i) => i.id))(
     "%s sample: the drift items come last, after every ranked control",
     (industry) => {
-      const { profile, template, open } = sample(industry, DRIFT);
+      const { profile, template, open, sod } = sample(industry, DRIFT);
       const list = doNextList({
         industry,
         open,
+        staff: { assignments: sod.assignments, teamSize: profile.staff.teamSize },
         integrationDriftSummary: DRIFT,
         accessReconciliation: profile.accessReconciliation,
       });
@@ -146,19 +149,17 @@ describe("the split-one-duty-out step", () => {
   it.each(INDUSTRIES.map((i) => i.id))(
     "%s sample: names the person and the duty, or says which duty to move",
     (industry) => {
-      const { profile, open } = sample(industry);
+      const { profile, open, sod } = sample(industry);
       const step = firstStep(profile);
       expect(step?.control.id).toBe("split-one-duty-out");
       const label = step!.control.label;
       expect(label).not.toMatch(/concentrated role|even just/);
-      const move = concentrationMove(open);
-      if (move) {
-        expect(label).toBe(
-          `Move one duty, ${move.dutyLabel[0].toLowerCase()}${move.dutyLabel.slice(1)}, away from ${move.personName}: it closes ${move.closes} of the ${open.length} open duty conflicts`,
-        );
-      } else {
-        expect(label).toBe(SPLIT_STEP_WITHOUT_NAMED_ROLE);
-      }
+      expect(label).toBe(
+        splitStepLabel(open, concentrationMove(open), {
+          assignments: sod.assignments,
+          teamSize: profile.staff.teamSize,
+        }),
+      );
     },
   );
 

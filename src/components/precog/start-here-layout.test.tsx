@@ -74,7 +74,10 @@ describe("Start here, Do these first on one screen", () => {
       <StartHereFirstStepsSection model={built.firstSteps} part="actions" onOpenDetail={open} />
     );
     const first = steps[0];
-    const landing = stepDestination(first, stepFocus(first, built.firstSteps.open));
+    const landing = stepDestination(
+      first,
+      stepFocus(first, built.firstSteps.open, built.firstSteps.staff),
+    );
     const button = findByAriaLabel(
       tree,
       new RegExp(`^${landing!.button.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: `),
@@ -122,7 +125,11 @@ describe("Start here, Do these first on one screen", () => {
       for (const step of doNextSteps(built.firstSteps.items)) {
         const move = concentrationMove(built.firstSteps.open);
         const split = step.control.id === "split-one-duty-out";
-        const focus = split ? (move?.closed[0] ?? stepFocus(step, built.firstSteps.open)) : null;
+        const focus = split
+          ? (stepFocus(step, built.firstSteps.open, built.firstSteps.staff) ??
+            move?.closed[0] ??
+            null)
+          : null;
         const words = focus
           ? `Change ${focus.personName}'s duties`
           : "Open the conflicts it answers";
