@@ -778,6 +778,492 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     ifYouCannotSeparate:
       "A second person who does not enter payroll compares the certified payroll with the field hours.",
   },
+  // Nonprofits: churches, leagues and charities. Each follows the guidance
+  // its source names; the fallback is written for a volunteer treasurer.
+  {
+    id: "lib-offering-count",
+    title: "Count the offering or event cash with two counters",
+    purpose:
+      "Use this where cash and checks come in at a service, a game or an event. Shows every dollar given reached the bank, because two unrelated people counted it before anyone could take some. Done when both counters have signed the count sheet and the bank deposit equals it.",
+    trigger: "After every service, game or event where cash or checks come in",
+    cadence: "weekly",
+    industries: ["nonprofit"],
+    dutyIds: ["collect_cash", "prepare_deposit"],
+    covers:
+      /\b(?:offering|offertory|collection plate|plate (?:cash|count)|count team|event (?:cash|receipts|revenue)|concessions?)\b/i,
+    prerequisites: [
+      "A count sheet and a tamper-evident deposit bag",
+      "A counter roster that rotates the pairs, so the same two people do not count every week",
+    ],
+    steps: [
+      {
+        text: "Take the offering or event cash straight to the counting room with the second counter.",
+      },
+      {
+        text: "Count only with a second counter from another household who is neither the treasurer nor the financial secretary.",
+      },
+      { text: "Check the amount inside each envelope against the amount written on it." },
+      { text: "Note each envelope difference on the count sheet." },
+      { text: 'Stamp the back of each check "For deposit only".' },
+      {
+        text: "Ask the second counter to total the cash, coin and checks without seeing your figure.",
+      },
+      { text: "Compare the two totals and recount until they agree." },
+      { text: "Sign the count sheet with the second counter." },
+      {
+        text: "Seal the cash, checks and deposit slip in a tamper-evident bag and write its number on the count sheet.",
+        caution: "Never pay an expense or a reimbursement out of the offering; deposit it intact.",
+      },
+      {
+        text: "Take the bag to the bank the same or next business day with a second person, or use the night drop.",
+      },
+      {
+        text: "Give the count sheet to the person who records gifts, and a copy to the treasurer to match with the bank deposit.",
+      },
+    ],
+    source:
+      "Michigan Conference of the United Methodist Church, internal control checklist (Local Church Audit Guide, appendix B): at least two unrelated counters, neither the treasurer nor the financial secretary. Diocese of Salt Lake City and AG Financial offering-count guidance: tamper-evident bags, a count sheet both counters sign, and the offering deposited intact.",
+    evidenceToKeep: ["Signed count sheet", "Tamper-evident bag log", "Bank deposit receipt"],
+    ifYouCannotSeparate:
+      "If only one person can count: count in view of a second adult, seal the money in a tamper-evident bag before leaving the room, and each month the treasurer or a board member compares every count sheet with the bank deposit of the same date.",
+  },
+  {
+    id: "lib-giving-platform-payout",
+    title: "Reconcile online-giving payouts to the bank",
+    purpose:
+      "Shows every gift given through the online-giving platform reached the organization's bank account and the donor's record. Done when the month's payout report equals the bank deposits, each gift is in the donor database, and nobody changed the payout account without approval.",
+    trigger: "When the platform's monthly payout report is available, by the 10th of the month",
+    cadence: "monthly",
+    industries: ["nonprofit"],
+    dutyIds: ["post_payments", "bank_reconcile"],
+    covers:
+      /\b(?:online giving|giving platform|digital (?:gifts|giving)|text-to-give|recurring giving|donation apps?)\b/i,
+    prerequisites: [
+      "Read-only access to the giving platform's payout and settings reports",
+      "The bank statement for the month",
+    ],
+    steps: [
+      { text: "Download the platform's payout report for the month." },
+      { text: "Match each payout on the report to a deposit on the bank statement." },
+      {
+        text: "List every payout with no matching deposit, and every deposit from the platform with no payout on the report.",
+      },
+      {
+        text: "Compare the gross gifts on the payout report with the gifts entered in the donor database for the month.",
+      },
+      {
+        text: "Open the platform's change log and read every change to the payout bank account and to the users with admin access.",
+        caution:
+          "Stop and tell the treasurer the same day if the payout account changed without a written approval.",
+      },
+      {
+        text: "Confirm each change to the payout account has a written approval from an officer who neither administers the platform nor does this reconciliation.",
+      },
+      { text: "Sign and date the comparison and file it with the bank reconciliation." },
+    ],
+    source:
+      "GuideOne, Digital gifts: churches developing controls to avoid fraud, and LBMC, church finances best practices: a change to the payout bank account needs approval from a senior person who neither reconciles digital gifts nor administers the giving platform, with a monthly review of new users and bank-account changes. Archdiocese of Washington, policy for electronic giving and mobile payment platforms.",
+    evidenceToKeep: [
+      "Platform payout report",
+      "Payout-to-bank comparison",
+      "Payout account change approvals",
+    ],
+    ifYouCannotSeparate:
+      "If the person who administers the platform also reconciles it: turn on the platform's email alert for every settings change and send it to the treasurer, and each quarter the treasurer signs in to the platform with read-only access and reads the payout account and the admin user list.",
+  },
+  {
+    id: "lib-grant-draw",
+    title: "Request and record a grant draw",
+    purpose:
+      "Draws grant money only for costs the grant allows and only when the organization can spend it promptly. Done when the request lists supported costs, an officer other than the preparer has approved it, and the receipt is in the books against the grant.",
+    trigger:
+      "When a grant's reporting calendar calls for a draw, or when tagged costs reach the amount the funder lets you request",
+    cadence: "monthly",
+    industries: ["nonprofit"],
+    dutyIds: ["submit_claims", "post_payments"],
+    covers:
+      /\b(?:grant draws?|drawdowns?|reimbursement requests?|funder (?:relationships|reporting|draws?))\b/i,
+    prerequisites: [
+      "The grant agreement and its approved budget",
+      "The ledger report of costs tagged to the grant",
+    ],
+    steps: [
+      { text: "Run the ledger report of costs tagged to the grant since the last draw." },
+      {
+        text: "Remove any cost the grant budget does not allow, or that the funder already reimbursed.",
+      },
+      { text: "Attach the invoice, payroll record or receipt for each cost on the request." },
+      { text: "Fill in the funder's draw or reimbursement form from the report." },
+      {
+        text: "Send the request and its support to the executive director or the treasurer to approve before it goes to the funder.",
+        caution:
+          "Draw only what the organization will spend within days; federal rules (2 CFR 200.305) keep an advance to the minimum needed.",
+      },
+      { text: "Submit the approved request to the funder." },
+      {
+        text: "Record the receipt against the grant when the money arrives.",
+        caution:
+          "Never post a grant receipt to general funds; tag it to the grant so the restricted balance stays right.",
+      },
+      { text: "File the request, its support and the approval with the grant." },
+    ],
+    source:
+      "2 CFR 200.305(b) (Uniform Guidance): a federal recipient keeps written procedures that minimize the time between receiving an advance and paying it out, and otherwise draws by reimbursement. Robin Hood Foundation, Managing Restricted Funds toolkit: tag every cost to its grant and keep each draw supported.",
+    evidenceToKeep: ["Draw request and its support", "Draw approval", "Grant ledger report"],
+    ifYouCannotSeparate:
+      "If one person prepares, approves and records draws: the treasurer reads every draw request before it goes out, and each quarter a board member compares the draws received with the costs tagged to each grant.",
+  },
+  {
+    id: "lib-treasurer-report",
+    title: "Prepare the treasurer's report for the board",
+    purpose:
+      "Gives the board what it needs to see money going astray: budget against actual, bank balances agreed to the reconciliation, restricted balances and any control exception. Done when the board has read the report and the minutes record it.",
+    trigger: "Before each board meeting, and before the board reviews the Form 990 each year",
+    cadence: "quarterly",
+    industries: ["nonprofit"],
+    dutyIds: ["bank_reconcile", "post_journal_entries"],
+    covers:
+      /\b(?:treasurer'?s? report|board (?:report|packet|oversight)|form 990|audit preparation)\b/i,
+    prerequisites: [
+      "The month's signed bank reconciliation",
+      "The budget and the ledger for the period",
+      "The restricted-fund balance report",
+    ],
+    steps: [
+      { text: "Print the budget against actual for the period." },
+      {
+        text: "Write one line of explanation for each budget line that differs by more than the amount the board set.",
+      },
+      {
+        text: "Copy each bank balance from the signed reconciliation, not from the books alone.",
+        caution:
+          "Never report a balance nobody has reconciled; a falsified monthly summary hid a four-year theft from one church's board.",
+      },
+      {
+        text: "Add the restricted-fund balances with each fund's opening balance, additions, releases and closing balance.",
+      },
+      {
+        text: "List every control exception from the period, for example a missing approval, a late reconciliation or a payout account change.",
+      },
+      { text: "Attach the bank statement's first page so a board member can compare the balance." },
+      { text: "Send the report to the board before the meeting." },
+      {
+        text: "Ask the secretary to record in the minutes that the board received the report and any question it raised.",
+      },
+      {
+        text: "Tell the board in writing of any weakness in control the outside accountant reported.",
+      },
+      {
+        text: "Give the board the draft Form 990 to read before anyone files it, where the organization files one.",
+      },
+    ],
+    source:
+      "ECFA Seven Standards of Responsible Stewardship, Standards 2 and 3: an independent board that meets at least twice a year, reviews the annual financial statements and hears of any material weakness in internal control. IRS Form 990, Part VI, lines 8 and 11: contemporaneous minutes of board meetings, and the process by which the board reviewed the Form 990 before filing. Oregon Department of Justice, Financial Control Recommendations for Small Nonprofits: independent board oversight.",
+    evidenceToKeep: ["Treasurer's report", "Board minutes", "Budget-against-actual report"],
+    ifYouCannotSeparate:
+      "If the person who keeps the books also writes the report: a board member who signs no checks opens the bank statement each month, compares its closing balance with the report, and initials the report before the meeting.",
+  },
+  {
+    id: "lib-two-signer-checks",
+    title: "Sign checks with two signers above the board's threshold",
+    purpose:
+      "Puts a second pair of eyes on every large payment before it leaves, because banks rarely enforce a two-signature rule on their own. Done when each check above the threshold carries two signatures with the bill attached, and nobody signed a blank check.",
+    trigger: "Whenever a check above the amount the board set is ready to sign",
+    cadence: "weekly",
+    industries: ["nonprofit"],
+    dutyIds: ["sign_checks", "release_payment"],
+    covers:
+      /\b(?:check signing|signing checks|two[- ]signature|dual[- ]signature|disbursements?|check requests?)\b/i,
+    prerequisites: [
+      "The board resolution that sets the two-signature threshold and names the signers",
+      "The approved bill or reimbursement form for each check",
+    ],
+    steps: [
+      {
+        text: "Check that the bill or reimbursement form carries a written approval from someone other than the payee.",
+      },
+      { text: "Compare the payee, the amount and the invoice number on the check with the bill." },
+      {
+        text: "Sign the check only with the bill in front of you.",
+        caution:
+          "Never sign a blank check or a check to cash, and never sign one for a bill you have not seen.",
+      },
+      {
+        text: "Pass the check and the bill to the second signer when the amount is above the board's threshold.",
+      },
+      { text: "Ask the second signer to repeat the comparison before signing." },
+      { text: "Mark the bill paid with the check number and the date." },
+      {
+        text: "Hand the signed check to someone other than the person who prepared it to mail.",
+        caution:
+          "The check-swap scheme starts here: a signed check destroyed and replaced with one to the preparer. The mailer, not the preparer, holds the signed check.",
+      },
+      {
+        text: "Ask a board member who signs no checks to read each month's cleared-check images against the approved bills.",
+      },
+    ],
+    source:
+      "Oregon Department of Justice, Financial Control Recommendations for Small Nonprofits: the person who receives and reconciles the bank statement issues and signs no checks, and someone independent of signing and bookkeeping reviews the cleared checks. Wild Apricot, Internal controls for nonprofits: the preparer never signs, and a second signature above a board-set amount. Virginia Bankers Association Legal Line, December 2016: banks generally do not enforce a two-signature requirement, so the organization's own review of cleared checks is the control.",
+    evidenceToKeep: [
+      "Signed check copies with their bills",
+      "Board resolution naming signers and the threshold",
+      "Monthly cleared-check review initials",
+    ],
+    ifYouCannotSeparate:
+      "If only one person can sign: ask the bank for Positive Pay with payee match and for an alert on every check over the threshold, sent to a board member, and that board member reads the cleared-check images each month against the approved bills.",
+  },
+  // Professional services: law firms with trust accounts, medical and therapy
+  // practices, small accounting and insurance offices.
+  {
+    id: "lib-trust-receipt",
+    title: "Deposit client money into the trust account",
+    purpose:
+      "Use this only when the firm holds client money, for example a retainer, a settlement or funds for a client's costs. Keeps each client's money apart from the firm's from the day it arrives. Done when the money is in the trust account, not operating, and the journal and the client's ledger show it.",
+    trigger:
+      "Whenever a client or a third party pays money the firm has not yet earned, or money that belongs to someone else",
+    cadence: "ad-hoc",
+    industries: ["professional_services"],
+    dutyIds: ["collect_cash", "post_payments", "prepare_deposit"],
+    covers: /\b(?:retainers?|advance fees?|client funds?|escrow|iolta|settlement funds?)\b/i,
+    prerequisites: [
+      "The trust account's deposit slips",
+      "The trust journal and the client's ledger",
+    ],
+    steps: [
+      { text: "Ask the responsible lawyer or partner whether the firm has earned the money yet." },
+      {
+        text: "Deposit money the firm has not yet earned, and money held for others, into the trust account the same or next business day.",
+        caution:
+          "Never put client money in the operating account or hold it as cash; taking a fee before the firm earns it breaks the trust rule.",
+      },
+      { text: "Deposit the whole amount intact, with no expense or fee taken out first." },
+      {
+        text: "Record the receipt in the trust journal the same day, with the date, the source, the client and matter, the amount and its purpose.",
+      },
+      { text: "Record the same receipt on the client's own ledger." },
+      { text: "Attach the deposit slip or the wire confirmation to the matter file." },
+      {
+        text: "Confirm the deposit appears on the trust account's bank statement when it arrives.",
+      },
+    ],
+    source:
+      "ABA Model Rule 1.15 (safekeeping property): a lawyer holds client and third-party funds in a separate trust account and keeps complete records, in the Model Rule for five years after the representation ends. California Rule 1.15 standards: a written journal per account and a written ledger per client. Florida Rule 5-1.2 and New York Rule 1.15 set their own records and retention. State rules differ; follow your own state's.",
+    evidenceToKeep: [
+      "Trust deposit slip or wire confirmation",
+      "Trust journal entry",
+      "Client ledger entry",
+    ],
+    ifYouCannotSeparate:
+      "If one person receives, deposits and records client money: each month a lawyer or partner who does none of those reads the trust account's bank statement and compares every deposit with the trust journal and the client ledgers.",
+  },
+  {
+    id: "lib-trust-disburse",
+    title: "Disburse from the client trust account",
+    purpose:
+      "Pays out of trust only what a client's ledger holds, only to a named payee, and only with a lawyer's or partner's written approval. Done when the approved request, the check or transfer record and the client's ledger entry all match and no client ledger went negative.",
+    trigger:
+      "Whenever a client, a lawyer or a vendor asks for a payment from trust, including a transfer of earned fees to operating",
+    cadence: "ad-hoc",
+    industries: ["professional_services"],
+    dutyIds: ["sign_checks", "release_payment", "initiate_ach"],
+    covers:
+      /\b(?:disburs\w*|fee transfers?|retainer account|trust (?:withdrawals?|payments?|checks?))\b/i,
+    prerequisites: [
+      "The client's current trust ledger balance",
+      "A disbursement request form",
+      "The firm's list of who may sign on the trust account",
+    ],
+    steps: [
+      {
+        text: "Fill in the request with the client and matter, the payee, the amount, the purpose and the client's current ledger balance.",
+      },
+      {
+        text: "Compare the amount with the client's ledger balance.",
+        caution:
+          "Never pay out more than that client's ledger holds; a shortfall covered with another client's money is misappropriation, even by mistake.",
+      },
+      {
+        text: "Attach the invoice the firm issued to the client to any request that moves earned fees to operating.",
+        caution:
+          "Only the responsible lawyer says when the firm has earned a fee; a staff member deciding that alone has cost lawyers their licenses.",
+      },
+      { text: "Wait out any client notice period your state rule sets before moving a fee." },
+      {
+        text: "Send the request and its support to the responsible lawyer or partner to approve in writing.",
+      },
+      {
+        text: "Write the check or enter the transfer to the named payee only after the approval.",
+        caution:
+          "Never pay cash or write a trust check to cash; New York allows a transfer only with the entitled person's prior written approval.",
+      },
+      {
+        text: "Ask an authorized signer to sign the check or release the transfer.",
+        caution:
+          "In New York only a lawyer admitted there may sign on the trust account; elsewhere the lawyer stays responsible for whoever signs.",
+      },
+      {
+        text: "Record the disbursement in the trust journal and on the client's ledger the same day.",
+      },
+      {
+        text: "File the approved request with the check copy or transfer confirmation in the matter.",
+      },
+    ],
+    source:
+      "ABA Model Rule 1.15 (safekeeping property). New York Rule 1.15(e): withdrawals from a trust account only to a named payee, never in cash, by check or by a transfer the entitled person approved in writing beforehand, and only a lawyer admitted in New York may sign. Florida Rule 5-1.2 and California Rule 1.15 set their own records and reconciliation rules. State rules differ; follow your own state's.",
+    evidenceToKeep: [
+      "Approved disbursement request",
+      "Check copy or transfer confirmation",
+      "Invoice behind each fee transfer",
+      "Client ledger entry",
+    ],
+    ifYouCannotSeparate:
+      "If one lawyer does everything in a solo office: keep a written request for every disbursement anyway, sign no check without the client's ledger open, and each month compare every cleared check and transfer on the trust statement with the requests before signing the three-way reconciliation.",
+  },
+  {
+    id: "lib-matter-close-ledger",
+    title: "Review a client's trust ledger before closing the matter",
+    purpose:
+      "Returns the client's remaining money, and leaves no money sitting in trust with no one responsible for it. Done when the client's ledger stands at zero or the remaining balance has a written reason, every entry on it has its support, and the closing date is on file.",
+    trigger:
+      "When a matter closes, and once a year for every client with a balance that has not moved in twelve months",
+    cadence: "ad-hoc",
+    industries: ["professional_services"],
+    dutyIds: ["issue_refunds", "post_payments"],
+    covers:
+      /\b(?:matter clos\w+|closing (?:a |the )?matter|client ledgers?|unclaimed (?:funds|balances?)|dormant (?:funds|balances?))\b/i,
+    prerequisites: [
+      "The client's trust ledger for the whole matter",
+      "The matter file with every disbursement request and invoice",
+    ],
+    steps: [
+      { text: "Print the client's trust ledger from the first receipt to today." },
+      { text: "Match each disbursement on the ledger to its approved request in the matter file." },
+      { text: "Match each fee transfer on the ledger to the invoice behind it." },
+      {
+        text: "List every entry with no support, and ask the responsible lawyer about each one the same day.",
+      },
+      { text: "Compare the closing balance with what the client is due back." },
+      {
+        text: "Return the balance to the client by check to the client's name, with a statement of every receipt and payment on the matter.",
+        caution:
+          "Never move a leftover balance to operating or to another client's ledger; money nobody claims goes where your state's unclaimed-funds rule sends it.",
+      },
+      { text: "Record the closing date on the ledger so the retention period starts." },
+      {
+        text: "File the ledger and the statement in the matter for your state's retention period.",
+      },
+      { text: "Ask the responsible lawyer to sign the closed ledger." },
+    ],
+    source:
+      "ABA Model Rule 1.15: complete records of client funds, kept in the Model Rule for five years after the representation ends; states set their own period and start date, for example Florida six years and New York seven. Florida Rule 5-1.2 also calls for an annual list of each client's unexpended trust balance, and Texas Ethics Opinion 602 addresses unclaimed trust funds. State rules differ; follow your own state's.",
+    evidenceToKeep: [
+      "Closed client ledger, signed",
+      "Final statement to the client",
+      "Refund check copy",
+    ],
+    ifYouCannotSeparate:
+      "If the person who keeps the ledgers also issues the refunds: the responsible lawyer reads every closed ledger before signing the refund check, and once a year reads the list of every client balance that has not moved in twelve months.",
+  },
+  {
+    id: "lib-remittance-posting",
+    title: "Post insurance remittances and tie them to the deposit",
+    purpose:
+      "Use this only where the practice bills insurers. Shows every insurer payment reached the bank and every adjustment on the remittance has a reason. Done when each remittance's trace number matches a bank deposit and someone who did not post it has signed the match.",
+    trigger:
+      "When an electronic remittance file or a paper remittance arrives, and each week to match them to deposits",
+    cadence: "weekly",
+    industries: ["professional_services"],
+    dutyIds: ["post_payments", "post_adjustments"],
+    covers:
+      /\b(?:insurance (?:remittances?|payments?|posting)|remittances?|payment posting|explanation of benefits)\b/i,
+    prerequisites: [
+      "Access to the remittance files from the clearinghouse or the insurer's portal",
+      "The practice-management system's posting screen",
+      "Read-only access to the bank's deposit detail",
+    ],
+    steps: [
+      {
+        text: "Log each paper remittance check in the check log before anyone posts it, with a second person present.",
+      },
+      {
+        text: "Post each payment from the electronic remittance file, line by line, to the patient account it names.",
+      },
+      {
+        text: "Post each contractual adjustment and each insurer-level adjustment with the reason code the remittance gives.",
+        caution:
+          "Never write off a balance the remittance did not adjust; an unexplained write-off is where a diverted payment hides.",
+      },
+      { text: "Write the remittance's trace number on the posting batch report." },
+      {
+        text: "Ask someone who did not post the batch to match each trace number to a deposit on the bank's deposit detail.",
+        caution:
+          "Match on the trace number, not the amount: one deposit covers many claims, and insurer-level adjustments make the totals differ.",
+      },
+      {
+        text: "List every deposit with no posted remittance and every posted remittance with no deposit.",
+      },
+      { text: "Find the cause of each unmatched item within the week." },
+      { text: "Sign and date the match report with the second person." },
+      {
+        text: "Give the month's adjustment and write-off report by user to the practitioner or partner in charge to read and sign.",
+      },
+    ],
+    source:
+      "MGMA, Internal controls to catch embezzlement in physician practices: no one person creates, approves, processes and conceals a transaction; rotate mail opening and payment posting, and have someone else match remittances to deposits. Matching each remittance to its deposit by the trace number on the electronic remittance advice (the 835 file) is common practice-management guidance, not a rule.",
+    evidenceToKeep: [
+      "Remittance check log",
+      "Posting batch reports with trace numbers",
+      "Remittance-to-deposit match report",
+      "Signed monthly adjustment report by user",
+    ],
+    ifYouCannotSeparate:
+      "If one person opens the remittances, posts them and deposits: have insurers pay by electronic transfer straight to the bank, and each month the practitioner or partner in charge compares the month's posted insurer payments with the bank's insurer deposits and reads the write-off report by user.",
+  },
+  {
+    id: "lib-client-refund",
+    title: "Refund a client or patient overpayment",
+    purpose:
+      "Returns money only where a real credit balance exists, and only to whoever paid it, so a refund cannot carry a diverted payment out of the firm. Done when a second person has approved the refund against the ledger and the money went back to the card or account that paid.",
+    trigger:
+      "Whenever a client or patient account shows a credit balance, or someone asks for money back",
+    cadence: "ad-hoc",
+    industries: ["professional_services"],
+    dutyIds: ["issue_refunds", "post_adjustments"],
+    covers: /\b(?:refunds?|credit balances?|overpayments?|return premiums?)\b/i,
+    prerequisites: [
+      "The account's ledger showing the credit balance and the payment that created it",
+      "A refund request form",
+    ],
+    steps: [
+      { text: "Open the account's ledger and find the payment that created the credit balance." },
+      {
+        text: "Check that the credit comes from a real overpayment, not from an adjustment or a write-off someone entered.",
+        caution:
+          "Stop if no payment stands behind the credit; a false credit posted and then refunded is the classic way to take money from a ledger.",
+      },
+      {
+        text: "Fill in the refund request with the account, the payer, the amount, the original payment and the reason.",
+      },
+      {
+        text: "Send the request to a second person who issues no refunds and enters no adjustments to approve.",
+      },
+      {
+        text: "Refund only to the card or bank account that made the original payment, or by check to the payer's name.",
+        caution: "Never refund to a different card, a different account or cash, whoever asks.",
+      },
+      { text: "Post the refund on the account's ledger the same day." },
+      { text: "File the approved request with the refund confirmation." },
+    ],
+    source:
+      "MGMA, Internal controls to catch embezzlement in physician practices: no one person creates, approves, processes and conceals a transaction. Common small-business control practice: a second person approves each refund against the ledger, and a refund goes only to the card or account that paid.",
+    evidenceToKeep: [
+      "Approved refund request",
+      "Refund confirmation",
+      "Account ledger showing the credit and the refund",
+    ],
+    ifYouCannotSeparate:
+      "If one person posts payments and issues refunds: send every refund only to the card or account that paid, and each month the practitioner or partner in charge reads the refund list by user against the ledgers and initials it.",
+  },
 ];
 
 /** A recommended procedure as it fits this business: why it is shown, and what it would cover. */
