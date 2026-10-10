@@ -376,6 +376,21 @@ describe("executive summary", () => {
     expect(lines.join(" ")).not.toContain("important item");
   });
 
+  it("names critical and important items that are not marked yet", () => {
+    const lines = executiveSummary({
+      ...noOpenFindings,
+      registerReady: true,
+      coverageIndex: 80,
+      criticalSinglePoints: 1,
+      importantSinglePoints: 0,
+      notMarkedItems: 6,
+    });
+
+    expect(lines.join(" ")).toContain(
+      "1 critical item relies on one person or nobody; 6 items not marked yet.",
+    );
+  });
+
   it("writes its own caveats instead of the threat screen's demo-priors line", () => {
     expect(REPORT_CAVEATS).not.toMatch(/demo priors/);
   });

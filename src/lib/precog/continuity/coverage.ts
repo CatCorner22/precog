@@ -423,16 +423,14 @@ interface CriticalSinglePoints {
 }
 
 /**
- * The business's critical single points: items the business stops without
- * that nobody, or only one person, can run alone. A learner does not count as
- * cover (they cannot run it alone yet), and an item nobody can run is at
- * least as exposed as one that rests on one person, so marking the first
- * person on it never raises the count. Who knows what and the sole-owner
- * figure in the business profile both read this one count.
+ * Recorded critical items the business stops without. A learner does not
+ * count as cover (they cannot run it alone yet), and an item nobody can run
+ * is at least as exposed as one that rests on one person.
  */
 export function criticalSinglePoints(tpl: IndustryTemplate): CriticalSinglePoints {
   const critical = coverageReport(tpl).items.filter(
-    (i) => i.item.criticality === "critical" && i.primaries.length <= 1,
+    (i) =>
+      i.item.criticality === "critical" && itemRecorded(tpl, i.item.id) && i.primaries.length <= 1,
   );
   const nobody = critical.filter((i) => i.primaries.length === 0).length;
   return { count: critical.length, nobody, onePerson: critical.length - nobody };

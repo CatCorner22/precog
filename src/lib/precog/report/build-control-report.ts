@@ -37,7 +37,7 @@ import { rankedFirstSteps } from "../actions/do-next";
 import { buildWeeklyActions } from "../weekly-actions/build";
 import { buildProcessMapGraph } from "../process-graph";
 import { scoreMap } from "../builder/scored-map";
-import { registerAssessed } from "../continuity/register-state";
+import { itemRecorded, registerAssessed } from "../continuity/register-state";
 import { setupInPlaceControls } from "../onboarding/setup-answers";
 import { confirmedControlIds, controlConfirmedByOwner } from "../active-template";
 import { mapSource, untouchedStarterProcessIds } from "../builder/map-state";
@@ -210,7 +210,15 @@ export function buildControlReportModel({
     coverageIndex: continuity.coverageIndex,
     criticalSinglePoints: criticalSinglePoints(tpl).count,
     importantSinglePoints: continuity.items.filter(
-      (item) => item.item.criticality === "important" && item.primaries.length <= 1,
+      (item) =>
+        item.item.criticality === "important" &&
+        itemRecorded(tpl, item.item.id) &&
+        item.primaries.length <= 1,
+    ).length,
+    notMarkedItems: continuity.items.filter(
+      (item) =>
+        (item.item.criticality === "critical" || item.item.criticality === "important") &&
+        !itemRecorded(tpl, item.item.id),
     ).length,
     mapHealth: mapReady ? mapHealth : null,
     topPriority: threat.targetDeck[0]?.label ?? null,

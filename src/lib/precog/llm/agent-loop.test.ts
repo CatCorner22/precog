@@ -12,16 +12,21 @@ const dental = getIndustryTemplate("dental");
 describe("local brief register freshness advice", () => {
   const [held, orphan] = dental.knowledge;
   const holder = dental.people.find((p) => p.active)!;
+  const former = { ...holder, id: `${holder.id}-former`, name: "Former holder", active: false };
 
   it("advises both the person check-in and the unheld entries when a register has both", () => {
     const { brief } = runLocalAgentLoop("continuity", {
       profile: pioneerProfileFrom({
         industry: "dental",
+        customPeople: [...dental.people, former],
         customKnowledge: [
           { ...held, confirmedAt: undefined },
           { ...orphan, confirmedAt: undefined },
         ],
-        customRelations: [{ personId: holder.id, knowledgeId: held.id, level: "expert" }],
+        customRelations: [
+          { personId: holder.id, knowledgeId: held.id, level: "expert" },
+          { personId: former.id, knowledgeId: orphan.id, level: "expert" },
+        ],
       }),
       today: "2026-01-01",
     });

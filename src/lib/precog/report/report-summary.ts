@@ -48,6 +48,7 @@ interface SummaryInput {
   coverageIndex: number;
   criticalSinglePoints: number;
   importantSinglePoints: number;
+  notMarkedItems?: number;
   mapHealth: { score: number; bandLabel: string } | null;
   topPriority: string | null;
 }
@@ -105,8 +106,12 @@ export function executiveSummary(input: SummaryInput): string[] {
             input.importantSinglePoints === 1 ? "does" : "do"
           } too`
         : "";
+    const notMarked =
+      input.notMarkedItems && input.notMarkedItems > 0
+        ? `; ${count(input.notMarkedItems, "item")} not marked yet`
+        : "";
     lines.push(
-      `${input.coverageIndex}% of the work on the register (weighted by how critical it is) has two or more people who can run it alone; ${count(input.criticalSinglePoints, "critical item")} ${input.criticalSinglePoints === 1 ? "relies" : "rely"} on one person or nobody${important}.`,
+      `${input.coverageIndex}% of the work on the register (weighted by how critical it is) has two or more people who can run it alone; ${count(input.criticalSinglePoints, "critical item")} ${input.criticalSinglePoints === 1 ? "relies" : "rely"} on one person or nobody${important}${notMarked}.`,
     );
   }
   if (input.mapHealth && Number.isFinite(input.mapHealth.score)) {

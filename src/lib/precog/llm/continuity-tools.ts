@@ -1,7 +1,11 @@
 /**
  * Continuity register tools: single points of failure, planned absences, and check-ins.
  */
-import { registerAssessed, trackRegisterFreshness } from "../continuity/register-state";
+import {
+  itemRecorded,
+  registerAssessed,
+  trackRegisterFreshness,
+} from "../continuity/register-state";
 import { CONFIRMATION_MAX_AGE_DAYS, checkInPlan, staleItems } from "../continuity/staleness";
 import { coverageReport } from "../continuity/coverage";
 import { documentationDebt, isWritten, procedureWhere } from "../continuity/documentation";
@@ -25,6 +29,7 @@ import {
   handoffCommitment,
 } from "../decisions/follow-through";
 import { findKnowledgeRisks } from "../engine";
+import { count } from "../text";
 import type { IndustryTemplate } from "../templates";
 import type { PracticeProfile } from "../practice-profile";
 import type { ToolOutput } from "./types";
@@ -37,15 +42,22 @@ export interface ContinuityToolInput {
 }
 
 export function knowledgeSpofs({ profile, tpl, today }: ContinuityToolInput): ToolOutput {
+  const notMarked = tpl.knowledge.filter(
+    (item) =>
+      (item.criticality === "critical" || item.criticality === "important") &&
+      !itemRecorded(tpl, item.id),
+  ).length;
+  const notMarkedSummary = notMarked > 0 ? `; ${count(notMarked, "item")} not marked yet` : "";
   if (!registerAssessed(tpl)) {
     return {
       ok: true,
       summary:
         tpl.knowledge.length === 0
           ? "Continuity is not assessed: the register is empty, so the owner has not listed the duties and know-how the business runs on. Do not quote coverage figures."
-          : `Continuity is not assessed: the register holds ${tpl.knowledge.length} sample item(s) from the industry sample with nobody marked on any of them. Do not quote coverage figures; advise the owner to mark who can do each item on Who knows what.`,
+          : `Continuity is not assessed: the register holds ${tpl.knowledge.length} sample item(s) from the industry sample with nobody marked on any of them${notMarkedSummary}. Do not quote coverage figures; advise the owner to mark who can do each item on Who knows what.`,
       data: {
         assessed: false,
+        notMarked,
         items: tpl.knowledge.map((k) => ({
           knowledgeId: k.id,
           name: k.name,
@@ -79,50 +91,54 @@ export function knowledgeSpofs({ profile, tpl, today }: ContinuityToolInput): To
       : "";
   return {
     ok: true,
-    summary: `${risks.length} item${risks.length === 1 ? "" : "s"} only one person can run or nobody owns; ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of must-do work alone` : ""}; ${docs.counts.none} item(s) with nothing written down${freshnessSummary}${commitmentSummary}`,
-    data: risks.map((r) => {
-      const move = moveByItem.get(r.knowledgeId);
-      const commitment = committed.get(continuityStepKey(r.knowledgeId, "cover"));
-      const docCommitment =
-        committed.get(continuityStepKey(r.knowledgeId, "document")) ??
-        committed.get(continuityStepKey(r.knowledgeId, "locate"));
-      return {
-        knowledgeId: r.knowledgeId,
-        name: r.name,
-        soleOwner: r.soleOwner,
-        ownerCount: r.ownerCount,
-        owners: r.owners.map((o) => ({ id: o.id, name: o.name, role: o.role })),
-        riskScore: r.riskScore,
-        coverage: move?.status ?? "covered",
-        suggestedTrainee: move?.trainee
-          ? { id: move.trainee.id, name: move.trainee.name, role: move.trainee.role }
-          : null,
-        documented: move ? isWritten(move.item) : false,
-        procedureLocation: move ? procedureWhere(move.item) : null,
-        confirmedAt: move?.item.confirmedAt ?? null,
-        stale: staleIds.has(r.knowledgeId),
-        nextStep: move?.action ?? null,
-        committed: commitment
-          ? {
-              subject: commitment.decision.subject,
-              trainee: commitment.person
-                ? { id: commitment.person.id, name: commitment.person.name }
-                : null,
-              loggedOn: commitment.decision.createdAt.slice(0, 10),
-              reviewBy: commitment.reviewBy,
-              overdue: commitment.overdue,
-            }
-          : null,
-        documentationCommitted: docCommitment
-          ? {
-              step: docCommitment.step,
-              subject: docCommitment.decision.subject,
-              reviewBy: docCommitment.reviewBy,
-              overdue: docCommitment.overdue,
-            }
-          : null,
-      };
-    }),
+    summary: `${risks.length} item${risks.length === 1 ? "" : "s"} only one person can run or nobody owns${notMarkedSummary}; ${continuity.coverageIndex}% of work backed up${leanedOn ? `; ${leanedOn.person.name} carries ${leanedOn.dependence}% of must-do work alone` : ""}; ${docs.counts.none} item(s) with nothing written down${freshnessSummary}${commitmentSummary}`,
+    data: {
+      assessed: true,
+      notMarked,
+      items: risks.map((r) => {
+        const move = moveByItem.get(r.knowledgeId);
+        const commitment = committed.get(continuityStepKey(r.knowledgeId, "cover"));
+        const docCommitment =
+          committed.get(continuityStepKey(r.knowledgeId, "document")) ??
+          committed.get(continuityStepKey(r.knowledgeId, "locate"));
+        return {
+          knowledgeId: r.knowledgeId,
+          name: r.name,
+          soleOwner: r.soleOwner,
+          ownerCount: r.ownerCount,
+          owners: r.owners.map((o) => ({ id: o.id, name: o.name, role: o.role })),
+          riskScore: r.riskScore,
+          coverage: move?.status ?? "covered",
+          suggestedTrainee: move?.trainee
+            ? { id: move.trainee.id, name: move.trainee.name, role: move.trainee.role }
+            : null,
+          documented: move ? isWritten(move.item) : false,
+          procedureLocation: move ? procedureWhere(move.item) : null,
+          confirmedAt: move?.item.confirmedAt ?? null,
+          stale: staleIds.has(r.knowledgeId),
+          nextStep: move?.action ?? null,
+          committed: commitment
+            ? {
+                subject: commitment.decision.subject,
+                trainee: commitment.person
+                  ? { id: commitment.person.id, name: commitment.person.name }
+                  : null,
+                loggedOn: commitment.decision.createdAt.slice(0, 10),
+                reviewBy: commitment.reviewBy,
+                overdue: commitment.overdue,
+              }
+            : null,
+          documentationCommitted: docCommitment
+            ? {
+                step: docCommitment.step,
+                subject: docCommitment.decision.subject,
+                reviewBy: docCommitment.reviewBy,
+                overdue: docCommitment.overdue,
+              }
+            : null,
+        };
+      }),
+    },
   };
 }
 

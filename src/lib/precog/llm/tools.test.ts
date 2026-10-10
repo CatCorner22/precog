@@ -16,14 +16,23 @@ import { formatUsd } from "@/lib/utils";
 
 const dental = getIndustryTemplate("dental");
 
+function toolItems<T>(data: unknown): T[] {
+  if (Array.isArray(data)) return data as T[];
+  if (data && typeof data === "object" && Array.isArray((data as { items?: unknown }).items)) {
+    return (data as { items: T[] }).items;
+  }
+  return [];
+}
+
 describe("get_knowledge_spofs freshness", () => {
   it("does not flag freshness before a custom register exists", () => {
     const result = executeTool("get_knowledge_spofs", {
       profile: pioneerProfileFrom({ industry: "dental" }),
     });
-    const rows = result.data as { stale: boolean }[];
+    const data = result.data as { assessed: true; items: { stale?: boolean }[] };
 
-    expect(rows.every((row) => row.stale === false)).toBe(true);
+    expect(data.assessed).toBe(true);
+    expect(data.items.every((row) => row.stale === false)).toBe(true);
     expect(result.summary).not.toContain("not confirmed");
   });
 
@@ -35,10 +44,37 @@ describe("get_knowledge_spofs freshness", () => {
         customRelations: dental.relations,
       }),
     });
-    const rows = result.data as { stale: boolean }[];
+    const rows = toolItems<{ stale: boolean }>(result.data);
 
     expect(rows.some((row) => row.stale)).toBe(true);
     expect(result.summary).toContain("not confirmed in 90 days");
+  });
+
+  it("keeps unmarked starter items out of risks and reports their count", () => {
+    const riskItems = dental.knowledge.filter(
+      (item) => item.criticality === "critical" || item.criticality === "important",
+    );
+    const item = riskItems[0];
+    const holder = dental.people.find((person) => person.active)!;
+    const result = executeTool("get_knowledge_spofs", {
+      profile: pioneerProfileFrom({
+        industry: "dental",
+        customPeople: dental.people,
+        customKnowledge: dental.knowledge,
+        customRelations: [{ personId: holder.id, knowledgeId: item.id, level: "expert" }],
+      }),
+      today: "2026-01-01",
+    });
+    const data = result.data as {
+      assessed: true;
+      notMarked: number;
+      items: { knowledgeId: string; ownerCount: number }[];
+    };
+
+    expect(data.items.map((row) => row.knowledgeId)).toEqual([item.id]);
+    expect(data.items[0].ownerCount).toBe(1);
+    expect(data.notMarked).toBe(riskItems.length - 1);
+    expect(result.summary).toContain(`${data.notMarked} items not marked yet`);
   });
 
   it("judges freshness against the owner's calendar day, not the server clock", () => {
@@ -52,8 +88,8 @@ describe("get_knowledge_spofs freshness", () => {
     const serverDay = executeTool("get_knowledge_spofs", { profile });
     const ownerDay = executeTool("get_knowledge_spofs", { profile, today: ownerToday });
 
-    expect((serverDay.data as { stale: boolean }[]).some((row) => row.stale)).toBe(true);
-    expect((ownerDay.data as { stale: boolean }[]).every((row) => !row.stale)).toBe(true);
+    expect(toolItems<{ stale: boolean }>(serverDay.data).some((row) => row.stale)).toBe(true);
+    expect(toolItems<{ stale: boolean }>(ownerDay.data).every((row) => !row.stale)).toBe(true);
     expect(ownerDay.summary).not.toContain("not confirmed");
   });
 });
@@ -72,11 +108,18 @@ describe("get_register_checkins", () => {
     const result = executeTool("get_register_checkins", {
       profile: pioneerProfileFrom({
         industry: "dental",
+        customPeople: [
+          ...dental.people,
+          { id: "former", name: "Former", role: "Former", active: false },
+        ],
         customKnowledge: [
           { ...held, confirmedAt: undefined },
           { ...orphan, confirmedAt: undefined },
         ],
-        customRelations: [{ personId: holder.id, knowledgeId: held.id, level: "expert" }],
+        customRelations: [
+          { personId: holder.id, knowledgeId: held.id, level: "expert" },
+          { personId: "former", knowledgeId: orphan.id, level: "expert" },
+        ],
       }),
       today: "2026-01-01",
     });
@@ -135,7 +178,7 @@ describe("get_knowledge_spofs journal commitments", () => {
       profile: profileWith([commitment]),
       today: "2025-04-01",
     });
-    const row = (result.data as Row[]).find((r) => r.knowledgeId === item.id);
+    const row = toolItems<Row>(result.data).find((r) => r.knowledgeId === item.id);
     expect(row?.committed).toEqual({
       subject: commitment.subject,
       trainee: { id: trainee.id, name: trainee.name },
@@ -153,7 +196,7 @@ describe("get_knowledge_spofs journal commitments", () => {
       profile: profileWith([commitment]),
       today: "2025-05-02",
     });
-    const row = (result.data as Row[]).find((r) => r.knowledgeId === item.id);
+    const row = toolItems<Row>(result.data).find((r) => r.knowledgeId === item.id);
     expect(row?.committed?.overdue).toBe(true);
     expect(result.summary).toContain("(1 past review date)");
   });
@@ -166,7 +209,7 @@ describe("get_knowledge_spofs journal commitments", () => {
       ]),
       today: "2025-04-01",
     });
-    const row = (result.data as Row[]).find((r) => r.knowledgeId === item.id);
+    const row = toolItems<Row>(result.data).find((r) => r.knowledgeId === item.id);
     expect(row?.committed).toBeNull();
     expect(row?.documentationCommitted).toMatchObject({ step: "document" });
     expect(result.summary).not.toContain("per the Decisions log");

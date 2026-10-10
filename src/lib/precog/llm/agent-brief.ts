@@ -1,5 +1,6 @@
 import type { EvidenceRef, PioneerDecision, StructuredBrief, ToolResult } from "./types";
 import { readSpofData } from "./spof-data";
+import { CONFIRMATION_MAX_AGE_DAYS } from "../continuity/staleness";
 import { describeScenarioFigures, type ScenarioRunData } from "./scenario-tools";
 import { formatEstimateUsd, formatEstimateUsdDelta, formatUsd, formatUsdDelta } from "@/lib/utils";
 import { joinWithAnd, verb, count } from "../text";
@@ -121,6 +122,15 @@ export function extractEvidence(tools: ToolResult[]): EvidenceRef[] {
             spof.itemCount === 0
               ? "not assessed yet · the register is empty"
               : `not assessed yet · nobody marked on ${spof.itemCount} sample item(s)`,
+          link: { tab: "knowledge" },
+        });
+      }
+      if (spof?.assessed && spof.notMarked > 0) {
+        evidence.push({
+          id: `ev-${++i}`,
+          kind: "spof",
+          label: "Who knows what",
+          metric: `${count(spof.notMarked, "item")} not marked yet`,
           link: { tab: "knowledge" },
         });
       }
@@ -607,7 +617,7 @@ export function localSynthesize(
         .map((entry) => entry.name)
         .join(
           ", ",
-        )}${first.items.length > 3 ? ` and ${first.items.length - 3} more` : ""}, but nobody has confirmed it in 90+ days${first.soleCount > 0 ? `; ${first.soleCount} of those nobody else can run alone` : ""}. People leave, learn and forget, so the coverage figures above may be false comfort.`,
+        )}${first.items.length > 3 ? ` and ${first.items.length - 3} more` : ""}, but these entries have not been confirmed in the last ${CONFIRMATION_MAX_AGE_DAYS} days${first.soleCount > 0 ? `; ${first.soleCount} of those nobody else can run alone` : ""}. People leave, learn and forget, so the coverage figures above may be false comfort.`,
       evidenceIds: [] as string[],
       effort: "low" as const,
       horizonDays: REVIEW_HORIZON_DAYS.crossTrain,
@@ -617,8 +627,7 @@ export function localSynthesize(
 
   const reconfirmDecision = (stale: { name: string }[]) => ({
     action: `Re-confirm the register entry for ${stale[0].name}${stale.length > 1 ? ` and ${stale.length - 1} more` : ""}`,
-    rationale:
-      "Nobody on the active team holds these entries and nobody has confirmed them in 90+ days; decide whether they still matter, then assign someone or retire them.",
+    rationale: `Nobody on the active team holds these entries, and they have not been confirmed in the last ${CONFIRMATION_MAX_AGE_DAYS} days; decide whether they still matter, then assign someone or retire them.`,
     evidenceIds: [] as string[],
     effort: "low" as const,
     horizonDays: REVIEW_HORIZON_DAYS.crossTrain,

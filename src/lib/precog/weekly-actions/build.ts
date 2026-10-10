@@ -799,7 +799,7 @@ function checkInActions({ tpl, input, today, registerReady }: WeeklyContext): We
         why: `The register says ${first.person.name} can do ${joinWithAnd(
           first.items.map((entry) => entry.item.name),
           3,
-        )}, but nobody has confirmed it in ${CONFIRMATION_MAX_AGE_DAYS}+ days. ${soleNote}Ask, then mark each still does it / level changed / no longer.${
+        )}, but these entries have not been confirmed in the last ${CONFIRMATION_MAX_AGE_DAYS} days. ${soleNote}Ask, then mark each still does it / level changed / no longer.${
           others > 0
             ? ` ${others} more ${verb(others, "person", "people")} to check in with after that.`
             : ""

@@ -68,6 +68,44 @@ describe("findKnowledgeRisks", () => {
     expect(findKnowledgeRisks(own)).toEqual([]);
   });
 
+  it("reports only recorded items when two of the starter entries are marked", () => {
+    const knowledge = dental.knowledge.slice(0, 8);
+    const firstTwo = knowledge
+      .filter((item) => item.criticality === "critical" || item.criticality === "important")
+      .slice(0, 2);
+    const tpl = {
+      ...dental,
+      knowledge,
+      relations: firstTwo.map((item, index) => ({
+        personId: dental.people[index].id,
+        knowledgeId: item.id,
+        level: "aware" as const,
+      })),
+    };
+
+    const risks = findKnowledgeRisks(tpl);
+
+    expect(tpl.knowledge).toHaveLength(8);
+    expect(risks.map((risk) => risk.knowledgeId)).toEqual(firstTwo.map((item) => item.id));
+    expect(risks.every((risk) => risk.ownerCount === 0)).toBe(true);
+  });
+
+  it("keeps a former-only marked item as a risk with no active owner", () => {
+    const item = dental.knowledge.find(
+      (knowledge) => knowledge.criticality === "critical" || knowledge.criticality === "important",
+    )!;
+    const former = { ...dental.people[0], active: false };
+    const tpl = {
+      ...dental,
+      people: [former],
+      relations: [{ personId: former.id, knowledgeId: item.id, level: "expert" as const }],
+    };
+
+    const risk = findKnowledgeRisks(tpl).find((candidate) => candidate.knowledgeId === item.id);
+
+    expect(risk).toMatchObject({ knowledgeId: item.id, ownerCount: 0, owners: [] });
+  });
+
   it("does not count former (inactive) staff as holders", () => {
     const item = dental.knowledge.find((k) => k.criticality === "critical")!;
     const [active, former] = dental.people;

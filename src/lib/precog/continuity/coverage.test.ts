@@ -110,6 +110,18 @@ describe("staleItems", () => {
     expect(report.stale.some((entry) => entry.item.id === "fresh")).toBe(false);
   });
 
+  it("excludes unmarked items from stale rows and confirmed-index weights", () => {
+    const t = tpl(
+      [knowledgeItem("recorded", { confirmedAt: "2025-03-22" }), knowledgeItem("unmarked")],
+      [{ personId: "a", knowledgeId: "recorded", level: "aware" }],
+    );
+
+    const report = staleItems(t, "2025-04-01");
+
+    expect(report.stale).toEqual([]);
+    expect(report.confirmedIndex).toBe(100);
+  });
+
   it("orders stale items by criticality before coverage urgency and does not mutate input", () => {
     const knowledge = [
       knowledgeItem("important", { criticality: "important" }),
@@ -119,6 +131,8 @@ describe("staleItems", () => {
     const relations = [
       { personId: "a", knowledgeId: "critical-covered", level: "expert" as const },
       { personId: "b", knowledgeId: "critical-covered", level: "expert" as const },
+      { personId: "former", knowledgeId: "critical-uncovered", level: "expert" as const },
+      { personId: "former", knowledgeId: "important", level: "expert" as const },
     ];
     const t = tpl(knowledge, relations);
     const before = JSON.stringify(t);
@@ -839,30 +853,42 @@ describe("sample register nobody has marked", () => {
 });
 
 describe("criticalSinglePoints", () => {
-  it("never rises when the owner marks the first person who can run an item nobody could", () => {
-    const [first, second] = ownClinic().knowledge.filter((k) => k.criticality === "critical");
+  it("counts only recorded critical items in a partially marked starter register", () => {
+    const base = ownClinic();
+    const [first, second] = base.knowledge.filter((k) => k.criticality === "critical");
     const marked = ownClinic([{ personId: "own-2", knowledgeId: first.id, level: "proficient" }]);
     const before = criticalSinglePoints(marked);
-    const critical = marked.knowledge.filter((k) => k.criticality === "critical").length;
-    expect(before).toEqual({ count: critical, nobody: critical - 1, onePerson: 1 });
-    expect(soleOwnerCriticalCount(marked)).toBe(critical);
+    expect(before).toEqual({ count: 1, nobody: 0, onePerson: 1 });
+    expect(soleOwnerCriticalCount(marked)).toBe(1);
 
     const secondMarked = ownClinic([
       ...marked.relations,
       { personId: "own-1", knowledgeId: second.id, level: "proficient" },
     ]);
-    expect(criticalSinglePoints(secondMarked)).toEqual({
-      count: critical,
-      nobody: critical - 2,
-      onePerson: 2,
-    });
+    expect(criticalSinglePoints(secondMarked)).toEqual({ count: 2, nobody: 0, onePerson: 2 });
 
     const backedUp = ownClinic([
       ...secondMarked.relations,
       { personId: "own-3", knowledgeId: first.id, level: "expert" },
     ]);
-    expect(criticalSinglePoints(backedUp).count).toBe(critical - 1);
-    expect(soleOwnerCriticalCount(backedUp)).toBe(critical - 1);
+    expect(criticalSinglePoints(backedUp).count).toBe(1);
+    expect(soleOwnerCriticalCount(backedUp)).toBe(1);
+  });
+
+  it("counts an owner-written list with no relations as recorded", () => {
+    const base = ownClinic();
+    const ownList = {
+      ...base,
+      knowledge: base.knowledge.map((item) => ({ ...item, name: `${item.name} (ours)` })),
+    };
+    const critical = ownList.knowledge.filter((item) => item.criticality === "critical").length;
+
+    expect(criticalSinglePoints(ownList)).toEqual({
+      count: critical,
+      nobody: critical,
+      onePerson: 0,
+    });
+    expect(soleOwnerCriticalCount(ownList)).toBe(critical);
   });
 
   it("gives the business profile the count Who knows what shows once someone is marked", () => {

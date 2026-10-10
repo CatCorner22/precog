@@ -42,7 +42,7 @@ function renderUnheld(tpl: IndustryTemplate) {
 }
 
 describe("CheckInCard unheld items", () => {
-  it("marks unrecorded rows neutrally and explains that nobody is marked yet", () => {
+  it("does not surface unmarked entries as stale", () => {
     const tpl = continuityTemplate({
       people: [{ id: "active", name: "Ana Ruiz", role: "Owner", active: true }],
       knowledge: [knowledgeItem("unmarked"), knowledgeItem("marked")],
@@ -50,10 +50,8 @@ describe("CheckInCard unheld items", () => {
     });
     const html = renderUnheld(tpl);
 
-    expect(html).toContain("Not marked yet");
-    expect(html).toContain(
-      "Nobody on the active team is marked on these yet. Confirm they still matter, or mark who can run them in the grid.",
-    );
+    expect(html).not.toContain("Not marked yet");
+    expect(html).not.toContain("unmarked");
   });
 
   it("keeps the uncovered status for an item marked only on a former person", () => {
