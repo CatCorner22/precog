@@ -403,6 +403,34 @@ describe("shareReportProfile", () => {
     expect(shareReportProfile(full).onboardingFacts).toBeUndefined();
   });
 
+  it("carries the setup headcount only where the page reads it from the profile", () => {
+    const sized: PracticeProfile = {
+      ...full,
+      onboardingFacts: {
+        schemaVersion: 1,
+        actor: "advisor",
+        workforceBand: "7-30",
+        workforceCount: 12,
+      },
+    };
+    const carried = { schemaVersion: 1, workforceBand: "7-30", workforceCount: 12 };
+    const stored = serializeReportModel(buildReportModelForProfile(sized, "2026-09-26"));
+    expect(stored.setupHeadcount).toMatchObject({ workforceBand: "7-30" });
+    const { setupHeadcount: _unstored, ...before } = stored;
+    const sent = (layoutVersion: number, model: Parameters<typeof shareReportProfile>[4]) =>
+      shareReportProfile(sized, locked.preparedAt, null, layoutVersion, model).onboardingFacts;
+    // Layouts 1 to 6 never print the headcount.
+    expect(sent(6, before)).toBeUndefined();
+    expect(sent(6, null)).toBeUndefined();
+    // A layout 7 or 8 version prints the headcount its model stores, a value or null.
+    expect(sent(7, stored)).toBeUndefined();
+    expect(sent(8, { ...stored, setupHeadcount: null })).toBeUndefined();
+    // Locked before Precog stored it: the page reads the profile's.
+    expect(sent(7, before)).toEqual(carried);
+    // No stored model: the page builds one from the profile.
+    expect(sent(8, null)).toEqual(carried);
+  });
+
   it("carries each setup answer as its fixed choice, and nothing typed beside them", () => {
     const typed = {
       ...full,

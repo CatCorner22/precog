@@ -227,8 +227,13 @@ describe("layout 7's setup headcount in the header", () => {
     for (const layout of [7, 8]) {
       const whole = storedUnder(sized, layout);
       expect(whole).toContain(HEADER);
-      expect(storedUnder(sized, layout, shareReportProfile(sized))).toBe(whole);
-      const frozen = { layoutVersion: layout, model: modelOf(sized) };
+      // The share link and the archive hand the projection the stored model,
+      // which carries the headcount, so the band and count do not travel.
+      const stored = modelOf(sized);
+      const shared = shareReportProfile(sized, undefined, undefined, layout, stored);
+      expect(shared.onboardingFacts).toBeUndefined();
+      expect(storedUnder(sized, layout, shared)).toBe(whole);
+      const frozen = { layoutVersion: layout, model: stored };
       expect(storedUnder(sized, layout, archiveProfileFor(frozen, sized))).toBe(whole);
     }
   });
@@ -245,7 +250,9 @@ describe("layout 7's setup headcount in the header", () => {
     expect(live(grown)).toContain("|Dental office · 2 people mapped (setup: 40 people) · ");
     // Locked while the answer was 7–30: the version prints that, whatever the profile says now.
     expect(storedUnder(sized, 7, grown)).toContain(HEADER);
-    expect(storedUnder(sized, 7, shareReportProfile(grown))).toContain(HEADER);
+    expect(
+      storedUnder(sized, 7, shareReportProfile(grown, undefined, undefined, 7, modelOf(sized))),
+    ).toContain(HEADER);
   });
 
   it("reads the profile's headcount for a version locked before Precog stored it, as it did then", () => {
@@ -260,12 +267,17 @@ describe("layout 7's setup headcount in the header", () => {
         ),
       );
     expect(page(sized)).toContain(HEADER);
-    expect(page(shareReportProfile(sized))).toBe(page(sized));
+    // The model carries no headcount, so the projection carries the profile's.
+    const shared = shareReportProfile(sized, undefined, undefined, 7, before);
+    expect(shared.onboardingFacts).toMatchObject({ workforceBand: "7-30" });
+    expect(page(shared)).toBe(page(sized));
     expect(page(own)).toContain("|Dental office · 2 people mapped · ");
   });
 
   it("prints no setup part for a business that gave no headcount, on any copy", () => {
     expect(storedUnder(own, 7)).not.toContain("(setup:");
-    expect(storedUnder(own, 7, shareReportProfile(own))).toBe(storedUnder(own, 7));
+    expect(
+      storedUnder(own, 7, shareReportProfile(own, undefined, undefined, 7, modelOf(own))),
+    ).toBe(storedUnder(own, 7));
   });
 });

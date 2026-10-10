@@ -281,7 +281,7 @@ export function archiveProfileFor(
 ): PracticeProfile {
   const figures = lockedFigures(frozen);
   return "model" in figures
-    ? shareReportProfile(profile, undefined, undefined, figures.layoutVersion)
+    ? shareReportProfile(profile, undefined, undefined, figures.layoutVersion, figures.model)
     : profile;
 }
 

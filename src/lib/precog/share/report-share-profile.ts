@@ -9,7 +9,11 @@ import {
 import { OTHER_PROBLEM_KEY, reportPeriod, type ReviewRecord } from "../firm/reviews";
 import type { KnowledgeItem, Person, ProcessIdea, ProcessNode, ProcessRisk } from "../types";
 import type { ReportScope } from "../report/report-scope";
-import { printsLayoutSeven, REPORT_LAYOUT_VERSION } from "../report/stored-model";
+import {
+  printsLayoutSeven,
+  REPORT_LAYOUT_VERSION,
+  type StoredReportModel,
+} from "../report/stored-model";
 
 /**
  * The slice of a business that a shared report link carries: what the
@@ -21,20 +25,22 @@ import { printsLayoutSeven, REPORT_LAYOUT_VERSION } from "../report/stored-model
  * review results, the books-versus-map scope line, the engagement stamps,
  * the setup answers (which duties sit outside the team, so the "nobody
  * holds" line leaves them out; each answer is a fixed choice, never free
- * text, and the credits the owner took off travel as their fixed ids) and
- * the setup headcount (`shareOnboardingFacts`). The journal's
+ * text, and the credits the owner took off travel as their fixed ids) and,
+ * where the page reads it from the profile, the setup headcount
+ * (`shareOnboardingFacts`, `readsSetupHeadcount`). The journal's
  * text, planned absences, access checks, places,
  * written procedures, map history, saved blocks, process notes and earlier
  * monthly review notes are the business's own notes, so a link never hands
  * them to whoever holds it (share-report.test.ts serialises what a link
  * sends and fails on any of them).
  *
- * The public loader passes the frozen `scope` and the layout the version
- * prints under, so only the results that layout prints for that period
- * travel (`shareReviews`). `preparedAt` without scope is a version that
- * recalculates under the current layout: the month that layout gives the
- * lock's UTC day. Without either (the firm's archive) the latest result per
- * check and month stays.
+ * The public loader passes the frozen `scope`, the layout the version
+ * prints under and its stored `model`, so only the results that layout
+ * prints for that period travel (`shareReviews`) and the setup headcount
+ * travels only when the page reads it from the profile. `preparedAt`
+ * without scope is a version that recalculates under the current layout:
+ * the month that layout gives the lock's UTC day. Without either (the firm's
+ * archive) the latest result per check and month stays.
  *
  * Starting from the industry's default keeps every other field at its
  * default rather than absent, so the page normalises the projection exactly
@@ -45,6 +51,7 @@ export function shareReportProfile(
   preparedAt?: string,
   scope?: Pick<ReportScope, "period"> | null,
   layoutVersion: number = REPORT_LAYOUT_VERSION,
+  model?: StoredReportModel | null,
 ): PracticeProfile {
   const base = defaultProfile(profile.industry);
   return {
@@ -60,7 +67,7 @@ export function shareReportProfile(
       : profile.monthlyReviews,
     integrationDriftSummary: profile.integrationDriftSummary,
     ...shareSetupAnswers(profile),
-    ...(profile.onboardingFacts
+    ...(profile.onboardingFacts && readsSetupHeadcount(layoutVersion, model)
       ? { onboardingFacts: shareOnboardingFacts(profile.onboardingFacts) }
       : {}),
     // The template source: the map and register the report prints and
@@ -98,11 +105,26 @@ function shareSetupAnswers(
 }
 
 /**
+ * Whether the page reads the setup headcount from the profile, so the band
+ * and count have to travel: layout 7's header prints it (layouts 1 to 6
+ * never do), and the stored model does not carry it, because the version
+ * was locked before Precog stored it or recalculates with no stored model
+ * (control-report.tsx reads the profile's in exactly those cases, and the
+ * model's, a value or null, otherwise). Only `setupHeadcount` is read.
+ */
+function readsSetupHeadcount(
+  layoutVersion: number,
+  model: StoredReportModel | null | undefined,
+): boolean {
+  return printsLayoutSeven(layoutVersion) && model?.setupHeadcount === undefined;
+}
+
+/**
  * The setup facts the header prints: the workforce band and count (layout
  * 7's "(setup: 7–30 people)"), each a fixed choice or a number, for a
- * version locked before the model stored them (stored-model
- * `setupHeadcount`). Who set the business up, its locations, the mapping
- * scope, the setup method and the complexity answers stay behind.
+ * version whose page reads them from the profile (`readsSetupHeadcount`).
+ * Who set the business up, its locations, the mapping scope, the setup
+ * method and the complexity answers stay behind.
  */
 function shareOnboardingFacts(facts: OnboardingFacts): OnboardingFacts {
   return {

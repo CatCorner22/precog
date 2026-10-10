@@ -556,6 +556,7 @@ export async function loadSharedReport(
       loaded.version.preparedAt,
       scope,
       layoutVersion,
+      "model" in figures ? figures.model : null,
     ),
   };
 }
