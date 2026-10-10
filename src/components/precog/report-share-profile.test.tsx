@@ -311,7 +311,10 @@ describe("shareReportProfile", () => {
     expect(projected.monthlyReviews).toEqual(full.monthlyReviews);
   });
 
-  it("keeps the months a reader's clock can put a lock near midnight on the 1st in", () => {
+  it("sends a version without stored figures the month it prints on its UTC lock day alone", () => {
+    // Such a version recalculates under the current layout, whose month is
+    // the lock's UTC day's (control-report.tsx), whatever the reader's clock:
+    // a lock near midnight on the 1st no longer sends the month either side.
     const record = full.monthlyReviews![0];
     const reviews = ["2026-08", "2026-09", "2026-10", "2026-11"].map((period) => ({
       ...record,
@@ -322,8 +325,9 @@ describe("shareReportProfile", () => {
         (r) => r.period,
       );
     expect(at("2026-09-26T12:00:00.000Z")).toEqual(["2026-09"]);
-    expect(at("2026-10-01T03:00:00.000Z")).toEqual(["2026-09", "2026-10"]);
-    expect(at("2026-09-30T22:00:00.000Z")).toEqual(["2026-09", "2026-10"]);
+    expect(at("2026-10-01T03:00:00.000Z")).toEqual(["2026-09"]);
+    expect(at("2026-09-30T22:00:00.000Z")).toEqual(["2026-09"]);
+    expect(at("2026-10-11T00:30:00.000Z")).toEqual(["2026-10"]);
   });
 
   it("keeps what the report reads: the name, team, map, reviews, reading and stamps", () => {

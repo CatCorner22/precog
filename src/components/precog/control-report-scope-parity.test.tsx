@@ -4,7 +4,11 @@ import type { ReportVersionRow } from "@/lib/precog/firm/reports";
 import type { ReviewRecord } from "@/lib/precog/firm/reviews";
 import { defaultProfile, type PracticeProfile } from "@/lib/precog/practice-profile";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
-import { freezeReport, REPORT_LAYOUT_VERSION } from "@/lib/precog/report/stored-model";
+import {
+  freezeReport,
+  REPORT_LAYOUT_VERSION,
+  reportScopeFor,
+} from "@/lib/precog/report/stored-model";
 import { shareReportProfile } from "@/lib/precog/share/report-share-profile";
 import { ControlReport } from "./control-report";
 
@@ -161,8 +165,13 @@ describe("locked-report timezone and public-profile parity", () => {
   );
 
   it("keeps a public report timezone-stable as well as equal to the preparer's report", () => {
+    // Locked at 02:00 UTC on the 11th, on the preparer's 10th: the frozen
+    // scope names the 10th, so the link carries September, as the public
+    // loader passes the scope (share-store loadSharedReport).
     const entry = fixture("2026-10-11T02:00:00Z", "2026-10-10");
-    const projected = shareReportProfile(entry.profile, entry.locked.preparedAt);
+    const scope = reportScopeFor(entry.frozen, entry.profile, entry.locked.preparedAt);
+    expect(scope?.period).toBe("2026-09");
+    const projected = shareReportProfile(entry.profile, entry.locked.preparedAt, scope);
     const prepared = inTimezone("America/New_York", () => monthlySection(render(entry)));
     expect(prepared).toContain("LATEST_2026-09");
     for (const zone of ["America/New_York", "UTC", "Pacific/Kiritimati", "Pacific/Honolulu"]) {
@@ -186,7 +195,10 @@ describe("locked-report timezone and public-profile parity", () => {
     inTimezone("UTC", () => {
       const entry = fixture("2026-10-06T12:00:00Z", "2026-10-06");
       const historical = { ...entry, frozen: { ...entry.frozen, layoutVersion: 4 } };
-      const projected = shareReportProfile(entry.profile, entry.locked.preparedAt);
+      // The public loader passes layout 4's own month (the lock day's) and the layout.
+      const scope = reportScopeFor(historical.frozen, entry.profile, entry.locked.preparedAt);
+      expect(scope?.period).toBe("2026-10");
+      const projected = shareReportProfile(entry.profile, entry.locked.preparedAt, scope, 4);
       const internal = monthlySection(render(historical));
       expect(internal).toContain("LATEST_2026-10");
       expect(internal).not.toContain("LATEST_2026-09");

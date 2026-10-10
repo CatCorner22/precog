@@ -1,8 +1,10 @@
+import { utcDateKey } from "../dates";
 import { normalizeSetupAnswers } from "../onboarding/setup-answers";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import { OTHER_PROBLEM_KEY, reportPeriod, type ReviewRecord } from "../firm/reviews";
 import type { KnowledgeItem, Person, ProcessIdea, ProcessNode, ProcessRisk } from "../types";
 import type { ReportScope } from "../report/report-scope";
+import { printsLayoutSeven, REPORT_LAYOUT_VERSION } from "../report/stored-model";
 
 /**
  * The slice of a business that a shared report link carries: what the
@@ -20,10 +22,12 @@ import type { ReportScope } from "../report/report-scope";
  * them to whoever holds it (share-report.test.ts serialises what a link
  * sends and fails on any of them).
  *
- * The public loader passes the frozen `scope`, so only that period's latest
- * results and other problems travel. `preparedAt` without scope supports old
- * callers whose renderer may apply either historical month rule. Without
- * either (the firm's archive) the latest result per check and month stays.
+ * The public loader passes the frozen `scope` and the layout the version
+ * prints under, so only the results that layout prints for that period
+ * travel (`shareReviews`). `preparedAt` without scope is a version that
+ * recalculates under the current layout: the month that layout gives the
+ * lock's UTC day. Without either (the firm's archive) the latest result per
+ * check and month stays.
  *
  * Starting from the industry's default keeps every other field at its
  * default rather than absent, so the page normalises the projection exactly
@@ -33,6 +37,7 @@ export function shareReportProfile(
   profile: PracticeProfile,
   preparedAt?: string,
   scope?: Pick<ReportScope, "period"> | null,
+  layoutVersion: number = REPORT_LAYOUT_VERSION,
 ): PracticeProfile {
   const base = defaultProfile(profile.industry);
   return {
@@ -44,7 +49,7 @@ export function shareReportProfile(
     staff: profile.staff,
     engagement: profile.engagement,
     monthlyReviews: profile.monthlyReviews
-      ? shareReviews(profile.monthlyReviews, preparedAt, scope?.period)
+      ? shareReviews(profile.monthlyReviews, preparedAt, scope?.period, layoutVersion)
       : profile.monthlyReviews,
     integrationDriftSummary: profile.integrationDriftSummary,
     ...shareSetupAnswers(profile),
@@ -157,46 +162,73 @@ function blankIdea(i: number): ProcessIdea {
   };
 }
 
-/** The most hours a reader's clock can sit from UTC (UTC-12 to UTC+14). */
-const ZONE_SPREAD_MS = 14 * 60 * 60 * 1000;
-
 /**
- * The review results the report prints: the latest per check (the first in
- * the list, which is newest first, as latestReview reads it) for the
- * report's exact frozen period when supplied, and every other problem of
- * that period (each is its own, told apart by when it was recorded). For
- * old callers without scope, the report's month is the lock day's
- * month on layouts 1 to 4 and, from layout 5, the oldest month still open
- * (`reportPeriod`: last month through the 10th). The page works the day out
- * on the reader's clock, so the months either rule gives for both days a
- * lock near midnight can fall on stay; no other month does. Without
- * `preparedAt`, the latest per check and month.
+ * The review results the report prints under `layoutVersion`: the latest
+ * per check (the first in the list, which is newest first, as latestReview
+ * reads it) for the report's exact frozen period when supplied, and, from
+ * layout 7, the month's other problems as the report prints them
+ * (`sharedOtherProblems`); layouts 1 to 6 print no other problem, so none
+ * travels. Without scope the version recalculates under the current
+ * layout, which prints the month that layout gives the lock's UTC day
+ * (`reportPeriod` from layout 5: last month through the 10th; the lock
+ * day's own month before it). Without `preparedAt`, the latest per check
+ * and month.
  */
 function shareReviews(
   records: readonly ReviewRecord[],
-  preparedAt?: string,
-  period?: string,
+  preparedAt: string | undefined,
+  period: string | undefined,
+  layoutVersion: number,
 ): ReviewRecord[] {
   const at = preparedAt ? Date.parse(preparedAt) : Number.NaN;
-  const months = period
-    ? new Set([period])
-    : Number.isNaN(at)
-      ? null
-      : new Set(
-          [at - ZONE_SPREAD_MS, at + ZONE_SPREAD_MS].flatMap((t) => {
-            const day = new Date(t).toISOString().slice(0, 10);
-            return [day.slice(0, 7), reportPeriod(day)];
-          }),
-        );
+  const month =
+    period ?? (Number.isNaN(at) ? null : printedMonth(utcDateKey(new Date(at)), layoutVersion));
+  const printed = records.filter((record) => !month || record.period === month);
+  const problems = printsLayoutSeven(layoutVersion)
+    ? sharedOtherProblems(printed)
+    : new Map<ReviewRecord, ReviewRecord>();
   const seen = new Set<string>();
-  return records.filter((record) => {
-    if (months && !months.has(record.period)) return false;
-    const key =
-      record.key === OTHER_PROBLEM_KEY
-        ? `${record.key}|${record.period}|${record.recordedAt}`
-        : `${record.key}|${record.period}`;
-    if (seen.has(key)) return false;
+  return printed.flatMap((record) => {
+    if (record.key === OTHER_PROBLEM_KEY) {
+      const shared = problems.get(record);
+      return shared ? [shared] : [];
+    }
+    const key = `${record.key}|${record.period}`;
+    if (seen.has(key)) return [];
     seen.add(key);
-    return true;
+    return [record];
   });
+}
+
+/** The month a report printed under `layoutVersion` on `day` prints its checks for. */
+function printedMonth(day: string, layoutVersion: number): string {
+  return layoutVersion >= 5 ? reportPeriod(day) : day.slice(0, 7);
+}
+
+/**
+ * Another problem's records as the report prints them (`otherProblems`,
+ * `otherProblemReportLine`): each Exception, and the Done that resolves it
+ * when one does. The report then prints the Done's line alone, so the
+ * Exception travels without its note and who found it; an Exception nobody
+ * resolved travels whole, since its line is printed. A Done that resolves
+ * no Exception of its month, and any Skipped, is never printed and stays
+ * behind. Keyed by the stored record, so the caller keeps the list's order.
+ */
+function sharedOtherProblems(records: readonly ReviewRecord[]): Map<ReviewRecord, ReviewRecord> {
+  const mine = records.filter((record) => record.key === OTHER_PROBLEM_KEY);
+  const shared = new Map<ReviewRecord, ReviewRecord>();
+  for (const problem of mine) {
+    if (problem.result !== "exception") continue;
+    const resolved = mine.find(
+      (r) =>
+        r.result === "done" && r.period === problem.period && r.resolves === problem.recordedAt,
+    );
+    if (!resolved) {
+      shared.set(problem, problem);
+      continue;
+    }
+    shared.set(resolved, resolved);
+    shared.set(problem, { ...problem, ownerName: "", notes: "" });
+  }
+  return shared;
 }

@@ -10,7 +10,12 @@ import {
   type ReportVersionRow,
 } from "../firm/reports";
 import type { FirmSnapshot } from "../firm/store";
-import { reportScopeFor, type StoredReportModel } from "../report/stored-model";
+import {
+  lockedFigures,
+  REPORT_LAYOUT_VERSION,
+  reportScopeFor,
+  type StoredReportModel,
+} from "../report/stored-model";
 import type { PracticeProfile } from "../practice-profile";
 import { mergeProfile } from "../profile-merge";
 import { shareReportProfile } from "./report-share-profile";
@@ -534,6 +539,10 @@ export async function loadSharedReport(
     stored?.model && scope
       ? { ...stored, model: { ...stored.model, reportingScope: scope } }
       : stored;
+  // The layout the page prints the version under: its own with stored
+  // figures, else the current one, recalculated (control-report.tsx).
+  const figures = lockedFigures(stored);
+  const layoutVersion = "model" in figures ? figures.layoutVersion : REPORT_LAYOUT_VERSION;
   return {
     // Who a review was requested from, who returned it and the return note
     // are the firm's own working notes: a public link never names them.
@@ -546,6 +555,7 @@ export async function loadSharedReport(
       { ...merged, businessId: row.businessId },
       loaded.version.preparedAt,
       scope,
+      layoutVersion,
     ),
   };
 }
