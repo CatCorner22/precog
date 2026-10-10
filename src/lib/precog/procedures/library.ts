@@ -778,6 +778,482 @@ export const RECOMMENDED_PROCEDURES: readonly RecommendedProcedure[] = [
     ifYouCannotSeparate:
       "A second person who does not enter payroll compares the certified payroll with the field hours.",
   },
+  // Dental. The large federal cases are intercepted insurer checks; the
+  // frequent small ones are skimmed co-pays hidden by an adjustment and card
+  // refunds to an employee's own card. The dentist is the independent reader.
+  {
+    id: "lib-day-sheet-deposit",
+    title: "Tie the day sheet to the deposit",
+    purpose:
+      "Shows that every payment posted in the practice software reached the bank, and that no adjustment hid a payment someone kept. Done when the day sheet, the deposit slip and the card batch agree and a person who posted nothing that day has signed them.",
+    trigger: "At the end of each clinical day, before the deposit leaves the office",
+    cadence: "daily",
+    industries: ["dental"],
+    dutyIds: ["post_payments", "prepare_deposit"],
+    covers: /\bday sheets?\b|\bdaily deposit\b/i,
+    prerequisites: [
+      "The day sheet from the practice software",
+      "The deposit slip and the card terminal's batch report",
+    ],
+    steps: [
+      { text: "Print today's day sheet from the practice software." },
+      {
+        text: "Match each cash and check payment on the day sheet to the cash and checks in the deposit.",
+      },
+      { text: "Match each card payment on the day sheet to the card terminal's batch report." },
+      {
+        text: "List every payment on the day sheet with no cash, check or card line behind it, and every deposit line with no payment.",
+        caution:
+          "A payment posted with nothing behind it, or a deposit short of the day sheet, is the first sign of skimming; ask about it today.",
+      },
+      { text: "Read each adjustment on the day sheet and the reason written on the account." },
+      { text: "Ask the person who posted any adjustment without a reason to explain it." },
+      {
+        text: "Give the day sheet, the deposit slip and the batch report to a person who posted nothing today to sign.",
+      },
+      { text: "Staple the bank's deposit receipt to the day sheet when it comes back." },
+    ],
+    source:
+      "American Dental Association, Protecting Your Dental Office From Fraud and Embezzlement, as summarized in ADA News (March 2016): review every posted transaction on the day sheet and compare the check register with the daily deposit slip. American Academy of Pediatric Dentistry, Practice Management newsletter (September 2014): every adjustment carries a stated reason, and the doctor checks the adjustments on the day sheet at the end of each day.",
+    evidenceToKeep: [
+      "Signed day sheet",
+      "Deposit slip and bank deposit receipt",
+      "Card batch report",
+    ],
+    ifYouCannotSeparate:
+      "If one person posts payments and makes the deposit: bank the money every day so each deposit matches one day sheet, and each week the dentist compares the deposits online with the day sheets and reads the adjustments.",
+  },
+  {
+    id: "lib-eob-posting",
+    title: "Post an insurance payment from the explanation of benefits",
+    purpose:
+      "Keeps the insurer's check out of the hands of the person who posts it, and posts only the write-off the insurer's statement allows. Done when the payment and the contractual write-off match the explanation of benefits and a paper check is in the check log.",
+    trigger: "Whenever an insurer's check, electronic payment or explanation of benefits arrives",
+    cadence: "ad-hoc",
+    industries: ["dental"],
+    dutyIds: ["post_payments", "post_adjustments"],
+    covers: /\binsurance (?:denials?|payments?|claims?)\b|\bexplanations? of benefits\b/i,
+    prerequisites: [
+      "The explanation of benefits for the payment",
+      "The check log, for a paper check",
+    ],
+    steps: [
+      { text: "Confirm that a paper check is in the check log before you post anything." },
+      { text: "Open the claim the explanation of benefits refers to." },
+      { text: "Post the amount the insurer paid to that claim." },
+      {
+        text: "Post the contractual write-off as the difference between the fee and the amount the plan allows, with the insurer's reason.",
+        caution:
+          "Never write off a balance you billed to an insurer to make an account match; the AAPD warns that this is insurance fraud.",
+      },
+      {
+        text: "Check whether a second plan already paid or will pay on the same claim before you post the write-off.",
+        caution:
+          "With two plans, a write-off posted after each payment gives the patient a credit nobody owes them.",
+      },
+      {
+        text: "Send the patient a statement for any portion the explanation of benefits leaves to them.",
+      },
+      {
+        text: "File the explanation of benefits with the day's posting, marked with the claim number.",
+      },
+      {
+        text: "Give the week's explanations of benefits to a person who posts no payments to compare with the check log and the deposits.",
+      },
+    ],
+    source:
+      "American Dental Association, How to read your Explanation of Benefits statement (a write-off posted after each of two plans pays can give the patient a false credit) and its fraud guidance in ADA News (March 2016): look at every check and explanation of benefits, and keep patient payments and bank deposits in different hands. American Academy of Pediatric Dentistry, Practice Management newsletter (September 2014): adjusting off a balance billed to an insurer is insurance fraud.",
+    evidenceToKeep: [
+      "Explanation of benefits with the claim number",
+      "Check log",
+      "Weekly comparison sign-off",
+    ],
+    ifYouCannotSeparate:
+      "If one person opens the mail, posts the insurer's payment and makes the deposit: ask each insurer to pay electronically into the practice's account, and each month the dentist compares the insurer payments posted in the practice software with the bank's deposits.",
+  },
+  {
+    id: "lib-patient-refund",
+    title: "Refund a patient's credit balance",
+    purpose:
+      "Pays back only money a patient really overpaid, to the patient and never to an employee's card. Done when the refund goes to the card or account that paid, the ledger printout and the dentist's approval sit behind it, and the month's merchant statement shows no other refund.",
+    trigger:
+      "Whenever a patient's ledger shows a credit balance, and on the monthly credit-balance review",
+    cadence: "ad-hoc",
+    industries: ["dental"],
+    dutyIds: ["issue_refunds", "post_adjustments"],
+    covers: /\bpatient refunds?\b|\bcredit balances?\b|\bmerchant statements?\b/i,
+    prerequisites: [
+      "The patient's ledger printout",
+      "The merchant account statement for the month",
+    ],
+    steps: [
+      { text: "Print the patient's ledger showing the credit balance." },
+      {
+        text: "Find the entry that created the credit: a duplicate payment, a second plan's payment or a wrong adjustment.",
+      },
+      {
+        text: "Correct a wrong adjustment or posting instead of refunding it.",
+        caution:
+          "A credit that comes from a wrong write-off is an error to reverse, not money to pay out.",
+      },
+      { text: "Write the refund request with the ledger printout attached." },
+      {
+        text: "Ask the dentist to approve the refund against the ledger printout.",
+        caution: "The person who approves the refund must not be the person who processes it.",
+      },
+      {
+        text: "Send the refund to the card or account that made the payment.",
+        caution:
+          "Never refund to a different card or to cash; a refund to an employee's own card is the commonest small dental theft on record.",
+      },
+      { text: "File the approval, the ledger printout and the refund receipt together." },
+      {
+        text: "Give the month's merchant statement to the dentist to trace each refund on it to a patient's ledger.",
+      },
+    ],
+    source:
+      "American Academy of Pediatric Dentistry, Practice Management newsletter (September 2014): the doctor reviews the merchant account statement each month. Dental Economics, Keeping them out of the cookie jar: supporting documentation accompanies every refund request, and the signer compares each check against it. Baird Dental, via Dentaltown: false credit balances come from errors in secondary insurance, adjustments, payments or services, so someone other than the front desk runs the monthly credit-balance review.",
+    evidenceToKeep: [
+      "Refund request with ledger printout",
+      "Dentist's approval",
+      "Merchant statement with each refund traced",
+    ],
+    ifYouCannotSeparate:
+      "If one person finds the credit and sends the refund: each month the dentist reads every refund on the merchant statement and the credit-balance report, and traces each refund to a patient's ledger and the card that paid.",
+  },
+  {
+    id: "lib-audit-trail-review",
+    title: "Review the practice software audit trail",
+    purpose:
+      "Finds deleted payments, altered entries and changed user rights that a day sheet never shows. Done when a person who posts nothing has read the month's audit trail and signed it.",
+    trigger: "The first week of each month, for the month before",
+    cadence: "monthly",
+    industries: ["dental"],
+    dutyIds: ["review_audit_logs", "pms_admin_roles"],
+    covers: /\bpractice software\b|\baudit trails?\b/i,
+    prerequisites: [
+      "A sign-in with the permission to view the audit trail",
+      "The list of users and their permission groups",
+    ],
+    steps: [
+      {
+        text: "Confirm that every person who uses the practice software has their own user account.",
+      },
+      { text: "Run the audit trail report for last month." },
+      {
+        text: "List every deleted payment, deleted account and edited adjustment, with the user who made it.",
+      },
+      {
+        text: "Ask that user to show the paper or the ledger entry behind each one.",
+        caution:
+          "A deleted or reduced payment with a matching write-off is the classic concealment; take it to the dentist the same day.",
+      },
+      {
+        text: "Compare the list of users who can delete or adjust with the list of people whose job needs it.",
+      },
+      {
+        text: "Remove the delete and adjust permissions from any user whose job does not need them.",
+      },
+      { text: "Sign and date the audit trail report." },
+    ],
+    source:
+      "Open Dental manual, Audit Trail: the log is complete only when every user has their own account, only users with the Audit Trail permission can view it, and nobody changes an entry. DentiMax, Prevent dental employee embezzlement: restrict the audit report to the highest administrative level, run and review it monthly, and look for deletions of payments, account balances or whole accounts.",
+    evidenceToKeep: ["Signed audit trail report", "User permission list"],
+    ifYouCannotSeparate:
+      "If the person who posts payments also administers the practice software: give the dentist the only sign-in that can view the audit trail and change permissions, and the dentist reads the audit trail each month.",
+  },
+  // Automotive. The repair order is the control document: every payment in
+  // and every part out ties to one, and deleted or open orders are the two
+  // exception reports. No repair-industry association publishes a controls
+  // standard, so these follow trade press, vendor help and the cases.
+  {
+    id: "lib-ro-exception-review",
+    title: "Review deleted, voided and open repair orders",
+    purpose:
+      "Catches cash collected on a repair order that someone then deleted, and work paid for that stays open so the payment never shows. Done when each deleted or voided order from the week has a reason and an approver, and each open order older than the set age has an explanation.",
+    trigger: "Every Monday, for the week before",
+    cadence: "weekly",
+    industries: ["automotive"],
+    dutyIds: ["approve_writeoffs", "review_audit_logs"],
+    covers: /\brepair[- ]orders?\b|\bDMS\b/i,
+    prerequisites: [
+      "The shop system's deleted and voided repair order report",
+      "The open repair order list with each order's age",
+    ],
+    steps: [
+      { text: "Run the deleted and voided repair order report for last week." },
+      {
+        text: "Read each deleted or voided order's customer, vehicle, amount and the user who removed it.",
+      },
+      { text: "Match each one to its reason and to the person who approved the deletion." },
+      { text: "Check the parts bought for any deleted order against the part's purchase order." },
+      {
+        text: "Ask the service advisor about any deleted order with no reason, or with parts bought and no sale.",
+        caution:
+          "Cash collected and the order deleted is how a counter employee takes money in case after case; raise it the same day.",
+      },
+      { text: "Run the open repair order list sorted by age." },
+      {
+        text: "Ask the advisor on each order open longer than the set number of days whether the customer paid.",
+        caution:
+          "An order left open after the customer paid hides the payment; close it only against the receipt the customer holds.",
+      },
+      { text: "Sign and date both reports." },
+    ],
+    source:
+      "WickedFile, Deleted Repair Orders Report: deleted orders can indicate errors, improper workflow, theft or manipulation, so check the part purchases and the advisor's activity behind each one. Greater New York Automobile Dealers Association fraud webinar: who reviews the open repair order list. FenderBender, a CPA's advice to review closed jobs against deposits. Precog found no repair-industry association standard for this, so it follows trade press, vendor help and the prosecuted cases.",
+    evidenceToKeep: ["Signed deleted and voided order report", "Open order list with explanations"],
+    ifYouCannotSeparate:
+      "If the service advisor also closes the drawer and can delete orders: turn off the advisor's delete right in the shop system, and each week the person who runs the shop reads the deleted-order report and the open-order list.",
+  },
+  {
+    id: "lib-core-returns",
+    title: "Track core charges and vendor credits",
+    purpose:
+      "Gets back every core charge and return credit the shop paid for, before the vendor's return window closes. Done when each core and returned part on the tracker shows the credit memo that cleared it.",
+    trigger: "Whenever a part with a core charge sells, and every Friday for the open list",
+    cadence: "weekly",
+    industries: ["automotive"],
+    dutyIds: ["receive_goods", "enter_invoices"],
+    covers: /\bcores?\b|\bparts inventory\b/i,
+    prerequisites: [
+      "The core and return tracker, in the shop system or a spreadsheet",
+      "Each vendor's return window",
+    ],
+    steps: [
+      {
+        text: "Log each core charge on the tracker when the part sells: the invoice line, the amount and the return due date.",
+      },
+      { text: "Tag the old part with the repair order number when the technician pulls it." },
+      { text: "Return the cores and unused parts to each vendor before its return window closes." },
+      { text: "Write the return slip's date on the tracker." },
+      {
+        text: "Match each credit memo on the vendor's statement to a line on the tracker.",
+        caution:
+          "A core returned with no credit memo is money the vendor still holds; chase it before the next statement.",
+      },
+      { text: "Print the list of open cores and returns every Friday." },
+      {
+        text: "Give the open list to a person who neither orders nor returns parts to read and sign.",
+      },
+    ],
+    source:
+      "Tekmetric, Core Tracking, Returns and Reports: the customer's old part stays as the core, the parts desk returns it, and the vendor issues a credit invoice. Automate.com parts-department guidance: a weekly dirty-cores report, returned cores logged so credits are traceable, and one person accountable for the process. WickedFile, Vendor statement reconciliation for auto repair: a credit memo must post for every return and core. Return windows differ by supplier.",
+    evidenceToKeep: ["Core and return tracker", "Return slips", "Vendor credit memos"],
+    ifYouCannotSeparate:
+      "If one person orders, receives and returns parts: each month someone who does none of that reads the vendor statement and ticks each core charge against its credit memo.",
+  },
+  {
+    id: "lib-parts-vendor-statement",
+    title: "Reconcile the parts vendor statement",
+    purpose:
+      "Pays the vendor only for parts that went on a repair order at the agreed price, with every return and core credited. Done when each line on the statement ties to a repair order, the price matches the matrix, and each credit due has posted.",
+    trigger: "When each parts vendor's monthly statement arrives, before anyone pays it",
+    cadence: "monthly",
+    industries: ["automotive"],
+    dutyIds: ["approve_invoices", "enter_invoices", "order_supplies"],
+    covers: /\bparts (?:inventory|ordering|vendors?|suppliers?)\b|\bsupplier programs?\b/i,
+    prerequisites: [
+      "The vendor's statement and each invoice on it",
+      "The parts matrix",
+      "The core and return tracker",
+    ],
+    steps: [
+      { text: "Check that each invoice line on the statement carries a repair order number." },
+      { text: "Open that repair order and confirm the part appears on it." },
+      {
+        text: "List each part with no repair order, or on an order that does not show it.",
+        caution:
+          "A part with no repair order is one the shop paid for and cannot account for; find where it went before you pay.",
+      },
+      { text: "Compare the price billed on each line with the matrix price for that part." },
+      { text: "Tick each credit memo on the statement against the core and return tracker." },
+      { text: "Send the vendor a list of the credits due that the statement does not show." },
+      {
+        text: "Approve for payment only the lines that tie to a repair order at the matrix price.",
+        caution:
+          "The person who orders parts must not be the one who approves the statement for payment.",
+      },
+      { text: "Sign and date the reconciled statement." },
+    ],
+    source:
+      "Tekmetric, Why auto repair shops match parts from repair orders to purchase orders: matching protects a shop from overages, slip-ups, theft and overcharges. WickedFile, Vendor statement reconciliation for auto repair: each part ties to a repair order, the billed price matches the quote or matrix, and a credit memo posts for every return and core.",
+    evidenceToKeep: ["Reconciled vendor statement", "List of unmatched parts", "Credits-due list"],
+    ifYouCannotSeparate:
+      "If one person orders parts and approves the vendor bills: each month the person who runs the shop reads the statement with the repair order list open and traces ten lines of their choosing back to their orders.",
+  },
+  {
+    id: "lib-sublet-invoice",
+    title: "Pay a sublet invoice",
+    purpose:
+      "Pays an outside shop only for work that a repair order sent out, and shows the customer what the shop sent out. Done when the sublet invoice is a line of its own on the repair order, matches the vehicle, and appears on the customer's invoice.",
+    trigger:
+      "Whenever an invoice arrives from an outside shop that did work on a customer's vehicle",
+    cadence: "ad-hoc",
+    industries: ["automotive"],
+    dutyIds: ["enter_invoices", "approve_invoices", "order_supplies"],
+    covers: /\bsublet\b|\boutside (?:purchases?|repairs?|work)\b/i,
+    prerequisites: ["The outside shop's invoice", "The shop's written rule for sublet pricing"],
+    steps: [
+      {
+        text: "Find the repair order that sent the work out, by the vehicle identification number and the mileage.",
+      },
+      { text: "Check that the invoice names the outside shop, the vehicle and the work done." },
+      {
+        text: "Enter the invoice on that repair order as a sublet line, apart from the shop's own labor.",
+      },
+      { text: "Price the sublet line by the shop's written rule for markup or pass-through." },
+      {
+        text: "Show the sublet work on the customer's invoice with the outside shop's name.",
+        caution:
+          "Connecticut law puts sublet work on the customer's invoice with the outside shop's name and address (Conn. Gen. Stat. 14-65h); check your state.",
+      },
+      { text: "Staple the outside shop's invoice to the repair order." },
+      {
+        text: "Send the invoice to accounts payable only after it sits on a repair order.",
+        caution: "The office pays a sublet invoice only when a repair order shows the work.",
+      },
+    ],
+    source:
+      "Connecticut General Statutes 14-65h and New Mexico Administrative Code 12.2.6: sublet work goes on the customer's invoice, with the outside shop named in Connecticut. Repair-shop bookkeeping guidance (Beancount, Wishup): a sublet line sits apart from in-house labor so markup and pass-through stay visible.",
+    evidenceToKeep: [
+      "Outside shop's invoice stapled to the repair order",
+      "Customer invoice showing the sublet line",
+    ],
+    ifYouCannotSeparate:
+      "If one person sends work out, enters the invoice and approves it: each month someone who does none of that compares the sublet expense with the sublet lines billed to customers and asks about any invoice with no repair order.",
+  },
+  // Retail. The frequent scheme is at the register: a sale voided or refunded
+  // to the cashier's own card or a gift card, and cash moved out of the
+  // drawer with nothing logged.
+  {
+    id: "lib-pos-exception-review",
+    title: "Review voids, refunds and no-sales by cashier",
+    purpose:
+      "Finds the cashier who rings a sale, voids it and keeps the cash, or refunds to their own card. Done when a person who rang no sales has read the day's exceptions by cashier, checked each refund's tender against the original sale, and signed the report.",
+    trigger: "Every morning, for the day before",
+    cadence: "daily",
+    industries: ["retail"],
+    dutyIds: ["issue_refunds", "approve_writeoffs"],
+    covers: /\bPOS\b|\bpoint[- ]of[- ]sale\b|\breturns policy\b/i,
+    prerequisites: [
+      "The point-of-sale exception report by cashier: voids, post-voids, refunds, no-sales and overrides",
+      "The signed void and refund slips from the day",
+    ],
+    steps: [
+      { text: "Run the exception report for yesterday, by cashier." },
+      { text: "Count the voids, post-voids, refunds and no-sales for each cashier." },
+      { text: "Match each post-void and refund to a slip the manager signed." },
+      {
+        text: "Check that each refund went to the tender that paid for the original sale.",
+        caution:
+          "A refund to a card that did not pay for the sale, or with no customer present, is the commonest small-store theft; stop it the same day.",
+      },
+      {
+        text: "Compare each cashier's count of no-sales with the store's usual number for a shift.",
+      },
+      {
+        text: "Ask the cashier about any void, refund or no-sale with no slip or no reason.",
+        caution: "The reviewer must not be a cashier who rang sales that day.",
+      },
+      { text: "Sign and date the report." },
+    ],
+    source:
+      "Salt Lake County Auditor, 2005 cash audit: supervisory review of each voided transaction, with approval confirmed by the supervisor's signature. Retail cash-handling audit practice (TAQtics checklist): refunds, voids and overrides approved at the right level, and the refund tender matches the original payment method unless someone documents an approved exception. Point-of-sale exception reporting flags excess voids, unusual refund patterns and no-sale drawer openings.",
+    evidenceToKeep: ["Signed exception report", "Void and refund slips"],
+    ifYouCannotSeparate:
+      "If the person who rings sales also reviews the register: set the point of sale to need a second person's code for each void, refund and no-sale, and each week someone who rings no sales reads the exception report by cashier.",
+  },
+  {
+    id: "lib-gift-cards",
+    title: "Sell, activate and reconcile gift cards",
+    purpose:
+      "Stops gift cards loaded with a fake refund, or activated with no sale, from leaving in an employee's pocket. Done when every card activated in the month matches a sale, the count of blank cards matches, and the processor's balance equals the gift card liability in the books.",
+    trigger: "Whenever a card sells or a customer redeems one, and on the last day of each month",
+    cadence: "monthly",
+    industries: ["retail"],
+    dutyIds: ["collect_cash", "issue_refunds"],
+    covers: /\bgift cards?\b/i,
+    prerequisites: [
+      "The gift card activation report from the point of sale or the card processor",
+      "The count of blank cards in stock",
+    ],
+    steps: [
+      {
+        text: "Sell a gift card only through a sale rung at the register with the customer present.",
+        caution:
+          "Never activate a card without a paid sale behind it; a card activated with no sale is cash in another form.",
+      },
+      {
+        text: "Refund to a gift card only with a manager's code and the customer at the counter.",
+        caution:
+          "A refund loaded onto a gift card the cashier keeps is the refund fraud police guides describe; the manager confirms the customer is there.",
+      },
+      { text: "Lock the blank cards away between sales." },
+      {
+        text: "Count the blank cards at the end of each day against yesterday's count and the day's activations.",
+      },
+      { text: "Run the activation report for the month." },
+      { text: "Match each activation to a sale or to a refund slip with a manager's code." },
+      {
+        text: "Compare the processor's outstanding gift card balance with the liability in the books.",
+      },
+      {
+        text: "Give the matched report and the count to a person who sells no gift cards to sign.",
+      },
+    ],
+    source:
+      "Common small-business control practice. The schemes it answers are on record: a cashier processes a fake refund and loads the amount onto a gift card (South Australia Police, Staff Theft Common Methods; press reports of retail prosecutions), and physical cards activated through false orders that someone then deletes (U.S. Attorney, Northern District of Georgia, Home Depot gift card case, as reported in 2025).",
+    evidenceToKeep: [
+      "Activation report matched to sales",
+      "Blank card count sheet",
+      "Processor balance comparison",
+    ],
+    ifYouCannotSeparate:
+      "If one person sells, activates and refunds gift cards: each month someone who does none of that compares the processor's activation report with the sales and counts the blank cards.",
+  },
+  {
+    id: "lib-cash-drops",
+    title: "Record a cash drop or a paid-out",
+    purpose:
+      "Keeps the drawer small and makes every move of cash out of it a logged entry a second person can check. Done when each drop is in the safe log with its amount and time, each paid-out has a receipt and initials, and the register's expected cash reflects them.",
+    trigger:
+      "Whenever the drawer passes its cash limit, and whenever someone pays an expense from it",
+    cadence: "ad-hoc",
+    industries: ["retail"],
+    dutyIds: ["collect_cash", "prepare_deposit"],
+    covers: /\bcash (?:drops?|handling|drawers?)\b|\bdaily deposit\b/i,
+    prerequisites: ["The safe drop log", "Paid-out slips", "The drawer's cash limit"],
+    steps: [
+      { text: "Count the cash above the drawer limit with the cashier watching." },
+      {
+        text: "Enter the drop in the point of sale with the amount and the time.",
+        caution:
+          "Never move cash to the safe without entering the drop; the expected drawer total only knows what you enter.",
+      },
+      {
+        text: "Seal the cash in a drop bag marked with the amount, the register and your initials.",
+      },
+      { text: "Put the bag in the safe." },
+      { text: "Write the amount, the time and the register in the safe log." },
+      {
+        text: "Pay an expense from the drawer only against a receipt.",
+        caution:
+          "Never pay out of the drawer without a receipt and a manager's initials; the paid-out reduces the cash the close expects.",
+      },
+      { text: "Enter the paid-out in the point of sale with the receipt's amount." },
+      { text: "Ask the manager to initial the receipt." },
+      { text: "Count the safe at close against the safe log." },
+      {
+        text: "Compare the drops and paid-outs on the register's close report with the safe log and the receipts.",
+      },
+    ],
+    source:
+      "Retail point-of-sale practice (PlumPOS glossary): a cash drop moves excess cash from the drawer to the safe and the system flags any gap against recorded sales, and a paid-out comes off the expected cash. Retail cash-handling audit practice (TAQtics checklist): drops and paid-outs logged with receipts and reviewed at close.",
+    evidenceToKeep: ["Safe drop log", "Paid-out receipts with initials", "Register close report"],
+    ifYouCannotSeparate:
+      "If the same person drops cash and counts the safe: each week someone who handles no cash compares the safe log with the register's drop and paid-out report and with the deposits.",
+  },
 ];
 
 /** A recommended procedure as it fits this business: why it is shown, and what it would cover. */
