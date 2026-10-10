@@ -198,18 +198,49 @@ describe("which recommendations a business is shown", () => {
     ).toEqual(["Daily deposit & reconciliation"]);
   });
 
-  it("leaves out one already started, or one whose register items all have a procedure", () => {
+  it("leaves out one already started, or one whose register items all have a procedure and whose duties nobody holds", () => {
     const rows = libraryRows(general, [], "general");
     const deposit = rows.find((r) => r.recommendation.id === "lib-cash-deposit")!;
+    expect(deposit.heldBy.length).toBeGreaterThan(0);
     const started = procedureFromLibrary(deposit, "general", TODAY);
-    const ids = (procs: Parameters<typeof libraryRows>[1]) =>
-      libraryRows(general, procs, "general").map((r) => r.recommendation.id);
+    const ids = (procs: Parameters<typeof libraryRows>[1], tpl = general) =>
+      libraryRows(tpl, procs, "general").map((r) => r.recommendation.id);
     expect(ids([started])).not.toContain("lib-cash-deposit");
-    // Written by hand for the same register item.
+    // Written by hand for the same register item: still shown to the people
+    // who hold its duties, left out once nobody here holds one.
     const byHand = { industry: "general" as const, knowledgeIds: deposit.knowledgeIds };
-    expect(ids([byHand])).not.toContain("lib-cash-deposit");
+    expect(ids([byHand])).toContain("lib-cash-deposit");
+    const nobody = { ...general, people: general.people.map((p) => ({ ...p, active: false })) };
+    expect(ids([byHand], nobody)).not.toContain("lib-cash-deposit");
     // A procedure in another line of business does not count.
     expect(ids([{ ...started, industry: "retail" }])).toContain("lib-cash-deposit");
+  });
+
+  it("keeps a recommendation someone's duty needs when a paired one covering the same item is started", () => {
+    // The payroll run and the payroll bank tie both match a "Payroll"
+    // register item; starting one leaves the other for the person who
+    // enters or approves payroll.
+    const tpl = {
+      ...general,
+      knowledge: [
+        ...general.knowledge,
+        { ...general.knowledge[0], id: "k-payroll", name: "Payroll" },
+      ],
+    };
+    const rows = libraryRows(tpl, [], "general");
+    const payroll = rows.find((r) => r.recommendation.id === "lib-payroll")!;
+    const tie = rows.find((r) => r.recommendation.id === "lib-payroll-bank-tie")!;
+    expect(payroll.knowledgeIds).toEqual(["k-payroll"]);
+    expect(tie.knowledgeIds).toEqual(["k-payroll"]);
+    expect(tie.heldBy.length).toBeGreaterThan(0);
+    const started = procedureFromLibrary(payroll, "general", TODAY);
+    const after = libraryRows(tpl, [started], "general");
+    expect(after.map((r) => r.recommendation.id)).not.toContain("lib-payroll");
+    const tieAfter = after.find((r) => r.recommendation.id === "lib-payroll-bank-tie");
+    expect(tieAfter).toBeDefined();
+    // Its register items are written, so it ranks by the duty it exercises.
+    expect(tieAfter?.knowledgeIds).toEqual([]);
+    expect(tieAfter?.fits).toBe(true);
   });
 
   it("does not count a person who has left as holding the duty", () => {

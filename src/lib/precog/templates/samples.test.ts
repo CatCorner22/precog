@@ -334,6 +334,8 @@ describe("automotive sample", () => {
     expect(own.sort()).toEqual([
       "case-burlington-dealership-cash",
       "case-granger-auto-dealership-office-manager-wires",
+      "case-greenwich-auto-repair-manager-altered-receipts",
+      "case-rio-rancho-auto-body-bookkeeper-checks-and-cards",
     ]);
   });
 });

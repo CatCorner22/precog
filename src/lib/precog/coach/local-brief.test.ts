@@ -153,7 +153,10 @@ describe("local advisor brief", () => {
     expect(brief.decisions[0].procedure).toContain(
       "Next split: move take payment from customers away from Sofia Delgado to Rosa Alvarez. That closes the open duty conflict that stays open.",
     );
-    expect(brief.decisions[0].procedure?.at(-1)).toContain("Change a vendor's bank details");
+    // A create-vendor pair leads to the new-vendor procedure (RULE_PROCEDURE).
+    expect(brief.decisions[0].procedure?.at(-1)).toContain(
+      "Set up and verify a new vendor before the first payment",
+    );
     // "Fix first" names the residual band (index 80 or more), not a severity.
     expect(brief.markdown).not.toMatch(/conflict to fix first|\(fix first\)/);
   });
