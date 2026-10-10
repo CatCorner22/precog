@@ -64,6 +64,7 @@ export type PioneerCoachResult = {
     effort: string;
     horizonDays: number;
     link?: DecisionLink;
+    evidenceIds?: readonly string[];
   }[];
   specialistNotes: { agent: string; title: string; bullets: string[] }[];
   details: { title: string; lines: string[] }[];
