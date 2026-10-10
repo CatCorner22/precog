@@ -4,11 +4,10 @@ import { PROCEDURE_LIMITS } from "./normalize";
 
 /**
  * Turning the owner's rough notes ("open banking, pick checking, then match
- * each line to the statement...") into numbered steps. Grok does it when it
- * can (procedures/draft-server.ts); `draftLocally` is the offline answer and
- * the fallback, and only rearranges the owner's own words: it splits the
- * notes into one action per step, drops "then", "first" and "I usually", and
- * never adds anything the notes do not say.
+ * each line to the statement...") into numbered steps. `draftLocally` is the
+ * draft the owner reads: it splits the notes into one action per step, drops
+ * "then", "first" and "I usually", and never adds anything the notes do not
+ * say. Precog does not send these notes to a model.
  */
 
 export interface ProcedureDraftInput {

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { assignmentsAfterSplit, chooseDutySplit, openedRules } from "./duty-split";
+import {
+  assignmentsAfterSplit,
+  chooseDutySplit,
+  chooseSplitSequence,
+  openedRules,
+} from "./duty-split";
 import type { DetectedConflict } from "./detect";
 import type { EntitlementId } from "./conflict-rules";
 
@@ -128,5 +133,55 @@ describe("chooseDutySplit", () => {
     if (next && next.recipientId === first.recipientId) {
       expect(next.opened).toBe(0);
     }
+  });
+
+  it("prefers a recipient whose duties sit in a different family when the counts match", () => {
+    const open = [
+      conflict("g", "Grace Kim", "create_vendor", "release_payment", "critical"),
+      conflict("g", "Grace Kim", "release_payment", "bank_reconcile", "high"),
+    ];
+    const assignments = [
+      {
+        personId: "g",
+        personName: "Grace Kim",
+        entitlements: ["create_vendor", "release_payment", "bank_reconcile"] as EntitlementId[],
+      },
+      { personId: "a", personName: "Ana Cole", entitlements: ["collect_cash"] as EntitlementId[] },
+      {
+        personId: "r",
+        personName: "Rosa Alvarez",
+        entitlements: ["submit_claims"] as EntitlementId[],
+      },
+    ];
+    const split = chooseDutySplit(open, assignments, 4);
+    expect(split?.duty).toBe("release_payment");
+    expect(split?.recipientName).toBe("Rosa Alvarez");
+    expect(split?.opened).toBe(0);
+  });
+
+  it("keeps the best single move when a second move does not close more than that move plus its own next step", () => {
+    const open = [
+      conflict("g", "Grace Kim", "create_vendor", "release_payment", "critical"),
+      conflict("s", "Sofia Delgado", "collect_cash", "post_payments"),
+    ];
+    const assignments = [
+      {
+        personId: "g",
+        personName: "Grace Kim",
+        entitlements: ["create_vendor", "release_payment"] as EntitlementId[],
+      },
+      {
+        personId: "s",
+        personName: "Sofia Delgado",
+        entitlements: ["collect_cash", "post_payments"] as EntitlementId[],
+      },
+      { personId: "r", personName: "Rosa Alvarez", entitlements: [] as EntitlementId[] },
+    ];
+    const plan = chooseSplitSequence(open, assignments, 4);
+    expect(plan?.pairBeatsSingle).toBe(false);
+    expect(plan?.first.duty).toBe("create_vendor");
+    expect(plan?.first.recipientName).toBe("Rosa Alvarez");
+    expect(plan?.next?.personName).toBe("Sofia Delgado");
+    expect(plan?.next?.recipientName).toBe("Rosa Alvarez");
   });
 });

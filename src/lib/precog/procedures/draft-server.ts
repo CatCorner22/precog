@@ -1,29 +1,23 @@
 import { createServerFn } from "@tanstack/react-start";
-import { callModel, type LlmAccess } from "../llm/guard.server";
-import { llmMiddleware } from "../llm/middleware";
-import { ownerText, parseJsonReply, withGrokFallback } from "../llm/prompt-text";
+import { localLlmMiddleware } from "../llm/middleware";
+import { ownerText } from "../llm/prompt-text";
 import { parseProcedureDraftInput } from "../public-inputs";
 import { maskLikelySecrets } from "./credential-guard";
 import { draftLocally, sentence, type ProcedureDraft, type ProcedureDraftInput } from "./draft";
 import { PROCEDURE_LIMITS } from "./normalize";
 
 /**
- * Draft a procedure's steps from the owner's notes: Grok when the caller is
- * signed in and within the daily budget, the owner's own words split into
- * steps otherwise. Anything that looks like a password, card number or code
- * is masked before the notes reach the model, and again in what comes back.
+ * Draft a procedure's steps from the owner's notes. The steps are the notes,
+ * split into actions. Precog does not send the notes to a model and does not
+ * add a step the notes do not contain. Anything that looks like a password,
+ * card number or code is removed from the steps.
  */
 export const draftProcedureSteps = createServerFn({ method: "POST" })
-  .middleware([llmMiddleware])
+  .middleware([localLlmMiddleware])
   .validator((input: Partial<ProcedureDraftInput>): ProcedureDraftInput =>
     parseProcedureDraftInput(input),
   )
-  .handler(async ({ data, context }): Promise<ProcedureDraft> => {
-    const local = draftLocally(data);
-    return withGrokFallback(context.llm, local, Boolean(data.notes.trim()), (access) =>
-      draftWithGrok(data, access),
-    );
-  });
+  .handler(async ({ data }): Promise<ProcedureDraft> => draftLocally(data));
 
 /**
  * The drafting prompt. Every field the browser sent sits inside one
@@ -52,22 +46,6 @@ Rules:
 - purpose: one sentence on why the task matters and what done looks like, or "" when the notes do not say.
 - Leave out anything that looks like a password, PIN, card number or code.
 - Plain English for someone who has never done the task.`;
-}
-
-async function draftWithGrok(
-  input: ProcedureDraftInput,
-  access: LlmAccess,
-): Promise<ProcedureDraft | null> {
-  const response = await callModel(access, {
-    messages: [{ role: "user", content: procedureDraftPrompt(input) }],
-    maxTokens: 1500,
-    feature: "procedure-draft",
-    temperature: 0.2,
-    jsonObject: true,
-  });
-  if (!response) return null;
-  const parsed = parseJsonReply(response.text);
-  return parsed ? readDraftReply(parsed, response.model) : null;
 }
 
 /** The model's reply as a draft, each line cleaned and bounded; null when it has no steps. */

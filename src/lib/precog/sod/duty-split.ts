@@ -1,7 +1,7 @@
 import type { RoleAssignment } from "./assignments";
 import { SUBSUMED_BY, entitlementLabel, type EntitlementId } from "./conflict-rules";
 import type { DetectedConflict } from "./detect";
-import { familyPair, findRule, rulesHeldTogether } from "./rule-match";
+import { entitlementFamily, familyPair, findRule, rulesHeldTogether } from "./rule-match";
 
 /**
  * One person giving up one duty. `closed` is the open findings that lose a
@@ -30,6 +30,23 @@ export interface FeasibleDutySplit extends DutySplit {
 
 /** The duties a split reads. The rest of a role assignment is ignored. */
 export type SplitAssignment = Pick<RoleAssignment, "personId" | "personName" | "entitlements">;
+
+/**
+ * The move to make, then the best move on what remains.
+ * `pairBeatsSingle` is true when this first move is not the best move on its
+ * own: the two together close more open conflicts than that best move.
+ */
+export interface DutySplitPlan {
+  first: FeasibleDutySplit;
+  next: FeasibleDutySplit | null;
+  pairBeatsSingle: boolean;
+}
+
+/** Past this many people, the second move is the residual of the best single move. */
+const PAIR_TEAM = 40;
+
+/** How many clean first moves the pair search compares. */
+const PAIR_MOVES = 12;
 
 /**
  * Every duty one person can give up, in the order of `open`.
@@ -116,6 +133,14 @@ function openedFamily(
   return opened;
 }
 
+/** Duties the recipient already holds in the same family as the duty they would take. */
+function sameFamilyCount(duties: readonly EntitlementId[], duty: EntitlementId): number {
+  const family = entitlementFamily(duty);
+  let count = 0;
+  for (const held of duties) if (entitlementFamily(held) === family) count += 1;
+  return count;
+}
+
 function compareSplits(
   open: readonly DetectedConflict[],
   a: FeasibleDutySplit,
@@ -133,50 +158,160 @@ function compareSplits(
   );
 }
 
+interface RankedRecipient {
+  person: SplitAssignment;
+  extra: number;
+  duties: number;
+  sameFamily: number;
+  index: number;
+}
+
+/** Lower opened count, then fewer duties, then fewer in this duty's family, then an earlier name, then an earlier place in `assignments`. */
+function recipientBeats(a: RankedRecipient, b: RankedRecipient): boolean {
+  if (a.extra !== b.extra) return a.extra < b.extra;
+  if (a.duties !== b.duties) return a.duties < b.duties;
+  if (a.sameFamily !== b.sameFamily) return a.sameFamily < b.sameFamily;
+  const name = a.person.personName.localeCompare(b.person.personName);
+  if (name !== 0) return name < 0;
+  return a.index < b.index;
+}
+
+/**
+ * Who can take `duty`, best first. Ranked once per duty: the best person does
+ * not depend on who gives the duty up. The giver is skipped afterwards, so a
+ * team of 1,000 is one pass over the people, not one pass per person who holds
+ * the duty.
+ */
+function recipientsForDuty(
+  assignments: readonly SplitAssignment[],
+  duty: EntitlementId,
+  teamSize: number | undefined,
+): RankedRecipient[] {
+  const ranked: RankedRecipient[] = [];
+  for (let index = 0; index < assignments.length; index++) {
+    const person = assignments[index];
+    const named = openedRules(person.entitlements, duty);
+    if (!Number.isFinite(named)) continue;
+    ranked.push({
+      person,
+      extra: named + openedFamily(person.entitlements, duty, teamSize),
+      duties: person.entitlements.length,
+      sameFamily: sameFamilyCount(person.entitlements, duty),
+      index,
+    });
+  }
+  ranked.sort((a, b) => (recipientBeats(a, b) ? -1 : recipientBeats(b, a) ? 1 : 0));
+  return ranked;
+}
+
+function scoreSplits(
+  open: readonly DetectedConflict[],
+  assignments: readonly SplitAssignment[],
+  teamSize?: number,
+): FeasibleDutySplit[] {
+  const byDuty = new Map<EntitlementId, RankedRecipient[]>();
+  const recipients = (duty: EntitlementId) => {
+    let ranked = byDuty.get(duty);
+    if (!ranked) {
+      ranked = recipientsForDuty(assignments, duty, teamSize);
+      byDuty.set(duty, ranked);
+    }
+    return ranked;
+  };
+  const scored = dutySplits(open).map((split): FeasibleDutySplit => {
+    const ranked = recipients(split.duty);
+    const first = ranked[0];
+    const pick =
+      first === undefined
+        ? null
+        : first.person.personId === split.personId
+          ? (ranked[1] ?? null)
+          : first;
+    const canMove = pick !== null;
+    const openedCount = canMove ? pick.extra : split.closed.length;
+    const net = split.closed.length - openedCount;
+    return {
+      ...split,
+      recipientId: canMove && net > 0 ? pick.person.personId : null,
+      recipientName: canMove && net > 0 ? pick.person.personName : null,
+      opened: canMove ? pick.extra : 0,
+      net: Math.max(0, net),
+    };
+  });
+  scored.sort((a, b) => compareSplits(open, a, b));
+  return scored;
+}
+
 /**
  * The one duty move that lowers the open count the most once someone else
  * takes the duty. Ties break toward more critical pairs, then a bank
- * reconciliation, then the person already first in `open`. When every
- * recipient would open as many findings as the move closes, `net` is 0 and
- * no recipient is named: the duty cannot move onto this team.
+ * reconciliation, then the person already first in `open`, then a recipient
+ * who holds fewer duties in that duty's family. When every recipient would
+ * open as many findings as the move closes, `net` is 0 and no recipient is
+ * named: the duty cannot move onto this team.
  */
 export function chooseDutySplit(
   open: readonly DetectedConflict[],
   assignments: readonly SplitAssignment[],
   teamSize?: number,
 ): FeasibleDutySplit | null {
-  const scored = dutySplits(open).map((split): FeasibleDutySplit => {
-    let opened = Number.POSITIVE_INFINITY;
-    let recipient: SplitAssignment | null = null;
-    for (const person of assignments) {
-      if (person.personId === split.personId) continue;
-      const named = openedRules(person.entitlements, split.duty);
-      if (!Number.isFinite(named)) continue;
-      const extra = named + openedFamily(person.entitlements, split.duty, teamSize);
-      const fewerDuties =
-        recipient !== null && person.entitlements.length < recipient.entitlements.length;
-      const sameDuties =
-        recipient !== null &&
-        person.entitlements.length === recipient.entitlements.length &&
-        person.personName.localeCompare(recipient.personName) < 0;
-      if (extra < opened || (extra === opened && (fewerDuties || sameDuties))) {
-        opened = extra;
-        recipient = person;
-      }
+  return scoreSplits(open, assignments, teamSize)[0] ?? null;
+}
+
+/** The best move on the conflicts `first` leaves open. Null when none lowers the count. */
+function followUp(
+  open: readonly DetectedConflict[],
+  assignments: readonly SplitAssignment[],
+  first: FeasibleDutySplit,
+  teamSize?: number,
+): FeasibleDutySplit | null {
+  if (first.opened !== 0 || first.net <= 0) return null;
+  const remain = open.filter(
+    (conflict) => !first.closed.some((closed) => closed.id === conflict.id),
+  );
+  if (remain.length === 0) return null;
+  const next = chooseDutySplit(remain, assignmentsAfterSplit(assignments, first), teamSize);
+  return next && next.net > 0 ? next : null;
+}
+
+/**
+ * The first move, then the next. On a team of at most 40 people, a clean
+ * first move that is weaker on its own is used when that move plus the next
+ * one closes more than the best single move. Larger teams keep the best
+ * single move and the one move after it. The counts are duty pairs, not a
+ * chance of a loss.
+ */
+export function chooseSplitSequence(
+  open: readonly DetectedConflict[],
+  assignments: readonly SplitAssignment[],
+  teamSize?: number,
+): DutySplitPlan | null {
+  const ranked = scoreSplits(open, assignments, teamSize);
+  const single = ranked[0];
+  if (!single) return null;
+  const baseNext = followUp(open, assignments, single, teamSize);
+  if (assignments.length > PAIR_TEAM) {
+    return { first: single, next: baseNext, pairBeatsSingle: false };
+  }
+  let bestFirst = single;
+  let bestNext = baseNext;
+  let bestTotal = single.net + (baseNext?.net ?? 0);
+  const pool = ranked.filter((split) => split.net > 0 && split.opened === 0).slice(0, PAIR_MOVES);
+  for (const candidate of pool) {
+    if (candidate === single) continue;
+    const next = followUp(open, assignments, candidate, teamSize);
+    const total = candidate.net + (next?.net ?? 0);
+    if (total > bestTotal) {
+      bestFirst = candidate;
+      bestNext = next;
+      bestTotal = total;
     }
-    const canMove = Number.isFinite(opened);
-    const openedCount = canMove ? opened : split.closed.length;
-    const net = split.closed.length - openedCount;
-    return {
-      ...split,
-      recipientId: canMove && net > 0 ? recipient!.personId : null,
-      recipientName: canMove && net > 0 ? recipient!.personName : null,
-      opened: canMove ? opened : 0,
-      net: Math.max(0, net),
-    };
-  });
-  scored.sort((a, b) => compareSplits(open, a, b));
-  return scored[0] ?? null;
+  }
+  return {
+    first: bestFirst,
+    next: bestNext,
+    pairBeatsSingle: bestFirst !== single,
+  };
 }
 
 /** Assignments after the split: the duty leaves one person and, when named, lands on the recipient. */

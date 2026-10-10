@@ -38,11 +38,13 @@ import { localDateKey } from "../dates";
 import {
   doNextList,
   doNextSteps,
+  splitStepLabel,
   stepLineOnScreen,
   type DoNextItem,
   type DoNextStep,
   type DutySplitStaff,
 } from "../actions/do-next";
+import { chooseSplitSequence } from "../sod/duty-split";
 import { joinWithAnd } from "../text";
 import { formatUsd } from "../../utils";
 import { dutiesOffTeam, setupInPlaceControls } from "../onboarding/setup-answers";
@@ -152,6 +154,11 @@ interface StartHereExposureModel {
   partialCoverage: Map<string, number>;
   /** The person who holds half or more of the open conflicts, counted in findings as the report counts them. */
   headline: ReturnType<typeof concentrationHeadline>;
+  /**
+   * The move that lowers the open count, when it is not the duty in `headline`.
+   * Null when that duty is the move, so the share sentence names it.
+   */
+  splitLine: string | null;
   keptApart: ReturnType<typeof separatedPairs>;
   ownerHeld: ReturnType<typeof ownerHeldPairs>;
   titleDuties: string;
@@ -275,6 +282,21 @@ export function buildStartHereModel({
   // "Do these first" list names in its split step.
   const headline = concentrationHeadline(open, "finding");
   const move = concentrationMove(open, headline);
+  const staff: DutySplitStaff = {
+    assignments: sod.assignments,
+    teamSize: profile.staff.teamSize,
+  };
+  const plan = chooseSplitSequence(open, staff.assignments, staff.teamSize);
+  const dutyAgrees =
+    !!plan &&
+    !!headline &&
+    plan.first.net > 0 &&
+    plan.first.personId === headline.personId &&
+    plan.first.duty === headline.duty;
+  const splitLine =
+    headline && !dutyAgrees && plan && plan.first.net > 0
+      ? splitStepLabel(open, move, staff)
+      : null;
   const offTeamDuties = dutiesOffTeam(profile.setupAnswers);
   const exposure: StartHereExposureModel = {
     industryId: profile.industry,
@@ -290,6 +312,7 @@ export function buildStartHereModel({
     narrowed: gaps.slice(3).filter((g) => partialCoverage.has(g.conflict.ruleId)),
     partialCoverage,
     headline,
+    splitLine,
     keptApart: separatedPairs(sod.conflicts, sod.assignments),
     ownerHeld: ownerHeldPairs(sod.conflicts),
     titleDuties: isSampleTeam ? "" : titleDutiesSentence(template.people),
@@ -325,10 +348,6 @@ export function buildStartHereModel({
   };
 
   const inPlace = setupInPlaceControls(profile.setupAnswers);
-  const staff: DutySplitStaff = {
-    assignments: sod.assignments,
-    teamSize: profile.staff.teamSize,
-  };
   const doNextInput = {
     open,
     move,

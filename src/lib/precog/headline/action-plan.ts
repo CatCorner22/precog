@@ -1,11 +1,11 @@
-import { DO_NEXT_STEPS_MAX, rankedFirstSteps } from "../actions/do-next";
+import { DO_NEXT_STEPS_MAX, rankedFirstSteps, splitStepLabel } from "../actions/do-next";
 import { CONTROL_DUTIES, UNIVERSAL_FIX } from "../coach/first-steps";
 import type { ControlDefinition, ControlId } from "../evidence";
 import { industryHasOwner } from "../industry";
 import { setupInPlaceControls } from "../onboarding/setup-answers";
 import type { PracticeProfile } from "../practice-profile";
 import type { SplitAssignment } from "../sod/duty-split";
-import { chooseDutySplit } from "../sod/duty-split";
+import { chooseSplitSequence } from "../sod/duty-split";
 import { concentrationMove } from "../report/report-summary";
 import type { DetectedConflict } from "../sod/detect";
 import { openFindings } from "../sod/open-findings";
@@ -96,14 +96,10 @@ const SOURCE_RANK: Record<ActionStepSource, number> = {
 
 /**
  * The one ranked "Do this first" plan, computed once for Start here, the
- * report and the coach. Steps come from the concentration move (one person
- * holding most of the open conflicts), the ranked controls that answer the
- * open conflicts (coach/first-steps, the list the sod/recommendations box
- * leads with), and the week's actions. Steps that answer a critical conflict
- * come before high ones, and those before the rest; within a tier the
- * concentration move leads, then the controls in rank order, then the week's
- * actions in theirs. A step that repeats a duty pair or a control already on
- * the plan is dropped.
+ * report and the coach. The duty split leads, the same move Start here lists
+ * first. After it, steps that answer a critical conflict come before high
+ * ones, and those before the rest. A step that repeats a duty pair or a
+ * control already on the plan is dropped.
  */
 export function rankedActionPlan(
   profile: Pick<PracticeProfile, "industry" | "setupAnswers" | "dualRelease"> & {
@@ -124,22 +120,27 @@ export function rankedActionPlan(
   const staff = report.assignments
     ? { assignments: report.assignments, teamSize: profile.staff?.teamSize }
     : undefined;
-  const chosen = staff ? chooseDutySplit(open, staff.assignments, staff.teamSize) : null;
-  if (chosen && chosen.net > 0) {
+  const splitPlan = staff ? chooseSplitSequence(open, staff.assignments, staff.teamSize) : null;
+  const chosen = splitPlan?.first ?? null;
+  if (staff && chosen && chosen.net > 0) {
     const first = firstName(chosen.personName);
     const to = chosen.recipientName
       ? chosen.recipientName
       : `someone who holds none of ${first}'s other duties`;
+    const follow = splitPlan?.pairBeatsSingle ? splitPlan.next : null;
+    const covered = [...chosen.closed, ...(follow?.closed ?? [])];
     candidates.push({
       who: chosen.personName,
-      what: `Move ${midSentence(chosen.dutyLabel)} from ${first} to ${to}`,
+      what: follow
+        ? splitStepLabel(open, move, staff)
+        : `Move ${midSentence(chosen.dutyLabel)} from ${first} to ${to}`,
       minutes: MOVE_MINUTES,
-      closes: chosen.net,
+      closes: chosen.net + (follow?.net ?? 0),
       source: "concentration",
-      tier: tierOf(chosen.closed),
+      tier: tierOf(covered),
       keys: [
         `control:${UNIVERSAL_FIX}`,
-        ...[...new Set(chosen.closed.map((conflict) => conflict.ruleId))].map((id) => `pair:${id}`),
+        ...[...new Set(covered.map((conflict) => conflict.ruleId))].map((id) => `pair:${id}`),
       ],
     });
   } else if (move) {
@@ -167,6 +168,7 @@ export function rankedActionPlan(
   for (const step of steps) {
     const hits = answered([step.control.id]);
     if (hits.length === 0) continue;
+    if (step.control.id === UNIVERSAL_FIX && chosen && chosen.net > 0) continue;
     candidates.push({
       who: reader,
       what: step.control.label,
@@ -213,6 +215,7 @@ export function rankedActionPlan(
     .filter(({ step }) => !EXCLUDED.test(step.what) && !step.keys.some((k) => EXCLUDED.test(k)))
     .sort(
       (a, b) =>
+        Number(a.step.source !== "concentration") - Number(b.step.source !== "concentration") ||
         TIER_RANK[a.step.tier] - TIER_RANK[b.step.tier] ||
         SOURCE_RANK[a.step.source] - SOURCE_RANK[b.step.source] ||
         a.order - b.order,

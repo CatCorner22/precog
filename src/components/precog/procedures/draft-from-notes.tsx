@@ -60,9 +60,10 @@ export function DraftFromNotes({
     );
   }
 
-  const reason = result
-    ? ruleBasedReason(result.source, result.grokStatus, result.dailyLimit)
-    : null;
+  const reason =
+    result?.source === "local" && result.grokStatus
+      ? ruleBasedReason(result.source, result.grokStatus, result.dailyLimit)
+      : null;
   return (
     <section
       aria-labelledby="draft-notes-title"
@@ -72,9 +73,9 @@ export function DraftFromNotes({
         <Sparkles className="size-3.5 text-accent" aria-hidden /> Draft steps from notes
       </h3>
       <label className="flex flex-col gap-1 text-xs text-muted">
-        Describe the task the way you would tell someone, in any order of detail. Signed in, Grok
-        turns it into steps; Precog first removes anything that looks like a password or card
-        number.
+        Describe the task the way you would tell someone, in any order of detail. Precog splits your
+        notes into steps and does not rewrite them. It first removes anything that looks like a
+        password or card number.
         <textarea
           className={`${fieldCls} w-full`}
           rows={4}
