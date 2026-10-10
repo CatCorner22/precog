@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vitest run *)",
+      "Bash(npx tsc --noEmit *)",
+      "Bash(npx prettier --check *)",
+      "Bash(npm run typecheck)",
+      "mcp__github__pull_request_read",
+      "Bash(pg_isready *)",
+      "Bash(npm run lint)",
+      "Bash(npm test)",
+      "Bash(node --check *)",
+      "Bash(npm run format:check)",
+      "mcp__github__actions_list",
+      "Bash(npm run check:bundle)",
+      "mcp__github__get_job_logs"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/session-start.sh\"",
+            "timeout": 10,
+            "statusMessage": "Checking node_modules and local Postgres"
+          }
+        ]
+      }
+    ]
+  }
+}
