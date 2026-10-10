@@ -177,7 +177,10 @@ export function buildControlReportModel({
   const inPlace = setupInPlaceControls(profile.setupAnswers);
   // The concentration move, worked out once for the step list and the summary.
   const move = concentrationMove(open);
-  const steps = rankedFirstSteps(open, profile.industry, (id) => inPlace.has(id), move).slice(0, 6);
+  const steps = rankedFirstSteps(open, profile.industry, (id) => inPlace.has(id), move, {
+    assignments: sod.assignments,
+    teamSize: profile.staff.teamSize,
+  }).slice(0, 6);
   // Count, median and detection routes describe only the cases whose records
   // show these gaps. Cases that merely share a scheme are listed but never
   // counted, so when no case shows the gaps the report gives no loss figure.

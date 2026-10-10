@@ -115,10 +115,9 @@ export function useSodPanel(
   // parts and its findings: the tile, the sub-tab, the location filter and the
   // list under them all read this one object.
   const headline = useMemo(() => openConflictHeadline(report, partial), [report, partial]);
-  // The step Start here's "Do these first" lists first, from the same open
-  // findings, setup answers and books reading, in the words Start here gives
-  // it (naming the person and duties in conflict): the "What to do first"
-  // box leads with it.
+  // The step Start here's "Do these first" lists first. Staff is the same
+  // team Start here passes, so the duty named here is the one that lowers
+  // the open count, not a different pair from a person who holds half.
   const firstStep = useMemo(
     () =>
       firstDoNextLine({
@@ -127,9 +126,12 @@ export function useSodPanel(
         integrationDriftSummary: profile.integrationDriftSummary,
         accessReconciliation: profile.accessReconciliation,
         inPlace: setupInPlaceControls(profile.setupAnswers),
+        staff: { assignments: report.assignments, teamSize: profile.staff.teamSize },
       }),
     [
       headline,
+      report.assignments,
+      profile.staff.teamSize,
       profile.industry,
       profile.integrationDriftSummary,
       profile.accessReconciliation,
