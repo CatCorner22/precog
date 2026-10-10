@@ -6,7 +6,8 @@ import type { AccessReconciliation } from "../firm/reconcile";
 import { buildDriftActions, type DriftAction } from "../integrations/drift-signals";
 import type { IntegrationDriftSummary } from "../integrations/drift-summary";
 import { concentrationMove, type ConcentrationMove } from "../report/report-summary";
-import type { DetectedConflict } from "../sod/detect";
+import { chooseDutySplit, type SplitAssignment } from "../sod/duty-split";
+import { SEVERITY_RANK, type DetectedConflict } from "../sod/detect";
 import { ruleIdsOf } from "../sod/open-findings";
 import { midSentence } from "../text";
 
@@ -25,6 +26,10 @@ export const DO_NEXT_DRIFT_MAX = 3;
 export const SPLIT_STEP_WITHOUT_NAMED_ROLE =
   "Move one duty of a conflicting pair to someone who holds neither duty";
 
+/** The split step when moving a duty onto anyone now on the team would not lower the open count. */
+export const SPLIT_STEP_NO_RECIPIENT =
+  "No one else on the team can take a duty from these pairs without holding the other side";
+
 /** A control that answers open duty conflicts, with its rank inputs. */
 export type DoNextStep = ReturnType<
   typeof rankFirstSteps<ReturnType<typeof recommendedStepsForRules>[number]>
@@ -39,6 +44,12 @@ export type DoNextItem =
   | { kind: "step"; id: string; step: DoNextStep }
   | { kind: "drift"; id: string; action: DriftAction };
 
+/** The team a duty split checks, so the named recipient does not already hold the other side. */
+export interface DutySplitStaff {
+  assignments: readonly SplitAssignment[];
+  teamSize?: number;
+}
+
 export interface DoNextInput {
   /** The open duty-conflict findings, as the report counts them (sod/open-findings). */
   open: readonly DetectedConflict[];
@@ -50,6 +61,8 @@ export interface DoNextInput {
   inPlace?: ReadonlySet<ControlId>;
   /** `concentrationMove(open)`, when the caller has already worked it out. */
   move?: ConcentrationMove | null;
+  /** When set, the split step names the duty that lowers the open count, not only the person who holds half. */
+  staff?: DutySplitStaff;
 }
 
 /**
@@ -63,7 +76,18 @@ export interface DoNextInput {
 export function splitStepLabel(
   open: readonly DetectedConflict[],
   move: ConcentrationMove | null = concentrationMove(open),
+  staff?: DutySplitStaff,
 ): string {
+  if (staff) {
+    const chosen = chooseDutySplit(open, staff.assignments, staff.teamSize);
+    if (chosen && chosen.net > 0 && chosen.opened === 0) {
+      return `Move one duty, ${midSentence(chosen.dutyLabel)}, away from ${chosen.personName}: it closes ${chosen.closed.length} of the ${open.length} open duty conflicts`;
+    }
+    if (chosen && chosen.net > 0 && chosen.recipientName) {
+      return `Move one duty, ${midSentence(chosen.dutyLabel)}, away from ${chosen.personName}: it closes ${chosen.closed.length} and opens ${chosen.opened} on ${chosen.recipientName}. The open count falls by ${chosen.net}.`;
+    }
+    if (chosen) return SPLIT_STEP_NO_RECIPIENT;
+  }
   if (!move) return SPLIT_STEP_WITHOUT_NAMED_ROLE;
   return `Move one duty, ${midSentence(move.dutyLabel)}, away from ${move.personName}: it closes ${move.closes} of the ${open.length} open duty conflicts`;
 }
@@ -84,13 +108,14 @@ export function rankedFirstSteps(
   industry: IndustryId,
   skip?: (id: ControlId) => boolean,
   move?: ConcentrationMove | null,
+  staff?: DutySplitStaff,
 ): DoNextStep[] {
   const recommended = recommendedStepsForRules(ruleIdsOf(open), industry).filter(
     (step) => !skip?.(step.control.id),
   );
   return rankFirstSteps(recommended, open).map((step) =>
     step.control.id === UNIVERSAL_FIX
-      ? { ...step, control: { ...step.control, label: splitStepLabel(open, move) } }
+      ? { ...step, control: { ...step.control, label: splitStepLabel(open, move, staff) } }
       : step,
   );
 }
@@ -108,8 +133,9 @@ export function doNextList({
   accessReconciliation,
   inPlace,
   move,
+  staff,
 }: DoNextInput): DoNextItem[] {
-  const steps = rankedFirstSteps(open, industry, (id) => inPlace?.has(id) ?? false, move)
+  const steps = rankedFirstSteps(open, industry, (id) => inPlace?.has(id) ?? false, move, staff)
     .slice(0, DO_NEXT_STEPS_MAX)
     .map((step): DoNextItem => ({ kind: "step", id: step.control.id, step }));
   const drift = buildDriftActions({ summary: integrationDriftSummary, accessReconciliation })
@@ -148,8 +174,19 @@ export function firstDoNextStep(input: DoNextInput): DoNextStep | null {
 export function stepFocus(
   step: Pick<DoNextStep, "control">,
   open: readonly DetectedConflict[],
+  staff?: DutySplitStaff,
 ): DetectedConflict | null {
-  if (step.control.id === UNIVERSAL_FIX && step.control.label !== SPLIT_STEP_WITHOUT_NAMED_ROLE) {
+  if (
+    step.control.id === UNIVERSAL_FIX &&
+    step.control.label !== SPLIT_STEP_WITHOUT_NAMED_ROLE &&
+    step.control.label !== SPLIT_STEP_NO_RECIPIENT
+  ) {
+    const chosen = staff ? chooseDutySplit(open, staff.assignments, staff.teamSize) : null;
+    if (chosen && chosen.net > 0) {
+      return chosen.closed.reduce((best, conflict) =>
+        SEVERITY_RANK[conflict.severity] < SEVERITY_RANK[best.severity] ? conflict : best,
+      );
+    }
     return concentrationMove(open)?.closed[0] ?? null;
   }
   const duties = new Set(CONTROL_DUTIES[step.control.id]);
@@ -170,10 +207,16 @@ export function stepFocus(
  * person and duty keeps its words. Screens only: the printed report keeps the
  * step list's own words.
  */
-export function stepLineOnScreen(step: DoNextStep, open: readonly DetectedConflict[]): string {
-  const focus = stepFocus(step, open);
+export function stepLineOnScreen(
+  step: DoNextStep,
+  open: readonly DetectedConflict[],
+  staff?: DutySplitStaff,
+): string {
+  const focus = stepFocus(step, open, staff);
   const namedSplit =
-    step.control.id === UNIVERSAL_FIX && step.control.label !== SPLIT_STEP_WITHOUT_NAMED_ROLE;
+    step.control.id === UNIVERSAL_FIX &&
+    step.control.label !== SPLIT_STEP_WITHOUT_NAMED_ROLE &&
+    step.control.label !== SPLIT_STEP_NO_RECIPIENT;
   if (!focus || namedSplit) return step.control.label;
   const who = focus.personName;
   const holds = `${who} can both ${midSentence(focus.labelA)} and ${midSentence(focus.labelB)}`;
@@ -194,5 +237,5 @@ export function stepLineOnScreen(step: DoNextStep, open: readonly DetectedConfli
  */
 export function firstDoNextLine(input: DoNextInput): string | null {
   const step = firstDoNextStep(input);
-  return step ? stepLineOnScreen(step, input.open) : null;
+  return step ? stepLineOnScreen(step, input.open, input.staff) : null;
 }

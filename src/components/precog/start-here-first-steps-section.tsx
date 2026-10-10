@@ -35,7 +35,7 @@ export function StartHereFirstStepsSection({
   if (part === "notes" && !hasNotes) return null;
 
   const renderStep = (s: DoNextStep, i: number) => {
-    const focus = stepFocus(s, model.open ?? []);
+    const focus = stepFocus(s, model.open ?? [], model.staff);
     const landing = stepDestination(s, focus);
     // Item 1 names the person and duties in conflict, in the words the
     // duty-conflict tab's "What to do first" box gives it.

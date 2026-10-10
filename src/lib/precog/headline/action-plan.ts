@@ -4,6 +4,8 @@ import type { ControlDefinition, ControlId } from "../evidence";
 import { industryHasOwner } from "../industry";
 import { setupInPlaceControls } from "../onboarding/setup-answers";
 import type { PracticeProfile } from "../practice-profile";
+import type { SplitAssignment } from "../sod/duty-split";
+import { chooseDutySplit } from "../sod/duty-split";
 import { concentrationMove } from "../report/report-summary";
 import type { DetectedConflict } from "../sod/detect";
 import { openFindings } from "../sod/open-findings";
@@ -104,8 +106,10 @@ const SOURCE_RANK: Record<ActionStepSource, number> = {
  * the plan is dropped.
  */
 export function rankedActionPlan(
-  profile: Pick<PracticeProfile, "industry" | "setupAnswers" | "dualRelease">,
-  report: { conflicts: readonly DetectedConflict[] },
+  profile: Pick<PracticeProfile, "industry" | "setupAnswers" | "dualRelease"> & {
+    staff?: PracticeProfile["staff"];
+  },
+  report: { conflicts: readonly DetectedConflict[]; assignments?: readonly SplitAssignment[] },
   options: ActionPlanOptions,
 ): ActionStep[] {
   const open = openFindings(report.conflicts, options.partial);
@@ -117,7 +121,28 @@ export function rankedActionPlan(
   const candidates: ActionStep[] = [];
 
   const move = concentrationMove(open);
-  if (move) {
+  const staff = report.assignments
+    ? { assignments: report.assignments, teamSize: profile.staff?.teamSize }
+    : undefined;
+  const chosen = staff ? chooseDutySplit(open, staff.assignments, staff.teamSize) : null;
+  if (chosen && chosen.net > 0) {
+    const first = firstName(chosen.personName);
+    const to = chosen.recipientName
+      ? chosen.recipientName
+      : `someone who holds none of ${first}'s other duties`;
+    candidates.push({
+      who: chosen.personName,
+      what: `Move ${midSentence(chosen.dutyLabel)} from ${first} to ${to}`,
+      minutes: MOVE_MINUTES,
+      closes: chosen.net,
+      source: "concentration",
+      tier: tierOf(chosen.closed),
+      keys: [
+        `control:${UNIVERSAL_FIX}`,
+        ...[...new Set(chosen.closed.map((conflict) => conflict.ruleId))].map((id) => `pair:${id}`),
+      ],
+    });
+  } else if (move) {
     const first = firstName(move.personName);
     candidates.push({
       who: move.personName,
@@ -135,7 +160,10 @@ export function rankedActionPlan(
   const inPlace = setupInPlaceControls(profile.setupAnswers);
   const running = (id: ControlId) =>
     inPlace.has(id) || (id === DUAL_RELEASE && profile.dualRelease.enabled);
-  const steps = rankedFirstSteps(open, profile.industry, running, move).slice(0, DO_NEXT_STEPS_MAX);
+  const steps = rankedFirstSteps(open, profile.industry, running, move, staff).slice(
+    0,
+    DO_NEXT_STEPS_MAX,
+  );
   for (const step of steps) {
     const hits = answered([step.control.id]);
     if (hits.length === 0) continue;

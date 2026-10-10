@@ -8,8 +8,6 @@ import { buildStartHereModel } from "../start-here/model";
 import type { DetectedConflict } from "../sod/detect";
 import { partialDualReleaseCoverage } from "../sod/open-findings";
 import { rankedActionPlan, type ActionStepTier } from "./action-plan";
-import { splitStepLabel } from "../actions/do-next";
-import { openFindings } from "../sod/open-findings";
 import { acceptanceDates, openConflictBadge, openConflictHeadline } from "./open-conflicts";
 
 const TODAY = "2026-09-26";
@@ -261,7 +259,7 @@ describe("rankedActionPlan", () => {
     });
     expect(first).toMatchObject({
       who: "Keisha Moore",
-      what: "Move enter write-offs from Keisha to someone who holds none of Keisha's other duties",
+      what: "Move enter write-offs from Keisha to Tom Becker",
       minutes: 60,
       closes: 3,
       source: "concentration",
@@ -337,9 +335,7 @@ describe("rankedActionPlan", () => {
     });
     const handOff = report.actions.find((a) => a.id === "map-heat-proc-claims");
     expect(handOff?.title).toBe("Have someone other than Maya enter write-offs");
-    expect(plan[0].what).toBe(
-      "Move enter write-offs from Maya to someone who holds none of Maya's other duties",
-    );
+    expect(plan[0].what).toBe("Move enter write-offs from Maya to Riley Kim");
     expect(plan[0].keys).toContain("pair:rule-writeoff");
     expect(plan.map((s) => s.what)).not.toContain(handOff?.title);
   });
@@ -362,12 +358,11 @@ describe("rankedActionPlan", () => {
     ]) {
       const { report } = screens(profile);
       const plan = rankedActionPlan(profile, report.sod, { partial: report.partialCoverage });
-      const open = openFindings(report.sod.conflicts, report.partialCoverage);
       for (const step of plan) {
         expect(step.what, name).not.toMatch(/concentrated role/);
-        if (step.source === "first-step" && step.keys.includes("control:split-one-duty-out")) {
+        if (step.keys.includes("control:split-one-duty-out")) {
           listed++;
-          expect(step.what, name).toBe(splitStepLabel(open));
+          expect(step.what, name).not.toMatch(/even just the bank reconciliation/);
         }
       }
     }

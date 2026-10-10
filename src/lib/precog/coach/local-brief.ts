@@ -25,6 +25,14 @@ import {
   starterScenarioLabel,
   starterScenariosLeftOut,
 } from "../scoring/scope";
+import { procedureForConflict } from "../procedures/rule-procedures";
+import { recommendationFor } from "../procedures/library";
+import {
+  assignmentsAfterSplit,
+  chooseDutySplit,
+  type FeasibleDutySplit,
+  type SplitAssignment,
+} from "../sod/duty-split";
 import {
   detectSodConflicts,
   SEVERITY_RANK,
@@ -88,13 +96,14 @@ export function localBrief(
 ): LocalBrief {
   const started = Date.now();
   const tpl = resolveTemplate(profile);
-  const { people, totals } = ownConflicts(profile, tpl);
+  const { people, totals, assignments } = ownConflicts(profile, tpl);
   try {
     const result = runLocalAgentLoop(question, ctx);
     const brief = ownFirstBrief(result.brief, profile, question, {
       tpl,
       people,
       totals,
+      assignments,
       toolResults: result.toolResults,
       today: ctx.today,
     });
@@ -126,7 +135,13 @@ export function localBrief(
       steps: [],
       toolsUsed: [],
       toolResults: [],
-      brief: fallbackBrief(profile, question, { tpl, people, totals, today: ctx.today }),
+      brief: fallbackBrief(profile, question, {
+        tpl,
+        people,
+        totals,
+        assignments,
+        today: ctx.today,
+      }),
       contextFingerprint: "fallback",
       latencyMs: Date.now() - started,
       partial: true,
@@ -166,7 +181,7 @@ type ConflictProfile = Pick<
 function ownConflicts(
   profile: ConflictProfile,
   tpl: IndustryTemplate,
-): { people: PersonConflicts[]; totals: OpenConflictTotals } {
+): { people: PersonConflicts[]; totals: OpenConflictTotals; assignments: SplitAssignment[] } {
   const sod = detectSodConflicts(tpl, profile.staff, sodDetectionOptions(tpl, profile.dualRelease));
   const byPerson = new Map<string, PersonConflicts>();
   const headline = openConflictHeadline(
@@ -189,7 +204,7 @@ function ownConflicts(
   const people = [...byPerson.values()].sort(
     (a, b) => worst(a) - worst(b) || top(b) - top(a) || a.personName.localeCompare(b.personName),
   );
-  return { people, totals: headline };
+  return { people, totals: headline, assignments: sod.assignments };
 }
 
 /**
@@ -212,14 +227,15 @@ export function fallbackBrief(
     tpl?: IndustryTemplate;
     people?: PersonConflicts[];
     totals?: OpenConflictTotals;
+    assignments?: readonly SplitAssignment[];
     today?: string;
     toolResults?: ToolResult[];
   } = {},
 ): StructuredBrief {
   const tpl = known.tpl ?? resolveTemplate(profile);
-  const { people, totals } =
-    known.people && known.totals
-      ? { people: known.people, totals: known.totals }
+  const { people, totals, assignments } =
+    known.people && known.totals && known.assignments
+      ? { people: known.people, totals: known.totals, assignments: known.assignments }
       : ownConflicts(profile, tpl);
   const statement = ownerStatementDecision(profile.industry);
   const decisions = [
@@ -268,6 +284,7 @@ export function fallbackBrief(
       tpl,
       people,
       totals,
+      assignments,
       toolResults: known.toolResults ?? [],
       today: known.today,
     });
@@ -333,7 +350,128 @@ function pairWords(c: Pick<DetectedConflict, "labelA" | "labelB">): string {
 /** The owner-doable statement step, phrased for "This week: ...". */
 const STATEMENT_THIS_WEEK = "open the bank statement yourself, before anyone else";
 
-/** The decision for one person's conflicts: move one duty, and what covers it meanwhile. */
+function splitProcedure(split: FeasibleDutySplit): string[] {
+  const duty = midSentence(split.dutyLabel);
+  const pair = split.closed.length === 1 ? "pair" : "pairs";
+  const give =
+    split.recipientName && split.opened === 0
+      ? `Give ${duty} to ${split.recipientName}. ${split.recipientName} holds neither duty in the ${pair} this move closes.`
+      : split.recipientName
+        ? `Give ${duty} to ${split.recipientName}. That opens ${count(split.opened, "duty conflict")} on ${split.recipientName}.`
+        : `Give ${duty} to someone who holds neither duty in the pair.`;
+  return [
+    `Open ${split.personName} on Team.`,
+    give,
+    `Write who does ${duty} now, who checks it, and how often.`,
+    `Leave ${split.personName}'s other duty in the pair where it is.`,
+  ];
+}
+
+function nextSplitLine(next: FeasibleDutySplit, remain: number): string {
+  const to = next.recipientName ? ` to ${next.recipientName}` : "";
+  const effect =
+    next.opened > 0
+      ? `That closes ${next.closed.length} and opens ${count(next.opened, "duty conflict")} on ${next.recipientName}.`
+      : next.closed.length >= remain
+        ? remain === 1
+          ? "That closes the open duty conflict that stays open."
+          : `That closes the ${count(remain, "open duty conflict")} that stay open.`
+        : `That closes ${next.closed.length} of the ${count(remain, "open duty conflict")} that ${verb(remain, "stays", "stay")} open.`;
+  return `Next split: move ${midSentence(next.dutyLabel)} away from ${next.personName}${to}. ${effect}`;
+}
+
+/**
+ * The one move that lowers the open count the most once someone else takes
+ * the duty, then the next such move on what remains. What stays open is a
+ * count of duty pairs, not a chance of a loss.
+ */
+function optimalSplitDecision(
+  open: readonly DetectedConflict[],
+  profile: Pick<PracticeProfile, "dualRelease" | "industry" | "staff">,
+  assignments: readonly SplitAssignment[],
+): PioneerDecision | null {
+  const split = chooseDutySplit(open, assignments, profile.staff?.teamSize);
+  if (!split) return null;
+  if (split.net <= 0) {
+    return {
+      action: `No move of one duty onto someone else on this team lowers the open count. ${count(open.length, "open duty conflict")} ${verb(open.length, "stays", "stay")} open.`,
+      rationale:
+        "That is a count of duty pairs, not a chance of a loss. A new person, or dual release at every amount, is what closes a pair nobody else can take.",
+      procedure: [
+        "Add a person who holds neither duty in the pair, or turn on dual release for that pair.",
+        "Until then, open the bank statement yourself, before anyone else.",
+      ],
+      evidenceIds: [],
+      effort: "medium",
+      horizonDays: 14,
+      cascadeEffects: ["duty conflicts ↓"],
+      link: { tab: "sod" },
+    };
+  }
+  const worst = split.closed.reduce((best, conflict) =>
+    SEVERITY_RANK[conflict.severity] < SEVERITY_RANK[best.severity] ? conflict : best,
+  );
+  const remainOpen = open.filter(
+    (conflict) => !split.closed.some((closed) => closed.id === conflict.id),
+  );
+  const remain = remainOpen.length;
+  const next =
+    split.opened === 0 && remain > 0
+      ? chooseDutySplit(
+          remainOpen,
+          assignmentsAfterSplit(assignments, split),
+          profile.staff?.teamSize,
+        )
+      : null;
+  const usableNext = next && next.net > 0 ? next : null;
+  const severity = SEVERITY_WORDS[worst.severity].replace(/^a /, "");
+  const reason = worst.why.split(". ")[0].replace(/\.$/, "");
+  const meanwhile = closingSteps(
+    worst.compensatingControls,
+    profile.dualRelease,
+    worst.ruleId,
+    worst.controlsInPlace,
+  )[0];
+  const library = procedureForConflict(worst.ruleId);
+  const titled = library ? recommendationFor(library, profile.industry).title : null;
+  const after = open.length - split.net;
+  const left =
+    after === 0
+      ? "No open duty conflict stays open."
+      : `${count(after, "open duty conflict")} ${verb(after, "stays", "stay")} open.`;
+  const openedNote =
+    split.opened > 0
+      ? ` Giving it to ${split.recipientName} opens ${count(split.opened, "duty conflict")}.`
+      : "";
+  const procedure = [
+    ...splitProcedure(split),
+    ...(usableNext ? [nextSplitLine(usableNext, remain)] : []),
+    ...(remain > 0 && !usableNext
+      ? [
+          "No one else on the team can take a duty from what stays open without holding the other side.",
+        ]
+      : []),
+    ...(titled ? [`The written procedure for this pair is "${titled}".`] : []),
+  ];
+  const action =
+    split.opened > 0
+      ? `Move ${midSentence(split.dutyLabel)} away from ${split.personName}: it closes ${split.closed.length} and opens ${split.opened}. The open count falls by ${split.net}.`
+      : `Move ${midSentence(split.dutyLabel)} away from ${split.personName}: it closes ${split.closed.length} of the ${open.length} open duty conflicts`;
+  return {
+    action,
+    rationale: `${severity.charAt(0).toUpperCase()}${severity.slice(1)}: ${reason}. ${left}${openedNote} That is a count of duty pairs, not a chance of a loss.${meanwhile ? ` Until it moves: ${midSentence(meanwhile).replace(/\.$/, "")}.` : ""}`,
+    procedure,
+    evidenceIds: [],
+    effort: "medium",
+    horizonDays: 14,
+    cascadeEffects: ["duty conflicts ↓"],
+    link: {
+      tab: "sod",
+      id: teamFocusItem(split.personId, worst.entitlementA, worst.entitlementB),
+      personId: split.personId,
+    },
+  };
+}
 function conflictDecision(
   person: PersonConflicts,
   profile: Pick<PracticeProfile, "dualRelease">,
@@ -728,6 +866,7 @@ function ownFirstBrief(
     tpl: IndustryTemplate;
     people: PersonConflicts[];
     totals: OpenConflictTotals;
+    assignments: readonly SplitAssignment[];
     toolResults: ToolResult[];
     today?: string;
   },
@@ -768,7 +907,15 @@ function ownFirstBrief(
   }
   const statement = ownerStatementDecision(profile.industry);
   if (leadWithConflicts) {
-    const lead = people.slice(0, 3).map((p) => conflictDecision(p, profile));
+    const open = people.flatMap((p) => p.conflicts);
+    const split = optimalSplitDecision(open, profile, known.assignments);
+    const lead = [
+      ...(split ? [split] : []),
+      ...people
+        .slice(0, 3)
+        .filter((p) => p.personId !== split?.link?.personId)
+        .map((p) => conflictDecision(p, profile)),
+    ];
     decisions = [...lead, statement, ...decisions.filter((d) => d.action !== statement.action)];
   } else if (absence) {
     decisions = [
@@ -783,7 +930,10 @@ function ownFirstBrief(
       : null;
   let frontierNextMove = leverAction(brief.frontierNextMove);
   if (leadWithConflicts) {
-    frontierNextMove = thisWeek(people[0]);
+    const split = decisions.find((d) => d.procedure?.length);
+    frontierNextMove = split
+      ? `This week: ${midSentence(split.action)}, and ${STATEMENT_THIS_WEEK}.`
+      : thisWeek(people[0]);
   } else if (absence && decisions[0] && isContinuityDecision(decisions[0])) {
     frontierNextMove = `This week: ${midSentence(decisions[0].action)}.`;
   } else if (scenarioMove) {

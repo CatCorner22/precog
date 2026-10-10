@@ -1001,5 +1001,6 @@ function limitsLines(tradeoffs: string[], advancedReasoning: string[]): string[]
 
 /** "1. **Move one duty** (medium effort · within 14 days): why." */
 export function renderDecision(d: PioneerDecision, i: number): string {
-  return `${i + 1}. **${d.action}** (${d.effort} effort · within ${count(d.horizonDays, "day")}): ${d.rationale}`;
+  const steps = d.procedure?.map((step, n) => `${n + 1}. ${step}`).join(" ");
+  return `${i + 1}. **${d.action}** (${d.effort} effort · within ${count(d.horizonDays, "day")}): ${d.rationale}${steps ? ` Procedure: ${steps}` : ""}`;
 }

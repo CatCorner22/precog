@@ -238,7 +238,7 @@ describe("executive summary", () => {
     }
     expect(unnamed.length).toBeGreaterThan(0);
     expect(modelOf(defaultProfile("retail")).summary).toContain(
-      "First step: move one duty of a conflicting pair to someone who holds neither duty.",
+      "First step: move one duty, enter write-offs, away from Sam Nguyen: it closes 3 of the 16 open duty conflicts.",
     );
     // The first step names the person and the duty, against the same open count.
     expect(modelOf(defaultProfile("dental")).summary).toContain(

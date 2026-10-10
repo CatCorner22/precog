@@ -50,7 +50,7 @@ describe("local advisor brief", () => {
     const profile = clinic();
     const { brief } = localBrief(EMBEZZLEMENT, { profile, question: EMBEZZLEMENT }, profile);
     expect(brief.decisions[0].action).toBe(
-      "Give one of Grace Kim's duties to someone else: set up suppliers or release payments",
+      "Move set up suppliers away from Grace Kim: it closes 1 of the 2 open duty conflicts",
     );
     expect(brief.decisions[0].link).toEqual({
       tab: "sod",
@@ -61,13 +61,40 @@ describe("local advisor brief", () => {
       true,
     );
     expect(brief.frontierNextMove).toBe(
-      "This week: move one of Grace Kim's duties to someone else, and open the bank statement yourself, before anyone else.",
+      "This week: move set up suppliers away from Grace Kim: it closes 1 of the 2 open duty conflicts, and open the bank statement yourself, before anyone else.",
     );
     expect(brief.markdown).toContain("Sofia Delgado");
     expect(brief.markdown).not.toMatch(/deductible|policy limit/i);
     expect(brief.markdown).not.toContain("## This week\nThis week:");
     // The industry example's register and people never appear as this clinic's.
     expect(brief.markdown).not.toMatch(/Insurance denial appeals|Jordan|Maya Chen/);
+  });
+
+  it("moves the duty that closes the most open conflicts, not the first person's pair", () => {
+    const people = buildOwnTeam([
+      {
+        name: "Ellen Marchetti",
+        role: "Physician/Owner",
+        duties: ["approve_payroll", "bank_reconcile"],
+      },
+      { name: "Grace Kim", role: "Bookkeeper", duties: ["create_vendor", "release_payment"] },
+      {
+        name: "Pat Ruiz",
+        role: "Billing",
+        duties: ["approve_writeoffs", "submit_claims", "collect_cash"],
+      },
+    ]);
+    const profile = pioneerProfileFrom(
+      ownBusinessProfile(defaultProfile("dental"), { practiceName: "Northside", people }) as never,
+    );
+    const { brief } = localBrief(EMBEZZLEMENT, { profile, question: EMBEZZLEMENT }, profile);
+    expect(brief.decisions[0].action).toBe(
+      "Move approve write-offs and voids away from Pat Ruiz: it closes 2 of the 3 open duty conflicts",
+    );
+    expect(brief.decisions[0].rationale).toContain("1 open duty conflict stays open");
+    expect(brief.decisions[0].procedure).toContain(
+      "Next split: move set up suppliers away from Grace Kim to Pat Ruiz. That closes the open duty conflict that stays open.",
+    );
   });
 
   it("never names an insurance lever while the policy figures are defaults", () => {
@@ -120,6 +147,13 @@ describe("local advisor brief", () => {
     const profile = clinic();
     const { brief } = localBrief(EMBEZZLEMENT, { profile, question: EMBEZZLEMENT }, profile);
     expect(brief.decisions[0].rationale).toContain("Critical duty conflict");
+    expect(brief.decisions[0].rationale).toContain("1 open duty conflict stays open");
+    expect(brief.decisions[0].rationale).toContain("not a chance of a loss");
+    expect(brief.decisions[0].procedure?.[0]).toBe("Open Grace Kim on Team.");
+    expect(brief.decisions[0].procedure).toContain(
+      "Next split: move take payment from customers away from Sofia Delgado to Grace Kim. That closes the open duty conflict that stays open.",
+    );
+    expect(brief.decisions[0].procedure?.at(-1)).toContain("Change a vendor's bank details");
     // "Fix first" names the residual band (index 80 or more), not a severity.
     expect(brief.markdown).not.toMatch(/conflict to fix first|\(fix first\)/);
   });

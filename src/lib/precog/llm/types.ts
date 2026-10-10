@@ -109,6 +109,8 @@ export interface PioneerDecision {
   effort: "low" | "medium" | "high";
   horizonDays: number;
   cascadeEffects?: string[];
+  /** Rules-written steps for this move. A model does not write them. */
+  procedure?: readonly string[];
   /** What a Journal entry logged from this decision links to, so the next brief follows it up. */
   link?: DecisionLink;
 }

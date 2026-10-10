@@ -10,7 +10,9 @@ export function journalEntry(d: CoachDecision, now: Date): DecisionInput {
   return {
     subject: d.action.slice(0, 120),
     kind: "remediate",
-    note: d.rationale,
+    note: d.procedure?.length
+      ? `${d.rationale} Procedure: ${d.procedure.map((step, index) => `${index + 1}. ${step}`).join(" ")}`
+      : d.rationale,
     reviewBy: dateAfter(now, d.horizonDays),
     ...(d.link
       ? {

@@ -156,7 +156,11 @@ export function CoachResultView({
   const { say } = usePresentation();
   const [allMoves, setAllMoves] = useState(false);
   const ordered = orderedMoves(result.decisions, result.highlightIds);
-  const moves = allMoves ? ordered : ordered.slice(0, MOVES_PREVIEW);
+  const procedureLead = result.decisions[0]?.procedure?.length ? result.decisions[0] : null;
+  const pinned = procedureLead
+    ? ordered.find((item) => item.decision === procedureLead)
+    : undefined;
+  const moves = allMoves ? ordered : pinned ? [pinned] : ordered.slice(0, MOVES_PREVIEW);
   const notes = extraWarnings(result);
   const board = briefBoard(result.markdown);
   const anyHighlighted = ordered.some((item) => item.highlighted);
@@ -217,8 +221,12 @@ export function CoachResultView({
               const d = item.decision;
               const done = logged.has(d.action);
               const where = d.link;
-              const rank = ordered.findIndex((candidate) => candidate.id === item.id) + 1;
-              const lead = rank === 1 && ordered.length > 1;
+              const rank =
+                moves.length === 1
+                  ? 1
+                  : ordered.findIndex((candidate) => candidate.id === item.id) + 1;
+              const lead =
+                moves.length === 1 ? ordered.length > 1 : rank === 1 && ordered.length > 1;
               const figure = citedFigure(d, result.evidence);
               return (
                 <div
@@ -235,14 +243,23 @@ export function CoachResultView({
                     </span>
                     <span className="font-medium">{d.action}</span>
                     {item.highlighted && <Badge variant="primary">Most relevant</Badge>}
-                    {lead && !anyHighlighted && (
-                      <Badge variant="primary">Start with this one</Badge>
-                    )}
+                    {!item.highlighted &&
+                      (item.decision === procedureLead ||
+                        (lead && !anyHighlighted && !procedureLead)) && (
+                        <Badge variant="primary">Start with this one</Badge>
+                      )}
                     <Badge variant="default">{effortWords(d.effort)}</Badge>
                     <span className="text-xs text-muted">within {count(d.horizonDays, "day")}</span>
                   </div>
                   <p className="mt-1 text-xs text-muted">{d.rationale}</p>
                   {figure && <p className="mt-1 text-xs text-muted">From your records: {figure}</p>}
+                  {d.procedure && d.procedure.length > 0 && (
+                    <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-muted">
+                      {d.procedure.map((step) => (
+                        <li key={step}>{step}</li>
+                      ))}
+                    </ol>
+                  )}
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     {where?.tab && (
                       <Button
@@ -327,6 +344,10 @@ export function CoachResultView({
           How Voyager built this brief
         </summary>
         <div className="space-y-4 px-6 pb-6">
+          <p className="text-xs text-muted">
+            A mark of most relevant means your question is nearer that written statement than the
+            others. It is not a chance of a loss.
+          </p>
           {result.steps.length > 0 && (
             <section>
               <h3 className="text-sm font-semibold">
