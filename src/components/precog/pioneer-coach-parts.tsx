@@ -39,22 +39,24 @@ export function effortWords(effort: string): string {
 }
 
 /**
- * The two lines a brief leads with, lifted out of the markdown so the screen
- * can show them once. The rest of the brief stays in reading order, without
- * the recommended-moves section the move list already shows.
+ * The answer and context lines lifted out of the markdown so the screen can
+ * show them once. The rest stays in reading order without sections shown elsewhere.
  */
 export function briefBoard(markdown: string): {
+  answer: string | null;
   situation: string | null;
   thisWeek: string | null;
   rest: string;
 } {
+  const answer = sectionText(markdown, "Answer");
   const situation = sectionText(markdown, "Situation");
   const week = sectionText(markdown, "This week");
   let rest = markdown;
-  for (const heading of ["Situation", "This week", "Recommended moves"]) {
+  for (const heading of ["Answer", "Situation", "This week", "Recommended moves"]) {
     rest = withoutSection(rest, heading);
   }
   return {
+    answer,
     situation,
     thisWeek: week ? dropThisWeekLabel(week) : null,
     rest: rest.trim(),
@@ -190,6 +192,11 @@ export function CoachResultView({
             {copied ? "Copied" : "Copy"}
           </Button>
         </div>
+        {board.answer && (
+          <div className="mt-4">
+            <BriefMarkdown markdown={board.answer} />
+          </div>
+        )}
         {notes.length > 0 && (
           <ul className="mt-4 space-y-1 rounded-lg border border-warn/30 bg-warn/5 px-3 py-2 text-sm text-muted">
             {notes.map((w) => (

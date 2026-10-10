@@ -150,11 +150,11 @@ function Stat({
   tone: "ok" | "primary" | "warn" | "danger" | "default";
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
       <div className="text-xs uppercase tracking-wide text-muted">{label}</div>
       <div
         className={cn(
-          "mt-1 truncate text-2xl font-semibold",
+          "mt-1 text-2xl font-semibold [overflow-wrap:anywhere]",
           tone === "ok" && "text-ok",
           tone === "primary" && "text-primary",
           tone === "warn" && "text-warn",

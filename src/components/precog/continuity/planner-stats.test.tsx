@@ -38,4 +38,32 @@ describe("PlannerStats single-point hint", () => {
       "Items the business stops without: 1 with nobody and 1 with one person who can run them alone and 2 not marked yet.",
     );
   });
+
+  it("wraps a long name in the Most depended on stat", () => {
+    const name = "Benjamin Christopher-Worthington";
+    const tpl = continuityTemplate({
+      people: [{ id: "ben", name, role: "Owner", active: true }],
+      knowledge: [knowledgeItem("critical")],
+      relations: [{ personId: "ben", knowledgeId: "critical", level: "expert" }],
+    });
+    const report = coverageReport(tpl);
+    const html = renderToStaticMarkup(
+      <PlannerStats
+        registerAssessed
+        report={report}
+        docs={documentationDebt(tpl)}
+        tpl={tpl}
+        figures={{
+          singlePoints: criticalSinglePoints(tpl),
+          importantSinglePoints: 0,
+          mostDepended: report.people[0],
+        }}
+      />,
+    );
+
+    expect(html).toContain(name);
+    expect(html).toContain("min-w-0 rounded-xl");
+    expect(html).toContain("[overflow-wrap:anywhere]");
+    expect(html).not.toContain("truncate");
+  });
 });
