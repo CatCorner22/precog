@@ -213,6 +213,16 @@
  * duty-conflict "What to do first" box, and the action plan. The build
  * measures 876.9 KB gzipped in 138 chunks. Total budget raised from 876 KB
  * to 877 KB. The largest chunk stays under 118 KB.
+ *
+ * 2026-10-10: a merge left two `totalGzipBytes` keys here (878 KB from the
+ * #244 fixes, 877 KB from the feasible duty split); the later one won, and
+ * main at 541d072 measured 877.9 KB in 138 chunks against it, so the check
+ * failed before this change. The twelve prosecuted-case records added to the
+ * evidence library (CASE_COUNT 53 to 65) cost 6.7 KB gzipped, all of it in
+ * start-here-copy (56.6 KB to 63.4 KB); intelligence-panel is unchanged at
+ * 29.1 KB because the library is not duplicated there. The build measures
+ * 884.6 KB in 138 chunks. One key kept; total budget raised from 877 KB to
+ * 886 KB, the measured total plus the usual CI variation.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -221,8 +231,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 878 * 1024,
-  totalGzipBytes: 877 * 1024,
+  totalGzipBytes: 886 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

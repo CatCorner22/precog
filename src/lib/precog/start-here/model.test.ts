@@ -64,11 +64,11 @@ describe("buildStartHereModel on the dental sample", () => {
   });
 
   it("counts only the cases that show the open gaps, and quotes their median", () => {
-    expect(model.cost.citing.count).toBe(33);
+    expect(model.cost.citing.count).toBe(37);
     expect(model.cost.citing.loss?.median).toBe(449_938.5);
     expect(model.cost.evidenceCount).toBeGreaterThan(model.cost.citing.count);
-    expect(model.footer.citingIds.size).toBe(33);
-    expect(model.footer.cases.filter((c) => model.footer.citingIds.has(c.id))).toHaveLength(33);
+    expect(model.footer.citingIds.size).toBe(37);
+    expect(model.footer.cases.filter((c) => model.footer.citingIds.has(c.id))).toHaveLength(37);
   });
 
   it("uses the small-organization benchmark for a team under 100", () => {

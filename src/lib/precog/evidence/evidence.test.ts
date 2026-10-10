@@ -368,7 +368,6 @@ const UNCITED_RULES = [
   "rule-card-approve",
   "rule-cash-admin",
   "rule-claims-writeoff",
-  "rule-refund-post",
   "rule-writeoff",
 ];
 
@@ -604,7 +603,10 @@ describe("rule attachments", () => {
       "case-attleboro-expense-padding",
       "case-bellevue-dental-card",
       "case-bellingham-assistant-manager",
+      "case-chickasha-electrical-contractor-bookkeeper-payroll-and-cards",
       "case-hutchinson-controller",
+      "case-rio-rancho-auto-body-bookkeeper-checks-and-cards",
+      "case-toledo-church-cash-app-donations",
     ]);
     expect(RULE_SCHEMES["rule-card-review"]).toEqual(["expense-reimbursement"]);
     // A dentist reads the Bellevue practice card case as their own line of business.
