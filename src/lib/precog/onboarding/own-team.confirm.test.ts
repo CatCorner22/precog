@@ -151,3 +151,42 @@ describe("unanswered money questions", () => {
     );
   });
 });
+
+// Dental's "Office manager" ticks reconciling the bank; Retail's does not.
+// The owner picked Dental, typed the title for Pat, went Back and picked
+// Retail: the ticks are still Dental's suggestion, and bank_reconcile among
+// them waits for the owner like the other eight.
+const pat = (industry = "dental"): OwnTeamRow =>
+  titleTicksFor({ name: "Pat", role: "Office manager", duties: [] }, industry, UNANSWERED);
+
+describe("a title's suggestions are read under the line of business that made them", () => {
+  it("keeps Dental's ticks waiting after the owner goes back and picks Retail", () => {
+    expect(pat().suggestedIn).toBe("dental");
+    expect(pat().duties).toContain("bank_reconcile");
+    expect(pat("retail").duties).not.toContain("bank_reconcile");
+    const waiting = unconfirmedDuties(pat(), "retail", UNANSWERED);
+    expect(waiting).toEqual(unconfirmedDuties(pat(), "dental", UNANSWERED));
+    expect(waiting).toContain("bank_reconcile");
+    expect(waiting).toHaveLength(9);
+  });
+
+  it("marks Pat as holding duties from the title on the team built under Retail", () => {
+    expect(buildOwnTeam([pat()], "retail", UNANSWERED)[0].dutiesFromTitle).toBe(true);
+    // Keeping every tick under Retail confirms them all, bank_reconcile included.
+    const kept = keepDuties(pat(), unconfirmedDuties(pat(), "retail", UNANSWERED));
+    expect(unconfirmedDuties(kept, "retail", UNANSWERED)).toEqual([]);
+    expect(buildOwnTeam([kept], "retail", UNANSWERED)[0].dutiesFromTitle).toBeUndefined();
+  });
+
+  it("re-ticks under the new line of business when the title is typed again", () => {
+    const retyped = titleTicksFor({ ...pat(), role: "Office manager " }, "retail", UNANSWERED);
+    expect(retyped.suggestedIn).toBe("retail");
+    expect(retyped.duties).not.toContain("bank_reconcile");
+  });
+
+  it("reads a row from a draft saved before the mark under the line of business in effect", () => {
+    const { suggestedIn: _none, ...unmarked } = pat();
+    expect(unconfirmedDuties(unmarked, "retail", UNANSWERED)).not.toContain("bank_reconcile");
+    expect(unconfirmedDuties(unmarked, "dental", UNANSWERED)).toContain("bank_reconcile");
+  });
+});

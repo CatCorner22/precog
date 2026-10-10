@@ -301,6 +301,17 @@ export function withoutDecision(p: PracticeProfile, id: string): PracticeProfile
   return { ...p, decisions: p.decisions.filter((d) => d.id !== id) };
 }
 
+/**
+ * The profile with one setup credit taken off, by id (active-template
+ * `setupControlsInPlace`): the control stops counting the answer as in
+ * place, and stays so through every later load. Unchanged when it is off
+ * already.
+ */
+export function withSetupControlWithdrawn(p: PracticeProfile, id: string): PracticeProfile {
+  const withdrawn = p.setupControlsWithdrawn ?? [];
+  return withdrawn.includes(id) ? p : { ...p, setupControlsWithdrawn: [...withdrawn, id] };
+}
+
 export function withDecisionReview(
   p: PracticeProfile,
   id: string,

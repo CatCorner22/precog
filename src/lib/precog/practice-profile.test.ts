@@ -9,6 +9,8 @@ import { INDUSTRIES } from "./industry";
 import { scoreMap } from "./builder/scored-map";
 import { buildOwnTeam, ownBusinessProfile } from "./onboarding/own-team";
 import { ONBOARDING_FACTS_VERSION } from "./onboarding/decision-model";
+import { UNANSWERED } from "./onboarding/setup-answers";
+import { withSetupControlWithdrawn } from "./profile-actions";
 import {
   DECISION_KIND_LABEL,
   DECISION_KIND_LABEL_PRINTED_V1,
@@ -23,6 +25,7 @@ import {
   loadPortfolio,
   normalizeCustomKnowledge,
   normalizeProfile,
+  type PracticeProfile,
   parseStoredProfile,
   quarantineKey,
   rememberRemovedBusiness,
@@ -556,5 +559,51 @@ describe("a damaged copy of the open business", () => {
     const loaded = store(storage).load();
     expect(loaded.profile.businessId).toBe("biz_kept");
     expect(loaded.stored).toBe(false);
+  });
+});
+
+describe("a setup credit the owner took off", () => {
+  const answers = {
+    ...UNANSWERED,
+    ownerReadsStatement: "yes" as const,
+    bankRec: "outside" as const,
+  };
+  const stored = (extra: Record<string, unknown>) =>
+    normalizeProfile({
+      practiceName: "Bayside Dental",
+      industry: "dental",
+      customPeople: [{ id: "own-1", name: "Lisa Park", role: "Office Manager", active: true }],
+      setupAnswers: answers,
+      ...extra,
+    });
+
+  it("stays off through a reload, and the control stays uncredited", () => {
+    const taken = withSetupControlWithdrawn(stored({}), "ownerReadsStatement:c-sod-ap");
+    expect(taken.setupControlsWithdrawn).toEqual(["ownerReadsStatement:c-sod-ap"]);
+    expect(withSetupControlWithdrawn(taken, "ownerReadsStatement:c-sod-ap")).toBe(taken);
+    const reloaded = normalizeProfile(JSON.parse(JSON.stringify(taken)));
+    expect(reloaded.setupControlsWithdrawn).toEqual(["ownerReadsStatement:c-sod-ap"]);
+    expect(reloaded.setupAnswers).toEqual(answers);
+    const control = (p: PracticeProfile, id: string) =>
+      resolveTemplate(p).controls.find((c) => c.id === id)!.compensatingControls;
+    expect(control(stored({}), "c-sod-ap")).toHaveLength(1);
+    expect(control(reloaded, "c-sod-ap")).toEqual([]);
+    expect(control(reloaded, "c-sod-cash")).toEqual(control(stored({}), "c-sod-cash"));
+  });
+
+  it("is read from a stored copy as known credit ids only, each once", () => {
+    expect(
+      stored({
+        setupControlsWithdrawn: [
+          "ownerReadsStatement:c-sod-cash",
+          "bogus",
+          7,
+          "ownerReadsStatement:c-sod-cash",
+          "bankRec:c-sod-cash",
+        ],
+      }).setupControlsWithdrawn,
+    ).toEqual(["bankRec:c-sod-cash", "ownerReadsStatement:c-sod-cash"]);
+    expect(stored({ setupControlsWithdrawn: "all" }).setupControlsWithdrawn).toBeUndefined();
+    expect(stored({}).setupControlsWithdrawn).toBeUndefined();
   });
 });

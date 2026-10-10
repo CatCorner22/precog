@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { CONTROL_IN_PLACE_TAB, controlsInPlace, resolveTemplate } from "./active-template";
+import {
+  CONTROL_IN_PLACE_TAB,
+  controlConfirmedByOwner,
+  controlsInPlace,
+  resolveTemplate,
+  SETUP_CONTROL_IDS,
+  setupControlsInPlace,
+} from "./active-template";
 import { getIndustryTemplate } from "./templates";
 import { INDUSTRIES, type IndustryId } from "./industry";
 import { controlOptions, detectSodConflicts } from "./sod/detect";
@@ -272,5 +279,75 @@ describe("controls the owner already has", () => {
   it("leaves the sample business's own records alone", () => {
     const sample = resolveTemplate({ industry: "general", decisions: [inPlace("Anything")] });
     expect(sample.controls).toBe(getIndustryTemplate("general").controls);
+  });
+});
+
+describe("controls the setup answers say are in place", () => {
+  const STATEMENT = "The owner opens and reads the bank statement each month (answered at setup).";
+  const OUTSIDE =
+    "An outside bookkeeper or CPA reconciles the bank account each month (answered at setup).";
+  const answers = { ownerReadsStatement: "yes", bankRec: "outside" };
+  const people = [
+    {
+      id: "own-1",
+      name: "Lisa Park",
+      role: "Office Manager",
+      active: true,
+      entitlements: ["release_payment", "bank_reconcile", "enter_invoices", "create_vendor"],
+    },
+    { id: "own-2", name: "Dana Reyes", role: "Owner", active: true, owner: true, entitlements: [] },
+  ];
+
+  it("names each credit by its answer and control", () => {
+    expect(setupControlsInPlace(answers, "dental")).toEqual([
+      { id: "bankRec:c-sod-cash", controlId: "c-sod-cash", text: OUTSIDE },
+      { id: "ownerReadsStatement:c-sod-ap", controlId: "c-sod-ap", text: STATEMENT },
+      { id: "ownerReadsStatement:c-sod-cash", controlId: "c-sod-cash", text: STATEMENT },
+    ]);
+    expect(SETUP_CONTROL_IDS).toEqual(setupControlsInPlace(answers, "dental").map((c) => c.id));
+  });
+
+  it("credits the controls until the owner takes a credit off, which sticks", () => {
+    expect(controlsInPlace([], "dental", answers)).toEqual({
+      "c-sod-cash": [OUTSIDE, STATEMENT],
+      "c-sod-ap": [STATEMENT],
+    });
+    // Dana took "the owner reads the statement" off bill approval, as she
+    // deleted the entry setup used to log for it: that control loses the
+    // credit and keeps nothing else; the cash control keeps both.
+    expect(controlsInPlace([], "dental", answers, ["ownerReadsStatement:c-sod-ap"])).toEqual({
+      "c-sod-cash": [OUTSIDE, STATEMENT],
+    });
+    expect(
+      controlsInPlace([], "dental", answers, [
+        "ownerReadsStatement:c-sod-ap",
+        "ownerReadsStatement:c-sod-cash",
+      ]),
+    ).toEqual({ "c-sod-cash": [OUTSIDE] });
+    // An id no answer gives changes nothing.
+    expect(controlsInPlace([], "dental", answers, ["bankRec:c-sod-ap"])).toEqual(
+      controlsInPlace([], "dental", answers),
+    );
+  });
+
+  it("resolves the template without a credit taken off, and with the rest", () => {
+    const whole = resolveTemplate({
+      industry: "dental",
+      customPeople: people,
+      setupAnswers: answers,
+    });
+    const taken = resolveTemplate({
+      industry: "dental",
+      customPeople: people,
+      setupAnswers: answers,
+      setupControlsWithdrawn: ["ownerReadsStatement:c-sod-ap"],
+    });
+    const control = (tpl: ReturnType<typeof resolveTemplate>, id: string) =>
+      tpl.controls.find((c) => c.id === id)!;
+    expect(control(whole, "c-sod-ap").compensatingControls).toEqual([STATEMENT]);
+    expect(control(taken, "c-sod-ap").compensatingControls).toEqual([]);
+    expect(control(taken, "c-sod-cash").compensatingControls).toEqual([OUTSIDE, STATEMENT]);
+    expect(controlConfirmedByOwner(control(whole, "c-sod-ap"), new Set())).toBe(true);
+    expect(controlConfirmedByOwner(control(taken, "c-sod-ap"), new Set())).toBe(false);
   });
 });

@@ -373,3 +373,68 @@ describe("setup draft: confirmed duties and answered questions", () => {
     expect(stored(draft)?.answeredQuestions).toBeUndefined();
   });
 });
+
+describe("a draft's title suggestions and the line of business that made them", () => {
+  // A row from a draft saved before Precog kept `suggestedIn`: its ticks came
+  // from the draft's own line of business, so the row is marked with it.
+  const unmarked: SetupDraft = {
+    step: "team",
+    selected: "dental",
+    businessName: "Careful Co",
+    rows: [
+      {
+        name: "Pat",
+        role: "Office manager",
+        duties: ["bank_reconcile"],
+        suggestedFor: "Office manager",
+      },
+      { name: "Sam", role: "Driver", duties: ["collect_cash"] },
+    ],
+    paste: "",
+    businessId: "biz_first_visit",
+  };
+
+  it("marks an earlier draft's rows with the draft's line of business when brought back under another", () => {
+    const later = initialSetup(
+      unmarked,
+      { businessId: "biz_later", industry: "retail", typedName: "Second Shop" },
+      freshRows,
+    );
+    expect(later.draft.selected).toBe("retail");
+    expect(later.draft.rows.map((r) => r.suggestedIn)).toEqual(["dental", undefined]);
+  });
+
+  it("marks the same setup's rows too, and keeps a mark already there", () => {
+    const marked = {
+      ...unmarked,
+      rows: [{ ...unmarked.rows[0], suggestedIn: "restaurant" }, unmarked.rows[1]],
+    };
+    const same = initialSetup(
+      marked,
+      { businessId: "biz_first_visit", industry: "dental", typedName: "" },
+      freshRows,
+    );
+    expect(same.draft.rows.map((r) => r.suggestedIn)).toEqual(["restaurant", undefined]);
+    const back = initialSetup(
+      unmarked,
+      { businessId: "biz_first_visit", industry: "dental", typedName: "" },
+      freshRows,
+    );
+    expect(back.draft.rows[0].suggestedIn).toBe("dental");
+  });
+
+  it("keeps the mark through a reload, and drops a row whose mark is not a string", () => {
+    const storage = tabStorage();
+    const draft = {
+      ...unmarked,
+      rows: [
+        { ...unmarked.rows[0], suggestedIn: "dental" },
+        { name: "Moe", role: "Driver", duties: [], suggestedIn: 7 },
+      ],
+    };
+    storage.setItem(SETUP_DRAFT_KEY, JSON.stringify(draft));
+    const read = readSetupDraft(storage)?.rows;
+    expect(read?.map((r) => r.name)).toEqual(["Pat"]);
+    expect(read?.[0].suggestedIn).toBe("dental");
+  });
+});

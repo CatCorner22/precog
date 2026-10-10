@@ -20,6 +20,7 @@ const NOT_OPERATOR_SETTINGS = [
   /^PRECOG_/,
   /^E2E_/,
   /^BROWSER_/,
+  /^UX_/,
   /^PREVIEW_THUMBNAIL_/,
   /^BASE_REF$/, // check:migrations, set by CI on pull requests
   /^(DEV|PROD|SSR|MODE|BASE_URL|NODE_ENV)$/,

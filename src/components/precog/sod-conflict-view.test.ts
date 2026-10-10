@@ -12,6 +12,7 @@ import {
   conflictFactors,
   conflictsByPerson,
   conflictTone,
+  listOrderNote,
   rulesDualReleaseCanNarrow,
   SEVERITY_FILTERS,
 } from "./sod-conflict-view";
@@ -149,5 +150,44 @@ describe("conflictFactors", () => {
     const card = readFileSync(new URL("./sod-conflict-summary.tsx", import.meta.url), "utf8");
     expect(card).not.toMatch(/Rank \{/);
     expect(card).toContain("conflictFactors(conflict, staff, partialThresholdUsd)");
+  });
+});
+
+describe("listOrderNote", () => {
+  // Carmen holds most of the money cycle; Lisa's pair ranks higher.
+  const lisa = { personId: "lisa", personName: "Lisa Park", role: "Office Manager" };
+  const carmen = { personId: "carmen", personName: "Carmen Ruiz", role: "Front desk" };
+  const card = (who: typeof lisa, id: string) =>
+    ({ ...who, id: `${who.personId}:${id}`, ruleId: id }) as unknown as DetectedConflict;
+  const holders = [
+    {
+      person: carmen,
+      cycle: [
+        "collect_cash",
+        "post_payments",
+        "prepare_deposit",
+        "enter_invoices",
+        "issue_refunds",
+      ],
+      of: 11,
+    },
+  ];
+  const NOTE =
+    "Grouped by person, in order of each person's most severe pair: Lisa Park comes first, not Carmen Ruiz, who holds 5 of the 11 core money duties.";
+
+  it("says why the list opens with Lisa when Carmen, whom the summary names, is further down", () => {
+    expect(listOrderNote([card(lisa, "a"), card(carmen, "b")], holders)).toBe(NOTE);
+  });
+
+  it("says nothing when a filter leaves Carmen out of the list shown", () => {
+    // A severity or location filter that hides every one of Carmen's pairs:
+    // the heading cannot say she is further down a list she is not in.
+    expect(listOrderNote([card(lisa, "a")], holders)).toBeNull();
+  });
+
+  it("says nothing when the list opens with Carmen, or when the summary names nobody", () => {
+    expect(listOrderNote([card(carmen, "b"), card(lisa, "a")], holders)).toBeNull();
+    expect(listOrderNote([card(lisa, "a"), card(carmen, "b")], [])).toBeNull();
+    expect(listOrderNote([], holders)).toBeNull();
   });
 });
