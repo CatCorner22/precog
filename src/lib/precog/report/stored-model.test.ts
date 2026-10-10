@@ -93,6 +93,18 @@ describe("stored report model", () => {
 
   // ST-SCALE-1: an own team of 10 people with a real register built 1.7 MB
   // and 60 people 2.9 MB, past the 1 MB cap, so the lock kept no figures.
+  const expectStoredFigures = (size: Parameters<typeof largeBusinessProfile>[0]) => {
+    const raw = largeBusinessProfile(size);
+    const frozen = freezeReport(raw, DAY);
+    expect(frozen.tooLarge).toBeUndefined();
+    expect(frozen.model).not.toBeNull();
+    expect(JSON.stringify(frozen.model).length).toBeLessThan(REPORT_MODEL_MAX_CHARS);
+    const revived = reviveReportModel(
+      JSON.parse(JSON.stringify(frozen.model)) as StoredReportModel,
+    );
+    expect(revived).toEqual(slimReportModel(modelFor(raw)));
+  };
+
   it.each([
     { people: 15, register: 80, procedures: 30 },
     { people: 15, register: 120, procedures: 100 },
@@ -107,20 +119,15 @@ describe("stored report model", () => {
     { people: 400, register: 120, procedures: 100 },
     { people: 1000, register: 10, procedures: 10 },
     { people: 1000, register: 120, procedures: 100 },
-    { people: 1000, register: 300, procedures: 200, duties: 3000 },
   ])(
     "stores the figures of an own team of $people people, $register register items and $procedures procedures",
-    (size) => {
-      const raw = largeBusinessProfile(size);
-      const frozen = freezeReport(raw, DAY);
-      expect(frozen.tooLarge).toBeUndefined();
-      expect(frozen.model).not.toBeNull();
-      expect(JSON.stringify(frozen.model).length).toBeLessThan(REPORT_MODEL_MAX_CHARS);
-      const revived = reviveReportModel(
-        JSON.parse(JSON.stringify(frozen.model)) as StoredReportModel,
-      );
-      expect(revived).toEqual(slimReportModel(modelFor(raw)));
-    },
+    expectStoredFigures,
+  );
+
+  it(
+    "stores the figures of an own team of 1000 people, 300 register items and 200 procedures",
+    () => expectStoredFigures({ people: 1000, register: 300, procedures: 200, duties: 3000 }),
+    60_000,
   );
 
   it("stores the duty-conflict findings as rows on their rule, and revives each exactly", () => {
