@@ -80,6 +80,24 @@ describe("register task deep links", () => {
   });
 });
 
+describe("planner figures", () => {
+  it("does not count an unmarked important item after another item is marked", () => {
+    const profile = state.profile!;
+    state.profile = {
+      ...profile,
+      customKnowledge: profile.customKnowledge!.map((item, index) =>
+        index === 0 ? { ...item, criticality: "critical" } : item,
+      ),
+      customRelations: [{ personId: "person", knowledgeId: "task-0", level: "expert" }],
+    };
+
+    const planner = state.runtime!.render(() => useContinuityPlanner());
+
+    expect(planner.registerAssessed).toBe(true);
+    expect(planner.figures.importantSinglePoints).toBe(0);
+  });
+});
+
 describe("planner destination visibility and focus", () => {
   function destination() {
     const element = { scrollIntoView: vi.fn(), focus: vi.fn() };
