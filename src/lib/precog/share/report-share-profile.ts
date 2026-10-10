@@ -1,4 +1,5 @@
 import { utcDateKey } from "../dates";
+import type { OnboardingFacts } from "../onboarding/decision-model";
 import { normalizeSetupAnswers } from "../onboarding/setup-answers";
 import { defaultProfile, type PracticeProfile } from "../practice-profile";
 import { OTHER_PROBLEM_KEY, reportPeriod, type ReviewRecord } from "../firm/reviews";
@@ -13,10 +14,11 @@ import { printsLayoutSeven, REPORT_LAYOUT_VERSION } from "../report/stored-model
  * finding; from the profile it reads only the industry, the printed name,
  * the team size, the process map and register (the map section, the "custom
  * map" wording and whether register freshness is tracked), the month's
- * review results, the books-versus-map scope line, the engagement stamps
- * and the setup answers (which duties sit outside the team, so the "nobody
+ * review results, the books-versus-map scope line, the engagement stamps,
+ * the setup answers (which duties sit outside the team, so the "nobody
  * holds" line leaves them out; each answer is a fixed choice, never free
- * text). The journal's text, planned absences, access checks, places,
+ * text) and the setup headcount (`shareOnboardingFacts`). The journal's
+ * text, planned absences, access checks, places,
  * written procedures, map history, saved blocks, process notes and earlier
  * monthly review notes are the business's own notes, so a link never hands
  * them to whoever holds it (share-report.test.ts serialises what a link
@@ -53,6 +55,9 @@ export function shareReportProfile(
       : profile.monthlyReviews,
     integrationDriftSummary: profile.integrationDriftSummary,
     ...shareSetupAnswers(profile),
+    ...(profile.onboardingFacts
+      ? { onboardingFacts: shareOnboardingFacts(profile.onboardingFacts) }
+      : {}),
     // The template source: the map and register the report prints and
     // measures (resolveTemplate, mapSource, registerSource, isMapCustomized).
     customProcesses: profile.customProcesses
@@ -77,6 +82,21 @@ export function shareReportProfile(
 function shareSetupAnswers(profile: PracticeProfile): Pick<PracticeProfile, "setupAnswers"> {
   const answers = normalizeSetupAnswers(profile.setupAnswers);
   return answers ? { setupAnswers: answers } : {};
+}
+
+/**
+ * The setup facts the header prints: the workforce band and count (layout
+ * 7's "(setup: 7–30 people)"), each a fixed choice or a number, for a
+ * version locked before the model stored them (stored-model
+ * `setupHeadcount`). Who set the business up, its locations, the mapping
+ * scope, the setup method and the complexity answers stay behind.
+ */
+function shareOnboardingFacts(facts: OnboardingFacts): OnboardingFacts {
+  return {
+    schemaVersion: facts.schemaVersion,
+    ...(facts.workforceBand !== undefined ? { workforceBand: facts.workforceBand } : {}),
+    ...(facts.workforceCount !== undefined ? { workforceCount: facts.workforceCount } : {}),
+  };
 }
 
 /**

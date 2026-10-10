@@ -382,6 +382,27 @@ describe("shareReportProfile", () => {
     expect(page(shareReportProfile(outside, locked.preparedAt))).toBe(firmView);
   });
 
+  it("carries the setup headcount the header prints, and no other setup fact", () => {
+    const projected = shareReportProfile({
+      ...full,
+      onboardingFacts: {
+        schemaVersion: 1,
+        actor: "advisor",
+        workforceBand: "7-30",
+        workforceCount: 12,
+        locationBand: "2-5",
+        mappingScope: "one_team",
+        setupMethod: "roster_import",
+      },
+    });
+    expect(projected.onboardingFacts).toEqual({
+      schemaVersion: 1,
+      workforceBand: "7-30",
+      workforceCount: 12,
+    });
+    expect(shareReportProfile(full).onboardingFacts).toBeUndefined();
+  });
+
   it("carries each setup answer as its fixed choice, and nothing typed beside them", () => {
     const typed = {
       ...full,

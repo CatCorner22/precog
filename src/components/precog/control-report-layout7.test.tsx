@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { CONTROL_CONFIRM_TAB } from "@/lib/precog/active-template";
+import { ONBOARDING_FACTS_VERSION } from "@/lib/precog/onboarding/decision-model";
 import { defaultProfile, type PracticeProfile } from "@/lib/precog/practice-profile";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
 import type { ReportVersionRow } from "@/lib/precog/firm/reports";
@@ -13,6 +14,7 @@ import {
   serializeReportModel,
 } from "@/lib/precog/report/stored-model";
 import { ControlReport } from "./control-report";
+import { archiveProfileFor } from "./firm/engagement-archive";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
@@ -202,5 +204,68 @@ describe("report layout 7", () => {
     }
     expect(storedUnder(partial, 7)).toContain("Precog's example, not yet edited");
     expect(storedUnder(own, 7)).toContain(EXAMPLE_CONTROL);
+  });
+});
+
+describe("layout 7's setup headcount in the header", () => {
+  // Ortiz Dental Studio answered "7–30 people" at setup and mapped two.
+  const sized: PracticeProfile = {
+    ...own,
+    onboardingFacts: {
+      schemaVersion: ONBOARDING_FACTS_VERSION,
+      actor: "business_leader",
+      workforceBand: "7-30",
+      locationBand: "2-5",
+      mappingScope: "one_location",
+    },
+  };
+  const HEADER = "|Dental office · 2 people mapped (setup: 7–30 people) · ";
+  const modelOf = (profile: PracticeProfile) =>
+    serializeReportModel(buildReportModelForProfile(profile, "2026-09-26"));
+
+  it("prints the same header on the owner's copy, the share link and the firm's archive", () => {
+    for (const layout of [7, 8]) {
+      const whole = storedUnder(sized, layout);
+      expect(whole).toContain(HEADER);
+      expect(storedUnder(sized, layout, shareReportProfile(sized))).toBe(whole);
+      const frozen = { layoutVersion: layout, model: modelOf(sized) };
+      expect(storedUnder(sized, layout, archiveProfileFor(frozen, sized))).toBe(whole);
+    }
+  });
+
+  it("stores the headcount with the model, so a locked version keeps the one it was locked with", () => {
+    expect(buildReportModelForProfile(sized, "2026-09-26").setupHeadcount).toEqual({
+      workforceBand: "7-30",
+    });
+    expect(buildReportModelForProfile(own, "2026-09-26").setupHeadcount).toBeNull();
+    const grown: PracticeProfile = {
+      ...sized,
+      onboardingFacts: { ...sized.onboardingFacts!, workforceBand: "31-60", workforceCount: 40 },
+    };
+    expect(live(grown)).toContain("|Dental office · 2 people mapped (setup: 40 people) · ");
+    // Locked while the answer was 7–30: the version prints that, whatever the profile says now.
+    expect(storedUnder(sized, 7, grown)).toContain(HEADER);
+    expect(storedUnder(sized, 7, shareReportProfile(grown))).toContain(HEADER);
+  });
+
+  it("reads the profile's headcount for a version locked before Precog stored it, as it did then", () => {
+    const { setupHeadcount: _unstored, ...before } = modelOf(sized);
+    expect(_unstored).toEqual({ workforceBand: "7-30" });
+    const page = (printedFrom: PracticeProfile) =>
+      textOf(
+        renderToStaticMarkup(
+          <ReadOnlyPracticeProvider profile={printedFrom}>
+            <ControlReport locked={locked} frozen={{ layoutVersion: 7, model: before }} />
+          </ReadOnlyPracticeProvider>,
+        ),
+      );
+    expect(page(sized)).toContain(HEADER);
+    expect(page(shareReportProfile(sized))).toBe(page(sized));
+    expect(page(own)).toContain("|Dental office · 2 people mapped · ");
+  });
+
+  it("prints no setup part for a business that gave no headcount, on any copy", () => {
+    expect(storedUnder(own, 7)).not.toContain("(setup:");
+    expect(storedUnder(own, 7, shareReportProfile(own))).toBe(storedUnder(own, 7));
   });
 });
