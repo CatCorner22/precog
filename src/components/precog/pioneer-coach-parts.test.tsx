@@ -11,6 +11,7 @@ import {
   orderedMoves,
   briefClipboardText,
   briefAuthorLine,
+  citedFigure,
   coachErrorMessage,
   extraWarnings,
   type CoachResult,
@@ -127,6 +128,7 @@ describe("CoachResultView", () => {
     expect(html.indexOf("Do this")).toBeLessThan(html.indexOf("Why we say this"));
     expect(html.indexOf("Why we say this")).toBeLessThan(html.indexOf("All fine."));
     expect(html).not.toContain("120 ms");
+    expect(html).not.toContain("From your records");
   });
 
   it("shows one move, and the rest behind Show other moves", () => {
@@ -255,6 +257,39 @@ describe("CoachResultView", () => {
     expect(html.match(/Move one duty/g)).toHaveLength(1);
     expect(html.match(/Northside/g)).toHaveLength(1);
     expect(html).not.toContain("This week: move one duty.");
+  });
+
+  it("puts the cited figure on the move and leaves its score in the trace", () => {
+    const html = view(
+      result({
+        evidence: [
+          {
+            id: "ev-1",
+            kind: "spof",
+            label: "Insurance denial appeals",
+            metric: "64/100",
+            link: { tab: "knowledge" },
+          },
+        ],
+        decisions: [
+          {
+            action: "Cross-train a stand-in",
+            rationale: "Because.",
+            effort: "low",
+            horizonDays: 7,
+            evidenceIds: ["ev-1", "missing"],
+          },
+        ],
+      }),
+    );
+    const onCard = html.indexOf("From your records: Insurance denial appeals");
+    const trace = html.indexOf("How Voyager built this brief");
+    expect(onCard).toBeGreaterThanOrEqual(0);
+    expect(onCard).toBeLessThan(trace);
+    expect(html.indexOf("64/100")).toBeGreaterThan(trace);
+    expect(
+      citedFigure({ evidenceIds: ["missing"] }, [{ id: "ev-1", label: "Appeals" }]),
+    ).toBeNull();
   });
 
   it("puts a selected move first and badges it Most relevant", () => {

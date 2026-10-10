@@ -99,6 +99,19 @@ export function orderedMoves<T>(
     ...tagged.filter((item) => !item.highlighted),
   ];
 }
+
+/** The first figure this move cites, by label only. The metric stays in the trace. */
+export function citedFigure(
+  decision: { evidenceIds?: readonly string[] },
+  evidence: readonly { id: string; label: string }[],
+): string | null {
+  for (const id of decision.evidenceIds ?? []) {
+    const found = evidence.find((item) => item.id === id);
+    if (found) return found.label;
+  }
+  return null;
+}
+
 export function moveDestination(link: { tab: string; id?: string; personId?: string }): {
   tab: string;
   item?: string;
@@ -206,6 +219,7 @@ export function CoachResultView({
               const where = d.link;
               const rank = ordered.findIndex((candidate) => candidate.id === item.id) + 1;
               const lead = rank === 1 && ordered.length > 1;
+              const figure = citedFigure(d, result.evidence);
               return (
                 <div
                   key={d.action}
@@ -228,6 +242,7 @@ export function CoachResultView({
                     <span className="text-xs text-muted">within {count(d.horizonDays, "day")}</span>
                   </div>
                   <p className="mt-1 text-xs text-muted">{d.rationale}</p>
+                  {figure && <p className="mt-1 text-xs text-muted">From your records: {figure}</p>}
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     {where?.tab && (
                       <Button
