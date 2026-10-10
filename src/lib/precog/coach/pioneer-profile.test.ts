@@ -179,10 +179,11 @@ describe("Pioneer tools on a Retail profile", () => {
     const snap = executeTool("get_practice_snapshot", ctx);
     expect((snap.data as { industry: string }).industry).toBe("retail");
 
-    const spofs = executeTool("get_knowledge_spofs", ctx).data as {
-      name: string;
-      owners: { id: string; name: string }[];
-    }[];
+    const spofs = (
+      executeTool("get_knowledge_spofs", ctx).data as {
+        items: { name: string; owners: { id: string; name: string }[] }[];
+      }
+    ).items;
     for (const s of spofs) {
       expect(dentalOnlyKnowledge.has(s.name), s.name).toBe(false);
       for (const o of s.owners) expect(retailPeople.has(o.id + o.name), o.name).toBe(true);
@@ -234,7 +235,7 @@ describe("procedure links sent to Pioneer", () => {
   it("reach the coach's tools, which stop calling the item unwritten", () => {
     type Spof = { knowledgeId: string; documented: boolean; procedureLocation: string | null };
     const spofs = (profile: ReturnType<typeof pioneerProfileFrom>) =>
-      executeTool("get_knowledge_spofs", { profile }).data as Spof[];
+      (executeTool("get_knowledge_spofs", { profile }).data as { items: Spof[] }).items;
     const target = spofs(pioneerProfileFrom({ industry: "dental" })).find((s) => !s.documented)!;
     expect(target).toBeDefined();
     const after = spofs(

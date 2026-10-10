@@ -18,7 +18,7 @@ import {
   type RiskVariableState,
 } from "./scoring/dynamic-variables";
 import { scenarioFlags } from "./scoring/scenario-kind";
-import { registerAssessed } from "./continuity/register-state";
+import { itemRecorded, registerAssessed } from "./continuity/register-state";
 import { isOwnBusiness, scenariosInScope } from "./scoring/scope";
 import { STRONG_LEVELS } from "./continuity/coverage";
 import { scenarioLevels, STAFF_CONDITIONS } from "./scoring/scenario-level";
@@ -87,6 +87,7 @@ export function findKnowledgeRisks(tpl: IndustryTemplate): KnowledgeRisk[] {
 
   return knowledge
     .filter((k) => k.criticality === "critical" || k.criticality === "important")
+    .filter((k) => itemRecorded(tpl, k.id))
     .map((k) => {
       const holders = (byK.get(k.id) || []).filter((r) => STRONG_LEVELS.has(r.level));
       const owners = holders

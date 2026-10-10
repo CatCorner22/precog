@@ -106,6 +106,9 @@ export interface FrozenReport {
  * stored model with another layout version recalculates instead of printing,
  * unless `ControlReport` still prints that layout with its own labels.
  *
+ * Layout 9: counts only recorded critical and important items as single
+ * points, and names critical or important items that are not marked yet.
+ * Older stored models keep their frozen executive summary.
  * Layout 8: freezes the preparer's reporting day, selected month and derived
  * acceptance dates. Public projection uses that exact period, not a reader's
  * timezone. Older stored layouts remain readable.
@@ -137,7 +140,7 @@ export interface FrozenReport {
  * Layout 2: map completeness (no heat part) and residual rows counted by band.
  * Layout 1: map health score (with heat) and the average residual score.
  */
-export const REPORT_LAYOUT_VERSION = 8;
+export const REPORT_LAYOUT_VERSION = 9;
 
 /** The layouts `ControlReport` prints from stored figures, each with its own labels. */
 export const PRINTED_LAYOUT_VERSIONS: readonly number[] = [
@@ -148,6 +151,7 @@ export const PRINTED_LAYOUT_VERSIONS: readonly number[] = [
   5,
   6,
   7,
+  8,
   REPORT_LAYOUT_VERSION,
 ];
 

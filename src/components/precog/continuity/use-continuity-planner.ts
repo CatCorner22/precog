@@ -65,6 +65,7 @@ import {
   localDateKey,
 } from "@/lib/precog/dates";
 import {
+  itemRecorded,
   registerAssessed,
   registerSource,
   trackRegisterFreshness,
@@ -194,7 +195,8 @@ function usePlannerFigures(tpl: IndustryTemplate, report: CoverageReport) {
   // The same count the business profile's sole-owner figure (soleOwnerKnowledgeCount) uses.
   const singlePoints = useMemo(() => criticalSinglePoints(tpl), [tpl]);
   const importantSinglePoints = report.items.filter(
-    (i) => i.item.criticality === "important" && i.primaries.length <= 1,
+    (i) =>
+      i.item.criticality === "important" && itemRecorded(tpl, i.item.id) && i.primaries.length <= 1,
   ).length;
   const mostDepended = report.people.find((l) => l.person.active);
   return { singlePoints, importantSinglePoints, mostDepended };

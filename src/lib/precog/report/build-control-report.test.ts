@@ -64,6 +64,29 @@ describe("buildControlReportModel", () => {
     expect(late.citing.count).toBe(early.citing.count);
   });
 
+  it("keeps unmarked starter entries out of the risk count and calls them out", () => {
+    const base = input("dental");
+    const item = base.tpl.knowledge.find((knowledge) => knowledge.criticality === "critical")!;
+    const person = base.tpl.people.find((candidate) => candidate.active)!;
+    const profile: PracticeProfile = {
+      ...base.profile,
+      customPeople: base.tpl.people,
+      customKnowledge: base.tpl.knowledge,
+      customRelations: [{ personId: person.id, knowledgeId: item.id, level: "expert" }],
+    };
+    const tpl = resolveTemplate(profile);
+    const model = buildControlReportModel({ ...base, profile, tpl });
+    const notMarked = tpl.knowledge.filter(
+      (knowledge) =>
+        (knowledge.criticality === "critical" || knowledge.criticality === "important") &&
+        knowledge.id !== item.id,
+    ).length;
+
+    expect(model.summary.join(" ")).toContain(
+      `1 critical item relies on one person or nobody; ${notMarked} items not marked yet.`,
+    );
+  });
+
   it("gives no loss figure when no case shows the open gaps", () => {
     const base = input("dental");
     const tpl: IndustryTemplate = {

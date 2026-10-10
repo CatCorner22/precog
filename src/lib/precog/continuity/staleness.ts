@@ -8,6 +8,7 @@ import {
   STRONG_LEVELS,
   type CoverageStatus,
 } from "./coverage";
+import { itemRecorded } from "./register-state";
 
 /**
  * Register freshness: which confirmations have aged past the limit, and who
@@ -40,6 +41,7 @@ export function staleItems(
   let totalWeight = 0;
 
   for (const row of report.items) {
+    if (!itemRecorded(tpl, row.item.id)) continue;
     const confirmedAt =
       row.item.confirmedAt && isCalendarDate(row.item.confirmedAt, today)
         ? row.item.confirmedAt

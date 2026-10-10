@@ -49,7 +49,7 @@ export function PlannerStats({
         value={registerAssessed ? String(singlePoints.count) : "—"}
         hint={
           registerAssessed
-            ? `Items the business stops without: ${singlePoints.nobody - unmarkedSinglePoints} with nobody and ${singlePoints.onePerson} with one person who can run them alone${
+            ? `Items the business stops without: ${singlePoints.nobody} with nobody and ${singlePoints.onePerson} with one person who can run them alone${
                 unmarkedSinglePoints > 0 ? ` and ${unmarkedSinglePoints} not marked yet` : ""
               }.${
                 importantSinglePoints > 0
