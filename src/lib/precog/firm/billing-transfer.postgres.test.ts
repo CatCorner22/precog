@@ -118,10 +118,13 @@ describe.runIf(process.env.PRECOG_LIFECYCLE_POSTGRES === "1")(
       db.sql<{ user_id: string; stripe_customer_id: string | null; subscription_status: string }>`
         select user_id, stripe_customer_id, subscription_status from billing_accounts
         order by user_id`;
+    // Ordered by id, the insert order. occurred_at is now(), the time each
+    // transaction began, so an event that waited on the billing row can carry
+    // an earlier time than the row it followed.
     const planChanges = () =>
       db.sql<{ firm_user_id: string; from: string | null; to: string }>`
         select firm_user_id, detail->>'from' as "from", detail->>'to' as "to"
-        from firm_audit_log where event = 'plan_changed' order by occurred_at, id`;
+        from firm_audit_log where event = 'plan_changed' order by id`;
 
     it("applies a subscription event that waited on a transfer to the new owner, with one billing row", async () => {
       const reached = signal();
