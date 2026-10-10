@@ -1,7 +1,11 @@
 import { utcDateKey } from "../dates";
 import type { OnboardingFacts } from "../onboarding/decision-model";
 import { normalizeSetupAnswers } from "../onboarding/setup-answers";
-import { defaultProfile, type PracticeProfile } from "../practice-profile";
+import {
+  defaultProfile,
+  normalizeSetupControlsWithdrawn,
+  type PracticeProfile,
+} from "../practice-profile";
 import { OTHER_PROBLEM_KEY, reportPeriod, type ReviewRecord } from "../firm/reviews";
 import type { KnowledgeItem, Person, ProcessIdea, ProcessNode, ProcessRisk } from "../types";
 import type { ReportScope } from "../report/report-scope";
@@ -17,7 +21,8 @@ import { printsLayoutSeven, REPORT_LAYOUT_VERSION } from "../report/stored-model
  * review results, the books-versus-map scope line, the engagement stamps,
  * the setup answers (which duties sit outside the team, so the "nobody
  * holds" line leaves them out; each answer is a fixed choice, never free
- * text) and the setup headcount (`shareOnboardingFacts`). The journal's
+ * text, and the credits the owner took off travel as their fixed ids) and
+ * the setup headcount (`shareOnboardingFacts`). The journal's
  * text, planned absences, access checks, places,
  * written procedures, map history, saved blocks, process notes and earlier
  * monthly review notes are the business's own notes, so a link never hands
@@ -79,9 +84,17 @@ export function shareReportProfile(
  * The setup answers, rebuilt from their fixed choices alone
  * (normalizeSetupAnswers), so nothing but those choices travels.
  */
-function shareSetupAnswers(profile: PracticeProfile): Pick<PracticeProfile, "setupAnswers"> {
+function shareSetupAnswers(
+  profile: PracticeProfile,
+): Pick<PracticeProfile, "setupAnswers" | "setupControlsWithdrawn"> {
   const answers = normalizeSetupAnswers(profile.setupAnswers);
-  return answers ? { setupAnswers: answers } : {};
+  const withdrawn = normalizeSetupControlsWithdrawn(profile.setupControlsWithdrawn);
+  return {
+    ...(answers ? { setupAnswers: answers } : {}),
+    // The credits the owner took off: fixed ids, so a version that
+    // recalculates credits the same controls as the owner's copy.
+    ...(withdrawn.length > 0 ? { setupControlsWithdrawn: withdrawn } : {}),
+  };
 }
 
 /**
