@@ -231,7 +231,7 @@ describe("CoachResultView", () => {
       result({
         markdown: [
           "## Answer",
-          "A staff member posts a large adjustment.",
+          "- A staff member posts a large adjustment.",
           "",
           "## Situation",
           "**Northside** has two open conflicts.",
@@ -245,12 +245,15 @@ describe("CoachResultView", () => {
       }),
     );
     const question = html.indexOf("What should I do this week?");
+    const answer = html.indexOf("A staff member posts a large adjustment.");
     const move = html.indexOf("Do this");
     const why = html.indexOf("Why we say this");
     const week = html.indexOf(">This week<");
     const line = html.indexOf("Move one duty.");
     expect(question).toBeGreaterThanOrEqual(0);
-    expect(question).toBeLessThan(move);
+    expect(question).toBeLessThan(answer);
+    expect(answer).toBeLessThan(move);
+    expect(answer).toBeLessThan(html.indexOf("<details"));
     expect(move).toBeLessThan(why);
     expect(why).toBeLessThan(week);
     expect(week).toBeLessThan(line);
@@ -359,13 +362,15 @@ describe("CoachResultView", () => {
 });
 
 describe("briefBoard", () => {
-  it("lifts this week and the situation, and drops the label the screen adds", () => {
+  it("lifts the answer, this week, and the situation from the rest", () => {
     const board = briefBoard(
-      "## Situation\nAll fine.\n\n## This week\nThis week: open the statement.\n\n## Recommended moves\n- One\n\n## Warnings\n- None.",
+      "## Answer\nMark the date.\n\n## Situation\nAll fine.\n\n## This week\nThis week: open the statement.\n\n## Recommended moves\n- One\n\n## Warnings\n- None.",
     );
+    expect(board.answer).toBe("Mark the date.");
     expect(board.situation).toBe("All fine.");
     expect(board.thisWeek).toBe("Open the statement.");
     expect(board.rest).toContain("## Warnings");
+    expect(board.rest).not.toContain("Mark the date.");
     expect(board.rest).not.toContain("All fine.");
     expect(board.rest).not.toContain("open the statement");
     expect(board.rest).not.toContain("Recommended moves");
@@ -373,6 +378,7 @@ describe("briefBoard", () => {
 
   it("leaves a brief with neither line alone", () => {
     expect(briefBoard("## Warnings\n- None.")).toEqual({
+      answer: null,
       situation: null,
       thisWeek: null,
       rest: "## Warnings\n- None.",
