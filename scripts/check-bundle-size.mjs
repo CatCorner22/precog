@@ -194,6 +194,17 @@
  * Start here button-label fix also measures 875.2 KB on that base. Total
  * budget raised to 876 KB to cover the measured main baseline; the
  * largest-chunk budget is unchanged.
+ *
+ * 2026-10-10: the six fixes from the adversarial review of #244 (a job
+ * title's suggested duties read under the line of business that made them,
+ * the setup headcount stored with the report, a setup credit the owner
+ * takes off, the filtered order note, the share link's monthly results) add
+ * 1.0 KB gzipped against a build of main at 5dfcc2f (875.8 KB, 138 chunks):
+ * sod-panel 0.3 KB (one "Take it off" line per setup credit),
+ * engagement-archive 0.2 KB, practice-profile and control-report 0.1 KB
+ * each, the rest under 0.1 KB per chunk. The total measures 876.8 KB in 138
+ * chunks, 0.8 KB over; the largest chunk is unchanged at 109.0 KB. Total
+ * budget raised from 876 KB to 878 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -202,7 +213,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 876 * 1024,
+  totalGzipBytes: 878 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
