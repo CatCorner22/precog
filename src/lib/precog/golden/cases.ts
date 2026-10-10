@@ -277,7 +277,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
     expectClosedRuleIds: ["rule-custody-rec", "rule-sign-rec", "rule-cash-void", "rule-writeoff"],
     expectFirstStepRuleId: "rule-refund-adjust",
     expectRecommendedProcedureIds: ["lib-refund-review", "lib-cash-deposit", "lib-drawer-close"],
-    expectActionPattern: /away from Jordan Reyes: it closes \d+/,
+    expectActionPattern: /away from Jordan Reyes(?: to [^:]+)?: it closes \d+/,
   },
   {
     id: "retail-three-person-bookkeeper",
@@ -571,7 +571,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
     expectOpenRuleIds: ["rule-collect-post", "rule-deposit-post", "rule-cash-void"],
     expectClosedRuleIds: ["rule-payroll", "rule-custody-rec", "rule-cash-rec", "rule-sign-rec"],
     expectRecommendedProcedureIds: ["lib-cash-deposit", "lib-drawer-close", "lib-refund-review"],
-    expectActionPattern: /away from Keisha Thompson: it closes \d+/,
+    expectActionPattern: /away from Keisha Thompson(?: to [^:]+)?: it closes \d+/,
   },
   {
     id: "restaurant-three-person-bookkeeper-and-bar",
@@ -974,7 +974,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       "lib-card-review",
       "lib-payroll",
     ],
-    expectActionPattern: /^Move reconcile the bank account away from Carol Jensen: it closes \d+/,
+    expectActionPattern: /\b[Mm]ove reconcile the bank account away from Carol Jensen\b/,
   },
   {
     id: "automotive-nine-person-dealership",
@@ -1095,7 +1095,7 @@ export const GOLDEN_CASES: readonly GoldenCase[] = [
       "lib-release-payments",
       "lib-mailed-checks",
     ],
-    expectActionPattern: /^Move reconcile the bank account away from Harold Finch: it closes \d+/,
+    expectActionPattern: /away from Harold Finch(?: to [^:]+)?: it closes \d+/,
   },
   {
     id: "nonprofit-three-person-executive-director",

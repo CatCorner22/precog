@@ -222,6 +222,13 @@
  * key remains. Total budget raised to 880 KB, which also covers the 0.3 KB
  * a CI build ran above a local build the same day. The largest chunk stays
  * under 118 KB.
+ *
+ * 2026-10-10: raised to 909 KB for 33 recommended procedures and 12 evidence
+ * cases; cost 27.9 KB gz in rule-procedures (9.8 KB to 31.1 KB) and
+ * start-here-copy (55.3 KB to 62.0 KB) chunks. The build measures 906.6 KB
+ * gzipped in 138 chunks against main at 598ff91 (878.7 KB); the budget is
+ * the next whole KB plus 2 KB of CI variation. The largest chunk stays
+ * under 118 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -230,7 +237,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 880 * 1024,
+  totalGzipBytes: 909 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
