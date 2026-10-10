@@ -24,16 +24,23 @@ const PLANNER_SECTIONS: ReadonlySet<string> = new Set(["absences", "leaving"]);
 export function ContinuityPlanner({ initialKnowledgeId }: { initialKnowledgeId?: string | null }) {
   const p = useContinuityPlanner(initialKnowledgeId);
   const select = p.register.select;
+  const selectedId = p.register.selected?.item.id;
+  const target =
+    initialKnowledgeId && PLANNER_SECTIONS.has(initialKnowledgeId)
+      ? initialKnowledgeId
+      : initialKnowledgeId && selectedId === initialKnowledgeId
+        ? "selected-knowledge"
+        : null;
 
   useEffect(() => {
-    if (!initialKnowledgeId || !PLANNER_SECTIONS.has(initialKnowledgeId)) return;
+    if (!target) return;
     const frame = requestAnimationFrame(() => {
-      const section = document.getElementById(initialKnowledgeId);
+      const section = document.getElementById(target);
       section?.scrollIntoView({ block: "start" });
       section?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
-  }, [initialKnowledgeId]);
+  }, [initialKnowledgeId, target]);
 
   return (
     <div className="space-y-4">

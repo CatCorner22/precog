@@ -457,7 +457,12 @@ export function SelectedKnowledgeCard({
   if (!selected) return null;
   const badge = coverageBadge(selected, tpl);
   return (
-    <Card>
+    <Card
+      id="selected-knowledge"
+      tabIndex={-1}
+      role="region"
+      aria-label={`Details for ${selected.item.name}`}
+    >
       <CardHeader>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <CardTitle className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]">

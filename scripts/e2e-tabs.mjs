@@ -19,6 +19,7 @@
  * Env:   E2E_TIMEOUT_MS (default 45000), E2E_SCREENSHOT (PNG path on failure)
  */
 import { e2eOptions, exploreSample, openSetup, withPage } from "./lib/e2e.mjs";
+import { checkStartHereNavigation } from "./lib/start-here-navigation.mjs";
 
 const options = e2eOptions();
 const { baseUrl, timeout, failureShot } = options;
@@ -441,6 +442,8 @@ async function shellChecks(page) {
   await page.keyboard.press("Escape");
   console.log(`  ✓ phone "All sections" lists ${listed.length} places by name`);
   await page.setViewportSize({ width: 1440, height: 900 });
+
+  await checkStartHereNavigation(page, baseUrl, timeout);
 
   // The home footer links to the privacy notice.
   await page
