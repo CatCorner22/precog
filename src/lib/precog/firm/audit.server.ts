@@ -88,11 +88,11 @@ export async function insertAudits(tx: Sql, inputs: AuditInput[]): Promise<void>
   }));
   await tx`
     insert into firm_audit_log
-      (firm_user_id, actor_user_id, actor_name, event, business_id, subject_user_id, detail)
+      (firm_user_id, actor_user_id, actor_name, event, business_id, subject_user_id, detail, occurred_at)
     select r.firm_user_id, r.actor_user_id,
       coalesce((select coalesce(nullif(u.name, ''), u.email, '') from "user" u
         where u.id = r.actor_user_id), ''),
-      r.event, r.business_id, r.subject_user_id, r.detail
+      r.event, r.business_id, r.subject_user_id, r.detail, clock_timestamp()
     from jsonb_array_elements(${JSON.stringify(rows)}::jsonb) with ordinality as e(v, n)
     cross join lateral jsonb_to_record(e.v) as r(firm_user_id text, actor_user_id text,
       event text, business_id text, subject_user_id text, detail jsonb)
