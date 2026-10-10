@@ -81,7 +81,7 @@ describe("runGrokAgentLoop", () => {
     // The decisions are the corrected ones (this clinic's own conflict first),
     // not the raw rules loop's.
     expect(result.brief.decisions).toEqual(local.brief.decisions);
-    expect(result.brief.decisions[0].action).toMatch(/^Give one of Grace Kim's duties/);
+    expect(result.brief.decisions[0].action).toMatch(/^Move set up suppliers away from Grace Kim/);
     const raw = runLocalAgentLoop(QUESTION, { profile, question: QUESTION });
     expect(result.brief.decisions).not.toEqual(raw.brief.decisions);
     expect(result.brief.chickenLittleWarnings).toEqual(local.brief.chickenLittleWarnings);

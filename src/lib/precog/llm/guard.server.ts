@@ -116,20 +116,27 @@ export async function callModel(
 ): Promise<GrokChatResult | null> {
   const apiKey = process.env.XAI_API_KEY?.trim();
   if (access.grok !== "allowed" || !access.userId || !apiKey) return null;
-  const plan = await aiPlanFor(access.userId);
-  const budget = await checkDailyBudget(
-    getSql,
-    access.userId,
-    undefined,
-    undefined,
-    callerAddress(),
-    plan,
-  );
+  const { budget, plan } = await spendCallerDailyUnit(access.userId);
   if (budget === "allowed") return recordedCall(access.userId, apiKey, opts);
   if (budget === "unavailable") return null;
   const { limit, paidLimit } = userDailyLimits(plan);
   if (budget === "spent-global") await reportGlobalCeilingOnce();
   throw new DailyLimitReached({ scope: CEILING_SCOPE[budget], plan, limit, paidLimit });
+}
+
+/**
+ * One daily unit for this caller, on the same plan and address `callModel`
+ * uses. A paid plan is not charged against the free cap.
+ */
+export async function spendCallerDailyUnit(userId: string): Promise<{
+  budget: Awaited<ReturnType<typeof checkDailyBudget>>;
+  plan: AiPlan;
+}> {
+  const plan = await aiPlanFor(userId);
+  return {
+    plan,
+    budget: await checkDailyBudget(getSql, userId, undefined, undefined, callerAddress(), plan),
+  };
 }
 
 /** The model call, then its record, awaited inside its own catch. */

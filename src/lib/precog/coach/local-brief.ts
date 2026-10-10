@@ -25,6 +25,9 @@ import {
   starterScenarioLabel,
   starterScenariosLeftOut,
 } from "../scoring/scope";
+import { procedureForConflict } from "../procedures/rule-procedures";
+import { recommendationFor } from "../procedures/library";
+import { entitlementLabel, type EntitlementId } from "../sod/conflict-rules";
 import {
   detectSodConflicts,
   SEVERITY_RANK,
@@ -333,7 +336,143 @@ function pairWords(c: Pick<DetectedConflict, "labelA" | "labelB">): string {
 /** The owner-doable statement step, phrased for "This week: ...". */
 const STATEMENT_THIS_WEEK = "open the bank statement yourself, before anyone else";
 
-/** The decision for one person's conflicts: move one duty, and what covers it meanwhile. */
+/** One duty taken off one person, and the open conflicts that move closes. */
+interface DutySplit {
+  personId: string;
+  personName: string;
+  duty: EntitlementId;
+  dutyLabel: string;
+  closed: DetectedConflict[];
+}
+
+/**
+ * Every duty one person can give up, across the open conflicts. The list keeps
+ * the order of `open`, so a tie lands on the same person the brief already named.
+ */
+function dutySplits(open: readonly DetectedConflict[]): DutySplit[] {
+  const byPerson = new Map<string, DetectedConflict[]>();
+  for (const conflict of open) {
+    const held = byPerson.get(conflict.personId);
+    if (held) held.push(conflict);
+    else byPerson.set(conflict.personId, [conflict]);
+  }
+  const splits: DutySplit[] = [];
+  for (const held of byPerson.values()) {
+    const duties = new Map<EntitlementId, DetectedConflict[]>();
+    for (const conflict of held) {
+      for (const duty of [conflict.entitlementA, conflict.entitlementB]) {
+        const closed = duties.get(duty);
+        if (closed) closed.push(conflict);
+        else duties.set(duty, [conflict]);
+      }
+    }
+    for (const [duty, closed] of duties) {
+      splits.push({
+        personId: held[0].personId,
+        personName: held[0].personName,
+        duty,
+        dutyLabel: entitlementLabel(duty),
+        closed,
+      });
+    }
+  }
+  return splits;
+}
+
+function criticalCount(split: DutySplit): number {
+  return split.closed.filter((conflict) => conflict.severity === "critical").length;
+}
+
+/**
+ * The split that closes the most open duty conflicts. Ties go to the move that
+ * closes more critical pairs, then a bank reconciliation, then the person and
+ * duty already first in the open list. Counts are duty pairs, not a chance of a loss.
+ */
+function bestDutySplit(open: readonly DetectedConflict[]): DutySplit | null {
+  const ranked = dutySplits(open).sort(
+    (a, b) =>
+      b.closed.length - a.closed.length ||
+      criticalCount(b) - criticalCount(a) ||
+      Number(b.duty === "bank_reconcile") - Number(a.duty === "bank_reconcile") ||
+      open.findIndex((conflict) => conflict.personId === a.personId) -
+        open.findIndex((conflict) => conflict.personId === b.personId) ||
+      a.duty.localeCompare(b.duty),
+  );
+  return ranked[0] ?? null;
+}
+
+function splitProcedure(personName: string, dutyLabel: string): string[] {
+  const duty = midSentence(dutyLabel);
+  return [
+    `Open ${personName} on Team.`,
+    `Give ${duty} to someone who holds neither duty in the pair.`,
+    `Write who does ${duty} now, who checks it, and how often.`,
+    `Leave ${personName}'s other duty in the pair where it is.`,
+  ];
+}
+
+function nextSplitLine(next: DutySplit, remain: number): string {
+  const closesAll = next.closed.length >= remain;
+  const effect = closesAll
+    ? remain === 1
+      ? "That closes the open duty conflict that stays open."
+      : `That closes the ${count(remain, "open duty conflict")} that stay open.`
+    : `That closes ${next.closed.length} of the ${count(remain, "open duty conflict")} that ${verb(remain, "stays", "stay")} open.`;
+  return `Next split: move ${midSentence(next.dutyLabel)} away from ${next.personName}. ${effect}`;
+}
+
+/**
+ * The one move that closes the most open duty conflicts, then the next split
+ * for what that move leaves. What stays open is a count of duty pairs.
+ */
+function optimalSplitDecision(
+  open: readonly DetectedConflict[],
+  profile: Pick<PracticeProfile, "dualRelease" | "industry">,
+): PioneerDecision | null {
+  const split = bestDutySplit(open);
+  if (!split) return null;
+  const worst = split.closed.reduce((best, conflict) =>
+    SEVERITY_RANK[conflict.severity] < SEVERITY_RANK[best.severity] ? conflict : best,
+  );
+  const remainOpen = open.filter(
+    (conflict) => !split.closed.some((closed) => closed.id === conflict.id),
+  );
+  const remain = remainOpen.length;
+  const next = remain > 0 ? bestDutySplit(remainOpen) : null;
+  const severity = SEVERITY_WORDS[worst.severity].replace(/^a /, "");
+  const reason = worst.why.split(". ")[0].replace(/\.$/, "");
+  const meanwhile = closingSteps(
+    worst.compensatingControls,
+    profile.dualRelease,
+    worst.ruleId,
+    worst.controlsInPlace,
+  )[0];
+  const library = procedureForConflict(worst.ruleId);
+  const titled = library ? recommendationFor(library, profile.industry).title : null;
+  const left =
+    remain === 0
+      ? "No open duty conflict stays open."
+      : `${count(remain, "open duty conflict")} ${verb(remain, "stays", "stay")} open.`;
+  const procedure = [
+    ...splitProcedure(split.personName, split.dutyLabel),
+    ...(next ? [nextSplitLine(next, remain)] : []),
+    ...(titled ? [`The written procedure for this pair is "${titled}".`] : []),
+  ];
+  return {
+    action: `Move ${midSentence(split.dutyLabel)} away from ${split.personName}: it closes ${split.closed.length} of the ${open.length} open duty conflicts`,
+    rationale: `${severity.charAt(0).toUpperCase()}${severity.slice(1)}: ${reason}. ${left} That is a count of duty pairs, not a chance of a loss.${meanwhile ? ` Until it moves: ${midSentence(meanwhile).replace(/\.$/, "")}.` : ""}`,
+    procedure,
+    evidenceIds: [],
+    effort: "medium",
+    horizonDays: 14,
+    cascadeEffects: ["duty conflicts ↓"],
+    link: {
+      tab: "sod",
+      id: teamFocusItem(split.personId, worst.entitlementA, worst.entitlementB),
+      personId: split.personId,
+    },
+  };
+}
 function conflictDecision(
   person: PersonConflicts,
   profile: Pick<PracticeProfile, "dualRelease">,
@@ -768,7 +907,15 @@ function ownFirstBrief(
   }
   const statement = ownerStatementDecision(profile.industry);
   if (leadWithConflicts) {
-    const lead = people.slice(0, 3).map((p) => conflictDecision(p, profile));
+    const open = people.flatMap((p) => p.conflicts);
+    const split = optimalSplitDecision(open, profile);
+    const lead = [
+      ...(split ? [split] : []),
+      ...people
+        .slice(0, 3)
+        .filter((p) => p.personId !== split?.link?.personId)
+        .map((p) => conflictDecision(p, profile)),
+    ];
     decisions = [...lead, statement, ...decisions.filter((d) => d.action !== statement.action)];
   } else if (absence) {
     decisions = [
@@ -783,7 +930,10 @@ function ownFirstBrief(
       : null;
   let frontierNextMove = leverAction(brief.frontierNextMove);
   if (leadWithConflicts) {
-    frontierNextMove = thisWeek(people[0]);
+    const split = decisions.find((d) => d.procedure?.length);
+    frontierNextMove = split
+      ? `This week: ${midSentence(split.action)}, and ${STATEMENT_THIS_WEEK}.`
+      : thisWeek(people[0]);
   } else if (absence && decisions[0] && isContinuityDecision(decisions[0])) {
     frontierNextMove = `This week: ${midSentence(decisions[0].action)}.`;
   } else if (scenarioMove) {

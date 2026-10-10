@@ -3,7 +3,18 @@ import { utcDateKey } from "../dates";
 import { defaultProfile } from "@/lib/precog/practice-profile";
 import { readPioneerRequest, selectPioneerHighlights } from "./pioneer-answer";
 
-const spend = vi.hoisted(() => vi.fn(async () => "spent" as const));
+const spend = vi.hoisted(() =>
+  vi.fn(
+    async (
+      _loadSql: unknown,
+      _userId: string,
+      _limits: unknown,
+      _purge: unknown,
+      _address: string | null,
+      _plan: string,
+    ) => "spent" as const,
+  ),
+);
 
 vi.mock("../llm/daily-usage", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../llm/daily-usage")>();
@@ -26,6 +37,8 @@ describe("Voyager Hugging Face budget", () => {
     });
     const res = await selectPioneerHighlights(data, { userId: "owner-1", grok: "allowed" });
     expect(spend).toHaveBeenCalled();
+    expect(spend.mock.calls[0]?.[1]).toBe("owner-1");
+    expect(["free", "paid"]).toContain(spend.mock.calls[0]?.[5]);
     expect(res.ok && res.ranker).toBeUndefined();
   });
 });

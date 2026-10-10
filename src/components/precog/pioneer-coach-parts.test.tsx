@@ -278,6 +278,7 @@ describe("CoachResultView", () => {
             effort: "low",
             horizonDays: 7,
             evidenceIds: ["ev-1", "missing"],
+            procedure: ["Open Grace Kim on Team.", "Give set up suppliers to someone else."],
           },
         ],
       }),
@@ -286,10 +287,38 @@ describe("CoachResultView", () => {
     const trace = html.indexOf("How Voyager built this brief");
     expect(onCard).toBeGreaterThanOrEqual(0);
     expect(onCard).toBeLessThan(trace);
+    expect(html.indexOf("Open Grace Kim on Team.")).toBeLessThan(trace);
     expect(html.indexOf("64/100")).toBeGreaterThan(trace);
     expect(
       citedFigure({ evidenceIds: ["missing"] }, [{ id: "ev-1", label: "Appeals" }]),
     ).toBeNull();
+  });
+
+  it("keeps the duty split as the one move when a model marks a later move", () => {
+    const html = view(
+      result({
+        highlightIds: ["move-2"],
+        decisions: [
+          {
+            action: "Move the duty",
+            rationale: "Because.",
+            effort: "medium",
+            horizonDays: 14,
+            procedure: ["Open Pat Ruiz on Team."],
+          },
+          { action: "Move 2", rationale: "Because.", effort: "low", horizonDays: 7 },
+          { action: "Move 3", rationale: "Because.", effort: "low", horizonDays: 7 },
+        ],
+      }),
+    );
+    expect(html).toContain("Move the duty");
+    expect(html).toContain("Open Pat Ruiz on Team.");
+    expect(html).toContain("Start with this one");
+    expect(html).not.toContain("Move 3");
+    expect(html).not.toContain("Most relevant");
+    expect(html).toContain(
+      "A mark of most relevant means your question is nearer that written statement than the others.",
+    );
   });
 
   it("puts a selected move first and badges it Most relevant", () => {
