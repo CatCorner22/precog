@@ -123,9 +123,7 @@ describe("answerPioneer", () => {
       access("rate_limited"),
     );
     if (!res.ok) throw new Error(res.error);
-    expect(res.warnings.at(-1)).toBe(
-      "Voyager is busy right now. Precog's rules wrote this brief.",
-    );
+    expect(res.warnings.at(-1)).toBe("Voyager is busy right now. Precog's rules wrote this brief.");
   });
 
   it("says so when the model was allowed but failed", async () => {

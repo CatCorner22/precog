@@ -4,17 +4,17 @@
 
 Built for owner-operated teams (2–50 people): dental and medical offices, retail, professional services, restaurants, construction, auto dealerships and repair shops, nonprofits, and general small business.
 
-| Module               | Path                         | Role                                                                                                        |
-| -------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Residual engine      | `src/lib/precog/scoring/`    | Inherent × (1 − effectiveness) × staff modifiers (scenario rows credit effectiveness at 50%), action bands  |
-| Tornado sensitivity  | `scoring/residual-engine.ts` | Highest-leverage control levers                                                                             |
-| COSO heat map        | `coso.ts` + UI               | 5 components, 17 principles, deep links                                                                     |
-| Precog scenarios     | `engine.ts`                  | Assumed days until found and $ loss; an own business has no crime policy until you enter one                |
-| Knowledge SPOF map   | knowledge UI                 | Continuity / single points of failure                                                                       |
+| Module               | Path                         | Role                                                                                                                 |
+| -------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Residual engine      | `src/lib/precog/scoring/`    | Inherent × (1 − effectiveness) × staff modifiers (scenario rows credit effectiveness at 50%), action bands           |
+| Tornado sensitivity  | `scoring/residual-engine.ts` | Highest-leverage control levers                                                                                      |
+| COSO heat map        | `coso.ts` + UI               | 5 components, 17 principles, deep links                                                                              |
+| Precog scenarios     | `engine.ts`                  | Assumed days until found and $ loss; an own business has no crime policy until you enter one                         |
+| Knowledge SPOF map   | knowledge UI                 | Continuity / single points of failure                                                                                |
 | Voyager coach        | `coach/`                     | Rules write every claim. Hugging Face ranks them when `HF_TOKEN` is set. Grok selects ids when `XAI_API_KEY` is set. |
-| Procedures library   | `procedures/library.ts` + UI | Recommended procedures per industry: steps, evidence to keep, and fallbacks (replaces the blueprint)        |
-| Power map builder    | SoD UI                       | Interactive staff-to-duty map, 20+ common job templates, live assignment sandbox, and conflict explanations |
-| Assessment snapshots | `snapshots.ts` + UI          | Private, versioned practice records with model/corpus provenance                                            |
+| Procedures library   | `procedures/library.ts` + UI | Recommended procedures per industry: steps, evidence to keep, and fallbacks (replaces the blueprint)                 |
+| Power map builder    | SoD UI                       | Interactive staff-to-duty map, 20+ common job templates, live assignment sandbox, and conflict explanations          |
+| Assessment snapshots | `snapshots.ts` + UI          | Private, versioned practice records with model/corpus provenance                                                     |
 
 ## Fast setup from your HR or payroll system
 

@@ -346,13 +346,13 @@ async function shellChecks(page) {
   }
   console.log(`  ✓ "What if this fails?" lands with the picker at y=${pickerTop}`);
 
-  // The header opens Ask Pioneer. Someone is out lives on Who knows what;
+  // The header opens Ask Voyager. Someone is out lives on Who knows what;
   // Needs attention and older links open the same absence cards.
   await home();
   await page.locator("[data-header-tab=pioneer]").click();
   await page.waitForURL(/[?&]tab=pioneer/, { timeout });
-  if ((await selectedTab()) !== "Ask Pioneer") {
-    throw new Error(`the header's Ask Pioneer opened "${await selectedTab()}"`);
+  if ((await selectedTab()) !== "Ask Voyager") {
+    throw new Error(`the header's Ask Voyager opened "${await selectedTab()}"`);
   }
   await home("?tab=knowledge&item=absences");
   if (!/[?&]tab=knowledge(&|$)/.test(page.url()) || !/[?&]item=absences/.test(page.url())) {

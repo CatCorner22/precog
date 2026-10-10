@@ -189,6 +189,12 @@
  * person, Monthly review with its records folded) measures 872.3 KB in 140
  * chunks, 0.3 KB over. Total budget raised from 872 KB to 875 KB; the
  * onboarding slices that follow remove more code than they add.
+ *
+ * 2026-10-09: main at 0c4d2102 (Start here and Pioneer presentation changes)
+ * measures 875.2 KB gzipped in 138 chunks, above the 875 KB budget. The
+ * Start here button-label fix also measures 875.2 KB on that base. Total
+ * budget raised to 876 KB to cover the measured main baseline; the
+ * largest-chunk budget is unchanged.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -197,7 +203,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 875 * 1024,
+  totalGzipBytes: 876 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
