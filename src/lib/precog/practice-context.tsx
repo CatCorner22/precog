@@ -118,6 +118,8 @@ export interface PracticeActions {
   setDualRelease: (v: SetStateAction<DualReleasePolicy>) => void;
   addDecision: (input: DecisionInput) => void;
   removeDecision: (id: string) => void;
+  /** Takes a setup credit off its control, by id (active-template `setupControlsInPlace`). */
+  withdrawSetupControl: (id: string) => void;
   reviewDecision: (
     id: string,
     outcome: DecisionReviewOutcome,
@@ -681,7 +683,12 @@ function useActiveTemplate(profile: PracticeProfile): IndustryTemplate {
     profile;
   const confirmedControlsKey = confirmedControlIds(profile.decisions, industry).join("|");
   const controlsInPlaceKey = JSON.stringify(
-    controlsInPlace(profile.decisions, industry, profile.setupAnswers),
+    controlsInPlace(
+      profile.decisions,
+      industry,
+      profile.setupAnswers,
+      profile.setupControlsWithdrawn,
+    ),
   );
   return useMemo(
     () =>

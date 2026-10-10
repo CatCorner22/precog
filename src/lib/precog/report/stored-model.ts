@@ -13,6 +13,7 @@ import {
   buildControlReportModel,
   NO_REPORT_EXAMPLES,
   type ControlReportModel,
+  type SetupHeadcount,
 } from "./build-control-report";
 import { NO_FINDING_RESPONSES, type FindingResponses } from "./finding-responses";
 import { buildReportScope, type ReportScope } from "./report-scope";
@@ -25,7 +26,13 @@ import { utcDateKey } from "../dates";
  */
 export type StoredReportModel = Omit<
   ControlReportModel,
-  "committed" | "partialCoverage" | "responses" | "sod" | "benchmark" | "examples"
+  | "committed"
+  | "partialCoverage"
+  | "responses"
+  | "sod"
+  | "benchmark"
+  | "examples"
+  | "setupHeadcount"
 > & {
   /** Absent before layout 8; new locks keep the preparer's calendar scope. */
   reportingScope?: ReportScope;
@@ -35,6 +42,13 @@ export type StoredReportModel = Omit<
    * no example marks anyway.
    */
   examples?: ControlReportModel["examples"];
+  /**
+   * Absent in a model stored before Precog stored the setup headcount
+   * (layouts 1 to 6, and layouts 7 and 8 until then). The report then reads
+   * the live profile's, as it did then (control-report.tsx); a model that
+   * stores null was locked for a business that gave none.
+   */
+  setupHeadcount?: SetupHeadcount | null;
   /**
    * Absent in a model stored under layouts 1 to 3, which did not store the
    * benchmark. Such a model revives with none, and prints none.
@@ -523,6 +537,7 @@ export function reviveReportModel(stored: StoredReportModel): ControlReportModel
     responses: model.responses ?? NO_FINDING_RESPONSES,
     benchmark: model.benchmark ?? null,
     examples: model.examples ?? NO_REPORT_EXAMPLES,
+    setupHeadcount: model.setupHeadcount ?? null,
   };
 }
 

@@ -1,6 +1,11 @@
 import { CheckCircle2, ShieldOff } from "lucide-react";
+import { setupControlsInPlace, type SetupControlInPlace } from "@/lib/precog/active-template";
 import { controlFailureModes } from "@/lib/precog/control-failure-modes";
-import { confirmControlEntry, inPlaceEntry } from "@/lib/precog/control-entries";
+import {
+  confirmControlEntry,
+  inPlaceEntry,
+  takeOffSetupControlPrompt,
+} from "@/lib/precog/control-entries";
 import { usePractice, useTemplate } from "@/lib/precog/practice-context";
 import { teamSource } from "@/lib/precog/team-source";
 import { useTabName } from "@/lib/precog/presentation";
@@ -13,14 +18,20 @@ import { InPlaceForm } from "./in-place-form";
 /**
  * The Controls view of Who controls what: every control in the template, the
  * sample ones the owner can confirm with "This runs here", and the controls
- * already in place against a duty gap.
+ * already in place against a duty gap: those recorded in the journal, and
+ * those a setup answer credits, each of which the owner can take off.
  */
 export function SodControlsSection({ onNavigate }: { onNavigate?: NavFn }) {
-  const tabName = useTabName();
-  const { profile, addDecision } = usePractice();
+  const { profile, addDecision, withdrawSetupControl } = usePractice();
   const { controls } = useTemplate();
   const meta = LAYER_META.control;
   const ownBusiness = teamSource(profile) === "own";
+  // The credits the setup answers still give, by control: the template
+  // already leaves out the ones taken off (`setupControlsWithdrawn`).
+  const withdrawn = new Set(profile.setupControlsWithdrawn ?? []);
+  const fromSetup = setupControlsInPlace(profile.setupAnswers, profile.industry).filter(
+    (credit) => !withdrawn.has(credit.id),
+  );
   return (
     <div className="rounded-xl border border-border bg-surface p-5">
       <h2 className="font-semibold">{meta.name}</h2>
@@ -72,13 +83,16 @@ export function SodControlsSection({ onNavigate }: { onNavigate?: NavFn }) {
                 </Button>
               </div>
             )}
-            {c.compensatingControls.length > 0 && (
-              <p className="mt-1 text-xs text-subtle">
-                Already in place: {c.compensatingControls.join("; ")}
-                {ownBusiness &&
-                  ` (from your ${tabName("journal")}; remove an entry there to take it off)`}
-              </p>
-            )}
+            <InPlaceLines
+              control={c}
+              fromSetup={fromSetup.filter((credit) => credit.controlId === c.id)}
+              ownBusiness={ownBusiness}
+              onTakeOff={(credit) => {
+                if (window.confirm(takeOffSetupControlPrompt(c.name, credit.text))) {
+                  withdrawSetupControl(credit.id);
+                }
+              }}
+            />
             {ownBusiness && !c.starter && !c.segregated && (
               <InPlaceForm onRecord={(text) => addDecision(inPlaceEntry(c, text))} />
             )}
@@ -86,5 +100,51 @@ export function SodControlsSection({ onNavigate }: { onNavigate?: NavFn }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * What is already in place against a control: the journal's entries on one
+ * line (taken off in the journal), and each credit a setup answer gives on
+ * its own, with "Take it off" (the answer stands; the control stops
+ * counting it).
+ */
+function InPlaceLines({
+  control,
+  fromSetup,
+  ownBusiness,
+  onTakeOff,
+}: {
+  control: { compensatingControls: readonly string[] };
+  fromSetup: readonly SetupControlInPlace[];
+  ownBusiness: boolean;
+  onTakeOff: (credit: SetupControlInPlace) => void;
+}) {
+  const tabName = useTabName();
+  const setupTexts = new Set(fromSetup.map((credit) => credit.text));
+  const journal = control.compensatingControls.filter((text) => !setupTexts.has(text));
+  return (
+    <>
+      {journal.length > 0 && (
+        <p className="mt-1 text-xs text-subtle">
+          Already in place: {journal.join("; ")}
+          {ownBusiness &&
+            ` (from your ${tabName("journal")}; remove an entry there to take it off)`}
+        </p>
+      )}
+      {fromSetup.map((credit) => (
+        <p key={credit.id} className="mt-1 text-xs text-subtle">
+          Already in place: {credit.text}{" "}
+          <button
+            type="button"
+            className="font-medium text-primary underline underline-offset-2 pointer-coarse:min-h-11"
+            aria-label={`Take it off: ${credit.text}`}
+            onClick={() => onTakeOff(credit)}
+          >
+            Take it off
+          </button>
+        </p>
+      ))}
+    </>
   );
 }

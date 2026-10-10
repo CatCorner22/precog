@@ -38,6 +38,16 @@ export interface OwnTeamRow {
    */
   suggestedFor?: string;
   /**
+   * The line of business whose catalog made that suggestion. A title's usual
+   * duties differ by line of business (Dental's office manager reconciles
+   * the bank; Retail's does not), so the ticks are read as that catalog's
+   * suggestion even after the owner goes back and picks another line of
+   * business: a suggested duty never passes for one the owner chose. Absent
+   * on a row from a draft saved before Precog kept it, which reads under
+   * the line of business in effect.
+   */
+  suggestedIn?: string;
+  /**
    * Duties the job title ticked that the setup answers then left out (no
    * payroll, an outside bank reconciliation, no cash). They have no column
    * while left out, so the owner cannot have changed them by hand; when the
@@ -292,7 +302,9 @@ export function fitDutiesToAnswers(
     if (!row.answersUnticked) return row;
     const role = row.role.trim();
     const fromTitle = Boolean(role) && (row.suggestedFor ?? "").trim() === role;
-    const usual = fromTitle ? suggestedDuties(role, rowOwnsBusiness(row, industry), industry) : [];
+    const usual = fromTitle
+      ? suggestedDuties(role, rowOwnsBusiness(row, industry), suggestedUnder(row, industry))
+      : [];
     // The title's duties the answers unticked and nobody has ticked since:
     // back on the team now, or still left out (or hidden) and remembered.
     const candidates = row.answersUnticked.filter(
@@ -322,6 +334,8 @@ export function fitDutiesToAnswers(
  * A row with its job title's usual duties ticked, as typing a title does:
  * duties the setup answers place outside the team are left unticked and
  * remembered (`answersUnticked`), so changing the answer back ticks them.
+ * The row remembers the line of business that made the suggestion
+ * (`suggestedIn`).
  */
 export function titleTicksFor(
   row: OwnTeamRow,
@@ -330,13 +344,30 @@ export function titleTicksFor(
 ): OwnTeamRow {
   const role = row.role.trim();
   // A new title's ticks are new suggestions: nothing about them is confirmed yet.
-  const { answersUnticked: _old, keptDuties: _kept, ...rest } = row;
+  const { answersUnticked: _old, keptDuties: _kept, suggestedIn: _under, ...rest } = row;
   const ticked: OwnTeamRow = {
     ...rest,
     duties: suggestedDuties(role, rowOwnsBusiness(row, industry), industry),
     suggestedFor: role,
+    ...suggestedInMark(industry),
   };
   return dropOffTeam(ticked, dutiesOffTeam(answers));
+}
+
+/** The `suggestedIn` mark for a suggestion made under `industry`, or nothing when none was named. */
+export function suggestedInMark(industry: string | undefined): Pick<OwnTeamRow, "suggestedIn"> {
+  return industry ? { suggestedIn: industry } : {};
+}
+
+/**
+ * The line of business a row's title suggestion is read under: the one that
+ * made it, else the one in effect (a draft saved before Precog kept it).
+ */
+function suggestedUnder(
+  row: Pick<OwnTeamRow, "suggestedIn">,
+  industry: string | undefined,
+): string | undefined {
+  return row.suggestedIn ?? industry;
 }
 
 /**
@@ -346,13 +377,15 @@ export function titleTicksFor(
  * out, since they have no column and Finish drops them.
  */
 export function titleTickedDuties(
-  row: Pick<OwnTeamRow, "role" | "duties" | "suggestedFor" | "owner">,
+  row: Pick<OwnTeamRow, "role" | "duties" | "suggestedFor" | "suggestedIn" | "owner">,
   industry?: string,
   answers?: SetupAnswers,
 ): EntitlementId[] {
   const role = row.role.trim();
   if (!role || (row.suggestedFor ?? "").trim() !== role) return [];
-  const usual = new Set(suggestedDuties(role, rowOwnsBusiness(row, industry), industry));
+  const usual = new Set(
+    suggestedDuties(role, rowOwnsBusiness(row, industry), suggestedUnder(row, industry)),
+  );
   const hidden = answers ? hiddenDuties(answers) : new Set<EntitlementId>();
   const held = row.duties.filter((d) => usual.has(d) && !hidden.has(d));
   return [...CORE_DUTIES, ...extraDuties(held)].filter((d) => held.includes(d));
@@ -365,21 +398,27 @@ export function titleTickedDuties(
  * grid, Team and the findings show until the owner keeps or unticks them.
  * They come from the title that ticked them (`suggestedFor`), even after
  * the title was retyped, so a retyped title never confirms the old title's
- * guesses. With the setup answers, duties the answers hide are left out:
- * they have no column and do not count either way.
+ * guesses, and from the line of business that made the suggestion
+ * (`suggestedIn`), so picking another line of business afterwards confirms
+ * nothing either. With the setup answers, duties the answers hide are left
+ * out: they have no column and do not count either way.
  */
 export function unconfirmedDuties(
-  row: Pick<OwnTeamRow, "role" | "duties" | "suggestedFor" | "owner" | "keptDuties">,
+  row: Pick<
+    OwnTeamRow,
+    "role" | "duties" | "suggestedFor" | "suggestedIn" | "owner" | "keptDuties"
+  >,
   industry?: string,
   answers?: SetupAnswers,
 ): EntitlementId[] {
   const from = (row.suggestedFor ?? "").trim();
   if (!from) return [];
+  const under = suggestedUnder(row, industry);
   // Both readings of the title, with and without the owner's duties, so
   // ticking or clearing "Owns the business" afterwards confirms nothing.
   const usual = new Set([
-    ...suggestedDuties(from, true, industry),
-    ...suggestedDuties(from, false, industry),
+    ...suggestedDuties(from, true, under),
+    ...suggestedDuties(from, false, under),
   ]);
   const kept = new Set(row.keptDuties ?? []);
   const hidden = answers ? hiddenDuties(answers) : new Set<EntitlementId>();
@@ -523,6 +562,7 @@ export function leaderRow(industry?: string): OwnTeamRow {
     role: NONPROFIT_LEADER_TITLE,
     duties: coreDutiesForTitle(NONPROFIT_LEADER_TITLE, industry),
     suggestedFor: NONPROFIT_LEADER_TITLE,
+    ...suggestedInMark(industry),
   };
 }
 
@@ -656,6 +696,7 @@ function isOwnerTitle(role: string): boolean {
 /** Whether a row is still exactly a fresh grid's first row, for any line of business. */
 function isUntouchedLeaderRow(row: OwnTeamRow | undefined): row is OwnTeamRow {
   if (!row || row.name.trim()) return false;
+  // The `suggestedIn` mark is not compared: a draft saved before Precog kept it has none.
   return [ownerRow(), leaderRow("nonprofit")].some(
     (fresh) =>
       fresh.role === row.role &&

@@ -98,7 +98,14 @@ describe("one open-conflict count on every screen", () => {
       // Start here's first step names the person and the same total.
       const first = doNextSteps(start.firstSteps.items)[0];
       if (move && first?.control.id === "split-one-duty-out") {
-        expect(first.control.label).toContain(move.personName);
+        if (start.exposure.splitLine) {
+          expect(first.control.label).toBe(start.exposure.splitLine);
+          expect(exposure).toContain(`${start.exposure.splitLine}.`);
+          expect(exposure).not.toContain("Moving one duty,");
+        } else {
+          expect(first.control.label).toContain(move.personName);
+          expect(exposure).toContain("Moving one duty,");
+        }
         expect(first.control.label).toContain(`of the ${open} open duty conflicts`);
       }
       // Its pair count names duty pairs, never "open gaps", so it never reads

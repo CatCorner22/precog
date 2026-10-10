@@ -9,7 +9,15 @@ import { resolveNavTarget } from "@/lib/precog/navigation";
 import { defaultProfile } from "@/lib/precog/practice-profile";
 import { ReadOnlyPracticeProvider } from "@/lib/precog/read-only-practice";
 import type { ControlItem } from "@/lib/precog/types";
-import { confirmControlEntry, inPlaceEntry } from "@/lib/precog/control-entries";
+import {
+  confirmControlEntry,
+  inPlaceEntry,
+  takeOffSetupControlPrompt,
+} from "@/lib/precog/control-entries";
+import { ownSetupProfile } from "@/lib/precog/business-lifecycle";
+import { UNANSWERED } from "@/lib/precog/onboarding/setup-answers";
+import type { PracticeProfile } from "@/lib/precog/practice-profile";
+import { withDecision, withSetupControlWithdrawn } from "@/lib/precog/profile-actions";
 import { SodControlsSection } from "./sod-controls-section";
 
 const control: ControlItem = {
@@ -67,5 +75,73 @@ describe("the Controls view", () => {
     for (const c of resolveTemplate(profile).controls) {
       expect(html).toContain(c.name.replace(/&/g, "&amp;").replace(/'/g, "&#x27;"));
     }
+  });
+});
+
+describe("the Controls view's credits from the setup answers", () => {
+  const STATEMENT = "The owner opens and reads the bank statement each month (answered at setup).";
+  // Bayside Dental: Lisa pays the bills and reconciles the bank; Dana said
+  // at setup that she reads the statement.
+  const bayside: PracticeProfile = ownSetupProfile({
+    industry: "dental",
+    practiceName: "Bayside Dental",
+    people: [
+      {
+        id: "own-dana",
+        name: "Dana Reyes",
+        role: "Owner",
+        active: true,
+        owner: true,
+        entitlements: ["approve_payroll", "sign_checks"],
+      },
+      {
+        id: "own-lisa",
+        name: "Lisa Park",
+        role: "Office Manager",
+        active: true,
+        entitlements: ["release_payment", "bank_reconcile", "enter_invoices", "create_vendor"],
+      },
+    ],
+    answers: { ...UNANSWERED, ownerReadsStatement: "yes" },
+  });
+  const page = (profile: PracticeProfile) =>
+    renderToStaticMarkup(
+      <ReadOnlyPracticeProvider profile={profile}>
+        <SodControlsSection />
+      </ReadOnlyPracticeProvider>,
+    ).replace(/&#x27;/g, "'");
+  const takeOff = (html: string) => html.match(/aria-label="Take it off: ([^"]*)"/g) ?? [];
+
+  it("lists each setup credit with Take it off, not as a journal entry to remove", () => {
+    const html = page(bayside);
+    // Bill approval and cash handling each carry the statement credit.
+    expect(takeOff(html)).toEqual([
+      `aria-label="Take it off: ${STATEMENT}"`,
+      `aria-label="Take it off: ${STATEMENT}"`,
+    ]);
+    expect(html).toContain(`Already in place: ${STATEMENT} <button`);
+    expect(html).not.toContain("remove an entry there to take it off");
+  });
+
+  it("drops a credit the owner took off, and keeps the journal's own entries on their line", () => {
+    const ap = resolveTemplate(bayside).controls.find((c) => c.id === "c-sod-ap")!;
+    const taken = withDecision(
+      withSetupControlWithdrawn(bayside, "ownerReadsStatement:c-sod-ap"),
+      inPlaceEntry(ap, "Dana signs every bill over $500", now),
+      "dec-1",
+      now,
+    );
+    const html = page(taken);
+    expect(takeOff(html)).toEqual([`aria-label="Take it off: ${STATEMENT}"`]);
+    expect(html).toContain(
+      "Already in place: Dana signs every bill over $500 (from your Decisions log; remove an entry there to take it off)",
+    );
+    expect(html).not.toContain(`${STATEMENT} (from your`);
+  });
+
+  it("asks before taking a credit off, with the one warning for what cannot be undone", () => {
+    expect(takeOffSetupControlPrompt("Bill approval", STATEMENT)).toBe(
+      `Take "${STATEMENT}" off Bill approval? Precog stops counting it as in place there. You cannot undo this.`,
+    );
   });
 });

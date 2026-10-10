@@ -40,6 +40,7 @@ import {
   withPracticeName,
   withProcedure,
   withProcedureProof,
+  withSetupControlWithdrawn,
   withProcedureVerified,
   withProcesses,
   withRelations,
@@ -154,6 +155,10 @@ const CASES: Record<
     base: (p) => withDecision(p, { subject: "Old", kind: "monitor", note: "" }, "dec_old", NOW),
     run: (e) => e.removeDecision("dec_old"),
     expected: (p) => withoutDecision(p, "dec_old"),
+  },
+  withdrawSetupControl: {
+    run: (e) => e.withdrawSetupControl("ownerReadsStatement:c-sod-ap"),
+    expected: (p) => withSetupControlWithdrawn(p, "ownerReadsStatement:c-sod-ap"),
   },
   reviewDecision: {
     base: (p) => withDecision(p, { subject: "Old", kind: "monitor", note: "" }, "dec_old", NOW),
@@ -321,10 +326,10 @@ describe("makeProfileEdits", () => {
     vi.useRealTimers();
   });
 
-  it("returns the 31 edits of PracticeActions and nothing else", () => {
+  it("returns the 32 edits of PracticeActions and nothing else", () => {
     const { edits } = harness(defaultProfile("dental"));
     expect(Object.keys(edits).sort()).toEqual([...EDIT_NAMES].sort());
-    expect(EDIT_NAMES).toHaveLength(31);
+    expect(EDIT_NAMES).toHaveLength(32);
   });
 
   it.each(EDIT_NAMES)("%s dispatches what its profile-actions function returns", (name) => {

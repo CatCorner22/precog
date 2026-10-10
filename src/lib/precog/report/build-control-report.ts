@@ -1,4 +1,5 @@
 import type { IndustryTemplate } from "../templates";
+import type { OnboardingFacts } from "../onboarding/decision-model";
 import type { PracticeProfile } from "../practice-profile";
 import { teamSource } from "../team-source";
 import { buildThreatAssessment } from "../threat-scoring";
@@ -34,6 +35,7 @@ import {
 } from "../sod/open-findings";
 import { openConflictHeadline } from "../headline/open-conflicts";
 import { rankedFirstSteps } from "../actions/do-next";
+import { chooseSplitSequence } from "../sod/duty-split";
 import { buildWeeklyActions } from "../weekly-actions/build";
 import { buildProcessMapGraph } from "../process-graph";
 import { scoreMap } from "../builder/scored-map";
@@ -177,6 +179,12 @@ export function buildControlReportModel({
   const inPlace = setupInPlaceControls(profile.setupAnswers);
   // The concentration move, worked out once for the step list and the summary.
   const move = concentrationMove(open);
+  const plan = chooseSplitSequence(open, sod.assignments, profile.staff.teamSize);
+  const nameDuty =
+    !!plan &&
+    plan.first.net > 0 &&
+    plan.first.personId === move?.personId &&
+    plan.first.duty === move?.duty;
   const steps = rankedFirstSteps(open, profile.industry, (id) => inPlace.has(id), move, {
     assignments: sod.assignments,
     teamSize: profile.staff.teamSize,
@@ -206,6 +214,7 @@ export function buildControlReportModel({
     conflicts: openConflictHeadline(sod, partialCoverage),
     firstStep: steps[0]?.control.label ?? null,
     move,
+    nameDuty,
     registerReady,
     coverageIndex: continuity.coverageIndex,
     criticalSinglePoints: criticalSinglePoints(tpl).count,
@@ -262,6 +271,29 @@ export function buildControlReportModel({
     followThrough: continuityFollowThrough(profile.decisions, profile.industry),
     /** Precog's examples on an own business, which layout 7 marks as such. */
     examples: ownBusinessExamples(tpl, profile),
+    /** The headcount answered at setup, which layout 7's header prints beside the people mapped. */
+    setupHeadcount: setupHeadcountOf(profile),
+  };
+}
+
+/**
+ * The headcount the owner answered at setup: the band ("7-30"), and the
+ * count when they gave one. Layout 7's header prints it beside the people
+ * mapped ("2 people mapped (setup: 7–30 people)"). Stored with the model,
+ * so a locked version, its shared copy and the firm's archive, none of
+ * which carry the setup facts, print the same header. Null when setup asked
+ * none.
+ */
+export type SetupHeadcount = Pick<OnboardingFacts, "workforceBand" | "workforceCount">;
+
+export function setupHeadcountOf(
+  profile: Pick<PracticeProfile, "onboardingFacts">,
+): SetupHeadcount | null {
+  const facts = profile.onboardingFacts;
+  if (!facts?.workforceBand && !facts?.workforceCount) return null;
+  return {
+    ...(facts.workforceBand ? { workforceBand: facts.workforceBand } : {}),
+    ...(facts.workforceCount ? { workforceCount: facts.workforceCount } : {}),
   };
 }
 

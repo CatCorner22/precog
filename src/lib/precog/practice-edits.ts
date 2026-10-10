@@ -46,6 +46,7 @@ import {
   withMapVersion,
   withMonthlyReviews,
   withoutDecision,
+  withSetupControlWithdrawn,
   withoutMapVersion,
   withPeople,
   withPlaces,
@@ -144,6 +145,10 @@ export function makeProfileEdits({
 
   const removeDecision = (id: string) => {
     setProfile((p) => withoutDecision(p, id));
+  };
+
+  const withdrawSetupControl = (id: string) => {
+    setProfile((p) => withSetupControlWithdrawn(p, id));
   };
 
   const reviewDecision = (
@@ -293,6 +298,7 @@ export function makeProfileEdits({
     setDualRelease,
     addDecision,
     removeDecision,
+    withdrawSetupControl,
     reviewDecision,
     replaceProfile,
     setMonthlyReviews,

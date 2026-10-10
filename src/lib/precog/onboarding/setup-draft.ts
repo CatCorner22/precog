@@ -90,7 +90,7 @@ function isRow(value: unknown): value is OwnTeamRow {
     optional(row.onLeave, "boolean") &&
     (row.tenureYears === undefined ||
       (typeof row.tenureYears === "number" && Number.isFinite(row.tenureYears))) &&
-    ["department", "employeeId", "lastDay", "suggestedFor", "rowId"].every((key) =>
+    ["department", "employeeId", "lastDay", "suggestedFor", "suggestedIn", "rowId"].every((key) =>
       optional(row[key], "string"),
     ) &&
     (readAs === undefined ||
@@ -226,6 +226,20 @@ export function draftHasProgress(draft: SetupDraft, typedName = ""): boolean {
 }
 
 /**
+ * The rows with each title suggestion marked as made under `industry`, where
+ * a row lacks the mark (`suggestedIn`): a draft saved before Precog kept it
+ * has none, and its ticks came from the line of business it was saved with.
+ */
+function withSuggestedIn(rows: OwnTeamRow[], industry: IndustryId): OwnTeamRow[] {
+  const unmarked = rows.some((row) => row.suggestedFor && !row.suggestedIn);
+  return unmarked
+    ? rows.map((row) =>
+        row.suggestedFor && !row.suggestedIn ? { ...row, suggestedIn: industry } : row,
+      )
+    : rows;
+}
+
+/**
  * Where setup starts. A draft entered for this same unfinished business (a
  * reload mid-setup) comes back exactly as it was, with `resumed` when it
  * holds progress, so the dialog can say so and offer to start over. A draft from an earlier
@@ -255,9 +269,12 @@ export function initialSetup(
   const sameSetup =
     draft.businessId === business.businessId ||
     (draft.businessId === undefined && draftHasTypedWork(draft));
+  // The draft's rows were ticked under the line of business it was saved
+  // with; a draft saved before Precog kept that on each row is marked now.
+  const rows = withSuggestedIn(draft.rows, draft.selected);
   if (sameSetup)
     return {
-      draft: { ...draft, businessId: business.businessId },
+      draft: { ...draft, rows, businessId: business.businessId },
       restoredEarlier: false,
       resumed: draftHasProgress(draft, business.typedName),
     };
@@ -265,6 +282,7 @@ export function initialSetup(
   return {
     draft: {
       ...draft,
+      rows,
       step: "team",
       selected: business.typedName ? business.industry : draft.selected,
       businessName: business.typedName || draft.businessName,

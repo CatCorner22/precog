@@ -6,7 +6,7 @@ import type { AccessReconciliation } from "../firm/reconcile";
 import { buildDriftActions, type DriftAction } from "../integrations/drift-signals";
 import type { IntegrationDriftSummary } from "../integrations/drift-summary";
 import { concentrationMove, type ConcentrationMove } from "../report/report-summary";
-import { chooseDutySplit, type SplitAssignment } from "../sod/duty-split";
+import { chooseSplitSequence, type SplitAssignment } from "../sod/duty-split";
 import { SEVERITY_RANK, type DetectedConflict } from "../sod/detect";
 import { ruleIdsOf } from "../sod/open-findings";
 import { midSentence } from "../text";
@@ -66,12 +66,12 @@ export interface DoNextInput {
 }
 
 /**
- * The universal step, "split one duty out", named for this business: the
- * person who holds half or more of the open conflicts, the one duty whose
- * move closes the most of them, and how many it closes of the open count
- * (report/report-summary `concentrationMove`, the move the report's summary
- * counts). With no such person it says which duty to move in general terms.
- * `move` is that move when the caller has already worked it out.
+ * The universal step, "split one duty out", named for this business. With the
+ * team, the words are the move that lowers the open count once someone else
+ * takes the duty (`chooseSplitSequence`). Without the team, they name the
+ * person who holds half or more (`concentrationMove`). A two-move line appears
+ * only when that pair closes more than the best single move. The count is a
+ * count of duty pairs, not a chance of a loss.
  */
 export function splitStepLabel(
   open: readonly DetectedConflict[],
@@ -79,7 +79,14 @@ export function splitStepLabel(
   staff?: DutySplitStaff,
 ): string {
   if (staff) {
-    const chosen = chooseDutySplit(open, staff.assignments, staff.teamSize);
+    const plan = chooseSplitSequence(open, staff.assignments, staff.teamSize);
+    const chosen = plan?.first ?? null;
+    if (plan?.pairBeatsSingle && plan.next && chosen && chosen.net > 0 && chosen.opened === 0) {
+      const to = chosen.recipientName ? ` to ${chosen.recipientName}` : "";
+      const nextTo = plan.next.recipientName ? ` to ${plan.next.recipientName}` : "";
+      const total = chosen.net + plan.next.net;
+      return `Move one duty, ${midSentence(chosen.dutyLabel)}, away from ${chosen.personName}${to}: it closes ${chosen.closed.length} of the ${open.length} open duty conflicts. Then move ${midSentence(plan.next.dutyLabel)} away from ${plan.next.personName}${nextTo}. The two moves close ${total} of the ${open.length}`;
+    }
     if (chosen && chosen.net > 0 && chosen.opened === 0) {
       return `Move one duty, ${midSentence(chosen.dutyLabel)}, away from ${chosen.personName}: it closes ${chosen.closed.length} of the ${open.length} open duty conflicts`;
     }
@@ -181,7 +188,9 @@ export function stepFocus(
     step.control.label !== SPLIT_STEP_WITHOUT_NAMED_ROLE &&
     step.control.label !== SPLIT_STEP_NO_RECIPIENT
   ) {
-    const chosen = staff ? chooseDutySplit(open, staff.assignments, staff.teamSize) : null;
+    const chosen = staff
+      ? chooseSplitSequence(open, staff.assignments, staff.teamSize)?.first
+      : null;
     if (chosen && chosen.net > 0) {
       return chosen.closed.reduce((best, conflict) =>
         SEVERITY_RANK[conflict.severity] < SEVERITY_RANK[best.severity] ? conflict : best,
