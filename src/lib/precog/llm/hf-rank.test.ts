@@ -50,6 +50,33 @@ describe("chooseHighlightIds", () => {
     ).toEqual({ ids: ["move-0", "move-2"], source: "llm" });
   });
 
+  it("marks nothing when the encoder's scores are weak or nearly tied", () => {
+    expect(
+      chooseHighlightIds({
+        claimIds: ["move-0", "move-1", "move-2", "move-3"],
+        embedScores: [0.22, 0.21, 0.2, 0.19],
+        llmIds: null,
+      }),
+    ).toBeNull();
+    expect(
+      chooseHighlightIds({
+        claimIds: ["move-0", "move-1", "move-2", "move-3"],
+        embedScores: [0.4, 0.39, 0.1, 0.05],
+        llmIds: ["move-3"],
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps an agreed id even when the encoder's margin is thin", () => {
+    expect(
+      chooseHighlightIds({
+        claimIds: ["move-0", "move-1", "move-2"],
+        embedScores: [0.4, 0.39, 0.38],
+        llmIds: ["move-1"],
+      }),
+    ).toEqual({ ids: ["move-1"], source: "both" });
+  });
+
   it("returns nothing when there is no score and no valid id", () => {
     expect(
       chooseHighlightIds({
@@ -109,6 +136,20 @@ describe("rankClaimsWithHuggingFace", () => {
     expect(init?.headers && (init.headers as Record<string, string>).Authorization).toBe(
       "Bearer test-token",
     );
+  });
+
+  it("does not call the chat model when Grok will select the ids", async () => {
+    vi.stubEnv("HF_TOKEN", "test-token");
+    const fetchImpl = vi.fn(async (url: string, _init?: RequestInit) => {
+      if (!url.includes("sentence-similarity")) return new Response("no", { status: 500 });
+      return new Response(JSON.stringify([0.2, 0.9, 0.4]), { status: 200 });
+    });
+    const ranked = await rankClaimsWithHuggingFace("Who runs payroll?", claims, fetchImpl, {
+      chat: false,
+    });
+    expect(ranked).toEqual({ scores: [0.2, 0.9, 0.4], llmIds: null });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain("sentence-similarity");
   });
 
   it("drops model prose and still returns the scores", async () => {

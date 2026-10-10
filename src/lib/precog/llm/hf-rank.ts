@@ -9,14 +9,21 @@ export const HF_CHAT_MODEL = "HuggingFaceTB/SmolLM3-3B:hf-inference";
 const SIMILARITY_URL = `https://router.huggingface.co/hf-inference/models/${HF_EMBED_MODEL}/pipeline/sentence-similarity`;
 const CHAT_URL = "https://router.huggingface.co/v1/chat/completions";
 
+/** Below this cosine, the encoder's top score is too weak to mark a move. Not a probability. */
+export const MIN_EMBED_SCORE = 0.35;
+
+/** Below this gap, two statements are too close to call one more relevant. */
+export const MIN_EMBED_MARGIN = 0.04;
+
 export type RankerName = "huggingface" | "grok" | "both";
 
 type HfFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
 /**
  * Which statement ids to mark. An id from a language model is kept only when
- * the encoder also ranked it in the top three. If they share none, the single
- * nearest statement is kept and the model's ids are dropped.
+ * the encoder also ranked it in the top three. If they share none, the nearest
+ * statement is kept only when its score is clearly ahead. A weak or nearly
+ * tied score marks nothing.
  */
 export function chooseHighlightIds(input: {
   claimIds: readonly string[];
@@ -29,9 +36,13 @@ export function chooseHighlightIds(input: {
     const near = new Set(embedTop);
     const both = llm.filter((id) => near.has(id));
     if (both.length > 0) return { ids: both, source: "both" };
-    return { ids: embedTop.slice(0, 1), source: "huggingface" };
+    const nearest = confidentNearest(input.claimIds, input.embedScores);
+    return nearest ? { ids: [nearest], source: "huggingface" } : null;
   }
-  if (embedTop) return { ids: embedTop.slice(0, 1), source: "huggingface" };
+  if (embedTop) {
+    const nearest = confidentNearest(input.claimIds, input.embedScores);
+    return nearest ? { ids: [nearest], source: "huggingface" } : null;
+  }
   if (llm) return { ids: llm, source: "llm" };
   return null;
 }
@@ -49,6 +60,30 @@ export function topSimilar(
     .sort((a, b) => b.score - a.score || a.index - b.index);
   if (ranked.length === 0) return null;
   return ranked.slice(0, k).map((row) => row.id);
+}
+
+/**
+ * The single nearest statement, or null when the top score is weak or the next
+ * statement is too close. Cosine scores in about 0 to 1 use the floor. Any
+ * other scale uses only the gap, so a different pipeline cannot be silenced
+ * by a cutoff that does not match it.
+ */
+export function confidentNearest(
+  ids: readonly string[],
+  scores: readonly number[] | null,
+): string | null {
+  if (!scores || scores.length !== ids.length) return null;
+  const ranked = ids
+    .map((id, index) => ({ id, score: scores[index] ?? Number.NaN, index }))
+    .filter((row) => Number.isFinite(row.score))
+    .sort((a, b) => b.score - a.score || a.index - b.index);
+  const top = ranked[0];
+  if (!top) return null;
+  const cosine = ranked.every((row) => row.score >= -0.05 && row.score <= 1.05);
+  if (cosine && top.score < MIN_EMBED_SCORE) return null;
+  const next = ranked[1];
+  if (next && top.score - next.score < MIN_EMBED_MARGIN) return null;
+  return top.id;
 }
 
 function rulesOrder(
@@ -74,12 +109,14 @@ export async function rankClaimsWithHuggingFace(
   question: string,
   claims: readonly BriefClaim[],
   fetchImpl: HfFetch = fetch,
+  options: { chat?: boolean } = {},
 ): Promise<{ scores: number[]; llmIds: string[] | null } | null> {
   const token = process.env.HF_TOKEN?.trim();
   if (!token || claims.length === 0) return null;
   const scores = await sentenceScores(token, question, claims, fetchImpl);
   if (!scores) return null;
-  const llmIds = await chatSelection(token, question, claims, fetchImpl);
+  const llmIds =
+    options.chat === false ? null : await chatSelection(token, question, claims, fetchImpl);
   return { scores, llmIds };
 }
 

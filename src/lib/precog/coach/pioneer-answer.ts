@@ -234,7 +234,7 @@ export async function selectPioneerHighlights(
     const local = localBrief(question, ctx, data.profile);
     const claims = briefClaims(local.brief);
     const hf = (await hfMayRank(access, grok))
-      ? await rankClaimsWithHuggingFace(question, claims)
+      ? await rankClaimsWithHuggingFace(question, claims, fetch, { chat: grok !== "allowed" })
       : null;
     const result =
       grok === "allowed"
