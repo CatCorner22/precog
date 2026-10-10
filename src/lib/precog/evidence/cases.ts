@@ -620,6 +620,46 @@ export const CASE_LIBRARY: CaseStudy[] = [
     caveat:
       "Robert Giardina, 39, was sentenced in September 2020 by Senior U.S. District Judge Laurie Smith Camp to 30 months in prison and $30,075.16 in restitution for wire fraud, the figure recorded here. The release names neither the management company nor the brand. The refunds ran from October 24, 2017 to June 5, 2018; he was hired on July 24, 2017, so tenure is recorded as under one year. The release does not say how the refunds were detected.",
   },
+
+  {
+    id: "case-chicago-restaurants-bookkeeper-duplicate-check-numbers",
+    title:
+      "Restaurant group bookkeeper, a bank signatory, paid her own creditors with company checks and reused check numbers to hide them, $604,113",
+    sector: "restaurant",
+    schemes: ["check-tampering"],
+    howItWorked:
+      "The bookkeeper for One Off Hospitality, the Chicago group behind the restaurants Blackbird and Avec, was a signatory on the company's bank accounts and processed its vendor checks. From 2011 to 2017 she wrote company checks to her own creditors and then either deleted the entry from the books or, having cut a personal check, cut a legitimate check to the vendor with the same check number so the register looked complete. The partners found two checks to a vendor with the same number in August 2017; she was arrested in April 2018.",
+    controlGap:
+      "One person could sign a check, record it, and delete the record, and nobody who did not write checks read the check register or the cleared-check images. The duplicate check numbers that ended it were visible on every bank statement for six years; what changed in 2017 was that a partner looked.",
+    lossUsd: 604113,
+    lossIsFloor: false,
+    durationMonths: 72,
+    detection: "owner-review",
+    sodRuleIds: ["rule-release-je"],
+    wouldHaveCaughtIt: [
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "A partner opens the bank statement first and reads the cleared-check images, where a check to a card issuer or a lender stands out",
+      },
+      {
+        control: "positive-pay",
+        asApplied:
+          "The bank pays only the checks whose number, payee and amount a partner has uploaded; a second check under a used number does not clear",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied:
+          "Someone who cannot sign checks reconciles the account each month, so a check number that appears twice at the bank is a finding, not a tidy register",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Northern District of Illinois",
+      url: "https://www.justice.gov/usao-ndil/pr/bookkeeper-two-west-loop-restaurants-sentenced-more-two-years-federal-prison",
+    },
+    caveat:
+      "Renee Johnson pleaded guilty to mail fraud and was sentenced to 28 months in prison and $604,113 in restitution, the figure recorded here; the sentencing year is not shown in the search extract, so no resolution year is recorded. The release names the restaurants; Restaurant Business also covered the arrest. The 72 months are the 2011 to 2017 span the release gives. The detection route is recorded as owner review because the release says the partners found two checks to a vendor bearing the same number. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
+  },
   // --- Retail ---
   {
     id: "case-bellingham-assistant-manager",
@@ -706,6 +746,87 @@ export const CASE_LIBRARY: CaseStudy[] = [
     },
     caveat:
       "Jennifer LaBonte, 45, of Essex Junction, Vermont was sentenced in March 2025 to four months in prison, a $7,500 fine, and $192,675 in restitution, which she had paid in full before sentencing; the release gives the loss as about $192,000 and the restitution figure is recorded here. It says the theft began 'no later than 2013' and was uncovered in January 2024, so 132 months is a floor. The 23 years of tenure come from the stated employment dates of 2001 through January 2024. The detection route is recorded as owner review because the release says an officer of the dealerships uncovered the fraud; the dealerships are not named or sized.",
+  },
+
+  {
+    id: "case-rio-rancho-auto-body-bookkeeper-checks-and-cards",
+    title:
+      "Auto body shop bookkeeper wrote checks to herself disguised as business expenses and put personal purchases on company cards for seven years, $2 million",
+    sector: "automotive",
+    schemes: ["check-tampering", "expense-reimbursement"],
+    howItWorked:
+      "The bookkeeper of Quanz Auto Body in Rio Rancho, New Mexico took money from the business from July 2014 to September 2021 by three routes: checks made out to herself and disguised as business expenses, personal purchases on the company's credit cards, and fake pay stubs for her husband, which he used to obtain loans. Restitution was set at $2,025,165.72.",
+    controlGap:
+      "As we read the record, the person who wrote the checks also kept the books in which they were described as business expenses, and held a company card whose statement nobody outside the role read against receipts. A check to the bookkeeper that is coded as a supplier expense balances perfectly when the same hand does both.",
+    lossUsd: 2025166,
+    lossIsFloor: false,
+    durationMonths: 86,
+    detection: "unknown",
+    resolvedYear: 2022,
+    sodRuleIds: ["rule-release-je", "rule-card-review"],
+    wouldHaveCaughtIt: [
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner opens the bank statement first and reads every cleared check payable to an employee",
+      },
+      {
+        control: "card-statement-line-review",
+        asApplied:
+          "Owner reads each company card statement line by line against receipts every month",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied:
+          "Someone who cannot write checks matches the bank statement against the books each month",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of New Mexico",
+      url: "https://www.justice.gov/usao-nm/pr/rio-rancho-woman-sentenced-2-years-prison-wire-fraud",
+    },
+    caveat:
+      "Christina Joyner pleaded guilty to wire fraud in September 2022 and was sentenced in August 2023 to 24 months in prison, three years of supervised release, 60 hours of community service, and $2,025,165.72 in restitution, recorded here rounded to the dollar. The 86 months are the July 2014 to September 2021 span the release gives. The release, as quoted, says the pay stubs were used by her husband to obtain loans; whether that loss sits inside the restitution is not stated. It does not say how the scheme was discovered. Autobody News reported that the business was acquired by Crash Champions in December 2021. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
+  },
+  {
+    id: "case-webster-pharmacy-refunds-to-own-debit-card",
+    title:
+      "Pharmacy employee entered about 350 refund requests in customers' names, had the pharmacist on duty sign them, and paid the refunds to her own debit card, $568,022",
+    sector: "retail",
+    schemes: ["refund-fraud"],
+    howItWorked:
+      "A long-time employee of a Wegmans pharmacy in Webster, New York used the company's enterprise system to enter approximately 350 credit card refund requests in customers' names for fictitious amounts between 2014 and February 2023. She had the pharmacist on duty sign off on and authorize each request, then paid the refund to herself by swiping her own bank debit card in the point-of-sale system, $568,021.69 in all. Between 2020 and February 2023 she took a further $10,922.17 through gift cards.",
+    controlGap:
+      "The refund went to a card the customer had never used, and the approval was a signature on a request the employee had written, by a pharmacist with no way to see that the customer and the sale were invented. A refund that can be paid to any card, approved by whoever is standing nearest, is a cash drawer with a second person's initials on it.",
+    lossUsd: 578944,
+    lossIsFloor: false,
+    durationMonths: 109,
+    detection: "unknown",
+    resolvedYear: 2023,
+    sodRuleIds: ["rule-refund-post"],
+    wouldHaveCaughtIt: [
+      {
+        control: "void-refund-second-approval",
+        asApplied:
+          "A refund is approved only against the original sale and goes back to the card that paid for it; the approver reads the sale, not the request",
+      },
+      {
+        control: "adjustments-report-by-employee",
+        asApplied:
+          "Refunds listed by employee each week; one employee issuing refunds in customers' names stands out on the first report",
+      },
+      {
+        control: "gift-card-purchases-controlled",
+        asApplied:
+          "Gift cards sold or loaded at the counter are matched to a sale by someone other than the person who rang them",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Western District of New York",
+      url: "https://www.justice.gov/usao-wdny/pr/webster-woman-going-prison-stealing-hundreds-thousands-dollars-wegmans",
+    },
+    caveat:
+      "Alicia Torres was sentenced in November 2023 to a year in prison and $578,943.86 in restitution, recorded here rounded to the dollar as the sum of the $568,021.69 in refunds and $10,922.17 in gift cards the release states. The employer is a large regional grocery chain, not a small business; the record is admitted because the mechanism, a refund paid to the employee's own card behind an approval that checked nothing, is the one the small-retail record describes most often, and no small-business release surfaced that describes it this plainly. The 109 months count from January 2014 to February 2023 and may overstate by up to eleven months. The release, as quoted, does not say how the refunds were found or state her length of service beyond calling her a long-time employee. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
   },
   {
     id: "case-baton-rouge-mattress-retailer-forged-checks",
@@ -831,6 +952,47 @@ export const CASE_LIBRARY: CaseStudy[] = [
     },
     caveat:
       "Ralph L. Schippers pleaded guilty on 17 September 2012 to wire fraud and was sentenced in January 2013 to 41 months in prison, three years of supervised release, and restitution of $1,433,825.37, the loss figure used here. The release says the scheme was not discovered until May 2012 but not how, so the detection route is recorded as unknown. A later published opinion, United States v. Schippers, 982 F. Supp. 2d 948 (S.D. Iowa 2013), concerns collection of that restitution for Granger Motors and its insurer. This is the oldest case in the library; the mechanics have not changed.",
+  },
+
+  {
+    id: "case-greenwich-auto-repair-manager-altered-receipts",
+    title:
+      "Auto repair shop manager altered the recorded amount of money received and deposited about $707,000 in cash to his own account",
+    sector: "automotive",
+    schemes: ["skimming"],
+    howItWorked:
+      "The manager of Greenwich Automotive Services, an auto repair business in Greenwich, Connecticut, regularly accessed the business's computer system to alter the records of the amount of money the business received. Between 2004 and 2008 he deposited approximately $707,485 in cash into his own bank account. In 2008 alone he deposited about $191,000 in cash and reported $52,580 of income on his tax return; he was convicted of filing false tax returns.",
+    controlGap:
+      "The release describes him as having complete control over the day-to-day operations of the company and complete access to its computerized system. As we read the record, the person who took in customer payments could also change the record of what came in, and no one outside the role compared the shop's repair orders against what reached the bank.",
+    lossUsd: 707485,
+    lossIsFloor: false,
+    durationMonths: 48,
+    detection: "unknown",
+    resolvedYear: 2011,
+    sodRuleIds: ["rule-collect-post"],
+    wouldHaveCaughtIt: [
+      {
+        control: "expected-receipts-vs-deposits",
+        asApplied:
+          "Owner compares closed repair orders by payment type against bank deposits and card settlements each week",
+      },
+      {
+        control: "adjustments-report-by-employee",
+        asApplied:
+          "Edited or deleted repair-order and payment records in the shop system, listed by user, read by the owner monthly",
+      },
+      {
+        control: "volume-vs-recorded-sales",
+        asApplied:
+          "Parts purchased and technician hours compared with recorded sales each month; sales below what the parts and labor imply stand out",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Connecticut",
+      url: "https://www.justice.gov/archive/usao/ct/Press2012/20120413-1.html",
+    },
+    caveat:
+      "Eugene Ceriello pleaded guilty in 2011 to filing false tax returns and was sentenced in April 2012 to 18 months in prison and a year of supervised release. The conviction is for tax; the $707,485 recorded here is the cash the release says he deposited into his own account between 2004 and 2008, not a court finding of the shop's loss, and the 48 months are that span. The release, as quoted, says he had been the manager for about ten years but gives no hire date, so no tenure is recorded, and it does not say how the scheme was discovered. Underhood Service also covered the sentence. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
   },
   // --- Construction and trades ---
   {
@@ -1042,6 +1204,81 @@ export const CASE_LIBRARY: CaseStudy[] = [
     caveat:
       "Erica Howard, 42, was sentenced in August 2018 to 58 months and ordered to repay more than $315,000. The release calls it a two-year scheme; the duration is recorded as 24 months on that basis. The release gives no hire date; because the scheme began within months of her being hired and ran two years, her time with the company when it ended is recorded as two years. Her prior convictions are stated in the release.",
   },
+
+  {
+    id: "case-great-falls-construction-bookkeeper-credit-accounts",
+    title:
+      "Construction company bookkeeper sent 72 payments from the company's bank account to her own credit accounts over three years, $611,665",
+    sector: "construction",
+    schemes: ["check-tampering", "expense-reimbursement"],
+    howItWorked:
+      "The bookkeeper and accountant of M&D Construction in Great Falls, Montana had access to the company's bank account. Between January 2017 and January 2020 she directed 72 payments from that account to her personal credit accounts. The plea release puts the amount at more than $611,000 and the sentencing release at about $632,362.65; restitution was set at $611,665.22.",
+    controlGap:
+      "One person could send a payment out of the bank account and also kept the books in which it was described. A payment from a bank account to a card issuer is an electronic transfer that needs no signature, so the only point at which anyone else could have seen it was the bank statement, and the record does not show anyone outside the role reading it.",
+    lossUsd: 611665,
+    lossIsFloor: false,
+    durationMonths: 36,
+    detection: "unknown",
+    resolvedYear: 2022,
+    sodRuleIds: ["rule-ach-release", "rule-release-je"],
+    wouldHaveCaughtIt: [
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "Owner opens the bank statement first each month; a recurring payment to a card issuer that is not the company's card stands out on the page",
+      },
+      {
+        control: "dual-release-above-threshold",
+        asApplied:
+          "Bank-enforced second approval on every online payment, using the owner's own sign-in",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied:
+          "Someone other than the bookkeeper matches the bank statement to the books each month",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Montana",
+      url: "https://www.justice.gov/usao-mt/pr/great-falls-businesswoman-sentenced-prison-wire-fraud",
+    },
+    caveat:
+      "Nicole Ann Lopez pleaded guilty to wire fraud in March 2022 and was sentenced to two and a half years in prison and three years of supervised release, with restitution of $611,665.22, recorded here rounded to the dollar; the plea release said more than $611,000 and the sentencing release about $632,362.65, and the restitution figure is used. The 36 months are the January 2017 to January 2020 span the release gives. The release, as quoted, says the scheme came to light after she resigned to buy a boutique but not who found it, so the detection route is recorded as unknown. KRTV also covered the plea. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
+  },
+  {
+    id: "case-connecticut-mechanical-contractor-change-orders",
+    title:
+      "Project manager's personal expenses were paid by a subcontractor, who recovered them through inflated change orders to the manager's employer",
+    sector: "construction",
+    schemes: ["corruption"],
+    howItWorked:
+      "A project manager for a Massachusetts mechanical contractor had personal expenses paid by an insulation subcontractor on his projects. The two then submitted inflated change orders to the project manager's employer, which paid the subcontractor the inflated amounts and so covered what the subcontractor had spent on the manager. He was sentenced in July 2022 to three months in prison and three years of supervised release.",
+    controlGap:
+      "The person who managed the subcontractor's work was also the person through whom its change orders reached the company, so a change order he had an interest in was reviewed by no one who did not. Nothing in the books was false: the inflated amounts were real invoices, approved and paid, which is why this scheme leaves no trace in a bank reconciliation and is found only by comparing the change order against the work.",
+    lossUsd: 0,
+    lossIsFloor: false,
+    detection: "unknown",
+    resolvedYear: 2022,
+    sodRuleIds: [],
+    wouldHaveCaughtIt: [
+      {
+        control: "no-self-approval",
+        asApplied:
+          "A change order is approved by someone other than the project manager who brought it in, against the subcontract and the work in place",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied:
+          "The owner or outside accountant samples subcontractor change orders each quarter and asks the field crew, not the project manager, what changed",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Connecticut",
+      url: "https://www.justice.gov/usao-ct/pr/former-employee-mechanical-contractor-sentenced-prison-inflating-change-orders",
+    },
+    caveat:
+      "William Sacco was sentenced in July 2022 to three months in prison and three years of supervised release. The release, as quoted in search results, states no loss figure, so the loss is recorded as zero and the case is excluded from loss arithmetic; it does not date the scheme, name the employer or the subcontractor, state the employer's size, or say how the scheme was found. The Defense Criminal Investigative Service published the same release. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
+  },
   {
     id: "case-amk-hvac",
     title: "HVAC company office manager wrote 100+ checks to herself over two years",
@@ -1199,6 +1436,45 @@ export const CASE_LIBRARY: CaseStudy[] = [
     },
     caveat:
       "Ronald Scott Miller of Waterloo, Illinois was sentenced in March 2023 by U.S. District Judge Stephen R. Clark to three years and five months in prison after pleading guilty to wire fraud; the release states the loss as $339,844 and says he was ordered to repay it. The 25 years of tenure and the six-and-a-half-year duration are stated in the release. It does not say how the scheme was discovered or give the company's headcount.",
+  },
+
+  {
+    id: "case-chickasha-electrical-contractor-bookkeeper-payroll-and-cards",
+    title:
+      "Electrical contractor's bookkeeper added her boyfriend to the weekly payroll and kept the company card statements from the owner, $336,950",
+    sector: "trades",
+    schemes: ["payroll", "expense-reimbursement"],
+    howItWorked:
+      "The bookkeeper of an electrical contractor in Chickasha, Oklahoma used her payroll access to add her boyfriend to the weekly payroll as a fictitious worker from 2007. From 2006 she used the company's credit cards for personal expenses and kept the monthly card statements from her boss; after she resigned she changed one card's billing address to her own home. Restitution was set at $336,950.",
+    controlGap:
+      "The person who could add a name to the payroll also ran it, so a worker who never existed was paid every week with no second person comparing the register to the crew on site. The card statements went to the cardholder, who was also the bookkeeper, so the owner saw neither the statement nor the entry.",
+    lossUsd: 336950,
+    lossIsFloor: false,
+    detection: "unknown",
+    sodRuleIds: ["rule-payroll-master-run", "rule-card-review"],
+    wouldHaveCaughtIt: [
+      {
+        control: "payroll-register-review",
+        asApplied:
+          "Owner reads the payroll register each run against the crew list and the timesheets; a name no foreman recognizes is the finding",
+      },
+      {
+        control: "card-statement-line-review",
+        asApplied:
+          "Card statements go to the owner directly from the issuer and are read line by line against receipts",
+      },
+      {
+        control: "same-day-access-removal",
+        asApplied:
+          "The day a bookkeeper leaves, every card is cancelled and the issuer is told who may change the account",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Western District of Oklahoma",
+      url: "https://www.justice.gov/usao-wdok/pr/former-bookkeeper-chickasha-electrical-contractor-serve-30-months-prison-and-pay-336950",
+    },
+    caveat:
+      "Tamara Housley was sentenced to 30 months in prison and ordered to pay $336,950 in restitution, the figure recorded here, after pleading guilty to wire fraud and filing a false tax return; the release's date is not shown in the search extract, so no resolution year is recorded. The release, as quoted, says the card spending began in 2006 and the payroll addition in 2007 but gives no end date, so no duration is recorded, and it does not say how the scheme was found or name the contractor. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
   },
   // --- Professional services ---
   {
@@ -1409,7 +1685,176 @@ export const CASE_LIBRARY: CaseStudy[] = [
     caveat:
       'Restitution and forfeiture were each ordered at $279,611, which is the figure recorded here; the charging office\'s headline of "nearly $280,000" is that number rounded up, so it is not a floor. Pled guilty November 2016 and was sentenced in February 2017 to six months in prison.',
   },
+
+  {
+    id: "case-western-virginia-law-firm-bookkeeper-electronic-access",
+    title:
+      "Law firm bookkeeper used her electronic access to the firm's bank accounts to transfer $960,809 to herself",
+    sector: "professional-services",
+    schemes: ["check-tampering"],
+    howItWorked:
+      "The bookkeeper of a law firm in the Western District of Virginia used her electronic access to the firm's bank accounts to transfer the firm's money to herself. Restitution was set at $960,809; she was sentenced in 2015 to 24 months in prison.",
+    controlGap:
+      "The bookkeeper's sign-in could move money out of the firm's accounts with no second person approving the transfer, and as the firm's bookkeeper she kept the records those transfers passed through. Online banking that lets one user both enter and release a payment is a signed blank check in electronic form.",
+    lossUsd: 960809,
+    lossIsFloor: false,
+    detection: "unknown",
+    resolvedYear: 2015,
+    sodRuleIds: ["rule-ach-release"],
+    wouldHaveCaughtIt: [
+      {
+        control: "dual-release-above-threshold",
+        asApplied:
+          "Bank-enforced second approval by a partner on every outgoing transfer, using the partner's own sign-in",
+      },
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "A partner opens the bank statement first and questions any transfer whose recipient is not a known payee",
+      },
+      {
+        control: "payee-account-not-an-employee",
+        asApplied:
+          "The bank account numbers that receive outgoing transfers compared against employee payroll accounts; a match is the finding",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Western District of Virginia",
+      url: "https://www.justice.gov/usao-wdva/pr/law-firm-bookkeeper-sentenced-24-months-imprisonment",
+    },
+    caveat:
+      "Patricia Ethel Chinault was sentenced in 2015 to 24 months in prison and $960,809 in restitution, the figure recorded here. The release, as quoted, does not name the firm, date the scheme, state her length of service, or say how the transfers were found. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
+  },
+  {
+    id: "case-new-jersey-law-firm-bookkeeper-checks-to-self",
+    title:
+      "Law firm bookkeeper issued checks to herself and altered the firm's electronic books so they read as business expenses, more than $500,000",
+    sector: "professional-services",
+    schemes: ["check-tampering"],
+    howItWorked:
+      "A bookkeeper at a New Jersey law firm issued firm checks to herself and altered the firm's electronic books so that the payments appeared to be business expenses. The release puts the amount at more than $500,000; she was sentenced in 2013 to 21 months in prison.",
+    controlGap:
+      "The person who issued a check could also rewrite the entry that described it, so the ledger showed an expense wherever the bank showed a check to an employee. Only a reader who starts from the bank's side, the cleared-check image, and works back to the entry sees the difference.",
+    lossUsd: 500000,
+    lossIsFloor: true,
+    detection: "unknown",
+    resolvedYear: 2013,
+    sodRuleIds: ["rule-release-je"],
+    wouldHaveCaughtIt: [
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "A partner opens the bank statement first and reads every cleared-check image for a payee who works at the firm",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied:
+          "Someone who cannot issue checks reconciles the account and reads each check's entry against its image",
+      },
+      {
+        control: "positive-pay",
+        asApplied:
+          "The bank pays only checks whose number, payee and amount a partner has uploaded; a check to the bookkeeper is not on the list",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of New Jersey",
+      url: "https://www.justice.gov/usao-nj/pr/former-new-jersey-law-firm-employee-sentenced-21-months-prison-stealing-more-500000-law",
+    },
+    caveat:
+      "Sharon Wetter was sentenced in 2013 to 21 months in prison; the release, as quoted, states the amount as more than $500,000, recorded as a floor, and does not name the firm, date the scheme, state her length of service, or say how the checks were found. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
+  },
+  {
+    id: "case-wichita-law-firm-bookkeeper-trust-account-checks",
+    title:
+      "Law firm bookkeeper wrote checks on the client trust account and forged the signatures, more than $948,000",
+    sector: "professional-services",
+    schemes: ["check-tampering"],
+    howItWorked:
+      "The bookkeeper of Pistotnik Law Offices in Wichita, Kansas wrote checks drawn on the firm's client trust account and forged the signatures on them, while keeping the firm's books. The release puts the amount at more than $948,000; she was sentenced in April 2010 to 51 months in prison.",
+    controlGap:
+      "Client money sat in an account the bookkeeper could draw on, and the person who could write a trust check also kept the ledger meant to show every client's balance. A trust account carries a comparison no ordinary business has, the bank balance against the sum of every client's ledger, and the record does not show anyone outside the role performing it.",
+    lossUsd: 948000,
+    lossIsFloor: true,
+    detection: "unknown",
+    resolvedYear: 2010,
+    sodRuleIds: ["rule-release-je"],
+    wouldHaveCaughtIt: [
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "A partner opens the trust account statement first and reads every cleared-check image; a check payable to an employee is the finding",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied:
+          "A lawyer, not the bookkeeper, reconciles the trust bank balance to the sum of the client ledgers each month and signs the reconciliation",
+      },
+      {
+        control: "positive-pay",
+        asApplied:
+          "The bank pays only trust checks whose number, payee and amount a lawyer has uploaded",
+      },
+      {
+        control: "check-stock-custody",
+        asApplied:
+          "Trust check stock locked away from the bookkeeper, with the numbers used logged",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, District of Kansas",
+      url: "https://www.justice.gov/archive/usao/ks/PressReleases/2010/apr/April13c.html",
+    },
+    caveat:
+      "Vicki J. Olivarez was sentenced in April 2010 to 51 months in prison; the release, as quoted, states the amount as more than $948,000, recorded as a floor, and does not date the scheme, state her length of service, or say how the checks were found. The FBI's Kansas City office issued a parallel release. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
+  },
   // --- Nonprofits ---
+
+  {
+    id: "case-toledo-church-cash-app-donations",
+    title:
+      "Church employee who managed donations moved Cash App receipts to four personal accounts for four years and gave the board false monthly summaries, $410,574",
+    sector: "nonprofit",
+    schemes: ["receivables-diversion", "financial-statement"],
+    howItWorked:
+      "An employee of Perfecting Church in Toledo, Ohio who managed parishioner donations wired money from the church's Cash App account, where members' gifts were received, to four personal bank accounts between about June 2019 and June 2023. She gave the church board fraudulent monthly financial summaries, and she obtained a credit card in the pastor's name and used it to pay church expenses, which covered the shortfall her transfers left.",
+    controlGap:
+      "The person who administered the giving platform could also send money out of it, and the board's only view of the church's finances was the summary she wrote. A transfer out of a payment app leaves the bank statement untouched, so a board member reading the bank statement alone would not have seen it; the check that was missing was the platform's own payout report, read by someone who did not administer it. The card she obtained in the pastor's name had, as we read the record, a statement that reached only her.",
+    lossUsd: 410574,
+    lossIsFloor: false,
+    durationMonths: 48,
+    detection: "unknown",
+    resolvedYear: 2026,
+    sodRuleIds: ["rule-ach-release", "rule-card-review"],
+    wouldHaveCaughtIt: [
+      {
+        control: "dual-release-above-threshold",
+        asApplied:
+          "Transfers out of the giving platform need a second approver, a board officer who does not administer the platform",
+      },
+      {
+        control: "expected-receipts-vs-deposits",
+        asApplied:
+          "The platform's payout report is matched to bank deposits each month by someone other than the person who manages donations",
+      },
+      {
+        control: "independent-financial-review",
+        asApplied:
+          "A board member reads the bank and platform statements, not only the monthly summary, before each meeting",
+      },
+      {
+        control: "card-statement-line-review",
+        asApplied:
+          "Every card in the church's or the pastor's name is listed by the board, and its statement is read line by line by someone who does not hold it",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Northern District of Ohio",
+      url: "https://www.justice.gov/usao-ndoh/pr/former-church-employee-sentenced-prison-embezzling-funds",
+    },
+    caveat:
+      "Shenia Watson, also known as Shenia Brown, was sentenced in June 2026 to 40 months in prison and $410,574.39 in restitution, recorded here rounded to the dollar; 13abc's coverage of the charges put the loss at $350,995. The 48 months are the June 2019 to June 2023 span the release gives. 13abc reported that the pastor filed a police report in June 2023; the release, as quoted, does not say how the scheme was found, so the detection route is recorded as unknown. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
+  },
   {
     id: "case-pittsburgh-foundation-it-invoices",
     title:
@@ -1580,6 +2025,46 @@ export const CASE_LIBRARY: CaseStudy[] = [
     },
     caveat:
       "Pled guilty in 2025 to wire fraud and to evading more than $1 million in federal income tax. The cited release reports the plea; this record has not been updated with the sentence. The $2.5 million is stated as a floor.",
+  },
+
+  {
+    id: "case-tampa-parish-finance-manager-check-swap",
+    title:
+      "Church records and finance manager had vendor checks signed, destroyed them, and issued checks to herself instead, $875,323",
+    sector: "nonprofit",
+    schemes: ["check-tampering"],
+    howItWorked:
+      "The records and finance manager of a Catholic parish in Tampa, Florida drafted checks to legitimate vendors, had them signed, destroyed the signed checks, and issued checks to herself in their place. She entered false data in the parish's accounting software so the books showed the vendor payments. A forfeiture money judgment was entered for $875,323.19.",
+    controlGap:
+      "The signer saw a check to a real vendor, which is what makes a signature feel like a sufficient control. After the signature the check went back to the person who wrote it, who could destroy it, write another, and record the first. The control that was missing sat downstream of the signature: nobody outside the role compared the cleared checks against the ones that had been signed.",
+    lossUsd: 875323,
+    lossIsFloor: false,
+    detection: "unknown",
+    resolvedYear: 2024,
+    sodRuleIds: ["rule-release-je"],
+    wouldHaveCaughtIt: [
+      {
+        control: "owner-opens-bank-statement",
+        asApplied:
+          "A finance-council member opens the bank statement first and reads every cleared-check image against the list of checks the pastor signed",
+      },
+      {
+        control: "positive-pay",
+        asApplied:
+          "The bank pays only checks whose number, payee and amount the signer's office uploaded after signing; a check to an employee is not on the list",
+      },
+      {
+        control: "independent-bank-reconciliation",
+        asApplied:
+          "Someone who cannot write checks reconciles the account each month and asks about any vendor check that never cleared",
+      },
+    ],
+    source: {
+      publisher: "U.S. Attorney's Office, Middle District of Florida",
+      url: "https://www.justice.gov/usao-mdfl/pr/former-church-records-and-finance-manager-sentenced-federal-prison-embezzling-over",
+    },
+    caveat:
+      "Heather Darrey was sentenced in November 2024 to 27 months in federal prison, with a forfeiture money judgment of $875,323.19, recorded here rounded to the dollar. The release, as quoted, does not date the scheme, state her length of service, or say how it was found; News4Jax and the Tampa Bay Times identified the parish as Christ the King. This record was written from the press release as quoted in search results on 2026-10-10 and has not been read against the full release.",
   },
   {
     id: "case-nonprofit-human-first",

@@ -5,7 +5,7 @@
  * pins it equal to CASE_LIBRARY.length, so adding a case fails the test
  * until this figure moves with it.
  */
-export const CASE_COUNT = 53;
+export const CASE_COUNT = 65;
 
 /**
  * How many of those case records a named person has checked against their

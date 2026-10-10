@@ -71,7 +71,7 @@ describe("the landing page", () => {
       `${CASE_COUNT} U.S. federal fraud cases from Justice Department and IRS releases back the findings. Precog is still checking each record against its source.`,
     );
     expect(html).toContain(
-      "53 U.S. federal fraud cases from Justice Department and IRS releases back the findings.",
+      "65 U.S. federal fraud cases from Justice Department and IRS releases back the findings.",
     );
     expect(html).not.toContain("Every finding links to one of");
   });
