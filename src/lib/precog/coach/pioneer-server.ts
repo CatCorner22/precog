@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { heavyLlmMiddleware } from "../llm/middleware";
+import { heavyLlmMiddleware, localLlmMiddleware } from "../llm/middleware";
 import {
   answerPioneer,
   answerPioneerRules,
@@ -17,9 +17,9 @@ export const runPioneerCoach = createServerFn({ method: "POST" })
   .validator((input: PioneerCoachInput) => readPioneerRequest(input))
   .handler(({ data, context }) => answerPioneer(data, context.llm));
 
-/** Rules brief, with no model call, so the screen can show a move before Grok answers. */
+/** Rules brief, with no model call. It does not spend a model slot; ranking does. */
 export const runPioneerRules = createServerFn({ method: "POST" })
-  .middleware([heavyLlmMiddleware])
+  .middleware([localLlmMiddleware])
   .validator((input: PioneerCoachInput) => readPioneerRequest(input))
   .handler(({ data }) => answerPioneerRules(data));
 

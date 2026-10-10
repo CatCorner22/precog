@@ -5,6 +5,8 @@ import { resolveTemplate } from "@/lib/precog/active-template";
 import { defaultProfile } from "@/lib/precog/practice-profile";
 import { buildStartHereModel } from "@/lib/precog/start-here/model";
 import { doNextSteps, stepFocus } from "@/lib/precog/actions/do-next";
+import { INDUSTRIES } from "@/lib/precog/industry";
+import { concentrationMove } from "@/lib/precog/report/report-summary";
 import { StartHereContinuitySection } from "./start-here-continuity-section";
 import { FIRST_STEPS_SHOWN, parseTeamFocus, stepDestination } from "@/lib/precog/start-here/layout";
 import { StartHereFirstStepsSection } from "./start-here-first-steps-section";
@@ -80,13 +82,15 @@ describe("Start here, Do these first on one screen", () => {
     expect(button).not.toBeNull();
     button?.props.onClick();
     expect(open).toHaveBeenCalledWith(landing!.tab, landing!.item);
-    expect(stepDestination({ answers: 2 })).toMatchObject({
+    expect(
+      stepDestination({ answers: 2, control: { id: "owner-opens-bank-statement" } }),
+    ).toMatchObject({
       tab: "sod",
       button: "Open the conflicts it answers",
     });
     expect(
       stepDestination(
-        { answers: 2 },
+        { answers: 2, control: { id: "split-one-duty-out" } },
         {
           personId: "p2",
           personName: "Maya Chen",
@@ -99,8 +103,47 @@ describe("Start here, Do these first on one screen", () => {
       item: "person~p2~cash_receipts~bank_reconcile",
       button: "Change Maya Chen's duties",
     });
-    expect(stepDestination({ answers: 0 })).toBeNull();
+    expect(stepDestination({ answers: 0, control: { id: "split-one-duty-out" } })).toBeNull();
   });
+
+  it.each(INDUSTRIES.map((industry) => industry.id))(
+    "%s: every visible and folded step has a label and click target matching its action",
+    (industry) => {
+      const profile = defaultProfile(industry);
+      const built = buildStartHereModel({
+        profile,
+        template: resolveTemplate(profile),
+        today: new Date(2026, 8, 26),
+      });
+      const open = vi.fn();
+      const tree = (
+        <StartHereFirstStepsSection model={built.firstSteps} part="actions" onOpenDetail={open} />
+      );
+      for (const step of doNextSteps(built.firstSteps.items)) {
+        const move = concentrationMove(built.firstSteps.open);
+        const split = step.control.id === "split-one-duty-out";
+        const focus = split ? (move?.closed[0] ?? stepFocus(step, built.firstSteps.open)) : null;
+        const words = focus
+          ? `Change ${focus.personName}'s duties`
+          : "Open the conflicts it answers";
+        const label =
+          step === built.firstSteps.steps[0]
+            ? built.firstSteps.firstLine || step.control.label
+            : step.control.label;
+        const escaped = `${words}: ${label}`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const button = findByAriaLabel(tree, new RegExp(`^${escaped}$`));
+        expect(button, step.control.id).not.toBeNull();
+        open.mockClear();
+        button?.props.onClick();
+        expect(open).toHaveBeenCalledWith(
+          focus ? "team" : "sod",
+          focus
+            ? `person~${focus.personId}~${focus.entitlementA}~${focus.entitlementB}`
+            : undefined,
+        );
+      }
+    },
+  );
 
   it("gives a step that answers no finding no button, since no screen lists it", () => {
     const firstSteps = model().firstSteps;

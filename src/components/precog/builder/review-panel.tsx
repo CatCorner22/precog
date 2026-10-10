@@ -1,7 +1,7 @@
 import { Loader2, RotateCw } from "lucide-react";
 
 import { labelCls } from "@/components/ui/field-classes";
-import { ruleBasedReason } from "@/components/precog/builder/grok-status";
+import { ruleBasedReason, UNCHECKED_MODEL_NOTE } from "@/components/precog/builder/grok-status";
 import type { MapReview } from "@/lib/precog/builder/review";
 import type { ProcessNode } from "@/lib/precog/types";
 import { cn } from "@/lib/utils";
@@ -47,7 +47,7 @@ export function ReviewPanel({
           <p className="text-xs font-semibold text-fg">{review.headline}</p>
           <p className="mt-0.5 text-xs text-subtle">
             {review.source === "grok"
-              ? `Reviewed by ${review.model ?? "Grok"}`
+              ? `Reviewed by ${review.model ?? "Grok"}. ${UNCHECKED_MODEL_NOTE}`
               : "Rule-based review"}
             {" · "}
             <button

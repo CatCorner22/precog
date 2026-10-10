@@ -141,12 +141,17 @@ export function firstDoNextStep(input: DoNextInput): DoNextStep | null {
  * The open finding a step is named for on screen: of the open findings whose
  * duties the step's control watches (coach/first-steps `CONTROL_DUTIES`), the
  * one where it watches both duties, then the first in `open`'s order (most
- * severe first). Null when the step answers no open finding.
+ * severe first). A named split-duty step follows the concentration move
+ * that named it, rather than an unrelated person's first finding.
+ * Null when the step answers no open finding.
  */
 export function stepFocus(
   step: Pick<DoNextStep, "control">,
   open: readonly DetectedConflict[],
 ): DetectedConflict | null {
+  if (step.control.id === UNIVERSAL_FIX && step.control.label !== SPLIT_STEP_WITHOUT_NAMED_ROLE) {
+    return concentrationMove(open)?.closed[0] ?? null;
+  }
   const duties = new Set(CONTROL_DUTIES[step.control.id]);
   const watched = (c: DetectedConflict) =>
     Number(duties.has(c.entitlementA)) + Number(duties.has(c.entitlementB));

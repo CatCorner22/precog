@@ -11,6 +11,9 @@ export const llmMiddleware = llmMiddlewareFor({});
  */
 export const heavyLlmMiddleware = llmMiddlewareFor({ heavy: true });
 
+/** Same-site and account checks, with no per-minute model slot. */
+export const localLlmMiddleware = llmMiddlewareFor({ unmetered: true });
+
 const ACCOUNT_CHANGED = "The account changed. Reload before continuing.";
 
 /**

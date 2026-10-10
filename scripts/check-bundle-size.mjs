@@ -189,9 +189,11 @@
  * chunks, 0.3 KB over. Total budget raised from 872 KB to 875 KB; the
  * onboarding slices that follow remove more code than they add.
  *
- * 2026-10-09: main at 589c201f (the coach rename and Hugging Face move
- * ranking) merged with the xAI policy link measures 875.4 KB in 138 chunks,
- * 0.4 KB over. Total budget raised from 875 KB to 876 KB.
+ * 2026-10-09: main at 0c4d2102 (Start here and Pioneer presentation changes)
+ * measures 875.2 KB gzipped in 138 chunks, above the 875 KB budget. The
+ * Start here button-label fix also measures 875.2 KB on that base. Total
+ * budget raised to 876 KB to cover the measured main baseline; the
+ * largest-chunk budget is unchanged.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";

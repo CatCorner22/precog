@@ -42,7 +42,7 @@ export function StartHereFiguresSection({
           <MetricCard
             label="Has a stand-in"
             value={`${coverageIndex}%`}
-            hint="work two or more people can run"
+            hint="Share of work two or more people can run alone (weighted by criticality). Not a measured loss."
             tone="primary"
             onClick={() => onOpenDetail("knowledge")}
           />

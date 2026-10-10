@@ -3,7 +3,7 @@ import { Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { fieldCls } from "@/components/ui/field-classes";
-import { ruleBasedReason } from "@/components/precog/builder/grok-status";
+import { ruleBasedReason, UNCHECKED_MODEL_NOTE } from "@/components/precog/builder/grok-status";
 import { DRAFT_NOTES_MAX, type ProcedureDraft } from "@/lib/precog/procedures/draft";
 import { draftProcedureSteps } from "@/lib/precog/procedures/draft-server";
 import { PROCEDURE_LIMITS } from "@/lib/precog/procedures/normalize";
@@ -121,6 +121,9 @@ export function DraftFromNotes({
             </Badge>
             {reason && <span>{reason}</span>}
           </div>
+          {result.source === "grok" && (
+            <p className="text-xs text-subtle">{UNCHECKED_MODEL_NOTE}</p>
+          )}
           {result.steps.length === 0 ? (
             <p className="text-xs text-muted">Precog found no steps in these notes.</p>
           ) : (
