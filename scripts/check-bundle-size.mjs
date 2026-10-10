@@ -213,6 +213,15 @@
  * duty-conflict "What to do first" box, and the action plan. The build
  * measures 876.9 KB gzipped in 138 chunks. Total budget raised from 876 KB
  * to 877 KB. The largest chunk stays under 118 KB.
+ *
+ * 2026-10-10: the first step can name a second move when that pair closes
+ * more, a recipient who already holds the same kind of duty loses a tie,
+ * and the exposure card uses that move when it is not the half-holder's
+ * duty. Measured on top of the #244 fixes: 878.8 KB gzipped in 138 chunks.
+ * The budget file had two totalGzipBytes keys, so the later 877 won. One
+ * key remains. Total budget raised to 880 KB, which also covers the 0.3 KB
+ * a CI build ran above a local build the same day. The largest chunk stays
+ * under 118 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -221,8 +230,7 @@ import { gzipSync } from "node:zlib";
 const ASSETS = join(process.cwd(), ".vercel", "output", "static", "assets");
 const BUDGET = {
   largestChunkGzipBytes: 118 * 1024,
-  totalGzipBytes: 878 * 1024,
-  totalGzipBytes: 877 * 1024,
+  totalGzipBytes: 880 * 1024,
 };
 
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;

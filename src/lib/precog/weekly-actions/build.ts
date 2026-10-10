@@ -17,7 +17,7 @@ import { entitlementLabel, type EntitlementId } from "@/lib/precog/sod/conflict-
 import { BANK_ACTIVITY_DUTIES } from "@/lib/precog/sod/derive-staff";
 import { entitlementProcesses } from "@/lib/precog/sod/rule-match";
 import { soleOwnerId } from "@/lib/precog/sod/owner-role";
-import { concentrationHeadline } from "@/lib/precog/sod/verdict";
+import { chooseSplitSequence, type SplitAssignment } from "@/lib/precog/sod/duty-split";
 import type { DualReleasePolicy } from "@/lib/precog/controls/dual-release";
 import { checkInPlan, CONFIRMATION_MAX_AGE_DAYS } from "@/lib/precog/continuity/staleness";
 import {
@@ -290,6 +290,8 @@ interface WeeklyContext {
   handingOver: Set<string>;
   /** The duty conflicts, read once with the business's controls and dual release. */
   conflicts: DetectedConflict[];
+  /** The same detection's assignments, so a hand-off uses the duty split. */
+  assignments: readonly SplitAssignment[];
 }
 
 function weeklyContext(input: WeeklyActionsInput): WeeklyContext {
@@ -311,6 +313,7 @@ function weeklyContext(input: WeeklyActionsInput): WeeklyContext {
     conflictsFor,
   );
   const departing = leavers(tpl, decisions, today, conflictsFor);
+  const sod = detectSodConflicts(tpl, input.staff, sodDetectionOptions(tpl, input.dualRelease));
   return {
     input,
     tpl,
@@ -330,8 +333,8 @@ function weeklyContext(input: WeeklyActionsInput): WeeklyContext {
         .filter((l) => l.status === "notice")
         .flatMap((l) => l.handover.map((h) => h.item.id)),
     ),
-    conflicts: detectSodConflicts(tpl, input.staff, sodDetectionOptions(tpl, input.dualRelease))
-      .conflicts,
+    conflicts: sod.conflicts,
+    assignments: sod.assignments,
   };
 }
 
@@ -918,9 +921,11 @@ function mapActions(ctx: WeeklyContext): WeeklyAction[] {
   }
   const snapshots = input.mapSnapshots ?? [];
   const open = openFindings(conflicts, partialDualReleaseCoverage(input.dualRelease, conflicts));
-  // The report's concentration sentence ("moving one duty, X, ... closes N"):
-  // a hand-off for that person moves the same duty, so the two never disagree.
-  const moved = concentrationHeadline(open);
+  // The move Start here and the report's first step name. A hand-off for that
+  // person moves the same duty, so the week's step and that move agree.
+  const plan = chooseSplitSequence(open, ctx.assignments, input.staff.teamSize);
+  const moved =
+    plan && plan.first.net > 0 ? { personId: plan.first.personId, duty: plan.first.duty } : null;
   // Each pair and each hand-off is named once across the week's actions.
   const named = new Set(splitConflicts(ctx).map((c) => c.ruleId));
   const handedOff = new Set<string>();
@@ -1002,9 +1007,9 @@ export const HAND_OFF_ORDER: readonly EntitlementId[] = [
 
 /**
  * The duty a second person takes from the person who holds both: the duty
- * the report's concentration sentence moves for that person when the pair
- * has it, so the week's step and that sentence move the same duty; else the
- * first of the two in HAND_OFF_ORDER. Null when neither is in it.
+ * the first step moves for that person when the pair has it, so the week's
+ * step and that step move the same duty; else the first of the two in
+ * HAND_OFF_ORDER. Null when neither is in it.
  */
 function handOff(
   c: DetectedConflict,

@@ -319,8 +319,9 @@ function PrivacyPage() {
         <h2 className={headingCls}>What Precog sends to the model</h2>
         <p>
           Precog sends nothing to a model unless you are signed in and Precog has a model key.
-          Signed out, or without a key, Voyager, Review, Suggest, and Draft steps from notes answer
-          from Precog’s rules.
+          Signed out, or without a key, Voyager, Review, and Suggest answer from Precog’s rules.
+          Draft steps from notes always splits the notes into steps and does not send them to a
+          model.
         </p>
         <p>
           Voyager builds its brief from your profile with Precog’s rules. When you ask Voyager for a
@@ -333,16 +334,19 @@ function PrivacyPage() {
           they disagree, the single nearest statement.
         </p>
         <p>
-          The other three features send text to xAI and show the model’s reply in its own words.
-          Precog trims its length but does not check what it says. <strong>Review</strong> on the
-          How work flows tab sends the business name, industry, and team size, the map’s health
-          figures and warnings, each process’s name, owners’ names, and top risk title, and the
-          names and roles of people who carry too much work. <strong>Suggest</strong> sends a
-          process’s name, description, owners’ roles, and existing risk and idea titles, the
-          industry, and the names of the available controls. <strong>Draft steps from notes</strong>{" "}
-          sends your notes, the procedure’s title, place, and module, and the industry, after Precog
-          masks anything that looks like a password, card number, or code; Precog masks the draft
-          that comes back too.
+          Review and Suggest send text to xAI and show the model’s reply in its own words. Precog
+          trims its length but does not check what it says. <strong>Review</strong> on the How work
+          flows tab sends the business name, industry, and team size, the map’s health figures and
+          warnings, each process’s name, owners’ names, and top risk title, and the names and roles
+          of people who carry too much work. <strong>Suggest</strong> sends a process’s name,
+          description, owners’ roles, and existing risk and idea titles, the industry, and the names
+          of the available controls.
+        </p>
+        <p>
+          <strong>Draft steps from notes</strong> splits the notes into steps on Precog’s server. It
+          does not send the notes to a model and does not add a step the notes do not contain.
+          Precog removes anything that looks like a password, card number, or code before it shows
+          the steps.
         </p>
         <p>
           Precog counts model calls per account, per day, and, where it can tell, per network

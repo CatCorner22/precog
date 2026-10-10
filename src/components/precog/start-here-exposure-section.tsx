@@ -31,6 +31,7 @@ export function StartHereExposureSection({
     narrowed,
     partialCoverage,
     headline,
+    splitLine,
     keptApart,
     ownerHeld,
     titleDuties,
@@ -82,8 +83,9 @@ export function StartHereExposureSection({
             holds {headline.gaps} of the {headline.totalGaps} open duty conflicts.
           </span>{" "}
           <span className="text-muted">
-            Moving one duty, {midSentence(headline.dutyLabel)}, to someone who holds none of the
-            others closes {headline.closes} of them.
+            {splitLine
+              ? `${splitLine}.`
+              : `Moving one duty, ${midSentence(headline.dutyLabel)}, to someone who holds none of the others closes ${headline.closes} of them.`}
           </span>
         </p>
       )}
