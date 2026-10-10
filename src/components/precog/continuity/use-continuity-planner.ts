@@ -5,7 +5,7 @@
  * cards log.
  * Each card receives the one group it works with.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useToday } from "@/lib/use-today";
 import { useTabName } from "@/lib/precog/presentation";
@@ -366,7 +366,10 @@ function useRegisterEditor(
   const { setCustomKnowledge, setCustomRelations } = actions;
   const source = registerSource(profile);
 
-  const [itemPage, setItemPage] = useState(0);
+  const linkedIndex = report.items.findIndex((row) => row.item.id === initialKnowledgeId);
+  const [itemPage, setItemPage] = useState(() =>
+    linkedIndex >= 0 ? Math.floor(linkedIndex / REGISTER_ITEM_PAGE) : 0,
+  );
   const [peoplePage, setPeoplePage] = useState(0);
   const safeItemPage = clampPage(itemPage, report.items.length, REGISTER_ITEM_PAGE);
   const safePeoplePage = clampPage(peoplePage, people.length, REGISTER_PEOPLE_PAGE);
@@ -374,6 +377,13 @@ function useRegisterEditor(
   const [selectedId, setSelectedId] = useState<string | null>(initialKnowledgeId ?? null);
   const selected: ItemCoverage | undefined =
     report.items.find((i) => i.item.id === selectedId) ?? report.singlePoints[0] ?? report.items[0];
+  // A new address on this tab selects and reveals its task too. Sections
+  // and unknown ids leave manual selection and pagination alone.
+  useEffect(() => {
+    if (linkedIndex < 0 || !initialKnowledgeId) return;
+    setSelectedId(initialKnowledgeId);
+    setItemPage(Math.floor(linkedIndex / REGISTER_ITEM_PAGE));
+  }, [initialKnowledgeId, linkedIndex]);
 
   const [draftName, setDraftName] = useState("");
   const [draftKind, setDraftKind] = useState<KnowledgeKind>("duty");

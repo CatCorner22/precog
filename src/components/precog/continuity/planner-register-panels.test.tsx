@@ -102,6 +102,9 @@ describe("SelectedKnowledgeCard coverage badge", () => {
     };
 
     const formerHeld = renderSelected("appeals");
+    expect(formerHeld).toContain('id="selected-knowledge"');
+    expect(formerHeld).toContain('tabindex="-1"');
+    expect(formerHeld).toContain('aria-label="Details for appeals"');
     expect(formerHeld).toContain("Nobody can do this alone");
     expect(formerHeld).not.toContain("Not marked yet");
 

@@ -35,6 +35,18 @@ export function StartHereContinuitySection({
   const showToday = part !== "readiness";
   const showReadiness = part !== "today";
   if (part === "today" && !staffingToday.headline) return null;
+  // Keep the words and the section together, including when several states
+  // are pending: the first state shown is the one the button opens.
+  const todayAction =
+    staffingToday.out.length > 0
+      ? { label: "Open today's stand-in sheet", item: "absences" }
+      : staffingToday.gone.length > 0
+        ? { label: "Mark them as left", item: "leaving" }
+        : staffingToday.startingSoon.length > 0
+          ? { label: "Log the hand-offs", item: "absences" }
+          : staffingToday.leaving.length > 0
+            ? { label: "Open the hand-off", item: "leaving" }
+            : { label: "Debrief the stand-ins", item: "absences" };
 
   return (
     <section className="space-y-3">
@@ -61,18 +73,10 @@ export function StartHereContinuitySection({
               </div>
               <button
                 type="button"
-                onClick={() => onOpenDetail("knowledge")}
+                onClick={() => onOpenDetail("knowledge", todayAction.item)}
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
               >
-                {staffingToday.out.length > 0
-                  ? "Open today's stand-in sheet"
-                  : staffingToday.gone.length > 0
-                    ? "Mark them as left"
-                    : staffingToday.startingSoon.length > 0
-                      ? "Log the hand-offs"
-                      : staffingToday.leaving.length > 0
-                        ? "Open the hand-off"
-                        : "Debrief the stand-ins"}
+                {todayAction.label}
                 <ArrowRight className="size-3.5" aria-hidden />
               </button>
             </div>
