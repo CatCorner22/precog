@@ -13,7 +13,7 @@ import {
 import { detectSodConflicts, sodDetectionOptions } from "@/lib/precog/sod/detect";
 import { openFindings, partialDualReleaseCoverage } from "@/lib/precog/sod/open-findings";
 import { entitlementFamily, entitlementProcesses } from "@/lib/precog/sod/rule-match";
-import { concentrationHeadline } from "@/lib/precog/sod/verdict";
+import { chooseSplitSequence } from "@/lib/precog/sod/duty-split";
 import { midSentence } from "@/lib/precog/text";
 import { buildWeeklyActions, HAND_OFF_ORDER } from "./build";
 
@@ -38,18 +38,20 @@ function actionsFor(industry: IndustryId, edit = (s: ProcessMapSnapshot[]) => s)
   });
 }
 
-/** The duty the report's concentration sentence moves, and whose. */
-function concentrationFor(industry: IndustryId) {
+/** The duty the first step moves, and whose. */
+function splitFor(industry: IndustryId) {
   const profile = defaultProfile(industry);
   const tpl = resolveTemplate(profile);
-  const { conflicts } = detectSodConflicts(
+  const report = detectSodConflicts(
     tpl,
     profile.staff,
     sodDetectionOptions(tpl, profile.dualRelease),
   );
-  return concentrationHeadline(
-    openFindings(conflicts, partialDualReleaseCoverage(profile.dualRelease, conflicts)),
+  const open = openFindings(
+    report.conflicts,
+    partialDualReleaseCoverage(profile.dualRelease, report.conflicts),
   );
+  return chooseSplitSequence(open, report.assignments, profile.staff.teamSize)?.first ?? null;
 }
 
 const hotActions = (industry: IndustryId) =>
@@ -85,18 +87,18 @@ describe("a hot process in the week's actions", () => {
     }
   });
 
-  it("hands off the duty the concentration sentence moves for that person", () => {
+  it("hands off the duty the first step moves for that person", () => {
     // Dental: "moving one duty, enter write-offs" from Maya.
-    expect(concentrationFor("dental")).toMatchObject({ personName: "Maya Chen" });
-    expect(concentrationFor("dental")?.duty).toBe("post_adjustments");
+    expect(splitFor("dental")).toMatchObject({ personName: "Maya Chen" });
+    expect(splitFor("dental")?.duty).toBe("post_adjustments");
     const claims = actionsFor("dental").find((a) => a.id === "map-heat-proc-claims");
     expect(claims?.title).toBe("Have someone other than Maya enter write-offs");
-    // General: "moving one duty, release payments" from Maya.
-    expect(concentrationFor("general")?.duty).toBe("release_payment");
+    // General: the first step's duty, not a different gap-counted duty.
+    expect(splitFor("general")?.duty).toBe("release_payment");
     const ap = actionsFor("general").find((a) => a.id === "map-heat-proc-ap");
     expect(ap?.title).toBe("Have someone other than Maya release payments");
     for (const { id } of INDUSTRIES) {
-      const move = concentrationFor(id as IndustryId);
+      const move = splitFor(id as IndustryId);
       for (const a of hotActions(id as IndustryId)) {
         const rule = CONFLICT_RULES.find((r) => r.id === a.ruleId)!;
         if (move && a.personId === move.personId && [rule.a, rule.b].includes(move.duty)) {
@@ -125,7 +127,7 @@ describe("a hot process in the week's actions", () => {
 
   it("never hands off a routine entry as the check", () => {
     for (const { id } of INDUSTRIES) {
-      const move = concentrationFor(id as IndustryId);
+      const move = splitFor(id as IndustryId);
       for (const a of hotActions(id as IndustryId)) {
         expect(a.title, id).not.toMatch(/ (enter payroll|record payments received)$/);
         const isTheMove = move?.personId === a.personId && move?.duty === a.handedDuty;

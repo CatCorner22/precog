@@ -214,9 +214,14 @@
  * measures 876.9 KB gzipped in 138 chunks. Total budget raised from 876 KB
  * to 877 KB. The largest chunk stays under 118 KB.
  *
- * 2026-10-10: per-item continuity risk and freshness, and the unknown-item
- * count, measure 877.0 KB gzipped, above the 877 KB total budget. Total
- * budget raised to 880 KB; the largest chunk stays under 118 KB.
+ * 2026-10-10: the first step can name a second move when that pair closes
+ * more, a recipient who already holds the same kind of duty loses a tie,
+ * and the exposure card uses that move when it is not the half-holder's
+ * duty. Measured on top of the #244 fixes: 878.8 KB gzipped in 138 chunks.
+ * The budget file had two totalGzipBytes keys, so the later 877 won. One
+ * key remains. Total budget raised to 880 KB, which also covers the 0.3 KB
+ * a CI build ran above a local build the same day. The largest chunk stays
+ * under 118 KB.
  */
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";

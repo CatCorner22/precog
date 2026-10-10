@@ -1,5 +1,6 @@
 import { resolveTemplate } from "../active-template";
 import { teamFocusItem } from "../start-here/layout";
+import { splitStepLabel } from "../actions/do-next";
 import { formatDayNear, formatDayRange, shiftDay } from "../dates";
 import { todayBrief } from "../continuity/today";
 import { registerAssessed } from "../continuity/register-state";
@@ -28,8 +29,7 @@ import {
 import { procedureForConflict } from "../procedures/rule-procedures";
 import { recommendationFor } from "../procedures/library";
 import {
-  assignmentsAfterSplit,
-  chooseDutySplit,
+  chooseSplitSequence,
   type FeasibleDutySplit,
   type SplitAssignment,
 } from "../sod/duty-split";
@@ -382,16 +382,18 @@ function nextSplitLine(next: FeasibleDutySplit, remain: number): string {
 
 /**
  * The one move that lowers the open count the most once someone else takes
- * the duty, then the next such move on what remains. What stays open is a
- * count of duty pairs, not a chance of a loss.
+ * the duty, then the next such move. When a pair of moves closes more than
+ * the best single move, the first move is the start of that pair. What stays
+ * open is a count of duty pairs, not a chance of a loss.
  */
 function optimalSplitDecision(
   open: readonly DetectedConflict[],
   profile: Pick<PracticeProfile, "dualRelease" | "industry" | "staff">,
   assignments: readonly SplitAssignment[],
 ): PioneerDecision | null {
-  const split = chooseDutySplit(open, assignments, profile.staff?.teamSize);
-  if (!split) return null;
+  const plan = chooseSplitSequence(open, assignments, profile.staff?.teamSize);
+  if (!plan) return null;
+  const split = plan.first;
   if (split.net <= 0) {
     return {
       action: `No move of one duty onto someone else on this team lowers the open count. ${count(open.length, "open duty conflict")} ${verb(open.length, "stays", "stay")} open.`,
@@ -415,15 +417,7 @@ function optimalSplitDecision(
     (conflict) => !split.closed.some((closed) => closed.id === conflict.id),
   );
   const remain = remainOpen.length;
-  const next =
-    split.opened === 0 && remain > 0
-      ? chooseDutySplit(
-          remainOpen,
-          assignmentsAfterSplit(assignments, split),
-          profile.staff?.teamSize,
-        )
-      : null;
-  const usableNext = next && next.net > 0 ? next : null;
+  const usableNext = plan.next && plan.next.net > 0 ? plan.next : null;
   const severity = SEVERITY_WORDS[worst.severity].replace(/^a /, "");
   const reason = worst.why.split(". ")[0].replace(/\.$/, "");
   const meanwhile = closingSteps(
@@ -453,8 +447,9 @@ function optimalSplitDecision(
       : []),
     ...(titled ? [`The written procedure for this pair is "${titled}".`] : []),
   ];
-  const action =
-    split.opened > 0
+  const action = plan.pairBeatsSingle
+    ? splitStepLabel(open, null, { assignments, teamSize: profile.staff?.teamSize })
+    : split.opened > 0
       ? `Move ${midSentence(split.dutyLabel)} away from ${split.personName}: it closes ${split.closed.length} and opens ${split.opened}. The open count falls by ${split.net}.`
       : `Move ${midSentence(split.dutyLabel)} away from ${split.personName}: it closes ${split.closed.length} of the ${open.length} open duty conflicts`;
   return {

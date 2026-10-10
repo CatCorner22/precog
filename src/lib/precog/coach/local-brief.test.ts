@@ -93,7 +93,7 @@ describe("local advisor brief", () => {
     );
     expect(brief.decisions[0].rationale).toContain("1 open duty conflict stays open");
     expect(brief.decisions[0].procedure).toContain(
-      "Next split: move set up suppliers away from Grace Kim to Pat Ruiz. That closes the open duty conflict that stays open.",
+      "Next split: move set up suppliers away from Grace Kim to Ellen Marchetti. That closes the open duty conflict that stays open.",
     );
   });
 
@@ -151,7 +151,7 @@ describe("local advisor brief", () => {
     expect(brief.decisions[0].rationale).toContain("not a chance of a loss");
     expect(brief.decisions[0].procedure?.[0]).toBe("Open Grace Kim on Team.");
     expect(brief.decisions[0].procedure).toContain(
-      "Next split: move take payment from customers away from Sofia Delgado to Grace Kim. That closes the open duty conflict that stays open.",
+      "Next split: move take payment from customers away from Sofia Delgado to Rosa Alvarez. That closes the open duty conflict that stays open.",
     );
     expect(brief.decisions[0].procedure?.at(-1)).toContain("Change a vendor's bank details");
     // "Fix first" names the residual band (index 80 or more), not a severity.

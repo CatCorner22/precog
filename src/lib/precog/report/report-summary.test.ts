@@ -183,8 +183,11 @@ describe("executive summary", () => {
     expect(move!.held).toBe(held.length);
     expect(model.summary.slice(0, 2)).toEqual([
       "14 open duty conflicts, 3 of them critical, held by 4 people.",
-      "One person holds 7 of the 14 open duty conflicts; moving one duty, enter write-offs, to someone who holds none of the others closes 3 of them.",
+      "One person holds 7 of the 14 open duty conflicts.",
     ]);
+    expect(model.summary).toContain(
+      "First step: move one duty, record payments received, away from Diego Ramirez to Tom Becker: it closes 3 of the 14 open duty conflicts. Then move prepare bank deposit away from Keisha Moore to Nina Petrova. The two moves close 6 of the 14.",
+    );
   });
 
   /** The report model of `profile` as the report page builds it. */
@@ -214,7 +217,7 @@ describe("executive summary", () => {
       // 7 of the 16 and 5 of the 13 are no longer printed: a minority of the open conflicts.
       retail: null,
       professional_services: move(7, 14, "reconcile the bank account", 3),
-      restaurant: move(7, 14, "enter write-offs", 3),
+      restaurant: "One person holds 7 of the 14 open duty conflicts.",
       construction: move(8, 10, "reconcile the bank account", 3),
       automotive: move(14, 22, "reconcile the bank account", 5),
       nonprofit: move(15, 19, "reconcile the bank account", 5),

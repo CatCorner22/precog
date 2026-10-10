@@ -41,9 +41,13 @@ interface SummaryInput {
   firstStep: string | null;
   /**
    * `concentrationMove` of `conflicts.findings`, when the caller has already
-   * worked it out; worked out here when absent.
+   * worked it out; worked out here when absent. The duty clause is printed
+   * only when that duty is the move the first step names. Pass false to state
+   * the share and leave the duty to the first step.
    */
   move?: ConcentrationMove | null;
+  /** False: the share sentence names no duty. Absent: the sentence names `move`'s duty. */
+  nameDuty?: boolean;
   registerReady: boolean;
   coverageIndex: number;
   criticalSinglePoints: number;
@@ -87,9 +91,11 @@ export function executiveSummary(input: SummaryInput): string[] {
     );
     const move = input.move === undefined ? concentrationMove(findings) : input.move;
     if (move) {
-      lines.push(
-        `One person holds ${move.held} of the ${open} open duty conflicts; moving one duty, ${midSentence(move.dutyLabel)}, to someone who holds none of the others closes ${move.closes} of them.`,
-      );
+      const clause =
+        input.nameDuty === false
+          ? ""
+          : `; moving one duty, ${midSentence(move.dutyLabel)}, to someone who holds none of the others closes ${move.closes} of them`;
+      lines.push(`One person holds ${move.held} of the ${open} open duty conflicts${clause}.`);
     }
   }
   if (input.firstStep) lines.push(`First step: ${midSentence(input.firstStep)}.`);

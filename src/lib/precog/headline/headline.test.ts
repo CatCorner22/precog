@@ -235,7 +235,9 @@ describe("rankedActionPlan", () => {
       expect(plan.length).toBeGreaterThan(0);
       const keys = plan.flatMap((s) => s.keys);
       expect(new Set(keys).size).toBe(keys.length);
-      const tiers = plan.map((s) => TIER[s.tier]);
+      const tiers = (plan[0]?.source === "concentration" ? plan.slice(1) : plan).map(
+        (s) => TIER[s.tier],
+      );
       expect(tiers).toEqual([...tiers].sort((a, b) => a - b));
       for (const step of plan) {
         expect(step.what).not.toMatch(/camera|premium credit/i);
@@ -258,12 +260,12 @@ describe("rankedActionPlan", () => {
       weekly: report.actions,
     });
     expect(first).toMatchObject({
-      who: "Keisha Moore",
-      what: "Move enter write-offs from Keisha to Tom Becker",
+      who: "Diego Ramirez",
+      what: "Move one duty, record payments received, away from Diego Ramirez to Tom Becker: it closes 3 of the 14 open duty conflicts. Then move prepare bank deposit away from Keisha Moore to Nina Petrova. The two moves close 6 of the 14",
       minutes: 60,
-      closes: 3,
+      closes: 6,
       source: "concentration",
-      tier: "critical",
+      tier: "high",
     });
     // The move is the "split one duty out" control, so that control is not listed again.
     expect(first.keys).toContain("control:split-one-duty-out");

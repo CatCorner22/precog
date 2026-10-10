@@ -35,6 +35,7 @@ import {
 } from "../sod/open-findings";
 import { openConflictHeadline } from "../headline/open-conflicts";
 import { rankedFirstSteps } from "../actions/do-next";
+import { chooseSplitSequence } from "../sod/duty-split";
 import { buildWeeklyActions } from "../weekly-actions/build";
 import { buildProcessMapGraph } from "../process-graph";
 import { scoreMap } from "../builder/scored-map";
@@ -178,6 +179,12 @@ export function buildControlReportModel({
   const inPlace = setupInPlaceControls(profile.setupAnswers);
   // The concentration move, worked out once for the step list and the summary.
   const move = concentrationMove(open);
+  const plan = chooseSplitSequence(open, sod.assignments, profile.staff.teamSize);
+  const nameDuty =
+    !!plan &&
+    plan.first.net > 0 &&
+    plan.first.personId === move?.personId &&
+    plan.first.duty === move?.duty;
   const steps = rankedFirstSteps(open, profile.industry, (id) => inPlace.has(id), move, {
     assignments: sod.assignments,
     teamSize: profile.staff.teamSize,
@@ -207,6 +214,7 @@ export function buildControlReportModel({
     conflicts: openConflictHeadline(sod, partialCoverage),
     firstStep: steps[0]?.control.label ?? null,
     move,
+    nameDuty,
     registerReady,
     coverageIndex: continuity.coverageIndex,
     criticalSinglePoints: criticalSinglePoints(tpl).count,
